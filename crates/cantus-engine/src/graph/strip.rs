@@ -76,6 +76,9 @@ pub(crate) struct StripSlot {
     /// Automated fader and pan ramping (ADR 0027).
     pub gain_ramp: Option<Ramp>,
     pub pan_ramp: Option<Ramp>,
+    /// The output's peak since the last control point, for a modulator that follows the
+    /// strip (ADR 0057); the control phase reads and empties it.
+    pub follow_peak: f32,
 }
 
 impl StripSlot {
@@ -114,6 +117,7 @@ impl StripSlot {
             dry_line: [None; MAX_EFFECTS_PER_TRACK],
             gain_ramp: None,
             pan_ramp: None,
+            follow_peak: 0.0,
         }
     }
 

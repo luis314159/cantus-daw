@@ -94,6 +94,8 @@ impl CantusApp {
         if let Some(t) = AutoTarget::of_command(cmd) {
             self.automation.last_tweaked = Some(t);
         }
+        // Written into the pass's automation while one records it (ADR 0057).
+        self.record_tweak(cmd);
     }
 
     /// FL's *Tools ▸ Last tweaked ▸ Create automation clip*.
@@ -123,8 +125,13 @@ impl CantusApp {
             return false;
         };
         let (start, end) = self.automation_span();
-        let pos = range.pos(value);
-        let name = target_name(project, &target);
+        // A hosted parameter's curve is its normalised value (ADR 0057): where it is now.
+        let pos = if target.is_plugin() {
+            self.plugin_pos(&target).unwrap_or(0.0)
+        } else {
+            range.pos(value)
+        };
+        let name = self.target_name(&target);
         let points = vec![
             AutoPoint::new(Ticks::ZERO, pos),
             AutoPoint::new(end - start, pos),
@@ -199,10 +206,17 @@ pub fn host_track(
         | AutoTarget::StripPan(s)
         | AutoTarget::StripWidth(s)
         | AutoTarget::Send { strip: s, .. } => feeding(*s),
-        AutoTarget::Effect { effect, .. } => project
+        AutoTarget::Effect { effect, .. } | AutoTarget::Plugin { effect, .. } => project
             .effect_host(*effect)
             .filter(|h| !h.is_master())
             .and_then(feeding),
+        AutoTarget::PluginInstrument { track: t, .. } => Some(*t),
+        // A modulator's amount: under the track it lives on (or that feeds its strip).
+        AutoTarget::ModAmount(m) => match project.modulator(*m).map(|(h, _, _)| h) {
+            Some(cantus_core::ModHost::Track(t)) => Some(t),
+            Some(cantus_core::ModHost::Strip(s)) => feeding(s),
+            _ => None,
+        },
         AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => None,
     };
     own.filter(|t| project.track(*t).is_some())
@@ -285,6 +299,36 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
                 .unwrap_or_else(|| t("auto.target.missing"));
             (device, param())
         }
+        // A hosted plug-in's parameter: the plug-in's name, and the parameter by its id
+        // (the application names it from the plug-in's own list: `CantusApp::target_name`).
+        AutoTarget::Plugin { effect, id } => {
+            let device = project
+                .effect_host(*effect)
+                .and_then(|h| project.effect(h, *effect))
+                .and_then(|e| e.spec.external.as_deref())
+                .map(|x| x.name.clone())
+                .unwrap_or_else(|| t("auto.target.missing"));
+            (
+                device,
+                tf("mods.target.param_id", &[("id", &id.to_string())]),
+            )
+        }
+        AutoTarget::PluginInstrument { track: tr, id } => {
+            let device = project
+                .track(*tr)
+                .and_then(|x| x.instrument.external())
+                .map(|x| x.name.clone())
+                .unwrap_or_else(|| t("auto.target.missing"));
+            (
+                device,
+                tf("mods.target.param_id", &[("id", &id.to_string())]),
+            )
+        }
+        AutoTarget::ModAmount(m) => {
+            let name = crate::views::modulator::mod_name(project, *m)
+                .unwrap_or_else(|| t("auto.target.missing"));
+            (name, t("mods.target.amount"))
+        }
     }
 }
 
@@ -319,7 +363,12 @@ pub fn write_value(project: &Project, target: &AutoTarget, v: f32, out: &mut Str
                 p => write!(out, "R {p}"),
             };
         }
-        AutoTarget::StripWidth(_) | AutoTarget::MasterWidth | AutoTarget::Send { .. } => {
+        AutoTarget::StripWidth(_)
+        | AutoTarget::MasterWidth
+        | AutoTarget::Send { .. }
+        | AutoTarget::Plugin { .. }
+        | AutoTarget::PluginInstrument { .. }
+        | AutoTarget::ModAmount(_) => {
             let _ = write!(out, "{:.0} %", v * 100.0);
         }
         AutoTarget::TrackGain(_) | AutoTarget::StripGain(_) | AutoTarget::MasterGain => {

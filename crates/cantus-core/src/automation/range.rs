@@ -150,6 +150,18 @@ pub const PAN: AutoRange = AutoRange::linear(-1.0, 1.0, 0.0);
 pub const WIDTH: AutoRange = AutoRange::linear(0.0, MAX_WIDTH, 1.0);
 /// A send's level, linear.
 pub const SEND: AutoRange = AutoRange::linear(0.0, 1.0, 1.0);
+/// A hosted plug-in's parameter, normalised: the unit maps it onto the plug-in's own range.
+pub const NORMAL: AutoRange = AutoRange::linear(0.0, 1.0, 0.0);
+/// A modulator's amount.
+pub const AMOUNT: AutoRange = AutoRange::linear(0.0, 1.0, 1.0);
+
+/// A hosted insert's slot, when `effect` is one.
+fn hosted_slot(project: &Project, effect: crate::EffectId) -> Option<&crate::EffectSlot> {
+    let host = project.effect_host(effect)?;
+    project
+        .effect(host, effect)
+        .filter(|e| e.spec.external.is_some())
+}
 
 /// A target's range in `project`, or `None` when it names nothing that exists (a removed
 /// effect, a key the instrument does not have, a send that is gone).
@@ -198,6 +210,18 @@ pub fn range_of(project: &Project, target: &AutoTarget) -> Option<AutoRange> {
             let i = param.info();
             AutoRange::of_info(i.min, i.max, i.default, i.logarithmic, i.stepped)
         }
+        AutoTarget::Plugin { effect, .. } => {
+            hosted_slot(project, *effect)?;
+            NORMAL
+        }
+        AutoTarget::PluginInstrument { track, .. } => {
+            project.track(*track)?.instrument.external()?;
+            NORMAL
+        }
+        AutoTarget::ModAmount(m) => {
+            project.modulator(*m)?;
+            AMOUNT
+        }
     })
 }
 
@@ -228,6 +252,17 @@ pub fn base_value(project: &Project, target: &AutoTarget) -> Option<f32> {
         AutoTarget::Firmus { track, param } => {
             param.get(project.track(*track)?.instrument.firmus()?)
         }
+        // A hosted plug-in's value is the plug-in's own (its range is the unit's): NaN
+        // says so, and the unit keeps what the project holds for it.
+        AutoTarget::Plugin { effect, .. } => {
+            hosted_slot(project, *effect)?;
+            f32::NAN
+        }
+        AutoTarget::PluginInstrument { track, .. } => {
+            project.track(*track)?.instrument.external()?;
+            f32::NAN
+        }
+        AutoTarget::ModAmount(m) => project.modulator(*m)?.2.amount,
     })
 }
 

@@ -58,6 +58,7 @@ impl Processor {
             Some(p) => balance_gains(p),
             None => (strip.l, strip.r),
         };
+        let mut pass_peak = 0f32;
         for (i, frame) in out.chunks_exact_mut(channels).enumerate() {
             let (g, ml, mr) = match master_ramp {
                 Some(k0) => {
@@ -80,9 +81,12 @@ impl Processor {
                 *s *= g * pan * strip.sign;
                 if ch < 2 {
                     peaks[ch] = peaks[ch].max(s.abs());
+                    pass_peak = pass_peak.max(s.abs());
                 }
             }
         }
+        // What a modulator following the master hears (ADR 0057).
+        self.auto.follow_master = self.auto.follow_master.max(pass_peak);
         // The master's loudness (ADR 0052): the mix as it leaves the master strip, read into
         // the scratch lanes the click uses next (it writes them before it reads them).
         {

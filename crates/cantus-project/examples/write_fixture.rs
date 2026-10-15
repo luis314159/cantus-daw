@@ -482,10 +482,163 @@ fn main() {
     }
     // And its pitch lane shown under it.
     p.tracks[vocal_index].pitch_open = true;
+    // Schema 28 (round 28, ADR 0057): modulators. On the Keys track, an LFO (a dotted
+    // eighth, triangle) on the delay's mix and, inverted, on the hosted return's parameter
+    // 1024; on the Keys strip, an envelope from the Keys notes ducking its fader; on the
+    // master, a follower listening to the Drums strip on the master's width; on the Synth
+    // track, a step sequence on its hosted instrument's parameter 7; a random source
+    // nested into the LFO's amount; and a curve on the hosted return's parameter 0.
+    {
+        use cantus_core::modulator::*;
+        let hosted_fx = p
+            .strip(ret)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.spec.external.is_some())
+            .unwrap()
+            .id;
+        let synth_id = p.tracks.iter().find(|t| t.name == "Synth").unwrap().id;
+        let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+        lfo.name = "Wobble".into();
+        if let ModSource::Lfo(l) = &mut lfo.source {
+            l.shape = LfoShape::Triangle;
+            l.rate = ModRate::Sync { division: 9 };
+            l.phase = 0.25;
+        }
+        lfo.routes = vec![
+            ModRoute {
+                target: AutoTarget::Effect {
+                    effect: delay_id,
+                    key: "mix".into(),
+                },
+                depth: 0.3,
+            },
+            ModRoute {
+                target: AutoTarget::Plugin {
+                    effect: hosted_fx,
+                    id: 1024,
+                },
+                depth: -0.4,
+            },
+        ];
+        let lfo_id = lfo.id;
+        p.tracks[0].modulators.push(lfo);
+        let mut env = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Envelope);
+        env.routes.push(ModRoute {
+            target: AutoTarget::StripGain(strip1),
+            depth: -0.25,
+        });
+        p.strip_mut(strip1).unwrap().modulators.push(env);
+        let mut follow = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+        if let ModSource::Follower(f) = &mut follow.source {
+            f.listen = Listen::Strip(drums_strip);
+            f.gain_db = 6.0;
+        }
+        follow.routes.push(ModRoute {
+            target: AutoTarget::MasterWidth,
+            depth: -0.5,
+        });
+        p.master.modulators.push(follow);
+        let mut steps = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Step);
+        if let ModSource::Step(s) = &mut steps.source {
+            s.glide = 0.25;
+        }
+        steps.routes.push(ModRoute {
+            target: AutoTarget::PluginInstrument {
+                track: synth_id,
+                id: 7,
+            },
+            depth: 0.5,
+        });
+        let mut random = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Random);
+        if let ModSource::Random(r) = &mut random.source {
+            r.smooth = true;
+            r.seed = 28;
+        }
+        random.amount = 0.8;
+        random.routes.push(ModRoute {
+            target: AutoTarget::ModAmount(lfo_id),
+            depth: -0.5,
+        });
+        let synth = p.tracks.iter_mut().find(|t| t.name == "Synth").unwrap();
+        synth.modulators.push(steps);
+        synth.modulators.push(random);
+        let curve = p.make_automation_clip(
+            "Hosted 0",
+            AutoTarget::Plugin {
+                effect: hosted_fx,
+                id: 1024,
+            },
+            Ticks::beats(4),
+            Ticks::beats(4),
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.2),
+                AutoPoint::new(Ticks::beats(4), 0.9),
+            ],
+        );
+        p.tracks[0].clips.push(curve);
+    }
+    // Schema 29 (round 28, ADR 0058): the vocal comp — the take to beat 8, the older take
+    // after, the seam crossfading over 19 ticks (~10 ms at 96 BPM) — comp A playing and
+    // comp B keeping a window of its own, pitch edits and all; the record options' seam
+    // default at 15 ms and automation not recorded.
+    {
+        let vocal = &mut p.tracks[vocal_index];
+        let older = vocal.clips.iter().find(|c| c.lane == 1).cloned();
+        let edited = vocal
+            .clips
+            .iter()
+            .find(|c| c.lane == 0)
+            .and_then(|c| c.audio.as_ref())
+            .and_then(|a| a.pitch.clone());
+        if let (Some(left), Some(older)) = (vocal.clips.iter_mut().find(|c| c.lane == 0), older) {
+            left.length = Ticks::beats(4);
+            if let Some(a) = left.audio.as_mut() {
+                a.fade_out = Ticks::ZERO;
+            }
+            let mut right = older.clone();
+            right.lane = 0;
+            right.start = Ticks::beats(8);
+            right.length = Ticks::beats(4);
+            right.offset = older.offset + Ticks::beats(4);
+            let mut kept = right.clone();
+            if let Some(a) = right.audio.as_mut() {
+                a.xfade = Ticks(19);
+            }
+            if let Some(a) = kept.audio.as_mut() {
+                a.pitch = edited;
+            }
+            right.id = ClipId(next_id(&mut p.next_id));
+            kept.id = ClipId(next_id(&mut p.next_id));
+            let vocal = &mut p.tracks[vocal_index];
+            vocal.clips.push(right);
+            vocal.clips.sort_by_key(|c| (c.start, c.id));
+            vocal.comps = vec![
+                cantus_core::comp::Comp {
+                    name: "A".into(),
+                    windows: Vec::new(),
+                },
+                cantus_core::comp::Comp {
+                    name: "B".into(),
+                    windows: vec![kept],
+                },
+            ];
+        }
+        p.recording.comp_xfade_ms = 15.0;
+        p.recording.record_automation = false;
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
         .join(name);
     cantus_project::save(&p, &path, "fixture").expect("save fixture");
     println!("wrote {}", path.display());
+}
+
+/// A fresh id, as `Project::alloc_id` gives it, while the project is borrowed elsewhere.
+fn next_id(next: &mut u64) -> u64 {
+    let id = *next;
+    *next += 1;
+    id
 }

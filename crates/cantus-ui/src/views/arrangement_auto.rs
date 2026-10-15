@@ -830,6 +830,8 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
         Item::action(Src::Key("auto.track.pan")),
         Item::action(Src::Key("auto.track.level")),
     ];
+    // Modulation (ADR 0057): the same three, after the lanes' switch.
+    let modulate_at = items.len() + usize::from(has);
     if has {
         items.push(Item::Action {
             label: Src::Key("auto.lane.show"),
@@ -839,7 +841,25 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
             enabled: true,
         });
     }
-    let target = match crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
+    items.push(Item::Band(Src::Key("mods.menu.band")));
+    for key in ["mods.menu.volume", "mods.menu.pan", "mods.menu.level"] {
+        items.push(Item::action(Src::Key(key)));
+    }
+    let clicked = crate::kit::widgets::menu_list(ui, &items, 220.0).1.clicked;
+    if let Some(k) = clicked.and_then(|i| i.checked_sub(modulate_at + 1)) {
+        let target = match k {
+            0 => strip
+                .map(AutoTarget::StripGain)
+                .unwrap_or(AutoTarget::TrackGain(id)),
+            1 => strip
+                .map(AutoTarget::StripPan)
+                .unwrap_or(AutoTarget::TrackPan(id)),
+            _ => AutoTarget::TrackGain(id),
+        };
+        app.modulators.popup = Some((target, egui::Rect::NOTHING));
+        return true;
+    }
+    let target = match clicked {
         Some(1) => strip
             .map(AutoTarget::StripGain)
             .unwrap_or(AutoTarget::TrackGain(id)),

@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(41) {
+    match rng.below(43) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -823,6 +823,12 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // moved, split, joined, stretched, corrected, the key, A/B, cleared — and the
         // refused ones (an edit that is not valid, a clip that is not audio).
         40 if tracks > 0 => pitch_command(rng, project),
+        // Round 28 (ADR 0057): modulators made, removed and edited on tracks, strips and
+        // the master — sources, routes, depths, nesting — and the refused ones.
+        41 => modulator_command(rng, project),
+        // Round 28 (ADR 0058): comp seams moved as a unit (and refused where there is no
+        // seam), seam crossfades set, alternate comps kept with their windows.
+        42 if tracks > 0 => comp_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -1712,7 +1718,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut routed = [0usize; 14];
     // Pitch edits applied (ADR 0054): set, and cleared.
     let mut pitched = [0usize; 2];
-    for seed in 1..=40u64 {
+    for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
@@ -2098,5 +2104,199 @@ fn pitch_command(rng: &mut Lcg, project: &mut Project) -> Command {
         clip: clip.id,
         pitch: Some(Box::new(e)),
         op,
+    }
+}
+
+/// A target a modulator can drive in `project` (or, one time in ten, a stale one).
+fn mod_target(rng: &mut Lcg, project: &Project) -> AutoTarget {
+    let strip = || project.strips.first().map(|s| s.id);
+    match rng.below(10) {
+        0 => AutoTarget::MasterGain,
+        1 => AutoTarget::MasterWidth,
+        2 if !project.tracks.is_empty() => {
+            AutoTarget::TrackPan(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+        }
+        3 if !project.strips.is_empty() => AutoTarget::StripGain(strip_at(rng, project)),
+        4 if !project.strips.is_empty() => AutoTarget::StripPan(strip_at(rng, project)),
+        5 => match project.all_modulators().nth(rng.below(4) as usize) {
+            Some((_, m)) => AutoTarget::ModAmount(m.id),
+            None => AutoTarget::MasterPan,
+        },
+        6 => AutoTarget::Plugin {
+            effect: EffectId(rng.below(50)),
+            id: rng.below(8) as u32,
+        },
+        7 => match strip() {
+            Some(s) => AutoTarget::Send {
+                strip: s,
+                to: strip_at(rng, project),
+            },
+            None => AutoTarget::MasterPan,
+        },
+        9 => AutoTarget::TrackGain(TrackId(9_999_999)),
+        _ => AutoTarget::MasterPan,
+    }
+}
+
+/// One modulator command, as the Modulators panel, *Modulate…* and a depth drag issue
+/// them: a new modulator on a track, a strip or the master with routes; one removed; one
+/// edited (a source setting, a route added or removed, a depth, muted, renamed). One time
+/// in eight the edit is not valid, or names a modulator that is not there (refused).
+fn modulator_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::modulator::*;
+    let existing: Vec<Modulator> = project.all_modulators().map(|(_, m)| m.clone()).collect();
+    let pick = rng.below(4);
+    if pick == 0 || existing.is_empty() {
+        let host = match rng.below(3) {
+            0 if !project.tracks.is_empty() => {
+                ModHost::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+            }
+            1 if !project.strips.is_empty() => ModHost::Strip(strip_at(rng, project)),
+            _ => ModHost::Master,
+        };
+        let kind = ModKind::ALL[rng.below(5) as usize];
+        let mut m = Modulator::new(ModulatorId(project.alloc_id()), kind);
+        for _ in 0..rng.below(4) {
+            let target = mod_target(rng, project);
+            if m.route(&target).is_none() && target != AutoTarget::ModAmount(m.id) {
+                m.routes.push(ModRoute {
+                    target,
+                    depth: rng.f32(-1.0, 1.0),
+                });
+            }
+        }
+        let len = project.modulators(host).map_or(0, |l| l.len());
+        return Command::InsertModulator {
+            host,
+            index: rng.below(len as u64 + 1) as usize,
+            modulator: Box::new(m),
+        };
+    }
+    let m = &existing[rng.below(existing.len() as u64) as usize];
+    if pick == 1 {
+        return Command::RemoveModulator {
+            id: if rng.below(8) == 0 {
+                ModulatorId(8_888_888)
+            } else {
+                m.id
+            },
+        };
+    }
+    let mut e = m.clone();
+    match rng.below(7) {
+        0 => {
+            let target = mod_target(rng, project);
+            if e.route(&target).is_none() && target != AutoTarget::ModAmount(e.id) {
+                e.routes.push(ModRoute {
+                    target,
+                    depth: rng.f32(-1.0, 1.0),
+                });
+            }
+        }
+        1 if !e.routes.is_empty() => {
+            let i = rng.below(e.routes.len() as u64) as usize;
+            e.routes.remove(i);
+        }
+        2 if !e.routes.is_empty() => {
+            let i = rng.below(e.routes.len() as u64) as usize;
+            e.routes[i].depth = rng.f32(-1.0, 1.0);
+        }
+        3 => e.muted = !e.muted,
+        4 => e.amount = rng.f32(0.0, 1.0),
+        5 => e.name = format!("M{}", rng.below(100)),
+        _ => {
+            e.source = ModKind::ALL[rng.below(5) as usize].source();
+            match &mut e.source {
+                ModSource::Lfo(l) => {
+                    l.rate = if rng.below(2) == 0 {
+                        ModRate::Hz {
+                            hz: rng.f32(0.05, 20.0),
+                        }
+                    } else {
+                        ModRate::Sync {
+                            division: rng.below(17) as u8,
+                        }
+                    };
+                    l.retrigger = if rng.below(2) == 0 {
+                        Retrigger::Note
+                    } else {
+                        Retrigger::Song
+                    };
+                }
+                ModSource::Step(s) => {
+                    s.steps = (0..1 + rng.below(32)).map(|_| rng.f32(-1.0, 1.0)).collect();
+                    s.glide = rng.f32(0.0, 1.0);
+                }
+                ModSource::Envelope(env) => env.sustain = rng.f32(0.0, 1.0),
+                ModSource::Follower(f) => f.release_ms = rng.f32(1.0, 2000.0),
+                ModSource::Random(r) => r.seed = rng.below(1000) as u32,
+            }
+        }
+    }
+    if rng.below(8) == 0 {
+        e.amount = 3.0; // not valid: refused
+    }
+    Command::SetModulator {
+        modulator: Box::new(e),
+    }
+}
+
+/// One comping command: a seam between two lane-0 clips of a track moved (or, one time in
+/// four, two clips that do not meet: refused), a window's seam crossfade set (now and then
+/// beyond the most: refused), or the track's comps replaced — a copy of a lane-0 clip kept
+/// under a fresh id in a second comp, or an empty list.
+fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::comp::{letter, Comp};
+    let ti = rng.below(project.tracks.len() as u64) as usize;
+    let track = project.tracks[ti].clone();
+    let lane0: Vec<&Clip> = track.clips.iter().filter(|c| c.lane == 0).collect();
+    match rng.below(3) {
+        0 if lane0.len() >= 2 => {
+            let i = rng.below(lane0.len() as u64 - 1) as usize;
+            let (l, r) = (lane0[i], lane0[i + 1]);
+            let lo = l.start.0 + 1;
+            let hi = r.end().0.max(lo + 1);
+            Command::SetCompSeam {
+                track: track.id,
+                left: l.id,
+                right: r.id,
+                at: Ticks(lo + rng.below((hi - lo) as u64) as i64),
+            }
+        }
+        1 => match lane0.iter().find(|c| c.audio.is_some()) {
+            Some(c) => {
+                let mut a = c.audio.clone().unwrap();
+                a.xfade = Ticks(rng.below(1200) as i64);
+                Command::SetClipAudio {
+                    track: track.id,
+                    clip: c.id,
+                    audio: Some(a),
+                }
+            }
+            None => Command::SetTrackComps {
+                track: track.id,
+                comps: Vec::new(),
+                active: 0,
+            },
+        },
+        _ => {
+            let mut comps = vec![Comp {
+                name: letter(0),
+                windows: Vec::new(),
+            }];
+            if let Some(c) = lane0.first() {
+                let mut w = (*c).clone();
+                w.id = ClipId(project.alloc_id());
+                comps.push(Comp {
+                    name: letter(1),
+                    windows: vec![w],
+                });
+            }
+            Command::SetTrackComps {
+                track: track.id,
+                active: if rng.below(8) == 0 { 7 } else { 0 },
+                comps,
+            }
+        }
     }
 }

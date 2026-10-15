@@ -16,7 +16,7 @@
 //! time per target are in the sub-modules.
 
 use crate::instrument::FirmusParam;
-use crate::model::{EffectId, StripId, TrackId};
+use crate::model::{EffectId, ModulatorId, StripId, TrackId};
 use crate::time::Ticks;
 use cantus_dsp::math;
 use serde::{Deserialize, Serialize};
@@ -63,9 +63,33 @@ pub enum AutoTarget {
         track: TrackId,
         param: FirmusParam,
     },
+    /// One parameter of a hosted plug-in in an insert (ADR 0057), by the plug-in's own
+    /// id. The curve is the plug-in's **normalised** value (0…1 of its range, rounded by
+    /// the unit for a stepped one): the project does not know a plug-in's ranges, the
+    /// hosted unit does.
+    Plugin {
+        effect: EffectId,
+        id: u32,
+    },
+    /// One parameter of a track's hosted instrument (ADR 0028/0057), normalised likewise.
+    PluginInstrument {
+        track: TrackId,
+        id: u32,
+    },
+    /// A modulator's amount (0…1): automation on it, or a second modulator — one level of
+    /// nesting (ADR 0057).
+    ModAmount(ModulatorId),
 }
 
 impl AutoTarget {
+    /// Whether it is a hosted plug-in's parameter (normalised; the unit maps it).
+    pub fn is_plugin(&self) -> bool {
+        matches!(
+            self,
+            AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }
+        )
+    }
+
     /// Whether the value is a level the engine multiplies by (dB on the fader's taper).
     pub fn is_gain(&self) -> bool {
         matches!(
@@ -111,9 +135,57 @@ impl AutoTarget {
                 track: *track,
                 param: *p,
             },
+            C::SetPluginParam {
+                effect,
+                id,
+                value: Some(_),
+                ..
+            } => AutoTarget::Plugin {
+                effect: *effect,
+                id: *id,
+            },
+            C::SetInstrumentPluginParam {
+                track,
+                id,
+                value: Some(_),
+            } => AutoTarget::PluginInstrument {
+                track: *track,
+                id: *id,
+            },
             C::Batch { commands, .. } => return commands.iter().rev().find_map(Self::of_command),
             _ => return None,
         })
+    }
+}
+
+impl AutoTarget {
+    /// The parameter a command sets and the value it sets it to, in the parameter's own
+    /// units (a hosted plug-in's in its own range): what recording automation writes
+    /// (ADR 0057). `None` for a command that sets none.
+    pub fn value_of_command(cmd: &crate::Command) -> Option<(AutoTarget, f64)> {
+        use crate::Command as C;
+        let target = AutoTarget::of_command(cmd)?;
+        let v = match cmd {
+            C::SetTrackGain { gain_db, .. } => f64::from(*gain_db),
+            C::SetTrackPan { pan, .. } => f64::from(*pan),
+            C::SetStripGain { gain_db, .. } => f64::from(*gain_db),
+            C::SetStripPan { pan, .. } => f64::from(*pan),
+            C::SetStripWidth { width, .. } => f64::from(*width),
+            C::SetStripSend { send, .. } => f64::from(send.level),
+            C::SetMasterGain { gain_db } => f64::from(*gain_db),
+            C::SetMasterPan { pan } => f64::from(*pan),
+            C::SetMasterWidth { width } => f64::from(*width),
+            C::SetEffectParam { value, .. } => f64::from(*value),
+            C::SetInstrumentValue { value, .. } => f64::from(*value),
+            C::SetInstrumentParam { value, .. } => f64::from(*value),
+            C::SetPluginParam { value: Some(v), .. } => *v,
+            C::SetInstrumentPluginParam { value: Some(v), .. } => *v,
+            C::Batch { commands, .. } => {
+                return commands.iter().rev().find_map(Self::value_of_command)
+            }
+            _ => return None,
+        };
+        v.is_finite().then_some((target, v))
     }
 }
 

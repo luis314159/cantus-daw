@@ -110,6 +110,8 @@ pub struct CellOut {
     pub done: bool,
     /// Its menu asked to automate it (create the clip, or open it).
     pub automate: bool,
+    /// What its modulation did (ADR 0057): *Modulate…*, a depth drag, a handle dropped.
+    pub modulation: Option<crate::kit::automate::Choice>,
 }
 
 impl<'a> Cell<'a> {
@@ -194,7 +196,19 @@ impl<'a> Cell<'a> {
         self.offer = Some(crate::kit::automate::Offer {
             automated,
             typing: true,
+            modulation: self.offer.and_then(|o| o.modulation),
         });
+        self
+    }
+    /// It can be modulated (ADR 0057): *Modulate…* in its menu, a modulator's handle
+    /// dropped on it, Alt+drag (or a mapping modulator's drag) for the depth, the live dot.
+    pub fn modulation(mut self, m: crate::kit::automate::ModOffer) -> Self {
+        let mut o = self.offer.unwrap_or(crate::kit::automate::Offer {
+            typing: true,
+            ..Default::default()
+        });
+        o.modulation = Some(m);
+        self.offer = Some(o);
         self
     }
 
@@ -217,7 +231,10 @@ impl<'a> Cell<'a> {
         } else {
             1.0
         };
-        if resp.dragged() {
+        // A depth drag (ADR 0057) moves the modulation, not the value.
+        let depth_drag = crate::kit::automate::depth_drag(ui, self.offer);
+        let mod_choice = crate::kit::automate::modulation_choice(ui, &resp, self.offer);
+        if resp.dragged() && !depth_drag {
             let d = resp.drag_delta();
             p += (d.x - d.y) * fine / TRAVEL_PX;
         }
@@ -255,7 +272,7 @@ impl<'a> Cell<'a> {
         } else {
             start
         };
-        let mut done = resp.drag_stopped() || keyed;
+        let mut done = (resp.drag_stopped() && !depth_drag) || keyed;
         if resp.double_clicked() {
             v = self.default;
             done = true;
@@ -325,6 +342,7 @@ impl<'a> Cell<'a> {
                                 value: look_value,
                                 default: look_default,
                                 rings: self.rings,
+                                live: self.offer.and_then(|o| o.modulation).and_then(|m| m.live),
                             }),
                             value: text,
                             label: self.label,
@@ -332,6 +350,16 @@ impl<'a> Cell<'a> {
                         cell::paint(b, rect, s, st, &l);
                         if self.offer.is_some_and(|o| o.automated) {
                             crate::kit::automate::mark(b, rect, s);
+                        }
+                        let m = self.offer.and_then(|o| o.modulation);
+                        if m.is_some_and(|m| m.depth.is_some() && !m.mapping) {
+                            crate::kit::automate::mod_mark(b, rect, s);
+                        }
+                        if m.is_some()
+                            && crate::kit::automate::handle_in_flight(ui.ctx())
+                            && resp.contains_pointer()
+                        {
+                            crate::kit::automate::drop_target(b, rect, s);
                         }
                     })
                 },
@@ -342,6 +370,10 @@ impl<'a> Cell<'a> {
             changed,
             done,
             automate: choice == Some(crate::kit::automate::Choice::Automate),
+            modulation: match choice {
+                Some(c @ crate::kit::automate::Choice::Modulate) => Some(c),
+                _ => mod_choice,
+            },
         }
     }
 }
@@ -448,11 +480,31 @@ pub fn param_with(
     if let Some(f) = format {
         c = c.format(f);
     }
-    // In Cantus, the parameter's menu and its automated mark (ADR 0027).
+    // In Cantus, the parameter's menu and its automated mark (ADR 0027), and its
+    // modulation (ADR 0057).
     if host.can_automate() {
         c = c.automation(host.automated(key));
     }
-    let out = c.show(ui, s);
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let base = crate::widgets::knob::pos_of(
+        spec.get(key),
+        info.min,
+        info.max,
+        if info.logarithmic {
+            Taper::Log
+        } else {
+            Taper::Linear
+        },
+    );
+    let modulation = host.modulation(key, base, s, &mut rings);
+    if let Some((m, _)) = modulation {
+        c = c.modulation(m);
+    }
+    let n = modulation.map_or(0, |(_, n)| n);
+    let out = c.rings(&rings[..n]).show(ui, s);
+    if let Some(choice) = out.modulation {
+        host.modulate(key, choice, out.resp.rect);
+    }
     if let Some(v) = out.changed {
         host.set(key, v, Some(key));
     }

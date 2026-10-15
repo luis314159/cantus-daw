@@ -39,7 +39,9 @@ unsafe impl Send for InEvents {}
 
 /// How many events one call can carry; the rest of a block's events are dropped (and the
 /// host sends at most one per parameter and a few notes, far below this).
-pub(crate) const IN_CAPACITY: usize = 1024;
+/// Room for a full pass of automation (ADR 0057: a value per 16 samples, for several
+/// parameters) and the notes beside it.
+pub(crate) const IN_CAPACITY: usize = 4096;
 
 fn header(size: usize, time: u32, type_: u16) -> clap_event_header {
     clap_event_header {
@@ -86,20 +88,22 @@ impl InEvents {
     }
 
     /// Fill with `params` and `notes`, each sorted by offset, merged into one time order.
-    /// Offsets at or past `frames` are moved to the last frame.
+    /// A parameter's offset is counted from `base` (the piece of a longer block this call
+    /// is); offsets at or past `frames` are moved to the last frame.
     pub fn fill(
         &mut self,
         params: &[ParamChange],
         notes: &[NoteEvent],
         frames: u32,
         dialects: NoteDialects,
+        base: u32,
     ) {
         self.clear();
         let last = frames.saturating_sub(1);
         let (mut i, mut j) = (0, 0);
         while i < params.len() || j < notes.len() {
-            let take_param =
-                j >= notes.len() || (i < params.len() && params[i].offset <= notes[j].offset);
+            let take_param = j >= notes.len()
+                || (i < params.len() && params[i].offset.saturating_sub(base) <= notes[j].offset);
             if take_param {
                 let p = params[i];
                 i += 1;
@@ -107,7 +111,7 @@ impl InEvents {
                     param: clap_event_param_value {
                         header: header(
                             size_of::<clap_event_param_value>(),
-                            p.offset.min(last),
+                            p.offset.saturating_sub(base).min(last),
                             CLAP_EVENT_PARAM_VALUE,
                         ),
                         param_id: p.id,

@@ -234,6 +234,7 @@ impl InstrumentUnit for HostedInstrument {
         }
         // The caller zeroed both: the plug-in's output written over them is its output
         // added, as the contract asks.
+        self.sync.merge();
         self.audio.process(
             Audio {
                 left: &mut left[..frames],
@@ -241,7 +242,7 @@ impl InstrumentUnit for HostedInstrument {
                 key: None,
                 transport: self.transport.as_ref(),
             },
-            &self.sync.pending,
+            &self.sync.merged,
             &self.notes,
             &mut self.sync.out,
         );
@@ -274,6 +275,14 @@ impl InstrumentUnit for HostedInstrument {
 
     fn stop(&mut self) {
         self.audio.stop();
+    }
+
+    fn automate(&mut self, offset: usize, id: u32, value: cantus_engine::fx::HostedValue) {
+        self.sync.automate(offset, id, value);
+    }
+
+    fn automation_replanned(&mut self) {
+        self.sync.replanned();
     }
 }
 

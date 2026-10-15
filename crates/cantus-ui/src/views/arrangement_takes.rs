@@ -188,6 +188,8 @@ pub(super) fn overlay(
         b.rect(band, Fill::Solid(with_alpha(t.selection, 0.28)));
         b.rrect_stroke(band, 0.0, 1.5 * s.k, t.selection);
     }
+    // The comp on the playing lane: seams, crossfades, take numbers (ADR 0058).
+    super::comp::paint(b, app, geo, rect, s);
 }
 
 /// The tick under a screen x, snapped to the arrangement's grid unless Ctrl is held.
@@ -210,6 +212,10 @@ pub(super) fn input(
 ) {
     let base = app.arrangement.track_height;
     let mods = ui.input(|i| i.modifiers);
+    // The seams' handles on the playing lane (ADR 0058).
+    super::comp::input(app, ui, geo, rect, s);
+    // Quick swipe off (Logic's): a drag selects time, a click selects the take.
+    let quick = app.project().recording.quick_swipe;
     let mut lanes: Vec<(TrackId, u8, Rect)> = Vec::new();
     for (i, track) in app.project().tracks.iter().enumerate() {
         let Some(row) = geo.rows.get(i) else { continue };
@@ -235,10 +241,18 @@ pub(super) fn input(
             Sense::click_and_drag(),
         );
         if resp.hovered() {
-            ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+            ui.ctx().set_cursor_icon(if quick {
+                egui::CursorIcon::Crosshair
+            } else {
+                egui::CursorIcon::Default
+            });
             hint::set_text(
                 ui.ctx(),
-                chrome::word("rec.lane_tip"),
+                chrome::word(if quick {
+                    "rec.lane_tip"
+                } else {
+                    "comping.lane_tip_off"
+                }),
                 "",
                 Caps {
                     menu: true,
@@ -282,7 +296,11 @@ pub(super) fn input(
             if let Some(sw) = sw.filter(|sw| sw.track == tid && sw.lane == lane) {
                 let (a, z) = (sw.from.min(sw.to), sw.from.max(sw.to));
                 if z > a {
-                    app.comp_swipe(tid, lane, a, z);
+                    if quick {
+                        app.comp_swipe(tid, lane, a, z);
+                    } else {
+                        app.set_time_selection(a, z);
+                    }
                 }
             }
         }
@@ -299,7 +317,11 @@ pub(super) fn input(
                     })
                     .map(|c| c.id);
                 if let Some(clip) = hit {
-                    app.promote_take_clip(tid, clip);
+                    if quick {
+                        app.promote_take_clip(tid, clip);
+                    } else {
+                        app.select_clip(tid, clip);
+                    }
                 }
             }
         }
@@ -338,6 +360,8 @@ pub(super) fn lane_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, la
         }
         _ => {}
     }
+    // The comps (ADR 0058): switch, new, flatten, merge, quick swipe, grouped, crossfades.
+    super::comp::comp_menu(app, ui, tid);
 }
 
 /// The lane's name: its first clip's, or "Take n" for a lane with none (rare: a gap a
@@ -396,9 +420,17 @@ pub(super) fn paint_headers(
         });
         let lamp = pos2(rect.left() + 22.0 * k, rect.center().y);
         led::paint(b, lamp, 8.0 * k, comped, s, Tok::Selection, Tok::Panel, 1.0);
+        // The first lane's header holds the comp's chip (ADR 0058).
+        let name_right = if lane == 1 {
+            let chip = super::comp::chip_rect(rect, k);
+            super::comp::paint_chip(b, track, chip, s);
+            chip.left() - 4.0 * k
+        } else {
+            rect.right() - 6.0 * k
+        };
         let name_box = Rect::from_min_max(
             pos2(lamp.x + 9.0 * k, rect.top()),
-            pos2(rect.right() - 6.0 * k, rect.bottom()),
+            pos2(name_right.max(lamp.x + 10.0 * k), rect.bottom()),
         );
         let ink = with_alpha(tint.on_large, if comped { 1.0 } else { 0.72 });
         let tx = match lane_name(track, lane) {
@@ -423,7 +455,6 @@ pub(super) fn header_input(
 ) {
     let base = app.arrangement.track_height;
     let n = app.project().track(tid).map(shown_lanes).unwrap_or(0);
-    let _ = s;
     for lane in 1..=n {
         let Some(r) = lane_row(row, lane, base) else {
             break;
@@ -458,5 +489,16 @@ pub(super) fn header_input(
         egui::Popup::context_menu(&resp)
             .frame(chrome::menu_frame())
             .show(|ui| lane_menu(app, ui, tid, lane));
+        if lane == 1 {
+            // The comp's chip, over the header (ADR 0058).
+            let face = Rect::from_min_max(
+                pos2(clip.left() + 1.0, r.top),
+                pos2(clip.right() - 1.0, r.top + r.height - 1.0),
+            );
+            let chip = super::comp::chip_rect(face, s.k);
+            if chip.intersects(clip) {
+                super::comp::chip_input(app, ui, tid, chip);
+            }
+        }
     }
 }

@@ -206,6 +206,7 @@ pub fn paint_part(b: &mut Brush, rect: Rect, s: &Style, part: Part, st: State) {
                 } else {
                     &[]
                 },
+                live: None,
             };
             if !look.rings.is_empty() {
                 // The ring's colour is a modulation source's: here, the modulation hue.

@@ -94,6 +94,22 @@ pub trait FxHost {
     }
     /// Create the automation clip of `key`, or open the one it has.
     fn automate(&mut self, _key: &str) {}
+    /// What `key`'s control knows of its modulation (ADR 0057) — its rings into `rings`
+    /// (how many), the depth a depth drag edits, the live position — with `base` its
+    /// position without modulation. `None` where the host has no modulators (a plug-in
+    /// host modulates through its own).
+    fn modulation(
+        &self,
+        _key: &str,
+        _base: f32,
+        _s: &crate::kit::Style,
+        _rings: &mut [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
+    ) -> Option<(crate::kit::automate::ModOffer, usize)> {
+        None
+    }
+    /// What `key`'s control did of its modulation (ADR 0057): *Modulate…*, a depth, a
+    /// handle dropped; `rect` is the control.
+    fn modulate(&mut self, _key: &str, _choice: crate::kit::automate::Choice, _rect: egui::Rect) {}
     /// Notes into a MIDI clip on a new drum track — something only a DAW can do. `notes`
     /// are (tick, velocity) at `pitch`. `None` when the host cannot; `Some(written)`.
     fn notes_to_clip(&mut self, _notes: &[(i64, u8)], _pitch: u8) -> Option<bool> {
@@ -383,6 +399,29 @@ impl FxHost for DawHost<'_> {
             effect: self.effect,
             key: key.to_string(),
         });
+    }
+
+    fn modulation(
+        &self,
+        key: &str,
+        base: f32,
+        s: &crate::kit::Style,
+        rings: &mut [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
+    ) -> Option<(crate::kit::automate::ModOffer, usize)> {
+        let target = cantus_core::AutoTarget::Effect {
+            effect: self.effect,
+            key: key.to_string(),
+        };
+        let base = self.app.base_pos(&target).unwrap_or(base);
+        Some(self.app.mod_offer(&target, base, s, rings))
+    }
+
+    fn modulate(&mut self, key: &str, choice: crate::kit::automate::Choice, rect: egui::Rect) {
+        let target = cantus_core::AutoTarget::Effect {
+            effect: self.effect,
+            key: key.to_string(),
+        };
+        self.app.modulation_choice(&target, choice, rect);
     }
 
     fn device_key(&self) -> Option<u64> {

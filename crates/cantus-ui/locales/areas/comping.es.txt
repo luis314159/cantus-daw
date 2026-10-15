@@ -1,1 +1,36 @@
 # comping — ronda 28: el comping de tomas. Cada clave de comping.en.txt tiene aquí su gemela.
+cmd.set_comp_seam = mover una costura de la composición
+cmd.set_track_comps = editar las composiciones
+cmd.comp_xfade = fundido de la costura
+cmd.comp_switch = cambiar de composición
+cmd.comp_duplicate = composición nueva
+cmd.comp_delete = borrar una composición
+cmd.comp_rename = renombrar una composición
+cmd.comp_flatten = consolidar la composición
+cmd.comp_merge = consolidar y fusionar la composición
+
+# Las costuras en el carril que suena.
+comping.seam = Costura de la composición
+comping.seam_tip = Arrastra para mover la costura (las dos tomas a la vez) · clic derecho para su fundido
+comping.menu.xfade = Fundido cruzado
+comping.xfade_off = Sin fundido
+comping.xfade_all = Usarlo en todas las costuras de la pista
+
+# La ficha de la composición y su menú.
+comping.chip = Comp. {name}
+comping.chip_tip = La composición que suena: cambiar, nueva, renombrar, consolidar, fusionar
+comping.menu.comps = Composiciones
+comping.new = Composición nueva (una copia)
+comping.rename = Renombrar la composición…
+comping.delete = Borrar la composición {name}
+comping.flatten = Consolidar (quitar las tomas)
+comping.merge = Consolidar y fusionar en un solo clip
+comping.quick_swipe = Composición rápida al arrastrar
+comping.grouped = Componer juntas las pistas agrupadas
+comping.menu.xfade_all = Fundido de las costuras
+comping.lane_tip_off = La composición rápida está apagada: arrastrar selecciona tiempo · clic selecciona la toma
+
+# Fusionar.
+rec.merge_nothing = Nada que fusionar: la composición no tiene ventanas de audio
+rec.merge_failed = No se pudo fusionar la composición: {error}
+rec.merged = Composición fusionada en un solo clip

@@ -263,6 +263,8 @@ pub struct CantusApp {
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
     /// them, the large editor's state.
     pub automation: crate::automation::AutoUi,
+    /// Modulators in the interface (ADR 0057): mapping, the open lists, folded panels.
+    pub modulators: views::modulator::ModUi,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
 }
@@ -577,6 +579,7 @@ impl CantusApp {
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
+            modulators: Default::default(),
             pitch: Default::default(),
         };
         app.select_first();
@@ -2130,6 +2133,16 @@ impl CantusApp {
                     Vec::new(),
                 );
             }
+            // A comp window's edge at a seam moves the seam: both sides (ADR 0058).
+            let seam = match result {
+                ClipDragResult::TrimStart { delta } => Some((true, delta)),
+                ClipDragResult::TrimEnd { delta } => Some((false, delta)),
+                _ => None,
+            }
+            .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
+            if let Some(cmd) = seam {
+                return (vec![cmd], Vec::new());
+            }
             match result {
                 ClipDragResult::Move { delta, rows, copy } => {
                     clips::transpose_selection(project, &sel, delta, rows, copy, link, ids)
@@ -3523,7 +3536,10 @@ impl CantusApp {
         self.poll_samples(ctx);
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
+        let rev = self.bus.revision();
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
+        // What their windows moved: last tweaked, and recorded automation (ADR 0057).
+        self.host_tweaks(rev);
         self.host_notices(notices);
         self.pump_capture();
         self.pump_analyser();
@@ -3573,6 +3589,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
+        views::modulator::popup::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
         views::update::frame(self, ctx);

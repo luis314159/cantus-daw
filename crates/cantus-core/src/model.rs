@@ -34,6 +34,7 @@ id_type!(StripId, "s");
 id_type!(GroupId, "g");
 id_type!(AudioSourceId, "a");
 id_type!(LinkId, "l");
+id_type!(ModulatorId, "m");
 
 impl StripId {
     /// The master, wherever an effect's host is named by a strip id (ADR 0026): effect
@@ -498,6 +499,17 @@ pub struct Track {
     /// notes, editable in place.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pitch_open: bool,
+    /// The track's modulators (ADR 0057): LFOs, envelopes, followers, steps and random
+    /// sources driving any parameter. Schema 28; empty is every older project.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
+    /// The track's alternate comps (schema 29, ADR 0058): Logic's A/B/C. Empty — every
+    /// older project — is the one comp lane 0 holds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comps: Vec<crate::comp::Comp>,
+    /// Which of `comps` plays (its windows are lane 0's).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub active_comp: u8,
 }
 
 fn is_true(x: &bool) -> bool {
@@ -806,6 +818,9 @@ pub struct MixerStrip {
     /// The group whose separator the strip sits behind, if any.
     #[serde(default)]
     pub group: Option<GroupId>,
+    /// The strip's modulators (ADR 0057, schema 28).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
 }
 
 impl MixerStrip {
@@ -940,6 +955,9 @@ pub struct Master {
     /// The whole master chain in or out.
     #[serde(default = "yes")]
     pub fx_enabled: bool,
+    /// The master's modulators (ADR 0057, schema 28).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
 }
 
 fn yes() -> bool {
@@ -955,6 +973,7 @@ impl Default for Master {
             phase_invert: false,
             effects: Vec::new(),
             fx_enabled: true,
+            modulators: Vec::new(),
         }
     }
 }
@@ -1390,6 +1409,9 @@ impl Project {
             takes_open: false,
             automation_open: true,
             pitch_open: false,
+            modulators: Vec::new(),
+            comps: Vec::new(),
+            active_comp: 0,
         }
     }
 
@@ -1412,6 +1434,7 @@ impl Project {
             color: None,
             dock: Dock::Middle,
             group: None,
+            modulators: Vec::new(),
         }
     }
 

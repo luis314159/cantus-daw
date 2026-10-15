@@ -194,6 +194,12 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     fn configure_hosted(&mut self, _plugin: &ExternalPlugin) {}
     /// Where the song is, before each segment is processed (tempo, position, loop).
     fn set_position(&mut self, _position: &crate::fx::SongPosition) {}
+    /// A hosted instrument's parameter driven by automation or modulators (ADR 0057),
+    /// `offset` samples into the next `process` call: [`crate::fx::FxUnit::automate`]'s
+    /// twin. Default: ignored.
+    fn automate(&mut self, _offset: usize, _id: u32, _value: crate::fx::HostedValue) {}
+    /// [`crate::fx::FxUnit::automation_replanned`]'s twin.
+    fn automation_replanned(&mut self) {}
     /// What the instrument's own editor did during the last `process` (a hosted plug-in's
     /// window): gestures and values for the host to record as commands.
     fn param_events(&self) -> &[crate::fx::FxParamEvent] {
@@ -284,6 +290,9 @@ pub struct NativeUnit {
     /// the one the engine holds now.
     pub serial: u64,
     pub unit: Box<dyn InstrumentUnit>,
+    /// A hosted instrument's timed parameter changes for the next pass (ADR 0057): room
+    /// only for a hosted unit.
+    pub automation: crate::modulator::AutoQueue,
 }
 
 static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
@@ -296,6 +305,7 @@ impl NativeUnit {
             kind: UnitKind::Native(kind),
             serial: next_serial(),
             unit: make(kind, sample_rate),
+            automation: crate::modulator::AutoQueue::default(),
         }
     }
 
@@ -307,6 +317,7 @@ impl NativeUnit {
             kind: UnitKind::Hosted(key),
             serial: next_serial(),
             unit,
+            automation: crate::modulator::AutoQueue::with_capacity(crate::modulator::HOSTED_QUEUE),
         }
     }
 }

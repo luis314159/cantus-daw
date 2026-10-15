@@ -274,6 +274,19 @@ pub(super) fn add_clips(
         }
         let gain = c.gain;
         let faded = fade_in > 0 || fade_out > 0;
+        // A comp seam (ADR 0058): the stretch crossed over, in samples, rounded from its
+        // ticks the same way for both windows, so one fades out over exactly the samples
+        // the other fades in on — equal power at every one of them.
+        let stretch = |x: Option<(cantus_core::Ticks, cantus_core::Ticks)>| {
+            x.map(|(a, b)| {
+                let (a, b) = (
+                    sample_of(a.0 as f64, origin, tps),
+                    sample_of(b.0 as f64, origin, tps),
+                );
+                (a, (b - a).max(1))
+            })
+        };
+        let (xin, xout) = (stretch(c.xin), stretch(c.xout));
         for s in from..to {
             let j = s - start;
             let src = if c.reverse {
@@ -292,6 +305,18 @@ pub(super) fn add_clips(
                 (x, x)
             };
             let mut g = gain;
+            if let Some((a, n)) = xin {
+                if s < a + n {
+                    let u = ((s - a).max(0) as f32 + 0.5) / n as f32;
+                    g *= cantus_dsp::math::sin(std::f32::consts::FRAC_PI_2 * u);
+                }
+            }
+            if let Some((a, n)) = xout {
+                if s >= a {
+                    let u = ((s - a) as f32 + 0.5) / n as f32;
+                    g *= cantus_dsp::math::cos(std::f32::consts::FRAC_PI_2 * u.min(1.0));
+                }
+            }
             if faded {
                 if j < fade_in {
                     g *= c.fade_in_curve.gain(j as f32 / fade_in as f32);

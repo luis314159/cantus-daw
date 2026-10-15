@@ -438,6 +438,10 @@ pub fn wanted_height(app: &CantusApp) -> Option<f32> {
 /// What a cell asked for this frame, applied once the drawing is done.
 enum Change {
     Set(u32, f64, bool),
+    /// A parameter's menu asked to automate it (ADR 0057: hosted parameters too).
+    Automate(u32),
+    /// What its modulation did (ADR 0057), at the cell's rect.
+    Mod(u32, crate::kit::automate::Choice, egui::Rect),
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -622,8 +626,24 @@ fn body_ui(
                             let (Some(spec), true) = (spec, p.max != p.min) else {
                                 continue;
                             };
-                            let value = shown_value(spec, Some(h), p);
+                            let mut value = shown_value(spec, Some(h), p);
                             let (lo, hi) = (p.min.min(p.max), p.max.max(p.min));
+                            // Automation and modulation of a hosted parameter (ADR 0057):
+                            // the curve is its normalised value; the cell shows where the
+                            // song has it, wears the marks, offers the menu.
+                            let target = cantus_core::AutoTarget::Plugin { effect, id: p.id };
+                            let automated = app.automated_value(&target);
+                            if let Some(pos) = automated.filter(|x| x.is_finite()) {
+                                value = lo + f64::from(pos) * (hi - lo);
+                            }
+                            let base = if hi > lo {
+                                ((value - lo) / (hi - lo)) as f32
+                            } else {
+                                0.0
+                            };
+                            let mut rings = [(0.0, egui::Color32::TRANSPARENT);
+                                crate::views::modulator::MAX_RINGS];
+                            let (offer, n_rings) = app.mod_offer(&target, base, s, &mut rings);
                             // The plug-in's words for the value, asked once per value.
                             let bits = value.to_bits();
                             let entry = texts.entry(p.id).or_insert((u64::MAX, String::new()));
@@ -646,6 +666,9 @@ fn body_ui(
                                     .label(Src::Str(&p.name))
                                     .name(&p.name)
                                     .format(&fmt)
+                                    .automation(automated.is_some())
+                                    .modulation(offer)
+                                    .rings(&rings[..n_rings])
                                     .show(ui, s)
                                 })
                                 .inner;
@@ -654,6 +677,12 @@ fn body_ui(
                             }
                             if out.done {
                                 changes.push(Change::Set(p.id, f64::NAN, true));
+                            }
+                            if out.automate {
+                                changes.push(Change::Automate(p.id));
+                            }
+                            if let Some(c) = out.modulation {
+                                changes.push(Change::Mod(p.id, c, out.resp.rect));
                             }
                         }
                     }
@@ -669,6 +698,10 @@ fn body_ui(
                 } else {
                     app.set_plugin_param(strip, effect, id, v, true);
                 }
+            }
+            Change::Automate(id) => app.automate(cantus_core::AutoTarget::Plugin { effect, id }),
+            Change::Mod(id, c, r) => {
+                app.modulation_choice(&cantus_core::AutoTarget::Plugin { effect, id }, c, r)
             }
         }
     }

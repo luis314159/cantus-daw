@@ -591,6 +591,8 @@ impl CantusApp {
                 pass_from: 0,
             })
             .collect();
+        // Automation is written from here (ADR 0057).
+        self.begin_automation_pass();
         self.rec.pass = Some(Live {
             plan,
             transport_start,
@@ -640,6 +642,8 @@ impl CantusApp {
         plan.stop_at = at;
         plan.last_pass = self.recorder.pass();
         self.finish_pass(plan, takes, notes);
+        // The parameters moved while it recorded, as automation clips (ADR 0057).
+        self.commit_recorded_automation(at);
         if live.audio {
             self.journal_pass_finished();
         }
@@ -881,6 +885,187 @@ impl CantusApp {
         self.exec_built("cmd.explode_takes", |p, ids| {
             crate::comping::explode_takes(p, track, &word, ids)
         });
+    }
+
+    // ---- seams and alternate comps (ADR 0058) --------------------------------------------
+
+    /// Move the seam between two comp windows to `at`, both sides at once; a drag merges
+    /// into one undo step.
+    pub fn move_comp_seam(
+        &mut self,
+        track: TrackId,
+        left: cantus_core::ClipId,
+        right: cantus_core::ClipId,
+        at: Ticks,
+        drag: bool,
+    ) -> bool {
+        let cmd = Command::SetCompSeam {
+            track,
+            left,
+            right,
+            at,
+        };
+        if drag {
+            let key = cantus_core::MergeKey::of(&("comp-seam", track.0, left.0, right.0));
+            self.exec_merging(cmd, key)
+        } else {
+            self.exec(cmd)
+        }
+    }
+
+    /// Set the crossfade of the seam into `right` — or of every seam of the track.
+    pub fn set_seam_xfade(&mut self, track: TrackId, right: Option<cantus_core::ClipId>, x: Ticks) {
+        self.exec_built("cmd.comp_xfade", |p, _| {
+            crate::comping::set_seam_xfade(p, track, right, x)
+        });
+    }
+
+    pub fn switch_comp(&mut self, track: TrackId, to: u8) {
+        self.exec_built("cmd.comp_switch", |p, _| {
+            crate::comping::switch_comp(p, track, to)
+        });
+        self.drop_missing_clips();
+    }
+
+    pub fn duplicate_comp(&mut self, track: TrackId) {
+        self.exec_built("cmd.comp_duplicate", |p, ids| {
+            crate::comping::duplicate_comp(p, track, ids)
+        });
+    }
+
+    pub fn delete_comp(&mut self, track: TrackId, which: u8) {
+        self.exec_built("cmd.comp_delete", |p, _| {
+            crate::comping::delete_comp(p, track, which)
+        });
+    }
+
+    pub fn rename_comp(&mut self, track: TrackId, which: u8, name: &str) {
+        self.exec_built("cmd.comp_rename", |p, _| {
+            crate::comping::rename_comp(p, track, which, name)
+        });
+    }
+
+    pub fn flatten_comp(&mut self, track: TrackId) {
+        self.exec_built("cmd.comp_flatten", |p, _| crate::comping::flatten(p, track));
+        self.drop_missing_clips();
+    }
+
+    /// Quick swipe comping on or off (Logic's), one undo step.
+    pub fn toggle_quick_swipe(&mut self) {
+        let mut rs = self.project().recording.clone();
+        rs.quick_swipe = !rs.quick_swipe;
+        self.set_record_settings(rs);
+    }
+
+    /// Grouped comping on or off, one undo step.
+    pub fn toggle_comp_grouped(&mut self) {
+        let mut rs = self.project().recording.clone();
+        rs.comp_grouped = !rs.comp_grouped;
+        self.set_record_settings(rs);
+    }
+
+    /// Flatten and merge: the comp — its windows, seams and pitch edits as they play —
+    /// bounced into one recording of its own (written beside the takes; the takes' files
+    /// stay on disk), which becomes the track's one clip there; the takes go. One undo step.
+    pub fn merge_comp(&mut self, track: TrackId) -> bool {
+        let Some(tr) = self.project().track(track) else {
+            return false;
+        };
+        let windows: Vec<cantus_core::Clip> = crate::comping::comp_windows(tr)
+            .into_iter()
+            .filter(|c| c.audio.is_some())
+            .cloned()
+            .collect();
+        let (Some(from), Some(to)) = (
+            windows.iter().map(|c| c.start).min(),
+            windows.iter().map(|c| c.end()).max(),
+        ) else {
+            self.set_error(t("rec.merge_nothing"));
+            return false;
+        };
+        // The windows alone, straight to the master at unity: what the comp plays.
+        let mut alone = cantus_core::Project::empty(self.project().name.clone());
+        alone.tempo_bpm = self.project().tempo_bpm;
+        alone.time_signature = self.project().time_signature;
+        alone.audio_pool = self.project().audio_pool.clone();
+        alone.loop_enabled = false;
+        let mut lone = alone.make_track("comp");
+        lone.strip = None;
+        lone.clips = windows.clone();
+        alone.tracks.push(lone);
+        let rate = self.engine.sample_rate.round() as u32;
+        let snapshot = self.engine.compile_for_render(&alone, 1);
+        let opts = cantus_engine::RenderOptions {
+            sample_rate: rate,
+            start: from,
+            end: Some(to),
+            tail_seconds: 0.0,
+            ..Default::default()
+        };
+        let rendered = match cantus_engine::render(snapshot, &opts) {
+            Ok(r) => r,
+            Err(e) => {
+                self.set_error(tf("rec.merge_failed", &[("error", &e.to_string())]));
+                return false;
+            }
+        };
+        let name = self
+            .project()
+            .track(track)
+            .map(|t| t.name.clone())
+            .unwrap_or_default();
+        let dir = self.audio_record_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        let stamp = crate::takes::stamp_now();
+        let path = dir.join(crate::takes::take_file_name(
+            &format!("{name} comp"),
+            &stamp,
+        ));
+        if let Err(e) = cantus_engine::write_wav(&rendered, &path) {
+            self.set_error(tf("rec.merge_failed", &[("error", &e.to_string())]));
+            return false;
+        }
+        let source = cantus_core::AudioSource {
+            id: cantus_core::AudioSourceId(self.bus.alloc_id()),
+            name: format!("{name} comp"),
+            path: path.to_string_lossy().into_owned(),
+            sample_rate: rate,
+            channels: rendered.channels.min(255) as u8,
+            frames: rendered.frames() as u64,
+            sha256: None,
+            recorded: true,
+        };
+        let clip = {
+            let mut c = self.bus.new_clip(format!("{name} comp"), from, to - from);
+            c.audio = Some(cantus_core::AudioRegion::of(source.id));
+            c
+        };
+        let mut commands = vec![Command::InsertAudioSource { source }];
+        commands.extend(
+            windows
+                .iter()
+                .map(|c| Command::RemoveClip { track, clip: c.id }),
+        );
+        commands.push(Command::InsertClip {
+            track,
+            clip: Box::new(clip),
+        });
+        // Then the takes go, as flatten has them go.
+        let mut sim = crate::record_pass::Sim::new(self.project());
+        if sim.push(commands.clone()).is_err() {
+            self.set_error(t("rec.merge_nothing"));
+            return false;
+        }
+        commands.extend(crate::comping::flatten(&sim.project, track));
+        let ok = self.exec(Command::Batch {
+            label_key: "cmd.comp_merge".into(),
+            commands,
+        });
+        self.drop_missing_clips();
+        if ok {
+            self.set_status(t("rec.merged"));
+        }
+        ok
     }
 
     /// Drop from the selection a clip an operation took away.

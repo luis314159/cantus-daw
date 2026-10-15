@@ -772,6 +772,7 @@ impl Processor {
     }
 
     pub(super) fn release_all(&mut self) {
+        self.auto_live_release();
         for slot in 0..MAX_TRACKS {
             if self.track_ids[slot].is_some() {
                 if let Some(mut s) = self.nodes.track(slot) {

@@ -253,3 +253,53 @@ pub fn tension_for_mid(shape: Shape, mid: f32) -> f32 {
         _ => (m * 2.0 - 1.0).clamp(-1.0, 1.0),
     }
 }
+
+/// The commands that clear `[from, to)` for a new clip of `target` starting at `from`
+/// (ADR 0057: a bake, a recorded pass): a clip of the target that starts inside the stretch
+/// would play over the new one (the latest start wins), so it goes — or, reaching past
+/// `to`, is trimmed to begin there. Clips that began before `from` keep playing around it.
+pub fn cover(
+    project: &crate::Project,
+    target: &super::AutoTarget,
+    from: Ticks,
+    to: Ticks,
+) -> Vec<crate::Command> {
+    use crate::Command;
+    let mut out = Vec::new();
+    for tr in &project.tracks {
+        for c in &tr.clips {
+            let mine = c.automation.as_ref().is_some_and(|a| &a.target == target);
+            if !mine || c.start < from || c.start >= to {
+                continue;
+            }
+            if c.end() <= to {
+                out.push(Command::RemoveClip {
+                    track: tr.id,
+                    clip: c.id,
+                });
+            } else {
+                out.push(Command::SetClipOffset {
+                    track: tr.id,
+                    clip: c.id,
+                    offset: c.offset + (to - c.start),
+                });
+                out.push(Command::SetClipBounds {
+                    track: tr.id,
+                    clip: c.id,
+                    start: to,
+                    length: c.end() - to,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Sampled positions (`(tick, 0…1)`, in order) as a curve's points from `origin`: jumps
+/// kept as a hold and the next value, the rest thinned to 1/500 of the travel
+/// (`modulator::bake`'s thinning, shared with recorded automation).
+pub fn from_samples(samples: &[(i64, f32)], origin: Ticks) -> Vec<AutoPoint> {
+    let ticks: Vec<i64> = samples.iter().map(|s| s.0).collect();
+    let values: Vec<f32> = samples.iter().map(|s| s.1).collect();
+    crate::modulator::bake::thin(&ticks, &values, origin.0)
+}

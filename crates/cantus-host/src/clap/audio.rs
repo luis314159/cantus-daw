@@ -81,6 +81,9 @@ pub struct ClapAudio {
     out_events: Box<OutEvents>,
     transport: clap_event_transport,
     max_block: usize,
+    /// Where the piece being run starts in the host's block: its events' offsets are
+    /// counted from here.
+    base: u32,
     steady_time: i64,
     processing: bool,
     stopped: bool,
@@ -103,6 +106,7 @@ impl ClapAudio {
             // SAFETY: a zeroed transport event is valid plain data; it is filled before use.
             transport: unsafe { std::mem::zeroed() },
             max_block,
+            base: 0,
             steady_time: 0,
             processing: false,
             stopped: false,
@@ -238,7 +242,7 @@ impl ClapAudio {
             }
         }
         self.events
-            .fill(params, notes, n as u32, self.ports.note_dialects);
+            .fill(params, notes, n as u32, self.ports.note_dialects, self.base);
         self.out_events.bind(out);
         let process = clap_process {
             steady_time: self.steady_time,
@@ -311,15 +315,26 @@ impl AudioThread for ClapAudio {
         let frames = audio.left.len().min(audio.right.len());
         let mut done = 0;
         let mut first = true;
-        // A block longer than the plug-in was activated for goes in pieces; the host's
-        // events all belong to the first piece's start (they are at offset 0 today).
+        // A block longer than the plug-in was activated for goes in pieces: each piece
+        // hears the parameter changes that fall in it, at their offsets in it (automation
+        // is timed, ADR 0057); the notes are all at the first piece's start.
         while done < frames {
             let n = (frames - done).min(self.max_block);
             let key = audio
                 .key
                 .map(|(l, r)| (&l[done..done + n], &r[done..done + n]));
-            let (p, e): (&[ParamChange], &[NoteEvent]) =
-                if first { (params, notes) } else { (&[], &[]) };
+            let lo = params.partition_point(|p| (p.offset as usize) < done);
+            let hi = if done + n >= frames {
+                params.len()
+            } else {
+                params.partition_point(|p| (p.offset as usize) < done + n)
+            };
+            self.base = done as u32;
+            let (p, e): (&[ParamChange], &[NoteEvent]) = if first {
+                (&params[lo..hi], notes)
+            } else {
+                (&params[lo..hi], &[])
+            };
             self.run(
                 &mut audio.left[done..done + n],
                 &mut audio.right[done..done + n],

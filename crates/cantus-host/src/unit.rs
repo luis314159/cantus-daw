@@ -8,6 +8,13 @@
 //! of the next block. What the plug-in's own window does comes back as `FxParamEvent`s for
 //! the host to record as commands.
 //!
+//! **Automation and modulation** (ADR 0057) arrive as timed values in the plug-in's
+//! normalised domain, at their sample offsets in the next call: the unit maps each onto the
+//! parameter's range, sends it when it differs from what the plug-in holds, and while a
+//! parameter is driven it wins over the project's value (FL's override). When the engine
+//! plans its automation again (a new snapshot), a parameter it no longer drives goes back
+//! to the project's value.
+//!
 //! **No echo.** A value the plug-in reported is what it holds, so the table takes it and a
 //! snapshot that carries it back sends nothing. While the plug-in's own gesture on a
 //! parameter is under way, the snapshots (which lag behind it) do not touch that parameter;
@@ -16,7 +23,7 @@
 
 use crate::backend::{AudioThread, ParamChange, ParamEvent, ParamInfo, ParamOut, TransportInfo};
 use cantus_core::EffectSpec;
-use cantus_engine::fx::{FxParamEvent, FxUnit, SongPosition};
+use cantus_engine::fx::{FxParamEvent, FxUnit, HostedValue, SongPosition};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -39,13 +46,19 @@ struct Known {
     /// The last value a snapshot carried (NaN before the first): what the project wants,
     /// sent once nothing holds it back.
     wanted: f64,
+    /// Automation or a modulator drives it (ADR 0057): the value they ask for. While set,
+    /// the project's value waits.
+    auto: Option<f64>,
+    /// Driven since the engine last planned its automation.
+    auto_seen: bool,
 }
 
 impl Known {
     /// The project's value, if it differs from what the plug-in holds and nothing holds it
     /// back; the table then takes it.
     fn take_send(&mut self) -> Option<f64> {
-        if self.gesture || self.settle.is_some() || !self.wanted.is_finite() {
+        if self.auto.is_some() || self.gesture || self.settle.is_some() || !self.wanted.is_finite()
+        {
             return None;
         }
         if self.wanted.to_bits() == self.value.to_bits() {
@@ -65,6 +78,15 @@ pub(crate) struct ParamSync {
     known: Vec<Known>,
     /// Changes waiting for the next block; never more than one per parameter.
     pub(crate) pending: Vec<ParamChange>,
+    /// Automation's timed changes for the next block, in time order (ADR 0057).
+    timed: Vec<ParamChange>,
+    /// What the next block is handed: `pending` (all at offset 0), then `timed`.
+    pub(crate) merged: Vec<ParamChange>,
+    /// The engine planned its automation again: what is not driven by the next block
+    /// goes back to the project's value.
+    replanned: bool,
+    /// Timed changes that did not fit, since the unit was made.
+    pub(crate) dropped: u64,
     pub(crate) out: Box<ParamOut>,
     pub(crate) events: Vec<FxParamEvent>,
     /// Bumped by the host after it loads a state into the plug-in: everything the table
@@ -95,6 +117,8 @@ impl ParamSync {
                 settle: None,
                 settle_left: 0,
                 wanted: f64::NAN,
+                auto: None,
+                auto_seen: false,
             })
             .collect();
         known.sort_by_key(|k| k.id);
@@ -102,6 +126,10 @@ impl ParamSync {
         let seen_generation = generation.load(Ordering::Acquire);
         ParamSync {
             pending: Vec::with_capacity(known.len()),
+            timed: Vec::with_capacity(TIMED_CAPACITY),
+            merged: Vec::with_capacity(known.len() + TIMED_CAPACITY),
+            replanned: false,
+            dropped: 0,
             known,
             out: Box::new(ParamOut::new()),
             events: Vec::with_capacity(ParamOut::CAPACITY),
@@ -162,10 +190,90 @@ impl ParamSync {
         }
     }
 
+    /// Automation's value for parameter `id`, `offset` samples into the next block
+    /// (ADR 0057): mapped from the normalised domain onto the parameter's range (the
+    /// project's value as the base where nothing automates it), sent when it differs from
+    /// what the plug-in holds. A released value hands the parameter back to the project.
+    pub(crate) fn automate(&mut self, offset: usize, id: u32, v: HostedValue) {
+        let Some(i) = self.find(id) else { return };
+        let k = &mut self.known[i];
+        k.auto_seen = true;
+        let send = if v.is_released() {
+            match k.auto.take() {
+                Some(_) => k.take_send(),
+                None => None,
+            }
+        } else {
+            let span = k.max - k.min;
+            let base = if v.pos.is_finite() {
+                Some(f64::from(v.pos))
+            } else {
+                [k.wanted, k.value]
+                    .into_iter()
+                    .find(|x| x.is_finite())
+                    .map(|w| if span > 0.0 { (w - k.min) / span } else { 0.0 })
+            };
+            base.and_then(|b| {
+                let norm = (b + f64::from(v.modulation)).clamp(0.0, 1.0);
+                let mut plain = k.min + norm * span;
+                if k.stepped {
+                    plain = plain.round();
+                }
+                k.auto = Some(plain);
+                (plain.to_bits() != k.value.to_bits()).then(|| {
+                    k.value = plain;
+                    plain
+                })
+            })
+        };
+        if let Some(value) = send {
+            if self.timed.len() < self.timed.capacity() {
+                self.timed.push(ParamChange {
+                    offset: offset as u32,
+                    id,
+                    value,
+                });
+            } else {
+                self.dropped += 1;
+            }
+        }
+    }
+
+    /// The engine planned its automation again (ADR 0057).
+    pub(crate) fn replanned(&mut self) {
+        self.replanned = true;
+        for k in &mut self.known {
+            k.auto_seen = false;
+        }
+    }
+
+    /// What the next block is handed: the project's changes (offset 0), then automation's
+    /// in time order.
+    pub(crate) fn merge(&mut self) {
+        self.merged.clear();
+        self.merged.extend_from_slice(&self.pending);
+        let room = self.merged.capacity() - self.merged.len();
+        self.merged
+            .extend_from_slice(&self.timed[..self.timed.len().min(room)]);
+    }
+
     /// After a block of `frames`: the plug-in's own changes into the table and out to the
     /// host, and the settle timers run down.
     pub(crate) fn after_process(&mut self, frames: usize) {
         self.pending.clear();
+        self.timed.clear();
+        self.merged.clear();
+        if std::mem::take(&mut self.replanned) {
+            // What the new plan does not drive is the project's again.
+            for k in &mut self.known {
+                if k.auto.is_some() && !k.auto_seen {
+                    k.auto = None;
+                    if let Some(send) = k.take_send() {
+                        Self::queue(&mut self.pending, k.id, send);
+                    }
+                }
+            }
+        }
         self.take_out();
         for k in &mut self.known {
             if k.settle.is_some() && !k.gesture {
@@ -219,6 +327,9 @@ impl ParamSync {
         self.out.clear();
     }
 }
+
+/// Automation's timed changes one block holds at most (the engine's own queue is as long).
+const TIMED_CAPACITY: usize = cantus_engine::modulator::HOSTED_QUEUE;
 
 pub struct HostedUnit {
     audio: Box<dyn AudioThread>,
@@ -280,6 +391,7 @@ impl FxUnit for HostedUnit {
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>) {
         let frames = left.len();
+        self.sync.merge();
         self.audio.process(
             crate::backend::Audio {
                 left,
@@ -287,7 +399,7 @@ impl FxUnit for HostedUnit {
                 key,
                 transport: self.transport.as_ref(),
             },
-            &self.sync.pending,
+            &self.sync.merged,
             &[],
             &mut self.sync.out,
         );
@@ -320,5 +432,13 @@ impl FxUnit for HostedUnit {
 
     fn stop(&mut self) {
         self.audio.stop();
+    }
+
+    fn automate(&mut self, offset: usize, id: u32, value: HostedValue) {
+        self.sync.automate(offset, id, value);
+    }
+
+    fn automation_replanned(&mut self) {
+        self.sync.replanned();
     }
 }

@@ -134,7 +134,18 @@ pub struct AudioRegion {
     /// — plays the source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pitch: Option<Box<crate::pitch::PitchEdit>>,
+    /// The crossfade into this window from the playing-lane audio window that ends where
+    /// it starts — a comp's **seam** (schema 29, ADR 0058): equal-power, this long, centred
+    /// on the seam, the two windows each read past the seam into their sources by half of
+    /// it. Zero (every clip before) is a butt join; a window with nothing ending at its
+    /// start has no seam, and the length waits there unused.
+    #[serde(default, skip_serializing_if = "Ticks::is_zero")]
+    pub xfade: Ticks,
 }
+
+/// The longest seam crossfade a window takes (a beat at any tempo is far more than a comp
+/// wants; the command refuses more).
+pub const MAX_XFADE: Ticks = Ticks(crate::time::PPQ);
 
 fn is_zero(v: &i32) -> bool {
     *v == 0
@@ -152,6 +163,7 @@ impl AudioRegion {
             reverse: false,
             slip_frames: 0,
             pitch: None,
+            xfade: Ticks::ZERO,
         }
     }
 }
@@ -262,6 +274,31 @@ pub struct RecordSettings {
     /// version played it; off, every beat sounds as an ordinary one.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub click_accent: bool,
+    /// While a pass records, the parameters moved — by a knob in Cantus or in a hosted
+    /// plug-in's own window — are written into automation clips (schema 28, ADR 0057).
+    /// On by default, as FL records automation; not written while on.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub record_automation: bool,
+    /// The crossfade a new comp seam gets, in milliseconds (schema 29, ADR 0058): 10 ms,
+    /// equal-power — Logic's and Studio One's kind of default.
+    #[serde(default = "comp_xfade", skip_serializing_if = "is_comp_xfade")]
+    pub comp_xfade_ms: f32,
+    /// Quick swipe comping (Logic's): a drag across a take lane comps. Off, the drag
+    /// selects time and a click selects the take (schema 29).
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub quick_swipe: bool,
+    /// Tracks whose strips share a mixer group comp together: a swipe on one swipes the
+    /// same range of the same lane on each (schema 29, ADR 0058).
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub comp_grouped: bool,
+}
+
+fn comp_xfade() -> f32 {
+    10.0
+}
+
+fn is_comp_xfade(x: &f32) -> bool {
+    *x == 10.0
 }
 
 /// The metronome's voice (schema 26, ADR 0052). `Classic` is the sine burst every earlier
@@ -309,6 +346,10 @@ impl Default for RecordSettings {
             loop_takes: true,
             click_sound: ClickSound::Classic,
             click_accent: true,
+            record_automation: true,
+            comp_xfade_ms: comp_xfade(),
+            quick_swipe: true,
+            comp_grouped: true,
         }
     }
 }

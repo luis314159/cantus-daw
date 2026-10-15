@@ -550,6 +550,39 @@ pub enum Command {
         id: TrackId,
         open: bool,
     },
+    /// Put a modulator on a track, a strip or the master, at `index` in its panel
+    /// (ADR 0057). Refused for a modulator that is not valid, an id already used, a host
+    /// that is gone or full.
+    InsertModulator {
+        host: crate::modulator::ModHost,
+        index: usize,
+        modulator: Box<crate::modulator::Modulator>,
+    },
+    /// Take a modulator away (its routes with it).
+    RemoveModulator {
+        id: crate::model::ModulatorId,
+    },
+    /// Replace a modulator, found by its id, whole: a source edited, a route added or
+    /// removed, a depth dragged — one command, so a drag merges into one step and its
+    /// inverse is simply the modulator as it was.
+    SetModulator {
+        modulator: Box<crate::modulator::Modulator>,
+    },
+    /// Move a comp's seam — where playing-lane window `left` ends and `right` begins — to
+    /// `at`, both sides at once (ADR 0058). Refused for two windows that do not meet, for
+    /// another lane, a reversed window, a seam that would leave its windows.
+    SetCompSeam {
+        track: TrackId,
+        left: ClipId,
+        right: ClipId,
+        at: Ticks,
+    },
+    /// A track's alternate comps, whole, and which plays (ADR 0058).
+    SetTrackComps {
+        track: TrackId,
+        comps: Vec<crate::comp::Comp>,
+        active: u8,
+    },
     /// Put a clip into a link group (`Some`) or take it out of one (`None`) (ADR 0037).
     /// Joining a group is refused unless the clip already has the group's content: the
     /// builders send a `SetClipContent` first ("Link to…"). Taking a clip out keeps its
@@ -720,6 +753,11 @@ impl Command {
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetClipPitch { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
+            InsertModulator { .. } => "cmd.insert_modulator",
+            RemoveModulator { .. } => "cmd.remove_modulator",
+            SetModulator { .. } => "cmd.set_modulator",
+            SetCompSeam { .. } => "cmd.set_comp_seam",
+            SetTrackComps { .. } => "cmd.set_track_comps",
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
@@ -774,6 +812,23 @@ impl Command {
                     ..
                 },
             ) => ta == tb && ca == cb,
+            // A modulator edited whole (ADR 0057): a drag keeps the newest.
+            (SetModulator { modulator: a }, SetModulator { modulator: b }) => a.id == b.id,
+            // A seam dragged (ADR 0058): the newest place.
+            (
+                SetCompSeam {
+                    track: ta,
+                    left: la,
+                    right: ra,
+                    ..
+                },
+                SetCompSeam {
+                    track: tb,
+                    left: lb,
+                    right: rb,
+                    ..
+                },
+            ) => ta == tb && la == lb && ra == rb,
             (
                 SetClipPitch {
                     track: ta,
@@ -1074,6 +1129,7 @@ impl Command {
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
+                crate::modulator::check_new(project, &track.modulators)?;
                 for (i, c) in track.clips.iter().enumerate() {
                     check_joins(project, c)?;
                     // The track's own clips must agree with each other too: the project
@@ -1169,6 +1225,7 @@ impl Command {
                 if project.strip(strip.id).is_some() {
                     return Err(CommandError::DuplicateId(strip.id.0));
                 }
+                crate::modulator::check_new(project, &strip.modulators)?;
                 let id = strip.id;
                 project.strips.insert(index, *strip);
                 Ok(RemoveStrip { id })
@@ -2076,9 +2133,12 @@ impl Command {
                     .iter()
                     .position(|s| s.id == id)
                     .ok_or(CommandError::AudioSourceNotFound(id))?;
+                // A window kept in an alternate comp plays it too, when that comp plays
+                // (ADR 0058).
                 let used = project.tracks.iter().any(|t| {
                     t.clips
                         .iter()
+                        .chain(t.comps.iter().flat_map(|c| c.windows.iter()))
                         .any(|c| c.audio.as_ref().is_some_and(|a| a.source == id))
                 });
                 if used {
@@ -2099,7 +2159,11 @@ impl Command {
                     if project.audio_source(a.source).is_none() {
                         return Err(CommandError::AudioSourceNotFound(a.source));
                     }
-                    if !a.gain_db.is_finite() || a.fade_in < Ticks::ZERO || a.fade_out < Ticks::ZERO
+                    if !a.gain_db.is_finite()
+                        || a.fade_in < Ticks::ZERO
+                        || a.fade_out < Ticks::ZERO
+                        || a.xfade < Ticks::ZERO
+                        || a.xfade > crate::audio::MAX_XFADE
                     {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
@@ -2160,6 +2224,24 @@ impl Command {
                 let old = std::mem::replace(&mut t.automation_open, open);
                 Ok(SetTrackAutomationOpen { id, open: old })
             }
+            InsertModulator {
+                host,
+                index,
+                modulator,
+            } => crate::modulator::apply_insert(project, host, index, *modulator),
+            RemoveModulator { id } => crate::modulator::apply_remove(project, id),
+            SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
+            SetCompSeam {
+                track,
+                left,
+                right,
+                at,
+            } => crate::comp::apply_seam(project, track, left, right, at),
+            SetTrackComps {
+                track,
+                comps,
+                active,
+            } => crate::comp::apply_set_comps(project, track, comps, active),
             SetClipLane { track, clip, lane } => {
                 let t = project
                     .track_mut(track)
@@ -2582,6 +2664,13 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
     }
     if c.automation.as_ref().is_some_and(|a| !a.is_valid()) {
         return Err(CommandError::InvalidValue("automation curve".into()));
+    }
+    // A comp seam's crossfade (ADR 0058): never negative, never longer than the most.
+    if c.audio
+        .as_ref()
+        .is_some_and(|a| a.xfade < Ticks::ZERO || a.xfade > crate::audio::MAX_XFADE)
+    {
+        return Err(CommandError::InvalidValue("seam crossfade".into()));
     }
     Ok(())
 }

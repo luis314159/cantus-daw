@@ -611,6 +611,89 @@ fn automation_never_allocates() {
     );
 }
 
+/// Modulators (ADR 0057) on the audio thread: every kind at once — an LFO on an EQ band,
+/// steps on a fader, a random source on a pan, an envelope from notes (sequenced and live)
+/// on Firmus's cutoff, a follower on the master's width, one nested into another's
+/// amount — through a new snapshot (state carried over), live notes, a seek, a stop (the
+/// modulators run on, stopped) and a new start. Not one allocation.
+#[test]
+fn modulators_never_allocate() {
+    use cantus_core::modulator::*;
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    let s0 = p.tracks[0].strip.unwrap();
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("b0.used", 1.0).unwrap();
+    let eq_id = eq.id;
+    p.strip_mut(s0).unwrap().effects.push(eq);
+    let lead = p.tracks[0].id;
+    let routes = [
+        (
+            ModKind::Lfo,
+            AutoTarget::Effect {
+                effect: eq_id,
+                key: "b0.gain".into(),
+            },
+        ),
+        (ModKind::Step, AutoTarget::StripGain(s0)),
+        (ModKind::Random, AutoTarget::StripPan(s0)),
+        (
+            ModKind::Envelope,
+            AutoTarget::Firmus {
+                track: lead,
+                param: FirmusParam::Cutoff,
+            },
+        ),
+        (ModKind::Follower, AutoTarget::MasterWidth),
+    ];
+    let mut first = None;
+    for (kind, target) in routes {
+        let mut m = Modulator::new(ModulatorId(p.alloc_id()), kind);
+        m.routes.push(ModRoute { target, depth: 0.3 });
+        first.get_or_insert(m.id);
+        p.tracks[0].modulators.push(m);
+    }
+    let mut nest = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+    nest.routes.push(ModRoute {
+        target: AutoTarget::ModAmount(first.unwrap()),
+        depth: -0.5,
+    });
+    p.master.modulators.push(nest);
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("modulators start", 30);
+    p.tracks[0].modulators[0].routes[0].depth = -0.7;
+    rig.snapshot(&p);
+    rig.play("modulators new snapshot", 30);
+    rig.tx
+        .push(EngineMessage::NoteOn {
+            track: lead,
+            pitch: 64,
+            velocity: 100,
+        })
+        .unwrap();
+    rig.play("modulators live note", 10);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+    rig.play("modulators seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("modulators stopped", 20);
+    rig.tx
+        .push(EngineMessage::NoteOff {
+            track: lead,
+            pitch: 64,
+        })
+        .unwrap();
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("modulators play again", 10);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
 /// Pre-fader sends (round 25) on the audio thread: undelayed and through compensation
 /// lines, from a fader under automation (the pre pair kept apart from the ramped one), a
 /// tap switched mid-play, the source muted and unmuted. Not one allocation.

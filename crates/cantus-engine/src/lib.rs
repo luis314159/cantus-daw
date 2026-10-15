@@ -19,6 +19,7 @@ pub mod inst;
 pub mod loopback;
 pub mod messages;
 pub mod midi;
+pub mod modulator;
 pub mod pdc;
 pub mod pitch;
 pub mod preview;

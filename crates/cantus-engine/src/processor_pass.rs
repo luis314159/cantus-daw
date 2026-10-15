@@ -93,6 +93,8 @@ impl Processor {
                 continue;
             }
             let n = end - done;
+            // A hosted plug-in's automation inside the pass, at its offsets (ADR 0057).
+            self.auto_hosted(done, n);
             self.run_pass(
                 snap.as_deref(),
                 &mut output[done * channels..end * channels],

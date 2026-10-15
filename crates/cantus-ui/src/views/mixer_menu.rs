@@ -79,6 +79,8 @@ enum ColorOf {
 enum Act {
     /// Automate a strip's (or the master's) volume (0), pan (1) or width (2) (ADR 0027).
     Automate(StripId, u8),
+    /// *Modulate…* the strip's (or the master's) volume, pan or width (ADR 0057).
+    Modulate(StripId, u8),
     Rename(StripId),
     RenameGroup(GroupId),
     Color(ColorOf, Option<Color>),
@@ -1233,17 +1235,10 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             prefs.colourful = c;
             v.prefs.set(prefs);
         }
-        Act::Automate(id, what) => {
-            use cantus_core::AutoTarget as A;
-            let target = match (id.is_master(), what) {
-                (true, 0) => A::MasterGain,
-                (true, 1) => A::MasterPan,
-                (true, _) => A::MasterWidth,
-                (false, 0) => A::StripGain(id),
-                (false, 1) => A::StripPan(id),
-                (false, _) => A::StripWidth(id),
-            };
-            app.automate(target);
+        Act::Automate(id, what) => app.automate(strip_target(id, what)),
+        Act::Modulate(id, what) => {
+            // Beside the pointer, where the menu was.
+            app.modulators.popup = Some((strip_target(id, what), egui::Rect::NOTHING));
         }
         Act::ResetRatio => {
             prefs.ratio = super::layout::DEFAULT_RATIO;
@@ -1465,7 +1460,21 @@ fn reveal(path: &std::path::Path) {
     }
 }
 
-/// A strip's (or the master's) automation rows: its volume, pan and width (ADR 0027).
+/// The strip's (or the master's) volume (0), pan (1) or width (2) as a target.
+fn strip_target(id: StripId, what: u8) -> cantus_core::AutoTarget {
+    use cantus_core::AutoTarget as A;
+    match (id.is_master(), what) {
+        (true, 0) => A::MasterGain,
+        (true, 1) => A::MasterPan,
+        (true, _) => A::MasterWidth,
+        (false, 0) => A::StripGain(id),
+        (false, 1) => A::StripPan(id),
+        (false, _) => A::StripWidth(id),
+    }
+}
+
+/// A strip's (or the master's) automation rows: its volume, pan and width (ADR 0027) —
+/// and their modulation (ADR 0057).
 fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
     e.push(Entry::band("auto.menu.band"));
     e.push(Entry::act(
@@ -1480,4 +1489,12 @@ fn automate_entries(id: StripId, e: &mut Vec<Entry>) {
         Label::Key("auto.strip.width"),
         Act::Automate(id, 2),
     ));
+    e.push(Entry::band("mods.menu.band"));
+    for (what, key) in [
+        (0, "mods.menu.volume"),
+        (1, "mods.menu.pan"),
+        (2, "mods.menu.width"),
+    ] {
+        e.push(Entry::act(Label::Key(key), Act::Modulate(id, what)));
+    }
 }
