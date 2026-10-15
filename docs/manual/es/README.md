@@ -513,6 +513,30 @@ proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin 
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
 
+### Tonus: corrección de afinación para la voz
+
+**Tonus** (en el estante *Afinación · voz* del selector) afina una voz cantada mientras entra:
+para el efecto duro, a saltos; para una corrección natural; o para escucharte mientras
+grabas (añade 2,7 ms, que la compensación de retardo tiene en cuenta).
+
+1. Pon Tonus en la pista de la voz. Elige la **tónica** y la **escala**; en el teclado,
+   haz clic en una nota para quitarla (×) o devolverla (●), y clic derecho para dejarla
+   sin corregir (○).
+2. **Velocidad**: 0 ms (*Dura*) salta de nota en nota; 50–100 ms corrige y conserva la
+   vida de la voz. **Cantidad** fija cuánto se aplica.
+3. Para afinar a lo que tocas: **Notas MIDI** (las notas que suenan en una pista, en
+   cualquier octava) o **Melodía MIDI** (la voz canta exactamente la última nota); elige
+   la pista bajo el selector: cuentan sus clips y lo que tocas en ella en vivo.
+4. **Más** guarda humanizar (las notas largas conservan su movimiento), margen (las
+   desviaciones pequeñas no se tocan), vibrato (el del cantante, quitado o doblado; o uno
+   creado), los formantes y la **garganta** (más brillante o más oscura sin cambiar la
+   altura), la transposición y el La4 de referencia.
+
+La pantalla muestra lo que cantaste (tenue) y lo que sale (brillante), y la nota que
+cantas con su distancia en cents. Preajustes: *Natural*, *Ajustada*, *Afinación dura*,
+*Garganta arriba*, *Garganta abajo*, *Melodía MIDI* y más. Detalles:
+`docs/plugins/tonus.md`.
+
 ## 11. Proyectos, autoguardado y ajustes
 
 - *Archivo ▸ Nuevo proyecto* (`Ctrl+N`), *Abrir…* (`Ctrl+O`), *Guardar* (`Ctrl+S`),

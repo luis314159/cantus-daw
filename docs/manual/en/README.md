@@ -477,6 +477,28 @@ in a separate process, so a plug-in that crashes while being scanned is blocked,
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
 
+### Tonus: pitch correction for a voice
+
+**Tonus** (in the picker's *Pitch · vocal* shelf) tunes a sung voice as it comes in — for the
+hard, stepped effect, for a natural correction, or for monitoring while you record (it
+adds 2.7 ms, reported to delay compensation).
+
+1. Put Tonus on the voice's track. Choose the **key** and the **scale**; on the keyboard,
+   click a note to remove it (×) or bring it back (●), right-click to leave it alone (○).
+2. **Speed**: 0 ms (*Hard*) jumps from note to note; 50–100 ms corrects and keeps the
+   voice's life. **Amount** sets how much is applied.
+3. To tune to what you play instead: **MIDI notes** (the notes held on a track, in any
+   octave) or **MIDI melody** (the voice sings exactly the newest note) — choose the
+   track under the switch; its clips and what you play on it live both count.
+4. **More** holds humanise (long notes keep their movement), flex (small deviations left
+   alone), vibrato (the singer's, removed or doubled; or a created one), the formants and
+   the **throat** (brighter or darker without changing the pitch), transposition and the
+   reference A4.
+
+The display shows what you sang (dim) and what comes out (bright), and the note you are
+singing with its distance in cents. Presets: *Natural*, *Tight*, *Hard tune*, *Throat up*,
+*Throat down*, *MIDI lead* and more. Details: `docs/plugins/tonus.md`.
+
 ## 11. Projects, autosave and settings
 
 - *File ▸ New project* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save as…*
