@@ -260,6 +260,8 @@ pub struct CantusApp {
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
     /// them, the large editor's state.
     pub automation: crate::automation::AutoUi,
+    /// The pitch editor's state (round 28, ADR 0054).
+    pub pitch: crate::pitch::PitchUi,
 }
 
 impl CantusApp {
@@ -566,6 +568,7 @@ impl CantusApp {
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
+            pitch: Default::default(),
         };
         app.select_first();
         app.sync_live_track();

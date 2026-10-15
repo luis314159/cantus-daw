@@ -34,8 +34,8 @@ impl CantusApp {
 
     /// A double-click on a clip: its editor, on it, in front and with the focus — the
     /// piano roll, or the channel rack for a step pattern it shows with nothing lost
-    /// ([`clips::editor_for`]), the automation editor for an automation clip, the
-    /// inspector for an audio clip. Returns which, or `None` when the clip is gone.
+    /// ([`clips::editor_for`]), the automation editor for an automation clip, the pitch
+    /// editor for an audio clip (ADR 0054). Returns which, or `None` when the clip is gone.
     pub fn open_clip_editor(&mut self, track: TrackId, clip: ClipId) -> Option<ClipEditor> {
         let (which, grid) = {
             let t = self.project().track(track)?;
@@ -52,10 +52,7 @@ impl CantusApp {
                 self.show_pane(Pane::PianoRoll);
                 self.focus_piano_roll();
             }
-            ClipEditor::Inspector => {
-                self.select_clip(track, clip);
-                self.show_pane(Pane::Inspector);
-            }
+            ClipEditor::Pitch => self.open_pitch_editor(track, clip),
             ClipEditor::PianoRoll => {
                 self.select_clip(track, clip);
                 self.central = CentralView::PianoRoll;

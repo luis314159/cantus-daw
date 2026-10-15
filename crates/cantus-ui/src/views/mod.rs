@@ -41,6 +41,7 @@ pub mod interop;
 pub mod link_picker;
 pub mod mixer;
 pub mod piano_roll;
+pub mod pitch;
 pub mod picker;
 pub mod picker_cover;
 pub mod picker_details;

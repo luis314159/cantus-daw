@@ -1,1 +1,108 @@
 # pitch — ronda 28: la edición de afinación. Cada clave de pitch.en.txt tiene aquí su gemela.
+
+# El menú de deshacer (ADR 0054).
+cmd.pitch.notes = Editar notas de afinación
+cmd.pitch.pitch = Mover afinación
+cmd.pitch.centre = Centro de afinación
+cmd.pitch.drift = Deriva de afinación
+cmd.pitch.vibrato = Profundidad del vibrato
+cmd.pitch.formant = Formante
+cmd.pitch.gain = Ganancia de la nota
+cmd.pitch.timing = Tiempo de la nota
+cmd.pitch.split = Dividir nota
+cmd.pitch.join = Unir notas
+cmd.pitch.correct_pitch = Corregir afinación
+cmd.pitch.correct_drift = Corregir deriva
+cmd.pitch.quantise = Cuantizar tiempo
+cmd.pitch.key = Fijar la tonalidad de la toma
+cmd.pitch.compare = Comparar con el original
+cmd.pitch.reset = Restablecer la afinación
+cmd.pitch.midi = Notas a MIDI
+cmd.pitch.double = Doblar la voz
+
+# Abrirlo.
+pitch.menu.edit = Editar afinación
+pitch.inspector.edit = Editar afinación
+pitch.inspector.edit_tip = Abrir el editor de afinación en este clip: sus notas, para moverlas, corregirlas, estirarlas y doblarlas (el archivo nunca cambia)
+pitch.inspector.edited = Afinación editada
+pitch.inspector.edited_tip = Este clip suena con sus ediciones de afinación. Abre el editor de afinación para cambiarlas o compararlas
+
+# La toma.
+pitch.analysing = Analizando la toma: buscando sus notas y su tonalidad…
+pitch.analysing_short = Analizando…
+pitch.failed = No se pudo leer la toma: {reason}
+pitch.no_source = Este clip no tiene archivo de audio
+pitch.status = {n} notas · {key}
+pitch.status_one = Una nota · {key}
+pitch.key.value = {tonic} {scale}
+
+# La barra.
+pitch.tool.edit = Editar
+pitch.tool.edit_tip = Editar: arrastra una nota arriba o abajo para mover su afinación, a los lados para moverla en el tiempo, sus extremos para estirarla; doble clic para llevarla a su nota
+pitch.tool.split = Dividir
+pitch.tool.split_tip = Dividir: haz clic dentro de una nota para cortarla en dos ahí
+pitch.snap = Ajuste
+pitch.snap_tip = Dónde cae un arrastre de afinación: en las notas de la tonalidad, en semitonos o en cualquier punto (mantén Alt para cents)
+pitch.snap.scale = Escala
+pitch.snap.semitone = Semitonos
+pitch.snap.free = Libre
+pitch.key = Tonalidad
+pitch.key_tip = La tonalidad de la toma, hallada a partir de sus notas: la usan el ajuste a la escala y Corregir afinación
+pitch.key.tonic = Tónica
+pitch.key.scale = Escala
+pitch.original = Original
+pitch.original_tip = Comparar: escucha la toma tal como se cantó y vuelve luego a las ediciones (A/B)
+pitch.join = Unir
+pitch.join_tip = Une las notas seleccionadas en una (Ctrl+J): deben ser vecinas
+pitch.join_needs = Selecciona dos o más notas vecinas para unirlas
+pitch.reset = Restablecer
+pitch.reset_tip = Deshace todas las ediciones de las notas seleccionadas (de todas si no hay ninguna seleccionada)
+pitch.play_tip = Reproduce desde la primera nota seleccionada (o desde el inicio del clip); otra vez para parar
+pitch.midi = MIDI
+pitch.midi_tip = Las notas como MIDI: arrástralas a una pista de instrumento del arreglo, o haz clic para una pista nueva
+pitch.midi_drop = Suelta sobre una pista de instrumento del arreglo para poner allí la melodía
+pitch.midi_made = La melodía está en «{name}»
+pitch.double = Doblar
+pitch.double_tip = Una segunda voz de la misma toma, una tercera o una quinta por encima en la tonalidad, en un clip nuevo en su propia pista
+pitch.double.third = Una tercera por encima
+pitch.double.fifth = Una quinta por encima
+pitch.doubled = La segunda voz está en «{name}»
+pitch.grid = Rejilla
+pitch.grid_tip = La rejilla a la que Cuantizar mueve las notas
+
+# El lienzo.
+pitch.ruler_tip = Haz clic o arrastra para mover el cursor de reproducción
+pitch.canvas_tip = Haz clic en una nota para seleccionarla, arrastra en el fondo para seleccionar varias; Ctrl+rueda amplía el tiempo, Ctrl+Alt+rueda las filas
+pitch.note_tip = {note}, {cents} cents · {secs} s
+
+# El panel de la nota.
+pitch.card.note = Nota
+pitch.note.sounds = Suena
+pitch.note.sounds_tip = La nota tal como sonará: la nota más cercana y a qué distancia está
+pitch.note.sung = Cantada
+pitch.note.sung_tip = La nota tal como se cantó: su centro, la nota más cercana y a qué distancia está
+pitch.note.none = Selecciona una nota
+pitch.field.centre = Centro
+pitch.field.centre_tip = Centro de afinación: cuánto se lleva el centro de la nota a su nota, conservando su deriva y su vibrato naturales
+pitch.field.drift = Deriva
+pitch.field.drift_tip = Deriva de afinación: el vaivén lento dentro de la nota, como se cantó al 100 %, plano al 0 %
+pitch.field.vibrato = Vibrato
+pitch.field.vibrato_tip = Profundidad del vibrato: como se cantó al 100 %, ninguno al 0 %, el doble de amplio al 200 %
+pitch.field.formant = Formante
+pitch.field.formant_tip = Formante: el color de la voz, movido arriba o abajo sin mover la afinación
+pitch.field.gain = Ganancia
+pitch.field.gain_tip = El nivel de la nota
+
+# Las macros.
+pitch.card.macros = Corregir la selección
+pitch.card.macros_all = Corregir todas las notas
+pitch.macro.pitch = Afinación
+pitch.macro.pitch_tip = Cuánto lleva Corregir afinación el centro de cada nota a su nota
+pitch.macro.drift = Deriva
+pitch.macro.drift_tip = Cuánto aplana Corregir deriva el vaivén lento dentro de cada nota
+pitch.macro.apply_pitch = Corregir afinación
+pitch.macro.apply_pitch_tip = Lleva las notas a la tonalidad según la cantidad: una nota fuera de la tonalidad va a su nota más cercana
+pitch.macro.apply_drift = Corregir deriva
+pitch.macro.apply_drift_tip = Aplana el vaivén lento dentro de las notas según la cantidad (el vibrato se queda)
+pitch.macro.quantise = Cuantizar
+pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla (conserva su duración, sin tocar a sus vecinas)

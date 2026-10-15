@@ -576,10 +576,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             app.selected_clip = None;
             return;
         }
-        // An audio clip has no notes to edit (and would fire none): its fades, gain and
-        // file are in the inspector (ADR 0025 §1).
+        // An audio clip: its notes in the pitch editor (round 28, ADR 0054); its fades,
+        // gain and file stay in the inspector (ADR 0025 §1).
         Some(c) if c.audio.is_some() => {
-            empty(ui, "audioclips.piano_roll", &s);
+            super::pitch::show(app, ui, track_id, clip_id);
             return;
         }
         // An automation clip: its curve in the large editor (ADR 0027).
