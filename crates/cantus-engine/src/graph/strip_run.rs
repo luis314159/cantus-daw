@@ -262,7 +262,7 @@ pub(crate) fn strip_chain(
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
         // call.
-        e.set_position(&ctx.position);
+        e.set_position(&ctx.position.earlier(e.late, ctx.sample_rate));
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {

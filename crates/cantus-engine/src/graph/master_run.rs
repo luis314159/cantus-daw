@@ -313,7 +313,7 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            e.set_position(position);
+            e.set_position(&position.earlier(e.late, self.sample_rate));
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {

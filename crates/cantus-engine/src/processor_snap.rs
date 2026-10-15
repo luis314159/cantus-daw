@@ -574,32 +574,37 @@ impl Processor {
     /// beat stamps are moved back by as much, so the beat-synced scope is on the beat it
     /// hears. Worked out with each plan and each change of what is watched.
     pub(super) fn scope_delays(&mut self) {
+        // How late each insert's audio is against the transport: its strip's arrival
+        // (compensation) and the inserts before it. Every insert hears the song position
+        // that much earlier (`EffectUnit::late`: a synced LFO stays on the beat it shapes,
+        // integration review); a watched Speculum dates its frames by it.
         let mut out = [0usize; crate::fx::speculum::MAX_SCOPES];
-        if self.scoped.iter().any(Option::is_some) {
-            let at = |id: EffectId| self.scoped.iter().position(|s| *s == Some(id));
-            let nodes = &self.nodes;
-            for slot in 0..MAX_STRIPS {
-                if self.strip_ids[slot].is_none() {
-                    continue;
-                }
-                if let Some(st) = nodes.strip(slot) {
-                    let own: usize = st.effects.iter().map(|e| e.latency()).sum();
-                    let mut ahead = self.strip_post[slot].saturating_sub(own);
-                    for e in &st.effects {
-                        if let Some(k) = at(e.id) {
-                            out[k] = ahead;
-                        }
-                        ahead += e.latency();
+        let scoped = self.scoped;
+        let at = |id: EffectId| scoped.iter().position(|s| *s == Some(id));
+        let nodes = self.nodes.clone();
+        for slot in 0..MAX_STRIPS {
+            if self.strip_ids[slot].is_none() {
+                continue;
+            }
+            if let Some(mut st) = nodes.strip(slot) {
+                let own: usize = st.effects.iter().map(|e| e.latency()).sum();
+                let mut ahead = self.strip_post[slot].saturating_sub(own);
+                for e in st.effects.iter_mut() {
+                    e.late = ahead;
+                    if let Some(k) = at(e.id) {
+                        out[k] = ahead;
                     }
+                    ahead += e.latency();
                 }
             }
-            let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
-            for e in &self.master.effects {
-                if let Some(k) = at(e.id) {
-                    out[k] = ahead;
-                }
-                ahead += e.latency();
+        }
+        let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
+        for e in self.master.effects.iter_mut() {
+            e.late = ahead;
+            if let Some(k) = at(e.id) {
+                out[k] = ahead;
             }
+            ahead += e.latency();
         }
         self.scoped_delay = out;
     }
