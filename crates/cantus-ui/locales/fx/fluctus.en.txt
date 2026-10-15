@@ -46,3 +46,5 @@ preset.fluctus.gate_sixteenths = Gate, sixteenths
 preset.fluctus.offbeat = Off-beats only
 preset.fluctus.triplet_chop = Triplet chop
 preset.fluctus.slow_wave = Slow wave
+fluctus.shape.2.short = Hold
+fluctus.shape.3.short = Steps

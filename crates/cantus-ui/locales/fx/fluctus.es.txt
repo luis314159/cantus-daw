@@ -46,3 +46,5 @@ preset.fluctus.gate_sixteenths = Corte en semicorcheas
 preset.fluctus.offbeat = Solo contratiempos
 preset.fluctus.triplet_chop = Corte en tresillos
 preset.fluctus.slow_wave = Onda lenta
+fluctus.shape.2.short = Fijo
+fluctus.shape.3.short = Pasos

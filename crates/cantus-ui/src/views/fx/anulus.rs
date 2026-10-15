@@ -131,7 +131,7 @@ const LFO: LfoCard = LfoCard {
     offset: false,
 };
 
-const WAVE_W: f32 = 168.0;
+const WAVE_W: f32 = 210.0;
 const PARTIALS_W: f32 = 420.0;
 
 fn body_ui(
@@ -199,18 +199,7 @@ fn body_ui(
 
 /// The note names, from C.
 const NOTES: [&str; 12] = [
-    "C",
-    "C\u{266f}",
-    "D",
-    "D\u{266f}",
-    "E",
-    "F",
-    "F\u{266f}",
-    "G",
-    "G\u{266f}",
-    "A",
-    "A\u{266f}",
-    "B",
+    "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
 ];
 
 /// A frequency as the nearest note and its cents: `A4 +0`.

@@ -470,6 +470,35 @@ The effects are Aequalis (EQ), Comprimo (compressor), Porta (gate and expander),
 (de-esser), Multiplex (multiband dynamics), Terminus (limiter), Culmen (maximizer),
 Spatium (reverb), Fervor (saturation), Latitudo (stereo), Delay and Reverb.
 
+### The modulation effects
+
+Eight effects move the sound in time: **Concentus** (chorus), **Flexus** (flanger),
+**Phasis** (phaser), **Tremor** (tremolo and auto-pan), **Vibrans** (vibrato), **Anulus**
+(ring modulator), **Translatio** (frequency shifter) and **Fluctus** (volume shaper). Each
+one is inserted **doing nothing** — its *Mix* or *Depth* starts at 0 and the sound passes
+untouched — so turn that one control up, or pick a factory preset from the frame's list.
+
+| Effect | What it does | Worth knowing |
+|---|---|---|
+| Concentus | Thickens and widens | *Juno I, II, I+II* are the Juno-60's chorus as its circuit sweeps; *Dimension 1–4* widen without the wobble; *Free voices* are 1–4 voices on your own LFO. The **mono check** tells you whether the width survives a mono speaker. |
+| Flexus | The jet-plane comb | **Through zero** delays the dry sound by 5 ms (the footer says so, and Cantus compensates) so the moving copy passes through it, as two tape machines did. The sweep follows the LFO, how loud you play (*Envelope*), or a knob (*Manual*). *The comb now* draws the notches you hear. |
+| Phasis | Sweeping notches | 2 to 12 stages (a notch for every two), feedback either way; the Phase 90 and Small Stone are presets. |
+| Tremor | Level or pan in time | *Tremolo*, *Auto-pan* (equal power) and *Harmonic* (lows against highs, like the brown amps). Square and saw shapes have a soft **edge**, so they never click. |
+| Vibrans | Pitch that wavers | The depth is in **cents**, whatever the rate; **Rise** lets the vibrato arrive after each note, as a singer's does. |
+| Anulus | Bells, metal, robots | The carrier is shown as a note with its cents; *What a 1 kHz tone becomes* draws the partials it makes. |
+| Translatio | Moves every partial by the same hertz | Not a pitch shifter: harmonics stop being harmonic. *Up*, *Down*, or *Both* (one per side); feedback makes the barber-pole spirals. Its other sideband is more than 60 dB down from 20 Hz to 20 kHz. |
+| Fluctus | Sidechain pumping without a key | Draw the level over one cycle (a note value from 4/1 to 1/16): drag points (Shift: off the grid), double-click to add or remove one, drag a segment to bend it; segment shapes are the automation editor's. |
+
+**In time with the song.** Every LFO can follow the song (*Sync*, a note value with dotted
+and triplet values, swing where it makes sense) or run free in Hz. A synced LFO is tied to
+the song's position, not to when you pressed Play: start from bar 5 and it is where it
+would have been; a loop that wraps puts it back; offline export sounds exactly like
+playback. The display of each effect draws what the LFO will do over the next two cycles,
+with a playhead where it is now.
+
+**In another DAW.** The exported CLAP and VST3 versions read the host's tempo and position,
+so a synced Tremor or Fluctus follows that DAW's song too.
+
 **Your plug-ins.** Cantus scans the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP`
 and `…\VST3`, `C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you add
 in *Settings ▸ Plug-ins* (*Scan for plug-ins*, *Rescan everything*). Each file is scanned

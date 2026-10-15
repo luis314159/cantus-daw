@@ -356,19 +356,15 @@ fn partials_card(
                     );
                 }
                 if tel[T_SECTIONS] > 0.0 {
-                    canvas::putf(
+                    canvas::tag(
                         b,
                         pos2(r.right() - 6.0 * k, r.top() + 3.0 * k),
                         Align2::RIGHT_TOP,
-                        Role::Value,
+                        frame::tr("translatio.rejection"),
                         ink.text,
                         k,
                         Some(ink.plate),
-                        format_args!(
-                            "{} {:.0} dB",
-                            frame::tr("translatio.rejection"),
-                            tel[T_REJECTION]
-                        ),
+                        format_args!("{:.0} dB", tel[T_REJECTION]),
                     );
                 }
                 if both {

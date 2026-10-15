@@ -506,6 +506,36 @@ Los efectos son Aequalis (EQ), Comprimo (compresor), Porta (puerta y expansor), 
 (de-esser), Multiplex (dinámica multibanda), Terminus (limitador), Culmen (maximizador),
 Spatium (reverb), Fervor (saturación), Latitudo (estéreo), Delay y Reverb.
 
+### Los efectos de modulación
+
+Ocho efectos mueven el sonido en el tiempo: **Concentus** (chorus), **Flexus** (flanger),
+**Phasis** (phaser), **Tremor** (trémolo y autopaneo), **Vibrans** (vibrato), **Anulus**
+(modulador en anillo), **Translatio** (desplazador de frecuencia) y **Fluctus** (modelador
+de volumen). Cada uno se inserta **sin hacer nada** — su *Mezcla* o su *Profundidad* empieza
+en 0 y el sonido pasa intacto —, así que sube ese control o elige un preset de fábrica en la
+lista del marco.
+
+| Efecto | Qué hace | Conviene saber |
+|---|---|---|
+| Concentus | Engorda y ensancha | *Juno I, II, I+II* son el chorus del Juno-60 tal como barre su circuito; *Dimension 1–4* ensanchan sin vaivén; *Voces libres* son de 1 a 4 voces con tu propio LFO. La **prueba en mono** dice si la anchura sobrevive a un altavoz mono. |
+| Flexus | El peine del avión a reacción | **Por cero** retrasa el sonido seco 5 ms (el pie lo dice y Cantus lo compensa) para que la copia en movimiento lo atraviese, como hacían dos magnetófonos. El barrido sigue al LFO, a lo fuerte que tocas (*Envolvente*) o a una perilla (*Manual*). *El peine ahora* dibuja las muescas que oyes. |
+| Phasis | Muescas que barren | De 2 a 12 etapas (una muesca por cada dos), realimentación en ambos sentidos; el Phase 90 y el Small Stone son presets. |
+| Tremor | Nivel o panorama a tempo | *Trémolo*, *Autopaneo* (de igual potencia) y *Armónico* (graves contra agudos, como los amplis marrones). Las formas cuadrada y de sierra tienen un **borde** suave: nunca hacen clic. |
+| Vibrans | Una afinación que ondula | La profundidad va en **cents**, sea cual sea la velocidad; la **Entrada** deja que el vibrato llegue después de cada nota, como el de un cantante. |
+| Anulus | Campanas, metal, robots | La portadora se muestra como nota con sus cents; *En qué se convierte un tono de 1 kHz* dibuja los parciales que crea. |
+| Translatio | Mueve cada parcial los mismos hercios | No es un transpositor: los armónicos dejan de serlo. *Arriba*, *Abajo* o *Ambas* (una por lado); la realimentación hace las espirales de barbería. Su otra banda lateral queda más de 60 dB por debajo de 20 Hz a 20 kHz. |
+| Fluctus | Bombeo de sidechain sin clave | Dibuja el nivel en un ciclo (una figura de 4/1 a 1/16): arrastra puntos (Mayús: fuera de la rejilla), doble clic para añadir o quitar uno, arrastra un tramo para curvarlo; las formas de los tramos son las del editor de automatización. |
+
+**Al tempo de la canción.** Cada LFO puede seguir a la canción (*Al tempo*, una figura con
+puntillos y tresillos, swing donde tiene sentido) o ir libre en Hz. Un LFO al tempo está
+atado a la posición de la canción, no al momento en que pulsaste Reproducir: empieza en el
+compás 5 y está donde habría estado; un bucle que vuelve lo devuelve a su sitio; la
+exportación suena exactamente como la reproducción. La pantalla de cada efecto dibuja lo que
+hará el LFO en los dos ciclos siguientes, con un cabezal donde está ahora.
+
+**En otro DAW.** Las versiones CLAP y VST3 exportadas leen el tempo y la posición del
+anfitrión, así que un Tremor o un Fluctus al tempo siguen también la canción de ese DAW.
+
 **Tus plug-ins.** Cantus revisa las carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP`
 y `…\VST3`, `C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que añadas en *Ajustes
 ▸ Plug-ins* (*Buscar plug-ins*, *Volver a leer todo*). Cada archivo se revisa en un
