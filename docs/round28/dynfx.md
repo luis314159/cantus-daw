@@ -130,3 +130,13 @@ except where the test needs an interface the fix introduces (noted).
 
 Shoots re-taken (`F:\projects\daw-r28\shots\dynfx\`) and looked at: Tonsor, Impetus (the
 *Detect from* field), Discrimen, Speculum's overview and loudness view.
+
+Notes for the integrator after review 1: `DelayLine::retime` changes how *every* re-plan
+treats a line that keeps its edge (an edit too, not only automation): its content is kept
+and its read point moved instead of starting empty — `pdc.rs`, `master_chain.rs` and the
+contract pass. `HostSeen` gained `last_beats` (the block's last frame); `beats` stays the
+block's start. `EngineHandle::drain_scope` now returns the frames lost. In one full run
+`inst_stream::the_suite_leaves_no_cache_folder_behind` failed and passed on its own rerun
+(a cache folder shared between test binaries; none of this round's code is on its path).
+Whole suites of the seven crates pass, workspace clippy `-D warnings` and the plug-ins
+without default features are clean, `cargo fmt --check` passes.
