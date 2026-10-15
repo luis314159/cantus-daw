@@ -62,6 +62,27 @@ impl Hold {
         self.at = None;
         self.true_peak = 0.0;
     }
+
+    /// The highest true peak held now, linear (0: none since playback started).
+    pub fn true_peak(&self) -> f32 {
+        self.true_peak
+    }
+
+    /// The sample peak held now, linear.
+    pub fn peak(&self) -> f32 {
+        self.peak
+    }
+}
+
+/// Once a frame, whatever the bar shows (review 2: the hold was fed only while the meter
+/// was drawn, so an over while it was folded or hidden was missed): the engine's readings
+/// of this frame into the holds the meter reads.
+pub fn watch(app: &mut CantusApp) {
+    let m = app.engine.meters();
+    let (peaks, true_peak) = (m.master, m.master_loudness.true_peak);
+    let playing = app.engine.is_playing();
+    app.topbar.hold.feed(peaks[0].max(peaks[1]));
+    app.topbar.hold.feed_true_peak(true_peak, playing);
 }
 
 thread_local! {
@@ -102,9 +123,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let peaks = m.master;
     let loud = m.master_loudness;
     let lufs = app.settings.topbar.meter_lufs;
-    let held = app.topbar.hold.feed(peaks[0].max(peaks[1]));
-    let playing = app.engine.is_playing();
-    let true_peak = app.topbar.hold.feed_true_peak(loud.true_peak, playing);
+    // Fed once a frame by `watch`, drawn or not.
+    let held = app.topbar.hold.peak();
+    let true_peak = app.topbar.hold.true_peak();
     let row_h = 17.0 * k;
     let top = Rect::from_min_size(
         Pos2::new(r.left(), r.center().y - 23.0 * k),
@@ -143,7 +164,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         Pos2::new(top.right() - 2.0 * k, top.bottom()),
     );
     let rresp = ui.interact(rr, Id::new("toolbar-meter-readout"), Sense::click());
-    if rresp.clicked() {
+    // The footer's figures too (the TP the manual says to click), in loudness.
+    let fresp = ui.interact(foot, Id::new("toolbar-meter-foot"), Sense::click());
+    if rresp.clicked() || (lufs && fresp.clicked()) {
         app.topbar.hold.clear();
     }
     let clip = held >= 1.0;
@@ -200,6 +223,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 },
             );
             readout.push_str(" dB");
+        }
+        if lufs && fresp.hovered() {
+            hint::set_text(ui.ctx(), &t("topbar.meter.lufs_tip"), footer, Caps::NONE);
         }
         if rresp.hovered() {
             let name = if lufs {

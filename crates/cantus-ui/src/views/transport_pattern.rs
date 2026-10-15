@@ -30,6 +30,44 @@ pub struct State {
     clip: Option<(TrackId, ClipId)>,
     /// The song's position when pattern mode began.
     song_at: Option<Ticks>,
+    /// A seek to the pattern's top not yet seen landed, and the frames since it was sent:
+    /// a position the engine reported from before it lands is not a reason to seek again.
+    sought: Option<(Ticks, u32)>,
+}
+
+/// Frames a seek is waited for before a position outside the pattern seeks again (half a
+/// second at 60 frames a second: many callbacks at the largest buffer).
+const SEEK_WAIT: u32 = 30;
+
+/// Whether to seek to the pattern's top `start`: on entering, or when the engine's place
+/// `pos` is outside `[start, end)` — unless a seek there was sent and has not been seen to
+/// land (an engine that posts its old place after the seek, a callback longer than a UI
+/// frame, would make it seek twice and play the pattern's first block twice). A place
+/// inside the pattern means the seek landed; one not seen within [`SEEK_WAIT`] frames is
+/// sent again.
+fn should_seek(
+    sought: &mut Option<(Ticks, u32)>,
+    entered: bool,
+    pos: Ticks,
+    start: Ticks,
+    end: Ticks,
+) -> bool {
+    let inside = pos >= start && pos < end;
+    if inside {
+        *sought = None;
+    }
+    let waiting = match sought {
+        Some((at, n)) if *at == start && *n < SEEK_WAIT => {
+            *n += 1;
+            true
+        }
+        _ => false,
+    };
+    if entered || (!inside && !waiting) {
+        *sought = Some((start, 0));
+        return true;
+    }
+    false
 }
 
 impl State {
@@ -125,7 +163,7 @@ pub fn follow(app: &mut CantusApp) {
         None => (Ticks::ZERO, app.project().time_signature.ticks_per_bar()),
     };
     let pos = app.engine.engine_position();
-    if entered || pos < start || pos >= end {
+    if should_seek(&mut app.topbar.pattern.sought, entered, pos, start, end) {
         app.seek(start);
     }
 }
@@ -137,6 +175,36 @@ pub fn project_to_play(app: &CantusApp) -> Option<Project> {
         return None;
     }
     Some(audition(app.project(), app.topbar.pattern.region.as_ref()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Review 2: a position from before the seek (posted by a callback already running when
+    /// it was sent) does not seek again; once the seek is seen to land, a place outside the
+    /// pattern does; a seek never seen to land is sent again after a while.
+    #[test]
+    fn a_stale_position_after_a_seek_does_not_seek_again() {
+        let (start, end) = (Ticks(3_840), Ticks(7_680));
+        let mut sought = None;
+        assert!(should_seek(&mut sought, true, Ticks(100), start, end), "entering");
+        // The callback that was running posts its old place: no second seek.
+        assert!(!should_seek(&mut sought, false, Ticks(120), start, end));
+        // The seek lands.
+        assert!(!should_seek(&mut sought, false, start, start, end));
+        assert!(sought.is_none());
+        // Home, a click on the ruler: outside again, a seek.
+        assert!(should_seek(&mut sought, false, Ticks(0), start, end));
+        // Never seen to land: sent again after the wait.
+        for _ in 0..SEEK_WAIT {
+            assert!(!should_seek(&mut sought, false, Ticks(0), start, end));
+        }
+        assert!(should_seek(&mut sought, false, Ticks(0), start, end));
+        // Another pattern: its own seek at once.
+        let (s2, e2) = (Ticks(7_680), Ticks(11_520));
+        assert!(should_seek(&mut sought, false, Ticks(0), s2, e2));
+    }
 }
 
 /// Recording in pattern mode is refused, with the way out in the status line. Returns

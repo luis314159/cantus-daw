@@ -215,9 +215,15 @@ fn every_group_keeps_to_its_own_width() {
             ctx.set_zoom_factor(zoom);
             for (variant, g) in (0..2).flat_map(|v| Group::ALL.map(|g| (v, g))) {
                 // The second pass: LUFS on the meter, the song in pattern mode, the typing
-                // keyboard on, a track armed.
+                // keyboard on, a track armed, twelve MIDI ports (review 2: two digits were
+                // shortened to "1…").
                 a.settings.topbar.meter_lufs = variant == 1;
                 a.keyboard_piano = variant == 1;
+                a.midi_port_names = if variant == 1 {
+                    (0..12).map(|i| format!("Port {i}")).collect()
+                } else {
+                    Vec::new()
+                };
                 if a.project().pattern_mode != (variant == 1) {
                     a.run_action(cantus_ui::keymap::Action::TogglePatternMode);
                 }
@@ -270,12 +276,22 @@ fn every_group_keeps_to_its_own_width() {
     set_locale(Locale::En);
 }
 
-/// The groups' widths at 100 %, both languages (a record for the ADR):
-/// `cargo test -p cantus-ui --test topbar_layout widths -- --ignored --nocapture`.
+/// A running interface with a long name, as the owner's: the chip's text is past its cap.
+fn with_device(a: &mut CantusApp) {
+    let mut live = cantus_ui::audio_setup::demo::live_on_umc();
+    live.device = "Focusrite USB ASIO".into();
+    live.wanted = live.device.clone();
+    live.driver = "ASIO".into();
+    a.audio_setup.demo = Some(live);
+}
+
+/// The groups' widths at 100 %, both languages, a running device's chip (a record for the
+/// ADR): `cargo test -p cantus-ui --test topbar_layout widths -- --ignored --nocapture`.
 #[test]
 #[ignore]
 fn widths() {
-    let (a, _dir) = app();
+    let (mut a, _dir) = app();
+    with_device(&mut a);
     let ctx = ctx();
     for locale in [Locale::En, Locale::Es] {
         set_locale(locale);
@@ -297,16 +313,24 @@ fn widths() {
 }
 
 /// At 1920 px and 100 %, the default bar shows every group — in English and in Spanish
-/// (review 1: five folded) — and at 1280 px the most important ones stay.
+/// (review 1: five folded), with a running interface's chip at its widest (review 2: only
+/// the "no audio" chip was measured) — and at 1280 px the most important ones stay.
 #[test]
 fn the_default_bar_shows_every_group_at_1920() {
-    let (a, _dir) = app();
+    let (mut a, _dir) = app();
+    with_device(&mut a);
     let ctx = ctx();
     ctx.set_zoom_factor(1.0);
     for locale in [Locale::En, Locale::Es] {
         set_locale(locale);
         let mut o = ctx.run_ui(Default::default(), |ui| {
             let wants = transport::wants(&a, ui.ctx());
+            let device = wants.iter().find(|w| w.group == Group::Device).unwrap();
+            assert_eq!(
+                device.min,
+                transport::DEVICE_MIN + 4.0,
+                "{locale:?}: the chip past its least"
+            );
             let l = transport::layout::layout(&transport::room(ui.ctx(), 1920.0), &wants);
             assert!(l.folded().is_empty(), "{locale:?} folds {:?}", l.folded());
             let l = transport::layout::layout(&transport::room(ui.ctx(), 1280.0), &wants);

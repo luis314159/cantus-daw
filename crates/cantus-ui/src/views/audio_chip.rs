@@ -206,6 +206,18 @@ pub fn width(app: &CantusApp, ctx: &egui::Context) -> f32 {
     CACHE.with(|c| c.borrow().width)
 }
 
+/// Whether the chip reads a running device's line (name · driver · rate · buffer ·
+/// latency), which may be shortened in its middle (the whole line is in its hint) — not a
+/// sentence (no audio, lost, stalled), which is read whole.
+pub fn reads_a_device(app: &CantusApp, ctx: &egui::Context) -> bool {
+    let s = Style::current();
+    refresh(app, ctx, &s);
+    CACHE.with(|c| {
+        let k = &c.borrow().key;
+        k.live && !k.lost && !k.stalled
+    })
+}
+
 /// Draw the chip in `rect`; a click opens or closes the popover.
 pub fn show(app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
     let s = Style::current();

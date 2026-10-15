@@ -668,7 +668,11 @@ impl Processor {
             heard: self.heard_position(),
             playing: self.transport.is_playing(),
         });
-        let _ = self.tx.push(EngineEvent::Meters(self.meters.clone()));
+        // The meters' true peak starts again only once a report got through: one the
+        // queue had no room for loses no over.
+        if self.tx.push(EngineEvent::Meters(self.meters.clone())).is_ok() {
+            self.master_loud.sent();
+        }
         let _ = self.tx.push(EngineEvent::Stats(self.stats));
     }
 

@@ -86,6 +86,13 @@ fn app_for(theme: &str) -> CantusApp {
     };
     app.appearance.mode = mode;
     app.appearance.assign(mode, format!("preset:{preset}"));
+    // A running interface with a long name, as the owner's (review 2: the "no audio" chip
+    // is narrower than any real one).
+    let mut live = cantus_ui::audio_setup::demo::live_on_umc();
+    live.device = "Focusrite USB ASIO".into();
+    live.wanted = live.device.clone();
+    live.driver = "ASIO".into();
+    app.audio_setup.demo = Some(live);
     app
 }
 

@@ -143,7 +143,7 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
     let width = folded
         .iter()
         .filter_map(|g| wants[..n].iter().find(|w| w.group == *g))
-        .map(|w| w.min)
+        .map(|w| w.max)
         .fold(220.0 * k, f32::max);
     // A tall group takes the bar's height, a short one a row's.
     let tall_h = (HEIGHT * s.t.density).round();
@@ -166,7 +166,8 @@ fn overflow(app: &mut CantusApp, ui: &mut Ui, folded: &[Group]) {
         let w = wants[..n]
             .iter()
             .find(|w| w.group == *g)
-            .map_or(width, |w| w.min);
+            // At its most: the menu has the room the bar had not (the chip whole).
+            .map_or(width, |w| w.max);
         let h = if g.tall() { tall_h } else { row_h };
         let (row, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
         let r = Rect::from_min_size(row.min, vec2(w, h));

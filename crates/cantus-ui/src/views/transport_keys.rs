@@ -276,11 +276,16 @@ fn lamp_cell(
                 .policy(Policy::Elide(Elide::End)),
             s.tk(),
         );
-        let vr = Rect::from_min_max(Pos2::new(wr.right(), r.top()), r.max);
+        // The number's room: what is past the word, 2 pt in from it and 4 from the well's
+        // edge — the width of "88" and 2 pt to spare (review 2: 2 pt short, "10" read "1…").
+        let vr = Rect::from_min_max(
+            Pos2::new(wr.right() + 2.0 * k, r.top()),
+            Pos2::new(r.right() - 4.0 * k, r.bottom()),
+        );
         let ink = if lit { s.t.text } else { s.t.text_dim };
         let _ = text::paint(
             b,
-            vr.shrink2(Vec2::new(5.0 * k, 0.0)),
+            vr,
             &Text::new(value, Role::Value, ink)
                 .align(Align2::RIGHT_CENTER)
                 .policy(Policy::Elide(Elide::End)),

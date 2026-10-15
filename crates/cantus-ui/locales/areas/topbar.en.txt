@@ -19,8 +19,7 @@ topbar.group.inputs = Inputs
 topbar.group.device = Audio device
 topbar.group.tools = Tools and zoom
 
-# The menus folded into one key, the overflow and customising
-topbar.menus = Menus
+# The overflow and customising
 topbar.customise = Customise top bar…
 topbar.customise_title = Customise the top bar
 topbar.customise_drag = Drag to move this group along the bar

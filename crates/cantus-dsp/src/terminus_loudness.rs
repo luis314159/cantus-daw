@@ -269,6 +269,9 @@ pub struct ColumnLoudness {
     pos: usize,
     /// Columns seen since the last reset.
     seen: u64,
+    /// The column a measurement started at ([`Self::restart_measurement`]): gating
+    /// blocks and short-term values are counted only from windows that begin there.
+    from: u64,
     /// Momentary and short-term loudness at the last column, LUFS (−∞ until they exist).
     pub momentary: f64,
     pub short_term: f64,
@@ -292,6 +295,7 @@ impl ColumnLoudness {
             ring: [0.0; SHORT_COLUMNS],
             pos: 0,
             seen: 0,
+            from: 0,
             momentary: f64::NEG_INFINITY,
             short_term: f64::NEG_INFINITY,
             max_momentary: f64::NEG_INFINITY,
@@ -305,6 +309,7 @@ impl ColumnLoudness {
         self.ring = [0.0; SHORT_COLUMNS];
         self.pos = 0;
         self.seen = 0;
+        self.from = 0;
         self.momentary = f64::NEG_INFINITY;
         self.short_term = f64::NEG_INFINITY;
         self.max_momentary = f64::NEG_INFINITY;
@@ -321,17 +326,28 @@ impl ColumnLoudness {
         s / n as f64
     }
 
+    /// Start a new measurement here, the momentary and short-term readings running on: the
+    /// histograms empty, and a gating block (a short-term value) counted again only once
+    /// 400 ms (3 s) of columns from now are in it. BS.1770's blocks begin at the
+    /// measurement's start, never in what came before it.
+    pub fn restart_measurement(&mut self) {
+        self.from = self.seen;
+        self.blocks.clear();
+        self.shorts.clear();
+    }
+
     /// One column: the mean over its samples of the summed K-weighted squares.
     pub fn push(&mut self, energy: f64) {
         self.ring[self.pos] = energy.max(0.0);
         self.pos = (self.pos + 1) % SHORT_COLUMNS;
         self.seen += 1;
-        let step = self.seen.is_multiple_of(STEP_COLUMNS as u64);
+        let since = self.seen - self.from;
+        let step = since.is_multiple_of(STEP_COLUMNS as u64);
         if self.seen >= MOMENTARY_COLUMNS as u64 {
             let m = self.mean_of_last(MOMENTARY_COLUMNS);
             self.momentary = lufs(m);
             self.max_momentary = self.max_momentary.max(self.momentary);
-            if step {
+            if step && since >= MOMENTARY_COLUMNS as u64 {
                 self.blocks.add(m);
             }
         }
@@ -339,7 +355,7 @@ impl ColumnLoudness {
             let s = self.mean_of_last(SHORT_COLUMNS);
             self.short_term = lufs(s);
             self.max_short_term = self.max_short_term.max(self.short_term);
-            if step {
+            if step && since >= SHORT_COLUMNS as u64 {
                 self.shorts.add(s);
             }
         }
@@ -421,6 +437,15 @@ impl LoudnessMeter {
             }
             self.max_true_peak = self.max_true_peak.max(self.tp[0].push(v));
         }
+    }
+
+    /// Start a new measurement here ([`ColumnLoudness::restart_measurement`]), the column
+    /// in progress included: what came before is in no gating block. The filters and the
+    /// readings run on.
+    pub fn restart_measurement(&mut self) {
+        self.acc = 0.0;
+        self.acc_n = 0;
+        self.columns.restart_measurement();
     }
 
     pub fn momentary(&self) -> f64 {

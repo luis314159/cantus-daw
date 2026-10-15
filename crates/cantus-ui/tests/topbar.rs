@@ -715,3 +715,85 @@ fn a_slow_fine_drag_moves_the_click_level() {
         "{db} dB after a slow fine drag of 40 pt"
     );
 }
+
+// ---- fix2 (review 2) ---------------------------------------------------------------------
+
+/// The meter's holds are fed every frame, whatever the bar shows: an over while the meter
+/// is folded into ⋯ is in the TP figure when the overflow opens (it was fed only while
+/// drawn).
+#[test]
+fn an_over_while_the_meter_is_folded_is_held() {
+    let mut r = Rig::new();
+    r.app.settings.topbar.meter_lufs = true;
+    r.size = vec2(900.0, 700.0);
+    r.idle(3);
+    assert!(r.group(Group::Meter).is_none(), "the meter folds at 900");
+    let mut m = r.app.engine.meters().clone();
+    m.master_loudness.true_peak = 1.2; // +1.6 dBTP
+    r.app.engine.set_meters(m.clone());
+    r.idle(2);
+    m.master_loudness.true_peak = 0.1;
+    r.app.engine.set_meters(m);
+    r.idle(2);
+    transport::open_overflow(&mut r.app);
+    r.idle(3);
+    let text = r.painted();
+    assert!(text.contains("TP 1.6"), "{text}");
+}
+
+/// An undo or a redo that brings pattern mode back in the middle of a take ends the take
+/// first, in the song (`follow`; review 2: only the key's refusal was tested).
+#[test]
+fn an_undo_or_redo_that_brings_pattern_mode_back_ends_the_take() {
+    for redo in [false, true] {
+        let mut r = Rig::new();
+        let keys = r.app.project().tracks[0].id;
+        r.app.toggle_arm(keys, false);
+        r.app.run_action(Action::TogglePatternMode);
+        r.idle(1);
+        if redo {
+            r.app.undo();
+        } else {
+            r.app.run_action(Action::TogglePatternMode);
+        }
+        r.idle(1);
+        assert!(!r.app.project().pattern_mode, "redo {redo}");
+        r.app.start_recording();
+        assert!(r.app.is_recording(), "redo {redo}");
+        if redo {
+            r.app.redo();
+        } else {
+            r.app.undo();
+        }
+        r.idle(1);
+        assert!(r.app.project().pattern_mode, "redo {redo}: the mode came back");
+        assert!(!r.app.is_recording(), "redo {redo}: the take ended");
+        assert!(r.app.project().track(keys).unwrap().armed, "redo {redo}");
+    }
+}
+
+/// Choosing a channel (the rack, Ctrl+Up/Down) in pattern mode keeps the pattern playing
+/// when the channel's first clip is elsewhere (review 2: the playhead jumped there).
+#[test]
+fn choosing_a_channel_keeps_the_pattern() {
+    let mut r = Rig::new();
+    let far = far_clip(&mut r.app);
+    let track = r.app.project().tracks[0].id;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(far);
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    r.app.seek(Ticks::beats(65));
+    r.idle(1);
+    let other = r.app.project().tracks[1].id;
+    assert!(
+        r.app.project().track(other).unwrap().clips.first().is_some(),
+        "the other track has a clip elsewhere"
+    );
+    r.app.select_track(other);
+    r.idle(2);
+    let region = r.app.topbar.pattern.region().cloned().expect("a pattern");
+    assert_eq!(region.start, Ticks::beats(64));
+    assert_eq!(r.app.engine.position(), Ticks::beats(65));
+    assert_eq!(r.app.selected_clip, region.clip_of(other));
+}

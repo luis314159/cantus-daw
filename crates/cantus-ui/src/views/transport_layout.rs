@@ -17,7 +17,8 @@
 //!   is either on the bar whole or in the menu, so nothing is ever clipped and nothing
 //!   overlaps.
 //! - **Room to spare** goes to the left block (up to its most), then to the groups that can
-//!   grow (the master meter), and what is still left stays at the bar's right end.
+//!   grow — the master meter, then the audio chip (its column widens with it) — and what is
+//!   still left stays at the bar's right end.
 
 /// One group of the bar: one function, separated from the next by the kit's divider.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -320,18 +321,21 @@ fn columns(
 /// The least important group folds into ⋯ until the rest fits; then, most important first,
 /// any folded group that fits again comes back (a fold can free more room than the next
 /// group needs). Room to spare goes to the left block, then to the groups that can grow.
+/// The width the bar needs with the groups that are `on`, everything at its least.
+fn need_of(room: &Room, wants: &[Want], on: &[bool; COUNT]) -> f32 {
+    let (w, cols) = columns(wants, on, |_, _, _| {});
+    room.pad * 2.0
+        + room.left_min
+        + room.gap
+        + room.more
+        + w[..cols].iter().map(|c| c + room.gap).sum::<f32>()
+}
+
 pub fn layout(room: &Room, wants: &[Want]) -> Layout {
     let n = wants.len().min(COUNT);
     let wants = &wants[..n];
     let mut on = [true; COUNT];
-    let need = |on: &[bool; COUNT]| {
-        let (w, cols) = columns(wants, on, |_, _, _| {});
-        room.pad * 2.0
-            + room.left_min
-            + room.gap
-            + room.more
-            + w[..cols].iter().map(|c| c + room.gap).sum::<f32>()
-    };
+    let need = |on: &[bool; COUNT]| need_of(room, wants, on);
     while need(&on) > room.width {
         let Some(i) = (0..n)
             .filter(|&i| on[i])
@@ -387,6 +391,15 @@ pub fn layout(room: &Room, wants: &[Want]) -> Layout {
             widths[slots[i].0] += grow;
         }
     }
+    // Then a short one that can (the audio chip), widening its column up to its most.
+    for (i, w) in wants.iter().enumerate() {
+        if on[i] && !w.tall && w.max > w.min {
+            let c = slots[i].0;
+            let grow = slack.min((w.max - widths[c]).max(0.0));
+            slack -= grow;
+            widths[c] += grow;
+        }
+    }
     let mut x0 = [0f32; COUNT];
     let mut x = out.left.x1 + room.gap;
     for c in 0..cols {
@@ -402,7 +415,11 @@ pub fn layout(room: &Room, wants: &[Want]) -> Layout {
             continue;
         }
         let (c, slot) = slots[i];
-        let width = if slot == Slot::Full { widths[c] } else { w.min };
+        let width = if slot == Slot::Full {
+            widths[c]
+        } else {
+            w.min.max(widths[c].min(w.max))
+        };
         out.placed[out.placed_len] = Placed {
             group: w.group,
             span: Span {
@@ -459,17 +476,61 @@ mod tests {
 
     #[test]
     fn a_narrow_bar_folds_the_least_important_first() {
-        let l = layout(&room(700.0), &wants());
-        let on: Vec<Group> = l.placed().iter().map(|p| p.group).collect();
-        assert!(!on.is_empty() && on.len() < COUNT, "{on:?}");
+        // Every group a column of its own, all as wide: each return costs the same, so the
+        // folded are exactly the least important.
+        let tall: Vec<Want> = wants()
+            .into_iter()
+            .map(|w| Want { tall: true, ..w })
+            .collect();
+        let l = layout(&room(700.0), &tall);
+        assert!(!l.placed().is_empty() && !l.folded().is_empty(), "{l:?}");
         for g in l.folded() {
             for p in l.placed() {
-                // Re-admission may bring a less important but narrow group back.
-                let _ = (g, p);
+                assert!(
+                    g.importance() > p.group.importance(),
+                    "{g:?} folded while {:?} stays",
+                    p.group
+                );
             }
         }
-        assert!(on.contains(&Group::Transport));
-        assert_eq!(on.len() + l.folded().len(), COUNT);
+        // The default bar, two rows: a less important group may come back where it costs
+        // nothing (Tools under the chip), but no folded group would fit if put back, and
+        // the most important stay.
+        let w = wants();
+        let l = layout(&room(700.0), &w);
+        let mut on = [false; COUNT];
+        for p in l.placed() {
+            on[w.iter().position(|x| x.group == p.group).unwrap()] = true;
+        }
+        for g in l.folded() {
+            let mut back = on;
+            back[w.iter().position(|x| x.group == *g).unwrap()] = true;
+            assert!(
+                need_of(&room(700.0), &w, &back) > 700.0,
+                "{g:?} would fit: {l:?}"
+            );
+        }
+        for g in [Group::Transport, Group::Position, Group::Tempo, Group::Mode] {
+            assert!(l.span_of(g).is_some(), "{g:?} folded: {l:?}");
+        }
+        assert_eq!(l.placed().len() + l.folded().len(), COUNT);
+    }
+
+    /// The audio chip (a short group that can grow) widens its column with what is spare,
+    /// after the left block and the meter; its partner keeps its own width.
+    #[test]
+    fn a_short_group_that_can_grow_widens_its_column() {
+        let mut w = wants();
+        w.iter_mut().find(|x| x.group == Group::Device).unwrap().max = 200.0;
+        let l = layout(&room(4000.0), &w);
+        assert_eq!(l.span_of(Group::Device).unwrap().width(), 200.0);
+        assert_eq!(l.span_of(Group::Tools).unwrap().width(), 60.0);
+        // Short of room: at its least.
+        let all = need_of(&room(0.0), &w, &[true; COUNT]);
+        let l = layout(&room(all + 200.0 + 100.0 + 30.0), &w);
+        assert_eq!(l.left.width(), 400.0);
+        assert_eq!(l.span_of(Group::Meter).unwrap().width(), 160.0);
+        assert_eq!(l.span_of(Group::Device).unwrap().width(), 90.0);
     }
 
     /// A fold that frees more room than the next group needs lets a folded group back.

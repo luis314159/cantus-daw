@@ -1017,6 +1017,13 @@ impl EngineHandle {
         &self.meters
     }
 
+    /// Readings as if the engine had sent them, for the dummy engine's tests and screenshots
+    /// (it sends none); a running engine's next report replaces them.
+    #[doc(hidden)]
+    pub fn set_meters(&mut self, meters: Meters) {
+        self.meters = meters;
+    }
+
     /// The modulators' live values, as the engine last reported them (ADR 0057).
     pub fn modulation(&self) -> &crate::modulator::ModTelemetry {
         &self.modulation

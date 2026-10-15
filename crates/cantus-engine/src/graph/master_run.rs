@@ -340,8 +340,11 @@ impl Processor {
 ///   allocates.
 /// - A mono output is weighed as one channel.
 /// - A sample that is not finite is metered as silence, so the filters never hold a NaN.
-/// - The integrated reading is the pass's: it starts again when playback starts, is worked
-///   out only when a 100 ms gating block was added while playing, and holds after Stop.
+/// - The integrated reading is the pass's: it starts again when playback starts (its gating
+///   blocks hold nothing from before Play), is worked out only when a 100 ms gating block
+///   was added while playing, and holds after Stop.
+/// - The true peak is the highest since the last reading **delivered** ([`Self::sent`]): a
+///   report the UI's queue had no room for loses no over.
 #[derive(Clone, Debug)]
 pub(crate) struct MasterLoud {
     meter: cantus_dsp::terminus::loudness::LoudnessMeter,
@@ -378,14 +381,8 @@ impl MasterLoud {
     /// mono output.
     pub(crate) fn feed(&mut self, l: &mut [f32], r: Option<&mut [f32]>, playing: bool) {
         if playing && !self.playing {
-            let c = &mut self.meter.columns;
-            // Only what was written needs clearing: a histogram never filled stays clear.
-            if !c.blocks.is_empty() {
-                c.blocks.clear();
-            }
-            if !c.shorts.is_empty() {
-                c.shorts.clear();
-            }
+            // A new measurement from this sample; the momentary reading runs on.
+            self.meter.restart_measurement();
             self.blocks_seen = 0;
             self.integrated = f32::NEG_INFINITY;
         }
@@ -416,17 +413,20 @@ impl MasterLoud {
         }
     }
 
-    /// The readings, and the block's true peak cleared for the next block.
-    pub(crate) fn take(&mut self) -> crate::messages::MasterLoudness {
-        let m = &mut self.meter;
-        let out = crate::messages::MasterLoudness {
+    /// The readings; the true peak is the highest since the last reading [`Self::sent`].
+    pub(crate) fn take(&self) -> crate::messages::MasterLoudness {
+        let m = &self.meter;
+        crate::messages::MasterLoudness {
             momentary: m.momentary() as f32,
             short_term: m.short_term() as f32,
             integrated: self.integrated,
             true_peak: m.max_true_peak,
-        };
-        m.max_true_peak = 0.0;
-        out
+        }
+    }
+
+    /// The last reading reached the UI: the true peak starts again for the next.
+    pub(crate) fn sent(&mut self) {
+        self.meter.max_true_peak = 0.0;
     }
 }
 
@@ -459,6 +459,7 @@ mod loud_tests {
             let mut r2 = buf.clone();
             m.feed(&mut buf.clone(), (!mono).then_some(&mut r2[..]), playing);
             r = m.take();
+            m.sent();
         }
         r
     }
@@ -481,6 +482,7 @@ mod loud_tests {
                 r.copy_from_slice(&buf);
                 m.feed(&mut l, Some(&mut r), true);
                 std::hint::black_box(m.take());
+                m.sent();
             }
             let secs = t.elapsed().as_secs_f64();
             let audio = (blocks * n) as f64 / SR as f64;
@@ -512,8 +514,43 @@ mod loud_tests {
             m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
         }
         let _ = m.take();
+        m.sent();
         m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
         assert_eq!(m.take().true_peak, 0.0);
+    }
+
+    /// Review 2: a reading the UI's queue had no room for loses no over: the true peak
+    /// starts again only once a reading was delivered.
+    #[test]
+    fn an_undelivered_reading_keeps_its_true_peak() {
+        let a = cantus_dsp::math::powf(10f32, -3.0 / 20.0);
+        let mut m = MasterLoud::new(SR);
+        let mut t = 0;
+        let _ = sine(&mut m, -3.0, 10, 480, false, true, &mut t);
+        // The last block's report was dropped (fed again, no `sent`); then silence.
+        let _ = sine(&mut m, -3.0, 1, 480, false, true, &mut t);
+        m.feed(&mut [0.5; 480], Some(&mut [0.5; 480]), true);
+        for _ in 0..20 {
+            m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
+            let r = m.take();
+            assert!(r.true_peak >= a.max(0.5) * 0.99, "{r:?}");
+        }
+        m.sent();
+        m.feed(&mut [0.0; 480], Some(&mut [0.0; 480]), true);
+        assert_eq!(m.take().true_peak, 0.0);
+    }
+
+    /// Review 2: the pass's integrated reading holds nothing from before Play: silence
+    /// while stopped, then a steady sine played reads the sine's level within 0.05 LU.
+    #[test]
+    fn the_integrated_reading_holds_nothing_from_before_play() {
+        let mut m = MasterLoud::new(SR);
+        let mut t = 0;
+        let _ = sine(&mut m, -120.0, 100, 480, false, false, &mut t);
+        let r = sine(&mut m, -20.0, 200, 480, false, true, &mut t);
+        assert!((r.integrated + 20.0).abs() < 0.05, "{r:?}");
+        // And the momentary reading ran on through the edge.
+        assert!((r.momentary + 20.0).abs() < 0.1, "{r:?}");
     }
 
     /// A mono output is one channel: the same sine reads 3 dB less than on two (review 1).
@@ -552,17 +589,20 @@ mod loud_tests {
     }
 
     /// The integrated reading is worked out when a gating block is added (every 100 ms),
-    /// not on every callback (review 1).
+    /// not on every callback (review 1; review 2: past the first 400 ms, so the gate opens).
     #[test]
     fn the_integrated_reading_is_worked_out_only_when_it_can_change() {
         let mut m = MasterLoud::new(SR);
-        let _ = sine(&mut m, -20.0, 200, 32, false, true, &mut 0);
-        let scans = m.scans;
-        // 200 callbacks of 32 frames = 133 ms: at most two gating blocks were added.
-        assert!(scans <= 2, "{scans} scans");
-        for _ in 0..50 {
-            let _ = m.take();
-        }
-        assert_eq!(m.scans, scans, "no new block, no scan");
+        let mut t = 0;
+        // 3 000 callbacks of 32 frames: 2 s, 200 columns. The first gating block at
+        // column 40, then one every 10: 17 blocks, 17 scans, not 3 000.
+        let _ = sine(&mut m, -20.0, 3_000, 32, false, true, &mut t);
+        let blocks = m.meter.columns.blocks.len();
+        assert_eq!(blocks, 17);
+        assert_eq!(m.scans, blocks, "one scan a gating block");
+        // Callbacks inside one 100 ms step add no block, and so no scan.
+        let _ = sine(&mut m, -20.0, 50, 32, false, true, &mut t);
+        assert_eq!(m.meter.columns.blocks.len(), blocks);
+        assert_eq!(m.scans, blocks, "no new block, no scan");
     }
 }

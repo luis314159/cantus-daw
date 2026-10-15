@@ -19,8 +19,7 @@ topbar.group.inputs = Entradas
 topbar.group.device = Dispositivo de audio
 topbar.group.tools = Herramientas y zoom
 
-# Los menús plegados en una tecla, el desborde y personalizar
-topbar.menus = Menús
+# El desborde y personalizar
 topbar.customise = Personalizar la barra superior…
 topbar.customise_title = Personalizar la barra superior
 topbar.customise_drag = Arrastra para mover este grupo por la barra

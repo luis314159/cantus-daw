@@ -71,8 +71,16 @@ const PAD: f32 = 6.0;
 const STEP: f32 = 2.0;
 /// The hint panel's least width at 100 %.
 const HINT_MIN: f32 = 300.0;
-/// The audio chip's widest on the bar at 100 %.
-const DEVICE_MAX: f32 = 200.0;
+/// The audio chip's least on the bar at 100 % while it reads a running device (its line is
+/// shortened in its middle, the whole of it in the chip's hint): what keeps every group on
+/// the bar at 1920 px with a running interface's chip (review 2). A sentence (no audio,
+/// lost) is read whole, up to [`DEVICE_SENTENCE`].
+pub const DEVICE_MIN: f32 = 150.0;
+/// The most a sentence on the chip takes before it is shortened.
+const DEVICE_SENTENCE: f32 = 200.0;
+/// The audio chip's widest on the bar at 100 %, when the bar has the room (it grows after
+/// the meter).
+pub const DEVICE_MAX: f32 = 320.0;
 
 /// The top bar's own state, kept on the application (`CantusApp::topbar`).
 #[derive(Debug, Default)]
@@ -110,7 +118,7 @@ impl TopBar {
 thread_local! {
     /// The groups' measured widths, and what they were measured for.
     static WANTS: RefCell<Option<(WantsKey, [Want; COUNT], usize)>> = const { RefCell::new(None) };
-    /// The menus' and the compact left block's widths, for the same key.
+    /// The menus' width, for the same key.
     static LEFT: RefCell<f32> = const { RefCell::new(0.0) };
 }
 
@@ -217,10 +225,22 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
             }
         }
         Group::Inputs => fixed(keys::inputs_width(ctx, s)),
-        // The chip's own width, up to 200 pt: a long device name is shortened in the chip
-        // (its whole text is in its hint), never the bar's room for the other groups.
+        // The chip's own width, at least up to 150 pt (a sentence: 200) and at most 320
+        // as room allows: a long device line is shortened in the chip (its whole text is
+        // in its hint), never the bar's room for the other groups.
         Group::Device => {
-            fixed(super::audio_chip::width(app, ctx).min(DEVICE_MAX * s.k) + 4.0 * s.k)
+            let chip = super::audio_chip::width(app, ctx);
+            let least = if super::audio_chip::reads_a_device(app, ctx) {
+                DEVICE_MIN
+            } else {
+                DEVICE_SENTENCE
+            };
+            Want {
+                group: g,
+                min: (chip.min(least * s.k) + 4.0 * s.k).ceil(),
+                max: (chip.min(DEVICE_MAX * s.k) + 4.0 * s.k).ceil(),
+                tall: false,
+            }
         }
         Group::Tools => fixed(keys::tools_width(ctx, s)),
     }
@@ -276,10 +296,11 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let first = ui.ctx().graphics_mut(|g| g.entry(layer).next_idx());
     let ctx = ui.ctx().clone();
     // The things the bar keeps up to date whatever it shows: the pattern being played,
-    // a run of taps that ended, the RAM reading.
+    // a run of taps that ended, the RAM reading, the meter's held peaks.
     pattern::follow(app);
     tempo::tap_tick(app);
     perf::watch(app);
+    meter::watch(app);
 
     let (wants, n) = wants_cached(app, &ctx);
     let room = room(&ctx, rect.width());

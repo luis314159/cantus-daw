@@ -1487,10 +1487,17 @@ impl CantusApp {
             }
             self.selected_track = Some(id);
             self.selected_strip = self.project().track(id).and_then(|t| t.strip);
-            self.selected_clip = self
-                .project()
-                .track(id)
-                .and_then(|t| t.clips.first().map(|c| c.id));
+            // In pattern mode, the track's clip in the pattern playing, or none: choosing a
+            // channel never changes the pattern (FL keeps it until another is chosen; review
+            // 2: its first clip elsewhere made the playhead jump there).
+            let in_pattern = self.topbar.pattern.region().map(|r| r.clip_of(id));
+            self.selected_clip = match in_pattern {
+                Some(clip) => clip,
+                None => self
+                    .project()
+                    .track(id)
+                    .and_then(|t| t.clips.first().map(|c| c.id)),
+            };
             self.selected_clips = match (self.selected_track, self.selected_clip) {
                 (Some(t), Some(c)) => vec![(t, c)],
                 _ => Vec::new(),
