@@ -1,62 +1,73 @@
-//! Impetus, the transient processor, behind the engine's plug-in contract.
+//! Impetus, the transient processor, behind the engine's plug-in contract (ADR 0056).
 //! Owned by Impetus.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::impetus`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::impetus`.
+//! [`settings`] reads the table (`cantus_core::fx::impetus`) into the DSP's settings
+//! (`cantus_dsp::impetus`); the editor draws from the same reading. The key, when a strip
+//! is routed to it, is what the detector hears.
 
-use super::FxUnit;
+use super::{FxUnit, Telemetry, TELEMETRY_LEN};
 use cantus_core::EffectSpec;
+use cantus_dsp::impetus::{Band, Impetus, ImpetusSettings};
 
 /// Impetus's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Impetus's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> ImpetusSettings {
+    ImpetusSettings {
+        attack: spec.get("attack"),
+        sustain: spec.get("sustain"),
+        speed_ms: spec.get("speed"),
+        length_ms: spec.get("length"),
+        band: Band::from_index(spec.get("band")),
+        xover_hz: spec.get("xover"),
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Box<Impetus>,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Box::new(Impetus::new(sample_rate)),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
-    fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+    fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>) {
+        self.dsp.process(left, right, key);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        let mut t = [0.0; TELEMETRY_LEN];
+        self.dsp.telemetry(&mut t);
+        t
     }
 }
 
@@ -65,15 +76,40 @@ mod tests {
     use super::*;
     use cantus_core::EffectKind;
 
-    /// The defaults of the table read as the DSP's defaults: the null rule holds through
-    /// the mapping.
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
         let spec = EffectSpec::new(EffectKind::Transient);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(settings(&spec), ImpetusSettings::default());
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    #[test]
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::Transient);
+        for (k, v) in [
+            ("attack", 0.5),
+            ("sustain", -0.25),
+            ("speed", 4.0),
+            ("length", 600.0),
+            ("band", 2.0),
+            ("xover", 900.0),
+            ("out", -3.0),
+        ] {
+            spec.set(k, v);
+        }
+        assert_eq!(
+            settings(&spec),
+            ImpetusSettings {
+                attack: 0.5,
+                sustain: -0.25,
+                speed_ms: 4.0,
+                length_ms: 600.0,
+                band: Band::Lows,
+                xover_hz: 900.0,
+                out_db: -3.0,
+            }
+        );
+    }
+
     #[test]
     fn the_defaults_touch_no_sample() {
         let mut u = Unit::new(48_000.0);
@@ -86,6 +122,5 @@ mod tests {
             .chain(&r)
             .zip(x.iter().chain(&x))
             .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
     }
 }

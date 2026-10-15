@@ -144,10 +144,51 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
                 ("p3.s", 1.0),
             ],
         ),
-        EffectKind::Clipper => {}
-        EffectKind::Transient => {}
-        EffectKind::TransientSplit => {}
-        EffectKind::Analyzer => {}
+        // Tonsor: 16x with the true-peak guard, driven hard into the analog shoulder.
+        EffectKind::Clipper => set(
+            &mut s,
+            &[
+                ("drive", 12.0),
+                ("ceil", -1.0),
+                ("knee", 3.0),
+                ("curve", 2.0),
+                ("os", 4.0),
+                ("tp", 1.0),
+                ("match", 1.0),
+            ],
+        ),
+        // Impetus: both amounts at work on the highs, the shortest onset, a long tail.
+        EffectKind::Transient => set(
+            &mut s,
+            &[
+                ("attack", 1.0),
+                ("sustain", -0.7),
+                ("speed", 2.0),
+                ("length", 900.0),
+                ("band", 1.0),
+                ("xover", 600.0),
+            ],
+        ),
+        // Discrimen: the look-ahead, both parts compressed and tilted.
+        EffectKind::TransientSplit => set(
+            &mut s,
+            &[
+                ("mode", 1.0),
+                ("sens", 0.8),
+                ("speed", 3.0),
+                ("t.gain", 6.0),
+                ("t.comp", 0.8),
+                ("t.tilt", 4.0),
+                ("b.gain", -4.0),
+                ("b.comp", 0.8),
+                ("b.tilt", -4.0),
+            ],
+        ),
+        // Speculum: a pass-through, whatever is shown (the largest FFT, both channels).
+        EffectKind::Analyzer => set(
+            &mut s,
+            &[("view", 1.0), ("fft", 4.0), ("chan", 4.0), ("sync", 1.0)],
+        ),
         // Tonus: the hard effect an octave up with the throat down, humanised, a created
         // vibrato — every grain path working at once.
         EffectKind::AutoTune => set(

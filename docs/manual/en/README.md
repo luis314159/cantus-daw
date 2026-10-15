@@ -630,6 +630,20 @@ The display shows what you sang (dim) and what comes out (bright), and the note 
 singing with its distance in cents. Presets: *Natural*, *Tight*, *Hard tune*, *Throat up*,
 *Throat down*, *MIDI lead* and more. Details: `docs/plugins/tonus.md`.
 
+### Dynamics and analysis: Tonsor, Impetus, Discrimen, Speculum
+
+Four effects shape a sound's peaks and attacks and show what is in it. Like the others they
+are inserted **doing nothing**, so a fresh one changes no sample until you turn it.
+
+| Effect | What it does | Worth knowing |
+|---|---|---|
+| Tonsor | A clipper: cuts the peaks off | **Ceiling**, **Drive**, a **Knee** and three shoulders (*Hard*, *Soft*, *Analog*). **Oversampling** up to 16× keeps the harmonics it makes from folding back; **True peak** holds the ceiling between the samples too (about 1 ms of look-ahead), so a streaming service's −1 dBTP is really −1. **Gain match** takes the drive back out, so louder never wins. The meter shows how much (the deepest reduction), how often (the share of samples clipped in the last second), the overs between the samples in the input, and the output's true peak. |
+| Impetus | More or less attack and sustain | Works on **level differences, not a threshold**: a quiet hit and a loud one are shaped alike. **Speed** is how long an attack lasts, **Length** how long a tail counts as one. *Highs* or *Lows* shape only one side of a crossover (snap without the low end pumping, or a kick's thump); a **sidechain** lets another track's hits drive it. *A hit through it* draws what it does before you play. |
+| Discrimen | Splits each hit into its **transient** and its **body** | Each part has its own **gain**, a one-knob **compressor** and a **tilt**; *Listen* plays one part alone. Left alone the two add up to the input exactly. *Zero latency* costs nothing; *Look-ahead* (2 ms, compensated) catches every attack from its first sample. |
+| Speculum | An analyser that never touches the sound | Tabs: *Overview*, *Spectrum* (averaging, slope, peak hold, mid/side/left/right), *Spectrogram*, *Scope* (free, triggered, or **on the beat**), *Vector* (and the **correlation**: under 0 means trouble in mono), *Loudness* (momentary, short-term and integrated LUFS, range, true peak, against a target — the EBU R128 readings). ⋯ ▸ **Dock in the workspace** makes it a tab you can resize, split or tear out; dock several and watch them at once. |
+
+Pages: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
+
 ## 11. Projects, autosave and settings
 
 - *File ▸ New project* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save as…*

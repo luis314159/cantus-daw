@@ -1,4 +1,40 @@
 # Impetus — owned by Impetus. Every key here needs its twin in impetus.es.txt.
 effect.impetus = Impetus transient shaper
-fx.impetus.about = More or less attack and sustain at any level, keyed from another channel if you like.
+fx.impetus.about = More or less attack and sustain, read from level differences: the same at any loudness.
+fx.impetus.attack = Attack
+fx.impetus.sustain = Sustain
+fx.impetus.speed = Speed
+fx.impetus.length = Length
+fx.impetus.band = Band
+fx.impetus.xover = Crossover
 fx.impetus.out = Output
+
+impetus.band.0 = Full
+impetus.band.1 = Highs
+impetus.band.2 = Lows
+
+impetus.card.attack = Attack
+impetus.card.sustain = Sustain
+impetus.card.timing = Timing
+impetus.card.band = Band
+impetus.card.output = Output
+impetus.card.history = Input and gain
+impetus.card.hit = A hit through it
+impetus.axis.boost = Boost
+impetus.axis.cut = Cut
+impetus.legend.in = In
+impetus.legend.out = Out
+impetus.legend.gain = Gain
+impetus.tag.key = Sidechain
+impetus.idle = Attack and sustain are 0 %: the sound passes untouched
+impetus.law.1 = Level differences, not a threshold:
+impetus.law.2 = quiet and loud hits are shaped alike.
+
+preset.impetus.punch = More punch
+preset.impetus.snap = Snare snap
+preset.impetus.soften = Soften the attack
+preset.impetus.tight = Tight drums
+preset.impetus.room = Bring out the room
+preset.impetus.dry = Dry it up
+preset.impetus.kick = Kick thump
+preset.impetus.pluck = Plucked strings

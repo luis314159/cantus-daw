@@ -530,6 +530,47 @@ impl Processor {
         }
         // A send that gained or lost a line is gathered another way.
         self.map_dirty = true;
+        self.latency_sig = self.latency_signature();
+    }
+
+    /// The latencies compensation is planned from — every live strip's inserts, every
+    /// track's instrument, the master's chain — folded into one number. Cheap (a call per
+    /// insert); allocates nothing.
+    pub(super) fn latency_signature(&self) -> u64 {
+        let nodes = &self.nodes;
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        let mut mix = |v: usize| {
+            h ^= v as u64 + 1;
+            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        };
+        for slot in 0..MAX_STRIPS {
+            if self.strip_ids[slot].is_none() {
+                continue;
+            }
+            mix(slot);
+            if let Some(st) = nodes.strip(slot) {
+                for e in &st.effects {
+                    mix(e.latency());
+                }
+            }
+        }
+        for &slot in &self.track_to_slot {
+            if let Some(t) = nodes.track(slot) {
+                mix(t.latency());
+            }
+        }
+        mix(self.master.latency());
+        h
+    }
+
+    /// Plan compensation again when a latency moved without an edit — automation or a
+    /// modulator switching an oversampling or a look-ahead (ADR 0056: a latency is a
+    /// configuration's, and the configuration may move while the song plays). Called
+    /// before each pass, after the pass's automation is applied.
+    pub(super) fn replan_if_latency_moved(&mut self) {
+        if self.latency_signature() != self.latency_sig {
+            self.compensate();
+        }
     }
 
     fn dispose(&mut self, old: Arc<Snapshot>) {

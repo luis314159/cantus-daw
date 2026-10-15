@@ -1,4 +1,55 @@
 # Discrimen — owned by Discrimen. Every key here needs its twin in discrimen.es.txt.
-effect.discrimen = Discrimen transient splitter
-fx.discrimen.about = Splits the attack from the body, so each can be treated on its own.
+effect.discrimen = Discrimen splitter
+fx.discrimen.about = The attack and the body of a sound, each with its own gain, compressor and tone — summed back to the input when left alone.
+fx.discrimen.mode = Detection
+fx.discrimen.sens = Sensitivity
+fx.discrimen.speed = Transient length
+fx.discrimen.t.gain = Transient gain
+fx.discrimen.t.comp = Transient compression
+fx.discrimen.t.tilt = Transient tilt
+fx.discrimen.b.gain = Body gain
+fx.discrimen.b.comp = Body compression
+fx.discrimen.b.tilt = Body tilt
+fx.discrimen.listen = Listen
 fx.discrimen.out = Output
+
+discrimen.mode.0 = Zero latency
+discrimen.mode.1 = Look-ahead
+discrimen.listen.0 = Both
+discrimen.listen.1 = Transient
+discrimen.listen.2 = Body
+
+discrimen.card.detect = Detection
+discrimen.card.transient = Transient
+discrimen.card.body = Body
+discrimen.card.listen = Listen
+discrimen.card.history = Transient and body
+discrimen.card.now = The parts now
+discrimen.k.gain = Gain
+discrimen.k.comp = Comp
+discrimen.k.tilt = Tilt
+discrimen.k.sens = Sensitivity
+discrimen.k.sens.short = Sens.
+discrimen.k.speed = Length
+discrimen.legend.transient = Transient
+discrimen.legend.body = Body
+discrimen.legend.mask = Share that is transient
+discrimen.m.transient = Transient
+discrimen.m.body = Body
+discrimen.m.comp_t = Transient comp
+discrimen.m.comp_b = Body comp
+discrimen.m.mask = Transient share
+discrimen.m.latency = Latency
+discrimen.words.0 = Zero latency: the first fraction of a millisecond of a hit reaches the body.
+discrimen.words.1 = Look-ahead: every hit is in the transient part from its first sample.
+discrimen.idle = Nothing is processed: the two parts add up to the input, bit for bit
+
+preset.discrimen.more_attack = More attack
+preset.discrimen.less_attack = Less attack
+preset.discrimen.drum_room = Drums: tame the room
+preset.discrimen.snappy = Snappy and dry
+preset.discrimen.bright_attack = Bright attack, warm body
+preset.discrimen.squash_body = Squash the body
+preset.discrimen.only_transients = Only the transients
+preset.discrimen.only_body = Only the body
+discrimen.card.output = Output

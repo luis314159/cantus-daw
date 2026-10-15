@@ -1,4 +1,55 @@
 # Discrimen — de Discrimen. Cada clave necesita su gemela en discrimen.en.txt.
-effect.discrimen = Discrimen separador de transitorios
-fx.discrimen.about = Separa el ataque del cuerpo para tratar cada uno por su cuenta.
+effect.discrimen = Discrimen separador
+fx.discrimen.about = El ataque y el cuerpo de un sonido, cada uno con su ganancia, compresor y tono; sumados vuelven a ser la entrada si no se tocan.
+fx.discrimen.mode = Detección
+fx.discrimen.sens = Sensibilidad
+fx.discrimen.speed = Duración del transitorio
+fx.discrimen.t.gain = Ganancia del transitorio
+fx.discrimen.t.comp = Compresión del transitorio
+fx.discrimen.t.tilt = Inclinación del transitorio
+fx.discrimen.b.gain = Ganancia del cuerpo
+fx.discrimen.b.comp = Compresión del cuerpo
+fx.discrimen.b.tilt = Inclinación del cuerpo
+fx.discrimen.listen = Escuchar
 fx.discrimen.out = Salida
+
+discrimen.mode.0 = Sin latencia
+discrimen.mode.1 = Anticipación
+discrimen.listen.0 = Ambos
+discrimen.listen.1 = Transitorio
+discrimen.listen.2 = Cuerpo
+
+discrimen.card.detect = Detección
+discrimen.card.transient = Transitorio
+discrimen.card.body = Cuerpo
+discrimen.card.listen = Escuchar
+discrimen.card.history = Transitorio y cuerpo
+discrimen.card.now = Las partes ahora
+discrimen.k.gain = Ganancia
+discrimen.k.comp = Comp
+discrimen.k.tilt = Inclin.
+discrimen.k.sens = Sensibilidad
+discrimen.k.speed = Duración
+discrimen.legend.transient = Transitorio
+discrimen.legend.body = Cuerpo
+discrimen.legend.mask = Parte que es transitorio
+discrimen.m.transient = Transitorio
+discrimen.m.body = Cuerpo
+discrimen.m.comp_t = Comp. transitorio
+discrimen.m.comp_b = Comp. cuerpo
+discrimen.m.mask = Parte transitoria
+discrimen.m.latency = Latencia
+discrimen.words.0 = Sin latencia: la primera fracción de milisegundo de un golpe llega al cuerpo.
+discrimen.words.1 = Anticipación: cada golpe está en el transitorio desde su primera muestra.
+discrimen.idle = Nada se procesa: las dos partes suman la entrada, bit a bit
+
+preset.discrimen.more_attack = Más ataque
+preset.discrimen.less_attack = Menos ataque
+preset.discrimen.drum_room = Batería: domar la sala
+preset.discrimen.snappy = Seco y con chasquido
+preset.discrimen.bright_attack = Ataque brillante, cuerpo cálido
+preset.discrimen.squash_body = Aplastar el cuerpo
+preset.discrimen.only_transients = Solo los transitorios
+preset.discrimen.only_body = Solo el cuerpo
+discrimen.card.output = Salida
+discrimen.k.sens.short = Sensib.

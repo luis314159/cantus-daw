@@ -260,6 +260,14 @@ pub trait FxHost {
     fn drain_analyser(&mut self, _out: &mut Vec<f32>) -> bool {
         false
     }
+
+    /// Stereo frames of this effect's own signal that came since the last call, oldest
+    /// first, into `out` — every one of them, for an analyser that measures each sample
+    /// (Speculum, ADR 0056). What it says of them: whether the host has such a stream at
+    /// all, and the song's position of the newest frame and the tempo while the song plays.
+    fn take_stereo(&mut self, _out: &mut Vec<(f32, f32)>) -> StereoTake {
+        StereoTake::default()
+    }
 }
 
 /// Whether a command changes the effect `effect` (the header's undo is this device's).
@@ -757,4 +765,39 @@ impl FxHost for DawHost<'_> {
         self.app.engine.drain_analyser(out);
         true
     }
+
+    fn take_stereo(&mut self, out: &mut Vec<(f32, f32)>) -> StereoTake {
+        let effect = self.effect;
+        let engine = &mut self.app.engine;
+        if !engine.watch_scope(effect) {
+            return StereoTake::default();
+        }
+        let per_frame_of = |tempo: f64, sr: f64| tempo / 60.0 / sr.max(1.0);
+        let sr = engine.sample_rate;
+        let mut clock = None;
+        engine.drain_scope(effect, |c| {
+            let n = c.frames as usize;
+            out.extend(c.l[..n].iter().copied().zip(c.r[..n].iter().copied()));
+            clock = c.beat.map(|b| {
+                (
+                    b + (n.max(1) - 1) as f64 * per_frame_of(c.tempo_bpm, sr),
+                    c.tempo_bpm,
+                )
+            });
+        });
+        StereoTake {
+            stream: true,
+            clock,
+        }
+    }
+}
+
+/// What [`FxHost::take_stereo`] says of the frames it gave.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+pub struct StereoTake {
+    /// The host has a stream of the effect's own frames.
+    pub stream: bool,
+    /// The song's position of the newest frame, quarter notes, and the tempo, while the
+    /// song plays.
+    pub clock: Option<(f64, f64)>,
 }
