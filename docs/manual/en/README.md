@@ -138,10 +138,13 @@ there. While you type, no shortcut fires. Names can be in any script — Japanes
 Korean, Hindi, Thai, Arabic, Hebrew…: Cantus uses your system's own fonts for them (see
 the [known issues](#14-known-issues-and-limitations) about right-to-left scripts).
 
-**Demo songs.** *File ▸ Demo songs…* (`Ctrl+Shift+N`) opens six songs made entirely with
-Cantus's own instruments and effects: Neon Tide (house), Morning Light (pop ballad),
-Sunday Strut (funk and soul), Paper Lanterns (lo-fi hip-hop), Aurora (cinematic) and
-Midnight Static (trap). Open one, play it, take it apart.
+**Demo songs.** *File ▸ Demo songs…* (`Ctrl+Shift+N`) opens seven songs made entirely with
+Cantus's own instruments and effects: With All Your Heart (cinematic pop — the modelled
+grand Chorda pedalled from its automation lane, every modulation and dynamics effect of
+round 28, Tonus hard-tuning the topline, modulators and automation, mastered to −11 LUFS),
+Neon Tide (house), Morning Light (pop ballad), Sunday Strut (funk and soul), Paper
+Lanterns (lo-fi hip-hop), Aurora (cinematic) and Midnight Static (trap). Open one, play
+it, take it apart.
 
 ### The top bar
 

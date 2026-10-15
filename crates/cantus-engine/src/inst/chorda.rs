@@ -52,6 +52,28 @@ pub mod tel {
 
 pub const N: usize = PARAMS.len();
 
+/// The index of `key` in [`PARAMS`], worked out when compiling.
+const fn index_of(key: &str) -> usize {
+    let mut i = 0;
+    while i < PARAMS.len() {
+        let (a, b) = (PARAMS[i].key.as_bytes(), key.as_bytes());
+        if a.len() == b.len() {
+            let mut j = 0;
+            while j < a.len() && a[j] == b[j] {
+                j += 1;
+            }
+            if j == a.len() {
+                return i;
+            }
+        }
+        i += 1;
+    }
+    panic!("a key Chorda does not have");
+}
+
+/// The sustain pedal as a parameter (`pedal`).
+const PEDAL: usize = index_of("pedal");
+
 /// The sources Chorda produces, in its own index order.
 pub const SOURCE_TAGS: [&str; 14] = [
     "macro1", "macro2", "macro3", "macro4", "macro5", "macro6", "macro7", "macro8", "vel", "key",
@@ -470,6 +492,11 @@ pub struct Unit {
     have: Option<DesignKey>,
     fs: f32,
     offline: bool,
+    /// The sustain pedal from controller 64, and the one the strings hear now: the higher
+    /// of it and the `pedal` parameter (an automation lane, a modulator).
+    cc_pedal: f32,
+    param_pedal: f32,
+    pedal: f32,
 }
 
 impl Unit {
@@ -508,6 +535,9 @@ impl Unit {
             have,
             fs,
             offline: false,
+            cc_pedal: 0.0,
+            param_pedal: 0.0,
+            pedal: 0.0,
         };
         u.update();
         u
@@ -520,6 +550,18 @@ impl Unit {
         let eff = modulated(&self.base, &self.matrix, &src);
         let (s, h) = settings_from(&eff);
         self.dsp.set(&s, h);
+        self.param_pedal = eff[PEDAL];
+        self.apply_pedal();
+    }
+
+    /// The pedal the strings hear: the higher of controller 64 and the parameter, told to
+    /// the strings only when it moves.
+    fn apply_pedal(&mut self) {
+        let p = self.cc_pedal.max(self.param_pedal).clamp(0.0, 1.0);
+        if p != self.pedal {
+            self.pedal = p;
+            self.dsp.set_pedal(p);
+        }
     }
 
     fn reads(&self, src: usize) -> bool {
@@ -593,7 +635,8 @@ impl InstrumentUnit for Unit {
             Controller::Pressure => SRC_AT,
             Controller::Expression => SRC_EXPR,
             Controller::Sustain => {
-                self.dsp.set_pedal(value);
+                self.cc_pedal = value;
+                self.apply_pedal();
                 SRC_SUS
             }
             Controller::Cc(n) if n == SOFT_CC => {
@@ -616,6 +659,8 @@ impl InstrumentUnit for Unit {
 
     fn reset(&mut self) {
         self.dsp.reset();
+        self.cc_pedal = 0.0;
+        self.pedal = 0.0;
         for s in self.sources[SRC_MW..=SRC_SUS].iter_mut() {
             *s = 0.0;
         }

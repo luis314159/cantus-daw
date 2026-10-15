@@ -84,6 +84,7 @@ Shares are fractions shown in %; 100 % is the model as measured.
 | `coupling` | 0–90 % (50) | The bridge's share of the first partial's loss (the two-stage decay) |
 | `sympathy` | 0–200 % (100) | How strongly the other strings ring along |
 | `phantom` | 0–300 % (100) | The phantom partials' level |
+| `pedal` | 0–100 % (0) | The sustain pedal as a parameter (round 28, the demo builder): what an automation lane or a modulator drives, half-pedalling included; the higher of it and controller 64 is the pedal the strings hear |
 | `damper` | 0–100 % (100) | How firmly the dampers grip |
 | `una` | 0–100 % (100) | How far the soft pedal shifts the hammers |
 | `body` | 0–200 % (100) | The soundboard's ring |

@@ -371,3 +371,72 @@ fn a_dragged_tuning_designs_only_where_it_settles() {
         .count();
     assert_eq!(designed, 0, "no tuning passed over is designed");
 }
+
+// ---- the sustain pedal as a parameter (round 28, demo) ------------------------------------
+
+/// Held down by its parameter (`pedal`, what an automation lane drives), the sustain pedal
+/// plays exactly as controller 64 does; the higher of the two is the pedal.
+#[test]
+fn the_pedal_parameter_is_the_sustain_pedal() {
+    let mut spec = NativeSpec::new(InstrumentKind::Chorda);
+    spec.set("pedal", 1.0).expect("Chorda has a pedal parameter");
+    let mut by_param = unit();
+    by_param.configure(&spec, &[]);
+    let mut by_cc = unit();
+    by_cc.configure(&NativeSpec::new(InstrumentKind::Chorda), &[]);
+    by_cc.controller(Controller::Sustain, 1.0);
+    assert_eq!(by_param.telemetry()[tel::PEDAL], 1.0, "the pedal shows down");
+    let mut outs = Vec::new();
+    for u in [&mut by_param, &mut by_cc] {
+        u.note_on(on(60, 0.7, 1));
+        u.note_on(on(64, 0.6, 2));
+        let mut x = play(u, 9_600);
+        u.note_off(60, 1, 0.0);
+        u.note_off(64, 2, 0.0);
+        x.extend(play(u, 24_000));
+        outs.push(x);
+    }
+    assert_null(&outs[0], &outs[1], 0.0, "the pedal parameter against controller 64");
+    // The controller lifted while the parameter holds: still down.
+    by_param.controller(Controller::Sustain, 0.0);
+    assert_eq!(by_param.telemetry()[tel::PEDAL], 1.0, "the higher of the two plays");
+}
+
+fn rms_db(x: &[f32]) -> f64 {
+    let e = x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>() / x.len().max(1) as f64;
+    10.0 * math::log10(e.max(1e-24))
+}
+
+/// A lane on the pedal: down while the phrase is released, the notes ring on; lifted, the
+/// dampers fall and they stop.
+#[test]
+fn a_lane_on_the_pedal_holds_and_releases_the_strings() {
+    let plain = piano_project(&[], &PHRASE);
+    let mut pedalled = plain.clone();
+    let track = pedalled.tracks[0].id;
+    let mut down = AutoPoint::new(Ticks::ZERO, 1.0);
+    down.shape = Shape::Hold;
+    let mut up = AutoPoint::new(Ticks::beats(5), 0.0);
+    up.shape = Shape::Hold;
+    let c = pedalled.make_automation_clip(
+        "pedal",
+        AutoTarget::Instrument {
+            track,
+            key: "pedal".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![down, up],
+    );
+    pedalled.tracks[0].clips.push(c);
+    let (a, b) = (render_of(&plain, 0.5), render_of(&pedalled, 0.5));
+    // Interleaved stereo at 48 kHz, 120 BPM: a beat is 48 000 samples.
+    let beats = |x: &[f32], from: f64, to: f64| {
+        let (i, j) = ((from * 48_000.0) as usize, (to * 48_000.0) as usize);
+        x[i.min(x.len())..j.min(x.len())].to_vec()
+    };
+    let held = rms_db(&beats(&b, 4.0, 4.8)) - rms_db(&beats(&a, 4.0, 4.8));
+    assert!(held > 12.0, "the pedal holds the released notes: {held:.1} dB");
+    let after = rms_db(&beats(&b, 7.0, 7.8)) - rms_db(&beats(&b, 4.0, 4.8));
+    assert!(after < -20.0, "lifted, the dampers stop them: {after:.1} dB");
+}

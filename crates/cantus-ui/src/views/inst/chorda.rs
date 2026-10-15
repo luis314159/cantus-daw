@@ -180,7 +180,7 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         "chorda.pedals",
         Function::Dynamics,
         display_for(h1, s, true),
-        &["damper", "una"],
+        &["pedal", "damper", "una"],
         |b, d, sf| draw::pedals(b, d, sf, &now, grip),
     );
     let rows2: [(&str, Function, &[&str]); 3] = [
@@ -313,7 +313,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         "chorda.pedals",
         Function::Dynamics,
         display_for(heights[2], s, true),
-        &["damper", "una"],
+        &["pedal", "damper", "una"],
         |b, d, sf| draw::pedals(b, d, sf, &now, grip),
     );
     let right = r3[1];
