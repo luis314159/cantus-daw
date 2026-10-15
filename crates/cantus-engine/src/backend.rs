@@ -561,6 +561,9 @@ impl EngineHandle {
             self.samples.set_streaming(true);
         }
         self.compiles += 1;
+        // Pitch renders are made on the pitch service's worker, never on this thread —
+        // with a device or without (ADR 0054, review 1).
+        self.samples.set_pitch_background(true);
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
@@ -579,6 +582,9 @@ impl EngineHandle {
     pub fn compile_for_render(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
         let _ = self.compile(project, revision);
         self.samples.wait_assets();
+        // And the pitch renders the first compile asked for (ADR 0054): the file holds the
+        // edits, never the take as sung.
+        self.samples.wait_pitch(std::time::Duration::from_secs(300));
         self.compile(project, revision)
     }
 

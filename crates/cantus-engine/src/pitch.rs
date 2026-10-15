@@ -219,15 +219,16 @@ impl PitchService {
         !g.queue.is_empty() || g.busy > 0
     }
 
+    /// Start the worker the first time, and wake it for the job just queued (an idle
+    /// worker sleeps until told).
     fn ensure_worker(&self, g: &mut State) {
-        if g.worker {
-            return;
+        if !g.worker {
+            let shared = self.shared.clone();
+            let spawned = std::thread::Builder::new()
+                .name("cantus-pitch".into())
+                .spawn(move || work(shared));
+            g.worker = spawned.is_ok();
         }
-        let shared = self.shared.clone();
-        let spawned = std::thread::Builder::new()
-            .name("cantus-pitch".into())
-            .spawn(move || work(shared));
-        g.worker = spawned.is_ok();
         self.shared.wake.notify_all();
     }
 }
