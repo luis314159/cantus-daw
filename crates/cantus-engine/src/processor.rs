@@ -200,6 +200,8 @@ pub struct Processor {
     capture_slot: Option<usize>,
     /// The effect the analyser looks at.
     analysed: Option<cantus_core::EffectId>,
+    /// The Speculums whose signals go to the scope rings (ADR 0056).
+    scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -210,6 +212,9 @@ pub struct Processor {
     /// How late each strip slot's fader output is against the timeline, in samples: the
     /// compensation it waits for plus its own inserts' latency (ADR 0018's `P`).
     strip_post: [usize; MAX_STRIPS],
+    /// The inserts' and instruments' latencies when compensation was last planned, as one
+    /// number (`Self::latency_signature`): a pass that finds another re-plans (ADR 0056).
+    latency_sig: u64,
     /// The click's line (the output's latency) and the captured strip's (its path to the
     /// master), so both come out with the music they belong to (ADR 0022).
     click_line: Option<usize>,
@@ -309,11 +314,13 @@ impl Processor {
             capture_target: CaptureTarget::Off,
             capture_slot: None,
             analysed: None,
+            scoped: [None; crate::fx::speculum::MAX_SCOPES],
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
             strip_post: [0; MAX_STRIPS],
+            latency_sig: 0,
             click_line: None,
             capture_line: None,
             played: 0,
@@ -513,6 +520,17 @@ impl Processor {
         match self.nodes.analysis.try_borrow_mut() {
             Some(mut a) => a.ring = Some(producer),
             None => self.nodes.conflict(),
+        }
+    }
+
+    /// Give the processor the producer ends of the scope rings, one per watchable Speculum
+    /// (ADR 0056; `EngineHandle::watch_scope`). Extra producers are ignored.
+    pub fn attach_scopes(&mut self, producers: Vec<Producer<crate::fx::speculum::ScopeChunk>>) {
+        for (cell, p) in self.nodes.scopes.iter().zip(producers) {
+            match cell.try_borrow_mut() {
+                Some(mut t) => t.ring = Some(p),
+                None => self.nodes.conflict(),
+            }
         }
     }
 

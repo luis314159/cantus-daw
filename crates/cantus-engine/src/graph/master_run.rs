@@ -2,7 +2,7 @@
 //! callback, after the pool's part of the pass, reading what the other nodes left in
 //! their cells.
 
-use super::strip_run::{analyse, read_meters, SILENCE};
+use super::strip_run::{analyse, read_meters, scope, SILENCE};
 use super::*;
 use crate::graph::gather::add_interleaved;
 use crate::profile::Node;
@@ -255,6 +255,7 @@ impl Processor {
                 if let Some(a) = ana.as_mut() {
                     analyse(a, l, r);
                 }
+                scope(&nodes, &self.scoped, position, self.sample_rate, e.id, l, r);
                 continue;
             }
             let mix = m.mix[i];
@@ -301,6 +302,7 @@ impl Processor {
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
+            scope(&nodes, &self.scoped, position, self.sample_rate, e.id, l, r);
             if off {
                 continue;
             }

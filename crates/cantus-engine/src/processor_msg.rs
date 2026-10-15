@@ -65,6 +65,7 @@ impl Processor {
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
                 EngineMessage::SetRecording(on) => self.recording = on,
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
+                EngineMessage::WatchScopes(ids) => self.scoped = ids,
                 EngineMessage::SetCapture(target) => {
                     self.capture_target = target;
                     self.resolve_capture();

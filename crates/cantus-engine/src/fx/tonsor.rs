@@ -1,62 +1,81 @@
-//! Tonsor, the clipper, with true peak, behind the engine's plug-in contract.
-//! Owned by Tonsor.
+//! Tonsor, the clipper with a true-peak ceiling, behind the engine's plug-in contract
+//! (ADR 0056). Owned by Tonsor.
 //!
-//! **Round 28's contract**: [`settings`] reads the placeholder table
-//! (`cantus_core::fx::tonsor`) and the unit passes the audio through with its output gain
-//! — at the default, 0 dB, it touches no sample. Its builder replaces this file with the
-//! DSP of `cantus_dsp::tonsor`.
+//! [`settings`] reads the table (`cantus_core::fx::tonsor`) into the DSP's settings
+//! (`cantus_dsp::tonsor`); the editor draws its curve from the same reading. The telemetry
+//! is the DSP's (`cantus_dsp::tonsor::tel`).
 
-use super::FxUnit;
+use super::{FxUnit, Telemetry, TELEMETRY_LEN};
 use cantus_core::EffectSpec;
+use cantus_dsp::tonsor::{Curve, Tonsor, TonsorSettings};
 
 /// Tonsor's parameters as the DSP wants them; also what its editor draws from.
-#[derive(Copy, Clone, Debug, Default, PartialEq)]
-pub struct Settings {
-    pub out_db: f32,
-}
-
-/// Tonsor's parameters as the DSP wants them.
-pub fn settings(spec: &EffectSpec) -> Settings {
-    Settings {
+pub fn settings(spec: &EffectSpec) -> TonsorSettings {
+    TonsorSettings {
+        drive_db: spec.get("drive"),
+        ceiling_db: spec.get("ceil"),
+        knee_db: spec.get("knee"),
+        curve: Curve::from_index(spec.get("curve")),
+        oversampling: cantus_dsp::dynfx_os::factor_of(spec.get("os")),
+        true_peak: spec.get("tp") >= 0.5,
+        match_gain: spec.get("match") >= 0.5,
         out_db: spec.get("out"),
     }
 }
 
 #[derive(Debug)]
 pub struct Unit {
-    gain: f32,
+    dsp: Box<Tonsor>,
 }
 
 impl Unit {
     pub fn new(sample_rate: f32) -> Self {
-        let _ = sample_rate;
-        Unit { gain: 1.0 }
+        Unit {
+            dsp: Box::new(Tonsor::new(sample_rate)),
+        }
     }
 }
 
 impl FxUnit for Unit {
     fn configure(&mut self, spec: &EffectSpec) {
-        let s = settings(spec);
-        self.gain = if s.out_db == 0.0 {
-            1.0
-        } else {
-            cantus_dsp::math::db_to_gain(s.out_db)
-        };
+        self.dsp.set(&settings(spec));
     }
 
     fn process(&mut self, left: &mut [f32], right: &mut [f32], _key: Option<(&[f32], &[f32])>) {
-        if self.gain != 1.0 {
-            for x in left.iter_mut().chain(right.iter_mut()) {
-                *x *= self.gain;
-            }
-        }
+        self.dsp.process(left, right);
     }
 
-    fn reset(&mut self) {}
+    fn reset(&mut self) {
+        self.dsp.reset();
+    }
 
-    /// No state at all: always at rest.
     fn at_rest(&self) -> bool {
-        true
+        self.dsp.at_rest()
+    }
+
+    fn rest_blocker(&self) -> Option<&'static str> {
+        self.dsp.rest_blocker()
+    }
+
+    fn skip(&mut self, frames: usize) {
+        self.dsp.skip(frames);
+    }
+
+    fn latency(&self) -> usize {
+        self.dsp.latency()
+    }
+
+    fn telemetry(&self) -> Telemetry {
+        let mut t = [0.0; TELEMETRY_LEN];
+        self.dsp.telemetry(&mut t);
+        t
+    }
+
+    /// The deepest reduction the curve made lately, dB: the master's reduction meter.
+    fn gain_reduction_db(&self) -> Option<f32> {
+        let mut t = [0.0; TELEMETRY_LEN];
+        self.dsp.telemetry(&mut t);
+        Some(t[cantus_dsp::tonsor::tel::REDUCTION].max(t[cantus_dsp::tonsor::tel::GUARD]))
     }
 }
 
@@ -70,10 +89,41 @@ mod tests {
     #[test]
     fn the_tables_defaults_are_the_dsps_defaults() {
         let spec = EffectSpec::new(EffectKind::Clipper);
-        assert_eq!(settings(&spec), Settings::default());
+        assert_eq!(settings(&spec), TonsorSettings::default());
     }
 
-    /// At its defaults the unit touches no sample, to the bit.
+    #[test]
+    fn the_settings_read_every_parameter() {
+        let mut spec = EffectSpec::new(EffectKind::Clipper);
+        for (k, v) in [
+            ("drive", 6.0),
+            ("ceil", -1.5),
+            ("knee", 3.0),
+            ("curve", 2.0),
+            ("os", 3.0),
+            ("tp", 1.0),
+            ("match", 1.0),
+            ("out", -2.0),
+        ] {
+            spec.set(k, v);
+        }
+        let s = settings(&spec);
+        assert_eq!(
+            s,
+            TonsorSettings {
+                drive_db: 6.0,
+                ceiling_db: -1.5,
+                knee_db: 3.0,
+                curve: Curve::Analog,
+                oversampling: 8,
+                true_peak: true,
+                match_gain: true,
+                out_db: -2.0,
+            }
+        );
+    }
+
+    /// At its defaults the unit touches no sample, to the bit, and is at rest.
     #[test]
     fn the_defaults_touch_no_sample() {
         let mut u = Unit::new(48_000.0);
@@ -86,6 +136,6 @@ mod tests {
             .chain(&r)
             .zip(x.iter().chain(&x))
             .all(|(a, b)| a.to_bits() == b.to_bits()));
-        assert!(u.at_rest());
+        assert_eq!(u.latency(), 0);
     }
 }

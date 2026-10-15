@@ -904,6 +904,17 @@ impl Processor {
             return;
         };
         let n = l.len();
+        // Speculum is a pass-through and measures stereo (ADR 0056): its pairs are the
+        // frames themselves, left and right, every one of them.
+        if self.shared.desc.kind == cantus_core::EffectKind::Analyzer {
+            for i in 0..n {
+                if tx.slots() == 0 {
+                    break;
+                }
+                let _ = tx.push((l[i], r[i]));
+            }
+            return;
+        }
         let b = &self.bypass;
         let start = b.write.wrapping_sub(n) & b.mask;
         for i in 0..n {

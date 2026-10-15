@@ -25,6 +25,8 @@ pub(crate) struct PassCtx {
     /// The track whose instrument reports telemetry, and the effect the analyser watches.
     pub probed: Option<TrackId>,
     pub analysed: Option<EffectId>,
+    /// The Speculums being watched, by scope ring (ADR 0056).
+    pub scoped: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// The strip slot the mix recorder takes, and its line.
     pub capture_slot: Option<usize>,
     pub capture_line: Option<usize>,
@@ -57,6 +59,7 @@ impl PassCtx {
             recording: false,
             probed: None,
             analysed: None,
+            scoped: [None; crate::fx::speculum::MAX_SCOPES],
             capture_slot: None,
             capture_line: None,
             auto_at: None,

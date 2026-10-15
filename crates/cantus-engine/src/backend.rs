@@ -100,6 +100,11 @@ pub struct EngineHandle {
     capture_target: CaptureTarget,
     /// The consumer end of the analyser's ring.
     analyser: Option<Consumer<f32>>,
+    /// The consumer ends of the scope rings (ADR 0056), which Speculum watches each, and
+    /// which were asked for since the last [`Self::release_unwatched_scopes`].
+    scopes: Vec<Consumer<crate::fx::speculum::ScopeChunk>>,
+    scope_ids: [Option<EffectId>; crate::fx::speculum::MAX_SCOPES],
+    scope_seen: [bool; crate::fx::speculum::MAX_SCOPES],
     /// The analysed compressor's meter, the maxima of every block since the last take.
     comp_peak: [f32; 3],
     /// What hosted plug-ins' own windows did since the last take (ADR 0019).
@@ -187,6 +192,8 @@ impl EngineHandle {
         processor.attach_capture(capture_tx);
         let (analyser_tx, analyser_rx) = RingBuffer::<f32>::new(ANALYSER_SAMPLES);
         processor.attach_analyser(analyser_tx);
+        let (scope_tx, scope_rx) = scope_rings();
+        processor.attach_scopes(scope_tx);
         // The callback's first block raises its own thread (ADR 0031 R1; nothing on ASIO).
         processor.promote_on_first_block(crate::processor::AudioHost::from_driver_name(
             host.id().name(),
@@ -299,6 +306,9 @@ impl EngineHandle {
             capture: Some(capture_rx),
             capture_target: CaptureTarget::Off,
             analyser: Some(analyser_rx),
+            scopes: scope_rx,
+            scope_ids: [None; crate::fx::speculum::MAX_SCOPES],
+            scope_seen: [false; crate::fx::speculum::MAX_SCOPES],
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
             inst_params: Vec::new(),
@@ -328,11 +338,14 @@ impl EngineHandle {
     pub fn manual(sample_rate: f64) -> (Self, Processor) {
         let (tx, rx_engine) = RingBuffer::<EngineMessage>::new(MESSAGE_QUEUE);
         let (tx_engine, rx) = RingBuffer::<EngineEvent>::new(EVENT_QUEUE);
-        let processor = Processor::without_midi(sample_rate, rx_engine, tx_engine);
+        let mut processor = Processor::without_midi(sample_rate, rx_engine, tx_engine);
+        let (scope_tx, scope_rx) = scope_rings();
+        processor.attach_scopes(scope_tx);
         let mut handle = Self::dummy();
         handle.tx = tx;
         handle.rx = rx;
         handle.sample_rate = sample_rate;
+        handle.scopes = scope_rx;
         (handle, processor)
     }
 
@@ -367,6 +380,9 @@ impl EngineHandle {
             capture: None,
             capture_target: CaptureTarget::Off,
             analyser: None,
+            scopes: Vec::new(),
+            scope_ids: [None; crate::fx::speculum::MAX_SCOPES],
+            scope_seen: [false; crate::fx::speculum::MAX_SCOPES],
             comp_peak: [0.0; 3],
             fx_params: Vec::new(),
             inst_params: Vec::new(),
@@ -478,6 +494,69 @@ impl EngineHandle {
             while a.pop().is_ok() {}
         }
         self.send(EngineMessage::SetAnalyser(effect));
+    }
+
+    /// Watch a Speculum (ADR 0056): from the next block its signal comes to a scope ring of
+    /// its own, every frame of it. Ask every UI frame it is shown;
+    /// [`Self::release_unwatched_scopes`] frees what nobody asked for. False when there is no
+    /// ring for it: no audio device, or eight already watched.
+    pub fn watch_scope(&mut self, effect: EffectId) -> bool {
+        use crate::fx::speculum::MAX_SCOPES;
+        if self.scopes.len() < MAX_SCOPES {
+            return false;
+        }
+        if let Some(i) = self.scope_ids.iter().position(|s| *s == Some(effect)) {
+            self.scope_seen[i] = true;
+            return true;
+        }
+        let Some(i) = self.scope_ids.iter().position(Option::is_none) else {
+            return false;
+        };
+        // What an earlier watcher left in the ring is not this one's.
+        while self.scopes[i].pop().is_ok() {}
+        self.scope_ids[i] = Some(effect);
+        self.scope_seen[i] = true;
+        self.send(EngineMessage::WatchScopes(self.scope_ids));
+        true
+    }
+
+    /// Free the scope rings no Speculum asked for since the last call (once a UI frame).
+    pub fn release_unwatched_scopes(&mut self) {
+        let mut changed = false;
+        for (id, seen) in self.scope_ids.iter_mut().zip(self.scope_seen.iter_mut()) {
+            if id.is_some() && !*seen {
+                *id = None;
+                changed = true;
+            }
+            *seen = false;
+        }
+        if changed {
+            self.send(EngineMessage::WatchScopes(self.scope_ids));
+        }
+    }
+
+    /// The Speculums watched now.
+    pub fn watched_scopes(&self) -> impl Iterator<Item = EffectId> + '_ {
+        self.scope_ids.iter().flatten().copied()
+    }
+
+    /// The chunks of `effect`'s signal that came since the last call, oldest first.
+    pub fn drain_scope(
+        &mut self,
+        effect: EffectId,
+        mut f: impl FnMut(&crate::fx::speculum::ScopeChunk),
+    ) {
+        let Some(i) = self.scope_ids.iter().position(|s| *s == Some(effect)) else {
+            return;
+        };
+        let ring = &mut self.scopes[i];
+        let n = ring.slots();
+        for _ in 0..n {
+            match ring.pop() {
+                Ok(c) => f(&c),
+                Err(_) => break,
+            }
+        }
     }
 
     /// Move the analyser's (input, output) pairs into `out`. Called once a frame.
@@ -942,4 +1021,16 @@ impl EngineHandle {
     pub fn known_instrument_count(&self) -> usize {
         self.known_instruments.len()
     }
+}
+
+/// The scope rings (ADR 0056), allocated here off the audio thread: producers for the
+/// processor, consumers for the handle.
+fn scope_rings() -> (
+    Vec<Producer<crate::fx::speculum::ScopeChunk>>,
+    Vec<Consumer<crate::fx::speculum::ScopeChunk>>,
+) {
+    use crate::fx::speculum::{MAX_SCOPES, SCOPE_CHUNKS};
+    (0..MAX_SCOPES)
+        .map(|_| RingBuffer::new(SCOPE_CHUNKS))
+        .unzip()
 }

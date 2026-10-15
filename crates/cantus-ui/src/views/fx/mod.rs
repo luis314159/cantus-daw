@@ -35,6 +35,8 @@ pub mod controls;
 pub mod deesser;
 /// Discrimen, the transient splitter (round 28).
 pub mod discrimen;
+/// What the dynamics family's editors share: rates from counters, histories (round 28).
+pub mod dynfx;
 /// Flexus, the through-zero flanger (round 28).
 pub mod flexus;
 /// Fluctus, the LFO Tool-style volume shaper (round 28).
@@ -512,6 +514,8 @@ impl Editor {
 /// The window of the open editor (Porta, Terminus, Spatium, Multiplex, Sibilus, a hosted
 /// plug-in), drawn every frame while one is open.
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
+    // Speculums docked in the workspace, each its own tab (ADR 0056).
+    speculum::docked(app, ctx);
     let Some((strip, effect, kind)) = app.fx.open else {
         return;
     };
