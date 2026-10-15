@@ -75,3 +75,43 @@ pub fn realtime(project: &Project, len: usize) -> Vec<f32> {
 
 /// Samples per beat of the demo (128 BPM at 48 kHz).
 pub const BEAT: f64 = 60.0 / 128.0 * 48_000.0;
+
+/// As [`realtime`], but the processor runs stopped for `idle` frames first — as an app
+/// does between building a unit and the press of Play — and only what follows Play is
+/// returned.
+pub fn realtime_after_idle(project: &Project, len: usize, idle: usize) -> Vec<f32> {
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
+    let mut p = Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    let mut snap = Snapshot::compile(project, 1);
+    for strip in &snap.strips {
+        for slot in &strip.effects {
+            let unit = EffectUnit::new(slot, 48_000.0);
+            tx.push(EngineMessage::AddEffect(Box::new(unit))).unwrap();
+        }
+    }
+    snap.loop_region = None;
+    tx.push(EngineMessage::SetSnapshot(Arc::new(snap))).unwrap();
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).unwrap();
+    let mut done = 0;
+    while done < idle {
+        let n = 441.min(idle - done);
+        let mut buf = vec![0f32; n * 2];
+        p.process(&mut buf, 2);
+        while rx.pop().is_ok() {}
+        done += n;
+    }
+    tx.push(EngineMessage::Play).unwrap();
+    let mut out = Vec::with_capacity(len);
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut i = 0;
+    while out.len() < len {
+        let n = sizes[i % sizes.len()].min((len - out.len()) / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        p.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+    }
+    out
+}
