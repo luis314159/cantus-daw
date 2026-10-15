@@ -64,6 +64,8 @@ pub const MAX_FORMANT: f32 = 2.0;
 /// Grains alive at once, at most.
 const MAX_GRAINS: usize = 24;
 const TABLE: usize = 1024;
+/// The coarsest step of the grain alignment (192 kHz).
+const MAX_ALIGN_STEP: usize = 16;
 
 /// What the shifter does now.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -264,6 +266,8 @@ pub struct Shifter {
     mix: f32,
     fade_step: f32,
     noise_period: f32,
+    /// The coarse step of [`Self::align`], samples: about 12 kHz.
+    align_step: usize,
 }
 
 impl Shifter {
@@ -283,6 +287,7 @@ impl Shifter {
             mix: 0.0,
             fade_step: 1.0 / (FADE_S * sr).max(1.0),
             noise_period: NOISE_PERIOD_S * sr,
+            align_step: ((sr / 12_000.0).round() as usize).clamp(1, MAX_ALIGN_STEP),
         }
     }
 
@@ -404,8 +409,77 @@ impl Shifter {
         } else {
             s + slack + hr as f64 - hr as f64 * f as f64
         };
-        let a = lattice(last.a, p_a as f64, s, bound);
+        // Voiced, the mark is refined within ±p/8 (`align`) by the period before it, which
+        // must have arrived: leave it room on both sides, behind the newest sample.
+        let (room, limit) = if voiced {
+            let room = (p_a / 8.0).ceil() as f64 + 1.0;
+            (room, bound.min(newest + 1.0) - room)
+        } else {
+            (0.0, bound)
+        };
+        let _ = room;
+        let mut a = lattice(last.a, p_a as f64, s, limit);
+        if voiced && a > last.a + 0.5 * p_a as f64 {
+            a = self.align(last.a, a, p_a, bound.min(newest + 1.0));
+        }
         self.ola.push(Grain { s, a, hl, hr, f });
+    }
+
+    /// The point near `pred` (a lattice mark after `prev`) where the period before it best
+    /// matches the period before `prev`: a cross-correlation of the two left-hand periods
+    /// (causal: nothing after `pred` is read) over ±p/8, coarse in steps of `step` samples
+    /// then fine, refined by a parabola, never past `bound`. This keeps every grain on the
+    /// same phase of the waveform even while the tracker's period lags a moving voice — so
+    /// the output's pitch is the synthesis spacing, not the tracker's error.
+    fn align(&self, prev: f64, pred: f64, p: f32, bound: f64) -> f64 {
+        let mask = self.ring[0].len() - 1;
+        let (l, r) = (&self.ring[0], &self.ring[1]);
+        let pa = prev.round() as i64;
+        let pb = pred.round() as i64;
+        let len = p.round() as i64;
+        let span = (p / 8.0).ceil() as i64;
+        let hi = (bound.floor() as i64).min(pb + span);
+        let lo = pb - span;
+        if hi <= lo {
+            return pred;
+        }
+        let corr = |c: i64, step: usize| -> f32 {
+            let mut acc = 0.0f32;
+            let mut j = 1;
+            while j <= len {
+                let (x, y) = ((pa - j) as usize & mask, (c - j) as usize & mask);
+                acc += (l[x] + r[x]) * (l[y] + r[y]);
+                j += step as i64;
+            }
+            acc
+        };
+        let step = self.align_step;
+        let mut best = pb.clamp(lo, hi);
+        let mut best_c = f32::NEG_INFINITY;
+        let mut c = lo;
+        while c <= hi {
+            let v = corr(c, step);
+            if v > best_c {
+                best_c = v;
+                best = c;
+            }
+            c += step as i64;
+        }
+        // Fine, around the coarse best.
+        let (flo, fhi) = ((best - step as i64).max(lo), (best + step as i64).min(hi));
+        let mut fine = [0.0f32; 2 * MAX_ALIGN_STEP + 3];
+        let n = (fhi - flo + 1) as usize;
+        let mut k_best = 0;
+        for k in 0..n.min(fine.len()) {
+            fine[k] = -corr(flo + k as i64, 1);
+            if fine[k] < fine[k_best] {
+                k_best = k;
+            }
+        }
+        let n = n.min(fine.len());
+        let v = crate::pitch::parabola(&fine[..n], k_best, n - 1);
+        let at = flo as f64 + v as f64 + (prev - pa as f64);
+        at.min(bound)
     }
 }
 

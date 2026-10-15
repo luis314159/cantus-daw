@@ -52,28 +52,29 @@ fn released_it_is_the_input_delayed_bit_for_bit() {
     }
 }
 
-/// Engaged at a ratio of 1 with the voice's own period, the output is the input, delayed
-/// (to the interpolator's error).
+/// Engaged at a ratio of 1 with the voice's own period, the output is the voice: the same
+/// pitch, the same spectral envelope, the same level (the grains come from up to a period
+/// earlier, so the waveform is not compared sample by sample).
 #[test]
 fn engaged_at_unity_it_reproduces_the_voice() {
     let sr = 48_000.0;
-    let x = testkit::voice(sr, 0.5, Vowel::A, 0.5, |_| 200.0);
+    let f0 = 200.0;
+    let x = testkit::voice(sr, 0.5, Vowel::A, 0.5, |_| f0);
     let c = Control {
-        period: sr / 200.0,
+        period: sr / f0,
         ratio: 1.0,
         formant: 1.0,
         engage: true,
     };
     let y = run(&x, sr, &c);
-    let lat = Shifter::new(sr).latency();
-    let (mut e, mut p) = (0.0f32, 0.0f32);
-    for i in 4_800..x.len() {
-        let d = y[i] - x[i - lat];
-        e += d * d;
-        p += x[i - lat] * x[i - lat];
-    }
-    let snr = 10.0 * math::log10(p / e.max(1e-30));
-    assert!(snr > 40.0, "unity through the grains: {snr} dB");
+    let (xs, ys) = (&x[4_800..], &y[4_800..]);
+    let got = measured_f0(ys, sr, f0);
+    assert!(cents(got, f0).abs() < 0.5, "{got} Hz");
+    let d = envelope_distance(xs, f0, ys, f0, sr, 200.0, 5_000.0);
+    assert!(d < 0.5, "envelope {d} dB");
+    let rms = |v: &[f32]| (v.iter().map(|s| s * s).sum::<f32>() / v.len() as f32).sqrt();
+    let level = 20.0 * math::log10(rms(ys) / rms(xs));
+    assert!(level.abs() < 0.2, "level {level} dB");
 }
 
 /// The output lands on the ratio, in tune, up and down.
@@ -281,3 +282,4 @@ fn offline_shifts_pitch_keeps_formants_and_stretches_time() {
     // Deterministic.
     assert_eq!(render(&[&x], &a, &plan), y);
 }
+
