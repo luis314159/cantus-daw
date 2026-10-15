@@ -41,6 +41,17 @@ Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**
   effects from modules inside the DAW, with polyphony and sample-accurate modulation.
 - **Modulators everywhere** (Bitwig): LFOs, envelopes, step sequencers, followers, MIDI
   and math modulators on any parameter of any device, hosted plug-ins included.
+  **Done in round 28** (ADR 0057, schema 28): LFO, envelope (from notes or an audio
+  level), follower, steps and random on tracks, strips and the master, each driving up to
+  32 parameters with bipolar depths over the automation, one level of nesting, *Modulate…*
+  on every parameter control (a test opens every native editor and fails on one without
+  it), Alt+drag for a depth, *Bake to automation*; hosted plug-ins' parameters are
+  automation and modulation targets, delivered at their sample offsets. **Still open:**
+  MIDI modulators (CC, pitch bend, pressure as sources driving any parameter) and math
+  modulators (a formula, Fruity Formula Controller's role — §3b *Automation controller*).
+  *Idea (2026-10-15, leaders' report):* the follower modulator is its own few lines
+  (`cantus_core::modulator::eval::Follower`); dynfx's shared `dynfx_follow` could replace
+  it, so one follower serves Impetus and the modulators.
 - **Immersive and surround audio** (Logic, Nuendo, Pro Tools, Studio One): 5.1/7.1.4,
   **Dolby Atmos** beds and objects with an ADM BWF export, binaural rendering for
   headphones, ambisonics.
@@ -50,6 +61,11 @@ Studio One, Reaper**, and the free ones (**Ardour, LMMS, Zrythm, Waveform Free**
   symbols, print/MusicXML export.
 - **Comping** of takes (Logic, Pro Tools, Studio One): swipe comping across loop takes,
   lanes per take, comp regions with crossfades (round 19 has takes — check what is left).
+  **Done in round 28** (ADR 0058, schema 29): seam crossfades rendered in the engine
+  (equal-power, 10 ms by default, per seam or for every seam), seams that move as a unit,
+  quick swipe, alternate comps (*Comp A ▾*: switch, new, rename, delete), flatten and
+  *flatten and merge* (a bounce, the takes kept), grouped comping by mixer group, and a
+  swipe that keeps a window's pitch edits.
 - **Post-production** (Pro Tools, Nuendo): AAF/OMF import/export, ADR tools, loudness
   for broadcast (EBU R128/ATSC A/85 reports), batch processing, a clip/region list.
 - **Scripting and extensibility** (Reaper's ReaScript, Ableton's Max, Bitwig's
@@ -94,7 +110,8 @@ los comerciales— en lo objetivo: una tabla de puntaje pública y reproducible 
 Ableton, Bitwig, Logic, Cubase, Pro Tools, Studio One, Reaper, Ardour y los demás
 (rendimiento, calidad de audio, estabilidad, funciones, velocidad de trabajo, contenido,
 apertura), más lo que aún no cubre este backlog: clip launcher, entorno modular,
-moduladores en todo, audio inmersivo/Atmos, video, partituras, comping, posproducción,
+moduladores en todo (hecho en la ronda 28, salvo los moduladores MIDI y de fórmula),
+audio inmersivo/Atmos, video, partituras, comping (hecho en la ronda 28), posproducción,
 scripting, Link/OSC/MIDI 2.0, microtonalidad, hardware externo, versiones y colaboración,
 modo táctil, muestreo profundo, patrones al nivel de FL y más mezcla. En paralelo: que la
 gente lo use (beta, comunidad, tutoriales). **(6a)** El sitio cantusdaw.com (y cantusdaw.studio) con
@@ -106,10 +123,10 @@ Lo que nos separa de "excelente", en orden: **(1)** uso real — hacer canciones
 con Cantus y corregir cada fricción; **(2)** probar con hardware real (tu Behringer UMC,
 otras interfaces, ASIO dúplex); **(3)** las funciones que toda DAW top tiene y aún no:
 warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 20), MIDI
-learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2); **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar); **(3e)** más instrumentos, tras una investigación verificada (FL Studio 2026, Live 12.4, Logic 12, Bitwig 6.1, Reason 14, Fender Studio Pro 8, Cubase 15 y los mejores plug-ins; licencias y patentes comprobadas), en este orden: un cortador de muestras (tipo Slicex) dentro de Exemplar, arpegiador y herramientas de acordes y escala como efectos MIDI, terminar Pulsus con salidas y cadenas de efectos por pad, un piano de cola modelado (ahora por guías de onda y física publicada; el método de Modartt se evaluará cuando expire su patente estadounidense, verificada vigente hasta el 2027-10-20; revisión legal antes de publicarlo, que cubra también siete patentes activas de resonancia de piano de Casio, Kawai y Yamaha), modos espectral y granular en Exemplar (el nivel del Sampler de Bitwig 6.1), resonadores por modelado físico (cuerdas, láminas, membranas), guitarra sobre el modelo de cuerda de Gravis con rasgueo en el piano roll, resíntesis aditiva para Partes (tipo Harmor), secciones orquestales con muestras CC0, un coro de vocales por formantes (el canto con letra después, cuando exista una voz grabada para Cantus con licencia libre: hoy no hay ninguna) y batería acústica multimicrófono; solo contenido CC0 bajo demanda hasta que decidas sobre CC-BY (Sonatina y Philharmonia quedan fuera), y más (chiptune, bucles tocables, sintetizador de texturas, MPE); **(4)** rendimiento con
+learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales — en la ronda 28 llegaron el chorus (Concentus), el flanger (Flexus), el phaser (Phasis), el trémolo y autopaneo (Tremor), el vibrato (Vibrans), el modulador en anillo (Anulus), el desplazador de frecuencia (Translatio), el modelador de volumen (Fluctus), el clipper (Tonsor), el procesador de transitorios (Impetus), el separador de transitorios (Discrimen), el analizador (Speculum) y el afinador Tonus; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2) — hecho en la ronda 28, salvo lo polifónico y ARA 2; **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar) — hecho en la ronda 28: **Tonus**; **(3e)** más instrumentos, tras una investigación verificada (FL Studio 2026, Live 12.4, Logic 12, Bitwig 6.1, Reason 14, Fender Studio Pro 8, Cubase 15 y los mejores plug-ins; licencias y patentes comprobadas), en este orden: un cortador de muestras (tipo Slicex) dentro de Exemplar, arpegiador y herramientas de acordes y escala como efectos MIDI, terminar Pulsus con salidas y cadenas de efectos por pad, un piano de cola modelado (ahora por guías de onda y física publicada; el método de Modartt se evaluará cuando expire su patente estadounidense, verificada vigente hasta el 2027-10-20; revisión legal antes de publicarlo, que cubra también siete patentes activas de resonancia de piano de Casio, Kawai y Yamaha) — **Chorda**, hecho en la ronda 28; quedan la prueba a ciegas y la revisión legal (tuyas) y Chorda II (micrófonos, tapa, voicing por tecla), modos espectral y granular en Exemplar (el nivel del Sampler de Bitwig 6.1), resonadores por modelado físico (cuerdas, láminas, membranas), guitarra sobre el modelo de cuerda de Gravis con rasgueo en el piano roll, resíntesis aditiva para Partes (tipo Harmor), secciones orquestales con muestras CC0, un coro de vocales por formantes (el canto con letra después, cuando exista una voz grabada para Cantus con licencia libre: hoy no hay ninguna) y batería acústica multimicrófono (DRSKit, mezclada a estéreo al instalarla, en la ronda 28; los faders por micrófono esperan instrumentos con varias salidas); solo contenido CC0 bajo demanda hasta que decidas sobre CC-BY (Sonatina y Philharmonia quedan fuera), y más (chiptune, bucles tocables, sintetizador de texturas, MPE); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -184,28 +201,35 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
 - **Automation** (round 20 builds clips and lanes): record automation by moving a control
   (write / touch / latch), automation in the piano roll (CC lanes, pitch bend, velocity
   and release), modulation of any parameter by an LFO or envelope (Bitwig-style).
+  *Round 28:* modulation of any parameter is done (§0.2, ADR 0057), hosted plug-ins'
+  parameters are automatable, and every control moved while a pass records becomes an
+  automation clip; the write/touch/latch modes and the piano roll's lanes stay open.
 - **Hosted instruments** (round 20) and **plug-in crash isolation** (a crashing plug-in
   must not take the session down — out-of-process hosting), per-plug-in CPU meter,
   plug-in presets browser, sidechain into hosted plug-ins.
 - **Editing**: crossfades between overlapping clips (automatic and editable), clip gain
   envelopes, an audio editor window (Edison-like: destructive edits, spectral view, noise
   reduction, normalise, reverse a region), **pitch correction** (Newtone/Melodyne-lite
-  for vocals), slicing to a sampler, consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
+  for vocals — *done in round 28*: §3c's editor and §3d's Tonus), slicing to a sampler, consolidate / **bounce in place**, **freeze** tracks (§4c step 1), **low-latency monitoring** of armed tracks (§4c step 2),
   insert/delete time (STATUS round 12 plan), clip groups, ripple edit.
 - **MIDI**: arpeggiator and chord tools as MIDI effects, scale highlighting and
   snap-to-scale, ghost notes from other clips, groove/swing templates (STATUS: swing as a
   clip property), step-sequencer per melodic channel (FL's mini piano roll), MPE.
 - **Mixing**: track folders and groups with VCA faders, a spectrum analyser and loudness
   meter on the master always visible, reference-track A/B, mixer snapshots, channel
-  strip presets, send/return templates, a correlation meter on the master.
+  strip presets, send/return templates, a correlation meter on the master. *Round 28:* the
+  top bar's master meter reads momentary/short-term/integrated LUFS and true peak (ADR
+  0052), and Speculum (ADR 0056) on the master gives a spectrum, correlation and loudness
+  view docked in the workspace or floating.
 - **Workflow**: project templates, track templates, an undo history panel, a quick
-  command palette (search any action), customizable toolbars, multiple arrangements
+  command palette (search any action), customizable toolbars (*round 28*: the top bar's
+  groups are shown, hidden and reordered — ADR 0052), multiple arrangements
   (STATUS playlist plan), a project/media browser with previews (round 20 builds the
   sample browser), autosave and crash recovery proven under real crashes.
 - **Export**: MP3/AAC/FLAC/Ogg encoders, export presets (streaming, CD, stems for a
   mastering engineer), render the time selection, loudness-normalised export.
 
-## 3b. More effects — the family a top DAW ships (requested 2026-10-07)
+## 3b. More effects — the family a top DAW ships (requested 2026-10-07) — **thirteen units done in round 28** (ADRs 0053, 0055, 0056)
 
 *The owner: "more effects — distortion pedals, chorus, flanger, fuzz, pitch correction,
 time manipulation, a Distructor, a formula controller, a clipper, a Wave Candy, an X-Y
@@ -215,8 +239,16 @@ professional DAWs and the top plug-ins have." Backlog only, not scheduled.*
 What exists: Aequalis (EQ), Comprimo (compressor), Terminus (limiter), Spatium (reverb),
 Multiplex (multiband), Sibilus (de-esser), Porta (gate), Fervor (saturation/waveshaper —
 the Blood Overdrive/WaveShaper role), Latitudo (stereo/mid-side), Culmen (maximizer), a
-delay, the strip EQ. Each new one follows the family's rules (ADR 0018): a null test at
-its defaults, block-size independence, exact rest (`at_rest`/`skip`), deterministic
+delay, the strip EQ. **Round 28 added thirteen**, each through the family's contract with
+its editor, presets, page, manual section and a bit-identical CLAP/VST3 export: the
+modulation family (ADR 0055) — **Concentus** (chorus), **Flexus** (flanger), **Phasis**
+(phaser), **Tremor** (tremolo and auto-pan), **Vibrans** (vibrato), **Anulus** (ring
+modulator), **Translatio** (frequency shifter), **Fluctus** (volume shaper); dynamics and
+analysis (ADR 0056) — **Tonsor** (clipper), **Impetus** (transient processor), **Discrimen**
+(transient splitter), **Speculum** (analyser); and **Tonus** (real-time pitch correction,
+ADR 0053, §3d). The exported plug-ins now follow the host's transport (synced units keep
+the other DAW's tempo) and take MIDI notes where a unit does (Tonus, Porta). Each new one
+follows the family's rules (ADR 0018): a null test at its defaults, block-size independence, exact rest (`at_rest`/`skip`), deterministic
 maths, the hand-drawn kit UI, a page in `docs/plugins/`, and the CLAP/VST3 export
 bit-identical. Ours should end up better than the reference, not a clone.
 
@@ -226,23 +258,30 @@ bit-identical. Ours should end up better than the reference, not a clone.
 |---|---|---|---|
 | **Distortion pedals** | Boss DS-1/RAT/Tube Screamer models, FL's Distructor chain | circuit-modelled stages (clipping diodes, tone stacks), oversampled, a pedalboard view | three pedal models sound like their circuits in a blind A/B against references |
 | **Fuzz** | Fuzz Face, Big Muff | the transistor's bias/starve and gating, gated-fuzz splat | the bias knob reproduces the "dying battery" sound |
-| **Chorus** | Juno-60 chorus, Dimension D, FL's Chorus | BBD-style modulated delays, 1–4 voices, stereo spread, mono-safe | Juno I/II/I+II modes and a mono-compatibility meter |
-| **Flanger** | FL's Flanger, MXR/Electric Mistress | through-zero flanging, feedback ±, tempo-synced LFO and an envelope mode | through-zero null at the centre point holds to the bit |
+| **Chorus** ✓ *Concentus, round 28 (ADR 0055)* | Juno-60 chorus, Dimension D, FL's Chorus | BBD-style modulated delays, 1–4 voices, stereo spread, mono-safe | Juno I/II/I+II modes and a mono-compatibility meter — *met: the Juno sweeps within 0.01 ms and 1 % of the circuit's, Dimension 1–4, a mono check; the blind A/B is the owner's* |
+| **Flanger** ✓ *Flexus, round 28 (ADR 0055)* | FL's Flanger, MXR/Electric Mistress | through-zero flanging, feedback ±, tempo-synced LFO and an envelope mode | through-zero null at the centre point holds to the bit — *met: exact zeros in the DSP, the engine and the editor's comb* |
 | **Distructor-like multi-effect** | FL's Distructor | a rack of distortion + filter + modulation + delay modules in any order, macros, randomise | presets travel; each module is one of our units |
-| **Pitch correction** | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (§3d) **and** a graphic note editor for recordings (§3c) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone |
+| **Pitch correction** ✓ *Tonus and the pitch editor, round 28 (ADRs 0053, 0054)* | Newtone, Melodyne, Auto-Tune, Waves Tune | real-time (§3d) **and** a graphic note editor for recordings (§3c) | a sung take corrected in both modes; formants preserved; no artefacts at the bar of Newtone — *met on synthetic voices; a real voice and the comparison with Newtone/Auto-Tune/Melodyne are the owner's* |
 | **Time manipulation** | Gross Beat, NewTime, Ableton Warp, élastique | Gross Beat-style time/volume envelopes (stutter, half-time, tape stop, scratch) and NewTime-style warp markers/slices on audio | tape stop, half-time and stutter presets sample-exact at any tempo; warp markers on a clip (ties to §3 *Time*) |
-| **Automation controller** | Fruity Formula Controller, Peak Controller, LFO Tool | a formula (sin, saw, inputs a/b/c, time, beat) or LFO/envelope drawing driving any parameter; an envelope follower from any strip | one controller drives several targets, recorded as automation if asked |
-| **Clipper** | Fruity Soft Clipper, StandardCLIP, KClip | hard/soft/analog curves, oversampling, true-peak aware, clip meter | at threshold 0 dB it is a null; inter-sample overs measured |
-| **Analysis and visualisation** | Wave Candy, SPAN, Insight, MiniMeters | oscilloscope, spectrum (FFT/constant-Q), spectrogram, vectorscope/goniometer, correlation, loudness (LUFS momentary/short/integrated, LRA, true peak), peak/RMS — resizable, docked or floating | it reads the same LUFS as the EBU test vectors; drawn at 60 fps under the frame budget |
+| **Automation controller** — *partly: round 28's modulators (ADR 0057) are the LFO, envelope and follower (Peak Controller) roles, Fluctus the LFO Tool one; the **formula** is still open* | Fruity Formula Controller, Peak Controller, LFO Tool | a formula (sin, saw, inputs a/b/c, time, beat) or LFO/envelope drawing driving any parameter; an envelope follower from any strip | one controller drives several targets, recorded as automation if asked |
+| **Clipper** ✓ *Tonsor, round 28 (ADR 0056)* | Fruity Soft Clipper, StandardCLIP, KClip | hard/soft/analog curves, oversampling, true-peak aware, clip meter | at threshold 0 dB it is a null; inter-sample overs measured — *met: the null to the bit, 1–16× on the residual, a true-peak ceiling that holds (−0.05 dBTP at 1×, −0.07 at 4–16×)* |
+| **Analysis and visualisation** ✓ *Speculum, round 28 (ADR 0056)* | Wave Candy, SPAN, Insight, MiniMeters | oscilloscope, spectrum (FFT/constant-Q), spectrogram, vectorscope/goniometer, correlation, loudness (LUFS momentary/short/integrated, LRA, true peak), peak/RMS — resizable, docked or floating | it reads the same LUFS as the EBU test vectors; drawn at 60 fps under the frame budget — *met: Tech 3341 cases within ±0.1 LU, three open at 60 Hz losing no frame (FFT only; constant-Q is open)* |
 | **X-Y controller** | Fruity X-Y Controller, XY pads | two (or more) parameters on one pad, inertia and paths, recordable, MIDI/automation mapping | a pad gesture records as two automation lanes |
-| **Transient splitter** (the owner's "Transmitter") | Eventide SplitEQ (structural split), transient/tonal separators | low- or zero-latency transient detection splitting the signal into transient and sustain/tonal parts, each with its own dynamics and EQ, summing back to a null | both parts summed with no processing equal the input to the bit; zero-latency mode |
-| **Transient processor** | FL's Transient Processor, SPL Transient Designer | attack/sustain gain, detection on level not threshold, split-band option, sidechain | a drum loop shaped without a threshold; default is a null |
+| **Transient splitter** (the owner's "Transmitter") ✓ *Discrimen, round 28 (ADR 0056)* | Eventide SplitEQ (structural split), transient/tonal separators | low- or zero-latency transient detection splitting the signal into transient and sustain/tonal parts, each with its own dynamics and EQ, summing back to a null | both parts summed with no processing equal the input to the bit; zero-latency mode — *met: bit for bit in both modes* |
+| **Transient processor** ✓ *Impetus, round 28 (ADR 0056)* | FL's Transient Processor, SPL Transient Designer | attack/sustain gain, detection on level not threshold, split-band option, sidechain | a drum loop shaped without a threshold; default is a null — *met* |
 
 **Others the most professional DAWs and plug-in makers ship** (in rough order of use):
 
 - **Modulation**: phaser (4–12 stages, Small Stone/Phase 90 models), tremolo and
   auto-pan (tempo-synced), vibrato, rotary speaker (Leslie), ring modulator, frequency
   shifter, a Kickstart/LFO Tool-style **volume shaper** for sidechain pumping without a key.
+  *Done in round 28 (ADR 0055):* ✓ phaser (**Phasis**, 2–12 stages, Phase 90 and Small
+  Stone presets), ✓ tremolo and auto-pan (**Tremor**), ✓ vibrato (**Vibrans**), ✓ ring
+  modulator (**Anulus**), ✓ frequency shifter (**Translatio**, 69 dB sideband rejection),
+  ✓ volume shaper (**Fluctus**). **Still open:** the rotary speaker as an effect (Organum
+  has one inside it). *Idea (2026-10-15, modfx's report):* Anulus's carrier from a track's
+  MIDI notes — left out (`TAKES_NOTES = false`) because the exported plug-ins had no note
+  input; voice's note ports (ADR 0053) now give them one, so it is a small step.
 - **Delay family**: tape echo (Space Echo), ping-pong and multi-tap, a ducking delay,
   reverse delay, a dub-style feedback filter — Valhalla/Echoboy as the bar.
 - **Reverbs**: convolution (impulse responses, user IRs), plate and spring, shimmer — on
@@ -265,7 +304,7 @@ bit-identical. Ours should end up better than the reference, not a clone.
 **Done when** each shipped unit passes the family's contract tests, has its manual page in
 both languages, and holds up in a blind comparison against its reference.
 
-### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07)
+### 3c. Pitch and time editing of recordings — a Melodyne-class editor (requested 2026-10-07) — **done in round 28** (ADR 0054), except the "later" part
 
 *The owner: "a tuner that works from a recording, to fix vocals and the like — Newtone or
 something more professional." The real-time tuner of §3b is for the effect sound; this is
@@ -297,7 +336,23 @@ that nobody can hear was corrected.
    MIDI out of the detected notes (melody to an instrument), and doubling (a second voice a
    third above from the same take).
 
-**Later, the hard part:** polyphonic editing (Melodyne's DNA — chords in a guitar or
+**Round 28 (ADR 0054, schema 27; the round-28 builders *voice* and *pitch*):** all four
+landed on our own base (YIN/pYIN tracker and TD-PSOLA shifter, ADR 0053 — no GPL code, no
+neural model). ✓ Analysis on a worker as a take lands, cached in the data folder, the
+segmentation stored with the clip; ✓ the editor (a double-click on an audio clip, *Edit
+pitch* in its menu and the inspector) with every per-note control above, split/join, the
+three macros (quantise to the grid **or to another track's notes**), the key detected and
+editable; ✓ a non-destructive render played in the source's place (the original plays
+while it is pending, never silence; export waits for it); ✓ A/B, the **Pitch lane** in the
+arrangement, MIDI out, *Double* (a third or a fifth above, in the key). Measured on
+synthetic takes: corrections within 0.7 cent of the targets, formants kept at ± 3
+semitones (envelope distance 0.3–2.7 dB, against 6.7–9.6 dB with formants moved), timing
+edits leave the neighbours bit for bit, bounce = playback to the bit. **Owner's:** a real
+sung take judged by ear (the *done when* below), and the blind comparison against Melodyne
+and Newtone.
+
+**Later, the hard part** (still open after round 28 — the editor is monophonic: one voice
+or line; chords are not split): polyphonic editing (Melodyne's DNA — chords in a guitar or
 piano recording), and **ARA 2 hosting** so a user who owns Melodyne or RePitch can use it
 inside Cantus the way Studio One, Cubase and Logic do (ARA is a Celemony SDK under the
 Apache licence — check its terms).
@@ -310,7 +365,7 @@ some megabytes). Our own implementation stays the default for deterministic rend
 artefact at moderate corrections, formants preserved at ± 3 semitones, timing edits clean,
 and the result bounces bit-identical to playback.
 
-### 3d. A simple real-time auto-tuner (requested 2026-10-07)
+### 3d. A simple real-time auto-tuner (requested 2026-10-07) — **done in round 28**: Tonus (ADR 0053)
 
 *The owner: "and a simple real-time one where you set scales or notes — the automatic kind
 that works from the input." The partner of §3c: §3c fixes a take afterwards; this corrects
@@ -347,6 +402,21 @@ exact rest; exported to CLAP/VST3 like the rest.
 natural speed corrects without audible artefacts, the latency is under the target, and MIDI
 targets follow a keyboard in real time.
 
+**Round 28 (ADR 0053, `docs/round28/voice.md`):** ✓ **Tonus** (`EffectKind::AutoTune`, the
+picker's *Pitch* shelf) — key and 13 scales with per-note *on / remove / bypass*, the notes
+held on MIDI or a MIDI melody as targets (at their own sample), speed 0–400 ms, amount,
+humanise, flex, vibrato kept/scaled/created, formants kept or following, throat, transpose,
+reference A4; the front row *Key, Scale, Speed, Amount*, the rest under *More*; the detected
+note and correction drawn live; nine presets. **Latency 128 samples at 48 kHz (2.67 ms),
+constant** — under the 144-sample target; speed 0 lands within 0.1 cent with no warble; a
+legato note change at a natural speed makes no click; lowest f0 tracked 55 Hz. Exported
+with a CLAP note port and a VST3 event bus, so MIDI targets work in other DAWs too (Porta's
+MIDI trigger with it). Judged so far on synthetic voices; a real voice by ear and the blind
+comparison with Auto-Tune / Newtone are the owner's. **Still later:** *Harmony* (above) —
+the shifter can take a second synthesis lattice (ADR 0053); polyphonic input is out of
+scope. *Idea (2026-10-15, voice's report):* a singer monitoring through Tonus hears the
+project's largest latency, not Tonus's 2.7 ms — see §4c step 2.
+
 ### 3e. More instruments — the family a top DAW ships (requested 2026-10-10)
 
 *The owner: "more instruments — the ones discussed and more, after research." Backlog
@@ -373,7 +443,9 @@ the note tools and the drum machine more than to new synths.**
 (bass, *with a waveguide string engine*: dispersion, frets, pickups), **Lamina** (modelled
 EP, *with a nonlinear hammer*), **Organum** (organ and rotary), **Pulsus II** (drums, *with
 16 layers per pad, seeded round robin, chokes, a modal percussion voice and a per-pad output
-hook*). Several items below therefore **grow an existing engine** rather than start one.
+hook*), and since round 28 **Chorda** (the modelled grand piano, item 4 — ADR 0059) and
+the **DRSKit** acoustic kit in Exemplar (item 11, §5). Several items below therefore
+**grow an existing engine** rather than start one.
 Linked, not repeated: a modular environment, modulators, MPE and microtuning (§0.2); the
 factory library (§5); players that follow chords and stem separation (§7); the vocal
 *effects* (§3b–3d).
@@ -407,18 +479,53 @@ vocals — then what blind comparisons demand, then build cost on what exists):
 | **1. Slicer** — *Sectio*, a mode of Exemplar | FL Fruity Slicer 2 and Slicex, Ableton Simpler, Logic Quick Sampler, Bitwig 6.1 Sliced | **Technique:** spectral-flux onset detection with SuperFlux for sustained sounds and a beat grid by dynamic programming, offline; slice points stored in the project. Embedded markers read first (WAV cue, ACID); one sensitivity control; grid and manual slices; "dump to piano roll"; per-slice pitch, envelope, filter, reverse, choke; FL's *Random*, *Stutter*, *Quantize/Swing* as one-step commands; tempo-following by slice replay | ≥ 95 % of slice points within 10 ms of hand annotation on 50 CC0 loops; a loop replayed from its dumped MIDI equals the file to the bit; a tempo change keeps slices on the grid; drop-to-chopped in ≤ 2 clicks |
 | **2. Arpeggiator, chord and scale tools** (note effects) | FL Arpeggiator and Chord tools, Ableton Arpeggiator/Chord/Scale and MIDI Tools, Kontakt 8.6 Tools, Serum 2's arp and clip sequencer | **Technique:** event processing on the absolute song tick (needs tempo and position in the instrument contract). Arp modes, rate with swing, gate, octaves, a step lane with probability and ratchets, latch; chord voicings with inversions and strum; scale lock to the project key; probability drawn from the note's hash | sample-accurate at block sizes 1/37/64/512; bounce = playback; a render from bar 5 equals bars 5… of a full render; works before native **and** hosted instruments; output recordable to the clip |
 | **3. Pulsus III** — per-pad outputs and chains (finishing the drum sampler) | Ableton Drum Rack, FL FPC, Logic Drum Machine Designer, Battery 4, XO | Wire the existing per-pad outputs to strips; a per-pad insert chain; any Cantus instrument on a pad; kit import from a folder (name parsing, then similarity) and SFZ; XO-style similarity map shared with the browser; 808/909-class one-shots rendered from Pulsus and released CC0 | 16 pads, each with its own chain, split to 16 strips in one click; the split kit sums to the unsplit kit to the bit; a folder becomes a mapped kit in one drop; chains at rest cost nothing |
-| **4. Modelled grand piano** — *Chorda* | Pianoteq 9 (Oct 2025, ~50 MB), Logic Studio Piano, Keyscape, Garritan CFX | **Technique:** digital waveguide strings with dispersion allpasses, a nonlinear felt hammer (Lamina's, extended with hysteresis), two- and three-string unisons with two-stage decay, phantom partials, a multirate soundboard and a sustain-pedal resonance bank, all from closed-form physics and published measurements; continuous half-pedalling; no task-skipping under load (unlike Pianoteq) — see the plan below | partials within 1 cent of the stretch target on every key; per-partial decay within −25 %/+40 % of published measurements; half-pedal continuous; a blind test (≥ 20 listeners) shows no significant preference for Pianoteq 9 or a sampled grand; 64 pedal-down voices inside 25 % of a core at 256 frames; the legal review done |
+| **4. Modelled grand piano** — *Chorda* — ✓ **Chorda I done in round 28** (ADR 0059; see below the table) | Pianoteq 9 (Oct 2025, ~50 MB), Logic Studio Piano, Keyscape, Garritan CFX | **Technique:** digital waveguide strings with dispersion allpasses, a nonlinear felt hammer (Lamina's, extended with hysteresis), two- and three-string unisons with two-stage decay, phantom partials, a multirate soundboard and a sustain-pedal resonance bank, all from closed-form physics and published measurements; continuous half-pedalling; no task-skipping under load (unlike Pianoteq) — see the plan below | partials within 1 cent of the stretch target on every key; per-partial decay within −25 %/+40 % of published measurements; half-pedal continuous; a blind test (≥ 20 listeners) shows no significant preference for Pianoteq 9 or a sampled grand; 64 pedal-down voices inside 25 % of a core at 256 frames; the legal review done |
 | **5. Spectral and granular modes of Exemplar** (Unda's *Grana* grown) | Bitwig 6.1 Sampler (Spectral, Fragments), Ableton Granulator III, Logic Sample Alchemy, Serum 2 | **Technique:** granular scheduling on the sample clock with seeded draws (as Grana), a mip-mapped source so transposing up does not alias, sync/count density, loop and freeze, capture from any track; a phase-locked vocoder for stretch and pitch with formant preservation (Signalsmith Stretch, MIT, as reference), STFT grid anchored to the note, long stretches pre-rendered and cached. The same engine serves warp (§3) and the pitch editor (§3c) | bit-identical at every block size and offline = real time; +24 st grains with no alias above −90 dB; a 2× vocal stretch keeps formants and transients (onset smear ≤ 5 ms); 16 voices × 64 grains inside 10 % of a core |
 | **6. Physical-model resonators** (exciter → resonator) | Ableton Collision and Tension, Logic Sculpture, AAS Chromaphone 3, Pigments Modal | **Technique:** exciters (pluck, pick, bow by a friction curve, mallet, noise, sample, live input) into waveguide strings (Gravis's) or modal bars, plates, membranes and tubes (Pulsus's modal voice), coupled, with a body; MPE pressure and slide on bow pressure and position | marimba, vibraphone, kalimba, steel pan, harp, nylon guitar, bowed cello and glass presets each judged "convincing in solo" by a 10-listener panel; pitch within 0.1 cent at any bend; renders repeat to the bit |
 | **7. Guitar** (acoustic and electric) | Ample Guitar 4.1, AAS Strum GS-2, NI Session Guitarist | **Technique:** Gravis's string model × 6 with string assignment, an acoustic body, stable sympathetic coupling, pick direction, palm mute, harmonics; a **strummer written as note properties in Cantus's piano roll** (strum time, direction, mute) following the chord track — what no plug-in can do; CC0 Karoryfer electric guitars as Exemplar presets | a chord progression strums like a guitar and follows the chord track; nylon and steel presets judged "a guitar" in a mix by a 10-listener panel; a fretboard strip shows string and fret |
 | **8. Additive resynthesis** (Unda's *Partes* grown) | FL Harmor, Logic Alchemy, Zebra 3, Serum 2 Spectral | **Technique:** sinusoids-plus-noise analysis with partial tracking and harmonic assignment, offline, stored as an asset; resynthesis on Partes's rotator bank (no alias by construction), image-to-spectrum, spectral morph between two analyses, the original attack kept | a resynthesised cello, voice and piano pass a 10-listener ABX as "the same instrument"; no partial ever above 0.45·fs (asserted); null at defaults |
 | **9. Orchestral section players** | BBC SO Discover (free), Splice INSTRUMENT, Logic Studio Strings/Horns | An Exemplar front-end over **CC0 VSCO 2 CE and VCSL**: articulations by key-switch and by note property, CC1 dynamics across layers, CC11, scripted legato (overlap window and interval-aware crossfade — VSCO has no recorded transitions), release triggers, a section mixer. Honest aim: a finished sketch with zero friction, not a win over BBC SO; later, Cantus's own recordings | a four-bar string line with legato and a CC1 swell is rated "finished" by 7 of 10 producers; presets per section; every pack CC0 and on demand |
 | **10. Vowel choir**, then lyric singing | Cubase 15 Omnivocal, Synthesizer V 2, Arturia Augmented VOICES, Hollywood Choirs | **Choir now:** FOF/formant synthesis (Rodet's CHANT, Klatt) with published vowel formants, seeded per-voice jitter, vowel morphing — no recorded voice needed. **Lyric singing later:** WORLD-style source–filter synthesis (BSD) with phoneme timing, gated on a voice recorded for Cantus by consenting singers and released CC0; any neural part single-threaded with a fixed reduction order, or rendered offline and cached | a vowel choir pad judged "usable in a mix" by 7 of 10 producers; bit-identical renders. Singing (later): ≥ 90 % word intelligibility and < 10 cents pitch error on sustained notes; every voice's licence and consent in the notices |
-| **11. Acoustic drums** | Superior Drummer 3, EZdrummer 3, Addictive Drums 2 | Mic buses and bleed on Pulsus's layers (each mic a strip), CC4 hi-hat openness, repetition smoothing, CC0 kits (Virtuosity Drums with six mics; Karoryfer) and CC-BY multi-mic kits if ruled in; a browser of CC0 grooves we write | rock, jazz and funk kits with per-mic faders; no identical consecutive sample in a roll (asserted); rated "usable in a mix" against EZdrummer 3's stock kit by a 10-listener panel |
+| **11. Acoustic drums** — *partly, round 28: DRSKit in Exemplar, a stereo mixdown (see below the table)* | Superior Drummer 3, EZdrummer 3, Addictive Drums 2 | Mic buses and bleed on Pulsus's layers (each mic a strip), CC4 hi-hat openness, repetition smoothing, CC0 kits (Virtuosity Drums with six mics; Karoryfer) and CC-BY multi-mic kits if ruled in; a browser of CC0 grooves we write | rock, jazz and funk kits with per-mic faders; no identical consecutive sample in a roll (asserted); rated "usable in a mix" against EZdrummer 3's stock kit by a 10-listener panel |
+
+**Round 28 (2026-10-15; `docs/round28/sound.md`):**
+
+- **Item 4 — Chorda I is built** (ADR 0059, `docs/instruments/chorda.md`), on the published
+  path below: waveguide strings from published tables per key (Rigaud et al.'s
+  inharmonicity and aural tuning, Bensa et al.'s strings, Chaigne & Askenfelt's hammers),
+  designed dispersion (allpass sections refined until every partial below 5 kHz is within a
+  cent), Stulov's hysteretic hammer, unisons at a resistive bridge (two-stage decay),
+  phantom partials, dampers with a continuous half-pedal law, the soft pedal (una corda,
+  its depth a control), the keys' own strings in sympathy, a multirate soundboard, 88
+  voices across the pool, a stored `model`. Measured: every partial on all 88 keys within
+  **0.50 cent** (44.1/48/96 kHz, at A 415 and the stiffest setting), T60 within −4 %/+1 % of
+  Bensa et al., the half pedal continuous, **64 pedal-down voices in 19.5 % of a core** at
+  256 frames, the family's nulls to the bit. Ten presets, the kit shell with the piano drawn
+  from its numbers, the ballad demo plays it. A keyboard's design takes about two seconds
+  at start (and after a sample-rate change); until it lands the piano is silent and its
+  editor says so. **The owner's** (`docs/beta-checklist.md`): the blind test (≥ 20
+  listeners against Pianoteq 9 and a sampled grand) — the last *done when* of item 4 — and
+  the legal review against the patents ADR 0059 names. **Chorda II, open** (the research's
+  second round, `research/instruments-next/notes.md` §6.4): **microphone perspectives**
+  (Chorda I has one perspective), **the lid** (open, half, closed), and **per-key voicing
+  curves** (a technician's key-by-key hammer and level adjustment); then, after
+  2027-10-20, the evaluation of Modartt's approach (point 2 below).
+- **Item 11 — DRSKit** (DrumGizmo, CC BY 4.0; ADR 0042's round-28 amendment) installs in one
+  step from *Sound packs* (a 2.8 GB download, mixed at install into a 24-bit stereo kit of
+  about 470 MB: per-microphone gain, pan, polarity and bleed), plays in Exemplar on General
+  MIDI keys with the hi-hat choke, velocity layers and round robins taken **in order**, so
+  a roll never repeats a hit (asserted); the piano roll and the channel rack show a row per
+  drum by name (*drum rows*). **Still open:** **per-microphone faders** — they need an
+  instrument with several outputs, each a strip (the *Mic buses* of this item and Pulsus
+  III's per-pad outputs, item 3); CC4 hi-hat openness, repetition smoothing beyond round
+  robin, more kits for the item's three styles (Virtuosity Drums, CC0, is a jazz kit), a
+  browser of CC0 grooves, and the listening panel against EZdrummer 3.
 
 **The piano, as the owner decided it (2026-10-10):**
 
-1. **Now — build it on the published path, which needs nothing from Modartt:** digital
+1. **Now — build it on the published path, which needs nothing from Modartt** (✓ done in
+   round 28 as Chorda I, ADR 0059: a waveguide, no modal bank, no detuned or non-speaking
+   loops): digital
    waveguide strings (J. O. Smith), dispersion filters for inharmonicity (Bank, Välimäki),
    nonlinear hammer models (Chaigne & Askenfelt, Stulov), double and triple strings with
    sympathetic resonance and two-stage decay (Weinreich), a multirate soundboard and a
@@ -431,7 +538,8 @@ vocals — then what blind comparisons demand, then build cost on what exists):
    ships, if measurements show it beats ours. The engine's model is versioned, so a second
    model can be added without changing any project's sound.
 3. **Before release — a legal review** of our method against the claims of every relevant
-   patent found (this backlog is not legal advice). Verified on Google Patents: **US
+   patent found (this backlog is not legal advice) — *the owner's, open; in
+   `docs/beta-checklist.md` §2*. Verified on Google Patents: **US
    7,915,515** (Modartt) is active with every maintenance fee paid and expires
    **2027-10-20**; its claim 1 covers a presynthesis module that turns soundboard and string
    parameters into a damping and a frequency per partial for a real-time partial synthesizer
@@ -630,6 +738,15 @@ named here; each has a part, and the parts are worth having on their own:
 2. **Low-latency monitoring** for armed strips: a limit (samples or ms) above which the
    plug-ins of a monitored strip are bypassed while recording, listed on screen by name, and
    restored on stop; plus the round-trip figure on the audio chip (§6b).
+   *Idea (2026-10-15, from round 28's voice report): limit delay compensation on armed and
+   monitored tracks.* Delay compensation aligns every strip to the project's largest
+   latency, **the monitored input included**: a singer monitoring through Tonus (2.7 ms)
+   hears themself 4 608 samples (96 ms at 48 kHz) late when a linear-phase EQ sits on
+   *another* strip (`fx_tonus::monitoring_waits_for_the_projects_largest_latency` documents
+   it). Step 2 should cover that case too, as Cubase's *Constrain Delay Compensation* does:
+   while a track is armed and monitored, its live path is not held back for latent
+   plug-ins elsewhere (or those are bypassed, named on screen), and the recorded take is
+   still placed to the sample.
 3. **The recording mode** above, on top of 1 and 2: *Prepare to record* freezes every strip that
    feeds the master in one go; the lock, the bar and the choices are this step.
 
@@ -740,6 +857,18 @@ measurement or been decided against with the reason written down.
   `xtask notices` generates a *Content* section. First packs: Salamander Grand (for
   Exemplar, ahead of the modelled piano), Naked Drums, the DrumGizmo kits (not
   *Aasimonster*), Dustyroom's acoustic kit; VocalSet for the voice work.
+  *Status:* ✓ the Salamander Grand (round 26, ADRs 0042 and 0050); ✓ **DRSKit 2.1** of the DrumGizmo
+  kits — **done in round 28** (ADR 0042's round-28 amendment): manifest format 3 gives a
+  pack a *build* step, so the 13-microphone kit is mixed to stereo as it installs
+  (*Mixing the microphones: n of m hits*), size and our SHA-256 pinned, the disk space it
+  needs (about 7.6 GB while installing) stated on the pack's page and checked before any
+  download, the credit in the pack's page and *About ▸ Credits* with DrumGizmo's own
+  words, an Exemplar kit on the picker's *Drums* shelf. **Naked Drums is refused for now:**
+  the CC BY 4.0 on its SFZ port was put there by the people who converted it; Wilkinson
+  Audio, the maker, never stated a licence. *Idea (2026-10-15, sound's report):* if
+  Wilkinson Audio confirms a CC BY or CC0 licence in writing, add Naked Drums through the
+  same build step (asking is the owner's, `docs/beta-checklist.md`). Dustyroom's kit and
+  VocalSet are still open.
 
 ## 6. Product
 
@@ -909,7 +1038,7 @@ Found while trying the round-22 build. Each one gets an ADR before code; every m
    with the website, so it is **Cantus Night** (copper and amber on night) with **Cantus
    Paper** as its twin. The icon became the website's tile-less mark, its colour a setting.
 
-## 6e. The top bar — a transport zone with more in it (requested 2026-10-09)
+## 6e. The top bar — a transport zone with more in it (requested 2026-10-09) — **done in round 28** (ADR 0052)
 
 The owner's reference is FL Studio's top strip (two screenshots, FL 12 and the current one):
 a dense, well-grouped toolbar. Ours (metronome, loop, record, BPM, position, undo/redo,
@@ -930,6 +1059,25 @@ view toggles, master meter) is sparse and the pieces float apart.
 - Look: first-rank, in the new white-and-blue theme and its dark twin (§6d.4); judged
   against FL's top strip with `shoot` PNGs at several widths. Touches `crates/cantus-ui`
   only (a new area locale file; strings in EN and ES).
+
+**Round 28 (ADR 0052, schema 26, keymap 8; `docs/round28/topbar.md`):** ✓ every group of
+the first bullet, in FL's two rows: transport with the record options; BPM, **TAP**
+(Shift+T: the mean of the last taps, one undo step a run) and an editable time signature;
+the metronome with count-in, level, **sound** (Classic / Woodblock / Beep) and **accent**;
+**PAT / SONG** (L: pattern mode plays the clip open in the rack or piano roll alone, looped,
+through its track's chain — recording in it is refused with a hint); the focused editor's
+snap; bars.beats.ticks and time; CPU / **RAM** / voices / dropouts (moved from the status
+bar); the master meter with **PEAK / LUFS** (momentary, short-term, integrated since Play,
+true peak — 0.38 % of a core); the project name renamed in place, the window title
+following it. ✓ From the second bullet: the MIDI-input lamp, armed tracks, the audio chip
+(moved from the status bar), the tools group (picker, appearance, zoom). ✓ *Customise top bar…*
+shows, hides and reorders groups; ✓ narrow windows fold whole groups into **⋯**, where each
+still works — a property test sweeps 800–3 840 px × 7 zooms × group sets × EN/ES (no
+overlap, no clipping), and at 1920 px every group is on the bar in both languages.
+**Owner's:** the look against FL's strip on the shots. **Not built, still open:** the
+**mini-oscilloscope or spectrum** in the bar (Speculum, ADR 0056, gives a full one docked
+or floating) and the **quick-search/command box** (no command palette exists yet — §3
+*Workflow*; a new group is a `Group` variant, ADR 0052).
 
 ## 6f. How Cantus earns money — the owner's plan (`docs/monetize.md`, 2026-10-09)
 
