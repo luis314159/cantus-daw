@@ -695,10 +695,10 @@ fn a_flood_of_note_offs_through_vst3_closes_the_gate() {
     }
 }
 
-/// The units queue a whole block's notes, as many as a plug-in takes: none acts early.
-#[test]
-fn the_units_queue_as_many_notes_as_a_block_carries() {
+/// The units queue a whole block's notes, as many as a plug-in takes: none acts early
+/// (checked when this file compiles).
+const _: () = {
     use cantus_plugins::instance::NOTE_CAPACITY;
     assert!(NOTE_CAPACITY <= cantus_dsp::porta::MAX_TRIGGERS);
     assert!(NOTE_CAPACITY <= cantus_dsp::tonus::MAX_EVENTS);
-}
+};
