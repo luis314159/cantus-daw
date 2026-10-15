@@ -225,6 +225,17 @@ impl Default for Chan {
     }
 }
 
+impl Chan {
+    /// Empty again, in place (the decimator's ring is on the heap: no new one on the audio
+    /// thread).
+    fn clear(&mut self) {
+        self.up.reset();
+        self.down.reset();
+        self.dry = [0.0; DRY];
+        self.pos = 0;
+    }
+}
+
 /// The true-peak guard, linked across the channels.
 #[derive(Clone, Debug)]
 struct Guard {
@@ -384,7 +395,7 @@ impl Tonsor {
         if factor != self.factor {
             self.factor = factor;
             for c in &mut self.chans {
-                *c = Chan::default();
+                c.clear();
             }
         }
         if s.true_peak != self.set.true_peak {
@@ -396,7 +407,7 @@ impl Tonsor {
     /// Back to the start of a stream: lines empty, glides on their targets.
     pub fn reset(&mut self) {
         for c in &mut self.chans {
-            *c = Chan::default();
+            c.clear();
         }
         *self.guard = Guard::default();
         for g in [

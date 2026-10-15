@@ -76,11 +76,16 @@ fn through_clap_is_bit_identical_to_the_dsp() {
         let dsp = through_dsp(&spec, N, true);
         assert_identical(&format!("{kind:?} against cantus-dsp"), &plugin, &dsp);
         assert!(plugin.iter().all(|x| x.is_finite()), "{kind:?} is finite");
-        // And it did something: the comparison is not of two wires.
+        // And it did something: the comparison is not of two wires — but for Speculum,
+        // whose whole point is to be one (ADR 0056).
         let (mut dry, dry_r) = signal(N, 7);
         dry.extend_from_slice(&dry_r);
         let moved = plugin.iter().zip(&dry).filter(|(a, b)| a != b).count();
-        assert!(moved > N / 10, "{kind:?} changed only {moved} samples");
+        if kind == EffectKind::Analyzer {
+            assert_eq!(moved, 0, "Speculum is a pass-through");
+        } else {
+            assert!(moved > N / 10, "{kind:?} changed only {moved} samples");
+        }
     }
 }
 
@@ -209,8 +214,9 @@ fn automation_lands_on_the_grid_at_any_block_size() {
         let n = 24_000;
         let expected = automated_dsp(kind, &base, &changes, n);
         let still = automated_dsp(kind, &base, &[], n);
+        // Speculum's parameters are how it is looked at: automating one changes no sample.
         assert!(
-            diff(&expected, &still).is_some(),
+            diff(&expected, &still).is_some() != (kind == EffectKind::Analyzer),
             "{kind:?}: automating {key} changes the sound"
         );
         let events: Vec<Ev> = changes
