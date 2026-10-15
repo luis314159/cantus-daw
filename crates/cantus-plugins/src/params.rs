@@ -263,6 +263,7 @@ fn band_of(kind: EffectKind, key: &str) -> Option<(&'static str, usize, String)>
         (EffectKind::Space, "d") => "export.group.decay_band",
         (EffectKind::Space, "e") => "export.group.post_band",
         (EffectKind::Saturator, "p") => "sat.group.point",
+        (EffectKind::VolumeShaper, "p") => "fluctus.group.point",
         _ => return None,
     };
     Some((group, n, format!("{prefix}.{field}")))

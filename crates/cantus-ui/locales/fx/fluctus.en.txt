@@ -1,4 +1,48 @@
 # Fluctus — owned by Fluctus. Every key here needs its twin in fluctus.es.txt.
 effect.fluctus = Fluctus volume shaper
-fx.fluctus.about = Draw the volume over a beat: pumping, gating and swells in time with the song.
+fx.fluctus.about = A drawn level that repeats in time: sidechain pumping with no key, gates and swells.
+fx.fluctus.depth = Depth
+fx.fluctus.div = Length
+fx.fluctus.offset = Offset
+fx.fluctus.smooth = Smoothing
+fx.fluctus.smooth.short = Smooth
 fx.fluctus.out = Output
+fx.fluctus.p.on = Used
+fx.fluctus.p.x = Place
+fx.fluctus.p.y = Level
+fx.fluctus.p.t = Tension
+fx.fluctus.p.s = Segment shape
+fluctus.group.point = Point {n}
+
+fluctus.shape.0 = Curve
+fluctus.shape.1 = S
+fluctus.shape.2 = Hold
+fluctus.shape.3 = Stairs
+fluctus.shape.4 = Pulse
+fluctus.shape.5 = Wave
+fluctus.card.curve = Level over one cycle
+fluctus.card.depth = Depth
+fluctus.card.cycle = Cycle
+fluctus.card.point = Point
+fluctus.card.output = Output
+fluctus.segment = Segment from this point
+fluctus.no_point = No point: the level stays full
+fluctus.curve_tip = The level over one cycle, in time with the song
+fluctus.curve_how = Drag a point (Shift: off the grid) · double-click to add or remove one · drag a segment to bend it
+fluctus.idle = Depth is 0 %: the sound passes untouched
+fluctus.preview = Shaper
+
+cmd.fluctus_point = Move point
+cmd.fluctus_point_add = Add point
+cmd.fluctus_point_remove = Remove point
+
+preset.fluctus.pump_quarters = Pump on the quarters
+preset.fluctus.pump_hard = Pump, hard
+preset.fluctus.pump_soft = Pump, soft
+preset.fluctus.pump_eighths = Pump on the eighths
+preset.fluctus.half_time = Half-time pump
+preset.fluctus.swell_bar = Swell over a bar
+preset.fluctus.gate_sixteenths = Gate, sixteenths
+preset.fluctus.offbeat = Off-beats only
+preset.fluctus.triplet_chop = Triplet chop
+preset.fluctus.slow_wave = Slow wave

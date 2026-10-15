@@ -1,4 +1,48 @@
 # Fluctus — de Fluctus. Cada clave necesita su gemela en fluctus.en.txt.
 effect.fluctus = Fluctus modelador de volumen
-fx.fluctus.about = Dibuja el volumen a lo largo de un tiempo: bombeo, cortes y crescendos al tempo de la canción.
+fx.fluctus.about = Un nivel dibujado que se repite a tempo: bombeo sin sidechain, cortes y crescendos.
+fx.fluctus.depth = Profundidad
+fx.fluctus.div = Duración
+fx.fluctus.offset = Desfase
+fx.fluctus.smooth = Suavizado
+fx.fluctus.smooth.short = Suave
 fx.fluctus.out = Salida
+fx.fluctus.p.on = En uso
+fx.fluctus.p.x = Lugar
+fx.fluctus.p.y = Nivel
+fx.fluctus.p.t = Tensión
+fx.fluctus.p.s = Forma del tramo
+fluctus.group.point = Punto {n}
+
+fluctus.shape.0 = Curva
+fluctus.shape.1 = S
+fluctus.shape.2 = Mantener
+fluctus.shape.3 = Escalera
+fluctus.shape.4 = Pulso
+fluctus.shape.5 = Onda
+fluctus.card.curve = Nivel en un ciclo
+fluctus.card.depth = Profundidad
+fluctus.card.cycle = Ciclo
+fluctus.card.point = Punto
+fluctus.card.output = Salida
+fluctus.segment = Tramo desde este punto
+fluctus.no_point = Sin puntos: el nivel queda pleno
+fluctus.curve_tip = El nivel en un ciclo, al tempo de la canción
+fluctus.curve_how = Arrastra un punto (Mayús: fuera de la rejilla) · doble clic para añadir o quitar uno · arrastra un tramo para curvarlo
+fluctus.idle = Profundidad en 0 %: el sonido pasa intacto
+fluctus.preview = Modelador
+
+cmd.fluctus_point = Mover punto
+cmd.fluctus_point_add = Añadir punto
+cmd.fluctus_point_remove = Quitar punto
+
+preset.fluctus.pump_quarters = Bombeo en negras
+preset.fluctus.pump_hard = Bombeo duro
+preset.fluctus.pump_soft = Bombeo suave
+preset.fluctus.pump_eighths = Bombeo en corcheas
+preset.fluctus.half_time = Bombeo a medio tiempo
+preset.fluctus.swell_bar = Crescendo de un compás
+preset.fluctus.gate_sixteenths = Corte en semicorcheas
+preset.fluctus.offbeat = Solo contratiempos
+preset.fluctus.triplet_chop = Corte en tresillos
+preset.fluctus.slow_wave = Onda lenta
