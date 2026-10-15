@@ -63,17 +63,9 @@ pub(super) fn show(
 ) {
     let gap = s.s(6.0);
     let inner = rect.shrink(s.s(4.0));
-    // Knobs as large as the width allows; below the small ones' width, the cards keep
-    // their size and the panel scrolls sideways (nothing overlaps, nothing is cut).
-    let fits = |z: KnobSize| {
-        let (n, m) = widths(z);
-        (n + m) * s.k + gap <= inner.width()
-    };
-    let z = if fits(KnobSize::M) {
-        KnobSize::M
-    } else {
-        KnobSize::S
-    };
+    // The cards keep their size (smaller knobs would cut their words); narrower than
+    // they are, the panel scrolls sideways — nothing overlaps, nothing is cut.
+    let z = KnobSize::M;
     let (n, m) = widths(z);
     let (note_w, macro_w) = (n * s.k, m * s.k);
     let need = note_w + gap + macro_w;
@@ -257,8 +249,10 @@ fn macro_card(
     used
 }
 
-/// *Quantise timing*: each note's start to the nearest line of the editor's grid on the
-/// timeline (its length kept, its neighbours respected).
+/// *Quantise timing*: each note's start (its first edge on the timeline: the source end
+/// of a clip played backwards) to the nearest line of the editor's grid — or, when the
+/// target is another track, onto the nearest of its notes within an eighth note (§3c) —
+/// its length kept, its neighbours respected.
 pub fn quantise(
     app: &mut CantusApp,
     track: TrackId,
@@ -269,21 +263,39 @@ pub fn quantise(
     let Some(tm) = app.clip_time(track, clip) else {
         return;
     };
-    let grid = app.pitch.view.grid.0.max(1);
-    let snap = |f: u64| -> i64 {
-        let t = tm.tick(f as f64).0;
-        let q = (t as f64 / grid as f64).round() as i64 * grid;
-        tm.frame(cantus_core::Ticks(q)).round().max(0.0) as i64
-    };
-    // The edge a note starts with on the timeline: its source end when played backwards.
+    let edge = |n: &cantus_core::pitch::PitchNote| if tm.reverse { n.end } else { n.start };
     let mut e = current.clone();
-    let moved = edit::quantise_by(&mut e, ids, |n| {
-        if tm.reverse {
-            snap(n.end) - n.end as i64
-        } else {
-            snap(n.start) - n.start as i64
+    let moved = match app.pitch.view.quantise_to.filter(|o| *o != track) {
+        Some(other) => {
+            let onsets: Vec<f64> = app
+                .pitch_onsets(other)
+                .into_iter()
+                .map(|t| tm.frame(t))
+                .collect();
+            let reach = cantus_core::Ticks::QUARTER
+                .to_seconds(app.project().tempo_bpm)
+                * 0.5
+                * tm.rate as f64;
+            edit::quantise_by(&mut e, ids, |n| {
+                let at = edge(n) as f64;
+                onsets
+                    .iter()
+                    .map(|o| o - at)
+                    .filter(|d| d.abs() <= reach)
+                    .min_by(|a, b| a.abs().total_cmp(&b.abs()))
+                    .map_or(0, |d| d.round() as i64)
+            })
         }
-    });
+        None => {
+            let grid = app.pitch.view.grid.0.max(1);
+            let snap = |f: u64| -> i64 {
+                let t = tm.tick(f as f64).0;
+                let q = (t as f64 / grid as f64).round() as i64 * grid;
+                tm.frame(cantus_core::Ticks(q)).round().max(0.0) as i64
+            };
+            edit::quantise_by(&mut e, ids, |n| snap(edge(n)) - edge(n) as i64)
+        }
+    };
     if moved {
         app.commit_pitch(track, clip, Some(e), PitchOp::Quantise, false);
     }

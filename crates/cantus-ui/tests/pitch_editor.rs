@@ -11,7 +11,7 @@ use cantus_core::*;
 use cantus_dsp::pitch::midi_to_hz;
 use cantus_dsp::pitch::testkit::{self, Vowel};
 use cantus_engine::EngineHandle;
-use cantus_ui::app::{CentralView, Files};
+use cantus_ui::app::CentralView;
 use cantus_ui::clips::ClipEditor;
 use cantus_ui::views::workspace::Pane;
 use cantus_ui::CantusApp;
@@ -727,8 +727,8 @@ fn the_key_reads_as_the_notes_do() {
     set_locale(Locale::En);
 }
 
-/// The note panel never spills into the macros, at any width: smaller knobs, then a
-/// sideways scroll.
+/// The note panel never spills into the macros, at any width: narrower than its cards, it
+/// scrolls sideways (its knobs keep their words whole).
 #[test]
 fn the_note_panel_fits_its_width() {
     for (w, scrolled) in [(1600.0f32, false), (1000.0, false), (640.0, true)] {
@@ -744,4 +744,86 @@ fn the_note_panel_fits_its_width() {
         assert!(p.note.right() < p.macros.left(), "{w}: {p:?}");
         assert_eq!(p.scrolled, scrolled, "{w}: {p:?}");
     }
+}
+
+/// At a width the bar cannot hold, the groups it has no room for fold into ⋯, whose
+/// menu offers them: nothing on the bar is out of reach.
+#[test]
+fn a_narrow_bar_folds_into_its_more_menu() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let mut r = Rig::new();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    r.size = vec2(900.0, 900.0);
+    r.idle(3);
+    r.open();
+    r.idle(3);
+    let folded = r.app.pitch.view.bar_folded;
+    assert!(folded.iter().any(|f| *f), "{folded:?}");
+    let more = r.word("\u{22ef}");
+    r.click(more);
+    for (i, words) in [
+        (0usize, &["Unir", "Restablecer"][..]),
+        (1, &["Reproducir desde la selección", "Melodía a una pista MIDI nueva"][..]),
+        (2, &["1/16", "1/8T"][..]),
+    ] {
+        if folded[i] {
+            for w in words {
+                assert!(r.texts.iter().any(|(t, _)| t == w), "{w}: {:?}", r.texts);
+            }
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let mut wide = Rig::new();
+    wide.open();
+    assert_eq!(wide.app.pitch.view.bar_folded, [false; 3], "room for all at 1 600");
+}
+
+/// Quantise to another track: each note's start onto the nearest of the Keys track's
+/// notes within an eighth; a note with none near stays.
+#[test]
+fn quantise_onto_another_tracks_notes() {
+    let mut r = Rig::new();
+    let keys = r.app.project().tracks[0].id;
+    let mut c = r.app.bus.new_clip("hits".to_string(), Ticks::ZERO, Ticks::beats(8));
+    for b in [0.25f64, 1.75, 3.0] {
+        let n = r.app.bus.new_note(Ticks((b * 960.0) as i64), Ticks(120), 60, 100);
+        c.notes.push(n);
+    }
+    assert!(r.app.exec(Command::InsertClip {
+        track: keys,
+        clip: Box::new(c),
+    }));
+    r.open();
+    let (t, cl) = r.voice();
+    assert!(r.app.pitch_onset_tracks(t).iter().any(|(k, _)| *k == keys));
+    r.app.pitch.view.quantise_to = Some(keys);
+    let take = r.app.pitch_take(t, cl);
+    let e = r.app.pitch_edit(t, cl, &take).unwrap();
+    let ids: Vec<u32> = e.notes.iter().map(|n| n.id).collect();
+    cantus_ui::views::pitch::quantise(&mut r.app, t, cl, &e, &ids);
+    let q = r.stored().expect("quantised");
+    let want = [0.125f64, 0.875, 1.5];
+    for (n, w) in q.notes.iter().zip(want) {
+        assert!((n.start as f64 - w * SR as f64).abs() <= 1.0, "{} vs {w}", n.start);
+    }
+    assert_eq!(q.notes[3].start, e.notes[3].start, "no note near: it stays");
+}
+
+/// The clip's menu makes MIDI and a double without opening the editor; before the take is
+/// analysed it says so instead of doing nothing.
+#[test]
+fn the_clip_menu_makes_midi_and_a_double() {
+    let mut r = Rig::new();
+    let (t, c) = r.voice();
+    let tracks = r.app.project().tracks.len();
+    r.app.pitch_make(t, c, None);
+    let analysed = r.app.project().tracks.len() > tracks;
+    if !analysed {
+        assert!(r.app.status.text.contains("analys"), "{}", r.app.status.text);
+    }
+    r.open();
+    let n = r.app.project().tracks.len();
+    r.app.pitch_make(t, c, None);
+    r.app.pitch_make(t, c, Some(cantus_core::pitch::midi::Interval::Fifth));
+    assert_eq!(r.app.project().tracks.len(), n + 2);
 }

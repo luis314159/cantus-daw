@@ -22,6 +22,9 @@ cmd.pitch.double = Doblar la voz
 
 # Abrirlo.
 pitch.menu.edit = Editar afinación
+pitch.menu.double_third = Doblar una tercera por encima
+pitch.menu.double_fifth = Doblar una quinta por encima
+pitch.not_ready = La toma aún se está analizando (o no se puede leer su archivo): inténtalo de nuevo en un momento
 pitch.inspector.edit = Editar afinación
 pitch.inspector.edit_tip = Abrir el editor de afinación en este clip: sus notas, para moverlas, corregirlas, estirarlas y doblarlas (el archivo nunca cambia)
 pitch.inspector.edited = Afinación editada
@@ -85,7 +88,12 @@ pitch.double.third = Una tercera por encima
 pitch.double.fifth = Una quinta por encima
 pitch.doubled = La segunda voz está en «{name}»
 pitch.grid = Rejilla
-pitch.grid_tip = La rejilla a la que Cuantizar mueve las notas
+pitch.grid_tip = A qué mueve Cuantizar el inicio de cada nota: una rejilla, o la nota más cercana de otra pista (a una corchea como mucho)
+pitch.quantise_to = Cuantizar a
+pitch.quantise.tracks = Las notas de otra pista
+pitch.more_tip = Lo que no cabe en la barra: unir, restablecer, reproducir, MIDI, doblar, el destino de cuantizar
+pitch.play = Reproducir desde la selección
+pitch.midi_new = Melodía a una pista MIDI nueva
 
 # El lienzo.
 pitch.ruler_tip = Haz clic o arrastra para mover el cursor de reproducción
@@ -122,4 +130,4 @@ pitch.macro.apply_pitch_tip = Lleva las notas a la tonalidad según la cantidad:
 pitch.macro.apply_drift = Corregir deriva
 pitch.macro.apply_drift_tip = Aplana el vaivén lento dentro de las notas según la cantidad (el vibrato se queda)
 pitch.macro.quantise = Cuantizar
-pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla (conserva su duración, sin tocar a sus vecinas)
+pitch.macro.quantise_tip = Mueve el inicio de cada nota a la línea más cercana de la rejilla, o a las notas de otra pista (Cuantizar a, en la barra): conserva su duración, sin tocar a sus vecinas

@@ -445,6 +445,79 @@ impl CantusApp {
         }
     }
 
+    /// MIDI out (`None`) or a double (`Some(interval)`) of a clip, from its menu: said in
+    /// the status line, or that the take is still being analysed.
+    pub fn pitch_make(&mut self, track: TrackId, clip: ClipId, double: Option<Interval>) {
+        let made = match double {
+            None => self.pitch_to_midi(track, clip, None),
+            Some(i) => self.pitch_double(track, clip, i),
+        };
+        let name = |a: &CantusApp, (t, c): (TrackId, ClipId)| {
+            a.project()
+                .track(t)
+                .and_then(|t| t.clip(c))
+                .map(|c| c.name.clone())
+                .unwrap_or_default()
+        };
+        match made {
+            Some(m) => {
+                let key = if double.is_some() {
+                    "pitch.doubled"
+                } else {
+                    "pitch.midi_made"
+                };
+                let n = name(self, m);
+                self.set_status(crate::i18n::tf(key, &[("name", &n)]));
+            }
+            None => self.set_status(crate::i18n::t("pitch.not_ready")),
+        }
+    }
+
+    /// Where another track's notes start on the timeline: a note clip's notes as they
+    /// play (loops repeated), an audio clip's pitch notes (stored or, analysed, found) —
+    /// what *Quantise* moves notes onto when it quantises to another track (§3c).
+    pub fn pitch_onsets(&self, other: TrackId) -> Vec<Ticks> {
+        let mut out: Vec<Ticks> = Vec::new();
+        let snap = cantus_core::Snapshot::compile(self.project(), 0);
+        if let Some(t) = snap.tracks.iter().find(|t| t.id == other) {
+            out.extend(t.events.iter().filter(|e| e.velocity > 0).map(|e| e.tick));
+        }
+        if let Some(t) = self.project().track(other) {
+            for c in t.clips.iter().filter(|c| c.audio.is_some() && c.lane == 0 && !c.muted) {
+                let take = self.pitch_take(other, c.id);
+                let (Some(e), Some(tm)) = (self.pitch_edit(other, c.id, &take), self.clip_time(other, c.id))
+                else {
+                    continue;
+                };
+                for n in &e.notes {
+                    let (a, b) = (tm.tick(n.start as f64), tm.tick(n.end as f64));
+                    let at = a.min(b);
+                    if at >= c.start && at < c.end() {
+                        out.push(at);
+                    }
+                }
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// The tracks *Quantise* can move `track`'s notes onto: every other track with notes.
+    pub fn pitch_onset_tracks(&self, track: TrackId) -> Vec<(TrackId, String)> {
+        self.project()
+            .tracks
+            .iter()
+            .filter(|t| t.id != track)
+            .filter(|t| {
+                t.clips
+                    .iter()
+                    .any(|c| !c.notes.is_empty() || c.audio.as_ref().is_some_and(|a| a.pitch.is_some()))
+            })
+            .map(|t| (t.id, t.name.clone()))
+            .collect()
+    }
+
     /// A take landed (a recording, an import): analyse it now, on the worker, so the
     /// editor opens on its notes at once.
     pub fn analyse_take_soon(&self, source: &AudioSource) {

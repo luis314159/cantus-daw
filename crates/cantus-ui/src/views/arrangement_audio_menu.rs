@@ -72,6 +72,11 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         } else {
             action("audioclips.menu.reveal", Check::None, true)
         },
+        // Round 28 (ADR 0054): what the pitch editor makes, without opening it.
+        Item::Separator,
+        action("pitch.midi_new", Check::None, !missing),
+        action("pitch.menu.double_third", Check::None, !missing),
+        action("pitch.menu.double_fifth", Check::None, !missing),
     ];
     let Some(i) = kit::widgets::menu_list(ui, &items, super::super::super::MENU_W)
         .1
@@ -98,6 +103,9 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         6 => app.run_action(crate::keymap::Action::RenameClip),
         8 if missing => app.relink_audio_dialog(a.source),
         8 => app.reveal_audio(a.source),
+        10 => app.pitch_make(r.0, r.1, None),
+        11 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Third)),
+        12 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Fifth)),
         _ => {}
     }
     ui.close();

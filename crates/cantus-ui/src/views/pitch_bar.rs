@@ -62,30 +62,64 @@ pub(super) fn show(
         (Take::Pending, None) => t("pitch.analysing_short"),
         _ => String::new(),
     };
-    if !status.is_empty() {
-        bar.readout_right(ui, &status, 120.0, false);
-    }
-    bar.divider(ui);
-    for (tool, icon, key) in [
-        (Tool::Edit, Icon::Select, "pitch.tool.edit"),
-        (Tool::Split, Icon::Slice, "pitch.tool.split"),
-    ] {
-        let lit = app.pitch.view.tool == tool;
-        if bar
-            .key(ui, id.with(key), icon, lit, true, || {
-                t(&format!("{key}_tip"))
-            })
-            .is_some_and(|r| r.clicked())
-        {
-            app.pitch.view.tool = tool;
-        }
-    }
     let Some(e) = current.cloned() else {
+        if !status.is_empty() {
+            bar.readout_right(ui, &status, 120.0, false);
+        }
+        tools(app, ui, &mut bar, id);
         return;
     };
+    // What fits (review 1): the groups are measured, and those the bar has no room for —
+    // the status first, then the grid, play and MIDI and Double, join and reset — fold into
+    // a ⋯ menu at the end; nothing is cut off.
+    let snap = app.pitch.view.snap;
+    let target_name = quantise_target_name(app, track);
+    let need_core = KEY + KEY + DIV
+        + field_w(ui, &t("pitch.snap"), &t(snap.label_key()), 84.0)
+        + field_w(ui, &t("pitch.key"), &key_words(e.key), 110.0)
+        + 100.0;
+    let need_edit = DIV
+        + wide(ui, &t("pitch.join"), 50.0)
+        + 4.0
+        + wide(ui, &t("pitch.reset"), 54.0)
+        + 4.0;
+    let need_play = DIV
+        + KEY
+        + wide(ui, &t("pitch.midi"), 50.0)
+        + 4.0
+        + wide(ui, &t("pitch.double"), 62.0)
+        + 4.0;
+    let need_grid = DIV + field_w(ui, &t("pitch.quantise_to"), &target_name, 70.0);
+    let status_w = if status.is_empty() {
+        0.0
+    } else {
+        status_need(ui, &status)
+    };
+    let room = bar.room() / bar.s.k;
+    let more = 34.0;
+    let total = need_core + need_edit + need_play + need_grid;
+    let mut show = [true; 3]; // edit, play, grid
+    let mut with_status = !status.is_empty();
+    if total + status_w > room {
+        with_status = false;
+        let mut used = need_core + more;
+        for (i, w) in [need_edit, need_play, need_grid].into_iter().enumerate() {
+            show[i] = used + w <= room && show[..i].iter().all(|s| *s);
+            if show[i] {
+                used += w;
+            }
+        }
+        if show.iter().all(|s| *s) && total <= room {
+            // Everything fits once the status gives way: no ⋯.
+        }
+    }
+    let folded = show.iter().any(|s| !*s);
+    if with_status {
+        bar.readout_right(ui, &status, 120.0, false);
+    }
+    tools(app, ui, &mut bar, id);
     bar.divider(ui);
     // The snap of a pitch drag.
-    let snap = app.pitch.view.snap;
     let cap = t("pitch.snap");
     if let Some(resp) = bar.field(
         ui,
@@ -133,113 +167,296 @@ pub(super) fn show(
         })
         .is_some_and(|r| r.clicked())
     {
-        let mut x = e.clone();
-        x.bypass = !x.bypass;
-        app.commit_pitch(track, clip, Some(x), PitchOp::Compare, false);
+        compare(app, track, clip, &e);
     }
-    bar.divider(ui);
-    let sel = app.pitch.view.selected.clone();
-    let join = t("pitch.join");
-    if let Some(r) = bar.word(ui, id.with("join"), &join, wide(ui, &join, 50.0), || {
-        t("pitch.join_tip")
-    }) {
-        if r.clicked() {
-            let mut x = e.clone();
-            if edit::join(&mut x, &sel) {
-                app.pitch.view.selected.truncate(1);
-                app.commit_pitch(track, clip, Some(x), PitchOp::Join, false);
-            } else {
-                app.set_status(t("pitch.join_needs"));
+    if show[0] {
+        bar.divider(ui);
+        let join = t("pitch.join");
+        if let Some(r) = bar.word(ui, id.with("join"), &join, wide(ui, &join, 50.0), || {
+            t("pitch.join_tip")
+        }) {
+            if r.clicked() {
+                join_selection(app, track, clip, &e);
+            }
+        }
+        let reset = t("pitch.reset");
+        if let Some(r) = bar.word(ui, id.with("reset"), &reset, wide(ui, &reset, 54.0), || {
+            t("pitch.reset_tip")
+        }) {
+            if r.clicked() {
+                reset_selection(app, track, clip, &e);
             }
         }
     }
-    let reset = t("pitch.reset");
-    if let Some(r) = bar.word(ui, id.with("reset"), &reset, wide(ui, &reset, 54.0), || {
-        t("pitch.reset_tip")
-    }) {
-        if r.clicked() {
-            let ids: Vec<u32> = if sel.is_empty() {
-                e.notes.iter().map(|n| n.id).collect()
-            } else {
-                sel.clone()
-            };
-            let mut x = e.clone();
-            if edit::reset(&mut x, &ids) {
-                app.commit_pitch(track, clip, Some(x), PitchOp::Reset, false);
-            }
+    if show[1] {
+        bar.divider(ui);
+        // Play from the selection (or the clip's start).
+        let playing = app.engine.is_playing();
+        if bar
+            .key(
+                ui,
+                id.with("play"),
+                if playing { Icon::Stop } else { Icon::Play },
+                playing,
+                true,
+                || t("pitch.play_tip"),
+            )
+            .is_some_and(|r| r.clicked())
+        {
+            play(app, track, clip);
         }
-    }
-    bar.divider(ui);
-    // Play from the selection (or the clip's start).
-    let playing = app.engine.is_playing();
-    if bar
-        .key(
+        // MIDI out: drag onto an instrument track, or click for a new one.
+        midi_chip(app, ui, &mut bar, id, track, clip);
+        let word = t("pitch.double");
+        if let Some(resp) = bar.word(
             ui,
-            id.with("play"),
-            if playing { Icon::Stop } else { Icon::Play },
-            playing,
-            true,
-            || t("pitch.play_tip"),
-        )
-        .is_some_and(|r| r.clicked())
-    {
-        if playing {
-            app.toggle_play();
-        } else {
-            app.pitch_play_from_selection(track, clip);
+            id.with("double"),
+            &word,
+            wide(ui, &word, 62.0),
+            || t("pitch.double_tip"),
+        ) {
+            egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
+                let items: Vec<Item<'_>> = Interval::ALL
+                    .iter()
+                    .map(|i| Item::action(Src::Key(i.label_key())))
+                    .collect();
+                if let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked {
+                    double(app, track, clip, Interval::ALL[i]);
+                    ui.close();
+                }
+            });
         }
     }
-    // MIDI out: drag onto an instrument track, or click for a new one.
-    midi_chip(app, ui, &mut bar, id, track, clip);
-    let double = t("pitch.double");
-    if let Some(resp) = bar.word(
-        ui,
-        id.with("double"),
-        &double,
-        wide(ui, &double, 62.0),
-        || t("pitch.double_tip"),
-    ) {
-        egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
-            let items: Vec<Item<'_>> = Interval::ALL
-                .iter()
-                .map(|i| Item::action(Src::Key(i.label_key())))
-                .collect();
-            if let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked {
-                if let Some((t2, c2)) = app.pitch_double(track, clip, Interval::ALL[i]) {
-                    app.set_status(tf("pitch.doubled", &[("name", &clip_name(app, t2, c2))]));
-                }
-                ui.close();
-            }
-        });
+    if show[2] {
+        bar.divider(ui);
+        let cap = t("pitch.quantise_to");
+        if let Some(resp) = bar.field(
+            ui,
+            id.with("grid"),
+            Some(&cap),
+            &target_name,
+            70.0,
+            || t("pitch.grid_tip"),
+        ) {
+            egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
+                quantise_menu(app, ui, track);
+            });
+        }
     }
+    if folded {
+        bar.divider(ui);
+        if let Some(resp) = bar.word(ui, id.with("more"), "\u{22ef}", 30.0, || t("pitch.more_tip")) {
+            egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
+                more_menu(app, ui, track, clip, &e, show);
+            });
+        }
+    }
+    app.pitch.view.bar_folded = [!show[0], !show[1], !show[2]];
+}
+
+/// A divider and a toolbar key, at 100 %, with their gaps.
+const DIV: f32 = 10.0;
+const KEY: f32 = crate::views::clips_chrome::KEY + 4.0;
+
+/// The width a caption | value field takes (as `Toolbar::field` lays it out).
+fn field_w(ui: &egui::Ui, caption: &str, value: &str, w: f32) -> f32 {
+    use crate::kit::text::{measure, Role, Text};
+    let s = crate::kit::Style::current();
+    let cap = measure(ui.ctx(), &Text::new(caption, Role::Label, s.t.text_dim), s.tk()).x / s.k;
+    let val = measure(ui.ctx(), &Text::new(value, Role::Control, s.t.text), s.tk()).x / s.k;
+    cap + 2.0 + 4.0 + w.max(val + 30.0) + 4.0
+}
+
+fn status_need(ui: &egui::Ui, status: &str) -> f32 {
+    use crate::kit::text::{measure, Role, Text};
+    let s = crate::kit::Style::current();
+    let m = measure(ui.ctx(), &Text::new(status, Role::Body, s.t.text), s.tk()).x / s.k;
+    m.max(106.0) + 14.0 + 4.0
+}
+
+/// The two tools.
+fn tools(app: &mut CantusApp, ui: &mut egui::Ui, bar: &mut Toolbar, id: egui::Id) {
     bar.divider(ui);
-    // The quantise grid.
-    let grid = app.pitch.view.grid;
-    let gname = crate::views::GRIDS
-        .iter()
-        .find(|(_, g)| Ticks(*g) == grid)
-        .map_or_else(|| t("grid.sixteenth"), |(k, _)| t(k));
-    let cap = t("pitch.grid");
-    if let Some(resp) = bar.field(ui, id.with("grid"), Some(&cap), &gname, 70.0, || {
-        t("pitch.grid_tip")
-    }) {
-        egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
-            let items: Vec<Item<'_>> = crate::views::GRIDS
+    for (tool, icon, key) in [
+        (Tool::Edit, Icon::Select, "pitch.tool.edit"),
+        (Tool::Split, Icon::Slice, "pitch.tool.split"),
+    ] {
+        let lit = app.pitch.view.tool == tool;
+        if bar
+            .key(ui, id.with(key), icon, lit, true, || {
+                t(&format!("{key}_tip"))
+            })
+            .is_some_and(|r| r.clicked())
+        {
+            app.pitch.view.tool = tool;
+        }
+    }
+}
+
+fn compare(app: &mut CantusApp, track: TrackId, clip: ClipId, e: &PitchEdit) {
+    let mut x = e.clone();
+    x.bypass = !x.bypass;
+    app.commit_pitch(track, clip, Some(x), PitchOp::Compare, false);
+}
+
+fn join_selection(app: &mut CantusApp, track: TrackId, clip: ClipId, e: &PitchEdit) {
+    let sel = app.pitch.view.selected.clone();
+    let mut x = e.clone();
+    if edit::join(&mut x, &sel) {
+        app.pitch.view.selected.truncate(1);
+        app.commit_pitch(track, clip, Some(x), PitchOp::Join, false);
+    } else {
+        app.set_status(t("pitch.join_needs"));
+    }
+}
+
+fn reset_selection(app: &mut CantusApp, track: TrackId, clip: ClipId, e: &PitchEdit) {
+    let sel = app.pitch.view.selected.clone();
+    let ids: Vec<u32> = if sel.is_empty() {
+        e.notes.iter().map(|n| n.id).collect()
+    } else {
+        sel
+    };
+    let mut x = e.clone();
+    if edit::reset(&mut x, &ids) {
+        app.commit_pitch(track, clip, Some(x), PitchOp::Reset, false);
+    }
+}
+
+fn play(app: &mut CantusApp, track: TrackId, clip: ClipId) {
+    if app.engine.is_playing() {
+        app.toggle_play();
+    } else {
+        app.pitch_play_from_selection(track, clip);
+    }
+}
+
+fn double(app: &mut CantusApp, track: TrackId, clip: ClipId, interval: Interval) {
+    if let Some((t2, c2)) = app.pitch_double(track, clip, interval) {
+        app.set_status(tf("pitch.doubled", &[("name", &clip_name(app, t2, c2))]));
+    }
+}
+
+fn midi_new_track(app: &mut CantusApp, track: TrackId, clip: ClipId) {
+    if let Some((t3, c3)) = app.pitch_to_midi(track, clip, None) {
+        app.set_status(tf("pitch.midi_made", &[("name", &clip_name(app, t3, c3))]));
+    }
+}
+
+/// The quantise target in words: the grid's name, or the other track's.
+fn quantise_target_name(app: &CantusApp, track: TrackId) -> String {
+    match app.pitch.view.quantise_to {
+        Some(other) if other != track => app
+            .project()
+            .track(other)
+            .map(|t| t.name.clone())
+            .unwrap_or_else(|| t("grid.sixteenth")),
+        _ => {
+            let grid = app.pitch.view.grid;
+            crate::views::GRIDS
                 .iter()
-                .map(|(k, g)| Item::Action {
-                    label: Src::Key(k),
-                    check: Check::Radio(Ticks(*g) == grid),
-                    shortcut: None,
-                    submenu: false,
-                    enabled: true,
-                })
-                .collect();
-            if let Some(i) = kit::widgets::menu_list(ui, &items, 140.0).1.clicked {
-                app.pitch.view.grid = Ticks(crate::views::GRIDS[i].1);
-                ui.close();
-            }
+                .find(|(_, g)| Ticks(*g) == grid)
+                .map_or_else(|| t("grid.sixteenth"), |(k, _)| t(k))
+        }
+    }
+}
+
+/// What *Quantise* moves notes to: a grid, or another track's notes (§3c).
+fn quantise_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId) {
+    let grid = app.pitch.view.grid;
+    let to = app.pitch.view.quantise_to;
+    let others = app.pitch_onset_tracks(track);
+    let mut items: Vec<Item<'_>> = vec![Item::Band(Src::Key("pitch.grid"))];
+    for (k, g) in crate::views::GRIDS.iter() {
+        items.push(Item::Action {
+            label: Src::Key(k),
+            check: Check::Radio(to.is_none() && Ticks(*g) == grid),
+            shortcut: None,
+            submenu: false,
+            enabled: true,
         });
     }
+    if !others.is_empty() {
+        items.push(Item::Band(Src::Key("pitch.quantise.tracks")));
+        for (t2, name) in &others {
+            items.push(Item::Action {
+                label: Src::Str(name),
+                check: Check::Radio(to == Some(*t2)),
+                shortcut: None,
+                submenu: false,
+                enabled: true,
+            });
+        }
+    }
+    let n = crate::views::GRIDS.len();
+    if let Some(i) = kit::widgets::menu_list(ui, &items, 180.0).1.clicked {
+        if (1..=n).contains(&i) {
+            app.pitch.view.grid = Ticks(crate::views::GRIDS[i - 1].1);
+            app.pitch.view.quantise_to = None;
+        } else if i > n + 1 {
+            app.pitch.view.quantise_to = others.get(i - n - 2).map(|o| o.0);
+        }
+        ui.close();
+    }
+}
+
+/// The ⋯ menu: what the bar had no room for.
+fn more_menu(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    track: TrackId,
+    clip: ClipId,
+    e: &PitchEdit,
+    show: [bool; 3],
+) {
+    #[derive(Clone, Copy)]
+    enum Do {
+        Join,
+        Reset,
+        Play,
+        Midi,
+        Double(Interval),
+    }
+    let mut items: Vec<Item<'_>> = Vec::new();
+    let mut acts: Vec<Option<Do>> = Vec::new();
+    let mut push = |items: &mut Vec<Item<'_>>, key: &'static str, d: Option<Do>| {
+        items.push(match d {
+            Some(_) => Item::action(Src::Key(key)),
+            None => Item::Band(Src::Key(key)),
+        });
+        acts.push(d);
+    };
+    if !show[0] {
+        push(&mut items, "pitch.join", Some(Do::Join));
+        push(&mut items, "pitch.reset", Some(Do::Reset));
+    }
+    if !show[1] {
+        push(&mut items, "pitch.play", Some(Do::Play));
+        push(&mut items, "pitch.midi_new", Some(Do::Midi));
+        push(&mut items, "pitch.double", None);
+        push(&mut items, "pitch.double.third", Some(Do::Double(Interval::Third)));
+        push(&mut items, "pitch.double.fifth", Some(Do::Double(Interval::Fifth)));
+    }
+    let picked = if items.is_empty() {
+        None
+    } else {
+        kit::widgets::menu_list(ui, &items, 220.0).1.clicked
+    };
+    if !show[2] {
+        // The quantise target's own list, under the rest.
+        quantise_menu(app, ui, track);
+    }
+    let Some(d) = picked.and_then(|i| acts.get(i).copied().flatten()) else {
+        return;
+    };
+    match d {
+        Do::Join => join_selection(app, track, clip, e),
+        Do::Reset => reset_selection(app, track, clip, e),
+        Do::Play => play(app, track, clip),
+        Do::Midi => midi_new_track(app, track, clip),
+        Do::Double(i) => double(app, track, clip, i),
+    }
+    ui.close();
 }
 
 /// A key's width for its word: at least `min`, wide enough for the word in capitals.
@@ -338,8 +555,6 @@ fn midi_chip(
             None => app.set_status(t("pitch.midi_drop")),
         }
     } else if r.clicked() {
-        if let Some((t3, c3)) = app.pitch_to_midi(track, clip, None) {
-            app.set_status(tf("pitch.midi_made", &[("name", &clip_name(app, t3, c3))]));
-        }
+        midi_new_track(app, track, clip);
     }
 }

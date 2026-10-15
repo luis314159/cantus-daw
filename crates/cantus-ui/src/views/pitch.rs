@@ -162,6 +162,10 @@ pub struct PitchView {
     pub correct_drift: f32,
     /// The grid *quantise timing* snaps to.
     pub grid: Ticks,
+    /// Or another track whose notes it moves notes onto (§3c), when set.
+    pub quantise_to: Option<TrackId>,
+    /// The bar's groups folded into its ⋯ menu last frame: edit, play, quantise.
+    pub bar_folded: [bool; 3],
     /// Published each frame: where things were drawn (the input and the tests aim with it).
     pub geo: Option<Geo>,
     pub blobs: Vec<(u32, Rect)>,
@@ -187,6 +191,8 @@ impl Default for PitchView {
             correct_pitch: 1.0,
             correct_drift: 0.5,
             grid: Ticks(cantus_core::PPQ / 4),
+            quantise_to: None,
+            bar_folded: [false; 3],
             geo: None,
             blobs: Vec::new(),
             midi_drag: false,
