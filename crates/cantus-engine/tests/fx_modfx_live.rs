@@ -2,9 +2,9 @@
 //! before Play plays what the offline render does — every LFO, carrier and glide starts
 //! again at the start of playback.
 
-mod support;
 #[path = "support/modfx.rs"]
 mod modfx;
+mod support;
 use cantus_core::*;
 use cantus_dsp::nulltest::assert_null;
 use modfx::*;

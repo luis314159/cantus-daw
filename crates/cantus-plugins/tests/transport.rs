@@ -207,13 +207,16 @@ fn the_editor_sees_the_hosts_transport() {
         bar_start: Some(4.0),
         time_sig: Some((3, 4)),
         loop_beats: None,
+        seconds: None,
     }));
     p.process(&mut l, &mut r, None, &[]);
     let t = shared.host_transport().expect("seen");
     assert_eq!(t.tempo, 97.0);
     assert!(t.playing);
     assert_eq!(t.time_sig, (3, 4));
-    assert_eq!(t.beats, 4.25);
+    // The song where the block ended: 256 samples past beat 4.25 at 97 BPM.
+    let end = 4.25 + 256.0 * 97.0 / 60.0 / SR as f64;
+    assert!((t.beats.unwrap() - end).abs() < 1e-9);
 }
 
 #[test]
@@ -226,6 +229,7 @@ fn a_host_position_is_the_engines_song_position() {
         bar_start: None,
         time_sig: Some((4, 4)),
         loop_beats: Some((16.0, 32.0)),
+        seconds: None,
     };
     let p = t.position(100, 48_000.0, 0);
     // Bar 5 at 128 BPM is sample 360 000 of the song; 100 samples into the block.
@@ -242,4 +246,236 @@ fn a_host_position_is_the_engines_song_position() {
     assert_eq!(s.position(100, 48_000.0, 0).samples, 360_000);
     let free = HostTransport { beats: None, ..t };
     assert_eq!(free.position(10, 48_000.0, 5_000).samples, 5_010);
+}
+
+// ---- review 1: the processor with partial, moving and looping transports --------------
+
+use cantus_plugins::instance::{shared_for, HostTransport, Processor};
+
+/// A Tremor gate processor, as a host would make one.
+fn gate_processor() -> Processor {
+    let shared = shared_for(
+        cantus_plugins::desc::of(EffectKind::Tremolo)
+            .unwrap()
+            .clap_id,
+    )
+    .unwrap();
+    for (k, v) in GATE {
+        let i = shared.table.by_key(k).unwrap().index;
+        shared.set_value(i, f64::from(v));
+    }
+    Processor::new(shared, SR)
+}
+
+fn host(beats: Option<f64>, tempo: Option<f64>) -> HostTransport {
+    HostTransport {
+        playing: true,
+        tempo,
+        beats,
+        bar_start: None,
+        time_sig: Some((4, 4)),
+        loop_beats: None,
+        seconds: None,
+    }
+}
+
+/// Run constant 1s through `p` in `blocks`, the host's transport for each block from
+/// `at(block start)`, a parameter event (the same value: it only splits the block) at
+/// `split` into each block when given.
+fn run_processor(
+    p: &mut Processor,
+    n: usize,
+    blocks: &[usize],
+    at: impl Fn(usize) -> Option<HostTransport>,
+    split: Option<u32>,
+) -> Vec<f32> {
+    let depth = p.shared().table.by_key("depth").unwrap().index as u32;
+    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+    let (mut s, mut b) = (0usize, 0usize);
+    while s < n {
+        let m = blocks[b % blocks.len()].min(n - s);
+        b += 1;
+        p.set_transport(at(s));
+        let ev =
+            split
+                .filter(|o| (*o as usize) < m)
+                .map(|o| cantus_plugins::instance::ParamEvent {
+                    offset: o,
+                    index: depth,
+                    value: 1.0,
+                    modulation: false,
+                });
+        let evs: Vec<_> = ev.into_iter().collect();
+        p.process(&mut l[s..s + m], &mut r[s..s + m], None, &evs);
+        s += m;
+    }
+    l
+}
+
+/// A host that plays but gives no beat timeline: a block cut by an event plays the same
+/// as one that is not (each chunk's place is counted once).
+#[test]
+fn a_host_without_beats_plays_the_same_however_its_blocks_are_cut() {
+    let n = 48_000;
+    let no_beats = |_s: usize| Some(host(None, Some(120.0)));
+    let whole = run_processor(&mut gate_processor(), n, &[4096], no_beats, None);
+    let cut = run_processor(&mut gate_processor(), n, &[4096], no_beats, Some(1_000));
+    assert_identical("a block cut by an event", &cut, &whole);
+}
+
+/// A loop that wraps inside a block: the block plays as the same block cut at the wrap,
+/// the second part from the loop's start.
+#[test]
+fn a_loop_that_wraps_inside_a_block_is_the_block_cut_at_the_wrap() {
+    let tempo = 120.0;
+    let inc = tempo / 60.0 / SR as f64;
+    let (ls, le) = (0.0, 3.0);
+    let start = 2.9; // 0.1 beat before the loop's end: 2 400 samples
+    let looped = |b: f64| HostTransport {
+        loop_beats: Some((ls, le)),
+        ..host(Some(b), Some(tempo))
+    };
+    let n = 4096;
+    let one = run_processor(
+        &mut gate_processor(),
+        n,
+        &[n],
+        |_| Some(looped(start)),
+        None,
+    );
+    let wrap = ((le - start) / inc).ceil() as usize;
+    let two = run_processor(
+        &mut gate_processor(),
+        n,
+        &[wrap, n - wrap],
+        |s| {
+            Some(looped(if s == 0 {
+                start
+            } else {
+                ls + (s - wrap) as f64 * inc
+            }))
+        },
+        None,
+    );
+    assert_identical("a wrap inside the block", &one, &two);
+    // And the gate is where the song is: past its anti-click edge, beat 0.05 is open.
+    assert_eq!(one[wrap + 1_200], 1.0);
+    assert_eq!(one[100], 0.0, "beat 2.9 is shut");
+}
+
+/// A transport that changes inside a block (CLAP sends it as an event) takes effect at its
+/// sample: the same as two blocks cut there.
+#[test]
+fn a_transport_event_inside_a_block_takes_effect_at_its_sample() {
+    let n = 4096;
+    let k = 1_500;
+    let mut p = gate_processor();
+    p.set_transport(Some(host(Some(0.5), Some(120.0))));
+    p.push_transport_event(k as u32, host(Some(2.0), Some(120.0)));
+    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+    p.process(&mut l, &mut r, None, &[]);
+    let two = run_processor(
+        &mut gate_processor(),
+        n,
+        &[k, n - k],
+        |s| Some(host(Some(if s == 0 { 0.5 } else { 2.0 }), Some(120.0))),
+        None,
+    );
+    assert_identical("a transport event at 1 500", &l, &two);
+}
+
+/// A host that gives the song in seconds (or samples) and a tempo, but no beats: the same
+/// as one that gives the beats.
+#[test]
+fn a_seconds_timeline_with_a_tempo_is_a_beat_timeline() {
+    let n = 48_000;
+    let tempo = 100.0;
+    let beats_at = |s: usize| 1.0 + s as f64 * tempo / 60.0 / SR as f64;
+    let by_beats = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| Some(host(Some(beats_at(s)), Some(tempo))),
+        None,
+    );
+    let by_seconds = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| {
+            Some(HostTransport {
+                seconds: Some(beats_at(s) * 60.0 / tempo),
+                ..host(None, Some(tempo))
+            })
+        },
+        None,
+    );
+    assert_identical("seconds and a tempo", &by_seconds, &by_beats);
+}
+
+/// A host that gives beats but no tempo: the tempo is read from how the beats move, so after
+/// the first block it plays as the host that says its tempo — no step at every block.
+#[test]
+fn beats_without_a_tempo_find_the_tempo_from_the_beats() {
+    let n = 48_000;
+    let tempo = 90.0;
+    let beats_at = |s: usize| 0.25 + s as f64 * tempo / 60.0 / SR as f64;
+    let told = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| Some(host(Some(beats_at(s)), Some(tempo))),
+        None,
+    );
+    let found = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| Some(host(Some(beats_at(s)), None)),
+        None,
+    );
+    assert_identical("from the second block", &found[512..], &told[512..]);
+}
+
+/// What the editor shows: the host's transport at the end of the block, the tempo filtered,
+/// no playhead without a timeline, nothing once the host stops sending one.
+#[test]
+#[cfg(feature = "editor")]
+fn the_editors_transport_is_the_hosts_at_the_end_of_the_block() {
+    use cantus_plugins::editor::{EditSink, PluginHost};
+    use cantus_ui::views::fx::host::{FxHost, Transport};
+    struct Nothing;
+    impl EditSink for Nothing {
+        fn edit(&mut self, _e: cantus_plugins::instance::Edit) {}
+    }
+    let mut p = gate_processor();
+    let shared = p.shared().clone();
+    let view = PluginHost::new(shared, Box::new(Nothing));
+    assert_eq!(
+        view.transport(),
+        Transport::default(),
+        "nothing before a block"
+    );
+    let ppq = cantus_core::PPQ as f64;
+    p.set_transport(Some(HostTransport {
+        time_sig: Some((6, 8)),
+        ..host(Some(4.25), Some(90.0))
+    }));
+    let (mut l, mut r) = (vec![0.5f32; 480], vec![0.5f32; 480]);
+    p.process(&mut l, &mut r, None, &[]);
+    let t = view.transport();
+    let end = 4.25 + 480.0 * 90.0 / 60.0 / 48_000.0;
+    assert_eq!(t.playing_at, Some((end * ppq).floor() as i64));
+    assert_eq!(t.ticks_per_second, 90.0 / 60.0 * ppq);
+    assert_eq!(t.ticks_per_bar, 3 * cantus_core::PPQ);
+    // A tempo of 0 is not believed; a host with no timeline gives no playhead.
+    p.set_transport(Some(host(None, Some(0.0))));
+    p.process(&mut l, &mut r, None, &[]);
+    let t = view.transport();
+    assert_eq!(t.playing_at, None);
+    assert_eq!(t.ticks_per_second, 2.0 * ppq, "120 BPM, as the units play");
+    // A host that stops sending a transport: back to the default.
+    p.set_transport(None);
+    p.process(&mut l, &mut r, None, &[]);
+    assert_eq!(view.transport(), Transport::default());
 }

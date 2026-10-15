@@ -135,7 +135,6 @@ fn smoothing_takes_the_click_out_of_the_wrap() {
     assert!(jump(2.0) < 0.02, "2 ms takes it out");
 }
 
-
 #[test]
 fn it_is_the_same_at_every_split() {
     let s = FluctusSettings {

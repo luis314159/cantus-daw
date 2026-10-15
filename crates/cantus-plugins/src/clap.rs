@@ -396,6 +396,29 @@ pub(crate) unsafe fn read_events(
     }
 }
 
+/// The host's transport changes inside the block (a jump, a stop, a tempo change), each
+/// where it lands: the processor splits its chunks there (ADR 0055).
+unsafe fn transport_events(proc_: &mut Processor, list: *const clap_input_events) {
+    if list.is_null() {
+        return;
+    }
+    let (Some(size), Some(get)) = ((*list).size, (*list).get) else {
+        return;
+    };
+    for i in 0..size(list) {
+        let h = get(list, i);
+        if h.is_null()
+            || (*h).space_id != CLAP_CORE_EVENT_SPACE_ID
+            || (*h).type_ != CLAP_EVENT_TRANSPORT
+        {
+            continue;
+        }
+        if let Some(t) = host_transport(h as *const clap_event_transport) {
+            proc_.push_transport_event((*h).time, t);
+        }
+    }
+}
+
 unsafe extern "C" fn plugin_process(
     plugin: *const clap_plugin,
     process: *const clap_process,
@@ -416,6 +439,7 @@ unsafe extern "C" fn plugin_process(
     read_events(&inst.shared, p.in_events, events);
     // Where the host's song is (ADR 0055): a synced unit follows the host's tempo.
     proc_.set_transport(host_transport(p.transport));
+    transport_events(proc_, p.in_events);
     // What the editor did since the last block, first.
     gui::drain_edits(inst, Some(&mut *proc_), p.out_events);
 
@@ -504,13 +528,31 @@ pub unsafe fn host_transport(t: *const clap_event_transport) -> Option<HostTrans
         b as f64 / clap_sys::fixedpoint::CLAP_BEATTIME_FACTOR as f64
     };
     let has = |flag: u32| t.flags & flag != 0;
+    let sec = |s: clap_sys::fixedpoint::clap_sectime| {
+        s as f64 / clap_sys::fixedpoint::CLAP_SECTIME_FACTOR as f64
+    };
     Some(HostTransport {
         playing: has(CLAP_TRANSPORT_IS_PLAYING),
         tempo: has(CLAP_TRANSPORT_HAS_TEMPO).then_some(t.tempo),
         beats: has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE).then(|| beat(t.song_pos_beats)),
         bar_start: has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE).then(|| beat(t.bar_start)),
         time_sig: has(CLAP_TRANSPORT_HAS_TIME_SIGNATURE).then_some((t.tsig_num, t.tsig_denom)),
-        loop_beats: (has(CLAP_TRANSPORT_IS_LOOP_ACTIVE) && has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE))
-            .then(|| (beat(t.loop_start_beats), beat(t.loop_end_beats))),
+        loop_beats: has(CLAP_TRANSPORT_IS_LOOP_ACTIVE)
+            .then(|| {
+                if has(CLAP_TRANSPORT_HAS_BEATS_TIMELINE) {
+                    Some((beat(t.loop_start_beats), beat(t.loop_end_beats)))
+                } else {
+                    // A seconds-only host: its loop in beats at its tempo, when it has one.
+                    has(CLAP_TRANSPORT_HAS_TEMPO).then(|| {
+                        (
+                            sec(t.loop_start_seconds) * t.tempo / 60.0,
+                            sec(t.loop_end_seconds) * t.tempo / 60.0,
+                        )
+                    })
+                }
+            })
+            .flatten(),
+        // The song in seconds, for a host that gives that and not the beats.
+        seconds: has(CLAP_TRANSPORT_HAS_SECONDS_TIMELINE).then(|| sec(t.song_pos_seconds)),
     })
 }

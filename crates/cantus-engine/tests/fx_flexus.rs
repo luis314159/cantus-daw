@@ -38,7 +38,10 @@ fn the_through_zero_switch_keeps_the_latency() {
     for tz in [0.0, 1.0] {
         set(&mut p, fx, "tz", tz);
         let slot = strip_of(&mut p, 0).effects[0].clone();
-        assert_eq!(cantus_engine::EffectUnit::new(&slot, 48_000.0).latency(), 240);
+        assert_eq!(
+            cantus_engine::EffectUnit::new(&slot, 48_000.0).latency(),
+            240
+        );
     }
 }
 

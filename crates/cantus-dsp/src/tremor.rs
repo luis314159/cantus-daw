@@ -79,7 +79,6 @@ pub fn pan_gains(p: f32) -> (f32, f32) {
     (c * std::f32::consts::SQRT_2, s * std::f32::consts::SQRT_2)
 }
 
-
 /// The balance of ADR 0012 at position `p` (−1 … 1): unity at the centre, the near channel
 /// whole, the far one on the equal-power taper — a stereo signal is moved, never raised.
 #[inline]
