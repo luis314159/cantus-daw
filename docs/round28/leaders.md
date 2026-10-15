@@ -138,7 +138,7 @@ Nothing that is not the owner's: judging the comp crossfades and the modulators 
 
 ## Review 1
 
-45 confirmed findings (duplicates across lenses merged: 33 distinct), 1 HIGH. Every one
+45 confirmed findings (duplicates across lenses merged: 34 distinct), 1 HIGH. Every one
 fixed; each testable one with a test seen failing first (noted where not).
 
 **The HIGH — Modulate… on any parameter.** Two shared paths so no editor can drift:

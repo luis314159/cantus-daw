@@ -171,8 +171,12 @@ pub fn depth_drag(ui: &Ui, offer: Option<Offer>) -> bool {
 /// depth (Shift for fine) or its end. `None` when none of these happened.
 pub fn modulation_choice(ui: &Ui, resp: &Response, offer: Option<Offer>) -> Option<Choice> {
     let m = offer.and_then(|o| o.modulation)?;
-    if let Some(h) = resp.dnd_release_payload::<ModHandle>() {
-        return Some(Choice::Connect(h.0));
+    // Only a modulator's handle is ours: egui's release takes whatever is carried, and a
+    // control also takes other drops (an instrument's source chip, a track for routing).
+    if handle_in_flight(&resp.ctx) {
+        if let Some(h) = resp.dnd_release_payload::<ModHandle>() {
+            return Some(Choice::Connect(h.0));
+        }
     }
     if !depth_drag(ui, offer) {
         return None;
