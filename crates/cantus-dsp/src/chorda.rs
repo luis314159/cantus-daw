@@ -33,3 +33,14 @@ pub mod design;
 #[cfg(test)]
 #[path = "chorda_tests_design.rs"]
 mod tests_design;
+
+#[path = "chorda_string.rs"]
+pub mod string;
+
+#[cfg(test)]
+#[path = "chorda_testkit.rs"]
+mod testkit;
+
+#[cfg(test)]
+#[path = "chorda_tests_string.rs"]
+mod tests_string;
