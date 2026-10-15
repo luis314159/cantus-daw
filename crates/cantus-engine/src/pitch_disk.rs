@@ -1,7 +1,8 @@
-//! Analyses on disk: `<cache>/<key>.pitch`, little-endian. The key is FNV-1a over the
-//! file's path, size and modification time (as the waveform peaks', stable across builds
-//! and platforms), the rate and the analyser's version — so an edited file or a better
-//! analyser is analysed again, and a reopened project finds its takes at once.
+//! Analyses on disk: `<cache>/<key>.pitch`, little-endian. The key is FNV-1a (stable
+//! across builds and platforms) over the file's **name**, size and modification time, the
+//! rate and the analyser's version — so an edited file or a better analyser is analysed
+//! again, a reopened project finds its takes at once, and a take that moved into the
+//! project's folder on its first save (a rename keeps its time) is still found.
 //!
 //! Only the tracker's result is stored; the notes and the key are derived from it again on
 //! reading (deterministic, milliseconds).
@@ -29,7 +30,8 @@ pub fn file_for(dir: &Path, path: &Path, rate: u32) -> Option<PathBuf> {
         .map(|d| d.as_nanos())
         .unwrap_or(0);
     let mut h = 0xcbf2_9ce4_8422_2325u64;
-    fnv(&mut h, path.to_string_lossy().as_bytes());
+    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    fnv(&mut h, name.as_bytes());
     fnv(&mut h, &meta.len().to_le_bytes());
     fnv(&mut h, &mtime.to_le_bytes());
     fnv(&mut h, &rate.to_le_bytes());

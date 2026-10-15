@@ -285,6 +285,11 @@ impl CantusApp {
     /// editor opens on its notes at once.
     pub fn analyse_take_soon(&self, source: &AudioSource) {
         let path = crate::waveform::resolve(self.audio_base(), &source.path);
-        let _ = self.engine.samples.pitch().lookup(&path, source.sample_rate);
+        self.analyse_file_soon(&path, source.sample_rate);
+    }
+
+    /// [`Self::analyse_take_soon`] for a file by its path and rate (a finished take).
+    pub fn analyse_file_soon(&self, path: &std::path::Path, rate: u32) {
+        let _ = self.engine.samples.pitch().lookup(path, rate);
     }
 }

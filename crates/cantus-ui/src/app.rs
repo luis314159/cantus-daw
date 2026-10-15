@@ -418,6 +418,11 @@ impl CantusApp {
         Self::start_window_services(&mut engine, &settings);
         let mut app = Self::from_parts(project, engine, stress);
         app.peaks.set_disk_cache(Some(peak_cache));
+        // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
+        app.engine
+            .samples
+            .pitch()
+            .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
