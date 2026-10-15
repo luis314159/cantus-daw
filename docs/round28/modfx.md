@@ -114,3 +114,59 @@ the owner's references, the presets' musical judgement, and how the editors feel
 - In one full `cantus-ui` run, `hosted_instruments::opening_its_editor_from_the_track_opens_the_plugin_window`
   failed once and passed on its own rerun (a hosted plug-in's window timing; none of my code is on
   its path) — worth watching in the integration run.
+
+## Review 1
+
+The 33 confirmed findings (`reviews/modfx-1.json`) are 24 distinct ones after the lenses'
+duplicates; every one is fixed, each with a test seen failing first where it can be tested
+(the mutation checks below say so where the test is a guard rather than a bug's repro).
+
+**Rest and live playback (DSP)**
+- Phasis, Concentus, Tremor (findings 3/8/29, 4/9/31, 5/7/30): a filter a setting stops
+  using is cleared when it stops (the stages above the count, the tone opened, the
+  crossover leaving Harmonic) — tests `fewer_stages_strand_nothing…`,
+  `opening_the_tone_strands_nothing…`, `leaving_harmonic_mode_strands_nothing…`.
+- Anulus and Translatio (1/10/23): the carrier restarts at phase 0 on a new song epoch; the
+  new `fx_modfx_live.rs` plays every family unit live after idle time against the offline
+  render (failed for Anulus before the fix) and `the_carrier_starts_again_at_playback`.
+- Fluctus (13/24): the level is set on the curve at a new epoch and the glide lands when it
+  stalls in f32; the tolerant bar-five test is replaced by
+  `a_render_from_bar_five_mid_cycle_is_the_full_render_to_the_bit`.
+- Vibrans (2): the centre glides with the sweep (60 ms) and `D₀ ≥ A` every sample —
+  `a_rising_depth_never_reads_ahead_of_the_input`.
+- Flexus (6): the latency is the 5 ms centre in both modes (the plain flanger's output
+  through a line of that length), so automating the switch never re-plans PDC; the engine
+  default test is now "the render later by its latency", plus
+  `the_through_zero_switch_keeps_the_latency`.
+- Tremor auto-pan (32): a balance (`balance_gains`) — unity at the centre and on the near
+  side, the equal-power gain on the far side; no channel is raised.
+
+**The exports' transport (0/28, 25, 26, 27, 15)**
+- Each chunk's place counted once with no beat timeline; CLAP's seconds timeline and VST3's
+  `projectTimeSamples` read at the host's tempo; beats without a tempo find it from the
+  beats' motion; CLAP transport events inside a block (up to 16) cut the chunks; a loop
+  wrapping inside a block cuts there and goes on from the loop's start; the editor's
+  transport is the end of the block, the tempo as played, no playhead without a timeline.
+  Six new tests in `transport.rs`; mutation checks (tempo inference, events, the wrap split
+  each removed) make their tests fail. My edits to `clap.rs`/`vst3/plugin.rs` are local:
+  the `seconds` field in each transport function and a `transport_events` helper in CLAP.
+
+**Editors and readouts (11, 12, 14, 16–22)**
+- Negative frequencies read as positive ones do (`-440 Hz`, `-1.5 kHz`).
+- Swing reads 0–100 % in the editor as in the exports and typed values; docs say an MPC's
+  50–75 % is that range.
+- Tremor's drawing is `tremor::movement_at`, used by the paint and the inspector preview
+  and held against the DSP in all three modes (pan by the balance gains, harmonic by a DC
+  and a Nyquist input); a broken pan or harmonic drawing fails it.
+- Translatio's partials test measures the right channel and Both.
+- The inspector line names the rate the unit plays (`PreviewRate`): a Juno/Dimension
+  model's own, none for Flexus's envelope/manual sweeps or an idle LFO (Fluctus's line lost
+  an empty rate too); the line's rect no longer shadows the words.
+- Translatio's right channel is amber (the Dynamics hue) with a swatched legend; Anulus's
+  note plate sits under the rate; titles carry no units ("What a tone becomes", with
+  "1 kHz" / "220 Hz" painted on the display); Fluctus rings the point its card edits.
+- Spanish: *Rechazo de banda lateral*, *Espiral de barbero*, *Vel.*, *Subida*.
+
+**Kept on purpose**: Concentus's voices keep their equal-power spread (a chorus voice is a
+new source in the field, not a pan of the input, so the near side's +3 dB is the voice's
+level, not a raise of the signal).

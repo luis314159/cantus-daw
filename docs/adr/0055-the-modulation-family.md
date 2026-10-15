@@ -44,7 +44,12 @@ values (8/1 … 1/32, dotted and triplet) in one shared table.
 **Rest is exact because the LFO is not state.** A unit's audio state (lines, filters,
 feedback) is what `at_rest` checks; its clock is a counter that `skip` advances. Where a
 unit's internal phase is a running sum (Anulus's and Translatio's carriers, Fluctus's level
-glide), `skip` runs it sample by sample exactly as processing silence would. Small IIR states
+glide), `skip` runs it sample by sample exactly as processing silence would, and the start
+of playback (a new epoch of the clock) restarts it — the carriers at phase 0, Fluctus's
+level on its curve — so live playback after any idle time is the offline render (review 1).
+A filter a setting stops using (Tremor's crossover leaving Harmonic, Phasis's stages above
+the count, Concentus's tone opened) is cleared when it stops, so it never holds the unit
+out of rest. Small IIR states
 are flushed to +0.0 after a run of 64 silent input samples, per sample (so where it happens
 does not depend on the blocks); a product of silence by a negative carrier is −0.0, which is
 normalised to +0.0. Every unit passes the twin tests of `fx_contract.rs` at its defaults,
@@ -68,9 +73,9 @@ passes untouched"). Secondary controls at their defaults add nothing (feedback 0
 | Unit | Kind | The first-rank part |
 |---|---|---|
 | Concentus | Chorus | Juno I / II / I+II from the circuit's published sweeps (0.513 / 0.863 Hz over 1.66–5.35 ms; 9.75 Hz over 3.3–3.7 ms, the right channel's sweep inverted); Dimension 1–4 (our voicing: crossed, out-of-phase lines); 1–4 free voices; a BBD-dark wet path; a mono check (L/R correlation, the mono sum's loss) in the telemetry |
-| Flexus | Flanger | through zero: the dry from a fixed 5 ms line (the reported latency), the wet sweeping either side; at the centre the wet is read at a whole sample, the same sample, so inverted at 50 % the output is exact zeros; LFO / envelope / manual sweeps; feedback ±95 % |
+| Flexus | Flanger | through zero: the dry from a fixed 5 ms line, the wet sweeping either side; the plain flanger's output through the same 5 ms, so the reported latency never changes with the switch; at the centre the wet is read at a whole sample, the same sample, so inverted at 50 % the output is exact zeros; LFO / envelope / manual sweeps; feedback ±95 % |
 | Phasis | Phaser | 2–12 TPT first-order allpasses on one log-swept frequency, feedback ±95 %, the pedals as presets |
-| Tremor | Tremolo | tremolo, equal-power auto-pan (unity at the centre, ADR 0012), harmonic tremolo (lows against highs) |
+| Tremor | Tremolo | tremolo, auto-pan as a balance (unity at the centre and on the near side, the equal-power gain on the far side: no channel raised), harmonic tremolo (lows against highs) |
 | Vibrans | Vibrato | depth in cents (the sweep follows rate and shape), a rise after each silence, delay up to 100 ms |
 | Anulus | Ring mod | sine / triangle / square carriers band-limited by polyBLEP and polyBLAMP residuals, an LFO in semitones, a DC blocker on the product |
 | Translatio | Freq shift | single sideband on a Hilbert pair designed per sample rate (below); up / down / both; feedback kept inside the pair's 90° band (25 Hz – 16 kHz) so 95 % stays bounded |
@@ -105,8 +110,15 @@ asks for it (`getProcessContextRequirements`: tempo, project time, transport sta
 position, time signature, cycle). The processor turns it into the engine's `SongPosition`
 at the start of every chunk it runs — the block's start in samples at the host's tempo plus
 whole samples on, so the same integers whatever the host cuts — and calls `set_position`;
-with no transport the units keep their own time. The editor's `transport()` (bar lines,
-playheads) reads it from atomics the audio thread publishes. This closes the gap for every
+with no transport the units keep their own time. Review 1 completed it for real hosts: a
+host with no beat timeline gives the song in seconds (CLAP's seconds timeline, VST3's
+`projectTimeSamples`), read at its tempo; beats without a tempo give the tempo from how far
+the beats moved since the last block; CLAP's `CLAP_EVENT_TRANSPORT` events inside a block
+(up to 16) cut the chunks where they land; a loop that wraps inside a block cuts the chunk at
+the wrap and goes on from the loop's start, as the engine never lets a pass cross one; and
+each chunk's place is counted once. The editor's `transport()` (bar lines, playheads) reads
+the host's position at the end of the block, the tempo as the units play it, and no playhead
+when the host gives no timeline, from atomics the audio thread publishes. This closes the gap for every
 synced unit, not only the family's.
 
 ## Consequences

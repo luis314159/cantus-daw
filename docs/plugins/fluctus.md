@@ -69,6 +69,9 @@ A point's number never changes once it exists: removing one frees its number.
 - The phase is the family's synced LFO phase (song sample × cycles per sample + offset); the
   curve is read between the points sorted by place, wrapping from the last point to the first
   one a cycle on.
+- At the start of playback (a new song epoch) the level is set on the curve where the song
+  is, not glided there: a render or a live play from mid-cycle starts exactly where the full
+  render is at that point, to the bit (review 1).
 - The level never depends on the audio, so silence in gives silence out; `skip` runs the
   level's glide sample by sample as processing would, and the unit is at rest whenever its
   depth and gain glides have landed.
@@ -85,8 +88,8 @@ Swell over a bar · Gate, sixteenths · Off-beats only · Triplet chop · Slow w
   bit) through the held half, from the start and from beat 3; the same bits at blocks of 1,
   7, 64, 1 000 and 4 096; live equal to offline (`fx_fluctus.rs`).
 - The DSP: the curve read between points and wrapped; the pump on every beat; 2 ms of
-  smoothing takes the wrap's step from 1 to under 0.02 per sample; a render from bar 5 equal
-  to the full render there (within the glide's memory, then to the bit); split invariance;
+  smoothing takes the wrap's step from 1 to under 0.02 per sample; a render from bar 5 mid-cycle
+  equal to the full render there to the bit, from its first sample; split invariance;
   `skip` exact.
 - The engine: a segment bends as an automation clip does (`Shape::at`, to the bit).
 - The editor: double-click adds and removes a point, a drag moves one onto the grid — one

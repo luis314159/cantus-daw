@@ -56,7 +56,9 @@ The depth starts at 0 cents, so Vibrans inserted and left alone returns its inpu
   triangle `A = (2^{c/1200} − 1)/(4f)`. `A` is capped at 100 ms (the depth is reached down
   to 0.2 Hz for a sine). `D₀ = A + 2` samples; at depth 0 both are 0 and the line returns
   the newest sample — the input, to the bit.
-- Rate and depth changes glide (60 / 120 ms), so automating them never clicks; the synced
+- Rate and depth changes glide (60 ms each), so automating them never clicks; the centre
+  delay `D₀` glides with the sweep and is never read below it (`D₀ ≥ A` at every sample), so
+  a rising depth never asks the line for a sample it does not have yet (review 1); the synced
   rate follows the tempo, and the start of playback lands the glides where the tempo puts
   them (a render from any bar is the full render there).
 - **Rise**: 50 ms under −50 dBFS makes the next sound an onset; the depth then rises
