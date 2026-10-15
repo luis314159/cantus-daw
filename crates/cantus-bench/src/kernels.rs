@@ -78,7 +78,18 @@ pub fn heavy(kind: EffectKind) -> EffectSpec {
         EffectKind::Transient => {}
         EffectKind::TransientSplit => {}
         EffectKind::Analyzer => {}
-        EffectKind::AutoTune => {}
+        // Tonus: the hard effect an octave up with the throat down, humanised, a created
+        // vibrato — every grain path working at once.
+        EffectKind::AutoTune => set(
+            &mut s,
+            &[
+                ("speed", 0.0),
+                ("trans", 12.0),
+                ("throat", -6.0),
+                ("vdepth", 40.0),
+                ("human", 1.0),
+            ],
+        ),
     }
     s
 }
