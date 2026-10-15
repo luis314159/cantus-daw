@@ -250,6 +250,8 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
         nt.armed = false;
         nt.takes_open = false;
         nt.soloed = false;
+        // A modulator lives once: the copy takes none (ADR 0057).
+        nt.modulators = Vec::new();
         let mut cmds = vec![Command::InsertTrack {
             index: index + 1 + k,
             track: Box::new(nt.clone()),

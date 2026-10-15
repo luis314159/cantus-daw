@@ -20,6 +20,11 @@ pub const PPQ: i64 = 960;
 pub struct Ticks(pub i64);
 
 impl Ticks {
+    /// Whether it is zero (serde's `skip_serializing_if`).
+    pub fn is_zero(&self) -> bool {
+        self.0 == 0
+    }
+
     pub const ZERO: Ticks = Ticks(0);
     pub const QUARTER: Ticks = Ticks(PPQ);
     pub const EIGHTH: Ticks = Ticks(PPQ / 2);

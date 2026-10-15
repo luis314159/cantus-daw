@@ -134,7 +134,18 @@ pub struct AudioRegion {
     /// — plays the source.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pitch: Option<Box<crate::pitch::PitchEdit>>,
+    /// The crossfade into this window from the playing-lane audio window that ends where
+    /// it starts — a comp's **seam** (schema 29, ADR 0058): equal-power, this long, centred
+    /// on the seam, the two windows each read past the seam into their sources by half of
+    /// it. Zero (every clip before) is a butt join; a window with nothing ending at its
+    /// start has no seam, and the length waits there unused.
+    #[serde(default, skip_serializing_if = "Ticks::is_zero")]
+    pub xfade: Ticks,
 }
+
+/// The longest seam crossfade a window takes (a beat at any tempo is far more than a comp
+/// wants; the command refuses more).
+pub const MAX_XFADE: Ticks = Ticks(crate::time::PPQ);
 
 fn is_zero(v: &i32) -> bool {
     *v == 0
@@ -152,6 +163,7 @@ impl AudioRegion {
             reverse: false,
             slip_frames: 0,
             pitch: None,
+            xfade: Ticks::ZERO,
         }
     }
 }
@@ -267,6 +279,18 @@ pub struct RecordSettings {
     /// On by default, as FL records automation; not written while on.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub record_automation: bool,
+    /// The crossfade a new comp seam gets, in milliseconds (schema 29, ADR 0058): 10 ms,
+    /// equal-power — Logic's and Studio One's kind of default.
+    #[serde(default = "comp_xfade", skip_serializing_if = "is_comp_xfade")]
+    pub comp_xfade_ms: f32,
+}
+
+fn comp_xfade() -> f32 {
+    10.0
+}
+
+fn is_comp_xfade(x: &f32) -> bool {
+    *x == 10.0
 }
 
 /// The metronome's voice (schema 26, ADR 0052). `Classic` is the sine burst every earlier
@@ -315,6 +339,7 @@ impl Default for RecordSettings {
             click_sound: ClickSound::Classic,
             click_accent: true,
             record_automation: true,
+            comp_xfade_ms: comp_xfade(),
         }
     }
 }

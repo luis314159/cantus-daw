@@ -106,6 +106,12 @@ pub struct AudioClipSnapshot {
     /// The clip's pitch edits (ADR 0054): the sample cache attaches their render in
     /// place of the source.
     pub pitch: Option<std::sync::Arc<crate::pitch::PitchEdit>>,
+    /// A comp seam's crossfade into this window (ADR 0058): the stretch of the timeline,
+    /// `(from, to)`, over which it fades in on the equal-power curve while the window
+    /// before it fades out over the very same samples.
+    pub xin: Option<(Ticks, Ticks)>,
+    /// The seam's crossfade out of this window into the next.
+    pub xout: Option<(Ticks, Ticks)>,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -338,6 +344,8 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             },
             data: None,
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
+            xin: None,
+            xout: None,
         };
         match c.period() {
             Some(period) if period < c.length => {
@@ -351,8 +359,54 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             _ => out.push(piece(c.start, c.end(), true, true)),
         }
     }
+    seams(track, &mut out);
     out.sort_by_key(|c| c.start);
     out
+}
+
+/// Comp seams (ADR 0058): where a playing-lane audio window carrying a crossfade starts
+/// exactly where another ends, the two overlap by the crossfade, centred on the seam — the
+/// left reads on past it, the right starts before it (each into its own source) — and are
+/// told the stretch they cross over. A looped or reversed window takes no seam.
+fn seams(track: &Track, out: &mut [AudioClipSnapshot]) {
+    let plays = |c: &&Clip| {
+        !c.muted
+            && c.lane == 0
+            && c.length > Ticks::ZERO
+            && c.period().is_none_or(|p| p >= c.length)
+            && c.audio.as_ref().is_some_and(|a| !a.reverse)
+    };
+    for right in track.clips.iter().filter(plays) {
+        let x = right
+            .audio
+            .as_ref()
+            .map_or(Ticks::ZERO, |a| a.xfade.min(crate::audio::MAX_XFADE));
+        if x <= Ticks::ZERO {
+            continue;
+        }
+        let Some(left) = track
+            .clips
+            .iter()
+            .filter(plays)
+            .find(|l| l.id != right.id && l.end() == right.start)
+        else {
+            continue;
+        };
+        let s = right.start;
+        let h = Ticks(x.0 / 2);
+        let stretch = Some((s - h, s + (x - h)));
+        if let Some(l) = out.iter_mut().find(|p| p.clip == left.id) {
+            l.end = s + (x - h);
+            l.xout = stretch;
+            l.fade_out = Ticks::ZERO;
+        }
+        if let Some(r) = out.iter_mut().find(|p| p.clip == right.id) {
+            r.start = s - h;
+            r.offset = r.offset - h;
+            r.xin = stretch;
+            r.fade_in = Ticks::ZERO;
+        }
+    }
 }
 
 fn compile_events(track: &Track) -> Vec<NoteEvent> {
