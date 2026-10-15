@@ -410,11 +410,18 @@ fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
     let away = pos2(fr.center().x, size.y - 4.0);
     frame(
         &mut a,
-        vec![Event::PointerMoved(away), button(away, true, Modifiers::NONE)],
+        vec![
+            Event::PointerMoved(away),
+            button(away, true, Modifiers::NONE),
+        ],
         Modifiers::NONE,
     );
     egui::DragAndDrop::set_payload(&ctx, ModHandle(id.0));
-    frame(&mut a, vec![Event::PointerMoved(fr.center())], Modifiers::NONE);
+    frame(
+        &mut a,
+        vec![Event::PointerMoved(fr.center())],
+        Modifiers::NONE,
+    );
     let gain = a.project().strip(s).unwrap().gain_db;
     frame(
         &mut a,
@@ -427,14 +434,22 @@ fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
             .and_then(|(_, _, m)| m.route(&fader).map(|r| r.depth))
     };
     let depth = route(&a).expect("the drop connected the fader");
-    assert_eq!(a.project().strip(s).unwrap().gain_db, gain, "the gain stayed");
+    assert_eq!(
+        a.project().strip(s).unwrap().gain_db,
+        gain,
+        "the gain stayed"
+    );
     // Alt-drag up on the fader: the depth moves, the gain does not.
     let alt = Modifiers {
         alt: true,
         ..Modifiers::NONE
     };
     let c = fr.center();
-    frame(&mut a, vec![Event::PointerMoved(c), button(c, true, alt)], alt);
+    frame(
+        &mut a,
+        vec![Event::PointerMoved(c), button(c, true, alt)],
+        alt,
+    );
     for k in 1..=6 {
         frame(
             &mut a,
@@ -443,7 +458,82 @@ fn a_handle_dropped_on_a_desk_fader_connects_and_alt_drag_edits_its_depth() {
         );
     }
     frame(&mut a, vec![button(pos2(c.x, c.y - 48.0), false, alt)], alt);
-    assert_eq!(a.project().strip(s).unwrap().gain_db, gain, "the gain stayed");
+    assert_eq!(
+        a.project().strip(s).unwrap().gain_db,
+        gain,
+        "the gain stayed"
+    );
     let now = route(&a).unwrap();
     assert!(now > depth, "the depth rose: {depth} → {now}");
+}
+
+/// The test CLAP plug-in, built from source where the host's tests build it.
+fn test_plugin() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+    let target = root.join("target").join("test-plugins");
+    let status =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+            .args(["build", "-p", "cantus-test-clap", "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .status()
+            .expect("cargo");
+    assert!(status.success());
+    target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap.dylib"
+    } else {
+        "libcantus_test_clap.so"
+    })
+}
+
+/// Review 1: a plug-in window that moves two parameters in one frame (an XY pad, a macro)
+/// records both while a pass records — not only the last one the frame ran.
+#[test]
+fn two_parameters_a_plugin_window_moves_in_one_frame_are_both_recorded() {
+    use cantus_engine::fx::FxParamEvent;
+    let mut a = app(starter_project());
+    cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
+    let effect = a
+        .project()
+        .strips
+        .iter()
+        .flat_map(|s| s.effects.iter())
+        .find(|e| e.spec.external.is_some())
+        .map(|e| e.id)
+        .expect("the hosted slot");
+    // The test plug-in's gain and its (stepped) gesture parameter.
+    let (gain, key) = (0u32, 3u32);
+    a.engine.seek(Ticks::beats(1));
+    a.start_recording();
+    for (beat, g, k) in [(1, -6.0, 20.0), (3, -12.0, 70.0)] {
+        a.engine.seek(Ticks::beats(beat));
+        // One frame of the plug-in's window: both parameters in one gesture each.
+        for (id, v) in [(gain, g), (key, k)] {
+            a.plugins
+                .record(&mut a.bus, effect, FxParamEvent::Begin(id));
+            a.plugins
+                .record(&mut a.bus, effect, FxParamEvent::Value(id, v));
+        }
+        a.host_tweaks();
+        for id in [gain, key] {
+            a.plugins.record(&mut a.bus, effect, FxParamEvent::End(id));
+        }
+    }
+    a.engine.seek(Ticks::beats(5));
+    a.stop_recording();
+    for id in [gain, key] {
+        let target = AutoTarget::Plugin { effect, id };
+        assert!(
+            a.project()
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter())
+                .any(|c| c.automation.as_ref().is_some_and(|x| x.target == target)),
+            "parameter {id} was recorded"
+        );
+    }
 }

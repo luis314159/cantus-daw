@@ -3536,10 +3536,9 @@ impl CantusApp {
         self.poll_samples(ctx);
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
-        let rev = self.bus.revision();
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         // What their windows moved: last tweaked, and recorded automation (ADR 0057).
-        self.host_tweaks(rev);
+        self.host_tweaks();
         self.host_notices(notices);
         self.pump_capture();
         self.pump_analyser();

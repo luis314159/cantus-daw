@@ -55,21 +55,13 @@ impl CantusApp {
             .push((tick, pos));
     }
 
-    /// What a hosted plug-in's own window did this frame (the host writes its gestures to
-    /// the bus itself): the last tweaked parameter, and recorded when a pass records.
-    pub fn host_tweaks(&mut self, revision_before: u64) {
-        if self.bus.revision() == revision_before {
-            return;
-        }
-        let Some(cmd) = self.bus.history().last().map(|h| h.command.clone()) else {
-            return;
-        };
-        if matches!(
-            cmd,
-            Command::SetPluginParam { .. } | Command::SetInstrumentPluginParam { .. }
-        ) {
+    /// What hosted plug-ins' own windows did since the last frame (the host writes their
+    /// gestures to the bus itself and keeps each command it ran): every parameter they
+    /// moved is recorded when a pass records, and the newest is *last tweaked*.
+    pub fn host_tweaks(&mut self) {
+        for cmd in self.plugins.take_tweaks() {
+            // `note_tweak` records it too, when a pass records.
             self.note_tweak(&cmd);
-            self.record_tweak(&cmd);
         }
     }
 
