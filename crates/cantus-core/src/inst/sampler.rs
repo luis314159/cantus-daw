@@ -67,6 +67,10 @@ pub const PARAMS: &[InstParamInfo] = &[
     p("glide", "smp.glide", 0.0, 5000.0, 0.0, "ms", false, false),
     p("bend", "smp.bend", 0.0, 24.0, 2.0, "st", false, true),
     p("quality", "smp.quality", 0.0, 3.0, 2.0, "", false, true),
+    // Round robin: 1 in order (a sequenced note's turn is its ordinal on the track: no
+    // sample twice in a row, the same turns from any start), 0 seeded from the note's id
+    // (every Exemplar saved before round 28 — schema 28's migration writes it). Round 28.
+    p("rr.order", "smp.rr_order", 0.0, 1.0, 1.0, "", false, true),
     p(
         "amp.attack",
         "smp.attack",

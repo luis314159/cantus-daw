@@ -746,7 +746,7 @@ pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
         };
         slot.drums.trigger(ev.pitch, ev.velocity, hit);
     } else if ev.is_on() {
-        slot.note_on(ev.pitch, ev.velocity, ev.note.0);
+        slot.note_on_seq(ev.pitch, ev.velocity, ev.note.0, ev.ordinal);
     } else {
         slot.note_off(ev.pitch, ev.note.0);
     }

@@ -48,6 +48,10 @@ mod tests2;
 mod tests3;
 
 #[cfg(test)]
+#[path = "exemplar_tests4.rs"]
+mod tests4;
+
+#[cfg(test)]
 #[path = "exemplar_stream_tests.rs"]
 mod stream_tests;
 
@@ -138,6 +142,11 @@ pub struct Globals {
     pub sw_hi: i16,
     pub sw_default: i16,
     pub macros: [f32; 8],
+    /// Round robin **in order** (round 28): a sequenced note's turn is its ordinal on the
+    /// track ([`Exemplar::note_on_seq`]), so a roll never repeats a sample and a render from
+    /// any point cycles as the whole render does there. Off — every Exemplar saved before
+    /// — draws the turn from the note's id, as it always did.
+    pub rr_in_order: bool,
 }
 
 impl Default for Globals {
@@ -170,6 +179,7 @@ impl Default for Globals {
             sw_hi: -1,
             sw_default: -1,
             macros: [0.0; 8],
+            rr_in_order: false,
         }
     }
 }

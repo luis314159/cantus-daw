@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 27;
+pub const SCHEMA_VERSION: u32 = 28;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -210,6 +210,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_24_to_25,
     migrate_25_to_26,
     migrate_26_to_27,
+    migrate_27_to_28,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -664,6 +665,42 @@ fn migrate_26_to_27(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 28 (round 28, sound — numbered 30 in the round's table, chained by the
+/// integrator): Exemplar's round robin plays **in order** (`rr.order` = 1, the default: a
+/// clip's note takes its turn by its ordinal on the track, so a roll never repeats a sample
+/// and a render from any point cycles as the whole one does). Every Exemplar saved before
+/// drew its turns from the notes' ids: its `rr.order` is written as 0, so it renders to the
+/// same bits it did; a value already there is kept.
+fn migrate_27_to_28(value: &mut Value) -> Result<(), String> {
+    write_sampler_default(value, "rr.order", 0.0)
+}
+
+/// Write `key` = `v` into every Exemplar's parameters that lacks it.
+fn write_sampler_default(value: &mut Value, key: &str, v: f64) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        let Some(inst) = t.get_mut("instrument").and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let native = inst.get("type").and_then(Value::as_str) == Some("Native");
+        if !native || inst.get("kind").and_then(Value::as_str) != Some("Sampler") {
+            continue;
+        }
+        let params = inst
+            .entry("params")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        let Some(params) = params.as_object_mut() else {
+            return Err("an Exemplar's params are not a map".into());
+        };
+        params.entry(key).or_insert_with(|| Value::from(v));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -806,6 +843,51 @@ mod tests {
             .iter()
             .flat_map(|t| t.clips.iter())
             .all(|c| c.audio.as_ref().is_none_or(|a| a.pitch.is_none())));
+    }
+
+    /// Schema 28 (round 28, sound): every Exemplar saved before keeps its seeded round
+    /// robin (`rr.order` written as 0); one already carrying the key keeps it; other kinds
+    /// are untouched. The v28 fixture holds an Exemplar made now (in order, not stored).
+    #[test]
+    fn schema_28_keeps_an_old_exemplars_round_robin_seeded() {
+        let mut v = serde_json::json!({"project": {"tracks": [
+            {"instrument": {"type": "Native", "kind": "Sampler"}},
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": {"z0.gen": 3.0}}},
+            {"instrument": {"type": "Native", "kind": "Sampler", "params": {"rr.order": 1.0}}},
+            {"instrument": {"type": "Native", "kind": "Organ"}},
+            {"instrument": {"type": "Firmus"}},
+        ]}});
+        migrate_27_to_28(&mut v).unwrap();
+        let t = &v["project"]["tracks"];
+        assert_eq!(t[0]["instrument"]["params"]["rr.order"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["rr.order"], 0.0);
+        assert_eq!(t[1]["instrument"]["params"]["z0.gen"], 3.0);
+        assert_eq!(t[2]["instrument"]["params"]["rr.order"], 1.0);
+        assert!(t[3]["instrument"].get("params").is_none());
+        assert!(t[4]["instrument"].get("params").is_none());
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let samplers = |file: &str| -> Vec<(String, f32)> {
+            let text = std::fs::read_to_string(dir.join(file)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            p.tracks
+                .iter()
+                .filter_map(|t| {
+                    let n = t.instrument.native()?;
+                    (n.kind == cantus_core::InstrumentKind::Sampler)
+                        .then(|| (t.name.clone(), n.get("rr.order")))
+                })
+                .collect()
+        };
+        let old = samplers("v27.cantus");
+        assert!(
+            !old.is_empty() && old.iter().all(|(_, o)| *o == 0.0),
+            "{old:?}"
+        );
+        let new = samplers("v28.cantus");
+        assert!(
+            new.contains(&("Exemplar in order".to_string(), 1.0)),
+            "{new:?}"
+        );
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.
