@@ -373,8 +373,8 @@ fn opening_for_a_purpose_offers_instruments_or_effects() {
         .all(|&i| v.catalog[i].role == Role::Instrument));
     assert_eq!(
         v.visible().len(),
-        9 + 2,
-        "nine of ours and two hosted instruments"
+        InstrumentKind::ready_kinds().count() + 2 + 2,
+        "every ready native kind, Pulsus II and Firmus, and two hosted instruments"
     );
 }
 

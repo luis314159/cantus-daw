@@ -24,8 +24,8 @@ use crate::model::TrackIcon;
 
 pub const NAME_KEY: &str = "instrument.chorda";
 pub const ICON: TrackIcon = TrackIcon::Keys;
-/// Offered in the instrument picker once it is finished.
-pub const READY: bool = false;
+/// Offered in the instrument picker (round 28: finished, ADR 0059).
+pub const READY: bool = true;
 
 /// The model a new instance plays (a key absent from a spec reads as this).
 pub const MODEL: f32 = 1.0;

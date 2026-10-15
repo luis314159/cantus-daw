@@ -3,8 +3,9 @@
 //! **The model.** Every key is one, two or three **digital waveguide strings** (Smith,
 //! *PASP*) struck by a **nonlinear, hysteretic felt hammer** (Chaigne & Askenfelt 1994;
 //! Stulov 1995) solved against the strings with a fixed number of iterations. A string's
-//! stiffness is a **dispersion filter** — first-order allpass sections fitted to the
-//! stiff-string law `f_n = n F₀ √(1 + B n²)` at its partials — and its losses a
+//! stiffness is a **dispersion filter** — second-order allpass sections (Abel, Välimäki &
+//! Smith 2010) refined by Levenberg–Marquardt until every partial below 5 kHz lies within a
+//! cent of the stiff-string law `f_n = n F₀ √(1 + B n²)` — and its losses a
 //! **linear-phase loss filter** whose decay follows the measured `σ = b₁ + b₂ (kπ/L)²` (so
 //! changing a decay never moves a pitch). The strings of a key meet at a **yielding bridge**
 //! (Weinreich 1977): slightly detuned, they beat, and their in-phase motion drains through

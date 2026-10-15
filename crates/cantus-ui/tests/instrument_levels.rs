@@ -1,6 +1,6 @@
 //! The native instruments' output levels (round 19, fixes-mix):
 //!
-//! - **headroom**: no factory preset of any native instrument (the seven native kinds and
+//! - **headroom**: no factory preset of any native instrument (the native kinds and
 //!   Pulsus II's kits) passes 0 dBFS on a dense riff played at velocity 127, at unity
 //!   (channel volume 0 dB, fader 0 dB). The slap bass once peaked at +15 dBFS there.
 //! - **staging** (ignored, a report): each instrument's default patch on a C-major triad at
@@ -15,7 +15,7 @@ use std::sync::Arc;
 mod measure;
 use measure::{db, lufs, true_peak_db};
 
-const KINDS: [InstrumentKind; 7] = [
+const KINDS: [InstrumentKind; 8] = [
     InstrumentKind::Wavetable,
     InstrumentKind::Analog,
     InstrumentKind::Fm,
@@ -23,6 +23,7 @@ const KINDS: [InstrumentKind; 7] = [
     InstrumentKind::Bass,
     InstrumentKind::ElectricPiano,
     InstrumentKind::Organ,
+    InstrumentKind::Chorda,
 ];
 
 /// One part playing `evs` (beats) at 120 BPM, at unity, nothing on the master.

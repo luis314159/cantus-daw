@@ -474,7 +474,7 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
     ]),
     preset!("chorda.preset.felt", &["preset.tag.keys", "chorda.tag.soft"], [
         "hardness" => -0.85, "tilt" => -9.0, "decay" => 0.55, "sympathy" => 0.7, "body" => 0.7,
-        "dynamics" => 0.7, "gain" => 6.0,
+        "dynamics" => 0.7, "gain" => 3.0,
     ]),
     preset!("chorda.preset.honky", &["preset.tag.keys", "chorda.tag.character"], [
         "unison" => 7.0, "coupling" => 0.3, "hardness" => 0.4, "tilt" => 3.0, "body" => 0.8,
