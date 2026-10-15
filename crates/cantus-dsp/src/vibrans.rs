@@ -103,7 +103,8 @@ impl Vibrans {
             lfo: Lfo::new(sample_rate),
             lines: [ModLine::new(max), ModLine::new(max)],
             amp: Glide::new(0.0, 60.0, sample_rate, SNAP),
-            base: Glide::new(0.0, 120.0, sample_rate, SNAP),
+            // The centre glides as the sweep does, so it never falls under it.
+            base: Glide::new(0.0, 60.0, sample_rate, SNAP),
             mix: Glide::new(1.0, 10.0, sample_rate, 1e-6),
             out: Glide::new(1.0, 10.0, sample_rate, 1e-6),
             spread: Glide::new(0.0, 30.0, sample_rate, 1e-6),
@@ -186,6 +187,11 @@ impl Vibrans {
         self.blocks = 0;
     }
 
+    /// The centre delay and the sweep now, samples.
+    pub fn centre_and_sweep(&self) -> (f32, f32) {
+        (self.base.value, self.amp.value)
+    }
+
     pub fn latency(&self) -> usize {
         0
     }
@@ -257,7 +263,9 @@ impl Vibrans {
             let env = self.rise();
             self.since = self.since.saturating_add(1);
             let a = self.amp.next() * env;
-            let d0 = self.base.next();
+            // And a snap or a stall can never leave it under: a read is never ahead of the
+            // newest sample.
+            let d0 = self.base.next().max(self.amp.value);
             let mix = self.mix.next();
             let out = self.out.next();
             let spread = self.spread.next();

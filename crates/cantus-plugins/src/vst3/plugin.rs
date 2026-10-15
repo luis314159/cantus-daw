@@ -814,5 +814,7 @@ pub unsafe fn context_transport(c: *const ProcessContext) -> Option<HostTranspor
         }),
         loop_beats: (has(kCycleActive as u32) && has(kCycleValid as u32))
             .then_some((c.cycleStartMusic, c.cycleEndMusic)),
+        // projectTimeSamples is always there: the song in seconds when the beats are not.
+        seconds: (c.sampleRate > 0.0).then(|| c.projectTimeSamples as f64 / c.sampleRate),
     })
 }

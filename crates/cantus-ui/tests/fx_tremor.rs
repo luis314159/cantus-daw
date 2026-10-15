@@ -3,7 +3,7 @@
 
 mod support;
 use cantus_core::*;
-use cantus_ui::views::fx::{modfx, tremor};
+use cantus_ui::views::fx::tremor;
 use cantus_ui::CantusApp;
 use support::*;
 
@@ -92,39 +92,66 @@ fn a_click_on_a_mode_chooses_it_as_one_step() {
     assert_eq!(mode, 0.0, "one undo step");
 }
 
-/// The display draws the gain the DSP applies: a constant 1 through Tremor at a free
-/// rate, against the curve at the same phase.
+/// The display draws what the DSP plays, the editor's own `movement_at` against the DSP
+/// at a free rate, in every mode: tremolo's gains (constant 1s in); auto-pan's places in
+/// the balance (constant 1s in, each channel's gain the balance's); harmonic's two halves
+/// (a constant is all low half; a signal at half the sample rate all high half).
 #[test]
 fn the_movement_drawn_is_the_movement_played() {
-    let mut spec = EffectSpec::new(EffectKind::Tremolo);
-    for (k, v) in [
-        ("depth", 0.8),
-        ("sync", 0.0),
-        ("rate", 3.0),
-        ("shape", 2.0),
-        ("edge", 0.4),
-        ("spread", 60.0),
-    ] {
-        spec.set(k, v);
-    }
-    let ts = cantus_engine::fx::tremor::settings(&spec);
-    let mut d = cantus_dsp::tremor::Tremor::new(48_000.0);
-    d.set(&ts);
-    d.reset();
     let n = 16_000;
-    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
-    d.process(&mut l, &mut r);
-    for i in (0..n).step_by(37) {
-        let c = 3.0 * i as f64 / 48_000.0;
-        let (a, b) = modfx::lfo_at(&ts.lfo, ts.spread, c);
-        let g = |m: f32| 1.0 - 0.8 * (0.5 - 0.5 * m);
-        assert!((l[i] - g(a)).abs() < 1e-4, "left {i}: {} vs {}", l[i], g(a));
-        assert!(
-            (r[i] - g(b)).abs() < 1e-4,
-            "right {i}: {} vs {}",
-            r[i],
-            g(b)
-        );
+    let nyquist: Vec<f32> = (0..n)
+        .map(|i| if i % 2 == 0 { 1.0 } else { -1.0 })
+        .collect();
+    for mode in [0.0f32, 1.0, 2.0] {
+        let mut spec = EffectSpec::new(EffectKind::Tremolo);
+        for (k, v) in [
+            ("mode", mode),
+            ("depth", 0.8),
+            ("sync", 0.0),
+            ("rate", 3.0),
+            ("shape", 2.0),
+            ("edge", 0.4),
+            ("spread", 60.0),
+        ] {
+            spec.set(k, v);
+        }
+        let ts = cantus_engine::fx::tremor::settings(&spec);
+        let run = |input: &[f32]| {
+            let mut d = cantus_dsp::tremor::Tremor::new(48_000.0);
+            d.set(&ts);
+            d.reset();
+            let (mut l, mut r) = (input.to_vec(), input.to_vec());
+            d.process(&mut l, &mut r);
+            (l, r)
+        };
+        let (l, r) = run(&vec![1.0f32; n]);
+        let (hl, _) = run(&nyquist);
+        // Past the crossover's settling (harmonic); every sample counts in the others.
+        let from = if mode == 2.0 { 4_800 } else { 0 };
+        for i in (from..n).step_by(37) {
+            let c = 3.0 * i as f64 / 48_000.0;
+            let (a, b) = tremor::movement_at(&ts, c);
+            let (want_l, want_r) = match mode as u8 {
+                0 => ((a + 1.0) / 2.0, (b + 1.0) / 2.0),
+                1 => (
+                    cantus_dsp::tremor::balance_gains(a).0,
+                    cantus_dsp::tremor::balance_gains(b).1,
+                ),
+                _ => ((a + 1.0) / 2.0, (b + 1.0) / 2.0),
+            };
+            let (got_l, got_r) = match mode as u8 {
+                2 => (l[i], hl[i].abs()),
+                _ => (l[i], r[i]),
+            };
+            assert!(
+                (got_l - want_l).abs() < 1e-3,
+                "mode {mode}, sample {i}: {got_l} vs {want_l}"
+            );
+            assert!(
+                (got_r - want_r).abs() < 1e-3,
+                "mode {mode}, sample {i}: {got_r} vs {want_r}"
+            );
+        }
     }
 }
 
@@ -154,4 +181,27 @@ fn every_preset_moves_the_sound() {
         }
         assert!(spec.get("depth") > 0.0, "{label} does something");
     }
+}
+
+/// Swing reads the same in the editor as everywhere else (the exported plug-ins, a typed
+/// value, an automation lane): 0 … 100 % of the parameter, one number for one setting.
+#[test]
+fn swing_reads_in_the_editor_as_the_host_reads_it() {
+    let (mut a, s0, fx) = with_tremor();
+    {
+        let mut host = cantus_ui::views::fx::host::DawHost::new(&mut a, s0, fx, "tremor");
+        cantus_ui::views::fx::host::FxHost::set_many(
+            &mut host,
+            &[("sync", 1.0), ("swing", 0.37)],
+            "cmd.fx_preset",
+        );
+    }
+    let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+    let host_reads = cantus_core::fx::readout::readout(0.37, "%");
+    assert_eq!(host_reads, "37%");
+    assert!(text.contains(&host_reads), "{text}");
+    assert!(
+        !text.contains("59%"),
+        "not the drum machines' 50 … 75 %: {text}"
+    );
 }

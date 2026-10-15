@@ -34,6 +34,9 @@ pub const GRID: u64 = 16;
 /// block-size independent, so cutting is invisible, and it bounds the bypass line.
 pub const MAX_CHUNK: usize = 4096;
 
+/// Transport changes a block can carry (CLAP sends one per tempo change, seek or wrap).
+const MOVES: usize = 16;
+
 /// How long the bypass takes to cross-fade, in seconds.
 const BYPASS_FADE_S: f32 = 0.010;
 
@@ -95,44 +98,96 @@ pub struct HostTransport {
     pub time_sig: Option<(u16, u16)>,
     /// The loop, quarter notes, while it is on.
     pub loop_beats: Option<(f64, f64)>,
+    /// The song position in seconds, when the host gives that and not the beats (CLAP's
+    /// seconds timeline, VST3's `projectTimeSamples`).
+    pub seconds: Option<f64>,
 }
 
 impl HostTransport {
-    /// The engine's song position `offset` samples into a block that starts where `self`
-    /// says, at `sample_rate`; `stream` is the samples since activation, the timeline when
-    /// the host gives none.
-    pub fn position(&self, offset: usize, sample_rate: f64, stream: u64) -> SongPosition {
-        let tempo = self
-            .tempo
+    /// The tempo the units play at: the host's when it is a real one, else 120.
+    pub fn tempo_or_default(&self) -> f64 {
+        self.tempo
             .filter(|t| t.is_finite() && *t > 0.0)
-            .unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
-        let (beats, samples) = match self.beats.filter(|b| b.is_finite()) {
-            // The block's start in samples at this tempo, then whole samples on from it:
-            // the same integers whatever the block is cut into.
-            Some(b) => {
-                let start = (b * 60.0 / tempo * sample_rate).round() as i64;
-                if self.playing {
-                    (
-                        b + offset as f64 * tempo / (60.0 * sample_rate),
-                        start + offset as i64,
-                    )
-                } else {
-                    (b, start)
-                }
-            }
+            .unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO)
+    }
+
+    /// The beats at the block's start: the host's, or its seconds at its tempo.
+    fn start_beats(&self) -> Option<f64> {
+        match self.beats.filter(|b| b.is_finite()) {
+            Some(b) => Some(b),
             None => {
-                let s = stream as i64 + offset as i64;
-                (s as f64 * tempo / (60.0 * sample_rate), s)
+                let tempo = self.tempo.filter(|t| t.is_finite() && *t > 0.0)?;
+                self.seconds
+                    .filter(|s| s.is_finite())
+                    .map(|s| s * tempo / 60.0)
+            }
+        }
+    }
+
+    /// The loop, in samples from the block's start: (where it first wraps, its length).
+    /// `None` without a loop, while stopped, or when the block starts past its end.
+    fn wraps(&self, sample_rate: f64) -> Option<(usize, usize)> {
+        let (ls, le) = self.loop_beats?;
+        let b = self.start_beats()?;
+        if !self.playing || le <= ls || b >= le {
+            return None;
+        }
+        let inc = self.tempo_or_default() / (60.0 * sample_rate);
+        let first = ((le - b) / inc).ceil().max(1.0) as usize;
+        let len = ((le - ls) / inc).round().max(1.0) as usize;
+        Some((first, len))
+    }
+
+    /// The first place after `offset` (samples from the block's start) where the host's
+    /// loop wraps: a chunk must end there, as the engine never lets a pass cross a wrap.
+    pub fn wrap_after(&self, offset: usize, sample_rate: f64) -> Option<usize> {
+        let (first, len) = self.wraps(sample_rate)?;
+        Some(if offset < first {
+            first
+        } else {
+            first + ((offset - first) / len + 1) * len
+        })
+    }
+
+    /// The engine's song position `offset` samples into a block that starts where `self`
+    /// says, at `sample_rate`; `stream` is the samples since activation **at the block's
+    /// start**, the timeline when the host gives none.
+    pub fn position(&self, offset: usize, sample_rate: f64, stream: u64) -> SongPosition {
+        let tempo = self.tempo_or_default();
+        let inc = tempo / (60.0 * sample_rate);
+        let to_samples = |beats: f64| (beats * 60.0 / tempo * sample_rate).round() as i64;
+        let (beats, samples) = match self.start_beats() {
+            // The block's start in samples at this tempo, then whole samples on from it:
+            // the same integers whatever the block is cut into; past the loop's end, the
+            // same from the loop's start.
+            Some(b) => match (self.playing, self.wraps(sample_rate)) {
+                (true, Some((first, len))) if offset >= first => {
+                    let (ls, _) = self.loop_beats.unwrap_or_default();
+                    let k = (offset - first) % len;
+                    (ls + k as f64 * inc, to_samples(ls) + k as i64)
+                }
+                (true, _) => (b + offset as f64 * inc, to_samples(b) + offset as i64),
+                (false, _) => (b, to_samples(b)),
+            },
+            None => {
+                // Seconds and no tempo: the song in samples; no timeline at all: the stream.
+                let base = match self.seconds.filter(|s| s.is_finite()) {
+                    Some(sec) => (sec * sample_rate).round() as i64,
+                    None => stream as i64,
+                };
+                let s = base + if self.playing { offset as i64 } else { 0 };
+                (s as f64 * inc, s)
             }
         };
         let (num, den) = self.time_sig.unwrap_or((4, 4));
         let bar = f64::from(num.max(1)) * 4.0 / f64::from(den.max(1));
+        let host_bar = self.bar_start.filter(|_| offset == 0);
         SongPosition {
             playing: self.playing,
             tempo_bpm: tempo,
             beats,
             samples,
-            bar_start_beats: self.bar_start.unwrap_or((beats / bar).floor() * bar),
+            bar_start_beats: host_bar.unwrap_or((beats / bar).floor() * bar),
             time_sig_num: num,
             time_sig_den: den,
             loop_beats: self.loop_beats,
@@ -150,16 +205,20 @@ struct HostView {
     /// `f64` bits.
     tempo: AtomicU64,
     beats: AtomicU64,
+    /// The host gives a timeline (beats or seconds): the beats mean something.
+    timeline: AtomicBool,
     /// Numerator in the high half, denominator in the low.
     sig: AtomicU32,
 }
 
-/// What an editor reads of the host's transport.
+/// What an editor reads of the host's transport: as it is at the end of the last block.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct HostSeen {
     pub playing: bool,
+    /// The tempo the units play at (the host's, or 120 when it gives none or a wrong one).
     pub tempo: f64,
-    pub beats: f64,
+    /// Quarter notes from the song's start; `None` when the host gives no timeline.
+    pub beats: Option<f64>,
     pub time_sig: (u16, u16),
 }
 
@@ -251,7 +310,8 @@ impl Shared {
         }
     }
 
-    /// The host's transport as the audio thread last saw it; `None` until a host gave one.
+    /// The host's transport as the audio thread last saw it; `None` until a host gave one,
+    /// or once it stopped giving one.
     pub fn host_transport(&self) -> Option<HostSeen> {
         let h = &self.host;
         h.known.load(Ordering::Acquire).then(|| {
@@ -259,24 +319,33 @@ impl Shared {
             HostSeen {
                 playing: h.playing.load(Ordering::Relaxed),
                 tempo: f64::from_bits(h.tempo.load(Ordering::Relaxed)),
-                beats: f64::from_bits(h.beats.load(Ordering::Relaxed)),
+                beats: h
+                    .timeline
+                    .load(Ordering::Relaxed)
+                    .then(|| f64::from_bits(h.beats.load(Ordering::Relaxed))),
                 time_sig: ((sig >> 16) as u16, (sig & 0xFFFF) as u16),
             }
         })
     }
 
-    /// The audio thread's view of the host's transport (no allocation, no lock).
-    fn publish_transport(&self, t: &HostTransport) {
+    /// The audio thread's view of the host's transport at the end of a block: the
+    /// position the units reached, at the tempo they play (no allocation, no lock).
+    fn publish_transport(&self, p: &SongPosition, timeline: bool) {
         let h = &self.host;
-        let tempo = t.tempo.unwrap_or(cantus_dsp::modfx_clock::DEFAULT_TEMPO);
-        let (num, den) = t.time_sig.unwrap_or((4, 4));
-        h.playing.store(t.playing, Ordering::Relaxed);
-        h.tempo.store(tempo.to_bits(), Ordering::Relaxed);
-        h.beats
-            .store(t.beats.unwrap_or(0.0).to_bits(), Ordering::Relaxed);
-        h.sig
-            .store((u32::from(num) << 16) | u32::from(den), Ordering::Relaxed);
+        h.playing.store(p.playing, Ordering::Relaxed);
+        h.tempo.store(p.tempo_bpm.to_bits(), Ordering::Relaxed);
+        h.beats.store(p.beats.to_bits(), Ordering::Relaxed);
+        h.timeline.store(timeline, Ordering::Relaxed);
+        h.sig.store(
+            (u32::from(p.time_sig_num) << 16) | u32::from(p.time_sig_den),
+            Ordering::Relaxed,
+        );
         h.known.store(true, Ordering::Release);
+    }
+
+    /// The host gave no transport for the last block.
+    fn forget_transport(&self) {
+        self.host.known.store(false, Ordering::Release);
     }
 
     /// The sample rate of the last activation (0 before the first).
@@ -490,6 +559,13 @@ pub struct Processor {
     pairs: Option<Producer<(f32, f32)>>,
     /// The host's transport at the start of the current block, when it gives one.
     transport: Option<HostTransport>,
+    /// Transports the host sent inside the block (CLAP events): offset, transport.
+    moves: [(u32, HostTransport); MOVES],
+    n_moves: usize,
+    /// The last block's beats and where it began, and the tempo found from them, for a host
+    /// that gives beats but no tempo.
+    last_beats: Option<(f64, u64)>,
+    found_tempo: Option<f64>,
 }
 
 impl Drop for Processor {
@@ -539,6 +615,10 @@ impl Processor {
         Processor {
             pairs,
             transport: None,
+            moves: [(0, HostTransport::default()); MOVES],
+            n_moves: 0,
+            last_beats: None,
+            found_tempo: None,
             modulation: vec![0.0; base.len()].into_boxed_slice(),
             sidechain: base[table.sidechain] >= 0.5,
             shared,
@@ -556,7 +636,36 @@ impl Processor {
     /// The host's transport at the start of the next block (`None`: the host gave none,
     /// and the units keep their own time). Audio thread; no allocation.
     pub fn set_transport(&mut self, t: Option<HostTransport>) {
+        // A host that gives beats but no tempo: the tempo is how far the beats moved since
+        // the last block, so the units do not step at every block.
+        let t = t.map(|mut t| {
+            if t.tempo.filter(|v| v.is_finite() && *v > 0.0).is_none() && t.playing {
+                if let (Some(b), Some((b0, p0))) = (t.beats, self.last_beats) {
+                    let samples = self.pos.saturating_sub(p0) as f64;
+                    let sr = f64::from(self.shared.sample_rate());
+                    if samples > 0.0 && b > b0 && sr > 0.0 {
+                        self.found_tempo = Some((b - b0) / samples * 60.0 * sr);
+                    }
+                }
+                t.tempo = self.found_tempo;
+            }
+            self.last_beats = t.beats.filter(|b| b.is_finite()).map(|b| (b, self.pos));
+            t
+        });
         self.transport = t;
+        self.n_moves = 0;
+    }
+
+    /// A transport the host sends inside the next block (CLAP's transport event), taking
+    /// effect `offset` samples in. Audio thread; no allocation (a few are kept; more are
+    /// dropped, keeping the last).
+    pub fn push_transport_event(&mut self, offset: u32, t: HostTransport) {
+        if self.n_moves < self.moves.len() {
+            self.moves[self.n_moves] = (offset, t);
+            self.n_moves += 1;
+        } else if let Some(last) = self.moves.last_mut() {
+            *last = (offset, t);
+        }
     }
 
     pub fn shared(&self) -> &Arc<Shared> {
@@ -687,7 +796,15 @@ impl Processor {
         let block_start = self.pos;
         let mut s = 0usize;
         let mut next = 0usize;
+        let sr = f64::from(self.shared.sample_rate());
+        let (mut cur, mut cur_at, mut mv) = (self.transport, 0usize, 0usize);
+        let n_moves = self.n_moves;
         while s < n {
+            while mv < n_moves && self.moves[mv].0 as usize <= s {
+                cur = Some(self.moves[mv].1);
+                cur_at = self.moves[mv].0 as usize;
+                mv += 1;
+            }
             if self.pos.is_multiple_of(GRID) {
                 while next < events.len() && events[next].offset as usize <= s {
                     self.apply(&events[next]);
@@ -712,9 +829,17 @@ impl Processor {
                 n
             };
             let end = end.min(n).min(s + MAX_CHUNK);
-            if let Some(t) = &self.transport {
-                let sr = f64::from(self.shared.sample_rate());
-                let p = t.position(s, sr, block_start + s as u64);
+            // Where the host's song is: a transport it sent inside the block takes over at
+            // its sample, and no chunk crosses one or the host's loop end.
+            let mut end = end;
+            if mv < n_moves {
+                end = end.min((self.moves[mv].0 as usize).max(s + 1));
+            }
+            if let Some(t) = &cur {
+                if let Some(w) = t.wrap_after(s - cur_at, sr) {
+                    end = end.min(cur_at + w);
+                }
+                let p = t.position(s - cur_at, sr, block_start + cur_at as u64);
                 self.unit.set_position(&p);
             }
             // The notes in this piece, at their offsets in it (a note past the block's
@@ -740,9 +865,16 @@ impl Processor {
         for nt in &notes[next_note..] {
             self.unit.note(0, nt.note);
         }
-        if let Some(t) = &self.transport {
-            self.shared.publish_transport(t);
+        // The editor sees where the song is at the block's end.
+        match &cur {
+            Some(t) => {
+                let p = t.position(n - cur_at, sr, block_start + cur_at as u64);
+                let timeline = t.start_beats().is_some() || t.seconds.is_some();
+                self.shared.publish_transport(&p, timeline);
+            }
+            None => self.shared.forget_transport(),
         }
+        self.n_moves = 0;
         if self.shared.editor_open.load(Ordering::Relaxed) {
             self.publish_telemetry();
         }

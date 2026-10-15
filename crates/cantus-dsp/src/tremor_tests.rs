@@ -173,7 +173,7 @@ fn a_full_square_tremolo_opens_and_closes_on_the_beat() {
 }
 
 #[test]
-fn auto_pan_keeps_a_mono_sources_power() {
+fn auto_pan_is_a_balance_that_never_raises_a_channel() {
     let s = TremorSettings {
         mode: Mode::Pan,
         depth: 1.0,
@@ -184,26 +184,47 @@ fn auto_pan_keeps_a_mono_sources_power() {
         },
         ..TremorSettings::default()
     };
-    let mut l = vec![0.5f32; 30_000];
+    // A full-scale stereo signal never comes out above full scale.
+    let mut l = vec![1.0f32; 30_000];
     let mut r = l.clone();
     drive(&mut unit(&s), &mut l, &mut r, 0, || 777);
+    assert!(l.iter().chain(&r).all(|x| *x <= 1.0), "no gain above unity");
+    // The near channel stays whole while the far one tapers away.
     for i in (0..30_000).step_by(97) {
-        let p = l[i] * l[i] + r[i] * r[i];
-        assert!((p - 0.5).abs() < 1e-5, "{i}: {p}");
+        assert!(l[i] == 1.0 || r[i] == 1.0, "{i}: {} {}", l[i], r[i]);
     }
-    // It reaches both sides.
     assert!(l.iter().any(|x| *x < 1e-3) && r.iter().any(|x| *x < 1e-3));
 }
 
 #[test]
-fn the_pan_law_is_unity_at_the_centre_and_equal_power_everywhere() {
-    let (a, b) = pan_gains(0.0);
-    assert!((a - 1.0).abs() < 1e-6 && (b - 1.0).abs() < 1e-6);
+fn the_balance_is_unity_at_the_centre_and_equal_power_on_the_far_side() {
+    assert_eq!(balance_gains(0.0), (1.0, 1.0));
     for k in 0..=40 {
         let p = -1.0 + k as f32 / 20.0;
-        let (gl, gr) = pan_gains(p);
-        assert!((gl * gl + gr * gr - 2.0).abs() < 1e-5);
+        let (gl, gr) = balance_gains(p);
+        assert!(gl <= 1.0 && gr <= 1.0);
+        // The far channel follows the equal-power taper.
+        let (el, er) = pan_gains(p);
+        let far = if p > 0.0 { (gl, el) } else { (gr, er) };
+        assert!((far.0 - far.1.min(1.0)).abs() < 1e-6, "{p}");
     }
+}
+
+#[test]
+fn leaving_harmonic_mode_strands_nothing_and_the_unit_comes_to_rest() {
+    let mut s = busy(Mode::Harmonic);
+    let (mut l, mut r) = music(10_000, 12);
+    let mut a = unit(&s);
+    drive(&mut a, &mut l, &mut r, 0, || 512);
+    s.mode = Mode::Tremolo;
+    a.set(&s);
+    let mut silent = 0;
+    while !a.at_rest() && silent < 96_000 {
+        let (mut zl, mut zr) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+        a.process(&mut zl, &mut zr);
+        silent += 64;
+    }
+    assert!(a.at_rest(), "{:?}", a.rest_blocker());
 }
 
 #[test]

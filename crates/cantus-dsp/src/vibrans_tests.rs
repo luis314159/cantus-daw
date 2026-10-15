@@ -222,3 +222,25 @@ fn it_comes_to_rest_and_skipping_is_processing_silence() {
     b.process(&mut lb, &mut rb);
     assert!(same(&la, &lb) && same(&ra, &rb));
 }
+
+/// Turning the depth up never asks for a read ahead of the newest sample: the centre is
+/// always at least the sweep (else the read would clamp at 0 and break the pitch curve).
+#[test]
+fn a_rising_depth_never_reads_ahead_of_the_input() {
+    let mut s = VibransSettings {
+        lfo: LfoSettings {
+            rate: Rate::Hz(0.2),
+            ..LfoSettings::default()
+        },
+        ..VibransSettings::default()
+    };
+    let mut v = unit(&s);
+    s.depth_cents = 100.0;
+    v.set(&s);
+    for _ in 0..24_000 {
+        let (mut l, mut r) = ([0.1f32], [0.1f32]);
+        v.process(&mut l, &mut r);
+        let (centre, sweep) = v.centre_and_sweep();
+        assert!(centre >= sweep, "centre {centre} under the sweep {sweep}");
+    }
+}

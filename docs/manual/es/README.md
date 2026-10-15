@@ -618,9 +618,9 @@ lista del marco.
 | Efecto | Qué hace | Conviene saber |
 |---|---|---|
 | Concentus | Engorda y ensancha | *Juno I, II, I+II* son el chorus del Juno-60 tal como barre su circuito; *Dimension 1–4* ensanchan sin vaivén; *Voces libres* son de 1 a 4 voces con tu propio LFO. La **prueba en mono** dice si la anchura sobrevive a un altavoz mono. |
-| Flexus | El peine del avión a reacción | **Por cero** retrasa el sonido seco 5 ms (el pie lo dice y Cantus lo compensa) para que la copia en movimiento lo atraviese, como hacían dos magnetófonos. El barrido sigue al LFO, a lo fuerte que tocas (*Envolvente*) o a una perilla (*Manual*). *El peine ahora* dibuja las muescas que oyes. |
+| Flexus | El peine del avión a reacción | Flexus va siempre 5 ms tarde (el pie lo dice y Cantus lo compensa), así que activar **Por cero** nunca mueve tu pista; por cero, el sonido seco espera esos 5 ms para que la copia en movimiento lo atraviese, como hacían dos magnetófonos. El barrido sigue al LFO, a lo fuerte que tocas (*Envolvente*) o a una perilla (*Manual*). *El peine ahora* dibuja las muescas que oyes. |
 | Phasis | Muescas que barren | De 2 a 12 etapas (una muesca por cada dos), realimentación en ambos sentidos; el Phase 90 y el Small Stone son presets. |
-| Tremor | Nivel o panorama a tempo | *Trémolo*, *Autopaneo* (de igual potencia) y *Armónico* (graves contra agudos, como los amplis marrones). Las formas cuadrada y de sierra tienen un **borde** suave: nunca hacen clic. |
+| Tremor | Nivel o panorama a tempo | *Trémolo*, *Autopaneo* (un balance: el lado lejano baja, el cercano nunca sube) y *Armónico* (graves contra agudos, como los amplis marrones). Las formas cuadrada y de sierra tienen un **borde** suave: nunca hacen clic. |
 | Vibrans | Una afinación que ondula | La profundidad va en **cents**, sea cual sea la velocidad; la **Entrada** deja que el vibrato llegue después de cada nota, como el de un cantante. |
 | Anulus | Campanas, metal, robots | La portadora se muestra como nota con sus cents; *En qué se convierte un tono de 1 kHz* dibuja los parciales que crea. |
 | Translatio | Mueve cada parcial los mismos hercios | No es un transpositor: los armónicos dejan de serlo. *Arriba*, *Abajo* o *Ambas* (una por lado); la realimentación hace las espirales de barbería. Su otra banda lateral queda más de 60 dB por debajo de 20 Hz a 20 kHz. |

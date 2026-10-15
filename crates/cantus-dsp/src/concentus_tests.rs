@@ -228,3 +228,21 @@ fn it_comes_to_rest_and_skipping_is_processing_silence() {
         assert!(same(&la, &lb) && same(&ra, &rb), "{mode:?}");
     }
 }
+
+#[test]
+fn opening_the_tone_strands_nothing_and_the_unit_comes_to_rest() {
+    let x = noise(10_000, 22);
+    let mut s = with(Mode::JunoII);
+    let mut a = unit(&s);
+    let (mut l, mut r) = (x.clone(), x);
+    drive(&mut a, &mut l, &mut r, || 512);
+    s.tone_hz = 20_000.0;
+    a.set(&s);
+    let mut silent = 0;
+    while !a.at_rest() && silent < 480_000 {
+        let (mut zl, mut zr) = (vec![0.0f32; 64], vec![0.0f32; 64]);
+        a.process(&mut zl, &mut zr);
+        silent += 64;
+    }
+    assert!(a.at_rest(), "{:?}", a.rest_blocker());
+}

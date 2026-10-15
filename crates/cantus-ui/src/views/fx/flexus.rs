@@ -129,11 +129,8 @@ pub fn editor(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui) -> frame
     let tel = host.telemetry();
     let sr = host.sample_rate();
     let fs = cantus_engine::fx::flexus::settings(host.spec());
-    let latency = if fs.through_zero {
-        cantus_dsp::flexus::tz_centre(sr) as f32
-    } else {
-        0.0
-    };
+    // The same in both paths (the through-zero centre), so the switch never moves it.
+    let latency = cantus_dsp::flexus::tz_centre(sr) as f32;
     let mut chips = std::mem::take(&mut st.chips);
     let chip = [chips.latency(latency, sr)];
     let look = frame::Look {
@@ -537,10 +534,24 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
     b.polyline(&pts, 1.4 * k, ink);
 }
 
+/// The rate the inspector's line names: the LFO's in the LFO mode, none when the
+/// envelope or the hand moves the sweep.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    match cantus_engine::fx::flexus::settings(spec).mode {
+        Mode::Lfo => modfx::PreviewRate::Spec(spec),
+        _ => modfx::PreviewRate::Off,
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let fs = cantus_engine::fx::flexus::settings(spec);
     let mode = frame::tr(MODE_KEYS[fs.mode as usize]);
-    modfx::preview_strip(ui, spec, mode, &modfx::Pct(fs.mix), &|c| {
+    let words = modfx::PreviewWords {
+        mode,
+        rate: preview_rate(spec),
+        amount: &modfx::Pct(fs.mix),
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         let (ml, _) = match fs.mode {
             Mode::Lfo => modfx::lfo_at(&fs.lfo, fs.spread, c),
             _ => (2.0 * fs.manual - 1.0, 0.0),

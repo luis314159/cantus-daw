@@ -81,11 +81,6 @@ pub fn hz_pill(v: f32, b: &mut String) {
     }
 }
 
-/// Swing as the drum machines say it: 50 % straight … 75 %.
-pub fn swing_pill(v: f32, b: &mut String) {
-    let _ = write!(b, "{:.0}%", 50.0 + 25.0 * v);
-}
-
 // ---- the LFO card ---------------------------------------------------------------------
 
 /// What an editor's LFO card holds besides the rate and the shape.
@@ -139,7 +134,9 @@ pub fn lfo_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect,
         if c.swing {
             let on = synced(host);
             ui.add_enabled_ui(on, |ui| {
-                controls::param_with(ui, s, host, "swing", Size::M, Some(&swing_pill));
+                // 0 … 100 %, as the exported plug-ins and a typed value read it: 0 straight,
+                // 100 % the second cycle of each pair half a cycle late (an MPC's 75 %).
+                controls::param_with(ui, s, host, "swing", Size::M, Some(&pct_pill));
             });
         }
         if c.spread {
@@ -520,13 +517,48 @@ impl std::fmt::Display for RateWords<'_> {
     }
 }
 
+/// The rate an inspector preview names: the spec's (its division when synced, else its
+/// rate), one the unit really plays at (a Juno model's), or none (the LFO not in use).
+#[derive(Copy, Clone)]
+pub enum PreviewRate<'a> {
+    Spec(&'a cantus_core::EffectSpec),
+    Hz(f32),
+    Off,
+}
+
+impl std::fmt::Display for PreviewRate<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match *self {
+            PreviewRate::Spec(spec) => std::fmt::Display::fmt(&RateWords(spec), f),
+            PreviewRate::Hz(hz) => write!(f, "{hz:.2} Hz"),
+            PreviewRate::Off => Ok(()),
+        }
+    }
+}
+
+/// The inspector line under a preview's picture: "mode · rate · amount", or "mode ·
+/// amount" with no rate in use.
+pub struct PreviewWords<'a> {
+    pub mode: &'a str,
+    pub rate: PreviewRate<'a>,
+    pub amount: &'a dyn std::fmt::Display,
+}
+
+impl std::fmt::Display for PreviewWords<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.rate {
+            PreviewRate::Off => write!(f, "{} \u{b7} {}", self.mode, self.amount),
+            rate => write!(f, "{} \u{b7} {rate} \u{b7} {}", self.mode, self.amount),
+        }
+    }
+}
+
 /// The inspector's picture of a modulation unit: a cycle and a half of what it does in a
 /// strip, and its mode, rate and amount in one line.
 pub fn preview_strip(
     ui: &mut egui::Ui,
     spec: &cantus_core::EffectSpec,
-    mode: &str,
-    amount: &dyn std::fmt::Display,
+    words: &PreviewWords<'_>,
     curve: &dyn Fn(f64) -> f32,
 ) -> egui::Response {
     use crate::design::space;
@@ -555,14 +587,14 @@ pub fn preview_strip(
             ink.grid_strong,
         );
         b.polyline(&pts, 1.5, ink.hue);
-        let words = Rect::from_min_max(pos2(pic.right() + space::S2, rect.top()), rect.max);
+        let place = Rect::from_min_max(pos2(pic.right() + space::S2, rect.top()), rect.max);
         canvas::line_in(
             b,
-            words,
+            place,
             Role::Body,
             ink.text,
             st.tk(),
-            format_args!("{mode} \u{b7} {} \u{b7} {amount}", RateWords(spec),),
+            format_args!("{words}"),
         );
         let edge = if resp.hovered() { ink.hue } else { ink.edge };
         canvas::edge_b(b, rect, &Ink { edge, ..ink });

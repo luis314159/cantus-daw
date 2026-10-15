@@ -24,8 +24,10 @@ fn the_editor_paints_the_shift_the_partials_and_the_rejection() {
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0)).to_lowercase();
     for want in [
         "the shift over two lfo cycles",
-        "what a 220 hz tone becomes",
-        "left up · right down",
+        "what a tone becomes",
+        "220 hz",
+        "left up",
+        "right down",
         "rejection",
         "69db",
         "up",
@@ -59,13 +61,15 @@ fn level(x: &[f32], f: f64) -> f64 {
 }
 
 /// A 220 Hz harmonic tone through the shifter: every partial drawn is where the DSP put it,
-/// at its level (the feedback's passes included).
+/// at its level (the feedback's passes included), on each channel — the right one in Both.
 #[test]
 fn the_partials_drawn_are_the_partials_played() {
     for (shift, side, fb) in [
         (37.0f32, 0.0f32, 0.0f32),
         (61.0, 1.0, 0.0),
         (29.0, 0.0, 0.5),
+        // Both: the left channel up, the right down, each measured on its own channel.
+        (43.0, 2.0, 0.0),
     ] {
         let mut spec = EffectSpec::new(EffectKind::FreqShift);
         for (k, v) in [("shift", shift), ("side", side), ("fb", fb), ("mix", 1.0)] {
@@ -92,8 +96,9 @@ fn the_partials_drawn_are_the_partials_played() {
         u.process(&mut l, &mut r);
         let mut parts = [(0.0f32, 0.0f32, 0u8); 64];
         let count = translatio::partials(&ts, &mut parts);
-        for &(f, amp, ch) in parts[..count].iter().filter(|p| p.2 == 0) {
-            let measured = level(&l[48_000..], f64::from(f)) / 0.2;
+        for &(f, amp, ch) in &parts[..count] {
+            let out = if ch == 0 { &l } else { &r };
+            let measured = level(&out[48_000..], f64::from(f)) / 0.2;
             let db = 20.0 * cantus_dsp::math::log10(measured / f64::from(amp));
             assert!(
                 db.abs() < 1.0,
@@ -117,4 +122,14 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
         }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// The inspector's line names the LFO's rate only while the LFO swings the shift.
+#[test]
+fn the_preview_names_a_rate_only_while_the_lfo_swings() {
+    let mut spec = EffectSpec::new(EffectKind::FreqShift);
+    spec.set("lfo", 0.0);
+    assert_eq!(translatio::preview_rate(&spec).to_string(), "");
+    spec.set("lfo", 40.0);
+    assert!(!translatio::preview_rate(&spec).to_string().is_empty());
 }

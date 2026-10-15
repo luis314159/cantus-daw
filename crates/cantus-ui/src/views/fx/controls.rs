@@ -59,8 +59,8 @@ fn with_text<R>(fmt: impl FnOnce(&mut String), f: impl FnOnce(&str) -> R) -> R {
 /// allocation once `out` has grown): `1.2 kHz`, `350 Hz`, `-3.5 dB`, `12.0 ms`, `25%`.
 pub fn write_readout(v: f32, unit: &str, out: &mut String) {
     let _ = match unit {
-        "Hz" if v >= 1_000.0 => write!(out, "{:.1} kHz", v / 1_000.0),
-        "Hz" if v < 10.0 => write!(out, "{v:.2} Hz"),
+        "Hz" if v.abs() >= 1_000.0 => write!(out, "{:.1} kHz", v / 1_000.0),
+        "Hz" if v.abs() < 10.0 => write!(out, "{v:.2} Hz"),
         "Hz" => write!(out, "{v:.0} Hz"),
         "ms" if v >= 1_000.0 => write!(out, "{:.2} s", v / 1_000.0),
         "ms" if v >= 100.0 => write!(out, "{v:.0} ms"),

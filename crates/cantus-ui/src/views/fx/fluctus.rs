@@ -243,8 +243,13 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let fs = cantus_engine::fx::fluctus::settings(spec);
     let c = Curve::new(&fs.points, cantus_engine::fx::fluctus::shape_at);
     let i = (spec.get("div").round().max(0.0) as usize).min(modfx::DIV_NAMES.len() - 1);
-    let words = DivWords(modfx::DIV_NAMES[i]);
-    modfx::preview_strip(ui, spec, frame::tr("fluctus.preview"), &words, &|cyc| {
+    // The cycle's note value is its rate: named once, as the amount.
+    let words = modfx::PreviewWords {
+        mode: frame::tr("fluctus.preview"),
+        rate: modfx::PreviewRate::Off,
+        amount: &DivWords(modfx::DIV_NAMES[i]),
+    };
+    modfx::preview_strip(ui, spec, &words, &|cyc| {
         2.0 * c.at((cyc - cyc.floor()) as f32) - 1.0
     })
 }

@@ -171,7 +171,12 @@ impl Translatio {
     }
 
     pub fn set_transport(&mut self, t: &Transport) {
+        let epoch = self.clock.epoch();
         self.clock.set(t);
+        if self.clock.epoch() != epoch {
+            // Playback starts the carrier again, so live plays what the offline render does.
+            self.phase = 0.0;
+        }
         self.lfo.follow(&self.clock);
     }
 

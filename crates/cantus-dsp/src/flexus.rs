@@ -95,6 +95,7 @@ impl Default for FlexusSettings {
 pub const TZ_CENTRE_MS: f32 = 5.0;
 /// The longest delay a read asks for, ms.
 const MAX_MS: f32 = 20.0;
+// (The plain path reads up to 15 ms; through zero, the centre and half the depth.)
 /// The shortest delay the wet is read at, samples (the interpolator's neighbours).
 const MIN_READ: f32 = 1.0;
 const SNAP: f32 = 1e-6;
@@ -122,6 +123,8 @@ pub struct Flexus {
     lines: [ModLine; 2],
     /// The dry path's line, through-zero.
     dry: [ModLine; 2],
+    /// The plain path's output, delayed by the centre so both paths share one latency.
+    late: [ModLine; 2],
     centre: usize,
     /// The last wet sample, for the feedback.
     back: [f32; 2],
@@ -152,6 +155,7 @@ impl Flexus {
             lfo: Lfo::new(sample_rate),
             lines: [ModLine::new(max), ModLine::new(max)],
             dry: [ModLine::new(centre + 4), ModLine::new(centre + 4)],
+            late: [ModLine::new(centre + 4), ModLine::new(centre + 4)],
             centre,
             back: [0.0; 2],
             env: 0.0,
@@ -208,7 +212,12 @@ impl Flexus {
     pub fn reset(&mut self) {
         self.clock.reset();
         self.lfo.reset();
-        for l in self.lines.iter_mut().chain(self.dry.iter_mut()) {
+        for l in self
+            .lines
+            .iter_mut()
+            .chain(self.dry.iter_mut())
+            .chain(self.late.iter_mut())
+        {
             l.reset();
         }
         self.back = [0.0; 2];
@@ -230,13 +239,11 @@ impl Flexus {
         self.blocks = 0;
     }
 
-    /// The dry path's delay in through-zero mode; nothing otherwise.
+    /// The through-zero centre, **in both paths**: through zero it is the dry path's delay;
+    /// plain, the flanger's output is delayed by as much. So the switch — a parameter a lane
+    /// may automate — never moves the latency delay compensation planned for.
     pub fn latency(&self) -> usize {
-        if self.set.through_zero {
-            self.centre
-        } else {
-            0
-        }
+        self.centre
     }
 
     pub fn at_rest(&self) -> bool {
@@ -263,6 +270,7 @@ impl Flexus {
             .lines
             .iter()
             .chain(self.dry.iter())
+            .chain(self.late.iter())
             .all(ModLine::is_silent)
         {
             return Some("a line holds sound");
@@ -275,7 +283,12 @@ impl Flexus {
 
     pub fn skip(&mut self, frames: usize) {
         self.clock.skip(frames);
-        for l in self.lines.iter_mut().chain(self.dry.iter_mut()) {
+        for l in self
+            .lines
+            .iter_mut()
+            .chain(self.dry.iter_mut())
+            .chain(self.late.iter_mut())
+        {
             l.skip(frames);
         }
         self.zrun = self.zrun.saturating_add(frames as u32);
@@ -371,6 +384,18 @@ impl Flexus {
             } else {
                 (dry_x * gd + wl * gw, dry_y * gd + wr * gw)
             };
+            // The plain path leaves through its own line, as late as the through-zero path,
+            // so the latency never depends on the switch. (Through zero, the line keeps the
+            // input, so a switch back to plain is never a gap.)
+            if tz {
+                self.late[0].push(x);
+                self.late[1].push(y);
+            } else {
+                self.late[0].push(ox);
+                self.late[1].push(oy);
+                ox = self.late[0].tap(self.centre);
+                oy = self.late[1].tap(self.centre);
+            }
             if out != 1.0 {
                 ox *= out;
                 oy *= out;

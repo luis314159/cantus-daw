@@ -252,22 +252,7 @@ fn display_card(
         let r = cr.body;
         st.display = Some(r);
         let depth = ts.depth;
-        let mode = ts.mode;
-        let curve = |c: f64| -> (f32, f32) {
-            let (l, rr) = modfx::lfo_at(&ts.lfo, ts.spread, c);
-            match mode {
-                Mode::Tremolo => {
-                    let g = |m: f32| 1.0 - depth * (0.5 - 0.5 * m);
-                    (2.0 * g(l) - 1.0, 2.0 * g(rr) - 1.0)
-                }
-                Mode::Pan => (depth * l, depth * rr),
-                Mode::Harmonic => {
-                    let lo = 1.0 - depth * (0.5 - 0.5 * l);
-                    let hi = 1.0 - depth * (0.5 + 0.5 * l);
-                    (2.0 * lo - 1.0, 2.0 * hi - 1.0)
-                }
-            }
-        };
+        let curve = |c: f64| movement_at(ts, c);
         modfx::movement(
             ui,
             &s,
@@ -282,6 +267,28 @@ fn display_card(
             modfx::idle_note(ui, &s, r, "tremor.idle");
         }
     });
+}
+
+/// What the display draws `c` cycles in, as the two curves (−1…1): each channel's gain
+/// (tremolo), each channel's place in the balance (auto-pan: the DSP's
+/// `balance_gains(depth · m)`), the low and the high half's gains (harmonic). The tests
+/// hold it against what the DSP plays.
+pub fn movement_at(ts: &TremorSettings, c: f64) -> (f32, f32) {
+    let depth = ts.depth;
+    let (l, r) = modfx::lfo_at(&ts.lfo, ts.spread, c);
+    let gain = |g: f32| 2.0 * g - 1.0;
+    match ts.mode {
+        Mode::Tremolo => {
+            let g = |m: f32| 1.0 - depth * (0.5 - 0.5 * m);
+            (gain(g(l)), gain(g(r)))
+        }
+        Mode::Pan => (depth * l, depth * r),
+        Mode::Harmonic => {
+            let lo = 1.0 - depth * (0.5 - 0.5 * l);
+            let hi = 1.0 - depth * (0.5 + 0.5 * l);
+            (gain(lo), gain(hi))
+        }
+    }
 }
 
 /// A mode's picture: a wave under an envelope (tremolo), a ball between two sides (pan),
@@ -314,13 +321,12 @@ fn mode_glyph(b: &mut crate::kit::Brush, r: Rect, i: usize, ink: egui::Color32, 
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ts = cantus_engine::fx::tremor::settings(spec);
     let mode = frame::tr(MODE_KEYS[ts.mode as usize]);
-    modfx::preview_strip(ui, spec, mode, &modfx::Pct(ts.depth), &|c| {
-        let (l, _) = modfx::lfo_at(&ts.lfo, ts.spread, c);
-        match ts.mode {
-            Mode::Pan => ts.depth * l,
-            _ => 2.0 * (1.0 - ts.depth * (0.5 - 0.5 * l)) - 1.0,
-        }
-    })
+    let words = modfx::PreviewWords {
+        mode,
+        rate: modfx::PreviewRate::Spec(spec),
+        amount: &modfx::Pct(ts.depth),
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| movement_at(&ts, c).0)
 }
 
 /// The settings `--editor tremor` and the screenshot tool open it with: a gated pulse on

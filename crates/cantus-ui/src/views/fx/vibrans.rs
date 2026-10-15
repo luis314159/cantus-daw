@@ -289,9 +289,12 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let vs = cantus_engine::fx::vibrans::settings(spec);
     let amount = vs.depth_cents / 100.0;
     let depth = modfx::Unit(vs.depth_cents, "ct");
-    modfx::preview_strip(ui, spec, frame::tr("vibrans.preview"), &depth, &|c| {
-        pitch_at(&vs, c).0 * amount
-    })
+    let words = modfx::PreviewWords {
+        mode: frame::tr("vibrans.preview"),
+        rate: modfx::PreviewRate::Spec(spec),
+        amount: &depth,
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| pitch_at(&vs, c).0 * amount)
 }
 
 /// The settings `--editor vibrans` and the screenshot tool open it with: a singer's

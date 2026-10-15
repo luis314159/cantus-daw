@@ -571,9 +571,9 @@ untouched — so turn that one control up, or pick a factory preset from the fra
 | Effect | What it does | Worth knowing |
 |---|---|---|
 | Concentus | Thickens and widens | *Juno I, II, I+II* are the Juno-60's chorus as its circuit sweeps; *Dimension 1–4* widen without the wobble; *Free voices* are 1–4 voices on your own LFO. The **mono check** tells you whether the width survives a mono speaker. |
-| Flexus | The jet-plane comb | **Through zero** delays the dry sound by 5 ms (the footer says so, and Cantus compensates) so the moving copy passes through it, as two tape machines did. The sweep follows the LFO, how loud you play (*Envelope*), or a knob (*Manual*). *The comb now* draws the notches you hear. |
+| Flexus | The jet-plane comb | Flexus always runs 5 ms late (the footer says so, and Cantus compensates), so switching **Through zero** never moves your track; through zero, the dry sound waits those 5 ms so the moving copy passes through it, as two tape machines did. The sweep follows the LFO, how loud you play (*Envelope*), or a knob (*Manual*). *The comb now* draws the notches you hear. |
 | Phasis | Sweeping notches | 2 to 12 stages (a notch for every two), feedback either way; the Phase 90 and Small Stone are presets. |
-| Tremor | Level or pan in time | *Tremolo*, *Auto-pan* (equal power) and *Harmonic* (lows against highs, like the brown amps). Square and saw shapes have a soft **edge**, so they never click. |
+| Tremor | Level or pan in time | *Tremolo*, *Auto-pan* (a balance: the far side fades, the near side never gets louder) and *Harmonic* (lows against highs, like the brown amps). Square and saw shapes have a soft **edge**, so they never click. |
 | Vibrans | Pitch that wavers | The depth is in **cents**, whatever the rate; **Rise** lets the vibrato arrive after each note, as a singer's does. |
 | Anulus | Bells, metal, robots | The carrier is shown as a note with its cents; *What a 1 kHz tone becomes* draws the partials it makes. |
 | Translatio | Moves every partial by the same hertz | Not a pitch shifter: harmonics stop being harmonic. *Up*, *Down*, or *Both* (one per side); feedback makes the barber-pole spirals. Its other sideband is more than 60 dB down from 20 Hz to 20 kHz. |

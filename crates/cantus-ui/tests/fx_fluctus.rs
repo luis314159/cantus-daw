@@ -211,3 +211,20 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// The Point card edits the point the curve rings: with nothing chosen yet (a fresh editor,
+/// after a preset), the card's point (the first one) is the selected one, so it is ringed.
+#[test]
+fn the_point_the_card_edits_is_the_point_the_curve_marks() {
+    let (mut a, s0, _) = with_fluctus();
+    let ctx = ctx();
+    assert_eq!(a.fx.fluctus.selected, None);
+    plot(&mut a, &ctx);
+    let fs = cantus_engine::fx::fluctus::settings(&spec(&a, s0));
+    let first = fs.points.iter().position(Option::is_some);
+    assert!(first.is_some(), "the default curve has points");
+    assert_eq!(
+        a.fx.fluctus.selected, first,
+        "the card's point is the ringed one"
+    );
+}

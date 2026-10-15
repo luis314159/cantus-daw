@@ -5,7 +5,7 @@ Soundtoys Tremolator, Logic's Tremolo, Kilohearts Trance Gate, the Fender "brown
 harmonic vibrato (ADR 0055).*
 
 Tremor moves a sound's **level** (tremolo), its **place between the speakers** (auto-pan,
-under the equal-power law of ADR 0012), or — in the harmonic mode — its **lows against its
+a balance under the equal-power law of ADR 0012), or — in the harmonic mode — its **lows against its
 highs**, in time with the song. Its LFO is the modulation family's: synced to the song
 position (a note value from 8/1 to 1/32, dotted and triplet values between, with swing) or
 free in Hz from the start of playback; six shapes, a soft edge on the stepped ones so a
@@ -51,7 +51,7 @@ everything else is set to a musical value, waiting for the depth.
 | `rate` | 0.05 … 20 Hz | 4 Hz | the free rate, from the start of playback |
 | `shape` | 0 … 5 | Sine | Sine, Triangle, Square, Saw up, Saw down, Random |
 | `edge` | 0 … 100 % | 30 % | the soft edge of the square, the saws and the random steps |
-| `swing` | 50 … 75 % | 50 % (straight) | every second synced cycle starts late, as the drum machines swing |
+| `swing` | 0 … 100 % | 0 % (straight) | every second synced cycle starts late, as the drum machines swing: 0 … 100 % here is an MPC's 50 … 75 % (67 % here is the triplet feel, an MPC's 66 %) |
 | `spread` | 0 … 180° | 0 | the right channel's LFO ahead of the left |
 | `offset` | 0 … 360° | 0 | where in its cycle the LFO starts |
 | `xover` | 100 … 4 000 Hz | 700 Hz | the harmonic mode's crossover |
@@ -61,9 +61,11 @@ everything else is set to a musical value, waiting for the depth.
 
 - **Tremolo**: gain `1 − depth·(½ − ½·m)` for the LFO's value `m` in −1 … 1: full at the
   top, `1 − depth` at the bottom.
-- **Auto-pan**: the pan position is `depth·m`; the gains are the equal-power law
-  normalised to unity at the centre (`√2·cos θ`, `√2·sin θ`), so the power of a mono
-  source is constant as it moves and a centred moment is the input itself.
+- **Auto-pan**: the pan position is `depth·m`; it is a **balance** (`balance_gains`): the
+  near channel stays at unity and the far one takes the equal-power law's gain (`√2·cos θ`
+  or `√2·sin θ`, capped at 1), so no channel is ever raised — a stereo source never gains
+  the +3 dB a pan law would give its near side (review 1) — and a centred moment is the
+  input itself.
 - **Harmonic**: a Butterworth low-pass at the crossover and its complement; the lows take
   the tremolo gain, the highs the opposite one.
 - **The clock** (`modfx_clock`): the song sample at the current tempo while playing — the

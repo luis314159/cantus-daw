@@ -15,7 +15,7 @@ use super::modfx::{self, LfoCard};
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::kit::shell::Grid;
-use crate::kit::text::{Role, Src, Text};
+use crate::kit::text::{self as ktext, Role, Src, Text};
 use crate::kit::{with_brush, Function, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::anulus::{AnulusSettings, Wave};
@@ -263,8 +263,11 @@ fn carrier_card(
         }
         with_brush(&ui.painter_at(r), |b| {
             let t = Text::new(&st.note.1, Role::Value, ink.text);
-            let at = pos2(r.left() + 6.0 * k, r.center().y);
-            canvas::put(b, at, Align2::LEFT_CENTER, &t, k, Some(ink.plate));
+            // Under the rate's plate (a Value line at the top right), clear of the curve's
+            // start and of the centre line.
+            let line = ktext::measure(b.ctx(), &t, k).y;
+            let at = pos2(r.right() - 6.0 * k, r.top() + 3.0 * k + line + 4.0 * k);
+            canvas::put(b, at, Align2::RIGHT_TOP, &t, k, Some(ink.plate));
         });
         if a.mix == 0.0 {
             modfx::idle_note(ui, s, r, "anulus.idle");
@@ -358,7 +361,7 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
                     b.dot(pos2(x, y_of(amp)), 2.5 * k, ink.hue);
                 }
                 for (word, at) in [("100", 100.0f32), ("1k", 1_000.0), ("10k", 10_000.0)] {
-                    let t = Text::new(word, Role::Micro, ink.dim);
+                    let t = Text::new(word, Role::Micro, ink.dim).caps(false);
                     canvas::put(
                         b,
                         pos2(x_of(at), r.bottom() - 2.0 * k),
@@ -369,9 +372,20 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
                     );
                 }
                 let t = Text::key("anulus.input", Role::Micro, ink.dim).caps(true);
-                canvas::put(
+                let word = canvas::put(
                     b,
                     pos2(x_in + 4.0 * k, plot.top()),
+                    Align2::LEFT_TOP,
+                    &t,
+                    k,
+                    Some(ink.plate),
+                );
+                // The tone's frequency under its name, in its own case (a title in capitals
+                // would print "KHZ").
+                let t = Text::new("1 kHz", Role::Micro, ink.text).caps(false);
+                canvas::put(
+                    b,
+                    pos2(word.left(), word.bottom() + 2.0 * k),
                     Align2::LEFT_TOP,
                     &t,
                     k,
@@ -383,10 +397,24 @@ fn partials_card(ui: &mut egui::Ui, s: &Style, rect: Rect, a: &AnulusSettings) {
     );
 }
 
+/// The rate the inspector's line names: the LFO's, only while it swings the carrier.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    if cantus_engine::fx::anulus::settings(spec).lfo_st > 0.0 {
+        modfx::PreviewRate::Spec(spec)
+    } else {
+        modfx::PreviewRate::Off
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let a = cantus_engine::fx::anulus::settings(spec);
     let freq = modfx::Unit(a.freq_hz, "Hz");
-    modfx::preview_strip(ui, spec, frame::tr("anulus.preview"), &freq, &|c| {
+    let words = modfx::PreviewWords {
+        mode: frame::tr("anulus.preview"),
+        rate: preview_rate(spec),
+        amount: &freq,
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         cantus_dsp::anulus::carrier(a.wave, c * 2.0 - (c * 2.0).floor(), 1e-4)
     })
 }

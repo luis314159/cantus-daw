@@ -25,7 +25,8 @@ fn the_editor_paints_the_carrier_as_a_note_and_the_partials() {
     for want in [
         "the carrier over two lfo cycles",
         "e5 +2",
-        "what a 1 khz tone becomes",
+        "what a tone becomes",
+        "1 khz",
         "input",
         "sine",
         "square",
@@ -116,4 +117,14 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
         }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// The inspector's line names the LFO's rate only while the LFO swings the carrier.
+#[test]
+fn the_preview_names_a_rate_only_while_the_lfo_swings() {
+    let mut spec = EffectSpec::new(EffectKind::RingMod);
+    spec.set("lfo", 0.0);
+    assert_eq!(anulus::preview_rate(&spec).to_string(), "");
+    spec.set("lfo", 5.0);
+    assert!(!anulus::preview_rate(&spec).to_string().is_empty());
 }

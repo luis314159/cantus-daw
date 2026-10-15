@@ -31,7 +31,8 @@ that a plain flanger never reaches.
 - Few show anything but an LFO; none shows the comb itself.
 
 Flexus answers each: through zero with its latency reported to delay compensation (5 ms,
-shown in the footer), synced and envelope sweeps, a manual position, and two pictures —
+shown in the footer — and the same 5 ms with the switch off, so automating the switch never
+changes the delay compensation), synced and envelope sweeps, a manual position, and two pictures —
 the wet's delay against the dry over two cycles (the dry drawn as the line the wet
 crosses), and **the comb now**, computed with the unit's own arithmetic (the Hermite read
 and the feedback loop), so the notches you see are the notches you hear (the tests measure
@@ -44,7 +45,7 @@ The mix starts at 0, so Flexus inserted and left alone returns its input to the 
 | Key | Range | Default | Meaning |
 |---|---|---|---|
 | `mode` | 0 … 2 | LFO | what moves the sweep: LFO, Envelope, Manual |
-| `tz` | off / on | off | through zero: the dry delayed by 5 ms (the latency), the wet crossing it |
+| `tz` | off / on | off | through zero: the dry delayed by 5 ms, the wet crossing it (the 5 ms latency is reported either way) |
 | `mix` | 0 … 100 % | 0 | equal-gain crossfade, both full at 50 % |
 | `delay` | 0.05 … 5 ms | 0.5 ms | the sweep's shortest delay (plain mode) |
 | `depth` | 0 … 10 ms | 4 ms | how far it sweeps (through zero: ± half, up to the 5 ms centre) |
@@ -66,6 +67,10 @@ The mix starts at 0, so Flexus inserted and left alone returns its input to the 
 - **The centre null**: at `m = 0` the wet is read at exactly `C` samples — the sample the dry
   line holds — so with the wet inverted at 50 % the two cancel to exact zeros. The DSP test,
   the engine test and the editor's comb all hold it.
+- **A constant latency**: the plain flanger's output goes through a line of the same
+  fixed `C`, so the unit reports `C` whatever the switch says. A latency that changed with an
+  automated switch would ask the engine to re-plan delay compensation mid-song (review 1);
+  this way the switch only changes the sound.
 - Feedback: the last wet sample, times `fb`, joins the input of the swept line; after a
   silence what is left below 10⁻²⁰ is flushed, so heavy feedback still comes to rest.
 - The envelope is a peak follower (attack, release) on both channels; it runs in every
@@ -80,8 +85,8 @@ Drum bus swirl · Envelope sweep · Hand-set comb.
 
 ## What the tests hold
 
-- At its defaults the render is the render without it, to the bit; through zero at mix 0,
-  the render later by exactly the 240 samples it reports; the centre point silences the
+- At its defaults the render is the render without it later by exactly the 240 samples it
+  reports, to the bit; through zero at mix 0 the same; the switch keeps the latency; the centre point silences the
   strip to the bit across the whole engine; the same bits at blocks of 1, 7, 64, 1 000 and
   4 096 in every mode; live equal to offline (`fx_flexus.rs`).
 - The DSP: the centre null to the bit and no null a hair off it; the wet passes ahead of

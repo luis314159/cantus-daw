@@ -15,12 +15,12 @@ use super::modfx::{self, LfoCard};
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::kit::shell::Grid;
-use crate::kit::text::{Role, Src, Text};
-use crate::kit::{with_brush, Function, Style};
+use crate::kit::text::{self as ktext, Role, Src, Text};
+use crate::kit::{with_brush, Brush, Fill, Function, Style};
 use cantus_core::{EffectId, EffectKind, EffectSpec, StripId};
 use cantus_dsp::modfx_lfo::Shape;
 use cantus_dsp::translatio::{Side, TranslatioSettings, T_REJECTION, T_SECTIONS};
-use egui::{pos2, vec2, Align2, Rect};
+use egui::{pos2, vec2, Align2, Color32, Rect};
 use std::fmt::Write as _;
 
 const KIND: EffectKind = EffectKind::FreqShift;
@@ -306,6 +306,8 @@ fn partials_card(
             let mut parts = [(0.0f32, 0.0f32, 0u8); 64];
             let n = partials(ts, &mut parts);
             let both = ts.side == Side::Both;
+            // The right channel in "both": a hue far from the card's, named in the legend.
+            let right = right_ink(s);
             with_brush(&ui.painter_at(r), |b| {
                 canvas::ground_b(b, r, &ink, s.hue_tok);
                 for db in [-12.0f32, -24.0] {
@@ -334,7 +336,7 @@ fn partials_card(
                         continue;
                     }
                     let x = x_of(f) + if both && ch == 1 { 2.0 * k } else { 0.0 };
-                    let c = if ch == 0 { ink.hue } else { ink.ok };
+                    let c = if ch == 0 { ink.hue } else { right };
                     b.segment(
                         pos2(x, plot.bottom()),
                         pos2(x, y_of(amp)),
@@ -344,8 +346,19 @@ fn partials_card(
                     );
                     b.dot(pos2(x, y_of(amp)), 2.5 * k, c);
                 }
+                // The tone's fundamental named on its line, in its own case (a title in
+                // capitals would print "HZ").
+                let t = Text::new("220 Hz", Role::Micro, ink.dim).caps(false);
+                canvas::put(
+                    b,
+                    pos2(x_of(220.0) + 4.0 * k, plot.top()),
+                    Align2::LEFT_TOP,
+                    &t,
+                    k,
+                    Some(ink.plate),
+                );
                 for (word, at) in [("100", 100.0f32), ("1k", 1_000.0)] {
-                    let t = Text::new(word, Role::Micro, ink.dim);
+                    let t = Text::new(word, Role::Micro, ink.dim).caps(false);
                     canvas::put(
                         b,
                         pos2(x_of(at), r.bottom() - 2.0 * k),
@@ -368,15 +381,7 @@ fn partials_card(
                     );
                 }
                 if both {
-                    let t = Text::key("translatio.both_legend", Role::Micro, ink.dim).caps(true);
-                    canvas::put(
-                        b,
-                        pos2(r.left() + 6.0 * k, r.top() + 3.0 * k),
-                        Align2::LEFT_TOP,
-                        &t,
-                        k,
-                        Some(ink.plate),
-                    );
+                    legend(b, r, &ink, right, k);
                 }
                 canvas::edge_b(b, r, &ink);
             });
@@ -384,10 +389,62 @@ fn partials_card(
     );
 }
 
+/// The right channel's ink in "both": the Dynamics hue (amber), far from the card's teal.
+pub fn right_ink(s: &Style) -> Color32 {
+    s.t.hue(Function::Dynamics)
+}
+
+/// "Left up · right down", each word after a swatch of its channel's colour, on one plate
+/// at the display's top left.
+fn legend(b: &mut Brush, r: Rect, ink: &Ink, right: Color32, k: f32) {
+    let words = [
+        (
+            Text::key("translatio.legend.left", Role::Micro, ink.dim).caps(true),
+            ink.hue,
+        ),
+        (
+            Text::key("translatio.legend.right", Role::Micro, ink.dim).caps(true),
+            right,
+        ),
+    ];
+    let sizes = words.map(|(t, _)| ktext::measure(b.ctx(), &t, k));
+    let (swatch, gap) = (9.0 * k, 10.0 * k);
+    let width: f32 = sizes.iter().map(|s| swatch + s.x).sum::<f32>() + gap;
+    let height = sizes.iter().map(|s| s.y).fold(0.0, f32::max);
+    let top = r.top() + 3.0 * k;
+    let plate = Rect::from_min_size(pos2(r.left() + 6.0 * k, top), vec2(width, height));
+    b.rrect(
+        b.snap_rect(plate.expand2(vec2(3.0 * k, 1.0 * k))),
+        2.0 * k,
+        Fill::Solid(ink.plate),
+    );
+    let mut x = plate.left();
+    for ((t, c), size) in words.iter().zip(sizes) {
+        b.dot(pos2(x + 3.0 * k, top + height * 0.5), 3.0 * k, *c);
+        x += swatch;
+        canvas::put(b, pos2(x, top), Align2::LEFT_TOP, t, k, None);
+        x += size.x + gap;
+    }
+}
+
+/// The rate the inspector's line names: the LFO's, only while it swings the shift.
+pub fn preview_rate(spec: &EffectSpec) -> modfx::PreviewRate<'_> {
+    if cantus_engine::fx::translatio::settings(spec).lfo_hz > 0.0 {
+        modfx::PreviewRate::Spec(spec)
+    } else {
+        modfx::PreviewRate::Off
+    }
+}
+
 pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
     let ts = cantus_engine::fx::translatio::settings(spec);
     let shift = modfx::Unit(ts.shift_hz, "Hz");
-    modfx::preview_strip(ui, spec, frame::tr("translatio.preview"), &shift, &|c| {
+    let words = modfx::PreviewWords {
+        mode: frame::tr("translatio.preview"),
+        rate: preview_rate(spec),
+        amount: &shift,
+    };
+    modfx::preview_strip(ui, spec, &words, &|c| {
         modfx::lfo_at(&ts.lfo, 0.0, c).0 * if ts.lfo_hz > 0.0 { 0.8 } else { 0.0 }
     })
 }

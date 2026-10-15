@@ -12,11 +12,37 @@ use modfx::*;
 use support::*;
 
 #[test]
-fn flexus_at_its_defaults_renders_exactly_as_no_flexus() {
-    let reference = render_of(&demo_project());
-    let mut p = demo_project();
+fn flexus_at_its_defaults_is_the_render_later_by_its_latency() {
+    // Its constant latency (the through-zero centre, in both paths) is reported, so the
+    // strip comes out exactly that much later and otherwise untouched.
+    let base = lead_only();
+    let reference = render_of(&base);
+    let mut p = base.clone();
     add_effect(&mut p, EffectKind::Flanger);
-    assert_null(&reference, &render_of(&p), 0.0, "Flexus at its defaults");
+    let out = render_of(&p);
+    let shift = 2 * 240;
+    assert!(out[..shift].iter().all(|x| *x == 0.0));
+    assert_null(
+        &reference[..reference.len() - shift],
+        &out[shift..],
+        0.0,
+        "Flexus at its defaults",
+    );
+}
+
+/// The switch moves nothing delay compensation planned: both settings report the same.
+#[test]
+fn the_through_zero_switch_keeps_the_latency() {
+    let mut p = demo_project();
+    let fx = add_effect(&mut p, EffectKind::Flanger);
+    for tz in [0.0, 1.0] {
+        set(&mut p, fx, "tz", tz);
+        let slot = strip_of(&mut p, 0).effects[0].clone();
+        assert_eq!(
+            cantus_engine::EffectUnit::new(&slot, 48_000.0).latency(),
+            240
+        );
+    }
 }
 
 #[test]
