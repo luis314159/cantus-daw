@@ -314,15 +314,24 @@ the take as it was (never silence). Export waits for every render.
   vibrato), **drift** (the slow wander: 100 % as sung, 0 % flat), **vibrato** (0–200 %),
   **formant** (the voice's colour, up or down, the pitch kept) and **gain**.
 - **The macros** act on the selection, or on every note when none is selected:
-  **Correct pitch** by an amount (a note off the key goes to its nearest note), **Correct
-  drift** by an amount, and **Quantise** each note's start to the grid on the bar.
+  **Correct pitch** by an amount (each note that far toward its note — a note off the key
+  toward its nearest note; 0 % leaves it alone), **Correct drift** by an amount, and
+  **Quantise** each note's start to what *Quantise to* on the bar says: a grid, or
+  **another track's notes** (each note onto the nearest one within an eighth note).
 - **Key**: found from the notes; change it on the bar (Tonus's scales). **Original**
   compares with the take as sung (A/B) — the inspector has the same switch. **Reset** undoes
   every edit on the selection. **▶** plays from the first selected note. Every edit is one
   undo step.
 - **MIDI**: drag it onto an instrument track in the arrangement and the melody lands
   there, at the voice's place; click it for a new track. **Double**: a second voice a third
-  or a fifth above in the key, from the same take, on a track of its own.
+  or a fifth above in the key, from the same take, on a track of its own. MIDI out and
+  Double are also in the audio clip's right-click menu.
+- When the editor is narrow, what the bar has no room for is in its **…** menu, and the
+  panel under the notes scrolls sideways.
+
+**The pitch lane**: right-click an audio track's header ▸ **Pitch lane** shows its notes in
+a lane under it, in the arrangement — drag one up or down to move it, double-click it to
+pull it onto its note — for small fixes without opening the editor.
 
 Formants are kept when a note moves (measured within 3 dB at ±3 semitones). It works on
 one voice or one instrument line at a time; chords are not split into notes.

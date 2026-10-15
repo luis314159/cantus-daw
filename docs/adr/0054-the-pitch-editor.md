@@ -61,6 +61,14 @@ share the edit (it is audio content, ADR 0037).
 A note's shift (semitones), with `home = round(sung)`:
 `(pitch − home) + centre·(home − sung) + (drift − 1)·d(t) + (vibrato − 1)·v(t)` — exactly
 0 at the defaults. Moving a note keeps its deviation; *centre* 1 puts it on its note.
+*Correct pitch* by an amount `a` sets `pitch = home + a·(target − home)` and `centre = a`,
+so the note sounds at `sung + a·(target − sung)`: nothing at 0, its target at 1, never past
+it, and run again at another amount it is as if run once (review 1). A step of the key
+(↑/↓, a scale-snapped drag) from a note off the key lands on the key's next note, its cents
+kept (`PitchKey::step`, `steps_to`).
+
+The track keeps whether its **pitch lane** is shown (`Track::pitch_open`, schema 27,
+`Command::SetTrackPitchOpen`).
 
 ### 3. The curves and the time map (`cantus_core::pitch::curves`)
 
@@ -68,7 +76,9 @@ A note's shift (semitones), with `home = round(sung)`:
   (40 ms at most beside an edited note) keeping a **margin** of the renderer's fade + 2
   frames from an untouched neighbour, so its 5 ms cross-fade never reaches it. Notes sung
   legato (a gap under two margins) share a 15 ms transition across the joint.
-- Gain by output time, ramped inside the note.
+- Gain by output time, carried across a note's joints the same way (ramps in the gaps,
+  margins kept from untouched neighbours, a shared transition at a legato joint) — never a
+  step, so a gain-only edit never clicks (review 1).
 - **The time map**: every note's edges are anchors; inside a note it is stretched, in a gap
   the two sides' offsets are bridged between margins kept next to each side; a note moved
   by whole frames is read sample for sample. The take keeps its length. A source gap may
@@ -81,8 +91,8 @@ the edit as it was; `op` (`PitchOp`) names it for the undo menu (`cmd.pitch.*`) 
 whether a run merges (values and drags do; splits, joins and macros do not). Refused on a
 clip that is not audio and for an edit that is not valid. The edits themselves are pure
 functions (`cantus_core::pitch::edit`: set a value, set pitch, timing, shift, split, join,
-correct pitch/drift, quantise, reset) that keep an edit valid — clamped, stopped at the
-neighbours. MIDI out (`pitch::midi::notes`) and *Double* (`pitch::midi::double`, a
+correct pitch/drift, quantise to a grid or to onsets — another track's notes —, reset)
+that keep an edit valid — clamped, stopped at the neighbours. MIDI out (`pitch::midi::notes`) and *Double* (`pitch::midi::double`, a
 diatonic third or fifth in the key, a major third or a fifth when chromatic) are batches of
 ordinary inserts. Fuzz arm: `undo_invariants.rs` `pitch_command` (additive), including the
 refused paths.
@@ -92,13 +102,21 @@ refused paths.
 `render_edit` = the base's `render` with the curves and the map, then each note's gain; at
 the file's rate, then converted to the engine's like any source. `SampleCache::attach_audio`
 (the one path every playing snapshot takes — live, export, stems) attaches, for a clip
-whose edit is audible, **the render** keyed by (file, edit, rate): made at once in a manual
-cache (tests, offline), queued on the service's worker in a live one. **While a render is
-pending the clip plays the last render it had, or its source — never silence**, and
-`SampleCache::loading()` is true, so export and stems wait (they already wait for
-`loading()`, ADR 0050 §7). A render nothing plays any more is freed only when the cache is
-its last holder (the audio thread only decrements). The same snapshot data serves real time
-and the bounce: offline = real time and bounce = playback to the bit.
+whose edit is audible, **the render** keyed by (file, edit, rate): made at once only in a
+manual cache that asks for it (tests, one-off renders); `EngineHandle::compile` always
+queues it on the service's worker — with a device or without (review 1: the app without a
+device rendered on the UI thread at every drag frame). **While a render is pending the clip
+plays the newest render it had *at the engine's rate*, or its source — never silence, never
+a render made at another rate** — and `SampleCache::loading()` is true;
+`EngineHandle::compile_for_render` (export, stems) waits for every pending render before its
+second compile, so a file holds the edits made the same frame. Kept: each clip's last
+three renders (undo and redo play theirs at once) and, while the clip is compared with its
+original (*Original*), its edits' render (switching back plays it at once). A render
+nothing keeps is freed only when the cache is its last holder (the audio thread only
+decrements). A file that failed is tried again when the sample cache retries it (its
+analysis and renders forgotten); an idle worker is woken by every new job. The same
+snapshot data serves real time and the bounce: offline = real time and bounce = playback to
+the bit.
 
 ### 6. The editor (`views/pitch*.rs`), and how it opens
 
@@ -113,7 +131,29 @@ bars that zoom. Tools: *Edit* (select, pitch drag snapped to the scale, semitone
 Alt for cents —, time drag, stretch at the ends, double-click centre) and *Split*. The note
 card and the macro card under it; the bar: snap, key, *Original*, join, reset, play from
 the selection, MIDI (drag onto an arrangement track, or click for a new one), *Double*, the
-quantise grid, the take's status.
+quantise target (a grid, or another track's notes), the take's status. The bar is measured:
+what it has no room for (the status, then the quantise target, play/MIDI/Double, join and
+reset) folds into a … menu that offers it. The note panel keeps its knobs whole and
+scrolls sideways when narrower than its cards. The editor builds its curves and time map
+once per edit, not per frame. The key reads in the notes' letters, its mode in the
+language's own words ("A minor", "A menor"). The clip's menu also makes MIDI and a double
+without opening the editor.
+
+### 7. The pitch lane (review 1; BACKLOG §3c item 4)
+
+Under an audio track, shown from the track's menu (*Pitch lane*): its clips' notes (stored
+edit, or the analysed notes) as bars where they play, at the pitch they sound, the track's
+range fitted to the lane. Drag one up or down (the editor's snap; Alt for cents), or
+double-click it to pull its centre onto its note — the editor's `SetClipPitch`, one undo
+step a gesture — for small fixes without opening the editor. `TrackRow::pitch` is the
+lane's height in the arrangement's layout, after the take and automation lanes.
+
+### 8. Quantise to another track (review 1; BACKLOG §3c item 2)
+
+*Quantise to* on the bar is a grid or a track: with a track, each note's first edge on the
+timeline moves onto the nearest onset of that track within an eighth note — a note clip's
+notes as they play (loops repeated), or an audio clip's pitch notes — its length kept, its
+neighbours untouched (`edit::quantise_by`, `edit::quantise_to`).
 
 ## Consequences
 
@@ -125,10 +165,32 @@ quantise grid, the take's status.
   backwards; the editor's ruler, quantise (the note's source end, its start on the
   timeline) and MIDI out read it as it sounds (`ClipTime` mirrors the window as the engine
   does).
-- The renders live in memory (a stereo three-minute render at 48 kHz is 69 MB); only the
-  ones playing and each clip's last are kept.
+- The renders live in memory (a stereo three-minute render at 48 kHz is 69 MB); the ones
+  playing, each clip's last three and a compared clip's are kept.
+- Glue refuses audio clips whose pitch edits differ (one half's corrections would be lost);
+  the comp swipe keeping a comp clip's pitch edits is the comping builder's (`comping.rs`).
+- MIDI out gives the notes the clip plays: its window (one period of a loop, repeated to
+  its end), a note across an edge cut there.
 
 ## What the tests hold
+
+Review 1 added (each seen failing first where it could be): `cantus-core` gain never steps
+at a legato joint or a short gap; correct pitch below 100 % never overshoots, 0 % leaves a
+note alone, 100 % then 50 % is 50 %; a key step from an off-key note; quantise to onsets; a
+valid edit refused on a note clip (and the fuzz arm sending one); `SetTrackPitchOpen` in the
+fuzz; the fixture moves a note, stores A/B and a shown lane. `cantus-engine`: switching back
+from *Original* plays the kept render with nothing pending; undo and redo play their own
+renders at once; a render at another rate is never the fallback; without a device renders
+go to the worker and `compile_for_render` waits; a failed analysis is analysed again once
+the file is back (this found the idle worker never woken); the sample cache's retry forgets
+it. `cantus-ui`: key steps from an off-key note; Alt+arrows with the pointer away; a
+reversed slice fits, rules and plays from its window; MIDI out windowed; glue refuses
+different edits; the panel fits any width; a narrow bar folds into … with every action in
+its menu; quantise onto another track's notes; the clip menu's MIDI and Double; the
+inspector's tips; an idle editor builds nothing; the pitch lane (shown in one step, a drag
+and a double-click, undone); the demo's double plays its own render; the boot test in its own
+binary (`pitch_boot.rs`).
+
 
 - `cantus-core` `pitch_tests.rs` (21): defaults ask for nothing, to the bit; a moved note
   shifts only itself and never its neighbours or their margins; centre and moves; the

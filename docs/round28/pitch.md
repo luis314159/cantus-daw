@@ -110,7 +110,63 @@ ADR 0054 (amends ADR 0051 §4) · schema 27 · BACKLOG §3c.*
 - `inst_stream_review::a_late_start_two_or_three_octaves_up_is_kept_ready_at_its_level`
   failed once under load (a 200 ms wait while two other builders compiled) and passed twice
   on its own: not touched here.
-- Not in this round's brief, kept in BACKLOG §3c: a *Pitch* lane in the arrangement for
-  small fixes; polyphonic editing and ARA hosting ("later").
+- Kept in BACKLOG §3c as "later": polyphonic editing and ARA hosting. (The *Pitch* lane
+  and quantise to another track were built in review 1.)
 - The demo for the owner: `cargo run -p cantus-ui --example pitch_demo -- <folder>`; one is
   written at `F:\projects\daw-r28\shots\pitch\demo\pitch-demo.cantus`.
+
+## Review 1
+
+31 confirmed findings (`reviews/pitch-1.json`), 25 after duplicates, plus §3c's two items
+the brief had left out. Each fix has a test seen failing first where it could; none was
+judged wrong. Commits `…` after `448f48f` on `r28/pitch`.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0 | Note gain stepped at a legato joint / short gap (click) | gain follows the shift's rule: ramps in the gaps, shared at a joint (`Curves::gain_db_at`) | `a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap` (6 dB step before; < 0.05 dB now) |
+| 1 | Scale drag and ↑/↓ from an off-key note landed off the key | `PitchKey::step` / `steps_to` (cents kept, the next note of the key) in the drag, the keys and the lane | `a_scale_step_from_an_off_key_note_lands_on_the_key`, UI `a_key_step_from_an_off_key_note_lands_on_the_key` |
+| 2, 30 | Reversed clip opened fitted to the whole take | frames ordered before clamping | `a_reversed_slice_opens_on_its_slice_with_its_bars` |
+| 3 | Reversed play-from-selection started near the note's end | the earliest edge on the timeline (`pitch_play_from_selection`) | same test |
+| 4 | Pending fallback could play a render at another rate | fallback only at the engine's rate; a clip's history kept while its source loads | `a_render_at_another_rate_is_never_the_fallback` (mutation-checked) |
+| 5, 6, 21, 29 | A/B: switching back played the original for a re-render | a compared clip keeps its edits' render | `switching_back_from_the_original_plays_the_edits_at_once` |
+| 7 | Alt+↑/↓ only with the pointer over the editor | whenever the editor has the edit focus | `ten_cents_with_the_pointer_away_from_the_notes` |
+| 8, 27 | Glue lost one half's pitch edits | glue refuses halves whose edits differ | `glue_keeps_pitch_edits_or_refuses` |
+| 9 | Demo test never checked the double | it does, and that it is its own render | `the_demo_project_opens_and_plays_its_edits` |
+| 10 | Boot test raced others on `CANTUS_DATA_DIR` | its own binary, compares with its folder | `tests/pitch_boot.rs` |
+| 11 | Fuzz never sent a valid edit to a non-audio clip | the refusal arm does; and a unit test | `a_pitch_edit_on_a_note_clip_is_refused`, the fuzz |
+| 12 | Fixture held neither a moved note nor A/B | note 0 → G4, `bypass` on, a lane shown | `schema_27_keeps_a_takes_pitch_edits` (failed before regenerating) |
+| 13 | Reversed clip: no bar lines, no bar numbers | tick range ordered in the ladder and the ruler | `a_reversed_slice_opens…` (bar numbers drawn) |
+| 14 | Note panel overlapped the macros under ~815 pt | cards keep their size; narrower, the panel scrolls sideways (bar always shown) | `the_note_panel_fits_its_width` (1 600, 1 000, 640 pt) |
+| 15 | Bar dropped Grid/Double/MIDI/Play silently | measured groups fold into a … menu that offers them; MIDI and Double also in the clip's menu | `a_narrow_bar_folds_into_its_more_menu`, `the_clip_menu_makes_midi_and_a_double`; shots `pitch-narrow-*` |
+| 16 | Curves rebuilt and edits cloned every frame | built once per edit (`PitchView::cache`), bar by reference, blobs not copied | `an_idle_editor_builds_its_curves_once` |
+| 17 | Inspector tips never shown; Edit pitch live with a missing file | tips on the help line; disabled when missing | `the_inspectors_pitch_button_explains_itself` |
+| 18 | 'La Menor', solfège beside letters | the key in the notes' letters, the mode in the language's words ("A menor") | `the_key_reads_as_the_notes_do` |
+| 19 | Spanish knob 'Tono' | 'Afinación', the macro knobs a size up so it fits | same test; shots |
+| 20 | No device: renders on the UI thread per drag frame | `EngineHandle::compile` always queues on the worker | `without_a_device_renders_go_to_the_worker_and_export_waits` |
+| 22 | Undo/redo played the undone edit's render | each clip's last three renders kept | `undo_and_redo_play_their_own_render_at_once` |
+| 23 | Export before the frame's sync missed the latest edit | `compile_for_render` waits for pitch renders | same test as 20 |
+| 24 | A failed analysis cached for the session | the sample cache's retry forgets it (and failed renders); **the idle worker was never woken by a new job** — found by this test, fixed | `a_failed_analysis_is_tried_again_when_the_file_is_back`, `the_sample_caches_retry_forgets_a_failed_analysis` |
+| 25 | Correct pitch < 100 % overshot; 0 % moved an off-key note | `pitch = home + a·(target − home)`: never past, nothing at 0, re-runs are as if once | `correct_pitch_below_full_never_overshoots` |
+| 26 | MIDI out gave every note of the take | windowed to the clip, loops repeated, edges cut | `midi_out_gives_the_notes_the_clip_plays` |
+| 28 | Comp swipe drops a comp clip's pitch edits | **not mine** (`comping.rs`, leaders): left to the leaders builder as instructed | — |
+
+**§3c, built (owner's no-gaps rule):**
+
+- **The Pitch lane** (`views/pitch_lane.rs`): right-click an audio track ▸ *Pitch lane*; its
+  clips' notes in a lane under it, dragged in pitch (the editor's snap) and centred by a
+  double-click, with the editor's `SetClipPitch`. `Track::pitch_open` (schema 27),
+  `Command::SetTrackPitchOpen` (fuzz arm), `TrackRow::pitch`. Test
+  `the_pitch_lane_edits_notes_in_the_arrangement`; shot `pitch-arrangement-*`.
+- **Quantise to another track**: *Quantise to* on the bar lists the grids and every other
+  track with notes; each note's first edge onto the nearest onset within an eighth
+  (`edit::quantise_to`, `quantise_by`). Tests `quantise_to_onsets_moves_notes_onto_another_tracks_notes`,
+  `quantise_onto_another_tracks_notes`.
+
+Files outside my area touched in review 1 (additive): `cantus-core` `model.rs`
+(`Track::pitch_open`), `command.rs` (`SetTrackPitchOpen`); `cantus-project`
+`midi/import.rs` (the new field); `cantus-engine` `backend.rs` (pitch renders always on the
+worker, `compile_for_render` waits), `samples.rs` (`set_pitch_background`, `wait_pitch`,
+retry forgets); `cantus-ui` `views/arrangement.rs` (`TrackRow::pitch`, the lane's paint,
+header, input and menu hooks), `views/arrangement_auto.rs` and `views/arrangement_takes.rs`
+(`pitch: 0.0` in their lane rows — the latter is leaders'), `audio_clips.rs` (glue),
+`views/inspector_audio_parts.rs` (`button_with`).
