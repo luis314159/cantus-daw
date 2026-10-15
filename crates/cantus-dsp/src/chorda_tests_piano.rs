@@ -46,10 +46,12 @@ fn release_decays(sympathy: f64) -> Vec<f64> {
         .map(|step| {
             let p = step as f32 / 10.0;
             let mut c = piano();
-            let mut s = ChordaSettings::default();
-            s.sympathetic = sympathy;
             // The strings' decay, not the soundboard's ring: no body.
-            s.body = 0.0;
+            let s = ChordaSettings {
+                sympathetic: sympathy,
+                body: 0.0,
+                ..ChordaSettings::default()
+            };
             c.set(&s, 0.0);
             let ev = [
                 (0, Ev::Pedal(p)),
@@ -136,10 +138,14 @@ fn the_soft_pedal_is_softer_and_darker() {
     let level_and_bright = |soft: f32| {
         let ev = [(0, Ev::Soft(soft)), (1, Ev::On(64, 0.8, 1))];
         let (l, _) = perform(&mut piano(), &ev, 24_000, 256, 1);
-        let rms = l.iter().map(|v| (*v as f64).powi(2)).sum::<f64>().sqrt();
+        let rms = l
+            .iter()
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum::<f64>()
+            .sqrt();
         let diff = l
             .windows(2)
-            .map(|w| ((w[1] - w[0]) as f64).powi(2))
+            .map(|w| ((w[1] - w[0]) as f64) * ((w[1] - w[0]) as f64))
             .sum::<f64>()
             .sqrt();
         (rms, diff / rms)
@@ -159,8 +165,10 @@ fn the_strings_ring_in_sympathy_with_the_pedal_down() {
     // difference with no sympathy is loud); with it up, only the undamped top strings do.
     let run = |pedal: f32, sympathy: f64| {
         let mut c = piano();
-        let mut s = ChordaSettings::default();
-        s.sympathetic = sympathy;
+        let s = ChordaSettings {
+            sympathetic: sympathy,
+            ..ChordaSettings::default()
+        };
         c.set(&s, 0.0);
         let ev = [
             (0, Ev::Pedal(pedal)),
@@ -172,10 +180,10 @@ fn the_strings_ring_in_sympathy_with_the_pedal_down() {
     let energy = |a: &[f32], b: &[f32]| {
         a.iter()
             .zip(b)
-            .map(|(x, y)| ((x - y) as f64).powi(2))
+            .map(|(x, y)| ((x - y) as f64) * ((x - y) as f64))
             .sum::<f64>()
     };
-    let total = |a: &[f32]| a.iter().map(|x| (*x as f64).powi(2)).sum::<f64>();
+    let total = |a: &[f32]| a.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>();
     let down = run(1.0, 1.0);
     let down_dry = run(1.0, 0.0);
     let up = run(0.0, 1.0);

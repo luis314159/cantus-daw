@@ -8,9 +8,9 @@ use crate::math;
 fn spectrum(fft: &Fft, x: &[f64], start: usize, n: usize) -> (Vec<f32>, Vec<f32>) {
     let mut re = vec![0.0f32; n];
     let mut im = vec![0.0f32; n];
-    for i in 0..n {
+    for (i, r) in re.iter_mut().enumerate() {
         let w = 0.5 - 0.5 * math::cos(std::f64::consts::TAU * i as f64 / n as f64);
-        re[i] = (x.get(start + i).copied().unwrap_or(0.0) * w) as f32;
+        *r = (x.get(start + i).copied().unwrap_or(0.0) * w) as f32;
     }
     fft.run(&mut re, &mut im, false);
     let mag = re

@@ -222,7 +222,7 @@ pub fn settings_from(values: &[f32; N]) -> (ChordaSettings, f64) {
     let mut s = ChordaSettings::default();
     let mut hardness = 0.0;
     // The hammer's slowest strike against its fastest: 15.7 (24 dB) at 1.
-    let span = (5.5f64 / 0.35).ln();
+    let span = cantus_dsp::math::ln(5.5f64 / 0.35);
     for (info, v) in PARAMS.iter().zip(values) {
         let v = *v as f64;
         match info.key {

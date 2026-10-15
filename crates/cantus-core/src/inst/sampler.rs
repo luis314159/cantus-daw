@@ -949,95 +949,6 @@ pub fn max_shift_of(spec: &super::NativeSpec, v: &[f32; zf::COUNT], margin: f32)
     keys + tune + spec.get("transpose").max(0.0) + spec.get("bend") + margin
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::inst::{InstrumentKind, NativeSpec};
-
-    #[test]
-    fn indexed_keys_parse_one_spelling_only() {
-        assert_eq!(zone_key("z0.lo"), Some((0, "lo")));
-        assert_eq!(zone_key("z1023.sample"), Some((1023, "sample")));
-        assert_eq!(zone_key("z1024.lo"), None, "past the last zone");
-        assert_eq!(zone_key("z01.lo"), None, "no leading zeros");
-        assert_eq!(zone_key("z.lo"), None);
-        assert_eq!(zone_key("zz1.lo"), None);
-        assert_eq!(zone_key("z1lo"), None);
-        assert_eq!(zone_key("z99999999999999999999.lo"), None);
-        assert_eq!(group_key("g63.attack"), Some((63, "attack")));
-        assert_eq!(group_key("g64.attack"), None);
-        assert_eq!(zone_key("gain"), None);
-    }
-
-    #[test]
-    fn patterns_resolve_to_their_templates() {
-        let k = InstrumentKind::Sampler;
-        assert_eq!(k.param("z7.root").map(|i| i.key), Some("z.root"));
-        assert_eq!(k.param("g3.release").map(|i| i.key), Some("g.release"));
-        assert!(k.param("z7.nonsense").is_none());
-        assert!(k.param("gain").is_some() && k.param("mod3.amt").is_some());
-        assert!(k.is_asset_key("z12.sample") && k.is_text_key("z12.sample"));
-        assert!(k.is_text_key("z12.name") && k.is_text_key("g2.name"));
-        assert!(!k.is_asset_key("z12.name") && !k.is_asset_key("sample"));
-        assert!(!k.is_text_key("z12.lo"));
-        for (i, info) in ZONE_PARAMS.iter().enumerate() {
-            assert_eq!(zone_field(zone_field_name(i)), Some(i), "{}", info.key);
-            assert!(info.min <= info.default && info.default <= info.max);
-        }
-        for (i, info) in GROUP_PARAMS.iter().enumerate() {
-            assert_eq!(group_field(group_field_name(i)), Some(i), "{}", info.key);
-        }
-        assert_eq!(ZONE_PARAMS.len(), zf::COUNT);
-        assert_eq!(GROUP_PARAMS.len(), gf::COUNT);
-    }
-
-    #[test]
-    fn a_zone_round_trips_through_a_spec_storing_only_what_moved() {
-        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
-        let mut z = Zone::new(Some("C:/s/a.wav".into()), 48, 59, 55);
-        z.set(zf::VHI, 90.0).set(zf::TUNE, -12.5).set(zf::MODE, 3.0);
-        let values = z.values_for(4);
-        assert_eq!(values.len(), 6, "{values:?}");
-        for (k, v) in values {
-            assert_eq!(spec.set(&k, v), Some(v));
-        }
-        for (k, t) in z.texts_for(4) {
-            spec.set_text(&k, Some(t)).unwrap();
-        }
-        assert_eq!(Zone::of(&spec, 4), Some(z.clone()));
-        assert_eq!(zones(&spec), vec![(4, z)]);
-        assert_eq!(free_zone(&spec), Some(0));
-        let (nums, texts) = zone_keys(&spec, 4);
-        assert_eq!((nums.len(), texts.len()), (6, 1));
-        assert!(Zone::of(&spec, 5).is_none());
-        assert_eq!(spec.assets().count(), 1);
-    }
-
-    #[test]
-    fn frames_are_exact_integers_and_ranges_clamp() {
-        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
-        assert_eq!(spec.set("z0.le", 16_777_215.0), Some(16_777_215.0));
-        assert_eq!(spec.set("z0.ls", 123_456.4), Some(123_456.0));
-        assert_eq!(spec.set("z0.hi", 300.0), Some(127.0));
-        assert_eq!(
-            spec.get("z9.root"),
-            60.0,
-            "an unstored zone key reads its default"
-        );
-        assert_eq!(spec.get("g1.release"), 250.0);
-    }
-
-    #[test]
-    fn a_group_reads_none_where_it_follows_the_instrument() {
-        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
-        spec.set("g2.release", 40.0);
-        let g = Group::of(&spec, 2);
-        assert_eq!(g.values[gf::RELEASE], Some(40.0));
-        assert_eq!(g.values[gf::ATTACK], None);
-        assert_eq!(g.values_for(2), vec![("g2.release".to_string(), 40.0)]);
-    }
-}
-
 /// General MIDI's name for a percussion key (35 … 81), as the GM 1 sound set lists them.
 pub fn gm_drum_name(key: u8) -> Option<&'static str> {
     const NAMES: [&str; 47] = [
@@ -1129,10 +1040,8 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
             v[0].clamp(0.0, 127.0) as usize,
             v[1].clamp(0.0, 127.0) as usize,
         );
-        for k in lo..=hi {
-            if group_on[k] == 0 {
-                group_on[k] = (v[2].clamp(0.0, 254.0) as u8) + 1;
-            }
+        for g in group_on[lo..=hi].iter_mut().filter(|g| **g == 0) {
+            *g = (v[2].clamp(0.0, 254.0) as u8) + 1;
         }
     };
     let fresh = || {
@@ -1167,7 +1076,7 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
     }
     // A zone with only its sample stored (every number at its default) has no number key:
     // it plays the whole keyboard.
-    for (k, _) in &spec.text {
+    for k in spec.text.keys() {
         if let Some((n, "sample")) = zone_key(k) {
             name.clear();
             let any = spec
@@ -1203,4 +1112,93 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::inst::{InstrumentKind, NativeSpec};
+
+    #[test]
+    fn indexed_keys_parse_one_spelling_only() {
+        assert_eq!(zone_key("z0.lo"), Some((0, "lo")));
+        assert_eq!(zone_key("z1023.sample"), Some((1023, "sample")));
+        assert_eq!(zone_key("z1024.lo"), None, "past the last zone");
+        assert_eq!(zone_key("z01.lo"), None, "no leading zeros");
+        assert_eq!(zone_key("z.lo"), None);
+        assert_eq!(zone_key("zz1.lo"), None);
+        assert_eq!(zone_key("z1lo"), None);
+        assert_eq!(zone_key("z99999999999999999999.lo"), None);
+        assert_eq!(group_key("g63.attack"), Some((63, "attack")));
+        assert_eq!(group_key("g64.attack"), None);
+        assert_eq!(zone_key("gain"), None);
+    }
+
+    #[test]
+    fn patterns_resolve_to_their_templates() {
+        let k = InstrumentKind::Sampler;
+        assert_eq!(k.param("z7.root").map(|i| i.key), Some("z.root"));
+        assert_eq!(k.param("g3.release").map(|i| i.key), Some("g.release"));
+        assert!(k.param("z7.nonsense").is_none());
+        assert!(k.param("gain").is_some() && k.param("mod3.amt").is_some());
+        assert!(k.is_asset_key("z12.sample") && k.is_text_key("z12.sample"));
+        assert!(k.is_text_key("z12.name") && k.is_text_key("g2.name"));
+        assert!(!k.is_asset_key("z12.name") && !k.is_asset_key("sample"));
+        assert!(!k.is_text_key("z12.lo"));
+        for (i, info) in ZONE_PARAMS.iter().enumerate() {
+            assert_eq!(zone_field(zone_field_name(i)), Some(i), "{}", info.key);
+            assert!(info.min <= info.default && info.default <= info.max);
+        }
+        for (i, info) in GROUP_PARAMS.iter().enumerate() {
+            assert_eq!(group_field(group_field_name(i)), Some(i), "{}", info.key);
+        }
+        assert_eq!(ZONE_PARAMS.len(), zf::COUNT);
+        assert_eq!(GROUP_PARAMS.len(), gf::COUNT);
+    }
+
+    #[test]
+    fn a_zone_round_trips_through_a_spec_storing_only_what_moved() {
+        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+        let mut z = Zone::new(Some("C:/s/a.wav".into()), 48, 59, 55);
+        z.set(zf::VHI, 90.0).set(zf::TUNE, -12.5).set(zf::MODE, 3.0);
+        let values = z.values_for(4);
+        assert_eq!(values.len(), 6, "{values:?}");
+        for (k, v) in values {
+            assert_eq!(spec.set(&k, v), Some(v));
+        }
+        for (k, t) in z.texts_for(4) {
+            spec.set_text(&k, Some(t)).unwrap();
+        }
+        assert_eq!(Zone::of(&spec, 4), Some(z.clone()));
+        assert_eq!(zones(&spec), vec![(4, z)]);
+        assert_eq!(free_zone(&spec), Some(0));
+        let (nums, texts) = zone_keys(&spec, 4);
+        assert_eq!((nums.len(), texts.len()), (6, 1));
+        assert!(Zone::of(&spec, 5).is_none());
+        assert_eq!(spec.assets().count(), 1);
+    }
+
+    #[test]
+    fn frames_are_exact_integers_and_ranges_clamp() {
+        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+        assert_eq!(spec.set("z0.le", 16_777_215.0), Some(16_777_215.0));
+        assert_eq!(spec.set("z0.ls", 123_456.4), Some(123_456.0));
+        assert_eq!(spec.set("z0.hi", 300.0), Some(127.0));
+        assert_eq!(
+            spec.get("z9.root"),
+            60.0,
+            "an unstored zone key reads its default"
+        );
+        assert_eq!(spec.get("g1.release"), 250.0);
+    }
+
+    #[test]
+    fn a_group_reads_none_where_it_follows_the_instrument() {
+        let mut spec = NativeSpec::new(InstrumentKind::Sampler);
+        spec.set("g2.release", 40.0);
+        let g = Group::of(&spec, 2);
+        assert_eq!(g.values[gf::RELEASE], Some(40.0));
+        assert_eq!(g.values[gf::ATTACK], None);
+        assert_eq!(g.values_for(2), vec![("g2.release".to_string(), 40.0)]);
+    }
 }

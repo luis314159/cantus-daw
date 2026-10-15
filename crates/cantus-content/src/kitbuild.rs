@@ -419,7 +419,7 @@ pub fn render(
         let choke = b
             .chokes
             .iter()
-            .position(|c| c.instruments.iter().any(|n| *n == inst.name))
+            .position(|c| c.instruments.contains(&inst.name))
             .map(|c| (c as u8 + 1, b.chokes[c].release_ms));
         built.regions += regions.len() * runs(&k.keys).len();
         parts.push(Part {

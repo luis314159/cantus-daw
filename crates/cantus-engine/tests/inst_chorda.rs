@@ -201,7 +201,8 @@ fn print_the_keys_levels() {
             let mut u = Unit::new(SR);
             u.note_on(on(k, v, 1));
             let x = play(&mut u, 24_000);
-            let rms = (x.iter().map(|s| (*s as f64).powi(2)).sum::<f64>() / x.len() as f64).sqrt();
+            let rms =
+                (x.iter().map(|s| (*s as f64) * (*s as f64)).sum::<f64>() / x.len() as f64).sqrt();
             row += &format!(
                 "  v{v}: pk {:6.1} rms {:6.1}",
                 peak_db(&x),

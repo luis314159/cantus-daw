@@ -111,7 +111,7 @@ impl Voice {
     /// A voice for `key`, with strings for loops up to `capacity` samples. Allocates.
     pub fn new(key: Key, capacity: usize, fs: f64) -> Voice {
         let d = ((64.0 * key.impedance * key.speed * key.length * key.length * key.b)
-            / (std::f64::consts::PI.powi(3) * STEEL_E))
+            / (std::f64::consts::PI * std::f64::consts::PI * std::f64::consts::PI * STEEL_E))
             .max(0.0);
         let diameter = math::powf(d, 0.25).max(2.0e-4);
         let area = std::f64::consts::PI * diameter * diameter / 4.0;

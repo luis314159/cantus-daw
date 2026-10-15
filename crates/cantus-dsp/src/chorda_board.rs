@@ -296,7 +296,7 @@ impl Sympathetic {
 
 /// A small, fixed variation (−1…1) from an index: hashed, never random.
 fn hash(i: u64) -> f64 {
-    let mut z = i.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x50_0B0A_2D;
+    let mut z = i.wrapping_mul(0x9E37_79B9_7F4A_7C15) ^ 0x500B_0A2D;
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^= z >> 31;
@@ -542,10 +542,17 @@ impl Soundboard {
             outs[0] + outs[1] - outs[2] - outs[3],
             outs[0] - outs[1] - outs[2] + outs[3],
         ];
-        for i in 0..FDN {
-            let fb = 0.5 * h[i] * self.damp_g[i];
-            self.damp[i] = fb + self.damp_a[i] * (self.damp[i] - fb);
-            self.lines[i].write(self.damp[i] + 0.25 * hp);
+        let gains = self.damp_g.iter().zip(&self.damp_a);
+        for (((d, line), h), (g, a)) in self
+            .damp
+            .iter_mut()
+            .zip(self.lines.iter_mut())
+            .zip(h)
+            .zip(gains)
+        {
+            let fb = 0.5 * h * g;
+            *d = fb + a * (*d - fb);
+            line.write(*d + 0.25 * hp);
         }
         let body = self.body;
         let mut out = [0.0; 2];

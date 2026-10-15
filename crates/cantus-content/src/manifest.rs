@@ -475,7 +475,7 @@ impl Build {
         if !p.instruments.iter().any(|i| i.file == self.sfz) {
             return Err("no pack instrument plays the instrument it writes".into());
         }
-        if !self.keep.iter().any(|k| *k == p.licence_file) {
+        if !self.keep.contains(&p.licence_file) {
             return Err("the licence file must be kept".into());
         }
         if self.unpacked_size == 0 {
