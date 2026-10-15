@@ -149,6 +149,10 @@ pub struct Geometry {
     pub keys: [Rect; 12],
     /// The graph's note lanes: the lowest (a MIDI note) and how many.
     pub lanes: (i32, i32),
+    /// The Speed and Amount knobs, and *Reset notes*.
+    pub speed: Rect,
+    pub amount: Rect,
+    pub reset: Rect,
 }
 
 impl State {
@@ -278,6 +282,9 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         readout: Rect::NOTHING,
         keys: [Rect::NOTHING; 12],
         lanes: (0, 0),
+        speed: Rect::NOTHING,
+        amount: Rect::NOTHING,
+        reset: Rect::NOTHING,
     });
     let _ = controls::card_with(
         ui,
@@ -302,7 +309,7 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
         &[SOURCE_COLUMN + 4.0, KEYBOARD + NOTES_COLUMN + 4.0],
     );
     let rb: Vec<Rect> = g.row(row_b, &fracs(&wb)).collect();
-    correction_card(host, ui, &pitch_s, rb[0], &ss);
+    (geo.speed, geo.amount) = correction_card(host, ui, &pitch_s, rb[0], &ss);
     let _ = controls::card(
         ui,
         &pitch_s,
@@ -315,7 +322,7 @@ fn body_ui(host: &mut dyn FxHost, st: &mut State, ui: &mut egui::Ui, s: &Style, 
                 cr.body.height(),
             );
             geo.keys = keys::show(host, ui, &pitch_s, size, &ss, &st.header);
-            notes_column(host, st, ui, &pitch_s, &ss);
+            geo.reset = notes_column(host, st, ui, &pitch_s, &ss);
         },
     );
     st.geometry = Some(geo);
@@ -362,7 +369,8 @@ fn correction_card(
     s: &Style,
     rect: Rect,
     ss: &TonusSettings,
-) {
+) -> (Rect, Rect) {
+    let mut knobs = (Rect::NOTHING, Rect::NOTHING);
     controls::card(
         ui,
         s,
@@ -389,10 +397,18 @@ fn correction_card(
                     midi_source(host, ui, s, w);
                 }
             });
-            controls::param_with(ui, s, host, "speed", Size::L, Some(&speed_pill));
-            controls::param(ui, s, host, "amount", Size::M);
+            let speed = controls::param_with(ui, s, host, "speed", Size::L, Some(&speed_pill));
+            explain(ui, &speed, "tonus.speed_tip", |b| {
+                speed_pill(ss.speed_ms, b)
+            });
+            let amount = controls::param(ui, s, host, "amount", Size::M);
+            explain(ui, &amount, "tonus.amount_tip", |b| {
+                controls::write_readout(ss.amount, "%", b)
+            });
+            knobs = (speed.rect, amount.rect);
         },
     );
+    knobs
 }
 
 /// The key and the scale, as two menu fields side by side with their captions.
@@ -448,8 +464,9 @@ fn key_and_scale(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, ss: &Tonus
 /// With a MIDI source: in Cantus, the track whose notes are the targets; in another host,
 /// where the notes come from.
 fn midi_source(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, w: f32) {
+    // The messages are sentences: a body line, not a caption's capitals.
     let Some((app, strip, effect)) = host.daw() else {
-        controls::caption(ui, s, Src::Key("tonus.midi_host"), w);
+        controls::line(ui, s, frame::tr("tonus.midi_host"), s.t.text_dim, w);
         return;
     };
     let current = app
@@ -487,7 +504,7 @@ fn midi_source(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, w: f32) {
         }
     }
     if current.is_none() {
-        controls::caption(ui, s, Src::Key("tonus.midi_waiting"), w);
+        controls::line(ui, s, frame::tr("tonus.midi_waiting"), s.t.text_dim, w);
     }
 }
 
@@ -498,26 +515,27 @@ fn notes_column(
     ui: &mut egui::Ui,
     s: &Style,
     ss: &TonusSettings,
-) {
+) -> Rect {
     let w = NOTES_COLUMN;
+    let mut reset = Rect::NOTHING;
     controls::column(ui, s, w, |ui| {
         let custom = ss.notes.iter().any(|n| n.index() != 0);
         ui.add_enabled_ui(custom && ss.source == Source::Scale, |ui| {
-            if controls::key(
+            let r = controls::key(
                 ui,
                 s,
                 Src::Key("tonus.reset"),
                 frame::tr("tonus.reset_tip"),
                 w,
                 false,
-            )
-            .clicked()
-            {
+            );
+            reset = r.rect;
+            if r.clicked() {
                 let all: Vec<(&str, f32)> = cantus_core::fx::tonus::NOTE_KEYS
                     .iter()
                     .map(|k| (*k, 0.0))
                     .collect();
-                host.set_many(&all, "cmd.fx_preset");
+                host.set_many(&all, "cmd.tonus_reset_notes");
             }
         });
         let label = if st.more { "tonus.less" } else { "tonus.more" };
@@ -534,6 +552,7 @@ fn notes_column(
             st.more = !st.more;
         }
     });
+    reset
 }
 
 /// The voice: the formants kept or following the pitch, the throat, the transposition and
@@ -553,6 +572,28 @@ fn voice_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
         controls::param_with(ui, s, host, "trans", Size::M, Some(&trans_pill));
         controls::param_with(ui, s, host, "a4", Size::M, Some(&a4_pill));
     });
+}
+
+/// Over a knob at rest under the pointer, its explanation with its value (a drag keeps the
+/// knob's own name and live value).
+fn explain(ui: &egui::Ui, r: &egui::Response, tip: &'static str, value: impl FnOnce(&mut String)) {
+    if r.hovered() && !r.dragged() {
+        hint::set(ui.ctx(), frame::tr(tip), Caps::PARAM, false, |b| {
+            value(b);
+            Ok(())
+        });
+    }
+}
+
+/// The speed in words: `Hard` at 0 ms, else the time — the pill's, the preview's.
+struct SpeedWords(f32);
+
+impl std::fmt::Display for SpeedWords {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut b = String::new();
+        speed_pill(self.0, &mut b);
+        f.write_str(&b)
+    }
 }
 
 /// `Hard` at 0 ms, else the time.
@@ -619,11 +660,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
             b.rect(b.snap_rect(r), crate::kit::Fill::Solid(c));
         }
         let words = Rect::from_min_max(pos2(strip.right() + space::S2, rect.top()), rect.max);
-        let speed = if ss.speed_ms <= 0.0 {
-            frame::tr("tonus.hard")
-        } else {
-            ""
-        };
+        let speed = SpeedWords(ss.speed_ms);
         let tk = st.tk();
         let amount = ss.amount * 100.0;
         match ss.source {
@@ -632,26 +669,14 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
                     frame::tr(KEY_NAMES[ss.key as usize % 12]),
                     frame::tr(SCALE_NAMES[(ss.scale as usize).min(12)]),
                 );
-                if speed.is_empty() {
-                    let ms = ss.speed_ms;
-                    canvas::line_in(
-                        b,
-                        words,
-                        Role::Body,
-                        ink.text,
-                        tk,
-                        format_args!("{key} {scale} \u{b7} {ms:.0} ms \u{b7} {amount:.0}%"),
-                    );
-                } else {
-                    canvas::line_in(
-                        b,
-                        words,
-                        Role::Body,
-                        ink.text,
-                        tk,
-                        format_args!("{key} {scale} \u{b7} {speed} \u{b7} {amount:.0}%"),
-                    );
-                }
+                canvas::line_in(
+                    b,
+                    words,
+                    Role::Body,
+                    ink.text,
+                    tk,
+                    format_args!("{key} {scale} \u{b7} {speed} \u{b7} {amount:.0}%"),
+                );
             }
             src => {
                 let what = frame::tr(if src == Source::Midi {
@@ -659,14 +684,13 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
                 } else {
                     "fx.tonus.src.2"
                 });
-                let ms = ss.speed_ms;
                 canvas::line_in(
                     b,
                     words,
                     Role::Body,
                     ink.text,
                     tk,
-                    format_args!("{what} \u{b7} {ms:.0} ms \u{b7} {amount:.0}%"),
+                    format_args!("{what} \u{b7} {speed} \u{b7} {amount:.0}%"),
                 );
             }
         }

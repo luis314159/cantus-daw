@@ -149,7 +149,8 @@ pub fn header(t: &Telemetry) -> Header {
         latency: t[T_LATENCY].max(0.0) as usize,
         column_len: t[T_COLUMN_LEN].max(0.0) as usize,
         pitch: (flags & FLAG_VOICED != 0).then_some(t[T_PITCH]),
-        target: (t[T_TARGET] >= 0.0).then_some(t[T_TARGET] as i32),
+        // Telemetry never written (all zeros: the unit has not run yet) names no target.
+        target: (t[T_SAMPLE_RATE] > 0.0 && t[T_TARGET] >= 0.0).then_some(t[T_TARGET] as i32),
         shift: t[T_SHIFT],
         on_bypass: flags & FLAG_BYPASS != 0,
         held: t[T_HELD].max(0.0) as u16,
