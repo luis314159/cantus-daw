@@ -314,44 +314,14 @@ impl Curves {
         self.src.eval(t, &|i, _| self.formants[i])
     }
 
-    /// The gain at output time `t`, dB: inside a note its gain, ramped over the margin at
-    /// its edges (inside it), 0 elsewhere.
+    /// The gain at output time `t`, dB: each note its own, carried across its joints the
+    /// way the shift is (ramps in the gaps beside it, a margin from untouched neighbours, a
+    /// shared transition at a legato joint) — never a step.
     pub fn gain_db_at(&self, t: f64) -> f32 {
-        let k = self.out.starts.partition_point(|s| *s <= t);
-        if k == 0 || t >= self.out.ends[k - 1] {
+        if !self.has_gain() {
             return 0.0;
         }
-        let i = k - 1;
-        let g = self.gains[i];
-        if g == 0.0 {
-            return 0.0;
-        }
-        let (a, b) = (self.out.starts[i], self.out.ends[i]);
-        let r = self.out.margin.min((b - a) / 4.0).max(1.0);
-        let edge = |gap_short: bool, other: f32| if gap_short { 0.5 * (g + other) } else { 0.0 };
-        let left = if i > 0 {
-            edge(
-                self.out.short_gap(self.out.ends[i - 1], a),
-                self.gains[i - 1],
-            )
-        } else {
-            0.0
-        };
-        let right = if i + 1 < self.gains.len() {
-            edge(
-                self.out.short_gap(b, self.out.starts[i + 1]),
-                self.gains[i + 1],
-            )
-        } else {
-            0.0
-        };
-        if t - a < r {
-            left + (g - left) * ((t - a) / r) as f32
-        } else if b - t < r {
-            right + (g - right) * ((b - t) / r) as f32
-        } else {
-            g
-        }
+        self.out.eval(t, &|i, _| self.gains[i])
     }
 
     /// Whether any note has a gain.

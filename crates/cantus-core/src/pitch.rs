@@ -93,6 +93,41 @@ impl PitchKey {
         m.round()
     }
 
+    /// One step of the key from `p`, `dir` up (+1) or down (−1): the next note of the key
+    /// beyond `p`'s semitone, its cents kept — so a note sung off the key steps onto it.
+    pub fn step(self, p: f32, dir: i32) -> f32 {
+        let dir = dir.signum();
+        if dir == 0 {
+            return p;
+        }
+        let frac = p - p.round();
+        let mut n = p.round() as i32 + dir;
+        for _ in 0..12 {
+            if self.contains(n) {
+                break;
+            }
+            n += dir;
+        }
+        n as f32 + frac
+    }
+
+    /// How many steps of the key lie from `from`'s semitone to `to` (a note of the key),
+    /// signed.
+    pub fn steps_to(self, from: f32, to: f32) -> i32 {
+        let (a, b) = (from.round() as i32, to.round() as i32);
+        if a == b {
+            return 0;
+        }
+        let dir = (b - a).signum();
+        let mut n = a as f32;
+        let mut k = 0;
+        while (n.round() as i32 - b) * dir < 0 && k < 128 {
+            n = self.step(n, dir);
+            k += 1;
+        }
+        k * dir
+    }
+
     /// The scale note `steps` scale degrees from the scale note nearest `m` (a third is
     /// two steps, a fifth four, in a seven-note scale).
     pub fn degrees_from(self, m: f32, steps: i32) -> f32 {
