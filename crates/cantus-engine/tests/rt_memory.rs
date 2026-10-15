@@ -359,7 +359,7 @@ fn the_pool_threads_never_allocate() {
     audio_thread_scenario(Some(Workers::parallel(3)));
 }
 
-/// Voices on several threads (ADR 0038): chords on Calor, Unda and Exemplar with three
+/// Voices on several threads (ADR 0038): chords on Calor, Unda, Exemplar and Chorda with three
 /// workers, their voices forked to the pool block after block — not one allocation on the
 /// callback or a worker, and the workers really did render voices.
 #[test]
@@ -370,6 +370,7 @@ fn forked_voices_never_allocate() {
         InstrumentKind::Analog,
         InstrumentKind::Wavetable,
         InstrumentKind::Sampler,
+        InstrumentKind::Chorda,
     ]
     .into_iter()
     .enumerate()

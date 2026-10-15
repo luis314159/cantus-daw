@@ -59,11 +59,27 @@ struct SymString {
     sounding: bool,
 }
 
+impl SymString {
+    /// Its damper with the pedal up: down, or none at all above E6.
+    fn rest(&self) -> f64 {
+        if self.key.damper {
+            1.0
+        } else {
+            0.0
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Sympathetic {
     strings: Vec<SymString>,
     fs: f64,
     phase: u32,
+    /// Whether the drive moved since the last control step (what wakes a string: never a
+    /// look ahead, which a block's end would cut).
+    drive_seen: bool,
+    /// The dampers' glide per control step (8 ms).
+    glide: f64,
     /// The drive's scale (the instrument's *sympathetic* setting).
     pub level: f64,
     pub decay: f64,
@@ -89,8 +105,9 @@ impl Sympathetic {
                 alpha: 0.0,
                 z: k.impedance,
                 yz: 0.0,
-                contact: 1.0,
-                target: 1.0,
+                // Where a pedal at rest leaves it: down, or none at all above E6.
+                contact: if k.damper { 1.0 } else { 0.0 },
+                target: if k.damper { 1.0 } else { 0.0 },
                 set_contact: -1.0,
                 live: false,
                 quiet: 0,
@@ -103,6 +120,8 @@ impl Sympathetic {
             strings,
             fs,
             phase: 0,
+            drive_seen: false,
+            glide: 1.0 - math::exp(-(super::voice::CONTROL as f64) / (0.008 * fs)),
             level: 1.0,
             decay: 1.0,
         }
@@ -131,6 +150,7 @@ impl Sympathetic {
     }
 
     /// The dampers: lifted by the pedal (0…1), and a key whose voice sounds is skipped.
+    /// Called on the instrument's own clock (every chunk of the stream), never between.
     pub fn set_dampers(&mut self, pedal: f64, sounding: &[bool]) {
         let contact = super::voice::pedal_contact(pedal);
         for (s, on) in self.strings.iter_mut().zip(sounding) {
@@ -150,14 +170,22 @@ impl Sympathetic {
             s.bq = [[0.0; 4]; 2];
             s.live = false;
             s.quiet = 0;
-            s.contact = s.target;
+            s.contact = s.rest();
+            s.target = s.contact;
+            s.sounding = false;
             s.set_contact = -1.0;
         }
         self.phase = 0;
+        self.drive_seen = false;
     }
 
+    /// Nothing ringing, nothing driven, every damper where a new instrument has it.
     pub fn at_rest(&self) -> bool {
-        !self.strings.iter().any(|s| s.live)
+        !self.drive_seen
+            && self
+                .strings
+                .iter()
+                .all(|s| !s.live && !s.sounding && s.contact == s.rest() && s.target == s.rest())
     }
 
     /// Frames skipped at rest: the control phase moves on.
@@ -168,10 +196,13 @@ impl Sympathetic {
     /// Add to `out` what the strings ring with, driven by the voices' total force `drive`.
     pub fn process(&mut self, drive: &[f64], out: &mut [f64]) {
         let level = self.level;
-        for (i, (d, o)) in drive.iter().zip(out.iter_mut()).enumerate() {
+        for (d, o) in drive.iter().zip(out.iter_mut()) {
             if self.phase == 0 {
-                self.control(drive, i);
+                let driven = self.drive_seen || *d != 0.0;
+                self.drive_seen = false;
+                self.control(driven);
             }
+            self.drive_seen |= *d != 0.0;
             let mut sum = 0.0;
             for s in self.strings.iter_mut() {
                 if !s.live || s.sounding {
@@ -212,10 +243,8 @@ impl Sympathetic {
 
     /// Every control step: the dampers glide, the loss filters follow, a quiet string is
     /// let go and a driven one woken.
-    fn control(&mut self, drive: &[f64], at: usize) {
-        let k = 1.0 - math::exp(-(super::voice::CONTROL as f64) / (0.008 * self.fs));
-        let end = (at + super::voice::CONTROL as usize).min(drive.len());
-        let driven = drive[at..end].iter().any(|d| *d != 0.0);
+    fn control(&mut self, driven: bool) {
+        let k = self.glide;
         for s in self.strings.iter_mut() {
             if s.sounding {
                 continue;

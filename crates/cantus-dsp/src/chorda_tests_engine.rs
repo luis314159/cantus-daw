@@ -103,6 +103,49 @@ fn every_block_size_and_any_number_of_threads_give_the_same_bits() {
     assert!(par == reference, "threads");
 }
 
+/// Short notes that end inside a block (a damped key dies where it dies, not where a block
+/// ends), an undamped top key that wakes the sympathetic strings with the pedal up, and
+/// pedal moves on odd frames.
+fn staccato() -> Vec<(usize, Ev)> {
+    let mut ev = vec![(0, Ev::On(96, 1.0, 1)), (3, Ev::On(40, 0.9, 2))];
+    for i in 0..12usize {
+        let at = 211 + i * 1_013;
+        let key = 50 + (i * 5 % 40) as u8;
+        ev.push((at, Ev::On(key, 0.4 + 0.05 * i as f32, 10 + i as u64)));
+        ev.push((at + 377, Ev::Off(key, 10 + i as u64)));
+        if i % 4 == 1 {
+            ev.push((at + 501, Ev::Pedal(0.3 * (i % 3) as f32)));
+        }
+    }
+    ev.push((700, Ev::Off(40, 2)));
+    ev.sort_by_key(|e| e.0);
+    ev
+}
+
+/// The bench's chord: 32 keys struck together, released at 12 000.
+fn chord() -> Vec<(usize, Ev)> {
+    let key = |v: usize| 36 + ((v * 7) % 60) as u8;
+    let mut ev: Vec<(usize, Ev)> = (0..32)
+        .map(|v| (0, Ev::On(key(v), 96.0 / 127.0, 100 + v as u64)))
+        .collect();
+    ev.extend((0..32).map(|v| (12_000, Ev::Off(key(v), 100 + v as u64))));
+    ev
+}
+
+#[test]
+fn notes_and_pedals_inside_a_block_give_the_same_bits_at_any_split() {
+    for (name, ev) in [("staccato", staccato()), ("chord", chord())] {
+        let frames = 16_000;
+        let reference = perform(&mut piano(), &ev, frames, 512, 1);
+        for block in [1, 7, 37, 300] {
+            let got = perform(&mut piano(), &ev, frames, block, 1);
+            assert!(got == reference, "{name}, block {block}");
+        }
+        let par = perform(&mut piano(), &ev, frames, 7, 4);
+        assert!(par == reference, "{name}, threads, blocks of 7");
+    }
+}
+
 #[test]
 fn a_released_note_dies_and_the_instrument_comes_to_rest() {
     let mut c = piano();

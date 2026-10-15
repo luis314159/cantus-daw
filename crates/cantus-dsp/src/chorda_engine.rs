@@ -6,9 +6,11 @@
 //! bridge force into its own lane, panned by the key's place (bass left, treble right, as
 //! the player hears it); the lanes are summed **in key order** (ADR 0038: the same bits on
 //! one thread or many); their sum drives the sympathetic strings; the soundboard radiates
-//! the voices' force and the strings'. A voice's own clock (its control steps) and the
-//! board's quarter-rate steps count from their own start, never from a block's, so any
-//! block size gives the same bits.
+//! the voices' force and the strings'. Every clock counts from the stream's start, never
+//! from a block's: a voice's control steps from its strike, the board's quarter-rate steps
+//! and the chunks themselves from the instrument's start (a chunk ends where the stream's
+//! grid of [`CHUNK`] does, and only there are the dampers told which keys sound or the
+//! board's tail flushed) — so any block size gives the same bits.
 
 use super::board::{Soundboard, Sympathetic};
 use super::design::Keyboard;
@@ -96,7 +98,12 @@ pub struct Chorda {
     dr: [f64; CHUNK],
     mono: [f64; CHUNK],
     sym_out: [f64; CHUNK],
+    /// Which keys sounded at the last grid point (what the sympathetic dampers hear).
     sounding: [bool; KEYS],
+    /// Which voices render in the current piece of a chunk (whose lanes are summed).
+    rendering: [bool; KEYS],
+    /// Samples into the current chunk of the stream's grid.
+    pos: usize,
     sym: Sympathetic,
     board: Soundboard,
     pedal: f64,
@@ -145,6 +152,8 @@ impl Chorda {
             mono: [0.0; CHUNK],
             sym_out: [0.0; CHUNK],
             sounding: [false; KEYS],
+            rendering: [false; KEYS],
+            pos: 0,
             sym: Sympathetic::new(&caps, &reference, fs),
             board: Soundboard::new(fs),
             pedal: 0.0,
@@ -266,6 +275,8 @@ impl Chorda {
         }
         self.sym.reset();
         self.board.reset();
+        self.sounding = [false; KEYS];
+        self.pos = 0;
         self.pedal = 0.0;
         self.soft = 0.0;
         self.meter = Meter::default();
@@ -296,11 +307,12 @@ impl Chorda {
             && self.board.at_rest()
     }
 
-    /// Frames skipped while at rest: the board's quarter-rate phase and the sympathetic
-    /// strings' control phase move on.
+    /// Frames skipped while at rest: the grid, the board's quarter-rate phase and the
+    /// sympathetic strings' control phase move on.
     pub fn skip(&mut self, frames: usize) {
         self.board.skip(frames);
         self.sym.skip(frames);
+        self.pos = (self.pos + frames % CHUNK) % CHUNK;
     }
 
     pub fn meter(&self) -> Meter {
@@ -322,7 +334,13 @@ impl Chorda {
         let mut done = 0;
         let (mut pl, mut pr) = (0.0f32, 0.0f32);
         while done < left.len() {
-            let n = CHUNK.min(left.len() - done);
+            let n = (CHUNK - self.pos).min(left.len() - done);
+            if self.pos == 0 {
+                for (s, v) in self.sounding.iter_mut().zip(&self.voices) {
+                    *s = v.active;
+                }
+                self.sym.set_dampers(self.pedal, &self.sounding);
+            }
             self.chunk(n, par);
             for i in 0..n {
                 // The sympathetic strings radiate from the middle of the board.
@@ -338,8 +356,12 @@ impl Chorda {
                 pl = pl.max(l.abs());
                 pr = pr.max(r.abs());
             }
-            if !self.voices.iter().any(|v| v.active) && self.sym.at_rest() {
-                self.board.flush(FLOOR);
+            self.pos += n;
+            if self.pos == CHUNK {
+                self.pos = 0;
+                if !self.voices.iter().any(|v| v.active) && self.sym.at_rest() {
+                    self.board.flush(FLOOR);
+                }
             }
             done += n;
         }
@@ -351,10 +373,11 @@ impl Chorda {
     /// One chunk of the voices (in their lanes, summed in key order) and the sympathetic
     /// strings.
     fn chunk(&mut self, n: usize, par: &dyn Parallel) {
-        for (s, v) in self.sounding.iter_mut().zip(&self.voices) {
+        // A voice that ends inside this piece renders zeros after: summed or not, the
+        // same bits.
+        for (s, v) in self.rendering.iter_mut().zip(&self.voices) {
             *s = v.active;
         }
-        self.sym.set_dampers(self.pedal, &self.sounding);
         let pans = self.pans;
         let active = self.voices.iter().filter(|v| v.active).count();
         let work = self
@@ -387,7 +410,7 @@ impl Chorda {
         self.dl[..n].fill(0.0);
         self.dr[..n].fill(0.0);
         for i in 0..KEYS {
-            if !self.sounding[i] {
+            if !self.rendering[i] {
                 continue;
             }
             let (l, r) = self.lanes.lane(i, n);

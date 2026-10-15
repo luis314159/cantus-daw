@@ -348,6 +348,7 @@ pub fn units_for(
     have: impl Fn(TrackId, InstrumentKind) -> bool,
 ) -> Vec<Box<NativeUnit>> {
     prepare_assets(snapshot);
+    chorda::prepare(snapshot, sample_rate);
     snapshot
         .tracks
         .iter()
