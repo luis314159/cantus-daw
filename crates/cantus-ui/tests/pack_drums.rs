@@ -348,3 +348,153 @@ fn the_closed_hi_hat_silences_the_open_one() {
     assert!(tail(&open_alone) > 0.01, "the open hat rings on alone");
     assert!(tail(&both) < 1e-4, "silenced: {}", tail(&both));
 }
+
+/// A rock groove: four bars at 120 bpm, a crash on the one, eighth-note hats with an
+/// accent, kick and snare, an open hat at the end of bar 2 and a tom fill in bar 4.
+pub fn groove(vel: impl Fn(u8) -> u8) -> Vec<(f64, u8, u8)> {
+    let mut v = vec![(0.0, 49, vel(110))];
+    for bar in 0..4 {
+        let b = bar as f64 * 4.0;
+        v.push((b, 36, vel(112)));
+        v.push((b + 2.5, 36, vel(100)));
+        if bar < 3 {
+            v.push((b + 2.0, 38, vel(118)));
+        }
+        v.push((b + 1.0, 38, vel(115)));
+        v.push((b + 3.0, 38, vel(116)));
+        for e in 0..8 {
+            if bar == 1 && e == 7 {
+                v.push((b + 3.5, 46, vel(100)));
+            } else if bar < 3 || e < 4 {
+                v.push((b + e as f64 * 0.5, 42, vel(if e % 2 == 0 { 92 } else { 70 })));
+            }
+        }
+    }
+    for (i, k) in [48u8, 48, 47, 47, 43, 43, 41, 41].iter().enumerate() {
+        v.push((14.0 + i as f64 * 0.25, *k, vel(105 + i as u8 % 2 * 10)));
+    }
+    v
+}
+
+/// The real kit, built and installed (`CANTUS_DRSKIT`: the pack's folder, or a folder the
+/// `drumkit_mix` example rendered): it imports with the GM keys, loads streaming, plays a
+/// groove at the calibrated level with headroom at full strength, a real roll never plays
+/// a sample twice in a row, and the groove is written to listen to (`CANTUS_SHOTS`).
+#[test]
+#[ignore]
+fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
+    let Ok(dir) = std::env::var("CANTUS_DRSKIT") else {
+        eprintln!("CANTUS_DRSKIT is not set");
+        return;
+    };
+    let pack = cantus_content::Manifest::bundled()
+        .pack("drskit")
+        .unwrap()
+        .clone();
+    let inst = pack.instruments[0].clone();
+    let gain: f32 = std::env::var("CANTUS_GAIN")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(inst.gain_db);
+    let choice = cantus_ui::views::samples_content::sounds::SoundChoice(
+        cantus_content::InstalledInstrument {
+            pack: "drskit".into(),
+            pack_name: pack.name.clone(),
+            path: Path::new(&dir).join(&inst.file),
+            instrument: PackInstrument { gain_db: gain, ..inst },
+            licence: pack.licence.clone(),
+            author: "DrumGizmo".into(),
+        },
+    );
+    let t0 = std::time::Instant::now();
+    let imp = cantus_ui::views::samples_content::sounds::import_of(&choice).unwrap();
+    eprintln!("import: {} zones, {:?}, log {:?}", imp.zones.len(), t0.elapsed(), imp.log);
+    assert!(imp.log.iter().all(|l| !l.contains("unsupported")), "{:?}", imp.log);
+    let spec = InstrumentSpec::Native(cantus_ui::views::samples_content::sounds::spec_of(&imp));
+    let own_cache = tempfile::tempdir().unwrap();
+    cantus_engine::inst::stream::hub().set_cache_dir(own_cache.path().into());
+    let mut cache = SampleCache::new();
+    cache.set_streaming(true);
+    let mut run = |notes: &[(f64, u8, u8)], bars: f64| {
+        let mut s = Song::new("drskit", 120.0, 1);
+        let part = s.part("drums", spec.clone(), colors::BASS, TrackIcon::Drums);
+        s.feel(part, Feel::TIGHT);
+        let ev: Vec<Ev> = notes.iter().map(|(b, k, v)| Ev::new(*b, 0.25, *k, *v)).collect();
+        s.clip(part, "c", 0.0, bars, &ev);
+        let p = s.finish();
+        let mut snap = cantus_core::Snapshot::compile(&p, 0);
+        let t = std::time::Instant::now();
+        let errors = cache.attach(&mut snap);
+        assert!(errors.is_empty(), "{errors:?}");
+        let load = t.elapsed();
+        let mut seen = std::collections::HashSet::new();
+        let bytes: usize = snap
+            .tracks
+            .iter()
+            .flat_map(|t| t.assets.iter())
+            .filter_map(|(_, d)| d.as_ref())
+            .filter(|d| seen.insert(Arc::as_ptr(d) as usize))
+            .map(|d| match cantus_engine::inst::stream::lookup(d) {
+                Some(st) => st.heads.iter().flatten().map(|h| h.len() * 4).sum(),
+                None => d.frames.len() * 4,
+            })
+            .sum();
+        eprintln!("in memory: {} MiB of sample heads ({} files)", bytes / 1_048_576, seen.len());
+        let t = std::time::Instant::now();
+        let r = render(
+            Arc::new(snap),
+            &RenderOptions {
+                tail_seconds: 2.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        (r, load, t.elapsed())
+    };
+    let (r, load, took) = run(&groove(|v| v), 4.0);
+    let secs = r.samples.len() as f64 / 2.0 / 48_000.0;
+    let (lufs, peak) = (measure::lufs(&r), measure::true_peak_db(&r));
+    eprintln!(
+        "groove: first load {load:?}, render {took:?} for {secs:.1} s ({:.1}× real time); {lufs:.1} LUFS, true peak {peak:.1} dBFS",
+        secs / took.as_secs_f64()
+    );
+    if let Ok(shots) = std::env::var("CANTUS_SHOTS") {
+        let path = Path::new(&shots).join("drskit-groove.wav");
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut w = hound::WavWriter::create(&path, spec).unwrap();
+        for s in &r.samples {
+            w.write_sample(*s).unwrap();
+        }
+        w.finalize().unwrap();
+        eprintln!("wrote {}", path.display());
+    }
+    // Headroom (ADR 0039: no factory sound past 0 dBFS at full strength): the same
+    // groove with every hit at 127, and kick, crash and a tom together on every sixteenth
+    // of the fill. It sets the pack's gain (0 dB): the most the rule allows.
+    let mut loud = groove(|_| 127);
+    loud.extend((0..8).map(|i| (14.0 + i as f64 * 0.25, 49, 127)));
+    loud.extend((0..8).map(|i| (14.0 + i as f64 * 0.25, 36, 127)));
+    let (r, _, _) = run(&loud, 4.0);
+    let peak = measure::true_peak_db(&r);
+    eprintln!("everything at 127: true peak {peak:.1} dBFS");
+    assert!(peak < 0.0, "headroom: {peak}");
+    // A raw kit is peaky: at that gain an ordinary groove sits near the sampled piano
+    // (Salamander −24.4 LUFS) and Lamina (−22.9), a little under them.
+    assert!((-28.0..=-24.0).contains(&lufs), "the groove's level: {lufs}");
+    // Every velocity layer of every drum has at least two hits taking turns in order
+    // (`rr.order` 1): a roll never plays the same sample twice in a row.
+    use cantus_core::inst::sampler::zf;
+    let mut layers = std::collections::BTreeMap::new();
+    for z in &imp.zones {
+        let k = (z.get(zf::LO) as u8, z.get(zf::VLO) as u8);
+        layers.insert(k, z.get(zf::SEQLEN));
+    }
+    eprintln!("{} velocity layers", layers.len());
+    assert!(layers.values().all(|n| *n >= 2.0), "{layers:?}");
+    assert_eq!(cantus_ui::views::samples_content::sounds::spec_of(&imp).get("rr.order"), 1.0);
+}
