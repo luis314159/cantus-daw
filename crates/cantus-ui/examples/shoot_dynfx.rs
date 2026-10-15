@@ -16,11 +16,29 @@ use cantus_ui::raster::shoot;
 use cantus_ui::{views, welcome_project, CantusApp};
 use std::path::PathBuf;
 
-const ALL: [&str; 4] = ["tonsor", "impetus", "discrimen", "speculum"];
+/// Speculum's views are shot each: `speculum-<view>` (1 spectrum … 5 loudness).
+const ALL: [&str; 9] = [
+    "tonsor",
+    "impetus",
+    "discrimen",
+    "speculum",
+    "speculum-1",
+    "speculum-2",
+    "speculum-3",
+    "speculum-4",
+    "speculum-5",
+];
 
 fn app_with(stem: &str) -> CantusApp {
     let mut app = CantusApp::from_parts(Some(welcome_project()), EngineHandle::dummy(), false);
-    app.demo_editor(stem);
+    let (name, view) = match stem.split_once('-') {
+        Some((n, v)) => (n, v.parse::<f32>().ok()),
+        None => (stem, None),
+    };
+    app.demo_editor(name);
+    if let (Some(v), Some((strip, effect, _))) = (view, app.fx.open) {
+        app.set_fx_param(strip, effect, "view", v, false);
+    }
     if let Some(k) = app.fx.open.map(|o| o.2) {
         views::fx::demo_feed(&mut app, k);
     }
@@ -30,7 +48,7 @@ fn app_with(stem: &str) -> CantusApp {
 
 fn kind_of(stem: &str) -> cantus_core::EffectKind {
     use cantus_core::EffectKind as K;
-    match stem {
+    match stem.split('-').next().unwrap_or(stem) {
         "tonsor" => K::Clipper,
         "impetus" => K::Transient,
         "discrimen" => K::TransientSplit,

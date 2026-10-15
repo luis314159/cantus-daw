@@ -514,6 +514,8 @@ impl Editor {
 /// The window of the open editor (Porta, Terminus, Spatium, Multiplex, Sibilus, a hosted
 /// plug-in), drawn every frame while one is open.
 pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
+    // Speculums docked in the workspace, each its own tab (ADR 0056).
+    speculum::docked(app, ctx);
     let Some((strip, effect, kind)) = app.fx.open else {
         return;
     };
