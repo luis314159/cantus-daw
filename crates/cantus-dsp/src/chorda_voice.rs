@@ -92,6 +92,8 @@ pub struct Voice {
     /// The loss filter's grip as last set (to skip setting it again).
     set_contact: f64,
     fs: f64,
+    /// The damper's glide per control step (~8 ms).
+    glide: f64,
     settings: VoiceSettings,
     /// The phantom path: the tension's coefficient, its DC blocker and the longitudinal
     /// mode's resonator.
@@ -131,6 +133,7 @@ impl Voice {
             target: 1.0,
             set_contact: -1.0,
             fs,
+            glide: 1.0 - math::exp(-(CONTROL as f64) / (0.008 * fs)),
             settings: VoiceSettings {
                 felt: Felt {
                     k: key.hammer_k,
@@ -178,7 +181,12 @@ impl Voice {
         id: u64,
     ) {
         self.settings = settings;
-        if !self.active || self.design_gen != design_gen {
+        // The settings may have moved (decay, coupling): the loss follows at the next step.
+        self.set_contact = -1.0;
+        // A ringing voice keeps its strings (a new keyboard waits until it has ended: never
+        // a cut); a silent one is laid out afresh, its damper already lifted by the key's
+        // travel before the hammer lands.
+        if !self.active {
             self.key = key;
             let spread = settings.detune_ct * (0.7 + 0.3 * key_hash(key.key));
             let detune = match key.strings {
@@ -191,8 +199,9 @@ impl Voice {
             self.dc_x = 0.0;
             self.dc_y = 0.0;
             self.res = [0.0; 2];
-            self.set_contact = -1.0;
             self.phase = 0;
+            self.contact = 0.0;
+            self.target = 0.0;
         }
         let soft = (soft * settings.una_depth).clamp(0.0, 1.0);
         let mut felt = settings.felt;
@@ -210,6 +219,11 @@ impl Voice {
         self.key_down = true;
         self.id = id;
         self.quiet = 0;
+    }
+
+    /// How firmly the damper rests on the strings now (0 off … 1 down).
+    pub fn contact(&self) -> f64 {
+        self.contact
     }
 
     /// Where the damper goes, for the key's state and the pedal (0…1).
@@ -245,7 +259,7 @@ impl Voice {
 
     fn control(&mut self) {
         // The damper glides to its target over ~8 ms.
-        let k = 1.0 - math::exp(-(CONTROL as f64) / (0.008 * self.fs));
+        let k = self.glide;
         self.contact += (self.target - self.contact) * k;
         if (self.contact - self.target).abs() < 1e-4 {
             self.contact = self.target;

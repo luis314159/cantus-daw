@@ -152,12 +152,88 @@ fn a_released_note_dies_and_the_instrument_comes_to_rest() {
     let ev = [(0, Ev::On(84, 1.0, 1)), (2_400, Ev::Off(84, 1))];
     perform(&mut c, &ev, 48_000 * 4, 512, 1);
     assert_eq!(c.active_voices(), 0, "its damper killed it");
-    let (mut l, mut r) = (vec![0.0; 48_000], vec![0.0; 48_000]);
-    c.process(&mut l, &mut r);
+    // The undamped top strings ring on in sympathy for a few seconds (their upper partials
+    // longest): rest comes within ten.
+    let (mut l, mut r) = (vec![0.0; 4_800], vec![0.0; 4_800]);
+    let mut waited = 0;
+    while !c.at_rest() && waited < 100 {
+        c.process(&mut l, &mut r);
+        waited += 1;
+    }
+    eprintln!("at rest {:.1} s after the note", 4.0 + waited as f64 * 0.1);
     assert!(
         c.at_rest(),
         "and the board's tail has gone to exact zero: {:?} {:?}",
         c.busy_parts(),
         c.board_largest()
     );
+}
+
+/// One sympathetic string, freed by the pedal and driven by 50 ms of noise at the bridge:
+/// what it rings with afterwards (its force), mono.
+fn sympathetic_ring(key: u8) -> (Vec<f64>, super::tables::Key) {
+    let kb = keyboard();
+    let fs = kb.fs;
+    let caps: Vec<usize> = kb
+        .keys
+        .iter()
+        .map(|k| (1.33 * fs / k.partial(1)) as usize + 64)
+        .collect();
+    let mut sym = super::board::Sympathetic::new(&caps, &kb.keys, fs);
+    sym.tune(&kb.keys, &kb.sympathetic);
+    // Only this key's string sounds: every other is skipped as if its voice sounded.
+    let others: Vec<bool> = kb.keys.iter().map(|k| k.key != key).collect();
+    sym.set_dampers(1.0, &others);
+    let n = (1.5 * fs) as usize;
+    let mut seed = 0x1234_5678u64;
+    let drive: Vec<f64> = (0..n)
+        .map(|i| {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            if i < (0.05 * fs) as usize {
+                ((seed >> 11) as f64 / (1u64 << 53) as f64 - 0.5) * 100.0
+            } else {
+                0.0
+            }
+        })
+        .collect();
+    let mut out = vec![0.0; n];
+    for (d, o) in drive.chunks(64).zip(out.chunks_mut(64)) {
+        sym.process(d, o);
+    }
+    let k = *kb.keys.iter().find(|k| k.key == key).unwrap();
+    (out, k)
+}
+
+#[test]
+fn a_sympathetic_string_rings_at_its_keys_own_pitch() {
+    // The keys' own strings at their speaking pitch (ADR 0059 §3): never an octave below,
+    // never odd partials only.
+    for key in [48u8, 60, 72, 100] {
+        let (x, k) = sympathetic_ring(key);
+        let fs = keyboard().fs;
+        let f1 = super::design::target_hz(k.f0(), k.b, 1);
+        let at = |hz: f64| super::testkit::partial_level(&x, fs, hz, 0.2);
+        let (first, half, second) = (
+            at(f1),
+            at(0.5 * f1),
+            at(2.0 * k.f0() * (1.0 + 4.0 * k.b).sqrt()),
+        );
+        eprintln!("key {key}: f1 {first:.1} dB, f1/2 {half:.1} dB, f2 {second:.1} dB");
+        assert!(
+            first > half + 20.0,
+            "key {key}: {first} at f1 against {half} at f1/2"
+        );
+        assert!(
+            second > half + 20.0,
+            "key {key}: the even partial is there: {second}"
+        );
+        let hz = super::testkit::partial_hz(&x, fs, f1, 0.03 * f1, (0.2 * fs) as usize, 16_384);
+        let cents = 1200.0 * crate::math::log2(hz / f1);
+        assert!(
+            cents.abs() < 5.0,
+            "key {key}: {hz:.2} Hz against {f1:.2} ({cents:+.1} ct)"
+        );
+    }
 }

@@ -36,6 +36,38 @@ const RADIATION_CUT: f64 = 0.9;
 /// coupling: a fifth (the bridge is stiffer where the struck key's strings do not cross it).
 const SYMPATHY: f64 = 0.2;
 
+/// What a sympathetic string is laid out with, copied from a keyboard's reduced design so
+/// a new keyboard can wait until the string is silent.
+#[derive(Clone, Copy, Debug)]
+struct Layout {
+    key: Key,
+    delay: usize,
+    frac: f64,
+    sections: usize,
+    a1: [f64; 2],
+    a2: [f64; 2],
+}
+
+impl Layout {
+    fn of(key: &Key, d: &LoopDesign) -> Layout {
+        let sections = d.sections.min(2);
+        let mut l = Layout {
+            key: *key,
+            delay: d.delay.max(2),
+            frac: d.frac,
+            sections,
+            a1: [0.0; 2],
+            a2: [0.0; 2],
+        };
+        for i in 0..sections {
+            let (a1, a2) = super::design::second_coefs(d.poles[i].0, d.poles[i].1);
+            l.a1[i] = a1;
+            l.a2[i] = a2;
+        }
+        l
+    }
+}
+
 /// A sympathetic string: one loop, its damper, its drive.
 #[derive(Clone, Debug)]
 struct SymString {
@@ -62,16 +94,49 @@ struct SymString {
     peak: f64,
     key: Key,
     sounding: bool,
+    /// A new keyboard's layout, taken once the string is silent (never cut while it rings).
+    next: Option<Layout>,
 }
 
 impl SymString {
-    /// Its damper with the pedal up: down, or none at all above E6.
-    fn rest(&self) -> f64 {
+    /// Its damper with the pedal up: down as firmly as the dampers grip, or none above E6.
+    fn rest(&self, grip: f64) -> f64 {
         if self.key.damper {
-            1.0
+            grip
         } else {
             0.0
         }
+    }
+
+    /// Silent, its state cleared (its layout and damper stay); a waiting layout is taken.
+    fn silence(&mut self) {
+        let len = self.line.len_now();
+        self.line.reset(len);
+        self.fir = [0.0; 2];
+        self.frac_x = 0.0;
+        self.frac_y = 0.0;
+        self.bq = [[0.0; 4]; 2];
+        self.live = false;
+        self.quiet = 0;
+        self.peak = 0.0;
+        if let Some(l) = self.next.take() {
+            self.lay(&l);
+        }
+    }
+
+    fn lay(&mut self, l: &Layout) {
+        self.key = l.key;
+        self.z = l.key.impedance;
+        self.line.reset(l.delay);
+        self.frac = l.frac;
+        self.sections = l.sections;
+        self.a1 = l.a1;
+        self.a2 = l.a2;
+        self.fir = [0.0; 2];
+        self.frac_x = 0.0;
+        self.frac_y = 0.0;
+        self.bq = [[0.0; 4]; 2];
+        self.set_contact = -1.0;
     }
 }
 
@@ -85,9 +150,16 @@ pub struct Sympathetic {
     drive_seen: bool,
     /// The dampers' glide per control step (8 ms).
     glide: f64,
+    /// The drive's 20 Hz high-pass: a bridge does not move steadily, and a loop in tune at
+    /// its partials also holds DC — no string can, so none is fed in.
+    hp_x: f64,
+    hp_y: f64,
+    hp_a: f64,
     /// The drive's scale (the instrument's *sympathetic* setting).
     pub level: f64,
-    pub decay: f64,
+    decay: f64,
+    /// How firmly the dampers grip (the instrument's *dampers* setting, as for the voices).
+    grip: f64,
 }
 
 impl Sympathetic {
@@ -119,6 +191,7 @@ impl Sympathetic {
                 peak: 0.0,
                 key: *k,
                 sounding: false,
+                next: None,
             })
             .collect();
         Sympathetic {
@@ -127,70 +200,100 @@ impl Sympathetic {
             phase: 0,
             drive_seen: false,
             glide: 1.0 - math::exp(-(super::voice::CONTROL as f64) / (0.008 * fs)),
+            hp_x: 0.0,
+            hp_y: 0.0,
+            hp_a: math::exp(-std::f64::consts::TAU * 20.0 / fs),
             level: 1.0,
             decay: 1.0,
+            grip: 1.0,
         }
     }
 
-    /// Lay every string out for a keyboard's reduced designs (silent).
+    /// Lay every string out for a keyboard's reduced designs: a silent one at once, one
+    /// still ringing once it has rung out.
     pub fn tune(&mut self, keys: &[Key], designs: &[LoopDesign]) {
         for (s, (k, d)) in self.strings.iter_mut().zip(keys.iter().zip(designs)) {
-            s.key = *k;
-            s.z = k.impedance;
-            s.line.reset(d.delay.max(2));
-            s.fir = [0.0; 2];
-            s.frac = d.frac;
-            s.frac_x = 0.0;
-            s.frac_y = 0.0;
-            s.sections = d.sections.min(2);
-            for i in 0..s.sections {
-                let (a1, a2) = super::design::second_coefs(d.poles[i].0, d.poles[i].1);
-                s.a1[i] = a1;
-                s.a2[i] = a2;
+            let l = Layout::of(k, d);
+            if s.live {
+                s.next = Some(l);
+            } else {
+                s.next = None;
+                s.lay(&l);
             }
-            s.bq = [[0.0; 4]; 2];
-            s.live = false;
-            s.set_contact = -1.0;
         }
     }
 
-    /// The dampers: lifted by the pedal (0…1), and a key whose voice sounds is skipped.
-    /// Called on the instrument's own clock (every chunk of the stream), never between.
+    /// The strings' decay against the measured (as for the voices): a ringing string's loss
+    /// follows at its next control step.
+    pub fn set_decay(&mut self, decay: f64) {
+        if decay != self.decay {
+            self.decay = decay;
+            for s in self.strings.iter_mut() {
+                s.set_contact = -1.0;
+            }
+        }
+    }
+
+    /// How firmly the dampers grip (0…1). A string resting where the old grip left it rests
+    /// where the new one does.
+    pub fn set_grip(&mut self, grip: f64) {
+        let grip = grip.clamp(0.0, 1.0);
+        if grip == self.grip {
+            return;
+        }
+        let old = self.grip;
+        self.grip = grip;
+        for s in self.strings.iter_mut() {
+            if !s.live && !s.sounding && s.contact == s.rest(old) && s.target == s.rest(old) {
+                s.contact = s.rest(grip);
+                s.target = s.contact;
+                s.set_contact = -1.0;
+            }
+        }
+    }
+
+    /// The dampers: lifted by the pedal (0…1), and a key whose voice sounds is skipped —
+    /// silenced as its voice starts (the voice plays those strings now), and back from
+    /// silence, its damper where the pedal leaves it, when the voice has ended. Called on
+    /// the instrument's own clock (every chunk of the stream), never between.
     pub fn set_dampers(&mut self, pedal: f64, sounding: &[bool]) {
-        let contact = super::voice::pedal_contact(pedal);
+        let contact = super::voice::pedal_contact(pedal) * self.grip;
         for (s, on) in self.strings.iter_mut().zip(sounding) {
-            s.sounding = *on;
             s.target = if s.key.damper { contact } else { 0.0 };
+            if *on != s.sounding {
+                s.silence();
+                s.contact = s.target;
+                s.set_contact = -1.0;
+            }
+            s.sounding = *on;
         }
     }
 
     /// Silence every string.
     pub fn reset(&mut self) {
+        let grip = self.grip;
         for s in self.strings.iter_mut() {
-            let len = s.line.len_now();
-            s.line.reset(len);
-            s.fir = [0.0; 2];
-            s.frac_x = 0.0;
-            s.frac_y = 0.0;
-            s.bq = [[0.0; 4]; 2];
-            s.live = false;
-            s.quiet = 0;
-            s.contact = s.rest();
+            s.silence();
+            s.contact = s.rest(grip);
             s.target = s.contact;
             s.sounding = false;
             s.set_contact = -1.0;
         }
         self.phase = 0;
         self.drive_seen = false;
+        self.hp_x = 0.0;
+        self.hp_y = 0.0;
     }
 
     /// Nothing ringing, nothing driven, every damper where a new instrument has it.
     pub fn at_rest(&self) -> bool {
+        let grip = self.grip;
         !self.drive_seen
-            && self
-                .strings
-                .iter()
-                .all(|s| !s.live && !s.sounding && s.contact == s.rest() && s.target == s.rest())
+            && self.hp_x == 0.0
+            && self.hp_y == 0.0
+            && self.strings.iter().all(|s| {
+                !s.live && !s.sounding && s.contact == s.rest(grip) && s.target == s.rest(grip)
+            })
     }
 
     /// Frames skipped at rest: the control phase moves on.
@@ -208,6 +311,9 @@ impl Sympathetic {
                 self.control(driven);
             }
             self.drive_seen |= *d != 0.0;
+            let hp = self.hp_a * (self.hp_y + d - self.hp_x);
+            self.hp_x = *d;
+            self.hp_y = hp;
             let mut sum = 0.0;
             for s in self.strings.iter_mut() {
                 if !s.live || s.sounding {
@@ -231,10 +337,14 @@ impl Sympathetic {
                     st[2] = out;
                     x = out;
                 }
-                // The bridge moves with the drive: the end's reflection, and the force.
-                let v_b = SYMPATHY * level * s.yz / s.z * d;
-                s.line.write(2.0 * v_b - x);
-                let f = s.z * 2.0 * (x - v_b);
+                // The ring is the whole round trip: the nut's rigid reflection inverts the
+                // wave (`arrived = −x`, as `-nut.read()` does in a voice), and the moving
+                // bridge reflects it again: `2·v_b − arrived`. Two inversions: the loop is in
+                // tune at the key's own partials (one would put it at (k − ½)·f₀).
+                let v_b = SYMPATHY * level * s.yz / s.z * hp;
+                let arrived = -x;
+                s.line.write(2.0 * v_b - arrived);
+                let f = s.z * 2.0 * (arrived - v_b);
                 s.peak = s.peak.max(f.abs());
                 sum += f;
             }
@@ -247,8 +357,12 @@ impl Sympathetic {
     }
 
     /// Every control step: the dampers glide, the loss filters follow, a quiet string is
-    /// let go and a driven one woken.
+    /// let go (and takes a waiting layout) and a driven one woken.
     fn control(&mut self, driven: bool) {
+        // The high-pass's tail, once nothing drives it, ends exactly.
+        if !driven && self.hp_x == 0.0 && self.hp_y.abs() < 1.0e-15 {
+            self.hp_y = 0.0;
+        }
         let k = self.glide;
         for s in self.strings.iter_mut() {
             if s.sounding {
@@ -266,25 +380,21 @@ impl Sympathetic {
                 continue;
             }
             if s.contact != s.set_contact {
-                let grip = 6.907_755 / super::voice::damped_t60(s.key.key as f64);
-                let (g, a, _) =
-                    super::string::loss(&s.key, self.fs, 0.0, self.decay, s.contact * grip, 0.0);
-                s.g = g;
+                // The bridge takes half the first partial's loss, as a voice's does: its
+                // reflection `(1 − YZ)/(1 + YZ)` keeps the loop under unity at every
+                // frequency, DC too (the loss filter alone is capped at 1 there).
+                let rate = 6.907_755 / super::voice::damped_t60(s.key.key as f64);
+                let (g, a, yz) =
+                    super::string::loss(&s.key, self.fs, 0.5, self.decay, s.contact * rate, 0.0);
+                s.g = g * (1.0 - yz) / (1.0 + yz);
                 s.alpha = a;
-                s.yz = math::tanh(0.5 * s.key.b1 / (2.0 * s.key.partial(1)));
+                s.yz = yz;
                 s.set_contact = s.contact;
             }
             if s.peak < 1.0e-10 && !driven {
                 s.quiet += 1;
                 if s.quiet >= 64 {
-                    let len = s.line.len_now();
-                    s.line.reset(len);
-                    s.fir = [0.0; 2];
-                    s.frac_x = 0.0;
-                    s.frac_y = 0.0;
-                    s.bq = [[0.0; 4]; 2];
-                    s.live = false;
-                    s.quiet = 0;
+                    s.silence();
                 }
             } else {
                 s.quiet = 0;
