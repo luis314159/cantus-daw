@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(42) {
+    match rng.below(43) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -826,6 +826,9 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // Round 28 (ADR 0057): modulators made, removed and edited on tracks, strips and
         // the master — sources, routes, depths, nesting — and the refused ones.
         41 => modulator_command(rng, project),
+        // Round 28 (ADR 0058): comp seams moved as a unit (and refused where there is no
+        // seam), seam crossfades set, alternate comps kept with their windows.
+        42 if tracks > 0 => comp_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -1715,7 +1718,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut routed = [0usize; 14];
     // Pitch edits applied (ADR 0054): set, and cleared.
     let mut pitched = [0usize; 2];
-    for seed in 1..=40u64 {
+    for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
@@ -2227,5 +2230,65 @@ fn modulator_command(rng: &mut Lcg, project: &mut Project) -> Command {
     }
     Command::SetModulator {
         modulator: Box::new(e),
+    }
+}
+
+/// One comping command: a seam between two lane-0 clips of a track moved (or, one time in
+/// four, two clips that do not meet: refused), a window's seam crossfade set (now and then
+/// beyond the most: refused), or the track's comps replaced — a copy of a lane-0 clip kept
+/// under a fresh id in a second comp, or an empty list.
+fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::comp::{letter, Comp};
+    let ti = rng.below(project.tracks.len() as u64) as usize;
+    let track = project.tracks[ti].clone();
+    let lane0: Vec<&Clip> = track.clips.iter().filter(|c| c.lane == 0).collect();
+    match rng.below(3) {
+        0 if lane0.len() >= 2 => {
+            let i = rng.below(lane0.len() as u64 - 1) as usize;
+            let (l, r) = (lane0[i], lane0[i + 1]);
+            let lo = l.start.0 + 1;
+            let hi = r.end().0.max(lo + 1);
+            Command::SetCompSeam {
+                track: track.id,
+                left: l.id,
+                right: r.id,
+                at: Ticks(lo + rng.below((hi - lo) as u64) as i64),
+            }
+        }
+        1 => match lane0.iter().find(|c| c.audio.is_some()) {
+            Some(c) => {
+                let mut a = c.audio.clone().unwrap();
+                a.xfade = Ticks(rng.below(1200) as i64);
+                Command::SetClipAudio {
+                    track: track.id,
+                    clip: c.id,
+                    audio: Some(a),
+                }
+            }
+            None => Command::SetTrackComps {
+                track: track.id,
+                comps: Vec::new(),
+                active: 0,
+            },
+        },
+        _ => {
+            let mut comps = vec![Comp {
+                name: letter(0),
+                windows: Vec::new(),
+            }];
+            if let Some(c) = lane0.first() {
+                let mut w = (*c).clone();
+                w.id = ClipId(project.alloc_id());
+                comps.push(Comp {
+                    name: letter(1),
+                    windows: vec![w],
+                });
+            }
+            Command::SetTrackComps {
+                track: track.id,
+                active: if rng.below(8) == 0 { 7 } else { 0 },
+                comps,
+            }
+        }
     }
 }

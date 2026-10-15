@@ -639,6 +639,8 @@ pub fn import_commands(
             takes_open: false,
             automation_open: true,
             modulators: Vec::new(),
+            comps: Vec::new(),
+            active_comp: 0,
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 28;
+pub const SCHEMA_VERSION: u32 = 29;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -211,6 +211,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_25_to_26,
     migrate_26_to_27,
     migrate_27_to_28,
+    migrate_28_to_29,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -674,6 +675,15 @@ fn migrate_27_to_28(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 29 (round 28, ADR 0058): comp seams' crossfades (`AudioRegion::xfade`),
+/// alternate comps (`Track::comps`, `active_comp`), the record options' seam default and
+/// automation switch (`RecordSettings::comp_xfade_ms`, `record_automation`). A file without
+/// them butt-joins its comp windows, has the one comp lane 0 holds, a 10 ms default and
+/// records automation — what every older version would do — so the step writes nothing.
+fn migrate_28_to_29(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -864,6 +874,47 @@ mod tests {
         let old = std::fs::read_to_string(dir.join("v27.cantus")).unwrap();
         let p = parse(&old, true).unwrap().file.project;
         assert_eq!(p.all_modulators().count(), 0);
+    }
+
+    /// Schema 29 (round 28, ADR 0058): the fixture's vocal comp has a seam with a crossfade
+    /// (the right window's `xfade`), two alternate comps — A playing, B keeping a window
+    /// whole, pitch edits and all — and the record options' seam default and automation
+    /// switch; an older file (28) opens with none, its defaults those of every earlier
+    /// version.
+    #[test]
+    fn schema_29_keeps_comp_seams_and_alternate_comps() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v29.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let vocal = p.tracks.iter().find(|t| t.name == "Vocal").unwrap();
+        let seam = vocal
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0)
+            .find_map(|c| c.audio.as_ref().map(|a| a.xfade))
+            .into_iter()
+            .chain(
+                vocal
+                    .clips
+                    .iter()
+                    .filter_map(|c| c.audio.as_ref().map(|a| a.xfade)),
+            )
+            .max()
+            .unwrap();
+        assert_eq!(seam, cantus_core::Ticks(19));
+        assert_eq!(vocal.comps.len(), 2);
+        assert_eq!((vocal.comps[0].name.as_str(), vocal.active_comp), ("A", 0));
+        assert!(vocal.comps[0].windows.is_empty());
+        let kept = &vocal.comps[1].windows;
+        assert_eq!(kept.len(), 1);
+        assert!(kept[0].audio.as_ref().is_some_and(|a| a.pitch.is_some()));
+        assert_eq!(p.recording.comp_xfade_ms, 15.0);
+        assert!(!p.recording.record_automation);
+        let old = std::fs::read_to_string(dir.join("v28.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tracks.iter().all(|t| t.comps.is_empty()));
+        assert_eq!(p.recording.comp_xfade_ms, 10.0);
+        assert!(p.recording.record_automation);
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

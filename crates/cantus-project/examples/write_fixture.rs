@@ -575,10 +575,68 @@ fn main() {
         );
         p.tracks[0].clips.push(curve);
     }
+    // Schema 29 (round 28, ADR 0058): the vocal comp — the take to beat 8, the older take
+    // after, the seam crossfading over 19 ticks (~10 ms at 96 BPM) — comp A playing and
+    // comp B keeping a window of its own, pitch edits and all; the record options' seam
+    // default at 15 ms and automation not recorded.
+    {
+        let vocal = &mut p.tracks[vocal_index];
+        let older = vocal.clips.iter().find(|c| c.lane == 1).cloned();
+        let edited = vocal
+            .clips
+            .iter()
+            .find(|c| c.lane == 0)
+            .and_then(|c| c.audio.as_ref())
+            .and_then(|a| a.pitch.clone());
+        if let (Some(left), Some(older)) =
+            (vocal.clips.iter_mut().find(|c| c.lane == 0), older)
+        {
+            left.length = Ticks::beats(4);
+            if let Some(a) = left.audio.as_mut() {
+                a.fade_out = Ticks::ZERO;
+            }
+            let mut right = older.clone();
+            right.lane = 0;
+            right.start = Ticks::beats(8);
+            right.length = Ticks::beats(4);
+            right.offset = older.offset + Ticks::beats(4);
+            let mut kept = right.clone();
+            if let Some(a) = right.audio.as_mut() {
+                a.xfade = Ticks(19);
+            }
+            if let Some(a) = kept.audio.as_mut() {
+                a.pitch = edited;
+            }
+            right.id = ClipId(next_id(&mut p.next_id));
+            kept.id = ClipId(next_id(&mut p.next_id));
+            let vocal = &mut p.tracks[vocal_index];
+            vocal.clips.push(right);
+            vocal.clips.sort_by_key(|c| (c.start, c.id));
+            vocal.comps = vec![
+                cantus_core::comp::Comp {
+                    name: "A".into(),
+                    windows: Vec::new(),
+                },
+                cantus_core::comp::Comp {
+                    name: "B".into(),
+                    windows: vec![kept],
+                },
+            ];
+        }
+        p.recording.comp_xfade_ms = 15.0;
+        p.recording.record_automation = false;
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
         .join(name);
     cantus_project::save(&p, &path, "fixture").expect("save fixture");
     println!("wrote {}", path.display());
+}
+
+/// A fresh id, as `Project::alloc_id` gives it, while the project is borrowed elsewhere.
+fn next_id(next: &mut u64) -> u64 {
+    let id = *next;
+    *next += 1;
+    id
 }

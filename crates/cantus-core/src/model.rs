@@ -499,6 +499,13 @@ pub struct Track {
     /// sources driving any parameter. Schema 28; empty is every older project.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulators: Vec<crate::modulator::Modulator>,
+    /// The track's alternate comps (schema 29, ADR 0058): Logic's A/B/C. Empty — every
+    /// older project — is the one comp lane 0 holds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comps: Vec<crate::comp::Comp>,
+    /// Which of `comps` plays (its windows are lane 0's).
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub active_comp: u8,
 }
 
 fn is_true(x: &bool) -> bool {
@@ -1398,6 +1405,8 @@ impl Project {
             takes_open: false,
             automation_open: true,
             modulators: Vec::new(),
+            comps: Vec::new(),
+            active_comp: 0,
         }
     }
 
