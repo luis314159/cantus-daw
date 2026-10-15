@@ -1,4 +1,26 @@
 # Phasis — de Phasis. Cada clave necesita su gemela en phasis.en.txt.
 effect.phasis = Phasis phaser
 fx.phasis.about = Muescas que barren desde una cadena de etapas pasa-todo, de lo sutil a lo profundo.
+fx.phasis.stages = Etapas
+fx.phasis.mix = Mezcla
+fx.phasis.lo = Grave
+fx.phasis.hi = Agudo
+fx.phasis.fb = Realimentación
+fx.phasis.fb.short = Realim.
 fx.phasis.out = Salida
+
+phasis.card.mix = Mezcla
+phasis.card.stages = Etapas y barrido
+phasis.card.sweep = Frecuencia de las etapas en dos ciclos
+phasis.card.response = La respuesta ahora
+phasis.idle = Mezcla en 0 %: el sonido pasa intacto
+phasis.preview = Phaser
+
+preset.phasis.phase90_script = Phase 90, logo script
+preset.phasis.phase90_block = Phase 90, logo block
+preset.phasis.small_stone = Small Stone, color activado
+preset.phasis.deep_twelve = Doce etapas, profundo
+preset.phasis.synced_eighths = Corcheas
+preset.phasis.stereo_swirl = Remolino estéreo
+preset.phasis.random_steps = Pasos al azar
+preset.phasis.slow_wash = Ola lenta

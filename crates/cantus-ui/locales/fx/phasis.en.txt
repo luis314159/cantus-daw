@@ -1,4 +1,26 @@
 # Phasis — owned by Phasis. Every key here needs its twin in phasis.es.txt.
 effect.phasis = Phasis phaser
 fx.phasis.about = Sweeping notches from a chain of all-pass stages, from subtle to deep.
+fx.phasis.stages = Stages
+fx.phasis.mix = Mix
+fx.phasis.lo = Low
+fx.phasis.hi = High
+fx.phasis.fb = Feedback
+fx.phasis.fb.short = Fdbk
 fx.phasis.out = Output
+
+phasis.card.mix = Mix
+phasis.card.stages = Stages and sweep
+phasis.card.sweep = The stages' frequency over two cycles
+phasis.card.response = The response now
+phasis.idle = Mix is 0 %: the sound passes untouched
+phasis.preview = Phaser
+
+preset.phasis.phase90_script = Phase 90, script
+preset.phasis.phase90_block = Phase 90, block
+preset.phasis.small_stone = Small Stone, colour on
+preset.phasis.deep_twelve = Twelve stages, deep
+preset.phasis.synced_eighths = Eighths
+preset.phasis.stereo_swirl = Stereo swirl
+preset.phasis.random_steps = Random steps
+preset.phasis.slow_wash = Slow wash

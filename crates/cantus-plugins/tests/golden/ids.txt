@@ -1142,3 +1142,14 @@ flexus manual 563151331
 flexus att 727817140
 flexus rel 1223986548
 flexus sens 1600236230
+phasis stages 77660666
+phasis mix 1469012833
+phasis lo 1110556780
+phasis hi 1748694682
+phasis fb 1730342945
+phasis sync 159043482
+phasis div 1700965192
+phasis rate 780377191
+phasis shape 499374374
+phasis edge 1459017788
+phasis spread 1229586638
