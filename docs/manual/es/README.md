@@ -288,7 +288,8 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
   paso, un tono por canal (una batería puede usar todos sus pads; una melodía en un
   sintetizador se abre en el piano roll, como en FL) — se abre en el **rack de canales**,
   en la rejilla del propio patrón y desplazado hasta su pista. Un clip de automatización se
-  abre en su editor grande; un clip de audio se muestra en el inspector.
+  abre en su editor grande; un clip de audio se abre en el **editor de afinación** (su
+  ganancia, fundidos y archivo siguen en el inspector).
 - **Abrir editor** — en el inspector, los menús del mezclador o el marco de un instrumento —
   trae una ventana ya abierta de la bandeja (o de la barra de tareas, si es de un
   instrumento o un efecto plug-in) y la pone delante; mientras la ventana de un plug-in está
@@ -364,6 +365,51 @@ una fila con nombre por pad.
 El **rack de canales** (`F6`) muestra cada pista como una fila de pasos sobre los compases
 del clip seleccionado: clic enciende un paso, clic derecho lo apaga, arrastrar pinta. Un
 paso es una nota normal.
+
+### El editor de afinación
+
+Doble clic en un clip de audio — o su menú ▸ *Editar afinación*, o *Editar afinación* en el
+inspector — y su toma se abre en el lugar del piano roll, a la manera de Melodyne: cada
+**nota** es una mancha en la fila de la nota que suena, tan gruesa como fuerte es la voz,
+con la **curva de afinación** atravesándola (lo que se cantó, tenue, bajo lo que sonará).
+Las sibilantes y las respiraciones se marcan abajo. La toma se analiza junto a la ventana
+la primera vez (un segundo o así por minuto de audio; una toma grabada se analiza en
+cuanto llega) y el resultado se guarda en la caché de Cantus, así que la próxima vez se
+abre al instante. El archivo nunca cambia: el clip suena con un render de tus ediciones,
+hecho junto a la ventana, y mientras un render está en camino se oye la toma tal como fue
+(nunca silencio). La exportación espera a todos los renders.
+
+- **Herramienta Editar**: haz clic en una nota para seleccionarla (`Mayús` añade; arrastra
+  en el fondo para varias). Arrástrala **arriba o abajo** para mover su afinación — a las
+  notas de la tonalidad (*Ajuste: Escala*), a semitonos o a cualquier punto (*Libre*;
+  mantén `Alt` para cents). Arrástrala **a los lados** para moverla en el tiempo, o
+  arrastra uno de sus **extremos** para estirarla: solo ceden los huecos a su lado, sus
+  vecinas quedan exactamente como se cantaron. **Doble clic** en una nota lleva su centro a
+  su nota (otra vez para soltarlo). `Arriba`/`Abajo` mueven la selección un paso (`Mayús`:
+  una octava, `Alt`: 10 cents), `Ctrl+A` selecciona todas, `Ctrl+J` une, `Q` cuantiza,
+  `Esc` deselecciona.
+- **Herramienta Dividir**: haz clic dentro de una nota para cortarla en dos; **Unir** junta
+  vecinas.
+- **La nota** (el panel de abajo): lo que la selección *suena* y lo que se *cantó*, y su
+  **centro** (cuánto se lleva su centro a su nota, conservando su deriva y su vibrato
+  naturales), **deriva** (el vaivén lento: 100 % como se cantó, 0 % plano), **vibrato**
+  (0–200 %), **formante** (el color de la voz, arriba o abajo, sin mover la afinación) y
+  **ganancia**.
+- **Las macros** actúan sobre la selección, o sobre todas las notas si no hay ninguna
+  seleccionada: **Corregir afinación** según una cantidad (una nota fuera de la tonalidad va
+  a su nota más cercana), **Corregir deriva** según una cantidad, y **Cuantizar** el inicio
+  de cada nota a la rejilla de la barra.
+- **Tonalidad**: hallada a partir de las notas; cámbiala en la barra (las escalas de
+  Tonus). **Original** compara con la toma tal como se cantó (A/B) — el inspector tiene el
+  mismo interruptor. **Restablecer** deshace todas las ediciones de la selección. **▶**
+  reproduce desde la primera nota seleccionada. Cada edición es un paso de deshacer.
+- **MIDI**: arrástralo a una pista de instrumento del arreglo y la melodía cae allí, en el
+  lugar de la voz; haz clic para una pista nueva. **Doblar**: una segunda voz una tercera o
+  una quinta por encima en la tonalidad, de la misma toma, en su propia pista.
+
+Los formantes se conservan al mover una nota (medido: dentro de 3 dB a ±3 semitonos).
+Trabaja sobre una voz o una línea de instrumento a la vez; los acordes no se separan en
+notas.
 
 ### Automatización
 

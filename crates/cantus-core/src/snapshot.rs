@@ -100,8 +100,12 @@ pub struct AudioClipSnapshot {
     /// The region's fine offset (`AudioRegion::slip_frames`) in seconds: the engine adds
     /// it, at its own rate, to the content position.
     pub slip: f64,
-    /// The decoded file at the engine's rate, once attached; `None` plays silence.
+    /// The decoded file at the engine's rate, once attached; `None` plays silence. For a
+    /// clip with pitch edits, the render of the edits once it is made (ADR 0054).
     pub data: Option<std::sync::Arc<crate::pads::SampleData>>,
+    /// The clip's pitch edits (ADR 0054): the sample cache attaches their render in
+    /// place of the source.
+    pub pitch: Option<std::sync::Arc<crate::pitch::PitchEdit>>,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -327,6 +331,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
                 0.0
             },
             data: None,
+            pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
         };
         match c.period() {
             Some(period) if period < c.length => {

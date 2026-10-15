@@ -51,6 +51,7 @@ pub mod picker_panel;
 pub mod picker_side;
 pub mod picker_snap;
 pub mod picker_thumbs;
+pub mod pitch;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;

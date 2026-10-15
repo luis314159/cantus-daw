@@ -23,6 +23,7 @@ pub mod links;
 pub mod model;
 pub mod pads;
 pub mod pattern;
+pub mod pitch;
 pub mod routing;
 pub mod snapshot;
 pub mod time;

@@ -263,6 +263,8 @@ pub struct CantusApp {
     /// Automation (ADR 0027): the last tweaked parameter, the lanes as the knobs read
     /// them, the large editor's state.
     pub automation: crate::automation::AutoUi,
+    /// The pitch editor's state (round 28, ADR 0054).
+    pub pitch: crate::pitch::PitchUi,
 }
 
 impl CantusApp {
@@ -419,6 +421,11 @@ impl CantusApp {
         Self::start_window_services(&mut engine, &settings);
         let mut app = Self::from_parts(project, engine, stress);
         app.peaks.set_disk_cache(Some(peak_cache));
+        // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
+        app.engine
+            .samples
+            .pitch()
+            .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
@@ -570,6 +577,7 @@ impl CantusApp {
             auditions: Vec::new(),
             frame_times: Vec::with_capacity(120),
             automation: Default::default(),
+            pitch: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -3092,6 +3100,10 @@ impl CantusApp {
     /// item cannot.
     pub fn run_action(&mut self, action: Action) {
         use Action::*;
+        // Round 28 (ADR 0054): the pitch editor's keys while it has the focus.
+        if self.pitch_action(action) {
+            return;
+        }
         match action {
             PlayPause => self.toggle_play(),
             Stop => self.stop(),

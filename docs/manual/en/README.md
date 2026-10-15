@@ -268,8 +268,8 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
   pattern the rack shows with nothing lost — every note a short hit on a step, one pitch
   per channel (a drum kit may use all its pads; a melody on a synth opens the piano roll,
   as in FL) — opens in the **channel rack** instead, at the pattern's own grid and
-  scrolled to its track. An automation clip opens in its large editor; an audio clip shows
-  in the inspector.
+  scrolled to its track. An automation clip opens in its large editor; an audio clip opens
+  in the **pitch editor** (its gain, fades and file stay in the inspector).
 - **Open editor** — in the inspector, the mixer's menus or an instrument's frame — brings a
   window that is already open back from the tray (or the taskbar, for a plug-in instrument
   or effect) and to the front; while a plug-in's window is open its key reads *Show*. `F8`
@@ -338,6 +338,45 @@ grid: drag them, or `Alt+wheel` over a note. A drum kit shows one named row per 
 
 The **channel rack** (`F6`) shows every track as a row of steps over the selected clip's
 bars: click a step on, right-click it off, drag to paint. A step is an ordinary note.
+
+### The pitch editor
+
+Double-click an audio clip — or its menu ▸ *Edit pitch*, or *Edit pitch* in the inspector
+— and its take opens in the piano roll's place, Melodyne's way: each **note** is a blob on
+the row it sounds, as thick as the voice is loud, with the **pitch curve** running through
+it (what was sung, dim, under what will sound). Sibilants and breaths are marked along the
+bottom. The take is analysed beside the window the first time (a second or so per minute
+of audio; a recorded take is analysed as soon as it lands) and the result is kept in
+Cantus's cache, so it opens at once next time. The file is never changed: the clip plays a
+render of your edits, made beside the window, and while a render is on its way you hear
+the take as it was (never silence). Export waits for every render.
+
+- **Edit tool**: click a note to select it (`Shift` adds; drag on empty ground for
+  several). Drag it **up or down** to move its pitch — on the notes of the key (*Snap:
+  Scale*), on semitones, or anywhere (*Free*; hold `Alt` for cents). Drag it **sideways**
+  to move it in time, or drag one of its **ends** to stretch it: only the gaps beside it
+  give way, its neighbours stay exactly as sung. **Double-click** a note to pull its centre
+  onto its note (again to let it go). `Up`/`Down` move the selection a step (`Shift`: an
+  octave, `Alt`: 10 cents), `Ctrl+A` selects every note, `Ctrl+J` joins, `Q` quantises,
+  `Esc` clears.
+- **Split tool**: click inside a note to cut it in two; **Join** puts neighbours together.
+- **The note** (the panel below): what the selection *sounds* and was *sung*, and its
+  **centre** (how far its centre is pulled onto its note, keeping its natural drift and
+  vibrato), **drift** (the slow wander: 100 % as sung, 0 % flat), **vibrato** (0–200 %),
+  **formant** (the voice's colour, up or down, the pitch kept) and **gain**.
+- **The macros** act on the selection, or on every note when none is selected:
+  **Correct pitch** by an amount (a note off the key goes to its nearest note), **Correct
+  drift** by an amount, and **Quantise** each note's start to the grid on the bar.
+- **Key**: found from the notes; change it on the bar (Tonus's scales). **Original**
+  compares with the take as sung (A/B) — the inspector has the same switch. **Reset** undoes
+  every edit on the selection. **▶** plays from the first selected note. Every edit is one
+  undo step.
+- **MIDI**: drag it onto an instrument track in the arrangement and the melody lands
+  there, at the voice's place; click it for a new track. **Double**: a second voice a third
+  or a fifth above in the key, from the same take, on a track of its own.
+
+Formants are kept when a note moves (measured within 3 dB at ±3 semitones). It works on
+one voice or one instrument line at a time; chords are not split into notes.
 
 ### Automation
 

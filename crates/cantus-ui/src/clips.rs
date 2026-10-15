@@ -136,6 +136,7 @@ pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
         | Command::SetNotes { clip, .. }
         | Command::SetClipAudio { clip, .. }
         | Command::SetClipAutomation { clip, .. }
+        | Command::SetClipPitch { clip, .. }
         | Command::SetClipName { clip, .. }
         | Command::SetClipColor { clip, .. }
         | Command::SetClipContent { clip, .. } => *clip == id,
@@ -794,13 +795,14 @@ pub enum ClipEditor {
     ChannelRack,
     /// The automation editor (ADR 0027).
     Automation,
-    /// An audio clip has no editor of its own: the inspector shows it.
-    Inspector,
+    /// The pitch editor (round 28, ADR 0054): an audio clip's notes, in the piano roll's
+    /// place.
+    Pitch,
 }
 
 /// Which editor `clip` opens in, on a track whose instrument has `lanes`, derived from what
 /// it holds — no hint is stored (ADR 0051 §4). Automation opens its editor and audio the
-/// inspector. Notes open in the **channel rack only when it shows and edits them with
+/// pitch editor (ADR 0054, which amends §4: there is an audio clip editor now). Notes open in the **channel rack only when it shows and edits them with
 /// nothing lost** ([`rack_grid`]); anything else — a melody, a held note, a note off every
 /// step grid, an empty clip — opens in the piano roll, which shows every note as it is.
 pub fn editor_for(clip: &Clip, lanes: Lanes<'_>, current: Ticks) -> ClipEditor {
@@ -808,7 +810,7 @@ pub fn editor_for(clip: &Clip, lanes: Lanes<'_>, current: Ticks) -> ClipEditor {
         return ClipEditor::Automation;
     }
     if clip.audio.is_some() {
-        return ClipEditor::Inspector;
+        return ClipEditor::Pitch;
     }
     if rack_grid(clip, lanes, current).is_some() {
         ClipEditor::ChannelRack

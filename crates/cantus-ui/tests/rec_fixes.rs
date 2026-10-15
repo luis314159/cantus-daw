@@ -213,11 +213,21 @@ fn the_piano_roll_refuses_an_audio_clip() {
         out.textures_delta.clear();
         painted_text(&out.shapes)
     };
+    // Round 28 (ADR 0054): the piano roll's place shows the pitch editor, which says
+    // the take is being analysed, then that its file cannot be read — and draws no note.
     let text = run(&mut a, vec![]);
+    let failed = cantus_ui::i18n::t("pitch.failed");
+    let failed = failed.split('{').next().unwrap_or_default().to_string();
     assert!(
-        text.contains(&cantus_ui::i18n::t("audioclips.piano_roll")),
+        text.contains(&cantus_ui::i18n::t("pitch.analysing")) || text.contains(&failed),
         "{text}"
     );
+    let t0 = std::time::Instant::now();
+    while a.engine.samples.pitch().busy() && t0.elapsed() < std::time::Duration::from_secs(10) {
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let text = run(&mut a, vec![]);
+    assert!(text.contains(&failed), "{text}");
     // A click where the grid would be draws no note.
     let at = egui::pos2(500.0, 250.0);
     let press = |pressed| egui::Event::PointerButton {

@@ -33,6 +33,7 @@ pub mod picker;
 pub mod picker_catalog;
 pub mod picker_prefs;
 pub mod picker_query;
+pub mod pitch;
 pub mod raster;
 pub mod record_pass;
 pub mod record_session;

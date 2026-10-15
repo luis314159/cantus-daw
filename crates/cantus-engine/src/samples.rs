@@ -67,6 +67,8 @@ pub struct SampleCache {
     was_busy: bool,
     /// Whether Exemplar streams long samples ([`Self::set_streaming`]).
     streaming: bool,
+    /// Audio clips' pitch renders (ADR 0054): attached in place of their sources.
+    pitch: crate::pitch::attach::Renders,
     /// Instruments' files loaded in the background (with [`Self::set_background`]).
     assets: Option<AssetLoader>,
     /// The zones' starts past their heads in the last snapshot attached, the board that
@@ -126,7 +128,7 @@ impl Loader {
 
 /// Decode an audio source (WAV, AIFF, FLAC, Ogg; at most two channels) and convert it
 /// to `rate` (`0` or its own rate: untouched).
-fn decode_audio(path: &Path, rate: u32) -> Result<SampleData, String> {
+pub(crate) fn decode_audio(path: &Path, rate: u32) -> Result<SampleData, String> {
     crate::inst::sampler::decode::decode(path)
         .unwrap_or_else(|| decode_wav(path))
         .map(|d| {
@@ -631,6 +633,8 @@ impl SampleCache {
             .map(AssetLoader::take)
             .unwrap_or_default();
         let mut any = !done.is_empty() || std::mem::take(&mut self.arrived);
+        // Pitch renders finished on their worker (ADR 0054).
+        any |= self.pitch.poll();
         // A stream that failed: the next snapshot loads its file again.
         any |= self
             .streamed
@@ -670,7 +674,8 @@ impl SampleCache {
 
     /// Whether any source is still being loaded in the background.
     pub fn loading(&self) -> bool {
-        self.loader.as_ref().is_some_and(|l| !l.pending.is_empty())
+        self.pitch.pending() > 0
+            || self.loader.as_ref().is_some_and(|l| !l.pending.is_empty())
             || self.assets.as_ref().is_some_and(AssetLoader::busy)
     }
 
@@ -695,7 +700,34 @@ impl SampleCache {
                 };
             }
         }
+        // Clips with pitch edits play their render (ADR 0054): made here, or queued and
+        // the source (or the last render) played until it arrives.
+        let background = self.loader.is_some();
+        let dir = self.project_dir.clone();
+        let resolve = |p: &str| {
+            let p = Path::new(p);
+            match &dir {
+                Some(d) if p.is_relative() => d.join(p),
+                _ => p.to_path_buf(),
+            }
+        };
+        errors.extend(self.pitch.attach(snapshot, rate, background, &resolve));
         errors
+    }
+
+    /// The pitch editor's service (ADR 0054): analyses and renders, off this thread.
+    pub fn pitch(&self) -> &std::sync::Arc<crate::pitch::PitchService> {
+        &self.pitch.service
+    }
+
+    /// Pitch renders waiting or being made (an export waits for them).
+    pub fn pitch_pending(&self) -> usize {
+        self.pitch.pending()
+    }
+
+    /// Pitch renders held for playing, and those waiting to be freed.
+    pub fn pitch_held(&self) -> usize {
+        self.pitch.held()
     }
 }
 

@@ -22,6 +22,8 @@ pub enum AudioAct {
     Locate(AudioSourceId),
     Reveal(AudioSourceId),
     Normalize(TrackId, ClipId),
+    /// Open the pitch editor on the clip (round 28, ADR 0054).
+    EditPitch(TrackId, ClipId),
 }
 
 pub fn apply(app: &mut CantusApp, a: AudioAct) {
@@ -32,6 +34,7 @@ pub fn apply(app: &mut CantusApp, a: AudioAct) {
             app.select_clip(t, c);
             crate::views::arrangement::normalize_selection(app);
         }
+        AudioAct::EditPitch(t, c) => app.open_pitch_editor(t, c),
     }
 }
 
@@ -194,6 +197,29 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     ) && !missing
     {
         sh.acts.push(Act::Audio(AudioAct::Normalize(t, c)));
+    }
+    // The pitch editor (round 28, ADR 0054): open it, and — when the clip plays edits —
+    // hear them or the original (A/B).
+    if let Some(p) = a.pitch.as_deref().filter(|p| p.edited()) {
+        if sh.led_row(
+            "pitch.inspector.edited",
+            "pitch.inspector.badge",
+            !p.bypass,
+            Function::Source,
+            false,
+        ) {
+            let mut x = p.clone();
+            x.bypass = !x.bypass;
+            sh.acts.push(Act::Exec(cantus_core::Command::SetClipPitch {
+                track: t,
+                clip: c,
+                pitch: Some(Box::new(x)),
+                op: cantus_core::pitch::PitchOp::Compare,
+            }));
+        }
+    }
+    if button(sh, ("insp-audio-pitch", c), "pitch.inspector.edit", false) && !missing {
+        sh.acts.push(Act::Audio(AudioAct::EditPitch(t, c)));
     }
 }
 

@@ -143,6 +143,17 @@ fn badge_text(a: &AudioRegion, out: &mut String) {
         }
         out.push_str(&crate::i18n::t("audioclips.badge.reverse"));
     }
+    // Round 28 (ADR 0054): the clip plays its pitch edits (or is compared with the take).
+    if let Some(p) = a.pitch.as_deref().filter(|p| p.edited()) {
+        if !out.is_empty() {
+            out.push_str("  ");
+        }
+        out.push_str(&crate::i18n::t(if p.bypass {
+            "pitch.badge.original"
+        } else {
+            "pitch.badge"
+        }));
+    }
 }
 
 /// Paint an audio clip's body: the waveform, the fades, the gain line, the badges, the

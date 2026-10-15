@@ -49,6 +49,8 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         .map(|b| b.display());
     let items = [
         Item::Band(Src::Key("audioclips.menu.band")),
+        // Round 28 (ADR 0054): the clip's notes in the pitch editor.
+        action("pitch.menu.edit", Check::None, !missing),
         action("audioclips.menu.normalize", Check::None, !missing),
         action("audioclips.menu.reset_gain", Check::None, a.gain_db != 0.0),
         action(
@@ -78,23 +80,24 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         return;
     };
     match i {
-        1 => {
+        1 => app.open_pitch_editor(r.0, r.1),
+        2 => {
             normalize(app);
         }
-        2 => set_all(app, "cmd.set_clip_audio", |_, a| ac::with_gain(a, 0.0)),
-        3 => {
+        3 => set_all(app, "cmd.set_clip_audio", |_, a| ac::with_gain(a, 0.0)),
+        4 => {
             let on = !a.reverse;
             set_all(app, "cmd.set_clip_audio", |_, a| cantus_core::AudioRegion {
                 reverse: on,
                 ..a.clone()
             });
         }
-        4 => set_all(app, "cmd.set_clip_audio", |c, a| {
+        5 => set_all(app, "cmd.set_clip_audio", |c, a| {
             ac::with_fade_out(c, &ac::with_fade_in(c, a, Ticks::ZERO), Ticks::ZERO)
         }),
-        5 => app.run_action(crate::keymap::Action::RenameClip),
-        7 if missing => app.relink_audio_dialog(a.source),
-        7 => app.reveal_audio(a.source),
+        6 => app.run_action(crate::keymap::Action::RenameClip),
+        8 if missing => app.relink_audio_dialog(a.source),
+        8 => app.reveal_audio(a.source),
         _ => {}
     }
     ui.close();

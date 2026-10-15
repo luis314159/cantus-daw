@@ -1,1 +1,111 @@
 # pitch — round 28: pitch editing. Every key here needs its twin in pitch.es.txt.
+
+# The undo menu (ADR 0054).
+cmd.pitch.notes = Edit pitch notes
+cmd.pitch.pitch = Move pitch
+cmd.pitch.centre = Pitch centre
+cmd.pitch.drift = Pitch drift
+cmd.pitch.vibrato = Vibrato depth
+cmd.pitch.formant = Formant
+cmd.pitch.gain = Note gain
+cmd.pitch.timing = Note timing
+cmd.pitch.split = Split note
+cmd.pitch.join = Join notes
+cmd.pitch.correct_pitch = Correct pitch
+cmd.pitch.correct_drift = Correct drift
+cmd.pitch.quantise = Quantise timing
+cmd.pitch.key = Set the take's key
+cmd.pitch.compare = Compare with the original
+cmd.pitch.reset = Reset pitch edits
+cmd.pitch.midi = Notes to MIDI
+cmd.pitch.double = Double the voice
+
+# Opening it.
+pitch.menu.edit = Edit pitch
+pitch.inspector.edit = Edit pitch
+pitch.inspector.edit_tip = Open the pitch editor on this clip: its notes, to move, correct, stretch and double (the file is never changed)
+pitch.inspector.edited = Pitch edited
+pitch.inspector.edited_tip = This clip plays its pitch edits. Open the pitch editor to change or compare them
+pitch.inspector.badge = Edits
+pitch.badge = Tuned
+pitch.badge.original = Original
+
+# The take.
+pitch.analysing = Analysing the take: finding its notes and its key…
+pitch.analysing_short = Analysing…
+pitch.failed = Could not read the take: {reason}
+pitch.no_source = This clip has no audio file
+pitch.status = {n} notes · {key}
+pitch.status_one = One note · {key}
+pitch.key.value = {tonic} {scale}
+
+# The bar.
+pitch.tool.edit = Edit
+pitch.tool.edit_tip = Edit: drag a note up or down to move its pitch, sideways to move it in time, its ends to stretch it; double-click to pull it onto its note
+pitch.tool.split = Split
+pitch.tool.split_tip = Split: click inside a note to cut it in two there
+pitch.snap = Snap
+pitch.snap_tip = Where a pitch drag lands: on the notes of the key, on semitones, or anywhere (hold Alt for cents)
+pitch.snap.scale = Scale
+pitch.snap.semitone = Semitones
+pitch.snap.free = Free
+pitch.key = Key
+pitch.key_tip = The take's key, found from its notes: the scale snap and Correct pitch use it
+pitch.key.tonic = Tonic
+pitch.key.scale = Scale
+pitch.original = Original
+pitch.original_tip = Compare: hear the take as it was sung, then switch back to the edits (A/B)
+pitch.join = Join
+pitch.join_tip = Join the selected notes into one (Ctrl+J): they must be neighbours
+pitch.join_needs = Select two or more neighbouring notes to join them
+pitch.reset = Reset
+pitch.reset_tip = Undo every edit on the selected notes (on every note when none is selected)
+pitch.play_tip = Play from the first selected note (or the clip's start); again to stop
+pitch.midi = MIDI
+pitch.midi_tip = The notes as MIDI: drag onto an instrument track in the arrangement, or click for a new track
+pitch.midi_drop = Drop on an instrument track in the arrangement to put the melody there
+pitch.midi_made = The melody is in “{name}”
+pitch.double = Double
+pitch.double_tip = A second voice from the same take, a third or a fifth above in the key, in a new clip on a track of its own
+pitch.double.third = A third above
+pitch.double.fifth = A fifth above
+pitch.doubled = The double is in “{name}”
+pitch.grid = Grid
+pitch.grid_tip = The grid Quantise timing moves notes to
+
+# The canvas.
+pitch.ruler_tip = Click or drag to move the playhead
+pitch.canvas_tip = Click a note to select it, drag on empty ground to select several; Ctrl+wheel zooms time, Ctrl+Alt+wheel the rows
+pitch.note_tip = {note}, {cents} cents · {secs} s
+
+# The note panel.
+pitch.card.note = Note
+pitch.note.sounds = Sounds
+pitch.note.sounds_tip = The note as it will sound: the nearest note and how far from it
+pitch.note.sung = Sung
+pitch.note.sung_tip = The note as it was sung: its centre, the nearest note and how far from it
+pitch.note.none = Select a note
+pitch.field.centre = Centre
+pitch.field.centre_tip = Pitch centre: how far the note's centre is pulled onto its note, keeping its natural drift and vibrato
+pitch.field.drift = Drift
+pitch.field.drift_tip = Pitch drift: the slow wander inside the note, as sung at 100 %, flat at 0 %
+pitch.field.vibrato = Vibrato
+pitch.field.vibrato_tip = Vibrato depth: as sung at 100 %, none at 0 %, twice as wide at 200 %
+pitch.field.formant = Formant
+pitch.field.formant_tip = Formant: the voice's colour, moved up or down without moving the pitch
+pitch.field.gain = Gain
+pitch.field.gain_tip = The note's level
+
+# The macros.
+pitch.card.macros = Correct the selection
+pitch.card.macros_all = Correct every note
+pitch.macro.pitch = Pitch
+pitch.macro.pitch_tip = How much Correct pitch pulls each note's centre onto its note
+pitch.macro.drift = Drift
+pitch.macro.drift_tip = How much Correct drift flattens the slow wander inside each note
+pitch.macro.apply_pitch = Correct pitch
+pitch.macro.apply_pitch_tip = Pull the notes onto the key by the amount: a note off the key goes to its nearest note
+pitch.macro.apply_drift = Correct drift
+pitch.macro.apply_drift_tip = Flatten the slow wander inside the notes by the amount (the vibrato stays)
+pitch.macro.quantise = Quantise
+pitch.macro.quantise_tip = Move each note's start to the nearest line of the grid (its length kept, its neighbours untouched)

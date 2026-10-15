@@ -709,6 +709,11 @@ impl CantusApp {
                 commands,
             });
         self.rec.dropped = dropped;
+        // Round 28 (ADR 0054): each take analysed now, beside the window, so the pitch
+        // editor opens on its notes at once.
+        for take in takes.iter().filter(|_| ok) {
+            self.analyse_file_soon(&take.path, take.sample_rate);
+        }
         if dropped > 0 {
             let ms = dropped as f64 * 1000.0 / self.engine.sample_rate.max(1.0);
             self.set_error(tf("rec.dropped", &[("ms", &format!("{ms:.0}"))]));

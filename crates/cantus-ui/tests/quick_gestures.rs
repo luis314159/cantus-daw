@@ -7,7 +7,8 @@
 //!   anywhere else on the header never does, and typing with a track selected never does;
 //! - *Open editor* brings an editor back from the tray and to the front;
 //! - a double-click on a clip opens its editor on it: the piano roll, or the channel rack
-//!   for a step pattern; an automation clip its editor; an audio clip the inspector.
+//!   for a step pattern; an automation clip its editor; an audio clip the pitch editor
+//!   (round 28, ADR 0054).
 
 use cantus_core::{
     AudioRegion, AudioSourceId, Command, InstrumentKind, InstrumentSpec, NativeSpec, Project,
@@ -580,8 +581,8 @@ fn an_automation_clip_an_audio_clip_and_an_empty_lane_keep_their_double_clicks()
         "the automation editor"
     );
     assert!(r.app.workspace.is_visible(Pane::PianoRoll));
-    // Audio: no editor of its own; the inspector shows the clip.
-    r.app.workspace.hide(Pane::Inspector);
+    // Audio: the pitch editor (ADR 0054), in the piano roll's place.
+    r.app.show_central(CentralView::Mixer);
     r.idle(2);
     let take = r.app.project().tracks[VOICE].clips[0].id;
     // Low in the clip and off its middle: the gain handle sits at the top centre.
@@ -590,9 +591,10 @@ fn an_automation_clip_an_audio_clip_and_an_empty_lane_keep_their_double_clicks()
     let x = r.clip_at(VOICE, 0).x - 40.0;
     r.double_click(pos2(x, row.top + row.height * 0.8));
     assert_eq!(r.app.selected_clip, Some(take));
+    assert_eq!(r.app.central, CentralView::PianoRoll, "the pitch editor");
     assert!(
-        r.app.workspace.is_visible(Pane::Inspector),
-        "the inspector shows it"
+        r.app.workspace.is_visible(Pane::PianoRoll),
+        "the pitch editor shows it"
     );
     // An empty lane: a new clip, as before.
     let n = r.app.project().tracks[BASS].clips.len();
@@ -635,7 +637,7 @@ fn the_rack_opens_only_for_step_shaped_content() {
     let auto = &p.tracks[BASS].clips[1];
     assert_eq!(editor_for(auto, keys, grid), ClipEditor::Automation);
     let take = &p.tracks[VOICE].clips[0];
-    assert_eq!(editor_for(take, keys, grid), ClipEditor::Inspector);
+    assert_eq!(editor_for(take, keys, grid), ClipEditor::Pitch);
     // One note off every step grid, or one held longer than a step: the piano roll.
     let mut off = drums.clone();
     off.notes[1].start += Ticks(7);

@@ -59,6 +59,11 @@ const ON_THE_KIT: &[&str] = &[
     "views/fx/translatio.rs",
     "views/fx/tremor.rs",
     "views/fx/vibrans.rs",
+    "views/pitch.rs",
+    "views/pitch_bar.rs",
+    "views/pitch_input.rs",
+    "views/pitch_paint.rs",
+    "views/pitch_panel.rs",
     "views/plugins.rs",
 ];
 
