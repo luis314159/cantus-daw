@@ -231,6 +231,7 @@ fn a_note_retriggered_lfo_starts_its_cycle_at_each_note() {
                 off: f64::INFINITY,
             },
         ],
+        levels: None,
     };
     let at = |b: f64| output(&src, &t(b), Some(&gates), None);
     assert!(at(1.1).abs() < 1e-6 && at(3.37).abs() < 1e-6);
@@ -339,6 +340,7 @@ fn the_closed_form_envelope_agrees_with_the_stepped_one() {
             // A retrigger during the release, held long, then released.
             Gate { on: 0.6, off: 1.8 },
         ],
+        levels: None,
     };
     let spb = 0.5;
     let dt = 1.0 / 48_000.0;
@@ -536,4 +538,38 @@ fn a_dragged_modulator_merges_into_one_superseding_step() {
     ));
     bus.undo();
     assert_eq!(bus.project(), &before);
+}
+
+#[test]
+fn a_slow_attack_under_dense_notes_climbs_whole_to_the_top() {
+    // Review 1: the closed form walked back only 8 gates, so an attack many gates long
+    // stalled near 9 gates' worth and fell back at every note-on.
+    let env = EnvSource {
+        attack_ms: 2000.0,
+        decay_ms: 0.0,
+        sustain: 1.0,
+        release_ms: 200.0,
+        trigger: EnvTrigger::Notes { track: None },
+    };
+    let spb = 0.5;
+    let mut gates = Gates::default();
+    for k in 0..64 {
+        gates.gates.push(Gate {
+            on: f64::from(k) * 0.25,
+            off: f64::INFINITY,
+        });
+    }
+    for g in [gates.clone(), gates.with_levels(&env, spb)] {
+        let mut last = 0f32;
+        let mut beat = 0.0;
+        while beat < 8.0 {
+            let v = g.level(&env, beat, spb);
+            assert!(v >= last - 1e-6, "fell from {last} to {v} at beat {beat}");
+            last = v;
+            beat += 0.01;
+        }
+        // 2 s of attack is 4 beats: half way at 2, the top from 4 on.
+        assert!((g.level(&env, 2.0, spb) - 0.5).abs() < 1e-4);
+        assert!((g.level(&env, 6.0, spb) - 1.0).abs() < 1e-6);
+    }
 }

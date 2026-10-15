@@ -48,6 +48,18 @@ impl ModTime {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Gates {
     pub gates: Vec<Gate>,
+    /// The level each gate starts from, for one envelope at one tempo
+    /// ([`Gates::with_levels`], done when a modulator is compiled): every lookup is then
+    /// exact and O(log n). Without them a lookup walks forward from the first gate.
+    pub levels: Option<Box<Levels>>,
+}
+
+/// What [`Gates::levels`] was computed for, and the levels.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Levels {
+    pub env: EnvSource,
+    pub spb: f64,
+    pub from: Vec<f32>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -82,7 +94,31 @@ impl Gates {
                 }
             }
         }
-        Gates { gates }
+        Gates {
+            gates,
+            levels: None,
+        }
+    }
+
+    /// These gates with the level each one starts from for `env` at `spb` seconds per
+    /// beat, found in one forward pass: what the engine reads on the audio thread.
+    pub fn with_levels(&self, env: &EnvSource, spb: f64) -> Gates {
+        let mut from = Vec::with_capacity(self.gates.len());
+        let mut level = 0f32;
+        for (i, g) in self.gates.iter().enumerate() {
+            from.push(level);
+            if let Some(next) = self.gates.get(i + 1) {
+                level = self.level_from(env, level, i, next.on, spb);
+            }
+        }
+        Gates {
+            gates: self.gates.clone(),
+            levels: Some(Box::new(Levels {
+                env: env.clone(),
+                spb,
+                from,
+            })),
+        }
     }
 
     /// The gate playing at beat `t`: the last one opened at or before it.
@@ -100,21 +136,30 @@ impl Gates {
     /// The envelope's level at beat `t` (0 before the first note), `spb` seconds per
     /// beat: a closed form, so it is the same whatever came before and wherever a render
     /// starts. Each gate starts from the level the previous one left (a retrigger never
-    /// jumps), found by walking back at most a few gates.
+    /// jumps): read from [`Gates::levels`] when they were computed for this envelope and
+    /// tempo, else found by walking forward over every earlier gate.
     pub fn level(&self, env: &EnvSource, t: f64, spb: f64) -> f32 {
-        match self.at(t) {
-            Some(i) => self.level_in(env, i, t, spb, 8),
-            None => 0.0,
-        }
+        let Some(i) = self.at(t) else {
+            return 0.0;
+        };
+        let from = match &self.levels {
+            Some(l) if l.spb == spb && l.env == *env && l.from.len() == self.gates.len() => {
+                l.from[i]
+            }
+            _ => {
+                let mut level = 0f32;
+                for k in 0..i {
+                    level = self.level_from(env, level, k, self.gates[k + 1].on, spb);
+                }
+                level
+            }
+        };
+        self.level_from(env, from, i, t, spb)
     }
 
-    fn level_in(&self, env: &EnvSource, i: usize, t: f64, spb: f64, depth: u32) -> f32 {
+    /// Gate `i`'s level at beat `t`, started from `from`.
+    fn level_from(&self, env: &EnvSource, from: f32, i: usize, t: f64, spb: f64) -> f32 {
         let g = self.gates[i];
-        let from = if i > 0 && depth > 0 {
-            self.level_in(env, i - 1, g.on, spb, depth - 1)
-        } else {
-            0.0
-        };
         let secs = Gate {
             on: 0.0,
             off: (g.off - g.on) * spb,
@@ -208,6 +253,8 @@ pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Opti
                 Retrigger::Song => None,
                 Retrigger::Note => {
                     let seq = gates.filter(|_| t.playing).and_then(|g| g.last_on(t.beats));
+                    // A live note-on ahead of the song (left from before a jump) is none.
+                    let live_on = live_on.filter(|b| *b <= t.beats);
                     match (seq, live_on) {
                         (Some(a), Some(b)) => Some(a.max(b)),
                         (a, b) => a.or(b),

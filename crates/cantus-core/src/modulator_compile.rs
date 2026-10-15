@@ -132,9 +132,17 @@ pub fn compile(
         .flatten()
         .and_then(track_index);
         let gates = notes_track.map(|ti| {
-            gates_of[ti]
+            let shared = gates_of[ti]
                 .get_or_insert_with(|| Arc::new(Gates::of_events(&tracks[ti].events)))
-                .clone()
+                .clone();
+            // An envelope reads the level each gate starts from, computed here, off the
+            // audio thread, for its own settings at the project's tempo.
+            match &m.source {
+                ModSource::Envelope(e) => {
+                    Arc::new(shared.with_levels(e, 60.0 / project.tempo_bpm.max(1e-9)))
+                }
+                _ => shared,
+            }
         });
         let listen = match &m.source {
             ModSource::Follower(f) => Some(f.listen),

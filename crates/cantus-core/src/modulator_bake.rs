@@ -115,7 +115,11 @@ fn notes_gates(project: &Project, host: super::ModHost, src: &ModSource) -> Opti
     }?;
     let snap = crate::snapshot::Snapshot::compile(project, 0);
     let t = snap.track(track)?;
-    Some(Gates::of_events(&t.events))
+    let gates = Gates::of_events(&t.events);
+    Some(match src {
+        ModSource::Envelope(e) => gates.with_levels(e, 60.0 / project.tempo_bpm.max(1e-9)),
+        _ => gates,
+    })
 }
 
 /// The samples as points in content ticks (from `origin`): jumps kept as a hold and the

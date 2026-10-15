@@ -265,6 +265,9 @@ impl ModRt {
     /// Every live note let go (a stop, a seek, a panic).
     pub fn live_release(&mut self, plan: &ModPlan) {
         self.held = 0;
+        // A retrigger belongs to where it was played: after a wrap, a seek or a stop the
+        // song is elsewhere.
+        self.live_on = None;
         if let ModSource::Envelope(e) = &plan.source {
             if matches!(e.trigger, EnvTrigger::Notes { .. }) {
                 self.env.set_gate(false, e, false);
@@ -372,4 +375,46 @@ pub fn trace(
         while rx.pop().is_ok() {}
     }
     p.take_modulator_trace()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cantus_core::modulator::{ModKind, Retrigger};
+
+    #[test]
+    fn a_live_note_let_go_by_a_wrap_or_a_stop_does_not_freeze_a_retriggered_lfo() {
+        // Review 1: `live_on` outlived a wrap, a seek and a stop, so an LFO retriggered
+        // by notes sat at its start phase until the song passed the old live note again.
+        let ModSource::Lfo(mut l) = ModKind::Lfo.source() else {
+            unreachable!()
+        };
+        l.retrigger = Retrigger::Note;
+        let plan = ModPlan {
+            id: ModulatorId(1),
+            source: ModSource::Lfo(l),
+            amount: 1.0,
+            amount_lane: None,
+            notes: None,
+            gates: None,
+            listen: None,
+            routes: Vec::new(),
+        };
+        let mut rt = ModRt::new(&plan);
+        rt.live_note(&plan, true, 15.0);
+        rt.live_note(&plan, false, 15.5);
+        // The loop wraps to beat 0: every live note is let go.
+        rt.live_release(&plan);
+        let at = |b: f64| rt.value_at(&plan, &ModTime::at_beats(b, 0.0, 120.0));
+        assert_ne!(at(0.3), at(0.6), "the LFO moves after the wrap");
+        // Even a stale beat ahead of the song is not a retrigger.
+        let ahead = output(
+            &plan.source,
+            &ModTime::at_beats(0.3, 0.0, 120.0),
+            None,
+            Some(15.0),
+        );
+        let none = output(&plan.source, &ModTime::at_beats(0.3, 0.0, 120.0), None, None);
+        assert_eq!(ahead, none);
+    }
 }
