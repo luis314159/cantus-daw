@@ -117,7 +117,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     let lufs = app.settings.topbar.meter_lufs;
     // The readout at the right: a click lets the held peak go.
-    let rr = Rect::from_min_max(Pos2::new(tr.right() + 6.0 * k, top.top()), top.max);
+    let rr = Rect::from_min_max(
+        Pos2::new(tr.right() + 6.0 * k, top.top()),
+        Pos2::new(top.right() - 2.0 * k, top.bottom()),
+    );
     let rresp = ui.interact(rr, Id::new("toolbar-meter-readout"), Sense::click());
     if rresp.clicked() {
         app.topbar.hold.clear();

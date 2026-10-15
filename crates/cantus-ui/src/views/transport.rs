@@ -416,3 +416,9 @@ pub fn snap_editor(app: &CantusApp) -> (&'static str, cantus_core::Ticks, bool) 
     };
     (name, g, on)
 }
+
+/// Draw one group alone in `rect` (tests: every group keeps to the rect it is given).
+pub fn draw_group(g: Group, app: &mut CantusApp, ui: &mut Ui, rect: Rect) {
+    let s = Style::current();
+    draw(g, app, ui, rect, &s);
+}
