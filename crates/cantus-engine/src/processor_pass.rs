@@ -120,6 +120,7 @@ impl Processor {
 
         self.meters.master = master_peak;
         self.meters.master_gr = self.master_gr();
+        self.meters.master_loudness = self.master_loud.take();
         self.meters.track_count = self.track_to_slot.len();
         for (ti, slot) in self.track_to_slot.iter().enumerate() {
             self.meters.tracks[ti] = f32::from_bits(nodes.track_peak[*slot].load(Relaxed));

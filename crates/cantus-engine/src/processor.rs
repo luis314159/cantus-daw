@@ -203,6 +203,8 @@ pub struct Processor {
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
+    /// The master's loudness meter, fed after the master strip (ADR 0052).
+    master_loud: master_run::MasterLoud,
     edge_l: Vec<f32>,
     edge_r: Vec<f32>,
     /// How late each strip slot's fader output is against the timeline, in samples: the
@@ -308,6 +310,7 @@ impl Processor {
             capture_slot: None,
             analysed: None,
             pdc,
+            master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
             strip_post: [0; MAX_STRIPS],
