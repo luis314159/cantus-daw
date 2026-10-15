@@ -26,7 +26,8 @@ samples.more_packs = Más paquetes…
 # Lo que pasó, al pie del explorador.
 samples.notice.installed = {pack} está instalado
 samples.notice.failed = {pack} no se instaló: {why}
-samples.notice.no_space = {pack} no se instaló: necesita {need} libres mientras se instala, y el disco tiene {free}.
+samples.notice.no_space = Necesita {need} libres y el disco tiene {free}: {pack} no se instaló.
+samples.error.no_space = No hay espacio libre suficiente: la instalación necesita {need} y el disco tiene {free}.
 samples.notice.dropped = {name} colocado
 samples.notice.removed = {pack} se quitó
 

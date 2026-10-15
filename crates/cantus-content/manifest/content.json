@@ -1556,14 +1556,14 @@
      {
       "instrument": "Hihat_semi_open",
       "keys": [
-       82
+       21
       ],
       "label": "Hi-hat half open"
      },
      {
       "instrument": "Hihat_closed",
       "keys": [
-       83
+       22
       ],
       "gain_db": 5.0,
       "label": "Hi-hat closed, tip"
@@ -1571,7 +1571,7 @@
      {
       "instrument": "Hihat_open_tip",
       "keys": [
-       84
+       23
       ],
       "gain_db": 6.0,
       "label": "Hi-hat open, tip"
@@ -1579,7 +1579,7 @@
      {
       "instrument": "Crash_left_tip",
       "keys": [
-       85
+       24
       ],
       "gain_db": 5.0,
       "label": "Crash left, tip"
@@ -1587,7 +1587,7 @@
      {
       "instrument": "Crash_right_tip",
       "keys": [
-       86
+       25
       ],
       "gain_db": 5.0,
       "label": "Crash right, tip"
@@ -1595,7 +1595,7 @@
      {
       "instrument": "Ride_tip_bell",
       "keys": [
-       87
+       26
       ],
       "gain_db": 2.0,
       "label": "Ride bell, tip"

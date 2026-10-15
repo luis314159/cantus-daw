@@ -26,7 +26,8 @@ samples.more_packs = More packs…
 # What happened, at the browser's foot.
 samples.notice.installed = {pack} is installed
 samples.notice.failed = {pack} was not installed: {why}
-samples.notice.no_space = {pack} was not installed: it needs {need} free while it installs, and the disk has {free}.
+samples.notice.no_space = Needs {need} free, the disk has {free}: {pack} was not installed.
+samples.error.no_space = Not enough free space: the install needs {need} and the disk has {free}.
 samples.notice.dropped = {name} placed
 samples.notice.removed = {pack} was removed
 

@@ -85,14 +85,15 @@ pub fn designing(app: &CantusApp, spec: &NativeSpec) -> Option<String> {
     if tele[tel::ALIVE] < 0.5 || tele[tel::DESIGNED] > 0.5 {
         return None;
     }
-    caption(tuning_of(&values_of(spec)), app.engine.sample_rate as f32)
+    caption(spec, app.engine.sample_rate as f32)
 }
 
 /// What the editor says of a tuning the piano does not play yet: its design's progress,
 /// or — when this session cannot design it (sound review 2: it read "0 %" for good) —
 /// that the piano keeps the tuning it has.
-fn caption(tuning: cantus_dsp::chorda::design::Tuning, fs: f32) -> Option<String> {
+fn caption(spec: &NativeSpec, fs: f32) -> Option<String> {
     use cantus_engine::inst::chorda::{progress, refused};
+    let tuning = tuning_of(&values_of(spec));
     if refused(tuning, fs) {
         return Some(t("chorda.no_room"));
     }
@@ -524,18 +525,16 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
 
 #[cfg(test)]
 mod tests {
-    use cantus_dsp::chorda::design::Tuning;
+    use cantus_core::{InstrumentKind, NativeSpec};
+    use cantus_engine::inst::chorda::{tuning_of, values_of};
 
     #[test]
     fn a_tuning_this_session_cannot_design_says_so_never_zero_percent() {
         crate::i18n::set_locale(crate::i18n::Locale::En);
-        let t = Tuning {
-            a4: 441.23,
-            stretch: 1.0,
-            stiffness: 1.0,
-        };
-        cantus_engine::inst::chorda::refuse_for_tests(t, 48_000.0);
-        let said = super::caption(t, 48_000.0).expect("a caption");
+        let mut spec = NativeSpec::new(InstrumentKind::Chorda);
+        spec.set("a4", 441.23);
+        cantus_engine::inst::chorda::refuse_for_tests(tuning_of(&values_of(&spec)), 48_000.0);
+        let said = super::caption(&spec, 48_000.0).expect("a caption");
         assert_eq!(said, crate::i18n::t("chorda.no_room"));
         assert!(!said.contains('%'), "{said}");
     }

@@ -219,8 +219,11 @@ layers, each with at least two hits in turn.
   articulations on keys General MIDI reserves for other instruments (a crash tip on the
   tambourine's 54, a hi-hat on the cowbell's 56, brushes on the congas). Now the kit's
   drums sit on their General MIDI keys (the fully open hi-hat on 46), the General MIDI
-  keys it has no sound for stay silent, and the other articulations are on 82–100, above
-  General MIDI's percussion (`kit_build::the_bundled_kit_plays_general_midis_keys…`).
+  keys it has no sound for stay silent, and the other articulations are on 21–26 and
+  88–100, where no General MIDI 2 / GS / XG percussion lives (fix3: they were on 82–87,
+  GM2's shaker, jingle bell, belltree, castanets and surdos;
+  `kit_build::the_bundled_kit_plays_general_midis_keys…`). The build's size is unchanged
+  (the keys keep two digits).
 - **The range a zone's gain can make up.** Every kept hit is raised to SFZ's curve by its
   zone's gain, which stops at +24 dB: a range of 30 dB played the softest hits up to 6 dB
   under the curve. The range is now at most 24 dB (`Build::validate`), DRSKit's is 24, and

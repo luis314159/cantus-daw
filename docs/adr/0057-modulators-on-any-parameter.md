@@ -175,3 +175,25 @@ undo step; a loop pass writes over what the previous one wrote.
 - **Recording from a plug-in's window** records every parameter the window moved in a
   frame: the host keeps each command it ran (`PluginHost::take_tweaks`).
 
+
+## Amended by fix3 (round 28: review 2)
+
+- **A parameter the project stores no value for goes back to its base** when its drive lets
+  go — a modulation sum of exactly 0 or a replan alike (`Known::release`); the base is taken
+  once per drive, so it never climbs.
+- **The engine queues only a change, and only what found room**: `AutoQueue::push` says
+  whether it took the change and `Lane::sent` is stamped only then; a unit swapped in place
+  (a plug-in's restart) has every lane queued again at the next grid point. Every hosted
+  unit's losses are counted where it runs, automated or not.
+- **Sends, the pinned strip**: a send's level is modulated and automated from the desk's
+  send knob and rows, the cable pills, the inspector's send and receive rows and the route
+  menu (*Automate the send's level*, *Modulate the send's level…*); the inspector's pinned
+  strip (a channel's or the master's) takes modulation as the desk's copy does.
+- **While a modulator maps, only the drag is the depth's**: a double-click, the arrows and
+  Ctrl+wheel still set the value, on the desk and in the sheet as in the kit's `Param`.
+- **Every continuous parameter of an editor-less effect has its row** (Reverb's pre-delay).
+- **A hosted instrument's words** are keyed by its instance and the values the project
+  stores for it.
+- **Synced modulation effects hear the position their audio is at**: each insert's song
+  position is moved back by how late its audio is (`EffectUnit::late`: its strip's
+  compensation and the inserts before it; on the master likewise), folded into the loop.

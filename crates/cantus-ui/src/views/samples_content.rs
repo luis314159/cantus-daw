@@ -60,6 +60,35 @@ pub fn phase_text(phase: Option<&Phase>) -> String {
     }
 }
 
+/// The details table's label column: wide enough for its longest label in the interface's
+/// language (sound review 2: "Espacio libre para instalar" was cut), 110 pt at least.
+pub fn label_width(ctx: &Context, s: &Style, labels: &[&str]) -> f32 {
+    let widest = labels
+        .iter()
+        .map(|l| {
+            crate::kit::text::measure(
+                ctx,
+                &crate::kit::text::Text::new(l, Role::Body, s.t.text_dim),
+                s.tk(),
+            )
+            .x
+        })
+        .fold(0.0f32, f32::max);
+    (110.0 * s.k).max(widest + 12.0 * s.k)
+}
+
+/// What went wrong installing a pack, in the interface's language where Cantus knows the
+/// words (no space: the sizes in words); otherwise the error as it says itself.
+pub fn install_error_text(e: &cantus_content::install::InstallError) -> String {
+    match e {
+        cantus_content::install::InstallError::NoSpace { need, free } => tf(
+            "samples.error.no_space",
+            &[("need", &size(*need)), ("free", &size(*free))],
+        ),
+        e => e.to_string(),
+    }
+}
+
 pub fn size(bytes: u64) -> String {
     if bytes >= 1_000_000_000 {
         format!("{:.1} GB", bytes as f64 / 1e9)
@@ -404,7 +433,11 @@ fn credit(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack) {
 
 fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str) {
     let status = app.samples.content().status(&pack.id);
-    let error = app.samples.content().error(&pack.id).map(|e| e.to_string());
+    let error = app
+        .samples
+        .content()
+        .error(&pack.id)
+        .map(install_error_text);
     text_block(
         ui,
         s,
@@ -448,7 +481,7 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         Source::Files(f) => f.len().to_string(),
         Source::Zip(_) | Source::TarGz(_) => "—".into(),
     };
-    for (label, value, role) in [
+    let rows = [
         (
             t("samples.detail.download"),
             size(pack.download_size()),
@@ -476,10 +509,12 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
             pack.checked.clone(),
             Role::Value,
         ),
-    ] {
+    ];
+    let labels: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+    let lw = label_width(ui.ctx(), s, &labels);
+    for (label, value, role) in rows {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0 * s.k), Sense::hover());
         with_brush(ui.painter(), |b| {
-            let lw = 110.0 * s.k;
             paint::line(
                 b,
                 Rect::from_min_max(r.min, pos2(r.left() + lw, r.bottom())),
@@ -619,5 +654,45 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
                 text_block(ui, s, Src::Str(&e), Role::Micro, s.t.danger, 2.0);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod space_tests {
+    use crate::i18n::{set_locale, t, Locale};
+
+    /// Sound review 2: the details' labels fit their column in both languages, and a pack
+    /// refused for want of space says so in the interface's language, in sizes.
+    #[test]
+    fn the_space_label_fits_and_the_no_space_error_reads_in_words() {
+        let ctx = egui::Context::default();
+        crate::design::install_fonts(&ctx);
+        let s = crate::kit::Style::current();
+        for locale in [Locale::En, Locale::Es] {
+            set_locale(locale);
+            let label = t("samples.detail.space");
+            ctx.run_ui(egui::RawInput::default(), |_| {})
+                .textures_delta
+                .clear();
+            let w = super::label_width(&ctx, &s, &[label.as_str()]);
+            let text = crate::kit::text::measure(
+                &ctx,
+                &crate::kit::text::Text::new(&label, crate::kit::text::Role::Body, s.t.text),
+                s.tk(),
+            )
+            .x;
+            assert!(text < w, "{locale:?}: {label} ({text}) in {w}");
+            let e = cantus_content::install::InstallError::NoSpace {
+                need: 7_614_567_890,
+                free: 3_100_000_000,
+            };
+            let said = super::install_error_text(&e);
+            assert!(said.contains("7.6 GB") && said.contains("3.1 GB"), "{said}");
+            assert!(!said.contains("7614567890"), "{said}");
+            if locale == Locale::Es {
+                assert!(said.contains("necesita"), "{said}");
+            }
+        }
+        set_locale(Locale::En);
     }
 }
