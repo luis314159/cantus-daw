@@ -474,6 +474,12 @@ pub fn paste_clips(
                 for n in &mut copy.notes {
                     n.id = NoteId(ids());
                 }
+                // A pasted clip is no comp window: the seam crossfade a window carried is
+                // not the paste's (integration review: a paste right after another clip
+                // crossfaded with it). A linked paste keeps it: it is a shared field.
+                if let Some(a) = copy.audio.as_mut() {
+                    a.xfade = Ticks::ZERO;
+                }
             }
         }
         out.made.push((track, copy.id));
@@ -585,6 +591,9 @@ pub fn split_audio(track: TrackId, clip: &Clip, at: Ticks, right: &mut Clip) -> 
     if let Some(r) = right.audio.as_mut() {
         r.fade_in = Ticks::ZERO;
         r.fade_out = a.fade_out.min(right.length);
+        // The cut is no comp seam: the window's own crossfade stays on the left half, at
+        // the seam it was set for (integration review).
+        r.xfade = Ticks::ZERO;
     }
     let left_len = at - clip.start;
     if a.reverse {
@@ -826,7 +835,11 @@ pub fn loop_pieces(clip: &Clip, a: Ticks, b: Ticks, ids: Ids) -> Vec<Clip> {
 /// every note as one it already had and throw the lot away.
 pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
     Clip {
-        audio: clip.audio.clone(),
+        // A copy is no comp window: no seam crossfade (integration review).
+        audio: clip.audio.clone().map(|a| crate::AudioRegion {
+            xfade: Ticks::ZERO,
+            ..a
+        }),
         lane: clip.lane,
         automation: clip.automation.clone(),
         // A copy of its own is in no group (ADR 0037).

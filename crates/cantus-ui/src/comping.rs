@@ -256,7 +256,7 @@ pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
             .clips
             .iter()
             .filter(audio)
-            .find(|l| l.id != r.id && l.end() == r.start)
+            .find(|l| cantus_core::comp::is_seam(l, r))
         {
             let x = r.audio.as_ref().map_or(Ticks::ZERO, |a| a.xfade);
             out.push((l.id, r.id, r.start, x));
@@ -602,6 +602,15 @@ pub fn comp_windows(track: &Track) -> Vec<&Clip> {
         .collect()
 }
 
+/// A window as an alternate comp keeps it: whole, but in no link group (ADR 0037's upkeep
+/// walks the playing clips only).
+fn kept(c: &Clip) -> Clip {
+    Clip {
+        link: None,
+        ..c.clone()
+    }
+}
+
 /// The comps as they are, or the one implicit comp ("A", playing) when there are none.
 fn comps_now(track: &Track) -> (Vec<Comp>, u8) {
     if track.comps.is_empty() {
@@ -629,7 +638,9 @@ pub fn switch_comp(project: &Project, tid: TrackId, to: u8) -> Vec<Command> {
     }
     let playing: Vec<Clip> = comp_windows(track).into_iter().cloned().collect();
     let coming = std::mem::take(&mut comps[to as usize].windows);
-    comps[active as usize].windows = playing.clone();
+    // A kept window owns its content: out of any link group, which no longer reaches it
+    // (integration review: a group edited meanwhile made the switch back refused).
+    comps[active as usize].windows = playing.iter().map(kept).collect();
     let mut cmds: Vec<Command> = playing
         .iter()
         .map(|c| Command::RemoveClip {
@@ -663,7 +674,7 @@ pub fn duplicate_comp(project: &Project, tid: TrackId, ids: Ids) -> Vec<Command>
         .into_iter()
         .map(|c| Clip {
             id: ClipId(ids()),
-            ..c.clone()
+            ..kept(c)
         })
         .collect();
     let name = (0..cantus_core::comp::MAX_COMPS)

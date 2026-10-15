@@ -779,3 +779,39 @@ fn a_take_a_moved_window_still_plays_is_not_unused() {
         "take A stays: a window still plays it"
     );
 }
+
+/// Integration review: a comp window in a link group (a linked copy on another track) is
+/// kept by an alternate comp as its own clip — a later edit of the group does not make
+/// the switch back refused.
+#[test]
+fn a_linked_window_kept_by_a_comp_comes_back_after_its_group_changed() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let link = LinkId(p.alloc_id());
+    let other = p.make_track("Double");
+    let oid = other.id;
+    p.tracks.push(other);
+    let window = {
+        let w = p
+            .track_mut(t)
+            .unwrap()
+            .clips
+            .iter_mut()
+            .find(|c| c.lane == 0)
+            .unwrap();
+        w.link = Some(link);
+        w.clone()
+    };
+    let mut copy = window.clone();
+    copy.id = ClipId(p.alloc_id());
+    p.track_mut(oid).unwrap().clips.push(copy.clone());
+    let mut a = app(p);
+    a.duplicate_comp(t);
+    a.rename_clip((oid, copy.id), "Double take".into());
+    let comp_b = lane0(&a, t);
+    let steps = a.bus.history().len();
+    a.switch_comp(t, 0);
+    assert_eq!(a.bus.history().len(), steps + 1, "the switch back took");
+    a.switch_comp(t, 1);
+    assert_eq!(lane0(&a, t), comp_b);
+}

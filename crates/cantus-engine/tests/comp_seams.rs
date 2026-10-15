@@ -200,3 +200,26 @@ fn a_seam_at_a_files_edge_crossfades_where_both_sides_have_audio() {
         assert!(crossing >= 20 * FPT - 2, "{case}: {crossing} samples cross");
     }
 }
+
+/// Integration review: a split comp window is no seam. Its two halves meet and show the
+/// same file without a break, so even a crossfade length on the right half (a split that
+/// carried the window's own) must not cross them: the render equals the unsplit one, to
+/// the bit (before: a +3 dB swell 10 ms wide at the cut).
+#[test]
+fn a_split_window_is_no_seam() {
+    let dir = tempfile::tempdir().unwrap();
+    let x = Ticks(20);
+    let whole = comped(dir.path(), x);
+    let reference = render_with(&whole, 512);
+    let mut split = whole.clone();
+    let id = ClipId(split.alloc_id());
+    let b = split.tracks[0].clips[1].clone();
+    let mut right = b.clone();
+    right.id = id;
+    right.start = Ticks::beats(6);
+    right.length = Ticks::beats(2);
+    right.offset = Ticks::beats(6);
+    split.tracks[0].clips[1].length = Ticks::beats(2);
+    split.tracks[0].clips.push(right);
+    assert_null(&reference, &render_with(&split, 512), 0.0, "a split window");
+}

@@ -116,6 +116,13 @@ impl Renders {
                 }
             }
         }
+        // The windows alternate comps keep: their renders stay for a switch back (ADR
+        // 0058, integration review).
+        for (path, edit) in &snapshot.kept_pitch {
+            let mut on = (**edit).clone();
+            on.bypass = false;
+            used.insert(render_key(&resolve(path), &on, rate));
+        }
         self.last.retain(|c, _| seen.contains(c));
         let keep: HashSet<u64> = used
             .iter()

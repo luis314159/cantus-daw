@@ -123,6 +123,24 @@ pub fn seam_window(c: &Clip) -> bool {
         && c.audio.as_ref().is_some_and(|a| !a.reverse)
 }
 
+/// Whether `left` and `right` make a comp seam (ADR 0058): two seam windows
+/// ([`seam_window`]) where the left's end is the right's start — and not one stretch of
+/// one file cut in two (a split window: the same source, the right going on from where
+/// the left stops), which plays as one and has nothing to cross (integration review: a
+/// split carried the window's crossfade and added a +3 dB swell at the cut). One test for
+/// the snapshot, the seam command and the arrangement.
+pub fn is_seam(left: &Clip, right: &Clip) -> bool {
+    let continues = match (&left.audio, &right.audio) {
+        (Some(a), Some(b)) => a.source == b.source && right.offset == left.offset + left.length,
+        _ => false,
+    };
+    left.id != right.id
+        && left.end() == right.start
+        && seam_window(left)
+        && seam_window(right)
+        && !continues
+}
+
 /// Move the seam between `left` and `right` (two playing-lane windows of `track` that
 /// meet) to `at`, both sides at once; the inverse moves it back.
 pub(crate) fn apply_seam(
@@ -140,7 +158,7 @@ pub(crate) fn apply_seam(
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    if left == right || l.end() != r.start || !seam_window(&l) || !seam_window(&r) {
+    if !is_seam(&l, &r) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
@@ -373,5 +391,40 @@ mod tests {
             (letter(0), letter(2), letter(40)),
             ("A".into(), "C".into(), "Z".into())
         );
+    }
+
+    /// Integration review: a split comp window is no seam — its right half does not carry
+    /// the window's crossfade, and a cut found in a project (one made before) is not taken
+    /// for a seam by the snapshot nor moved as one.
+    #[test]
+    fn a_split_window_is_no_seam() {
+        let (mut p, tid, _, rid) = comped();
+        if let Some(c) = p.track_mut(tid).and_then(|t| t.clip_mut(rid)) {
+            c.audio.as_mut().unwrap().xfade = Ticks(20);
+        }
+        let right = p.track(tid).unwrap().clip(rid).unwrap().clone();
+        let mut next = 9_000u64;
+        let mut ids = || {
+            next += 1;
+            next
+        };
+        let cmds = crate::clipboard::split(tid, &right, Ticks::beats(6), &mut ids).unwrap();
+        let half = cmds
+            .iter()
+            .find_map(|c| match c {
+                Command::InsertClip { clip, .. } => Some(clip.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(half.audio.as_ref().unwrap().xfade, Ticks::ZERO);
+        // A cut whose right half still has one: not a seam.
+        let mut carried = (*half).clone();
+        carried.audio.as_mut().unwrap().xfade = Ticks(20);
+        let mut left = right.clone();
+        left.length = Ticks::beats(2);
+        assert!(!is_seam(&left, &carried));
+        p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
+        p.track_mut(tid).unwrap().clips.push(carried.clone());
+        assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());
     }
 }

@@ -699,3 +699,44 @@ fn the_sample_caches_retry_forgets_a_failed_analysis() {
         cantus_engine::pitch::Lookup::Pending
     ));
 }
+
+/// Integration review: switching to another comp and back plays a pitch-edited window's
+/// render at once — the render of a window an alternate comp keeps is kept with it, never
+/// let go while that comp waits (before: the uncorrected source until it rendered again).
+#[test]
+fn a_comp_switched_away_and_back_plays_its_edits_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let mut cache = SampleCache::new();
+    cache.set_background(true);
+    cache.set_pitch_background(true);
+    let comp_a = with_edit(&path, &x, corrected(&a));
+    warm(&mut cache, &comp_a, 1, SR);
+    let edited = attached(&mut cache, &comp_a, 2, SR);
+    // Comp B plays: A's edited window is kept by comp A, an unedited one plays.
+    let mut comp_b = comp_a.clone();
+    let window = comp_b.tracks[0].clips.remove(0);
+    let mut plain = window.clone();
+    plain.id = ClipId(comp_b.alloc_id());
+    plain.audio.as_mut().unwrap().pitch = None;
+    comp_b.tracks[0].clips.push(plain);
+    comp_b.tracks[0].comps = vec![
+        cantus_core::comp::Comp {
+            name: "A".into(),
+            windows: vec![window],
+        },
+        cantus_core::comp::Comp {
+            name: "B".into(),
+            windows: Vec::new(),
+        },
+    ];
+    comp_b.tracks[0].active_comp = 1;
+    attached(&mut cache, &comp_b, 3, SR);
+    cache.poll_loaded();
+    attached(&mut cache, &comp_b, 4, SR);
+    let back = attached(&mut cache, &comp_a, 5, SR);
+    assert!(Arc::ptr_eq(&back, &edited), "the kept window's render");
+    assert_eq!(cache.pitch_pending(), 0, "nothing rendered again");
+}
