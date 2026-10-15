@@ -275,3 +275,85 @@ fn the_exported_speculum_reads_its_own_stereo_frames_and_the_newest_frames_beat(
     assert_eq!(gate_host.take_stereo(&mut none), Default::default());
     assert!(none.is_empty());
 }
+
+/// A Speculum processor and its editor's host, the editor open.
+fn speculum() -> (Processor, PluginHost) {
+    let shared = Shared::new(desc::of(EffectKind::Analyzer).unwrap());
+    shared.editor_open.store(true, Ordering::Release);
+    let proc_ = Processor::new(shared.clone(), 48_000.0);
+    let ph = PluginHost::new(shared, Box::new(Collect(Default::default())));
+    (proc_, ph)
+}
+
+/// One playing block of `n` frames from `beats` at 120 BPM.
+fn block(p: &mut Processor, n: usize, beats: f64) {
+    use cantus_plugins::instance::HostTransport;
+    p.set_transport(Some(HostTransport {
+        playing: true,
+        tempo: Some(120.0),
+        beats: Some(beats),
+        bar_start: Some(0.0),
+        time_sig: Some((4, 4)),
+        loop_beats: None,
+        seconds: None,
+    }));
+    let (mut a, mut b) = (vec![0.25f32; n], vec![-0.25f32; n]);
+    p.process(&mut a, &mut b, None, &[]);
+}
+
+/// Review 2: the clock dates the newest frame the editor drained, not the newest block
+/// the host ran — a block played between the drain and the drawing does not move it.
+#[test]
+fn the_exported_speculums_clock_travels_with_its_frames() {
+    let (mut p, mut ph) = speculum();
+    let pf = 120.0 / 60.0 / 48_000.0;
+    block(&mut p, 480, 2.0);
+    ph.refresh();
+    // The host runs another block before the editor draws.
+    block(&mut p, 480, 2.0 + 480.0 * pf);
+    let mut out = Vec::new();
+    let take = ph.take_stereo(&mut out);
+    assert_eq!(out.len(), 480);
+    let (beat, _) = take.clock.expect("playing");
+    let want = 2.0 + 479.0 * pf;
+    assert!((beat - want).abs() < 1e-9, "{beat} vs {want}");
+    // The next frame drains that block, and the clock its last frame.
+    ph.refresh();
+    let take = ph.take_stereo(&mut out);
+    let (beat, _) = take.clock.unwrap();
+    let want = 2.0 + 959.0 * pf;
+    assert!((beat - want).abs() < 1e-9, "{beat} vs {want}");
+}
+
+/// Review 2: what the tap could not take (the editor drained too late) and what its window
+/// could not keep are counted, once, as the gaps Speculum reports.
+#[test]
+fn the_exported_speculum_counts_what_it_lost() {
+    use cantus_plugins::instance::PAIRS;
+    // The tap full: 20 000 frames before the editor drains.
+    let (mut p, mut ph) = speculum();
+    for k in 0..20 {
+        block(&mut p, 1_000, k as f64);
+    }
+    ph.refresh();
+    let mut out = Vec::new();
+    let take = ph.take_stereo(&mut out);
+    assert_eq!(out.len(), PAIRS);
+    assert_eq!(take.lost, (20_000 - PAIRS) as u64, "the tap's");
+    block(&mut p, 1_000, 30.0);
+    ph.refresh();
+    out.clear();
+    assert_eq!(ph.take_stereo(&mut out).lost, 0, "counted once");
+    // The window full: drained twice before Speculum takes it.
+    let (mut p, mut ph) = speculum();
+    for k in 0..2 {
+        for j in 0..10 {
+            block(&mut p, 1_000, (10 * k + j) as f64);
+        }
+        ph.refresh();
+    }
+    out.clear();
+    let take = ph.take_stereo(&mut out);
+    assert_eq!(out.len(), PAIRS);
+    assert_eq!(take.lost, (20_000 - PAIRS) as u64, "the window's");
+}

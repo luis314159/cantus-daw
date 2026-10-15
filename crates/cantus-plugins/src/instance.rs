@@ -219,6 +219,13 @@ struct HostView {
     last_beats: AtomicU64,
     /// Numerator in the high half, denominator in the low.
     sig: AtomicU32,
+    /// The frames the analyser tap had taken when the block ended: the last frame's place
+    /// in the tap's stream, so an editor dates the frames it drained, not the block the
+    /// host ran since (review 2).
+    tapped_at: AtomicU64,
+    /// A sequence lock over the fields above: odd while the audio thread writes them, so
+    /// an editor reads one block's view whole (the audio thread never waits).
+    seq: AtomicU32,
 }
 
 /// What an editor reads of the host's transport: as it is at the end of the last block.
@@ -279,6 +286,9 @@ pub struct Shared {
     /// Speculum's frames its tap could not take (the editor drained too late), since the
     /// editor last asked (ADR 0056, review 1).
     pub scope_lost: AtomicU64,
+    /// Frames the analyser tap has taken since the instance was made: an editor's count
+    /// of what it drained is measured against it ([`Self::clock_of_drained`]).
+    pub tapped: AtomicU64,
 }
 
 /// The analyser tap's two ends, each here while nobody has it.
@@ -312,6 +322,7 @@ impl Shared {
                 Mutex::new((Some(tx), Some(rx)))
             },
             scope_lost: AtomicU64::new(0),
+            tapped: AtomicU64::new(0),
         })
     }
 
@@ -349,10 +360,47 @@ impl Shared {
         })
     }
 
+    /// The song's place of the tap's frame number `drained − 1` — the newest an editor
+    /// has drained, counting from the tap's start — and the tempo, while the host plays a
+    /// timeline: the last block's last frame moved back (or on) by the frames between.
+    /// The clock travels with the frames (review 2: read apart, it dated the host's
+    /// newest block, ahead of the frames or behind them). `None` while a block's view is
+    /// being written, after a few tries.
+    pub fn clock_of_drained(&self, drained: u64) -> Option<(f64, f64)> {
+        let h = &self.host;
+        for _ in 0..8 {
+            let s1 = h.seq.load(Ordering::Acquire);
+            if s1 % 2 == 1 {
+                std::hint::spin_loop();
+                continue;
+            }
+            let known = h.known.load(Ordering::Relaxed);
+            let playing = h.playing.load(Ordering::Relaxed);
+            let timeline = h.timeline.load(Ordering::Relaxed);
+            let tempo = f64::from_bits(h.tempo.load(Ordering::Relaxed));
+            let last = f64::from_bits(h.last_beats.load(Ordering::Relaxed));
+            let at = h.tapped_at.load(Ordering::Relaxed);
+            std::sync::atomic::fence(Ordering::Acquire);
+            if h.seq.load(Ordering::Relaxed) != s1 {
+                continue;
+            }
+            if !(known && playing && timeline && tempo > 0.0) {
+                return None;
+            }
+            let sr = f64::from(self.sample_rate()).max(1.0);
+            let between = at as f64 - drained as f64;
+            return Some((last - between * tempo / 60.0 / sr, tempo));
+        }
+        None
+    }
+
     /// The audio thread's view of the host's transport at the end of a block: the
     /// position the units reached, at the tempo they play (no allocation, no lock).
     fn publish_transport(&self, p: &SongPosition, timeline: bool) {
         let h = &self.host;
+        let s = h.seq.load(Ordering::Relaxed);
+        h.seq.store(s.wrapping_add(1), Ordering::Relaxed);
+        std::sync::atomic::fence(Ordering::Release);
         h.playing.store(p.playing, Ordering::Relaxed);
         h.tempo.store(p.tempo_bpm.to_bits(), Ordering::Relaxed);
         h.beats.store(p.beats.to_bits(), Ordering::Relaxed);
@@ -370,7 +418,10 @@ impl Shared {
         };
         h.last_beats
             .store((p.beats - frame).to_bits(), Ordering::Relaxed);
+        h.tapped_at
+            .store(self.tapped.load(Ordering::Relaxed), Ordering::Relaxed);
         h.known.store(true, Ordering::Release);
+        h.seq.store(s.wrapping_add(2), Ordering::Release);
     }
 
     /// The host gave no transport for the last block.
@@ -974,6 +1025,7 @@ impl Processor {
         // Speculum is a pass-through and measures stereo (ADR 0056): its pairs are the
         // frames themselves, left and right, every one of them.
         if self.shared.desc.kind == cantus_core::EffectKind::Analyzer {
+            let mut taken = 0u64;
             for i in 0..n {
                 if tx.slots() == 0 {
                     self.shared
@@ -982,7 +1034,9 @@ impl Processor {
                     break;
                 }
                 let _ = tx.push((l[i], r[i]));
+                taken += 1;
             }
+            self.shared.tapped.fetch_add(taken, Ordering::Relaxed);
             return;
         }
         let b = &self.bypass;

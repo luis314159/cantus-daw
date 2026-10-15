@@ -84,7 +84,9 @@ and every filter or envelope of the units (review 1: one NaN had locked them for
 
 **Speculum has its own stream.** Eight scope rings (lock-free, 1 024 chunks of 64 stereo
 frames filled across passes, so 65 536 frames whatever the passes) are made when the engine
-starts. Each chunk carries its owner (a ring handed to another Speculum drops the last one's),
+starts. Each chunk carries its owner (a ring handed to another Speculum drops the last one's;
+review 2: a ring whose watch changed — released, handed over, or the same Speculum watched
+again — starts afresh in the engine, no chunk or loss of an earlier watch carried on),
 the frames a full ring lost before it (the editor shows the gap), and the song's position
 **as heard at the slot** — the transport's less the compensation the slot waits
 (`Processor::scope_delays`). A master Speculum hears the mix with the chain off or bypassed.
@@ -96,7 +98,13 @@ watches; no allocation, nothing waits). Measurements run on the editor's thread
 R128 meter, its integrated reading and range worked out every 200 ms of audio, not every
 callback. A docked Speculum is measured every frame whether its tab shows or not. In the
 exported plug-in, Speculum's tap carries its frames (left, right) and `FxHost::take_stereo`
-reads them in both hosts.
+reads them in both hosts; the song's position travels with them (review 2): the tap counts
+the frames it took, the block's end is published with that count under a sequence lock
+(`Shared::clock_of_drained`), and the editor dates the newest frame it drained — not the
+host's newest block, which could be ahead of the frames or behind them. In the overview of
+a short display (a docked tab) the loudness panel takes a column of the whole height and
+keeps its rows by rank — momentary, short-term, integrated, the peak and RMS rows, the
+gaps, then the true peak, the range and the scale as room allows.
 
 **Speculum is docked through the workspace's own device tabs** (`DeviceWindow`): resizable,
 split, torn out; the floating editor docks itself from its ⋯ menu.

@@ -33,6 +33,31 @@ pub fn view(
             3 => scope(b, rect, ink, k, v, set),
             4 => vector(b, rect, ink, k, v),
             5 => loudness(b, rect, ink, k, v, set),
+            _ if rect.height() < 300.0 * k => {
+                // A short display (a docked tab): the loudness panel takes a column of the
+                // whole height, so its levels stay in view (review 2: under the spectrum
+                // it had room for three lines); the pictures share the rest.
+                let gap = 4.0 * k;
+                let w = (rect.width() - gap) * 0.38;
+                let d = Rect::from_min_max(pos2(rect.right() - w, rect.top()), rect.max);
+                let left = Rect::from_min_max(rect.min, pos2(d.left() - gap, rect.bottom()));
+                let top = (left.height() - gap) * 0.55;
+                let a = Rect::from_min_size(left.min, vec2(left.width(), top));
+                // The vectorscope keeps the width its words need (its correlation readout).
+                let side = (left.width() * 0.45).max(150.0 * k).min(left.width() * 0.6);
+                let bb = Rect::from_min_max(
+                    pos2(left.right() - side, a.bottom() + gap),
+                    left.max,
+                );
+                let c = Rect::from_min_max(
+                    pos2(left.left(), a.bottom() + gap),
+                    pos2(bb.left() - gap, left.bottom()),
+                );
+                spectrum(b, a, ink, k, v, set);
+                scope(b, c, ink, k, v, set);
+                vector(b, bb, ink, k, v);
+                loudness(b, d, ink, k, v, set);
+            }
             _ => {
                 let gap = 4.0 * k;
                 let w = (rect.width() - gap) * 0.62;
@@ -487,6 +512,8 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
     let big = inside.width() > 520.0 * k && inside.height() > 260.0 * k;
     let mut y = inside.top() + 18.0 * k;
     let cols_w;
+    // The bars' scale: drawn when there is room (the big view always has it).
+    let mut scale_fits = true;
     if big {
         // A view of its own: momentary, short-term and integrated as three big readouts,
         // the one nearest the target lit; range, true peak and target under them.
@@ -592,6 +619,22 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         cols_w = inside.width();
     } else {
         cols_w = inside.width().min(360.0 * k);
+        // What the panel has room for, ranked (review 2: drawn whatever the height, the
+        // rows below were cut off): momentary, short-term and integrated, the peak and RMS
+        // rows, the gaps — then the true peak, the range and the bars' scale as room
+        // allows.
+        let levels_h = 16.0 * k + 2.0 * 15.0 * k;
+        let gaps_h = if v.lost > 0 { row + 2.0 * k } else { 0.0 };
+        let mut room = inside.bottom() - y - 3.0 * row - levels_h - gaps_h;
+        let mut fits = |h: f32| {
+            let ok = room >= h;
+            if ok {
+                room -= h;
+            }
+            ok
+        };
+        let (with_tp, with_range) = (fits(row), fits(row));
+        scale_fits = fits(12.0 * k);
         let mut line = |b: &mut Brush, word: &str, val: Option<f64>, unit: &str| {
             let lr = Rect::from_min_size(pos2(inside.left(), y), vec2(cols_w, row));
             match val {
@@ -620,15 +663,19 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
             l.integrated.and_then(lufs),
             "LUFS",
         );
-        line(b, frame::tr("speculum.m.range"), l.range, "LU");
-        line(b, frame::tr("speculum.m.true_peak"), tp, "dBTP");
+        if with_tp {
+            line(b, frame::tr("speculum.m.true_peak"), tp, "dBTP");
+        }
+        if with_range {
+            line(b, frame::tr("speculum.m.range"), l.range, "LU");
+        }
         // The target is the loudness view's (and its history's); the overview has no room.
     }
     // Peak and RMS per channel: the numbers, and bars from −60 dBFS (faint: the peak held a
     // second; solid: the RMS over 300 ms) on a scale.
     let has = v.analysis.frames() > 0;
     let title = Text::key("speculum.card.levels", Role::Micro, ink.dim).caps(true);
-    canvas::put(
+    let tr = canvas::put(
         b,
         pos2(inside.left(), y + 7.0 * k),
         Align2::LEFT_CENTER,
@@ -636,21 +683,33 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         k,
         None,
     );
-    let mut x = inside.left() + cols_w;
-    for (key, c) in [
+    // The legend at the right, when it fits beside the title (a narrow panel keeps the
+    // title alone: review 2's docked tab drew one over the other).
+    let legend = [
         ("speculum.m.rms", ink.hue),
         ("speculum.m.peak", Ink::a(ink.hue, 0.45)),
-    ] {
-        let t = Text::key(key, Role::Micro, ink.dim).caps(true);
-        let at = canvas::put(b, pos2(x, y + 7.0 * k), Align2::RIGHT_CENTER, &t, k, None);
-        b.rect(
-            Rect::from_center_size(
-                pos2(at.left() - 8.0 * k, at.center().y),
-                vec2(10.0 * k, 6.0 * k),
-            ),
-            Fill::Solid(c),
-        );
-        x = at.left() - 20.0 * k;
+    ];
+    let legend_w: f32 = legend
+        .iter()
+        .map(|(key, _)| {
+            let t = Text::key(key, Role::Micro, ink.dim).caps(true);
+            crate::kit::text::measure(b.ctx(), &t, k).x + 20.0 * k
+        })
+        .sum();
+    let mut x = inside.left() + cols_w;
+    if tr.right() + 8.0 * k + legend_w <= x {
+        for (key, c) in legend {
+            let t = Text::key(key, Role::Micro, ink.dim).caps(true);
+            let at = canvas::put(b, pos2(x, y + 7.0 * k), Align2::RIGHT_CENTER, &t, k, None);
+            b.rect(
+                Rect::from_center_size(
+                    pos2(at.left() - 8.0 * k, at.center().y),
+                    vec2(10.0 * k, 6.0 * k),
+                ),
+                Fill::Solid(c),
+            );
+            x = at.left() - 20.0 * k;
+        }
     }
     y += 16.0 * k;
     let value_w = 116.0 * k;
@@ -674,21 +733,24 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
             pos2(lr.left() + 70.0 * k, lr.top() + 2.0 * k),
             pos2(lr.right() - value_w, lr.bottom() - 2.0 * k),
         );
-        bar_span = (bar.left(), bar.right());
-        dynfx::bar(
-            b,
-            bar,
-            if has { frac(lv.peak_db[c]) } else { 0.0 },
-            Ink::a(ink.hue, 0.45),
-            ink,
-            k,
-        );
-        let rms = Rect::from_min_max(
-            bar.min,
-            pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()),
-        );
-        if has && rms.width() > 0.0 {
-            b.rrect(rms, 2.0 * k, Fill::Solid(ink.hue));
+        // A panel too narrow for a bar keeps the numbers alone.
+        if bar.width() >= 12.0 * k {
+            bar_span = (bar.left(), bar.right());
+            dynfx::bar(
+                b,
+                bar,
+                if has { frac(lv.peak_db[c]) } else { 0.0 },
+                Ink::a(ink.hue, 0.45),
+                ink,
+                k,
+            );
+            let rms = Rect::from_min_max(
+                bar.min,
+                pos2(bar.left() + bar.width() * frac(lv.rms_db[c]), bar.bottom()),
+            );
+            if has && rms.width() > 0.0 {
+                b.rrect(rms, 2.0 * k, Fill::Solid(ink.hue));
+            }
         }
         let at = pos2(lr.right(), lr.center().y);
         if has && lv.peak_db[c] > -150.0 {
@@ -721,8 +783,16 @@ fn loudness(b: &mut Brush, r: Rect, ink: &Ink, k: f32, v: &View, set: &SpeculumS
         y += 15.0 * k;
     }
     // The bars' scale.
-    if bar_span.1 > bar_span.0 && y + 12.0 * k <= inside.bottom() {
-        for db in [-48.0f32, -24.0, -12.0, -6.0, 0.0] {
+    if scale_fits && bar_span.1 > bar_span.0 && y + 12.0 * k <= inside.bottom() {
+        // As many marks as the bar has room for, never touching.
+        let marks: &[f32] = if bar_span.1 - bar_span.0 >= 160.0 * k {
+            &[-48.0, -24.0, -12.0, -6.0, 0.0]
+        } else if bar_span.1 - bar_span.0 >= 60.0 * k {
+            &[-48.0, -24.0, 0.0]
+        } else {
+            &[]
+        };
+        for &db in marks {
             let x = bar_span.0 + (bar_span.1 - bar_span.0) * frac(db);
             canvas::putf(
                 b,

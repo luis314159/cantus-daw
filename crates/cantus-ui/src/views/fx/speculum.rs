@@ -712,6 +712,12 @@ pub fn demo_signal(n: usize) -> (f32, f32) {
 
 /// What a playing engine would feed the editor: twelve seconds of [`demo_signal`] with the
 /// song's position, measured.
+/// The floating editor's measurements as [`demo_feed`] left them, taken (tests and
+/// screenshots of a docked tab).
+pub fn take_view(app: &mut CantusApp) -> Option<View> {
+    app.fx.speculum.view.take()
+}
+
 pub fn demo_feed(app: &mut CantusApp) {
     let Some(spec) = super::modfx::open_spec(app) else {
         return;

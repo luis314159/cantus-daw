@@ -72,6 +72,7 @@ fn context(dark: bool) -> egui::Context {
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let quick = args.iter().any(|a| a == "--quick");
+    let docked = args.iter().any(|a| a == "--docked");
     let previews = args.iter().any(|a| a == "--preview");
     args.retain(|a| !a.starts_with("--"));
     let dir = if args.first().is_some_and(|a| a.contains(['/', '\\'])) {
@@ -102,6 +103,42 @@ fn main() {
                     continue;
                 }
                 shots.push((dark, lang, k));
+            }
+        }
+    }
+    if docked {
+        // Speculum's overview as a docked tab draws it, at the tab's default and least
+        // sizes (review 2: the loudness panel's rows were cut off there).
+        for lang in [Locale::En, Locale::Es] {
+            for size in [egui::vec2(760.0, 460.0), egui::vec2(560.0, 420.0)] {
+                cantus_ui::i18n::set_locale(lang);
+                let ctx = context(true);
+                let mut app = app_with("speculum");
+                let Some((strip, effect, _)) = app.fx.open else {
+                    continue;
+                };
+                let mut view = views::fx::speculum::take_view(&mut app)
+                    .unwrap_or_else(|| views::fx::speculum::View::new(48_000.0));
+                view.lost = 2_400;
+                let path = dir.join(format!(
+                    "speculum-docked-{}x{}-{}.png",
+                    size.x as u32,
+                    size.y as u32,
+                    lang.code()
+                ));
+                shoot(&ctx, size, 1.0, 6, Some(&path), |root| {
+                    egui::CentralPanel::default().show(root, |ui| {
+                        let mut host =
+                            views::fx::host::DawHost::new(&mut app, strip, effect, "speculum");
+                        let set = cantus_engine::fx::speculum::settings(
+                            views::fx::host::FxHost::spec(&host),
+                        );
+                        let s = cantus_ui::kit::Style::current();
+                        let r = ui.max_rect();
+                        views::fx::speculum::body_ui(&mut host, &mut view, ui, &s, r, &set);
+                    });
+                });
+                println!("{}", path.display());
             }
         }
     }

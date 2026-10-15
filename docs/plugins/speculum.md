@@ -63,7 +63,10 @@ frame as heard at the slot (the transport's less the compensation the slot waits
 nobody watches, no allocation, nothing ever waits. The editor asks for its ring every frame
 it is shown and drains it; a ring nobody asked for during a frame is let go. In the exported
 plug-in the editor's tap carries the frames themselves (left, right) instead of the
-input/output pair the other editors read.
+input/output pair the other editors read, and the song's position of the newest frame the
+editor drained goes with them (the beat-synced scope stays on the beat whatever block the
+host runs meanwhile). A ring watched again starts afresh. In a docked tab's overview the
+loudness panel takes the display's whole height, its rows kept by rank.
 
 **Measured on the editor's thread** (`cantus_dsp::speculum::Analysis`), counted in samples of
 the stream — never in screen frames — so the readings do not depend on how often it is

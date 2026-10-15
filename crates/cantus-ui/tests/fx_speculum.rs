@@ -276,3 +276,80 @@ fn a_docked_tabs_settings_fit_its_width() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Review 2: at a docked tab's default and least sizes the overview's loudness panel keeps
+/// its peak and RMS rows — and the gaps, when frames were lost — inside the display (they
+/// were drawn below it, cut off), in both languages.
+#[test]
+fn a_docked_tabs_overview_keeps_its_levels_in_view() {
+    for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(lang);
+        let words = |key: &str| cantus_ui::i18n::t(key).to_uppercase();
+        for size in [egui::vec2(560.0, 420.0), egui::vec2(760.0, 460.0)] {
+            for lost in [0u64, 4_800] {
+                let (mut a, s0, fx) = with_speculum();
+                cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Analyzer);
+                // The demo's measurements: every row has its numbers.
+                let mut view = speculum::take_view(&mut a).expect("fed");
+                view.lost = lost;
+                let ctx = ctx();
+                let mut display = egui::Rect::NOTHING;
+                let mut texts: Vec<(String, egui::Rect)> = Vec::new();
+                for i in 0..2 {
+                    let input = egui::RawInput {
+                        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                        time: Some(i as f64 * 0.25),
+                        ..Default::default()
+                    };
+                    let mut out = ctx.run_ui(input, |ui| {
+                        let mut host =
+                            cantus_ui::views::fx::host::DawHost::new(&mut a, s0, fx, "speculum");
+                        let set = cantus_engine::fx::speculum::settings(
+                            cantus_ui::views::fx::host::FxHost::spec(&host),
+                        );
+                        let s = cantus_ui::kit::Style::current();
+                        view.lost = lost;
+                        display =
+                            speculum::body_ui(&mut host, &mut view, ui, &s, ui.max_rect(), &set).1;
+                    });
+                    out.textures_delta.clear();
+                    texts = out
+                        .shapes
+                        .iter()
+                        .filter_map(|c| match &c.shape {
+                            egui::Shape::Text(t) => {
+                                Some((t.galley.text().to_uppercase(), t.visual_bounding_rect()))
+                            }
+                            _ => None,
+                        })
+                        .collect();
+                }
+                let what = format!("{lang:?} {size:?} lost {lost}");
+                let mut wanted = vec![
+                    words("speculum.card.levels"),
+                    words("speculum.legend.left"),
+                    words("speculum.legend.right"),
+                ];
+                if lost > 0 {
+                    wanted.push(words("speculum.m.gaps"));
+                }
+                for w in &wanted {
+                    let at = texts
+                        .iter()
+                        .find(|(t, _)| t == w)
+                        .unwrap_or_else(|| panic!("{what}: {w} not drawn: {texts:?}"));
+                    assert!(
+                        display.expand(0.5).contains_rect(at.1),
+                        "{what}: {w} at {:?} outside the display {display:?}",
+                        at.1
+                    );
+                }
+                if lost == 0 {
+                    let gaps = words("speculum.m.gaps");
+                    assert!(!texts.iter().any(|(t, _)| *t == gaps), "{what}");
+                }
+            }
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}

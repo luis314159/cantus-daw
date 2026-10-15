@@ -53,6 +53,10 @@ pub struct PluginHost {
     rx: Option<rtrb::Consumer<(f32, f32)>>,
     /// Frames the window's queue let go before Speculum took them (review 1).
     stereo_lost: u64,
+    /// Frames drained from the tap so far, in the tap's own count (`Shared::tapped`), and
+    /// the newest one's place in the song, read right after the drain (review 2).
+    drained: u64,
+    clock: Option<(f64, f64)>,
     sink: Box<dyn EditSink>,
     /// Parameters inside an open gesture.
     active: Vec<u32>,
@@ -67,7 +71,14 @@ pub struct PluginHost {
 impl PluginHost {
     pub fn new(shared: Arc<Shared>, sink: Box<dyn EditSink>) -> PluginHost {
         let rx = shared.take_pairs();
+        // What the tap holds was taken before this editor: counted as not yet drained.
+        let drained = shared
+            .tapped
+            .load(Ordering::Relaxed)
+            .saturating_sub(rx.as_ref().map_or(0, |r| r.slots()) as u64);
         PluginHost {
+            drained,
+            clock: None,
             spec: shared.spec(),
             shared,
             pairs: VecDeque::with_capacity(PAIRS),
@@ -105,6 +116,7 @@ impl PluginHost {
         }
         if let Some(rx) = self.rx.as_mut() {
             while let Ok(p) = rx.pop() {
+                self.drained += 1;
                 if self.pairs.len() == PAIRS {
                     self.pairs.pop_front();
                     // Speculum reads every frame: one gone is a gap it reports.
@@ -113,6 +125,8 @@ impl PluginHost {
                 self.pairs.push_back(p);
             }
         }
+        // The song's place of the newest frame drained, with the frames.
+        self.clock = self.shared.clock_of_drained(self.drained);
     }
 
     fn index(&self, key: &str) -> Option<u32> {
@@ -280,20 +294,15 @@ impl FxHost for PluginHost {
     }
 
     /// Speculum's tap carries its own frames, left and right (ADR 0056); the song's
-    /// position is the host's transport as the audio thread last saw it.
+    /// position is the newest drained frame's, read with the frames in `refresh`.
     fn take_stereo(&mut self, out: &mut Vec<(f32, f32)>) -> StereoTake {
         if self.shared.desc.kind != EffectKind::Analyzer {
             return StereoTake::default();
         }
         out.extend(self.pairs.drain(..));
-        let clock = self
-            .shared
-            .host_transport()
-            .filter(|h| h.playing && h.tempo > 0.0)
-            .and_then(|h| h.last_beats.map(|b| (b, h.tempo)));
         StereoTake {
             stream: true,
-            clock,
+            clock: self.clock,
             lost: self.shared.scope_lost.swap(0, Ordering::Relaxed)
                 + std::mem::take(&mut self.stereo_lost),
         }
