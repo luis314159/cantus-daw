@@ -144,7 +144,10 @@ const OUT_GLIDE_S: f32 = 0.002;
 const VIB_ONSET_S: f32 = 0.25;
 /// Below this level (dBFS) the unvoiced input is silence: nothing to move formants on.
 const SILENCE_DB: f32 = -90.0;
-const MAX_EVENTS: usize = 128;
+/// MIDI notes one `process` call queues: as many as an exported plug-in takes in one block
+/// (`cantus_plugins::instance::NOTE_CAPACITY`), so a host's flood keeps its timing; past
+/// it, the queued ones act at once (see [`Tonus::note`]).
+pub const MAX_EVENTS: usize = 1024;
 
 /// The real-time auto-tuner. Allocates in `new` only.
 #[derive(Clone, Debug)]

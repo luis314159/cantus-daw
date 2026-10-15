@@ -1,7 +1,8 @@
 //! Notes into the exported plug-ins that hear them (round 28): a CLAP note port and a VST3
 //! event bus on Tonus and Porta, none on the others, and the notes a host sends — in CLAP's
 //! dialect, in MIDI bytes, as VST3 events — arrive at their sample: the plug-in renders
-//! exactly what the DSP renders fed the same notes, at any block size.
+//! exactly what the DSP renders fed the same notes, at any block size. A flood of notes
+//! loses no note-off, and CLAP's wildcards release only what they address.
 
 mod common;
 
@@ -10,6 +11,7 @@ use ::vst3::Steinberg::*;
 use ::vst3::{Class, ComPtr, ComWrapper, Interface};
 use cantus_core::EffectKind;
 use cantus_dsp::pitch::testkit::{self, Vowel};
+use cantus_dsp::porta::{Porta, Trigger};
 use cantus_dsp::tonus::{NoteEvent, Tonus};
 use cantus_plugins::ftz::DenormalGuard;
 use clap_sys::audio_buffer::clap_audio_buffer;
@@ -21,16 +23,33 @@ use std::ffi::c_void;
 use std::ptr;
 
 /// Tonus tuning to the notes it is played: the MIDI source, the hard effect.
-const VALUES: &[(&str, f32)] = &[("src", 1.0), ("speed", 0.0)];
+const TONUS: &[(&str, f32)] = &[("src", 1.0), ("speed", 0.0)];
 
-/// The notes the tests play: (sample, on?, pitch).
-const NOTES: &[(u32, bool, u8)] = &[
-    (9_001, true, 67),
-    (21_337, false, 67),
-    (21_337, true, 71),
-    (30_500, true, 64),
-    (38_000, false, 71),
-    (40_123, false, 64),
+/// Porta played by notes (its MIDI trigger), the whole range so a closed gate is plain.
+const PORTA: &[(&str, f32)] = &[("trig", 1.0), ("range", 100.0)];
+
+/// A note a host sends. In CLAP's dialect a note on or off carries the note id
+/// `1000 + pitch` and the channel `pitch % 16` (in MIDI bytes, that channel too).
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum N {
+    On(u8),
+    Off(u8),
+    /// CLAP: an off with every field a wildcard; MIDI: CC 123 on every channel.
+    AllOff,
+    /// CLAP only: an off addressed by the note id of this pitch's on, its key −1.
+    OffId(u8),
+    /// CLAP only: an off for every key on this channel (key and note id −1).
+    OffChannel(i16),
+}
+
+/// The notes the tests play: (sample, note).
+const NOTES: &[(u32, N)] = &[
+    (9_001, N::On(67)),
+    (21_337, N::Off(67)),
+    (21_337, N::On(71)),
+    (30_500, N::On(64)),
+    (38_000, N::Off(71)),
+    (40_123, N::Off(64)),
 ];
 
 fn voice() -> (Vec<f32>, Vec<f32>) {
@@ -38,26 +57,126 @@ fn voice() -> (Vec<f32>, Vec<f32>) {
     (x.clone(), x)
 }
 
-/// The DSP fed the notes directly, in one call.
-fn through_dsp() -> Vec<f32> {
-    let _guard = DenormalGuard::new();
-    let spec = spec_with(EffectKind::AutoTune, VALUES);
-    let mut d = Tonus::new(SR);
-    d.set(&cantus_engine::fx::tonus::settings(&spec));
-    for &(at, on, pitch) in NOTES {
-        d.note(
-            at as usize,
-            if on {
-                NoteEvent::On(pitch)
-            } else {
-                NoteEvent::Off(pitch)
-            },
-        );
+/// What one case plays: the kind, its values, its input, its notes.
+struct Case {
+    kind: EffectKind,
+    values: &'static [(&'static str, f32)],
+    input: (Vec<f32>, Vec<f32>),
+    notes: Vec<(u32, N)>,
+}
+
+impl Case {
+    fn tonus() -> Case {
+        Case {
+            kind: EffectKind::AutoTune,
+            values: TONUS,
+            input: voice(),
+            notes: NOTES.to_vec(),
+        }
     }
-    let (mut l, mut r) = voice();
-    d.process(&mut l, &mut r);
+
+    fn porta(notes: &[(u32, N)]) -> Case {
+        Case {
+            kind: EffectKind::Gate,
+            values: PORTA,
+            input: signal(SR as usize, 7),
+            notes: notes.to_vec(),
+        }
+    }
+}
+
+/// The DSP itself, fed the notes the host's ones mean.
+enum Dsp {
+    Tonus(Box<Tonus>),
+    Porta(Box<Porta>),
+}
+
+impl Dsp {
+    fn note(&mut self, n: N) {
+        match self {
+            Dsp::Tonus(d) => d.note(
+                0,
+                match n {
+                    N::On(p) => NoteEvent::On(p),
+                    N::Off(p) => NoteEvent::Off(p),
+                    N::AllOff => NoteEvent::AllOff,
+                    _ => unreachable!("the DSP hears plain notes"),
+                },
+            ),
+            Dsp::Porta(d) => d.note(
+                0,
+                match n {
+                    N::On(p) => Trigger::On {
+                        pitch: p,
+                        velocity: 100,
+                    },
+                    N::Off(p) => Trigger::Off { pitch: p },
+                    N::AllOff => Trigger::AllOff,
+                    _ => unreachable!("the DSP hears plain notes"),
+                },
+            ),
+        }
+    }
+
+    fn process(&mut self, l: &mut [f32], r: &mut [f32]) {
+        match self {
+            Dsp::Tonus(d) => d.process(l, r),
+            Dsp::Porta(d) => d.process(l, r, None),
+        }
+    }
+}
+
+/// The DSP fed `expected` at their samples: processed up to each note's sample, the notes
+/// of that sample handed over together, as a host's block hands them.
+fn through_dsp(case: &Case, expected: &[(u32, N)]) -> Vec<f32> {
+    let _guard = DenormalGuard::new();
+    let spec = spec_with(case.kind, case.values);
+    let mut d = match case.kind {
+        EffectKind::AutoTune => {
+            let mut t = Tonus::new(SR);
+            t.set(&cantus_engine::fx::tonus::settings(&spec));
+            Dsp::Tonus(Box::new(t))
+        }
+        EffectKind::Gate => {
+            let mut p = Porta::new(SR);
+            p.set(&cantus_engine::fx::gate::settings(&spec));
+            Dsp::Porta(Box::new(p))
+        }
+        k => panic!("{k:?} hears no notes"),
+    };
+    let (mut l, mut r) = case.input.clone();
+    let mut at = 0usize;
+    for &(t, n) in expected {
+        let t = t as usize;
+        if t > at {
+            d.process(&mut l[at..t], &mut r[at..t]);
+            at = t;
+        }
+        d.note(n);
+    }
+    let end = l.len();
+    d.process(&mut l[at..end], &mut r[at..end]);
     l.extend_from_slice(&r);
     l
+}
+
+/// The notes of `[at, at + n)`, at their offsets in that block.
+fn block_notes(notes: &[(u32, N)], at: usize, n: usize) -> Vec<(u32, N)> {
+    notes
+        .iter()
+        .filter(|(t, _)| (*t as usize) >= at && (*t as usize) < at + n)
+        .map(|&(t, note)| (t - at as u32, note))
+        .collect()
+}
+
+/// The level of the last 0.3 s of a render against the input's there (a render is left
+/// then right, concatenated).
+fn tail_gain(case: &Case, out: &[f32]) -> f32 {
+    let half = out.len() / 2;
+    let from = half - (0.3 * SR) as usize;
+    let energy = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>();
+    let input = energy(&case.input.0[from..half]);
+    (energy(&out[from..half]) / input.max(1e-12)).sqrt()
 }
 
 // ---- CLAP ------------------------------------------------------------------------------
@@ -76,38 +195,45 @@ struct Notes {
 }
 
 impl Notes {
-    fn new(notes: &[(u32, bool, u8)], midi: bool) -> Notes {
+    fn new(notes: &[(u32, N)], midi: bool) -> Notes {
         let mut heads: Box<Vec<*const clap_event_header>> = Box::default();
         let mut cn = Vec::new();
         let mut cm = Vec::new();
-        for &(t, on, pitch) in notes {
+        for &(t, n) in notes {
             if midi {
-                let e = Box::new(clap_event_midi {
-                    header: header::<clap_event_midi>(t, CLAP_EVENT_MIDI),
-                    port_index: 0,
-                    data: [
-                        if on { 0x90 } else { 0x80 },
-                        pitch,
-                        if on { 100 } else { 0 },
-                    ],
-                });
-                heads.push(&e.header);
-                cm.push(e);
+                let bytes: Vec<[u8; 3]> = match n {
+                    N::On(p) => vec![[0x90 | (p % 16), p, 100]],
+                    N::Off(p) => vec![[0x80 | (p % 16), p, 0]],
+                    // A channel's all-notes-off is its own: one on each.
+                    N::AllOff => (0..16).map(|c| [0xb0 | c, 123, 0]).collect(),
+                    other => panic!("{other:?} has no MIDI bytes"),
+                };
+                for data in bytes {
+                    let e = Box::new(clap_event_midi {
+                        header: header::<clap_event_midi>(t, CLAP_EVENT_MIDI),
+                        port_index: 0,
+                        data,
+                    });
+                    heads.push(&e.header);
+                    cm.push(e);
+                }
             } else {
+                let id = |p: u8| 1000 + p as i32;
+                // (type, note id, channel, key)
+                let (type_, note_id, channel, key) = match n {
+                    N::On(p) => (CLAP_EVENT_NOTE_ON, id(p), (p % 16) as i16, p as i16),
+                    N::Off(p) => (CLAP_EVENT_NOTE_OFF, id(p), (p % 16) as i16, p as i16),
+                    N::AllOff => (CLAP_EVENT_NOTE_OFF, -1, -1, -1),
+                    N::OffId(p) => (CLAP_EVENT_NOTE_OFF, id(p), -1, -1),
+                    N::OffChannel(c) => (CLAP_EVENT_NOTE_CHOKE, -1, c, -1),
+                };
                 let e = Box::new(clap_event_note {
-                    header: header::<clap_event_note>(
-                        t,
-                        if on {
-                            CLAP_EVENT_NOTE_ON
-                        } else {
-                            CLAP_EVENT_NOTE_OFF
-                        },
-                    ),
-                    note_id: -1,
+                    header: header::<clap_event_note>(t, type_),
+                    note_id,
                     port_index: 0,
-                    channel: 0,
-                    key: pitch as i16,
-                    velocity: 0.8,
+                    channel,
+                    key,
+                    velocity: 100.0 / 127.0,
                 });
                 heads.push(&e.header);
                 cn.push(e);
@@ -183,9 +309,10 @@ fn the_kinds_that_hear_notes_have_a_clap_note_port_and_only_they() {
 }
 
 /// Through CLAP, in blocks of `blocks`, the notes in CLAP's dialect or as MIDI bytes.
-fn through_clap(blocks: &[usize], midi: bool) -> Vec<f32> {
-    let plug = Plug::new(EffectKind::AutoTune);
-    let events: Vec<Ev> = VALUES
+fn through_clap(case: &Case, blocks: &[usize], midi: bool) -> Vec<f32> {
+    let plug = Plug::new(case.kind);
+    let events: Vec<Ev> = case
+        .values
         .iter()
         .map(|(k, v)| {
             let (id, value) = clap_value(plug.kind, k, *v);
@@ -194,17 +321,12 @@ fn through_clap(blocks: &[usize], midi: bool) -> Vec<f32> {
         .collect();
     plug.flush(&events);
     plug.activate(4096);
-    let (mut l, mut r) = voice();
+    let (mut l, mut r) = case.input.clone();
     let (mut at, mut b) = (0usize, 0usize);
     while at < l.len() {
         let n = blocks[b % blocks.len()].min(l.len() - at);
         b += 1;
-        let notes: Vec<(u32, bool, u8)> = NOTES
-            .iter()
-            .filter(|(t, _, _)| (*t as usize) >= at && (*t as usize) < at + n)
-            .map(|&(t, on, p)| (t - at as u32, on, p))
-            .collect();
-        let list = Notes::new(&notes, midi);
+        let list = Notes::new(&block_notes(&case.notes, at, n), midi);
         let mut ptrs = [l[at..].as_mut_ptr(), r[at..].as_mut_ptr()];
         let mut outs = [l[at..].as_mut_ptr(), r[at..].as_mut_ptr()];
         let inputs = [clap_audio_buffer {
@@ -240,24 +362,94 @@ fn through_clap(blocks: &[usize], midi: bool) -> Vec<f32> {
     l
 }
 
+const BLOCKS: [&[usize]; 3] = [&[512], &[1, 64, 37, 4096, 333], &[48_000]];
+
 #[test]
 fn clap_notes_arrive_at_their_sample_in_either_dialect() {
-    let reference = through_dsp();
-    let dry = {
-        let (mut l, r) = voice();
-        l.extend_from_slice(&r);
-        l
-    };
-    assert!(reference != dry, "the notes move the voice");
-    for midi in [false, true] {
-        for blocks in [&[512usize][..], &[1, 64, 37, 4096, 333][..], &[48_000][..]] {
+    for case in [Case::tonus(), Case::porta(NOTES)] {
+        let reference = through_dsp(&case, &case.notes);
+        let dry = {
+            let (mut l, r) = case.input.clone();
+            l.extend_from_slice(&r);
+            l
+        };
+        assert!(reference != dry, "{:?}: the notes change it", case.kind);
+        for midi in [false, true] {
+            for blocks in BLOCKS {
+                assert_identical(
+                    &format!(
+                        "{:?}, CLAP, MIDI bytes {midi}, blocks {blocks:?}",
+                        case.kind
+                    ),
+                    &reference,
+                    &through_clap(&case, blocks, midi),
+                );
+            }
+        }
+    }
+}
+
+/// A note held, then every key released at once (a host's per-key sweep on stop); with
+/// `all_off`, then 64 notes and an all-notes-off at once. Either way the gate ends closed.
+fn flood(all_off: bool) -> Vec<(u32, N)> {
+    let mut notes = vec![(4_000, N::On(72))];
+    notes.extend((0..128).map(|p| (20_000, N::Off(p))));
+    if all_off {
+        notes.extend((0..64).map(|p| (30_000, N::On(p))));
+        notes.push((30_000, N::AllOff));
+    }
+    notes
+}
+
+#[test]
+fn a_flood_of_notes_through_clap_loses_no_note_off() {
+    for all_off in [false, true] {
+        let case = Case::porta(&flood(all_off));
+        let reference = through_dsp(&case, &case.notes);
+        let gain = tail_gain(&case, &reference);
+        assert!(gain < 1e-3, "all_off {all_off}: the gate closed: {gain}");
+        for midi in [false, true] {
+            for blocks in BLOCKS {
+                assert_identical(
+                    &format!("all_off {all_off}, MIDI bytes {midi}, blocks {blocks:?}"),
+                    &reference,
+                    &through_clap(&case, blocks, midi),
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_clap_off_addressed_by_note_id_or_channel_releases_only_that() {
+    // 60 is on channel 12, 72 on channel 8.
+    let held = [(4_000, N::On(60)), (4_000, N::On(72))];
+    for (off, means) in [(N::OffId(60), N::Off(60)), (N::OffChannel(8), N::Off(72))] {
+        let mut sent = held.to_vec();
+        sent.push((20_000, off));
+        let case = Case::porta(&sent);
+        let mut expected = held.to_vec();
+        expected.push((20_000, means));
+        let reference = through_dsp(&case, &expected);
+        let gain = tail_gain(&case, &reference);
+        assert!(
+            gain > 0.5,
+            "{off:?}: a note is still held, the gate open: {gain}"
+        );
+        for blocks in BLOCKS {
             assert_identical(
-                &format!("CLAP, MIDI bytes {midi}, blocks {blocks:?}"),
+                &format!("{off:?}, blocks {blocks:?}"),
                 &reference,
-                &through_clap(blocks, midi),
+                &through_clap(&case, blocks, false),
             );
         }
     }
+    // Every field a wildcard is every note.
+    let mut sent = held.to_vec();
+    sent.push((20_000, N::AllOff));
+    let case = Case::porta(&sent);
+    let gain = tail_gain(&case, &through_clap(&case, &[512], false));
+    assert!(gain < 1e-3, "all released: {gain}");
 }
 
 // ---- VST3 ------------------------------------------------------------------------------
@@ -288,34 +480,42 @@ impl IEventListTrait for Events {
     }
 }
 
-fn vst3_event(offset: i32, on: bool, pitch: u8) -> Event {
+fn vst3_event(offset: i32, n: N) -> Event {
     let mut e: Event = unsafe { std::mem::zeroed() };
     e.sampleOffset = offset;
-    if on {
-        e.r#type = Event_::EventTypes_::kNoteOnEvent as u16;
-        e.__field0.noteOn = NoteOnEvent {
-            channel: 0,
-            pitch: pitch as i16,
-            tuning: 0.0,
-            velocity: 0.8,
-            length: 0,
-            noteId: -1,
-        };
-    } else {
-        e.r#type = Event_::EventTypes_::kNoteOffEvent as u16;
-        e.__field0.noteOff = NoteOffEvent {
-            channel: 0,
-            pitch: pitch as i16,
-            velocity: 0.0,
-            noteId: -1,
-            tuning: 0.0,
-        };
+    match n {
+        N::On(pitch) => {
+            e.r#type = Event_::EventTypes_::kNoteOnEvent as u16;
+            e.__field0.noteOn = NoteOnEvent {
+                channel: 0,
+                pitch: pitch as i16,
+                tuning: 0.0,
+                velocity: 100.0 / 127.0,
+                length: 0,
+                noteId: -1,
+            };
+        }
+        N::Off(pitch) => {
+            e.r#type = Event_::EventTypes_::kNoteOffEvent as u16;
+            e.__field0.noteOff = NoteOffEvent {
+                channel: 0,
+                pitch: pitch as i16,
+                velocity: 0.0,
+                noteId: -1,
+                tuning: 0.0,
+            };
+        }
+        other => panic!("VST3 has no {other:?}"),
     }
     e
 }
 
-fn through_vst3(blocks: &[usize]) -> (Vec<f32>, int32) {
-    let d = cantus_plugins::desc::of(EffectKind::AutoTune).unwrap();
+const EVENT: MediaType = MediaTypes_::kEvent as MediaType;
+const INPUT: BusDirection = BusDirections_::kInput as BusDirection;
+
+/// A VST3 component of `kind`, initialised.
+fn component(kind: EffectKind) -> ComPtr<IComponent> {
+    let d = cantus_plugins::desc::of(kind).unwrap();
     let cid = cantus_plugins::vst3::cid_of(d);
     unsafe {
         let f = ComPtr::from_raw(cantus_plugins::vst3::GetPluginFactory()).unwrap();
@@ -329,15 +529,39 @@ fn through_vst3(blocks: &[usize]) -> (Vec<f32>, int32) {
         assert_eq!(r, kResultOk);
         let component = ComPtr::from_raw(obj as *mut IComponent).unwrap();
         assert_eq!(component.initialize(ptr::null_mut()), kResultOk);
+        component
+    }
+}
+
+#[test]
+fn the_kinds_that_hear_notes_have_a_vst3_event_bus_and_only_they() {
+    for kind in kinds() {
+        let c = component(kind);
+        unsafe {
+            let want = i32::from(kind.takes_notes());
+            assert_eq!(c.getBusCount(EVENT, INPUT), want, "{kind:?}");
+            let output = BusDirections_::kOutput as BusDirection;
+            assert_eq!(c.getBusCount(EVENT, output), 0, "{kind:?}: no event output");
+            let mut info: BusInfo = std::mem::zeroed();
+            let got = c.getBusInfo(EVENT, INPUT, 0, &mut info);
+            if kind.takes_notes() {
+                assert_eq!(got, kResultOk, "{kind:?}");
+                assert_eq!(info.mediaType, EVENT, "{kind:?}");
+            } else {
+                assert_eq!(got, kInvalidArgument, "{kind:?}: no event bus to describe");
+                assert_ne!(c.activateBus(EVENT, INPUT, 0, 1), kResultOk, "{kind:?}");
+            }
+            c.terminate();
+        }
+    }
+}
+
+fn through_vst3(case: &Case, blocks: &[usize]) -> Vec<f32> {
+    let component = component(case.kind);
+    unsafe {
         let processor = component.cast::<IAudioProcessor>().unwrap();
-        let event = MediaTypes_::kEvent as MediaType;
-        let input = BusDirections_::kInput as BusDirection;
-        let buses = component.getBusCount(event, input);
-        let mut info: BusInfo = std::mem::zeroed();
-        assert_eq!(component.getBusInfo(event, input, 0, &mut info), kResultOk);
-        assert_eq!(info.mediaType, event);
         // The values, as a state.
-        let state = serde_json::to_vec(&spec_with(EffectKind::AutoTune, VALUES)).unwrap();
+        let state = serde_json::to_vec(&spec_with(case.kind, case.values)).unwrap();
         let stream = ComWrapper::new(Mem {
             data: std::cell::RefCell::new(state),
             pos: std::cell::Cell::new(0),
@@ -351,19 +575,18 @@ fn through_vst3(blocks: &[usize]) -> (Vec<f32>, int32) {
             sampleRate: SR as f64,
         };
         assert_eq!(processor.setupProcessing(&mut setup), kResultOk);
-        assert_eq!(component.activateBus(event, input, 0, 1), kResultOk);
+        assert_eq!(component.activateBus(EVENT, INPUT, 0, 1), kResultOk);
         assert_eq!(component.setActive(1), kResultOk);
         assert_eq!(processor.setProcessing(1), kResultOk);
-        let (mut l, mut r) = voice();
+        let (mut l, mut r) = case.input.clone();
         let (mut at, mut b) = (0usize, 0usize);
         while at < l.len() {
             let n = blocks[b % blocks.len()].min(l.len() - at);
             b += 1;
             let events = ComWrapper::new(Events {
-                list: NOTES
-                    .iter()
-                    .filter(|(t, _, _)| (*t as usize) >= at && (*t as usize) < at + n)
-                    .map(|&(t, on, p)| vst3_event(t as i32 - at as i32, on, p))
+                list: block_notes(&case.notes, at, n)
+                    .into_iter()
+                    .map(|(t, note)| vst3_event(t as i32, note))
                     .collect(),
             });
             let ep = events.to_com_ptr::<IEventList>().unwrap();
@@ -404,7 +627,7 @@ fn through_vst3(blocks: &[usize]) -> (Vec<f32>, int32) {
         component.setActive(0);
         component.terminate();
         l.extend_from_slice(&r);
-        (l, buses)
+        l
     }
 }
 
@@ -447,10 +670,35 @@ impl IBStreamTrait for Mem {
 
 #[test]
 fn vst3_notes_arrive_at_their_sample_on_the_event_bus() {
-    let reference = through_dsp();
-    for blocks in [&[512usize][..], &[1, 64, 37, 4096, 333][..]] {
-        let (out, buses) = through_vst3(blocks);
-        assert_eq!(buses, 1, "one event input");
-        assert_identical(&format!("VST3, blocks {blocks:?}"), &reference, &out);
+    for case in [Case::tonus(), Case::porta(NOTES)] {
+        let reference = through_dsp(&case, &case.notes);
+        for blocks in &BLOCKS[..2] {
+            assert_identical(
+                &format!("{:?}, VST3, blocks {blocks:?}", case.kind),
+                &reference,
+                &through_vst3(&case, blocks),
+            );
+        }
     }
+}
+
+#[test]
+fn a_flood_of_note_offs_through_vst3_closes_the_gate() {
+    // VST3 has no all-notes-off: a host releases every key, one off each.
+    let case = Case::porta(&flood(false));
+    let reference = through_dsp(&case, &case.notes);
+    for blocks in &BLOCKS[..2] {
+        let out = through_vst3(&case, blocks);
+        assert_identical(&format!("VST3, blocks {blocks:?}"), &reference, &out);
+        let gain = tail_gain(&case, &out);
+        assert!(gain < 1e-3, "blocks {blocks:?}: the gate closed: {gain}");
+    }
+}
+
+/// The units queue a whole block's notes, as many as a plug-in takes: none acts early.
+#[test]
+fn the_units_queue_as_many_notes_as_a_block_carries() {
+    use cantus_plugins::instance::NOTE_CAPACITY;
+    assert!(NOTE_CAPACITY <= cantus_dsp::porta::MAX_TRIGGERS);
+    assert!(NOTE_CAPACITY <= cantus_dsp::tonus::MAX_EVENTS);
 }

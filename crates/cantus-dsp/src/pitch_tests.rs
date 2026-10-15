@@ -334,7 +334,13 @@ fn the_design_reaches_f_min_and_f_max() {
 #[test]
 fn a_legato_octave_leap_up_is_followed() {
     let sr = 48_000.0;
-    let x = testkit::voice(sr, 1.0, Vowel::A, 0.5, |t| if t < 0.5 { 220.0 } else { 440.0 });
+    let x = testkit::voice(
+        sr,
+        1.0,
+        Vowel::A,
+        0.5,
+        |t| if t < 0.5 { 220.0 } else { 440.0 },
+    );
     let step = 0.5 * sr as f64;
     let truth = |t: f64| if t < step { 220.0 } else { 440.0 };
     let frames: Vec<PitchFrame> = stream(&x, sr)
@@ -344,7 +350,13 @@ fn a_legato_octave_leap_up_is_followed() {
     let s = score(&frames, &truth, 0.0, 0.0, x.len());
     assert_eq!(s.gross, 0, "{s:?}");
     // And a leap down.
-    let y = testkit::voice(sr, 1.0, Vowel::A, 0.5, |t| if t < 0.5 { 440.0 } else { 220.0 });
+    let y = testkit::voice(
+        sr,
+        1.0,
+        Vowel::A,
+        0.5,
+        |t| if t < 0.5 { 440.0 } else { 220.0 },
+    );
     let truth = |t: f64| if t < step { 440.0 } else { 220.0 };
     let frames: Vec<PitchFrame> = stream(&y, sr)
         .into_iter()
@@ -385,5 +397,9 @@ fn f0_at_follows_the_nearest_frame_at_both_edges() {
         ..onset.clone()
     };
     assert_eq!(offset.f0_at(25.0), Some(200.0));
-    assert_eq!(offset.f0_at(75.0), None, "an offset: nearest frame unvoiced");
+    assert_eq!(
+        offset.f0_at(75.0),
+        None,
+        "an offset: nearest frame unvoiced"
+    );
 }

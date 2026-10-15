@@ -389,7 +389,12 @@ fn a_released_correction_returns_to_the_exact_dry_path() {
     assert_eq!(t.shift(), 0.0, "the correction landed on zero");
     // The last 0.3 s: the input delayed, to the bit.
     let from = x.len() - (0.3 * SR) as usize;
-    assert_delayed(&l[from..], &x[from - lat..x.len() - lat], 0, "after the release");
+    assert_delayed(
+        &l[from..],
+        &x[from - lat..x.len() - lat],
+        0,
+        "after the release",
+    );
 }
 
 /// Review 1: more note events in one call than the queue holds lose no note-off: the
@@ -400,7 +405,7 @@ fn a_flood_of_notes_in_one_call_leaves_none_stuck() {
         source: Source::Midi,
         ..TonusSettings::default()
     });
-    for i in 0..200usize {
+    for i in 0..600usize {
         let p = (36 + i % 48) as u8;
         t.note(i, NoteEvent::On(p));
         t.note(i, NoteEvent::Off(p));
@@ -438,6 +443,9 @@ fn a_legato_note_change_makes_no_click() {
             .map(|i| d2(&l, i))
             .fold(0.0f32, f32::max);
         eprintln!("legato change at {speed} ms: worst {worst:.4}, steady voice {steady:.4}");
-        assert!(worst < steady * 1.6, "a click at {speed} ms: {worst} against {steady}");
+        assert!(
+            worst < steady * 1.6,
+            "a click at {speed} ms: {worst} against {steady}"
+        );
     }
 }
