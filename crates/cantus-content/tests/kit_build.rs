@@ -725,3 +725,50 @@ fn the_real_drskit_installs_mixed_from_its_archive() {
     assert_eq!(m.instruments().len(), 1);
     assert_eq!(m.instruments()[0].key(), "pack:drskit/kit");
 }
+
+#[test]
+fn a_built_pack_reports_its_unpacking_then_its_mixing_hit_by_hit() {
+    use cantus_content::install::{self, Job, Layout, Phase};
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let p = kit_pack(src.path());
+    let layout = Layout::new(root.path());
+    let net = Net::new();
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let job = Job {
+        layout: &layout,
+        transport: &net,
+        cancel: &cancel,
+        patience: Patience::none(),
+        archive: None,
+    };
+    let mut phases = Vec::new();
+    install::install(&job, &p, &mut |ph| phases.push(ph)).unwrap();
+    // The unpacking fills the first half of its share (its total doubled)…
+    let last_unpack = phases
+        .iter()
+        .rev()
+        .find_map(|ph| match ph {
+            Phase::Unpacking { done, total } => Some((*done, *total)),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(last_unpack.0 * 2, last_unpack.1);
+    // …then the mixing counts every hit the pack builds, 6 + 3 + 3, from 0, after it.
+    let building: Vec<(u64, u64)> = phases
+        .iter()
+        .filter_map(|ph| match ph {
+            Phase::Building { done, total } => Some((*done, *total)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(building.first(), Some(&(0, 12)));
+    assert_eq!(building.last(), Some(&(12, 12)));
+    let first_build = phases
+        .iter()
+        .position(|ph| matches!(ph, Phase::Building { .. }))
+        .unwrap();
+    assert!(phases[first_build..]
+        .iter()
+        .all(|ph| matches!(ph, Phase::Building { .. })));
+}

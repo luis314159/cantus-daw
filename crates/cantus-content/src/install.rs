@@ -300,10 +300,24 @@ pub fn install(
             .as_ref()
             .map_or(pack.installed_size, |b| b.unpacked_size),
     );
+    // A pack built at install unpacks in the first half of the unpacking's share of the
+    // progress and builds in the second ([`Phase::Building`]).
+    let builds = pack.build.is_some();
+    let mut unpacking = |p: Phase| {
+        report(match p {
+            Phase::Unpacking { done, total } if builds => Phase::Unpacking {
+                done,
+                total: total.saturating_mul(2),
+            },
+            p => p,
+        })
+    };
     let (files, bytes) = match &pack.source {
-        Source::Files(list) => install_files(job, list, &staging, report)?,
-        Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, report)?,
-        Source::TarGz(z) => install_archive(job, z, Archive::TarGz, budget, &staging, report)?,
+        Source::Files(list) => install_files(job, list, &staging, &mut unpacking)?,
+        Source::Zip(z) => install_archive(job, z, Archive::Zip, budget, &staging, &mut unpacking)?,
+        Source::TarGz(z) => {
+            install_archive(job, z, Archive::TarGz, budget, &staging, &mut unpacking)?
+        }
     };
     if !staging.join(&pack.licence_file).is_file() {
         return Err(InstallError::NoLicence(pack.licence_file.clone()));
@@ -318,8 +332,6 @@ pub fn install(
     let (files, bytes) = match &pack.build {
         Some(b) => {
             let credit = pack.credit_full().unwrap_or_else(|| pack.name.en.clone());
-            let total = b.keys.len() as u64;
-            report(Phase::Building { done: 0, total });
             crate::kitbuild::build(b, &staging, &credit, job.cancel, &mut |done, total| {
                 report(Phase::Building { done, total })
             })

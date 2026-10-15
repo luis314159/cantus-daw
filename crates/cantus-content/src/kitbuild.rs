@@ -367,6 +367,7 @@ pub fn render(
         plan.push((k, inst));
     }
     let total: u64 = plan.iter().map(|(_, i)| i.samples.len() as u64).sum();
+    report(0, total);
     let out_root = drumgizmo::path_of(out, &b.folder);
     std::fs::create_dir_all(&out_root).map_err(|e| e.to_string())?;
     let mut built = Built::default();

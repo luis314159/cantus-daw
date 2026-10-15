@@ -282,6 +282,9 @@ CC BY's one condition is credit to the author. Each pack's credit, as its licens
 
 - **Salamander Grand Piano** (CC BY 3.0) — “Salamander Grand Piano V3” by Alexander Holm (https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html), licensed under CC BY 3.0 (https://creativecommons.org/licenses/by/3.0/legalcode)
   Licence file in the pack: `readme.txt`.
+- **DRSKit acoustic drums** (CC BY 4.0) — “DRSKit” by the DrumGizmo team and Jes Eiler (DRSDrums) (https://drumgizmo.org/wiki/doku.php?id=kits:drskit), licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/legalcode)
+  Licence file in the pack: `README.md`.
+  About crediting, in the author's words: *“When the samples are used in a composition, any context in which other credits (e.g. to performers) are presented must include an attribution.”*
 
 ### Under CC0 — no credit asked, given gladly
 

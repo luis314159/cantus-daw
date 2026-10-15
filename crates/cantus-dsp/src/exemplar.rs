@@ -179,7 +179,9 @@ impl Default for Globals {
             sw_hi: -1,
             sw_default: -1,
             macros: [0.0; 8],
-            rr_in_order: false,
+            // The parameter's default (`rr.order` = 1): an Exemplar saved before has it
+            // written as 0 by the schema's migration.
+            rr_in_order: true,
         }
     }
 }

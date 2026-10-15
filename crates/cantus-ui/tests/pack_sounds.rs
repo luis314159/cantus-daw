@@ -140,6 +140,7 @@ fn installed(layers: Option<u8>) -> Fixture {
             shelf: Shelf::Keys,
             layers,
             gain_db: 2.0,
+            voices: None,
         }],
         installed_at: 0,
         files: 7,
@@ -483,6 +484,7 @@ fn the_real_salamander_loads_plays_and_sits_at_the_calibrated_level() {
             shelf: Shelf::Keys,
             layers: (layers < 16).then_some(layers),
             gain_db: gain,
+            voices: None,
         },
         path: Path::new(&dir).join("SalamanderGrandPiano-V3+20200602.sfz"),
         licence: "CC-BY-3.0".into(),
@@ -639,6 +641,7 @@ fn sound_packs_names_its_instruments_and_offers_a_track_once_installed() {
         shelf: Shelf::Keys,
         layers: Some(2),
         gain_db: 2.0,
+        voices: None,
     };
     let piano = m
         .packs
@@ -892,6 +895,7 @@ fn the_new_track_button_is_in_view_without_scrolling() {
                     exclude: vec![],
                 }),
                 attribution: receipt.attribution.clone(),
+                build: None,
                 instruments: receipt.instruments.clone(),
             });
             a.samples.manifest = Some(with_pack);

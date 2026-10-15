@@ -122,6 +122,11 @@ pub fn import_of(sound: &SoundChoice) -> Result<Import, String> {
     if sound.0.instrument.gain_db != 0.0 {
         imp.values.push(("gain".into(), sound.0.instrument.gain_db));
     }
+    // The voices the pack asks for (round 28: a drum kit's cymbals ring on under the hits).
+    if let Some(v) = sound.0.instrument.voices {
+        imp.values.retain(|(k, _)| k != "voices");
+        imp.values.push(("voices".into(), v.clamp(1, 64) as f32));
+    }
     imp.name = Some(sound.name());
     Ok(imp)
 }

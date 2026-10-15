@@ -143,6 +143,7 @@ fn pack_manifest() -> cantus_content::Manifest {
         shelf: Shelf::Keys,
         layers: None,
         gain_db: 0.0,
+        voices: None,
     }];
     m
 }
