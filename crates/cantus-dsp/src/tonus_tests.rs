@@ -367,3 +367,77 @@ fn the_throat_moves_formants_not_pitch() {
     let d = testkit::envelope_distance(&x[half..], f0, &y[half..], f0, SR, 300.0, 4_000.0);
     assert!(d > 2.0, "the throat did not move the formants ({d} dB)");
 }
+
+/// Review 1: when a correction ends while the voice goes on (the MIDI note released), the
+/// glide lands on zero exactly and the output returns to the input delayed, bit for bit.
+#[test]
+fn a_released_correction_returns_to_the_exact_dry_path() {
+    let x = testkit::voice(SR, 1.6, Vowel::A, 0.4, |_| 200.0);
+    let mut t = tonus(TonusSettings {
+        source: Source::Midi,
+        speed_ms: 60.0,
+        ..TonusSettings::default()
+    });
+    let lat = t.latency();
+    t.note(0, NoteEvent::On(67));
+    let (mut l, mut r) = (x.clone(), x.clone());
+    let release = (0.4 * SR) as usize;
+    t.process(&mut l[..release], &mut r[..release]);
+    assert!(t.shift() != 0.0, "corrected while the note is held");
+    t.note(0, NoteEvent::Off(67));
+    t.process(&mut l[release..], &mut r[release..]);
+    assert_eq!(t.shift(), 0.0, "the correction landed on zero");
+    // The last 0.3 s: the input delayed, to the bit.
+    let from = x.len() - (0.3 * SR) as usize;
+    assert_delayed(&l[from..], &x[from - lat..x.len() - lat], 0, "after the release");
+}
+
+/// Review 1: more note events in one call than the queue holds lose no note-off: the
+/// notes held afterwards are exactly those still down.
+#[test]
+fn a_flood_of_notes_in_one_call_leaves_none_stuck() {
+    let mut t = tonus(TonusSettings {
+        source: Source::Midi,
+        ..TonusSettings::default()
+    });
+    for i in 0..200usize {
+        let p = (36 + i % 48) as u8;
+        t.note(i, NoteEvent::On(p));
+        t.note(i, NoteEvent::Off(p));
+    }
+    t.note(300, NoteEvent::On(64));
+    let (mut l, mut r) = (vec![0.0f32; 512], vec![0.0f32; 512]);
+    t.process(&mut l, &mut r);
+    assert_eq!(t.held_classes(), 1 << 4, "only E is still down");
+    t.note(0, NoteEvent::Off(64));
+    t.process(&mut l, &mut r);
+    assert_eq!(t.held_classes(), 0);
+}
+
+/// Review 1: a note change inside one voiced stretch (the MIDI target jumps while the voice
+/// sounds) makes no click, at a natural speed and at speed 0: the output's second
+/// difference around the change stays within the steady voice's own.
+#[test]
+fn a_legato_note_change_makes_no_click() {
+    let x = testkit::voice(SR, 1.2, Vowel::A, 0.4, |_| 200.0);
+    let d2 = |v: &[f32], i: usize| (v[i + 1] - 2.0 * v[i] + v[i - 1]).abs();
+    let steady = (10_000..20_000).map(|i| d2(&x, i)).fold(0.0f32, f32::max);
+    for speed in [60.0f32, 0.0] {
+        let mut t = tonus(TonusSettings {
+            source: Source::Melody,
+            speed_ms: speed,
+            ..TonusSettings::default()
+        });
+        t.note(0, NoteEvent::On(55)); // G3, 196 Hz
+        let change = (0.6 * SR) as usize;
+        let (mut l, mut r) = (x.clone(), x.clone());
+        t.process(&mut l[..change], &mut r[..change]);
+        t.note(0, NoteEvent::On(57)); // A3: the target jumps a whole tone, legato
+        t.process(&mut l[change..], &mut r[change..]);
+        let worst = (change - 2_400..change + 4_800)
+            .map(|i| d2(&l, i))
+            .fold(0.0f32, f32::max);
+        eprintln!("legato change at {speed} ms: worst {worst:.4}, steady voice {steady:.4}");
+        assert!(worst < steady * 1.6, "a click at {speed} ms: {worst} against {steady}");
+    }
+}

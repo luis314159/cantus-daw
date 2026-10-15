@@ -318,3 +318,32 @@ fn offline_shifts_pitch_keeps_formants_and_stretches_time() {
     // Deterministic.
     assert_eq!(render(&[&x], &a, &plan), y);
 }
+
+/// Review 1: where the offline shifter fades in ahead of a change, its first grains are in
+/// phase with the take, so the fade is not a comb: at a ratio of 1 the output there is the
+/// take.
+#[test]
+fn offline_fades_in_in_phase_with_the_take() {
+    let sr = 48_000.0;
+    let f0 = 210.0;
+    let x = testkit::voice(sr, 0.8, Vowel::A, 0.5, |_| f0);
+    let a = analyse(&x, sr);
+    let cut = (0.4 * sr) as usize;
+    let ratio = move |t: f64| if t >= cut as f64 { st(2.0) } else { 1.0 };
+    let plan = Plan {
+        ratio: &ratio,
+        formant: &|_| 0.0,
+        time: TimeMap::identity(),
+        len: x.len(),
+    };
+    let y = render(&[&x], &a, &plan);
+    let fade = (FADE_S * sr) as usize;
+    let (mut e, mut p) = (0.0f32, 0.0f32);
+    for i in cut - fade..cut - 2 {
+        let d = y[0][i] - x[i];
+        e += d * d;
+        p += x[i] * x[i];
+    }
+    let snr = 10.0 * math::log10(p / e.max(1e-30));
+    assert!(snr > 30.0, "the fade-in is {snr:.1} dB from the take");
+}

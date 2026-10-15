@@ -298,14 +298,19 @@ impl Tonus {
     }
 
     /// A note from the slot's MIDI source, `offset` samples into the next `process`.
+    /// More than the queue holds in one call: the queued notes are applied at once, in
+    /// order, before the new one is queued — their timing is lost, never a note (a dropped
+    /// note-off would leave a target held for good).
     pub fn note(&mut self, offset: usize, e: NoteEvent) {
-        if self.n_events < MAX_EVENTS {
-            self.events[self.n_events] = (offset, e);
-            self.n_events += 1;
-        } else if let NoteEvent::AllOff = e {
-            // Never lose the one that frees everything.
-            self.events[MAX_EVENTS - 1] = (offset, e);
+        if self.n_events == MAX_EVENTS {
+            for i in 0..MAX_EVENTS {
+                let queued = self.events[i].1;
+                self.apply(queued);
+            }
+            self.n_events = 0;
         }
+        self.events[self.n_events] = (offset, e);
+        self.n_events += 1;
     }
 
     /// Process a stereo block in place.
@@ -456,7 +461,14 @@ impl Tonus {
         self.c = if self.k >= 1.0 {
             self.c_target
         } else {
-            self.c + (self.c_target - self.c) * self.k
+            let c = self.c + (self.c_target - self.c) * self.k;
+            // Land exactly once within a millionth of a semitone: a one-pole never reaches
+            // its target, and the shifter disengages only at a shift of exactly zero.
+            if (self.c_target - c).abs() < 1e-6 {
+                self.c_target
+            } else {
+                c
+            }
         };
         let mut created = 0.0;
         if s.vib_depth > 0.0 {
