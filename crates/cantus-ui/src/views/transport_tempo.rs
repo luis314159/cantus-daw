@@ -206,6 +206,11 @@ pub fn tap_tick_at(app: &mut CantusApp, now: f64) {
 const COMMON: [(u8, u8); 7] = [(2, 4), (3, 4), (4, 4), (5, 4), (6, 8), (7, 8), (12, 8)];
 const NOTES: [u8; 4] = [2, 4, 8, 16];
 
+/// Open the editor (screenshots).
+pub fn open_metre(ctx: &egui::Context) {
+    egui::Popup::open_id(ctx, metre_popup());
+}
+
 fn metre_popup() -> Id {
     Id::new("toolbar-metre-editor")
 }

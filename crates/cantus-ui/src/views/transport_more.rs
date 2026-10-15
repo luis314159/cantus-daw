@@ -87,7 +87,9 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
     // Closed by a click on the window itself — not inside the menu, nor inside a popover
     // it opened (those are foreground layers too), nor on the ⋯ key.
     let (click, at) = ctx.input(|i| (i.pointer.any_click(), i.pointer.interact_pos()));
+    let last = ctx.data(|d| d.get_temp::<Rect>(Id::new("toolbar-overflow-rect")));
     let outside = click
+        && at.is_some_and(|p| !last.is_some_and(|r| r.contains(p)))
         && at.is_some_and(|p| {
             ctx.layer_id_at(p)
                 .is_none_or(|l| !matches!(l.order, Order::Foreground | Order::Tooltip))
@@ -96,14 +98,27 @@ pub fn key(app: &mut CantusApp, ui: &mut Ui, r: Rect, folded: &[Group], s: &Styl
         egui::Popup::close_id(&ctx, popup_id());
         return;
     }
-    egui::Popup::from_response(&resp)
+    let shown = egui::Popup::from_response(&resp)
         .id(popup_id())
         .open_memory(toggle.then_some(egui::SetOpenCommand::Toggle))
         .close_behavior(egui::PopupCloseBehavior::IgnoreClicks)
         .align(egui::RectAlign::BOTTOM_END)
         .frame(crate::views::record_options::frame_for(s))
         .gap(4.0)
-        .show(|ui| overflow(app, ui, folded));
+        .show(|ui| {
+            // Taller than the window below the bar: it scrolls (never cut off).
+            let room = (ctx.content_rect().bottom() - kr.bottom() - 24.0 * k).max(80.0 * k);
+            egui::ScrollArea::vertical()
+                .max_height(room)
+                // An area keeps last frame's size: ask for the room, or it stays at egui's
+                // default 400 pt.
+                .min_scrolled_height(room)
+                .auto_shrink([true, true])
+                .show(ui, |ui| overflow(app, ui, folded));
+        });
+    if let Some(r) = shown {
+        ctx.data_mut(|d| d.insert_temp(Id::new("toolbar-overflow-rect"), r.response.rect));
+    }
 }
 
 /// The folded groups, each under its name, and *Customise top bar…*.
@@ -169,6 +184,7 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
         (bar.right() - size.x - 8.0 * k).max(screen.left() + 8.0),
         bar.bottom() + 4.0 * k,
     );
+    let size = vec2(size.x, size.y.min(screen.bottom() - pos.y - 8.0));
     let mut close = false;
     let mut changed = false;
     let mut topbar = app.settings.topbar.clone();
@@ -193,7 +209,16 @@ pub fn customise_panel(app: &mut CantusApp, ctx: &egui::Context, bar: Rect) {
                 Pos2::new(rect.left() + 8.0 * k, head.bottom() + 4.0 * k),
                 Pos2::new(rect.right() - 8.0 * k, rect.bottom() - foot_h),
             );
-            changed |= rows(app, ui, body, &order, &mut topbar, &s);
+            // The rows scroll when the window is shorter than the list.
+            let mut list = ui.new_child(egui::UiBuilder::new().max_rect(body));
+            egui::ScrollArea::vertical()
+                .max_height(body.height())
+                .auto_shrink([false, true])
+                .show(&mut list, |ui| {
+                    let h = order.len() as f32 * ROW * k;
+                    let (rows_r, _) = ui.allocate_exact_size(vec2(body.width(), h), Sense::hover());
+                    changed |= rows(app, ui, rows_r, &order, &mut topbar, &s);
+                });
             let foot = Rect::from_min_max(Pos2::new(body.left(), body.bottom() + 6.0 * k), rect.max);
             let mut child = ui.new_child(
                 egui::UiBuilder::new()

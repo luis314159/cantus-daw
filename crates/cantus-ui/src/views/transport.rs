@@ -484,3 +484,8 @@ fn texts_last(ctx: &egui::Context, layer: egui::LayerId, first: egui::layers::Sh
         buf.clear();
     });
 }
+
+/// Open the time signature's editor (screenshots and tests).
+pub fn open_metre_editor(ctx: &egui::Context) {
+    tempo::open_metre(ctx);
+}
