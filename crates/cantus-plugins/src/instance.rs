@@ -73,13 +73,21 @@ pub const NOTE_CAPACITY: usize = 1024;
 
 /// Keep a note in a buffer reserved for [`NOTE_CAPACITY`]: never allocates; when full,
 /// only an all-notes-off still gets in (over the last note), so nothing stays stuck.
-pub fn push_note(out: &mut Vec<NoteIn>, n: NoteIn) {
+/// Whether the note got in: a caller whose note-off did not sends an all-notes-off instead.
+pub fn push_note(out: &mut Vec<NoteIn>, n: NoteIn) -> bool {
     if out.len() < out.capacity() {
         out.push(n);
+        true
     } else if n.note == FxNote::AllOff {
-        if let Some(last) = out.last_mut() {
-            *last = n;
+        match out.last_mut() {
+            Some(last) => {
+                *last = n;
+                true
+            }
+            None => false,
         }
+    } else {
+        false
     }
 }
 
@@ -566,6 +574,9 @@ pub struct Processor {
     /// that gives beats but no tempo.
     last_beats: Option<(f64, u64)>,
     found_tempo: Option<f64>,
+    /// A reading too far from `found_tempo` to believe at once: believed when the next
+    /// block reads the same (a tempo change), forgotten when it does not (a seek).
+    new_tempo: Option<f64>,
 }
 
 impl Drop for Processor {
@@ -619,6 +630,7 @@ impl Processor {
             n_moves: 0,
             last_beats: None,
             found_tempo: None,
+            new_tempo: None,
             modulation: vec![0.0; base.len()].into_boxed_slice(),
             sidechain: base[table.sidechain] >= 0.5,
             shared,
@@ -644,7 +656,7 @@ impl Processor {
                     let samples = self.pos.saturating_sub(p0) as f64;
                     let sr = f64::from(self.shared.sample_rate());
                     if samples > 0.0 && b > b0 && sr > 0.0 {
-                        self.found_tempo = Some((b - b0) / samples * 60.0 * sr);
+                        self.believe_tempo((b - b0) / samples * 60.0 * sr);
                     }
                 }
                 t.tempo = self.found_tempo;
@@ -656,10 +668,43 @@ impl Processor {
         self.n_moves = 0;
     }
 
+    /// A tempo read from how far the host's beats moved. A seek reads as an absurd tempo
+    /// for one block: a reading is believed only within the DAW's tempo range, and only
+    /// near the tempo found before (half to twice it) or when two blocks running agree —
+    /// a seek never repeats, a tempo change does.
+    fn believe_tempo(&mut self, reading: f64) {
+        use cantus_core::time::{MAX_BPM, MIN_BPM};
+        let near = |a: f64, b: f64, ratio: f64| a <= b * ratio && b <= a * ratio;
+        if !(MIN_BPM..=MAX_BPM).contains(&reading) {
+            self.new_tempo = None;
+            return;
+        }
+        let agreed = self.new_tempo.is_some_and(|n| near(reading, n, 1.05));
+        match self.found_tempo {
+            Some(found) if !near(reading, found, 2.0) && !agreed => {
+                self.new_tempo = Some(reading);
+            }
+            _ => {
+                self.found_tempo = Some(reading);
+                self.new_tempo = None;
+            }
+        }
+    }
+
     /// A transport the host sends inside the next block (CLAP's transport event), taking
     /// effect `offset` samples in. Audio thread; no allocation (a few are kept; more are
-    /// dropped, keeping the last).
-    pub fn push_transport_event(&mut self, offset: u32, t: HostTransport) {
+    /// dropped, keeping the last). Called after [`Self::set_transport`]: a missing tempo is
+    /// the one found from the beats, as the block's start has it, and the next block's
+    /// tempo is measured from this event's beats, not across it.
+    pub fn push_transport_event(&mut self, offset: u32, mut t: HostTransport) {
+        if t.playing && t.tempo.filter(|v| v.is_finite() && *v > 0.0).is_none() {
+            t.tempo = self
+                .found_tempo
+                .or_else(|| self.transport.and_then(|s| s.tempo));
+        }
+        if let Some(b) = t.beats.filter(|b| b.is_finite()) {
+            self.last_beats = Some((b, self.pos + u64::from(offset)));
+        }
         if self.n_moves < self.moves.len() {
             self.moves[self.n_moves] = (offset, t);
             self.n_moves += 1;

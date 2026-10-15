@@ -270,6 +270,18 @@ impl Plug {
         let _ = (&mut in_l, &mut in_r, &mut in_ptrs, &mut out_ptrs);
     }
 
+    /// One block in place with transport events inside it (CLAP's `CLAP_EVENT_TRANSPORT`
+    /// in the input list, each at its time), the block's own transport as `transport` says.
+    pub fn process_moves(
+        &self,
+        l: &mut [f32],
+        r: &mut [f32],
+        moves: &[(u32, clap_event_transport)],
+    ) {
+        let list = EventList::with_moves(&[], moves);
+        self.process_list(l, r, None, &list);
+    }
+
     /// One block in place, the events already built: allocates nothing on this side.
     pub fn process_list(
         &self,
@@ -410,17 +422,26 @@ unsafe extern "C" fn out_push(_l: *const clap_output_events, _e: *const clap_eve
     true
 }
 
-/// A host's input event list over parameter values.
+/// A host's input event list over parameter values (and, for the transport tests, the
+/// transport changes a host sends inside a block).
 pub struct EventList {
     pub clap: clap_input_events,
-    // Boxed: `clap.ctx` points at the vector itself, which must not move with the list.
+    // Boxed: `clap.ctx` points at the headers' list, and it at each event, none of which
+    // may move with the list.
     #[allow(clippy::box_collection)]
-    events: Box<Vec<clap_event_param_value>>,
+    _heads: Box<Vec<*const clap_event_header>>,
+    _events: Vec<clap_event_param_value>,
+    _moves: Vec<clap_event_transport>,
 }
 
 impl EventList {
     pub fn new(events: &[Ev]) -> EventList {
-        let mut v: Box<Vec<clap_event_param_value>> = Box::new(
+        EventList::with_moves(events, &[])
+    }
+
+    /// Parameter values and transport events (`(time, transport)`), in time order.
+    pub fn with_moves(events: &[Ev], moves: &[(u32, clap_event_transport)]) -> EventList {
+        let v: Vec<clap_event_param_value> =
             events
                 .iter()
                 .map(|(t, id, value)| clap_event_param_value {
@@ -439,27 +460,44 @@ impl EventList {
                     key: -1,
                     value: *value,
                 })
+                .collect();
+        let m: Vec<clap_event_transport> = moves
+            .iter()
+            .map(|(t, e)| clap_event_transport {
+                header: clap_event_header {
+                    time: *t,
+                    ..e.header
+                },
+                ..*e
+            })
+            .collect();
+        let mut heads: Box<Vec<*const clap_event_header>> = Box::new(
+            v.iter()
+                .map(|e| &e.header as *const clap_event_header)
+                .chain(m.iter().map(|e| &e.header as *const clap_event_header))
                 .collect(),
         );
-        let ctx = &mut *v as *mut Vec<clap_event_param_value> as *mut c_void;
+        heads.sort_by_key(|h| unsafe { (**h).time });
+        let ctx = &mut *heads as *mut Vec<*const clap_event_header> as *mut c_void;
         EventList {
             clap: clap_input_events {
                 ctx,
                 size: Some(list_size),
                 get: Some(list_get),
             },
-            events: v,
+            _heads: heads,
+            _events: v,
+            _moves: m,
         }
     }
 }
 
 unsafe extern "C" fn list_size(l: *const clap_input_events) -> u32 {
-    (*((*l).ctx as *const Vec<clap_event_param_value>)).len() as u32
+    (*((*l).ctx as *const Vec<*const clap_event_header>)).len() as u32
 }
 
 unsafe extern "C" fn list_get(l: *const clap_input_events, i: u32) -> *const clap_event_header {
-    let v = &*((*l).ctx as *const Vec<clap_event_param_value>);
-    &v[i as usize].header
+    (&(*((*l).ctx as *const Vec<*const clap_event_header>)))[i as usize]
 }
 
 /// A deterministic test signal: noise bursts over a quiet floor, and sines — something

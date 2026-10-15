@@ -562,3 +562,52 @@ fn a_synced_tremor_follows_the_hosts_tempo_and_position_through_vst3() {
     assert_eq!(el[at(2.7)], 0.0);
     assert_eq!(el[at(3.25)], 1.0);
 }
+
+/// Fix2 (review 2): a VST3 host that gives its tempo and the song in samples
+/// (`projectTimeSamples`) but not in beats (no `kProjectTimeMusicValid`) plays as one that
+/// gives the beats: the engine's DSP given the same song position.
+#[test]
+fn a_vst3_host_without_beats_follows_its_project_time_in_samples() {
+    let gate = [
+        ("depth", 1.0),
+        ("sync", 1.0),
+        ("div", 8.0),
+        ("shape", 2.0),
+        ("edge", 0.0),
+    ];
+    let (tempo, start_samples, n) = (100.0f64, 28_800i64, 48_000usize);
+    let spec = spec_with(EffectKind::Tremolo, &gate);
+    let mut d = cantus_dsp::tremor::Tremor::new(SR);
+    d.set(&cantus_engine::fx::tremor::settings(&spec));
+    d.reset();
+    let (mut el, mut er) = (vec![1.0f32; n], vec![1.0f32; n]);
+    for at in (0..n).step_by(512) {
+        let m = 512.min(n - at);
+        d.set_transport(&cantus_dsp::modfx_clock::Transport {
+            playing: true,
+            tempo_bpm: tempo,
+            samples: start_samples + at as i64,
+        });
+        d.process(&mut el[at..at + m], &mut er[at..at + m]);
+    }
+    let v = V3::new(EffectKind::Tremolo);
+    assert!(v.set_state(&state_of(EffectKind::Tremolo, &gate)));
+    v.activate(4096);
+    let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+    for at in (0..n).step_by(512) {
+        let m = 512.min(n - at);
+        let mut c: ProcessContext = unsafe { std::mem::zeroed() };
+        use ProcessContext_::StatesAndFlags_::*;
+        c.state = (kPlaying | kTempoValid | kTimeSigValid) as u32;
+        c.sampleRate = SR as f64;
+        c.tempo = tempo;
+        c.projectTimeSamples = start_samples + at as i64;
+        // Beats the host does not vouch for: never read.
+        c.projectTimeMusic = 1_000.0;
+        c.timeSigNumerator = 4;
+        c.timeSigDenominator = 4;
+        v.context.set(Some(c));
+        v.process(&mut l[at..at + m], &mut r[at..at + m], None, &[]);
+    }
+    assert_identical("VST3, the song in samples", &l, &el);
+}

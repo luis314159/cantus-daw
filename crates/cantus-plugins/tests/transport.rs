@@ -437,6 +437,180 @@ fn beats_without_a_tempo_find_the_tempo_from_the_beats() {
     assert_identical("from the second block", &found[512..], &told[512..]);
 }
 
+// ---- fix2 (review 2): seeks, in-block events, and the formats' own readers ------------
+
+/// A host that gives beats but no tempo, and seeks forward 64 beats between two blocks:
+/// the seek is not a tempo. It plays as the host that says its tempo, through the seek.
+#[test]
+fn a_forward_seek_is_not_read_as_a_tempo() {
+    let n = 24_576;
+    let tempo = 90.0;
+    let jump = 8_192; // a block boundary
+    let beats_at = |s: usize| {
+        let b = 0.25 + s as f64 * tempo / 60.0 / SR as f64;
+        if s >= jump {
+            b + 64.0
+        } else {
+            b
+        }
+    };
+    let told = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| Some(host(Some(beats_at(s)), Some(tempo))),
+        None,
+    );
+    let found = run_processor(
+        &mut gate_processor(),
+        n,
+        &[512],
+        |s| Some(host(Some(beats_at(s)), None)),
+        None,
+    );
+    // The tempo found after the seek is read across larger beat values, so it may differ
+    // from 90 in its last bits: within a hair, where a seek read as a tempo is a burst.
+    let worst = found[512..]
+        .iter()
+        .zip(&told[512..])
+        .map(|(a, b)| (a - b).abs())
+        .fold(0.0f32, f32::max);
+    assert!(worst < 1e-5, "through a seek: {worst}");
+}
+
+/// The tempo itself changes (no seek): believed once two blocks agree on it.
+#[test]
+fn a_tempo_change_without_a_tempo_is_followed() {
+    let shared = shared_for(
+        cantus_plugins::desc::of(EffectKind::Tremolo)
+            .unwrap()
+            .clap_id,
+    )
+    .unwrap();
+    let mut p = Processor::new(shared.clone(), SR);
+    let (mut l, mut r) = (vec![1.0f32; 512], vec![1.0f32; 512]);
+    let mut beats = 0.0;
+    for (blocks, tempo) in [(4, 60.0), (4, 200.0)] {
+        for _ in 0..blocks {
+            p.set_transport(Some(host(Some(beats), None)));
+            p.process(&mut l, &mut r, None, &[]);
+            beats += 512.0 * tempo / 60.0 / SR as f64;
+        }
+    }
+    let found = shared.host_transport().expect("seen").tempo;
+    assert!((found - 200.0).abs() < 1e-6, "{found}");
+}
+
+/// A transport event inside a block from a host that gives no tempo plays at the tempo
+/// found from the beats, not at the default 120.
+#[test]
+fn an_in_block_event_without_a_tempo_keeps_the_found_tempo() {
+    let tempo = 90.0;
+    let inc = tempo / 60.0 / SR as f64;
+    let n = 4 * 512;
+    let k = 300;
+    let jump = 40.0; // the event: a seek inside the fourth block
+    // Blocks one to three steady; in the fourth, the event at k.
+    let run = |told: Option<f64>| {
+        let mut p = gate_processor();
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        for b in 0..4 {
+            let s = b * 512;
+            p.set_transport(Some(host(Some(1.0 + s as f64 * inc), told)));
+            if b == 3 {
+                p.push_transport_event(k as u32, host(Some(jump), told));
+            }
+            p.process(&mut l[s..s + 512], &mut r[s..s + 512], None, &[]);
+        }
+        l
+    };
+    assert_identical("after the event", &run(None)[512..], &run(Some(tempo))[512..]);
+}
+
+/// A transport change inside a block, through CLAP's input events (`CLAP_EVENT_TRANSPORT`
+/// at its time): the same as two blocks cut there.
+#[test]
+fn a_clap_transport_event_in_the_input_list_takes_effect_at_its_sample() {
+    let n = 4096;
+    let k = 1_500;
+    let one = {
+        let plug = new_gate();
+        plug.transport.set(Some(transport(0.5, 120.0, true)));
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        plug.process_moves(&mut l, &mut r, &[(k as u32, transport(2.0, 120.0, true))]);
+        l
+    };
+    let two = {
+        let plug = new_gate();
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        plug.transport.set(Some(transport(0.5, 120.0, true)));
+        plug.process(&mut l[..k], &mut r[..k], None, &[], true);
+        plug.transport.set(Some(transport(2.0, 120.0, true)));
+        plug.process(&mut l[k..], &mut r[k..], None, &[], true);
+        l
+    };
+    assert_identical("a CLAP transport event at 1 500", &one, &two);
+    assert!(diff(&one, &run_clap(&new_gate(), n, &[n], Some(120.0), 0.5, None)).is_some());
+}
+
+/// CLAP's seconds timeline: a host that gives its tempo and the song in seconds (and its
+/// loop in seconds), not the beats, plays as one that gives the beats.
+#[test]
+fn a_clap_seconds_timeline_is_a_beat_timeline() {
+    use clap_sys::fixedpoint::CLAP_SECTIME_FACTOR;
+    let tempo = 120.0;
+    let sec = |beats: f64| (beats * 60.0 / tempo * CLAP_SECTIME_FACTOR as f64).round() as i64;
+    let beat = |beats: f64| (beats * CLAP_BEATTIME_FACTOR as f64).round() as i64;
+    let in_seconds = |t: clap_event_transport| clap_event_transport {
+        flags: (t.flags & !CLAP_TRANSPORT_HAS_BEATS_TIMELINE) | CLAP_TRANSPORT_HAS_SECONDS_TIMELINE,
+        song_pos_beats: 0,
+        song_pos_seconds: sec(t.song_pos_beats as f64 / CLAP_BEATTIME_FACTOR as f64),
+        loop_start_beats: 0,
+        loop_end_beats: 0,
+        loop_start_seconds: sec(t.loop_start_beats as f64 / CLAP_BEATTIME_FACTOR as f64),
+        loop_end_seconds: sec(t.loop_end_beats as f64 / CLAP_BEATTIME_FACTOR as f64),
+        ..t
+    };
+    // A loop of beats 0–2.5 (half a beat off the gate's period, so the wrap is heard) that
+    // wraps inside the block, from beat 2.4003 (the wrap off a whole sample, where a
+    // rounding of either timeline could move it).
+    let looped = clap_event_transport {
+        flags: transport(0.0, tempo, true).flags | CLAP_TRANSPORT_IS_LOOP_ACTIVE,
+        loop_start_beats: beat(0.0),
+        loop_end_beats: beat(2.5),
+        ..transport(2.4003, tempo, true)
+    };
+    let n = 8192;
+    let play = |t: clap_event_transport| {
+        let plug = new_gate();
+        plug.transport.set(Some(t));
+        let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
+        plug.process(&mut l, &mut r, None, &[], true);
+        l
+    };
+    let by_beats = play(looped);
+    let by_seconds = play(in_seconds(looped));
+    assert_identical("seconds and a loop in seconds", &by_seconds, &by_beats);
+    let no_loop = play(transport(2.4003, tempo, true));
+    assert!(diff(&by_beats, &no_loop).is_some(), "the loop is heard");
+    // Block by block, the song moving.
+    let start = 1.0;
+    let mut runs = Vec::new();
+    for seconds in [false, true] {
+        let plug = new_gate();
+        let (mut l, mut r) = (vec![1.0f32; 48_000], vec![1.0f32; 48_000]);
+        for at in (0..48_000).step_by(512) {
+            let t = transport(start + at as f64 * tempo / 60.0 / SR as f64, tempo, true);
+            plug.transport
+                .set(Some(if seconds { in_seconds(t) } else { t }));
+            let m = 512.min(48_000 - at);
+            plug.process(&mut l[at..at + m], &mut r[at..at + m], None, &[], false);
+        }
+        runs.push(l);
+    }
+    assert_identical("seconds block by block", &runs[1], &runs[0]);
+}
+
 /// What the editor shows: the host's transport at the end of the block, the tempo filtered,
 /// no playhead without a timeline, nothing once the host stops sending one.
 #[test]

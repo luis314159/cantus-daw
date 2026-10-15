@@ -981,3 +981,65 @@ fn a_flood_past_the_queue_loses_no_note_off() {
     assert_eq!(p.trigger_count, 0);
     assert!(p.held.iter().all(|h| !h));
 }
+
+/// Round 28 (fix2): with lookahead the notes wait `key_delay` samples, so a block's notes
+/// can still be waiting when the next block's arrive. Two plug-in blocks' worth of notes
+/// (two of `cantus_plugins::instance::NOTE_CAPACITY`, 1 024 each) waiting at once keep
+/// their timing: the first note opens the gate where it says, whatever the blocks.
+#[test]
+fn two_full_blocks_of_notes_waiting_through_the_lookahead_keep_their_timing() {
+    const BLOCK_NOTES: usize = 1024;
+    let s = GateSettings {
+        midi: true,
+        range_db: 100.0,
+        attack_ms: 0.01,
+        lookahead_ms: 2.0,
+        ..GateSettings::default()
+    };
+    let n = ms(50.0);
+    let x = vec![0.5f32; n];
+    let mut opened = Vec::new();
+    for block in [128usize, 4096] {
+        let mut p = gate(s);
+        let (mut l, mut r) = (x.clone(), x.clone());
+        // Block one: the note on, then releases of keys nothing holds; block two (128
+        // samples on, while block one's are still waiting): more of them.
+        let on = 1024usize;
+        let mut notes = vec![(
+            on,
+            Trigger::On {
+                pitch: 60,
+                velocity: 127,
+            },
+        )];
+        for i in 1..2 * BLOCK_NOTES {
+            let t = if i < BLOCK_NOTES { on } else { on + 128 };
+            notes.push((
+                t,
+                Trigger::Off {
+                    pitch: 61 + (i % 60) as u8,
+                },
+            ));
+        }
+        let mut at = 0;
+        while at < n {
+            let end = (at + block).min(n);
+            for &(t, trig) in &notes {
+                if t >= at && t < end {
+                    p.note(t - at, trig);
+                }
+            }
+            p.process(&mut l[at..end], &mut r[at..end], None);
+            at = end;
+        }
+        let lead = ms(2.0);
+        let first = l.iter().position(|v| *v != 0.0).expect("it opened");
+        assert_eq!(
+            first + lead,
+            on + p.latency(),
+            "block {block}: opened at {first}"
+        );
+        opened.push(l);
+    }
+    assert!(opened[0] == opened[1], "the same at any block size");
+}

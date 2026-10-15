@@ -38,7 +38,7 @@ enum N {
     AllOff,
     /// CLAP only: an off addressed by the note id of this pitch's on, its key −1.
     OffId(u8),
-    /// CLAP only: an off for every key on this channel (key and note id −1).
+    /// An off for every key on this channel: in CLAP key and note id −1, in MIDI CC 123.
     OffChannel(i16),
 }
 
@@ -206,6 +206,7 @@ impl Notes {
                     N::Off(p) => vec![[0x80 | (p % 16), p, 0]],
                     // A channel's all-notes-off is its own: one on each.
                     N::AllOff => (0..16).map(|c| [0xb0 | c, 123, 0]).collect(),
+                    N::OffChannel(c) => vec![[0xb0 | c as u8, 123, 0]],
                     other => panic!("{other:?} has no MIDI bytes"),
                 };
                 for data in bytes {
@@ -416,6 +417,35 @@ fn a_flood_of_notes_through_clap_loses_no_note_off() {
                     &through_clap(&case, blocks, midi),
                 );
             }
+        }
+    }
+}
+
+/// More notes in one block than a plug-in's buffer holds (`NOTE_CAPACITY`), then one
+/// channel's all-notes-off: the key that channel holds is released all the same — a
+/// release the full buffer has no room for becomes an all-notes-off, and the tracker
+/// forgets nothing it did not deliver.
+#[test]
+fn a_channels_all_notes_off_past_a_full_block_still_releases_its_key() {
+    use cantus_plugins::instance::NOTE_CAPACITY;
+    // 72 is held on channel 8; then, in one block, more than the buffer's worth of notes
+    // played and released (none of them on 72), then channel 8's all-notes-off.
+    let mut notes = vec![(4_000, N::On(72))];
+    for i in 0..NOTE_CAPACITY / 2 + 64 {
+        let p = (i % 60) as u8;
+        notes.push((20_000, N::On(p)));
+        notes.push((20_000, N::Off(p)));
+    }
+    notes.push((20_000, N::OffChannel(8)));
+    assert!(notes.len() > NOTE_CAPACITY + 100);
+    let case = Case::porta(&notes);
+    for midi in [false, true] {
+        for blocks in BLOCKS {
+            let gain = tail_gain(&case, &through_clap(&case, blocks, midi));
+            assert!(
+                gain < 1e-3,
+                "MIDI bytes {midi}, blocks {blocks:?}: the gate closed: {gain}"
+            );
         }
     }
 }
@@ -696,9 +726,11 @@ fn a_flood_of_note_offs_through_vst3_closes_the_gate() {
 }
 
 /// The units queue a whole block's notes, as many as a plug-in takes: none acts early
-/// (checked when this file compiles).
+/// (checked when this file compiles). Tonus hands its queue over every call; Porta's notes
+/// may wait through its lookahead into the next block, so it queues two blocks' worth —
+/// enough whenever the host's blocks are at least as long as that wait (at most 10 ms).
 const _: () = {
     use cantus_plugins::instance::NOTE_CAPACITY;
-    assert!(NOTE_CAPACITY <= cantus_dsp::porta::MAX_TRIGGERS);
+    assert!(2 * NOTE_CAPACITY <= cantus_dsp::porta::MAX_TRIGGERS);
     assert!(NOTE_CAPACITY <= cantus_dsp::tonus::MAX_EVENTS);
 };

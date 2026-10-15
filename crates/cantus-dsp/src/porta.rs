@@ -235,10 +235,13 @@ pub enum Trigger {
     AllOff,
 }
 
-/// Notes waiting for their sample: as many as an exported plug-in takes in one block
-/// (`cantus_plugins::instance::NOTE_CAPACITY`), so a host's flood — a note-off for every
-/// key on stop — keeps its timing; past it, the oldest acts early (see [`Porta::note`]).
-pub const MAX_TRIGGERS: usize = 1024;
+/// Notes waiting for their sample: two blocks of what an exported plug-in takes in one
+/// (`cantus_plugins::instance::NOTE_CAPACITY`, 1 024). With lookahead a note waits up to
+/// the key's delay (at most [`LOOKAHEAD_MAX_MS`]), so one block's notes may still wait when
+/// the next block's arrive: no note acts early while the notes arriving within any 10 ms
+/// fit here — always, for host blocks at least that long. Past it the oldest acts early
+/// (see [`Porta::note`]): its timing is lost, never a note.
+pub const MAX_TRIGGERS: usize = 2048;
 
 impl Default for GateSettings {
     fn default() -> Self {
