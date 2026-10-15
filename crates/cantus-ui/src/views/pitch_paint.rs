@@ -125,7 +125,7 @@ pub(super) fn canvas(
             geo,
             edit,
             analysis,
-            &map,
+            map,
             &app.pitch.view.selected,
             color,
             s,
