@@ -151,8 +151,7 @@ fn list(sh: &mut Sheet<'_>, m: &Modulator, key: &'static str, value: &str, kind:
     };
     well::menu_field(sh.b, row.value, &sh.s, st, value, false);
     if r.clicked() {
-        sh.acts
-            .push(Act::Mod(ModAct::List(m.id, kind, row.value)));
+        sh.acts.push(Act::Mod(ModAct::List(m.id, kind, row.value)));
     }
 }
 
@@ -252,7 +251,14 @@ fn rate(sh: &mut Sheet<'_>, m: &Modulator, rate: ModRate, set: fn(&mut Modulator
             f32::from(d),
             Range::lin(0.0, (DIVISIONS.len() - 1) as f32, 8.0).stepped(true),
             |v, b| division(v.round() as u8, b),
-            move |e, v| set(e, ModRate::Sync { division: v.round() as u8 }),
+            move |e, v| {
+                set(
+                    e,
+                    ModRate::Sync {
+                        division: v.round() as u8,
+                    },
+                )
+            },
         ),
         ModRate::Hz { hz: h } => num(
             sh,
@@ -272,7 +278,10 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
     match &m.source {
         ModSource::Lfo(l) => {
             preview(sh, app, m);
-            let i = LfoShape::ALL.iter().position(|x| *x == l.shape).unwrap_or(0);
+            let i = LfoShape::ALL
+                .iter()
+                .position(|x| *x == l.shape)
+                .unwrap_or(0);
             let word = sheet::name(sh.fmt.tr(&format!("modfx.shape.{i}")));
             cycle(sh, m, "mods.shape", &word, |e, d| {
                 if let ModSource::Lfo(x) = &mut e.source {
@@ -304,7 +313,11 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             let note = l.retrigger == Retrigger::Note;
             switch(sh, m, "mods.retrigger", "mods.retrigger_on", note, |e| {
                 if let ModSource::Lfo(x) = &mut e.source {
-                    x.retrigger = if note { Retrigger::Song } else { Retrigger::Note };
+                    x.retrigger = if note {
+                        Retrigger::Song
+                    } else {
+                        Retrigger::Note
+                    };
                 }
             });
             polarity(sh, m, l.unipolar);
@@ -453,7 +466,8 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
                 },
                 |e, v| {
                     if let ModSource::Step(x) = &mut e.source {
-                        x.steps.resize(v.round().clamp(1.0, MAX_STEPS as f32) as usize, 0.0);
+                        x.steps
+                            .resize(v.round().clamp(1.0, MAX_STEPS as f32) as usize, 0.0);
                     }
                 },
             );
@@ -523,12 +537,19 @@ pub fn source(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
 
 /// The unipolar switch of an LFO, a step sequence, a random source.
 fn polarity(sh: &mut Sheet<'_>, m: &Modulator, unipolar: bool) {
-    switch(sh, m, "mods.polarity", "mods.unipolar", unipolar, |e| match &mut e.source {
-        ModSource::Lfo(x) => x.unipolar = !unipolar,
-        ModSource::Step(x) => x.unipolar = !unipolar,
-        ModSource::Random(x) => x.unipolar = !unipolar,
-        _ => {}
-    });
+    switch(
+        sh,
+        m,
+        "mods.polarity",
+        "mods.unipolar",
+        unipolar,
+        |e| match &mut e.source {
+            ModSource::Lfo(x) => x.unipolar = !unipolar,
+            ModSource::Step(x) => x.unipolar = !unipolar,
+            ModSource::Random(x) => x.unipolar = !unipolar,
+            _ => {}
+        },
+    );
 }
 
 /// The amount row: every route at once, 0…100 %.
@@ -554,7 +575,11 @@ fn listen_word(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator, l: Listen) ->
             Listen::Host => b.push_str(&crate::i18n::t("mods.listen.host")),
             Listen::Master => b.push_str(&crate::i18n::t("kit.mixer.master")),
             Listen::Strip(s) => b.push_str(
-                &crate::automation::target_parts(app.project(), &cantus_core::AutoTarget::StripGain(s)).0,
+                &crate::automation::target_parts(
+                    app.project(),
+                    &cantus_core::AutoTarget::StripGain(s),
+                )
+                .0,
             ),
         },
     );

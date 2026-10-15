@@ -144,7 +144,11 @@ pub fn steps(
     let n = values.len().max(1);
     let w = inner.width() / n as f32;
     let y_of = |v: f32| {
-        let p = if unipolar { 0.5 * (v + 1.0) } else { 0.5 + 0.5 * v };
+        let p = if unipolar {
+            0.5 * (v + 1.0)
+        } else {
+            0.5 + 0.5 * v
+        };
         inner.bottom() - inner.height() * p.clamp(0.0, 1.0)
     };
     let base = if unipolar { inner.bottom() } else { y_of(0.0) };
@@ -153,13 +157,12 @@ pub fn steps(
         let x1 = inner.left() + w * (i + 1) as f32 - s.s(1.0);
         let y = y_of(*v);
         let lit = playing == Some(i);
-        let col = if lit {
-            hue
-        } else {
-            with_alpha(hue, 0.55)
-        };
+        let col = if lit { hue } else { with_alpha(hue, 0.55) };
         b.rect(
-            Rect::from_min_max(pos2(x0, y.min(base)), pos2(x1.max(x0 + b.px()), y.max(base))),
+            Rect::from_min_max(
+                pos2(x0, y.min(base)),
+                pos2(x1.max(x0 + b.px()), y.max(base)),
+            ),
             Fill::Solid(col),
         );
     }

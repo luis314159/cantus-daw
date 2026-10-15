@@ -59,10 +59,7 @@ fn rows(app: &CantusApp, target: &AutoTarget) -> Vec<(Row, String, Check, bool)>
     for k in ModKind::ALL {
         out.push((Row::New(k), t(k.name_key()), Check::None, false));
     }
-    let baking: Vec<_> = p
-        .routes_into(target)
-        .map(|(m, _)| m.id)
-        .collect::<Vec<_>>();
+    let baking: Vec<_> = p.routes_into(target).map(|(m, _)| m.id).collect::<Vec<_>>();
     if !baking.is_empty() {
         out.push((Row::Nothing, t("mods.popup.bake"), Check::None, true));
         for id in baking {
@@ -126,7 +123,10 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         .show(ctx, |ui| {
             crate::kit::automate::frame().show(ui, |ui| {
                 if let Some(i) = crate::kit::widgets::menu_list(ui, &items, width).1.clicked {
-                    clicked = i.checked_sub(1).and_then(|k| list.get(k)).map(|x| x.0.clone());
+                    clicked = i
+                        .checked_sub(1)
+                        .and_then(|k| list.get(k))
+                        .map(|x| x.0.clone());
                 }
             });
         });

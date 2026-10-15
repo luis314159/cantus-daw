@@ -906,10 +906,12 @@ fn param(
         .show_full(ui);
     match choice {
         Some(crate::kit::automate::Choice::Automate) => app.automate(target),
-        Some(c @ (crate::kit::automate::Choice::Modulate
-        | crate::kit::automate::Choice::Depth(_)
-        | crate::kit::automate::Choice::DepthDone
-        | crate::kit::automate::Choice::Connect(_))) => app.modulation_choice(&target, c, r.rect),
+        Some(
+            c @ (crate::kit::automate::Choice::Modulate
+            | crate::kit::automate::Choice::Depth(_)
+            | crate::kit::automate::Choice::DepthDone
+            | crate::kit::automate::Choice::Connect(_)),
+        ) => app.modulation_choice(&target, c, r.rect),
         _ => {}
     }
     if info.stepped {

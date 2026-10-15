@@ -159,8 +159,14 @@ fn title(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
     let gap = s.s(4.0);
     // From the right: remove, on/off, map.
     let remove = Rect::from_min_max(pos2(x1 - key, y0), pos2(x1, y1));
-    let power = Rect::from_min_max(pos2(remove.left() - gap - key, y0), pos2(remove.left() - gap, y1));
-    let map = Rect::from_min_max(pos2(power.left() - gap - key, y0), pos2(power.left() - gap, y1));
+    let power = Rect::from_min_max(
+        pos2(remove.left() - gap - key, y0),
+        pos2(remove.left() - gap, y1),
+    );
+    let map = Rect::from_min_max(
+        pos2(power.left() - gap - key, y0),
+        pos2(power.left() - gap, y1),
+    );
     let meter_w = s.s(36.0).min((map.left() - x0) * 0.25);
     let meter = Rect::from_min_max(
         pos2(map.left() - gap - meter_w, y0 + s.s(6.0)),
@@ -240,7 +246,16 @@ fn title(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             .ui
             .interact(r, Id::new(("mod-key", m.id, i)), Sense::click());
         if i == 1 {
-            led::paint(sh.b, r.center(), s.s(11.0), lit, &s, Tok::Led, Tok::PanelLight, 1.0);
+            led::paint(
+                sh.b,
+                r.center(),
+                s.s(11.0),
+                lit,
+                &s,
+                Tok::Led,
+                Tok::PanelLight,
+                1.0,
+            );
         } else {
             sheet::glyph_key(sh.b, r, &s, State::of(&resp, lit), g);
         }
@@ -283,10 +298,19 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         let x1 = row.full.right() - mg;
         let (y0, y1) = (row.value.top(), row.value.bottom());
         let close = Rect::from_min_max(pos2(x1 - key, y0), pos2(x1, y1));
-        let bake = Rect::from_min_max(pos2(close.left() - gap - key, y0), pos2(close.left() - gap, y1));
+        let bake = Rect::from_min_max(
+            pos2(close.left() - gap - key, y0),
+            pos2(close.left() - gap, y1),
+        );
         let depth_w = s.s(64.0).min((bake.left() - row.full.left()) * 0.4);
-        let depth = Rect::from_min_max(pos2(bake.left() - gap - depth_w, y0), pos2(bake.left() - gap, y1));
-        let label = Rect::from_min_max(pos2(row.full.left() + mg, row.full.top()), pos2(depth.left() - gap, row.full.bottom()));
+        let depth = Rect::from_min_max(
+            pos2(bake.left() - gap - depth_w, y0),
+            pos2(bake.left() - gap, y1),
+        );
+        let label = Rect::from_min_max(
+            pos2(row.full.left() + mg, row.full.top()),
+            pos2(depth.left() - gap, row.full.bottom()),
+        );
         let name = sh.fmt.get(
             cache::key(("mod-route", m.id, &route.target)),
             app.bus.revision() ^ ((crate::i18n::locale() as u64) << 60),
@@ -297,7 +321,11 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             .align(Align2::LEFT_CENTER)
             .policy(Policy::Elide(Elide::Middle));
         let _ = text::paint(sh.b, label, &t, s.tk());
-        let lr = sh.ui.interact(label, Id::new(("mod-route-name", m.id, &route.target)), Sense::hover());
+        let lr = sh.ui.interact(
+            label,
+            Id::new(("mod-route-name", m.id, &route.target)),
+            Sense::hover(),
+        );
         if lr.hovered() {
             hint::set_text(sh.ui.ctx(), &name, "", Caps::NONE);
         }
@@ -316,16 +344,31 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
             m.muted,
         );
         if let Some(v) = d.value {
-            sh.acts.push(Act::Mod(ModAct::Depth(m.id, route.target.clone(), v)));
+            sh.acts
+                .push(Act::Mod(ModAct::Depth(m.id, route.target.clone(), v)));
         }
         if d.ended {
             sh.acts.push(Act::EndGesture);
         }
         for (r, g, tip, act) in [
-            (bake, Glyph::Automate, "mods.bake", ModAct::Bake(m.id, route.target.clone())),
-            (close, Glyph::Close, "mods.disconnect", ModAct::Disconnect(m.id, route.target.clone())),
+            (
+                bake,
+                Glyph::Automate,
+                "mods.bake",
+                ModAct::Bake(m.id, route.target.clone()),
+            ),
+            (
+                close,
+                Glyph::Close,
+                "mods.disconnect",
+                ModAct::Disconnect(m.id, route.target.clone()),
+            ),
         ] {
-            let resp = sh.ui.interact(r, Id::new(("mod-route-key", m.id, &route.target, tip)), Sense::click());
+            let resp = sh.ui.interact(
+                r,
+                Id::new(("mod-route-key", m.id, &route.target, tip)),
+                Sense::click(),
+            );
             sheet::glyph_key(sh.b, r, &s, State::of(&resp, false), g);
             if resp.hovered() {
                 let n = sheet::name(sh.fmt.tr(tip));
@@ -337,7 +380,6 @@ fn routes(sh: &mut Sheet<'_>, app: &CantusApp, m: &Modulator) {
         }
     }
 }
-
 
 /// A label | value row bound to a parameter that can be automated and modulated (ADR 0027,
 /// 0057): [`Sheet::param_row`], with the parameter's menu on a right-click (*Create

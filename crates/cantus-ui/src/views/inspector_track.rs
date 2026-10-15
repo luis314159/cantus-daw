@@ -286,7 +286,10 @@ fn firmus(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId, params: &cantus_core
                 false,
                 |v, b| sheet::unit(v, unit, b),
                 f,
-                cantus_core::AutoTarget::Firmus { track: id, param: p },
+                cantus_core::AutoTarget::Firmus {
+                    track: id,
+                    param: p,
+                },
                 |value| {
                     Act::Merge(
                         Command::SetInstrumentParam {

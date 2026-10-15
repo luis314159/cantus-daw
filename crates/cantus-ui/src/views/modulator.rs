@@ -105,7 +105,11 @@ pub fn mod_name(project: &Project, id: ModulatorId) -> Option<String> {
 
 /// Where a modulator for `target` naturally lives: the track the parameter is on, the
 /// strip (an insert's, a fader's), or the master.
-pub fn host_for(project: &Project, target: &AutoTarget, selected: Option<cantus_core::TrackId>) -> ModHost {
+pub fn host_for(
+    project: &Project,
+    target: &AutoTarget,
+    selected: Option<cantus_core::TrackId>,
+) -> ModHost {
     let strip_of_effect = |e| project.effect_host(e);
     match target {
         AutoTarget::TrackGain(t)
@@ -123,9 +127,7 @@ pub fn host_for(project: &Project, target: &AutoTarget, selected: Option<cantus_
                 _ => ModHost::Master,
             }
         }
-        AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => {
-            ModHost::Master
-        }
+        AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => ModHost::Master,
         AutoTarget::ModAmount(m) => project
             .modulator(*m)
             .map(|(h, _, _)| h)
@@ -195,7 +197,10 @@ impl CantusApp {
                 live += depth * v;
             }
         }
-        let mapping = self.modulators.mapping.filter(|m| self.project().modulator(*m).is_some());
+        let mapping = self
+            .modulators
+            .mapping
+            .filter(|m| self.project().modulator(*m).is_some());
         let depth = match mapping {
             Some(m) => Some(
                 list.and_then(|l| l.iter().find(|(id, ..)| *id == m))
@@ -233,15 +238,12 @@ impl CantusApp {
         match choice {
             Choice::Modulate => self.modulators.popup = Some((target.clone(), rect)),
             Choice::Depth(d) => {
-                let id = self
-                    .modulators
-                    .mapping
-                    .or_else(|| {
-                        self.mod_routes()
-                            .get(target)
-                            .and_then(|l| l.first())
-                            .map(|x| x.0)
-                    });
+                let id = self.modulators.mapping.or_else(|| {
+                    self.mod_routes()
+                        .get(target)
+                        .and_then(|l| l.first())
+                        .map(|x| x.0)
+                });
                 if let Some(id) = id {
                     self.set_route_depth(id, target, d, true);
                 }
@@ -316,7 +318,13 @@ impl CantusApp {
 
     /// Set the depth of modulator `id`'s route into `target` (making the route when it
     /// has none, as a mapping drag does). A drag merges into one undo step.
-    pub fn set_route_depth(&mut self, id: ModulatorId, target: &AutoTarget, depth: f32, drag: bool) {
+    pub fn set_route_depth(
+        &mut self,
+        id: ModulatorId,
+        target: &AutoTarget,
+        depth: f32,
+        drag: bool,
+    ) {
         let Some((_, _, m)) = self.project().modulator(id) else {
             return;
         };

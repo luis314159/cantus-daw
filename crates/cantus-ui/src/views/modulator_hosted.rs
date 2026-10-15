@@ -30,7 +30,10 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
     sh.band("mods.hosted.params", Function::Source, None, false, None);
     // The filter: kept by egui for this track.
     let fid = Id::new(("mod-hosted-filter", t));
-    let mut filter = sh.ui.data(|d| d.get_temp::<String>(fid)).unwrap_or_default();
+    let mut filter = sh
+        .ui
+        .data(|d| d.get_temp::<String>(fid))
+        .unwrap_or_default();
     {
         let row = sh.row();
         let mut ui = sh.ui.new_child(egui::UiBuilder::new().max_rect(row.value));
@@ -72,16 +75,26 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
         let id = p.id;
         let row_id = Id::new(("mod-hosted-param", t, id));
         let name = p.name.clone();
-        param_row(sh, app, &name, row_id, shown_v as f32, &range, &text, target, move |v| {
-            Act::Merge(
-                Command::SetInstrumentPluginParam {
-                    track: t,
-                    id,
-                    value: Some(f64::from(v)),
-                },
-                MergeKey::of(&("inst-plugin-param", t.0, id)),
-            )
-        });
+        param_row(
+            sh,
+            app,
+            &name,
+            row_id,
+            shown_v as f32,
+            &range,
+            &text,
+            target,
+            move |v| {
+                Act::Merge(
+                    Command::SetInstrumentPluginParam {
+                        track: t,
+                        id,
+                        value: Some(f64::from(v)),
+                    },
+                    MergeKey::of(&("inst-plugin-param", t.0, id)),
+                )
+            },
+        );
     }
     let more = matching.count();
     if more > 0 {
@@ -147,7 +160,7 @@ fn param_row(
     let choice = crate::kit::automate::modulation_choice(sh.ui, &d.resp, Some(offer))
         .or_else(|| crate::kit::automate::menu(sh.ui, &d.resp, offer));
     if let Some(c) = choice {
-        sh.acts.push(Act::Mod(super::modulators::ModAct::Param(target, c, rect)));
+        sh.acts
+            .push(Act::Mod(super::modulators::ModAct::Param(target, c, rect)));
     }
-
 }

@@ -184,7 +184,11 @@ pub fn paint(b: &mut Brush, c: Pos2, s: &Style, st: State, look: &KnobLook<'_>) 
         );
         if let Some(l) = look.live.filter(|_| !st.disabled) {
             let dir = Vec2::angled(angle(l));
-            b.circle(c + dir * (r + s.s(2.0)), s.s(1.8), Fill::Solid(f(s.t.hue_mod)));
+            b.circle(
+                c + dir * (r + s.s(2.0)),
+                s.s(1.8),
+                Fill::Solid(f(s.t.hue_mod)),
+            );
         }
         if st.focused {
             b.circle_stroke(c, r + s.s(3.5), s.s(1.5), s.t.focus);

@@ -69,7 +69,9 @@ impl CantusApp {
             tail_seconds: 0.0,
             ..Default::default()
         };
-        let units = self.plugins.render_units(self.bus.project(), f64::from(rate));
+        let units = self
+            .plugins
+            .render_units(self.bus.project(), f64::from(rate));
         let instruments = self
             .plugins
             .render_instruments(self.bus.project(), f64::from(rate));
@@ -77,7 +79,8 @@ impl CantusApp {
         let spawned = std::thread::Builder::new()
             .name("cantus-bake".into())
             .spawn(move || {
-                let trace = cantus_engine::modulator::trace(snapshot, &opts, units, instruments, id);
+                let trace =
+                    cantus_engine::modulator::trace(snapshot, &opts, units, instruments, id);
                 let _ = tx.send(trace);
             });
         if spawned.is_err() {

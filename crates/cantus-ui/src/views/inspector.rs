@@ -33,12 +33,12 @@ mod hosted;
 mod menus;
 #[path = "inspector_mini.rs"]
 mod mini;
-/// The Modulators section (ADR 0057).
-#[path = "modulator_section.rs"]
-mod modulators;
 /// A hosted instrument's parameters, automatable and modulatable (ADR 0057).
 #[path = "modulator_hosted.rs"]
 mod modulator_hosted;
+/// The Modulators section (ADR 0057).
+#[path = "modulator_section.rs"]
+mod modulators;
 #[path = "inspector_pads.rs"]
 mod pads;
 #[path = "inspector_pinned.rs"]
