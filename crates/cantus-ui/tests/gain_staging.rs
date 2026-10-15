@@ -222,7 +222,8 @@ fn a_user_preset_saved_before_keeps_its_level() {
 fn the_demos_with_lamina_sound_as_they_did() {
     use cantus_core::inst::TRIM_KEY;
     use cantus_core::Ticks;
-    for id in ["ballad", "funk", "lofi"] {
+    // The ballad played Lamina until round 28 gave its piano part to Chorda.
+    for id in ["funk", "lofi"] {
         let new = (cantus_ui::demos::find(id).unwrap().build)();
         let mut old = new.clone();
         let mut lamina = 0;
