@@ -361,6 +361,17 @@ impl crate::app::CantusApp {
                     .unwrap_or(f.id.clone());
                 self.samples.notice = Some(match &f.result {
                     Ok(_) => crate::i18n::tf("samples.notice.installed", &[("pack", &name)]),
+                    // Not enough room: how much it needs and how much there is, in words.
+                    Err(cantus_content::install::InstallError::NoSpace { need, free }) => {
+                        crate::i18n::tf(
+                            "samples.notice.no_space",
+                            &[
+                                ("pack", &name),
+                                ("need", &crate::views::samples_content::size(*need)),
+                                ("free", &crate::views::samples_content::size(*free)),
+                            ],
+                        )
+                    }
                     Err(e) => {
                         crate::i18n::tf("samples.notice.failed", &[("pack", &name), ("why", &e)])
                     }

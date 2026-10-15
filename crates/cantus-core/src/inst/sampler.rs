@@ -1005,6 +1005,69 @@ pub fn gm_drum_name(key: u8) -> Option<&'static str> {
         .copied()
 }
 
+/// Which notes of an Exemplar take round-robin turns together, for a song played in order
+/// (`rr.order`): the notes that reach the same set of samples — one drum on several keys
+/// (a tom on 47, 48 and 50), one velocity layer of a hi-hat — whatever key they are on.
+/// Counting turns per key would play one tom sample down a fill, and per key an accent
+/// layer on every fourth hat would sound the same turn each time.
+#[derive(Clone, Debug, Default)]
+pub struct RrLanes {
+    /// Each zone a key plays: its key and velocity ranges and its sample's hash.
+    zones: Vec<(u8, u8, u8, u8, u64)>,
+}
+
+impl RrLanes {
+    /// For an Exemplar that plays its round robins in order; `None` otherwise.
+    pub fn of(spec: &super::NativeSpec) -> Option<RrLanes> {
+        if spec.kind != super::InstrumentKind::Sampler || spec.get("rr.order") < 0.5 {
+            return None;
+        }
+        let zones = zones(spec)
+            .into_iter()
+            .filter(|(_, z)| z.get(zf::TRIG) as usize != 5)
+            .map(|(_, z)| {
+                let lo = z.get(zf::LO).clamp(0.0, 127.0) as u8;
+                let hi = (z.get(zf::HI).clamp(0.0, 127.0) as u8).max(lo);
+                let vlo = z.get(zf::VLO).clamp(0.0, 127.0) as u8;
+                let vhi = (z.get(zf::VHI).clamp(0.0, 127.0) as u8).max(vlo);
+                let what = z.sample.as_deref().unwrap_or("");
+                (lo, hi, vlo, vhi, fnv(what.as_bytes()))
+            })
+            .collect();
+        Some(RrLanes { zones })
+    }
+
+    /// The lane of a note: the samples its key and velocity reach (keys reaching none take
+    /// their own lane, by pitch).
+    pub fn lane(&self, pitch: u8, velocity: u8) -> u64 {
+        let mut hits: Vec<u64> = self
+            .zones
+            .iter()
+            .filter(|z| z.0 <= pitch && pitch <= z.1 && z.2 <= velocity && velocity <= z.3)
+            .map(|z| z.4)
+            .collect();
+        if hits.is_empty() {
+            return pitch as u64;
+        }
+        hits.sort_unstable();
+        hits.dedup();
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for x in hits {
+            h = (h ^ x).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        h | (1 << 63)
+    }
+}
+
+/// FNV-1a: a hash that is the same on every machine and run.
+fn fnv(bytes: &[u8]) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for b in bytes {
+        h = (h ^ *b as u64).wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
 /// Whether an Exemplar is a drum kit (`kit` = 1, round 28): its editors show a row per
 /// drum rather than a keyboard.
 pub fn is_kit(spec: &super::NativeSpec) -> bool {
@@ -1023,6 +1086,8 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
     let mut cur: Option<usize> = None;
     let mut v = [0f32; 4];
     let mut name = String::new();
+    // The zones with a number stored (the rest play the whole keyboard).
+    let mut numbered = vec![false; MAX_ZONES];
     let mut flush = |n: usize, v: &[f32; 4], name: &mut String| {
         use std::fmt::Write;
         name.clear();
@@ -1036,10 +1101,9 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
         if !(sourced || generated) || v[3] as usize == 5 {
             return;
         }
-        let (lo, hi) = (
-            v[0].clamp(0.0, 127.0) as usize,
-            v[1].clamp(0.0, 127.0) as usize,
-        );
+        let lo = v[0].clamp(0.0, 127.0) as usize;
+        // A high key below the low one plays the low key alone, as the engine plays it.
+        let hi = (v[1].clamp(0.0, 127.0) as usize).max(lo);
         for g in group_on[lo..=hi].iter_mut().filter(|g| **g == 0) {
             *g = (v[2].clamp(0.0, 254.0) as u8) + 1;
         }
@@ -1062,6 +1126,9 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
             }
             cur = Some(n);
             v = fresh();
+            if let Some(seen) = numbered.get_mut(n) {
+                *seen = true;
+            }
         }
         match field {
             "lo" => v[0] = *val,
@@ -1078,13 +1145,7 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
     // it plays the whole keyboard.
     for k in spec.text.keys() {
         if let Some((n, "sample")) = zone_key(k) {
-            name.clear();
-            let any = spec
-                .params
-                .range(format!("z{n}.")..format!("z{n}/"))
-                .next()
-                .is_some();
-            if !any {
+            if !numbered.get(n).copied().unwrap_or(false) {
                 for g in group_on.iter_mut().filter(|g| **g == 0) {
                     *g = 1;
                 }

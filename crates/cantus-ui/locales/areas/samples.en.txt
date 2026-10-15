@@ -26,6 +26,7 @@ samples.more_packs = More packs…
 # What happened, at the browser's foot.
 samples.notice.installed = {pack} is installed
 samples.notice.failed = {pack} was not installed: {why}
+samples.notice.no_space = {pack} was not installed: it needs {need} free while it installs, and the disk has {free}.
 samples.notice.dropped = {name} placed
 samples.notice.removed = {pack} was removed
 
@@ -42,6 +43,7 @@ samples.state.update = Update
 samples.state.busy = Installing
 samples.detail.download = Download
 samples.detail.on_disk = On disk
+samples.detail.space = Free space to install
 samples.detail.files = Files
 samples.detail.licence = Licence
 samples.detail.checked = Licence read

@@ -504,6 +504,22 @@ impl InstrumentSpec {
         }
     }
 
+    /// Whether a note editor draws every pitch as a row: [`lanes`](Self::lanes)' answer
+    /// without building them (asked every frame).
+    pub fn is_chromatic(&self) -> bool {
+        match self {
+            InstrumentSpec::Native(n)
+                if n.kind == crate::InstrumentKind::Sampler && crate::inst::sampler::is_kit(n) =>
+            {
+                false
+            }
+            InstrumentSpec::Pulsus(_) => false,
+            InstrumentSpec::Firmus(_) | InstrumentSpec::Native(_) | InstrumentSpec::External(_) => {
+                true
+            }
+        }
+    }
+
     /// The rows a note editor should draw for this instrument.
     pub fn lanes(&self) -> Lanes<'_> {
         match self {

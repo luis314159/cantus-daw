@@ -390,6 +390,8 @@ fn forked_voices_never_allocate() {
     }
     let mut rig = Rig::with(Some(Workers::parallel(3)));
     let snap = Snapshot::compile(&p, 1);
+    // Chorda's keyboard designed before its unit is made (a unit never waits for it).
+    cantus_engine::inst::chorda::ensure(Default::default(), 48_000.0);
     for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
         rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }

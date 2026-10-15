@@ -487,8 +487,13 @@ impl Build {
         if !(1..=16).contains(&self.round_robin) {
             return Err("round robin must be 1…16".into());
         }
-        if !(6.0..=48.0).contains(&self.range_db) {
-            return Err("the range must be 6…48 dB".into());
+        // Every kept hit is raised to the curve by its zone's gain, which stops at +24 dB:
+        // a hit further down would play under it.
+        if !(6.0..=crate::kitbuild::MAX_VOLUME).contains(&self.range_db) {
+            return Err(format!(
+                "the range must be 6…{} dB (a zone's gain makes up no more)",
+                crate::kitbuild::MAX_VOLUME
+            ));
         }
         if self.mics.is_empty() {
             return Err("no microphones".into());
@@ -565,6 +570,17 @@ impl Pack {
         match &self.source {
             Source::Files(f) => f.iter().map(|f| f.size).sum(),
             Source::Zip(z) | Source::TarGz(z) => z.size,
+        }
+    }
+
+    /// The disk space an install needs at its peak: the download kept while it is
+    /// unpacked, the unpacked files, and (a pack built at install) what the build writes
+    /// beside them before the rest is pruned.
+    pub fn space_needed(&self) -> u64 {
+        match (&self.source, &self.build) {
+            (Source::Files(_), _) => self.installed_size,
+            (_, Some(b)) => self.download_size() + b.unpacked_size + self.installed_size,
+            (_, None) => self.download_size() + self.installed_size,
         }
     }
 

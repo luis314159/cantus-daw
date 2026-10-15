@@ -193,6 +193,11 @@ impl Axis {
         let names = pitches
             .iter()
             .map(|p| match lanes.lane_of(*p) {
+                // An Exemplar kit's names in the interface's language (round 28); a
+                // Pulsus pad keeps the name it was given.
+                Some(lane) if matches!(lanes, cantus_core::Lanes::Keys(_)) => {
+                    crate::views::drum_names::row_name(&lanes.name(lane), *p)
+                }
                 Some(lane) => lanes.name(lane),
                 None => pitch_name(*p),
             })
@@ -1198,7 +1203,7 @@ fn zoom_to_notes(app: &mut CantusApp, track: TrackId, clip: ClipId) {
     let chromatic = app
         .project()
         .track(track)
-        .is_some_and(|t| t.instrument.lanes().is_chromatic());
+        .is_some_and(|t| t.instrument.is_chromatic());
     let (w, h) = app.piano_roll.last_grid;
     if w <= 0.0 || h <= 0.0 {
         return;

@@ -458,6 +458,23 @@ pub fn loss(
     damp1: f64,
     damp2: f64,
 ) -> (f64, f64, f64) {
+    loss_timed(key, fs, coupling, decay, damp1, damp2, &|k| {
+        k as f64 / key.partial(k)
+    })
+}
+
+/// [`loss`], with the loop's own round-trip time (s) at partial `k`: its group delay there.
+/// A dispersion section sharp near a partial lengthens that partial's trip, so it loses less
+/// a second for the same loss a trip — the filter is set from the trips the loop really has.
+pub fn loss_timed(
+    key: &Key,
+    fs: f64,
+    coupling: f64,
+    decay: f64,
+    damp1: f64,
+    damp2: f64,
+    trip: &dyn Fn(u32) -> f64,
+) -> (f64, f64, f64) {
     let m = decay.max(0.05);
     let (b1, b2) = (key.b1 / m, key.b2 / m);
     let f1 = key.partial(1);
@@ -466,8 +483,8 @@ pub fn loss(
         let beta = k as f64 * std::f64::consts::PI / key.length;
         b1 * (1.0 - coupling.clamp(0.0, 0.95)) + b2 * beta * beta + damp1 + damp2 * beta * beta
     };
-    // Per round trip, partial k loses σ_k over the trip's time k / f_k.
-    let per_trip = |k: u32| -sigma(k) * k as f64 / key.partial(k);
+    // Per round trip, partial k loses σ_k over the trip's time.
+    let per_trip = |k: u32| -sigma(k) * trip(k);
     let top = (4_000.0f64).min(0.4 * fs);
     let kd = (2..=64u32)
         .take_while(|k| *k == 2 || key.partial(*k) <= top)

@@ -496,6 +496,11 @@ fn inst_unit(spec: &NativeSpec) -> Box<dyn InstrumentUnit> {
     if spec.kind == InstrumentKind::Wavetable {
         einst::wavetable::prepare(spec, &[]);
     }
+    // Chorda's reference keyboard designed first: a unit never waits for it (made before,
+    // it is silent until the designer has made it — not what these checks are about).
+    if spec.kind == InstrumentKind::Chorda {
+        einst::chorda::ensure(Default::default(), SAMPLE_RATE);
+    }
     let mut u = einst::make(spec.kind, SAMPLE_RATE);
     u.configure(spec, &[]);
     u

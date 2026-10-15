@@ -520,10 +520,24 @@ impl Keyboard {
     /// (1: on the caller). The result does not depend on the thread count: each key is
     /// designed on its own.
     pub fn compute(tuning: Tuning, fs: f64, threads: usize) -> Keyboard {
+        Keyboard::compute_counted(tuning, fs, threads, &std::sync::atomic::AtomicUsize::new(0))
+    }
+
+    /// [`Keyboard::compute`], counting the keys designed into `done` (0…88) as it goes, for
+    /// a progress bar.
+    pub fn compute_counted(
+        tuning: Tuning,
+        fs: f64,
+        threads: usize,
+        done: &std::sync::atomic::AtomicUsize,
+    ) -> Keyboard {
         let keys = super::tables::keyboard(tuning.a4, tuning.stretch, tuning.stiffness);
         let threads = threads.clamp(1, 16);
-        let one =
-            |k: &super::tables::Key| (design(k.f0(), k.b, fs), design_limited(k.f0(), k.b, fs, 2));
+        let one = |k: &super::tables::Key| {
+            let d = (design(k.f0(), k.b, fs), design_limited(k.f0(), k.b, fs, 2));
+            done.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            d
+        };
         let mut pairs: Vec<Option<(LoopDesign, LoopDesign)>> = vec![None; keys.len()];
         if threads == 1 {
             for (slot, k) in pairs.iter_mut().zip(keys.iter()) {

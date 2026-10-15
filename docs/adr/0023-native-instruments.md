@@ -213,6 +213,13 @@ knob carries the macro's name with an `M1…M8` handle above it.
   note's id; schema 28's migration writes it into every Exemplar saved before, so old songs
   render to the same bits. An import (SFZ, Decent Sampler, a folder) sets the order back to
   *In order*: their round robins mean a cycle. The choice is in Exemplar's *Edit* tools row.
+  **Review 1:** for an Exemplar in order the snapshot counts the ordinal per round-robin
+  lane — the notes reaching the same samples (`inst::sampler::RrLanes`, FNV-hashed sample
+  paths, the same on every machine) — not per pitch: one drum on several keys and each
+  velocity layer take their own turns. A user preset without `rr.order` (saved before) reads
+  *By note*; `InstrumentKind::unversioned_firsts` names such keys, and
+  `InstrumentKind::stored_versions` the keys every new instance stores (Chorda's `model`).
+  `InstrumentKind::automatable` says which keys a clip may drive (all but Chorda's tuning).
 - **A kit's rows** (`kit`, default 0; same schema). An Exemplar that is a drum kit shows a
   row per drum in the piano roll and the channel rack, as Pulsus's pads do:
   `InstrumentSpec::lanes` gives `Lanes::Keys` — every key a zone plays (zones a controller

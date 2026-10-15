@@ -72,3 +72,5 @@ chorda.una.short = SUAVE
 chorda.body.short = TABLA
 chorda.tilt.short = INCLIN
 chorda.width.short = ANCHURA
+chorda.not_automatable = La4, el estiramiento y la rigidez diseñan las cuerdas: se fijan, no se automatizan.
+chorda.designing_pct = diseñando las cuerdas: {pct} %

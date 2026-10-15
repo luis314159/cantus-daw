@@ -193,6 +193,57 @@ Exemplar's `rr.order` (A); the round's table numbers it 30 — the integrator ch
 kinds), `instrument_levels.rs` (Chorda's presets), `demos.rs` (a comment),
 `about.rs` (DRSKit's credit), `engine/tests/rt_memory.rs` (Chorda's voices).
 
+## Review 1 (2026-10-15)
+
+`F:\projects\daw-r28\reviews\sound-1.json`: 35 confirmed findings, which come down to 26 once
+duplicates across lenses are merged. Every one is fixed. Each has a test that I saw fail on
+the code before the fix, except where noted below.
+
+**Chorda**
+
+| Finding | Fix | Test |
+|---|---|---|
+| HIGH: a sympathetic string had one inversion in its loop and rang at `(k−½)·f₀` | Two inversions (the nut's and the bridge's), as in a voice. The drive is high-passed at 20 Hz. The bridge's reflection loss keeps the loop under unity at DC. The loss filter is set from the loop's own trip time at each partial. | `a_sympathetic_string_rings_at_its_keys_own_pitch`: f₁ and f₂ sit 70–145 dB over f₀/2. Before the fix the string rang at f₀/2. |
+| HIGH: automated A4/stretch/stiffness were never designed (an export waited 120 s per block) | `InstrumentKind::automatable`. The engine ignores a lane on these keys, the knob offers no clip, and the app refuses one with the reason. Offline, `ensure` designs on the spot, once. | engine `a_lane_on_the_tuning_is_inert_and_an_export_never_waits_for_it`; UI `the_tuning_is_set_never_automated`. On the old code the first of these would hang, so I did not run it there. |
+| HIGH: a knob drag started a design per frame and filled the registry | One designer thread works one design at a time. A track's tuning is designed only once it has settled for 250 ms. Values are rounded so close tunings share a design. The registry holds 128 entries, and a tuning refused for lack of room is remembered and not tried again. | `a_dragged_tuning_designs_only_where_it_settles` (60 values asked, only the last designed) |
+| HIGH: loading Chorda or changing the sample rate froze the interface thread | `Unit::new` never waits. Until the design arrives the piano is silent and the editor says *designing the strings: n %* (`progress`). An export waits for its own design. | `a_unit_never_waits_for_its_keyboard` (made in under 100 ms, silent, then plays); `while_the_strings_are_designed_the_editor_says_so` |
+| A sympathetic string was frozen while its key's voice sounded and replayed as a ghost | The string is silenced when its voice starts and comes back silent, with its damper where the pedal leaves it. | `a_struck_string_leaves_no_ghost_in_its_sympathetic_string` |
+| The sympathetic strings' dampers ignored the grip setting | `Sympathetic::set_grip`; the resting state follows it. | `without_dampers_the_strings_ring_in_sympathy` (−16 dB; −35 dB before) |
+| A new keyboard landing mid-performance hard-reset strings | A ringing string, or a ringing voice, keeps its layout until it is silent. | `a_new_keyboard_never_cuts_the_strings_ringing` |
+| A decay or coupling change did not reach a re-struck voice | Every strike recomputes the voice's loss; `set_decay` does the same for the sympathetic strings. | `a_new_decay_reaches_a_ringing_note_struck_again` |
+| A new voice started with its damper down | A strike from rest lifts the damper. | `a_fresh_strike_finds_its_damper_already_lifted` |
+| `model_version` was never stored | `NativeSpec::new` stores `model` for Chorda, and `read_unversioned` reads an absent key as 1. No schema bump is needed. | `a_chorda_stores_its_model_and_a_preset_file_keeps_versions` |
+| "1 cent on every key" was measured on 8 keys | The test now renders all 88 keys at 44.1, 48 and 96 kHz, at A4 415 Hz with 70 % stretch, and at 150 % stiffness. | `every_key_rings_within_a_cent_at_every_rate_and_tuning`: worst 0.47–0.50 ct. It passed before the fix too: the claim was true, just under-tested. |
+| The boot test passed without the boot path | It now has its own binary and checks that the keyboard is not warm before `assemble`. | `inst_chorda_boot` (seen failing with the warm-up commented out) |
+| The inspector showed stretch as "1 %", and "A4" stayed English in Spanish | `preview_text` | `the_inspector_reads_the_tuning_as_the_knobs_do` |
+
+**The drum kit and Exemplar**
+
+| Finding | Fix | Test |
+|---|---|---|
+| HIGH: `kit_lanes` panicked on a zone with lo > hi | `hi = hi.max(lo)`, as the engine plays it | `a_zone_whose_high_key_is_below_its_low_one…` (panicked before) |
+| Non-GM sounds sat on GM percussion keys | GM keys now hold the kit's own drums only. The other articulations move to 82–100, and GM keys the kit has no sound for stay silent. | `the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only` |
+| Round robin counted per pitch, so a tom fill or an accent layer repeated a sample | The snapshot counts turns per round-robin lane: the notes that reach the same samples (`RrLanes`). | core `turns_are_counted_by_drum_and_velocity_layer_not_by_key`; `pack_drums::a_drum_on_two_keys_and_an_accent_layer_take_their_own_turns` |
+| The +24 dB gain cap conflicted with range_db 30 | The range is capped at 24 dB (`validate`), DRSKit uses 24, and `layers` drops any hit beyond. | `a_range_beyond_what_a_zone_can_make_up_is_refused`; `layers` test |
+| A cancel, failure or crash during the mixdown threw away the download | The archive is removed only after the pack is in place. | `a_build_that_fails_keeps_the_download_and_a_good_install_lets_it_go` |
+| Disk space needed during install was neither stated nor checked | `Pack::space_needed` is shown on the pack's page. The install is refused before any fetch when the disk lacks it (`NoSpace`, `cantus_rt::disk`), with the reason in both languages. | `an_install_without_room_is_refused_before_anything_is_fetched` |
+| A pre-round-28 Exemplar user preset changed its round robin | `rr.order` is spelled out on save and read as 0 when absent. | in `a_chorda_stores_its_model_and_a_preset_file_keeps_versions` |
+| The channel rack rebuilt the kit's rows every frame | `InstrumentSpec::is_chromatic`, plus no `format!` in `kit_lanes` | — (no new test; the rack and piano roll tests still pass) |
+| Drum-row names were English-only | `views/drum_names.rs`: GM's 47 names and DRSKit's labels, in `drums.{en,es}` | `a_kits_rows_read_in_the_interfaces_language` |
+
+The schema step is renumbered by the integrator (`migrate_29_to_30`, `v30.cantus` in
+`r28/integration`); I left it as it is here.
+
+**The real DRSKit after the fixes** (ignored tests, re-run on the archive)
+
+- Installs in 113 s: 496 files, 470 879 054 bytes (the manifest pins this size).
+- About 7.6 GB free is needed while it installs.
+- Imports 548 zones and holds 117 MiB in memory.
+- A groove plays at −26.0 LUFS / −8.2 dBTP; everything at velocity 127 reaches −0.8 dBTP.
+- 170 velocity layers.
+
+**Chorda's CPU after the fixes:** 64 pedal-down voices take 19.5 % of one core (release).
+
 ## Left
 
 Owner-only (on `docs/beta-checklist.md`):
@@ -205,6 +256,7 @@ Owner-only (on `docs/beta-checklist.md`):
   too (ADR 0042).
 - `F:\projects\daw-r28\downloads\` keeps the DRSKit archive (2.7 GB, for
   `CANTUS_DRSKIT_ARCHIVE`), the installed mix (`drsmix`, 469 MB, for `CANTUS_DRSKIT`) and the
-  papers read (15 MB); the unpacked kit (4.1 GB) is deleted. Keep or delete.
+  papers read (15 MB); `drsmix` was rebuilt after review 1. The unpacked kit (4.1 GB) is
+  deleted. Keep or delete.
 
 Nothing else is open.

@@ -954,9 +954,11 @@ fn param(
         .log(info.logarithmic)
         .name(&name)
         .style(*s)
-        .rings(&rings)
-        .automation(w.automated)
-        .modulation(w.offer);
+        .rings(&rings);
+    // A key that is set, never automated or modulated (Chorda's tuning) offers neither.
+    if spec.kind.automatable(key) {
+        p = p.automation(w.automated).modulation(w.offer);
+    }
     if as_cell {
         p = p.cell(Src::Key(info.label_key));
     }

@@ -198,7 +198,8 @@ impl Chorda {
         self.hardness = hardness.clamp(-1.0, 1.0);
         self.gain = OUTPUT_SCALE * math::powf(10.0f64, s.gain_db / 20.0);
         self.sym.level = s.sympathetic;
-        self.sym.decay = s.voice.decay;
+        self.sym.set_decay(s.voice.decay);
+        self.sym.set_grip(s.voice.damper);
         self.board.body = s.body;
         self.board.set_tilt(s.tilt_db);
         for (i, p) in self.pans.iter_mut().enumerate() {
@@ -290,6 +291,12 @@ impl Chorda {
             !self.sym.at_rest(),
             !self.board.at_rest(),
         )
+    }
+
+    /// How firmly key `key`'s damper rests on its strings now (tests).
+    #[cfg(test)]
+    pub fn damper_of(&self, key: u8) -> f64 {
+        self.voices[(key - LOWEST) as usize].contact()
     }
 
     pub fn board_largest(&self) -> [f64; 5] {

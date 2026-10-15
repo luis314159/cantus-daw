@@ -246,3 +246,148 @@ fn measure_sixty_four_pedal_down_voices() {
     assert!(load < 0.25, "{load}");
     let _ = keyboard();
 }
+
+fn energy_db(x: &[f32]) -> f64 {
+    10.0 * crate::math::log10(
+        x.iter()
+            .map(|v| (*v as f64) * (*v as f64))
+            .sum::<f64>()
+            .max(1e-30),
+    )
+}
+
+fn with(f: impl FnOnce(&mut ChordaSettings)) -> Chorda {
+    let mut c = piano();
+    let mut s = ChordaSettings::default();
+    f(&mut s);
+    c.set(&s, 0.0);
+    c
+}
+
+#[test]
+fn a_struck_string_leaves_no_ghost_in_its_sympathetic_string() {
+    // Pedal down, C3 rings C4's string in sympathy; C4 is struck off the grid, then both
+    // keys and the pedal let go: once the voices have died the tail only falls — the
+    // sympathetic string of C4 was silenced when its voice took over, never replayed.
+    let ev = [
+        (0, Ev::Pedal(1.0)),
+        (1, Ev::On(48, 0.9, 1)),
+        (9_013, Ev::On(60, 0.8, 2)),
+        (20_000, Ev::Off(48, 1)),
+        (20_000, Ev::Off(60, 2)),
+        (20_000, Ev::Pedal(0.0)),
+    ];
+    let mut c = with(|s| s.body = 0.0);
+    let (l, _) = perform(&mut c, &ev, (2.5 * FS) as usize, 256, 1);
+    let env = envelope(&l, 480);
+    let from = 30_000 / 480;
+    for w in env[from..].windows(2) {
+        assert!(
+            w[1] <= w[0] + 3.0,
+            "a burst in the tail: {:.1?}",
+            &env[from..]
+        );
+    }
+}
+
+#[test]
+fn without_dampers_the_strings_ring_in_sympathy() {
+    // The dampers' grip at 0 (no dampers): with the pedal up the strings ring along as
+    // with it down — the sympathetic strings' dampers follow the setting too.
+    let run = |sympathy: f64| {
+        let mut c = with(|s| {
+            s.voice.damper = 0.0;
+            s.sympathetic = sympathy;
+        });
+        let ev = [(1, Ev::On(48, 0.9, 1)), (6_000, Ev::Off(48, 1))];
+        perform(&mut c, &ev, 48_000, 256, 1).0
+    };
+    let (wet, dry) = (run(1.0), run(0.0));
+    let diff: Vec<f32> = wet.iter().zip(&dry).map(|(a, b)| a - b).collect();
+    let rel = energy_db(&diff) - energy_db(&dry);
+    eprintln!("sympathy without dampers: {rel:.1} dB");
+    assert!(rel > -25.0, "{rel}");
+}
+
+#[test]
+fn a_new_decay_reaches_a_ringing_note_struck_again() {
+    // Pedal down, C4 rings; the decay drops to a third and C4 is struck again: its tail
+    // falls faster than with the decay left alone.
+    let tail = |change: bool| {
+        let mut c = piano();
+        let ev = [(0, Ev::Pedal(1.0)), (1, Ev::On(60, 0.7, 1))];
+        perform(&mut c, &ev, 12_000, 256, 1);
+        if change {
+            let s = ChordaSettings {
+                voice: super::voice::VoiceSettings {
+                    decay: 0.3,
+                    ..ChordaSettings::default().voice
+                },
+                ..ChordaSettings::default()
+            };
+            c.set(&s, 0.0);
+        }
+        let (l, _) = perform(&mut c, &[(0, Ev::On(60, 0.7, 2))], 96_000, 256, 1);
+        energy_db(&l[72_000..])
+    };
+    let (same, shorter) = (tail(false), tail(true));
+    eprintln!("tail energy: {same:.1} dB as it was, {shorter:.1} dB with a third of the decay");
+    assert!(shorter < same - 10.0, "{shorter} against {same}");
+}
+
+#[test]
+fn a_fresh_strike_finds_its_damper_already_lifted() {
+    // The key's travel lifts the damper before the hammer lands: a key struck from rest has
+    // its damper off the strings from the first sample, never gliding off them.
+    let mut c = piano();
+    c.note_on(86, 0.8, 1);
+    assert_eq!(c.damper_of(86), 0.0, "struck from rest");
+    perform(&mut c, &[(2_400, Ev::Off(86, 1))], 96_000, 256, 1);
+    assert_eq!(c.active_voices(), 0, "the first note has died");
+    assert_eq!(c.damper_of(86), 1.0, "and its damper is down");
+    c.note_on(86, 0.8, 2);
+    assert_eq!(c.damper_of(86), 0.0, "struck again from rest");
+}
+
+#[test]
+fn a_new_keyboard_never_cuts_the_strings_ringing() {
+    // Pedal down, a chord rings; a keyboard of another tuning arrives: no step in the
+    // waveform where it lands, and a key struck again keeps ringing.
+    let other = std::sync::Arc::new(super::design::Keyboard::compute(
+        super::design::Tuning {
+            a4: 442.0,
+            stretch: 1.0,
+            stiffness: 1.0,
+        },
+        FS,
+        8,
+    ));
+    let mut c = piano();
+    let ev = [
+        (0, Ev::Pedal(1.0)),
+        (1, Ev::On(48, 0.8, 1)),
+        (1, Ev::On(55, 0.8, 2)),
+        (1, Ev::On(64, 0.8, 3)),
+    ];
+    let (a, _) = perform(&mut c, &ev, 24_000, 256, 1);
+    c.set_keyboard(other);
+    let (b, _) = perform(&mut c, &[(0, Ev::On(55, 0.5, 4))], 4_800, 256, 1);
+    let steepest = |x: &[f32]| {
+        x.windows(2)
+            .map(|w| (w[1] - w[0]).abs())
+            .fold(0.0f32, f32::max)
+    };
+    let before = steepest(&a[18_000..]);
+    let joint = (b[0] - a[a.len() - 1]).abs();
+    assert!(
+        joint <= 1.2 * before,
+        "a step of {joint} where the keyboard landed ({before})"
+    );
+    let level = |x: &[f32]| energy_db(x) - 10.0 * crate::math::log10(x.len() as f64);
+    assert!(
+        level(&b[..480]) > level(&a[a.len() - 480..]) - 3.0,
+        "the chord still rings: {} against {}",
+        level(&b[..480]),
+        level(&a[a.len() - 480..])
+    );
+}

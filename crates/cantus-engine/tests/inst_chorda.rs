@@ -6,8 +6,9 @@ use cantus_dsp::math;
 
 mod support;
 use cantus_core::*;
+use cantus_dsp::chorda::design::Tuning;
 use cantus_dsp::nulltest::assert_null;
-use cantus_engine::inst::chorda::{tel, Unit, SOFT_CC};
+use cantus_engine::inst::chorda::{self, tel, Unit, SOFT_CC};
 use cantus_engine::inst::{Controller, InstrumentUnit, NoteOn};
 use cantus_engine::*;
 use std::sync::Arc;
@@ -123,6 +124,13 @@ fn on(key: u8, velocity: f32, id: u64) -> NoteOn {
     }
 }
 
+/// A unit made once the reference keyboard is designed (a unit never waits for it: made
+/// before, it is silent until it arrives).
+fn unit() -> Unit {
+    chorda::ensure(Tuning::default(), SR);
+    Unit::new(SR)
+}
+
 fn play(u: &mut Unit, frames: usize) -> Vec<f32> {
     let (mut l, mut r) = (vec![0.0; frames], vec![0.0; frames]);
     for (a, b) in l.chunks_mut(256).zip(r.chunks_mut(256)) {
@@ -133,7 +141,7 @@ fn play(u: &mut Unit, frames: usize) -> Vec<f32> {
 
 #[test]
 fn the_pedals_arrive_as_controllers() {
-    let mut u = Unit::new(SR);
+    let mut u = unit();
     u.controller(Controller::Sustain, 1.0);
     u.controller(Controller::Cc(SOFT_CC), 1.0);
     let t = u.telemetry();
@@ -147,7 +155,7 @@ fn the_pedals_arrive_as_controllers() {
 
 #[test]
 fn at_rest_it_is_as_good_as_new() {
-    let mut a = Unit::new(SR);
+    let mut a = unit();
     a.note_on(on(72, 0.8, 1));
     play(&mut a, 4_800);
     a.note_off(72, 1, 0.0);
@@ -157,7 +165,7 @@ fn at_rest_it_is_as_good_as_new() {
         n += 1;
         assert!(n < 200, "it never came to rest");
     }
-    let mut b = Unit::new(SR);
+    let mut b = unit();
     b.skip((n + 1) * 4_800);
     for u in [&mut a, &mut b] {
         u.note_on(on(60, 0.6, 7));
@@ -174,7 +182,7 @@ fn peak_db(x: &[f32]) -> f64 {
 #[test]
 fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
     // Both hands fortissimo, the pedal down: under −2 dBFS at the defaults.
-    let mut u = Unit::new(SR);
+    let mut u = unit();
     u.controller(Controller::Sustain, 1.0);
     for (i, k) in [21u8, 33, 45, 52, 57, 64, 69, 76, 88, 96]
         .iter()
@@ -184,7 +192,7 @@ fn its_levels_leave_headroom_and_a_middle_c_is_heard() {
     }
     let loud = peak_db(&play(&mut u, 48_000));
     // A mezzo-forte middle C: clearly heard, well under the top.
-    let mut u = Unit::new(SR);
+    let mut u = unit();
     u.note_on(on(60, 0.6, 1));
     let mf = peak_db(&play(&mut u, 24_000));
     eprintln!("ff both hands with pedal {loud:.1} dBFS, mf middle C {mf:.1} dBFS");
@@ -198,7 +206,7 @@ fn print_the_keys_levels() {
     for k in [21u8, 28, 33, 40, 45, 52, 57, 64, 69, 76, 81, 88, 96, 108] {
         let mut row = String::new();
         for v in [0.2f32, 0.5, 0.8, 1.0] {
-            let mut u = Unit::new(SR);
+            let mut u = unit();
             u.note_on(on(k, v, 1));
             let x = play(&mut u, 24_000);
             let rms =
@@ -252,8 +260,8 @@ fn real_time(p: &Project, frames: usize) -> Vec<f32> {
 fn offline_render_equals_real_time() {
     // The reference tuning, and one designed before playing (in real time a tuning still
     // being designed plays the reference one until it is ready; offline waits for it).
-    cantus_engine::inst::chorda::ensure(
-        cantus_dsp::chorda::design::Tuning {
+    chorda::ensure(
+        Tuning {
             a4: 442.0,
             stretch: 1.0,
             stiffness: 1.0,
@@ -271,4 +279,95 @@ fn offline_render_equals_real_time() {
             &format!("real time against offline {values:?}"),
         );
     }
+}
+
+fn a4_lane(p: &mut Project, from: f32, to: f32) {
+    let track = p.tracks[0].id;
+    let info = cantus_core::inst::chorda::param("a4").unwrap();
+    let pos = |v: f32| (v - info.min) / (info.max - info.min);
+    let c = p.make_automation_clip(
+        "a4",
+        AutoTarget::Instrument {
+            track,
+            key: "a4".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(4),
+        vec![
+            AutoPoint::new(Ticks::ZERO, pos(from)),
+            AutoPoint::new(Ticks::beats(4), pos(to)),
+        ],
+    );
+    p.tracks[0].clips.push(c);
+}
+
+#[test]
+fn a_lane_on_the_tuning_is_inert_and_an_export_never_waits_for_it() {
+    // A4 is set, never automated (ADR 0059): a clip on it changes nothing, and the export
+    // finishes as quickly as without it.
+    let plain = piano_project(&[], &PHRASE);
+    let mut laned = plain.clone();
+    a4_lane(&mut laned, 415.0, 466.0);
+    let reference = render_of(&plain, 0.5);
+    let t = std::time::Instant::now();
+    let got = render_of(&laned, 0.5);
+    assert!(t.elapsed().as_secs_f64() < 20.0, "{:?}", t.elapsed());
+    assert_null(&reference, &got, 0.0, "a lane on A4");
+}
+
+#[test]
+fn a_unit_never_waits_for_its_keyboard() {
+    // A sample rate nothing else in this binary uses: its reference keyboard is not
+    // designed yet. The unit is made at once, silent and saying so, and plays once the
+    // designer has made it.
+    let fs = 46_000.0f32;
+    let t = std::time::Instant::now();
+    let mut u = Unit::new(fs);
+    assert!(t.elapsed().as_millis() < 100, "made in {:?}", t.elapsed());
+    assert_eq!(u.telemetry()[tel::DESIGNED], 0.0, "designing");
+    u.note_on(on(60, 0.8, 1));
+    assert!(
+        play(&mut u, 4_800).iter().all(|x| *x == 0.0),
+        "silent meanwhile"
+    );
+    let key = chorda::key_of(Tuning::default(), fs);
+    let t = std::time::Instant::now();
+    while chorda::lookup(key).is_none() {
+        assert!(t.elapsed().as_secs() < 60, "the designer made it");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    u.note_on(on(60, 0.8, 2));
+    assert!(play(&mut u, 4_800).iter().any(|x| *x != 0.0), "it plays");
+    assert_eq!(u.telemetry()[tel::DESIGNED], 1.0);
+}
+
+#[test]
+fn a_dragged_tuning_designs_only_where_it_settles() {
+    // A knob dragged over 60 values of A4 in a quarter of a second (a snapshot a frame):
+    // only the last is designed — never one design a frame.
+    let fs = 45_000.0f32;
+    let snap_at = |a4: f32| {
+        let p = piano_project(&[("a4", a4)], &[]);
+        Snapshot::compile(&p, 1)
+    };
+    let values: Vec<f32> = (0..60).map(|i| 430.0 + i as f32 * 0.25).collect();
+    for v in &values {
+        chorda::prepare(&snap_at(*v), fs);
+        std::thread::sleep(std::time::Duration::from_millis(4));
+    }
+    let tuning = |a4: f32| Tuning {
+        a4: a4 as f64,
+        ..Tuning::default()
+    };
+    let last = *values.last().unwrap();
+    let t = std::time::Instant::now();
+    while chorda::lookup(chorda::key_of(tuning(last), fs)).is_none() {
+        assert!(t.elapsed().as_secs() < 60, "the tuning let go is designed");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let designed = values[..values.len() - 1]
+        .iter()
+        .filter(|v| chorda::lookup(chorda::key_of(tuning(**v), fs)).is_some())
+        .count();
+    assert_eq!(designed, 0, "no tuning passed over is designed");
 }

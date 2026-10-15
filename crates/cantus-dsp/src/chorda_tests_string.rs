@@ -19,7 +19,19 @@ pub fn felt_of(k: &Key) -> Felt {
 /// Strike key `m` (one string alone unless `strings` says otherwise) at `velocity` m/s and
 /// render `seconds` of its bridge force.
 pub fn render_key(m: u8, fs: f64, seconds: f64, velocity: f64, strings: usize) -> (Key, Vec<f64>) {
-    let keys = keyboard(440.0, 1.0, 1.0);
+    render_tuned(m, fs, Tuning::default(), seconds, velocity, strings)
+}
+
+/// [`render_key`] at a tuning of the instrument's.
+pub fn render_tuned(
+    m: u8,
+    fs: f64,
+    tuning: Tuning,
+    seconds: f64,
+    velocity: f64,
+    strings: usize,
+) -> (Key, Vec<f64>) {
+    let keys = keyboard(tuning.a4, tuning.stretch, tuning.stiffness);
     let k = keys[(m - LOWEST) as usize];
     let d = design(k.f0(), k.b, fs);
     let mut s = KeyStrings::new(d.delay + 16, fs);
@@ -38,9 +50,14 @@ fn cents(a: f64, b: f64) -> f64 {
 /// Every checked partial that sounds (within 50 dB of the loudest) on key `m`, alone,
 /// within `tol` cents of the stiff-string law. Returns the worst error.
 fn check_partials(m: u8, fs: f64, tol: f64) -> f64 {
-    let (k, x) = render_key(m, fs, 3.0, 2.0, 1);
+    check_tuned(m, fs, Tuning::default(), tol, 1 << 16)
+}
+
+/// [`check_partials`] at a tuning, with an analysis window of `n` samples.
+fn check_tuned(m: u8, fs: f64, tuning: Tuning, tol: f64, n: usize) -> f64 {
+    let seconds = (n + n / 8) as f64 / fs + 0.15;
+    let (k, x) = render_tuned(m, fs, tuning, seconds.max(1.0), 2.0, 1);
     let checked = checked_partials(k.f0(), k.b, fs);
-    let n = 1 << 16;
     let start = (0.05 * fs) as usize;
     let levels: Vec<f64> = (1..=checked)
         .map(|i| partial_level(&x, fs, k.partial(i), 0.05))
@@ -57,7 +74,8 @@ fn check_partials(m: u8, fs: f64, tol: f64) -> f64 {
         let c = cents(got, want);
         assert!(
             c.abs() < tol,
-            "key {m}, partial {i}: {got:.4} Hz against {want:.4} ({c:+.3} cents)"
+            "key {m} at {fs} Hz, {tuning:?}, partial {i}: {got:.4} Hz against {want:.4} \
+             ({c:+.3} cents)"
         );
         worst = worst.max(c.abs());
     }
@@ -128,4 +146,48 @@ fn the_strings_are_the_same_bits_every_time_and_silence_stays_silent() {
         (0..48_000).all(|_| s.tick() == 0.0),
         "nothing struck, nothing heard"
     );
+}
+
+#[test]
+fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
+    // ADR 0059's done-when, measured on the sound: all 88 keys, one string each, every
+    // partial below 5 kHz that sounds — at 44.1, 48 and 96 kHz, and at the Baroque preset's
+    // tuning (A4 415 Hz, 70 % stretch) and the stiffest strings the settings allow.
+    let baroque = Tuning {
+        a4: 415.0,
+        stretch: 0.7,
+        stiffness: 1.0,
+    };
+    let stiff = Tuning {
+        stiffness: 1.5,
+        ..Tuning::default()
+    };
+    let runs = [
+        (44_100.0, Tuning::default(), 1usize << 15),
+        (48_000.0, Tuning::default(), 1 << 15),
+        (96_000.0, Tuning::default(), 1 << 16),
+        (48_000.0, baroque, 1 << 15),
+        (48_000.0, stiff, 1 << 15),
+    ];
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(8);
+    for (fs, tuning, n) in runs {
+        let worst = std::thread::scope(|sc| {
+            let hs: Vec<_> = (0..threads)
+                .map(|t| {
+                    sc.spawn(move || {
+                        (LOWEST + t as u8..=HIGHEST)
+                            .step_by(threads)
+                            .map(|m| check_tuned(m, fs, tuning, 1.0, n))
+                            .fold(0.0f64, f64::max)
+                    })
+                })
+                .collect();
+            hs.into_iter()
+                .map(|h| h.join().expect("a key's check"))
+                .fold(0.0f64, f64::max)
+        });
+        eprintln!("{fs} Hz, {tuning:?}: worst {worst:.3} cents on 88 keys");
+    }
 }

@@ -115,6 +115,17 @@ impl CantusApp {
     /// selected track), selected, with the track's lanes shown. One undo step.
     pub fn create_automation_clip(&mut self, target: AutoTarget) -> bool {
         let project = self.project();
+        // A key that is set, never automated (Chorda's tuning, ADR 0059).
+        if let AutoTarget::Instrument { track, key } = &target {
+            let kind = project
+                .track(*track)
+                .and_then(|t| t.instrument.native())
+                .map(|n| n.kind);
+            if kind.is_some_and(|k| !k.automatable(key)) {
+                self.set_error(t("chorda.not_automatable"));
+                return false;
+            }
+        }
         let (Some(range), Some(value)) = (range_of(project, &target), base_value(project, &target))
         else {
             self.set_error(t("auto.status.no_target"));

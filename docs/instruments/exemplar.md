@@ -322,6 +322,12 @@ its mip-maps. A zone played only near its root holds no mip-maps at all.
 - **Round robin in order** (`rr.order`: 1 *In order*, the default; 0 *By note*, every
   Exemplar saved before — schema 28's migration). A clip's note arrives with its ordinal
   (`InstrumentUnit::note_on_seq`); the zone whose `seq` is `ordinal mod seqlen + 1` plays.
+  The ordinal is counted per **round-robin lane** (`inst::sampler::RrLanes`, review 1): the
+  notes that reach the same set of samples, whatever their key or velocity — a tom on
+  47, 48 and 50 is one lane, each velocity layer of a hi-hat its own — so a fill across a
+  drum's keys and an accent pattern never repeat a hit. A user preset saved before round
+  28 (no `rr.order`) keeps *By note* (`NativeSpec::read_unversioned`); one saved now spells
+  the order out.
   An import (SFZ, Decent Sampler, a folder) sets it to *In order*. The choice sits in the
   *Edit* view's tools row. Tests: `exemplar_tests4.rs` (cycles by ordinal, a render from the
   middle, a 64-stroke roll never repeats, *By note* unchanged, live notes),

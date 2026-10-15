@@ -205,11 +205,34 @@ name (as format 2 did).
 Faders for each microphone need an instrument with several outputs (BACKLOG §3e item 11,
 Pulsus III's mic buses), not Exemplar's single stereo output: left there, not half-built.
 
-**Measured** (`kit_build.rs`, `pack_drums.rs`, ignored tests on the real archive): the real
-archive installs from its file in 104–128 s (copy, unpack 4.3 GB, mix 525 hits) to 527 files
-and 489 577 116 bytes; peak −4.9 dBFS, nothing clamped; 16 hits softer than 30 dB under
-their drum's loudest left out; Exemplar imports its 591 zones in 0.09 s, holds 123 MiB of
-heads streaming, renders 15× faster than real time on one thread; a rock groove sits at
-−26.2 LUFS with −7.4 dBTP, everything at velocity 127 at −0.9 dBTP — ADR 0039's headroom
-rule sets the instrument's gain at 0 dB; 186 velocity layers, each with at least two hits
-in turn.
+**Measured** (`kit_build.rs`, `pack_drums.rs`, ignored tests on the real archive), after
+review 1: the real archive installs from its file in 113–116 s (copy, unpack 4.3 GB, mix)
+to 496 files and 470 879 054 bytes; peak −4.9 dBFS, nothing clamped; Exemplar imports its
+548 zones in 0.09 s, holds 117 MiB of heads streaming, renders 13.6× faster than real time
+on one thread; a rock groove sits at −26.0 LUFS with −8.2 dBTP, everything at velocity 127
+at −0.8 dBTP — ADR 0039's headroom rule keeps the instrument's gain at 0 dB; 170 velocity
+layers, each with at least two hits in turn.
+
+**Review 1 (2026-10-15).**
+
+- **General MIDI's keys for their own drums only.** The first map put DrumGizmo's extra
+  articulations on keys General MIDI reserves for other instruments (a crash tip on the
+  tambourine's 54, a hi-hat on the cowbell's 56, brushes on the congas). Now the kit's
+  drums sit on their General MIDI keys (the fully open hi-hat on 46), the General MIDI
+  keys it has no sound for stay silent, and the other articulations are on 82–100, above
+  General MIDI's percussion (`kit_build::the_bundled_kit_plays_general_midis_keys…`).
+- **The range a zone's gain can make up.** Every kept hit is raised to SFZ's curve by its
+  zone's gain, which stops at +24 dB: a range of 30 dB played the softest hits up to 6 dB
+  under the curve. The range is now at most 24 dB (`Build::validate`), DRSKit's is 24, and
+  `layers` leaves out a hit further down whatever the range asked.
+- **The download is kept until the pack is in place.** A build cancelled, failed or cut
+  short by a crash starts again from the archive instead of fetching 2.8 GB again; it is
+  removed only after the swap into place.
+- **The space needed is stated and checked.** `Pack::space_needed` (download + unpacked +
+  installed for a built pack: about 7.6 GB for DRSKit) shows on the pack's page; an
+  install is refused before anything is fetched when the content folder's volume has less
+  (`InstallError::NoSpace`, `cantus_rt::disk::space`), and says so in both languages.
+- **Turns by drum and by layer, rows in the interface's language** (ADR 0023's amendment):
+  a tom fill across 47/48/50 and an accent layer never repeat a hit; the kit's row names
+  and Exemplar's group names translate (`locales/areas/drums.*`: General MIDI's 47 names,
+  DRSKit's labels).

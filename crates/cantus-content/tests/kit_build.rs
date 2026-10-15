@@ -216,7 +216,7 @@ fn build_spec(unpacked: u64) -> Build {
             release_ms: 60.0,
         }],
         round_robin: 2,
-        range_db: 40.0,
+        range_db: 24.0,
         keep: vec!["README.md".into()],
     }
 }
@@ -389,9 +389,16 @@ fn hits_out_of_range_are_left_out_and_a_layer_without_a_velocity_joins_its_neigh
     for r in &regions[1..] {
         assert_eq!((r.lovel, r.hivel, r.seqlen), (127, 127, 2), "{}", r.file);
     }
-    // The gain stops at +24 dB.
-    let (r, _) = kitbuild::layers(&[hit("loud", 0.0), hit("soft", -40.0)], 1, 48.0);
-    assert_eq!(r[0].volume, kitbuild::MAX_VOLUME);
+    // A zone's gain stops at +24 dB: a hit further down is left out, never played under
+    // the curve — whatever the range asked.
+    let (r, dropped) = kitbuild::layers(
+        &[hit("loud", 0.0), hit("down28", -28.0), hit("down20", -20.0)],
+        1,
+        30.0,
+    );
+    assert_eq!(dropped, 1, "the hit 28 dB down");
+    assert!(r.iter().all(|x| x.file != "down28"));
+    assert!(r.iter().all(|x| x.volume < kitbuild::MAX_VOLUME));
 }
 
 #[test]
@@ -720,8 +727,10 @@ fn the_real_drskit_installs_mixed_from_its_archive() {
     assert!(peak < 0.89, "1 dB of headroom at least: {peak}");
     let text = std::fs::read_to_string(dir.join("DRSKit.sfz")).unwrap();
     assert!(text.contains("DrumGizmo"), "credited at the top");
+    // General MIDI's keys for the drums the kit has; 55 (splash) and the Latin
+    // percussion stay silent.
     for key in [
-        35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 55, 57, 59,
+        35, 36, 37, 38, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 53, 57, 59,
     ] {
         assert!(
             text.contains(&format!("lokey={key} ")) || text.contains(&format!("hikey={key} ")),
@@ -731,6 +740,11 @@ fn the_real_drskit_installs_mixed_from_its_archive() {
     assert!(r.credit_line().unwrap().contains("DrumGizmo"));
     assert_eq!(m.instruments().len(), 1);
     assert_eq!(m.instruments()[0].key(), "pack:drskit/kit");
+    // Kept for `pack_drums`' real-kit test (`CANTUS_DRSKIT`), when asked.
+    if let Ok(keep) = std::env::var("CANTUS_DRSKIT_KEEP") {
+        let _ = std::fs::remove_dir_all(&keep);
+        std::fs::rename(&dir, &keep).unwrap();
+    }
 }
 
 #[test]
@@ -748,6 +762,7 @@ fn a_built_pack_reports_its_unpacking_then_its_mixing_hit_by_hit() {
         cancel: &cancel,
         patience: Patience::none(),
         archive: None,
+        free_space: &|_| None,
     };
     let mut phases = Vec::new();
     install::install(&job, &p, &mut |ph| phases.push(ph)).unwrap();
@@ -798,4 +813,131 @@ fn a_drum_is_labelled_as_the_manifest_names_it() {
         text.lines().any(|l| l == "<group> group_label=Snare"),
         "unlabelled: the kit's name"
     );
+}
+
+#[test]
+fn a_range_beyond_what_a_zone_can_make_up_is_refused() {
+    let src = tempfile::tempdir().unwrap();
+    let mut p = kit_pack(src.path());
+    p.build.as_mut().unwrap().range_db = 30.0;
+    assert!(
+        manifest(vec![p]).validate().is_err(),
+        "30 dB down needs +30 dB of gain"
+    );
+}
+
+/// The General MIDI percussion family of a key (35-81), and of a DrumGizmo instrument.
+fn gm_family(key: u8) -> &'static str {
+    match key {
+        35 | 36 => "kick",
+        37 | 38 | 40 => "snare",
+        41 | 43 | 45 | 47 | 48 | 50 => "tom",
+        42 | 44 | 46 => "hihat",
+        49 | 57 => "crash",
+        51 | 53 | 59 => "ride",
+        52 | 55 => "cymbal",
+        _ => "percussion",
+    }
+}
+
+fn kit_family(instrument: &str) -> &'static str {
+    let i = instrument.to_ascii_lowercase();
+    if i.starts_with("kdrum") {
+        "kick"
+    } else if i.starts_with("snare") {
+        "snare"
+    } else if i.starts_with("tom") {
+        "tom"
+    } else if i.starts_with("hihat") {
+        "hihat"
+    } else if i.starts_with("crash") {
+        "crash"
+    } else if i.starts_with("ride") {
+        "ride"
+    } else {
+        "other"
+    }
+}
+
+#[test]
+fn the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only() {
+    // A General MIDI part (tambourine on 54, cowbell on 56, congas on 62-64) never plays a
+    // cymbal or a hi-hat: those keys stay silent, and DrumGizmo's other articulations sit
+    // above General MIDI's percussion.
+    let m = cantus_content::Manifest::bundled();
+    let b = m.pack("drskit").unwrap().build.as_ref().unwrap();
+    for k in &b.keys {
+        for key in &k.keys {
+            if (35..=81).contains(key) {
+                assert_eq!(
+                    kit_family(&k.instrument),
+                    gm_family(*key),
+                    "{} on General MIDI's key {key}",
+                    k.instrument
+                );
+            } else {
+                assert!(*key > 81, "{} on {key}", k.instrument);
+            }
+        }
+    }
+    assert!(b.range_db <= kitbuild::MAX_VOLUME);
+}
+
+fn archive_of(p: &Pack, root: &Path) -> std::path::PathBuf {
+    let Source::Zip(z) = &p.source else {
+        panic!("a zip pack")
+    };
+    root.join(".downloads").join(format!("{}.zip", z.sha256))
+}
+
+#[test]
+fn a_build_that_fails_keeps_the_download_and_a_good_install_lets_it_go() {
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let good = kit_pack(src.path());
+    let mut bad = good.clone();
+    bad.build.as_mut().unwrap().keys[0].instrument = "Cowbell".into();
+    installed(&bad, root.path()).unwrap_err();
+    assert!(
+        archive_of(&bad, root.path()).is_file(),
+        "kept for the next try"
+    );
+    installed(&good, root.path()).unwrap();
+    assert!(
+        !archive_of(&good, root.path()).exists(),
+        "let go once in place"
+    );
+}
+
+#[test]
+fn an_install_without_room_is_refused_before_anything_is_fetched() {
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let p = kit_pack(src.path());
+    let need = p.space_needed();
+    let mut m = Manager::with_transport(
+        root.path(),
+        manifest(vec![p.clone()]),
+        Arc::new(Net::new()),
+        Patience::none(),
+    );
+    m.set_free_space(Arc::new(move |_| Some(need - 1)));
+    m.install(&p.id);
+    let e = m
+        .wait_idle(Duration::from_secs(60))
+        .remove(0)
+        .result
+        .unwrap_err();
+    assert!(
+        matches!(e, cantus_content::install::InstallError::NoSpace { need: n, .. } if n == need),
+        "{e}"
+    );
+    assert!(!archive_of(&p, root.path()).exists(), "nothing fetched");
+    m.set_free_space(Arc::new(move |_| Some(need)));
+    m.install(&p.id);
+    assert!(m
+        .wait_idle(Duration::from_secs(60))
+        .remove(0)
+        .result
+        .is_ok());
 }

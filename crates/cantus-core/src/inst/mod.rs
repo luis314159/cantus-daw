@@ -95,6 +95,36 @@ impl InstrumentKind {
         dispatch!(self, m::READY)
     }
 
+    /// Keys stored with every new instance, at today's value: a model version (Chorda).
+    pub fn stored_versions(self) -> &'static [(&'static str, f32)] {
+        match self {
+            InstrumentKind::Chorda => &[("model", chorda::MODEL)],
+            _ => &[],
+        }
+    }
+
+    /// Keys whose meaning a later round changed, with the value a spec written before
+    /// they existed means: what a file with no schema of its own (a user preset, a
+    /// DAWproject state) reads when the key is absent. Exemplar's round robin was seeded
+    /// before round 28; Chorda's first model is 1.
+    pub fn unversioned_firsts(self) -> &'static [(&'static str, f32)] {
+        match self {
+            InstrumentKind::Sampler => &[("rr.order", 0.0)],
+            InstrumentKind::Chorda => &[("model", 1.0)],
+            _ => &[],
+        }
+    }
+
+    /// Whether a parameter may be automated (a clip may drive it): every one but those a
+    /// kind derives off the audio thread — Chorda's tuning, which designs its strings
+    /// (ADR 0059).
+    pub fn automatable(self, key: &str) -> bool {
+        match self {
+            InstrumentKind::Chorda => !chorda::DESIGN_KEYS.contains(&key),
+            _ => true,
+        }
+    }
+
     /// Every parameter the generic editors list (knobs, automation, a plug-in export). A
     /// kind with a structured space (zones, matrix slots) may accept more keys through
     /// [`param`](Self::param) than it lists here.
@@ -183,9 +213,15 @@ pub struct NativeSpec {
 
 impl NativeSpec {
     pub fn new(kind: InstrumentKind) -> Self {
+        let mut params = BTreeMap::new();
+        // A model version is stored with every instance (ADR 0059): a later model never
+        // changes a song made with this one.
+        for (k, v) in kind.stored_versions() {
+            params.insert(k.to_string(), *v);
+        }
         NativeSpec {
             kind,
-            params: BTreeMap::new(),
+            params,
             text: BTreeMap::new(),
         }
     }
@@ -198,6 +234,12 @@ impl NativeSpec {
         let mut s = self.clone();
         if self.kind.calibration_db() != 0.0 && !s.is_stored(TRIM_KEY) {
             s.set(TRIM_KEY, self.get(TRIM_KEY));
+        }
+        // A key whose default changed is spelled out too (Exemplar's round robin, round 28).
+        for (k, _) in self.kind.unversioned_firsts() {
+            if !s.is_stored(k) {
+                s.set(k, self.get(k));
+            }
         }
         s
     }
@@ -218,6 +260,21 @@ impl NativeSpec {
                     s.clear(TRIM_KEY);
                 }
                 Some(_) => {}
+            }
+        }
+        // A key whose default changed: absent, the file was written before it existed (its
+        // first meaning); at today's default, it reads as a new instance does.
+        for (k, first) in s.kind.unversioned_firsts() {
+            match s.params.get(*k) {
+                None => {
+                    s.set(k, *first);
+                }
+                Some(&v) => {
+                    let stored_anyway = s.kind.stored_versions().iter().any(|(sk, _)| sk == k);
+                    if !stored_anyway && s.kind.param(k).is_some_and(|i| i.default == v) {
+                        s.clear(k);
+                    }
+                }
             }
         }
         s
@@ -284,6 +341,25 @@ impl NativeSpec {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_chorda_stores_its_model_and_a_preset_file_keeps_versions() {
+        // Every new Chorda holds the model it was made with (ADR 0059).
+        let c = NativeSpec::new(InstrumentKind::Chorda);
+        assert_eq!(c.params.get("model"), Some(&chorda::MODEL));
+        // A file written before the key existed reads its first meaning.
+        let mut old = NativeSpec::new(InstrumentKind::Chorda);
+        old.clear("model");
+        assert_eq!(old.read_unversioned().params.get("model"), Some(&1.0));
+        // An Exemplar preset saved before round 28 keeps its seeded round robin; one saved
+        // now spells the order out and reads back as a new instance.
+        let before = NativeSpec::new(InstrumentKind::Sampler);
+        assert_eq!(before.clone().read_unversioned().get("rr.order"), 0.0);
+        let now = NativeSpec::new(InstrumentKind::Sampler);
+        let written = now.spell_out_trim();
+        assert!(written.is_stored("rr.order"));
+        assert_eq!(written.read_unversioned(), now);
+    }
 
     #[test]
     fn every_kind_describes_itself_consistently() {
@@ -359,12 +435,15 @@ mod tests {
                     assert!(!kind.is_text_key(TRIM_KEY));
                     // Unversioned files: written spelled out, read back as they were;
                     // one with no trim is from before the calibration.
+                    // (The trim alone: Exemplar's round robin is versioned the same way,
+                    // `a_chorda_stores_its_model_and_a_preset_file_keeps_versions`.)
+                    let trim = |x: &NativeSpec| x.params.get(TRIM_KEY).copied();
                     let written = s.spell_out_trim();
                     assert!(written.is_stored(TRIM_KEY));
-                    assert_eq!(written.clone().read_unversioned(), s);
-                    assert_eq!(old.spell_out_trim(), old);
-                    assert_eq!(old.clone().read_unversioned(), old);
-                    assert_eq!(s.clone().read_unversioned(), old);
+                    assert_eq!(trim(&written.clone().read_unversioned()), trim(&s));
+                    assert_eq!(trim(&old.spell_out_trim()), trim(&old));
+                    assert_eq!(trim(&old.clone().read_unversioned()), trim(&old));
+                    assert_eq!(trim(&s.clone().read_unversioned()), trim(&old));
                 }
                 _ => {
                     assert_eq!(s.spell_out_trim(), s);

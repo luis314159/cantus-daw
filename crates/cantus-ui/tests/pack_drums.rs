@@ -137,7 +137,8 @@ fn installed() -> Fixture {
         gain_db: 0.0,
         mics: vec![mic("A", -50.0), mic("B", 50.0), mic("C", 0.0)],
         keys: vec![
-            key("Snare", &[38]),
+            // One drum on two keys (as DRSKit's toms are): its turns are the drum's.
+            key("Snare", &[38, 40]),
             key("HatClosed", &[42]),
             key("HatOpen", &[46]),
         ],
@@ -146,7 +147,7 @@ fn installed() -> Fixture {
             release_ms: 30.0,
         }],
         round_robin: 2,
-        range_db: 30.0,
+        range_db: 24.0,
         keep: vec![],
     };
     let content = dir.path().join("Content");
@@ -293,7 +294,8 @@ fn the_kit_is_on_the_drums_shelf_and_comes_with_its_voices_and_a_group_per_drum(
     assert_eq!(
         rows,
         [
-            (38, "Snare".into()),
+            (38, "Snare \u{b7} D2".into()),
+            (40, "Snare \u{b7} E2".into()),
             (42, "HatClosed".into()),
             (46, "HatOpen".into())
         ]
@@ -332,6 +334,38 @@ fn a_roll_never_plays_the_same_hit_twice_in_a_row() {
         2,
         "the layer's two hits in turn: {pitches:?}"
     );
+}
+
+#[test]
+fn a_drum_on_two_keys_and_an_accent_layer_take_their_own_turns() {
+    // A roll alternating the snare's two keys (a General MIDI part reaching one drum on
+    // both), then strokes with an accent on every fourth: no hit twice in a row on the
+    // drum, and the accents themselves alternate.
+    let f = installed();
+    let spec = kit_spec(&f);
+    let per = 12_000;
+    let notes: Vec<(f64, u8, u8)> = (0..8)
+        .map(|i| (i as f64 * 0.5, if i % 2 == 0 { 38 } else { 40 }, 100))
+        .collect();
+    let out = play(&spec, &notes, 0.5);
+    let pitches: Vec<f32> = (0..8).map(|i| pitch(&out[i * per..])).collect();
+    for w in pitches.windows(2) {
+        assert!(
+            (w[0] - w[1]).abs() > 10.0,
+            "a hit repeated across the keys: {pitches:?}"
+        );
+    }
+    let notes: Vec<(f64, u8, u8)> = (0..16)
+        .map(|i| (i as f64 * 0.5, 38, if i % 4 == 0 { 127 } else { 40 }))
+        .collect();
+    let out = play(&spec, &notes, 0.5);
+    let accents: Vec<f32> = (0..4).map(|i| pitch(&out[i * 4 * per..])).collect();
+    for w in accents.windows(2) {
+        assert!(
+            (w[0] - w[1]).abs() > 10.0,
+            "the accent repeated: {accents:?}"
+        );
+    }
 }
 
 #[test]
@@ -548,4 +582,36 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
         cantus_ui::views::samples_content::sounds::spec_of(&imp).get("rr.order"),
         1.0
     );
+}
+
+#[test]
+fn a_kits_rows_read_in_the_interfaces_language() {
+    let f = installed();
+    let inst = kit_spec(&f);
+    // A drum with no name of its own takes General MIDI's, in the interface's language.
+    let mut unnamed = NativeSpec::new(cantus_core::InstrumentKind::Sampler);
+    let z = cantus_core::inst::sampler::Zone::new(Some("C:/kit/s.wav".into()), 38, 38, 38);
+    for (k, v) in z.values_for(0) {
+        unnamed.set(&k, v).unwrap();
+    }
+    for (k, t) in z.texts_for(0) {
+        unnamed.set_text(&k, Some(t)).unwrap();
+    }
+    unnamed.set("kit", 1.0).unwrap();
+    let unnamed = InstrumentSpec::Native(unnamed);
+    let clip = cantus_core::Project::new("k").make_clip(
+        "c",
+        cantus_core::Ticks::ZERO,
+        cantus_core::Ticks::beats(4),
+    );
+    let names = |i: &InstrumentSpec| {
+        let axis = cantus_ui::views::piano_roll::Axis::build(i, &clip);
+        (0..axis.len()).map(|r| axis.name(r)).collect::<Vec<_>>()
+    };
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (kit, gm) = (names(&inst), names(&unnamed));
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert_eq!(kit[0], "Caja \u{b7} D2", "{kit:?}");
+    assert_eq!(gm, ["Caja acústica"]);
+    assert_eq!(names(&unnamed), ["Acoustic Snare"]);
 }

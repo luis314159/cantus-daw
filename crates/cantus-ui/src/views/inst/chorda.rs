@@ -78,9 +78,20 @@ fn now_of(tele: &cantus_engine::Telemetry) -> Now {
     }
 }
 
-/// Whether the engine is still designing the tuning asked for.
-fn designing(tele: &cantus_engine::Telemetry) -> bool {
-    tele[tel::ALIVE] > 0.5 && tele[tel::DESIGNED] < 0.5
+/// While the engine is still designing the tuning asked for (the piano silent, or on its
+/// previous tuning): what to say, with the design's progress.
+pub fn designing(app: &CantusApp, spec: &NativeSpec) -> Option<String> {
+    let tele = app.inst_telemetry();
+    if tele[tel::ALIVE] < 0.5 || tele[tel::DESIGNED] > 0.5 {
+        return None;
+    }
+    let tuning = tuning_of(&values_of(spec));
+    let done =
+        cantus_engine::inst::chorda::progress(tuning, app.engine.sample_rate as f32).unwrap_or(0.0);
+    Some(crate::i18n::tf(
+        "chorda.designing_pct",
+        &[("pct", &format!("{:.0}", done * 100.0))],
+    ))
 }
 
 /// The height of a card with a `display` and a `body`, at 100 %.
@@ -132,6 +143,7 @@ fn display_for(h: f32, s: &Style, with_cells: bool) -> f32 {
 pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let tele = app.inst_telemetry();
     let now = now_of(&tele);
+    let busy = designing(app, spec);
     let (vs, _) = settings_from(&values_of(spec));
     let grip = vs.voice.damper as f32;
     let area = ui.max_rect();
@@ -156,7 +168,7 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Source,
         display_for(h1, s, false),
         &none,
-        |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip),
+        |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip, busy.as_deref()),
     );
     card(
         app,
@@ -210,7 +222,7 @@ pub fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
 pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     let tele = app.inst_telemetry();
     let now = now_of(&tele);
-    let busy = designing(&tele);
+    let busy = designing(app, spec);
     let (vs, hardness) = settings_from(&values_of(spec));
     let grip = vs.voice.damper as f32;
     let decay = vs.voice.decay;
@@ -246,7 +258,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Source,
         170.0,
         &["unison", "coupling", "phantom"],
-        |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip),
+        |b, d, sf| draw::grand(b, d, sf, &keys, &now, grip, busy.as_deref()),
     );
     card(
         app,
@@ -259,7 +271,7 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
         Function::Tone,
         170.0,
         &["a4", "stretch", "stiffness"],
-        |b, d, sf| draw::stretch(b, d, sf, &keys, a4, busy),
+        |b, d, sf| draw::stretch(b, d, sf, &keys, a4, busy.is_some()),
     );
 
     let r2 = rows.row(heights[1], &[0.5, 0.5]);
@@ -339,16 +351,22 @@ pub fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &Nativ
     );
 }
 
+/// The inspector's line: the name, A4 and the stretch as the editor's knobs read them.
+pub fn preview_text(spec: &NativeSpec) -> String {
+    format!(
+        "{} \u{b7} {} {:.1} Hz \u{b7} {} {:.0} %",
+        t(spec.kind.name_key()),
+        t("chorda.a4"),
+        spec.get("a4"),
+        t("chorda.stretch"),
+        spec.get("stretch") * 100.0
+    )
+}
+
 /// The inspector's small picture: three strings and a hammer, the tuning.
 pub fn preview(ui: &mut egui::Ui, spec: &NativeSpec) -> egui::Response {
     let s = Style::current().function(Function::Source);
-    let text = format!(
-        "{} \u{b7} A4 {:.1} Hz \u{b7} {} {:.0} %",
-        t(spec.kind.name_key()),
-        spec.get("a4"),
-        t("chorda.stretch"),
-        spec.get("stretch")
-    );
+    let text = preview_text(spec);
     let w = ui.available_width().max(s.s(160.0));
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, s.s(36.0)), Sense::hover());
     with_brush(&ui.painter_at(rect), |b| {

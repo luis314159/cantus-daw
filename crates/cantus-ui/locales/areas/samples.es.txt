@@ -26,6 +26,7 @@ samples.more_packs = Más paquetes…
 # Lo que pasó, al pie del explorador.
 samples.notice.installed = {pack} está instalado
 samples.notice.failed = {pack} no se instaló: {why}
+samples.notice.no_space = {pack} no se instaló: necesita {need} libres mientras se instala, y el disco tiene {free}.
 samples.notice.dropped = {name} colocado
 samples.notice.removed = {pack} se quitó
 
@@ -42,6 +43,7 @@ samples.state.update = Actualizar
 samples.state.busy = Instalando
 samples.detail.download = Descarga
 samples.detail.on_disk = En disco
+samples.detail.space = Espacio libre para instalar
 samples.detail.files = Archivos
 samples.detail.licence = Licencia
 samples.detail.checked = Licencia leída
