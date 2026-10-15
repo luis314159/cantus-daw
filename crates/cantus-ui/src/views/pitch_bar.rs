@@ -156,7 +156,7 @@ pub(super) fn show(
         || t("pitch.key_tip"),
     ) {
         egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
-            key_menu(app, ui, track, clip, &e);
+            key_menu(app, ui, track, clip, e);
         });
     }
     // A/B: the original, as it was sung.
@@ -166,7 +166,7 @@ pub(super) fn show(
         })
         .is_some_and(|r| r.clicked())
     {
-        compare(app, track, clip, &e);
+        compare(app, track, clip, e);
     }
     if show[0] {
         bar.divider(ui);
@@ -175,7 +175,7 @@ pub(super) fn show(
             t("pitch.join_tip")
         }) {
             if r.clicked() {
-                join_selection(app, track, clip, &e);
+                join_selection(app, track, clip, e);
             }
         }
         let reset = t("pitch.reset");
@@ -183,7 +183,7 @@ pub(super) fn show(
             t("pitch.reset_tip")
         }) {
             if r.clicked() {
-                reset_selection(app, track, clip, &e);
+                reset_selection(app, track, clip, e);
             }
         }
     }
@@ -239,7 +239,7 @@ pub(super) fn show(
             t("pitch.more_tip")
         }) {
             egui::Popup::menu(&resp).frame(menu_frame()).show(|ui| {
-                more_menu(app, ui, track, clip, &e, show);
+                more_menu(app, ui, track, clip, e, show);
             });
         }
     }
