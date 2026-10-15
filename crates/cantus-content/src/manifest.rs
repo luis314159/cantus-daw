@@ -354,6 +354,10 @@ pub struct KeyMap {
     /// stick; a balance a mixing engineer would set).
     #[serde(default, skip_serializing_if = "is_zero")]
     pub gain_db: f32,
+    /// What the drum is called in Cantus (the group's name, a row in the piano roll);
+    /// empty, the kit's own name for it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -515,6 +519,15 @@ impl Build {
             }
             if k.keys.is_empty() {
                 return Err(format!("{} has no key", k.instrument));
+            }
+            if k.label.contains(['=', '<', '>'])
+                || k.label.contains(char::is_control)
+                || k.label.len() > 64
+            {
+                return Err(format!(
+                    "{}: a label without = < > or line breaks, 64 bytes at most",
+                    k.instrument
+                ));
             }
             if !k.gain_db.is_finite() || k.gain_db.abs() > 48.0 {
                 return Err(format!("{}: gain within ±48 dB", k.instrument));

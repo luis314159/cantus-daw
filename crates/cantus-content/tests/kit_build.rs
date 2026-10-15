@@ -196,16 +196,19 @@ fn build_spec(unpacked: u64) -> Build {
                 instrument: "Snare".into(),
                 keys: vec![38, 40],
                 gain_db: 0.0,
+                label: String::new(),
             },
             KeyMap {
                 instrument: "HatClosed".into(),
                 keys: vec![42],
                 gain_db: 0.0,
+                label: String::new(),
             },
             KeyMap {
                 instrument: "HatOpen".into(),
                 keys: vec![46],
                 gain_db: 0.0,
+                label: String::new(),
             },
         ],
         chokes: vec![Choke {
@@ -558,6 +561,10 @@ fn a_build_step_is_checked_by_the_manifest() {
     );
     reject(&|p| b(p).keys[1].keys = vec![38], "a key used twice");
     reject(&|p| b(p).keys[0].keys.clear(), "an instrument with no key");
+    reject(
+        &|p| b(p).keys[0].label = "Snare=1".into(),
+        "a label that breaks the SFZ",
+    );
     reject(&|p| b(p).mics.clear(), "no microphones");
     reject(&|p| b(p).mics[1].channel = "A".into(), "a microphone twice");
     reject(&|p| b(p).mics[0].pan = 120.0, "a pan past the side");
@@ -771,4 +778,24 @@ fn a_built_pack_reports_its_unpacking_then_its_mixing_hit_by_hit() {
     assert!(phases[first_build..]
         .iter()
         .all(|ph| matches!(ph, Phase::Building { .. })));
+}
+
+#[test]
+fn a_drum_is_labelled_as_the_manifest_names_it() {
+    let src = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let mut p = kit_pack(src.path());
+    if let Some(b) = p.build.as_mut() {
+        b.keys[1].label = "Hi-hat closed".into();
+    }
+    installed(&p, root.path()).unwrap();
+    let text = std::fs::read_to_string(root.path().join("drs/Kit.sfz")).unwrap();
+    assert!(
+        text.contains("<group> group_label=Hi-hat closed group=1"),
+        "{text}"
+    );
+    assert!(
+        text.lines().any(|l| l == "<group> group_label=Snare"),
+        "unlabelled: the kit's name"
+    );
 }

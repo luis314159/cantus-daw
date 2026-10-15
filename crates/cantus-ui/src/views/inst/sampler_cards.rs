@@ -488,6 +488,20 @@ fn tools(
         }
         left = rr.left();
     }
+    // A drum kit (round 28): the piano roll and the channel rack show a row per drum.
+    let kw = 120.0 * k;
+    let kr = Rect::from_min_max(
+        pos2(left - gap - kw, row.top()),
+        pos2(left - gap, row.bottom()),
+    );
+    if kr.left() > x {
+        let on = spec.get("kit") >= 0.5;
+        let tip = format!("{} \u{b7} {}", t("smp.kit"), t("smp.kit_tip"));
+        if parts::led(ui, kr, s, on, Src::Key("smp.kit"), &tip).clicked() {
+            app.set_inst_value(track, "kit", if on { 0.0 } else { 1.0 }, false);
+        }
+        left = kr.left();
+    }
     let lr = Rect::from_min_max(
         pos2(left - gap - 132.0 * k, row.top()),
         pos2(left - gap, row.bottom()),

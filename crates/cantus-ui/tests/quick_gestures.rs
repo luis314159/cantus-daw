@@ -618,41 +618,45 @@ fn the_rack_opens_only_for_step_shaped_content() {
     let keys = p.tracks[LEAD].instrument.lanes();
     let drums = p.tracks[DRUMS].clips[0].clone();
     assert_eq!(
-        editor_for(&drums, kit, grid),
+        editor_for(&drums, kit.clone(), grid),
         ClipEditor::ChannelRack,
         "steps"
     );
     let melody = &p.tracks[LEAD].clips[0];
     assert_eq!(
-        editor_for(melody, keys, grid),
+        editor_for(melody, keys.clone(), grid),
         ClipEditor::PianoRoll,
         "long notes"
     );
     let empty = &p.tracks[BASS].clips[0];
     assert_eq!(
-        editor_for(empty, keys, grid),
+        editor_for(empty, keys.clone(), grid),
         ClipEditor::PianoRoll,
         "unknown: the roll"
     );
     let auto = &p.tracks[BASS].clips[1];
-    assert_eq!(editor_for(auto, keys, grid), ClipEditor::Automation);
+    assert_eq!(editor_for(auto, keys.clone(), grid), ClipEditor::Automation);
     let take = &p.tracks[VOICE].clips[0];
-    assert_eq!(editor_for(take, keys, grid), ClipEditor::Pitch);
+    assert_eq!(editor_for(take, keys.clone(), grid), ClipEditor::Pitch);
     // One note off every step grid, or one held longer than a step: the piano roll.
     let mut off = drums.clone();
     off.notes[1].start += Ticks(7);
     assert_eq!(
-        editor_for(&off, kit, grid),
+        editor_for(&off, kit.clone(), grid),
         ClipEditor::PianoRoll,
         "off the grid"
     );
     let mut held = drums.clone();
     held.notes[2].length = Ticks::QUARTER;
-    assert_eq!(editor_for(&held, kit, grid), ClipEditor::PianoRoll, "held");
+    assert_eq!(
+        editor_for(&held, kit.clone(), grid),
+        ClipEditor::PianoRoll,
+        "held"
+    );
     // The clip's own grid decides, not the rack's current one: sixteenths with the rack at
     // eighths still open in the rack, at sixteenths.
     assert_eq!(
-        rack_grid(&drums, kit, Ticks::SIXTEENTH * 2),
+        rack_grid(&drums, kit.clone(), Ticks::SIXTEENTH * 2),
         Some(Ticks::SIXTEENTH)
     );
 }
@@ -679,7 +683,7 @@ fn the_rack_opens_only_when_it_loses_nothing() {
         line.notes.push(n);
     }
     assert_eq!(
-        editor_for(&line, keys, Ticks::SIXTEENTH),
+        editor_for(&line, keys.clone(), Ticks::SIXTEENTH),
         ClipEditor::PianoRoll,
         "a sixteenth bass line on a synth: the piano roll"
     );
@@ -688,14 +692,14 @@ fn the_rack_opens_only_when_it_loses_nothing() {
         n.pitch = 42;
     }
     assert_eq!(
-        editor_for(&hats, keys, Ticks::SIXTEENTH),
+        editor_for(&hats, keys.clone(), Ticks::SIXTEENTH),
         ClipEditor::ChannelRack,
         "one pitch on a synth: its row shows it"
     );
     // A kit shows a row per pad (and per stray pitch): a pattern across pads, the rack.
     let kit = kit_inst.lanes();
     assert_eq!(
-        editor_for(&line, kit, Ticks::SIXTEENTH),
+        editor_for(&line, kit.clone(), Ticks::SIXTEENTH),
         ClipEditor::ChannelRack,
         "across a kit's rows"
     );
@@ -705,7 +709,7 @@ fn the_rack_opens_only_when_it_loses_nothing() {
     twin.id = cantus_core::NoteId(9_999);
     doubled.notes.push(twin);
     assert_eq!(
-        editor_for(&doubled, keys, Ticks::SIXTEENTH),
+        editor_for(&doubled, keys.clone(), Ticks::SIXTEENTH),
         ClipEditor::PianoRoll
     );
     // Review 7: triplets made in the rack at 1/16T open there — at 1/16T — whatever grid
@@ -715,9 +719,12 @@ fn the_rack_opens_only_when_it_loses_nothing() {
         let n = p.make_note(Ticks(160 * i), Ticks(160), 42, 90);
         trip.notes.push(n);
     }
-    assert_eq!(rack_grid(&trip, kit, Ticks::SIXTEENTH), Some(Ticks(160)));
     assert_eq!(
-        editor_for(&trip, kit, Ticks::SIXTEENTH),
+        rack_grid(&trip, kit.clone(), Ticks::SIXTEENTH),
+        Some(Ticks(160))
+    );
+    assert_eq!(
+        editor_for(&trip, kit.clone(), Ticks::SIXTEENTH),
         ClipEditor::ChannelRack
     );
     p.tracks.clear();

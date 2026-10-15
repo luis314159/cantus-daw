@@ -423,7 +423,11 @@ pub fn render(
             .map(|c| (c as u8 + 1, b.chokes[c].release_ms));
         built.regions += regions.len() * runs(&k.keys).len();
         parts.push(Part {
-            name: inst.name.clone(),
+            name: if k.label.trim().is_empty() {
+                inst.name.clone()
+            } else {
+                k.label.trim().to_string()
+            },
             keys: k.keys.clone(),
             choke,
             regions,

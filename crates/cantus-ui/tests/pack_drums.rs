@@ -127,6 +127,7 @@ fn installed() -> Fixture {
         instrument: name.into(),
         keys: keys.to_vec(),
         gain_db: 0.0,
+        label: String::new(),
     };
     let b = Build {
         kit: "kit.xml".into(),
@@ -277,6 +278,27 @@ fn the_kit_is_on_the_drums_shelf_and_comes_with_its_voices_and_a_group_per_drum(
         ["Snare", "HatClosed", "HatOpen"],
         "a group per drum, named"
     );
+    // A kit: the piano roll and the channel rack show a row per drum, by name.
+    assert_eq!(spec.get("kit"), 1.0);
+    let inst = InstrumentSpec::Native(spec);
+    let clip = cantus_core::Project::new("k").make_clip(
+        "c",
+        cantus_core::Ticks::ZERO,
+        cantus_core::Ticks::beats(4),
+    );
+    let axis = cantus_ui::views::piano_roll::Axis::build(&inst, &clip);
+    let rows: Vec<(u8, String)> = (0..axis.len())
+        .map(|i| (axis.pitch(i), axis.name(i)))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (38, "Snare".into()),
+            (42, "HatClosed".into()),
+            (46, "HatOpen".into())
+        ]
+    );
+    assert!(axis.pads(), "named rows, as a kit's");
 }
 
 /// The frequency a hit sounds at, from its zero crossings over its first 50 ms.
@@ -366,7 +388,11 @@ pub fn groove(vel: impl Fn(u8) -> u8) -> Vec<(f64, u8, u8)> {
             if bar == 1 && e == 7 {
                 v.push((b + 3.5, 46, vel(100)));
             } else if bar < 3 || e < 4 {
-                v.push((b + e as f64 * 0.5, 42, vel(if e % 2 == 0 { 92 } else { 70 })));
+                v.push((
+                    b + e as f64 * 0.5,
+                    42,
+                    vel(if e % 2 == 0 { 92 } else { 70 }),
+                ));
             }
         }
     }
@@ -401,15 +427,27 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
             pack: "drskit".into(),
             pack_name: pack.name.clone(),
             path: Path::new(&dir).join(&inst.file),
-            instrument: PackInstrument { gain_db: gain, ..inst },
+            instrument: PackInstrument {
+                gain_db: gain,
+                ..inst
+            },
             licence: pack.licence.clone(),
             author: "DrumGizmo".into(),
         },
     );
     let t0 = std::time::Instant::now();
     let imp = cantus_ui::views::samples_content::sounds::import_of(&choice).unwrap();
-    eprintln!("import: {} zones, {:?}, log {:?}", imp.zones.len(), t0.elapsed(), imp.log);
-    assert!(imp.log.iter().all(|l| !l.contains("unsupported")), "{:?}", imp.log);
+    eprintln!(
+        "import: {} zones, {:?}, log {:?}",
+        imp.zones.len(),
+        t0.elapsed(),
+        imp.log
+    );
+    assert!(
+        imp.log.iter().all(|l| !l.contains("unsupported")),
+        "{:?}",
+        imp.log
+    );
     let spec = InstrumentSpec::Native(cantus_ui::views::samples_content::sounds::spec_of(&imp));
     let own_cache = tempfile::tempdir().unwrap();
     cantus_engine::inst::stream::hub().set_cache_dir(own_cache.path().into());
@@ -419,7 +457,10 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
         let mut s = Song::new("drskit", 120.0, 1);
         let part = s.part("drums", spec.clone(), colors::BASS, TrackIcon::Drums);
         s.feel(part, Feel::TIGHT);
-        let ev: Vec<Ev> = notes.iter().map(|(b, k, v)| Ev::new(*b, 0.25, *k, *v)).collect();
+        let ev: Vec<Ev> = notes
+            .iter()
+            .map(|(b, k, v)| Ev::new(*b, 0.25, *k, *v))
+            .collect();
         s.clip(part, "c", 0.0, bars, &ev);
         let p = s.finish();
         let mut snap = cantus_core::Snapshot::compile(&p, 0);
@@ -439,7 +480,11 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
                 None => d.frames.len() * 4,
             })
             .sum();
-        eprintln!("in memory: {} MiB of sample heads ({} files)", bytes / 1_048_576, seen.len());
+        eprintln!(
+            "in memory: {} MiB of sample heads ({} files)",
+            bytes / 1_048_576,
+            seen.len()
+        );
         let t = std::time::Instant::now();
         let r = render(
             Arc::new(snap),
@@ -485,7 +530,10 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
     assert!(peak < 0.0, "headroom: {peak}");
     // A raw kit is peaky: at that gain an ordinary groove sits near the sampled piano
     // (Salamander −24.4 LUFS) and Lamina (−22.9), a little under them.
-    assert!((-28.0..=-24.0).contains(&lufs), "the groove's level: {lufs}");
+    assert!(
+        (-28.0..=-24.0).contains(&lufs),
+        "the groove's level: {lufs}"
+    );
     // Every velocity layer of every drum has at least two hits taking turns in order
     // (`rr.order` 1): a roll never plays the same sample twice in a row.
     use cantus_core::inst::sampler::zf;
@@ -496,5 +544,8 @@ fn the_real_drskit_plays_a_groove_at_the_calibrated_level() {
     }
     eprintln!("{} velocity layers", layers.len());
     assert!(layers.values().all(|n| *n >= 2.0), "{layers:?}");
-    assert_eq!(cantus_ui::views::samples_content::sounds::spec_of(&imp).get("rr.order"), 1.0);
+    assert_eq!(
+        cantus_ui::views::samples_content::sounds::spec_of(&imp).get("rr.order"),
+        1.0
+    );
 }

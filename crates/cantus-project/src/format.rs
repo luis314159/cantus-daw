@@ -670,7 +670,9 @@ fn migrate_26_to_27(_value: &mut Value) -> Result<(), String> {
 /// clip's note takes its turn by its ordinal on the track, so a roll never repeats a sample
 /// and a render from any point cycles as the whole one does). Every Exemplar saved before
 /// drew its turns from the notes' ids: its `rr.order` is written as 0, so it renders to the
-/// same bits it did; a value already there is kept.
+/// same bits it did; a value already there is kept. The same step brings Exemplar's `kit`
+/// (a drum kit's rows in the piano roll and the channel rack): absent, an Exemplar is a
+/// keyboard, as every older one was, so it writes nothing for it.
 fn migrate_27_to_28(value: &mut Value) -> Result<(), String> {
     write_sampler_default(value, "rr.order", 0.0)
 }

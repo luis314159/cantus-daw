@@ -1285,7 +1285,7 @@
     }
    ],
    "checked": "2026-10-15",
-   "installed_size": 489577120,
+   "installed_size": 489577116,
    "source": {
     "zip": {
      "url": "https://drumgizmo.org/kits/DRSKit/DRSKit2_1.zip",
@@ -1429,41 +1429,47 @@
       "keys": [
        35
       ],
-      "gain_db": 2.0
+      "gain_db": 2.0,
+      "label": "Kick, open"
      },
      {
       "instrument": "Kdrum_with_contact",
       "keys": [
        36
-      ]
+      ],
+      "label": "Kick"
      },
      {
       "instrument": "Snare_rim",
       "keys": [
        37
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Side stick"
      },
      {
       "instrument": "Snare",
       "keys": [
        38
       ],
-      "gain_db": 1.0
+      "gain_db": 1.0,
+      "label": "Snare"
      },
      {
       "instrument": "Snare_rest",
       "keys": [
        40
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Snare (rest)"
      },
      {
       "instrument": "Tom3",
       "keys": [
        41
       ],
-      "gain_db": -2.0
+      "gain_db": -2.0,
+      "label": "Tom 3 (low floor)"
      },
      {
       "instrument": "Tom2",
@@ -1471,7 +1477,8 @@
        43,
        45
       ],
-      "gain_db": -3.0
+      "gain_db": -3.0,
+      "label": "Tom 2 (floor)"
      },
      {
       "instrument": "Tom1",
@@ -1480,82 +1487,94 @@
        48,
        50
       ],
-      "gain_db": -1.0
+      "gain_db": -1.0,
+      "label": "Tom 1 (rack)"
      },
      {
       "instrument": "Hihat_closed_shank",
       "keys": [
        42
-      ]
+      ],
+      "label": "Hi-hat closed"
      },
      {
       "instrument": "Hihat_foot",
       "keys": [
        44
       ],
-      "gain_db": 8.0
+      "gain_db": 8.0,
+      "label": "Hi-hat pedal"
      },
      {
       "instrument": "Hihat_semi_open",
       "keys": [
        46
-      ]
+      ],
+      "label": "Hi-hat half open"
      },
      {
       "instrument": "Crash_left_shank",
       "keys": [
        49
       ],
-      "gain_db": 3.0
+      "gain_db": 3.0,
+      "label": "Crash left"
      },
      {
       "instrument": "Ride_tip",
       "keys": [
        51
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Ride"
      },
      {
       "instrument": "Ride_shank_bell",
       "keys": [
        53
       ],
-      "gain_db": 2.0
+      "gain_db": 2.0,
+      "label": "Ride bell"
      },
      {
       "instrument": "Crash_left_tip",
       "keys": [
        54
       ],
-      "gain_db": 5.0
+      "gain_db": 5.0,
+      "label": "Crash left, tip"
      },
      {
       "instrument": "Crash_right_tip",
       "keys": [
        55
       ],
-      "gain_db": 5.0
+      "gain_db": 5.0,
+      "label": "Crash right, tip"
      },
      {
       "instrument": "Hihat_closed",
       "keys": [
        56
       ],
-      "gain_db": 5.0
+      "gain_db": 5.0,
+      "label": "Hi-hat closed, tip"
      },
      {
       "instrument": "Crash_right_shank",
       "keys": [
        57
       ],
-      "gain_db": 3.0
+      "gain_db": 3.0,
+      "label": "Crash right"
      },
      {
       "instrument": "Hihat_open",
       "keys": [
        58
       ],
-      "gain_db": 3.0
+      "gain_db": 3.0,
+      "label": "Hi-hat open"
      },
      {
       "instrument": "Ride_shank",
@@ -1563,111 +1582,127 @@
        59,
        66
       ],
-      "gain_db": 3.0
+      "gain_db": 3.0,
+      "label": "Ride, shank"
      },
      {
       "instrument": "Crash_left_whisker",
       "keys": [
        60
       ],
-      "gain_db": 18.0
+      "gain_db": 18.0,
+      "label": "Crash left, brush"
      },
      {
       "instrument": "Hihat_open_tip",
       "keys": [
        61
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Hi-hat open, tip"
      },
      {
       "instrument": "Crash_right_whisker",
       "keys": [
        62
       ],
-      "gain_db": 12.0
+      "gain_db": 12.0,
+      "label": "Crash right, brush"
      },
      {
       "instrument": "Ride_rest",
       "keys": [
        63
-      ]
+      ],
+      "label": "Ride (rest)"
      },
      {
       "instrument": "Hihat_closed_whisker",
       "keys": [
        64
       ],
-      "gain_db": 16.0
+      "gain_db": 16.0,
+      "label": "Hi-hat closed, brush"
      },
      {
       "instrument": "Hihat_open_whisker",
       "keys": [
        65
       ],
-      "gain_db": 10.0
+      "gain_db": 10.0,
+      "label": "Hi-hat open, brush"
      },
      {
       "instrument": "Ride_whisker",
       "keys": [
        67
       ],
-      "gain_db": 20.0
+      "gain_db": 20.0,
+      "label": "Ride, brush"
      },
      {
       "instrument": "Ride_tip_bell",
       "keys": [
        68
       ],
-      "gain_db": 2.0
+      "gain_db": 2.0,
+      "label": "Ride bell, tip"
      },
      {
       "instrument": "Snare_circle_whisker",
       "keys": [
        69
       ],
-      "gain_db": 30.0
+      "gain_db": 30.0,
+      "label": "Snare, brush circle"
      },
      {
       "instrument": "Ride_tip_bell_chain",
       "keys": [
        70
       ],
-      "gain_db": 4.0
+      "gain_db": 4.0,
+      "label": "Ride bell with chain"
      },
      {
       "instrument": "Snare_whisker",
       "keys": [
        71
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Snare, brush"
      },
      {
       "instrument": "Tom1_whisker",
       "keys": [
        72
       ],
-      "gain_db": 4.0
+      "gain_db": 4.0,
+      "label": "Tom 1, brush"
      },
      {
       "instrument": "Ride_tip_chain",
       "keys": [
        73
       ],
-      "gain_db": 6.0
+      "gain_db": 6.0,
+      "label": "Ride with chain"
      },
      {
       "instrument": "Tom2_whisker",
       "keys": [
        74
       ],
-      "gain_db": 4.0
+      "gain_db": 4.0,
+      "label": "Tom 2, brush"
      },
      {
       "instrument": "Tom3_whisker",
       "keys": [
        76
       ],
-      "gain_db": 4.0
+      "gain_db": 4.0,
+      "label": "Tom 3, brush"
      }
     ],
     "chokes": [

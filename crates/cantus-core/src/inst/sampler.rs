@@ -71,6 +71,9 @@ pub const PARAMS: &[InstParamInfo] = &[
     // sample twice in a row, the same turns from any start), 0 seeded from the note's id
     // (every Exemplar saved before round 28 — schema 28's migration writes it). Round 28.
     p("rr.order", "smp.rr_order", 0.0, 1.0, 1.0, "", false, true),
+    // A drum kit (round 28): the piano roll and the channel rack show a row per drum — every
+    // key a zone plays, named by its group — instead of a keyboard ([`kit_lanes`]).
+    p("kit", "smp.kit", 0.0, 1.0, 0.0, "", false, true),
     p(
         "amp.attack",
         "smp.attack",
@@ -1033,4 +1036,164 @@ mod tests {
         assert_eq!(g.values[gf::ATTACK], None);
         assert_eq!(g.values_for(2), vec![("g2.release".to_string(), 40.0)]);
     }
+}
+
+/// General MIDI's name for a percussion key (35 … 81), as the GM 1 sound set lists them.
+pub fn gm_drum_name(key: u8) -> Option<&'static str> {
+    const NAMES: [&str; 47] = [
+        "Acoustic Bass Drum",
+        "Bass Drum 1",
+        "Side Stick",
+        "Acoustic Snare",
+        "Hand Clap",
+        "Electric Snare",
+        "Low Floor Tom",
+        "Closed Hi-Hat",
+        "High Floor Tom",
+        "Pedal Hi-Hat",
+        "Low Tom",
+        "Open Hi-Hat",
+        "Low-Mid Tom",
+        "Hi-Mid Tom",
+        "Crash Cymbal 1",
+        "High Tom",
+        "Ride Cymbal 1",
+        "Chinese Cymbal",
+        "Ride Bell",
+        "Tambourine",
+        "Splash Cymbal",
+        "Cowbell",
+        "Crash Cymbal 2",
+        "Vibraslap",
+        "Ride Cymbal 2",
+        "Hi Bongo",
+        "Low Bongo",
+        "Mute Hi Conga",
+        "Open Hi Conga",
+        "Low Conga",
+        "High Timbale",
+        "Low Timbale",
+        "High Agogo",
+        "Low Agogo",
+        "Cabasa",
+        "Maracas",
+        "Short Whistle",
+        "Long Whistle",
+        "Short Guiro",
+        "Long Guiro",
+        "Claves",
+        "Hi Wood Block",
+        "Low Wood Block",
+        "Mute Cuica",
+        "Open Cuica",
+        "Mute Triangle",
+        "Open Triangle",
+    ];
+    key.checked_sub(35)
+        .and_then(|i| NAMES.get(i as usize))
+        .copied()
+}
+
+/// Whether an Exemplar is a drum kit (`kit` = 1, round 28): its editors show a row per
+/// drum rather than a keyboard.
+pub fn is_kit(spec: &super::NativeSpec) -> bool {
+    spec.get("kit") >= 0.5
+}
+
+/// A kit's rows: every key a zone plays (zones a controller starts have none), ascending,
+/// each named by the first zone's group name on it, else by General MIDI, else as a pitch.
+/// One pass over the stored keys, no map: the editors ask every frame.
+pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)> {
+    // Per key: the group of the first zone playing it (+1; 0: no zone).
+    let mut group_on = [0u8; 128];
+    let defaults = |i: usize| ZONE_PARAMS[i].default;
+    // The stored keys of a zone are next to each other in the map ("z1." sorts before
+    // "z10."): gather each zone's range, group and trigger as its keys go by.
+    let mut cur: Option<usize> = None;
+    let mut v = [0f32; 4];
+    let mut name = String::new();
+    let mut flush = |n: usize, v: &[f32; 4], name: &mut String| {
+        use std::fmt::Write;
+        name.clear();
+        let _ = write!(name, "z{n}.sample");
+        let sourced = spec.text.contains_key(name.as_str());
+        let generated = {
+            name.clear();
+            let _ = write!(name, "z{n}.gen");
+            spec.params.get(name.as_str()).is_some_and(|g| *g > 0.0)
+        };
+        if !(sourced || generated) || v[3] as usize == 5 {
+            return;
+        }
+        let (lo, hi) = (
+            v[0].clamp(0.0, 127.0) as usize,
+            v[1].clamp(0.0, 127.0) as usize,
+        );
+        for k in lo..=hi {
+            if group_on[k] == 0 {
+                group_on[k] = (v[2].clamp(0.0, 254.0) as u8) + 1;
+            }
+        }
+    };
+    let fresh = || {
+        [
+            defaults(zf::LO),
+            defaults(zf::HI),
+            defaults(zf::GROUP),
+            defaults(zf::TRIG),
+        ]
+    };
+    for (k, val) in &spec.params {
+        let Some((n, field)) = zone_key(k) else {
+            continue;
+        };
+        if cur != Some(n) {
+            if let Some(c) = cur {
+                flush(c, &v, &mut name);
+            }
+            cur = Some(n);
+            v = fresh();
+        }
+        match field {
+            "lo" => v[0] = *val,
+            "hi" => v[1] = *val,
+            "group" => v[2] = *val,
+            "trig" => v[3] = *val,
+            _ => {}
+        }
+    }
+    if let Some(c) = cur {
+        flush(c, &v, &mut name);
+    }
+    // A zone with only its sample stored (every number at its default) has no number key:
+    // it plays the whole keyboard.
+    for (k, _) in &spec.text {
+        if let Some((n, "sample")) = zone_key(k) {
+            name.clear();
+            let any = spec
+                .params
+                .range(format!("z{n}.")..format!("z{n}/"))
+                .next()
+                .is_some();
+            if !any {
+                for g in group_on.iter_mut().filter(|g| **g == 0) {
+                    *g = 1;
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for (key, g) in group_on.iter().enumerate() {
+        if *g == 0 {
+            continue;
+        }
+        let pitch = key as crate::model::Pitch;
+        let label = spec
+            .text(&format!("g{}.name", g - 1))
+            .map(str::to_string)
+            .or_else(|| gm_drum_name(pitch).map(str::to_string))
+            .unwrap_or_else(|| crate::model::pitch_name(pitch));
+        out.push((pitch, label));
+    }
+    out
 }
