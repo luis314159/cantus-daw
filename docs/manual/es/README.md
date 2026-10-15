@@ -284,8 +284,9 @@ una sola grabación junto a las tomas; sus archivos se quedan en el disco). El m
 apaga la **composición rápida** (entonces arrastrar en un carril selecciona tiempo y un
 clic selecciona una toma) y enciende o apaga la **composición agrupada**: las pistas cuyos
 canales están en un mismo grupo del mezclador —los micrófonos de una batería grabados
-juntos— se componen juntas, el mismo tramo de la misma toma en cada una. Cada cambio es un
-paso de deshacer.
+juntos— se componen juntas, el mismo tramo de la misma toma en cada una; sus costuras se
+mueven juntas, toman los mismos fundidos, y sus composiciones se cambian y se crean
+juntas. Cada cambio es un paso de deshacer.
 
 ### MIDI
 
@@ -486,6 +487,10 @@ sobre su automatización.
   cambiar la profundidad de su modulación. Las perillas moduladas llevan anillos de color
   (la profundidad, en el color del modulador), un punto que se mueve donde está ahora el
   parámetro y una marca violeta.
+- **En todas partes**: cada perilla de los instrumentos y efectos de Cantus, los faders,
+  panoramas y anchuras del mezclador (también los del máster) y los parámetros de un plug-in
+  alojado aceptan un modulador del mismo modo. También la **cantidad** de un modulador: deja
+  que una fuente aleatoria mueva cuánto se mueve un LFO (un nivel de anidamiento).
 - **Convertir en automatización**: la tecla de convertir de una ruta (o *Modular… ▸
   Convertir en automatización*) hace del efecto de ese modulador un clip de automatización
   sobre la selección de tiempo (si no, el bucle; si no, la canción) y quita la ruta, en un

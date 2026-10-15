@@ -135,3 +135,70 @@ Nothing that is not the owner's: judging the comp crossfades and the modulators 
 - `processor_pass.rs` calls `auto_hosted` before each pass; `processor_msg.rs`'s
   `sound_live` and `processor_snap.rs`'s `release_all` call the modulators' live-note hooks.
 - Shots: `F:\projects\daw-r28\shots\leaders\` (`shoot_modulators`, `shoot_comping`).
+
+## Review 1
+
+45 confirmed findings (duplicates across lenses merged: 33 distinct), 1 HIGH. Every one
+fixed; each testable one with a test seen failing first (noted where not).
+
+**The HIGH — Modulate… on any parameter.** Two shared paths so no editor can drift:
+`controls::Cell::show_in` for every effect cell (Aequalis's bands and output, Sibilus,
+Comprimo's engine and ratio cells, Discrimen and Speculum through `dynfx::param_labelled`,
+Saturator's character, Space's size and pre-delay) and `inst::frame::{wire, wired}` for
+every instrument knob (Calor/Modulus `bound`, Organum, Unda, Exemplar's cells, zone and
+group fields, the macros, the matrix depths — these also had no automation menu before).
+The desk's pan, fader and width, strips and master: `mixer::strip::DeskMod` (handle drop,
+Alt-drag depth, rings, live dot, the fader mark on the master too). Delay and Reverb (no
+editor) are modulated from their inspector rows. A kit probe records every parameter
+control drawn; `tests/modulate_everywhere.rs` opens all 25 native effect editors (each
+as its demo sets it up) and all 8 instruments in Play/Edit/Matrix and fails on any control
+without Modulate… — it caught the instrument macros and matrix depths the review had not
+listed.
+
+**Engine and host.** Note envelope: start levels computed per envelope and tempo at
+compile (exact for any number of gates). `live_on` let go at wrap/seek/stop and ignored
+when ahead. Hosted-only modulators: a control point at least once a pass (grid-aligned) and
+live envelopes stepped at hosted grid points (test: a live key on a CLAP gain while
+playing; before, the gain never moved). Hosted queue: only changes queued, 8 192 per unit
+(128 moving parameters at 16-sample resolution), and every drop on the way — engine queue,
+`ParamSync` merge, CLAP list (now 9 216), VST3's 128 queues — counted in
+`dropped_events` (tests: 40 moving parameters arrive at every grid point; 136 report
+drops). A parameter with no project value swings around the plug-in's own value.
+
+**Core.** Bake includes nested amount modulation (render test within 1 %; before, 25 %)
+and finds jumps by their left limit; `needs_trace` when the nesting follows audio. A
+follower whose strip is gone hears silence (`ListenAt::Silent`; the panel says so). New
+random sources seeded from their id. One `comp::seam_window` test for snapshot, command
+and arrangement (no looped seams). A crossfade at a file's edge shifts to where both sides
+have audio (engine test: equal power, no step). `InsertTrack` refuses kept-window ids the
+project holds. Fuzz: the comp arm builds real seams (and still asks refused ones); modulator
+and comp arms count what applied and assert it.
+
+**Comping in the app.** Explode leaves comps; slipped/moved windows stay in their comp;
+grouped comping moves seams, crossfades, switches and new comps; a swipe merges several
+windows' pitch edits; every-seam crossfade one undo step; *New comp* off at 26 with a
+message; the comp menu and the Modulate… list scroll (title, New, Bake stay in view, a
+modulator is never offered its own amount); merge waits for loading, renders on a worker,
+named in the interface's language, its test reads the bounce back (A left, B right,
+equal-power seam).
+
+**UI.** Nesting reachable (the amount is a parameter row); recording from a plug-in window
+records every parameter of a frame (`PluginHost::take_tweaks`); hosted instrument rows
+cache the plug-in's text by value and allocate nothing per frame; list rows have hover
+hints; a pending bake or merge wakes the frame loop; the section test asserts every band,
+the master's, and folding.
+
+**DSP_VERSION 5** (commit `ad83fbf`): the Aequalis fix, measured — a 1 kHz bell raised to
++12 dB from 0 dB rendered 0.0 dB before, 12 dB now; no golden hash moved.
+
+Not covered by a failing-first test (said why): the wake-up while a bake or merge is pending
+(a repaint request, no observable state in a headless frame); the merge's wait for a pitch
+render (the wait is `samples.loading()`, which export already relies on); the hover hint.
+
+Files touched outside my area this review: `cantus-host` `session.rs`,
+`session_inst_idle.rs`, `backend.rs` (`ParamOut::lost_in`), `vst3/audio_thread.rs`;
+`cantus-dsp/src/lib.rs` (`DSP_VERSION`); `cantus-ui` `eq_editor_panel.rs`,
+`fx/{deesser,dynfx,saturator,space}.rs`, `comp_editor.rs`, `inst/{analog_parts,
+organ_parts,wavetable_parts,sampler_parts,sampler_cards,sampler_map}.rs`,
+`inspector_mini.rs`, `inspector.rs`, `mixer_parts.rs`, `kit/widgets.rs` (`Param::plain`, the
+probe note).

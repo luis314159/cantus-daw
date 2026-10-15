@@ -104,3 +104,28 @@ edited on their lanes.
   application's swipes (default crossfades, pitch kept), seams by hand from the real
   arrangement, comps switched and back whole, flatten, merge (a file on disk), grouped
   comping, quick swipe; schema 29.
+
+## Amended by review 1 (round 28)
+
+- **One test of what can be a seam's side** (`cantus_core::comp::seam_window`: a
+  playing-lane audio window, neither reversed nor looping) for the snapshot, the seam
+  command and the arrangement: no seam is shown or moved that the engine does not play.
+- **A crossfade never reads past a file's edge**: where a window starts on its file's
+  first frame (or ends on its last) the stretch moves to the side that has audio, still
+  equal-power over the whole length (`snapshot::audio_room`).
+- **A comp window is the comp's by what it shows, wherever it is**: a window slipped or
+  moved stays in its comp through switch, new and merge.
+- **Grouped comping covers the comp, not only swipes**: a seam moved (by its handle or a
+  window's edge), a seam's crossfade, *every seam's* crossfade, a switch and a new comp act
+  on every track of the group, each one undo step (`comping::move_seam`).
+- **A swipe over several edited windows of one take keeps each one's pitch edits**, merged
+  over each window's own stretch of the source (renumbered; the first's alone if they
+  could not make one valid edit).
+- **Explode takes leaves the comps with their track**; `InsertTrack` refuses a track whose
+  kept windows share an id with anything the project or the track holds.
+- **Flatten and merge** waits for every source and pitch render still loading, renders on
+  a worker (`cantus-merge`), and is used only if the project has not moved meanwhile; the
+  new recording is named in the interface's language (`comping.merged_name`).
+- *Crossfade for every seam* is one undo step with the project's default; *New comp* is
+  off at 26 comps (and says so); the comp menu scrolls.
+

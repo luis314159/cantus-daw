@@ -135,3 +135,43 @@ undo step; a loop pass writes over what the previous one wrote.
   (`Aequalis::is_active`).
 - Not shared yet: the follower is our own few lines (`eval::Follower`); dynfx's
   `dynfx_follow.rs` arrived on another branch.
+
+## Amended by review 1 (round 28)
+
+- **Every parameter control offers modulation, through two shared paths.** An effect's
+  cell goes through `controls::Cell::show_in` (its automation and its modulation answered
+  through the `FxHost`), an instrument's knob through `inst::frame::{wire, wired}`: no
+  editor builds its own. The desk's pan, fader and width (strips and master) go through
+  `mixer::strip::DeskMod` (the handle's drop, Alt-drag, rings, live dot, the fader's
+  mark); an effect with no editor of its own is modulated from its inspector rows; a
+  modulator's **amount** is a parameter row (nesting is reachable). A kit probe
+  (`kit::automate::probe`) records every parameter control drawn and whether it offered
+  modulation; `tests/modulate_everywhere.rs` opens every native effect and instrument
+  editor, in every view, and fails on any that does not. A number that is no parameter of
+  anything (a drum pad's field) says so (`Param::plain`).
+- **Hosted queues take only changes**: an inner grid point queues a hosted value only when
+  it differs from the last one queued for that lane, and a unit's queue holds 8 192 — every
+  grid point of a full pass for 128 parameters moving at once (VST3's own limit per block).
+  Whatever finds no room anywhere on the way — the engine's queue, the plug-in host's
+  merge, a CLAP event list (now `HOSTED_QUEUE + 1 024`), a VST3 block's 128 queues — is
+  counted in `EngineStats::dropped_events`, never silent.
+- **A parameter the project holds no value for** swings around what the plug-in held when
+  it was first driven (`Known::auto_base`), never around what was last sent.
+- **Modulators that drive only hosted parameters** get a control point at least once a pass
+  while playing (on the grid, so block sizes still agree), so their state steps and the
+  interface hears them; an envelope opened by live notes steps at every hosted grid point.
+- **A live retrigger belongs to where it was played**: a wrap, a seek or a stop lets it go,
+  and a live note-on ahead of the song is ignored.
+- **The note envelope is exact over any number of gates**: the level each gate starts from
+  is computed once per envelope and tempo when the modulator is compiled
+  (`Gates::with_levels`), not by walking back eight gates.
+- **Bake** includes the modulation of the baked modulator's amount (one level of nesting,
+  as the engine plays it), traces the render when anything there follows audio
+  (`bake::needs_trace`), and finds every jump by its value a tick before (so a jump on a
+  slope is held at its own tick).
+- **A follower whose strip is gone hears silence** (`ListenAt::Silent`), and the panel
+  says so; **a new random source takes its seed from its id** (1…999), so two do not move
+  together.
+- **Recording from a plug-in's window** records every parameter the window moved in a
+  frame: the host keeps each command it ran (`PluginHost::take_tweaks`).
+
