@@ -550,6 +550,24 @@ pub enum Command {
         id: TrackId,
         open: bool,
     },
+    /// Put a modulator on a track, a strip or the master, at `index` in its panel
+    /// (ADR 0057). Refused for a modulator that is not valid, an id already used, a host
+    /// that is gone or full.
+    InsertModulator {
+        host: crate::modulator::ModHost,
+        index: usize,
+        modulator: Box<crate::modulator::Modulator>,
+    },
+    /// Take a modulator away (its routes with it).
+    RemoveModulator {
+        id: crate::model::ModulatorId,
+    },
+    /// Replace a modulator, found by its id, whole: a source edited, a route added or
+    /// removed, a depth dragged — one command, so a drag merges into one step and its
+    /// inverse is simply the modulator as it was.
+    SetModulator {
+        modulator: Box<crate::modulator::Modulator>,
+    },
     /// Put a clip into a link group (`Some`) or take it out of one (`None`) (ADR 0037).
     /// Joining a group is refused unless the clip already has the group's content: the
     /// builders send a `SetClipContent` first ("Link to…"). Taking a clip out keeps its
@@ -715,6 +733,9 @@ impl Command {
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetClipPitch { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
+            InsertModulator { .. } => "cmd.insert_modulator",
+            RemoveModulator { .. } => "cmd.remove_modulator",
+            SetModulator { .. } => "cmd.set_modulator",
             SetTrackInput { .. } => "cmd.set_track_input",
             SetTrackArmed { .. } => "cmd.set_track_armed",
             SetTrackTakesOpen { .. } => "cmd.set_track_takes_open",
@@ -1068,6 +1089,7 @@ impl Command {
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
+                crate::modulator::check_new(project, &track.modulators)?;
                 for (i, c) in track.clips.iter().enumerate() {
                     check_joins(project, c)?;
                     // The track's own clips must agree with each other too: the project
@@ -1163,6 +1185,7 @@ impl Command {
                 if project.strip(strip.id).is_some() {
                     return Err(CommandError::DuplicateId(strip.id.0));
                 }
+                crate::modulator::check_new(project, &strip.modulators)?;
                 let id = strip.id;
                 project.strips.insert(index, *strip);
                 Ok(RemoveStrip { id })
@@ -2154,6 +2177,13 @@ impl Command {
                 let old = std::mem::replace(&mut t.automation_open, open);
                 Ok(SetTrackAutomationOpen { id, open: old })
             }
+            InsertModulator {
+                host,
+                index,
+                modulator,
+            } => crate::modulator::apply_insert(project, host, index, modulator),
+            RemoveModulator { id } => crate::modulator::apply_remove(project, id),
+            SetModulator { modulator } => crate::modulator::apply_set(project, modulator),
             SetClipLane { track, clip, lane } => {
                 let t = project
                     .track_mut(track)

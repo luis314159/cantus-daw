@@ -34,6 +34,7 @@ id_type!(StripId, "s");
 id_type!(GroupId, "g");
 id_type!(AudioSourceId, "a");
 id_type!(LinkId, "l");
+id_type!(ModulatorId, "m");
 
 impl StripId {
     /// The master, wherever an effect's host is named by a strip id (ADR 0026): effect
@@ -494,6 +495,10 @@ pub struct Track {
     /// The automation lanes are shown under the track (ADR 0027). Shown unless hidden.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub automation_open: bool,
+    /// The track's modulators (ADR 0057): LFOs, envelopes, followers, steps and random
+    /// sources driving any parameter. Schema 28; empty is every older project.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
 }
 
 fn is_true(x: &bool) -> bool {
@@ -802,6 +807,9 @@ pub struct MixerStrip {
     /// The group whose separator the strip sits behind, if any.
     #[serde(default)]
     pub group: Option<GroupId>,
+    /// The strip's modulators (ADR 0057, schema 28).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
 }
 
 impl MixerStrip {
@@ -936,6 +944,9 @@ pub struct Master {
     /// The whole master chain in or out.
     #[serde(default = "yes")]
     pub fx_enabled: bool,
+    /// The master's modulators (ADR 0057, schema 28).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modulators: Vec<crate::modulator::Modulator>,
 }
 
 fn yes() -> bool {
@@ -951,6 +962,7 @@ impl Default for Master {
             phase_invert: false,
             effects: Vec::new(),
             fx_enabled: true,
+            modulators: Vec::new(),
         }
     }
 }
@@ -1385,6 +1397,7 @@ impl Project {
             armed: false,
             takes_open: false,
             automation_open: true,
+            modulators: Vec::new(),
         }
     }
 
@@ -1407,6 +1420,7 @@ impl Project {
             color: None,
             dock: Dock::Middle,
             group: None,
+            modulators: Vec::new(),
         }
     }
 

@@ -168,11 +168,14 @@ pub struct Snapshot {
     /// Every automated target, one function of time each (ADR 0027), in target order.
     /// Empty — every project without automation clips — and the engine does nothing new.
     pub automation: Vec<crate::automation::AutoLane>,
+    /// Every modulator that drives something (ADR 0057), in host order; their targets
+    /// have lanes in `automation`. Empty — every project without modulators.
+    pub modulators: Vec<crate::modulator::compile::ModPlan>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
-        let automation = crate::automation::compile::compile(project);
+        let mut automation = crate::automation::compile::compile(project);
         let tracks = project
             .tracks
             .iter()
@@ -192,7 +195,9 @@ impl Snapshot {
                 input: t.input.clone(),
                 armed: t.armed,
             })
-            .collect();
+            .collect::<Vec<_>>();
+        // Modulators (ADR 0057): a lane for every modulated target, and their plans.
+        let modulators = crate::modulator::compile::compile(project, &tracks, &mut automation);
         Snapshot {
             revision,
             tempo_bpm: project.tempo_bpm,
@@ -252,6 +257,7 @@ impl Snapshot {
             master_fx_enabled: project.master.fx_enabled,
             recording: project.recording.clone(),
             automation,
+            modulators,
         }
     }
 
