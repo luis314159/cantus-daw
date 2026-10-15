@@ -1,6 +1,7 @@
 //! The snap group (ADR 0052): the grid and the snap of the editor being worked in — the
 //! arrangement, the piano roll or the channel rack (FL's global snap, ours following the
-//! focus). The editor's glyph, its grid (a menu) and its SNAP lamp in one row; the same values the
+//! focus); in the piano roll's pane, the pitch editor (an audio clip, its own grid, always
+//! snapping) or the automation editor (an automation clip, on the arrangement's grid). The editor's glyph, its grid (a menu) and its SNAP lamp in one row; the same values the
 //! editor's own toolbar shows, so the two never disagree. The rack is always on its grid:
 //! its lamp is lit and does not switch off.
 
@@ -21,14 +22,29 @@ pub enum Editor {
     Arrangement,
     PianoRoll,
     Rack,
+    /// The pitch editor in the piano roll's pane (an audio clip, ADR 0054).
+    Pitch,
+    /// The automation editor in the piano roll's pane (an automation clip, ADR 0027).
+    Automation,
 }
 
 impl Editor {
-    fn pane(self) -> Pane {
+    fn glyph(self) -> crate::kit::glyph::Glyph {
         match self {
-            Editor::Arrangement => Pane::Arrangement,
-            Editor::PianoRoll => Pane::PianoRoll,
-            Editor::Rack => Pane::ChannelRack,
+            Editor::Arrangement => Pane::Arrangement.glyph(),
+            Editor::PianoRoll | Editor::Pitch => Pane::PianoRoll.glyph(),
+            Editor::Rack => Pane::ChannelRack.glyph(),
+            Editor::Automation => crate::kit::glyph::Glyph::Automate,
+        }
+    }
+
+    fn title_key(self) -> &'static str {
+        match self {
+            Editor::Arrangement => Pane::Arrangement.title_key(),
+            Editor::PianoRoll => Pane::PianoRoll.title_key(),
+            Editor::Rack => Pane::ChannelRack.title_key(),
+            Editor::Pitch => "topbar.editor.pitch",
+            Editor::Automation => "topbar.editor.automation",
         }
     }
 }
@@ -39,7 +55,18 @@ pub fn focused(app: &CantusApp) -> Editor {
     match app.focus {
         EditFocus::PianoRoll => match app.central {
             CentralView::ChannelRack => Editor::Rack,
-            _ => Editor::PianoRoll,
+            // The pane shows the editor of the clip chosen (`piano_roll::show`).
+            _ => {
+                let clip = app
+                    .selected_track
+                    .zip(app.selected_clip)
+                    .and_then(|r| crate::clips::clip_of(app.project(), r));
+                match clip {
+                    Some(c) if c.audio.is_some() => Editor::Pitch,
+                    Some(c) if c.automation.is_some() => Editor::Automation,
+                    _ => Editor::PianoRoll,
+                }
+            }
         },
         _ => Editor::Arrangement,
     }
@@ -48,17 +75,19 @@ pub fn focused(app: &CantusApp) -> Editor {
 /// The grid and snap of `e`.
 pub fn grid_of(app: &CantusApp, e: Editor) -> (Ticks, bool) {
     match e {
-        Editor::Arrangement => (app.arrangement.grid, app.arrangement.snap),
+        Editor::Arrangement | Editor::Automation => (app.arrangement.grid, app.arrangement.snap),
         Editor::PianoRoll => (app.piano_roll.grid, app.piano_roll.snap),
         Editor::Rack => (app.rack.grid, true),
+        Editor::Pitch => (app.pitch.view.grid, true),
     }
 }
 
 /// Set `e`'s grid.
 pub fn set_grid(app: &mut CantusApp, e: Editor, grid: Ticks) {
     match e {
-        Editor::Arrangement => app.arrangement.grid = grid,
+        Editor::Arrangement | Editor::Automation => app.arrangement.grid = grid,
         Editor::PianoRoll => app.piano_roll.grid = grid,
+        Editor::Pitch => app.pitch.view.grid = grid,
         // As the rack's own grid menu does: from the pattern's start, fitted to the width.
         Editor::Rack => {
             app.rack.grid = grid;
@@ -71,9 +100,9 @@ pub fn set_grid(app: &mut CantusApp, e: Editor, grid: Ticks) {
 /// Switch `e`'s snap (the rack has none to switch).
 pub fn toggle_snap(app: &mut CantusApp, e: Editor) {
     match e {
-        Editor::Arrangement => app.arrangement.snap = !app.arrangement.snap,
+        Editor::Arrangement | Editor::Automation => app.arrangement.snap = !app.arrangement.snap,
         Editor::PianoRoll => app.piano_roll.snap = !app.piano_roll.snap,
-        Editor::Rack => {}
+        Editor::Rack | Editor::Pitch => {}
     }
 }
 
@@ -123,7 +152,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         Vec2::splat(13.0 * k),
     );
     with_brush(ui.painter(), |b| {
-        crate::kit::glyph::paint(b, g, e.pane().glyph(), s.t.text_dim)
+        crate::kit::glyph::paint(b, g, e.glyph(), s.t.text_dim)
     });
     let field = Rect::from_min_size(
         Pos2::new(r.left() + GLYPH_W * k, r.center().y - row_h * 0.5),
@@ -138,7 +167,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         kit::well::menu_field(b, field, s, st, value, false)
     });
     if st.hovered {
-        let name = format!("{} \u{2014} {}", t("topbar.grid"), t(e.pane().title_key()));
+        let name = format!("{} \u{2014} {}", t("topbar.grid"), t(e.title_key()));
         let caps = Caps {
             menu: true,
             ..Caps::NONE
@@ -166,7 +195,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     let (_, snap_now) = grid_of(app, e);
     let mut st = State::of(&resp, snap_now);
-    if e == Editor::Rack {
+    if matches!(e, Editor::Rack | Editor::Pitch) {
         st.disabled = true;
     }
     with_brush(ui.painter(), |b| {
@@ -175,6 +204,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     if st.hovered {
         let tip = if e == Editor::Rack {
             t("topbar.snap_rack")
+        } else if e == Editor::Pitch {
+            t("topbar.snap_pitch")
         } else {
             t("topbar.snap_tip")
         };

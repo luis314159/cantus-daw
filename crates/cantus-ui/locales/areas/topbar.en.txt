@@ -69,6 +69,9 @@ topbar.accent_tip = Accent the first beat of each bar
 topbar.grid = Grid
 topbar.snap_tip = Snap to the grid in the editor being worked in
 topbar.snap_rack = The channel rack is always on its grid
+topbar.editor.pitch = Pitch editor
+topbar.editor.automation = Automation editor
+topbar.snap_pitch = The pitch editor’s grid is what Quantise timing moves notes to: there is no snap to switch
 
 # CPU, RAM, voices, dropouts
 topbar.cpu = CPU

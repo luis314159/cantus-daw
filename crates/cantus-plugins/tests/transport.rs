@@ -663,3 +663,38 @@ fn the_editors_transport_is_the_hosts_at_the_end_of_the_block() {
     p.process(&mut l, &mut r, None, &[]);
     assert_eq!(view.transport(), Transport::default());
 }
+
+/// Integration review: a block that ends exactly at the host's loop end (a host that
+/// splits its blocks there) — the block's last frame is one frame before the loop's end,
+/// not one before its start (the end position has already wrapped).
+#[test]
+fn the_last_frame_of_a_block_ending_at_the_loop_end_is_before_the_wrap() {
+    use cantus_plugins::instance::{shared_for, HostTransport, Processor};
+    let shared = shared_for(
+        cantus_plugins::desc::of(EffectKind::Tremolo)
+            .unwrap()
+            .clap_id,
+    )
+    .unwrap();
+    let mut p = Processor::new(shared.clone(), SR);
+    // A frame is exactly 2^-15 beats (no rounding anywhere): 512 frames end on beat 8.
+    let tempo = 60.0 * f64::from(SR) / 32_768.0;
+    let inc = 1.0 / 32_768.0;
+    p.set_transport(Some(HostTransport {
+        playing: true,
+        tempo: Some(tempo),
+        beats: Some(8.0 - 512.0 * inc),
+        bar_start: Some(4.0),
+        time_sig: Some((4, 4)),
+        loop_beats: Some((4.0, 8.0)),
+        seconds: None,
+    }));
+    let (mut l, mut r) = (vec![0.5f32; 512], vec![0.5f32; 512]);
+    p.process(&mut l, &mut r, None, &[]);
+    let t = shared.host_transport().expect("seen");
+    let last = t.last_beats.unwrap();
+    assert!(
+        (last - (8.0 - inc)).abs() < 1e-9,
+        "the last frame at {last}"
+    );
+}

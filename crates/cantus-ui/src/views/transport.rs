@@ -515,6 +515,8 @@ pub fn snap_editor(app: &CantusApp) -> (&'static str, cantus_core::Ticks, bool) 
         snap::Editor::Arrangement => "arrangement",
         snap::Editor::PianoRoll => "piano_roll",
         snap::Editor::Rack => "rack",
+        snap::Editor::Pitch => "pitch",
+        snap::Editor::Automation => "automation",
     };
     (name, g, on)
 }
