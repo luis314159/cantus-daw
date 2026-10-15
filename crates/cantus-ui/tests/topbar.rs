@@ -182,11 +182,39 @@ fn the_metre_editor_sets_the_time_signature() {
     assert_eq!(r.app.project().time_signature, TimeSignature::new(4, 4));
 }
 
+/// A note clip far from the edited one, in a pitch nothing else plays: pattern mode must
+/// leave it out.
+fn far_clip(a: &mut CantusApp) -> cantus_core::ClipId {
+    let track = a.project().tracks[0].id;
+    let mut p = a.project().clone();
+    let mut c = p.make_clip("Far", Ticks::beats(64), Ticks::beats(4));
+    let n = p.make_note(Ticks::ZERO, Ticks::QUARTER, 101, 100);
+    c.notes.push(n);
+    let id = c.id;
+    a.exec(Command::InsertClip {
+        track,
+        clip: Box::new(c),
+    });
+    id
+}
+
+/// The pitches the engine was sent, on every track.
+fn sent_pitches(r: &Rig) -> Vec<u8> {
+    let snap = r.app.engine.sent_snapshot().expect("a snapshot sent").clone();
+    snap.tracks
+        .iter()
+        .flat_map(|t| t.events.iter().filter(|e| e.is_on()).map(|e| e.pitch))
+        .collect()
+}
+
 /// L switches to pattern mode: the engine gets the edited clip alone, looped, the playhead
 /// goes to it; back in song mode the song plays from where it was.
 #[test]
 fn pattern_mode_plays_the_edited_clip_alone() {
     let mut r = Rig::new();
+    far_clip(&mut r.app);
+    r.idle(2);
+    assert!(sent_pitches(&r).contains(&101), "the song plays the far clip");
     let a = &mut r.app;
     let track = a.project().tracks[0].id;
     let clip = a.project().tracks[0].clips[0].id;
@@ -197,22 +225,17 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     assert!(a.project().pattern_mode);
     r.idle(2);
     let region = cantus_core::pattern::PatternRegion::of(r.app.project(), track, clip).unwrap();
-    let snap = r
-        .app
-        .engine
-        .sent_snapshot()
-        .expect("a snapshot sent")
-        .clone();
+    let snap = r.app.engine.sent_snapshot().unwrap().clone();
     let lr = snap.loop_region.clone().expect("the pattern loops");
     assert_eq!((lr.start, lr.end), (region.start, region.end()));
-    let clips_heard: usize = r
-        .app
-        .project()
-        .tracks
+    let pitches = sent_pitches(&r);
+    assert!(!pitches.contains(&101), "the far clip is left out: {pitches:?}");
+    let edited: Vec<u8> = r.app.project().tracks[0].clips[0]
+        .notes
         .iter()
-        .filter(|t| region.clip_of(t.id).is_some())
-        .count();
-    assert!(clips_heard >= 1);
+        .map(|n| n.pitch)
+        .collect();
+    assert!(edited.iter().all(|p| pitches.contains(p)), "the edited clip plays");
     assert_eq!(
         r.app.engine.position(),
         region.start,
@@ -230,6 +253,90 @@ fn pattern_mode_plays_the_edited_clip_alone() {
     assert_eq!(r.app.engine.position(), Ticks::beats(30));
     let snap = r.app.engine.sent_snapshot().unwrap().clone();
     assert_eq!(snap.loop_enabled, r.app.project().loop_enabled);
+    assert!(sent_pitches(&r).contains(&101), "the song again");
+}
+
+/// In pattern mode the playhead stays in the pattern: Home, a second Stop or a seek
+/// outside it go to the pattern's top (review 1: they played silence).
+#[test]
+fn pattern_mode_keeps_the_playhead_in_the_pattern() {
+    let mut r = Rig::new();
+    let far = far_clip(&mut r.app);
+    let track = r.app.project().tracks[0].id;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(far);
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    assert_eq!(r.app.engine.position(), Ticks::beats(64));
+    for go in [Action::ToStart, Action::Stop] {
+        r.app.run_action(go);
+        r.idle(2);
+        assert_eq!(r.app.engine.position(), Ticks::beats(64), "{go:?}");
+    }
+    r.app.seek(Ticks::beats(90));
+    r.idle(2);
+    assert_eq!(r.app.engine.position(), Ticks::beats(64), "past its end");
+    r.app.seek(Ticks::beats(66));
+    r.idle(2);
+    assert_eq!(r.app.engine.position(), Ticks::beats(66), "inside it, left alone");
+}
+
+/// Selecting a track, or nothing, does not take the pattern away (review 1): only another
+/// note clip chosen does.
+#[test]
+fn selecting_something_else_keeps_the_pattern() {
+    let mut r = Rig::new();
+    let far = far_clip(&mut r.app);
+    let track = r.app.project().tracks[0].id;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(far);
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    r.app.seek(Ticks::beats(65));
+    r.app.selected_clip = None;
+    r.app.selected_track = Some(r.app.project().tracks[1].id);
+    r.idle(2);
+    let region = r.app.topbar.pattern.region().cloned().expect("still a pattern");
+    assert_eq!(region.start, Ticks::beats(64));
+    assert_eq!(r.app.engine.position(), Ticks::beats(65));
+    assert!(sent_pitches(&r).contains(&101));
+}
+
+/// Pattern mode is not switched on in the middle of a take (review 1): the take belongs to
+/// the song; the status line says to stop first.
+#[test]
+fn pattern_mode_waits_for_the_take_to_end() {
+    let mut r = Rig::new();
+    let keys = r.app.project().tracks[0].id;
+    r.app.toggle_arm(keys, false);
+    r.app.seek(Ticks::beats(12));
+    r.app.start_recording();
+    assert!(r.app.is_recording());
+    let at = r.app.engine.position();
+    r.app.run_action(Action::TogglePatternMode);
+    r.idle(1);
+    assert!(!r.app.project().pattern_mode);
+    assert!(r.app.is_recording());
+    assert_eq!(r.app.engine.position(), at);
+    assert!(r.app.status.text.contains("Stop recording"), "{}", r.app.status.text);
+}
+
+/// Opening another song forgets the last one's pattern state (review 1: the new song
+/// jumped to the old one's place).
+#[test]
+fn another_song_starts_without_the_last_ones_pattern_state() {
+    let mut r = Rig::new();
+    let a = &mut r.app;
+    a.selected_track = Some(a.project().tracks[0].id);
+    a.selected_clip = Some(a.project().tracks[0].clips[0].id);
+    a.seek(Ticks::beats(30));
+    a.run_action(Action::TogglePatternMode);
+    r.idle(2);
+    r.app.replace_project(welcome_project());
+    r.idle(3);
+    assert!(!r.app.project().pattern_mode);
+    assert_eq!(r.app.engine.position(), Ticks::ZERO);
+    assert!(r.app.topbar.pattern.region().is_none());
 }
 
 /// The window's title is the project's from the first frame of the main window (the boot

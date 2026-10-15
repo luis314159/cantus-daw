@@ -39,6 +39,7 @@ topbar.mode.song_tip = Modo canción: suena el arreglo. Haz clic para el modo pa
 topbar.mode.now_pattern = Modo patrón: el clip que se edita suena solo, en bucle
 topbar.mode.now_song = Modo canción: suena el arreglo
 topbar.mode.no_record = La grabación va a la canción: pasa al modo canción ({key}) para grabar
+topbar.mode.not_while_recording = Detén antes la grabación: la toma pertenece a la canción
 
 # Tempo y compás
 topbar.tap = Tap

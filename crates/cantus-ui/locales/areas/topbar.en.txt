@@ -39,6 +39,7 @@ topbar.mode.song_tip = Song mode: the arrangement plays. Click for pattern mode
 topbar.mode.now_pattern = Pattern mode: the clip being edited plays alone, looped
 topbar.mode.now_song = Song mode: the arrangement plays
 topbar.mode.no_record = Recording goes into the song: switch to song mode ({key}) to record
+topbar.mode.not_while_recording = Stop recording first: the take belongs to the song
 
 # Tempo and metre
 topbar.tap = Tap
