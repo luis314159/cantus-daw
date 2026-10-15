@@ -54,6 +54,7 @@ pub mod organum;
 pub mod osc;
 pub mod par;
 pub mod phasis;
+pub mod pitch;
 pub mod porta;
 pub mod pulsus;
 pub mod rest;
