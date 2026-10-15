@@ -1,6 +1,8 @@
-//! The status bar, in the kit's look: the status line at the left, the engine's readouts
-//! at the right, and at its two corners the toggles for the lower zone and the inspector
-//! (ADR 0024 §5: "a toggle at its outer corner").
+//! The status bar, in the kit's look: the status line at the left, the readouts at the
+//! right (samples loading, streaming, plug-in latency, the typing keyboard), and at its two
+//! corners the toggles for the lower zone and the inspector (ADR 0024 §5: "a toggle at its
+//! outer corner"). The engine's load, voices and dropouts, the MIDI input and the audio
+//! chip are the top bar's since round 28 (ADR 0052).
 //!
 //! Every word is painted into a box with a policy (§3): the readouts claim their width
 //! first, from the right, and the least important drop out when the window is narrow;
@@ -35,16 +37,8 @@ struct Item {
 /// What the readouts say: they are rebuilt when this changes.
 #[derive(Copy, Clone, Debug, PartialEq)]
 struct Key {
-    live: bool,
-    rate: u32,
-    load: u32,
-    overruns: u64,
-    voices: usize,
     latency: u64,
     unserved: u64,
-    /// The block of the latest dropout (its blame is shown until the next one).
-    dropout: Option<u64>,
-    midi: usize,
     keyboard: Option<i32>,
     /// Instruments' samples loading in the background, and streamed voices ended late
     /// (ADR 0050).
@@ -81,21 +75,6 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
             width,
         });
     };
-    // The device, its rate and its latency are the audio chip's (round 20); the engine's
-    // own numbers stay here.
-    if key.live {
-        let engine = tf(
-            "devices.status.engine",
-            &[
-                ("load", &key.load),
-                ("overruns", &key.overruns),
-                ("voices", &key.voices),
-            ],
-        );
-        // The callback's histogram in the engine readout's tooltip (round 20, `perf_status`).
-        let tip = Some(crate::perf_status::histogram_text(app.engine.stats()));
-        push(engine, key.overruns > 0, tip, 4);
-    }
     // Samples loading off the interface's thread: how far (ADR 0050 §7).
     if let Some((done, total)) = key.loading {
         push(
@@ -132,16 +111,6 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
             4,
         );
     }
-    // The latest dropout and who it is blamed on (round 20, `perf_status`).
-    if let Some(d) = app.engine.stats().last_dropout {
-        let p = app.project();
-        push(
-            crate::perf_status::dropout_text(p, &d),
-            true,
-            Some(crate::perf_status::dropout_tip(p, &d)),
-            3,
-        );
-    }
     // Plug-in latency is compensated, never silent: shown whenever there is some, in the
     // warning colour when a path could not be given a delay line.
     if key.latency > 0 || key.unserved > 0 {
@@ -161,7 +130,6 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
             3,
         );
     }
-    push(tf("status.midi", &[("n", &key.midi)]), false, None, 2);
     let keyboard = match key.keyboard {
         Some(octave) => tf("status.keyboard", &[("octave", &octave)]),
         None => t("status.keyboard_off"),
@@ -221,24 +189,10 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let insp_on = app.workspace.contains(Pane::Inspector);
 
     let stats = *app.engine.stats();
-    // The engine's load, overruns and voices are shown only with a device: without one
-    // they never rebuild the line (they changed with the machine's own load, frame to
-    // frame, for words that were not there).
-    let live = app.engine.is_live();
+    // The engine's load, voices and dropouts are the top bar's (round 28, ADR 0052).
     let key = Key {
-        live,
-        rate: app.engine.sample_rate as u32,
-        load: if live {
-            (stats.load * 100.0).round() as u32
-        } else {
-            0
-        },
-        overruns: if live { stats.overruns } else { 0 },
-        voices: if live { stats.active_voices } else { 0 },
         latency: stats.latency_samples,
         unserved: stats.pdc_unserved,
-        dropout: stats.last_dropout.map(|d| d.block),
-        midi: app.midi_port_names.len(),
         keyboard: app.keyboard_piano.then_some(app.keyboard.octave),
         loading: app.engine.samples.progress(),
         stream_late: stats.stream_late,
@@ -248,13 +202,9 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         ppp: ctx.pixels_per_point().to_bits(),
     };
 
-    // The audio chip, first from the right: always there (round 20).
-    let chip_w = super::audio_chip::width(app, &ctx);
-    let chip_r = Rect::from_min_max(
-        Pos2::new(insp_r.left() - pad - chip_w, rect.top() + 2.0 * k),
-        Pos2::new(insp_r.left() - pad, rect.bottom() - 2.0 * k),
-    );
-    let right_edge = chip_r.left() - gap * 0.5;
+    // The audio chip is the top bar's now (round 28, ADR 0052): the readouts start at the
+    // inspector's corner key.
+    let right_edge = insp_r.left() - pad - gap * 0.5;
     // Round 20: the minimised devices' chips come first; the status line follows them.
     let left_edge = super::device_chrome::tray(ui, rect, lower_r.right() + pad, k);
     let painter = ui.painter_at(rect);
@@ -388,7 +338,6 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
                 let _ = text::paint(b, r.shrink2(Vec2::new(gap * 0.5, 0.0)), &tt, tk);
                 divider(b, r.left(), rect, k, tok.panel);
             }
-            divider(b, chip_r.left() - gap * 0.25, rect, k, tok.panel);
             if let Some(r) = stats_r {
                 let tt = Text::new(&c.stats, Role::Label, tok.text_dim)
                     .align(Align2::RIGHT_CENTER)
@@ -400,7 +349,6 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     });
     // Round 20: the device tray's chips, over the bar's ground.
     super::device_chrome::tray_paint(ui, rect, k);
-    super::audio_chip::show(app, ui, chip_r);
 }
 
 /// The hint of the editor being worked in — what the hint panel says when nothing is

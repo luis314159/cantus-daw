@@ -482,7 +482,9 @@ impl eframe::App for Shell {
                     .inner;
                 boot.hide_verse |= hide;
                 if let Some(app) = boot.step(&ctx) {
-                    become_main_window(&ctx, &boot.options);
+                    // The window's title is the project's (ADR 0052), from the first frame.
+                    let title = crate::views::transport::title::title_of(&app);
+                    become_main_window(&ctx, &boot.options, &title);
                     *self = Shell::Running(Box::new(app));
                 }
                 ctx.request_repaint_after(Duration::from_millis(16));
@@ -491,11 +493,12 @@ impl eframe::App for Shell {
     }
 }
 
-/// The splash turns into the main window: decorations back, resizable, the saved size or
+/// The splash turns into the main window, titled with the project (ADR 0052): decorations
+/// back, resizable, the saved size or
 /// maximised.
-fn become_main_window(ctx: &egui::Context, options: &LaunchOptions) {
+fn become_main_window(ctx: &egui::Context, options: &LaunchOptions, title: &str) {
     use egui::ViewportCommand as C;
-    ctx.send_viewport_cmd(C::Title(i18n::t("app.title")));
+    ctx.send_viewport_cmd(C::Title(title.to_string()));
     ctx.send_viewport_cmd(C::Decorations(true));
     ctx.send_viewport_cmd(C::Resizable(true));
     ctx.send_viewport_cmd(C::MinInnerSize(Vec2::new(960.0, 600.0)));
