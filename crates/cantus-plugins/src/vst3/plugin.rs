@@ -179,8 +179,7 @@ impl Plugin {
                 let offset = e.sampleOffset.max(0) as u32;
                 // A note-off the full buffer has no room for: everything is released
                 // instead (an all-notes-off always gets in), so no note stays stuck.
-                if !push_note(out, NoteIn { offset, note }) && matches!(note, FxNote::Off { .. })
-                {
+                if !push_note(out, NoteIn { offset, note }) && matches!(note, FxNote::Off { .. }) {
                     push_note(
                         out,
                         NoteIn {

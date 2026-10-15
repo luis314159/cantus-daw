@@ -45,10 +45,7 @@ pub fn view(
                 let a = Rect::from_min_size(left.min, vec2(left.width(), top));
                 // The vectorscope keeps the width its words need (its correlation readout).
                 let side = (left.width() * 0.45).max(150.0 * k).min(left.width() * 0.6);
-                let bb = Rect::from_min_max(
-                    pos2(left.right() - side, a.bottom() + gap),
-                    left.max,
-                );
+                let bb = Rect::from_min_max(pos2(left.right() - side, a.bottom() + gap), left.max);
                 let c = Rect::from_min_max(
                     pos2(left.left(), a.bottom() + gap),
                     pos2(bb.left() - gap, left.bottom()),

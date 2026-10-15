@@ -441,26 +441,25 @@ impl EventList {
 
     /// Parameter values and transport events (`(time, transport)`), in time order.
     pub fn with_moves(events: &[Ev], moves: &[(u32, clap_event_transport)]) -> EventList {
-        let v: Vec<clap_event_param_value> =
-            events
-                .iter()
-                .map(|(t, id, value)| clap_event_param_value {
-                    header: clap_event_header {
-                        size: std::mem::size_of::<clap_event_param_value>() as u32,
-                        time: *t,
-                        space_id: CLAP_CORE_EVENT_SPACE_ID,
-                        type_: CLAP_EVENT_PARAM_VALUE,
-                        flags: 0,
-                    },
-                    param_id: *id,
-                    cookie: ptr::null_mut(),
-                    note_id: -1,
-                    port_index: -1,
-                    channel: -1,
-                    key: -1,
-                    value: *value,
-                })
-                .collect();
+        let v: Vec<clap_event_param_value> = events
+            .iter()
+            .map(|(t, id, value)| clap_event_param_value {
+                header: clap_event_header {
+                    size: std::mem::size_of::<clap_event_param_value>() as u32,
+                    time: *t,
+                    space_id: CLAP_CORE_EVENT_SPACE_ID,
+                    type_: CLAP_EVENT_PARAM_VALUE,
+                    flags: 0,
+                },
+                param_id: *id,
+                cookie: ptr::null_mut(),
+                note_id: -1,
+                port_index: -1,
+                channel: -1,
+                key: -1,
+                value: *value,
+            })
+            .collect();
         let m: Vec<clap_event_transport> = moves
             .iter()
             .map(|(t, e)| clap_event_transport {

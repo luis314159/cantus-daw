@@ -387,7 +387,9 @@ fn the_clock_reads_whole_in_every_metre() {
                 "{n}/{d} bar {bar}: {texts:?}"
             );
             assert!(
-                texts.iter().any(|t| t.trim_start().starts_with(&format!("{bar}."))),
+                texts
+                    .iter()
+                    .any(|t| t.trim_start().starts_with(&format!("{bar}."))),
                 "{n}/{d} bar {bar}: {texts:?}"
             );
         }

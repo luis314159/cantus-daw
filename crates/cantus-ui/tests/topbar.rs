@@ -766,7 +766,10 @@ fn an_undo_or_redo_that_brings_pattern_mode_back_ends_the_take() {
             r.app.undo();
         }
         r.idle(1);
-        assert!(r.app.project().pattern_mode, "redo {redo}: the mode came back");
+        assert!(
+            r.app.project().pattern_mode,
+            "redo {redo}: the mode came back"
+        );
         assert!(!r.app.is_recording(), "redo {redo}: the take ended");
         assert!(r.app.project().track(keys).unwrap().armed, "redo {redo}");
     }
@@ -787,7 +790,7 @@ fn choosing_a_channel_keeps_the_pattern() {
     r.idle(1);
     let other = r.app.project().tracks[1].id;
     assert!(
-        r.app.project().track(other).unwrap().clips.first().is_some(),
+        !r.app.project().track(other).unwrap().clips.is_empty(),
         "the other track has a clip elsewhere"
     );
     r.app.select_track(other);

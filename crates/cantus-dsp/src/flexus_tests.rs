@@ -108,7 +108,10 @@ fn the_latency_follows_the_through_zero_switch() {
     assert_eq!(u.latency(), 240);
     u.process(&mut l[k..], &mut r[k..]);
     assert!(same(&l[..k], &x[..k]), "a wire before");
-    assert!(same(&l[k..], &x[k - 240..x.len() - 240]), "the centre after");
+    assert!(
+        same(&l[k..], &x[k - 240..x.len() - 240]),
+        "the centre after"
+    );
     s.through_zero = false;
     u.set(&s);
     assert_eq!(u.latency(), 0);

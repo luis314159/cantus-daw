@@ -177,6 +177,22 @@ pub fn project_to_play(app: &CantusApp) -> Option<Project> {
     Some(audition(app.project(), app.topbar.pattern.region.as_ref()))
 }
 
+/// Recording in pattern mode is refused, with the way out in the status line. Returns
+/// whether it was.
+pub fn refuse_record(app: &mut CantusApp) -> bool {
+    if !app.project().pattern_mode || app.is_recording() {
+        return false;
+    }
+    let key = app
+        .keymap
+        .bindings_for(crate::keymap::Action::TogglePatternMode)
+        .first()
+        .map(|b| b.display())
+        .unwrap_or_default();
+    app.set_error(crate::i18n::tf("topbar.mode.no_record", &[("key", &key)]));
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -188,7 +204,10 @@ mod tests {
     fn a_stale_position_after_a_seek_does_not_seek_again() {
         let (start, end) = (Ticks(3_840), Ticks(7_680));
         let mut sought = None;
-        assert!(should_seek(&mut sought, true, Ticks(100), start, end), "entering");
+        assert!(
+            should_seek(&mut sought, true, Ticks(100), start, end),
+            "entering"
+        );
         // The callback that was running posts its old place: no second seek.
         assert!(!should_seek(&mut sought, false, Ticks(120), start, end));
         // The seek lands.
@@ -205,20 +224,4 @@ mod tests {
         let (s2, e2) = (Ticks(7_680), Ticks(11_520));
         assert!(should_seek(&mut sought, false, Ticks(0), s2, e2));
     }
-}
-
-/// Recording in pattern mode is refused, with the way out in the status line. Returns
-/// whether it was.
-pub fn refuse_record(app: &mut CantusApp) -> bool {
-    if !app.project().pattern_mode || app.is_recording() {
-        return false;
-    }
-    let key = app
-        .keymap
-        .bindings_for(crate::keymap::Action::TogglePatternMode)
-        .first()
-        .map(|b| b.display())
-        .unwrap_or_default();
-    app.set_error(crate::i18n::tf("topbar.mode.no_record", &[("key", &key)]));
-    true
 }

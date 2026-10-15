@@ -347,6 +347,14 @@ fn a_docked_tabs_overview_keeps_its_levels_in_view() {
                 if lost == 0 {
                     let gaps = words("speculum.m.gaps");
                     assert!(!texts.iter().any(|(t, _)| *t == gaps), "{what}");
+                } else {
+                    // 4 800 frames at 48 kHz.
+                    assert!(
+                        texts
+                            .iter()
+                            .any(|(t, _)| t.starts_with("100") && t.ends_with("MS")),
+                        "{what}: {texts:?}"
+                    );
                 }
             }
         }

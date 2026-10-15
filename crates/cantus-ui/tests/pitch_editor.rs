@@ -1052,13 +1052,20 @@ fn the_pitch_lane_takes_presses_only_where_it_is_seen() {
     let (mut r, t, lanes) = with_lane();
     let n = lane_notes(&r, t, lanes)[1].clone();
     let at = n.rect.center();
-    assert!(press_lane(&mut r, at, lanes, None).is_some(), "in view: taken");
+    assert!(
+        press_lane(&mut r, at, lanes, None).is_some(),
+        "in view: taken"
+    );
     // The body ends above the note (the note under a panel, the ruler, the scroll bar).
     let cut = Rect::from_min_max(lanes.min, pos2(lanes.right(), n.rect.top() - 2.0));
     assert_eq!(press_lane(&mut r, at, cut, None), None, "out of view");
     // A window over it.
     let cover = Rect::from_center_size(at, vec2(120.0, 60.0));
-    assert_eq!(press_lane(&mut r, at, lanes, Some(cover)), None, "under a window");
+    assert_eq!(
+        press_lane(&mut r, at, lanes, Some(cover)),
+        None,
+        "under a window"
+    );
 }
 
 /// A click that slips sideways moves nothing and adds no undo step; a drag that is mostly
@@ -1125,7 +1132,10 @@ fn an_idle_pitch_lane_is_laid_out_once() {
     r.idle(3);
     let before = r.app.pitch.lane.builds;
     r.idle(10);
-    assert_eq!(r.app.pitch.lane.builds, before, "nothing changed, nothing laid out");
+    assert_eq!(
+        r.app.pitch.lane.builds, before,
+        "nothing changed, nothing laid out"
+    );
 }
 
 // ---- fix2 (review 2): quantise targets, the bar, MIDI out, glue, the inspector ----------
@@ -1160,9 +1170,14 @@ fn quantise_onto_an_analysed_unedited_take() {
         index,
         track: Box::new(lead),
     }));
-    let _ = r.app.pitch_take(lead_id, r.app.project().track(lead_id).unwrap().clips[0].id);
+    let _ = r
+        .app
+        .pitch_take(lead_id, r.app.project().track(lead_id).unwrap().clips[0].id);
     assert!(
-        r.app.pitch_onset_tracks(t).iter().any(|(k, _)| *k == lead_id),
+        r.app
+            .pitch_onset_tracks(t)
+            .iter()
+            .any(|(k, _)| *k == lead_id),
         "the analysed lead is offered"
     );
     r.app.pitch.view.quantise_to = Some(lead_id);
@@ -1218,7 +1233,11 @@ fn the_pitch_bar_keeps_its_more_key_at_every_width() {
         let folded = r.app.pitch.view.bar_folded;
         let drawn = |word: &str| r.texts.iter().any(|(t, _)| t == word);
         if folded.iter().any(|f| *f) {
-            assert!(drawn("\u{2026}"), "{w}: folded {folded:?}, no ⋯: {:?}", r.texts);
+            assert!(
+                drawn("\u{2026}"),
+                "{w}: folded {folded:?}, no ⋯: {:?}",
+                r.texts
+            );
         }
         if !folded[2] {
             assert!(
@@ -1233,7 +1252,10 @@ fn the_pitch_bar_keeps_its_more_key_at_every_width() {
         core_folded |= folded[3..].iter().any(|f| *f);
         w += 37.0;
     }
-    assert!(core_folded, "the narrowest widths fold the snap, the key or Original");
+    assert!(
+        core_folded,
+        "the narrowest widths fold the snap, the key or Original"
+    );
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
 
@@ -1302,7 +1324,13 @@ fn midi_out_repeats_a_looped_clips_notes() {
     let at: Vec<(Ticks, Ticks, u8)> = clip
         .notes
         .iter()
-        .map(|n| (clip.start + n.start, clip.start + n.start + n.length, n.pitch))
+        .map(|n| {
+            (
+                clip.start + n.start,
+                clip.start + n.start + n.length,
+                n.pitch,
+            )
+        })
         .collect();
     let pitches: Vec<u8> = at.iter().map(|n| n.2).collect();
     assert_eq!(pitches, vec![57, 60, 57, 60, 57, 60], "{at:?}");
@@ -1310,7 +1338,11 @@ fn midi_out_repeats_a_looped_clips_notes() {
         assert_eq!(at[2 * k].0 - at[0].0, Ticks::beats(3 * k as i64), "{at:?}");
     }
     let last = at.last().unwrap();
-    assert_eq!(last.1, Ticks::beats(8), "the last cut at the clip's end: {at:?}");
+    assert_eq!(
+        last.1,
+        Ticks::beats(8),
+        "the last cut at the clip's end: {at:?}"
+    );
     assert!(at.iter().all(|n| n.1 <= Ticks::beats(8)));
 }
 

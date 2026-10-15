@@ -512,7 +512,7 @@ fn an_in_block_event_without_a_tempo_keeps_the_found_tempo() {
     let n = 4 * 512;
     let k = 300;
     let jump = 40.0; // the event: a seek inside the fourth block
-    // Blocks one to three steady; in the fourth, the event at k.
+                     // Blocks one to three steady; in the fourth, the event at k.
     let run = |told: Option<f64>| {
         let mut p = gate_processor();
         let (mut l, mut r) = (vec![1.0f32; n], vec![1.0f32; n]);
@@ -526,7 +526,11 @@ fn an_in_block_event_without_a_tempo_keeps_the_found_tempo() {
         }
         l
     };
-    assert_identical("after the event", &run(None)[512..], &run(Some(tempo))[512..]);
+    assert_identical(
+        "after the event",
+        &run(None)[512..],
+        &run(Some(tempo))[512..],
+    );
 }
 
 /// A transport change inside a block, through CLAP's input events (`CLAP_EVENT_TRANSPORT`
@@ -552,7 +556,11 @@ fn a_clap_transport_event_in_the_input_list_takes_effect_at_its_sample() {
         l
     };
     assert_identical("a CLAP transport event at 1 500", &one, &two);
-    assert!(diff(&one, &run_clap(&new_gate(), n, &[n], Some(120.0), 0.5, None)).is_some());
+    assert!(diff(
+        &one,
+        &run_clap(&new_gate(), n, &[n], Some(120.0), 0.5, None)
+    )
+    .is_some());
 }
 
 /// CLAP's seconds timeline: a host that gives its tempo and the song in seconds (and its

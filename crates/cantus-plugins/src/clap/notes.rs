@@ -98,8 +98,7 @@ impl Held {
 
     /// Whether anything holds `key`.
     pub fn holds(&self, key: u8) -> bool {
-        self.channels[key as usize] != 0
-            || self.ids.iter().any(|&(id, k, _)| id >= 0 && k == key)
+        self.channels[key as usize] != 0 || self.ids.iter().any(|&(id, k, _)| id >= 0 && k == key)
     }
 
     /// The note `emit` could not deliver was a release: the unit is told to let go of
@@ -231,9 +230,7 @@ impl Held {
             (CLAP_EVENT_NOTE_OFF | CLAP_EVENT_NOTE_CHOKE, None) if e.key < 0 => {
                 if e.note_id >= 0 {
                     // That note: the key its on had, if it is still held.
-                    if let Some(&(_, k, _)) =
-                        self.ids.iter().find(|&&(id, _, _)| id == e.note_id)
-                    {
+                    if let Some(&(_, k, _)) = self.ids.iter().find(|&&(id, _, _)| id == e.note_id) {
                         self.release(k, mask, e.note_id, &mut emit);
                     }
                 } else {
@@ -291,7 +288,6 @@ pub(crate) unsafe fn read(list: *const clap_input_events, out: &mut Vec<NoteIn>,
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -444,12 +440,20 @@ mod tests {
         // A plain off on one channel.
         midi(&mut h, [0x91, 60, 100]);
         midi(&mut h, [0x92, 60, 100]);
-        assert_eq!(midi(&mut h, [0x82, 60, 0]), vec![], "channel 1 still holds it");
+        assert_eq!(
+            midi(&mut h, [0x82, 60, 0]),
+            vec![],
+            "channel 1 still holds it"
+        );
         assert_eq!(midi(&mut h, [0x81, 60, 0]), off(60));
         // A channel's all-notes-off.
         midi(&mut h, [0x93, 60, 100]);
         midi(&mut h, [0x95, 60, 100]);
-        assert_eq!(midi(&mut h, [0xb3, 123, 0]), vec![], "channel 5 still holds it");
+        assert_eq!(
+            midi(&mut h, [0xb3, 123, 0]),
+            vec![],
+            "channel 5 still holds it"
+        );
         assert_eq!(midi(&mut h, [0xb5, 123, 0]), off(60));
         // CLAP: an off on one channel, and a channel's off (key −1).
         clap(&mut h, ON, note(-1, 0, 62, 0.8));
@@ -471,7 +475,11 @@ mod tests {
         clap(&mut h, ON, note(7, 2, 61, 0.8));
         clap(&mut h, ON, note(8, 2, 61, 0.8));
         clap(&mut h, ON, note(9, 4, 61, 0.8));
-        assert_eq!(clap(&mut h, OFF, note(-1, 2, 61, 0.0)), vec![], "9 holds it");
+        assert_eq!(
+            clap(&mut h, OFF, note(-1, 2, 61, 0.0)),
+            vec![],
+            "9 holds it"
+        );
         assert_eq!(clap(&mut h, OFF, note(-1, -1, 61, 0.0)), off(61));
     }
 

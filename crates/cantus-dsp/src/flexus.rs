@@ -212,11 +212,7 @@ impl Flexus {
     pub fn reset(&mut self) {
         self.clock.reset();
         self.lfo.reset();
-        for l in self
-            .lines
-            .iter_mut()
-            .chain(self.dry.iter_mut())
-        {
+        for l in self.lines.iter_mut().chain(self.dry.iter_mut()) {
             l.reset();
         }
         self.back = [0.0; 2];
@@ -284,11 +280,7 @@ impl Flexus {
 
     pub fn skip(&mut self, frames: usize) {
         self.clock.skip(frames);
-        for l in self
-            .lines
-            .iter_mut()
-            .chain(self.dry.iter_mut())
-        {
+        for l in self.lines.iter_mut().chain(self.dry.iter_mut()) {
             l.skip(frames);
         }
         self.zrun = self.zrun.saturating_add(frames as u32);

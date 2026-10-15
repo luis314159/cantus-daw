@@ -318,14 +318,8 @@ pub fn paint_elapsed(b: &mut Brush, app: &CantusApp, rect: Rect, s: &Style) {
         }
         let tr = Rect::from_min_max(pos2(c.x + 7.0 * k, rect.top()), rect.max);
         // From ten minutes on the time steps down a size rather than be cut.
-        let role = super::transport::clock::fitting(
-            b.ctx(),
-            s,
-            &w,
-            tr.width(),
-            Role::Value,
-            Role::Label,
-        );
+        let role =
+            super::transport::clock::fitting(b.ctx(), s, &w, tr.width(), Role::Value, Role::Label);
         let tx = Text::new(&w, role, t.danger)
             .align(Align2::RIGHT_CENTER)
             .policy(Policy::Elide(Elide::End));

@@ -461,7 +461,10 @@ mod row_tests {
                 assert!(row.contains_rect(key), "{density}: {key:?} out of {row:?}");
                 keys.push(key);
             }
-            assert!(keys[0].bottom() < keys[1].top(), "{density}: {keys:?} touch");
+            assert!(
+                keys[0].bottom() < keys[1].top(),
+                "{density}: {keys:?} touch"
+            );
         }
     }
 }

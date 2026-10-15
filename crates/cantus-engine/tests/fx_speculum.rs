@@ -446,7 +446,12 @@ fn the_beat_stamp_counts_another_strips_latency_and_the_masters() {
         }
         stamps_of(&p, id)
     };
-    compare("a strip beside a latent one", &beside(false), &beside(true), 0.0);
+    compare(
+        "a strip beside a latent one",
+        &beside(false),
+        &beside(true),
+        0.0,
+    );
     // The master: a latent insert on a strip.
     let master = |with: bool| {
         let mut p = modfx::lead_only();
@@ -459,7 +464,12 @@ fn the_beat_stamp_counts_another_strips_latency_and_the_masters() {
         p.master.effects.push(slot);
         stamps_of(&p, id)
     };
-    compare("the master, a strip late", &master(false), &master(true), lat);
+    compare(
+        "the master, a strip late",
+        &master(false),
+        &master(true),
+        lat,
+    );
 }
 
 /// A chunk never crosses a jump of the song (review 2: untested): with blocks that leave a
@@ -520,7 +530,10 @@ fn a_chunk_ends_where_the_song_jumps() {
     for w in after.windows(2) {
         let ((b0, n0), (b1, _)) = (w[0], w[1]);
         let end = b0 + n0 as f64 * PER_FRAME;
-        assert!(end <= 9.5 + 1e-9, "a chunk crosses the loop's end: {b0} + {n0}");
+        assert!(
+            end <= 9.5 + 1e-9,
+            "a chunk crosses the loop's end: {b0} + {n0}"
+        );
         if (b1 - end).abs() > 1e-9 {
             // The wrap: the chunk before it ends at the loop's end, short; the next one
             // starts at the loop's start.
@@ -567,7 +580,11 @@ fn a_handed_over_ring_counts_only_its_new_owners_frames() {
         got.take(&mut h, strip);
         h.watch_scope(strip);
     }
-    assert_eq!(got.frames.len() / 2, since - since % 64, "the strip's own frames");
+    assert_eq!(
+        got.frames.len() / 2,
+        since - since % 64,
+        "the strip's own frames"
+    );
 }
 
 /// A Speculum watched again keeps nothing of its last watch (review 2): not the chunk it
@@ -598,11 +615,25 @@ fn a_speculum_watched_again_starts_afresh() {
     again.take(&mut h, strip);
     let lost = first.lost + again.lost;
     assert_eq!(lost, 0, "no loss from the last watch");
-    let beats: Vec<f64> = first.beats.iter().chain(&again.beats).map(|b| b.0).collect();
+    let beats: Vec<f64> = first
+        .beats
+        .iter()
+        .chain(&again.beats)
+        .map(|b| b.0)
+        .collect();
     assert!(!beats.is_empty());
-    for w in first.beats.iter().chain(&again.beats).collect::<Vec<_>>().windows(2) {
+    for w in first
+        .beats
+        .iter()
+        .chain(&again.beats)
+        .collect::<Vec<_>>()
+        .windows(2)
+    {
         let ((b0, n0), (b1, _)) = (*w[0], *w[1]);
-        assert!((b1 - b0 - n0 as f64 * PER_FRAME).abs() < 1e-9, "{b0} + {n0} → {b1}");
+        assert!(
+            (b1 - b0 - n0 as f64 * PER_FRAME).abs() < 1e-9,
+            "{b0} + {n0} → {b1}"
+        );
     }
     assert_eq!(
         (first.frames.len() + again.frames.len()) / 2,

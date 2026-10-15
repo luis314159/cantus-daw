@@ -236,7 +236,10 @@ fn a_notes_gain_never_steps_at_a_legato_joint_or_a_short_gap() {
     edit::set_field(&mut e, &[left], Field::Gain, 0.0);
     let c = Curves::new(&e, &frames(&midi));
     let step = gain_step(&c, 40_000..80_000);
-    assert!(step < 0.05, "a {step} dB step across the short gap, 0 to −12");
+    assert!(
+        step < 0.05,
+        "a {step} dB step across the short gap, 0 to −12"
+    );
     let mid = c.gain_db_at(60_050.0);
     assert!(mid < -0.5 && mid > -11.5, "half way through the gap: {mid}");
 }
