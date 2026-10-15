@@ -467,6 +467,22 @@ pub fn design(f0: f64, b: f64, fs: f64) -> LoopDesign {
     d
 }
 
+/// A design with at most `max_sections` sections (the sympathetic strings'): the first
+/// partial exact, the others as close as that many sections bring them.
+pub fn design_limited(f0: f64, b: f64, fs: f64, max_sections: usize) -> LoopDesign {
+    let tg = targets(f0, b, fs);
+    let mut best: Option<LoopDesign> = None;
+    for n in 1..=max_sections.clamp(1, MAX_SECTIONS) {
+        for beta in [1.0, 0.6, 1.6] {
+            let d = construct(f0, b, fs, &tg, n, beta);
+            if best.is_none_or(|b| d.worst_cents < b.worst_cents) {
+                best = Some(d);
+            }
+        }
+    }
+    best.expect("a design")
+}
+
 /// What a keyboard's designs depend on.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tuning {
@@ -495,18 +511,23 @@ pub struct Keyboard {
     pub fs: f64,
     pub keys: [super::tables::Key; super::tables::KEYS],
     pub loops: Vec<LoopDesign>,
+    /// The sympathetic strings' reduced designs (at most two sections).
+    pub sympathetic: Vec<LoopDesign>,
 }
 
 impl Keyboard {
-    /// Design all 88 loops on `threads` threads (1: on the caller). The result does not
-    /// depend on the thread count: each key is designed on its own.
+    /// Design all 88 loops (and the sympathetic strings' reduced ones) on `threads` threads
+    /// (1: on the caller). The result does not depend on the thread count: each key is
+    /// designed on its own.
     pub fn compute(tuning: Tuning, fs: f64, threads: usize) -> Keyboard {
         let keys = super::tables::keyboard(tuning.a4, tuning.stretch, tuning.stiffness);
         let threads = threads.clamp(1, 16);
-        let mut loops = vec![None; keys.len()];
+        let one =
+            |k: &super::tables::Key| (design(k.f0(), k.b, fs), design_limited(k.f0(), k.b, fs, 2));
+        let mut pairs: Vec<Option<(LoopDesign, LoopDesign)>> = vec![None; keys.len()];
         if threads == 1 {
-            for (slot, k) in loops.iter_mut().zip(keys.iter()) {
-                *slot = Some(design(k.f0(), k.b, fs));
+            for (slot, k) in pairs.iter_mut().zip(keys.iter()) {
+                *slot = Some(one(k));
             }
         } else {
             // The slow keys are the low ones: deal the keys out round-robin.
@@ -514,29 +535,32 @@ impl Keyboard {
                 let handles: Vec<_> = (0..threads)
                     .map(|t| {
                         let keys = &keys;
+                        let one = &one;
                         s.spawn(move || {
                             (t..keys.len())
                                 .step_by(threads)
-                                .map(|i| (i, design(keys[i].f0(), keys[i].b, fs)))
+                                .map(|i| (i, one(&keys[i])))
                                 .collect::<Vec<_>>()
                         })
                     })
                     .collect();
                 for h in handles {
                     for (i, d) in h.join().expect("a design thread") {
-                        loops[i] = Some(d);
+                        pairs[i] = Some(d);
                     }
                 }
             });
         }
+        let pairs: Vec<(LoopDesign, LoopDesign)> = pairs
+            .into_iter()
+            .map(|d| d.expect("every key designed"))
+            .collect();
         Keyboard {
             tuning,
             fs,
             keys,
-            loops: loops
-                .into_iter()
-                .map(|d| d.expect("every key designed"))
-                .collect(),
+            loops: pairs.iter().map(|p| p.0).collect(),
+            sympathetic: pairs.iter().map(|p| p.1).collect(),
         }
     }
 }

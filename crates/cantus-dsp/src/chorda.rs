@@ -44,3 +44,17 @@ mod testkit;
 #[cfg(test)]
 #[path = "chorda_tests_string.rs"]
 mod tests_string;
+
+#[path = "chorda_voice.rs"]
+pub mod voice;
+
+#[path = "chorda_board.rs"]
+pub mod board;
+
+#[path = "chorda_engine.rs"]
+mod engine;
+pub use engine::{Chorda, ChordaSettings, Meter, CHUNK};
+
+#[cfg(test)]
+#[path = "chorda_tests_engine.rs"]
+mod tests_engine;

@@ -55,6 +55,11 @@ impl Ring {
         self.buf.len()
     }
 
+    /// The length now.
+    pub fn len_now(&self) -> usize {
+        self.len
+    }
+
     /// Set the length (within the capacity) and silence the line.
     pub fn reset(&mut self, len: usize) {
         self.len = len.clamp(1, self.buf.len());
