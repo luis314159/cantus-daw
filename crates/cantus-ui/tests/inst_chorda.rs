@@ -208,10 +208,11 @@ fn presets_set_what_they_name() {
         let s = preset_spec(InstrumentKind::Chorda, p);
         assert_eq!(
             s.params.len(),
-            p.values.len(),
+            p.values.len() + InstrumentKind::Chorda.stored_versions().len(),
             "{}: a key it names is not a parameter",
             p.label_key
         );
+        assert_eq!(s.params.get("model"), Some(&1.0), "the model is stored");
         for (k, v) in p.values {
             let info = InstrumentKind::Chorda.param(k).expect("a parameter");
             assert!(
@@ -229,7 +230,7 @@ fn presets_set_what_they_name() {
         );
     }
     a.undo();
-    assert!(spec(&a, track).params.is_empty());
+    assert_eq!(spec(&a, track), NativeSpec::new(InstrumentKind::Chorda));
 }
 
 #[test]
