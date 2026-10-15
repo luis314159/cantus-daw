@@ -182,3 +182,17 @@ fn every_preset_moves_the_sound() {
         assert!(moved, "{label} does something");
     }
 }
+
+/// No word is cut short, in either language, with the editor fed as when it plays.
+#[test]
+fn no_word_is_cut_in_either_language() {
+    for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        cantus_ui::i18n::set_locale(lang);
+        let (mut a, s0, fx) = with_tonsor();
+        tonsor::demo_setup(&mut a, s0, fx);
+        cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Clipper);
+        let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
+        assert!(!text.contains('\u{2026}'), "{lang:?}: {text}");
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}

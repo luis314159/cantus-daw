@@ -257,6 +257,44 @@ pub fn signed_pct(v: f32, b: &mut String) {
     }
 }
 
+/// [`controls::param_with`] under a short label of its own (a part's *Gain* inside the
+/// *Transient* card, where the parameter's full name would repeat the card's).
+pub fn param_labelled(
+    ui: &mut egui::Ui,
+    s: &crate::kit::Style,
+    host: &mut dyn super::host::FxHost,
+    key: &'static str,
+    size: super::controls::Size,
+    format: Option<super::controls::Pill<'_>>,
+    label: &'static str,
+) -> egui::Response {
+    let spec = host.spec();
+    let Some(info) = spec.kind.param(key) else {
+        return ui.allocate_response(egui::Vec2::ZERO, egui::Sense::hover());
+    };
+    let mut c = super::controls::Cell::param(info, spec.get(key))
+        .size(size)
+        .label(crate::kit::text::Src::Key(label))
+        .name(super::frame::tr(info.label_key));
+    if let Some(f) = format {
+        c = c.format(f);
+    }
+    if host.can_automate() {
+        c = c.automation(host.automated(key));
+    }
+    let out = c.show(ui, s);
+    if let Some(v) = out.changed {
+        host.set(key, v, Some(key));
+    }
+    if out.done {
+        host.end_gesture();
+    }
+    if out.automate {
+        host.automate(key);
+    }
+    out.resp
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
