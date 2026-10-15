@@ -1195,5 +1195,12 @@ pub fn kit_lanes(spec: &super::NativeSpec) -> Vec<(crate::model::Pitch, String)>
             .unwrap_or_else(|| crate::model::pitch_name(pitch));
         out.push((pitch, label));
     }
+    // A drum on several keys (a tom on 47, 48 and 50): each row says its pitch too.
+    let names: Vec<String> = out.iter().map(|(_, n)| n.clone()).collect();
+    for (pitch, label) in out.iter_mut() {
+        if names.iter().filter(|n| **n == *label).count() > 1 {
+            *label = format!("{label} \u{b7} {}", crate::model::pitch_name(*pitch));
+        }
+    }
     out
 }

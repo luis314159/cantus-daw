@@ -50,11 +50,12 @@ fn a_kit_exemplar_has_a_row_per_key_named_by_its_drum() {
         [
             (36, "Kick".to_string()),
             (38, "Acoustic Snare".to_string()),
-            (47, "Tom 1".to_string()),
-            (48, "Tom 1".to_string()),
+            (47, "Tom 1 \u{b7} B2".to_string()),
+            (48, "Tom 1 \u{b7} C3".to_string()),
             (64, "Low Conga".to_string()),
         ],
-        "groups' names first, General MIDI's for an unnamed group"
+        "groups' names first, General MIDI's for an unnamed group; a drum on several keys \
+         tells them apart by their pitch"
     );
     assert_eq!(l.lane_of(47), Some(2));
     assert_eq!(l.lane_of(70), None, "the pedal noise has no key");
