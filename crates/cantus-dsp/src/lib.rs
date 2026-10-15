@@ -33,6 +33,8 @@ pub mod concentus;
 pub mod culmen;
 pub mod delay;
 pub mod discrimen;
+pub mod dynfx_follow;
+pub mod dynfx_os;
 pub mod env;
 pub mod eq;
 pub mod exemplar;
