@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 27;
+pub const SCHEMA_VERSION: u32 = 28;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -210,6 +210,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_24_to_25,
     migrate_25_to_26,
     migrate_26_to_27,
+    migrate_27_to_28,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -664,6 +665,15 @@ fn migrate_26_to_27(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 28 (round 28, ADR 0057): modulators on tracks, strips and the master
+/// (`Track::modulators`, `MixerStrip::modulators`, `Master::modulators`) and automation of a
+/// hosted plug-in's parameters (`AutoTarget::Plugin`, `PluginInstrument`, `ModAmount`). An
+/// older build must refuse such a file rather than play it unmodulated; no older project
+/// holds one, so the step writes nothing.
+fn migrate_27_to_28(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -806,6 +816,48 @@ mod tests {
             .iter()
             .flat_map(|t| t.clips.iter())
             .all(|c| c.audio.as_ref().is_none_or(|a| a.pitch.is_none())));
+    }
+
+    /// Schema 28 (round 28, ADR 0057): the fixture's modulators come back as they were —
+    /// an LFO on the Keys track driving the delay's mix and the hosted plug-in's
+    /// parameter, an envelope on the Keys strip ducking its fader, a follower on the master
+    /// listening to the Drums strip, a step sequence on the hosted synth and a random
+    /// source nested into the LFO's amount — and an automation clip on a hosted parameter;
+    /// an older file (27) opens with none.
+    #[test]
+    fn schema_28_keeps_modulators_and_hosted_automation() {
+        use cantus_core::modulator::{ModKind, ModSource};
+        use cantus_core::AutoTarget;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v28.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let mods: Vec<_> = p.all_modulators().map(|(_, m)| m).collect();
+        let kinds: Vec<ModKind> = mods.iter().map(|m| m.source.kind()).collect();
+        for k in ModKind::ALL {
+            assert!(kinds.contains(&k), "{k:?} in the fixture");
+        }
+        assert!(mods.iter().all(|m| m.is_valid()));
+        let lfo = mods.iter().find(|m| m.source.kind() == ModKind::Lfo).unwrap();
+        assert_eq!(lfo.routes.len(), 2);
+        assert!(lfo.routes.iter().any(|r| r.target.is_plugin() && r.depth == -0.4));
+        assert!(mods.iter().any(|m| m
+            .routes
+            .iter()
+            .any(|r| r.target == AutoTarget::ModAmount(lfo.id))));
+        assert!(matches!(
+            &mods.iter().find(|m| m.source.kind() == ModKind::Step).unwrap().source,
+            ModSource::Step(s) if s.steps.len() == 8 && s.glide == 0.25
+        ));
+        assert!(!p.master.modulators.is_empty());
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| t.clips.iter())
+            .filter_map(|c| c.automation.as_ref())
+            .any(|a| matches!(a.target, AutoTarget::Plugin { id: 1024, .. })));
+        let old = std::fs::read_to_string(dir.join("v27.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert_eq!(p.all_modulators().count(), 0);
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.
