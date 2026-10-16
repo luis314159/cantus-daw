@@ -90,6 +90,11 @@ test passes on it (−26.0 LUFS, −8.2 dBTP, 117 MiB of heads). Installed under
 ADRs 0057, 0058, 0059 and 0042 amended; manual EN/ES (comping, drum keys, the
 *Everywhere* bullet).
 
+**Found on the way, fixed:** fix3's wider label column (the Spanish *Espacio libre para
+instalar*) cut the licence's words in the pack details ("…con crédito al…") —
+`samples_browser::a_cc_by_pack_shows_its_credit_and_the_plain_words_before_and_after_download`
+failed on the base too. The licence's words now wrap in the value column.
+
 ## Left
 
 Nothing that is not the owner's. One limit, written where it lives: a loop shorter than an
@@ -98,6 +103,9 @@ loop's length in samples does not change from pass to pass).
 
 ## The runs
 
-`cargo fmt --all`; `cargo clippy --workspace --all-targets -D warnings` and
-`cargo clippy -p cantus-plugins --no-default-features --all-targets -D warnings` clean.
-Tests: see the report.
+`cargo fmt --all` (`--check` clean); `cargo clippy --workspace --all-targets -D warnings`
+and `cargo clippy -p cantus-plugins --no-default-features --all-targets -D warnings` clean.
+Tests, all passing: cantus-core 260, -project 64, -content 68 (+ the ignored real-archive
+install), -dsp 689, -engine 673, -host 34 (`clap_window`'s topmost-window test failed once
+in the run while another builder compiled — a desktop z-order race — and passes alone,
+twice), -plugins 74, -bench 8, -ui 1 280 (+ the ignored real-kit groove test).

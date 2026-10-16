@@ -513,29 +513,53 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         (pack.checked.clone(), Role::Value),
     ];
     let lw = detail_column(ui.ctx(), s);
+    let row_h = 20.0 * s.k;
     for (key, (value, role)) in DETAIL_LABELS.into_iter().zip(values) {
         let label = t(key);
-        let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0 * s.k), Sense::hover());
+        let width = ui.available_width();
+        // Words (the licence's) wrap in the value column rather than being cut: the label
+        // column grew to its longest label in Spanish (fix4: the licence's words lost
+        // their end).
+        let wrapped = (role == Role::Body).then(|| {
+            ui.painter().layout(
+                value.clone(),
+                role.font(s.tk()),
+                s.t.text,
+                (width - lw).max(1.0),
+            )
+        });
+        let h = wrapped
+            .as_ref()
+            .map_or(row_h, |g| row_h.max(g.size().y + 4.0 * s.k));
+        let (r, _) = ui.allocate_exact_size(vec2(width, h), Sense::hover());
+        let first = Rect::from_min_size(r.min, vec2(r.width(), row_h));
         with_brush(ui.painter(), |b| {
             paint::line(
                 b,
-                Rect::from_min_max(r.min, pos2(r.left() + lw, r.bottom())),
+                Rect::from_min_max(first.min, pos2(first.left() + lw, first.bottom())),
                 s,
                 Src::Str(&label),
                 Role::Body,
                 s.t.text_dim,
                 Align2::LEFT_CENTER,
             );
-            paint::line(
-                b,
-                Rect::from_min_max(pos2(r.left() + lw, r.top()), r.max),
-                s,
-                Src::Str(&value),
-                role,
-                s.t.text,
-                Align2::LEFT_CENTER,
-            );
+            if wrapped.is_none() {
+                paint::line(
+                    b,
+                    Rect::from_min_max(pos2(first.left() + lw, first.top()), first.max),
+                    s,
+                    Src::Str(&value),
+                    role,
+                    s.t.text,
+                    Align2::LEFT_CENTER,
+                );
+            }
         });
+        if let Some(g) = wrapped {
+            let line = g.rows.first().map_or(row_h, |row| row.height());
+            let at = pos2(r.left() + lw, r.top() + (row_h - line) * 0.5);
+            ui.painter().galley(at, g, s.t.text);
+        }
     }
     if pack.needs_credit() || pack.attribution.is_some() {
         credit(app, ui, s, pack);
