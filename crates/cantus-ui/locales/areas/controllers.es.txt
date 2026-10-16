@@ -1,0 +1,1 @@
+# controllers — ronda 29: MIDI learn y mapeo de controladores. Cada clave de controllers.en.txt tiene aquí su gemela.

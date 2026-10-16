@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(43) {
+    match rng.below(48) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -831,6 +831,16 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // a clip made a comp window and not (refused for a clip that is not there), a comp
         // window split (both halves stay the comp's), copied and pasted (never one).
         42 if tracks > 0 => comp_command(rng, project),
+        // Round 29 (contract): one arm reserved per builder, each a helper in its own
+        // section at the end of this file — tempo (ADR 0060), warp (0061), controllers
+        // (0062), isolation (0063), freeze (0064). Until a builder fills its helper it
+        // falls through to a project rename, so the draws of every other arm keep their
+        // meaning.
+        43 => round29_tempo_command(rng, project),
+        44 if tracks > 0 => round29_warp_command(rng, project),
+        45 => round29_controller_command(rng, project),
+        46 => round29_hosting_command(rng, project),
+        47 if tracks > 0 => round29_freeze_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -2494,5 +2504,42 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 comps,
             }
         }
+    }
+}
+
+// --- Round 29: one section per builder (the contract's placeholders) --------------------
+
+/// Round 29, tempo (ADR 0060): tempo points, ramps, metre changes and markers.
+fn round29_tempo_command(rng: &mut Lcg, _project: &mut Project) -> Command {
+    Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
+    }
+}
+
+/// Round 29, warp (ADR 0061): warp markers, modes and transposition on audio clips.
+fn round29_warp_command(rng: &mut Lcg, _project: &mut Project) -> Command {
+    Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
+    }
+}
+
+/// Round 29, controllers (ADR 0062): controller mappings stored in the project.
+fn round29_controller_command(rng: &mut Lcg, _project: &mut Project) -> Command {
+    Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
+    }
+}
+
+/// Round 29, isolation (ADR 0063): a hosted plug-in's isolation choice.
+fn round29_hosting_command(rng: &mut Lcg, _project: &mut Project) -> Command {
+    Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
+    }
+}
+
+/// Round 29, freeze (ADR 0064): freezing, unfreezing and bouncing in place.
+fn round29_freeze_command(rng: &mut Lcg, _project: &mut Project) -> Command {
+    Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
     }
 }

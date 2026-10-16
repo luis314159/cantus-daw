@@ -1,0 +1,1 @@
+# warp — ronda 29: warp, estiramiento de tiempo y cambio de tono de los clips de audio. Cada clave de warp.en.txt tiene aquí su gemela.

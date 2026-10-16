@@ -109,6 +109,11 @@ impl Locale {
                 include_str!("../locales/areas/modulators.en.txt"),
                 include_str!("../locales/areas/comping.en.txt"),
                 include_str!("../locales/areas/drums.en.txt"),
+                include_str!("../locales/areas/tempo.en.txt"),
+                include_str!("../locales/areas/warp.en.txt"),
+                include_str!("../locales/areas/controllers.en.txt"),
+                include_str!("../locales/areas/isolation.en.txt"),
+                include_str!("../locales/areas/freeze.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -184,6 +189,11 @@ impl Locale {
                 include_str!("../locales/areas/modulators.es.txt"),
                 include_str!("../locales/areas/comping.es.txt"),
                 include_str!("../locales/areas/drums.es.txt"),
+                include_str!("../locales/areas/tempo.es.txt"),
+                include_str!("../locales/areas/warp.es.txt"),
+                include_str!("../locales/areas/controllers.es.txt"),
+                include_str!("../locales/areas/isolation.es.txt"),
+                include_str!("../locales/areas/freeze.es.txt"),
             ],
         }
     }

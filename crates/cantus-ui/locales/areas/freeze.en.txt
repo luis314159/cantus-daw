@@ -1,0 +1,1 @@
+# freeze — round 29: freeze, bounce in place and low-latency monitoring. Every key here needs its twin in freeze.es.txt.

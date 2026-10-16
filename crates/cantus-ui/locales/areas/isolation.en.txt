@@ -1,0 +1,1 @@
+# isolation — round 29: third-party plug-ins hosted out of process. Every key here needs its twin in isolation.es.txt.

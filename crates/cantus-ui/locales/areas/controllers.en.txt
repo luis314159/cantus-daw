@@ -1,0 +1,1 @@
+# controllers — round 29: MIDI learn and controller mapping. Every key here needs its twin in controllers.es.txt.

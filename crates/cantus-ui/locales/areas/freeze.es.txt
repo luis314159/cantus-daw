@@ -1,0 +1,1 @@
+# freeze — ronda 29: congelar, bounce in place y monitoreo de baja latencia. Cada clave de freeze.en.txt tiene aquí su gemela.

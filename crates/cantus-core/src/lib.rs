@@ -28,6 +28,7 @@ pub mod pattern;
 pub mod pitch;
 pub mod routing;
 pub mod snapshot;
+pub mod tempo;
 pub mod time;
 
 pub use audio::{

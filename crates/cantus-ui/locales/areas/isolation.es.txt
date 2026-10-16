@@ -1,0 +1,1 @@
+# isolation — ronda 29: plug-ins de terceros alojados fuera del proceso. Cada clave de isolation.en.txt tiene aquí su gemela.
