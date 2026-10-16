@@ -147,7 +147,10 @@ hebreo…: Cantus usa para ellos las fuentes de tu sistema (ver los
 derecha a izquierda).
 
 **Canciones de demostración.** *Archivo ▸ Canciones de demostración…* (`Ctrl+Shift+N`)
-abre seis canciones hechas solo con los instrumentos y efectos de Cantus: Neon Tide
+abre siete canciones hechas solo con los instrumentos y efectos de Cantus: De todo corazón
+(pop cinematográfico: el piano de cola modelado Chorda, pedaleado desde su carril de
+automatización, todos los efectos de modulación y dinámica de la ronda 28, Tonus afinando
+la voz principal, moduladores y automatización, masterizada a −11 LUFS), Neon Tide
 (house), Morning Light (balada pop), Sunday Strut (funk y soul), Paper Lanterns (hip-hop
 lo-fi), Aurora (cinemática) y Midnight Static (trap). Abre una, escúchala, desármala.
 

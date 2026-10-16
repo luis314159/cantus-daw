@@ -7,12 +7,14 @@ demos.song.funk = Sunday Strut
 demos.song.lofi = Paper Lanterns
 demos.song.ambient = Aurora
 demos.song.trap = Midnight Static
+demos.song.heart = With All Your Heart
 demos.style.house = House
 demos.style.ballad = Pop ballad
 demos.style.funk = Funk and soul
 demos.style.lofi = Lo-fi hip-hop
 demos.style.ambient = Cinematic
 demos.style.trap = Trap
+demos.style.heart = Cinematic pop
 
 # Sections, the names of the clips in the arrangement.
 demos.section.intro = Intro
@@ -27,6 +29,7 @@ demos.section.solo = Solo
 demos.section.rise = Rise
 demos.section.swell = Swell
 demos.section.outro = Outro
+demos.section.prechorus = Pre-chorus
 
 # Tracks and strips.
 demos.track.kick = Kick
@@ -53,9 +56,26 @@ demos.track.pluck = Pluck
 demos.track.bells = Bells
 demos.track.brass = Brass
 demos.track.arp = Arp
+demos.track.vox = Vox
+demos.track.drop = Sub drop
 demos.strip.drum_bus = Drum bus
 demos.strip.reverb = Reverb
 demos.strip.delay = Delay
+demos.strip.music_bus = Music bus
+
+# Automation clips and modulators, by what they do in the song.
+demos.auto.pedal = Pedal
+demos.auto.wow = Tape wow
+demos.auto.filter = Filter build
+demos.auto.shift = Shift
+demos.auto.shift_mix = Shift mix
+demos.auto.pump = Pump
+demos.auto.ring = Ring mod
+demos.auto.throw = Reverb throw
+demos.mod.breath = Breath
+demos.mod.duck = Kick duck
+demos.mod.steps = Filter steps
+demos.mod.drift = Pan drift
 
 # The picker (File → Demo songs).
 demos.menu = Demo songs…

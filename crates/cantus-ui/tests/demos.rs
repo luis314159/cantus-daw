@@ -77,23 +77,29 @@ fn reference(id: &str) -> (i64, i64) {
         "lofi" => (20, 28),
         "ambient" => (16, 24),
         "trap" => (4, 12),
+        "heart" => (32, 40),
         _ => (0, 8),
     }
 }
 
 /// The numbers to mix by: `cargo test -p cantus-ui --test demos -- --ignored --nocapture
-/// levels`, with `DEMO=<id>` to pick one, `FULL=1` to render the whole song too and
-/// `NOPARTS=1` to leave out the parts soloed.
+/// levels`, with `DEMO=<id>` to pick one, `FULL=1` to render the whole song too,
+/// `NOPARTS=1` to leave out the parts soloed and `DRY=1` to measure with the master chain
+/// out (the balance before mastering).
 #[test]
 #[ignore]
 fn levels() {
     let only = std::env::var("DEMO").ok();
     let full = std::env::var("FULL").is_ok();
     let parts = std::env::var("NOPARTS").is_err();
+    let dry = std::env::var("DRY").is_ok();
     each_demo(|d, p| {
         if only.as_deref().is_some_and(|o| o != d.id) {
             return;
         }
+        let mut q = p.clone();
+        q.master.fx_enabled = !dry;
+        let p = &q;
         use std::fmt::Write as _;
         let mut out = String::new();
         let bar = p.time_signature.ticks_per_bar();
@@ -219,17 +225,28 @@ fn every_demo_renders_clean_and_at_a_sane_loudness() {
         );
         // Mastered for streaming (round 19: the master chain plays): near −14 LUFS, the
         // true peak under −1 dBTP by the meters' detector (a tenth of a dB of slack).
+        // Round 28's showcase is mastered as a current pop single is: −12…−10 LUFS, the
+        // true peak at or under −1 dBTP, and it may run to three minutes.
+        let (lo, hi, ceiling, longest) = if d.id == "heart" {
+            (-12.0, -10.0, -1.0, 180.0)
+        } else {
+            (-16.0, -12.0, -0.9, 150.0)
+        };
         let l = lufs(&r);
         assert!(
-            (-16.0..=-12.0).contains(&l),
-            "{}: integrated loudness {l:.1} LUFS is outside −16…−12",
+            (lo..=hi).contains(&l),
+            "{}: integrated loudness {l:.1} LUFS is outside {lo}…{hi}",
             d.id
         );
         let tp = true_peak_db(&r);
         eprintln!("{}: {l:.1} LUFS, {tp:.2} dBTP", d.id);
-        assert!(tp <= -0.9, "{}: true peak {tp:.2} dBTP", d.id);
+        assert!(tp <= ceiling, "{}: true peak {tp:.2} dBTP", d.id);
         let secs = demos::seconds(p);
-        assert!((55.0..=150.0).contains(&secs), "{} lasts {secs:.0} s", d.id);
+        assert!(
+            (55.0..=longest).contains(&secs),
+            "{} lasts {secs:.0} s",
+            d.id
+        );
     });
 }
 
@@ -286,6 +303,24 @@ fn nothing_lies_outside_the_song() {
                     d.id,
                     c.name
                 );
+                // An automation clip (round 28's showcase has them) holds points, not notes.
+                if let Some(a) = &c.automation {
+                    assert!(
+                        a.is_valid() && !a.points.is_empty(),
+                        "{}: automation clip {} on {}",
+                        d.id,
+                        c.name,
+                        t.name
+                    );
+                    assert!(
+                        a.points.iter().all(|pt| pt.tick <= c.length),
+                        "{}: a point of {} on {} lies past its clip",
+                        d.id,
+                        c.name,
+                        t.name
+                    );
+                    continue;
+                }
                 assert!(
                     !c.notes.is_empty(),
                     "{}: clip {} on {} is empty",
@@ -440,4 +475,242 @@ fn the_startup_project_is_a_full_session_that_loops() {
     eprintln!("startup: {l:.1} LUFS, {tp:.2} dBTP");
     assert!((-16.0..=-11.0).contains(&l), "{l:.1} LUFS");
     assert!(tp <= -0.9, "{tp:.2} dBTP");
+}
+
+// ---- round 28's showcase: *With All Your Heart* -----------------------------------------
+
+fn heart() -> Project {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    (demos::find("heart")
+        .expect("the showcase is in the list")
+        .build)()
+}
+
+/// The showcase plays what round 28 made: Chorda pedalled from the arrangement, every new
+/// effect on a strip or the master where it does something, the modulators of four kinds,
+/// automation on the new units, and Speculum at the end of the master chain.
+#[test]
+fn the_showcase_plays_round_28() {
+    use cantus_core::{AutoTarget, EffectKind as K, ModKind};
+    let p = heart();
+    assert!(
+        p.tracks.iter().any(|t| t
+            .instrument
+            .native()
+            .is_some_and(|n| n.kind == InstrumentKind::Chorda)),
+        "Chorda plays"
+    );
+    let slots: Vec<&cantus_core::EffectSlot> = p
+        .strips
+        .iter()
+        .flat_map(|s| s.effects.iter())
+        .chain(p.master.effects.iter())
+        .collect();
+    for kind in K::ALL[12..].iter() {
+        assert!(
+            slots.iter().any(|e| e.spec.kind == *kind),
+            "no {kind:?} in the showcase"
+        );
+    }
+    assert_eq!(
+        p.master.effects.last().map(|e| e.spec.kind),
+        Some(K::Analyzer),
+        "Speculum ends the master chain"
+    );
+    let tonus = slots.iter().find(|e| e.spec.kind == K::AutoTune).unwrap();
+    assert_eq!(
+        (
+            tonus.spec.get("key"),
+            tonus.spec.get("scale"),
+            tonus.spec.get("speed")
+        ),
+        (5.0, 2.0, 0.0),
+        "Tonus hard-tunes the topline to F minor"
+    );
+    let kinds: std::collections::BTreeSet<_> = p
+        .all_modulators()
+        .filter(|(_, m)| !m.routes.is_empty() && !m.muted)
+        .map(|(_, m)| format!("{:?}", m.source.kind()))
+        .collect();
+    for k in [
+        ModKind::Lfo,
+        ModKind::Follower,
+        ModKind::Step,
+        ModKind::Random,
+    ] {
+        assert!(
+            kinds.contains(&format!("{k:?}")),
+            "no {k:?} modulator: {kinds:?}"
+        );
+    }
+    let lanes: Vec<&AutoTarget> = p
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .filter_map(|c| c.automation.as_ref().map(|a| &a.target))
+        .collect();
+    assert!(
+        lanes
+            .iter()
+            .any(|t| matches!(t, AutoTarget::Instrument { key, .. } if key == "pedal")),
+        "Chorda's pedal is played from a lane"
+    );
+    for kind in [K::Vibrato, K::FreqShift, K::VolumeShaper, K::RingMod] {
+        assert!(
+            lanes.iter().any(|t| match t {
+                AutoTarget::Effect { effect, .. } =>
+                    slots.iter().any(|e| e.id == *effect && e.spec.kind == kind),
+                _ => false,
+            }),
+            "no lane on {kind:?}"
+        );
+    }
+}
+
+/// Drive a processor as the audio callback does — the units and the automation sent as the
+/// backend sends them, delay compensation as the engine asks for it, irregular blocks, the
+/// events drained
+/// — from `start` for `frames` frames: what playing the project live sounds like.
+fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
+    use cantus_engine::{
+        pdc, AutomationRuntime, EffectUnit, EngineEvent, EngineMessage, Processor,
+    };
+    const SR: f32 = 48_000.0;
+    cantus_engine::inst::chorda::ensure(Default::default(), SR);
+    let mut snap = Snapshot::compile(p, 1);
+    snap.loop_region = None;
+    let snap = Arc::new(snap);
+    let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(256);
+    let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
+    let mut proc_ = Processor::without_midi(SR as f64, rx, etx);
+    for unit in cantus_engine::inst::units_for(&snap, SR, |_, _| false) {
+        tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+        proc_.settle();
+    }
+    for slot in snap.effect_slots() {
+        tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
+            slot, SR,
+        ))))
+        .unwrap();
+        proc_.settle();
+    }
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+        .unwrap();
+    tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    proc_.settle();
+    while let Ok(ev) = erx.pop() {
+        if let EngineEvent::PdcNeed { count, delay } = ev {
+            tx.push(EngineMessage::PdcLines(pdc::lines_for(count, delay)))
+                .unwrap();
+            proc_.settle();
+        }
+    }
+    tx.push(EngineMessage::Seek(start)).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let sizes = [128usize, 333, 512, 96, 1024, 17];
+    let mut out = Vec::with_capacity(frames * 2);
+    let mut i = 0;
+    while out.len() / 2 < frames {
+        let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        proc_.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while erx.pop().is_ok() {}
+    }
+    out
+}
+
+/// The first frame where two renders differ, and by how much at most.
+fn first_difference(a: &[f32], b: &[f32]) -> Option<(usize, f32)> {
+    let at = a
+        .iter()
+        .zip(b)
+        .position(|(x, y)| x.to_bits() != y.to_bits())?;
+    let most = a
+        .iter()
+        .zip(b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0f32, f32::max);
+    Some((at / 2, most))
+}
+
+/// Played live, the riser, the filter build and the first chorus (bars 28–36: automation,
+/// modulators, the follower, every insert) are the same samples as the offline render, to
+/// the bit.
+#[test]
+fn the_showcase_renders_the_same_offline_and_in_real_time() {
+    let p = heart();
+    let bar = p.time_signature.ticks_per_bar();
+    let (start, end) = (bar * 28, bar * 36);
+    let offline = render_range(&p, start, Some(end), 0.0);
+    let played = live(&p, start, offline.frames());
+    assert_eq!(
+        first_difference(&offline.samples, &played),
+        None,
+        "live differs from offline (frame, largest difference)"
+    );
+}
+
+/// Where live and offline part, track by track (each soloed, the master chain out) and
+/// with the master chain: `cargo test -p cantus-ui --test demos -- --ignored --nocapture
+/// live_against_offline`.
+#[test]
+#[ignore]
+fn live_against_offline() {
+    let p = heart();
+    let bar = p.time_signature.ticks_per_bar();
+    let (start, end) = (bar * 28, bar * 30);
+    let mut dry = p.clone();
+    dry.master.fx_enabled = false;
+    let mut cases: Vec<(String, Project)> = vec![
+        ("all".into(), p.clone()),
+        ("all, master out".into(), dry.clone()),
+    ];
+    for i in 0..p.tracks.len() {
+        cases.push((p.tracks[i].name.clone(), solo(&dry, i)));
+    }
+    for (name, q) in cases {
+        let offline = render_range(&q, start, Some(end), 0.0);
+        let played = live(&q, start, offline.frames());
+        println!(
+            "{name:<16} {:?}",
+            first_difference(&offline.samples, &played)
+        );
+    }
+}
+
+/// Tonus is heard on the topline: against the same render with its amount at 0 (the voice
+/// delayed by its latency and nothing else), the hard tune that snaps the voice's glides
+/// onto F minor's notes changes it by far more than a whisper.
+#[test]
+fn the_topline_is_hard_tuned() {
+    let p = heart();
+    let vox = p
+        .tracks
+        .iter()
+        .position(|t| t.name == cantus_ui::i18n::t("demos.track.vox"))
+        .expect("the vox track");
+    let bar = p.time_signature.ticks_per_bar();
+    let window = |q: &Project| render_range(&solo(q, vox), bar * 32, Some(bar * 34), 0.0);
+    let tuned = window(&p);
+    let mut untuned = p.clone();
+    for s in &mut untuned.strips {
+        for e in &mut s.effects {
+            if e.spec.kind == cantus_core::EffectKind::AutoTune {
+                e.spec.set("amount", 0.0).unwrap();
+            }
+        }
+    }
+    let plain = window(&untuned);
+    let energy = |x: &[f32]| x.iter().map(|v| (*v as f64) * (*v as f64)).sum::<f64>();
+    let diff: Vec<f32> = tuned
+        .samples
+        .iter()
+        .zip(&plain.samples)
+        .map(|(a, b)| a - b)
+        .collect();
+    let rel = 10.0 * (energy(&diff) / energy(&plain.samples).max(1e-12)).log10();
+    eprintln!("Tonus's change to the topline: {rel:.1} dB");
+    assert!(rel > -20.0, "Tonus barely touches the topline: {rel:.1} dB");
 }

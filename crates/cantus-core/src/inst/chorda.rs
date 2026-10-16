@@ -11,7 +11,7 @@
 //! | Hammer | `hardness` (−1 softer … 1 harder felt), `hysteresis` (%), `dynamics` (%), `vel.curve` |
 //! | Strings | `decay` (%), `unison` (ct), `coupling` (%) |
 //! | Resonance | `sympathy` (%), `phantom` (%) |
-//! | Pedals | `damper` (%), `una` (%: how far the soft pedal shifts the hammers) |
+//! | Pedals | `pedal` (the sustain pedal as a parameter, 0 up … 1 down: what an automation lane or a modulator drives; the higher of it and controller 64 plays), `damper` (%), `una` (%: how far the soft pedal shifts the hammers) |
 //! | Body | `body` (%), `tilt` (dB), `width` (%) |
 //! | Output | `gain` (dB) |
 //!
@@ -128,6 +128,7 @@ pub const PARAMS: &[InstParamInfo] = &[
         false,
         false,
     ),
+    p("pedal", "chorda.pedal", 0.0, 1.0, 0.0, "%", false, false),
     p("damper", "chorda.damper", 0.0, 1.0, 1.0, "%", false, false),
     p("una", "chorda.una", 0.0, 1.0, 1.0, "%", false, false),
     p("body", "chorda.body", 0.0, 2.0, 1.0, "%", false, false),

@@ -8,9 +8,11 @@
 
 use super::theory::{Ev, Rng};
 use crate::i18n::t;
+use cantus_core::model::ModulatorId;
 use cantus_core::{
-    Color, Dock, DrumPad, EffectId, EffectKind, EffectSlot, InstrumentKind, InstrumentSpec,
-    LoopRegion, Project, PulsusParams, Send, StripId, Ticks, TrackIcon,
+    AutoPoint, AutoTarget, Color, Dock, DrumPad, EffectId, EffectKind, EffectSlot, InstrumentKind,
+    InstrumentSpec, LoopRegion, ModHost, ModRoute, ModSource, Modulator, Project, PulsusParams,
+    Send, Shape, StripId, Ticks, TrackIcon,
 };
 
 /// How a part is played: how far off the grid (in beats), how much the velocities move,
@@ -126,6 +128,28 @@ impl Song {
         Part {
             track: self.p.tracks.len() - 1,
             strip,
+        }
+    }
+
+    /// At least `middle` strips in the middle of the desk (a project opens with sixteen in
+    /// all): more are added before the returns docked on the right, as the mixer's `+` does.
+    pub fn strips(&mut self, middle: usize) {
+        while self
+            .p
+            .strips
+            .iter()
+            .filter(|s| s.dock == Dock::Middle)
+            .count()
+            < middle
+        {
+            let fresh = self.p.make_strip("");
+            let at = self
+                .p
+                .strips
+                .iter()
+                .position(|s| s.dock == Dock::Right)
+                .unwrap_or(self.p.strips.len());
+            self.p.strips.insert(at, fresh);
         }
     }
 
@@ -321,6 +345,69 @@ impl Song {
         }
     }
 
+    /// An automation clip (ADR 0027) in `part`'s lanes driving `target`, from bar `at` for
+    /// `bars` bars. Each point is `(beat from the clip's start, value in the parameter's
+    /// own units — Hz, dB, %… — and the shape from it to the next)`; the value is put on
+    /// the control's travel by the target's own range, as a hand on the knob would.
+    pub fn automate(
+        &mut self,
+        part: Part,
+        target: AutoTarget,
+        name: &str,
+        at: f64,
+        bars: f64,
+        points: &[(f64, f32, Shape)],
+    ) {
+        let range = cantus_core::automation::range::range_of(&self.p, &target)
+            .unwrap_or_else(|| panic!("automation of {target:?}, which the song does not hold"));
+        let pts = points
+            .iter()
+            .map(|(beat, value, shape)| {
+                let mut a = AutoPoint::new(Ticks::from_beats_f64(*beat), range.pos(*value));
+                a.shape = *shape;
+                a
+            })
+            .collect();
+        let (start, length) = (self.ticks(at), self.ticks(bars));
+        let clip = self
+            .p
+            .make_automation_clip(name, target, start, length, pts);
+        self.p.tracks[part.track].clips.push(clip);
+    }
+
+    /// A modulator (ADR 0057) on `host`: `source` driving each target by its depth (a
+    /// share of the control's whole travel, −1…1).
+    pub fn modulate(
+        &mut self,
+        host: ModHost,
+        name: &str,
+        source: ModSource,
+        routes: &[(AutoTarget, f32)],
+    ) -> ModulatorId {
+        let id = ModulatorId(self.p.alloc_id());
+        let mut m = Modulator::new(id, source.kind());
+        m.name = name.to_string();
+        m.source = source;
+        m.routes = routes
+            .iter()
+            .map(|(target, depth)| ModRoute {
+                target: target.clone(),
+                depth: *depth,
+            })
+            .collect();
+        assert!(m.is_valid(), "a modulator the commands would refuse: {m:?}");
+        self.p
+            .modulators_mut(host)
+            .expect("the modulator's host is in the song")
+            .push(m);
+        id
+    }
+
+    /// The id of the track a part plays on.
+    pub fn track_id(&self, part: Part) -> cantus_core::TrackId {
+        self.p.tracks[part.track].id
+    }
+
     /// Finish: the loop around the whole song (off), the clips in time order.
     pub fn finish(mut self) -> Project {
         let end = self.p.content_end();
@@ -432,6 +519,25 @@ pub fn pads_with(
         .collect();
     assert_eq!(chosen.len(), pitches.len(), "a pad is missing from the kit");
     InstrumentSpec::Pulsus(PulsusParams::of(chosen))
+}
+
+/// Pads chosen from several kits — `(kit, pitch)` each — as one kit of their own (a layered
+/// snare from one kit and a clap from another, say), named in the interface language.
+pub fn pads_from(chosen: &[(&PulsusParams, u8)]) -> InstrumentSpec {
+    let pads: Vec<DrumPad> = chosen
+        .iter()
+        .map(|(kit, pitch)| {
+            let mut pad = kit
+                .pads
+                .iter()
+                .find(|p| p.pitch == *pitch)
+                .unwrap_or_else(|| panic!("no pad on {pitch} in the kit"))
+                .clone();
+            pad.name = crate::app::localized_pad_name(&pad);
+            pad
+        })
+        .collect();
+    InstrumentSpec::Pulsus(PulsusParams::of(pads))
 }
 
 /// A section's name in the interface language (`intro`, `verse`, `chorus`, …).

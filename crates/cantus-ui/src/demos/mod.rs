@@ -1,4 +1,5 @@
-//! The demo songs (round 19): six short pieces in six styles that show what Cantus does —
+//! The demo songs (round 19; round 28's showcase, *With All Your Heart*, first): seven
+//! pieces in seven styles that show what Cantus does —
 //! every native instrument, the effects on strips with musical settings, sends to shared
 //! returns, buses, a mastering chain on the master — and the project the program opens
 //! on, cut from the strongest of them.
@@ -16,6 +17,7 @@ pub mod theory;
 mod ambient;
 mod ballad;
 mod funk;
+mod heart;
 mod house;
 mod lofi;
 mod trap;
@@ -32,7 +34,13 @@ pub struct Demo {
 }
 
 /// Every demo, in the order the picker lists them.
-pub const ALL: [Demo; 6] = [
+pub const ALL: [Demo; 7] = [
+    Demo {
+        id: "heart",
+        name_key: "demos.song.heart",
+        style_key: "demos.style.heart",
+        build: heart::build,
+    },
     Demo {
         id: "house",
         name_key: "demos.song.house",
