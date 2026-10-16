@@ -699,25 +699,20 @@ mod space_tests {
             ctx.run_ui(egui::RawInput::default(), |_| {})
                 .textures_delta
                 .clear();
-            // The column the table lays out (review of fix3: the test measured the helper
-            // against itself): every label fits it with its padding.
-            let w = super::detail_column(&ctx, &s);
-            for key in super::DETAIL_LABELS {
-                let label = t(key);
+            // The column as the window draws it is checked where it is drawn
+            // (`samples_browser::the_details_labels_are_drawn_whole_and_clear_of_their_values`;
+            // review of fix4: this test measured the column's helper against itself). Here
+            // only what makes that test bite: the old fixed 110 pt column is too narrow for
+            // the Spanish space label with its padding.
+            if locale == Locale::Es {
+                let label = t("samples.detail.space");
                 let text = crate::kit::text::measure(
                     &ctx,
                     &crate::kit::text::Text::new(&label, crate::kit::text::Role::Body, s.t.text),
                     s.tk(),
                 )
                 .x;
-                assert!(
-                    text + 12.0 * s.k <= w,
-                    "{locale:?}: {label} ({text}) in {w}"
-                );
-                // The old fixed 110 pt column was too narrow for the Spanish space label.
-                if locale == Locale::Es && key == "samples.detail.space" {
-                    assert!(text + 12.0 * s.k > 110.0 * s.k, "{label}: {text}");
-                }
+                assert!(text + 12.0 * s.k > 110.0 * s.k, "{label}: {text}");
             }
             let e = cantus_content::install::InstallError::NoSpace {
                 need: 7_614_567_890,

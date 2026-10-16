@@ -4,6 +4,7 @@
 //! reproducible regardless of block size (the key to the offline render being bit-identical
 //! to real-time playback). Ticks are derived, never accumulated.
 
+use crate::fx::Wraps;
 use cantus_core::{LoopRegion, Ticks, PPQ};
 
 /// The sample (counted from `origin`) at which a transport playing at `bpm` reaches
@@ -28,10 +29,11 @@ pub struct Transport {
     origin_tick: f64,
     samples: u64,
     loop_region: Option<LoopRegion>,
-    /// Samples played since the loop last wrapped; `None` since a start or a seek, before
-    /// any wrap (review of fix3: the audio an insert hears late is from before the loop
-    /// only on its first entry).
-    since_wrap: Option<u64>,
+    /// The loop's wraps since a start or a seek — the samples since the last, how many,
+    /// the last passes' lengths; `None` before the first (review of fix3: the audio an
+    /// insert hears late is from before the loop only on its first entry; review of fix4:
+    /// and never from more passes than were played).
+    wraps: Option<Wraps>,
 }
 
 impl Transport {
@@ -43,7 +45,7 @@ impl Transport {
             origin_tick: 0.0,
             samples: 0,
             loop_region: None,
-            since_wrap: None,
+            wraps: None,
         }
     }
 
@@ -111,7 +113,7 @@ impl Transport {
 
     pub fn play(&mut self) {
         if !self.playing {
-            self.since_wrap = None;
+            self.wraps = None;
         }
         self.playing = true;
     }
@@ -120,7 +122,17 @@ impl Transport {
     /// transport started or was moved.
     #[inline]
     pub fn since_wrap(&self) -> Option<u64> {
-        self.since_wrap
+        self.wraps.as_ref().map(|w| w.since)
+    }
+
+    /// The loop's wraps since the transport started or was moved, with the pass playing
+    /// and the loop's length now — `None` before the first, or with no loop ahead.
+    pub fn wraps(&self) -> Option<Wraps> {
+        let mut w = self.wraps?;
+        let l = self.loop_region.as_ref()?;
+        w.pass = w.since + self.samples_until_loop_end()?;
+        w.loop_samples = (l.end.0 - l.start.0) as f64 / self.ticks_per_sample();
+        Some(w)
     }
 
     pub fn stop(&mut self) {
@@ -133,7 +145,18 @@ impl Transport {
     pub fn seek(&mut self, tick: Ticks) {
         self.origin_tick = tick.0 as f64;
         self.samples = 0;
-        self.since_wrap = None;
+        self.wraps = None;
+    }
+
+    /// Move the playhead to the loop's start as a wrap (the loop's end due at a pass's first
+    /// sample): counted with the others, as `advance` counts its own (review of fix4).
+    pub fn wrap_to(&mut self, start: Ticks) {
+        self.origin_tick = start.0 as f64;
+        self.samples = 0;
+        match self.wraps.as_mut() {
+            Some(w) => w.wrap(),
+            None => self.wraps = Some(Wraps::first(0, 0, 0.0)),
+        }
     }
 
     /// Change tempo without moving the playhead.
@@ -185,8 +208,8 @@ impl Transport {
         }
         let before = self.samples;
         self.samples += n;
-        if let Some(s) = self.since_wrap.as_mut() {
-            *s += n;
+        if let Some(w) = self.wraps.as_mut() {
+            w.since += n;
         }
         if let Some(l) = &self.loop_region {
             let start = l.start.0 as f64;
@@ -197,7 +220,10 @@ impl Transport {
                 let overshoot = self.position_f64() - end;
                 self.origin_tick = start + overshoot.max(0.0);
                 self.samples = 0;
-                self.since_wrap = Some(0);
+                match self.wraps.as_mut() {
+                    Some(w) => w.wrap(),
+                    None => self.wraps = Some(Wraps::first(0, 0, 0.0)),
+                }
                 return true;
             }
         }
@@ -267,5 +293,91 @@ mod tests {
         assert_eq!(t.samples_until(-4.0), 0);
         t.advance(10);
         assert_eq!(t.samples_until(1.0), 15);
+    }
+
+    /// Play `samples` one at a time from `from` with the loop `[ls, le)` (in ticks), the
+    /// tempo changed to `bpm_at(pass)` at each wrap: the clock at each wrap.
+    fn run(
+        bpm: f64,
+        ls: i64,
+        le: i64,
+        from: i64,
+        samples: u64,
+        bpm_at: impl Fn(usize) -> f64,
+    ) -> (Transport, Vec<u64>) {
+        let mut t = Transport::new(48_000.0);
+        t.set_bpm(bpm);
+        t.set_loop(Some(LoopRegion {
+            start: Ticks(ls),
+            end: Ticks(le),
+        }));
+        t.seek(Ticks(from));
+        t.play();
+        let mut wraps = Vec::new();
+        for clock in 1..=samples {
+            if t.advance(1) {
+                wraps.push(clock);
+                t.set_bpm(bpm_at(wraps.len()));
+            }
+        }
+        (t, wraps)
+    }
+
+    /// The truth `Wraps::before_wrap` stands for: how many samples before the wrap that
+    /// ends its stretch the audio `back` samples ago lies.
+    fn truth(wraps: &[u64], now: u64, back: u64) -> Option<u64> {
+        let at = now.checked_sub(back)?;
+        if wraps.last().is_none_or(|w| at >= *w) {
+            return None;
+        }
+        wraps.iter().find(|w| **w > at).map(|w| w - at)
+    }
+
+    /// Review of fix4: the wraps a late insert's audio lies behind are the ones played —
+    /// none before the first, as many as there were after — at their real samples: exact
+    /// for the kept passes even when the tempo changed between them (the passes' lengths
+    /// differ), and within a sample of the truth further back while the tempo holds (a loop
+    /// whose length is no whole number of samples: the measured worst case, here over 200
+    /// passes of a 1/16-beat loop at 133 BPM).
+    #[test]
+    fn the_wraps_are_the_ones_played_at_their_samples() {
+        // 1/16 beat at 133 BPM: 1 353.38… samples a pass.
+        let (t, wraps) = run(133.0, 960, 1020, 0, 300_000, |_| 133.0);
+        let w = t.wraps().expect("wrapped");
+        assert_eq!(w.count as usize, wraps.len());
+        let now = 300_000;
+        let mut worst = 0u64;
+        for back in (1..=now).step_by(7) {
+            let (got, want) = (w.before_wrap(back), truth(&wraps, now, back));
+            match (got, want) {
+                (Some(g), Some(x)) => {
+                    let kept_span: u64 = now - wraps[wraps.len() - 1 - crate::fx::PASSES_KEPT];
+                    if back <= kept_span {
+                        assert_eq!(g, x, "kept passes are exact, {back} back");
+                    }
+                    worst = worst.max(g.abs_diff(x));
+                }
+                (None, None) => {}
+                // Before the clock's start: the song before the play, straight.
+                (Some(_), None) if back > now => {}
+                (g, x) => panic!("{back} back: {g:?}, the truth {x:?}"),
+            }
+        }
+        assert!(worst <= 1, "the measured worst case: {worst} samples");
+        // Only one wrap played: the audio before it is the lead-in, however far back.
+        let (t, wraps) = run(120.0, 7680, 8640, 0, 230_000, |_| 120.0);
+        let w = t.wraps().expect("wrapped");
+        assert_eq!(wraps.len(), 1);
+        let since = 230_000 - wraps[0];
+        assert_eq!(w.before_wrap(since + 60_000), Some(60_000));
+        // A tempo that changes at every wrap, the passes 24 000 · 120/bpm samples long:
+        // exact over the kept passes.
+        let (t, wraps) = run(120.0, 960, 1920, 960, 400_000, |n| 100.0 + (n % 5) as f64 * 9.0);
+        let w = t.wraps().expect("wrapped");
+        let now = 400_000;
+        let kept_span = now - wraps[wraps.len() - 1 - crate::fx::PASSES_KEPT.min(wraps.len() - 1)];
+        for back in (1..kept_span).step_by(3) {
+            assert_eq!(w.before_wrap(back), truth(&wraps, now, back), "{back} back");
+        }
     }
 }

@@ -616,3 +616,80 @@ fn the_starter_offer_of_a_cc_by_pack_names_its_licence_and_author() {
         "not the CC0 words: {text}"
     );
 }
+
+/// Every piece of text the content window paints with `id` selected: (text, its rect).
+fn content_window_shapes(a: &mut CantusApp, id: &str) -> Vec<(String, Rect)> {
+    a.samples.window.open = true;
+    a.samples.window.selected = Some(id.into());
+    let ctx = ctx();
+    let mut last = Vec::new();
+    for i in 0..3 {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SIZE)),
+            time: Some(i as f64 * 0.25),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            let ctx = ui.ctx().clone();
+            cantus_ui::views::samples_content::window(a, &ctx);
+        });
+        out.textures_delta.clear();
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, Rect)>) {
+            match shape {
+                egui::Shape::Text(t) => out.push((
+                    t.galley.text().to_string(),
+                    t.galley.rect.translate(t.pos.to_vec2()),
+                )),
+                egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+                _ => {}
+            }
+        }
+        last.clear();
+        for s in &out.shapes {
+            walk(&s.shape, &mut last);
+        }
+    }
+    last
+}
+
+/// Review of fix4 (the space-label test measured the column's helper against itself):
+/// the details table as the window draws it — in Spanish every label is painted whole
+/// (none cut to "…"), and each stands clear of its value, which starts where the others'
+/// values start.
+#[test]
+fn the_details_labels_are_drawn_whole_and_clear_of_their_values() {
+    let m = cc_by_manifest();
+    let piano = m.pack("fixture-grand-piano").unwrap().clone();
+    for locale in [cantus_ui::i18n::Locale::Es, cantus_ui::i18n::Locale::En] {
+        cantus_ui::i18n::set_locale(locale);
+        let f = fixture();
+        let mut a = browser_app(&f, m.clone());
+        let shapes = content_window_shapes(&mut a, &piano.id);
+        let mut value_x = Vec::new();
+        for key in cantus_ui::views::samples_content::DETAIL_LABELS {
+            let label = cantus_ui::i18n::t(key);
+            let (_, at) = shapes
+                .iter()
+                .find(|(s, _)| *s == label)
+                .unwrap_or_else(|| panic!("{locale:?}: {label:?} not painted whole: {shapes:?}"));
+            // Its value: the first text to its right on its row.
+            let (value, v) = shapes
+                .iter()
+                .filter(|(_, r)| r.left() > at.left() + 1.0 && (r.top() - at.top()).abs() < 6.0)
+                .min_by(|a, b| a.1.left().total_cmp(&b.1.left()))
+                .unwrap_or_else(|| panic!("{locale:?}: no value right of {label:?}"));
+            assert!(
+                at.right() + 8.0 <= v.left(),
+                "{locale:?}: {label:?} ends at {} and its value {value:?} starts at {}",
+                at.right(),
+                v.left()
+            );
+            value_x.push(v.left());
+        }
+        assert!(
+            value_x.iter().all(|x| (x - value_x[0]).abs() < 0.5),
+            "{locale:?}: the values start in one column: {value_x:?}"
+        );
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}

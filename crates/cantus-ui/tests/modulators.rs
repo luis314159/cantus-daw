@@ -839,3 +839,51 @@ fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
         "the drop connected the volume"
     );
 }
+
+/// Review of fix4: the inspector's pinned strip shows where modulation has its controls
+/// the desk's way — the fader with the desk's mark beside its cap (not the value wells'
+/// edge tick), the pan knob with its own dot and rings, width and the wells with the edge
+/// tick.
+#[test]
+fn the_pinned_strip_shows_its_modulation_the_desks_way() {
+    use cantus_ui::kit::automate::probe;
+    let mut p = starter_project();
+    let t = p.tracks[0].id;
+    let s = p.tracks[0].strip.unwrap();
+    let mut m = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+    for target in [AutoTarget::StripGain(s), AutoTarget::StripPan(s)] {
+        m.routes.push(ModRoute { target, depth: 0.3 });
+    }
+    p.modulators_mut(ModHost::Track(t)).unwrap().push(m);
+    let mut a = app(p);
+    a.select_track(t);
+    let ctx = ctx();
+    probe::start();
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(360.0, 2400.0),
+        )),
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| cantus_ui::views::inspector::show(&mut a, ui));
+    });
+    out.textures_delta.clear();
+    let live = probe::take_live();
+    let _ = probe::take();
+    let how = |name: &str| -> Vec<&'static str> {
+        live.iter()
+            .filter(|(n, _)| n == name)
+            .map(|(_, h)| *h)
+            .collect()
+    };
+    assert_eq!(how("kit.param.volume"), vec!["fader"], "{live:?}");
+    assert_eq!(how("kit.param.pan"), vec!["knob"], "{live:?}");
+    assert!(
+        live.iter().any(|(_, h)| *h == "edge"),
+        "the value wells keep the edge tick: {live:?}"
+    );
+}

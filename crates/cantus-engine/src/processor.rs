@@ -726,10 +726,7 @@ pub(crate) fn song_position_of(
         loop_beats: transport
             .loop_region()
             .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
-        wrap: transport
-            .since_wrap()
-            .zip(transport.samples_until_loop_end())
-            .map(|(since, left)| (since, since + left)),
+        wrap: transport.wraps(),
     }
 }
 

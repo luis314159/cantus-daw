@@ -953,6 +953,17 @@ fn the_pitch_editors_track_target_shows_and_a_grid_picked_lets_it_go() {
         .find(|(t, rr)| *t == other.1 && snap.contains_rect(*rr))
         .map(|(_, rr)| *rr)
         .unwrap_or_else(|| panic!("the field names {}: {:?}", other.1, r.texts));
+    // Review of fix4: its hint says what the name is — the track Quantise moves to, not
+    // the grid ("Grid — Pitch editor: Lead Vox" read as a grid set to a track).
+    r.pointer = Some(field.center());
+    r.idle(3);
+    let h = cantus_ui::kit::hint::current(&r.ctx).expect("the field's hint");
+    assert!(
+        h.name.starts_with(&cantus_ui::i18n::t("pitch.quantise_to"))
+            && !h.name.contains(&cantus_ui::i18n::t("topbar.grid")),
+        "{h:?}"
+    );
+    assert_eq!(h.value, other.1, "the whole name, whatever the field shows");
     r.click(field.center());
     r.idle(2);
     let eighth = cantus_ui::i18n::t("grid.eighth");

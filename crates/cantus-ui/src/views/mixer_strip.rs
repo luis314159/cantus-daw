@@ -1449,13 +1449,7 @@ impl DeskMod {
     /// The modulated mark beside the fader where modulation has it now.
     pub(super) fn fader_mark(&self, b: &mut Brush, fr: Rect, s: &crate::kit::Style) {
         if let Some(live) = self.live {
-            let c = crate::kit::fader::cap_rect(fr, s, live).center();
-            let x = fr.right() - 1.0 * s.k;
-            let d = 4.0 * s.k;
-            b.polygon(
-                &[pos2(x, c.y), pos2(x + d, c.y - d), pos2(x + d, c.y + d)],
-                s.t.hue_mod,
-            );
+            crate::kit::fader::live_mark(b, fr, s, live);
         }
     }
 }

@@ -278,3 +278,111 @@ fn a_late_synced_gate_wraps_with_its_audio_at_any_block_size() {
         }
     }
 }
+
+/// The transport's position, in beats, at each of `frames` frames played from the start
+/// with `project`'s loop — the transport's own arithmetic — and the frames it wrapped at.
+fn positions(project: &Project, frames: usize) -> (Vec<f64>, Vec<usize>) {
+    let mut t = cantus_engine::Transport::new(48_000.0);
+    t.set_bpm(project.tempo_bpm);
+    t.set_loop(project.loop_region.clone());
+    t.seek(Ticks::ZERO);
+    t.play();
+    let (mut pos, mut wraps) = (Vec::with_capacity(frames), Vec::new());
+    for f in 0..frames {
+        pos.push(t.position_f64() / PPQ as f64);
+        if t.advance(1) {
+            wraps.push(f + 1);
+        }
+    }
+    (pos, wraps)
+}
+
+/// Check a quarter-note gate `late` frames behind the transport against the position of
+/// the audio it hears — where the transport was `late` frames before — frame by frame:
+/// shut in the second half of that beat, the ungated bits in the first, a few samples'
+/// margin at each edge. How many frames it found open with sound, lying behind a wrap
+/// (the transport already in the next pass, the audio still before it).
+fn check_heard(out: &[f32], ungated: &[f32], project: &Project, late: usize, what: &str) -> usize {
+    let frames = out.len() / 2;
+    let (pos, wraps) = positions(project, frames);
+    assert!(wraps.len() >= 2, "{what}: it loops");
+    let margin = 8.0 / BEAT;
+    let mut behind = 0;
+    for f in late..frames {
+        let heard = pos[f - late];
+        let ph = heard - heard.floor();
+        if ph.min(1.0 - ph) < margin || (ph - 0.5).abs() < margin {
+            continue;
+        }
+        if ph > 0.5 {
+            assert_eq!(out[2 * f], 0.0, "{what}: frame {f} hears beat {heard}: shut");
+        } else {
+            assert_eq!(
+                out[2 * f].to_bits(),
+                ungated[2 * f].to_bits(),
+                "{what}: frame {f} hears beat {heard}: open"
+            );
+            let wrapped = wraps.iter().any(|w| f - late < *w && *w <= f);
+            if wrapped && ungated[2 * f] != 0.0 {
+                behind += 1;
+            }
+        }
+    }
+    behind
+}
+
+/// Review of fix4 (the block-size test above would pass with no fold at all): end to end,
+/// the gate behind a latent insert hears every wrap where its audio wraps — 240 samples
+/// after the transport's — and so the beat of the audio in its hands, frame by frame, in
+/// a loop of 4⅓ beats entered from before it (where the loop's end and start are a third
+/// of a beat apart, so a gate folding at the transport's wrap shuts what is open); and
+/// until its audio first wraps, the first pass is the song played straight, to the bit.
+#[test]
+fn a_late_gate_hears_each_wrap_where_its_audio_wraps() {
+    let mut ungated = lead_only();
+    let flexus = add_effect(&mut ungated, EffectKind::Flanger);
+    set_all(&mut ungated, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    ungated.loop_region = Some(LoopRegion {
+        start: Ticks::beats(2),
+        end: Ticks::beats(6) + Ticks(PPQ / 3),
+    });
+    ungated.loop_enabled = true;
+    let mut p = ungated.clone();
+    gated(&mut p);
+    let len = 2 * (BEAT * 15.0) as usize;
+    let out = looping(&p, len, &[37, 100, 1024, 7]);
+    let behind = check_heard(&out, &looping(&ungated, len, &[512]), &p, 240, "4⅓ beats");
+    assert!(behind > 100, "the frames behind a wrap were checked: {behind}");
+    // The first entry: up to where the audio wraps, as with no loop.
+    let (_, wraps) = positions(&p, len / 2);
+    let straight = realtime(&p, len);
+    let first = 2 * (wraps[0] + 240);
+    assert_null(&straight[..first], &out[..first], 0.0, "the first entry");
+    assert!(out[first..].iter().zip(&straight[first..]).any(|(a, b)| a != b));
+}
+
+/// Review of fix4: an insert later than the loop is long (four Flexus, 960 samples; a
+/// loop of a 32nd note, 703⅛ samples — passes of 703 and 704) hears, right after the
+/// first wrap, the song leading into the loop — not passes that were never played — and
+/// after more wraps the passes at their real lengths.
+#[test]
+fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
+    let mut ungated = lead_only();
+    for _ in 0..4 {
+        let flexus = add_effect(&mut ungated, EffectKind::Flanger);
+        set_all(&mut ungated, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    }
+    // From the middle of beat 6 (the gate's edge), where the chord sounds.
+    let start = Ticks::beats(6) + Ticks(PPQ / 2);
+    ungated.loop_region = Some(LoopRegion {
+        start,
+        end: start + Ticks(PPQ / 32),
+    });
+    ungated.loop_enabled = true;
+    let mut p = ungated.clone();
+    gated(&mut p);
+    let len = 2 * (BEAT * 8.0) as usize;
+    let out = looping(&p, len, &[64, 333]);
+    let behind = check_heard(&out, &looping(&ungated, len, &[512]), &p, 960, "a 32nd's loop");
+    assert!(behind > 100, "the frames behind the first wrap were checked: {behind}");
+}

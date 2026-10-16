@@ -26,11 +26,28 @@ pub mod probe {
 
     thread_local! {
         static SEEN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
+        static LIVE: RefCell<Option<Vec<(String, &'static str)>>> = const { RefCell::new(None) };
     }
 
     /// Start recording (what was recorded before is dropped).
     pub fn start() {
         SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        LIVE.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// A control showed where modulation has it now, the way `how` names (review of fix4:
+    /// which mark the inspector's pinned strip draws for each control).
+    pub fn note_live(name: &str, how: &'static str) {
+        LIVE.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push((name.to_string(), how));
+            }
+        });
+    }
+
+    /// The live marks noted since [`start`] (and stop noting them).
+    pub fn take_live() -> Vec<(String, &'static str)> {
+        LIVE.with(|s| s.borrow_mut().take()).unwrap_or_default()
     }
 
     /// Stop recording and hand back what was drawn.

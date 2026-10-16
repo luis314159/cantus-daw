@@ -581,3 +581,67 @@ fn a_pass_laid_over_takes_is_the_comps_window() {
         "comp A: the new take whole"
     );
 }
+
+/// Fix5: a pass recorded away from a track's takes lies over none, so it is no comp
+/// window — it plays under every comp, as under schema 31 (before, any take lane anywhere
+/// on the track flagged it and a switch took it away). One recorded over its own loop's
+/// earlier passes, far from the old takes, is still the comp's.
+#[test]
+fn a_pass_recorded_away_from_the_takes_plays_under_every_comp() {
+    let (mut p, t) = project();
+    audio_clip(&mut p, t, "Old", Ticks::ZERO, beats(8));
+    let mut sp = plan(t, beats(2));
+    sp.punch = Some((beats(2), beats(6)));
+    let mut bus = run(p, &sp, &[take(t, 0.0, 8 * BEAT_FRAMES, vec![])], &[], 0);
+    // Comp B: the old take swiped back in.
+    comp_step(&mut bus, |p, ids| {
+        cantus_ui::comping::duplicate_comp(p, t, ids)
+    });
+    comp_step(&mut bus, |p, ids| {
+        cantus_ui::comping::swipe(p, t, 1, beats(2), beats(4), ids)
+    });
+    // A chorus recorded at beat 20, where no take lies.
+    let p = bus.project().clone();
+    let far = run(
+        p,
+        &plan(t, beats(20)),
+        &[take(t, 20.0 * 960.0, 4 * BEAT_FRAMES, vec![])],
+        &[],
+        0,
+    );
+    let at = |bus: &CommandBus| -> Vec<(u8, bool)> {
+        bus.project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .filter(|c| c.start == beats(20))
+            .map(|c| (c.lane, c.comp))
+            .collect()
+    };
+    assert_eq!(at(&far), vec![(0, false)], "a pass over no take is no window");
+    let mut far = far;
+    comp_step(&mut far, |p, _| cantus_ui::comping::switch_comp(p, t, 0));
+    assert_eq!(at(&far), vec![(0, false)], "comp A plays the chorus");
+    comp_step(&mut far, |p, _| cantus_ui::comping::switch_comp(p, t, 1));
+    assert_eq!(at(&far), vec![(0, false)], "comp B plays the chorus");
+
+    // A loop recorded at beat 20 on the same track: its last pass lies over its own
+    // earlier passes, so it is the comp's.
+    let p = bus.project().clone();
+    let mut lp = plan(t, beats(20));
+    lp.loop_region = Some((beats(20), beats(24)));
+    let pass = 4 * BEAT_FRAMES;
+    let looped = run(
+        p,
+        &lp,
+        &[take(t, 20.0 * 960.0, 2 * pass, vec![pass])],
+        &[],
+        0,
+    );
+    assert!(
+        at(&looped).contains(&(0, true)),
+        "the loop's last pass is the comp's: {:?}",
+        at(&looped)
+    );
+}

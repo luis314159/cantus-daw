@@ -139,6 +139,12 @@ impl Chord {
         .classes()
     }
 
+    /// Whether `pitch` is one of the chord's notes, in any octave (its bass included).
+    pub fn holds(&self, pitch: u8) -> bool {
+        let pc = pitch % 12;
+        self.bass == pc || self.classes().contains(&pc)
+    }
+
     /// The bass note in the octave starting at `low`.
     pub fn bass_at(&self, low: u8) -> u8 {
         let mut p = low - low % 12 + self.bass;

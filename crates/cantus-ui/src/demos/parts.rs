@@ -229,10 +229,10 @@ mod tests {
     use super::*;
 
     /// A comped chord, a bass note or an arpeggio note struck late in a chord stops at the
-    /// next change: held on, it would ring under the next chord (a pedal put down just
-    /// after the change catches it).
+    /// first change to a chord without it: held on, it would ring under that chord (a pedal
+    /// put down just after the change catches it). Nothing rings past the chart's end.
     #[test]
-    fn no_note_rings_into_the_next_chord() {
+    fn no_note_rings_into_a_chord_without_it() {
         let laid = lay(&[("C", 2.0), ("F", 2.0), ("G", 4.0)], 3, 55, 72, 64);
         let c = comp(&laid, 4.0, &[(0.0, 3.0, 80), (1.5, 1.0, 70)]);
         let b = bass(
@@ -243,15 +243,43 @@ mod tests {
         );
         let a = arp(&laid, 36, &[0, 1, 2], 0.5, 1.2, 60);
         for e in c.iter().chain(&b).chain(&a) {
-            let (start, len, _, _) = laid.at(e.at);
-            let cycle = e.at - e.at.rem_euclid(laid.beats);
-            let change = cycle + start + len;
-            assert!(
-                e.at + e.len <= change + 1e-9,
-                "a note at {} lasting {} rings past the change at {change}",
-                e.at,
-                e.len
-            );
+            let mut t = e.at;
+            while t < e.at + e.len - 1e-9 {
+                let (start, len, ch, _) = laid.at(t);
+                assert!(
+                    ch.holds(e.pitch),
+                    "a note {} at {} lasting {} rings under a chord without it at {t}",
+                    e.pitch,
+                    e.at,
+                    e.len
+                );
+                t = start + len;
+            }
+            assert!(e.at + e.len <= laid.beats + 1e-9, "past the chart's end");
         }
+    }
+
+    /// Review of fix4: a change to a chord that still holds the note does not stop it — the
+    /// sub bass under Asus4 → A (Aurora's rise), a pianist's left-hand octave under the
+    /// same cadence (Morning Light's chorus) ring their whole length, as written.
+    #[test]
+    fn a_note_the_next_chord_still_holds_rings_on() {
+        let laid = lay(&[("Asus4", 2.0), ("A", 2.0), ("D", 4.0)], 3, 55, 72, 64);
+        let sub = bass(&laid, 26, 4.0, &[(0.0, 3.9, 90, B::R)]);
+        assert_eq!(sub.len(), 2);
+        assert!((sub[0].len - 3.9).abs() < 1e-12, "{}", sub[0].len);
+        let lh = bass(&laid, 33, 4.0, &[(0.0, 3.8, 70, B::R), (0.0, 3.8, 70, B::O)]);
+        assert!(lh[..2].iter().all(|e| (e.len - 3.8).abs() < 1e-12), "{lh:?}");
+        // The sus chord's fourth (D) is not in A: a comped Asus4 lets it go at the change.
+        let c = comp(&laid, 4.0, &[(0.0, 3.0, 80)]);
+        for e in c.iter().filter(|e| e.at < 1.0) {
+            let held = laid.items[1].2.holds(e.pitch);
+            let want = if held { 3.0 } else { 2.0 };
+            assert!((e.len - want).abs() < 1e-12, "{} lasts {}", e.pitch, e.len);
+        }
+        // A note running to the chart's end stops there even when the chart's first chord
+        // holds it: the next section's chart is another.
+        let end = bass(&laid, 26, 4.0, &[(3.0, 3.0, 90, B::R)]);
+        assert!((end[1].at + end[1].len - laid.beats).abs() < 1e-12, "{end:?}");
     }
 }

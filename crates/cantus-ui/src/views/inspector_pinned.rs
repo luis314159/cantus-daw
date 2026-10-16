@@ -211,7 +211,7 @@ pub fn show(
             unity: Some(pos_of(0.0)),
         },
     );
-    fader_mod.paint(b, ui, &resp, fr, s, Live::Fader);
+    fader_mod.paint(b, ui, &resp, fr, s, Live::Fader, "kit.param.volume");
 
     // The right-hand block: pan, the readouts, the switches.
     let x0 = fr.right() + k(10.0);
@@ -241,7 +241,7 @@ pub fn show(
         State::of(&pan_d.resp, false),
         &pan_mod.knob((pan_now + 1.0) * 0.5, 0.5),
     );
-    pan_mod.paint(b, ui, &pan_d.resp, kr, s, Live::Knob);
+    pan_mod.paint(b, ui, &pan_d.resp, kr, s, Live::Knob, "kit.param.pan");
     let cap = Text::key("kit.param.pan", Role::Micro, t.text_dim);
     let _ = text::paint(
         b,
@@ -519,7 +519,7 @@ fn pinned_well(
             std::fmt::Write::write_str(b, &text)
         });
     }
-    pm.paint(&mut st.brush, ui, &d.resp, r, s, Live::Edge);
+    pm.paint(&mut st.brush, ui, &d.resp, r, s, Live::Edge, key);
     d
 }
 
@@ -556,21 +556,41 @@ struct PinMod {
     n: usize,
 }
 
-/// The height of a fader's live mark: where the cap would sit at `live` (review of fix3:
-/// the tick ran over the whole rect, up to half a cap off at the ends).
-fn fader_live_y(rect: Rect, s: &Style, live: f32) -> f32 {
-    fader::cap_rect(rect, s, live.clamp(0.0, 1.0)).center().y
-}
-
 /// Where a pinned control shows the live modulated value.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 enum Live {
     /// A tick at the left edge, at its height (the value wells).
     Edge,
-    /// A mark beside the fader's cap where the cap would sit (as the desk's faders).
+    /// The desk's mark beside the fader's cap, where the cap would sit
+    /// ([`fader::live_mark`]; review of fix3: the tick ran over the whole rect, up to half
+    /// a cap off at the ends).
     Fader,
     /// The knob's own dot and rings.
     Knob,
+}
+
+impl Live {
+    /// Its name for the probe (`automate::probe::note_live`).
+    fn name(self) -> &'static str {
+        match self {
+            Live::Edge => "edge",
+            Live::Fader => "fader",
+            Live::Knob => "knob",
+        }
+    }
+
+    /// Where its mark points at `live` in a control's `rect`: the edge tick's left end or
+    /// the fader mark's tip; `None` for a knob (its dot is the knob's own).
+    fn at(self, rect: Rect, s: &Style, live: f32) -> Option<egui::Pos2> {
+        match self {
+            Live::Edge => Some(pos2(
+                rect.left() + s.s(1.0),
+                rect.bottom() - rect.height() * live.clamp(0.0, 1.0),
+            )),
+            Live::Fader => Some(fader::live_mark_tip(rect, s, live)),
+            Live::Knob => None,
+        }
+    }
 }
 
 impl PinMod {
@@ -626,6 +646,8 @@ impl PinMod {
         depth
     }
 
+    /// The marks, the live value shown `how`, the drop outline; `probe` names the control
+    /// for the tests' probe.
     #[allow(clippy::too_many_arguments)]
     fn paint(
         &self,
@@ -635,8 +657,10 @@ impl PinMod {
         rect: Rect,
         s: &Style,
         how: Live,
+        probe: &str,
     ) {
         use crate::kit::automate as a;
+        a::probe::note_live(probe, how.name());
         if self.offer.automated {
             a::mark(b, rect, s);
         }
@@ -645,19 +669,11 @@ impl PinMod {
             let live = self.offer.modulation.and_then(|m| m.live);
             match (how, live) {
                 (Live::Edge, Some(live)) => {
-                    let x = rect.left() + s.s(3.0);
-                    let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
-                    b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
+                    if let Some(p) = how.at(rect, s, live) {
+                        b.hline(p.x, p.x + s.s(6.0), p.y, s.s(2.0), s.t.hue_mod);
+                    }
                 }
-                (Live::Fader, Some(live)) => {
-                    let y = fader_live_y(rect, s, live);
-                    let x = rect.right() - s.s(1.0);
-                    let d = s.s(4.0);
-                    b.polygon(
-                        &[pos2(x, y), pos2(x + d, y - d), pos2(x + d, y + d)],
-                        s.t.hue_mod,
-                    );
-                }
+                (Live::Fader, Some(live)) => fader::live_mark(b, rect, s, live),
                 _ => {}
             }
         }
@@ -673,18 +689,23 @@ mod tests {
 
     /// Review of fix3: the pinned fader's live mark sits where the cap would (the desk's
     /// rule), not a cap's half off at the ends; the pan knob draws its modulation rings.
+    /// Review of fix4 (the test compared a function with its own body): the fader's way
+    /// puts the mark where the desk's cap sits, which the edge tick does not; that the
+    /// pinned fader is drawn the fader's way is checked where the inspector is drawn
+    /// (`modulators::the_pinned_strip_shows_its_modulation_the_desks_way`).
     #[test]
     fn the_pinned_controls_show_their_modulation_as_the_desk_does() {
         let s = Style::current();
         let rect = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(30.0, 200.0));
-        for live in [0.0, 0.5, 1.0] {
-            let y = fader_live_y(rect, &s, live);
-            assert_eq!(y, fader::cap_rect(rect, &s, live).center().y);
+        for live in [0.0, 1.0] {
+            let desk = fader::cap_rect(rect, &s, live).center().y;
+            let at = Live::Fader.at(rect, &s, live).expect("a mark");
+            assert_eq!(at.y, desk, "at {live}");
+            assert!(at.x >= rect.right() - s.s(2.0), "beside the cap: {at:?}");
+            let edge = Live::Edge.at(rect, &s, live).expect("a tick");
+            assert!((edge.y - desk).abs() > 1.0, "the edge tick is not the desk's");
         }
-        assert!(
-            fader_live_y(rect, &s, 1.0) > rect.top() + 1.0,
-            "never past the cap"
-        );
+        assert_eq!(Live::Knob.at(rect, &s, 0.5), None);
         let mut p = crate::starter_project();
         let strip = p.tracks[0].strip.unwrap();
         let t = p.tracks[0].id;

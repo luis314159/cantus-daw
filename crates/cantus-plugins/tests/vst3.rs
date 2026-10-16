@@ -1,6 +1,10 @@
 //! Each exported plug-in through its VST3 entry point (`GetPluginFactory`), in-process:
 //! the factory, the component, the processor and the controller, as a host drives them.
 
+// The SDK's untyped enums are `int` on Windows and `unsigned int` elsewhere, so the casts
+// between them and the context fields are no-ops here and needed there.
+#![allow(clippy::unnecessary_cast)]
+
 mod common;
 
 use ::vst3::Steinberg::Vst::*;

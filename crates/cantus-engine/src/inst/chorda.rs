@@ -182,11 +182,7 @@ pub fn can_arrive(key: DesignKey) -> bool {
     if lookup(key).is_some() {
         return true;
     }
-    if NONE_ARRIVES.load(Ordering::Acquire) || NO_DESIGNER.load(Ordering::Acquire) {
-        return false;
-    }
-    let n = FAILED_N.load(Ordering::Acquire);
-    !FAILED.iter().take(n).any(|k| k.get() == Some(&key))
+    !NO_DESIGNER.load(Ordering::Acquire) && can_arrive_but_for_the_designer(key)
 }
 
 /// The tuning parameter values ask for.
@@ -483,8 +479,53 @@ pub fn ensure(tuning: Tuning, fs: f32) -> Arc<Keyboard> {
 /// Whether the design of `tuning` at `fs` was refused this session (the registry full, or
 /// its design failed): a live unit keeps the keyboard it had (an export designs its own).
 pub fn refused(tuning: Tuning, fs: f32) -> bool {
+    design(tuning, fs) == Design::Refused
+}
+
+/// Where the design of a tuning stands — what the editor's caption says.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Design {
+    /// Designed: a unit set to it plays it.
+    Ready,
+    /// On its way: how far, 0…1 (0 while it waits its turn or for the knob to settle).
+    Coming(f32),
+    /// Refused this session (the registry full, or its design failed): a unit keeps the
+    /// keyboard it has.
+    Refused,
+    /// No designer can make it — its thread could not start (review of fix4: the editor
+    /// read "designing: 0 %" for the session): a unit keeps the keyboard it has.
+    NoDesigner,
+}
+
+/// Where the design of `tuning` at `fs` stands.
+pub fn design(tuning: Tuning, fs: f32) -> Design {
     let key = key_of(tuning, fs);
-    lookup(key).is_none() && DESIGNER.lock().is_ok_and(|d| d.refused.contains(&key))
+    if lookup(key).is_some() {
+        return Design::Ready;
+    }
+    let Ok(d) = DESIGNER.lock() else {
+        return Design::NoDesigner;
+    };
+    if d.refused.contains(&key) || !can_arrive_but_for_the_designer(key) {
+        return Design::Refused;
+    }
+    if !d.running && NO_DESIGNER.load(Ordering::Acquire) {
+        return Design::NoDesigner;
+    }
+    match &d.busy {
+        Some((k, done)) if *k == key => Design::Coming(done.load(Ordering::Relaxed) as f32 / 88.0),
+        _ => Design::Coming(0.0),
+    }
+}
+
+/// [`can_arrive`] as if a designer were running: neither the registry full nor its design
+/// failed.
+fn can_arrive_but_for_the_designer(key: DesignKey) -> bool {
+    if NONE_ARRIVES.load(Ordering::Acquire) {
+        return false;
+    }
+    let n = FAILED_N.load(Ordering::Acquire);
+    !FAILED.iter().take(n).any(|k| k.get() == Some(&key))
 }
 
 /// For tests (the application's): as if the registry had had no room for `tuning` at
@@ -499,19 +540,9 @@ pub fn refuse_for_tests(tuning: Tuning, fs: f32) {
 /// How far the design `tuning` at `fs` has come: `None` when it is designed (or never will
 /// be), otherwise 0…1 (0 while it waits its turn or for the knob to settle).
 pub fn progress(tuning: Tuning, fs: f32) -> Option<f32> {
-    let key = key_of(tuning, fs);
-    if lookup(key).is_some() {
-        return None;
-    }
-    let d = DESIGNER.lock().ok()?;
-    if d.refused.contains(&key) {
-        return None;
-    }
-    match &d.busy {
-        Some((k, done)) if *k == key => {
-            Some(done.load(std::sync::atomic::Ordering::Relaxed) as f32 / 88.0)
-        }
-        _ => Some(0.0),
+    match design(tuning, fs) {
+        Design::Coming(done) => Some(done),
+        _ => None,
     }
 }
 
@@ -1052,5 +1083,31 @@ mod tests {
             play(&mut u, 3),
             "nothing will design it: the reference keyboard plays"
         );
+    }
+
+    /// Review of fix4: with no designer (its thread could not start) the unit plays the
+    /// keyboard it has, and the editor must not read "designing: 0 %" for the session —
+    /// the tuning is said to be stuck, not on its way.
+    #[test]
+    fn a_tuning_no_designer_can_make_is_not_on_its_way() {
+        let _alone = alone();
+        let fs: f32 = 48_000.0;
+        designer_idle();
+        faults::set_spawn_fails(true);
+        ask(Some((97, fs.to_bits())), tuning(445.67), fs);
+        assert!(!can_arrive(key_of(tuning(445.67), fs)));
+        assert_eq!(progress(tuning(445.67), fs), None, "no percentage");
+        assert_eq!(design(tuning(445.67), fs), Design::NoDesigner);
+        // The designer back: on its way again.
+        faults::set_spawn_fails(false);
+        ask(Some((97, fs.to_bits())), tuning(445.67), fs);
+        assert!(matches!(
+            design(tuning(445.67), fs),
+            Design::Coming(_) | Design::Ready
+        ));
+        refuse_for_tests(tuning(446.78), fs);
+        assert_eq!(design(tuning(446.78), fs), Design::Refused);
+        ensure(Tuning::default(), fs);
+        assert_eq!(design(Tuning::default(), fs), Design::Ready);
     }
 }

@@ -40,6 +40,30 @@ pub fn cap_rect(rect: Rect, s: &Style, pos: f32) -> Rect {
     Rect::from_center_size(Pos2::new(rect.center().x, cy), cap)
 }
 
+/// The tip of the mark beside a fader in `rect` where modulation has it now: at the height
+/// the cap would sit at `live` (review of fix3), on the groove's right edge.
+pub fn live_mark_tip(rect: Rect, s: &Style, live: f32) -> Pos2 {
+    Pos2::new(
+        rect.right() - s.s(1.0),
+        cap_rect(rect, s, live.clamp(0.0, 1.0)).center().y,
+    )
+}
+
+/// The modulation's live mark beside a fader: the desk's and the inspector's pinned strip's
+/// (one drawing, so the two never disagree; review of fix4).
+pub fn live_mark(b: &mut Brush, rect: Rect, s: &Style, live: f32) {
+    let tip = live_mark_tip(rect, s, live);
+    let d = s.s(4.0);
+    b.polygon(
+        &[
+            tip,
+            Pos2::new(tip.x + d, tip.y - d),
+            Pos2::new(tip.x + d, tip.y + d),
+        ],
+        s.t.hue_mod,
+    );
+}
+
 /// The position (0…1) a pointer at `y` asks for, for a fader in `rect`.
 pub fn pos_at(rect: Rect, s: &Style, y: f32) -> f32 {
     let cap = CAP.y * s.k;

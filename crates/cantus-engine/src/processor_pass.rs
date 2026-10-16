@@ -75,13 +75,15 @@ impl Processor {
                 if let Some(off) = self.transport.samples_until_loop_end() {
                     // After a wrap, each late insert's own wrap — the sample from which
                     // the audio reaching it is the loop's start again — ends a pass too,
-                    // so it hears the jump there whatever the blocks (review of fix3).
-                    if let Some(since) = self.transport.since_wrap() {
-                        let pass = since + off;
+                    // so it hears the jump there whatever the blocks (review of fix3);
+                    // only the wraps played, at their real samples (review of fix4: the
+                    // same `Wraps` as `SongPosition::earlier` folds by).
+                    if let Some(w) = self.transport.wraps() {
                         for &l in &self.lates[..self.late_n] {
-                            let at = l as u64 % pass.max(1);
-                            if at > since {
-                                end = end.min(done + (at - since) as usize);
+                            if let Some(r) = w.before_wrap(l as u64) {
+                                if r < off {
+                                    end = end.min(done + r as usize);
+                                }
                             }
                         }
                     }
@@ -332,7 +334,7 @@ impl Processor {
         // the wrap; if it has not (boundary exactly at segment start), force it.
         if let Some(l) = self.transport.loop_region().cloned() {
             if self.transport.samples_until_loop_end() == Some(0) {
-                self.transport.seek(l.start);
+                self.transport.wrap_to(l.start);
             }
         }
         self.release_all();
