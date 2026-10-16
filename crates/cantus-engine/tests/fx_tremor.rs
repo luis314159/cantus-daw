@@ -214,6 +214,16 @@ fn a_masters_synced_gate_follows_the_compensated_beat() {
 /// Play `project` live with its loop on, `sizes` frames per callback in turn, for `len`
 /// samples (interleaved stereo).
 fn looping(project: &Project, len: usize, sizes: &[usize]) -> Vec<f32> {
+    looping_then(project, len, sizes, None)
+}
+
+/// [`looping`], and at frame `at` the project becomes `then` (a callback ends there).
+fn looping_then(
+    project: &Project,
+    len: usize,
+    sizes: &[usize],
+    change: Option<(usize, &Project)>,
+) -> Vec<f32> {
     let (mut tx, rx_engine) = rtrb::RingBuffer::<cantus_engine::EngineMessage>::new(64);
     let (tx_engine, mut rx) = rtrb::RingBuffer::<cantus_engine::EngineEvent>::new(4096);
     let mut p = cantus_engine::Processor::without_midi(48_000.0, rx_engine, tx_engine);
@@ -235,8 +245,23 @@ fn looping(project: &Project, len: usize, sizes: &[usize]) -> Vec<f32> {
     tx.push(cantus_engine::EngineMessage::Play).unwrap();
     let mut out = Vec::with_capacity(len);
     let mut i = 0;
+    let mut change = change;
     while out.len() < len {
-        let n = sizes[i % sizes.len()].min((len - out.len()) / 2);
+        let played = out.len() / 2;
+        if let Some((at, then)) = change {
+            if played == at {
+                let snap = Snapshot::compile(then, 2);
+                tx.push(cantus_engine::EngineMessage::SetSnapshot(
+                    std::sync::Arc::new(snap),
+                ))
+                .unwrap();
+                change = None;
+            }
+        }
+        let until = change.map_or(usize::MAX, |(at, _)| at - played);
+        let n = sizes[i % sizes.len()]
+            .min((len - out.len()) / 2)
+            .min(until);
         i += 1;
         let mut buf = vec![0f32; n * 2];
         p.process(&mut buf, 2);
@@ -274,6 +299,48 @@ fn a_late_synced_gate_wraps_with_its_audio_at_any_block_size() {
                 &looping(&p, len, sizes),
                 0.0,
                 &format!("{what}, blocks {sizes:?}"),
+            );
+        }
+    }
+}
+
+/// Review of fix6: the loop turned off — or moved ahead of the playhead — 100 samples
+/// after a wrap, a gate 240 samples late still hears the pass it is playing end and the
+/// loop start again where its audio wraps: what comes out until the loop would have
+/// wrapped again is, to the bit and at any block size, what comes out with the loop kept
+/// on (the transport plays the same song either way). The loop ends a tick before the
+/// gate's shut half, so a gate given the song straight back (beat −0.005, shut) or one
+/// whose pass is not cut at its own wrap (into the shut half) changes bits.
+#[test]
+fn a_late_gate_hears_the_wrap_played_after_the_loop_is_turned_off() {
+    let mut p = lead_only();
+    let flexus = add_effect(&mut p, EffectKind::Flanger);
+    set_all(&mut p, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    gated(&mut p);
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::ZERO,
+        end: Ticks::beats(4) + Ticks(PPQ / 2 - 1),
+    });
+    p.loop_enabled = true;
+    let (_, wraps) = positions(&p, 2 * BEAT as usize * 5);
+    let (first, second) = (wraps[0], wraps[1]);
+    let len = 2 * (second - 1);
+    let kept = looping(&p, len, &[512]);
+    assert!(kept.iter().any(|x| *x != 0.0));
+    let mut off = p.clone();
+    off.loop_enabled = false;
+    let mut ahead = p.clone();
+    ahead.loop_region = Some(LoopRegion {
+        start: Ticks::beats(6),
+        end: Ticks::beats(7),
+    });
+    for (what, then) in [("turned off", &off), ("moved ahead", &ahead)] {
+        for sizes in [&[512usize][..], &[37, 100, 1024, 7], &[1024], &[64, 333], &[1]] {
+            assert_null(
+                &kept,
+                &looping_then(&p, len, sizes, Some((first + 100, then))),
+                0.0,
+                &format!("the loop {what}, blocks {sizes:?}"),
             );
         }
     }
@@ -434,7 +501,7 @@ fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
     t.play();
     let mut folded = 0;
     for f in 0..frames {
-        if f >= 960 && t.wraps().is_some() {
+        if f >= 960 && t.wraps_played().is_some() {
             let now = cantus_engine::SongPosition {
                 playing: true,
                 tempo_bpm: p.tempo_bpm,
@@ -442,7 +509,7 @@ fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
                 time_sig_num: 4,
                 time_sig_den: 4,
                 loop_beats: Some((6.5, 6.5 + 1.0 / 32.0)),
-                wrap: t.wraps(),
+                wrap: t.wraps_played(),
                 ..Default::default()
             };
             let heard = now.earlier(960, 48_000.0).beats;

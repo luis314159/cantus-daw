@@ -72,21 +72,24 @@ impl Processor {
             let mut end = self.auto_point(done, frames).min(done + PASS_FRAMES);
             let mut wrap = false;
             if self.transport.is_playing() && snap.is_some() {
-                if let Some(off) = self.transport.samples_until_loop_end() {
-                    // After a wrap, each late insert's own wrap — the sample from which
-                    // the audio reaching it is the loop's start again — ends a pass too,
-                    // so it hears the jump there whatever the blocks (review of fix3);
-                    // only the wraps played, at their real samples (review of fix4: the
-                    // same `Wraps` as `SongPosition::earlier` folds by).
-                    if let Some(w) = self.transport.wraps() {
-                        for &l in &self.lates[..self.late_n] {
-                            if let Some(r) = w.before_wrap(l as u64) {
-                                if r < off {
-                                    end = end.min(done + r as usize);
-                                }
+                let off = self.transport.samples_until_loop_end();
+                // After a wrap, each late insert's own wrap — the sample from which the
+                // audio reaching it is the loop's start again — ends a pass too, so it
+                // hears the jump there whatever the blocks (review of fix3); only the
+                // wraps played, at their real samples (review of fix4: the same `Wraps` as
+                // `SongPosition::earlier` folds by), whatever the loop is now (review of
+                // fix6: turned off or moved ahead just after a wrap, the audio in flight
+                // still wraps).
+                if let Some(w) = self.transport.wraps_played() {
+                    for &l in &self.lates[..self.late_n] {
+                        if let Some(r) = w.before_wrap(l as u64) {
+                            if off.is_none_or(|o| r < o) {
+                                end = end.min(done + r as usize);
                             }
                         }
                     }
+                }
+                if let Some(off) = off {
                     let off = off as usize;
                     if done + off <= end {
                         end = done + off;

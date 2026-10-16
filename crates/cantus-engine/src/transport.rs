@@ -34,6 +34,9 @@ pub struct Transport {
     /// insert hears late is from before the loop only on its first entry; review of fix4:
     /// and never from more passes than were played).
     wraps: Option<Wraps>,
+    /// The loop the last wrap came in — its length and its end, in ticks: what the passes
+    /// older than the kept ones are counted by, whatever the loop is now (review of fix6).
+    wrapped_loop: (f64, f64),
 }
 
 impl Transport {
@@ -46,6 +49,7 @@ impl Transport {
             samples: 0,
             loop_region: None,
             wraps: None,
+            wrapped_loop: (0.0, 0.0),
         }
     }
 
@@ -125,20 +129,29 @@ impl Transport {
         self.wraps.as_ref().map(|w| w.since)
     }
 
-    /// The loop's wraps since the transport started or was moved, with the pass playing
-    /// and the loop's length now — `None` before the first, or with no loop ahead.
+    /// The loop's wraps since the transport started or was moved, as long as a loop lies
+    /// ahead to wrap again — `None` before the first, or with no loop ahead.
+    /// [`Self::wraps_played`] for what the audio still in flight lies behind.
     pub fn wraps(&self) -> Option<Wraps> {
-        let mut w = self.wraps?;
-        let l = self.loop_region.as_ref()?;
-        w.pass = w.since + self.samples_until_loop_end()?;
-        w.loop_samples = (l.end.0 - l.start.0) as f64 / self.ticks_per_sample();
-        w.loop_end = l.end.0 as f64 / PPQ as f64;
-        Some(w)
+        self.samples_until_loop_end()?;
+        self.wraps_played()
     }
 
-    /// TEMPORARY stub (fix7, tests first).
+    /// The loop's wraps played since the transport started or was moved, whatever the loop
+    /// is now — turned off or moved ahead of the playhead just after a wrap, the audio of
+    /// the passes played is still in flight (review of fix6). The pass playing, to the
+    /// loop's end ahead (`u64::MAX` with none); the passes older than the kept ones at the
+    /// length of the loop the last wrap came in, at the tempo now. `None` before the first
+    /// wrap; a start or a seek forgets them.
     pub fn wraps_played(&self) -> Option<Wraps> {
-        self.wraps()
+        let mut w = self.wraps?;
+        let (len, end) = self.wrapped_loop;
+        w.pass = self
+            .samples_until_loop_end()
+            .map_or(u64::MAX, |r| w.since + r);
+        w.loop_samples = len / self.ticks_per_sample();
+        w.loop_end = end / PPQ as f64;
+        Some(w)
     }
 
     pub fn stop(&mut self) {
@@ -167,6 +180,9 @@ impl Transport {
 
     /// A wrap now, the playhead at `at` (ticks) when it came.
     fn count_wrap(&mut self, at: f64) {
+        if let Some(l) = &self.loop_region {
+            self.wrapped_loop = ((l.end.0 - l.start.0) as f64, l.end.0 as f64);
+        }
         let at = at / PPQ as f64;
         match self.wraps.as_mut() {
             Some(w) => w.wrap(at),

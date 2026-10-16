@@ -222,7 +222,8 @@ pub const PASSES_KEPT: usize = 32;
 pub struct Wraps {
     /// Samples played since the last wrap.
     pub since: u64,
-    /// The pass playing, in samples: those played and those left to the loop's end.
+    /// The pass playing, in samples: those played and those left to the loop's end
+    /// (`u64::MAX` with no loop ahead: turned off or moved past the playhead).
     pub pass: u64,
     /// Wraps since the start or the seek (saturating): the stretch before the first is
     /// the song before the loop, played straight through.

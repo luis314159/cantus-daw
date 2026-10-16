@@ -466,7 +466,8 @@ impl Processor {
     /// come out; across a loop wrap, counted back through the wraps played as a late
     /// insert's song position is (`Wraps::before_wrap`; review of fix5: it folded by the
     /// loop's length through passes never played, and on a first entry after a tempo
-    /// change). Stopped, the engine's position.
+    /// change; review of fix6: through the wraps played, whatever the loop is now). Stopped,
+    /// the engine's position.
     pub fn heard_position_f64(&self) -> f64 {
         let t = &self.transport;
         let latency = self.pdc.total as u64;
@@ -479,7 +480,7 @@ impl Processor {
         }
         // The playhead wrapped (or the tempo changed) within the last `back` samples.
         let x = t.position_f64() - back as f64 * t.ticks_per_sample();
-        match t.wraps().and_then(|w| w.locate(back)) {
+        match t.wraps_played().and_then(|w| w.locate(back)) {
             Some((r, end)) => end * cantus_core::PPQ as f64 - r as f64 * t.ticks_per_sample(),
             None => x,
         }
@@ -725,7 +726,7 @@ pub(crate) fn song_position_of(
         loop_beats: transport
             .loop_region()
             .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
-        wrap: transport.wraps(),
+        wrap: transport.wraps_played(),
     }
 }
 
