@@ -87,7 +87,12 @@ pub fn set_grid(app: &mut CantusApp, e: Editor, grid: Ticks) {
     match e {
         Editor::Arrangement | Editor::Automation => app.arrangement.grid = grid,
         Editor::PianoRoll => app.piano_roll.grid = grid,
-        Editor::Pitch => app.pitch.view.grid = grid,
+        // As the pitch bar's own menu: a grid picked is what Quantise moves notes to, no
+        // longer another track's notes (review of fix3).
+        Editor::Pitch => {
+            app.pitch.view.grid = grid;
+            app.pitch.view.quantise_to = None;
+        }
         // As the rack's own grid menu does: from the pattern's start, fitted to the width.
         Editor::Rack => {
             app.rack.grid = grid;
@@ -162,7 +167,16 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let popup = egui::Popup::default_response_id(&resp);
     let open = egui::Popup::is_id_open(ui.ctx(), popup);
     let st = State::of(&resp, open);
-    let value = crate::views::clips_chrome::word(grid_key(grid));
+    // The pitch editor quantising to another track's notes: that track's name, as its own
+    // bar says, and no grid checked in the list (review of fix3).
+    let target = match e {
+        Editor::Pitch => app.selected_track.and_then(|tr| app.quantise_target(tr)),
+        _ => None,
+    };
+    let value = match target {
+        Some(o) => app.project().track(o).map_or("", |t| t.name.as_str()),
+        None => crate::views::clips_chrome::word(grid_key(grid)),
+    };
     with_brush(ui.painter(), |b| {
         kit::well::menu_field(b, field, s, st, value, false)
     });
@@ -178,7 +192,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         egui::Popup::menu(&resp)
             .frame(egui::Frame::NONE)
             .show(|ui| {
-                if let Some(g) = crate::views::arrangement::grid_menu(ui, grid) {
+                let checked = if target.is_some() { Ticks(-1) } else { grid };
+                if let Some(g) = crate::views::arrangement::grid_menu(ui, checked) {
                     set_grid(app, e, g);
                     ui.close();
                 }

@@ -900,3 +900,73 @@ fn the_snap_speaks_for_the_pitch_and_the_automation_editor() {
         ("automation", r.app.arrangement.grid, r.app.arrangement.snap)
     );
 }
+
+/// Review of fix3: while the pitch editor quantises to another track's notes, the top
+/// bar's grid says that track (as the pitch bar does), and a grid picked there is what
+/// Quantise uses from then on — the track target is let go, as the pitch bar's own menu
+/// does.
+#[test]
+fn the_pitch_editors_track_target_shows_and_a_grid_picked_lets_it_go() {
+    let mut r = Rig::new();
+    let track = r.app.project().tracks[0].id;
+    let other = r
+        .app
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.id != track)
+        .map(|t| (t.id, t.name.clone()))
+        .expect("a second track");
+    let src = cantus_core::AudioSourceId(r.app.bus.alloc_id());
+    r.app.exec(Command::InsertAudioSource {
+        source: cantus_core::audio::AudioSource {
+            id: src,
+            name: "take".into(),
+            path: "C:/rec/take.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 480_000,
+            sha256: None,
+            recorded: true,
+        },
+    });
+    let mut audio = r
+        .app
+        .bus
+        .new_clip("take", Ticks::beats(64), Ticks::beats(4));
+    audio.audio = Some(cantus_core::audio::AudioRegion::of(src));
+    let audio_id = audio.id;
+    r.app.exec(Command::InsertClip {
+        track,
+        clip: Box::new(audio),
+    });
+    r.app.focus = cantus_ui::app::EditFocus::PianoRoll;
+    r.app.central = cantus_ui::app::CentralView::PianoRoll;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(audio_id);
+    r.app.pitch.view.quantise_to = Some(other.0);
+    r.idle(2);
+    let snap = r.group(Group::Snap).expect("the snap group");
+    let field = r
+        .texts
+        .iter()
+        .find(|(t, rr)| *t == other.1 && snap.contains_rect(*rr))
+        .map(|(_, rr)| *rr)
+        .unwrap_or_else(|| panic!("the field names {}: {:?}", other.1, r.texts));
+    r.click(field.center());
+    r.idle(2);
+    let eighth = cantus_ui::i18n::t("grid.eighth");
+    let item = r
+        .texts
+        .iter()
+        .rev()
+        .find(|(t, rr)| *t == eighth && rr.top() > snap.bottom())
+        .map(|(_, rr)| *rr)
+        .expect("the grid list is open");
+    r.click(item.center());
+    assert_eq!(r.app.pitch.view.grid, Ticks::EIGHTH);
+    assert_eq!(
+        r.app.pitch.view.quantise_to, None,
+        "the grid is the target now"
+    );
+}

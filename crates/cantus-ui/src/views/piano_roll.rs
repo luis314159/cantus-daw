@@ -369,8 +369,9 @@ pub struct PianoRollView {
     axis: Option<((u64, TrackId, ClipId, crate::i18n::Locale), Axis)>,
     /// The grid's size last frame, for zoom-to-notes.
     last_grid: (f32, f32),
-    /// The toolbar's note count, rebuilt when the count changes.
-    count: (usize, String),
+    /// The toolbar's note count, rebuilt when the count or the language changes (review of
+    /// fix3: it kept the old language after a switch).
+    count: (usize, crate::i18n::Locale, String),
     /// A clip opened from the arrangement, to fit to the grid the next time it is laid out
     /// ([`fit_clip`]).
     fit_pending: Option<(TrackId, ClipId)>,
@@ -419,7 +420,7 @@ impl Default for PianoRollView {
             sel: SelSet::default(),
             axis: None,
             last_grid: (0.0, 0.0),
-            count: (usize::MAX, String::new()),
+            count: (usize::MAX, crate::i18n::Locale::En, String::new()),
             fit_pending: None,
         }
     }
@@ -1122,12 +1123,13 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     }
     let n = clip_of(app, track, clip).map_or(0, |c| c.notes.len());
     let v = &mut app.piano_roll;
-    if v.count.0 != n {
-        v.count = (n, tf("pianoroll.notes", &[("n", &n)]));
+    let lang = crate::i18n::locale();
+    if (v.count.0, v.count.1) != (n, lang) {
+        v.count = (n, lang, tf("pianoroll.notes", &[("n", &n)]));
     }
-    let text = std::mem::take(&mut v.count.1);
+    let text = std::mem::take(&mut v.count.2);
     bar.readout_right(ui, &text, 96.0, false);
-    app.piano_roll.count.1 = text;
+    app.piano_roll.count.2 = text;
 }
 
 /// A clip opened from the arrangement (round 27, ADR 0051): its window — one period of a

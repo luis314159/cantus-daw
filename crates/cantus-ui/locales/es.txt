@@ -173,6 +173,7 @@ fx.delay.time = Tiempo
 fx.delay.feedback = Realimentación
 fx.delay.tone = Tono
 fx.delay.ping_pong = Ping-pong
+fx.switch_on = Activado
 fx.reverb.size = Tamaño
 fx.reverb.damping = Amortiguación
 fx.reverb.width = Anchura

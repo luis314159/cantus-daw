@@ -599,6 +599,19 @@ fn pills(
             s,
         );
         let depth = dm.input(app, ui, &resp);
+        // Modulated, as the desk's send row and knob show it (review of fix3: the pill took
+        // modulation and showed none): its outline in the modulation hue, and a tick on its
+        // foot where modulation has the level now.
+        if !dm.rings().is_empty() {
+            b.rrect_stroke(r.shrink(b.px() * 0.5), radius, b.px() * 1.6, t.hue_mod);
+            if let Some(live) = dm.live {
+                let x = r.left() + radius + (r.width() - 2.0 * radius) * live.clamp(0.0, 1.0);
+                b.rect(
+                    Rect::from_min_max(pos2(x - 1.0, r.bottom() - 3.0), pos2(x + 1.0, r.bottom())),
+                    Fill::Solid(t.hue_mod),
+                );
+            }
+        }
         dm.paint_drop(b, ui, Some(&resp), r, s);
         if let (Some(send), Some(p)) = (send, knob_input(v, ui, pass, &resp, level, 1.0, !depth)) {
             app.set_strip_send(d.route.from, Send { level: p, ..send });

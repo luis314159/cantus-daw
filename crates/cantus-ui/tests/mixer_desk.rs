@@ -1776,3 +1776,85 @@ fn a_strip_rename_opens_with_the_name_it_shows_clear_of_the_numbers() {
         "still its track's"
     );
 }
+
+/// Every colour painted inside `area` (shapes and mesh vertices), for a look test.
+fn colours_in(shapes: &[egui::epaint::ClippedShape], area: egui::Rect) -> Vec<egui::Color32> {
+    fn walk(shape: &egui::Shape, area: egui::Rect, out: &mut Vec<egui::Color32>) {
+        match shape {
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, area, out)),
+            egui::Shape::Mesh(m) => out.extend(
+                m.vertices
+                    .iter()
+                    .filter(|v| area.contains(v.pos))
+                    .map(|v| v.color),
+            ),
+            egui::Shape::Rect(r) if area.intersects(r.rect) => {
+                out.push(r.fill);
+                out.push(r.stroke.color);
+            }
+            egui::Shape::Path(p) if p.points.iter().any(|q| area.contains(*q)) => {
+                out.push(p.fill);
+                if let egui::epaint::PathStroke {
+                    color: egui::epaint::ColorMode::Solid(c),
+                    ..
+                } = p.stroke
+                {
+                    out.push(c);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    for c in shapes {
+        walk(&c.shape, area, &mut out);
+    }
+    out
+}
+
+/// Review of fix3: a send's cable pill that a modulator drives shows it — its outline in
+/// the modulation hue — as the desk's send knob and row do.
+#[test]
+fn a_modulated_sends_pill_shows_its_modulation() {
+    let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
+    mixer::set_width_mode(&mut r.app, WidthMode::Wide);
+    let ids = with_returns(&mut r);
+    r.app.select_strip(ids[1]);
+    r.idle(3);
+    let pill = *r.app.mixer.cable_pills().first().expect("the send's pill");
+    let hue = cantus_ui::kit::Style::current().t.hue_mod;
+    let paint = |r: &mut Rig| {
+        r.frame += 1;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, r.size)),
+            time: Some(r.frame as f64 / 60.0),
+            ..Default::default()
+        };
+        let app = &mut r.app;
+        let mut out = r.ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default().show(ui, |ui| views::mixer::show(app, ui));
+        });
+        out.textures_delta.clear();
+        colours_in(&out.shapes, pill)
+    };
+    assert!(!paint(&mut r).contains(&hue), "nothing modulates it yet");
+    let id = cantus_core::ModulatorId(r.app.bus.alloc_id());
+    let mut m = cantus_core::modulator::Modulator::new(id, cantus_core::modulator::ModKind::Lfo);
+    m.routes.push(cantus_core::modulator::ModRoute {
+        target: cantus_core::AutoTarget::Send {
+            strip: ids[1],
+            to: ids[14],
+        },
+        depth: 0.3,
+    });
+    r.app.exec(Command::InsertModulator {
+        host: cantus_core::modulator::ModHost::Strip(ids[1]),
+        index: 0,
+        modulator: Box::new(m),
+    });
+    r.idle(1);
+    assert!(
+        paint(&mut r).contains(&hue),
+        "the pill shows the modulation"
+    );
+}
