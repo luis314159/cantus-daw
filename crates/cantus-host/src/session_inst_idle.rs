@@ -2,9 +2,8 @@
 //! commands, saving, rendering, windows. A child of `session` beside `session_inst`.
 
 use super::inst::HostedInst;
-use super::{changes, settle_new, to_fx, PluginHost};
+use super::{to_fx, PluginHost};
 use crate::backend::{AudioSetup, HostError, Notice, ParamOut};
-use crate::backend_for;
 use crate::inst_unit::{HostedInstrument, Silent};
 use crate::session::HostNotice;
 use crate::window::PluginWindow;
@@ -50,6 +49,11 @@ impl PluginHost {
                         self.capture_instrument_changes(bus, track);
                     }
                     Notice::StateDirty => self.capture_instrument_changes(bus, track),
+                    Notice::Crashed { reason } => {
+                        if let Some(n) = self.on_instrument_crash(track, reason) {
+                            notices.push(n);
+                        }
+                    }
                     Notice::EditorResized(size) => {
                         if let Some(w) = self
                             .instruments
@@ -77,6 +81,7 @@ impl PluginHost {
             if closed && self.close_instrument_window(track) {
                 notices.push(HostNotice::InstrumentWindowClosed(track));
             }
+            let rate = self.setup.sample_rate;
             if let Some(h) = self.instruments.get_mut(&track) {
                 if let Some(size) = h.window.as_mut().and_then(|w| w.take_resize()) {
                     if let Some(taken) = h.main.resize_editor(size) {
@@ -85,8 +90,30 @@ impl PluginHost {
                         }
                     }
                 }
+                h.cpu.update(h.main.as_ref(), rate);
             }
         }
+    }
+
+    /// A track's instrument stopped working: marked, counted, its window gone, told once.
+    fn on_instrument_crash(&mut self, track: TrackId, reason: String) -> Option<HostNotice> {
+        let h = self.instruments.get_mut(&track)?;
+        if h.crashed.is_some() {
+            return None;
+        }
+        h.crashed = Some(reason.clone());
+        h.restarting = false;
+        if let Some(w) = h.window.take() {
+            #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
+            drop(w);
+        }
+        let info = h.info.clone();
+        self.count_crash(&info);
+        Some(HostNotice::InstrumentCrashed {
+            track,
+            name: info.name,
+            reason,
+        })
     }
 
     /// One thing an instrument's window did, as a command: a value inside a gesture merges
@@ -137,6 +164,8 @@ impl PluginHost {
                 if h.gestures.len() != was {
                     bus.end_gesture();
                 }
+                // A gesture ended: a good moment for an isolated plug-in's last-good state.
+                h.main.checkpoint();
             }
         }
     }
@@ -217,42 +246,48 @@ impl PluginHost {
         track: TrackId,
     ) -> Option<HostNotice> {
         let setup = self.setup;
-        let h = self.instruments.get_mut(&track)?;
+        let mut h = self.instruments.remove(&track)?;
         if !h.restarting {
+            self.instruments.insert(track, h);
             return None;
         }
         let audio = match h.main.restart() {
-            Ok(None) => return None, // its audio half is still on its way back
+            Ok(None) => {
+                // Its audio half is still on its way back.
+                self.instruments.insert(track, h);
+                return None;
+            }
             Ok(Some(audio)) => audio,
             Err(HostError::Unsupported(_)) => {
-                let state = h.main.save_state().ok();
+                let state = h
+                    .main
+                    .save_state()
+                    .map(PluginState::new)
+                    .unwrap_or_default();
                 let info = h.info.clone();
-                let loaded = backend_for(info.format)
-                    .ok_or(HostError::Unsupported("format"))
-                    .and_then(|b| b.load(&info, setup));
-                match loaded {
-                    Ok(l) => {
-                        let mut main = l.main;
-                        if let Some(s) = &state {
-                            let _ = main.load_state(s);
-                        }
-                        let mut out = ParamOut::new();
-                        main.flush(&changes(&h.flushed), &mut out);
-                        h.params = main.params();
-                        h.main = main;
-                        l.audio
+                let values = h.flushed.clone();
+                match self.instantiate(&info, Some(h.isolation), &state, &values, setup, false) {
+                    Ok(inst) => {
+                        h.main = inst.main;
+                        h.params = h.main.params();
+                        inst.audio
                     }
-                    Err(e) => {
+                    Err(error) => {
                         h.restarting = false;
-                        return Some(HostNotice::InstrumentRestartFailed {
-                            track,
-                            error: e.to_string(),
-                        });
+                        self.instruments.insert(track, h);
+                        return Some(HostNotice::InstrumentRestartFailed { track, error });
                     }
                 }
             }
+            // It stopped working: the crash is told by `idle`; the track stays silent.
+            Err(HostError::Crashed(_)) => {
+                h.restarting = false;
+                self.instruments.insert(track, h);
+                return None;
+            }
             Err(e) => {
                 h.restarting = false;
+                self.instruments.insert(track, h);
                 return Some(HostNotice::InstrumentRestartFailed {
                     track,
                     error: e.to_string(),
@@ -261,8 +296,9 @@ impl PluginHost {
         };
         h.restarting = false;
         h.generation.fetch_add(1, Ordering::AcqRel);
-        let unit = super::inst::make_unit(h, track, audio, setup.sample_rate);
+        let unit = super::inst::make_unit(&mut h, track, audio, setup.sample_rate);
         super::inst::deliver(engine, unit);
+        self.instruments.insert(track, h);
         None
     }
 
@@ -304,22 +340,20 @@ impl PluginHost {
             let Some(h) = self.instruments.get_mut(&t.id) else {
                 continue;
             };
-            let state = h.main.save_state().ok();
+            let state = h
+                .main
+                .save_state()
+                .map(PluginState::new)
+                .unwrap_or_default();
             let info = h.info.clone();
             let key = h.key;
-            let Some(Ok(loaded)) = backend_for(info.format).map(|b| b.load(&info, setup)) else {
-                continue;
-            };
-            let mut main = loaded.main;
-            if let Some(s) = &state {
-                let _ = main.load_state(s);
-            }
-            let mut out = ParamOut::new();
-            main.flush(&changes(&plugin.params), &mut out);
-            let Some(audio) = settle_new(&mut main, loaded.audio, &info, setup, &plugin.params)
+            // Where it runs live; isolated, every block is waited for (ADR 0063).
+            let isolation = Some(h.isolation);
+            let Ok(inst) = self.instantiate(&info, isolation, &state, &plugin.params, setup, true)
             else {
                 continue;
             };
+            let (main, audio) = (inst.main, inst.audio);
             let params = main.params();
             let unit = HostedInstrument::new(
                 audio,
@@ -347,10 +381,17 @@ impl PluginHost {
             .get_mut(&track)
             .ok_or(HostError::Unsupported("no plug-in on this track"))?;
         if let Some(w) = h.window.as_ref() {
-            w.focus();
+            if !h.main.focus_editor() {
+                w.focus();
+            }
             return Ok(());
         }
+        if let Some(why) = h.crashed.clone() {
+            return Err(HostError::Crashed(why));
+        }
         let window = PluginWindow::open(title, owner, h.main.as_mut())?;
+        // An isolated plug-in's window is its helper's: brought to the front there.
+        h.main.focus_editor();
         h.window = Some(window);
         Ok(())
     }
@@ -360,17 +401,9 @@ impl PluginHost {
         let Some(h) = self.instruments.get_mut(&track) else {
             return false;
         };
-        match h.window.take() {
-            Some(w) => {
-                h.main.close_editor();
-                // The window goes after the editor closed (on Windows it destroys the
-                // native window; elsewhere it is a placeholder with nothing to drop).
-                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
-                drop(w);
-                true
-            }
-            None => false,
-        }
+        let open = h.window.is_some();
+        h.close_window_now();
+        open
     }
 
     /// Whether `track`'s instrument window is open.

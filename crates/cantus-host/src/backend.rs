@@ -91,6 +91,9 @@ pub enum HostError {
     State(String),
     #[error("editor: {0}")]
     Editor(String),
+    /// The plug-in's process ended or stopped answering (an isolated plug-in, ADR 0063).
+    #[error("the plug-in stopped working: {0}")]
+    Crashed(String),
 }
 
 /// How the engine will run the plug-in.
@@ -144,6 +147,11 @@ pub enum Notice {
     EditorClosed,
     /// It must be deactivated and activated again (the host does it off the audio thread).
     RestartNeeded,
+    /// It stopped working (round 29, ADR 0063): the process it ran in crashed, or it hung
+    /// and was ended. Its audio half passes the sound through (an effect) or stays silent
+    /// (an instrument) until it is reloaded; its last-good state is what `save_state`
+    /// answers from now on. Said once.
+    Crashed { reason: String },
 }
 
 /// Everything called on the main (UI) thread.
@@ -206,6 +214,36 @@ pub trait MainThread: Send {
     /// Whether the editor can be resized by the host window.
     fn editor_can_resize(&self) -> bool {
         false
+    }
+
+    // ---- Additions (round 29, ADR 0063: plug-ins out of process). Defaults again. ----
+
+    /// Bring the plug-in's own editor window forward, when the window is its own (an
+    /// isolated plug-in's lives in its helper process). `false`: the host's window serves.
+    fn focus_editor(&mut self) -> bool {
+        false
+    }
+
+    /// A good moment to remember the plug-in's state (a gesture ended): an isolated
+    /// plug-in refreshes the last-good state it keeps for a crash. Nothing in process.
+    fn checkpoint(&mut self) {}
+
+    /// The time the plug-in itself spent processing, in nanoseconds, and the frames it
+    /// covered, since it was loaded — measured in its helper process. `None` in process
+    /// (the host measures the call there).
+    fn own_time(&self) -> Option<(u64, u64)> {
+        None
+    }
+
+    /// The id of the helper process it runs in; `None` within Cantus.
+    fn isolated_in(&self) -> Option<u32> {
+        None
+    }
+
+    /// Blocks that passed without it because it was late (an isolated plug-in past its
+    /// deadline), since it was loaded.
+    fn late_blocks(&self) -> u64 {
+        0
     }
 }
 

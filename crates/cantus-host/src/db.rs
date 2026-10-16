@@ -40,6 +40,22 @@ pub struct PluginDb {
     pub folders: Vec<PathBuf>,
     #[serde(default)]
     pub entries: Vec<DbEntry>,
+    /// Plug-ins that stopped working while Cantus ran them (round 29, ADR 0063),
+    /// remembered across sessions and shown in the plug-in manager.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub crashes: Vec<CrashRecord>,
+}
+
+/// A plug-in that crashed or hung while it ran (isolated, so Cantus went on).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct CrashRecord {
+    pub format: Format,
+    pub id: String,
+    pub name: String,
+    /// Times it stopped working, in every session.
+    pub count: u32,
+    /// When it last did, seconds since the Unix epoch.
+    pub last: u64,
 }
 
 /// A file's modification time (ns since the epoch) and size; `None` if it cannot be read.
@@ -159,6 +175,43 @@ impl PluginDb {
             }
         }
         false
+    }
+
+    /// A plug-in stopped working: counted, with the time.
+    pub fn remember_crash(&mut self, info: &PluginInfo) {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        match self
+            .crashes
+            .iter_mut()
+            .find(|c| c.format == info.format && c.id == info.id)
+        {
+            Some(c) => {
+                c.count += 1;
+                c.last = now;
+                c.name = info.name.clone();
+            }
+            None => self.crashes.push(CrashRecord {
+                format: info.format,
+                id: info.id.clone(),
+                name: info.name.clone(),
+                count: 1,
+                last: now,
+            }),
+        }
+    }
+
+    /// What the database remembers of a plug-in's crashes.
+    pub fn crash_record(&self, format: Format, id: &str) -> Option<&CrashRecord> {
+        self.crashes
+            .iter()
+            .find(|c| c.format == format && c.id == id)
+    }
+
+    /// The user cleared a plug-in's crash record (it was fixed).
+    pub fn forget_crashes(&mut self, format: Format, id: &str) {
+        self.crashes.retain(|c| !(c.format == format && c.id == id));
     }
 
     /// Forget what is known about `path`, so the next scan reads it again — the user's
