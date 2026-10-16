@@ -247,7 +247,12 @@ modulator), **Translatio** (frequency shifter), **Fluctus** (volume shaper); dyn
 analysis (ADR 0056) — **Tonsor** (clipper), **Impetus** (transient processor), **Discrimen**
 (transient splitter), **Speculum** (analyser); and **Tonus** (real-time pitch correction,
 ADR 0053, §3d). The exported plug-ins now follow the host's transport (synced units keep
-the other DAW's tempo) and take MIDI notes where a unit does (Tonus, Porta). Each new one
+the other DAW's tempo) and take MIDI notes where a unit does (Tonus, Porta). **To do — the
+owner's decision, 2026-10-16 (option B):** an inserted effect must *sound* at once, as in FL
+and Ableton — today the modulation family enters at Mix/Depth 0 (the null rule), which reads
+as "it does nothing". Inserting loads a musical starting preset (e.g. Concentus's *Juno I*),
+while the parameters' defaults stay a null, so ADR 0018's rule and its tests are unchanged;
+review every unit (old and new) for the same. Each new one
 follows the family's rules (ADR 0018): a null test at its defaults, block-size independence, exact rest (`at_rest`/`skip`), deterministic
 maths, the hand-drawn kit UI, a page in `docs/plugins/`, and the CLAP/VST3 export
 bit-identical. Ours should end up better than the reference, not a clone.
@@ -510,6 +515,21 @@ vocals — then what blind comparisons demand, then build cost on what exists):
   (Chorda I has one perspective), **the lid** (open, half, closed), and **per-key voicing
   curves** (a technician's key-by-key hammer and level adjustment); then, after
   2027-10-20, the evaluation of Modartt's approach (point 2 below).
+- **Chorda must sound better — the owner, 2026-10-16: "no suena bien la verdad".** Its
+  measurements pass (tuning, decay, half pedal, CPU) but the ear does not: measured physics
+  is not yet a beautiful piano. Make it sound like a first-rank grand before Chorda II's
+  extras, by ear against references: render the same phrases (soft chords, a fast run, a
+  pedalled ballad, a ff chord, bass notes alone, the top octave) through Chorda, the
+  Salamander Grand (installed in Exemplar), and, for the owner's ears, Pianoteq 9 / a sampled
+  grand; compare spectra, attack transients, decay envelopes and the stereo image band by
+  band and note by note, and close the gaps — the hammer's felt and noise (the "thump" and
+  the strike), the soundboard's body and radiation (the woody resonance, not a filter), the
+  attack's brightness across velocity, the release and damper sound, the bass's weight and
+  the treble's sparkle without a metallic edge, the stereo spread of the strings and the
+  room (a well-modelled close/player perspective and a convolution or algorithmic room).
+  Ask the owner what they hear wrong (metallic? thin? dull? synthetic attack? no body?) to
+  aim first. **Done when** the owner says it sounds good, and a blind preference test
+  against the Salamander shows Chorda at least on par.
 - **Item 11 — DRSKit** (DrumGizmo, CC BY 4.0; ADR 0042's round-28 amendment) installs in one
   step from *Sound packs* (a 2.8 GB download, mixed at install into a 24-bit stereo kit of
   about 470 MB: per-microphone gain, pan, polarity and bleed), plays in Exemplar on General

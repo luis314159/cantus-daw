@@ -19,16 +19,20 @@ what is left is the owner's own:
    in ADR 0059), DRSKit by hand, modulators and comping, the top bar against FL's strip on
    the shots in `F:\projects\daw-r28\shots\topbar\`, and *With All Your Heart*
    (`F:\projects\daw-r28\shots\demo\`).
-2. **Decide**: whether the new modulation effects should sound when first inserted (today
-   Mix/Depth start at 0 — a null, the family's rule); keep or delete
-   `F:\projects\daw-r28\downloads\` (the DRSKit archive the real-kit tests read);
-   optionally ask Wilkinson Audio for Naked Drums' licence in writing.
+2. **Decided since (2026-10-16)**: an inserted effect sounds at once — inserting loads a
+   musical starting preset, the defaults stay a null (option B, BACKLOG §3b); **Chorda does
+   not sound good yet** to the owner — make it sound like a first-rank grand by ear against
+   references before Chorda II (BACKLOG §3e). Still the owner's: keep or delete
+   `F:\projects\daw-r28\downloads\` (the DRSKit archive the real-kit tests read); optionally
+   ask Wilkinson Audio for Naked Drums' licence in writing. The round's worktrees are
+   removed (branches kept locally; `builds\`, `shots\`, `downloads\`, `reviews\` kept).
 3. **Still standing from round 26**: the UMC in duplex, complete songs, the installer on a
    clean machine; SignPath or Certum; the public-day choices; the RVR1960 e-mail; the IMPI
    filing; compacting the WSL disk image.
 4. **Next work** (BACKLOG): §4b's performance scorecard; §7 phase B — the MCP server, with
-   what the demo builder learned composing in code (§7, 2026-10-15); Chorda II (mic
-   perspectives, the lid, per-key voicing); per-mic drum faders (multi-output instruments,
+   what the demo builder learned composing in code (§7, 2026-10-15); effects that sound on
+   insert (§3b, option B); **Chorda's sound** by ear, then Chorda II (mic perspectives, the
+   lid, per-key voicing); per-mic drum faders (multi-output instruments,
    §3e item 11); the rest of §3b (distortion pedals, delays, reverbs, vocoder…).
 
 ## The next session: what round 26 left

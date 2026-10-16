@@ -23,3 +23,4 @@
 - [Gotcha: boot path](gotcha-boot-path.md) — the app never calls CantusApp::new; wire start-up in boot stages/assemble and test it
 - [Round 27: quick gestures](round-27.md) — §6g done, master 445a44c (2026-10-14); test build daw-r27/builds; round-28 prompt = BACKLOG 3–6
 - [Round 28: top bar, voice, 12 effects, Chorda+drums, modulators+comping](round-28.md) — done 2026-10-16, pushed to master (owner pre-approved); Win 3 362 + Linux 3 345; schema 32
+- [Decision: effects sound on insert; Chorda sounds bad](decision-effects-sound-on-insert.md) — owner 2026-10-16: insert loads a starting preset (defaults stay null); improve Chorda by ear first
