@@ -445,6 +445,19 @@ pub enum Command {
         state: crate::external::PluginState,
         params: std::collections::BTreeMap<u32, f64>,
     },
+    /// Where a hosted insert runs (round 29, ADR 0063): `None` follows the machine's
+    /// default. Refused for a slot that holds no hosted plug-in.
+    SetPluginIsolation {
+        strip: StripId,
+        effect: EffectId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
+    /// Where a track's hosted instrument runs (round 29, ADR 0063); the instrument twin of
+    /// [`Command::SetPluginIsolation`].
+    SetInstrumentIsolation {
+        track: TrackId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -715,6 +728,9 @@ impl Command {
             SetPluginState { .. } => "cmd.set_plugin_state",
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
+            SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => {
+                "cmd.set_plugin_isolation"
+            }
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -2031,6 +2047,28 @@ impl Command {
                     track,
                     state: old_state,
                     params: old_params,
+                })
+            }
+            // Round 29, isolation (ADR 0063): where a hosted plug-in runs.
+            SetPluginIsolation {
+                strip,
+                effect,
+                isolation,
+            } => {
+                let plugin = external_mut(project, strip, effect)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetPluginIsolation {
+                    strip,
+                    effect,
+                    isolation: old,
+                })
+            }
+            SetInstrumentIsolation { track, isolation } => {
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetInstrumentIsolation {
+                    track,
+                    isolation: old,
                 })
             }
             InsertClip { track, clip } => {

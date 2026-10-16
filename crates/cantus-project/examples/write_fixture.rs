@@ -681,6 +681,18 @@ fn main() {
             vocal.clips.sort_by_key(|c| (c.start, c.id));
         }
     }
+    // Schema 36 (round 29, isolation, ADR 0063): where a hosted plug-in runs — the absent
+    // insert of schema 14 *Individually*, the hosted synth of schema 20 *Within Cantus*.
+    for slot in p.all_effects_mut() {
+        if let Some(plugin) = slot.spec.external.as_deref_mut() {
+            plugin.isolation = Some(cantus_core::PluginIsolation::Individually);
+        }
+    }
+    for t in &mut p.tracks {
+        if let Some(plugin) = t.instrument.external_mut() {
+            plugin.isolation = Some(cantus_core::PluginIsolation::Within);
+        }
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

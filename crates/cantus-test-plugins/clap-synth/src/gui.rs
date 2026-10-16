@@ -37,6 +37,7 @@ unsafe extern "C" fn is_api_supported(
 
 unsafe extern "C" fn create(p: *const clap_plugin, api: *const c_char, floating: bool) -> bool {
     let me = crate::plugin::me(p);
+    me.fault.fire(crate::fault::ABORT_EDITOR);
     if !is_api_supported(p, api, floating) || me.editor_created {
         return false;
     }

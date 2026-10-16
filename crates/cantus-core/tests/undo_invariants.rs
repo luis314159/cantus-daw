@@ -1735,6 +1735,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // or copied.
     let mut modded = [0usize; 3];
     let mut comped = [0usize; 4];
+    // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
+    let mut isolated = [0usize; 2];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1778,6 +1780,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::Batch { label_key, .. } if label_key == "cmd.comp_window_copies" => {
                     Some(3)
                 }
+                _ => None,
+            };
+            let isolation = match &cmd {
+                Command::SetPluginIsolation { .. } => Some(0),
+                Command::SetInstrumentIsolation { .. } => Some(1),
                 _ => None,
             };
             // The clips a comp window's copies batch inserts, and whether each is the comp's:
@@ -1824,6 +1831,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = comp {
                     comped[k] += 1;
+                }
+                if let Some(k) = isolation {
+                    isolated[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1886,6 +1896,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         modded.iter().all(|n| *n > 0),
         "modulator commands never applied: {modded:?}"
+    );
+    assert!(
+        isolated.iter().all(|n| *n > 0),
+        "isolation choices never applied: {isolated:?}"
     );
     assert!(
         comped.iter().all(|n| *n > 0),
@@ -2530,10 +2544,68 @@ fn round29_controller_command(rng: &mut Lcg, _project: &mut Project) -> Command 
     }
 }
 
-/// Round 29, isolation (ADR 0063): a hosted plug-in's isolation choice.
-fn round29_hosting_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, isolation (ADR 0063): where a hosted plug-in runs — an insert's choice, a
+/// track's instrument's, back to the default (`None`), and the refused ones (a native
+/// slot, a track whose instrument is not hosted).
+fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    let choices = [
+        None,
+        Some(PluginIsolation::Within),
+        Some(PluginIsolation::Together),
+        Some(PluginIsolation::ByVendor),
+        Some(PluginIsolation::Individually),
+    ];
+    let isolation = choices[rng.below(choices.len() as u64) as usize];
+    let hosted: Vec<(StripId, EffectId)> = project
+        .all_effects()
+        .filter(|(_, e)| e.spec.external.is_some())
+        .map(|(s, e)| (s, e.id))
+        .collect();
+    let instruments: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.external().is_some())
+        .map(|t| t.id)
+        .collect();
+    match rng.below(8) {
+        // A refused one: a native slot, or a track that hosts no plug-in.
+        0 => match project.all_effects().find(|(_, e)| e.spec.external.is_none()) {
+            Some((strip, e)) => Command::SetPluginIsolation {
+                strip,
+                effect: e.id,
+                isolation,
+            },
+            None => Command::SetInstrumentIsolation {
+                track: TrackId(u64::MAX),
+                isolation,
+            },
+        },
+        1..=3 if !instruments.is_empty() => Command::SetInstrumentIsolation {
+            track: instruments[rng.below(instruments.len() as u64) as usize],
+            isolation,
+        },
+        _ if !hosted.is_empty() => {
+            let (strip, effect) = hosted[rng.below(hosted.len() as u64) as usize];
+            Command::SetPluginIsolation {
+                strip,
+                effect,
+                isolation,
+            }
+        }
+        // Nothing hosted yet: a hosted insert that comes with its choice made.
+        _ => {
+            let strip = project.strips[rng.below(project.strips.len() as u64) as usize].id;
+            let mut slot = project.make_effect(EffectKind::External);
+            let mut plugin = ExternalPlugin::new(PluginFormat::Vst3, "FUZZ0001", "Fuzz VST3");
+            plugin.isolation = isolation;
+            slot.spec = EffectSpec::external(plugin);
+            let len = project.effects_of(strip).map_or(0, |e| e.len());
+            Command::InsertEffect {
+                strip,
+                index: rng.below(len as u64 + 1) as usize,
+                slot: Box::new(slot),
+            }
+        }
     }
 }
 

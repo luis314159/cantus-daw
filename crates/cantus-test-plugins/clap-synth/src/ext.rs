@@ -118,7 +118,7 @@ unsafe extern "C" fn params_to_text(
         1 => format!("{} smp", value.round()),
         2 => format!("{value:.2} BPM"),
         3 => (if value >= 0.5 { "Playing" } else { "Stopped" }).to_string(),
-        4 => format!("{}", value.round()),
+        4..=6 => format!("{}", value.round()),
         _ => return false,
     };
     if capacity == 0 {
@@ -163,7 +163,7 @@ unsafe extern "C" fn params_flush(
             continue;
         };
         if (*h).space_id == CLAP_CORE_EVENT_SPACE_ID && (*h).type_ == CLAP_EVENT_PARAM_VALUE {
-            me.apply(&*(h as *const clap_event_param_value));
+            me.apply(&*(h as *const clap_event_param_value), false);
         }
     }
 }
@@ -179,8 +179,9 @@ static STATE_EXT: clap_plugin_state = clap_plugin_state {
 
 unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_SAVE);
     let mut bytes = MAGIC.to_vec();
-    for row in PARAMS {
+    for row in &PARAMS[..crate::plugin::STATE_PARAMS] {
         bytes.extend_from_slice(&me.get(row.0).to_le_bytes());
     }
     let tag = me.tag.lock().map(|t| t.clone()).unwrap_or_default();
@@ -205,6 +206,7 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
 
 unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_LOAD);
     let s = &*stream;
     let Some(read) = s.read else { return false };
     let mut bytes = Vec::new();
@@ -219,11 +221,11 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
         }
         bytes.extend_from_slice(&buf[..n as usize]);
     }
-    if bytes.len() < 4 + 8 * PARAM_COUNT + 4 || &bytes[..4] != MAGIC {
+    if bytes.len() < 4 + 8 * crate::plugin::STATE_PARAMS + 4 || &bytes[..4] != MAGIC {
         return false;
     }
     let mut at = 4;
-    for row in PARAMS {
+    for row in &PARAMS[..crate::plugin::STATE_PARAMS] {
         let v = f64::from_le_bytes(bytes[at..at + 8].try_into().unwrap_or([0; 8]));
         if !row.8 {
             me.set(row.0, v);

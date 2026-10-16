@@ -77,6 +77,45 @@ impl<'de> Deserialize<'de> for PluginState {
     }
 }
 
+/// Where a hosted plug-in runs (round 29, ADR 0063). Cantus's own effects and instruments
+/// are never hosted, so they always run within; this is for third-party CLAP and VST3.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum PluginIsolation {
+    /// In Cantus's own process: no round trip, and a crash takes Cantus with it.
+    Within,
+    /// In one helper process shared by every plug-in set to it: a crash takes the helper
+    /// and its other plug-ins, never Cantus.
+    Together,
+    /// One helper process per vendor.
+    ByVendor,
+    /// A helper process of its own: a crash takes only this plug-in.
+    Individually,
+}
+
+impl PluginIsolation {
+    pub const ALL: [PluginIsolation; 4] = [
+        PluginIsolation::Within,
+        PluginIsolation::Together,
+        PluginIsolation::ByVendor,
+        PluginIsolation::Individually,
+    ];
+
+    /// The i18n key it is shown with.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            PluginIsolation::Within => "isolation.within",
+            PluginIsolation::Together => "isolation.together",
+            PluginIsolation::ByVendor => "isolation.by_vendor",
+            PluginIsolation::Individually => "isolation.individually",
+        }
+    }
+
+    /// Whether the plug-in runs in a helper process.
+    pub fn isolated(self) -> bool {
+        self != PluginIsolation::Within
+    }
+}
+
 /// A hosted plug-in in an insert slot.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExternalPlugin {
@@ -96,6 +135,11 @@ pub struct ExternalPlugin {
     /// Parameter values by the plug-in's ids, in the plug-in's own range.
     #[serde(default, deserialize_with = "params_by_id")]
     pub params: BTreeMap<u32, f64>,
+    /// Where it runs (schema 36, ADR 0063); `None` follows the machine's default, set in
+    /// Settings' plug-in manager. Not written while `None`, so a project that never chose
+    /// saves the same bytes as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<PluginIsolation>,
 }
 
 impl ExternalPlugin {
@@ -108,6 +152,7 @@ impl ExternalPlugin {
             sidechain: false,
             state: PluginState::default(),
             params: BTreeMap::new(),
+            isolation: None,
         }
     }
 }

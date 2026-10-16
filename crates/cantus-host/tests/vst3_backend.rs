@@ -522,7 +522,10 @@ fn a_parameter_change_lands_on_its_sample() {
         mut audio,
     } = load(GAIN_ID);
     let params = main.params();
-    assert_eq!(params.len(), 2);
+    // Gain and Latency, then the hidden Fault and Process of round 29's isolation tests.
+    assert_eq!(params.len(), 4);
+    assert!(params[2..].iter().all(|p| p.hidden), "{params:?}");
+    assert!(params[3].read_only, "Process is read-only");
     let gain = &params[0];
     assert_eq!((gain.id, gain.name.as_str()), (GAIN, "Gain"));
     assert_eq!((gain.min, gain.max, gain.default), (-48.0, 48.0, 0.0));
@@ -815,7 +818,8 @@ fn notes_and_expressions_land_on_their_samples() {
     let probe = Probe::new();
     let Loaded { main, mut audio } = load(PULSE_ID);
     assert_eq!(main.info().kind, PluginKind::Instrument);
-    assert!(main.params().is_empty());
+    // Only the hidden Fault and Process of round 29's isolation tests.
+    assert!(main.params().iter().all(|p| p.hidden), "{:?}", main.params());
     let note = |offset, kind| NoteEvent {
         offset,
         note_id: -1,

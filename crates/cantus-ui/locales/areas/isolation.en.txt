@@ -1,1 +1,8 @@
 # isolation — round 29: third-party plug-ins hosted out of process. Every key here needs its twin in isolation.es.txt.
+cmd.set_plugin_isolation = where a plug-in runs
+
+# --- where a plug-in runs (ADR 0063) ---
+isolation.within = Within Cantus
+isolation.together = Together
+isolation.by_vendor = By maker
+isolation.individually = Individually
