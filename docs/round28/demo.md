@@ -163,6 +163,13 @@ negative correlation; the master EQ's low-mid warmth and an eased top when the s
 
 `crates/cantus-engine/tests/inst_chorda.rs`: the two pedal tests above; the whole file passes.
 
+**The full runs** (Windows): `cargo test -p cantus-core -p cantus-project -p cantus-engine
+--no-fail-fast` — 977 passed after the contract fix below; `cargo test -p cantus-ui
+--no-fail-fast` — 1 256 passed, 1 failed once under load and passed alone twice
+(`hosted_instruments::opening_its_editor_from_the_track_opens_the_plugin_window`, a hosted
+plug-in's OS window, nothing this round touched); `cargo clippy --workspace --all-targets
+-- -D warnings` clean; `cargo fmt --all -- --check` clean. No `cfg(windows)` code was added.
+
 ## Files outside my area (all small, additive)
 
 - `crates/cantus-ui/src/demos/song.rs` — `strips` (more middle strips than a project opens
@@ -172,6 +179,10 @@ negative correlation; the master EQ's low-mid warmth and an eased top when the s
 - `crates/cantus-core/src/inst/chorda.rs`, `crates/cantus-engine/src/inst/chorda.rs`,
   `crates/cantus-ui/src/views/inst/chorda.rs`, `locales/inst/chorda.{en,es}.txt`,
   `docs/instruments/chorda.md` — the pedal parameter.
+- `crates/cantus-engine/tests/support/heavy.rs` — `random_instrument` never draws Chorda's
+  `pedal`: held down it is not rest (by design, as controller 64 held), and drawing it
+  shifted every later draw so the rest contract's `default #2` landed on a spec that rings
+  past 30 s; skipped, Chorda's random specs are exactly what they were before.
 - `locales/areas/demos.{en,es}.txt` — the song, its style, the pre-chorus, *Vox*, *Sub drop*,
   *Music bus*, the automation clips' and modulators' names.
 - `crates/cantus-ui/examples/render_demos.rs` — the showcase's window for the website excerpt.
