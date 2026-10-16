@@ -77,6 +77,24 @@ pub fn label_width(ctx: &Context, s: &Style, labels: &[&str]) -> f32 {
     (110.0 * s.k).max(widest + 12.0 * s.k)
 }
 
+/// The keys of the details table's labels, in its order.
+pub const DETAIL_LABELS: [&str; 6] = [
+    "samples.detail.download",
+    "samples.detail.on_disk",
+    "samples.detail.space",
+    "samples.detail.files",
+    "samples.detail.licence",
+    "samples.detail.checked",
+];
+
+/// The details table's label column as the table lays it out: [`label_width`] of every
+/// label, in the interface's language.
+pub fn detail_column(ctx: &Context, s: &Style) -> f32 {
+    let words = DETAIL_LABELS.map(t);
+    let labels = words.each_ref().map(String::as_str);
+    label_width(ctx, s, &labels)
+}
+
 /// What went wrong installing a pack, in the interface's language where Cantus knows the
 /// words (no space: the sizes in words); otherwise the error as it says itself.
 pub fn install_error_text(e: &cantus_content::install::InstallError) -> String {
@@ -481,38 +499,22 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
         Source::Files(f) => f.len().to_string(),
         Source::Zip(_) | Source::TarGz(_) => "—".into(),
     };
-    let rows = [
+    // In `DETAIL_LABELS`' order; a pack built at install needs much more while it
+    // installs (round 28).
+    let values = [
+        (size(pack.download_size()), Role::Value),
+        (size(pack.installed_size), Role::Value),
+        (size(pack.space_needed()), Role::Value),
+        (files, Role::Value),
         (
-            t("samples.detail.download"),
-            size(pack.download_size()),
-            Role::Value,
-        ),
-        (
-            t("samples.detail.on_disk"),
-            size(pack.installed_size),
-            Role::Value,
-        ),
-        // A pack built at install needs much more while it installs (round 28).
-        (
-            t("samples.detail.space"),
-            size(pack.space_needed()),
-            Role::Value,
-        ),
-        (t("samples.detail.files"), files, Role::Value),
-        (
-            t("samples.detail.licence"),
             format!("{} — {}", pack.licence, licence_words(pack)),
             Role::Body,
         ),
-        (
-            t("samples.detail.checked"),
-            pack.checked.clone(),
-            Role::Value,
-        ),
+        (pack.checked.clone(), Role::Value),
     ];
-    let labels: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
-    let lw = label_width(ui.ctx(), s, &labels);
-    for (label, value, role) in rows {
+    let lw = detail_column(ui.ctx(), s);
+    for (key, (value, role)) in DETAIL_LABELS.into_iter().zip(values) {
+        let label = t(key);
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 20.0 * s.k), Sense::hover());
         with_brush(ui.painter(), |b| {
             paint::line(
@@ -670,18 +672,29 @@ mod space_tests {
         let s = crate::kit::Style::current();
         for locale in [Locale::En, Locale::Es] {
             set_locale(locale);
-            let label = t("samples.detail.space");
             ctx.run_ui(egui::RawInput::default(), |_| {})
                 .textures_delta
                 .clear();
-            let w = super::label_width(&ctx, &s, &[label.as_str()]);
-            let text = crate::kit::text::measure(
-                &ctx,
-                &crate::kit::text::Text::new(&label, crate::kit::text::Role::Body, s.t.text),
-                s.tk(),
-            )
-            .x;
-            assert!(text < w, "{locale:?}: {label} ({text}) in {w}");
+            // The column the table lays out (review of fix3: the test measured the helper
+            // against itself): every label fits it with its padding.
+            let w = super::detail_column(&ctx, &s);
+            for key in super::DETAIL_LABELS {
+                let label = t(key);
+                let text = crate::kit::text::measure(
+                    &ctx,
+                    &crate::kit::text::Text::new(&label, crate::kit::text::Role::Body, s.t.text),
+                    s.tk(),
+                )
+                .x;
+                assert!(
+                    text + 12.0 * s.k <= w,
+                    "{locale:?}: {label} ({text}) in {w}"
+                );
+                // The old fixed 110 pt column was too narrow for the Spanish space label.
+                if locale == Locale::Es && key == "samples.detail.space" {
+                    assert!(text + 12.0 * s.k > 110.0 * s.k, "{label}: {text}");
+                }
+            }
             let e = cantus_content::install::InstallError::NoSpace {
                 need: 7_614_567_890,
                 free: 3_100_000_000,

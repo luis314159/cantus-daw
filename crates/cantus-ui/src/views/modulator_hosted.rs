@@ -17,9 +17,11 @@ pub const SHOWN: usize = 48;
 /// The plug-in's words for each value shown, by parameter, with the value's bits they
 /// were asked for: the plug-in is asked again only when the value moves (review 1), and a
 /// frame clones a reference, never a string. Every word is forgotten when the stamp
-/// changes — another plug-in or instance on the track, or any value the project stores
-/// for it (a plug-in may word one parameter by another's state: a rate in Hz or in notes
-/// by its sync switch) (review 2).
+/// changes — another plug-in or instance on the track, or a stepped value the project
+/// stores for it (a plug-in may word one parameter by another's switch: a rate in Hz or
+/// in notes by its sync switch) (review 2). A continuous value moving (a drag) is its
+/// own row's to re-ask, never every row's (review of fix3: a drag re-asked all 48 rows
+/// every frame).
 #[derive(Clone, Default)]
 struct Texts {
     stamp: u64,
@@ -51,15 +53,25 @@ impl Texts {
     }
 }
 
-/// The stamp of the words of `h`, as the project stores `spec`: its instance and every
-/// stored value (no allocation).
+/// The stamp of the words of `h`, as the project stores `spec`: its instance and the
+/// stored value of each stepped parameter (no allocation).
 fn stamp(h: &cantus_host::HostedInst, spec: Option<&cantus_core::ExternalPlugin>) -> u64 {
+    stamp_of(h.instance(), &h.params, spec)
+}
+
+fn stamp_of(
+    instance: impl std::hash::Hash,
+    params: &[cantus_host::ParamInfo],
+    spec: Option<&cantus_core::ExternalPlugin>,
+) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut s = std::collections::hash_map::DefaultHasher::new();
-    h.instance().hash(&mut s);
-    for (id, v) in spec.iter().flat_map(|e| e.params.iter()) {
-        id.hash(&mut s);
-        v.to_bits().hash(&mut s);
+    instance.hash(&mut s);
+    for p in params.iter().filter(|p| p.stepped) {
+        if let Some(v) = spec.and_then(|e| e.params.get(&p.id)) {
+            p.id.hash(&mut s);
+            v.to_bits().hash(&mut s);
+        }
     }
     s.finish()
 }
@@ -193,16 +205,12 @@ fn param_row(
         .align(egui::Align2::RIGHT_CENTER)
         .policy(crate::kit::text::Policy::Abbreviate);
     let _ = crate::kit::text::paint(sh.b, row.label, &t, sh.s.tk());
-    let base = range.pos(v);
-    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
-    let (m, n) = app.mod_offer(&target, base, &sh.s, &mut rings);
-    let offer = crate::kit::automate::Offer {
-        automated: app.is_automated(&target),
-        typing: false,
-        modulation: Some(m),
-    };
-    let depth_drag = crate::kit::automate::depth_drag(sh.ui, Some(offer));
-    let d = sh.value(
+    // The native rows' wiring (review of fix3): while a modulator maps, only the drag is
+    // the depth's — a double-click resets, a typed value lands — and the live tick shows.
+    let d = super::modulators::wired_value(
+        sh,
+        app,
+        "mods.hosted.param",
         row.value,
         id,
         v,
@@ -211,27 +219,15 @@ fn param_row(
         name,
         move |_, b| b.push_str(&text),
         Function::Source,
+        target,
         false,
+        true,
     );
-    if let Some(nv) = d.value.filter(|_| !depth_drag) {
+    if let Some(nv) = d.value {
         sh.acts.push(act(nv));
     }
-    if d.ended && !depth_drag {
+    if d.ended {
         sh.acts.push(Act::EndGesture);
-    }
-    let s = sh.s;
-    if offer.automated {
-        crate::kit::automate::mark(sh.b, row.value, &s);
-    }
-    if n > 0 {
-        crate::kit::automate::mod_mark(sh.b, row.value, &s);
-    }
-    let rect = row.value;
-    let choice = crate::kit::automate::modulation_choice(sh.ui, &d.resp, Some(offer))
-        .or_else(|| crate::kit::automate::menu(sh.ui, &d.resp, offer));
-    if let Some(c) = choice {
-        sh.acts
-            .push(Act::Mod(super::modulators::ModAct::Param(target, c, rect)));
     }
 }
 
@@ -253,6 +249,42 @@ mod tests {
         assert_eq!(&*texts.get(2, 0, bits, || ask("50 %")), "50 %");
         assert_eq!(&*texts.get(2, 0, 0.6f64.to_bits(), || ask("60 %")), "60 %");
         assert_eq!(asked, 3);
+    }
+
+    /// Review of fix3: a continuous value moving (a drag merging every frame) leaves the
+    /// stamp — every other row's words stay — while a stepped one (a sync switch that
+    /// rewords a rate) or another instance changes it.
+    #[test]
+    fn a_dragged_value_keeps_the_other_rows_words() {
+        let info = |id: u32, stepped: bool| cantus_host::ParamInfo {
+            id,
+            name: format!("p{id}"),
+            group: String::new(),
+            min: 0.0,
+            max: 1.0,
+            default: 0.0,
+            stepped,
+            automatable: true,
+            hidden: false,
+            read_only: false,
+        };
+        let params = [info(0, false), info(1, true)];
+        let mut spec = cantus_core::ExternalPlugin::new(
+            cantus_core::PluginFormat::Clap,
+            "test.synth",
+            "Synth",
+        );
+        spec.params.insert(0, 0.25);
+        spec.params.insert(1, 0.0);
+        let at = |spec: &cantus_core::ExternalPlugin, instance: u64| {
+            super::stamp_of(instance, &params, Some(spec))
+        };
+        let before = at(&spec, 7);
+        spec.params.insert(0, 0.75);
+        assert_eq!(at(&spec, 7), before, "a drag keeps the stamp");
+        spec.params.insert(1, 1.0);
+        assert_ne!(at(&spec, 7), before, "a switch rewords");
+        assert_ne!(at(&spec, 8), at(&spec, 7), "another instance");
     }
 
     #[test]
