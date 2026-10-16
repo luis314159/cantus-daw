@@ -163,7 +163,7 @@ fn a_plugin_that_aborts_in_process_leaves_the_block_dry_and_says_so_once() {
         let (mut l, mut r) = (l0.clone(), r0.clone());
         call(audio.as_mut(), &mut l, &mut r, &fault(fault_id, ABORT_PROCESS), &[]);
         assert!(
-            t.elapsed() < deadline(256, SR) + Duration::from_millis(50),
+            t.elapsed() < deadline(256, SR, cantus_host::bridge::audio::DEADLINE_FLOOR) + Duration::from_millis(50),
             "{id}: the audio thread waited {:?}",
             t.elapsed()
         );
@@ -226,7 +226,7 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     assert!(dry > 0);
     // Windows' timer may round the deadline up to its tick (15.6 ms).
     assert!(
-        worst < deadline(128, SR) + Duration::from_millis(25),
+        worst < deadline(128, SR, cantus_host::bridge::audio::DEADLINE_FLOOR) + Duration::from_millis(25),
         "the audio thread waited {worst:?}"
     );
     assert!(

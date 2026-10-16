@@ -108,8 +108,8 @@ impl Backend for BridgedBackend {
             &[],
             sandbox::LOAD_TIMEOUT,
         );
-        let described = match answer {
-            Ok((Answer::Loaded(d), _)) => d,
+        let (described, first_state): (proto::Described, Vec<u8>) = match answer {
+            Ok((Answer::Loaded(d), state)) => (d, state),
             Ok(_) => {
                 sandbox.unregister(instance);
                 return Err(HostError::Load("the plug-in sandbox did not load it".into()));
@@ -119,6 +119,7 @@ impl Backend for BridgedBackend {
                 return Err(e);
             }
         };
+        let latency = described.latency;
         let status = Arc::new(Status::default());
         let main = BridgeMain::new(
             sandbox,
@@ -130,6 +131,7 @@ impl Backend for BridgedBackend {
             self.offline,
             setup.sample_rate,
             described,
+            first_state,
         );
         // The first audio half reuses the caller made above, whose bells the helper opened.
         let audio = {
@@ -138,8 +140,12 @@ impl Backend for BridgedBackend {
                 slot,
                 caller,
                 main.status.clone(),
-                self.offline,
-                setup.sample_rate,
+                (
+                    self.offline,
+                    setup.sample_rate,
+                    self.pool.deadline_floor(),
+                    latency,
+                ),
                 Box::new(move || sandbox.tell(Call::DropAudio { instance }, &[])),
             ))
         };

@@ -81,8 +81,9 @@ impl BridgeMain {
         offline: bool,
         sample_rate: f64,
         described: Described,
+        first_state: Vec<u8>,
     ) -> BridgeMain {
-        let mut me = BridgeMain {
+        BridgeMain {
             sandbox,
             pool,
             instance,
@@ -95,15 +96,13 @@ impl BridgeMain {
             params: described.params,
             latency: described.latency,
             has_editor: described.has_editor,
-            last_good: None,
+            // The state it starts with is the first good one.
+            last_good: (!first_state.is_empty()).then_some(first_state),
             dirty_since: None,
             asked_state: false,
             last_refresh: Instant::now(),
             told_crash: false,
-        };
-        // The state it starts with is the first good one.
-        me.ask_state();
-        me
+        }
     }
 
     /// The process id of the helper it runs in.
@@ -135,9 +134,9 @@ impl BridgeMain {
     }
 
     fn crash_reason(&self) -> String {
-        self.sandbox.why().unwrap_or_else(|| {
-            "it stopped answering".to_string()
-        })
+        self.sandbox
+            .why()
+            .unwrap_or_else(|| "it ended without a word".to_string())
     }
 
     /// A new audio half over this instance's slot.
@@ -149,8 +148,12 @@ impl BridgeMain {
             self.slot.clone(),
             caller,
             self.status.clone(),
-            self.offline,
-            self.sample_rate,
+            (
+                self.offline,
+                self.sample_rate,
+                self.pool.deadline_floor(),
+                self.latency,
+            ),
             Box::new(move || sandbox.tell(Call::DropAudio { instance }, &[])),
         )))
     }
@@ -272,6 +275,11 @@ impl MainThread for BridgeMain {
         }
         if self.gone() {
             self.status.mark_dead();
+            // Its pipe closed first; the watchdog names how it ended a moment later.
+            if self.sandbox.why().is_none() && self.sandbox.dead_for() < Duration::from_millis(200)
+            {
+                return out;
+            }
             if !self.told_crash {
                 self.told_crash = true;
                 out.push(Notice::Crashed {

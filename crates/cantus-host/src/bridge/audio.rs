@@ -7,8 +7,9 @@
 //! helper's output and its parameter events are copied back. Nothing allocates.
 //!
 //! When the deadline passes, the block goes on **without** the plug-in — the effect's input
-//! passes through (the buffers were never touched), an instrument stays silent (the caller
-//! zeroed them) — and the late job is never waited for again: the next blocks pass dry
+//! passes through, delayed by the latency the plug-in reported, as a bypassed slot does (so
+//! nothing that runs in parallel moves against it), and an instrument stays silent (the
+//! caller zeroed its buffers) — and the late job is never waited for again: the next blocks pass dry
 //! until it has finished, counted in [`Status::late`]. When the helper is gone, every block
 //! passes dry from then on. An **offline** instance (a render, an export) has no deadline:
 //! it waits for every block as long as it takes, while its helper lives, so the render
@@ -29,12 +30,17 @@ use std::time::{Duration, Instant};
 /// enough for a light plug-in's whole job, so most blocks make no system call to wait.
 pub const SPIN: Duration = Duration::from_micros(200);
 
+/// The shortest deadline (`Sandboxes::set_deadline_floor` changes it, for tests on a busy
+/// machine that compare bits in real time).
+pub const DEADLINE_FLOOR: Duration = Duration::from_millis(5);
+
 /// The deadline of a block of `frames` at `sample_rate`: twice the block's own duration,
-/// at least 5 ms. A plug-in that takes longer was going to make the device drop out in
-/// process too; out of process, the block is cut there instead of waiting on.
-pub fn deadline(frames: usize, sample_rate: f64) -> Duration {
+/// at least `floor` ([`DEADLINE_FLOOR`]). A plug-in that takes longer was going to make the
+/// device drop out in process too; out of process, the block is cut there instead of
+/// waiting on.
+pub fn deadline(frames: usize, sample_rate: f64, floor: Duration) -> Duration {
     let block = Duration::from_secs_f64(frames as f64 / sample_rate.max(1.0));
-    (block * 2).max(Duration::from_millis(5))
+    (block * 2).max(floor)
 }
 
 /// What Cantus knows of one isolated instance across its halves.
@@ -91,6 +97,13 @@ pub struct BridgeAudio {
     outstanding: Option<u32>,
     offline: bool,
     sample_rate: f64,
+    floor: Duration,
+    /// The input of the last `latency` frames, per channel: what a block that passes
+    /// without the plug-in plays, so it stays where the plug-in's output would have been.
+    delay: [Box<[f32]>; 2],
+    at: usize,
+    /// This block's delayed input, per channel (the largest block's length).
+    scratch: [Box<[f32]>; 2],
     /// Told when this half is dropped (on the main thread), so the helper drops its own.
     on_drop: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -109,10 +122,10 @@ impl BridgeAudio {
         slot: Arc<Slot>,
         caller: Caller,
         status: Arc<Status>,
-        offline: bool,
-        sample_rate: f64,
+        (offline, sample_rate, floor, latency): (bool, f64, Duration, usize),
         on_drop: Box<dyn FnOnce() + Send>,
     ) -> BridgeAudio {
+        let longest = if latency > 0 { slot.max_block() } else { 0 };
         BridgeAudio {
             slot,
             caller,
@@ -120,8 +133,57 @@ impl BridgeAudio {
             outstanding: None,
             offline,
             sample_rate,
+            floor,
+            delay: [
+                vec![0.0; latency].into_boxed_slice(),
+                vec![0.0; latency].into_boxed_slice(),
+            ],
+            at: 0,
+            scratch: {
+                [
+                    vec![0.0; longest].into_boxed_slice(),
+                    vec![0.0; longest].into_boxed_slice(),
+                ]
+            },
             on_drop: Some(on_drop),
         }
+    }
+
+    /// Runs the block's input through the latency line: the line takes it, and the input
+    /// of `latency` frames ago goes into `scratch` — what the block plays if it passes
+    /// without the plug-in. Nothing when the plug-in reports no latency.
+    fn advance(&mut self, left: &[f32], right: &[f32]) {
+        let n = self.delay[0].len();
+        if n == 0 {
+            return;
+        }
+        let start = self.at;
+        let mut at = start;
+        for c in 0..2 {
+            at = start;
+            let input = if c == 0 { left } else { right };
+            let (line, scratch) = (&mut self.delay[c], &mut self.scratch[c]);
+            for (i, x) in input.iter().enumerate() {
+                scratch[i] = line[at];
+                line[at] = *x;
+                at += 1;
+                if at == n {
+                    at = 0;
+                }
+            }
+        }
+        self.at = at;
+    }
+
+    /// The block passes without the plug-in: the delayed input `advance` kept (or, with no
+    /// latency, the input as it is).
+    fn play_dry(&self, left: &mut [f32], right: &mut [f32]) {
+        if self.delay[0].is_empty() {
+            return;
+        }
+        let n = left.len();
+        left.copy_from_slice(&self.scratch[0][..n]);
+        right.copy_from_slice(&self.scratch[1][..n]);
     }
 
     /// Whether the plug-in may be given a job now: alive, and no late job unfinished.
@@ -144,7 +206,7 @@ impl BridgeAudio {
     fn run(&mut self, frames: usize) -> bool {
         let n = self.caller.submit();
         let deadline = (!self.offline)
-            .then(|| Instant::now() + deadline(frames, self.sample_rate));
+            .then(|| Instant::now() + deadline(frames, self.sample_rate, self.floor));
         match self.caller.wait(n, SPIN, deadline) {
             Outcome::Done => true,
             Outcome::Late => {
@@ -184,9 +246,6 @@ impl AudioThread for BridgeAudio {
         notes: &[NoteEvent],
         out: &mut ParamOut,
     ) {
-        if !self.ready() {
-            return; // dry for an effect, silent for an instrument
-        }
         let frames = audio
             .left
             .len()
@@ -194,6 +253,13 @@ impl AudioThread for BridgeAudio {
             .min(self.slot.max_block());
         let left = &mut audio.left[..frames];
         let right = &mut audio.right[..frames];
+        self.advance(left, right);
+        if !self.ready() {
+            // Dry, where the plug-in's output would be, for an effect; silent for an
+            // instrument (its buffers came zeroed).
+            self.play_dry(left, right);
+            return;
+        }
         let flush = cantus_rt::denormal::flushing();
         // SAFETY: no job is in flight (`ready`): the slot's job area is ours; the lengths
         // are within the slot's largest block.
@@ -214,6 +280,9 @@ impl AudioThread for BridgeAudio {
             // SAFETY: the job finished: the area is ours again.
             let st = unsafe { self.slot.take_result(left, right, out) };
             debug_assert!(st == status::OK || st == status::NO_AUDIO);
+        } else {
+            // Late or gone: the delayed input this block, as a bypassed slot plays.
+            self.play_dry(left, right);
         }
     }
 

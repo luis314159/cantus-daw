@@ -120,6 +120,8 @@ pub struct Sandbox {
     next_id: AtomicU64,
     next_instance: AtomicU32,
     dead: AtomicBool,
+    /// Milliseconds since `started` when it was marked gone.
+    dead_ms: AtomicU64,
     why: Mutex<Option<String>>,
     kill: Arc<AtomicBool>,
     started: Instant,
@@ -179,6 +181,7 @@ impl Sandbox {
             next_id: AtomicU64::new(1),
             next_instance: AtomicU32::new(1),
             dead: AtomicBool::new(false),
+            dead_ms: AtomicU64::new(0),
             why: Mutex::new(None),
             kill: Arc::new(AtomicBool::new(false)),
             started: Instant::now(),
@@ -210,11 +213,13 @@ impl Sandbox {
                 match frame {
                     Ok(Some((msg, blob))) => s.route(msg, blob),
                     Ok(None) => {
-                        s.mark_dead("the plug-in sandbox ended");
+                        s.mark_dead(None);
                         return;
                     }
                     Err(e) => {
-                        s.mark_dead(&format!("the plug-in sandbox broke its protocol: {e}"));
+                        s.mark_dead(Some(&format!(
+                            "the plug-in sandbox broke its protocol: {e}"
+                        )));
                         s.request_kill();
                         return;
                     }
@@ -250,15 +255,27 @@ impl Sandbox {
         self.dead.load(Ordering::Acquire)
     }
 
+    /// How long it has been gone (zero while it lives).
+    pub fn dead_for(&self) -> Duration {
+        let at = self.dead_ms.load(Ordering::Acquire);
+        if at == 0 {
+            return Duration::ZERO;
+        }
+        let now = self.started.elapsed().as_millis() as u64;
+        Duration::from_millis(now.saturating_sub(at))
+    }
+
     /// Why it ended, once it has.
     pub fn why(&self) -> Option<String> {
         lock(&self.why).clone()
     }
 
     /// Marks it gone: every instance's exchange closed (waking an audio thread that waits
-    /// on one), every waiting call answered with an error.
-    pub(crate) fn mark_dead(&self, why: &str) {
-        {
+    /// on one), every waiting call answered with an error. `why` is kept if none was given
+    /// before; `None` (its pipe closed) leaves it to the watchdog, which knows how the
+    /// process ended.
+    pub(crate) fn mark_dead(&self, why: Option<&str>) {
+        if let Some(why) = why {
             let mut w = lock(&self.why);
             if w.is_none() {
                 *w = Some(why.to_string());
@@ -267,6 +284,10 @@ impl Sandbox {
         if self.dead.swap(true, Ordering::AcqRel) {
             return;
         }
+        self.dead_ms.store(
+            (self.started.elapsed().as_millis() as u64).max(1),
+            Ordering::Release,
+        );
         for r in lock(&self.instances).values() {
             r.closer.close();
         }
@@ -280,7 +301,7 @@ impl Sandbox {
 
     /// Ends the helper (it hung): marks it gone now, kills it in the watchdog.
     pub fn kill(&self, why: &str) {
-        self.mark_dead(why);
+        self.mark_dead(Some(why));
         self.request_kill();
     }
 
@@ -529,6 +550,39 @@ fn unsupported_name(s: &str) -> &'static str {
     NAMES.into_iter().find(|n| *n == s).unwrap_or("operation")
 }
 
+/// How a helper's end reads: the Windows exception or the Unix signal named when it is a
+/// common one.
+fn crash_words(status: std::process::ExitStatus) -> String {
+    #[cfg(windows)]
+    {
+        let code = status.code().unwrap_or(0) as u32;
+        let what = match code {
+            0xC000_0005 => "an access violation",
+            0xC000_0409 => "a stack buffer overrun or an abort",
+            0xC000_00FD => "a stack overflow",
+            0xC000_001D => "an illegal instruction",
+            0xC000_0094 => "an integer division by zero",
+            0x8000_0003 => "a breakpoint",
+            3 => "an abort",
+            1 => "a forced end",
+            _ => "",
+        };
+        if what.is_empty() {
+            format!("it crashed (exit code 0x{code:08X})")
+        } else {
+            format!("it crashed: {what} (0x{code:08X})")
+        }
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt;
+        match status.signal() {
+            Some(libc_sig) => format!("it crashed (signal {libc_sig})"),
+            None => format!("it crashed ({status})"),
+        }
+    }
+}
+
 /// The watchdog: polls the process, kills it when asked, and marks the helper gone when
 /// it ends.
 fn watch(mut child: Child, kill: Arc<AtomicBool>, me: Weak<Sandbox>) {
@@ -540,11 +594,11 @@ fn watch(mut child: Child, kill: Arc<AtomicBool>, me: Weak<Sandbox>) {
             Ok(Some(status)) => {
                 if let Some(s) = me.upgrade() {
                     let why = if status.success() {
-                        "the plug-in sandbox ended".to_string()
+                        "it ended".to_string()
                     } else {
-                        format!("the plug-in sandbox crashed ({status})")
+                        crash_words(status)
                     };
-                    s.mark_dead(&why);
+                    s.mark_dead(Some(&why));
                 }
                 return;
             }
@@ -567,6 +621,8 @@ pub struct Sandboxes {
     groups: Mutex<HashMap<String, Arc<Sandbox>>>,
     /// How long a job may stay unfinished before its helper is taken for hung.
     hang_limit_ms: AtomicU64,
+    /// The shortest real-time deadline, in microseconds.
+    deadline_floor_us: AtomicU64,
     #[cfg(windows)]
     job: Option<job::Job>,
 }
@@ -586,6 +642,9 @@ impl Sandboxes {
             exe,
             groups: Mutex::new(HashMap::new()),
             hang_limit_ms: AtomicU64::new(HANG_LIMIT.as_millis() as u64),
+            deadline_floor_us: AtomicU64::new(
+                super::audio::DEADLINE_FLOOR.as_micros() as u64,
+            ),
             #[cfg(windows)]
             job: job::Job::new(),
         })
@@ -615,6 +674,17 @@ impl Sandboxes {
     pub fn set_hang_limit(&self, limit: Duration) {
         self.hang_limit_ms
             .store(limit.as_millis() as u64, Ordering::Relaxed);
+    }
+
+    /// The shortest deadline a real-time block waits for its plug-in (instances loaded
+    /// from now on).
+    pub fn deadline_floor(&self) -> Duration {
+        Duration::from_micros(self.deadline_floor_us.load(Ordering::Relaxed))
+    }
+
+    pub fn set_deadline_floor(&self, floor: Duration) {
+        self.deadline_floor_us
+            .store(floor.as_micros() as u64, Ordering::Relaxed);
     }
 
     /// The live helper of `key`, started if there is none.

@@ -242,7 +242,15 @@ impl Server {
                 slot,
             } => {
                 named = Some(instance);
-                self.load(instance, &info, sample_rate, max_block, &slot)
+                let r = self.load(instance, &info, sample_rate, max_block, &slot);
+                // Its first good state travels with the answer: a crash a moment later
+                // still leaves Cantus something to keep.
+                if let Some(i) = self.instances.get_mut(&instance) {
+                    if let Ok(state) = i.main.save_state() {
+                        reply_blob = state;
+                    }
+                }
+                r
             }
             Call::Unload { instance } => {
                 if let Some(i) = self.instances.remove(&instance) {
