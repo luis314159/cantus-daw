@@ -43,7 +43,7 @@ impl CantusApp {
         {
             return (l.start, l.end);
         }
-        let bar = p.time_signature.ticks_per_bar();
+        let bar = crate::views::bars::bar_len(p, Ticks::ZERO);
         (Ticks::ZERO, p.content_end().max(bar))
     }
 

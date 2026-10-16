@@ -194,9 +194,9 @@ impl CantusApp {
         {
             return (l.start, l.end);
         }
-        let bar = p.time_signature.ticks_per_bar().0.max(1);
-        let at = Ticks(self.engine.position().0.max(0) / bar * bar);
-        (at, at + Ticks(bar * 4))
+        // Four bars from the playhead's bar, through the metre changes (ADR 0060).
+        let at = crate::views::bars::bar_start(p, self.engine.position().max(Ticks::ZERO));
+        (at, crate::views::bars::bars_from(p, at, 4))
     }
 }
 

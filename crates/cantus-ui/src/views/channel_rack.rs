@@ -1140,9 +1140,9 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId,
             }
         });
     }
-    let ts = app.project().time_signature;
-    let (from, _, _) = ts.bbt(pattern.start);
-    let (to, _, _) = ts.bbt(pattern.start + pattern.window() - Ticks(1));
+    let (from, _, _) = crate::views::bars::bbt(app.project(), pattern.start);
+    let (to, _, _) =
+        crate::views::bars::bbt(app.project(), pattern.start + pattern.window() - Ticks(1));
     let key = (from, to, pattern.count);
     if app.rack.scratch.span.0 != key || app.rack.scratch.span.1.is_empty() {
         app.rack.scratch.span = (key, tf("rack.bars", &[("from", &from), ("to", &to)]));

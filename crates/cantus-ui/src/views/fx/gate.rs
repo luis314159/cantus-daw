@@ -341,7 +341,8 @@ pub fn merge_hits(hits: &[(i64, f32)], ticks_per_second: f64) -> Vec<(i64, f32)>
 }
 
 fn ticks_per_second(app: &CantusApp) -> f64 {
-    app.project().tempo_bpm / 60.0 * cantus_core::PPQ as f64
+    crate::views::bars::bpm_at(app.project(), app.engine.position()) / 60.0
+        * cantus_core::PPQ as f64
 }
 
 /// The pad the hits are written to: the chosen one, or the kit's first.
@@ -437,10 +438,12 @@ impl CantusApp {
             return false;
         }
         let kit = PulsusParams::default();
-        let bar = self.project().time_signature.ticks_per_bar().0.max(1);
-        let first = notes[0].0.div_euclid(bar) * bar;
+        // Whole bars around the hits, through the metre changes (ADR 0060).
+        let first = crate::views::bars::bar_start(self.project(), cantus_core::Ticks(notes[0].0)).0;
         let last = notes[notes.len() - 1].0;
-        let end = (last.div_euclid(bar) + 1) * bar;
+        let end = crate::views::bars::map(self.project())
+            .bar_end(cantus_core::Ticks(last))
+            .0;
         let name = tf(
             "gate.hits_track",
             &[(

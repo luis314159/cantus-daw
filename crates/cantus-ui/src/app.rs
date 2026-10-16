@@ -1615,7 +1615,12 @@ impl CantusApp {
             .iter()
             .filter(|n| targets.contains(&n.id))
             .map(|n| cantus_core::Note {
-                start: n.start.snap(grid),
+                start: crate::views::bars::snap_content(
+                    self.project(),
+                    n.start,
+                    grid,
+                    clip.start - clip.offset,
+                ),
                 ..n.clone()
             })
             .filter(|n| clip.note(n.id).map(|o| o.start != n.start).unwrap_or(false))
@@ -1902,7 +1907,8 @@ impl CantusApp {
 
     /// One arrow-key press: clips or notes, by the grid or by the bar.
     fn nudge(&mut self, direction: i64, by_bar: bool) {
-        let bar = self.project().time_signature.ticks_per_bar();
+        // A bar of the metre in force at the playhead (ADR 0060).
+        let bar = crate::views::bars::bar_len(self.project(), self.engine.position());
         if self.editing_clips() {
             let step = if by_bar { bar } else { self.arrangement.grid };
             self.nudge_clips(Ticks(step.0 * direction));

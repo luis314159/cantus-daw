@@ -76,9 +76,13 @@ pub fn body(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
 pub fn range_note(app: &CantusApp, scope: Scope) -> Option<String> {
     let (from, to) = super::export::range(app, scope)?;
     let p = app.project();
-    let secs = (to - from).to_seconds(p.tempo_bpm);
+    // Through the tempo map and the metre changes (ADR 0060).
+    let secs = crate::views::bars::seconds_between(p, from, to);
     let last = (to - cantus_core::Ticks(1)).max(from);
-    let (a, b) = (p.time_signature.bbt(from).0, p.time_signature.bbt(last).0);
+    let (a, b) = (
+        crate::views::bars::bbt(p, from).0,
+        crate::views::bars::bbt(p, last).0,
+    );
     let key = if scope == Scope::Loop {
         "export_audio.loop"
     } else {

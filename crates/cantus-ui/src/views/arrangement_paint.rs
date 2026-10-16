@@ -50,24 +50,6 @@ const HEADER_TOKENS: &[Tok] = &[
 /// What a clip paints with besides its colour.
 const CLIP_TOKENS: &[Tok] = &[Tok::RowBlack, Tok::RowWhite, Tok::Selection, Tok::TrackVeil];
 
-/// The visible columns of the timeline: the first and last beat drawn and how far apart
-/// the lines are. Zoomed out, a beat is a pixel wide and a line per beat is a grey smear,
-/// so the step doubles until lines are at least `min_px` apart.
-pub(super) fn beat_step(px_per_beat: f32, beats_per_bar: f32, min_px: f32) -> f32 {
-    let mut step = 1.0f32;
-    while step * px_per_beat < min_px {
-        step *= 2.0;
-        if step >= beats_per_bar && step * px_per_beat < min_px {
-            step = beats_per_bar;
-            while step * px_per_beat < min_px {
-                step *= 2.0;
-            }
-            break;
-        }
-    }
-    step
-}
-
 /// The lanes' ground: a lane per track in the editor's row colour, every other bar a
 /// step lighter so bars can be counted, and FL's line ladder — step, beat, and a bar line
 /// three pixels wide with a dark core.
@@ -80,9 +62,29 @@ pub(super) fn lanes(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let first = geo.scroll_beats.max(0.0);
     let last = geo.beats(rect.right());
+    // Through the metre changes (ADR 0060): every bar its own length.
+    let map = crate::views::bars::map(app.project());
+    let several = !map.is_one_metre();
+    if several && per_bar * geo.px_per_beat >= 6.0 {
+        crate::views::bars::each_bar(&map, first, last, |n, start, len| {
+            if n % 2 == 0 {
+                let x0 = geo.x(start).max(rect.left());
+                let x1 = geo.x(start + len).min(rect.right());
+                if x1 > x0 {
+                    b.rect(
+                        b.snap_rect(Rect::from_min_max(
+                            pos2(x0, rect.top()),
+                            pos2(x1, rect.bottom()),
+                        )),
+                        Fill::Solid(t.row_white),
+                    );
+                }
+            }
+        });
+    }
     // Alternate bars.
     let bar_px = per_bar * geo.px_per_beat;
-    if bar_px >= 6.0 {
+    if bar_px >= 6.0 && !several {
         let mut bar = (first / per_bar).floor();
         while bar * per_bar <= last {
             if bar as i64 % 2 == 1 {
@@ -125,21 +127,17 @@ pub(super) fn lanes(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             t.grid_strong,
         );
     }
-    // The line ladder.
-    let step = beat_step(geo.px_per_beat, per_bar, 7.0);
-    let mut beat = (first / step).floor() * step;
+    // The line ladder, through the metre changes.
     let bar_side = mix(t.grid_bar, t.row_black, 0.55);
-    while beat <= last {
-        let x = geo.x(beat);
-        let is_bar = (beat / per_bar).fract().abs() < 1e-4;
-        if is_bar {
+    crate::views::bars::ladder(&map, first, last, geo.px_per_beat, 7.0, |l| {
+        let x = geo.x(l.beat);
+        if l.bar {
             b.vline(x, rect.top(), rect.bottom(), 3.0 * b.px(), bar_side);
             b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_bar);
         } else {
             b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_strong);
         }
-        beat += step;
-    }
+    });
 }
 
 /// The ruler: the loop lane with its brace on top, the bar numbers below, the time
@@ -166,13 +164,11 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let first = geo.scroll_beats.max(0.0);
     let last = geo.beats(rect.right());
-    // Ticks: beats short, bars full height of the number lane.
-    let step = beat_step(geo.px_per_beat, per_bar, 7.0);
-    let mut beat = (first / step).floor() * step;
-    while beat <= last {
-        let x = geo.x(beat);
-        let is_bar = (beat / per_bar).fract().abs() < 1e-4;
-        let top = if is_bar {
+    let map = crate::views::bars::map(app.project());
+    // Ticks: beats short, bars full height of the number lane (through the metre changes).
+    crate::views::bars::ladder(&map, first, last, geo.px_per_beat, 7.0, |l| {
+        let x = geo.x(l.beat);
+        let top = if l.bar {
             numbers_top
         } else {
             rect.bottom() - 4.0 * s.k
@@ -182,19 +178,46 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
             top,
             rect.bottom(),
             b.px(),
-            if is_bar { t.grid_bar } else { t.grid_strong },
+            if l.bar { t.grid_bar } else { t.grid_strong },
         );
-        beat += step;
-    }
+    });
     // Bar numbers, thinned by doubling so they stay ones a musician counts in.
     let bar_px = per_bar * geo.px_per_beat;
     let mut every = 1i64;
     while bar_px * (every as f32) < 28.0 * s.k {
         every *= 2;
     }
-    let mut bar = ((first / per_bar).floor() as i64 / every) * every;
     let mut digits = crate::views::clips_chrome::Digits::default();
-    while (bar as f32) * per_bar <= last {
+    if !map.is_one_metre() {
+        // Each bar where it starts, numbered through the metre changes; the thinning by
+        // the narrowest bar in view, so numbers never collide.
+        let mut narrow = f32::MAX;
+        crate::views::bars::each_bar(&map, first, last, |_, _, len| narrow = narrow.min(len));
+        let mut every = 1i64;
+        while narrow * geo.px_per_beat * (every as f32) < 28.0 * s.k && every < 1024 {
+            every *= 2;
+        }
+        crate::views::bars::each_bar(&map, first, last, |n, start, _| {
+            if (n - 1).rem_euclid(every) != 0 {
+                return;
+            }
+            let x = geo.x(start);
+            let label = Rect::from_min_max(
+                pos2(x + 3.0 * s.k, numbers_top),
+                pos2(
+                    x + narrow * geo.px_per_beat * every as f32 - 2.0 * s.k,
+                    rect.bottom() - 1.0,
+                ),
+            );
+            let color = if (n - 1) % 4 == 0 { t.text } else { t.text_dim };
+            let tx = Text::new(digits.fmt(n), Role::Label, color)
+                .align(Align2::LEFT_CENTER)
+                .policy(Policy::Elide(Elide::End));
+            let _ = text::paint(b, label, &tx, s.tk());
+        });
+    }
+    let mut bar = ((first / per_bar).floor() as i64 / every) * every;
+    while map.is_one_metre() && (bar as f32) * per_bar <= last {
         let x = geo.x(bar as f32 * per_bar);
         let label = Rect::from_min_max(
             pos2(x + 3.0 * s.k, numbers_top),

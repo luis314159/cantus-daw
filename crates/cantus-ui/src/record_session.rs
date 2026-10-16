@@ -416,11 +416,11 @@ impl CantusApp {
         if let Some(l) = self.project().loop_region.clone() {
             return l;
         }
-        let bar = self.project().time_signature.ticks_per_bar();
-        let a = self.engine.position().snap_floor(bar);
+        // Two bars from the playhead's bar, through the metre changes (ADR 0060).
+        let a = crate::views::bars::bar_start(self.project(), self.engine.position());
         cantus_core::LoopRegion {
             start: a,
-            end: a + bar * 2,
+            end: crate::views::bars::bars_from(self.project(), a, 2),
         }
     }
 
@@ -541,10 +541,11 @@ impl CantusApp {
         // The count-in: start that many bars early; the take begins where the playhead was.
         let bars = rs.count_in_bars as i64;
         let transport_start = if bars > 0 && !self.engine.is_playing() {
-            let bar = self.project().time_signature.ticks_per_bar();
             // Before bar 1 the transport pre-rolls into negative time, so the whole
-            // count-in is heard; the take still starts at `pos`.
-            let from = pos - bar * bars;
+            // count-in is heard; the take still starts at `pos`. The bars counted are the
+            // ones before `pos` (ADR 0060: through the metre changes; before tick 0 the
+            // first metre).
+            let from = crate::views::bars::add_bars(self.project(), pos, -bars);
             self.engine.seek(from);
             self.engine.set_record_start(Some(pos));
             // A count-in clicks whatever the metronome switch says (round 22): the engine
@@ -932,7 +933,11 @@ impl CantusApp {
             rs.comp_xfade_ms = ms;
             let mut after = p.clone();
             after.recording.comp_xfade_ms = ms;
-            let x = crate::comping::xfade_ticks(&after);
+            let at = after
+                .track(track)
+                .and_then(|t| t.clips.iter().find(|c| c.comp).map(|c| c.start))
+                .unwrap_or(Ticks::ZERO);
+            let x = crate::comping::xfade_ticks(&after, at);
             let mut out = Vec::new();
             if p.recording != rs {
                 out.push(Command::SetRecordSettings { settings: rs });
@@ -1151,6 +1156,9 @@ impl CantusApp {
         let mut alone = cantus_core::Project::empty(self.project().name.clone());
         alone.tempo_bpm = self.project().tempo_bpm;
         alone.time_signature = self.project().time_signature;
+        // The comp plays under the song's tempo map (ADR 0060).
+        alone.tempo_points = self.project().tempo_points.clone();
+        alone.metre_changes = self.project().metre_changes.clone();
         alone.audio_pool = self.project().audio_pool.clone();
         alone.loop_enabled = false;
         let mut lone = alone.make_track("comp");

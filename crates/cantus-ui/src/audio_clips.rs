@@ -27,16 +27,24 @@ pub fn source_of<'p>(project: &'p Project, clip: &Clip) -> Option<&'p AudioSourc
     project.audio_source(clip.audio.as_ref()?.source)
 }
 
-/// The whole file's length on the timeline, at the project's tempo (ADR 0025 §1: audio
-/// plays at its natural speed whatever the tempo).
-pub fn source_ticks(project: &Project, s: &AudioSource) -> Ticks {
+/// The whole file's length in `clip`'s content ticks (ADR 0025 §1: audio plays at its
+/// natural speed whatever the tempo; ADR 0060: through the tempo map from where the clip
+/// starts, `cantus_core::audio_time`).
+pub fn source_ticks(project: &Project, clip: &Clip, s: &AudioSource) -> Ticks {
     let seconds = s.frames as f64 / s.sample_rate.max(1) as f64;
-    Ticks::from_seconds(seconds, project.tempo_bpm)
+    let map = crate::views::bars::map(project);
+    if map.is_constant() {
+        return Ticks::from_seconds(seconds, project.tempo_bpm);
+    }
+    let end = cantus_core::audio_time::tick_at_source(&map, clip.start, clip.offset, seconds);
+    Ticks((end - (clip.start - clip.offset).0 as f64).round() as i64)
 }
 
-/// The frame of the source at content tick `c` (fractional).
-pub fn frame_at(project: &Project, rate: u32, c: Ticks) -> f64 {
-    c.to_seconds(project.tempo_bpm) * rate as f64
+/// The frame of the source at `clip`'s content tick `c` (fractional, the slip aside).
+pub fn frame_at(project: &Project, clip: &Clip, rate: u32, c: Ticks) -> f64 {
+    let map = crate::views::bars::map(project);
+    let tick = (clip.start - clip.offset + c).0 as f64;
+    cantus_core::audio_time::frame_at(&map, clip.start, clip.offset, 0.0, rate as f64, tick)
 }
 
 /// The command that gives a clip `audio`.
@@ -108,8 +116,8 @@ pub fn normalize_gain(peak: f32) -> Option<f32> {
 /// offset included, scaled from the source's rate to `rate`).
 pub fn window_frames(project: &Project, clip: &Clip, rate: u32) -> (f64, f64) {
     let slip = slip_at(project, clip, rate);
-    let a = frame_at(project, rate, clip.offset) + slip;
-    let b = frame_at(project, rate, clip.offset + clip.length) + slip;
+    let a = frame_at(project, clip, rate, clip.offset) + slip;
+    let b = frame_at(project, clip, rate, clip.offset + clip.length) + slip;
     (a, b)
 }
 
@@ -173,7 +181,7 @@ pub fn clamp_edit(project: &Project, clip: &Clip, edit: WindowEdit, delta: Ticks
     let (Some(a), Some(s)) = (clip.audio.as_ref(), source_of(project, clip)) else {
         return delta;
     };
-    let len = source_ticks(project, s);
+    let len = source_ticks(project, clip, s);
     let (o, l) = (clip.offset, clip.length);
     let room_after = (len - o - l).max(Ticks::ZERO); // file left after the window
     let (lo, hi) = match (edit, a.reverse) {

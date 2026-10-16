@@ -47,7 +47,10 @@ fn time() -> ClipTime {
         offset: Ticks::ZERO,
         slip: 0,
         rate: SR,
-        bpm: BPM,
+        map: std::sync::Arc::new(cantus_core::TempoMap::constant(
+            BPM,
+            cantus_core::TimeSignature::default(),
+        )),
         reverse: false,
         end: Ticks::beats(1 << 20),
     }

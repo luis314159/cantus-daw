@@ -332,8 +332,12 @@ pub fn pad_cmd(
 
 /// "3.2.1" — bar, beat, sixteenth — for a position; `length` counts from zero.
 fn bbt(app: &CantusApp, t: cantus_core::Ticks, length: bool, b: &mut String) {
-    let ts = app.project().time_signature;
-    let (bar, beat, tick) = ts.bbt(t);
+    // A position through the metre changes (ADR 0060); a length in the song's first metre.
+    let (bar, beat, tick) = if length {
+        app.project().time_signature.bbt(t)
+    } else {
+        crate::views::bars::bbt(app.project(), t)
+    };
     let sixteenth = tick / (cantus_core::PPQ / 4).max(1);
     let o = if length { 1 } else { 0 };
     let _ = write!(b, "{}.{}.{}", bar - o, beat - o, sixteenth + 1 - o);

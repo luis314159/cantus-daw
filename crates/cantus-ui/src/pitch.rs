@@ -41,13 +41,14 @@ pub struct PitchUi {
 /// Where a clip's source frames sit on the timeline: content tick `c` reads source frame
 /// `seconds(c) · rate + slip` (ADR 0025 §7), at the project's tempo — mirrored inside the
 /// window when the clip plays backwards, as the engine reads it.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClipTime {
     pub start: Ticks,
     pub offset: Ticks,
     pub slip: i32,
     pub rate: u32,
-    pub bpm: f64,
+    /// The tempo map the clip plays under (ADR 0060, `cantus_core::audio_time`).
+    pub map: std::sync::Arc<cantus_core::TempoMap>,
     /// Played backwards over the window that ends at `end`.
     pub reverse: bool,
     pub end: Ticks,
@@ -60,20 +61,33 @@ impl ClipTime {
             offset: clip.offset,
             slip: clip.audio.as_ref().map_or(0, |a| a.slip_frames),
             rate: source.sample_rate.max(1),
-            bpm: project.tempo_bpm,
+            map: crate::views::bars::map(project),
             reverse: clip.audio.as_ref().is_some_and(|a| a.reverse),
             end: clip.end(),
         }
     }
 
     fn forward_frame(&self, t: Ticks) -> f64 {
-        let content = t - self.start + self.offset;
-        content.to_seconds(self.bpm) * self.rate as f64 + self.slip as f64
+        cantus_core::audio_time::frame_at(
+            &self.map,
+            self.start,
+            self.offset,
+            self.slip as f64,
+            self.rate as f64,
+            t.0 as f64,
+        )
     }
 
     fn forward_tick(&self, f: f64) -> Ticks {
-        let content = Ticks::from_seconds((f - self.slip as f64) / self.rate as f64, self.bpm);
-        content + self.start - self.offset
+        let t = cantus_core::audio_time::tick_at_frame(
+            &self.map,
+            self.start,
+            self.offset,
+            self.slip as f64,
+            self.rate as f64,
+            f,
+        );
+        Ticks(t.round() as i64)
     }
 
     /// The source frame under timeline tick `t`.
@@ -232,9 +246,15 @@ impl CantusApp {
         ) else {
             return None;
         };
-        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
-        let start = first.snap_floor(bar).max(Ticks::ZERO);
-        let length = Ticks(((last - start).0 + bar.0 - 1) / bar.0 * bar.0).max(bar);
+        // Whole bars around the notes, through the metre changes (ADR 0060).
+        let map = crate::views::bars::map(self.project());
+        let start = map.bar_start(first).max(Ticks::ZERO);
+        let end = if map.bar_start(last) == last {
+            last
+        } else {
+            map.bar_end(last)
+        };
+        let length = (end - start).max(map.bar_end(start) - start);
         let name = self
             .project()
             .track(track)
@@ -432,7 +452,7 @@ impl CantusApp {
         };
         let at = match first {
             Some(t) => {
-                let beat = self.project().time_signature.ticks_per_beat();
+                let beat = crate::views::bars::map(self.project()).beat_len_at(t);
                 (t - beat).max(Ticks::ZERO)
             }
             None => self

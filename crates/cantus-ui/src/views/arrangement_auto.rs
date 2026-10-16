@@ -668,7 +668,7 @@ fn dragged(app: &CantusApp, g: &PointDrag, f: &Frame, pos: Pos2, off_grid: bool)
             let raw = f.tick(pos.x).max(0.0);
             let mut tick = Ticks(raw.round() as i64);
             if app.arrangement.snap && !off_grid {
-                tick = tick.snap(app.arrangement.grid);
+                tick = crate::views::bars::snap(app.project(), tick, app.arrangement.grid);
             }
             // A point stays between its neighbours: the order is the curve.
             let lo = if i > 0 {

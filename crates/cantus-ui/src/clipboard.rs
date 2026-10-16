@@ -342,7 +342,7 @@ impl CantusApp {
         let range = self
             .time_selection
             .filter(|_| self.last_selection == SelKind::Time || sel.is_empty());
-        let (payload, copied, key) = if let Some((from, to)) = range {
+        let (payload, copied, key, at) = if let Some((from, to)) = range {
             let mut n = u64::MAX / 2;
             let mut ids = || {
                 n += 1;
@@ -360,15 +360,20 @@ impl CantusApp {
                 cb::clips_payload(picked, from, Some(to - from)),
                 Copied::Time(from, to),
                 "clipboard.status.copied_time",
+                from,
             )
         } else {
+            let at = cb::copy_origin(self.project(), &sel);
             (
                 cb::copy_clips(self.project(), &sel),
                 Copied::Clips(sel),
                 "clipboard.status.copied_clips",
+                at,
             )
         };
-        let mut board = Clipboard::new(self.clipboard_origin(), self.project(), payload);
+        // Where the copy began, so a paste can lay audio out through the tempo maps
+        // (ADR 0060).
+        let mut board = Clipboard::new(self.clipboard_origin(), self.project(), payload).at(at);
         if board.is_empty() {
             self.set_status(t("clipboard.status.nothing"));
             return None;
@@ -513,9 +518,13 @@ impl CantusApp {
             .or(Some(playhead).filter(|x| inside(*x)))
             .and_then(|x| clip.content_shown_at(x));
         let at = match at {
-            Some(c) if self.piano_roll.snap => c
-                .snap_floor(self.piano_roll.grid.max(Ticks(1)))
-                .max(clip.content_start()),
+            Some(c) if self.piano_roll.snap => crate::views::bars::snap_content_floor(
+                self.project(),
+                c,
+                self.piano_roll.grid,
+                clip.start - clip.offset,
+            )
+            .max(clip.content_start()),
             Some(c) => c,
             None => clip.content_start(),
         };
@@ -549,7 +558,7 @@ impl CantusApp {
             ),
         };
         let at = if self.arrangement.snap {
-            raw.snap_floor(self.arrangement.grid.max(Ticks(1)))
+            crate::views::bars::snap_floor(self.project(), raw, self.arrangement.grid)
         } else {
             raw
         }
@@ -578,7 +587,7 @@ impl CantusApp {
                 }
             }
             Payload::Notes { notes } => {
-                let bar = self.project().time_signature.ticks_per_bar();
+                let bar = crate::views::bars::bar_len(self.project(), at);
                 let name = t("clip.new");
                 let clip = self.with_ids(|_, ids| cb::notes_clip(&name, notes, at, bar, ids));
                 let made = vec![(track, clip.id)];

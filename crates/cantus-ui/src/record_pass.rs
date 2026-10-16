@@ -24,6 +24,7 @@
 use crate::clips::Ids;
 use crate::recording::RecordedNote;
 use cantus_core::audio::{AudioRegion, AudioSource, TakeMode};
+use cantus_core::TempoMap;
 use cantus_core::{
     AudioSourceId, Clip, ClipId, Command, CommandError, Note, NoteId, Project, Ticks, Track,
     TrackId, PPQ,
@@ -246,6 +247,39 @@ impl Window {
         frames.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
 
+    /// [`Self::slip_frames`] through a tempo map (ADR 0060): the source's seconds at the
+    /// window's start less what the whole-tick offset says there (`cantus_core::audio_time`:
+    /// the offset at the tempo where the clip starts), in frames. One tempo: exactly
+    /// [`Self::slip_frames`].
+    pub fn slip_frames_in(self, start: Ticks, offset: Ticks, map: &TempoMap, rate: u32) -> i32 {
+        if map.is_constant() {
+            return self.slip_frames(start, offset, map.bpm_at(0.0), rate);
+        }
+        let src = map.seconds_between_f64(self.origin, start.0 as f64);
+        let said = cantus_core::audio_time::offset_seconds(map, start, offset);
+        let frames = (src - said) * rate as f64;
+        frames.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
+    }
+
+    /// [`Self::ticks`] through a tempo map: the offset is the source's seconds at the
+    /// window's start, in whole ticks at the tempo there. One tempo: exactly
+    /// [`Self::ticks`].
+    pub fn ticks_in(self, map: &TempoMap) -> Option<(Ticks, Ticks, Ticks)> {
+        if map.is_constant() {
+            return self.ticks();
+        }
+        let mut start = self.start.round() as i64;
+        let end = self.end.round() as i64;
+        let src = map.seconds_between_f64(self.origin, start as f64);
+        let mut offset = cantus_core::audio_time::offset_for(map, Ticks(start), src).0;
+        if offset < 0 {
+            // The content begins later: the window starts where it does.
+            start = self.origin.round() as i64;
+            offset = 0;
+        }
+        (end > start).then_some((Ticks(start), Ticks(end - start), Ticks(offset)))
+    }
+
     /// Whole ticks: the start and end rounded, the content offset from the origin. A
     /// window that would begin before its content begins later instead.
     pub fn ticks(self) -> Option<(Ticks, Ticks, Ticks)> {
@@ -270,11 +304,21 @@ impl Window {
 pub fn audio_windows(
     take: &FinishedTake,
     plan: &PassPlan,
-    bpm: f64,
+    map: &TempoMap,
     latency_frames: i64,
 ) -> Vec<Window> {
     let sr = take.sample_rate.max(1) as f64;
-    let ft = |frames: f64| ticks_f(frames / sr, bpm);
+    // Frames after `from` (ticks) as ticks, through the tempo map (ADR 0060: a take plays
+    // at its natural speed); one tempo, the old arithmetic.
+    let bpm = map.bpm_at(0.0);
+    let constant = map.is_constant();
+    let after = |from: f64, frames: f64| {
+        if constant {
+            from + ticks_f(frames / sr, bpm)
+        } else {
+            map.tick_after_seconds(from, frames / sr)
+        }
+    };
     let lp = plan.loop_region.filter(|(a, b)| b > a);
     let wraps: &[u64] = if lp.is_some() { &take.wraps } else { &[] };
     let n = wraps.len() + 1;
@@ -284,7 +328,10 @@ pub fn audio_windows(
         let next = if k + 1 < n { wraps[k] } else { take.frames } as f64;
         let origin = match (k, lp) {
             (0, _) | (_, None) => take.start_tick,
-            (_, Some((a, _))) => a.0 as f64 - ft(first + latency_frames as f64),
+            (_, Some((a, _))) if constant => {
+                a.0 as f64 - ticks_f((first + latency_frames as f64) / sr, bpm)
+            }
+            (_, Some((a, _))) => after(a.0 as f64, -(first + latency_frames as f64)),
         };
         let start = match (k, lp) {
             (0, _) | (_, None) => plan.record_start.0 as f64,
@@ -292,7 +339,7 @@ pub fn audio_windows(
         };
         let end = match lp {
             Some((_, b)) if k + 1 < n => b.0 as f64,
-            _ => origin + ft(next),
+            _ => after(origin, next),
         };
         if let Some(w) = (Window { start, end, origin }).punched(plan.punch) {
             out.push(w);
@@ -416,7 +463,7 @@ fn audio_takes(
     latency_frames: i64,
     ids: Ids,
 ) -> Result<(), CommandError> {
-    let bpm = sim.project.tempo_bpm;
+    let map = sim.project.tempo_map();
     let mode = match plan.mode {
         TakeMode::Overdub => TakeMode::Stack,
         m => m,
@@ -425,7 +472,7 @@ fn audio_takes(
         let Some(track) = sim.track(take.track) else {
             continue;
         };
-        let windows = audio_windows(take, plan, bpm, latency_frames);
+        let windows = audio_windows(take, plan, &map, latency_frames);
         if windows.is_empty() {
             continue;
         }
@@ -434,11 +481,11 @@ fn audio_takes(
         let sid = AudioSourceId(ids());
         let mut clips = Vec::with_capacity(windows.len());
         for w in &windows {
-            let Some((start, length, offset)) = w.ticks() else {
+            let Some((start, length, offset)) = w.ticks_in(&map) else {
                 continue;
             };
             let mut region = AudioRegion::of(sid);
-            region.slip_frames = w.slip_frames(start, offset, bpm, take.sample_rate);
+            region.slip_frames = w.slip_frames_in(start, offset, &map, take.sample_rate);
             clips.push(Clip {
                 id: ClipId(ids()),
                 name: format!("{prefix}{}", n0 + clips.len() as u32),
@@ -535,9 +582,11 @@ fn new_note(n: &RecordedNote, content: Ticks, ids: Ids) -> Note {
 /// A MIDI take's window widened to the bar lines around it (Logic's regions), never past
 /// the punch range.
 fn bar_window(project: &Project, plan: &PassPlan, start: Ticks, end: Ticks) -> (Ticks, Ticks) {
-    let bar = project.time_signature.ticks_per_bar().max(Ticks(1));
-    let mut s = start.snap_floor(bar).max(Ticks::ZERO);
-    let mut e = Ticks((end.0 + bar.0 - 1).div_euclid(bar.0) * bar.0);
+    // The bar lines through the metre changes (ADR 0060).
+    let map = project.tempo_map();
+    let mut s = map.bar_start(start).max(Ticks::ZERO);
+    let e_bar = map.bar_start(end);
+    let mut e = if e_bar == end { end } else { map.bar_end(end) };
     if let Some((a, b)) = plan.punch {
         s = s.max(a);
         e = e.min(b);

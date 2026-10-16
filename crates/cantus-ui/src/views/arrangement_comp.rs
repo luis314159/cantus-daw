@@ -35,10 +35,17 @@ fn handle(geo: &TimelineGeometry, row: &TrackRow, at: Ticks, k: f32) -> Rect {
     )
 }
 
-/// Ticks for `ms` at the project's tempo.
-pub fn ticks_of_ms(app: &CantusApp, ms: f32) -> Ticks {
-    let bpm = app.project().tempo_bpm;
-    Ticks((f64::from(ms) / 1000.0 * bpm / 60.0 * cantus_core::PPQ as f64).round() as i64)
+/// Ticks for `ms` at the project's tempo — at `at`, through the tempo map (ADR 0060).
+pub fn ticks_of_ms(app: &CantusApp, ms: f32, at: Ticks) -> Ticks {
+    let map = crate::views::bars::map(app.project());
+    if map.is_constant() {
+        let bpm = app.project().tempo_bpm;
+        return Ticks(
+            (f64::from(ms) / 1000.0 * bpm / 60.0 * cantus_core::PPQ as f64).round() as i64,
+        );
+    }
+    let a = at.0 as f64;
+    Ticks((map.tick_after_seconds(a, f64::from(ms) / 1000.0) - a).round() as i64)
 }
 
 /// The comp drawn over the playing lane: the seams' crossfades and handles, and each comp
@@ -170,7 +177,7 @@ pub(super) fn input(
                 let free = ui.input(|i| i.modifiers.command);
                 let mut at = beats_to_ticks(geo.beats(p.x).max(0.0));
                 if snap && !free {
-                    at = at.snap(grid);
+                    at = crate::views::bars::snap(app.project(), at, grid);
                 }
                 ui.ctx().data_mut(|d| {
                     d.insert_temp(
@@ -204,10 +211,15 @@ fn seam_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, right: ClipId
         .and_then(|t| t.clip(right))
         .and_then(|c| c.audio.as_ref())
         .map_or(Ticks::ZERO, |a| a.xfade);
+    let seam_at = app
+        .project()
+        .track(tid)
+        .and_then(|t| t.clip(right))
+        .map_or(Ticks::ZERO, |c| c.start);
     let labels: Vec<String> = XFADES_MS.iter().map(|ms| xfade_word(*ms)).collect();
     let mut items = vec![Item::Band(Src::Key("comping.menu.xfade"))];
     for (i, ms) in XFADES_MS.iter().enumerate() {
-        let on = ticks_of_ms(app, *ms) == now;
+        let on = ticks_of_ms(app, *ms, seam_at) == now;
         items.push(Item::Action {
             label: Src::Str(&labels[i]),
             check: Check::Radio(on),
@@ -220,7 +232,7 @@ fn seam_menu(app: &mut CantusApp, ui: &mut egui::Ui, tid: TrackId, right: ClipId
     items.push(Item::action(Src::Key("comping.xfade_all")));
     match kit::widgets::menu_list(ui, &items, 220.0).1.clicked {
         Some(i) if (1..=XFADES_MS.len()).contains(&i) => {
-            let x = ticks_of_ms(app, XFADES_MS[i - 1]);
+            let x = ticks_of_ms(app, XFADES_MS[i - 1], seam_at);
             app.set_seam_xfade(tid, Some(right), x);
             ui.close();
         }

@@ -23,6 +23,7 @@ pub mod audio_routing;
 pub mod audio_setup;
 pub mod auto_curve;
 pub mod auto_editor;
+pub mod bars;
 pub mod channel_rack;
 pub mod clip_browser;
 pub mod clips_chrome;

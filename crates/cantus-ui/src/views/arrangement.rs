@@ -534,6 +534,15 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
     // The right end: what is selected, and what can be done with a time selection.
     let bars_per = app.project().time_signature.ticks_per_bar().0 as f32;
     let time_selection = app.time_selection;
+    // The selection's length in bars, through the metre changes (ADR 0060).
+    let span_bars = time_selection.map(|(from, to)| {
+        if crate::views::bars::map(app.project()).is_one_metre() {
+            (to - from).0 as f32 / bars_per
+        } else {
+            (crate::views::bars::bar_position(app.project(), to)
+                - crate::views::bars::bar_position(app.project(), from)) as f32
+        }
+    });
     let scratch = &mut app.arrangement.scratch;
     scratch.refresh_words();
     if scratch.selected.0 != selected || scratch.selected.1.is_empty() {
@@ -544,7 +553,8 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
         // dragged. Shown even when empty, so the readout is a place the eye learns.
         let text = match time_selection {
             Some((from, to)) => {
-                let bars = (to - from).0 as f32 / bars_per;
+                let _ = (from, to);
+                let bars = span_bars.unwrap_or(0.0);
                 tf("arrangement.selection", &[("bars", &format!("{bars:.2}"))])
             }
             None => t("arrangement.no_selection"),
@@ -713,6 +723,19 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// The song's length in beats, rounded up to a bar, plus room to keep writing.
 fn song_beats(app: &CantusApp) -> f32 {
+    let map = crate::views::bars::map(app.project());
+    if !map.is_one_metre() {
+        // Through the metre changes (ADR 0060): to the bar line at or after the end, and
+        // eight bars more.
+        let end = app.project().content_end();
+        let at = if map.bar_start(end) == end {
+            end
+        } else {
+            map.bar_end(end)
+        };
+        let (bar, _, _) = map.bbt(at);
+        return ticks_to_beats(map.bar_tick(bar + 8));
+    }
     let ts = app.project().time_signature;
     let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let end = ticks_to_beats(app.project().content_end());
@@ -948,7 +971,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
     {
         let a: &CantusApp = app;
         let any_solo = a.project().tracks.iter().any(|t| t.soloed);
-        let bar = a.project().time_signature.ticks_per_bar().0.max(1) as f32;
+        let bar = crate::views::bars::bar_len(a.project(), a.project().content_end())
+            .0
+            .max(1) as f32;
         let song_len = ((a.project().content_end().0 as f32 / bar).ceil() * bar).max(bar);
         let meters = a.engine.meters();
         let v = &a.arrangement;
@@ -1575,6 +1600,8 @@ fn clips(
 ) -> ClipHits {
     let v = &app.arrangement;
     let mut out = ClipHits::default();
+    // Where audio plays on the timeline (ADR 0060).
+    let tempo_map = crate::views::bars::map(app.project());
     audio::begin_frame(&mut scratch.audio);
     scratch.refresh_words();
     // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
@@ -1665,7 +1692,7 @@ fn clips(
                     start,
                     length,
                     offset: clip.offset + v.slip_preview(r, region.reverse),
-                    bpm: app.project().tempo_bpm,
+                    map: &tempo_map,
                 };
                 let near = pointer.is_some_and(|p| body.contains(p));
                 let show = sel || near || dragging.is_some();
@@ -1827,8 +1854,6 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     let rect = Rect::from_min_max(f.ruler.min, f.lanes.max);
     let resp = ui.allocate_rect(rect, Sense::click_and_drag());
     let body_top = f.lanes.top();
-    let ts = app.project().time_signature;
-    let beats_per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let view = geo;
     let pointer = resp.hover_pos();
     let press_origin = ui.input(|i| i.pointer.press_origin());
@@ -1980,11 +2005,20 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // egui only reports a click when the pointer did not travel, so the two never meet.
     let grid = app.arrangement.grid;
     let snap_on = app.arrangement.snap;
+    // Through the metre changes (ADR 0060).
+    let map = crate::views::bars::map(app.project());
+    let one_bar = app.project().time_signature.ticks_per_bar();
     let snap_to = move |t: Ticks, off_grid: bool| {
         if off_grid || !snap_on {
             t
+        } else if grid == crate::views::bars::BAR_GRID {
+            if map.is_one_metre() {
+                t.snap(one_bar)
+            } else {
+                map.snap_bar(t)
+            }
         } else {
-            t.snap(grid)
+            map.snap(t, grid.max(Ticks(1)))
         }
     };
 
@@ -2028,8 +2062,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             if pos.y >= body_top && hit.is_none() {
                 if let Some(tid) = track_at(app, pos.y) {
                     let beats = view.beats(pos.x).max(0.0);
-                    let start = beats_to_ticks(beats).snap_floor(beats_to_ticks(beats_per_bar));
-                    app.create_clip(tid, start, beats_to_ticks(beats_per_bar * 4.0));
+                    // A bar's start and four bars, through the metre changes (ADR 0060).
+                    let start = crate::views::bars::bar_start(app.project(), beats_to_ticks(beats));
+                    let end = crate::views::bars::bars_from(app.project(), start, 4);
+                    app.create_clip(tid, start, end - start);
                 }
             }
         }

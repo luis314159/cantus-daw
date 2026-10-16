@@ -162,8 +162,7 @@ fn default_at(app: &CantusApp) -> Ticks {
     if app.project().content_end() == Ticks::ZERO {
         return Ticks::ZERO;
     }
-    let bar = app.project().time_signature.ticks_per_bar().max(Ticks(1));
-    app.engine.position().snap_floor(bar).max(Ticks::ZERO)
+    crate::views::bars::bar_start(app.project(), app.engine.position()).max(Ticks::ZERO)
 }
 
 /// Read a file and open the import dialog on it.
@@ -657,7 +656,7 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         .time_signature
         .unwrap_or(app.project().time_signature)
         .to_string();
-    let bar = app.project().time_signature.bbt(d.at).0;
+    let bar = crate::views::bars::bbt(app.project(), d.at).0;
     dialog(t("interop.midi_import.title")).show(ctx, |ui| {
         ui.label(tf(
             "interop.midi_import.summary",
@@ -906,7 +905,7 @@ pub fn drop_target(app: &CantusApp, pos: Option<egui::Pos2>) -> (Ticks, Option<u
         (Some(g), Some(p)) if inside(&g, p) => {
             let mut at = crate::views::beats_to_ticks(g.beats(p.x)).max(Ticks::ZERO);
             if app.arrangement.snap {
-                at = at.snap_floor(app.arrangement.grid.max(Ticks(1)));
+                at = crate::views::bars::snap_floor(app.project(), at, app.arrangement.grid);
             }
             let index = g.row_at(p.y).map(|r| r + 1);
             (at, index)

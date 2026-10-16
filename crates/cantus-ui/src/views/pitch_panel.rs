@@ -277,7 +277,7 @@ pub fn quantise(
                 .into_iter()
                 .map(|t| tm.frame(t))
                 .collect();
-            let reach = cantus_core::Ticks::QUARTER.to_seconds(app.project().tempo_bpm)
+            let reach = cantus_core::Ticks::QUARTER.to_seconds(tm.map.bpm_at(tm.start.0 as f64))
                 * 0.5
                 * tm.rate as f64;
             edit::quantise_to(&mut e, ids, &onsets, reach, tm.reverse)

@@ -22,7 +22,7 @@ mod house;
 mod lofi;
 mod trap;
 
-use cantus_core::Project;
+use cantus_core::{Project, Ticks};
 
 /// A demo: its id, its name and style (locale keys) and how to build it.
 #[derive(Copy, Clone, Debug)]
@@ -93,5 +93,5 @@ pub fn startup_project() -> Project {
 
 /// How long a project plays, in seconds: to the end of its last clip.
 pub fn seconds(p: &Project) -> f64 {
-    p.content_end().to_seconds(p.tempo_bpm)
+    p.tempo_map().seconds_between(Ticks::ZERO, p.content_end())
 }

@@ -211,7 +211,7 @@ fn drop_at(app: &CantusApp, p: Pos2, src: ClipRef, clip: &Clip) -> Option<(Track
     let r = *g.rows.get(row)?;
     let mut at = crate::views::beats_to_ticks(g.beats(p.x)).max(Ticks::ZERO);
     if app.arrangement.snap {
-        at = at.snap_floor(app.arrangement.grid.max(Ticks(1)));
+        at = crate::views::bars::snap_floor(app.project(), at, app.arrangement.grid);
     }
     let x0 = g.x(crate::views::ticks_to_beats(at));
     let x1 = g.x(crate::views::ticks_to_beats(at + clip.length));
