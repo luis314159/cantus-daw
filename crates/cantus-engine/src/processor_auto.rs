@@ -21,6 +21,7 @@ use crate::modulator::{Ear, ModRt};
 use cantus_core::db_to_linear;
 use cantus_core::modulator::eval::ModTime;
 use cantus_core::ModulatorId;
+use cantus_core::TempoMap;
 
 /// The processor's automation state. Fixed size; the runtime arrives built.
 pub(super) struct AutoState {
@@ -315,7 +316,7 @@ impl Processor {
         if self.transport.is_playing() {
             self.transport.position_f64() / cantus_core::PPQ as f64
         } else {
-            self.auto_time_stopped(clock).beats
+            self.auto_time_stopped(clock, self.transport.map()).beats
         }
     }
 
@@ -324,25 +325,46 @@ impl Processor {
     }
 
     /// Time as the modulators read it at transport sample `s`, `clock` the engine's clock
-    /// there, while playing.
-    fn auto_time(&self, s: u64, clock: u64) -> ModTime {
+    /// there, while playing — through `map` when the tempo changes along the song (ADR
+    /// 0060: the tempo at that sample, beats to seconds through the map).
+    fn auto_time<'m>(&self, s: u64, clock: u64, map: &'m TempoMap) -> ModTime<'m> {
+        let tick = self.transport.position_at(s);
+        let moving = !map.is_constant();
         ModTime {
-            beats: self.transport.position_at(s) / cantus_core::PPQ as f64,
+            beats: tick / cantus_core::PPQ as f64,
             since_play: clock.saturating_sub(self.auto.play_clock) as f64 / self.sample_rate,
-            spb: self.spb(),
+            spb: if moving {
+                60.0 / map.bpm_at(tick).max(1e-9)
+            } else {
+                self.spb()
+            },
             playing: true,
+            map: moving.then_some(map),
         }
     }
 
-    /// Time as the modulators read it at engine clock `clock`, stopped.
-    fn auto_time_stopped(&self, clock: u64) -> ModTime {
+    /// Time as the modulators read it at engine clock `clock`, stopped: the song moves on
+    /// from where it stopped at the tempo there (through `map` when it changes).
+    fn auto_time_stopped<'m>(&self, clock: u64, map: &'m TempoMap) -> ModTime<'m> {
         let secs = clock.saturating_sub(self.auto.stop_clock) as f64 / self.sample_rate;
+        if !map.is_constant() {
+            let ppq = cantus_core::PPQ as f64;
+            let tick = map.tick_after_seconds(self.auto.stop_beats * ppq, secs);
+            return ModTime {
+                beats: tick / ppq,
+                since_play: secs,
+                spb: 60.0 / map.bpm_at(tick).max(1e-9),
+                playing: false,
+                map: Some(map),
+            };
+        }
         let spb = self.spb();
         ModTime {
             beats: self.auto.stop_beats + secs / spb,
             since_play: secs,
             spb,
             playing: false,
+            map: None,
         }
     }
 
@@ -529,7 +551,7 @@ impl Processor {
                 let tick = self.transport.position_at(g);
                 let clock = self.clock + done as u64 + (g - now);
                 self.auto_step_live(&mut rt, &snap, clock);
-                let t = self.auto_time(g, clock);
+                let t = self.auto_time(g, clock, &snap.tempo);
                 let offset = (g - now) as u32;
                 rt.hosted_at(&snap, tick, &t, |dest, at, v| {
                     self.auto_push_hosted(dest, at, offset, v)
@@ -612,16 +634,16 @@ impl Processor {
             At {
                 tick,
                 next_tick: self.transport.position_at(grid),
-                t: self.auto_time(now, clock),
-                t_next: self.auto_time(grid, clock + len),
+                t: self.auto_time(now, clock, &snap.tempo),
+                t_next: self.auto_time(grid, clock + len, &snap.tempo),
             }
         } else {
             // Stopped, the lanes hold at the playhead; the modulators run on.
             At {
                 tick,
                 next_tick: tick,
-                t: self.auto_time_stopped(clock),
-                t_next: self.auto_time_stopped(clock + len),
+                t: self.auto_time_stopped(clock, &snap.tempo),
+                t_next: self.auto_time_stopped(clock + len, &snap.tempo),
             }
         };
         rt.evaluate(&snap, &at);

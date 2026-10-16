@@ -27,7 +27,7 @@ fn drive(fid: crate::EffectId) -> AutoTarget {
     }
 }
 
-fn t(beats: f64) -> ModTime {
+fn t(beats: f64) -> ModTime<'static> {
     ModTime::at_beats(beats, 0.0, 120.0)
 }
 

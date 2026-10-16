@@ -478,10 +478,11 @@ impl Processor {
         if let Some(x) = t.position_back(back) {
             return x;
         }
-        // The playhead wrapped (or the tempo changed) within the last `back` samples.
-        let x = t.position_f64() - back as f64 * t.ticks_per_sample();
+        // The playhead wrapped (or was moved) within the last `back` samples: back through
+        // the map (ADR 0060), the constant arithmetic where the tempo holds.
+        let x = t.tick_before(t.position_f64(), back);
         match t.wraps_played().and_then(|w| w.locate(back)) {
-            Some((r, end)) => end * cantus_core::PPQ as f64 - r as f64 * t.ticks_per_sample(),
+            Some((r, end)) => t.tick_before(end * cantus_core::PPQ as f64, r),
             None => x,
         }
     }
@@ -707,8 +708,35 @@ pub(crate) fn song_position_of(
     snapshot: &Option<Arc<Snapshot>>,
     sample_rate: f64,
 ) -> crate::fx::SongPosition {
-    let tempo = transport.bpm();
     let ppq = cantus_core::PPQ as f64;
+    let loop_beats = transport
+        .loop_region()
+        .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq));
+    let map = transport.map();
+    if !(map.is_constant() && map.is_one_metre()) {
+        // Through the tempo map (ADR 0060): the step's tempo, real seconds, the bar of the
+        // metre in force.
+        let tick = transport.position_f64();
+        return crate::fx::SongPosition {
+            loop_beats,
+            loop_seconds: transport.loop_region().map(|l| {
+                (
+                    map.seconds_at(l.start.0 as f64),
+                    map.seconds_at(l.end.0 as f64),
+                )
+            }),
+            wrap: transport.wraps_played(),
+            ..crate::fx::position_at_step(
+                map,
+                tick,
+                transport.step_tick(),
+                transport.is_playing(),
+                sample_rate,
+            )
+        };
+    }
+    // One tempo and one metre: the arithmetic every project before round 29 played by.
+    let tempo = transport.bpm();
     let beats = transport.position_f64() / ppq;
     let (num, den) = snapshot
         .as_ref()
@@ -718,14 +746,16 @@ pub(crate) fn song_position_of(
     crate::fx::SongPosition {
         playing: transport.is_playing(),
         tempo_bpm: tempo,
+        tempo_inc: 0.0,
         beats,
         samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
+        seconds: beats * (60.0 / tempo.max(1e-9)),
         bar_start_beats: (beats / bar).floor() * bar,
+        bar_number: (beats / bar).floor() as i32,
         time_sig_num: u16::from(num),
         time_sig_den: u16::from(den),
-        loop_beats: transport
-            .loop_region()
-            .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
+        loop_seconds: loop_beats.map(|(a, b)| (a * (60.0 / tempo), b * (60.0 / tempo))),
+        loop_beats,
         wrap: transport.wraps_played(),
     }
 }

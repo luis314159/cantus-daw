@@ -1,11 +1,18 @@
-//! Sample-accurate transport.
+//! Sample-accurate transport, through the tempo map (ADR 0060).
 //!
 //! Position is an integer sample counter since an *origin tick*, so it is exactly
 //! reproducible regardless of block size (the key to the offline render being bit-identical
-//! to real-time playback). Ticks are derived, never accumulated.
+//! to real-time playback). Ticks are derived, never accumulated: the tick at a sample is
+//! the map's tick `samples / rate` seconds after the origin, so a tempo point or a ramp is
+//! **not** a jump — only a seek, a loop's wrap or an edit of the tempo map re-anchors.
+//!
+//! While the origin lies in a stretch of held tempo the old constant-tempo arithmetic is
+//! used there unchanged (`origin + samples · ticks-per-sample`, [`sample_at`]), so a
+//! project without a tempo track plays exactly as before, to the bit.
 
 use crate::fx::Wraps;
-use cantus_core::{LoopRegion, Ticks, PPQ};
+use cantus_core::{LoopRegion, TempoMap, Ticks, TimeSignature, PPQ};
+use std::sync::{Arc, LazyLock};
 
 /// The sample (counted from `origin`) at which a transport playing at `bpm` reaches
 /// `tick` — the transport's own arithmetic, so an offline render that must stop exactly
@@ -13,6 +20,13 @@ use cantus_core::{LoopRegion, Ticks, PPQ};
 #[inline]
 pub fn sample_at(origin: f64, tick: f64, bpm: f64, sample_rate: f64) -> u64 {
     let x = (tick - origin) / (bpm * PPQ as f64 / (60.0 * sample_rate));
+    ceil_sample(x)
+}
+
+/// The first whole sample at or after `x` samples (a tiny epsilon keeps an event that
+/// lands exactly on a sample from slipping one late through floating-point noise).
+#[inline]
+fn ceil_sample(x: f64) -> u64 {
     if x <= 0.0 {
         0
     } else {
@@ -20,13 +34,42 @@ pub fn sample_at(origin: f64, tick: f64, bpm: f64, sample_rate: f64) -> u64 {
     }
 }
 
+/// The sample (counted from `origin`) at which a transport playing through `map` from
+/// `origin` reaches `tick` — what [`Transport::samples_until`] says after a seek to
+/// `origin`; the offline renders' stop sample.
+pub fn sample_at_map(map: &Arc<TempoMap>, origin: f64, tick: f64, sample_rate: f64) -> u64 {
+    let mut t = Transport::new(sample_rate);
+    t.map = map.clone();
+    t.anchor(origin);
+    t.target_sample(tick)
+}
+
+/// The map a transport plays before any snapshot: 120 BPM in 4/4. A static, so the
+/// transport's first swap to a snapshot's map never frees it on the audio thread.
+static DEFAULT_MAP: LazyLock<Arc<TempoMap>> =
+    LazyLock::new(|| Arc::new(TempoMap::constant(120.0, TimeSignature::default())));
+
+/// A stretch of held tempo around the origin: its ticks per sample, the ticks it holds
+/// over and the tempo.
+#[derive(Copy, Clone, Debug, PartialEq)]
+struct Held {
+    tps: f64,
+    from: f64,
+    to: f64,
+    bpm: f64,
+}
+
 #[derive(Clone, Debug)]
 pub struct Transport {
     sample_rate: f64,
-    bpm: f64,
+    map: Arc<TempoMap>,
     playing: bool,
     /// Tick at which `samples` was zero.
     origin_tick: f64,
+    /// The origin's seconds from tick 0, through the map.
+    origin_sec: f64,
+    /// The held tempo around the origin, if it lies outside a ramp.
+    held: Option<Held>,
     samples: u64,
     loop_region: Option<LoopRegion>,
     /// The loop's wraps since a start or a seek — the samples since the last, how many,
@@ -41,24 +84,58 @@ pub struct Transport {
 
 impl Transport {
     pub fn new(sample_rate: f64) -> Self {
-        Transport {
+        let mut t = Transport {
             sample_rate,
-            bpm: 120.0,
+            map: DEFAULT_MAP.clone(),
             playing: false,
             origin_tick: 0.0,
+            origin_sec: 0.0,
+            held: None,
             samples: 0,
             loop_region: None,
             wraps: None,
             wrapped_loop: (0.0, 0.0),
-        }
+        };
+        t.anchor(0.0);
+        t
+    }
+
+    /// Count from `tick`: the origin moves there and the sample counter starts again.
+    fn anchor(&mut self, tick: f64) {
+        self.origin_tick = tick;
+        self.samples = 0;
+        self.origin_sec = self.map.seconds_at(tick);
+        self.held = self.map.held_at(tick).map(|(bpm, from, to)| Held {
+            tps: bpm * PPQ as f64 / (60.0 * self.sample_rate),
+            from,
+            to,
+            bpm,
+        });
+    }
+
+    /// The held stretch around the origin when it covers every tick in `ticks`.
+    #[inline]
+    fn held_over(&self, ticks: &[f64]) -> Option<Held> {
+        self.held
+            .filter(|h| ticks.iter().all(|t| *t >= h.from && *t <= h.to))
     }
 
     pub fn sample_rate(&self) -> f64 {
         self.sample_rate
     }
 
+    /// The tempo map the transport plays.
+    pub fn map(&self) -> &Arc<TempoMap> {
+        &self.map
+    }
+
+    /// The tempo now (inside a ramp, the ramp's value at the playhead).
     pub fn bpm(&self) -> f64 {
-        self.bpm
+        let pos = self.position_f64();
+        match self.held {
+            Some(h) if pos < h.to => h.bpm,
+            _ => self.map.bpm_at(pos),
+        }
     }
 
     pub fn is_playing(&self) -> bool {
@@ -69,10 +146,14 @@ impl Transport {
         self.loop_region.as_ref()
     }
 
-    /// Ticks advanced per sample at the current tempo.
+    /// Ticks advanced per sample at the tempo now.
     #[inline]
     pub fn ticks_per_sample(&self) -> f64 {
-        self.bpm * PPQ as f64 / (60.0 * self.sample_rate)
+        let pos = self.position_f64();
+        match self.held {
+            Some(h) if pos < h.to => h.tps,
+            _ => self.map.bpm_at(pos) * PPQ as f64 / (60.0 * self.sample_rate),
+        }
     }
 
     /// Exact current position in ticks (fractional).
@@ -86,16 +167,23 @@ impl Transport {
     /// playhead will report there.
     #[inline]
     pub fn position_at(&self, samples: u64) -> f64 {
-        self.origin_tick + samples as f64 * self.ticks_per_sample()
+        if let Some(h) = self.held {
+            let p = self.origin_tick + samples as f64 * h.tps;
+            if p < h.to {
+                return p;
+            }
+        }
+        self.map
+            .tick_at_seconds(self.origin_sec + samples as f64 / self.sample_rate)
     }
 
     pub fn position(&self) -> Ticks {
         Ticks(self.position_f64().floor() as i64)
     }
 
-    /// The tick the sample counter counts from: the last start, seek, loop wrap or tempo
-    /// change. With [`Self::samples`], what an audio clip's frame is computed from, so
-    /// playback is the same for every block size.
+    /// The tick the sample counter counts from: the last start, seek, loop wrap or edit of
+    /// the tempo map. With [`Self::samples`], what an audio clip's frame is computed from,
+    /// so playback is the same for every block size.
     #[inline]
     pub fn origin_tick(&self) -> f64 {
         self.origin_tick
@@ -108,11 +196,21 @@ impl Transport {
     }
 
     /// Where the playhead was `back` samples ago, exactly as [`Self::position_f64`] said
-    /// then — or `None` if it has jumped since (a seek, a loop wrap, a tempo change).
+    /// then — or `None` if it has jumped since (a seek, a loop wrap, a tempo-map edit).
     #[inline]
     pub fn position_back(&self, back: u64) -> Option<f64> {
-        (self.samples >= back)
-            .then(|| self.origin_tick + (self.samples - back) as f64 * self.ticks_per_sample())
+        (self.samples >= back).then(|| self.position_at(self.samples - back))
+    }
+
+    /// The tick `samples` samples before `tick` (counted through the map; held, the
+    /// constant arithmetic): where the audio a moment before a wrap's end was.
+    pub fn tick_before(&self, tick: f64, samples: u64) -> f64 {
+        match self.held_over(&[tick]) {
+            Some(h) if tick - samples as f64 * h.tps >= h.from => tick - samples as f64 * h.tps,
+            _ => self
+                .map
+                .tick_after_seconds(tick, -(samples as f64) / self.sample_rate),
+        }
     }
 
     pub fn play(&mut self) {
@@ -141,15 +239,19 @@ impl Transport {
     /// is now — turned off or moved ahead of the playhead just after a wrap, the audio of
     /// the passes played is still in flight (review of fix6). The pass playing, to the
     /// loop's end ahead (`u64::MAX` with none); the passes older than the kept ones at the
-    /// length of the loop the last wrap came in, at the tempo now. `None` before the first
-    /// wrap; a start or a seek forgets them.
+    /// length of the loop the last wrap came in, through the map (ADR 0060: exact across a
+    /// tempo change inside the loop). `None` before the first wrap; a start or a seek
+    /// forgets them.
     pub fn wraps_played(&self) -> Option<Wraps> {
         let mut w = self.wraps?;
         let (len, end) = self.wrapped_loop;
         w.pass = self
             .samples_until_loop_end()
             .map_or(u64::MAX, |r| w.since + r);
-        w.loop_samples = len / self.ticks_per_sample();
+        w.loop_samples = match self.held_over(&[end - len, end]) {
+            Some(h) => len / h.tps,
+            None => self.map.seconds_between_f64(end - len, end) * self.sample_rate,
+        };
         w.loop_end = end / PPQ as f64;
         Some(w)
     }
@@ -162,8 +264,7 @@ impl Transport {
     /// which plays nothing but the click until the timeline begins; the application
     /// clamps the seeks the user makes.
     pub fn seek(&mut self, tick: Ticks) {
-        self.origin_tick = tick.0 as f64;
-        self.samples = 0;
+        self.anchor(tick.0 as f64);
         self.wraps = None;
     }
 
@@ -173,8 +274,7 @@ impl Transport {
     /// before it ending where the playhead was (review of fix5).
     pub fn wrap_to(&mut self, start: Ticks) {
         let at = self.position_f64();
-        self.origin_tick = start.0 as f64;
-        self.samples = 0;
+        self.anchor(start.0 as f64);
         self.count_wrap(at);
     }
 
@@ -190,13 +290,24 @@ impl Transport {
         }
     }
 
-    /// Change tempo without moving the playhead.
-    pub fn set_bpm(&mut self, bpm: f64) {
-        if bpm != self.bpm {
-            self.origin_tick = self.position_f64();
-            self.samples = 0;
-            self.bpm = bpm;
+    /// Play `map` from now on without moving the playhead. An edit of the tempo (a
+    /// different tempo function) re-anchors at the playhead; the same tempo with another
+    /// metre, or the same map again, only takes the new `Arc` (the old one is the previous
+    /// snapshot's, freed with it off the audio thread).
+    pub fn set_map(&mut self, map: Arc<TempoMap>) {
+        if map.points() != self.map.points() {
+            let pos = self.position_f64();
+            self.map = map;
+            self.anchor(pos);
+        } else {
+            self.map = map;
         }
+    }
+
+    /// One tempo for the whole song, without moving the playhead (tests and tools: it
+    /// allocates a map).
+    pub fn set_bpm(&mut self, bpm: f64) {
+        self.set_map(Arc::new(TempoMap::constant(bpm, TimeSignature::default())));
     }
 
     pub fn set_loop(&mut self, region: Option<LoopRegion>) {
@@ -209,13 +320,79 @@ impl Transport {
     /// from slipping one sample late through floating-point noise.
     #[inline]
     fn target_sample(&self, tick: f64) -> u64 {
-        sample_at(self.origin_tick, tick, self.bpm, self.sample_rate)
+        match self.held_over(&[tick]) {
+            Some(h) => sample_at(self.origin_tick, tick, h.bpm, self.sample_rate),
+            None => ceil_sample((self.map.seconds_at(tick) - self.origin_sec) * self.sample_rate),
+        }
+    }
+
+    /// The transport sample (counted from the origin, fractional) a timeline tick falls on.
+    #[inline]
+    pub fn sample_of_f64(&self, tick: f64) -> f64 {
+        match self.held_over(&[tick]) {
+            Some(h) => (tick - self.origin_tick) / h.tps,
+            None => (self.map.seconds_at(tick) - self.origin_sec) * self.sample_rate,
+        }
+    }
+
+    /// The transport sample (from the origin, rounded) an unwarped audio clip's frame 0
+    /// lands on: the clip starting at `start`, its source `offset` in there (read at the
+    /// tempo where it starts, `cantus_core::audio_time`), moved by `slip` seconds. Where
+    /// the tempo holds at the clip's start, the old arithmetic to the bit.
+    pub fn clip_zero(&self, start: Ticks, offset: Ticks, slip: f64) -> i64 {
+        let s = start.0 as f64;
+        match self.held_over(&[s]) {
+            Some(h) => (((start.0 - offset.0) as f64 - self.origin_tick) / h.tps
+                - slip * self.sample_rate)
+                .round() as i64,
+            None => (self.sample_of_f64(s)
+                - (cantus_core::audio_time::offset_seconds(&self.map, start, offset) + slip)
+                    * self.sample_rate)
+                .round() as i64,
+        }
+    }
+
+    /// Samples between two ticks (fades, crossfades): the constant arithmetic where the
+    /// tempo holds over both, through the map otherwise.
+    #[inline]
+    pub fn samples_between(&self, from: f64, to: f64) -> f64 {
+        match self.held_over(&[from, to]) {
+            Some(h) => (to - from) / h.tps,
+            None => self.map.seconds_between_f64(from, to) * self.sample_rate,
+        }
     }
 
     /// Number of samples from now until the playhead reaches `tick` (0 if already past).
     #[inline]
     pub fn samples_until(&self, tick: f64) -> u64 {
         self.target_sample(tick).saturating_sub(self.samples)
+    }
+
+    /// The start of the tempo step the playhead is in (ADR 0060 §4): the tick whose tempo
+    /// units are told for this pass. A step reached by the engine's own rounding counts as
+    /// reached, so a pass that starts on a step boundary is in the new step at every block
+    /// size.
+    pub fn step_tick(&self) -> f64 {
+        let pos = self.position_f64();
+        if let Some(n) = self.map.next_step_after(pos) {
+            if self.target_sample(n) <= self.samples {
+                return n;
+            }
+        }
+        if let Some(h) = self.held {
+            if pos < h.to {
+                return pos;
+            }
+        }
+        self.map.step_start(pos)
+    }
+
+    /// Samples until the next tempo step (a point, or inside a ramp the next
+    /// `RAMP_STEP`): where a pass that tells units one tempo ends. `None` while the tempo
+    /// holds to the end of the song.
+    pub fn samples_until_step(&self) -> Option<u64> {
+        let next = self.map.next_step_after(self.step_tick())?;
+        Some(self.samples_until(next))
     }
 
     /// Samples until the loop end, if looping and the playhead is inside the loop.
@@ -247,11 +424,20 @@ impl Transport {
             let end = l.end.0 as f64;
             let end_s = self.target_sample(end);
             if self.samples >= end_s && before < end_s && self.position_f64() >= start {
-                // Carry the sub-sample overshoot so loops never drift.
+                // Carry the sub-sample overshoot so loops never drift: as much time past
+                // the start as the playhead went past the end.
                 let at = self.position_f64();
                 let overshoot = at - end;
-                self.origin_tick = start + overshoot.max(0.0);
-                self.samples = 0;
+                let origin = match self.held_over(&[end, at]) {
+                    Some(h) if self.map.held_at(start).is_some_and(|(b, ..)| b == h.bpm) => {
+                        start + overshoot.max(0.0)
+                    }
+                    _ => {
+                        let late = self.map.seconds_between_f64(end, at).max(0.0);
+                        self.map.tick_after_seconds(start, late)
+                    }
+                };
+                self.anchor(origin);
                 self.count_wrap(at);
                 return true;
             }
@@ -263,6 +449,132 @@ impl Transport {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use cantus_core::tempo::{MetreChange, TempoPoint};
+
+    /// 90 → 140 BPM over 32 beats from beat 4, a step to 100 at beat 48.
+    fn ramp_map() -> Arc<TempoMap> {
+        let pt = |beats: i64, bpm: f64, ramp: bool| TempoPoint {
+            tick: Ticks::beats(beats),
+            bpm,
+            ramp,
+        };
+        Arc::new(TempoMap::new(
+            90.0,
+            TimeSignature::default(),
+            &[
+                pt(0, 90.0, false),
+                pt(4, 90.0, true),
+                pt(36, 140.0, false),
+                pt(48, 100.0, false),
+            ],
+            &[MetreChange {
+                tick: Ticks::ZERO,
+                signature: TimeSignature::default(),
+            }],
+        ))
+    }
+
+    fn on_map(map: &Arc<TempoMap>, sr: f64) -> Transport {
+        let mut t = Transport::new(sr);
+        t.set_map(map.clone());
+        t.seek(Ticks::ZERO);
+        t.play();
+        t
+    }
+
+    /// ADR 0060: the position is the map's tick at the sample — across a held stretch, a
+    /// ramp and a step — and the same to the bit at every block size.
+    #[test]
+    fn the_position_follows_the_map_at_every_block_size() {
+        let map = ramp_map();
+        let sr = 48_000.0;
+        let mut ends = Vec::new();
+        for block in [1u64, 37, 64, 512] {
+            let mut t = on_map(&map, sr);
+            let mut n = 0;
+            while n < 2_000_000 {
+                let k = block.min(2_000_000 - n);
+                t.advance(k);
+                n += k;
+                let want = map.tick_at_sample(n as f64, sr);
+                assert!((t.position_f64() - want).abs() < 1e-6, "{block}: {n}");
+            }
+            ends.push(t.position_f64().to_bits());
+        }
+        assert!(ends.windows(2).all(|w| w[0] == w[1]), "{ends:?}");
+    }
+
+    /// A note after the ramp fires at the analytic sample (the map's seconds × rate,
+    /// rounded up), and a tempo point is no jump: the position a moment ago is known.
+    #[test]
+    fn an_event_after_a_ramp_is_due_at_the_analytic_sample() {
+        let map = ramp_map();
+        let sr = 44_100.0;
+        let t = on_map(&map, sr);
+        for beat in [1, 4, 20, 36, 40, 48, 60] {
+            let tick = Ticks::beats(beat).0 as f64;
+            let want = (map.sample_at(tick, sr) - 1e-6).ceil() as u64;
+            assert_eq!(t.samples_until(tick), want, "beat {beat}");
+        }
+        let mut t = on_map(&map, sr);
+        t.advance(3_000_000);
+        let back = t
+            .position_back(2_999_000)
+            .expect("no jump at a point or a ramp");
+        assert!((back - map.tick_at_sample(1_000.0, sr)).abs() < 1e-6);
+    }
+
+    /// A loop over a tempo change wraps exactly: every pass is the map's length of the
+    /// loop in samples (within the sub-sample carried), however many passes.
+    #[test]
+    fn a_loop_spanning_a_tempo_change_wraps_exactly() {
+        let map = ramp_map();
+        let sr = 48_000.0;
+        let mut t = on_map(&map, sr);
+        let (ls, le) = (Ticks::beats(30), Ticks::beats(50));
+        t.set_loop(Some(LoopRegion { start: ls, end: le }));
+        t.seek(ls);
+        let len = map.seconds_between(ls, le) * sr;
+        let mut wraps = Vec::new();
+        let mut clock = 0u64;
+        while wraps.len() < 40 {
+            clock += 64;
+            if t.advance(64) {
+                // The wrap is due within the block: where exactly is the carried overshoot.
+                wraps.push(clock as f64 - t.samples_between(ls.0 as f64, t.position_f64()));
+            }
+        }
+        for (i, w) in wraps.iter().enumerate() {
+            let want = len * (i + 1) as f64;
+            assert!((w - want).abs() < 1e-3, "pass {i}: {w} vs {want}");
+        }
+        let w = t.wraps().unwrap();
+        assert!((w.loop_samples - len).abs() < 1e-6);
+    }
+
+    /// The tempo units are told is held for a step of the ramp, and a pass that starts on
+    /// a step boundary is already in the new step.
+    #[test]
+    fn units_hear_the_ramp_in_steps_on_tick_boundaries() {
+        let map = ramp_map();
+        let sr = 48_000.0;
+        let mut t = on_map(&map, sr);
+        t.seek(Ticks::beats(10));
+        let first = t.step_tick();
+        assert_eq!(first, map.step_start(Ticks::beats(10).0 as f64));
+        let until = t.samples_until_step().unwrap();
+        t.advance(until);
+        let knot = first + cantus_core::tempo::RAMP_STEP as f64;
+        assert_eq!(t.step_tick(), knot, "on the boundary, in the new step");
+        t.advance(1);
+        assert_eq!(t.step_tick(), knot);
+        // In a held stretch the step is the playhead itself, and ends at the next point.
+        t.seek(Ticks::beats(40));
+        assert_eq!(t.bpm(), 140.0);
+        let to_point = t.samples_until_step().unwrap();
+        assert_eq!(to_point, t.samples_until(Ticks::beats(48).0 as f64));
+    }
 
     #[test]
     fn position_is_exact_and_block_size_independent() {

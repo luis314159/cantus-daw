@@ -102,14 +102,23 @@ fn seconds_and_ticks_are_inverses() {
 #[test]
 fn a_step_changes_the_tempo_at_its_tick() {
     // 120 for two beats, then 60.
-    let map = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, false), pt(1920, 60.0, false)], &[]);
+    let map = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, false), pt(1920, 60.0, false)],
+        &[],
+    );
     assert!(!map.is_constant());
     assert_eq!(map.seconds_at(1920.0), 1.0);
     assert_eq!(map.seconds_at(2880.0), 2.0);
     assert_eq!(map.bpm_at(1919.0), 120.0);
     assert_eq!(map.bpm_at(1920.0), 60.0);
     assert_eq!(map.tick_at_seconds(1.5), 2400.0);
-    assert_eq!(map.seconds_at(-960.0), -0.5, "before 0 the first tempo holds");
+    assert_eq!(
+        map.seconds_at(-960.0),
+        -0.5,
+        "before 0 the first tempo holds"
+    );
     assert_eq!(map.next_change_after(0.0), Some(1920.0));
     assert_eq!(map.next_change_after(1920.0), None);
     assert_eq!(map.seconds_between(Ticks(1920), Ticks(2880)), 1.0);
@@ -143,7 +152,12 @@ fn a_ramp_integrates_in_closed_form() {
     assert_eq!(map.seconds_at(-960.0), -60.0 / 90.0);
     assert_eq!(map.bpm_at(-1.0), 90.0);
     // A slowing ramp too.
-    let slow = TempoMap::new(140.0, TimeSignature::default(), &[pt(0, 140.0, true), pt(end, 90.0, false)], &[]);
+    let slow = TempoMap::new(
+        140.0,
+        TimeSignature::default(),
+        &[pt(0, 140.0, true), pt(end, 90.0, false)],
+        &[],
+    );
     let num = simpson(&slow, 0.0, end as f64);
     assert!((slow.seconds_at(end as f64) - num).abs() < 1e-9);
 }
@@ -173,7 +187,11 @@ fn ramp_steps_fall_on_ticks_from_the_ramps_start() {
     let map = TempoMap::new(
         100.0,
         TimeSignature::default(),
-        &[pt(0, 100.0, false), pt(1000, 100.0, true), pt(2000, 150.0, false)],
+        &[
+            pt(0, 100.0, false),
+            pt(1000, 100.0, true),
+            pt(2000, 150.0, false),
+        ],
         &[],
     );
     assert_eq!(map.next_step_after(10.0), Some(1000.0));
@@ -190,7 +208,11 @@ fn new_sorts_dedupes_clamps_and_starts_at_zero() {
     let map = TempoMap::new(
         130.0,
         TimeSignature::default(),
-        &[pt(960, 5_000.0, false), pt(-5, 80.0, false), pt(960, 70.0, true)],
+        &[
+            pt(960, 5_000.0, false),
+            pt(-5, 80.0, false),
+            pt(960, 70.0, true),
+        ],
         &[mc(-960, 3, 4), mc(0, 0, 4), mc(3840, 3, 4), mc(1000, 7, 3)],
     );
     assert_eq!(map.points(), &[pt(0, 130.0, false), pt(960, 70.0, false)]);
@@ -216,7 +238,10 @@ fn bars_of_a_constant_metre() {
     let sig = TimeSignature::new(3, 4);
     for t in [-5000, -1, 0, 1, 2879, 2880, 99_999] {
         assert_eq!(map.bbt(Ticks(t)), sig.bbt(Ticks(t)));
-        assert_eq!(map.bar_start(Ticks(t)), Ticks(t).snap_floor(sig.ticks_per_bar()));
+        assert_eq!(
+            map.bar_start(Ticks(t)),
+            Ticks(t).snap_floor(sig.ticks_per_bar())
+        );
         assert_eq!(map.snap(Ticks(t), Ticks(240)), Ticks(t).snap(Ticks(240)));
     }
 }
@@ -234,7 +259,10 @@ fn song_metre() -> TempoMap {
 #[test]
 fn bars_count_through_metre_changes() {
     let map = song_metre();
-    let lines: Vec<i64> = map.bar_lines(Ticks::ZERO, Ticks(16_000)).map(|t| t.0).collect();
+    let lines: Vec<i64> = map
+        .bar_lines(Ticks::ZERO, Ticks(16_000))
+        .map(|t| t.0)
+        .collect();
     assert_eq!(lines, vec![0, 3840, 7680, 11_040, 13_920]);
     assert_eq!(map.bbt(Ticks(7680)), (3, 1, 0));
     assert_eq!(map.bbt(Ticks(7680 + 480 * 6 + 5)), (3, 7, 5));
@@ -269,8 +297,16 @@ fn bars_count_through_metre_changes() {
 #[test]
 fn an_off_line_metre_change_cuts_the_bar_before_it_short() {
     // 4/4, then 3/4 from tick 5000 (bar 2 is 1 160 ticks long).
-    let map = TempoMap::new(120.0, TimeSignature::default(), &[], &[mc(0, 4, 4), mc(5000, 3, 4)]);
-    let lines: Vec<i64> = map.bar_lines(Ticks::ZERO, Ticks(8000)).map(|t| t.0).collect();
+    let map = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[],
+        &[mc(0, 4, 4), mc(5000, 3, 4)],
+    );
+    let lines: Vec<i64> = map
+        .bar_lines(Ticks::ZERO, Ticks(8000))
+        .map(|t| t.0)
+        .collect();
     assert_eq!(lines, vec![0, 3840, 5000, 7880]);
     assert_eq!(map.bbt(Ticks(5000)), (3, 1, 0));
     assert_eq!(map.bar_end(Ticks(4000)), Ticks(5000));
@@ -287,10 +323,28 @@ fn the_span_key_is_the_tempo_over_the_span() {
     }
     assert_eq!(c.span_key(Ticks(0), Ticks(9600)), h);
     assert_eq!(c.span_key(Ticks(5000), Ticks(99_600)), h, "moved, same key");
-    let later = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, false), pt(20_000, 90.0, false)], &[]);
-    assert_eq!(later.span_key(Ticks(0), Ticks(9600)), h, "a point after the span");
-    assert_ne!(later.span_key(Ticks(0), Ticks(20_001)), h, "a point inside it");
-    let ramp = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, true), pt(20_000, 90.0, false)], &[]);
+    let later = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, false), pt(20_000, 90.0, false)],
+        &[],
+    );
+    assert_eq!(
+        later.span_key(Ticks(0), Ticks(9600)),
+        h,
+        "a point after the span"
+    );
+    assert_ne!(
+        later.span_key(Ticks(0), Ticks(20_001)),
+        h,
+        "a point inside it"
+    );
+    let ramp = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, true), pt(20_000, 90.0, false)],
+        &[],
+    );
     assert_ne!(ramp.span_key(Ticks(0), Ticks(9600)), h, "a ramp under it");
     assert_ne!(
         ramp.span_key(Ticks(0), Ticks(9600)),

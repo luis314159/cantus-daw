@@ -2539,7 +2539,7 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
         ramp: rng.below(2) == 0,
     };
     let sigs = [(4, 4), (3, 4), (7, 8), (5, 4), (6, 8), (2, 2)];
-    let mut sig = |rng: &mut Lcg| {
+    let sig = |rng: &mut Lcg| {
         let (n, d) = sigs[rng.below(sigs.len() as u64) as usize];
         TimeSignature::new(n, d)
     };

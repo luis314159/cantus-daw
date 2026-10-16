@@ -26,7 +26,9 @@ fn check_points(bpm: f64, points: &[TempoPoint]) -> Result<(), CommandError> {
         return Ok(());
     };
     if first.tick != Ticks::ZERO || first.bpm != bpm {
-        return Err(invalid("a tempo track starts at tick 0 at the song's tempo"));
+        return Err(invalid(
+            "a tempo track starts at tick 0 at the song's tempo",
+        ));
     }
     if points.iter().any(|p| !valid_bpm(p.bpm)) {
         return Err(invalid("tempo out of range"));

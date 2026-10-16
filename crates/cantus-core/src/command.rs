@@ -2332,7 +2332,9 @@ impl Command {
             InsertTempoPoint { index, point } => {
                 crate::tempo::edit::apply_insert_tempo_point(project, index, point)
             }
-            RemoveTempoPoint { index } => crate::tempo::edit::apply_remove_tempo_point(project, index),
+            RemoveTempoPoint { index } => {
+                crate::tempo::edit::apply_remove_tempo_point(project, index)
+            }
             SetTempoPoint { index, point } => {
                 crate::tempo::edit::apply_set_tempo_point(project, index, point)
             }

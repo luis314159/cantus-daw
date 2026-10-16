@@ -151,6 +151,10 @@ pub struct Snapshot {
     pub revision: u64,
     pub tempo_bpm: f64,
     pub time_signature: TimeSignature,
+    /// The tempo map (ADR 0060): the tempo and metre along the song, compiled here once;
+    /// the engine's transport plays through it. A project without a tempo track has the
+    /// constant map of `tempo_bpm` and `time_signature`.
+    pub tempo: std::sync::Arc<crate::tempo::TempoMap>,
     pub loop_region: Option<LoopRegion>,
     pub loop_enabled: bool,
     pub metronome: bool,
@@ -214,6 +218,7 @@ impl Snapshot {
             revision,
             tempo_bpm: project.tempo_bpm,
             time_signature: project.time_signature,
+            tempo: std::sync::Arc::new(project.tempo_map()),
             loop_region: if project.loop_enabled {
                 project.loop_region.clone()
             } else {
@@ -446,14 +451,27 @@ fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
         return (Ticks::ZERO, Ticks::ZERO);
     };
     let rate = f64::from(src.sample_rate.max(1));
-    let bpm = project.tempo_bpm.max(1e-9);
-    let frame = |t: Ticks| t.to_seconds(bpm) * rate + f64::from(a.slip_frames);
-    let ticks = |frames: f64| {
-        Ticks(((frames.max(0.0) / rate) * bpm / 60.0 * crate::time::PPQ as f64).floor() as i64)
-    };
+    let map = project.tempo_map();
+    if map.is_constant() {
+        let bpm = project.tempo_bpm.max(1e-9);
+        let frame = |t: Ticks| t.to_seconds(bpm) * rate + f64::from(a.slip_frames);
+        let ticks = |frames: f64| {
+            Ticks(((frames.max(0.0) / rate) * bpm / 60.0 * crate::time::PPQ as f64).floor() as i64)
+        };
+        return (
+            ticks(frame(c.offset)),
+            ticks(src.frames as f64 - frame(c.offset + c.length)),
+        );
+    }
+    // Through the tempo map (ADR 0060, `crate::audio_time`): the ticks from the source's
+    // first frame to the window's start, and from its end to the source's last frame.
+    let slip = f64::from(a.slip_frames);
+    let at =
+        |frame: f64| crate::audio_time::tick_at_frame(&map, c.start, c.offset, slip, rate, frame);
+    let (start, end) = (c.start.0 as f64, (c.start + c.length).0 as f64);
     (
-        ticks(frame(c.offset)),
-        ticks(src.frames as f64 - frame(c.offset + c.length)),
+        Ticks((start - at(0.0)).max(0.0).floor() as i64),
+        Ticks((at(src.frames as f64) - end).max(0.0).floor() as i64),
     )
 }
 

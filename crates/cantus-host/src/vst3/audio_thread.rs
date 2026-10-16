@@ -168,7 +168,8 @@ impl AudioHalf {
                 c.projectTimeSamples = self.frames;
             }
             Some(t) => {
-                c.projectTimeSamples = t.position_samples;
+                // Real samples through the tempo map (ADR 0060).
+                c.projectTimeSamples = (t.position_seconds * c.sampleRate).round() as i64;
                 c.projectTimeMusic = t.position_beats;
                 c.barPositionMusic = t.bar_start_beats;
                 c.tempo = t.tempo_bpm;

@@ -10,6 +10,12 @@
 //!   while nothing has played). A *free* LFO runs on it, so it is deterministic from the
 //!   start of playback.
 //!
+//! Under a tempo ramp (round 29, ADR 0060) the host tells the tempo in steps — a step of
+//! `RAMP_STEP` ticks of the ramp, each beginning a pass — and the song sample as the beats
+//! at the step's tempo: each step is a new tempo, so the clock re-anchors there and the
+//! synced phase is the beats' (the cycles a synced LFO has run are the song's beats over
+//! its division at every step), while at one tempo nothing changes, to the bit.
+//!
 //! The transport arrives once per pass ([`Clock::set`]); between passes the clock counts
 //! on its own. It takes a new anchor only when the song **jumps** — a seek, a loop's wrap,
 //! a tempo change, the start of playback — never because a pass split the stream, so the

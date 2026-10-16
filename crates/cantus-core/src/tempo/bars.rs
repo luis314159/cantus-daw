@@ -150,7 +150,11 @@ impl TempoMap {
         let start = self.bar_start(tick);
         let end = self.bar_end(tick);
         if grid >= end - start {
-            return if tick - start < end - tick { start } else { end };
+            return if tick - start < end - tick {
+                start
+            } else {
+                end
+            };
         }
         (start + (tick - start).snap(grid)).min(end)
     }

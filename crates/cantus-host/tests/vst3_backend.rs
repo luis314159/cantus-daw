@@ -845,12 +845,17 @@ fn notes_and_expressions_land_on_their_samples() {
         playing: true,
         recording: false,
         tempo_bpm: 128.0,
+        tempo_inc: 0.0,
         position_beats: 6.5,
         position_samples: 146_250,
+        // 6.5 beats at 128 BPM: 146 250 samples at 48 kHz.
+        position_seconds: 3.046_875,
         bar_start_beats: 6.0,
+        bar_number: 2,
         time_sig_num: 3,
         time_sig_den: 4,
         loop_beats: Some((0.0, 12.0)),
+        loop_seconds: Some((0.0, 5.625)),
     };
     let (mut l, mut r) = (vec![9.0f32; 32], vec![9.0f32; 32]);
     let mut out = ParamOut::new();

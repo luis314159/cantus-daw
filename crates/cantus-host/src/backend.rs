@@ -338,17 +338,29 @@ impl Default for ParamOut {
 pub struct TransportInfo {
     pub playing: bool,
     pub recording: bool,
+    /// The tempo at the block's first sample (inside a ramp, its step's: ADR 0060).
     pub tempo_bpm: f64,
+    /// How the tempo moves inside a ramp, BPM per sample (CLAP's `tempo_inc`); 0 when it
+    /// holds.
+    pub tempo_inc: f64,
     /// Position at the block's first sample, in quarter notes from the song start.
     pub position_beats: f64,
-    /// Position at the block's first sample, in samples from the song start.
+    /// Position at the block's first sample, in samples from the song start at the tempo
+    /// now (the synced-phase clock; see `position_seconds` for real time).
     pub position_samples: i64,
+    /// Position at the block's first sample, in seconds from the song start through the
+    /// tempo map: real time (CLAP's seconds timeline, VST3's `projectTimeSamples`).
+    pub position_seconds: f64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
+    /// The current bar's 0-based index, counted through every metre change.
+    pub bar_number: i32,
     pub time_sig_num: u16,
     pub time_sig_den: u16,
     /// The loop, in quarter notes, when looping.
     pub loop_beats: Option<(f64, f64)>,
+    /// The loop in song seconds, when looping.
+    pub loop_seconds: Option<(f64, f64)>,
 }
 
 /// The audio buffers of one call: the main stereo pair processed in place, and the

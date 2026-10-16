@@ -313,6 +313,30 @@ impl TempoMap {
         self.segs[self.seg_of(tick)].bpm_at(tick)
     }
 
+    /// The tempo held at `tick` and the ticks `[from, to)` it holds over (`from` is
+    /// `-inf` for the first segment, `to` is `+inf` for the last) — `None` inside a ramp.
+    /// Over such a stretch the old constant-tempo arithmetic is exact, and the engine keeps
+    /// it there to the bit.
+    pub fn held_at(&self, tick: f64) -> Option<(f64, f64, f64)> {
+        let i = self.seg_of(tick);
+        let s = &self.segs[i];
+        if tick < s.tick {
+            // Before tick 0: the first tempo holds backwards (up to a ramp's start).
+            let to = if s.k == 0.0 {
+                self.segs.get(1).map_or(f64::INFINITY, |n| n.tick)
+            } else {
+                s.tick
+            };
+            return Some((s.bpm, f64::NEG_INFINITY, to));
+        }
+        if s.k != 0.0 {
+            return None;
+        }
+        let from = if i == 0 { f64::NEG_INFINITY } else { s.tick };
+        let to = self.segs.get(i + 1).map_or(f64::INFINITY, |n| n.tick);
+        Some((s.bpm, from, to))
+    }
+
     /// Whether `tick` lies inside a ramp (from its start, before its end).
     pub fn in_ramp(&self, tick: f64) -> bool {
         tick >= 0.0 && self.segs[self.seg_of(tick)].k != 0.0
@@ -453,7 +477,10 @@ impl TempoMap {
         if s.k != 0.0 && a >= s.tick {
             eat(s.k.to_bits());
         }
-        for s in self.segs[i + 1..].iter().take_while(|s| s.tick < to.0 as f64) {
+        for s in self.segs[i + 1..]
+            .iter()
+            .take_while(|s| s.tick < to.0 as f64)
+        {
             eat(((s.tick - a) as i64) as u64);
             eat(s.bpm.to_bits());
             eat(s.k.to_bits());

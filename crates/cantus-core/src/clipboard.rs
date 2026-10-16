@@ -72,6 +72,15 @@ pub struct Clipboard {
     /// The source project's tempo: an audio clip pasted at another tempo is resized so it
     /// plays the same part of its file.
     pub tempo_bpm: f64,
+    /// The source project's tempo track (ADR 0060), when it had one: with it and [`Self::at`]
+    /// an audio clip is measured in seconds where it was copied and laid out again through
+    /// the map where it lands.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tempo_points: Vec<crate::tempo::TempoPoint>,
+    /// Where the copy's origin was on the source's timeline (the starts in the payload are
+    /// relative to it).
+    #[serde(default, skip_serializing_if = "Ticks::is_zero")]
+    pub at: Ticks,
     /// The audio clips' files, with **absolute** paths, so another project can find them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<AudioSource>,
@@ -138,9 +147,28 @@ impl Clipboard {
             origin,
             ppq: PPQ,
             tempo_bpm: project.tempo_bpm,
+            tempo_points: project.tempo_points.clone(),
+            at: Ticks::ZERO,
             sources: Vec::new(),
             payload,
         }
+    }
+
+    /// This clipboard, its payload's starts relative to `origin` on the source's timeline.
+    pub fn at(mut self, origin: Ticks) -> Self {
+        self.at = origin;
+        self
+    }
+
+    /// The source project's tempo map (its tempo and tempo track; the metre does not
+    /// matter to time).
+    pub fn tempo_map(&self) -> crate::tempo::TempoMap {
+        crate::tempo::TempoMap::new(
+            self.tempo_bpm.max(1e-9),
+            crate::time::TimeSignature::default(),
+            &self.tempo_points,
+            &[],
+        )
     }
 
     /// How many notes or clips it holds.
@@ -184,6 +212,15 @@ pub fn copy_notes(notes: &[Note], origin: Ticks) -> Payload {
         .collect();
     notes.sort_by_key(|n| (n.start, n.pitch, n.id.0));
     Payload::Notes { notes }
+}
+
+/// Where a copy of the clips `sel` starts on the timeline (the earliest clip's start): what
+/// [`copy_clips`]'s starts are relative to, for [`Clipboard::at`].
+pub fn copy_origin(project: &Project, sel: &[ClipRef]) -> Ticks {
+    sel.iter()
+        .filter_map(|(t, c)| project.track(*t)?.clip(*c).map(|c| c.start))
+        .min()
+        .unwrap_or(Ticks::ZERO)
 }
 
 /// The clips of `sel`, keeping their spacing in time and across tracks: rows from the
@@ -402,7 +439,12 @@ pub fn paste_clips(
         .unwrap_or(0);
     let top = target_row.min(last.saturating_sub(tallest));
     let at = at.max(Ticks::ZERO);
-    let scale = if !same_origin
+    // Through the tempo maps when either changes along its song (ADR 0060): each audio
+    // clip measured in seconds where it was copied and laid out where it lands.
+    let (src_map, dst_map) = (board.tempo_map(), project.tempo_map());
+    let mapped = !(src_map.is_constant() && dst_map.is_constant());
+    let scale = if !mapped
+        && !same_origin
         && board.tempo_bpm > 0.0
         && (board.tempo_bpm - project.tempo_bpm).abs() > 1e-9
     {
@@ -460,6 +502,27 @@ pub fn paste_clips(
                 a.fade_out = s(a.fade_out);
                 copy.offset = s(copy.offset);
                 copy.length = s(copy.length).max(Ticks(1));
+            } else if mapped
+                && src_map.span_key(board.at + r.clip.start, board.at + r.clip.end())
+                    != dst_map.span_key(copy.start, copy.start + copy.length)
+            {
+                // Only where the tempo under the clip differs (the same tempo function
+                // over both spans keeps the ticks exactly).
+                let from = board.at + r.clip.start;
+                let (fade_in, fade_out) = (a.fade_in, a.fade_out);
+                let (offset, length) = (copy.offset, copy.length);
+                let secs = |a: Ticks, b: Ticks| src_map.seconds_between(a, b);
+                let off_s = crate::audio_time::offset_seconds(&src_map, from, offset);
+                let len_s = secs(from, from + length);
+                let fi_s = secs(from, from + fade_in);
+                let fo_s = secs(from + length - fade_out, from + length);
+                let to = copy.start.0 as f64;
+                let end = dst_map.tick_after_seconds(to, len_s);
+                let round = |t: f64| Ticks(t.round() as i64);
+                copy.offset = crate::audio_time::offset_for(&dst_map, copy.start, off_s);
+                copy.length = round(end - to).max(Ticks(1));
+                a.fade_in = round(dst_map.tick_after_seconds(to, fi_s) - to).max(Ticks::ZERO);
+                a.fade_out = round(end - dst_map.tick_after_seconds(end, -fo_s)).max(Ticks::ZERO);
             }
         }
         let group = if linked && same_origin {

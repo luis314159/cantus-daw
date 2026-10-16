@@ -71,8 +71,15 @@ pub(crate) fn scope(
     if p.frames > 0 {
         let on = match (p.beat, first) {
             (Some(b), Some(f)) => {
+                // Inside a ramp's step (ADR 0060) the beats bend away from the step's
+                // straight line by far less than a frame: carrying on is no jump.
+                let tol = if position.tempo_inc != 0.0 {
+                    1e-3
+                } else {
+                    1e-6
+                };
                 p.tempo_bpm == position.tempo_bpm
-                    && (b + f64::from(p.frames) * per_frame - f).abs() < 1e-6
+                    && (b + f64::from(p.frames) * per_frame - f).abs() < tol
             }
             (None, None) => true,
             _ => false,
@@ -262,7 +269,10 @@ pub(crate) fn strip_chain(
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
         // call.
-        e.set_position(&ctx.position.earlier(e.late, ctx.sample_rate));
+        e.set_position(
+            &ctx.position
+                .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
+        );
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {

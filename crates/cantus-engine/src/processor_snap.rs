@@ -208,14 +208,21 @@ impl Processor {
         self.metronome = snapshot.metronome;
         self.compensate();
         self.request_memory();
-        self.transport.set_bpm(snapshot.tempo_bpm);
+        // The tempo map (ADR 0060): an edit of the tempo re-anchors at the playhead; the
+        // old map is the old snapshot's, freed with it off this thread.
+        self.transport.set_map(snapshot.tempo.clone());
         self.transport.set_loop(snapshot.loop_region.clone());
         self.auto_install(&snapshot);
 
         // The nodes read the snapshot through the pass's frame; its old copy goes before
         // the processor's, which goes back to the UI thread to be freed.
         match nodes.frame.try_borrow_mut() {
-            Some(mut f) => f.ctx.snapshot = Some(snapshot.clone()),
+            Some(mut f) => {
+                f.ctx.snapshot = Some(snapshot.clone());
+                // The pass's copy of the transport lets go of the old map here too, while
+                // the old snapshot still holds it (never the last owner on this thread).
+                f.ctx.transport.clone_from(&self.transport);
+            }
             None => nodes.conflict(),
         }
         let old = self.snapshot.replace(snapshot);
@@ -823,6 +830,13 @@ impl Processor {
     /// Position each track's event cursor at the current playhead and reset the metronome.
     pub(super) fn reseek_events(&mut self) {
         let pos = self.transport.position_f64();
+        self.reseek_events_from(pos);
+    }
+
+    /// [`Self::reseek_events`] from `pos` (ticks): after a loop's wrap, the loop's start —
+    /// the playhead sits a fraction of a sample past it (the overshoot carried), and what
+    /// lies exactly on the start is due now, on every pass (round 29: it was skipped).
+    pub(super) fn reseek_events_from(&mut self, pos: f64) {
         let tick = cantus_core::Ticks(pos.ceil() as i64);
         if let Some(snap) = &self.snapshot {
             for (ti, t) in snap
@@ -836,8 +850,13 @@ impl Processor {
                     s.next_event = t.first_event_at_or_after(tick);
                 }
             }
-            let beat = snap.time_signature.ticks_per_beat().0 as f64;
-            self.next_beat_tick = (pos / beat).ceil() * beat;
+            self.next_beat_tick = if snap.tempo.is_one_metre() {
+                let beat = snap.time_signature.ticks_per_beat().0 as f64;
+                (pos / beat).ceil() * beat
+            } else {
+                // Through every metre change (ADR 0060): the first beat line from here.
+                snap.tempo.next_beat(pos).0
+            };
         }
         self.auto_reseek();
     }

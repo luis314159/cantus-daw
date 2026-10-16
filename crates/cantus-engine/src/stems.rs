@@ -18,7 +18,7 @@ use crate::effects::EffectUnit;
 use crate::messages::{EngineEvent, EngineMessage, MAX_STRIPS, MAX_TRACKS};
 use crate::processor::Processor;
 use crate::render::RenderOptions;
-use cantus_core::{EffectSlot, Snapshot, Ticks};
+use cantus_core::{EffectSlot, Snapshot};
 use rtrb::RingBuffer;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -602,16 +602,15 @@ fn run(
         });
     }
 
-    let content_seconds = (end - ro.start)
-        .max(Ticks::ZERO)
-        .to_seconds(snapshot.tempo_bpm);
+    // Through the tempo map (ADR 0060), as `render` measures it.
+    let content_seconds = snapshot.tempo.seconds_between(ro.start, end.max(ro.start));
     let total = ((content_seconds + ro.tail_seconds) * sr).ceil() as usize;
     let longest = outs.iter().map(|o| o.late).max().unwrap_or(0);
     let frames = total + longest;
     // A range that ends before the song stops there, as `render` does: the tail rings out
     // and plays nothing that starts after the range.
     let mut stop_at = ro.end.map(|e| {
-        crate::transport::sample_at(ro.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr) as usize
+        crate::transport::sample_at_map(&snapshot.tempo, ro.start.0 as f64, e.0 as f64, sr) as usize
     });
     let mut buf = vec![0f32; block * 2];
     let mut ml = vec![0f32; block];
