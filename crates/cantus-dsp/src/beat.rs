@@ -62,7 +62,7 @@ pub fn analyse(onsets: &Onsets, rate: f32, len: usize, beats_per_bar: u32) -> Gr
     // Each beat on the onset nearest it (within 35 ms), to the sample.
     let hop = rate as f64 / fps;
     let snap = 0.035 * rate as f64;
-    let beats: Vec<f64> = track
+    let snapped: Vec<Option<f64>> = track
         .iter()
         .map(|&t| {
             let at = t as f64 * hop;
@@ -73,9 +73,9 @@ pub fn analyse(onsets: &Onsets, rate: f32, len: usize, beats_per_bar: u32) -> Gr
                 .filter_map(|j| onsets.frames.get(j).copied())
                 .filter(|o| (o - at).abs() <= snap)
                 .min_by(|a, b| (a - at).abs().total_cmp(&(b - at).abs()))
-                .unwrap_or(at)
         })
         .collect();
+    let beats = fill(&snapped, track.iter().map(|&t| t as f64 * hop).collect());
     // The tempo from the beats themselves: a least-squares line through them.
     let bpm = fitted(&beats, rate).unwrap_or(bpm);
     let bpb = beats_per_bar.max(1) as usize;
@@ -351,4 +351,47 @@ fn looped(grid: &mut Grid, rate: f32, len: usize, bpb: usize) {
     }
     grid.bars = Some(whole as u32);
     grid.bpm = whole * bpb as f64 * 60.0 / seconds;
+}
+
+/// The beats, each on its onset where one was found; a beat with none (a rest, the file's
+/// end) placed from its found neighbours — halfway between the beats around it, or a
+/// period on from the nearest — rather than where the onset function's frames put it.
+fn fill(snapped: &[Option<f64>], rough: Vec<f64>) -> Vec<f64> {
+    let n = snapped.len();
+    let found: Vec<usize> = (0..n).filter(|&i| snapped[i].is_some()).collect();
+    if found.len() < 2 {
+        return rough;
+    }
+    let at = |i: usize| snapped[i].unwrap_or(rough[i]);
+    (0..n)
+        .map(|i| {
+            if let Some(v) = snapped[i] {
+                return v;
+            }
+            let before = found.iter().rev().find(|&&j| j < i).copied();
+            let after = found.iter().find(|&&j| j > i).copied();
+            match (before, after) {
+                (Some(a), Some(b)) => at(a) + (at(b) - at(a)) * (i - a) as f64 / (b - a) as f64,
+                (Some(a), None) => {
+                    let p = found.iter().rev().find(|&&j| j < a).copied().unwrap_or(a);
+                    let per = if p < a {
+                        (at(a) - at(p)) / (a - p) as f64
+                    } else {
+                        0.0
+                    };
+                    at(a) + per * (i - a) as f64
+                }
+                (None, Some(b)) => {
+                    let q = found.iter().find(|&&j| j > b).copied().unwrap_or(b);
+                    let per = if q > b {
+                        (at(q) - at(b)) / (q - b) as f64
+                    } else {
+                        0.0
+                    };
+                    at(b) - per * (b - i) as f64
+                }
+                (None, None) => rough[i],
+            }
+        })
+        .collect()
 }

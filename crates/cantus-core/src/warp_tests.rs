@@ -180,17 +180,56 @@ fn a_grid_warps_a_loop_bar_by_bar() {
 
 #[test]
 fn a_clip_reads_its_time_through_one_function() {
+    use crate::audio_time::{clip_frame_at, clip_tick_at_frame};
+    use crate::tempo::{TempoMap, TempoPoint};
+    use crate::time::TimeSignature;
+    let flat = TempoMap::constant(120.0, TimeSignature::default());
+    let (start, offset) = (Ticks(1_920), Ticks(960));
     let mut a = AudioRegion::of(AudioSourceId(1));
     a.slip_frames = 12;
-    // Unwarped: seconds at the project's tempo, plus the fine offset.
-    assert_eq!(source_frame(&a, 960.0, 120.0, SR), 24_012.0);
-    assert!((content_tick(&a, 24_012.0, 120.0, SR) - 960.0).abs() < 1e-9);
-    // Warped: through its markers (the fine offset is in them).
+    // Unwarped: seconds at the project's tempo from the content origin, plus the fine
+    // offset.
+    assert_eq!(
+        clip_frame_at(&flat, start, offset, &a, SR as f64, 2_880.0),
+        48_012.0
+    );
+    let t = clip_tick_at_frame(&flat, start, offset, &a, SR as f64, 48_012.0);
+    assert!((t - 2_880.0).abs() < 1e-9);
+    // Warped: content tick (timeline tick less the origin) through the markers — under
+    // any tempo map, so the clip stays on its beats through a ramp.
     a.warp = Some(Box::new(warp()));
-    assert_eq!(source_frame(&a, 960.0, 120.0, SR), warp().markers[1].frame);
+    let ramp = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(16),
+                bpm: 170.0,
+                ramp: false,
+            },
+        ],
+        &[],
+    );
+    for map in [&flat, &ramp] {
+        let at = (start.0 - offset.0 + 960) as f64;
+        assert_eq!(
+            clip_frame_at(map, start, offset, &a, SR as f64, at),
+            warp().markers[1].frame
+        );
+        let back = clip_tick_at_frame(map, start, offset, &a, SR as f64, warp().markers[2].frame);
+        assert!((back - (start.0 - offset.0 + 1_900) as f64).abs() < 1e-6);
+    }
     // Not following: natural speed again.
     a.warp.as_mut().unwrap().follow = false;
-    assert_eq!(source_frame(&a, 960.0, 120.0, SR), 24_012.0);
+    assert_eq!(
+        clip_frame_at(&flat, start, offset, &a, SR as f64, 2_880.0),
+        48_012.0
+    );
 }
 
 #[test]

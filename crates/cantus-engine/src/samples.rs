@@ -69,6 +69,8 @@ pub struct SampleCache {
     streaming: bool,
     /// Audio clips' pitch renders (ADR 0054): attached in place of their sources.
     pitch: crate::pitch::attach::Renders,
+    /// Warped clips' renders (ADR 0061): attached after the pitch renders.
+    warp: crate::warp::attach::Renders,
     /// Pitch renders go to the pitch service's worker even without the source loader
     /// (`EngineHandle::compile` sets it: no render on the caller's thread, device or not).
     pitch_background: bool,
@@ -185,6 +187,7 @@ impl SampleCache {
         self.failed.remove(path);
         // Its pitch analysis and renders too (ADR 0054, review 1).
         self.pitch.forget(path);
+        self.warp.forget(path);
     }
 
     /// [`Self::retry`] for an audio source's stored path.
@@ -192,6 +195,7 @@ impl SampleCache {
         let p = self.resolve(path);
         self.failed.remove(&p);
         self.pitch.forget(&p);
+        self.warp.forget(&p);
     }
 
     pub fn status(&self, path: &Path) -> SampleStatus {
@@ -641,6 +645,8 @@ impl SampleCache {
         let mut any = !done.is_empty() || std::mem::take(&mut self.arrived);
         // Pitch renders finished on their worker (ADR 0054).
         any |= self.pitch.poll();
+        // Warp renders and bridges (ADR 0061).
+        any |= self.warp.poll();
         // A stream that failed: the next snapshot loads its file again.
         any |= self
             .streamed
@@ -681,6 +687,7 @@ impl SampleCache {
     /// Whether any source is still being loaded in the background.
     pub fn loading(&self) -> bool {
         self.pitch.pending() > 0
+            || self.warp.pending() > 0
             || self.loader.as_ref().is_some_and(|l| !l.pending.is_empty())
             || self.assets.as_ref().is_some_and(AssetLoader::busy)
     }
@@ -718,6 +725,24 @@ impl SampleCache {
             }
         };
         errors.extend(self.pitch.attach(snapshot, rate, background, &resolve));
+        // Warped clips play their render (ADR 0061), after the pitch render: the chain is
+        // source → pitch → warp. The input is ready when it is what the clip will play —
+        // the source, or its pitch render once that has arrived.
+        let pitch = &self.pitch;
+        let input = |clip: &cantus_core::AudioClipSnapshot, path: &Path| -> Option<u64> {
+            match clip.pitch.as_ref().filter(|e| e.audible()) {
+                None => Some(1),
+                Some(e) => {
+                    let k = crate::pitch::render_key(path, e, rate);
+                    let d = clip.data.as_ref()?;
+                    pitch.render_of(k).filter(|r| Arc::ptr_eq(r, d)).map(|_| k)
+                }
+            }
+        };
+        errors.extend(
+            self.warp
+                .attach(snapshot, rate, background, &resolve, &input),
+        );
         errors
     }
 
@@ -754,6 +779,34 @@ impl SampleCache {
     /// Pitch renders held for playing, and those waiting to be freed.
     pub fn pitch_held(&self) -> usize {
         self.pitch.held()
+    }
+
+    /// Warping's service (ADR 0061): analyses at import and the renders of warped clips.
+    pub fn warp(&self) -> &std::sync::Arc<crate::warp::WarpService> {
+        &self.warp.service
+    }
+
+    /// Wait (at most `patience`) until no warp render is on its way, taking each in as it
+    /// arrives — an offline render plays the full renders, never a bridge.
+    pub fn wait_warp(&mut self, patience: std::time::Duration) -> bool {
+        let t = std::time::Instant::now();
+        while self.warp.pending() > 0 && t.elapsed() < patience {
+            self.warp.poll();
+            if self.warp.pending() > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+        self.warp.pending() == 0
+    }
+
+    /// Warp renders waiting or being made (an export waits for them).
+    pub fn warp_pending(&self) -> usize {
+        self.warp.pending()
+    }
+
+    /// Warp renders held for playing, kept, bridging, or waiting to be freed.
+    pub fn warp_held(&self) -> usize {
+        self.warp.held()
     }
 }
 

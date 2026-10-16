@@ -11,7 +11,8 @@
 //! at the project's tempo). The region's fine offset (`slip`, frames at the source's rate)
 //! moves the source against the timeline.
 //!
-//! The warp builder extends this file for warped clips (round 29, ADR 0061).
+//! **A warped clip** (round 29, ADR 0061) hears its source through its warp markers: see
+//! [`clip_frame_at`].
 
 use crate::tempo::TempoMap;
 use crate::time::{Ticks, PPQ};
@@ -86,6 +87,97 @@ pub fn length_ticks(map: &TempoMap, start: Ticks, frames: f64, rate: f64) -> Tic
 /// of [`offset_seconds`]): a slip, a split, a trim of the left edge.
 pub fn offset_for(map: &TempoMap, start: Ticks, seconds: f64) -> Ticks {
     Ticks::from_seconds(seconds, map.bpm_at(start.0 as f64))
+}
+
+// --- Warped clips (round 29, warp — ADR 0061) ---------------------------------------
+//
+// A warped clip that follows the tempo hears, at timeline tick `T`, its content tick
+// `T − (start − offset)` — wherever the tempo map puts that tick in time — and the source
+// frame its warp markers pair with that content tick (`Warp::frame_at`): the markers hold
+// content ticks, so the clip stays on the beat through every tempo change. A warp that does
+// not follow the tempo plays at natural speed, as above. The engine renders the window
+// through exactly this mapping (`cantus_engine::warp::render`), and the interface draws
+// and edits through it, so what is drawn is what plays.
+
+/// The source frame (at `rate`, the source's own) under timeline tick `tick` of an audio
+/// clip that starts at `start` with `offset` and region `region` — warped or not.
+pub fn clip_frame_at(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    region: &crate::audio::AudioRegion,
+    rate: f64,
+    tick: f64,
+) -> f64 {
+    frame_through(
+        map,
+        start,
+        offset,
+        region.warp.as_deref(),
+        region.slip_frames as f64,
+        rate,
+        tick,
+    )
+}
+
+/// [`clip_frame_at`] from the parts (the engine's render plan holds them, not a region):
+/// the warp when it follows the tempo, else the natural speed with `slip_frames`.
+pub fn frame_through(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    warp: Option<&crate::warp::Warp>,
+    slip_frames: f64,
+    rate: f64,
+    tick: f64,
+) -> f64 {
+    match warp.filter(|w| w.follow) {
+        Some(w) => w.frame_at(tick - (start.0 - offset.0) as f64),
+        None => frame_at(map, start, offset, slip_frames, rate, tick),
+    }
+}
+
+/// The timeline tick where source frame `frame` of the clip is heard (the inverse of
+/// [`clip_frame_at`]).
+pub fn clip_tick_at_frame(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    region: &crate::audio::AudioRegion,
+    rate: f64,
+    frame: f64,
+) -> f64 {
+    tick_through(
+        map,
+        start,
+        offset,
+        region.warp.as_deref(),
+        region.slip_frames as f64,
+        rate,
+        frame,
+    )
+}
+
+/// [`clip_tick_at_frame`] from the parts (the inverse of [`frame_through`]).
+pub fn tick_through(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    warp: Option<&crate::warp::Warp>,
+    slip_frames: f64,
+    rate: f64,
+    frame: f64,
+) -> f64 {
+    match warp.filter(|w| w.follow) {
+        Some(w) => w.tick_at(frame) + (start.0 - offset.0) as f64,
+        None => tick_at_frame(map, start, offset, slip_frames, rate, frame),
+    }
+}
+
+/// The length in ticks of `frames` frames of source played by a warped clip from content
+/// tick `offset` (the whole file from its warp's view): where its last frame is heard.
+pub fn warped_length(warp: &crate::warp::Warp, frames: f64) -> Ticks {
+    Ticks(warp.tick_at(frames).round() as i64)
 }
 
 #[cfg(test)]

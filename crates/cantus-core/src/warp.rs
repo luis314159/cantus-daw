@@ -13,7 +13,8 @@
 //! valid, as the pitch editor's notes do (ADR 0054).
 //!
 //! **Playing.** A warped clip *follows the project's tempo*: content tick `t` is heard at
-//! its timeline tick, and the source under it is `frame_at(t)` — the engine renders the
+//! its timeline tick, and the source under it is `frame_at(t)` (`crate::audio_time::clip_frame_at`,
+//! the one mapping the engine and the interface share) — the engine renders the
 //! source through the map (`cantus_dsp::stretch`) and plays the render. With
 //! [`Warp::follow`] off the clip plays at its natural speed (ADR 0025's rule) and only its
 //! transposition applies. A warp that maps exactly as the unwarped clip does, untransposed
@@ -358,37 +359,5 @@ impl WarpOp {
             self,
             WarpOp::MoveMarker | WarpOp::MoveContent | WarpOp::Transpose | WarpOp::Tempo
         )
-    }
-}
-
-/// The source frame under content tick `t` of an audio clip whose region is `region`, its
-/// source at `rate`, in a project at `project_bpm` — warped or not: the one function the
-/// interface and the engine read a clip's time through (ADR 0061; part B moves it under
-/// the tempo map, `crate::audio_time`).
-pub fn source_frame(
-    region: &crate::audio::AudioRegion,
-    t: f64,
-    project_bpm: f64,
-    rate: u32,
-) -> f64 {
-    match region.warp.as_deref().filter(|w| w.follow) {
-        Some(w) => w.frame_at(t),
-        None => unwarped_frame(t, project_bpm, rate, region.slip_frames),
-    }
-}
-
-/// The content tick where source frame `f` of the clip is heard (the inverse of
-/// [`source_frame`]).
-pub fn content_tick(
-    region: &crate::audio::AudioRegion,
-    f: f64,
-    project_bpm: f64,
-    rate: u32,
-) -> f64 {
-    match region.warp.as_deref().filter(|w| w.follow) {
-        Some(w) => w.tick_at(f),
-        None => {
-            (f - region.slip_frames as f64) / rate.max(1) as f64 * project_bpm / 60.0 * PPQ as f64
-        }
     }
 }

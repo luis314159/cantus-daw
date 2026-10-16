@@ -205,7 +205,9 @@ impl Warp {
         // Whole bars of lead-in before the downbeat, so frame 0 sits at a tick ≥ 0.
         let per_beat = rate as f64 * 60.0 / bpm;
         let lead_beats = (first / per_beat).max(0.0);
-        let lead_bars = (lead_beats / bpb as f64).ceil() as i64;
+        // (A downbeat within a quarter beat of the start — an attack found a few samples
+        // in — has no lead-in.)
+        let lead_bars = ((lead_beats - 0.25).max(0.0) / bpb as f64).ceil() as i64;
         let base = lead_bars * bpb * PPQ;
         for (k, &f) in beats.iter().enumerate().skip(downbeat) {
             let beat = (k - downbeat) as i64;

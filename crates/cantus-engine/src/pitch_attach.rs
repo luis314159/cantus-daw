@@ -144,6 +144,12 @@ impl Renders {
         errors
     }
 
+    /// The render made for `key`, if it is held (the warp attach checks that a clip plays
+    /// it before rendering over it — round 29, ADR 0061).
+    pub fn render_of(&self, key: u64) -> Option<&Arc<SampleData>> {
+        self.done.get(&key)
+    }
+
     /// Free the renders only this store still holds.
     pub fn sweep(&mut self) {
         self.graveyard.retain(|d| Arc::strong_count(d) > 1);
