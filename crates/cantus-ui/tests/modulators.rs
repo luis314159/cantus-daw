@@ -843,48 +843,71 @@ fn a_handle_dropped_on_the_pinned_fader_connects_the_volume() {
 /// Review of fix4: the inspector's pinned strip shows where modulation has its controls
 /// the desk's way — the fader with the desk's mark beside its cap (not the value wells'
 /// edge tick), the pan knob with its own dot and rings, width and the wells with the edge
-/// tick.
+/// tick. Review of fix5: the probe notes a mark only where one is drawn — nothing
+/// modulated, nothing noted; only what is modulated, only its mark.
 #[test]
 fn the_pinned_strip_shows_its_modulation_the_desks_way() {
     use cantus_ui::kit::automate::probe;
-    let mut p = starter_project();
-    let t = p.tracks[0].id;
-    let s = p.tracks[0].strip.unwrap();
-    let mut m = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
-    for target in [AutoTarget::StripGain(s), AutoTarget::StripPan(s)] {
-        m.routes.push(ModRoute { target, depth: 0.3 });
-    }
-    p.modulators_mut(ModHost::Track(t)).unwrap().push(m);
-    let mut a = app(p);
-    a.select_track(t);
-    let ctx = ctx();
-    probe::start();
-    let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(
-            egui::Pos2::ZERO,
-            egui::vec2(360.0, 2400.0),
-        )),
-        ..Default::default()
+    // The marks the pinned strip draws, by control, with these routes modulated.
+    let marks = |routes: &[fn(StripId) -> AutoTarget]| -> Vec<(String, &'static str)> {
+        let mut p = starter_project();
+        let t = p.tracks[0].id;
+        let s = p.tracks[0].strip.unwrap();
+        if !routes.is_empty() {
+            let mut m = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+            for target in routes {
+                m.routes.push(ModRoute {
+                    target: target(s),
+                    depth: 0.3,
+                });
+            }
+            p.modulators_mut(ModHost::Track(t)).unwrap().push(m);
+        }
+        let mut a = app(p);
+        a.select_track(t);
+        let ctx = ctx();
+        probe::start();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(360.0, 2400.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| cantus_ui::views::inspector::show(&mut a, ui));
+        });
+        out.textures_delta.clear();
+        let _ = probe::take();
+        probe::take_live()
     };
-    let mut out = ctx.run_ui(input, |ui| {
-        egui::CentralPanel::default()
-            .frame(egui::Frame::NONE)
-            .show(ui, |ui| cantus_ui::views::inspector::show(&mut a, ui));
-    });
-    out.textures_delta.clear();
-    let live = probe::take_live();
-    let _ = probe::take();
-    let how = |name: &str| -> Vec<&'static str> {
+    let how = |live: &[(String, &'static str)], name: &str| -> Vec<&'static str> {
         live.iter()
             .filter(|(n, _)| n == name)
             .map(|(_, h)| *h)
             .collect()
     };
-    // The volume's fader the desk's way (its readout well beside keeps the edge tick).
-    assert!(how("kit.param.volume").contains(&"fader"), "{live:?}");
-    assert!(how("kit.param.pan").contains(&"knob"), "{live:?}");
-    assert!(
-        live.iter().any(|(_, h)| *h == "edge"),
-        "the value wells keep the edge tick: {live:?}"
+    let live = marks(&[AutoTarget::StripGain, AutoTarget::StripPan, AutoTarget::StripWidth]);
+    // The volume's fader the desk's way and the pan knob its own dot, their readout wells
+    // the edge tick; the width's well the edge tick.
+    let sorted = |name: &str| {
+        let mut v = how(&live, name);
+        v.sort_unstable();
+        v
+    };
+    assert_eq!(sorted("kit.param.volume"), vec!["edge", "fader"], "{live:?}");
+    assert_eq!(sorted("kit.param.pan"), vec!["edge", "knob"], "{live:?}");
+    assert_eq!(how(&live, "kit.param.width"), vec!["edge"], "{live:?}");
+    // Nothing modulated: no mark anywhere.
+    let none = marks(&[]);
+    assert!(none.is_empty(), "no modulation, no mark: {none:?}");
+    // Only the width: only its mark.
+    let width = marks(&[AutoTarget::StripWidth]);
+    assert_eq!(
+        width,
+        vec![("kit.param.width".to_string(), "edge")],
+        "only what is modulated"
     );
 }

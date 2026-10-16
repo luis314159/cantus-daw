@@ -660,20 +660,27 @@ impl PinMod {
         probe: &str,
     ) {
         use crate::kit::automate as a;
-        a::probe::note_live(probe, how.name());
         if self.offer.automated {
             a::mark(b, rect, s);
         }
         if self.n > 0 {
             a::mod_mark(b, rect, s);
             let live = self.offer.modulation.and_then(|m| m.live);
+            // The probe notes the mark where one is drawn (review of fix5: it noted the
+            // way asked for, drawn or not).
             match (how, live) {
                 (Live::Edge, Some(live)) => {
                     if let Some(p) = how.at(rect, s, live) {
                         b.hline(p.x, p.x + s.s(6.0), p.y, s.s(2.0), s.t.hue_mod);
+                        a::probe::note_live(probe, how.name());
                     }
                 }
-                (Live::Fader, Some(live)) => fader::live_mark(b, rect, s, live),
+                (Live::Fader, Some(live)) => {
+                    fader::live_mark(b, rect, s, live);
+                    a::probe::note_live(probe, how.name());
+                }
+                // The knob drew its dot and rings from the same offer (`Self::knob`).
+                (Live::Knob, Some(_)) => a::probe::note_live(probe, how.name()),
                 _ => {}
             }
         }
