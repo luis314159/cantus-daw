@@ -139,13 +139,13 @@ pub(crate) fn hosted_bits(v: HostedValue) -> (u32, u32) {
 
 /// When a control point is.
 #[derive(Copy, Clone, Debug)]
-pub(crate) struct At {
+pub(crate) struct At<'m> {
     /// The song position now and at the next grid point, in ticks.
     pub tick: f64,
     pub next_tick: f64,
     /// The same, as the modulators read time.
-    pub t: ModTime,
-    pub t_next: ModTime,
+    pub t: ModTime<'m>,
+    pub t_next: ModTime<'m>,
 }
 
 /// Everything the audio thread needs to play a snapshot's automation and modulators.

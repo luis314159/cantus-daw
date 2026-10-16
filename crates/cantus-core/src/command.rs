@@ -86,6 +86,59 @@ pub enum Command {
     SetPatternMode {
         on: bool,
     },
+    // --- the tempo track, metre changes and markers (round 29, ADR 0060) -------------
+    /// The tempo at tick 0 and the whole tempo track at once: `points` empty removes the
+    /// tempo track (the song plays at `bpm`); otherwise its first point is at tick 0, at
+    /// `bpm`.
+    SetTempoTrack {
+        bpm: f64,
+        points: Vec<crate::tempo::TempoPoint>,
+    },
+    /// A tempo point between two others (never before the first).
+    InsertTempoPoint {
+        index: usize,
+        point: crate::tempo::TempoPoint,
+    },
+    RemoveTempoPoint {
+        index: usize,
+    },
+    /// A point moved, its tempo or its ramp changed; it stays between its neighbours (the
+    /// first stays at tick 0, and sets the song's tempo).
+    SetTempoPoint {
+        index: usize,
+        point: crate::tempo::TempoPoint,
+    },
+    /// The metre at tick 0 and every metre change at once (empty: one metre).
+    SetMetreTrack {
+        signature: TimeSignature,
+        metres: Vec<crate::tempo::MetreChange>,
+    },
+    /// A metre change at a bar line (added, or the one there changed); the changes after
+    /// it keep their bars.
+    SetMetreAt {
+        tick: Ticks,
+        signature: TimeSignature,
+    },
+    /// The metre change at `tick` removed; the changes after it keep their bars.
+    RemoveMetreAt {
+        tick: Ticks,
+    },
+    /// The metre change at `from` moved to the bar line `to` of the metre before it; the
+    /// changes after it keep their bars.
+    MoveMetre {
+        from: Ticks,
+        to: Ticks,
+    },
+    AddMarker {
+        marker: crate::tempo::Marker,
+    },
+    RemoveMarker {
+        id: crate::tempo::MarkerId,
+    },
+    /// A marker moved, renamed or recoloured.
+    SetMarker {
+        marker: crate::tempo::Marker,
+    },
     SetMasterGain {
         gain_db: f32,
     },
@@ -676,6 +729,17 @@ impl Command {
             SetProjectName { .. } => "cmd.set_project_name",
             SetTempo { .. } => "cmd.set_tempo",
             SetTimeSignature { .. } => "cmd.set_time_signature",
+            SetTempoTrack { .. } => "cmd.tempo.track",
+            InsertTempoPoint { .. } => "cmd.tempo.add_point",
+            RemoveTempoPoint { .. } => "cmd.tempo.remove_point",
+            SetTempoPoint { .. } => "cmd.tempo.set_point",
+            SetMetreTrack { .. } => "cmd.tempo.metres",
+            SetMetreAt { .. } => "cmd.tempo.set_metre",
+            RemoveMetreAt { .. } => "cmd.tempo.remove_metre",
+            MoveMetre { .. } => "cmd.tempo.move_metre",
+            AddMarker { .. } => "cmd.tempo.add_marker",
+            RemoveMarker { .. } => "cmd.tempo.remove_marker",
+            SetMarker { .. } => "cmd.tempo.set_marker",
             SetLoopRegion { .. } => "cmd.set_loop_region",
             SetLoopEnabled { .. } => "cmd.set_loop_enabled",
             SetMetronome { .. } => "cmd.set_metronome",
@@ -805,7 +869,11 @@ impl Command {
             | (SetMasterPhaseInvert { .. }, SetMasterPhaseInvert { .. })
             | (SetMasterFxEnabled { .. }, SetMasterFxEnabled { .. })
             | (SetPanLaw { .. }, SetPanLaw { .. })
-            | (SetRecordSettings { .. }, SetRecordSettings { .. }) => true,
+            | (SetRecordSettings { .. }, SetRecordSettings { .. })
+            | (SetTempoTrack { .. }, SetTempoTrack { .. })
+            | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
+            (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
+            (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             (
                 SetClipAudio {
@@ -1087,6 +1155,10 @@ impl Command {
             SetTempo { bpm } => {
                 let old = project.tempo_bpm;
                 project.tempo_bpm = clamp_bpm(bpm);
+                // With a tempo track its first point is the song's tempo (ADR 0060).
+                if let Some(p) = project.tempo_points.first_mut() {
+                    p.bpm = project.tempo_bpm;
+                }
                 Ok(SetTempo { bpm: old })
             }
             SetTimeSignature { time_signature } => {
@@ -1098,6 +1170,11 @@ impl Command {
                     )));
                 }
                 let old = std::mem::replace(&mut project.time_signature, time_signature);
+                // With metre changes the first is the song's metre (ADR 0060); the later
+                // ones stay at their ticks.
+                if let Some(m) = project.metre_changes.first_mut() {
+                    m.signature = time_signature;
+                }
                 Ok(SetTimeSignature {
                     time_signature: old,
                 })
@@ -2298,6 +2375,29 @@ impl Command {
                 modulator,
             } => crate::modulator::apply_insert(project, host, index, *modulator),
             RemoveModulator { id } => crate::modulator::apply_remove(project, id),
+            SetTempoTrack { bpm, points } => {
+                crate::tempo::edit::apply_set_tempo_track(project, bpm, points)
+            }
+            InsertTempoPoint { index, point } => {
+                crate::tempo::edit::apply_insert_tempo_point(project, index, point)
+            }
+            RemoveTempoPoint { index } => {
+                crate::tempo::edit::apply_remove_tempo_point(project, index)
+            }
+            SetTempoPoint { index, point } => {
+                crate::tempo::edit::apply_set_tempo_point(project, index, point)
+            }
+            SetMetreTrack { signature, metres } => {
+                crate::tempo::edit::apply_set_metre_track(project, signature, metres)
+            }
+            SetMetreAt { tick, signature } => {
+                crate::tempo::edit::apply_set_metre_at(project, tick, signature)
+            }
+            RemoveMetreAt { tick } => crate::tempo::edit::apply_remove_metre_at(project, tick),
+            MoveMetre { from, to } => crate::tempo::edit::apply_move_metre(project, from, to),
+            AddMarker { marker } => crate::tempo::edit::apply_add_marker(project, marker),
+            RemoveMarker { id } => crate::tempo::edit::apply_remove_marker(project, id),
+            SetMarker { marker } => crate::tempo::edit::apply_set_marker(project, marker),
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,

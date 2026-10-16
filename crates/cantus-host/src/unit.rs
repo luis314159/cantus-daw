@@ -404,12 +404,16 @@ pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
         playing: p.playing,
         recording: false,
         tempo_bpm: p.tempo_bpm,
+        tempo_inc: p.tempo_inc,
         position_beats: p.beats,
         position_samples: p.samples,
+        position_seconds: p.seconds,
         bar_start_beats: p.bar_start_beats,
+        bar_number: p.bar_number,
         time_sig_num: p.time_sig_num,
         time_sig_den: p.time_sig_den,
         loop_beats: p.loop_beats,
+        loop_seconds: p.loop_seconds,
     }
 }
 
@@ -481,6 +485,71 @@ impl FxUnit for HostedUnit {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ADR 0060: a hosted plug-in hears the song through the tempo map — under a ramp from
+    /// 90 to 140 BPM over 32 beats, then a bar of 7/8 — the real seconds (CLAP's
+    /// `song_pos_seconds`, VST3's `projectTimeSamples`), the tempo of the step and how fast
+    /// it moves (`tempo_inc`), the bar's start and number counted through the metre.
+    #[test]
+    fn a_hosted_plug_in_hears_the_tempo_map() {
+        use cantus_core::tempo::{MetreChange, TempoPoint};
+        use cantus_core::{TempoMap, Ticks, TimeSignature};
+        let map = TempoMap::new(
+            90.0,
+            TimeSignature::default(),
+            &[
+                TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: 90.0,
+                    ramp: true,
+                },
+                TempoPoint {
+                    tick: Ticks::beats(32),
+                    bpm: 140.0,
+                    ramp: false,
+                },
+            ],
+            &[
+                MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: TimeSignature::default(),
+                },
+                MetreChange {
+                    tick: Ticks::beats(36),
+                    signature: TimeSignature::new(7, 8),
+                },
+            ],
+        );
+        let sr = 48_000.0;
+        // Inside the ramp, at beat 10.3.
+        let tick = 10.3 * 960.0;
+        let p = cantus_engine::fx::position_at_tick(&map, tick, true, sr);
+        let t = transport_of(&p);
+        assert!((t.position_seconds - map.seconds_at(tick)).abs() < 1e-12);
+        let step = map.step_start(tick);
+        assert_eq!(t.tempo_bpm, map.bpm_at(step));
+        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(step) * 960.0 / (60.0 * sr);
+        assert!(
+            (t.tempo_inc - inc).abs() < 1e-15,
+            "{} vs {inc}",
+            t.tempo_inc
+        );
+        assert_eq!((t.bar_start_beats, t.bar_number), (8.0, 2));
+        let e = crate::clap::transport_event_for_tests(&t);
+        let secs = map.seconds_at(tick);
+        assert_eq!(
+            e.song_pos_seconds,
+            (secs * (1u64 << 31) as f64).round() as i64
+        );
+        assert_eq!(e.tempo_inc, t.tempo_inc);
+        assert_eq!(e.bar_number, 2);
+        // In the bar of 7/8 after the ramp: bar 10 (index 9), its start at beat 36.
+        let p = cantus_engine::fx::position_at_tick(&map, 36.5 * 960.0, true, sr);
+        let t = transport_of(&p);
+        assert_eq!((t.time_sig_num, t.time_sig_den), (7, 8));
+        assert_eq!((t.bar_start_beats, t.bar_number), (36.0, 9));
+        assert_eq!((t.tempo_bpm, t.tempo_inc), (140.0, 0.0));
+    }
 
     fn info(id: u32) -> ParamInfo {
         ParamInfo {

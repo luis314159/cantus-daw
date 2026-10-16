@@ -737,6 +737,15 @@ fn migrate_30_to_31(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 33 (round 29, tempo — ADR 0060): the tempo track (`Project::tempo_points`, each
+/// point holding or ramping), the metre changes (`metre_changes`) and the named markers
+/// (`markers`). A file without them has one tempo, one metre and no markers — what every
+/// older file meant — so the step writes nothing; the number makes an older build refuse a
+/// file whose tempo changes it would play at one tempo.
+fn migrate_32_to_33(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Schema 32 (round 28, fix4 of ADR 0058): a comp window says it is one (`Clip::comp`)
 /// instead of being recognised by where it lies — a copy pasted over its takes was taken
 /// for a window. The step writes the flag on every clip schema 31 counted as a comp
@@ -775,13 +784,6 @@ fn migrate_31_to_32(value: &mut Value) -> Result<(), String> {
             }
         }
     }
-    Ok(())
-}
-
-/// Schema 33 is round 29's tempo track (the *tempo* builder's step). In the *warp*
-/// builder's branch it writes nothing; the integrator keeps tempo's step here and chains
-/// 34 after it.
-fn migrate_32_to_33(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -946,6 +948,32 @@ mod tests {
     /// Schema 26 (round 28, ADR 0052): the fixture's metronome has the woodblock voice and
     /// no accent, and the song is saved in pattern mode; an older file (25) opens with the
     /// classic accented click in song mode — what it always played.
+    /// Schema 33 (round 29, ADR 0060): the fixture's tempo track (a ramp from the song's
+    /// tempo to 140 over four bars, then 100), its metre changes (a bar of 7/8 at bar 3,
+    /// 3/4 from bar 4) and its markers come back as they were; an older file (32) opens
+    /// with one tempo, one metre and no markers, and its map is the constant one.
+    #[test]
+    fn schema_33_keeps_the_tempo_track_metres_and_markers() {
+        use cantus_core::{Ticks, TimeSignature};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        assert_eq!(p.tempo_points.len(), 3);
+        assert!(p.tempo_points[0].ramp);
+        assert_eq!(p.tempo_points[0].bpm, p.tempo_bpm);
+        assert_eq!(p.tempo_points[1].bpm, 140.0);
+        let map = p.tempo_map();
+        assert!(!map.is_constant());
+        assert_eq!(map.signature_at(Ticks(7680)), TimeSignature::new(7, 8));
+        assert_eq!(map.signature_at(Ticks(11_040)), TimeSignature::new(3, 4));
+        let names: Vec<&str> = p.markers.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["Intro", "Verse", "Chorus"]);
+        let old = std::fs::read_to_string(dir.join("v32.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tempo_points.is_empty() && p.metre_changes.is_empty() && p.markers.is_empty());
+        assert!(p.tempo_map().is_constant() && p.tempo_map().is_one_metre());
+    }
+
     #[test]
     fn schema_26_keeps_the_metronome_voice_and_the_pattern_mode() {
         use cantus_core::ClickSound;

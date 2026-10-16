@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 34,
   "app_version": "fixture",
-  "saved_at": 1792191680,
+  "saved_at": 1792191934,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -2726,7 +2726,62 @@
       "comp_xfade_ms": 15.0
     },
     "pattern_mode": true,
-    "next_id": 86
+    "tempo_points": [
+      {
+        "tick": 0,
+        "bpm": 96.0,
+        "ramp": true
+      },
+      {
+        "tick": 15360,
+        "bpm": 140.0
+      },
+      {
+        "tick": 30720,
+        "bpm": 100.0
+      }
+    ],
+    "metre_changes": [
+      {
+        "tick": 0,
+        "signature": {
+          "numerator": 4,
+          "denominator": 4
+        }
+      },
+      {
+        "tick": 7680,
+        "signature": {
+          "numerator": 7,
+          "denominator": 8
+        }
+      },
+      {
+        "tick": 11040,
+        "signature": {
+          "numerator": 3,
+          "denominator": 4
+        }
+      }
+    ],
+    "markers": [
+      {
+        "id": 86,
+        "tick": 0,
+        "name": "Intro"
+      },
+      {
+        "id": 87,
+        "tick": 7680,
+        "name": "Verse"
+      },
+      {
+        "id": 88,
+        "tick": 11040,
+        "name": "Chorus"
+      }
+    ],
+    "next_id": 89
   },
-  "integrity": "3c1919108385ba4d603f17006f95b46fb6ab0f7ac72b9375d04f1866c1e57fd4"
+  "integrity": "c61737721ff809252b0435c8825afa3907830da0ddd1608ca6d7d6e207b09f38"
 }

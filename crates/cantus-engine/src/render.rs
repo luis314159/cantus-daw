@@ -224,9 +224,10 @@ pub fn render_with_progress(
     tx.push(EngineMessage::Seek(opts.start)).ok();
     tx.push(EngineMessage::Play).ok();
 
-    let content_seconds = (end - opts.start)
-        .max(Ticks::ZERO)
-        .to_seconds(snapshot.tempo_bpm);
+    // Through the tempo map (ADR 0060); one tempo, `(end − start).to_seconds(bpm)`.
+    let content_seconds = snapshot
+        .tempo
+        .seconds_between(opts.start, end.max(opts.start));
     let total_frames = ((content_seconds + opts.tail_seconds) * sr).ceil() as usize;
     // With `compensate_latency`, sample 0 is the range's first tick: the master's lateness
     // is rendered on and dropped from the front.
@@ -242,7 +243,7 @@ pub fn render_with_progress(
     // The stop falls on the sample the transport reaches `end` at (its own arithmetic: a
     // note starting exactly there must not fire before the stop).
     let mut stop_at = opts.end.map(|e| {
-        crate::transport::sample_at(opts.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr)
+        crate::transport::sample_at_map(&snapshot.tempo, opts.start.0 as f64, e.0 as f64, sr)
             as usize
     });
     let mut out = vec![0f32; total_frames * channels];

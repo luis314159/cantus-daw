@@ -70,6 +70,15 @@ impl Processor {
             }
             // A control point due now runs first; the pass ends at the next one.
             let mut end = self.auto_point(done, frames).min(done + PASS_FRAMES);
+            // A tempo step (a point, or a ramp's next step) ends a pass too, so the units
+            // that follow the tempo hear each step from its first sample (ADR 0060 §4).
+            if self.transport.is_playing() {
+                if let Some(k) = self.transport.samples_until_step() {
+                    if k > 0 {
+                        end = end.min(done + k as usize);
+                    }
+                }
+            }
             let mut wrap = false;
             if self.transport.is_playing() && snap.is_some() {
                 let off = self.transport.samples_until_loop_end();
@@ -322,26 +331,54 @@ impl Processor {
             }
         }
         if self.click_on() && self.transport.samples_until(self.next_beat_tick) == 0 {
+            let accent = self.click_beat(snap);
+            if self.click_allowed() {
+                self.click.trigger(accent);
+            }
+        }
+    }
+
+    /// The click's beat due now: whether it starts a bar (the accent) — and the next beat
+    /// set. With one metre the old arithmetic, to the bit; with metre changes through the
+    /// map, so a bar of 7/8 clicks its seven eighths and every bar 1 is accented (ADR 0060).
+    pub(super) fn click_beat(&mut self, snap: &Snapshot) -> bool {
+        let map = &snap.tempo;
+        if map.is_one_metre() {
             let beat_len = snap.time_signature.ticks_per_beat().0 as f64;
             let bar_len = snap.time_signature.ticks_per_bar().0 as f64;
             let in_bar = self.next_beat_tick.rem_euclid(bar_len);
-            if self.click_allowed() {
-                self.click.trigger(in_bar.abs() < 0.5);
-            }
             self.next_beat_tick += beat_len;
+            in_bar.abs() < 0.5
+        } else {
+            let t = cantus_core::Ticks(self.next_beat_tick.round() as i64);
+            self.next_beat_tick = map.beat_after(t).0 as f64;
+            map.bar_start(t) == t
         }
     }
 
     fn wrap_loop(&mut self) {
         // `Transport::advance` already moved the playhead to loop start when it detected
         // the wrap; if it has not (boundary exactly at segment start), force it.
+        let mut from = None;
         if let Some(l) = self.transport.loop_region().cloned() {
             if self.transport.samples_until_loop_end() == Some(0) {
                 self.transport.wrap_to(l.start);
             }
+            // The loop's start itself, when the playhead is within its first sample.
+            let start = l.start.0 as f64;
+            let pos = self.transport.position_f64();
+            if pos >= start
+                && self.transport.samples_until(start) == 0
+                && self.transport.samples() == 0
+            {
+                from = Some(start);
+            }
         }
         self.release_all();
-        self.reseek_events();
+        match from {
+            Some(start) => self.reseek_events_from(start),
+            None => self.reseek_events(),
+        }
         self.record_wrapped();
     }
 

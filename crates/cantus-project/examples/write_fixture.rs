@@ -681,6 +681,53 @@ fn main() {
             vocal.clips.sort_by_key(|c| (c.start, c.id));
         }
     }
+    // Schema 33 (round 29, tempo — ADR 0060): a tempo track — a ramp from the song's tempo
+    // to 140 over four bars, holding at 140, then 100 from bar 9 — a bar of 7/8 at bar 3
+    // and 3/4 from bar 4, and three markers.
+    {
+        use cantus_core::tempo::{Marker, MarkerId, MetreChange, TempoPoint};
+        use cantus_core::TimeSignature;
+        p.tempo_points = vec![
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: p.tempo_bpm,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(16),
+                bpm: 140.0,
+                ramp: false,
+            },
+            TempoPoint {
+                tick: Ticks::beats(32),
+                bpm: 100.0,
+                ramp: false,
+            },
+        ];
+        p.metre_changes = vec![
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: p.time_signature,
+            },
+            MetreChange {
+                tick: Ticks(7680),
+                signature: TimeSignature::new(7, 8),
+            },
+            MetreChange {
+                tick: Ticks(7680 + 3360),
+                signature: TimeSignature::new(3, 4),
+            },
+        ];
+        for (name, tick) in [("Intro", 0), ("Verse", 7680), ("Chorus", 11_040)] {
+            let id = MarkerId(next_id(&mut p.next_id));
+            p.markers.push(Marker {
+                id,
+                tick: Ticks(tick),
+                name: name.into(),
+                color: None,
+            });
+        }
+    }
     // Schema 34 (round 29, warp — ADR 0061): the vocal's first playing window warped —
     // Melodic, three semitones down, its formants kept, a marker on beat 2 moved a little
     // late (the take slowed into it) — so a v34 file holds every warp field but the tail.

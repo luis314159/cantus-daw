@@ -191,17 +191,31 @@ pub enum FxParamEvent {
 #[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct SongPosition {
     pub playing: bool,
+    /// The tempo of this block: the tempo at the playhead, held for one step of a ramp
+    /// (ADR 0060 §4: a ramp is told in steps of `RAMP_STEP` ticks, each starting a pass).
     pub tempo_bpm: f64,
+    /// How fast the tempo moves inside a ramp, in BPM per sample (CLAP's `tempo_inc`);
+    /// 0 while it holds.
+    pub tempo_inc: f64,
     /// Quarter notes from the song start.
     pub beats: f64,
-    /// Samples from the song start at the current tempo.
+    /// Samples from the song start at the current tempo: the beats as samples at
+    /// `tempo_bpm` — what a synced phase counts (the modulation family's clock). Inside a
+    /// ramp, counted on from the step's start, so it moves one per sample within a step.
     pub samples: i64,
+    /// Seconds from the song start through the tempo map: the real time a host's
+    /// `song_pos_seconds` and `projectTimeSamples` report.
+    pub seconds: f64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
+    /// The current bar's index from bar 1 (0-based), counted through every metre change.
+    pub bar_number: i32,
     pub time_sig_num: u16,
     pub time_sig_den: u16,
     /// The loop, in quarter notes, when looping.
     pub loop_beats: Option<(f64, f64)>,
+    /// The loop in song seconds (through the tempo map), when looping.
+    pub loop_seconds: Option<(f64, f64)>,
     /// After a loop wrap (none since the start or a seek): the wraps the audio a late
     /// insert hears may lie behind. What [`Self::earlier`] folds by — exactly where the
     /// engine cuts its passes.
@@ -346,6 +360,33 @@ impl SongPosition {
     /// placed at the samples the engine cut its passes ([`Wraps::before_wrap`]).
     /// Unchanged at 0 and while stopped (nothing plays: the parked playhead is where it
     /// was), to the bit.
+    pub fn earlier_in(
+        &self,
+        frames: usize,
+        sample_rate: f64,
+        map: &cantus_core::TempoMap,
+    ) -> SongPosition {
+        if map.is_constant() && map.is_one_metre() {
+            return self.earlier(frames, sample_rate);
+        }
+        if frames == 0 || !self.playing {
+            return *self;
+        }
+        let ppq = cantus_core::PPQ as f64;
+        let back = frames as f64 / sample_rate.max(1.0);
+        let mut tick = map.tick_after_seconds(self.beats * ppq, -back);
+        if let Some((r, end)) = self.wrap.and_then(|w| w.locate(frames as u64)) {
+            tick = map.tick_after_seconds(end * ppq, -(r as f64) / sample_rate.max(1.0));
+        }
+        SongPosition {
+            loop_beats: self.loop_beats,
+            loop_seconds: self.loop_seconds,
+            wrap: self.wrap,
+            ..position_at_tick(map, tick, true, sample_rate)
+        }
+    }
+
+    /// [`Self::earlier_in`] at one tempo and one metre: the constant arithmetic.
     pub fn earlier(&self, frames: usize, sample_rate: f64) -> SongPosition {
         if frames == 0 || !self.playing {
             return *self;
@@ -359,9 +400,60 @@ impl SongPosition {
         SongPosition {
             beats,
             samples: (beats * 60.0 / self.tempo_bpm.max(1e-9) * sample_rate).round() as i64,
+            seconds: beats * (60.0 / self.tempo_bpm.max(1e-9)),
             bar_start_beats: (beats / bar).floor() * bar,
+            bar_number: (beats / bar).floor() as i32,
             ..*self
         }
+    }
+}
+
+/// Where the song is at `tick` through `map` (ADR 0060), for a unit that follows it: the
+/// tempo of the step that holds `tick`, the beats, the beats as samples at that tempo
+/// counted on from the step's start, the real seconds, the bar and the metre in force.
+/// The loop and its wraps are the caller's.
+pub fn position_at_tick(
+    map: &cantus_core::TempoMap,
+    tick: f64,
+    playing: bool,
+    sample_rate: f64,
+) -> SongPosition {
+    position_at_step(map, tick, map.step_start(tick), playing, sample_rate)
+}
+
+/// [`position_at_tick`] with the step's start given (the transport knows it to the
+/// sample).
+pub fn position_at_step(
+    map: &cantus_core::TempoMap,
+    tick: f64,
+    step: f64,
+    playing: bool,
+    sample_rate: f64,
+) -> SongPosition {
+    let ppq = cantus_core::PPQ as f64;
+    let beats = tick / ppq;
+    let tempo = map.bpm_at(step);
+    let sig = map.signature_at(cantus_core::Ticks(tick.floor() as i64));
+    // Inside a ramp: the step's beats as samples at its tempo, then one per sample.
+    let samples = if map.in_ramp(step) {
+        step / ppq * 60.0 / tempo * sample_rate + map.seconds_between_f64(step, tick) * sample_rate
+    } else {
+        beats * 60.0 / tempo.max(1e-9) * sample_rate
+    };
+    SongPosition {
+        playing,
+        tempo_bpm: tempo,
+        tempo_inc: map.slope_at(step) * tempo * ppq / (60.0 * sample_rate.max(1.0)),
+        beats,
+        samples: samples.round() as i64,
+        seconds: map.seconds_at(tick),
+        bar_start_beats: map.bar_start(cantus_core::Ticks(tick.floor() as i64)).0 as f64 / ppq,
+        bar_number: (map.bbt(cantus_core::Ticks(tick.floor() as i64)).0 - 1) as i32,
+        time_sig_num: u16::from(sig.numerator),
+        time_sig_den: u16::from(sig.denominator),
+        loop_beats: None,
+        loop_seconds: None,
+        wrap: None,
     }
 }
 
@@ -419,7 +511,11 @@ mod position_tests {
             tempo_bpm: 120.0,
             beats: 8.25,
             samples: 198_000,
+            tempo_inc: 0.0,
+            seconds: 4.125,
             bar_start_beats: 8.0,
+            bar_number: 2,
+            loop_seconds: Some((4.0, 8.0)),
             time_sig_num: 4,
             time_sig_den: 4,
             loop_beats: Some((8.0, 16.0)),
@@ -455,7 +551,11 @@ mod position_tests {
             tempo_bpm: 120.0,
             beats: 8.25,
             samples: 198_000,
+            tempo_inc: 0.0,
+            seconds: 4.125,
             bar_start_beats: 8.0,
+            bar_number: 2,
+            loop_seconds: Some((4.0, 8.0)),
             time_sig_num: 4,
             time_sig_den: 4,
             loop_beats: Some((8.0, 16.0)),

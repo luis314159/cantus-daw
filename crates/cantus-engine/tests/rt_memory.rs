@@ -856,3 +856,72 @@ fn streaming_voices_never_allocate() {
         );
     }
 }
+
+/// The tempo map (ADR 0060) on the audio thread: a ramp, a step and metre changes played
+/// through — passes cut at the steps, the click counted through the metres, a synced
+/// tremolo and automation following, a loop over the tempo change wrapping — then the map
+/// edited while it plays (the transport re-anchors and lets go of the old map, which the
+/// old snapshot still holds), a seek before the song (the count-in), a stop. Serially and
+/// with the pool. Not one allocation, not one free.
+#[test]
+fn a_tempo_map_never_allocates() {
+    use cantus_core::tempo::{MetreChange, TempoPoint};
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.tempo_bpm = 90.0;
+        let pt = |beats: i64, bpm: f64, ramp: bool| TempoPoint {
+            tick: Ticks::beats(beats),
+            bpm,
+            ramp,
+        };
+        p.tempo_points = vec![pt(0, 90.0, true), pt(4, 140.0, false), pt(6, 100.0, false)];
+        p.metre_changes = vec![
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: TimeSignature::new(4, 4),
+            },
+            MetreChange {
+                tick: Ticks::beats(4),
+                signature: TimeSignature::new(7, 8),
+            },
+        ];
+        p.metronome = true;
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(2),
+            end: Ticks::beats(7),
+        });
+        p.loop_enabled = true;
+        let s0 = p.tracks[0].strip.unwrap();
+        let trem = p.make_effect(EffectKind::Tremolo);
+        p.strip_mut(s0).unwrap().effects.push(trem);
+        let points = vec![
+            AutoPoint::new(Ticks::ZERO, 0.2),
+            AutoPoint::new(Ticks::beats(6), 0.9),
+        ];
+        let c = p.make_automation_clip(
+            "a",
+            AutoTarget::StripGain(s0),
+            Ticks::ZERO,
+            Ticks::beats(8),
+            points,
+        );
+        p.tracks[0].clips.push(c);
+        let mut rig = Rig::with(workers);
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("tempo map: the ramp, the loop", 400);
+        p.tempo_points[1].bpm = 150.0;
+        rig.snapshot(&p);
+        rig.play("tempo map: edited while playing", 40);
+        rig.tx.push(EngineMessage::Seek(Ticks(-3840))).unwrap();
+        rig.play("tempo map: the count-in", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("tempo map: stopped", 8);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "the tempo map allocated or freed: {:?} (the first of the last phase: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

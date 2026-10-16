@@ -188,10 +188,11 @@ pub(crate) fn add_track_audio(
 }
 
 /// The transport sample (counted from its origin) a timeline tick falls on, to the
-/// nearest sample.
+/// nearest sample — through the tempo map (ADR 0060), the constant arithmetic where the
+/// tempo holds.
 #[inline]
-fn sample_of(tick: f64, origin: f64, tps: f64) -> i64 {
-    ((tick - origin) / tps).round() as i64
+fn sample_of(tick: f64, transport: &Transport) -> i64 {
+    transport.sample_of_f64(tick).round() as i64
 }
 
 /// Add every audio clip sounding in this segment into `l`/`r` (`l.len()` frames from the
@@ -214,21 +215,18 @@ pub(super) fn add_clips(
     clear: &mut dyn FnMut(&mut [f32], &mut [f32]),
 ) -> bool {
     let n = l.len() as i64;
-    let tps = transport.ticks_per_sample();
-    if tps <= 0.0 || n == 0 {
+    if n == 0 {
         return false;
     }
-    let origin = transport.origin_tick();
-    let sr = transport.sample_rate();
     let s0 = transport.samples() as i64;
     let s1 = s0 + n;
     let mut sounded = false;
     for c in clips {
-        let start = sample_of(c.start.0 as f64, origin, tps);
+        let start = sample_of(c.start.0 as f64, transport);
         if start >= s1 {
             break; // Sorted by start: nothing later begins in this segment.
         }
-        let end = sample_of(c.end.0 as f64, origin, tps);
+        let end = sample_of(c.end.0 as f64, transport);
         let len = end - start;
         if end <= s0 || len <= 0 {
             continue;
@@ -242,11 +240,18 @@ pub(super) fn add_clips(
         // content origin (`start − offset`, whole ticks) less the region's fine offset.
         // One rounding keeps the halves of a split seamless, and the fine offset puts a
         // take where it was played to the sample (ADR 0025 §7).
-        let zero = (((c.start.0 - c.offset.0) as f64 - origin) / tps - c.slip * sr).round() as i64;
+        // Unwarped (ADR 0060 §5, `cantus_core::audio_time`): natural speed, anchored at
+        // the window's start, the offset read at the tempo there.
+        let zero = transport.clip_zero(c.start, c.offset, c.slip);
         // The file frame under the window's first sample.
         let offset = start - zero;
-        let mut fade_in = (c.fade_in.0.max(0) as f64 / tps).round() as i64;
-        let mut fade_out = (c.fade_out.0.max(0) as f64 / tps).round() as i64;
+        let (s_tick, e_tick) = (c.start.0 as f64, c.end.0 as f64);
+        let mut fade_in = transport
+            .samples_between(s_tick, s_tick + c.fade_in.0.max(0) as f64)
+            .round() as i64;
+        let mut fade_out = transport
+            .samples_between(e_tick - c.fade_out.0.max(0) as f64, e_tick)
+            .round() as i64;
         if fade_in + fade_out > len {
             let fi = (fade_in as i128 * len as i128 / (fade_in + fade_out) as i128) as i64;
             fade_out = len - fi;
@@ -280,8 +285,8 @@ pub(super) fn add_clips(
         let stretch = |x: Option<(cantus_core::Ticks, cantus_core::Ticks)>| {
             x.map(|(a, b)| {
                 let (a, b) = (
-                    sample_of(a.0 as f64, origin, tps),
-                    sample_of(b.0 as f64, origin, tps),
+                    sample_of(a.0 as f64, transport),
+                    sample_of(b.0 as f64, transport),
                 );
                 (a, (b - a).max(1))
             })

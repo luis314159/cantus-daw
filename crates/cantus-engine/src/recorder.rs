@@ -399,6 +399,7 @@ impl EngineHandle {
             tracks,
             rate,
             tempo_bpm: snapshot.tempo_bpm,
+            tempo: snapshot.tempo.clone(),
             stop,
             hold,
             writer: Some(writer),
@@ -499,8 +500,18 @@ impl EngineHandle {
         };
         let outcomes = pass.end();
         let latency = self.rec.latency.total();
-        // Ticks per frame at the tempo the pass was recorded at.
+        // Ticks per frame at the tempo the pass was recorded at (one tempo); through the
+        // tempo map it was recorded under otherwise (ADR 0060), so a take played across a
+        // ramp lands where it was played.
         let tpf = pass.tempo_bpm * cantus_core::PPQ as f64 / (60.0 * pass.rate as f64);
+        let back = |started: f64| {
+            if pass.tempo.is_constant() {
+                started - latency as f64 * tpf
+            } else {
+                pass.tempo
+                    .tick_after_seconds(started, -(latency as f64) / f64::from(pass.rate.max(1)))
+            }
+        };
         let mut takes = Vec::new();
         for (o, t) in outcomes.into_iter().zip(&pass.tracks) {
             let frames = o.samples / t.channels.max(1) as u64;
@@ -518,7 +529,7 @@ impl EngineHandle {
                 sample_rate: pass.rate,
                 channels: t.channels as u8,
                 frames,
-                start_tick: started - latency as f64 * tpf,
+                start_tick: back(started),
                 wraps: pass
                     .wraps
                     .iter()
@@ -554,6 +565,8 @@ struct Pass {
     tracks: Vec<PassTrack>,
     rate: u32,
     tempo_bpm: f64,
+    /// The tempo map the pass was recorded under (ADR 0060).
+    tempo: Arc<cantus_core::TempoMap>,
     stop: Arc<AtomicBool>,
     /// While set the writer does not drain (a test standing in for a disk that stalls).
     hold: Arc<AtomicBool>,
