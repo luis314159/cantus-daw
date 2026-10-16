@@ -47,3 +47,17 @@ tree break each other's builds.
 branch, and to declare extra modules with `#[path]` inside their own files so shared
 `lib.rs`/`mod.rs` stay untouched. Coordinate with any other live Cantus session first
 (ListAgents / SendMessage). See [[cantus-workflow-habits]].
+
+Round 28 (2026-10-14/16) added:
+- An agent stopped twice in a row by an API safeguard false positive: launch a **fresh agent
+  on the same branch** with a brief of what is done (commits) and what is left; it works.
+- **Fix branches share the integration target** (`target-dir` in their untracked
+  `.cargo/config.toml`): warm builds, one target on a nearly full disk — but never build in
+  integration while they run (cargo's lock).
+- A builder can `git add` its untracked `.cargo/config.toml`: check `git ls-tree -r <branch>
+  --name-only | grep ^.cargo` before every merge.
+- **Review every fix round**, not only the features: second reviews found regressions the
+  first-round fixes introduced. Counts per round fell 45 → 20 → 25 → 13 → 6 → 6 (low).
+- Reviewers (Workflow) must be read-only (no cargo): RAM belongs to the builders.
+- Two parallel branches editing the same exported-plug-in function (notes + transport):
+  expect to reconcile semantics by hand, not just text (round 28's HostSeen beats/last_beats).

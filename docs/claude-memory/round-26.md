@@ -33,7 +33,6 @@ choices (work e-mail rewrite, new repo, publish docs/claude-memory?). The WSL vh
 on C:, 8 GB used) needs an admin `diskpart compact vdisk`. BACKLOG §6g added (double-click
 track/clip, type-to-rename, Open editor raises minimised window).
 
-Cleanup pending owner OK: worktrees in daw-r25 and daw-r26, `public-copy`, `public-tmp`,
-`downloads` (Salamander archive 707 MiB), `shots` (5.9 GB).
+**Pushed 2026-10-14** as one squashed commit, master c76e85f (owner: "limpia lo que necesites y sube a master"). Cleanup done: every r25/r26 worktree removed (branches kept locally - r26/public's history holds the old work-address blobs: never push r26/* branches), daw-r23/24/25 deleted except `daw-r25\builds\night` (the owner was running Cantus from it). Kept: `F:\projects\daw-r26\builds\` (test build: setup + portable), `private\`, `downloads\` (Salamander archive for shoot_readme). A stray WSL clone at `F:\projects\cantus\cantus` made by an agent was removed. Site deploy probably waits for Actions minutes.
 
 See [[round-25]], [[feedback-no-leftovers]], [[gotcha-boot-path]], [[cantus-parallel-builders]].

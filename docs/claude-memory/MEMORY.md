@@ -18,6 +18,8 @@
 - [Round 25: mixer cabling + themes/icon](round-25.md) — done, master ffffe50; next = docs/next-session.md (round 26); Actions minutes out, keep history until public
 - [Decision: licences MPL engine + CLA](decision-licensing-mpl-cla.md) — engine MPL-2.0, app GPL, CLA with free-forever promise, trademark policy; ADR 0047
 - [CI is Linux too](feedback-ci-linux.md) — -D warnings + fmt --check on Ubuntu; run tools/wsl/check.sh before pushing
-- [Round 26: beta minus hardware/paperwork](round-26.md) — r26/integration verified green Win+Linux, test build in daw-r26/builds; squash to master; owner decisions pending
+- [Round 26: beta minus hardware/paperwork](round-26.md) — pushed as master c76e85f (2026-10-14, squashed); test build in daw-r26/builds; never push r26/* branches
 - [No leftovers](feedback-no-leftovers.md) — close every gap a feature leaves in the same round; only owner-only items stay open
 - [Gotcha: boot path](gotcha-boot-path.md) — the app never calls CantusApp::new; wire start-up in boot stages/assemble and test it
+- [Round 27: quick gestures](round-27.md) — §6g done, master 445a44c (2026-10-14); test build daw-r27/builds; round-28 prompt = BACKLOG 3–6
+- [Round 28: top bar, voice, 12 effects, Chorda+drums, modulators+comping](round-28.md) — done 2026-10-16, pushed to master (owner pre-approved); Win 3 362 + Linux 3 345; schema 32
