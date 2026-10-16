@@ -200,26 +200,34 @@ fn the_strings_ring_in_sympathy_with_the_pedal_down() {
 
 /// 64 voices sounding with the pedal down, 256-frame blocks, one thread: the time it takes
 /// against the time it plays. ADR 0059's target is a quarter of one core.
+///
+/// Measured as the best of 48 stretches of a quarter second (12 s of audio, as the three
+/// 4-second runs before): a preempted stretch only takes longer, so on a loaded machine
+/// the quickest is the instrument's own cost (fix6: under a full test run beside a Linux
+/// one even the best 4-second run was preempted past the bound). Wall time, the same on
+/// every system.
 fn sixty_four_pedal_down_voices() -> f64 {
     let mut c = piano();
     let mut ev = vec![(0usize, Ev::Pedal(1.0))];
     for (i, k) in (30u8..94).enumerate() {
         ev.push((1 + i * 37, Ev::On(k, 0.7, i as u64 + 1)));
     }
-    let frames = (4.0 * FS) as usize;
+    // A stretch: 47 blocks of 256, a quarter second.
+    let blocks = (0.25 * FS) as usize / 256;
+    let seconds = (blocks * 256) as f64 / FS;
     // Warm up: every voice struck and ringing.
     perform(&mut c, &ev, 4_096, 256, 1);
     assert_eq!(c.active_voices(), 64);
     let (mut l, mut r) = (vec![0.0f32; 256], vec![0.0f32; 256]);
     let mut best = f64::INFINITY;
-    for _ in 0..3 {
+    for _ in 0..48 {
         let t = std::time::Instant::now();
-        for _ in 0..frames / 256 {
+        for _ in 0..blocks {
             l.fill(0.0);
             r.fill(0.0);
             c.process(&mut l, &mut r);
         }
-        best = best.min(t.elapsed().as_secs_f64() / (frames as f64 / FS));
+        best = best.min(t.elapsed().as_secs_f64() / seconds);
     }
     assert!(
         c.active_voices() >= 60,

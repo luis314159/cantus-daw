@@ -136,26 +136,66 @@ fn opening_its_editor_from_the_track_opens_the_plugin_window() {
         a.status.text
     );
     assert!(a.inst.open.is_none(), "not the native frame");
-    // F8 closes it once it is in front. Fix5: under a full test run other binaries' windows
-    // (plug-in editors opened at Windows' default place, a z-order test's) may lie over
-    // its middle, and then F8 rightly brings it forward first (round 27, ADR 0051) — the
-    // test closed it once and failed. F8 again until it closes, bounded; never a close
-    // that leaves it open, nor one that reopens it.
-    let since = std::time::Instant::now();
-    let mut presses = 0;
-    while a.plugins.instrument_window_open(track) {
-        assert!(
-            since.elapsed() < std::time::Duration::from_secs(60),
-            "F8 closes the plug-in's window ({presses} presses; frontmost: {})",
-            a.plugins.instrument_window_frontmost(track)
+    // F8 closes it when it is in front (round 27, ADR 0051). Fix6: a test is not the
+    // program in the foreground, and Windows lets no background program raise a window
+    // over the user's (the foreground lock) — so wherever the desktop had another
+    // program's window over the plug-in window's middle, F8 rightly kept bringing it
+    // forward, never closing it, however long the test waited (fix5). In the app the
+    // click that asks for the editor is on Cantus, which has the foreground. Here the
+    // window is put always on top — over every program's ordinary windows, and an
+    // always-on-top window over it does not count as covering — and this thread's
+    // messages are handled as the app's frame loop handles them, so "in front" is the
+    // window's own state, not the desktop's. Covered and brought forward is tested where
+    // the test owns the window over it (`clap_window`, `quick_gestures`).
+    on_top_and_pumped(&a, track);
+    assert!(
+        a.instrument_window_in_front(track),
+        "in front once nothing ordinary can cover it"
+    );
+    a.toggle_instrument_window_of(track);
+    assert!(
+        !a.plugins.instrument_window_open(track),
+        "F8 closes the plug-in's window in front"
+    );
+    assert!(a.inst.open.is_none(), "nothing else opened");
+}
+
+/// Put `track`'s plug-in window always on top, shown, without taking the focus, and handle
+/// this thread's window messages (the window is this thread's). Shown: a process's first
+/// `ShowWindow` takes the show command its launcher passed (a runner that starts tests
+/// hidden or minimised hides it) — in the app the first window is Cantus's own, here it
+/// is the plug-in's.
+#[cfg(windows)]
+fn on_top_and_pumped(a: &CantusApp, track: TrackId) {
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, PeekMessageW, SetWindowPos, ShowWindow, TranslateMessage,
+        HWND_TOPMOST, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+        SW_SHOWNOACTIVATE,
+    };
+    let h = a
+        .plugins
+        .hosted_instrument(track)
+        .and_then(|h| h.window_handle())
+        .expect("its window") as HWND;
+    // SAFETY: our own window, on the thread that made it; `m` is a live MSG.
+    unsafe {
+        ShowWindow(h, SW_SHOWNOACTIVATE);
+        SetWindowPos(
+            h,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         );
-        a.toggle_instrument_window_of(track);
-        presses += 1;
-        if a.plugins.instrument_window_open(track) {
-            std::thread::sleep(std::time::Duration::from_millis(50));
+        let mut m: MSG = std::mem::zeroed();
+        while PeekMessageW(&mut m, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+            TranslateMessage(&m);
+            DispatchMessageW(&m);
         }
     }
-    assert!(a.inst.open.is_none(), "nothing else opened");
 }
 
 #[test]
@@ -308,3 +348,4 @@ fn a_hosted_row_double_clicked_while_a_modulator_maps_resets() {
         p.name
     );
 }
+
