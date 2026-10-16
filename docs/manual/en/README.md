@@ -275,6 +275,14 @@ microphones recorded together — comp together, the same stretch of the same ta
 their seams move together, take the same crossfades, and their comps switch and are made
 together. Every change is one undo step.
 
+**What belongs to the comp.** The pieces a swipe or a promote makes are the comp's, and so
+is the take that plays over the others after a recording (the last pass of a loop, or a
+take recorded over older ones): they switch with the comp, and stay its own when split,
+nudged or slipped. A copy is never the comp's, wherever it is pasted — right over its take
+too: it stays on the playing lane through every switch, under every comp. A piece dragged
+to another track leaves the comp; after a flatten the pieces are plain clips. The take
+lanes light the stretch of each take the comp plays.
+
 ### MIDI
 
 Arm an **instrument track** (one with no audio input) and press `R`: notes from every MIDI

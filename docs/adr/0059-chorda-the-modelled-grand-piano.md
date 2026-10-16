@@ -185,3 +185,17 @@ changes `MODEL` and never a song made with this one.
 - The bench rig designs a Chorda's keyboard before it builds its units (`inst.chorda.v8`
   measures eight voices); the 1-cent test measures the ranges' corners too (A4 466, 200 %,
   150 % at 44.1 and 96 kHz: 0.488 and 0.497 cents; A4 415, 0 %, 50 % at 44.1 kHz: 0.483).
+
+## Amended by fix4 (round 28: the review of fix3)
+
+- **A fresh unit waits silent only for a tuning that can still arrive.** One whose tuning
+  the session refuses (the registry full, a design failed) or that no designer can make
+  (its thread could not start) keeps the reference keyboard and plays — what the editor's
+  "keeping this one" says; one that dropped it while the tuning was on its way takes it
+  back when the tuning is refused. The audio thread asks `can_arrive` — lock-free flags and
+  a fixed list of failed designs, written under the designer's lock — never the designer's
+  mutex.
+- The designer's fault tests run one at a time, reset their faults even when they fail,
+  and prove the path they name (the spawn failures are counted); a keyboard landing
+  mid-phrase (the sympathetic fade, a ringing key re-struck and let go inside its fade)
+  gives the same bits at blocks of 1, 37, 64 and 512 and on threads.

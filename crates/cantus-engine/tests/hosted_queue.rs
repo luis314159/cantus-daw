@@ -394,11 +394,7 @@ fn a_hosted_instrument_swapped_in_place_hears_the_held_value_playing_and_stopped
         }
         p.tracks.push(lead);
         let unit = |last: &Heard| {
-            NativeUnit::hosted(
-                track,
-                key.clone(),
-                Box::new(LastInst { last: last.clone() }),
-            )
+            NativeUnit::hosted(track, key, Box::new(LastInst { last: last.clone() }))
         };
         let first: Heard = Arc::new(Mutex::new(Vec::new()));
         let (mut engine, mut processor) = EngineHandle::manual(SR);

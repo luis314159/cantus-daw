@@ -143,3 +143,40 @@ edited on their lanes.
   groups (a group edited meanwhile no longer refuses the switch back).
 - **A switch back plays the pitch edits at once**: the snapshot names the kept windows'
   edits (`Snapshot::kept_pitch`) and the sample cache keeps their renders.
+
+## Amended by fix4 (round 28): a comp window says it is one — schema 32
+
+fix3 recognised a comp window by where it lies (a playing-lane clip of a take's source
+over that take); a copy pasted within its takes' stretch could not be told from a nudged
+window and joined the comp. **`Clip::comp`** now says it: set on a playing-lane clip that
+is the comp's, false on every other.
+
+- **Who sets it:** a swipe and a promote (each window they make); a recording laid over
+  takes (the loop's last pass over its earlier passes, a take stacked over what it moved
+  to a take lane, anything recorded where take lanes already are) — so alternate comps
+  work after a plain stacked recording too, which before kept the new take out of every
+  comp. A first recording on an empty track is a plain clip.
+- **Who keeps it:** a split (both halves), a seam moved, a trim, a slip, a nudge, a comp
+  switched or copied (every kept window carries it: `SetTrackComps` refuses one that does
+  not); a glue that takes a window in makes the glued clip the comp's.
+- **Who clears it:** a copy and a paste, linked or not (`clipboard::copy_of`,
+  `paste_clips`, `Linker::copy`); a window dragged to another track; a window stacked onto
+  a take lane by a recording; flatten (the windows stay as plain clips). Flatten and merge
+  makes a new clip (none).
+- **`Command::SetClipComp`** (its inverse the old flag; `cmd.set_clip_comp`) for the
+  clears and the glue; a fuzz arm sets and clears it, refuses a missing clip, and splits,
+  copies and pastes a window, checking the half is the comp's and the copies are not.
+- **Which take a window shows** — its number, the take lanes' lighting — is what it plays:
+  the take whose stretch of the same content it plays (a window where its take put it,
+  that take's alone), lit where that content lies on the take's lane. A shared tick is a
+  rounding's sliver, never a window: a loop's last pass lights none of the earlier passes
+  (fix3 lit them all). *Delete unused takes* keeps a take any playing clip or kept window
+  plays a stretch of, comp window or not.
+- **Migration** (`migrate_31_to_32`, raw JSON): every clip schema 31 counted as a comp
+  window gets the flag — a playing-lane clip of a take's content lying over that take, at
+  its origin or at one no take has — and every kept window; an old project comps exactly
+  as before. Tested on a hand-built project (windows at the take's origin, slipped, nudged,
+  MIDI, kept; takes, another file, a far copy, a track without takes left alone) and on
+  `fixtures/v28`–`v31`, whose flags equal schema 31's rule clip by clip;
+  `fixtures/v32.cantus` holds the comp's windows and a copy pasted right over a third take,
+  which is not one.
