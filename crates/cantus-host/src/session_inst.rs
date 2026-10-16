@@ -408,7 +408,8 @@ impl PluginHost {
                 return Err(e);
             }
         };
-        h.main = inst.main;
+        let old = std::mem::replace(&mut h.main, inst.main);
+        self.retire(old);
         h.isolation = inst.isolation;
         h.crashed = None;
         h.params = h.main.params();

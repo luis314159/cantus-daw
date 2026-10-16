@@ -17,7 +17,7 @@ fn write(p: &Path, bytes: &[u8]) {
 }
 
 /// Two plug-ins laid out as `xtask bundle` lays them out, the launcher, the v2 and v3
-/// programs, the scanner, the texts.
+/// programs, the scanner, the plug-in sandbox (round 29), the texts.
 fn stand_ins(root: &Path) -> Inputs {
     let bundled = root.join("bundled");
     let names = ["Cantus Aequalis", "Cantus Porta"];
@@ -36,6 +36,7 @@ fn stand_ins(root: &Path) -> Inputs {
     write(&root.join("v2/cantus.exe"), b"MZ cantus v2");
     write(&root.join("v3/cantus.exe"), b"MZ cantus v3");
     write(&root.join("v2/cantus-scan.exe"), b"MZ scanner");
+    write(&root.join("v2/cantus-sandbox.exe"), b"MZ sandbox");
     write(&root.join("LICENSE-GPL"), b"GNU GENERAL PUBLIC LICENSE");
     write(&root.join("LICENSE"), b"Cantus is dual-licensed by crate.");
     write(&root.join("README.txt"), b"Cantus {version}\nline two\n");
@@ -48,6 +49,7 @@ fn stand_ins(root: &Path) -> Inputs {
             (Level::V3, root.join("v3/cantus.exe")),
         ],
         scanner: root.join("v2/cantus-scan.exe"),
+        sandbox: root.join("v2/cantus-sandbox.exe"),
         bundled,
         plugins: names.iter().map(|s| s.to_string()).collect(),
         license: root.join("LICENSE-GPL"),
@@ -77,7 +79,11 @@ fn a_release_whose_files_carry_their_version_resource_is_made() {
     let dir = tempfile::tempdir().unwrap();
     let mut inputs = stand_ins(dir.path());
     let res = crate::package::meta::tests::with_resource(V);
-    let mut files = vec![inputs.launcher.clone(), inputs.scanner.clone()];
+    let mut files = vec![
+        inputs.launcher.clone(),
+        inputs.scanner.clone(),
+        inputs.sandbox.clone(),
+    ];
     files.extend(inputs.programs.iter().map(|(_, p)| p.clone()));
     for n in &inputs.plugins {
         files.push(inputs.bundled.join(format!("{n}.clap")));
@@ -152,6 +158,7 @@ fn the_package_task_produces_the_expected_file_list() {
         "LICENSE.txt",
         "README.txt",
         "THIRD-PARTY-NOTICES.txt",
+        "cantus-sandbox.exe",
         "cantus-scan.exe",
         "cantus-x86-64-v2.exe",
         "cantus-x86-64-v3.exe",
@@ -189,6 +196,7 @@ fn the_package_task_produces_the_expected_file_list() {
     assert_eq!(staged("cantus-x86-64-v2.exe"), b"MZ cantus v2");
     assert_eq!(staged("cantus-x86-64-v3.exe"), b"MZ cantus v3");
     assert_eq!(staged("cantus-scan.exe"), b"MZ scanner");
+    assert_eq!(staged("cantus-sandbox.exe"), b"MZ sandbox");
     let readme = std::fs::read_to_string(out.join("stage/app/README.txt")).unwrap();
     assert_eq!(readme, "Cantus 0.2.0\r\nline two\r\n");
 
@@ -277,7 +285,7 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     assert!(nsh.contains("!define EST_SIZE_KB "));
 
     // The installer and the uninstaller wait for every program of the folder to close —
-    // the launcher, both levels, the scanner — not only cantus.exe.
+    // the launcher, both levels, the scanner, the plug-in sandbox — not only cantus.exe.
     let busy = macro_body("CANTUS_PROGRAMS_BUSY");
     let waited: Vec<&str> = busy
         .iter()
@@ -290,7 +298,8 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
             "cantus.exe",
             "cantus-x86-64-v2.exe",
             "cantus-x86-64-v3.exe",
-            "cantus-scan.exe"
+            "cantus-scan.exe",
+            "cantus-sandbox.exe"
         ]
     );
     let script =
@@ -311,6 +320,7 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
             "cantus-x86-64-v2.exe",
             "cantus-x86-64-v3.exe",
             "cantus-scan.exe",
+            "cantus-sandbox.exe",
             "LICENSE.txt",
             "COPYRIGHT.txt",
             "README.txt",
@@ -318,7 +328,7 @@ fn the_install_folder_holds_the_launcher_and_one_program_per_level() {
     );
     let v4 = package::app_names(&crate::levels::release_levels(true));
     assert!(v4.contains(&"cantus-x86-64-v4.exe".to_string()));
-    assert_eq!(v4.len(), 8);
+    assert_eq!(v4.len(), 9);
     let script =
         std::fs::read_to_string(crate::workspace().join("xtask/installer/cantus.nsi")).unwrap();
     for line in script.lines().filter(|l| {

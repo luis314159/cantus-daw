@@ -14,6 +14,7 @@
 //! - [`startup`]: the real executable, from spawn to its second frame.
 //! - [`dawbench`]: DAWbench-style DSP and VI capacity, defined so the same sessions can
 //!   be rebuilt in other DAWs.
+//! - [`isolation`]: what running a plug-in out of process costs (ADR 0063), on purpose.
 //! - [`compare`]: the perf gate against a stored baseline (`cargo run -p xtask -- perf`).
 //!
 //! A small harness of our own rather than criterion: the gate needs medians *and* spread
@@ -26,6 +27,7 @@ pub mod cpu;
 pub mod dawbench;
 pub mod demos;
 pub mod hashes;
+pub mod isolation;
 pub mod kernels;
 pub mod paced;
 pub mod report;
@@ -65,8 +67,8 @@ impl Plan {
 }
 
 /// The groups of the suite, by the name the command line takes.
-pub const GROUPS: [&str; 9] = [
-    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup",
+pub const GROUPS: [&str; 10] = [
+    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup", "isolation",
 ];
 
 /// Run the groups in `only` (all of them when empty; the quick plan never runs
@@ -75,7 +77,8 @@ pub fn run(plan: &Plan, only: &[String]) -> report::Report {
     let mut r = report::Report::new(if plan.quick { "quick" } else { "full" });
     let wants = |g: &str| {
         if only.is_empty() {
-            !(plan.quick && (g == "dawbench" || g == "startup"))
+            // Isolation needs the helper built beside the bench: on purpose only.
+            g != "isolation" && !(plan.quick && (g == "dawbench" || g == "startup"))
         } else {
             only.iter().any(|o| o == g)
         }
@@ -106,5 +109,6 @@ pub fn run(plan: &Plan, only: &[String]) -> report::Report {
     step("ui", &mut |_| ui::frames(plan));
     step("dawbench", &mut |_| dawbench::suite(plan));
     step("startup", &mut |_| startup::suite(plan));
+    step("isolation", &mut |_| isolation::suite(plan));
     r
 }

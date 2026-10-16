@@ -148,8 +148,8 @@ impl Sandbox {
             Some(false) => "off",
             _ => "on",
         };
-        let mut child = Command::new(&pool.exe)
-            .arg("--serve")
+        let mut cmd = Command::new(&pool.exe);
+        cmd.arg("--serve")
             .arg(proto::PROTOCOL.to_string())
             .arg("--crt-fma3")
             .arg(fma3)
@@ -157,7 +157,15 @@ impl Sandbox {
             .arg(key)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(Stdio::null());
+        // A console program started by a windowed one: no console window for it.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = cmd
             .spawn()
             .map_err(|e| {
                 HostError::Load(format!(

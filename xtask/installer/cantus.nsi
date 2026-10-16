@@ -103,7 +103,8 @@ Page custom PrivacyPage PrivacyLeave
 !macroend
 
 ; Until no program of the install folder runs — cantus.exe (the launcher), each level's
-; program (files.nsh lists them), the scanner — up to 30 s, then Retry/Cancel.
+; program (files.nsh lists them), the scanner, the plug-in sandbox — up to 30 s, then
+; Retry/Cancel.
 !macro WAIT_FOR_CANTUS
   StrCpy $R0 0
   ${Do}

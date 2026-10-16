@@ -273,7 +273,8 @@ impl PluginHost {
         let setup = self.setup;
         match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
             Ok(inst) => {
-                old.main = inst.main;
+                let gone = std::mem::replace(&mut old.main, inst.main);
+                self.retire(gone);
                 old.isolation = inst.isolation;
                 old.crashed = None;
                 old.restarting = false;
@@ -316,7 +317,8 @@ impl PluginHost {
         let setup = self.setup;
         match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
             Ok(inst) => {
-                old.main = inst.main;
+                let gone = std::mem::replace(&mut old.main, inst.main);
+                self.retire(gone);
                 old.isolation = inst.isolation;
                 old.crashed = None;
                 old.restarting = false;

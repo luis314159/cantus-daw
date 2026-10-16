@@ -831,6 +831,7 @@ dependencies = [
  "cantus-core",
  "cantus-dsp",
  "cantus-engine",
+ "cantus-host",
  "cantus-project",
  "cantus-rt",
  "cantus-ui",

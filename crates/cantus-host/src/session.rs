@@ -243,6 +243,10 @@ pub struct PluginHost {
     /// Isolation was asked and the helper is missing; told once.
     isolation_missing: bool,
     told_missing: bool,
+    /// Main halves of instances just replaced (a move, a reload): kept a moment, until the
+    /// engine has surely swapped in their successors, so their helper never unloads an
+    /// instance the engine is still calling.
+    retired: Vec<(std::time::Instant, Box<dyn MainThread>)>,
 }
 
 /// The most window tweaks kept between two takes (an application that never takes them
@@ -350,6 +354,7 @@ impl PluginHost {
             crash_counts: HashMap::new(),
             isolation_missing: false,
             told_missing: false,
+            retired: Vec::new(),
         }
     }
 
@@ -381,6 +386,11 @@ impl PluginHost {
         if self.db.learn(main.info()) {
             self.save_db();
         }
+    }
+
+    /// Writes the database now (the plug-in manager changed it).
+    pub fn save_db_now(&self) {
+        self.save_db();
     }
 
     fn save_db(&self) {
@@ -682,7 +692,8 @@ impl PluginHost {
                 return Err(e);
             }
         };
-        h.main = inst.main;
+        let old = std::mem::replace(&mut h.main, inst.main);
+        self.retire(old);
         h.isolation = inst.isolation;
         h.crashed = None;
         h.params = h.main.params();
@@ -732,6 +743,8 @@ impl PluginHost {
     /// as commands.
     pub fn idle(&mut self, bus: &mut CommandBus, engine: &mut EngineHandle) -> Vec<HostNotice> {
         crate::clap::collect_garbage();
+        self.retired
+            .retain(|(at, _)| at.elapsed() < std::time::Duration::from_secs(1));
         let mut notices = Vec::new();
         if let Some(rx) = &self.scan_job {
             match rx.try_recv() {
@@ -848,6 +861,11 @@ impl PluginHost {
             name: info.name,
             reason,
         })
+    }
+
+    /// Keeps a replaced instance's main half a moment (see `retired`).
+    pub(crate) fn retire(&mut self, main: Box<dyn MainThread>) {
+        self.retired.push((std::time::Instant::now(), main));
     }
 
     /// The parameter commands plug-in windows ran since the last take, oldest first.

@@ -29,8 +29,9 @@ use std::process::Command;
 pub const FILE: &str = "THIRD-PARTY-NOTICES.md";
 /// The one target a release is built for (ADR 0032: one Windows edition).
 pub const TARGET: &str = "x86_64-pc-windows-msvc";
-/// What a release ships: the program and the exported plug-ins.
-pub const ROOTS: &[&str] = &["cantus", "cantus-plugins"];
+/// What a release ships: the program, the plug-in sandbox it starts beside itself
+/// (round 29, ADR 0063), and the exported plug-ins.
+pub const ROOTS: &[&str] = &["cantus", "cantus-sandbox", "cantus-plugins"];
 
 /// One crate from crates.io in the closure.
 #[derive(Clone, Debug, PartialEq, Eq)]

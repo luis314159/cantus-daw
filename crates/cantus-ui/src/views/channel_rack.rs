@@ -776,6 +776,10 @@ fn channels(
                     look
                 };
                 paint::row(b, &rr, &look, s);
+                // A hosted instrument that stopped working (round 29, ADR 0063).
+                if row.kind == RowKind::Track {
+                    super::plugin_notice::paint_rack_stopped(b, rr.button, a, track.id, s);
+                }
             }
         });
     }

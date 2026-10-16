@@ -1024,6 +1024,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 super::device_chrome::chip_plate(b, hr.icon, over, tint.on_large, s.k)
             });
             icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
+            // A hosted instrument that stopped working (round 29, ADR 0063).
+            super::plugin_notice::paint_header_stopped(&p, hr.icon, a, track.id, s);
         }
     }
     app.arrangement.scratch = scratch;

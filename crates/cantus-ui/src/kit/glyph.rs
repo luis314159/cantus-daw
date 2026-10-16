@@ -110,6 +110,10 @@ pub enum Glyph {
     Cables,
     /// A funnel: a view's filter options (the cable view's options menu).
     Filter,
+    // --- isolation (round 29, ADR 0063) ---
+    /// A plug pulled apart, a gap between its two halves: a hosted plug-in that stopped
+    /// working (the crash card, a slot that stopped).
+    PluginStopped,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -461,6 +465,24 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.polyline(&pts, w, color);
             b.dot(p(-4.2, -3.2), 1.7 * u, color);
             b.dot(p(4.2, -3.2), 1.7 * u, color);
+        }
+        Glyph::PluginStopped => {
+            // The plug's head and prongs, above; the socket's half, below, slanted away;
+            // a jagged gap between them.
+            b.rrect_stroke(
+                Rect::from_min_max(p(-3.4, -2.6), p(3.4, 0.2)),
+                1.0 * u,
+                w,
+                color,
+            );
+            b.segment(p(-1.5, -2.6), p(-1.5, -5.2), w, color, true);
+            b.segment(p(1.5, -2.6), p(1.5, -5.2), w, color, true);
+            b.polyline(
+                &[p(-3.4, 2.4), p(-1.2, 1.6), p(1.0, 2.6), p(3.4, 1.8)],
+                w * 0.8,
+                color,
+            );
+            b.segment(p(0.0, 2.2), p(0.0, 5.4), w, color, true);
         }
         Glyph::Filter => {
             // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.

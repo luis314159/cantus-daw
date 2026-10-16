@@ -108,13 +108,21 @@ impl Scanner {
 
     /// Read one file in a scanner process.
     pub fn scan_file(&self, format: Format, path: &Path) -> (ScanStatus, Vec<PluginInfo>) {
-        let child = Command::new(&self.exe)
-            .arg(format_arg(format))
+        let mut cmd = Command::new(&self.exe);
+        cmd.arg(format_arg(format))
             .arg(path)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn();
+            .stderr(Stdio::null());
+        // A console program started by a windowed one (round 29): no console window
+        // flashing up for each file scanned.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let child = cmd.spawn();
         let mut child = match child {
             Ok(c) => c,
             Err(e) => {

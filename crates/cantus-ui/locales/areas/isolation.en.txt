@@ -6,3 +6,57 @@ isolation.within = Within Cantus
 isolation.together = Together
 isolation.by_vendor = By maker
 isolation.individually = Individually
+
+# --- a plug-in that stopped working: the corner card ---
+isolation.crashed.one = {name} stopped working
+isolation.crashed.many = {n} plug-ins stopped working
+isolation.crashed.body_one = Cantus kept playing without it. Reload brings it back as you left it.
+isolation.crashed.body_many = Cantus kept playing without them. Reload brings them back as you left them.
+isolation.reload = Reload
+isolation.reload_all = Reload all
+isolation.keep_off = Keep it off
+isolation.keep_off_many = Keep them off
+isolation.run_individually = Run individually
+isolation.reason = {name}: {reason}
+isolation.reloaded = {name} is back, as you left it.
+isolation.reload_failed = {name} could not be reloaded: {error}
+isolation.unavailable = Plug-ins run inside Cantus: the helper that keeps them apart (cantus-sandbox) is not installed. Install Cantus again to bring it back.
+
+# --- a slot's menu and tip ---
+isolation.slot.band = Runs
+isolation.slot.default = As this computer says ({mode})
+isolation.slot.reload = Reload plug-in
+isolation.stopped = stopped
+isolation.tip.runs = Runs: {mode}
+isolation.tip.cpu = CPU: {share} of a core
+isolation.tip.own = Of which in its own process: {share}
+isolation.tip.late = Blocks played without it (late): {n}
+isolation.tip.stopped = Stopped working: {reason}. Reload it from its menu.
+isolation.short.default = Default
+isolation.short.within = Within
+isolation.short.together = Together
+isolation.short.by_vendor = By maker
+isolation.short.individually = Alone
+
+# --- the generic editor ---
+isolation.stopped_card = Stopped working
+isolation.editor.stopped = {name} stopped working: {reason}.
+isolation.editor.kept = Cantus kept playing without it, and its settings are kept and saved with the project.
+
+# --- Settings' plug-in manager ---
+isolation.manager.band = Where third-party plug-ins run
+isolation.manager.within = Within Cantus: no round trip, and a plug-in that crashes takes Cantus with it.
+isolation.manager.together = Together: one helper process for all of them; one that crashes stops only that helper, never Cantus.
+isolation.manager.by_vendor = By maker: one helper process per maker; a crash stops only that maker's plug-ins.
+isolation.manager.individually = Individually: a helper process each; a crash stops only that plug-in.
+isolation.manager.cost = Each plug-in can be set apart in its slot's menu. Cantus's own effects and instruments always run within.
+isolation.manager.crashed = Plug-ins that stopped working on this computer
+isolation.manager.times = {n} times
+isolation.manager.forget = Forget
+isolation.manager.forget_tip = Forget that it stopped working (it was fixed)
+isolation.cpu = CPU
+
+# --- the status bar ---
+isolation.status.late = Plug-ins late: {n}
+isolation.status.late_tip = {n} blocks played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it
+isolation.status.late_tip_one = A block played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it

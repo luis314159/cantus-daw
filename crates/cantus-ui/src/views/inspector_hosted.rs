@@ -35,8 +35,46 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         }
         return;
     };
-    let ok = sh.fmt.tr("hosted.status_ok").to_string();
-    sh.text_row("hosted.status", &ok, false, false);
+    // Stopped working (round 29, ADR 0063): said in the danger colour, its reason as the
+    // tip, *Reload* under it; else where it runs and what it costs.
+    let target = crate::views::plugin_notice::Target::Instrument(t);
+    if let Some(why) = app.plugins.instrument_crashed(t) {
+        let stopped = sh.fmt.tr("isolation.stopped_card").to_string();
+        let row = sh.text_row("hosted.status", &stopped, false, true);
+        let r = sh
+            .ui
+            .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
+        if r.hovered() {
+            let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
+            hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
+        }
+        if sh.led_row(
+            "isolation.slot.band",
+            "isolation.slot.reload",
+            false,
+            Function::Source,
+            false,
+        ) {
+            sh.acts.push(Act::Hosting(
+                target,
+                crate::views::plugin_notice::MenuAct::Reload,
+            ));
+        }
+    } else {
+        let ok = sh.fmt.tr("hosted.status_ok").to_string();
+        sh.text_row("hosted.status", &ok, false, false);
+    }
+    let runs = crate::i18n::t(h.isolation().label_key());
+    sh.menu_row(
+        "isolation.slot.band",
+        &runs,
+        super::menus::MenuId::Hosting(t),
+        false,
+    );
+    if let Some(c) = h.cpu() {
+        let cpu = crate::views::plugin_notice::percent(c.share);
+        sh.text_row("isolation.cpu", &cpu, true, false);
+    }
     let latency = tf("hosted.latency_value", &[("n", &h.latency())]);
     sh.text_row("hosted.latency", &latency, true, false);
     sh.text_row("hosted.params", &h.params.len().to_string(), true, false);

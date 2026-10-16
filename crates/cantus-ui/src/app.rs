@@ -137,6 +137,9 @@ pub struct CantusApp {
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
+    /// Hosted plug-ins that stopped working, waiting for an answer on their card (round
+    /// 29, ADR 0063, `views::plugin_notice`).
+    pub plugin_crashes: views::plugin_notice::Crashes,
     /// The native instruments' editors (ADR 0023).
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
@@ -436,6 +439,8 @@ impl CantusApp {
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
+        // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
+        views::plugin_notice::apply_default(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -512,6 +517,7 @@ impl CantusApp {
             samples: Default::default(),
             update: Default::default(),
             plugins,
+            plugin_crashes: Default::default(),
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
             swap_keep: Default::default(),
@@ -3041,6 +3047,11 @@ impl CantusApp {
                 HostNotice::InstrumentRestartFailed { error, .. } => {
                     self.set_error(tf("host.restart_failed", &[("error", &error)]))
                 }
+                // A plug-in that stopped working, and isolation without its helper (round
+                // 29, ADR 0063): the crash card and the status line.
+                HostNotice::PluginCrashed { .. }
+                | HostNotice::InstrumentCrashed { .. }
+                | HostNotice::IsolationUnavailable => views::plugin_notice::on_notice(self, n),
             }
         }
     }
