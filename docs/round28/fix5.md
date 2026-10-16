@@ -52,4 +52,17 @@ kit). **Demos:** three changed note lengths (below), every loudness test passes.
 
 ## The runs
 
-RUNS
+`cargo fmt --all`; `cargo clippy --workspace --all-targets -- -D warnings` and
+`cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings` clean
+(Windows; the Linux check is the integrator's — `~/cantus-ci` was in use). Tests, all
+passing: cantus-core + -engine + -plugins 1 013; cantus-ui 1 291 in full (+ the ignored
+ones), `demos` among them (every demo renders clean at a sane loudness, every track heard,
+the showcase offline = real time). The demos' note changes were measured by hashing every
+note of every demo before and after: the showcase (+0.23 % of its notes' total length),
+Morning Light (+0.77 %) and Aurora (+0.32 %) changed; Neon Tide, Sunday Strut, Paper
+Lanterns and Midnight Static are identical note for note.
+
+## Left
+
+Nothing that is not the owner's. The one limit of the late-insert fold (a tempo change more
+than 32 of a loop's passes back) is an engine limit, written and measured in ADR 0057.
