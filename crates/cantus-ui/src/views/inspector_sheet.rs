@@ -611,13 +611,30 @@ impl<'a> Sheet<'a> {
         f: Function,
         dim: bool,
     ) -> bool {
+        self.led_row_of((), key, button_key, on, f, dim)
+    }
+
+    /// [`Self::led_row`] for a row a panel draws once per item — a modulator's switches —
+    /// its id salted by `owner` so two items' rows never share one (fix4: two modulators'
+    /// *Sync* and *Restart* switches clashed).
+    pub fn led_row_of(
+        &mut self,
+        owner: impl std::hash::Hash + std::fmt::Debug,
+        key: &str,
+        button_key: &str,
+        on: bool,
+        f: Function,
+        dim: bool,
+    ) -> bool {
         let row = self.row();
         self.label(row.label, key, dim);
         let w = row.value.width().min(self.s.s(110.0));
         let br = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
-        let r = self
-            .ui
-            .interact(br, Id::new(("insp-led", key, button_key)), Sense::click());
+        let r = self.ui.interact(
+            br,
+            Id::new(("insp-led", key, button_key, owner)),
+            Sense::click(),
+        );
         let st = State {
             disabled: dim,
             ..State::of(&r, on)
