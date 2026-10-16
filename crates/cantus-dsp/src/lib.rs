@@ -73,6 +73,7 @@ pub mod smoother;
 pub mod spatium;
 pub mod spectrum;
 pub mod speculum;
+pub mod stretch;
 pub mod terminus;
 pub mod tonsor;
 pub mod tonus;
