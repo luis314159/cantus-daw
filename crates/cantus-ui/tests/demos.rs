@@ -714,3 +714,60 @@ fn the_topline_is_hard_tuned() {
     eprintln!("Tonus's change to the topline: {rel:.1} dB");
     assert!(rel > -20.0, "Tonus barely touches the topline: {rel:.1} dB");
 }
+
+/// Every level a demo sets is one a command could set: a channel's trim and a strip's fader
+/// within −96…+12 dB, so a user's first nudge never jumps the level to the clamp.
+#[test]
+fn every_level_is_one_a_command_can_set() {
+    use cantus_core::{MAX_GAIN_DB, MIN_GAIN_DB};
+    each_demo(|d, p| {
+        for t in &p.tracks {
+            assert!(
+                (MIN_GAIN_DB..=MAX_GAIN_DB).contains(&t.gain_db),
+                "{}: {}'s trim {} dB",
+                d.id,
+                t.name,
+                t.gain_db
+            );
+        }
+        for s in &p.strips {
+            assert!(
+                (MIN_GAIN_DB..=MAX_GAIN_DB).contains(&s.gain_db),
+                "{}: strip {}'s fader {} dB",
+                d.id,
+                s.name,
+                s.gain_db
+            );
+        }
+    });
+}
+
+/// The picker fits a small screen at 200 % in Spanish (1366 × 768: 683 × 384 points): the
+/// window stays on the screen, so its last rows (scrolled) and its buttons can be reached.
+#[test]
+fn the_picker_fits_a_small_screen_at_200_percent() {
+    use cantus_ui::views::demos as picker;
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    let mut a = app(cantus_ui::welcome_project());
+    picker::show(&mut a);
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(683.0, 384.0));
+    let input = || egui::RawInput {
+        screen_rect: Some(screen),
+        ..Default::default()
+    };
+    for _ in 0..4 {
+        let mut out = ctx.run_ui(input(), |root| picker::frame(&mut a, root.ctx()));
+        out.textures_delta.clear();
+    }
+    let rect = ctx
+        .memory(|m| m.area_rect(picker::window_id()))
+        .expect("the picker was drawn");
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(
+        screen.contains_rect(rect.shrink(0.5)),
+        "the picker {rect:?} leaves the screen {screen:?}"
+    );
+}

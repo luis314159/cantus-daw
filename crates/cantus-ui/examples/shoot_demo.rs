@@ -24,6 +24,8 @@ enum Show {
     Piano,
     Effect(&'static str, EffectKind),
     Master(EffectKind),
+    /// The File menu's picker over the song, its seven rows.
+    Picker,
 }
 
 fn track_named(app: &CantusApp, name: &str) -> Option<(cantus_core::TrackId, StripId)> {
@@ -38,6 +40,7 @@ fn setup(app: &mut CantusApp, show: Show) {
     let en = |k: &str| i18n::t(k);
     match show {
         Show::Window => {}
+        Show::Picker => views::demos::show(app),
         Show::Mixer => app.show_central(CentralView::Mixer),
         Show::Topline => {
             if let Some((track, _)) = track_named(app, &en("demos.track.vox")) {
@@ -169,6 +172,22 @@ fn main() {
                     continue;
                 }
                 shoot(&dir, &name, dark, locale, 1.0, (1920.0, 1080.0), show);
+            }
+        }
+        // The picker on a small laptop at 200 % (1366 × 768), in both languages: its rows
+        // scroll, its hint and buttons stay on the screen.
+        for (lang, locale) in [("en", Locale::En), ("es", Locale::Es)] {
+            let name = format!("heart-picker-{theme}-{lang}-1366-z200");
+            if only.is_empty() || only.iter().any(|o| name.contains(o.as_str())) {
+                shoot(
+                    &dir,
+                    &name,
+                    dark,
+                    locale,
+                    2.0,
+                    (1366.0, 768.0),
+                    Show::Picker,
+                );
             }
         }
         for (zoom, tag) in [(0.75, "z75"), (2.0, "z200")] {

@@ -164,7 +164,7 @@ negative correlation; the master EQ's low-mid warmth and an eased top when the s
 `crates/cantus-engine/tests/inst_chorda.rs`: the two pedal tests above; the whole file passes.
 
 **The full runs** (Windows): `cargo test -p cantus-core -p cantus-project -p cantus-engine
---no-fail-fast` — 977 passed after the contract fix below; `cargo test -p cantus-ui
+--no-fail-fast` — 977 passed after the contract fix; `cargo test -p cantus-ui
 --no-fail-fast` — 1 256 passed, 1 failed once under load and passed alone twice
 (`hosted_instruments::opening_its_editor_from_the_track_opens_the_plugin_window`, a hosted
 plug-in's OS window, nothing this round touched); `cargo clippy --workspace --all-targets
@@ -179,10 +179,9 @@ plug-in's OS window, nothing this round touched); `cargo clippy --workspace --al
 - `crates/cantus-core/src/inst/chorda.rs`, `crates/cantus-engine/src/inst/chorda.rs`,
   `crates/cantus-ui/src/views/inst/chorda.rs`, `locales/inst/chorda.{en,es}.txt`,
   `docs/instruments/chorda.md` — the pedal parameter.
-- `crates/cantus-engine/tests/support/heavy.rs` — `random_instrument` never draws Chorda's
-  `pedal`: held down it is not rest (by design, as controller 64 held), and drawing it
-  shifted every later draw so the rest contract's `default #2` landed on a spec that rings
-  past 30 s; skipped, Chorda's random specs are exactly what they were before.
+- `crates/cantus-engine/tests/support/heavy.rs` and `tests/inst_contract.rs` — Chorda's
+  `pedal` is drawn from a stream of its own (every other draw stays as it was), and the rest
+  contract's mid-run change lets it up (review 1, below).
 - `locales/areas/demos.{en,es}.txt` — the song, its style, the pre-chorus, *Vox*, *Sub drop*,
   *Music bus*, the automation clips' and modulators' names.
 - `crates/cantus-ui/examples/render_demos.rs` — the showcase's window for the website excerpt.
@@ -202,3 +201,43 @@ Only the owner's: **listening**. What to listen for:
   Fluctus's depth (0.75) and the follower's depth (−0.12) are the two numbers;
 - the master: Culmen at +8.8 dB into −1 dBTP after Tonsor's soft clip; the choruses sit at
   −10 LUFS.
+
+## Review 1
+
+Six confirmed findings (one medium); each fixed, the testable ones with a test seen failing
+first.
+
+1. **The chorus piano held Fm7 under E♭/G** (and the intro/outro arpeggio carried a note of
+   each chord into the next): a hit late in a chord outlasted the pedal's re-press a
+   sixteenth after the change, so A♭ rang against G in the last bar of every chorus cycle
+   (bars 40, 48, 64, 72). Fixed where every demo writes its parts: `parts::comp`, `bass`
+   and `arp` stop each note at the next chord change (`Laid::left`). Test
+   `parts::tests::no_note_rings_into_the_next_chord` (failed: *a note at 0 lasting 3 rings
+   past the change at 2*). **Other demos**: Morning Light's notes lose 1.0 % of their total
+   length and Aurora's 0.3 % (their renders change slightly, musically for the better:
+   nothing rings under the next chord); Neon Tide, Sunday Strut, Paper Lanterns and
+   Midnight Static are unchanged note for note. Every demo still passes its loudness test
+   (now −14.1 … −14.8 LUFS, −1.14 … −1.18 dBTP).
+2. **Hats and percussion trims at +15.5 / +15 dB**, beyond the +12 dB a command can set:
+   now +12 with the rest on their faders (+3.5 / +3 dB). `Song::trim` and `Song::mix`
+   assert the command range, so no demo can do it again. Test
+   `every_level_is_one_a_command_can_set` (failed: *heart: Hats's trim 15.5 dB*).
+3. **The manual's Chorda section** (EN and ES) now documents the Sustain / Derecho knob, the
+   lane (*Create automation clip*), the modulator, half-pedalling and the higher-of rule.
+4. & 5. **The pedal left out of every random contract**: the skip is gone from
+   `random_instrument`; the pedal is drawn from a stream of its own (so no existing draw
+   moves), and only the rest contract's mid-run change lets it up (`released`). Split
+   invariance (blocks 1/7/4 096, random splits), voice split and the pool's parallel =
+   serial now run with it over its whole range: `inst_contract` 31 and `pool` 6 pass.
+6. **The picker had seven fixed rows and no scroll area**: the rows now scroll in an area
+   bounded by the screen (the title, the band, the hint and the buttons always stay on it),
+   the arrow keys scroll the selection into view, and the window has a stable id. Test
+   `the_picker_fits_a_small_screen_at_200_percent` (Spanish, 683 × 384 points; failed: the
+   window ran from −61 to 445). Shots: `png\heart-picker-{night,paper}-{en,es}-1366-z200.png`
+   (1366 × 768 at 200 %), looked at — three rows and the scroll bar, the hint and *Abrir* /
+   *Cancelar* on screen.
+
+**Re-measured** after the fixes (`master-final.txt`; the WAV, the MP3 and the short MP3/OGG
+rendered again): −11.3 LUFS, LRA 5.8 LU, −1.14 dBTP, the spectrum within 2.8 dB of the
+reference, correlation 0.77 (lowest −0.08), no clicks at section changes — the same as
+before to a tenth, the clash gone.
