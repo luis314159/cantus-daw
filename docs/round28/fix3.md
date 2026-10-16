@@ -85,3 +85,13 @@ sampler}, tests), `cantus-dsp` (chorda_{board,voice,engine}, exemplar{,_engine},
 (manifest, tests/kit_build), `cantus-ui` (many views; locales instruments, automation,
 modulators, topbar, samples, audioclips, inst/chorda), docs (ADR 0023, 0042, 0051, 0057,
 0058, 0059, manual EN/ES, exemplar.md, chorda.md, sound.md).
+
+## The runs
+
+`cargo fmt --all`; `cargo clippy --workspace --all-targets -D warnings` and
+`cargo clippy -p cantus-plugins --no-default-features --all-targets -D warnings` clean.
+Tests: cantus-core, -project, -dsp, -engine, -host, -plugins, -bench, -content and -ui all
+pass. One timing test, `sixty_four_pedal_down_voices_fit_a_quarter_of_a_core`, failed once
+inside the whole dsp suite (a debug build sharing the cores with 690 other tests); alone it
+measures 17.3 %, and the release measurement 17.4 % of a core (19.5 % before: the new fades
+cost nothing measurable).
