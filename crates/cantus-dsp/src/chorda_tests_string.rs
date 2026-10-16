@@ -152,7 +152,10 @@ fn the_strings_are_the_same_bits_every_time_and_silence_stays_silent() {
 fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
     // ADR 0059's done-when, measured on the sound: all 88 keys, one string each, every
     // partial below 5 kHz that sounds — at 44.1, 48 and 96 kHz, and at the Baroque preset's
-    // tuning (A4 415 Hz, 70 % stretch) and the stiffest strings the settings allow.
+    // tuning (A4 415 Hz, 70 % stretch) and the stiffest strings the settings allow — and
+    // the ranges' corners (sound review 2): A4 466 with the widest stretch and the stiffest
+    // strings (the shortest loops, the most dispersion against the rate) at 44.1 and
+    // 96 kHz, and A4 415 with no stretch and the softest strings at 44.1 kHz.
     let baroque = Tuning {
         a4: 415.0,
         stretch: 0.7,
@@ -162,12 +165,25 @@ fn every_key_rings_within_a_cent_at_every_rate_and_tuning() {
         stiffness: 1.5,
         ..Tuning::default()
     };
+    let high = Tuning {
+        a4: 466.0,
+        stretch: 2.0,
+        stiffness: 1.5,
+    };
+    let low = Tuning {
+        a4: 415.0,
+        stretch: 0.0,
+        stiffness: 0.5,
+    };
     let runs = [
         (44_100.0, Tuning::default(), 1usize << 15),
         (48_000.0, Tuning::default(), 1 << 15),
         (96_000.0, Tuning::default(), 1 << 16),
         (48_000.0, baroque, 1 << 15),
         (48_000.0, stiff, 1 << 15),
+        (44_100.0, high, 1 << 15),
+        (96_000.0, high, 1 << 16),
+        (44_100.0, low, 1 << 15),
     ];
     let threads = std::thread::available_parallelism()
         .map_or(4, |n| n.get())

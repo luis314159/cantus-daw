@@ -364,7 +364,9 @@ pub struct PianoRollView {
     stroke: u64,
     sel: SelSet,
     /// The axis last built, and the edit and clip it was built for.
-    axis: Option<((u64, TrackId, ClipId), Axis)>,
+    /// The axis and what it was built for — the language too (a kit's rows are named in
+    /// it; sound review 2).
+    axis: Option<((u64, TrackId, ClipId, crate::i18n::Locale), Axis)>,
     /// The grid's size last frame, for zoom-to-notes.
     last_grid: (f32, f32),
     /// The toolbar's note count, rebuilt when the count changes.
@@ -599,7 +601,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     // The vertical axis comes from the *instrument*, once per frame, before anything is
     // laid out: it decides how wide the key strip has to be as well as what is in it.
     // Built once per edit, not once per frame: a kit's axis names every pad.
-    let key = (app.bus.revision(), track_id, clip_id);
+    let key = (app.bus.revision(), track_id, clip_id, crate::i18n::locale());
     let axis = match app.piano_roll.axis.take() {
         Some((k, a)) if k == key => a,
         _ => {

@@ -86,6 +86,17 @@ impl Rig {
     ) -> Rig {
         let snap = Arc::new(Snapshot::compile(project, 1));
         let effects: usize = snap.effect_slots().count();
+        // A Chorda's keyboard designed before its unit is made: a unit never waits for
+        // it, so notes held from tick 0 would find none and the run would time a silent
+        // piano (sound review 2).
+        for t in &snap.tracks {
+            if let Some(n) = t.instrument.native() {
+                if n.kind == cantus_core::InstrumentKind::Chorda {
+                    let c = &inst::chorda::values_of(n);
+                    inst::chorda::ensure(inst::chorda::tuning_of(c), SAMPLE_RATE as f32);
+                }
+            }
+        }
         let instruments = inst::units_for(&snap, SAMPLE_RATE as f32, |_, _| false);
         let (mut tx, rx_engine) =
             rtrb::RingBuffer::<EngineMessage>::new(64 + effects + instruments.len());

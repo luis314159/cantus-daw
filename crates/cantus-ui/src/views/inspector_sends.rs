@@ -133,8 +133,12 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
         if let Some(cmd) = picked.and_then(|t| plan::set_send_tap(app.project(), id, send.to, t)) {
             sh.acts.push(Act::Exec(cmd));
         }
+        // The level is a parameter: automated and modulated from here too (review 2).
         let lname = sheet::name(sh.fmt.tr("inspector.send_level"));
-        let d = sh.value(
+        let d = super::modulators::wired_value(
+            sh,
+            app,
+            "inspector.send_level",
             level,
             Id::new(("insp-send-level", id, send.to)),
             send.level,
@@ -143,7 +147,12 @@ pub fn sends(sh: &mut Sheet<'_>, app: &CantusApp, ms: Option<&MixerStrip>) {
             &lname,
             sheet::level_db,
             Function::Space,
+            cantus_core::AutoTarget::Send {
+                strip: id,
+                to: send.to,
+            },
             !send.enabled,
+            true,
         );
         if let Some(v) = d.value {
             sh.acts.push(set(id, Send { level: v, ..*send }));

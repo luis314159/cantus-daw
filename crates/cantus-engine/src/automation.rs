@@ -125,7 +125,9 @@ pub(crate) struct Lane {
     /// The project's value as a position (where no clip plays), for modulation.
     pub base_pos: f32,
     /// A hosted lane: the value last queued for its unit (bits of `pos`, `modulation`):
-    /// an inner grid point queues only a change, so a still lane costs no room.
+    /// an inner grid point queues only a change, so a still lane costs no room. Stamped
+    /// only when the unit's queue took it, and forgotten when a unit is swapped in place
+    /// ([`Runtime::forget_sent`]).
     pub sent: Option<(u32, u32)>,
 }
 
@@ -450,15 +452,16 @@ impl Runtime {
         changed
     }
 
-    /// The hosted lanes at an inner grid point of a pass (`t` its time), each handed to
-    /// `f` with its destination and value. Modulators that are functions of time are read
-    /// there; what holds state keeps its control point's value.
+    /// The hosted lanes at an inner grid point of a pass (`t` its time), each that changed
+    /// handed to `f` with its destination and value; `f` says whether its unit took it.
+    /// Modulators that are functions of time are read there; what holds state keeps its
+    /// control point's value.
     pub(crate) fn hosted_at(
         &mut self,
         snapshot: &Snapshot,
         tick: f64,
         t: &ModTime,
-        mut f: impl FnMut(&Dest, Option<(usize, usize)>, HostedValue),
+        mut f: impl FnMut(&Dest, Option<(usize, usize)>, HostedValue) -> bool,
     ) {
         for (m, plan) in self.mods.iter_mut().zip(&snapshot.modulators) {
             m.inner = if ModRt::stateful(plan) {
@@ -496,8 +499,20 @@ impl Runtime {
             if l.sent == Some(hosted_bits(v)) {
                 continue;
             }
-            f(&l.dest, at, v);
-            self.lanes[li].sent = Some(hosted_bits(v));
+            // Marked as sent only when it found room: a dropped change is tried again at
+            // the next grid point (review 2).
+            if f(&l.dest, at, v) {
+                self.lanes[li].sent = Some(hosted_bits(v));
+            }
+        }
+    }
+
+    /// A hosted unit was swapped in place (a plug-in's restart, review 2): the new one
+    /// holds none of what was queued for the old, so every hosted lane is queued again at
+    /// the next grid point.
+    pub(crate) fn forget_sent(&mut self) {
+        for l in &mut self.lanes {
+            l.sent = None;
         }
     }
 

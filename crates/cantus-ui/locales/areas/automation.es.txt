@@ -55,6 +55,7 @@ auto.track.volume = Automatizar volumen
 auto.track.pan = Automatizar panorama
 auto.strip.width = Automatizar anchura estéreo
 auto.track.level = Automatizar nivel del canal
+auto.send.level = Automatizar el nivel del envío
 
 # Articuladores.
 auto.art.flip_v = Invertir en vertical

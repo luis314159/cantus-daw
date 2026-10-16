@@ -116,6 +116,10 @@ pub(crate) enum Pick {
     Gate(StripId, StripId),
     /// Select a strip (a Receives row's name).
     Select(StripId),
+    /// *Automate the level*: a send's automation clip (`from`, `to`; ADR 0027).
+    AutomateLevel(StripId, StripId),
+    /// *Modulate the level…*: the modulators' list beside the menu (ADR 0057, review 2).
+    ModulateLevel(StripId, StripId),
 }
 
 /// The open menu of one owner, kept in the egui context between frames.
@@ -588,6 +592,16 @@ fn route_rows(app: &CantusApp, r: Route, e: &mut Vec<Row>) {
                 Row::sub(Label::Key("routing.menu.level"), Sub::Level(r.from, r.to))
                     .value(level_text(send.level)),
             );
+            // The level is a parameter (review 2): automated and modulated from here, as
+            // every send control's right-click reaches this menu.
+            e.push(Row::pick(
+                Label::Key("auto.send.level"),
+                Pick::AutomateLevel(r.from, r.to),
+            ));
+            e.push(Row::pick(
+                Label::Key("mods.menu.send"),
+                Pick::ModulateLevel(r.from, r.to),
+            ));
             e.push(
                 Row::pick(
                     Label::Key("routing.menu.send_on"),
@@ -1190,6 +1204,16 @@ fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
         }
         Pick::Tap(from, to, tap) => {
             app.set_send_tap(from, to, tap);
+        }
+        Pick::AutomateLevel(strip, to) => {
+            app.automate(cantus_core::AutoTarget::Send { strip, to });
+        }
+        Pick::ModulateLevel(strip, to) => {
+            // Beside the pointer, where the menu was.
+            app.modulators.popup = Some((
+                cantus_core::AutoTarget::Send { strip, to },
+                egui::Rect::NOTHING,
+            ));
         }
         Pick::MakeOutput(from, to) => {
             app.send_to_output(from, to);

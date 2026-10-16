@@ -458,39 +458,52 @@ impl Processor {
     }
 
     /// Push one hosted value `offset` samples into the pass; `at` is where a hosted
-    /// insert runs (`HostedFx::at`).
+    /// insert runs (`HostedFx::at`). Whether its unit's queue took it.
     fn auto_push_hosted(
         &mut self,
         dest: &Dest,
         at: Option<(usize, usize)>,
         offset: u32,
         v: HostedValue,
-    ) {
+    ) -> bool {
         let nodes = self.nodes.clone();
         match *dest {
             Dest::Hosted(_, id) => match at {
-                Some((usize::MAX, i)) => {
-                    if let Some(u) = self.master.effects.get_mut(i) {
-                        u.automation.push(offset, id, v);
-                    }
-                }
-                Some((s, i)) => {
-                    if let Some(mut st) = nodes.strip(s) {
-                        if let Some(u) = st.effects.get_mut(i) {
-                            u.automation.push(offset, id, v);
-                        }
-                    }
-                }
-                None => {}
+                Some((usize::MAX, i)) => self
+                    .master
+                    .effects
+                    .get_mut(i)
+                    .is_some_and(|u| u.automation.push(offset, id, v)),
+                Some((s, i)) => nodes.strip(s).is_some_and(|mut st| {
+                    st.effects
+                        .get_mut(i)
+                        .is_some_and(|u| u.automation.push(offset, id, v))
+                }),
+                None => false,
             },
-            Dest::HostedInst(ti, id) => {
-                if let Some(mut s) = self.track_to_slot.get(ti).and_then(|&sl| nodes.track(sl)) {
-                    if let Some(u) = s.native.as_mut() {
-                        u.automation.push(offset, id, v);
-                    }
-                }
+            Dest::HostedInst(ti, id) => self
+                .track_to_slot
+                .get(ti)
+                .and_then(|&sl| nodes.track(sl))
+                .is_some_and(|mut s| {
+                    s.native
+                        .as_mut()
+                        .is_some_and(|u| u.automation.push(offset, id, v))
+                }),
+            _ => false,
+        }
+    }
+
+    /// A hosted unit was swapped in place (`replace_effect` / `replace_instrument`: a
+    /// plug-in's restart). The fresh unit holds none of the values queued for the old one,
+    /// so every hosted lane is queued again at the next grid point; stopped, a control
+    /// point is due now (stopped there are no inner grid points). Review 2.
+    pub(super) fn auto_unit_swapped(&mut self) {
+        if let Some(rt) = self.auto.rt.as_mut() {
+            rt.forget_sent();
+            if !self.transport.is_playing() {
+                self.auto_reseek();
             }
-            _ => {}
         }
     }
 
@@ -727,8 +740,10 @@ impl Processor {
                         pos: lane.now,
                         modulation: lane.mod_now,
                     };
-                    self.auto_push_hosted(&dest, at, 0, v);
-                    rt.lanes[li].sent = Some(crate::automation::hosted_bits(v));
+                    // Marked as sent only when it found room (review 2).
+                    rt.lanes[li].sent = self
+                        .auto_push_hosted(&dest, at, 0, v)
+                        .then(|| crate::automation::hosted_bits(v));
                 }
                 Dest::Effect(..)
                 | Dest::Native(..)

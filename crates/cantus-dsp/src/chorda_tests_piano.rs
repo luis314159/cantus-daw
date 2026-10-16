@@ -391,3 +391,59 @@ fn a_new_keyboard_never_cuts_the_strings_ringing() {
         level(&a[a.len() - 480..])
     );
 }
+
+/// Sound review 2: a keyboard that lands while the piano plays reaches every part of it.
+/// The sympathetic strings the pedal woke (driven while anything sounds) fade out over a
+/// few milliseconds and take the new layout; a key struck again while it still rings
+/// fades its old strings and strikes the new ones. Before, both kept the old tuning for as
+/// long as anything sounded.
+#[test]
+fn a_keyboard_landing_while_the_piano_plays_reaches_the_ringing_strings() {
+    let flat = std::sync::Arc::new(super::design::Keyboard::compute(
+        super::design::Tuning {
+            a4: 415.0,
+            stretch: 1.0,
+            stiffness: 1.0,
+        },
+        FS,
+        8,
+    ));
+    let mut c = piano();
+    let ev = [
+        (0, Ev::Pedal(1.0)),
+        (1, Ev::On(48, 0.8, 1)),
+        (1, Ev::On(55, 0.8, 2)),
+        (1, Ev::On(64, 0.8, 3)),
+    ];
+    perform(&mut c, &ev, 24_000, 256, 1);
+    c.set_keyboard(flat);
+    assert!(
+        c.sympathetic_waiting() > 0,
+        "the pedal's strings wait for it"
+    );
+    // Still playing: a key held throughout drives the bridge; 55 struck again ringing.
+    let (b, _) = perform(
+        &mut c,
+        &[(0, Ev::On(72, 0.6, 4)), (100, Ev::On(55, 0.6, 5))],
+        24_000,
+        256,
+        1,
+    );
+    assert_eq!(
+        c.sympathetic_waiting(),
+        0,
+        "every string took the new keyboard"
+    );
+    assert_eq!(
+        c.voice_generation(55),
+        c.generation(),
+        "the key struck again plays the new keyboard"
+    );
+    // Nothing cut: no step anywhere in what followed.
+    let steepest = b
+        .windows(2)
+        .map(|w| (w[1] - w[0]).abs())
+        .fold(0.0f32, f32::max);
+    let peak = b.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    assert!(steepest < 0.25 * peak, "a step of {steepest} (peak {peak})");
+}

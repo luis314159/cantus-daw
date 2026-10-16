@@ -62,8 +62,9 @@ the strike line, the dampers, the keyboard; the last key played lit, its hammer 
 soft pedal) beside the pedals (the half-pedal law with the pedal on it), and the hammer,
 resonance and output cells. *Edit* — the strings, the tuning's stretch in cents, the felt's
 force against compression (as measured and as set), the strings' ring key by key (free and
-damped), the pedals, resonance and output. Every cell takes a modulation source by drag and
-drop and is one undo step.
+damped), the pedals, resonance and output. Every cell but the tuning's (A4, stretch,
+stiffness — set, never automated or modulated) takes a modulation source by drag and drop;
+each change is one undo step.
 
 ## Parameters
 

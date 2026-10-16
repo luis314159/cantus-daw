@@ -262,7 +262,7 @@ pub(crate) fn strip_chain(
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
         // call.
-        e.set_position(&ctx.position);
+        e.set_position(&ctx.position.earlier(e.late, ctx.sample_rate));
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {
@@ -296,6 +296,13 @@ pub(crate) fn strip_chain(
                 nodes.drop_event();
             }
         });
+        // What found no room on its way into it, automated or not (review 2).
+        let lost = e.take_dropped();
+        if lost > 0 {
+            nodes
+                .dropped
+                .fetch_add(lost, std::sync::atomic::Ordering::Relaxed);
+        }
         if let Some(a) = ana.as_mut() {
             analyse(a, l, r);
             if !off {

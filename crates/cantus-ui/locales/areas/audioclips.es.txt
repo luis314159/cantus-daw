@@ -49,4 +49,3 @@ audioclips.status.collect_failed = No se pudo copiar {file} a la carpeta Audio d
 audioclips.status.relinked = Audio encontrado de nuevo: {file}
 audioclips.status.wait_peaks = La forma de onda aún se está leyendo; inténtalo en un momento
 audioclips.loading = Cargando
-audioclips.piano_roll = Un clip de audio no tiene notas. Su ganancia, fundidos y archivo están en el inspector

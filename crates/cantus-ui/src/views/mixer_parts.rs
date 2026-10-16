@@ -138,12 +138,24 @@ pub(super) fn sends_row(
         );
         let mut st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
         st.disabled = !send.enabled;
+        // The level is a parameter (review 2): the handle's drop, the Alt-drag depth,
+        // the rings; its right-click menu offers automation and *Modulate…*.
+        let dm = super::strip::DeskMod::new(
+            app,
+            cantus_core::AutoTarget::Send {
+                strip: sel,
+                to: sn.id,
+            },
+            pos,
+            &ks,
+        );
         if let Some(resp) = &resp {
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 1.0) {
+            let depth = dm.input(app, ui, resp);
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 1.0, !depth) {
                 pos = p;
                 app.set_strip_send(sel, Send { level: p, ..send });
             }
-            if resp.drag_stopped() {
+            if resp.drag_stopped() && !depth {
                 app.end_gesture();
             }
             if resp.hovered() {
@@ -163,7 +175,18 @@ pub(super) fn sends_row(
             c,
             &ks.function(crate::kit::Function::Space),
             st,
-            &KnobLook::new(KnobSize::Mini, pos, 1.0),
+            &KnobLook {
+                live: dm.live,
+                rings: dm.rings(),
+                ..KnobLook::new(KnobSize::Mini, pos, 1.0)
+            },
+        );
+        dm.paint_drop(
+            b,
+            ui,
+            resp.as_ref(),
+            Rect::from_center_size(c, vec2(18.0, 18.0)),
+            s,
         );
         return;
     }
@@ -611,15 +634,29 @@ fn send_row(
         pos2(r.right(), r.bottom()),
     );
     let mut level = send.level.clamp(0.0, 1.0);
+    // The level is a parameter (review 2): a modulator's handle dropped on the row
+    // connects it, an Alt-drag (or a mapping modulator) edits the depth; its right-click
+    // menu offers automation and *Modulate…*.
+    let dm = super::strip::DeskMod::new(
+        app,
+        cantus_core::AutoTarget::Send {
+            strip: sn.id,
+            to: send.to,
+        },
+        level,
+        s,
+    );
     if let Some(resp) = &resp {
-        if let Some(p) = knob_input(v, ui, pass, resp, level, 1.0) {
+        let depth = dm.input(app, ui, resp);
+        if let Some(p) = knob_input(v, ui, pass, resp, level, 1.0, !depth) {
             level = p;
             app.set_strip_send(sn.id, Send { level: p, ..send });
         }
-        if resp.drag_stopped() {
+        if resp.drag_stopped() && !depth {
             app.end_gesture();
         }
     }
+    dm.paint_drop(b, ui, resp.as_ref(), r, s);
     let fb = b.snap_rect(foot);
     b.rect(fb, Fill::Solid(with_alpha(t.text_dim, 0.18)));
     if level > 0.0 {
@@ -630,6 +667,14 @@ fn send_row(
             with_alpha(t.hue_space, 0.45)
         };
         b.rect(b.snap_rect(lit), Fill::Solid(c));
+    }
+    // Where modulation has the level now: a tick on the foot, in the modulation hue.
+    if let Some(live) = dm.live {
+        let x = fb.left() + fb.width() * live.clamp(0.0, 1.0);
+        b.rect(
+            Rect::from_min_max(pos2(x - 1.0, fb.top() - 2.0), pos2(x + 1.0, fb.bottom())),
+            Fill::Solid(t.hue_mod),
+        );
     }
     if let Some(tap) =
         crate::kit::tap::chip(ui, b, s, tap_r, pass.clip, id.with("tap"), send.tap, tap_k)
@@ -858,7 +903,7 @@ pub(super) fn master(
         let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterPan, pos, &ks);
         if let Some(resp) = &resp {
             let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetMasterPan { pan: p * 2.0 - 1.0 },
@@ -915,7 +960,7 @@ pub(super) fn master(
             super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterGain, pos_of(gain), s);
         if let Some(resp) = &resp {
             let depth = dm.input(app, ui, resp);
-            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain).filter(|_| !depth) {
+            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain, !depth) {
                 gain = g;
                 app.exec_merging(
                     Command::SetMasterGain { gain_db: g },
@@ -998,7 +1043,7 @@ pub(super) fn master(
         let dm = super::strip::DeskMod::new(app, cantus_core::AutoTarget::MasterWidth, pos, &ks);
         if let Some(resp) = &resp {
             let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetMasterWidth { width: p * 2.0 },

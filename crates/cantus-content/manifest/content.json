@@ -1270,8 +1270,8 @@
     "es": "Batería acústica DRSKit"
    },
    "description": {
-    "en": "A handcrafted DRSDrums kit recorded by the DrumGizmo team with 13 microphones: two kick sounds, snare, three toms, hi-hat, two crashes and a ride, with sticks and with brushes, up to 30 strengths per drum. Cantus mixes the microphones into a stereo kit as it installs it: a 2.8 GB download, about 490 MB once installed; its first load writes Cantus's sample cache. Plays in Exemplar on the General MIDI drum keys.",
-    "es": "Una batería artesanal de DRSDrums grabada por el equipo de DrumGizmo con 13 micrófonos: dos sonidos de bombo, caja, tres toms, charles, dos crash y un ride, con baquetas y con escobillas, hasta 30 intensidades por tambor. Cantus mezcla los micrófonos en una batería estéreo al instalarla: una descarga de 2,8 GB, unos 490 MB instalada; su primera carga escribe la caché de muestras de Cantus. Suena en Exemplar en las teclas de batería de General MIDI."
+    "en": "A handcrafted DRSDrums kit recorded by the DrumGizmo team with 13 microphones: two kick sounds, snare, three toms, hi-hat, two crashes and a ride, with sticks and with brushes, up to 30 strengths per drum. Cantus mixes the microphones into a stereo kit as it installs it: a 2.8 GB download, about 470 MB once installed; its first load writes Cantus's sample cache. Plays in Exemplar on the General MIDI drum keys.",
+    "es": "Una batería artesanal de DRSDrums grabada por el equipo de DrumGizmo con 13 micrófonos: dos sonidos de bombo, caja, tres toms, charles, dos crash y un ride, con baquetas y con escobillas, hasta 30 intensidades por tambor. Cantus mezcla los micrófonos en una batería estéreo al instalarla: una descarga de 2,8 GB, unos 470 MB instalada; su primera carga escribe la caché de muestras de Cantus. Suena en Exemplar en las teclas de batería de General MIDI."
    },
    "category": "drums",
    "licence": "CC-BY-4.0",
@@ -1556,14 +1556,14 @@
      {
       "instrument": "Hihat_semi_open",
       "keys": [
-       82
+       21
       ],
       "label": "Hi-hat half open"
      },
      {
       "instrument": "Hihat_closed",
       "keys": [
-       83
+       22
       ],
       "gain_db": 5.0,
       "label": "Hi-hat closed, tip"
@@ -1571,7 +1571,7 @@
      {
       "instrument": "Hihat_open_tip",
       "keys": [
-       84
+       23
       ],
       "gain_db": 6.0,
       "label": "Hi-hat open, tip"
@@ -1579,7 +1579,7 @@
      {
       "instrument": "Crash_left_tip",
       "keys": [
-       85
+       24
       ],
       "gain_db": 5.0,
       "label": "Crash left, tip"
@@ -1587,7 +1587,7 @@
      {
       "instrument": "Crash_right_tip",
       "keys": [
-       86
+       25
       ],
       "gain_db": 5.0,
       "label": "Crash right, tip"
@@ -1595,7 +1595,7 @@
      {
       "instrument": "Ride_tip_bell",
       "keys": [
-       87
+       26
       ],
       "gain_db": 2.0,
       "label": "Ride bell, tip"

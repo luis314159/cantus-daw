@@ -214,6 +214,9 @@ pub enum Trig {
     Controller,
 }
 
+/// Live round-robin lanes counted at once (more fall back to a count per key).
+pub const LIVE_LANES: usize = 128;
+
 /// One zone, as the engine plays it.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct ZoneParams {
@@ -350,6 +353,9 @@ pub struct Exemplar {
     keyswitch: i16,
     /// Per-key counters for live notes' round robin.
     live_rr: [u32; 128],
+    /// With round robin in order, live notes count by round-robin lane, as sequenced ones
+    /// do (`RrLanes`, sound review 2): (lane, count), open addressing; lane 0 is empty.
+    live_lanes: [(u64, u32); LIVE_LANES],
     /// Every controller's last value (0…127), the controllers some zone listens to (a bit
     /// each), and the controller triggers counted since the last stop — their round robin
     /// and random numbers.

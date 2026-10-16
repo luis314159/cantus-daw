@@ -124,6 +124,9 @@ struct Scratch {
     /// The tracks' axes for the pattern, and what they were built for.
     axes: Vec<Axis>,
     axes_key: Option<(u64, i64, i64, usize, u64)>,
+    /// The interface's language they were written in: a switch rebuilds them all (sound
+    /// review 2: a kit's rows kept the old language until the next edit).
+    locale: Option<crate::i18n::Locale>,
 }
 
 impl Default for ChannelRackView {
@@ -440,6 +443,14 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     // press here, as after one in the piano roll.
     super::piano_roll::claim_focus(app, ui);
     let s = Style::current();
+    let lang = crate::i18n::locale();
+    if app.rack.scratch.locale != Some(lang) {
+        let sc = &mut app.rack.scratch;
+        sc.locale = Some(lang);
+        sc.axes_key = None;
+        sc.counts.1.clear();
+        sc.span.1.clear();
+    }
     let Some((sel_track, sel_clip)) = app.selected_track.zip(app.selected_clip) else {
         empty(ui, "clip.none_selected", &s);
         return;

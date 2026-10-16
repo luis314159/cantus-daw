@@ -51,27 +51,56 @@ pub fn content_key(c: &Clip) -> Option<ContentKey> {
     }
 }
 
-/// Whether the content of `take` (on a take lane) plays anywhere on lane 0 — or in an
-/// alternate comp's kept windows (ADR 0058), which play when that comp does.
-fn in_comp(track: &Track, take: &Clip) -> bool {
-    let Some(key) = content_key(take) else {
+/// Whether `c` (a playing-lane clip, or an alternate comp's kept window) is a window onto
+/// `take` (a take-lane clip): it plays the take's source and lies over the take on the
+/// timeline (ADR 0058, review 2). A window where its take put it (the same origin) is that
+/// take's alone; one slipped or nudged (an origin no take of that source has) is a window
+/// onto each take of its source it lies over. A copy pasted away from every take of its
+/// source is no window: a comp switch, a new comp and a merge leave it alone. One rule
+/// for the comp's windows, the take lanes' lighting and the unused takes.
+fn shows_take(track: &Track, c: &Clip, take: &Clip) -> bool {
+    let (Some(k), Some(t)) = (content_key(c), content_key(take)) else {
         return false;
     };
-    let shows = |c: &Clip| {
-        c.lane == 0 && c.start < take.end() && c.end() > take.start && content_key(c) == Some(key)
+    if c.lane != 0
+        || take.lane == 0
+        || (k.content, k.audio) != (t.content, t.audio)
+        || c.start >= take.end()
+        || c.end() <= take.start
+    {
+        return false;
+    }
+    k.origin == t.origin
+        || !track
+            .clips
+            .iter()
+            .any(|x| x.lane > 0 && content_key(x) == Some(k))
+}
+
+/// Whether any of the content of `take` (on a take lane) plays — on lane 0 or in an
+/// alternate comp's kept windows (ADR 0058), which play when that comp does — wherever it
+/// was slipped or moved to: a clip of the same source whose stretch of the source overlaps
+/// the take's. What *Delete unused takes* keeps (review 2: a window moved off its take
+/// lost its take).
+fn in_comp(track: &Track, take: &Clip) -> bool {
+    let Some(t) = content_key(take) else {
+        return false;
     };
-    track.clips.iter().any(shows) || track.comps.iter().flat_map(|c| c.windows.iter()).any(shows)
+    let plays = |c: &Clip| {
+        c.lane == 0
+            && content_key(c).is_some_and(|k| (k.content, k.audio) == (t.content, t.audio))
+            && c.offset < take.offset + take.length
+            && c.offset + c.length > take.offset
+    };
+    track.clips.iter().any(plays) || track.comps.iter().flat_map(|c| c.windows.iter()).any(plays)
 }
 
 /// Call `f` with every range of `take` that the comp plays (for lighting the take lanes).
 /// Allocates nothing.
 pub fn for_each_comped(track: &Track, take: &Clip, mut f: impl FnMut(Ticks, Ticks)) {
-    let Some(key) = content_key(take) else {
-        return;
-    };
-    for c in track.clips.iter().filter(|c| c.lane == 0) {
+    for c in track.clips.iter().filter(|c| shows_take(track, c, take)) {
         let (a, b) = (c.start.max(take.start), c.end().min(take.end()));
-        if b > a && content_key(c) == Some(key) {
+        if b > a {
             f(a, b);
         }
     }
@@ -227,7 +256,7 @@ pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
             .clips
             .iter()
             .filter(audio)
-            .find(|l| l.id != r.id && l.end() == r.start)
+            .find(|l| cantus_core::comp::is_seam(l, r))
         {
             let x = r.audio.as_ref().map_or(Ticks::ZERO, |a| a.xfade);
             out.push((l.id, r.id, r.start, x));
@@ -556,22 +585,30 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
 
 // ---- alternate comps (ADR 0058) ---------------------------------------------------------
 
-/// The windows of the comp playing: the playing lane's clips that show a take — by what
-/// they show, wherever it is: a window slipped or moved is still the comp's (review 1).
+/// The windows of the comp playing: the playing lane's clips that are windows onto a take
+/// ([`shows_take`]) — a window slipped or nudged is still the comp's (review 1); a copy
+/// pasted away from its takes is not (review 2).
 pub fn comp_windows(track: &Track) -> Vec<&Clip> {
-    let of = |k: ContentKey| (k.content, k.audio);
-    let keys: Vec<(u64, bool)> = track
-        .clips
-        .iter()
-        .filter(|c| c.lane > 0)
-        .filter_map(content_key)
-        .map(of)
-        .collect();
     track
         .clips
         .iter()
-        .filter(|c| c.lane == 0 && content_key(c).is_some_and(|k| keys.contains(&of(k))))
+        .filter(|c| {
+            c.lane == 0
+                && track
+                    .clips
+                    .iter()
+                    .any(|take| take.lane > 0 && shows_take(track, c, take))
+        })
         .collect()
+}
+
+/// A window as an alternate comp keeps it: whole, but in no link group (ADR 0037's upkeep
+/// walks the playing clips only).
+fn kept(c: &Clip) -> Clip {
+    Clip {
+        link: None,
+        ..c.clone()
+    }
 }
 
 /// The comps as they are, or the one implicit comp ("A", playing) when there are none.
@@ -601,7 +638,9 @@ pub fn switch_comp(project: &Project, tid: TrackId, to: u8) -> Vec<Command> {
     }
     let playing: Vec<Clip> = comp_windows(track).into_iter().cloned().collect();
     let coming = std::mem::take(&mut comps[to as usize].windows);
-    comps[active as usize].windows = playing.clone();
+    // A kept window owns its content: out of any link group, which no longer reaches it
+    // (integration review: a group edited meanwhile made the switch back refused).
+    comps[active as usize].windows = playing.iter().map(kept).collect();
     let mut cmds: Vec<Command> = playing
         .iter()
         .map(|c| Command::RemoveClip {
@@ -635,7 +674,7 @@ pub fn duplicate_comp(project: &Project, tid: TrackId, ids: Ids) -> Vec<Command>
         .into_iter()
         .map(|c| Clip {
             id: ClipId(ids()),
-            ..c.clone()
+            ..kept(c)
         })
         .collect();
     let name = (0..cantus_core::comp::MAX_COMPS)

@@ -395,8 +395,9 @@ impl Shared {
     }
 
     /// The audio thread's view of the host's transport at the end of a block: the
-    /// position the units reached, at the tempo they play (no allocation, no lock).
-    fn publish_transport(&self, p: &SongPosition, timeline: bool) {
+    /// position the units reached, at the tempo they play, and `last`, the beat of the
+    /// block's last frame when it had one (no allocation, no lock).
+    fn publish_transport(&self, p: &SongPosition, last: Option<f64>, timeline: bool) {
         let h = &self.host;
         let s = h.seq.load(Ordering::Relaxed);
         h.seq.store(s.wrapping_add(1), Ordering::Relaxed);
@@ -409,15 +410,19 @@ impl Shared {
             (u32::from(p.time_sig_num) << 16) | u32::from(p.time_sig_den),
             Ordering::Relaxed,
         );
-        // The block's last frame is one frame before where it ended.
-        let sr = f64::from(self.sample_rate()).max(1.0);
-        let frame = if p.playing {
-            p.tempo_bpm / 60.0 / sr
-        } else {
-            0.0
-        };
-        h.last_beats
-            .store((p.beats - frame).to_bits(), Ordering::Relaxed);
+        // The block's last frame, read where it was (a block ending on the host's loop end
+        // has its end position wrapped already: one frame before that would be a whole
+        // loop early — integration review); with no frame, one frame before the end.
+        let last = last.unwrap_or_else(|| {
+            let sr = f64::from(self.sample_rate()).max(1.0);
+            let frame = if p.playing {
+                p.tempo_bpm / 60.0 / sr
+            } else {
+                0.0
+            };
+            p.beats - frame
+        });
+        h.last_beats.store(last.to_bits(), Ordering::Relaxed);
         h.tapped_at
             .store(self.tapped.load(Ordering::Relaxed), Ordering::Relaxed);
         h.known.store(true, Ordering::Release);
@@ -987,8 +992,12 @@ impl Processor {
         match &cur {
             Some(t) => {
                 let p = t.position(n - cur_at, sr, block_start + cur_at as u64);
+                let last = (n > cur_at).then(|| {
+                    t.position(n - 1 - cur_at, sr, block_start + cur_at as u64)
+                        .beats
+                });
                 let timeline = t.start_beats().is_some() || t.seconds.is_some();
-                self.shared.publish_transport(&p, timeline);
+                self.shared.publish_transport(&p, last, timeline);
             }
             None => self.shared.forget_transport(),
         }

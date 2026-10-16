@@ -313,7 +313,7 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            e.set_position(position);
+            e.set_position(&position.earlier(e.late, self.sample_rate));
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {
@@ -347,6 +347,8 @@ impl Processor {
                     self.stats.dropped_events += 1;
                 }
             });
+            // What found no room on its way into it, automated or not (review 2).
+            self.stats.dropped_events += e.take_dropped();
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }

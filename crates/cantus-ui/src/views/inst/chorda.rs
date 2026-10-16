@@ -85,13 +85,24 @@ pub fn designing(app: &CantusApp, spec: &NativeSpec) -> Option<String> {
     if tele[tel::ALIVE] < 0.5 || tele[tel::DESIGNED] > 0.5 {
         return None;
     }
+    caption(spec, app.engine.sample_rate as f32)
+}
+
+/// What the editor says of a tuning the piano does not play yet: its design's progress,
+/// or — when this session cannot design it (sound review 2: it read "0 %" for good) —
+/// that the piano keeps the tuning it has.
+fn caption(spec: &NativeSpec, fs: f32) -> Option<String> {
+    use cantus_engine::inst::chorda::{progress, refused};
     let tuning = tuning_of(&values_of(spec));
-    let done =
-        cantus_engine::inst::chorda::progress(tuning, app.engine.sample_rate as f32).unwrap_or(0.0);
-    Some(crate::i18n::tf(
-        "chorda.designing_pct",
-        &[("pct", &format!("{:.0}", done * 100.0))],
-    ))
+    if refused(tuning, fs) {
+        return Some(t("chorda.no_room"));
+    }
+    progress(tuning, fs).map(|done| {
+        crate::i18n::tf(
+            "chorda.designing_pct",
+            &[("pct", &format!("{:.0}", done * 100.0))],
+        )
+    })
 }
 
 /// The height of a card with a `display` and a `body`, at 100 %.
@@ -511,3 +522,20 @@ pub const FACTORY_PRESETS: &[FactoryPreset] = &[
         "coupling" => 0.65,
     ]),
 ];
+
+#[cfg(test)]
+mod tests {
+    use cantus_core::{InstrumentKind, NativeSpec};
+    use cantus_engine::inst::chorda::{tuning_of, values_of};
+
+    #[test]
+    fn a_tuning_this_session_cannot_design_says_so_never_zero_percent() {
+        crate::i18n::set_locale(crate::i18n::Locale::En);
+        let mut spec = NativeSpec::new(InstrumentKind::Chorda);
+        spec.set("a4", 441.23);
+        cantus_engine::inst::chorda::refuse_for_tests(tuning_of(&values_of(&spec)), 48_000.0);
+        let said = super::caption(&spec, 48_000.0).expect("a caption");
+        assert_eq!(said, crate::i18n::t("chorda.no_room"));
+        assert!(!said.contains('%'), "{said}");
+    }
+}

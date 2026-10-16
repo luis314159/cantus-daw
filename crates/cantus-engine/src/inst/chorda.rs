@@ -241,12 +241,44 @@ fn ask(owner: Option<(u64, u32)>, tuning: Tuning, fs: f32) {
         }
     }
     if !d.running {
-        let spawned = std::thread::Builder::new()
-            .name("cantus-chorda-design".into())
-            .spawn(design_loop);
+        let spawned = if faults::spawn_fails() {
+            Err(std::io::Error::other("no thread (a test)"))
+        } else {
+            std::thread::Builder::new()
+                .name("cantus-chorda-design".into())
+                .spawn(design_loop)
+        };
         d.running = spawned.is_ok();
     }
     WAKE.notify_all();
+}
+
+/// Faults the tests put in the designer's way (never set outside them).
+mod faults {
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+    static SPAWN_FAILS: AtomicBool = AtomicBool::new(false);
+    /// A design of this A4 (its bits as f32) panics on the designer's thread.
+    static PANICS_AT: AtomicU32 = AtomicU32::new(0);
+
+    pub fn spawn_fails() -> bool {
+        SPAWN_FAILS.load(Ordering::Relaxed)
+    }
+
+    pub fn panics(a4: f64) -> bool {
+        let p = PANICS_AT.load(Ordering::Relaxed);
+        p != 0 && p == (a4 as f32).to_bits()
+    }
+
+    #[cfg(test)]
+    pub fn set_spawn_fails(on: bool) {
+        SPAWN_FAILS.store(on, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub fn set_panics_at(a4: Option<f64>) {
+        PANICS_AT.store(a4.map_or(0, |a| (a as f32).to_bits()), Ordering::Relaxed);
+    }
 }
 
 /// The designer's thread: one design at a time, the wanted ones first, a track's only once
@@ -282,40 +314,88 @@ fn design_loop() {
             }
         };
         let (key, tuning, fs, done) = job;
-        let keyboard = Arc::new(Keyboard::compute_counted(
-            tuning,
-            fs as f64,
-            threads(),
-            &done,
-        ));
-        let kept = insert(key, keyboard);
-        if let Ok(mut d) = DESIGNER.lock() {
-            d.busy = None;
-            if !kept {
+        // A design that fails (panics) must not leave the designer marked busy and
+        // running for good — an export waiting on it would never end (sound review 2): it
+        // is refused, and whoever waits designs it on their own thread.
+        let made = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if faults::panics(tuning.a4) {
+                panic!("a design that fails (a test)");
+            }
+            Keyboard::compute_counted(tuning, fs as f64, threads(), &done)
+        }));
+        let kept = made.map(|k| insert(key, Arc::new(k)));
+        let mut d = DESIGNER.lock().unwrap_or_else(|p| p.into_inner());
+        d.busy = None;
+        match kept {
+            Ok(true) => {}
+            Ok(false) => {
                 log::warn!("Chorda: no room for another tuning this session; keeping the last");
                 d.refused.push(key);
                 d.wants.retain(|w| w.key != key);
             }
+            Err(_) => {
+                log::error!("Chorda: a string design failed; it is made where it is needed");
+                d.refused.push(key);
+                d.wants.retain(|w| w.key != key);
+            }
         }
+        drop(d);
         WAKE.notify_all();
     }
 }
 
-/// The keyboard for `tuning` at `fs`, waiting for the designer (or designing it here when
-/// the registry has no room). Never on the audio thread: an offline render, a test.
+/// How long [`ensure`] waits for the designer before it designs on its own thread.
+const ENSURE_PATIENCE: std::time::Duration = std::time::Duration::from_secs(120);
+
+/// The keyboard for `tuning` at `fs`, waiting for the designer — or designing it here when
+/// the registry has no room, the design failed there, the designer's thread could not
+/// start, or it has not delivered in two minutes (sound review 2: an export must always
+/// end). Never on the audio thread: an offline render, a test.
 pub fn ensure(tuning: Tuning, fs: f32) -> Arc<Keyboard> {
     let tuning = settled(tuning);
     let key = key_of(tuning, fs);
+    let here = || {
+        let k = Arc::new(Keyboard::compute(tuning, fs as f64, threads()));
+        insert(key, k.clone());
+        k
+    };
+    let since = std::time::Instant::now();
     loop {
         if let Some(k) = lookup(key) {
             return k;
         }
         let refused = DESIGNER.lock().map_or(true, |d| d.refused.contains(&key));
         if refused {
-            return Arc::new(Keyboard::compute(tuning, fs as f64, threads()));
+            return here();
         }
         ask(None, tuning, fs);
+        let running = DESIGNER.lock().is_ok_and(|d| d.running);
+        if !running || since.elapsed() > ENSURE_PATIENCE {
+            if let Some(k) = lookup(key) {
+                return k;
+            }
+            return here();
+        }
         std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}
+
+/// Whether the design of `tuning` at `fs` was refused this session (the registry full, or
+/// its design failed): a live unit keeps the keyboard it had (an export designs its own).
+pub fn refused(tuning: Tuning, fs: f32) -> bool {
+    let key = key_of(tuning, fs);
+    lookup(key).is_none() && DESIGNER.lock().is_ok_and(|d| d.refused.contains(&key))
+}
+
+/// For tests (the application's): as if the registry had had no room for `tuning` at
+/// `fs`.
+#[doc(hidden)]
+pub fn refuse_for_tests(tuning: Tuning, fs: f32) {
+    if let Ok(mut d) = DESIGNER.lock() {
+        let key = key_of(tuning, fs);
+        if !d.refused.contains(&key) {
+            d.refused.push(key);
+        }
     }
 }
 
@@ -470,6 +550,10 @@ pub struct Unit {
     have: Option<DesignKey>,
     fs: f32,
     offline: bool,
+    /// A note was struck: from then on a tuning on its way waits behind the one playing.
+    /// Before, a unit holding only the reference keyboard is silent until its own tuning
+    /// arrives (sound review 2: it played A4 440 meanwhile).
+    struck: bool,
 }
 
 impl Unit {
@@ -508,6 +592,7 @@ impl Unit {
             have,
             fs,
             offline: false,
+            struck: false,
         };
         u.update();
         u
@@ -565,11 +650,16 @@ impl InstrumentUnit for Unit {
         if let Some(k) = lookup(self.want) {
             self.dsp.set_keyboard(k);
             self.have = Some(self.want);
+        } else if !self.struck && self.have.is_some() {
+            // Nothing played yet: silent until its own tuning is designed, never another.
+            self.dsp.clear_keyboard();
+            self.have = None;
         }
     }
 
     fn note_on(&mut self, note: NoteOn) {
         self.follow_design();
+        self.struck |= self.have.is_some();
         if self.per_note {
             let mut src = self.sources;
             src[SRC_VEL] = note.velocity;
@@ -671,5 +761,79 @@ impl InstrumentUnit for Unit {
         t[tel::DESIGNED] = (self.have == Some(self.want)) as u8 as f32;
         t[tel::ALIVE] = 1.0;
         t
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `ensure` on a worker, failed if it has not returned in a minute (it used to spin
+    /// for ever).
+    fn ensure_within_a_minute(tuning: Tuning) -> Arc<Keyboard> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(ensure(tuning, 48_000.0));
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(60))
+            .expect("ensure returned")
+    }
+
+    fn tuning(a4: f64) -> Tuning {
+        Tuning {
+            a4,
+            stretch: 1.0,
+            stiffness: 1.0,
+        }
+    }
+
+    #[test]
+    fn an_export_ends_when_the_designers_thread_cannot_start() {
+        faults::set_spawn_fails(true);
+        let k = ensure_within_a_minute(tuning(431.17));
+        faults::set_spawn_fails(false);
+        assert_eq!(k.fs, 48_000.0);
+    }
+
+    #[test]
+    fn an_export_ends_when_a_design_fails_on_the_designers_thread() {
+        faults::set_panics_at(Some(433.33));
+        let k = ensure_within_a_minute(tuning(433.33));
+        faults::set_panics_at(None);
+        assert_eq!(k.fs, 48_000.0);
+        // The designer is not left busy: another design still comes from it.
+        let other = ensure_within_a_minute(tuning(434.44));
+        assert_eq!(other.fs, 48_000.0);
+    }
+
+    /// Sound review 2: a unit made with the reference keyboard but set to a tuning not
+    /// designed yet (a song opened with the Baroque preset) is silent until its own
+    /// keyboard arrives — never playing A4 440 meanwhile (ADR 0059 §6).
+    #[test]
+    fn a_fresh_unit_waits_silent_for_its_own_tuning() {
+        let fs = 48_000.0;
+        ensure(Tuning::default(), fs);
+        let mut u = Unit::new(fs);
+        let mut spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+        spec.set("a4", 437.77);
+        u.configure(&spec, &[]);
+        let on = |u: &mut Unit, id| {
+            u.note_on(NoteOn {
+                key: 60,
+                velocity: 0.8,
+                id,
+                channel: 0,
+            })
+        };
+        on(&mut u, 1);
+        let (mut l, mut r) = (vec![0.0f32; 4_800], vec![0.0f32; 4_800]);
+        u.process(&mut l, &mut r);
+        assert!(l.iter().all(|x| *x == 0.0), "silent before its keyboard");
+        assert_eq!(u.telemetry()[tel::DESIGNED], 0.0);
+        ensure(tuning(437.77), fs);
+        on(&mut u, 2);
+        u.process(&mut l, &mut r);
+        assert!(l.iter().any(|x| *x != 0.0), "its own keyboard plays");
+        assert_eq!(u.telemetry()[tel::DESIGNED], 1.0);
     }
 }

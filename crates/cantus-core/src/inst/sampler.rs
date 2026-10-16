@@ -1012,7 +1012,7 @@ pub fn gm_drum_name(key: u8) -> Option<&'static str> {
 /// layer on every fourth hat would sound the same turn each time.
 #[derive(Clone, Debug, Default)]
 pub struct RrLanes {
-    /// Each zone a key plays: its key and velocity ranges and its sample's hash.
+    /// Each zone a key plays: its key and velocity ranges and its sound's hash.
     zones: Vec<(u8, u8, u8, u8, u64)>,
 }
 
@@ -1030,8 +1030,7 @@ impl RrLanes {
                 let hi = (z.get(zf::HI).clamp(0.0, 127.0) as u8).max(lo);
                 let vlo = z.get(zf::VLO).clamp(0.0, 127.0) as u8;
                 let vhi = (z.get(zf::VHI).clamp(0.0, 127.0) as u8).max(vlo);
-                let what = z.sample.as_deref().unwrap_or("");
-                (lo, hi, vlo, vhi, fnv(what.as_bytes()))
+                (lo, hi, vlo, vhi, sound_of(&z))
             })
             .collect();
         Some(RrLanes { zones })
@@ -1057,6 +1056,17 @@ impl RrLanes {
         }
         h | (1 << 63)
     }
+}
+
+/// What a zone sounds, as a hash: its file, its generator and the stretch of the file it
+/// plays — two generated drums (no file) or two slices of one file are two sounds (sound
+/// review 2: they shared one turn counter).
+fn sound_of(z: &Zone) -> u64 {
+    let mut bytes = z.sample.as_deref().unwrap_or("").as_bytes().to_vec();
+    for f in [zf::GEN, zf::START, zf::END] {
+        bytes.extend_from_slice(&z.get(f).to_bits().to_le_bytes());
+    }
+    fnv(&bytes)
 }
 
 /// FNV-1a: a hash that is the same on every machine and run.

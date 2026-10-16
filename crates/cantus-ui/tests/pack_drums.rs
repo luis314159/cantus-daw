@@ -615,3 +615,48 @@ fn a_kits_rows_read_in_the_interfaces_language() {
     assert_eq!(gm, ["Caja acústica"]);
     assert_eq!(names(&unnamed), ["Acoustic Snare"]);
 }
+
+/// Sound review 2: the channel rack and the piano roll keep their kit rows built — and a
+/// language switch rebuilds them (they kept the old language until the next edit).
+#[test]
+fn kit_rows_follow_a_language_switch_in_the_rack_and_the_piano_roll() {
+    let mut unnamed = NativeSpec::new(InstrumentKind::Sampler);
+    let z = cantus_core::inst::sampler::Zone::new(Some("C:/kit/s.wav".into()), 38, 38, 38);
+    for (k, v) in z.values_for(0) {
+        unnamed.set(&k, v).unwrap();
+    }
+    for (k, t) in z.texts_for(0) {
+        unnamed.set_text(&k, Some(t)).unwrap();
+    }
+    unnamed.set("kit", 1.0).unwrap();
+    let mut p = cantus_ui::starter_project();
+    p.tracks[0].instrument = InstrumentSpec::Native(unnamed);
+    let track = p.tracks[0].id;
+    let clip = p.tracks[0].clips.first().map(|c| c.id);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let mut a = support::app(p);
+    a.selected_track = Some(track);
+    a.selected_clip = clip;
+    let ctx = support::ctx();
+    let views = [
+        |a: &mut cantus_ui::CantusApp, ui: &mut egui::Ui| {
+            cantus_ui::views::channel_rack::show(a, ui)
+        },
+        |a: &mut cantus_ui::CantusApp, ui: &mut egui::Ui| cantus_ui::views::piano_roll::show(a, ui),
+    ];
+    for (i, view) in views.iter().enumerate() {
+        if i == 1 && clip.is_none() {
+            continue;
+        }
+        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        let en = support::paint(&ctx, egui::vec2(1400.0, 900.0), 2, |ui| view(&mut a, ui));
+        assert!(en.contains("Acoustic Snare"), "view {i}: {en}");
+        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+        let es = support::paint(&ctx, egui::vec2(1400.0, 900.0), 2, |ui| view(&mut a, ui));
+        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        assert!(
+            es.contains("Caja acústica"),
+            "view {i} after the switch: {es}"
+        );
+    }
+}

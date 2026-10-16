@@ -69,6 +69,9 @@ topbar.accent_tip = Acentuar el primer tiempo de cada compás
 topbar.grid = Rejilla
 topbar.snap_tip = Ajustar a la rejilla en el editor en el que se trabaja
 topbar.snap_rack = El rack de canales siempre va sobre su rejilla
+topbar.editor.pitch = Editor de afinación
+topbar.editor.automation = Editor de automatización
+topbar.snap_pitch = La rejilla del editor de afinación es a la que Cuantizar mueve las notas: no hay ajuste que cambiar
 
 # CPU, RAM, voces, cortes
 topbar.cpu = CPU

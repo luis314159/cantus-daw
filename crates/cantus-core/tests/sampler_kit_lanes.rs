@@ -185,3 +185,60 @@ fn turns_are_counted_by_drum_and_velocity_layer_not_by_key() {
         .collect();
     assert_eq!(soft, (0..12).collect::<Vec<u32>>());
 }
+
+/// Sound review 2: a lane is the sound a zone plays, not only its file — two generated
+/// drums (no file: a kick's generator on 36, a snare's on 38) and two slices of one file
+/// count their turns apart. Played K S K S, each alternates.
+#[test]
+fn generated_drums_and_slices_of_one_file_take_their_own_turns() {
+    use cantus_core::{Project, Snapshot, Ticks};
+    let kit = |sliced: bool| {
+        let mut s = NativeSpec::new(InstrumentKind::Sampler);
+        let mut n = 0;
+        for (key, which) in [(36u8, 1.0f32), (38, 2.0)] {
+            for seq in 1..=2 {
+                let file = sliced.then(|| "C:/kit/loop.wav".to_string());
+                let mut z = Zone::new(file, key, key, key);
+                if sliced {
+                    z.set(zf::START, which * 1000.0)
+                        .set(zf::END, which * 1000.0 + 900.0);
+                } else {
+                    z.set(zf::GEN, which);
+                }
+                z.set(zf::SEQ, seq as f32).set(zf::SEQLEN, 2.0);
+                for (k, v) in z.values_for(n) {
+                    s.set(&k, v).unwrap();
+                }
+                for (k, t) in z.texts_for(n) {
+                    s.set_text(&k, Some(t)).unwrap();
+                }
+                n += 1;
+            }
+        }
+        s.set("kit", 1.0).unwrap();
+        s
+    };
+    for sliced in [false, true] {
+        let mut p = Project::new("turns");
+        let mut t = p.make_track("Kit");
+        t.instrument = InstrumentSpec::Native(kit(sliced));
+        let mut clip = p.make_clip("ks", Ticks::ZERO, Ticks::beats(4));
+        for (i, k) in [36u8, 38, 36, 38].iter().enumerate() {
+            let n = p.make_note(Ticks::beats(i as i64), Ticks::QUARTER, *k, 100);
+            clip.notes.push(n);
+        }
+        t.clips.push(clip);
+        p.tracks.push(t);
+        let snap = Snapshot::compile(&p, 1);
+        let turns = |key: u8| -> Vec<u32> {
+            snap.tracks[0]
+                .events
+                .iter()
+                .filter(|e| e.is_on() && e.pitch == key)
+                .map(|e| e.ordinal)
+                .collect()
+        };
+        assert_eq!(turns(36), [0, 1], "sliced {sliced}: the kick alternates");
+        assert_eq!(turns(38), [0, 1], "sliced {sliced}: the snare alternates");
+    }
+}

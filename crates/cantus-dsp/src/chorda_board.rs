@@ -98,9 +98,16 @@ struct SymString {
     peak: f64,
     key: Key,
     sounding: bool,
-    /// A new keyboard's layout, taken once the string is silent (never cut while it rings).
+    /// A new keyboard's layout, taken once the string is silent: a string still ringing
+    /// fades out first ([`FADE`]; never cut), even while the bridge drives it (sound
+    /// review 2: under continuous playing it never went quiet and kept the old tuning).
     next: Option<Layout>,
+    /// Its output's gain: 1, or falling to 0 while a new layout waits.
+    fade: f64,
 }
+
+/// Samples a ringing string takes to fade out before it takes a new keyboard's layout.
+pub const FADE: usize = 256;
 
 impl SymString {
     /// Its damper with the pedal up: down as firmly as the dampers grip, or none above E6.
@@ -123,6 +130,7 @@ impl SymString {
         self.live = false;
         self.quiet = 0;
         self.peak = 0.0;
+        self.fade = 1.0;
         if let Some(l) = self.next.take() {
             self.lay(&l);
         }
@@ -198,6 +206,7 @@ impl Sympathetic {
                 key: *k,
                 sounding: false,
                 next: None,
+                fade: 1.0,
             })
             .collect();
         Sympathetic {
@@ -302,6 +311,12 @@ impl Sympathetic {
             })
     }
 
+    /// Strings still waiting for a new keyboard's layout (tests).
+    #[cfg(test)]
+    pub fn waiting(&self) -> usize {
+        self.strings.iter().filter(|s| s.next.is_some()).count()
+    }
+
     /// Frames skipped at rest: the control phase moves on.
     pub fn skip(&mut self, frames: usize) {
         self.phase = ((self.phase as usize + frames) % super::voice::CONTROL as usize) as u32;
@@ -352,7 +367,13 @@ impl Sympathetic {
                 s.line.write(2.0 * v_b - arrived);
                 let f = s.z * 2.0 * (arrived - v_b);
                 s.peak = s.peak.max(f.abs());
-                sum += f;
+                if s.next.is_some() {
+                    // A new keyboard waits: fade out, then take it (`control`).
+                    sum += f * s.fade;
+                    s.fade = (s.fade - 1.0 / FADE as f64).max(0.0);
+                } else {
+                    sum += f;
+                }
             }
             *o += sum;
             self.phase += 1;
@@ -383,6 +404,11 @@ impl Sympathetic {
                 s.quiet = 0;
             }
             if !s.live {
+                continue;
+            }
+            if s.next.is_some() && s.fade <= 0.0 {
+                // Faded out: silent, it takes the new layout (and wakes again if driven).
+                s.silence();
                 continue;
             }
             if s.contact != s.set_contact {

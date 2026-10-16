@@ -204,6 +204,32 @@ pub struct SongPosition {
     pub loop_beats: Option<(f64, f64)>,
 }
 
+impl SongPosition {
+    /// Where the song was `frames` samples earlier at this tempo: what an insert hears
+    /// when the audio reaching it is that late against the transport (delay compensation
+    /// and the inserts before it; integration review — a synced LFO led the audio it
+    /// shapes by the slot's latency). Inside a loop, a moment before its start is the
+    /// end of the pass before. Unchanged at 0, to the bit.
+    pub fn earlier(&self, frames: usize, sample_rate: f64) -> SongPosition {
+        if frames == 0 {
+            return *self;
+        }
+        let mut beats = self.beats - frames as f64 * self.tempo_bpm / 60.0 / sample_rate.max(1.0);
+        if let Some((ls, le)) = self.loop_beats {
+            if self.playing && le > ls && self.beats >= ls && beats < ls {
+                beats += le - ls;
+            }
+        }
+        let bar = f64::from(self.time_sig_num.max(1)) * 4.0 / f64::from(self.time_sig_den.max(1));
+        SongPosition {
+            beats,
+            samples: (beats * 60.0 / self.tempo_bpm.max(1e-9) * sample_rate).round() as i64,
+            bar_start_beats: (beats / bar).floor() * bar,
+            ..*self
+        }
+    }
+}
+
 /// A unit that passes audio through untouched: a hosted plug-in that is missing on this
 /// machine, or one the engine was given no unit for.
 #[derive(Debug, Default)]
@@ -245,4 +271,37 @@ pub fn make(kind: EffectKind, sample_rate: f32) -> Option<Box<dyn FxUnit>> {
         EffectKind::External => Box::new(Wire),
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod position_tests {
+    use super::SongPosition;
+
+    #[test]
+    fn earlier_moves_back_at_the_tempo_and_folds_into_the_loop() {
+        let p = SongPosition {
+            playing: true,
+            tempo_bpm: 120.0,
+            beats: 8.25,
+            samples: 198_000,
+            bar_start_beats: 8.0,
+            time_sig_num: 4,
+            time_sig_den: 4,
+            loop_beats: Some((8.0, 16.0)),
+        };
+        assert_eq!(p.earlier(0, 48_000.0), p);
+        // 12 000 samples at 120 BPM are half a beat: before the loop's start, so the end
+        // of the pass before.
+        let e = p.earlier(12_000, 48_000.0);
+        assert!((e.beats - 15.75).abs() < 1e-12, "{}", e.beats);
+        assert_eq!(e.bar_start_beats, 12.0);
+        assert_eq!(e.samples, 378_000);
+        let free = SongPosition {
+            loop_beats: None,
+            ..p
+        };
+        let e = free.earlier(6_000, 48_000.0);
+        assert!((e.beats - 8.0).abs() < 1e-12);
+        assert_eq!(e.bar_start_beats, 8.0);
+    }
 }

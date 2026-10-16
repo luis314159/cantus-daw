@@ -210,7 +210,9 @@ pub(super) fn arrows(ui: &Ui, resp: &Response) -> i32 {
 }
 
 /// A knob's gestures on a position (0…1): drag, Ctrl+wheel, arrows, double-click to
-/// `default`. Returns the new position when it moved.
+/// `default`. Returns the new position when it moved. `drags` false while a drag is a
+/// modulation's depth (Alt, or a modulator mapping): only the drag is left out, as in the
+/// kit's `Param` (review 2).
 pub(super) fn knob_input(
     v: &MixerView,
     ui: &Ui,
@@ -218,10 +220,11 @@ pub(super) fn knob_input(
     resp: &Response,
     pos: f32,
     default: f32,
+    drags: bool,
 ) -> Option<f32> {
     let fine = if pass.mods.shift { FINE } else { 1.0 };
     let mut p = pos;
-    if resp.dragged() {
+    if resp.dragged() && drags {
         let d = resp.drag_delta();
         p += (d.x - d.y) * fine / TRAVEL_PX;
     }
@@ -241,7 +244,7 @@ pub(super) fn knob_input(
 
 /// A fader's gestures on a gain in dB: drag, a click in the groove jumps there, Ctrl+wheel
 /// (1 dB a notch), arrows (1 dB), double-click to unity. Returns the new gain when it
-/// moved.
+/// moved. `drags` as in [`knob_input`].
 pub(super) fn fader_input(
     v: &MixerView,
     ui: &Ui,
@@ -249,6 +252,7 @@ pub(super) fn fader_input(
     resp: &Response,
     rect: Rect,
     db: f32,
+    drags: bool,
 ) -> Option<f32> {
     let s = pass.s;
     let fine = if pass.mods.shift { FINE } else { 1.0 };
@@ -256,7 +260,9 @@ pub(super) fn fader_input(
     let mut pos = pos_of(start);
     let travel = (rect.height() - kfader::CAP.y * s.k).max(1.0);
     if resp.dragged() {
-        pos -= resp.drag_delta().y * fine / travel;
+        if drags {
+            pos -= resp.drag_delta().y * fine / travel;
+        }
     } else if resp.clicked() {
         if let Some(p) = resp.interact_pointer_pos() {
             let cap = kfader::cap_rect(rect, s, pos);
@@ -934,7 +940,7 @@ fn controls(
         if let Some(resp) = &resp {
             touch(app, id, resp);
             let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetStripPan {
@@ -995,7 +1001,7 @@ fn controls(
         if let Some(resp) = &resp {
             touch(app, id, resp);
             let depth = dm.input(app, ui, resp);
-            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain).filter(|_| !depth) {
+            if let Some(g) = fader_input(v, ui, pass, resp, fr, gain, !depth) {
                 gain = g;
                 app.set_strip_gain(id, g);
             }
@@ -1105,7 +1111,7 @@ fn controls(
         if let Some(resp) = &resp {
             touch(app, id, resp);
             let depth = dm.input(app, ui, resp);
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5).filter(|_| !depth) {
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, !depth) {
                 pos = p;
                 app.exec_merging(
                     Command::SetStripWidth { id, width: p * 2.0 },
@@ -1195,7 +1201,7 @@ fn eq_bars(
         );
         let st = resp.as_ref().map_or(State::REST, |r| State::of(r, false));
         if let Some(resp) = &resp {
-            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5) {
+            if let Some(p) = knob_input(v, ui, pass, resp, pos, 0.5, true) {
                 pos = p;
                 app.exec_merging(
                     Command::SetStripEq {

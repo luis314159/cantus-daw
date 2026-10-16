@@ -129,3 +129,17 @@ edited on their lanes.
 - *Crossfade for every seam* is one undo step with the project's default; *New comp* is
   off at 26 comps (and says so); the comp menu scrolls.
 
+
+## Amended by fix3 (round 28: the integration review and leaders' review 2)
+
+- **A split window is no seam** (`comp::is_seam`: one stretch of one file cut in two has
+  nothing to cross; the snapshot, `SetCompSeam` and the arrangement agree). A split, an
+  unlinked paste and a copy leave a window's seam crossfade behind.
+- **A comp window is a window onto a take** (`comping::shows_take`): it plays the take's
+  source and lies over the take on the timeline; slipped or nudged it stays the comp's, a
+  copy pasted away from its takes does not. *Delete unused takes* keeps a take whose source
+  stretch any playing or kept clip plays, wherever it was moved.
+- **A kept window owns its content**: an alternate comp keeps its windows out of link
+  groups (a group edited meanwhile no longer refuses the switch back).
+- **A switch back plays the pitch edits at once**: the snapshot names the kept windows'
+  edits (`Snapshot::kept_pitch`) and the sample cache keeps their renders.

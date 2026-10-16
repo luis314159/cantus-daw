@@ -876,7 +876,7 @@ fn zone_cell(
         &name,
         KnobSize::M,
         &rings[..w.n],
-        Some((w.automated, w.offer)),
+        w.on.then_some((w.automated, w.offer)),
         move |v, b| write_zone(f, v, b),
     );
     crate::views::inst::frame::wired(app, &w, choice, r.rect);

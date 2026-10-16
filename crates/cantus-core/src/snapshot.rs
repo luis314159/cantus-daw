@@ -179,6 +179,10 @@ pub struct Snapshot {
     /// Every modulator that drives something (ADR 0057), in host order; their targets
     /// have lanes in `automation`. Empty — every project without modulators.
     pub modulators: Vec<crate::modulator::compile::ModPlan>,
+    /// The pitch edits of the windows alternate comps keep (ADR 0058), with their source
+    /// files: nothing plays them, but the sample cache keeps their renders, so a switch
+    /// back plays the edits at once (integration review).
+    pub kept_pitch: Vec<(String, std::sync::Arc<crate::pitch::PitchEdit>)>,
 }
 
 impl Snapshot {
@@ -266,6 +270,7 @@ impl Snapshot {
             recording: project.recording.clone(),
             automation,
             modulators,
+            kept_pitch: kept_pitch(project),
         }
     }
 
@@ -281,6 +286,21 @@ impl Snapshot {
             .flat_map(|s| s.effects.iter())
             .chain(self.master_effects.iter())
     }
+}
+
+/// The edited windows alternate comps keep, with their sources' paths.
+fn kept_pitch(project: &Project) -> Vec<(String, std::sync::Arc<crate::pitch::PitchEdit>)> {
+    project
+        .tracks
+        .iter()
+        .flat_map(|t| t.comps.iter().flat_map(|c| c.windows.iter()))
+        .filter_map(|w| {
+            let a = w.audio.as_ref()?;
+            let e = a.pitch.as_ref().filter(|e| e.edited())?;
+            let src = project.audio_source(a.source)?;
+            Some((src.path.clone(), std::sync::Arc::new((**e).clone())))
+        })
+        .collect()
 }
 
 /// Whether a lane drives the send from `strip` into `to`.
@@ -384,7 +404,7 @@ fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
             .clips
             .iter()
             .filter(plays)
-            .find(|l| l.id != right.id && l.end() == right.start)
+            .find(|l| crate::comp::is_seam(l, right))
         else {
             continue;
         };

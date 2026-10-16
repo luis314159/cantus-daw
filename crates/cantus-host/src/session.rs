@@ -679,8 +679,6 @@ impl PluginHost {
         notices
     }
 
-    /// One thing a plug-in's window did, as a command: a value inside a gesture merges
-    /// into one undo step with the rest of the gesture.
     /// The parameter commands plug-in windows ran since the last take, oldest first.
     pub fn take_tweaks(&mut self) -> Vec<Command> {
         std::mem::take(&mut self.tweaks)
@@ -692,6 +690,8 @@ impl PluginHost {
         }
     }
 
+    /// One thing a plug-in's window did, as a command: a value inside a gesture merges
+    /// into one undo step with the rest of the gesture.
     pub fn record(&mut self, bus: &mut CommandBus, effect: EffectId, event: FxParamEvent) {
         let Some(h) = self.slots.get_mut(&effect) else {
             return;

@@ -53,6 +53,8 @@ struct Known {
     auto_seen: bool,
     /// What modulation swings around where no clip plays and the project stores no value
     /// (review 1): what the plug-in held when it was first driven, never what was sent.
+    /// Taken once per drive and sent back when the drive lets go (review 2); NaN while
+    /// nothing drives it.
     auto_base: f64,
 }
 
@@ -69,6 +71,27 @@ impl Known {
         }
         self.value = self.wanted;
         Some(self.wanted)
+    }
+
+    /// Automation or modulation lets go of it (ADR 0057): the project's value again, or —
+    /// where the project stores none — what the plug-in held before it was driven
+    /// (review 2: a parameter released at its peak stayed there, and the next drive swung
+    /// around the peak). Nothing while the plug-in's own gesture or its settling rules.
+    fn release(&mut self) -> Option<f64> {
+        self.auto = None;
+        let base = std::mem::replace(&mut self.auto_base, f64::NAN);
+        if self.wanted.is_finite() {
+            return self.take_send();
+        }
+        if !base.is_finite()
+            || self.gesture
+            || self.settle.is_some()
+            || base.to_bits() == self.value.to_bits()
+        {
+            return None;
+        }
+        self.value = base;
+        Some(base)
     }
 }
 
@@ -203,13 +226,13 @@ impl ParamSync {
         let k = &mut self.known[i];
         k.auto_seen = true;
         let send = if v.is_released() {
-            match k.auto.take() {
-                Some(_) => k.take_send(),
+            match k.auto {
+                Some(_) => k.release(),
                 None => None,
             }
         } else {
             let span = k.max - k.min;
-            if k.auto.is_none() {
+            if k.auto.is_none() && !k.auto_base.is_finite() {
                 k.auto_base = k.value;
             }
             let base = if v.pos.is_finite() {
@@ -276,8 +299,7 @@ impl ParamSync {
             // What the new plan does not drive is the project's again.
             for k in &mut self.known {
                 if k.auto.is_some() && !k.auto_seen {
-                    k.auto = None;
-                    if let Some(send) = k.take_send() {
+                    if let Some(send) = k.release() {
                         Self::queue(&mut self.pending, k.id, send);
                     }
                 }
@@ -498,5 +520,66 @@ mod tests {
             "4 + 0.1 of the range: {}",
             sent[0]
         );
+    }
+
+    /// One block: `drive` (modulation sums) at grid points, then what the block was handed.
+    fn block(sync: &mut ParamSync, drive: &[f32]) -> Vec<f64> {
+        for (k, m) in drive.iter().enumerate() {
+            sync.automate(
+                k * 16,
+                3,
+                HostedValue {
+                    pos: f32::NAN,
+                    modulation: *m,
+                },
+            );
+        }
+        sync.merge();
+        let sent = sync.merged.iter().map(|c| c.value).collect();
+        sync.after_process(64);
+        sent
+    }
+
+    #[test]
+    fn a_modulation_sum_of_zero_sends_an_unstored_parameter_back_to_its_base() {
+        // Review 2: a step at 0 released the parameter, nothing was sent back (the project
+        // stores no value), and the next step took the last modulated value as its base —
+        // the base climbed every cycle.
+        let mut sync = ParamSync::new(&[info(3)], |_| Some(4.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::new());
+        let sent = block(&mut sync, &[0.075, 0.0, -0.025]);
+        let want = [4.75, 4.0, 3.75];
+        assert_eq!(sent.len(), 3, "{sent:?}");
+        for (s, w) in sent.iter().zip(want) {
+            assert!((s - w).abs() < 1e-6, "{sent:?} != {want:?}");
+        }
+        // Many cycles later it still swings around 4.
+        for _ in 0..20 {
+            block(&mut sync, &[0.075, 0.0, -0.025]);
+        }
+        let sent = block(&mut sync, &[0.075]);
+        assert!((sent[0] - 4.75).abs() < 1e-6, "drifted: {sent:?}");
+    }
+
+    #[test]
+    fn an_unstored_parameter_let_go_by_a_replan_returns_to_its_base_and_swings_there_again() {
+        // Review 2: muting the modulator at its peak left the plug-in there for good, and
+        // unmuting it swung around the peak.
+        let mut sync = ParamSync::new(&[info(3)], |_| Some(4.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::new());
+        let first = block(&mut sync, &[0.1]);
+        assert!(
+            first.len() == 1 && (first[0] - 5.0).abs() < 1e-6,
+            "{first:?}"
+        );
+        // The new plan no longer drives it: the next block sends the base back.
+        sync.replanned();
+        assert_eq!(block(&mut sync, &[]), Vec::<f64>::new());
+        let back = block(&mut sync, &[]);
+        assert_eq!(back.len(), 1, "{back:?}");
+        assert!((back[0] - 4.0).abs() < 1e-9, "{back:?}");
+        // Driven again: around 4, not 5.
+        let again = block(&mut sync, &[0.1]);
+        assert!((again[0] - 5.0).abs() < 1e-6, "{again:?}");
     }
 }

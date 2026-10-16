@@ -75,7 +75,7 @@ pub fn cell(
         &name,
         size,
         &rings,
-        Some((w.automated, w.offer)),
+        w.on.then_some((w.automated, w.offer)),
         move |v, b| {
             if pan {
                 write_pan(v, b);

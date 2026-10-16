@@ -56,21 +56,22 @@ chorda.tag.soft = Suave
 chorda.tag.character = Carácter
 
 # Abreviaturas para etiquetas que no caben en una celda (la política Abbreviate del kit)
-chorda.stretch.short = ESTIRAM
+chorda.stretch.short = ESTIR.
 chorda.stiffness.short = RIGIDEZ
 chorda.hardness.short = DUREZA
 chorda.hysteresis.short = MEMORIA
-chorda.dynamics.short = DIN
+chorda.dynamics.short = DIN.
 chorda.vel_curve.short = CURVA VEL
-chorda.decay.short = EXTINC
+chorda.decay.short = EXTINC.
 chorda.unison.short = UNÍSONO
 chorda.coupling.short = ACOPLE
 chorda.sympathy.short = SIMPATÍA
 chorda.phantom.short = FANTASMA
-chorda.damper.short = APAGAD
+chorda.damper.short = APAG.
 chorda.una.short = SUAVE
 chorda.body.short = TABLA
-chorda.tilt.short = INCLIN
+chorda.tilt.short = INCL.
 chorda.width.short = ANCHURA
 chorda.not_automatable = La4, el estiramiento y la rigidez diseñan las cuerdas: se fijan, no se automatizan.
 chorda.designing_pct = diseñando las cuerdas: {pct} %
+chorda.no_room = sin sitio para otra afinación esta sesión: se queda esta

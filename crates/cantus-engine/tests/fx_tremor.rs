@@ -153,3 +153,60 @@ fn the_unit_hears_the_projects_tempo() {
         "the lead plays there"
     );
 }
+
+/// Integration review: behind a latent insert (Flexus through zero at mix 0: the lead 240
+/// samples later) the synced gate follows the beat it hears — the gated render is the gate
+/// without the latent insert, 240 samples later — not the transport's, which leads the
+/// audio by the delay compensation's 240 samples.
+#[test]
+fn a_synced_gate_behind_a_latent_insert_follows_the_beat_it_hears() {
+    let mut alone = lead_only();
+    gated(&mut alone);
+    let reference = render_of(&alone);
+    let mut p = lead_only();
+    let flexus = add_effect(&mut p, EffectKind::Flanger);
+    set_all(&mut p, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    gated(&mut p);
+    let out = render_of(&p);
+    let shift = 2 * 240;
+    assert!(out[..shift].iter().all(|x| *x == 0.0));
+    let off = reference[..reference.len() - shift]
+        .iter()
+        .zip(&out[shift..])
+        .filter(|(a, b)| (*a - *b).abs() > 1e-4)
+        .count();
+    let edges = 2 * (reference.len() / 2) / BEAT as usize;
+    assert!(
+        off <= 2 * edges,
+        "{off} samples off the gate the lead hears ({edges} edges)"
+    );
+}
+
+/// The same on the master's chain: the lead reaches it 240 samples late (its strip's
+/// latent insert), and the master's synced gate follows what it hears.
+#[test]
+fn a_masters_synced_gate_follows_the_compensated_beat() {
+    let on_master = |p: &mut Project| {
+        let mut slot = p.make_effect(EffectKind::Tremolo);
+        for (k, v) in [("depth", 1.0), ("div", 8.0), ("shape", 2.0), ("edge", 0.0)] {
+            assert!(slot.spec.set(k, v).is_some());
+        }
+        p.master.effects.push(slot);
+    };
+    let mut alone = lead_only();
+    on_master(&mut alone);
+    let reference = render_of(&alone);
+    let mut p = lead_only();
+    let flexus = add_effect(&mut p, EffectKind::Flanger);
+    set_all(&mut p, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    on_master(&mut p);
+    let out = render_of(&p);
+    let shift = 2 * 240;
+    let off = reference[..reference.len() - shift]
+        .iter()
+        .zip(&out[shift..])
+        .filter(|(a, b)| (*a - *b).abs() > 1e-4)
+        .count();
+    let edges = 2 * (reference.len() / 2) / BEAT as usize;
+    assert!(off <= 2 * edges, "{off} samples off ({edges} edges)");
+}

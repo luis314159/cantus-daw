@@ -472,7 +472,9 @@ fn starter_card(
     }
     let pack = c.starter()?.clone();
     let status = c.status(&pack.id);
-    let error = c.error(&pack.id).map(|e| e.to_string());
+    let error = c
+        .error(&pack.id)
+        .map(super::samples_content::install_error_text);
     let k = s.k;
     let lang = crate::i18n::locale().code();
     // The words wrap to the card's width; the card grows to hold them.
@@ -627,6 +629,13 @@ fn foot_line(app: &mut CantusApp, ui: &mut Ui, s: &Style, foot: Rect) {
             ),
         }
     });
+    // A notice longer than the foot is whole in the help line while the foot is hovered.
+    if let Some(n) = &text {
+        let resp = ui.interact(foot, egui::Id::new("samples-foot"), Sense::hover());
+        if resp.hovered() {
+            crate::kit::hint::set_text(ui.ctx(), n, "", crate::kit::hint::Caps::NONE);
+        }
+    }
 }
 
 /// End of a frame: the dragged sample's chip and its target's ring, and a release

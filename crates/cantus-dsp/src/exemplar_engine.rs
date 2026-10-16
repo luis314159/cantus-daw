@@ -88,6 +88,7 @@ impl Exemplar {
             sus: 0.0,
             keyswitch: -1,
             live_rr: [0; 128],
+            live_lanes: [(0, 0); LIVE_LANES],
             cc_last: [0; 128],
             cc_listen: 0,
             cc_count: 0,
@@ -322,9 +323,19 @@ impl Exemplar {
                     self.detach_slot(voice, true);
                 }
                 let rr = if id >= LIVE_IDS {
-                    let c = self.live_rr[key as usize];
-                    self.live_rr[key as usize] = c.wrapping_add(1);
-                    c
+                    let lane = self
+                        .globals
+                        .rr_in_order
+                        .then(|| self.live_lane(key, vel))
+                        .flatten();
+                    match lane.and_then(|l| self.live_turn(l)) {
+                        Some(c) => c,
+                        None => {
+                            let c = self.live_rr[key as usize];
+                            self.live_rr[key as usize] = c.wrapping_add(1);
+                            c
+                        }
+                    }
                 } else {
                     match ordinal {
                         Some(o) if self.globals.rr_in_order => o,
@@ -353,6 +364,50 @@ impl Exemplar {
             } => self.glide_slot(voice, to, to_id),
             _ => {}
         }
+    }
+
+    /// A live note's round-robin lane: the sounds its key and velocity reach (each zone's
+    /// source and stretch of it), as the snapshot counts a clip's notes (`RrLanes`) — a
+    /// tom on three keys is one lane. `None` when no zone answers. Allocation-free.
+    fn live_lane(&self, key: u8, vel: f32) -> Option<u64> {
+        let v7 = (vel * 127.0).round().clamp(1.0, 127.0) as u8;
+        let mut h = 0u64;
+        let mut any = false;
+        for oi in 0..self.order_len {
+            let zi = self.order[oi] as usize;
+            let z = &self.zones[zi];
+            if z.trig == Trig::Controller || key < z.lo || key > z.hi || v7 < z.vlo || v7 > z.vhi {
+                continue;
+            }
+            let src = &self.sources[zi];
+            let file = src.levels[0]
+                .as_ref()
+                .map_or(0, |a| a.as_ptr() as *const u8 as usize as u64)
+                ^ src.stream.as_ref().map_or(0, |s| {
+                    std::sync::Arc::as_ptr(s) as *const u8 as usize as u64
+                });
+            let what = file ^ mix(z.region.start as u64) ^ mix(z.region.end as u64).rotate_left(17);
+            // A sum: the same sounds give the same lane whatever order the zones are in.
+            h = h.wrapping_add(mix(what));
+            any = true;
+        }
+        any.then_some(h | 1)
+    }
+
+    /// The next turn of live lane `lane` (counted); `None` when the table is full.
+    fn live_turn(&mut self, lane: u64) -> Option<u32> {
+        let n = LIVE_LANES;
+        let start = (lane % n as u64) as usize;
+        for k in 0..n {
+            let e = &mut self.live_lanes[(start + k) % n];
+            if e.0 == lane || e.0 == 0 {
+                e.0 = lane;
+                let c = e.1;
+                e.1 = c.wrapping_add(1);
+                return Some(c);
+            }
+        }
+        None
     }
 
     pub fn note_off(&mut self, key: u8, id: u64, relvel: f32) {
@@ -416,6 +471,7 @@ impl Exemplar {
         self.keys_down = 0;
         self.keyswitch = -1;
         self.live_rr = [0; 128];
+        self.live_lanes = [(0, 0); LIVE_LANES];
         self.cc_last = [0; 128];
         self.cc_count = 0;
         self.mw = 0.0;
@@ -439,6 +495,7 @@ impl Exemplar {
             && self.keys_down == 0
             && self.keyswitch == -1
             && self.live_rr.iter().all(|c| *c == 0)
+            && self.live_lanes.iter().all(|l| l.0 == 0)
             && self.cc_count == 0
             && (0..128).all(|n| self.cc_listen & (1u128 << n) == 0 || self.cc_last[n] == 0)
             && self.mw == 0.0

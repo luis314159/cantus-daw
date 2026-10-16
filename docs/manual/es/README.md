@@ -188,8 +188,10 @@ interfaz: en una barra llena el chip acorta por el medio una línea de dispositi
 - **Posición**: compases.tiempos.ticks y el tiempo, con el compás al lado; al grabar, el
   tiempo de la toma.
 - **Rejilla y ajuste**: la rejilla y la luz IMÁN del editor en el que trabajas —el arreglo,
-  el piano roll o el rack de canales (siempre sobre su rejilla)—. Los mismos valores que
-  la barra del propio editor.
+  el piano roll o el rack de canales (siempre sobre su rejilla); con un clip de audio en el
+  lugar del piano roll, la rejilla del editor de afinación (a la que *Cuantizar* mueve las
+  notas), y con un clip de automatización, la del arreglo, a la que se ajusta el editor de
+  automatización—. Los mismos valores que la barra del propio editor.
 - **Deshacer** y **rehacer**, y las **teclas de ventana** (explorador, arreglo, rack, piano
   roll, mezclador, inspector).
 - **CPU, RAM, voces, cortes**: la carga del audio (su histograma en la información
@@ -496,12 +498,17 @@ sobre su automatización.
   tecla de **asignar** y arrastra cualquier perilla: el arrastre fija ahí la profundidad de
   ese modulador.
 - **La profundidad en la perilla**: mantén `Alt` y arrastra una perilla modulada para
-  cambiar la profundidad de su modulación. Las perillas moduladas llevan anillos de color
+  cambiar la profundidad de su modulación (solo el arrastre: un doble clic sigue
+  restableciendo el valor). Las perillas moduladas llevan anillos de color
   (la profundidad, en el color del modulador), un punto que se mueve donde está ahora el
   parámetro y una marca violeta.
 - **En todas partes**: cada perilla de los instrumentos y efectos de Cantus, los faders,
-  panoramas y anchuras del mezclador (también los del máster) y los parámetros de un plug-in
-  alojado aceptan un modulador del mismo modo. También la **cantidad** de un modulador: deja
+  panoramas y anchuras del mezclador (también los del máster), el **nivel de cada envío**
+  (su perilla y su fila en la mesa, el nivel de su cable, las filas de envíos y de entradas
+  del inspector; el menú de un envío tiene *Automatizar* y *Modular…* para él), la tira fija
+  del inspector y los parámetros de un plug-in alojado aceptan un modulador del mismo modo.
+  La afinación de Chorda (A4, estiramiento, rigidez) se fija; no se automatiza ni se
+  modula. También la **cantidad** de un modulador: deja
   que una fuente aleatoria mueva cuánto se mueve un LFO (un nivel de anidamiento).
 - **Convertir en automatización**: la tecla de convertir de una ruta (o *Modular… ▸
   Convertir en automatización*) hace del efecto de ese modulador un clip de automatización
@@ -676,9 +683,9 @@ bombo más abierto), golpe de aro 37, caja 38 (40, una caja apagada), toms 41 ·
 47–50, charles cerrado 42, de pedal 44 y abierto 46, crash 49 y 57, ride 51 y 59, campana
 53. Las teclas de General MIDI para las que la batería no tiene sonido (pandereta,
 cencerro, la percusión latina) quedan en silencio, así que una parte de General MIDI nunca
-toca un platillo en su lugar; las otras articulaciones de DrumGizmo están por encima, en
-las teclas 82–100 (el charles medio abierto 82, las puntas y el ride con cadena 83–90, las
-escobillas 91–100). Cada tambor tiene sus intensidades como capas de velocidad hasta 24 dB
+toca un platillo en su lugar; las otras articulaciones de DrumGizmo están donde no hay
+percusión de General MIDI 2, GS ni XG: el charles medio abierto y las puntas en las teclas
+21–26, el ride con cadena en 88–90 y las escobillas en 91–100. Cada tambor tiene sus intensidades como capas de velocidad hasta 24 dB
 por debajo de la más fuerte, y los golpes de una capa se turnan **en orden** — contados
 por tambor y por capa, así que un redoble, un fill de toms entre las teclas del tambor o un
 acento cada cuatro golpes de charles nunca repite la misma muestra dos veces seguidas; un
@@ -924,12 +931,13 @@ Esto es una beta. Lo que ya sabemos:
   programa; aislarlos viene después). Guarda seguido.
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
 - **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
-  tempo y un compás por proyecto. Sin fundidos cruzados ni envolventes de ganancia por
+  tempo y un compás por proyecto. Sin fundidos cruzados entre clips distintos (las
+  costuras de una composición de tomas sí los hacen, §4) ni envolventes de ganancia por
   clip.
-- Los parámetros de los plug-ins de terceros aún no se pueden automatizar; la
-  automatización se dibuja, no se graba (sin latch ni touch). En los stems exportados *a
-  través de la cadena del máster*, un efecto de terceros en el máster no entra en los
-  stems (la mezcla completa sí lo lleva).
+- La automatización grabada escribe cada movimiento hecho mientras graba una pasada
+  (todavía sin modos latch ni touch). En los stems exportados *a través de la cadena del
+  máster*, un efecto de terceros en el máster no entra en los stems (la mezcla completa sí
+  lo lleva).
 - Cortar un clip **en bucle** silencia su mitad derecha: en su lugar, selecciona el rango
   de tiempo que necesitas, cópialo y pégalo (la parte pegada conserva el bucle).
 - Los clips de automatización solo se pegan dentro del proyecto del que vienen, mientras

@@ -101,3 +101,43 @@ fn live_notes_keep_their_strict_per_key_cycle() {
     }
     assert_eq!(turns, [1, 2, 3, 4, 1]);
 }
+
+/// Sound review 2: live notes count their turns by round-robin lane, as sequenced ones do
+/// — one tom played live on 47, 48 and 50 alternates its samples, never the first one on
+/// each key.
+#[test]
+fn live_notes_on_one_drums_keys_take_turns_together() {
+    let mut e = Exemplar::new(48_000.0);
+    e.set_globals(&Globals {
+        amp: [0.1, 0.1, 1_000.0, 1.0, 5.0],
+        vel_amp: 0.0,
+        rr_in_order: true,
+        ..Globals::default()
+    });
+    for n in 0..2 {
+        let z = ZoneParams {
+            lo: 47,
+            hi: 50,
+            // A drum: no pitch on its keys (each hit as long as the next).
+            keytrack: 0.0,
+            seq: n as u8 + 1,
+            seqlen: 2,
+            one_shot: true,
+            ..ZoneParams::default()
+        };
+        let level = 0.1 * (n + 1) as f32;
+        e.put_zone(n, &z, &source_of(vec![level; 4_800], 1, 48_000.0, false));
+    }
+    let mut turns = Vec::new();
+    for (i, key) in [47u8, 48, 50, 47, 48, 50].into_iter().enumerate() {
+        let id = LIVE_IDS + i as u64;
+        e.note_on(key, 1.0, id);
+        let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
+        e.process(&mut l, &mut r);
+        e.note_off(key, id, 0.0);
+        turns.push((l[40] * 10.0).round() as usize);
+        let (mut l, mut r) = (vec![0.0; 9_600], vec![0.0; 9_600]);
+        e.process(&mut l, &mut r);
+    }
+    assert_eq!(turns, [1, 2, 1, 2, 1, 2]);
+}

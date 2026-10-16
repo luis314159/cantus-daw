@@ -55,6 +55,7 @@ auto.track.volume = Automate volume
 auto.track.pan = Automate pan
 auto.strip.width = Automate stereo width
 auto.track.level = Automate channel level
+auto.send.level = Automate the send’s level
 
 # Articulators.
 auto.art.flip_v = Flip vertically

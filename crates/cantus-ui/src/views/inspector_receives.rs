@@ -276,8 +276,13 @@ fn sender(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, sen
     name.max.x = right.x.max(name.left() + s.s(12.0));
     name_cell(sh, app, name, host, from, route, !send.enabled);
     // The level, merged per gesture with the source's own sheet and the desk.
+    // Automated and modulated from here too (review 2); its right-click is the route's
+    // menu, which offers both.
     let lname = sheet::name(sh.fmt.tr("inspector.send_level"));
-    let d = sh.value(
+    let d = super::modulators::wired_value(
+        sh,
+        app,
+        "inspector.send_level",
         level,
         Id::new(("insp-recv-level", host.0, from.0)),
         send.level,
@@ -286,7 +291,12 @@ fn sender(sh: &mut Sheet<'_>, app: &CantusApp, from: StripId, host: StripId, sen
         &lname,
         sheet::level_db,
         Function::Space,
+        cantus_core::AutoTarget::Send {
+            strip: from,
+            to: send.to,
+        },
         !send.enabled,
+        false,
     );
     if let Some(v) = d.value {
         sh.acts.push(set(from, Send { level: v, ..send }));

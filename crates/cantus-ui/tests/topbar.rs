@@ -817,3 +817,86 @@ fn the_audio_popover_hangs_under_the_bar_and_the_chip_closes_it() {
     r.click(pos2(chip.center().x, chip.top() + 8.0));
     assert!(!r.app.audio_setup.popover, "the chip closed it");
 }
+
+/// Integration review: the piano roll's pane also shows the pitch editor (an audio clip)
+/// and the automation editor (an automation clip); the bar's grid is the one each of
+/// them quantises to — the pitch editor's own, the arrangement's for automation — never
+/// the piano roll's, which neither uses.
+#[test]
+fn the_snap_speaks_for_the_pitch_and_the_automation_editor() {
+    let mut r = Rig::new();
+    let track = r.app.project().tracks[0].id;
+    let src = cantus_core::AudioSourceId(r.app.bus.alloc_id());
+    r.app.exec(Command::InsertAudioSource {
+        source: cantus_core::audio::AudioSource {
+            id: src,
+            name: "take".into(),
+            path: "C:/rec/take.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 480_000,
+            sha256: None,
+            recorded: true,
+        },
+    });
+    let mut audio = r
+        .app
+        .bus
+        .new_clip("take", Ticks::beats(64), Ticks::beats(4));
+    audio.audio = Some(cantus_core::audio::AudioRegion::of(src));
+    let mut auto = r
+        .app
+        .bus
+        .new_clip("level", Ticks::beats(68), Ticks::beats(4));
+    auto.automation = Some(cantus_core::Automation::new(
+        cantus_core::AutoTarget::TrackGain(track),
+        Vec::new(),
+    ));
+    let (audio_id, auto_id) = (audio.id, auto.id);
+    for clip in [audio, auto] {
+        r.app.exec(Command::InsertClip {
+            track,
+            clip: Box::new(clip),
+        });
+    }
+    r.app.focus = cantus_ui::app::EditFocus::PianoRoll;
+    r.app.central = cantus_ui::app::CentralView::PianoRoll;
+    r.app.selected_track = Some(track);
+    r.app.selected_clip = Some(audio_id);
+    r.idle(2);
+    let (e, grid, on) = transport::snap_editor(&r.app);
+    assert_eq!((e, grid, on), ("pitch", r.app.pitch.view.grid, true));
+    let roll = r.app.piano_roll.grid;
+    let snap = r.group(Group::Snap).expect("the snap group");
+    // The grid field: its word, in the group.
+    let field = r
+        .texts
+        .iter()
+        .find(|(t, rr)| t.starts_with("1/") && snap.contains_rect(*rr))
+        .map(|(_, rr)| *rr)
+        .expect("the grid field");
+    r.click(field.center());
+    r.idle(2);
+    let eighth = cantus_ui::i18n::t("grid.eighth");
+    let item = r
+        .texts
+        .iter()
+        .rev()
+        .find(|(t, rr)| *t == eighth && rr.top() > snap.bottom())
+        .map(|(_, rr)| *rr)
+        .expect("the grid list is open");
+    r.click(item.center());
+    assert_eq!(
+        r.app.pitch.view.grid,
+        Ticks::EIGHTH,
+        "the pitch editor's grid"
+    );
+    assert_eq!(r.app.piano_roll.grid, roll, "the piano roll's is its own");
+    r.app.selected_clip = Some(auto_id);
+    r.idle(2);
+    let (e, grid, on) = transport::snap_editor(&r.app);
+    assert_eq!(
+        (e, grid, on),
+        ("automation", r.app.arrangement.grid, r.app.arrangement.snap)
+    );
+}

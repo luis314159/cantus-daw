@@ -1554,3 +1554,45 @@ fn esc_on_the_level_field_keeps_the_selected_cable() {
         "the cable stays selected"
     );
 }
+
+/// Review 2: a send's level is a parameter — its route menu (a send knob's right-click)
+/// offers its automation clip and *Modulate…*.
+#[test]
+fn a_sends_menu_automates_and_modulates_its_level() {
+    let mut r = Rig::new(starter_project());
+    let s = r.ids();
+    let ret = r
+        .app
+        .project()
+        .strips
+        .iter()
+        .find(|x| x.dock == Dock::Right)
+        .unwrap()
+        .id;
+    assert!(r.app.add_sends(&[s[1]], ret));
+    r.app.select_strip(s[1]);
+    r.idle(3);
+    let target = cantus_core::AutoTarget::Send {
+        strip: s[1],
+        to: ret,
+    };
+    let knob = r.rect(Some(ret), Control::Send).center();
+    r.right_click(knob);
+    r.click_row(desk_owner(), "mods.menu.send");
+    assert_eq!(
+        r.app.modulators.popup.as_ref().map(|p| p.0.clone()),
+        Some(target.clone()),
+        "the Modulate… list for the send"
+    );
+    r.app.modulators.popup = None;
+    r.idle(2);
+    r.right_click(knob);
+    r.click_row(desk_owner(), "auto.send.level");
+    assert!(
+        r.app.project().tracks.iter().any(|t| t
+            .clips
+            .iter()
+            .any(|c| c.automation.as_ref().is_some_and(|a| a.target == target))),
+        "an automation clip on the send's level"
+    );
+}

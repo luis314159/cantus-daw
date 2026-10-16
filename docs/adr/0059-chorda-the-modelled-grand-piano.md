@@ -162,3 +162,26 @@ changes `MODEL` and never a song made with this one.
 | No ghost, no cut, the grip, a new decay, a lifted damper | `tests_piano::a_struck_string_leaves_no_ghost…`, `a_new_keyboard_never_cuts…`, `without_dampers_the_strings_ring_in_sympathy`, `a_new_decay_reaches…`, `a_fresh_strike_finds_its_damper_already_lifted` | — |
 | Never waits; designs what settles; tuning not automatable | `inst_chorda` (engine): `a_unit_never_waits_for_its_keyboard`, `a_dragged_tuning_designs_only_where_it_settles`, `a_lane_on_the_tuning_is_inert…`; UI: `the_tuning_is_set_never_automated`, `while_the_strings_are_designed_the_editor_says_so`, `inst_chorda_boot` | — |
 | The editor | `cantus-ui/tests/inst_chorda.rs` (views, undo, drop, presets, no elided or overlapping text at 75–200 % and in Spanish, kit lint, the boot path) | — |
+
+## Amended by fix3 (round 28: the integration review and sound's second review)
+
+- **A keyboard reaches what rings.** A sympathetic string that a new keyboard finds ringing
+  fades its output over 256 samples and then takes the new layout (woken again if the bridge
+  drives it) — under continuous playing it never went quiet before and kept the old tuning.
+  A key struck while its strings ring for an older keyboard fades them over 128 samples and
+  the strike lands on the new strings (a note-off meanwhile lands it released). Never a cut;
+  a song whose keyboard never changes renders as before, to the bit.
+- **A fresh unit is silent until its own tuning arrives**: a unit that has struck nothing
+  drops the reference keyboard when the tuning asked for is not designed yet (it played
+  A4 440 meanwhile). Once it has played, a tuning on its way waits behind the one playing.
+- **The designer never leaves an export waiting**: a design runs under `catch_unwind` (a
+  failure is refused, the designer freed); `ensure` designs on its own thread when the
+  designer could not start, refused or failed the design, or has not delivered in two
+  minutes. A refused tuning says so in the editor (`chorda.no_room`), never "0 %".
+- **One rule for the tuning keys**: `InstrumentKind::modulatable` (automatable and with a
+  range) closes every path — the shared knob wiring (no menu, no rings, no inert clip's
+  value), the source-chip drop, `connect_modulation`, the matrix's targets, a modulator's
+  handle, *New modulator*, an instrument swap's carried connections.
+- The bench rig designs a Chorda's keyboard before it builds its units (`inst.chorda.v8`
+  measures eight voices); the 1-cent test measures the ranges' corners too (A4 466, 200 %,
+  150 % at 44.1 and 96 kHz: 0.488 and 0.497 cents; A4 415, 0 %, 50 % at 44.1 kHz: 0.483).

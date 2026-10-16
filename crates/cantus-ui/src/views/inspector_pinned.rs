@@ -15,8 +15,8 @@ use crate::kit::meter::{self, Levels};
 use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{cache, led, Fill, Function, State, Style};
 use crate::widgets::fader::{db_at, pos_of};
-use cantus_core::{Command, MergeKey};
-use egui::{pos2, Align2, Id, Rect, Sense, Ui, Vec2};
+use cantus_core::{AutoTarget, Command, MergeKey};
+use egui::{pos2, Align2, Id, Rect, Response, Sense, Ui, Vec2};
 
 /// The meter's ballistics: what it shows, its peak hold, how long the hold has waited.
 pub struct Meter {
@@ -172,7 +172,11 @@ pub fn show(
     );
     let mut gp = pos_of(tg.gain);
     let before = gp;
-    if resp.dragged() {
+    let targets = tg.targets();
+    let fader_mod = PinMod::new(app, targets[0].clone(), gp, s);
+    let fader_depth = fader_mod.input(st, ui, &resp, "kit.param.volume");
+    let b = &mut st.brush;
+    if resp.dragged() && !fader_depth {
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.2
         } else {
@@ -207,6 +211,7 @@ pub fn show(
             unity: Some(pos_of(0.0)),
         },
     );
+    fader_mod.paint(b, ui, &resp, fr, s);
 
     // The right-hand block: pan, the readouts, the switches.
     let x0 = fr.right() + k(10.0);
@@ -214,7 +219,7 @@ pub fn show(
     let bw = (x1 - x0).max(k(40.0));
     let knob_c = pos2(x0 + k(18.0), inner.top() + k(18.0));
     let kr = Rect::from_center_size(knob_c, Vec2::splat(k(30.0)));
-    let pan_d = sheet::drag(
+    let mut pan_d = sheet::drag(
         ui,
         Id::new(("insp-pin-pan", tg.strip)),
         kr,
@@ -222,6 +227,11 @@ pub fn show(
         &Range::lin(-1.0, 1.0, 0.0).bipolar(),
         false,
     );
+    let pan_mod = PinMod::new(app, targets[1].clone(), (tg.pan + 1.0) * 0.5, s);
+    if pan_mod.input_drag(st, ui, &mut pan_d, "kit.param.pan") {
+        pan_d.value = None;
+    }
+    let b = &mut st.brush;
     let pan_now = pan_d.value.unwrap_or(tg.pan);
     let hue = s.function(Function::Output);
     knob::paint(
@@ -231,6 +241,7 @@ pub fn show(
         State::of(&pan_d.resp, false),
         &KnobLook::new(KnobSize::S, (pan_now + 1.0) * 0.5, 0.5),
     );
+    pan_mod.paint(b, ui, &pan_d.resp, kr, s);
     let cap = Text::key("kit.param.pan", Role::Micro, t.text_dim);
     let _ = text::paint(
         b,
@@ -252,6 +263,7 @@ pub fn show(
     let gain_now = new_gain.unwrap_or(tg.gain);
     let gain_d = pinned_well(
         st,
+        app,
         ui,
         s,
         r1,
@@ -261,9 +273,11 @@ pub fn show(
         &sheet::GAIN,
         true,
         sheet::db,
+        targets[0].clone(),
     );
     let pan_w = pinned_well(
         st,
+        app,
         ui,
         s,
         r2,
@@ -273,9 +287,11 @@ pub fn show(
         &Range::lin(-1.0, 1.0, 0.0).bipolar(),
         false,
         sheet::pan,
+        targets[1].clone(),
     );
     let width_d = pinned_well(
         st,
+        app,
         ui,
         s,
         r3,
@@ -285,6 +301,7 @@ pub fn show(
         &Range::lin(0.0, 2.0, 1.0),
         false,
         sheet::percent,
+        targets[2].clone(),
     );
     let b = &mut st.brush;
     let gap = k(6.0);
@@ -440,6 +457,7 @@ pub fn show(
 #[allow(clippy::too_many_arguments)]
 fn pinned_well(
     st: &mut Inspector,
+    app: &CantusApp,
     ui: &mut Ui,
     s: &Style,
     r: Rect,
@@ -449,8 +467,16 @@ fn pinned_well(
     range: &Range,
     gain: bool,
     write: fn(f32, &mut String),
+    target: AutoTarget,
 ) -> sheet::Drag {
-    let d = sheet::drag(ui, Id::new(salt), r, v, range, gain);
+    let mut d = sheet::drag(ui, Id::new(salt), r, v, range, gain);
+    let base = if gain {
+        sheet::gain_pos(v)
+    } else {
+        range.pos(v)
+    };
+    let pm = PinMod::new(app, target, base, s);
+    pm.input_drag(st, ui, &mut d, key);
     let shown = d.value.unwrap_or(v);
     let text = st
         .fmt
@@ -493,5 +519,98 @@ fn pinned_well(
             std::fmt::Write::write_str(b, &text)
         });
     }
+    pm.paint(&mut st.brush, ui, &d.resp, r, s);
     d
+}
+
+impl Target {
+    /// What its volume, pan and width are as automation targets: the strip's, else the
+    /// master's.
+    fn targets(&self) -> [AutoTarget; 3] {
+        match self.strip {
+            Some(id) => [
+                AutoTarget::StripGain(id),
+                AutoTarget::StripPan(id),
+                AutoTarget::StripWidth(id),
+            ],
+            None => [
+                AutoTarget::MasterGain,
+                AutoTarget::MasterPan,
+                AutoTarget::MasterWidth,
+            ],
+        }
+    }
+}
+
+/// A pinned control's modulation (ADR 0057, review 2), as the desk's copies of the same
+/// controls have it: the parameter's menu on a right-click (*Create automation clip*,
+/// *Modulate…*), a modulator's handle dropped on it, Alt+drag (or any drag while a
+/// modulator maps) for the depth — only the drag; a double-click still resets —, the
+/// marks, the drop outline and where modulation has it now.
+struct PinMod {
+    target: AutoTarget,
+    offer: crate::kit::automate::Offer,
+    n: usize,
+}
+
+impl PinMod {
+    fn new(app: &CantusApp, target: AutoTarget, pos: f32, s: &Style) -> Self {
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let (m, n) = app.mod_offer(&target, pos, s, &mut rings);
+        PinMod {
+            offer: crate::kit::automate::Offer {
+                automated: app.is_automated(&target),
+                typing: false,
+                modulation: Some(m),
+            },
+            target,
+            n,
+        }
+    }
+
+    /// The control's modulation answered; `true` while its drags are the depth's.
+    fn input(&self, st: &mut Inspector, ui: &Ui, resp: &Response, probe: &str) -> bool {
+        use crate::kit::automate as a;
+        a::probe::note(probe, true);
+        let choice = a::modulation_choice(ui, resp, Some(self.offer))
+            .or_else(|| a::menu(ui, resp, self.offer));
+        if let Some(c) = choice {
+            st.acts.push(Act::Mod(super::modulators::ModAct::Param(
+                self.target.clone(),
+                c,
+                resp.rect,
+            )));
+        }
+        a::depth_drag(ui, Some(self.offer))
+    }
+
+    /// [`Self::input`] for a value's drag: its new value and its end left out while the
+    /// drag is the depth's. Whether it was.
+    fn input_drag(&self, st: &mut Inspector, ui: &Ui, d: &mut sheet::Drag, probe: &str) -> bool {
+        let depth =
+            self.input(st, ui, &d.resp, probe) && (d.resp.dragged() || d.resp.drag_stopped());
+        if depth {
+            d.value = None;
+            d.ended = false;
+        }
+        depth
+    }
+
+    fn paint(&self, b: &mut crate::kit::Brush, ui: &Ui, resp: &Response, rect: Rect, s: &Style) {
+        use crate::kit::automate as a;
+        if self.offer.automated {
+            a::mark(b, rect, s);
+        }
+        if self.n > 0 {
+            a::mod_mark(b, rect, s);
+            if let Some(live) = self.offer.modulation.and_then(|m| m.live) {
+                let x = rect.left() + s.s(3.0);
+                let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
+                b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
+            }
+        }
+        if a::handle_in_flight(ui.ctx()) && resp.contains_pointer() {
+            a::drop_target(b, rect, s);
+        }
+    }
 }

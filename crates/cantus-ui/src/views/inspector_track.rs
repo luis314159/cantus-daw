@@ -62,6 +62,7 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
         sheet::db,
         Function::Source,
         cantus_core::AutoTarget::TrackGain(id),
+        false,
         |gain_db| {
             Act::Merge(
                 Command::SetTrackGain { id, gain_db },
@@ -80,6 +81,7 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
         sheet::pan,
         Function::Source,
         cantus_core::AutoTarget::TrackPan(id),
+        false,
         |pan| {
             Act::Merge(
                 Command::SetTrackPan { id, pan },
@@ -290,6 +292,7 @@ fn firmus(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId, params: &cantus_core
                     track: id,
                     param: p,
                 },
+                false,
                 |value| {
                     Act::Merge(
                         Command::SetInstrumentParam {

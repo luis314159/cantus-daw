@@ -181,8 +181,10 @@ when there is room.
 - **Position**: bars.beats.ticks and the time, the metre beside them; while recording, the
   take's time.
 - **Grid and snap**: the grid and the SNAP lamp of the editor you are working in — the
-  arrangement, the piano roll or the channel rack (always on its grid). The same values
-  as the editor's own toolbar.
+  arrangement, the piano roll or the channel rack (always on its grid); with an audio clip
+  in the piano roll's place, the pitch editor's grid (what *Quantise timing* moves notes
+  to), and with an automation clip, the arrangement's grid the automation editor snaps
+  to. The same values as the editor's own toolbar.
 - **Undo** and **redo**, and the **window keys** (browser, arrangement, rack, piano roll,
   mixer, inspector).
 - **CPU, RAM, voices, drops**: the audio callback's load (its histogram in the tooltip),
@@ -458,11 +460,14 @@ several, and they add up on top of its automation.
   at the left of its title) onto any knob; or press its **map** key and drag any knob — the
   drag sets that modulator's depth there.
 - **Depth on the knob**: hold `Alt` and drag a modulated knob to change the depth of its
-  modulation. Modulated knobs wear coloured rings (the depth, in the modulator's colour), a
+  modulation (only the drag: a double-click still resets the value). Modulated knobs wear coloured rings (the depth, in the modulator's colour), a
   moving dot where the parameter is now, and a violet mark.
 - **Everywhere**: every knob of Cantus's instruments and effects, the mixer's faders, pans
-  and widths (the master's too) and a hosted plug-in's parameters take a modulator the
-  same way. So does a modulator's own **amount**: let a random source move how deep an LFO
+  and widths (the master's too), every **send's level** (its knob and row on the desk, its
+  cable's level, the inspector's send and receive rows; a send's right-click menu has
+  *Automate* and *Modulate…* for it), the inspector's pinned strip and a hosted plug-in's
+  parameters take a modulator the same way. Chorda's tuning (A4, stretch, stiffness) is
+  set, never automated or modulated. So does a modulator's own **amount**: let a random source move how deep an LFO
   goes (one level of nesting).
 - **Bake to automation**: a route's bake key (or *Modulate… ▸ Bake to automation*) turns
   that modulator's effect into an automation clip over the time selection (else the loop,
@@ -623,8 +628,8 @@ more open kick), side stick 37, snare 38 (40 a damped snare), toms 41 · 43–45
 hi-hat closed 42, pedal 44 and open 46, crashes 49 and 57, ride 51 and 59, bell 53. The
 General MIDI keys the kit has no sound for (tambourine, cowbell, the Latin percussion)
 stay silent, so a General MIDI part never plays a cymbal in their place; DrumGizmo's other
-articulations are above them, on keys 82–100 (the half-open hi-hat 82, the tips and the
-chained ride 83–90, the brushes 91–100). Each drum has its strengths as velocity layers
+articulations sit where no General MIDI 2, GS or XG percussion lives: the half-open hi-hat
+and the tips on keys 21–26, the chained ride on 88–90 and the brushes on 91–100. Each drum has its strengths as velocity layers
 down to 24 dB under its loudest, and the hits of a layer take their turns **in order** —
 counted per drum and per layer, so a roll, a tom fill across the drum's keys or an accent
 on every fourth hat never plays the same sample twice in a row; a closed or pedal hi-hat
@@ -857,10 +862,11 @@ This is a beta. What we know about:
   program; isolating them comes later). Save often.
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
-  one time signature per project. No crossfades or clip gain envelopes.
-- The parameters of hosted plug-ins cannot be automated yet; automation is drawn, not
-  recorded (no latch or touch). In stems exported *through the master chain*, a hosted
-  effect on the master is left out of the stems (the full mix has it).
+  one time signature per project. No crossfades between separate clips (comp seams do
+  crossfade, §4) and no clip gain envelopes.
+- Recorded automation writes every move made while a pass records (no latch or touch
+  modes yet). In stems exported *through the master chain*, a hosted effect on the master
+  is left out of the stems (the full mix has it).
 - Splitting a **looping** clip silences its right half: select the time range you need,
   copy it and paste it instead (the pasted part keeps the loop).
 - Automation clips are pasted only within the project they came from, while Cantus stays

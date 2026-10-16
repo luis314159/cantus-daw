@@ -5,8 +5,10 @@
 
 use std::path::PathBuf;
 
-/// Every file of the seven effect editors, the device frame and the hosted plug-ins'
-/// editor: all on the kit. A new file of theirs goes here.
+/// Every file of the effect editors, the device frame and the hosted plug-ins' editor:
+/// all on the kit. Every file under `views/fx/` is checked without being named (the walk
+/// in the test; integration review: new helpers there were missed); a new file of theirs
+/// elsewhere goes here.
 const ON_THE_KIT: &[&str] = &[
     "views/comp_editor.rs",
     "views/comp_editor/desk.rs",
@@ -62,6 +64,7 @@ const ON_THE_KIT: &[&str] = &[
     "views/pitch.rs",
     "views/pitch_bar.rs",
     "views/pitch_input.rs",
+    "views/pitch_lane.rs",
     "views/pitch_paint.rs",
     "views/pitch_panel.rs",
     "views/plugins.rs",
@@ -108,7 +111,17 @@ const BANNED: &[(&str, &str)] = &[
 fn the_editors_on_the_kit_say_no_bare_word_and_draw_no_stock_widget() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut found = Vec::new();
-    for rel in ON_THE_KIT {
+    let mut files: Vec<String> = ON_THE_KIT.iter().map(|s| s.to_string()).collect();
+    for e in std::fs::read_dir(src.join("views").join("fx")).unwrap() {
+        let name = e.unwrap().file_name().to_string_lossy().into_owned();
+        if name.ends_with(".rs") {
+            files.push(format!("views/fx/{name}"));
+        }
+    }
+    files.sort();
+    files.dedup();
+    assert!(files.iter().any(|f| f == "views/fx/speculum_draw.rs"));
+    for rel in &files {
         let text = std::fs::read_to_string(src.join(rel)).unwrap_or_else(|e| panic!("{rel}: {e}"));
         let mut in_tests = false;
         for (n, line) in text.lines().enumerate() {

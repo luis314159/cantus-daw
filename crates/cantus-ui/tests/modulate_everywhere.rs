@@ -9,6 +9,7 @@ mod support;
 use cantus_core::*;
 use cantus_ui::kit::automate::probe;
 use cantus_ui::views::inst::View;
+use cantus_ui::CantusApp;
 use support::*;
 
 /// The controls drawn that offered no modulation. (A number that is no parameter of
@@ -47,11 +48,12 @@ fn every_native_effect_editor_offers_modulate_on_every_control() {
                 cantus_ui::views::inspector::show(&mut a, ui)
             });
             let drawn = probe::take();
+            // Every continuous parameter but the mix (review 2: Reverb's pre-delay, its
+            // fourth, had no row).
             for info in kind
                 .params()
                 .iter()
                 .filter(|p| p.key != "mix" && !p.stepped)
-                .take(3)
             {
                 assert!(
                     drawn.iter().any(|(n, m)| n == info.label_key && *m),
@@ -94,6 +96,11 @@ fn every_native_instrument_editor_offers_modulate_on_every_control() {
                 cantus_ui::views::inst::window_in(&mut a, ui)
             });
             let drawn = probe::take();
+            // Review 2: a view that drew nothing passed.
+            assert!(
+                drawn.iter().any(|(_, m)| *m),
+                "{kind:?} {view:?}: its editor drew no parameter"
+            );
             bad.extend(
                 unwired(drawn)
                     .into_iter()
@@ -103,4 +110,115 @@ fn every_native_instrument_editor_offers_modulate_on_every_control() {
     }
     bad.dedup();
     assert!(bad.is_empty(), "controls without Modulate…: {bad:#?}");
+}
+
+/// Review 2: a send's level (its row under the source, its row under the return) and the
+/// inspector's pinned strip — a channel's and the master's volume, pan and width — offer
+/// modulation too.
+#[test]
+fn sends_and_the_pinned_strip_offer_modulate() {
+    let mut a = app(cantus_ui::starter_project());
+    let track = a.project().tracks[0].id;
+    let s0 = a.project().tracks[0].strip.unwrap();
+    a.add_strip();
+    let ret = a.project().strips.last().unwrap().id;
+    assert!(a.add_sends(&[s0], ret));
+    let wired = |a: &mut CantusApp, what: &str| {
+        probe::start();
+        paint(&ctx(), egui::vec2(360.0, 2400.0), 3, |ui| {
+            cantus_ui::views::inspector::show(a, ui)
+        });
+        let drawn = probe::take();
+        let unwired = unwired(drawn.clone());
+        assert!(unwired.is_empty(), "{what}: without Modulate…: {unwired:?}");
+        drawn
+    };
+    let has = |drawn: &[(String, bool)], key: &str| drawn.iter().any(|(n, m)| n == key && *m);
+    a.select_track(track);
+    let drawn = wired(&mut a, "the channel");
+    for key in [
+        "inspector.send_level",
+        "kit.param.volume",
+        "kit.param.pan",
+        "kit.param.width",
+    ] {
+        assert!(has(&drawn, key), "the channel's {key} offers no Modulate…");
+    }
+    a.select_strip(ret);
+    let drawn = wired(&mut a, "the return");
+    assert!(
+        has(&drawn, "inspector.send_level"),
+        "the return's received level offers no Modulate…"
+    );
+    a.select_strip(StripId::MASTER);
+    let drawn = wired(&mut a, "the master");
+    for key in ["kit.param.volume", "kit.param.pan", "kit.param.width"] {
+        assert!(has(&drawn, key), "the master's {key} offers no Modulate…");
+    }
+}
+
+/// Integration review (and sound review 2): Chorda's tuning — A4, stretch, stiffness — is
+/// set, never automated or modulated (ADR 0059 §6). Its knobs offer neither, in every
+/// view; a source chip dropped on them, a modulator's handle, *New modulator* and the
+/// matrix all refuse them; an automation clip left on one (from an instrument swapped
+/// out) never moves the knob.
+#[test]
+fn chordas_tuning_keys_take_no_automation_nor_modulation() {
+    use cantus_core::inst::chorda::DESIGN_KEYS;
+    use cantus_core::inst::modulation::connections;
+    use cantus_core::modulator::{ModHost, ModKind};
+    let mut a = app(cantus_ui::starter_project());
+    let track = a.project().tracks[0].id;
+    a.set_instrument(
+        track,
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Chorda)),
+    );
+    cantus_ui::views::inst::demo_setup(&mut a, track, InstrumentKind::Chorda);
+    a.open_inst_editor(track);
+    let names: Vec<String> = DESIGN_KEYS
+        .iter()
+        .map(|k| {
+            let info = InstrumentKind::Chorda.param(k).unwrap();
+            cantus_ui::i18n::t(info.label_key)
+        })
+        .collect();
+    for view in [View::Play, View::Edit, View::Matrix] {
+        a.inst.view = view;
+        probe::start();
+        paint(&ctx(), egui::vec2(1400.0, 900.0), 3, |ui| {
+            cantus_ui::views::inst::window_in(&mut a, ui)
+        });
+        let drawn = probe::take();
+        for (n, m) in &drawn {
+            assert!(
+                !(names.contains(n) && *m),
+                "{view:?}: Chorda's {n} offers modulation"
+            );
+        }
+    }
+    let spec = |a: &CantusApp| a.project().tracks[0].instrument.native().unwrap().clone();
+    let used = connections(&spec(&a)).count();
+    for key in DESIGN_KEYS {
+        // The knob's drop of a source chip.
+        a.connect_modulation(track, "lfo1", key);
+        assert_eq!(connections(&spec(&a)).count(), used, "{key}: a slot taken");
+        // A modulator's handle, New modulator.
+        let target = AutoTarget::Instrument {
+            track,
+            key: key.to_string(),
+        };
+        let lfo = a
+            .add_modulator(ModHost::Track(track), ModKind::Lfo, None)
+            .unwrap();
+        let steps = a.bus.history().len();
+        a.modulation_choice(
+            &target,
+            cantus_ui::kit::automate::Choice::Connect(lfo.0),
+            egui::Rect::NOTHING,
+        );
+        assert!(a
+            .add_modulator(ModHost::Track(track), ModKind::Lfo, Some(target.clone()))
+            .is_none());
+        assert_eq!(a.bus.history().len(), steps, "{key}: a route made");
+    }
 }

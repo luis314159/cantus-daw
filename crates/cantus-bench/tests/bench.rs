@@ -189,3 +189,19 @@ fn the_null_corpus_is_repeatable_named_once_and_audible() {
     assert!(text.starts_with("# cantus null hashes; build "));
     assert!(lines[0].split("  ").next().unwrap().len() == 64);
 }
+
+/// Sound review 2: the rig measures a Chorda that plays — its keyboard designed before the
+/// rig is built (a unit no longer waits for it, and the held notes at tick 0 were dropped,
+/// so `inst.chorda.v8` timed a silent piano).
+#[test]
+fn the_rig_measures_a_chorda_that_sounds_its_voices() {
+    let spec =
+        cantus_core::InstrumentSpec::Native(cantus_core::NativeSpec::new(InstrumentKind::Chorda));
+    let p = sessions::instrument(spec, 8);
+    let mut rig = Rig::new(&p, Ticks::ZERO, cantus_bench::kernels::BLOCK);
+    let run = rig.run(
+        cantus_bench::rig::SAMPLE_RATE as usize / cantus_bench::kernels::BLOCK / 4,
+        8,
+    );
+    assert_eq!(run.voices, 8, "eight voices sounding");
+}

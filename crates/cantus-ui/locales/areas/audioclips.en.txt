@@ -49,4 +49,3 @@ audioclips.status.collect_failed = Could not copy {file} into the project's Audi
 audioclips.status.relinked = Found the audio again: {file}
 audioclips.status.wait_peaks = The waveform is still being read; try again in a moment
 audioclips.loading = Loading
-audioclips.piano_roll = An audio clip has no notes. Its gain, fades and file are in the inspector
