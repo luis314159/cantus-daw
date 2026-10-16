@@ -315,3 +315,122 @@ fn an_unautomated_hosted_units_losses_are_counted() {
     }
     assert_eq!(engine.stats().dropped_events, 3 + 5 + 7);
 }
+
+/// Review of fix3: a plug-in restarted while the transport is stopped (the common case: a
+/// crash or a reload with nothing playing) hears the held values too — the stopped path
+/// re-seeks the automation, a control point now.
+#[test]
+fn a_unit_swapped_in_place_while_stopped_hears_the_held_value() {
+    let (p, slot) = ramp_then_hold(4);
+    let (unit, _) = last_unit(&slot);
+    let (mut engine, mut processor) = playing(&p, unit, 0, 200);
+    engine.stop();
+    let mut buf = vec![0f32; 64 * 2];
+    processor.process(&mut buf, 2);
+    engine.poll();
+    let (fresh, last) = last_unit(&slot);
+    assert!(engine.replace_unit(fresh));
+    processor.process(&mut buf, 2);
+    engine.poll();
+    let last = last.lock().unwrap().clone();
+    assert_eq!(last.len(), 4, "every parameter, stopped: {last:?}");
+    for (id, v) in last {
+        assert_eq!(v.pos, 1.0, "parameter {id}");
+    }
+}
+
+/// A hosted instrument that keeps the last value it heard per parameter.
+#[derive(Debug)]
+struct LastInst {
+    last: Heard,
+}
+
+impl InstrumentUnit for LastInst {
+    fn configure(&mut self, _spec: &NativeSpec, _assets: &cantus_engine::inst::Assets) {}
+    fn note_on(&mut self, _note: NoteOn) {}
+    fn note_off(&mut self, _key: u8, _id: u64, _velocity: f32) {}
+    fn all_notes_off(&mut self) {}
+    fn reset(&mut self) {}
+    fn process(&mut self, _l: &mut [f32], _r: &mut [f32]) -> bool {
+        false
+    }
+    fn active_voices(&self) -> usize {
+        0
+    }
+    fn automate(&mut self, _offset: usize, id: u32, value: HostedValue) {
+        let mut last = self.last.lock().unwrap();
+        match last.iter_mut().find(|l| l.0 == id) {
+            Some(l) => l.1 = value,
+            None => last.push((id, value)),
+        }
+    }
+}
+
+/// Review of fix3: a hosted instrument restarted in place (`replace_instrument`) hears
+/// its held automated values — playing, within a grid step, and stopped.
+#[test]
+fn a_hosted_instrument_swapped_in_place_hears_the_held_value_playing_and_stopped() {
+    for stopped in [false, true] {
+        let mut p = Project::new("held instrument");
+        p.tempo_bpm = 120.0;
+        let mut lead = p.make_track("Lead");
+        let mut plugin = ExternalPlugin::new(PluginFormat::Clap, "test.lastinst", "LastInst");
+        for id in 0..4 {
+            plugin.params.insert(id, 0.5);
+        }
+        let key = hosted_key(&plugin);
+        lead.instrument = InstrumentSpec::External(plugin);
+        let track = lead.id;
+        for id in 0..4 {
+            let mut clip = p.make_clip("ramp", Ticks::ZERO, Ticks::beats(16));
+            clip.automation = Some(Automation::new(
+                AutoTarget::PluginInstrument { track, id },
+                vec![
+                    AutoPoint::new(Ticks::ZERO, 0.0),
+                    AutoPoint::new(Ticks::beats(8), 1.0),
+                ],
+            ));
+            lead.clips.push(clip);
+        }
+        p.tracks.push(lead);
+        let unit = |last: &Heard| {
+            NativeUnit::hosted(
+                track,
+                key.clone(),
+                Box::new(LastInst { last: last.clone() }),
+            )
+        };
+        let first: Heard = Arc::new(Mutex::new(Vec::new()));
+        let (mut engine, mut processor) = EngineHandle::manual(SR);
+        assert!(engine.add_instrument(unit(&first)));
+        let snapshot = engine.compile(&p, 1);
+        engine.set_snapshot(snapshot);
+        let mut buf = vec![0f32; 1024 * 2];
+        processor.process(&mut buf, 2);
+        engine.poll();
+        engine.seek(Ticks::ZERO);
+        engine.play();
+        for _ in 0..200 {
+            processor.process(&mut buf, 2);
+            engine.poll();
+        }
+        if stopped {
+            engine.stop();
+            processor.process(&mut buf[..128], 2);
+            engine.poll();
+        }
+        let fresh: Heard = Arc::new(Mutex::new(Vec::new()));
+        assert!(engine.replace_instrument(unit(&fresh)));
+        processor.process(&mut buf[..32], 2);
+        engine.poll();
+        let last = fresh.lock().unwrap().clone();
+        assert_eq!(
+            last.len(),
+            4,
+            "stopped {stopped}: every parameter: {last:?}"
+        );
+        for (id, v) in last {
+            assert_eq!(v.pos, 1.0, "stopped {stopped}: parameter {id}");
+        }
+    }
+}
