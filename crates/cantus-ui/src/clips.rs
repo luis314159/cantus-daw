@@ -125,6 +125,16 @@ pub fn glue(track: TrackId, clips: &[&Clip], ids: Ids) -> Option<Vec<Command>> {
             },
         );
     }
+    // A comp window glued with what follows it is still the comp's (ADR 0058, schema 32):
+    // the glued clip — the earliest, which the glue keeps — is a window when any piece was.
+    let first = clips.iter().min_by_key(|c| (c.start, c.id.0))?;
+    if !first.comp && clips.iter().any(|c| c.comp && c.lane == 0) {
+        commands.push(Command::SetClipComp {
+            track,
+            clip: first.id,
+            comp: true,
+        });
+    }
     Some(commands)
 }
 
@@ -460,6 +470,14 @@ pub fn transpose_selection(
                     to,
                     clip: clip.id,
                 });
+                // A comp window moved to another track leaves its comp (ADR 0058).
+                if clip.comp {
+                    commands.push(Command::SetClipComp {
+                        track: to,
+                        clip: clip.id,
+                        comp: false,
+                    });
+                }
             }
             commands.extend(move_to(to, clip, clip.start + delta));
         }

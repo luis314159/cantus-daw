@@ -4,9 +4,11 @@
 //!
 //! **A comp is lane-0 clips that are windows on the takes.** Nothing is copied: a window
 //! shows the same file (audio) or the same notes, note ids and all (MIDI, the way a split
-//! shares them), through another range. So a lane-0 clip is *from* a take when it shows
-//! the same content at the same place — the same [`ContentKey`] — and that is how the take
-//! lanes know which of their ranges are in the comp, to light them.
+//! shares them), through another range. Which lane-0 clips are the comp's is said by the
+//! clip itself (`Clip::comp`, schema 32): a swipe, a promote and a recording laid over the
+//! takes make windows, a split keeps them, a copy or a paste is never one — wherever it
+//! lands. Which take a window shows is what it plays: the take whose stretch of the same
+//! content it plays, which is how the take lanes know which of their ranges to light.
 //!
 //! Every operation is a free function returning the commands (one undo step each), tested
 //! without a window.
@@ -51,25 +53,39 @@ pub fn content_key(c: &Clip) -> Option<ContentKey> {
     }
 }
 
-/// Whether `c` (a playing-lane clip, or an alternate comp's kept window) is a window onto
-/// `take` (a take-lane clip): it plays the take's source and lies over the take on the
-/// timeline (ADR 0058, review 2). A window where its take put it (the same origin) is that
-/// take's alone; one slipped or nudged (an origin no take of that source has) is a window
-/// onto each take of its source it lies over. A copy pasted away from every take of its
-/// source is no window: a comp switch, a new comp and a merge leave it alone. One rule
-/// for the comp's windows, the take lanes' lighting and the unused takes.
+/// The stretch of `take` (on its take lane, in timeline ticks) whose content `c` plays —
+/// the same source, the same stretch of it, wherever `c` sits — or `None`. A shared tick
+/// or so is a rounding's sliver (a loop recording's passes are cut from one file on whole
+/// ticks), never a window: it shows nothing.
+fn played_of(c: &Clip, take: &Clip) -> Option<(Ticks, Ticks)> {
+    let (k, t) = (content_key(c)?, content_key(take)?);
+    if (k.content, k.audio) != (t.content, t.audio) {
+        return None;
+    }
+    let lo = c.offset.max(take.offset);
+    let hi = (c.offset + c.length).min(take.offset + take.length);
+    (hi - lo > SLIVER).then(|| {
+        let at = |x: Ticks| take.start + (x - take.offset);
+        (at(lo), at(hi))
+    })
+}
+
+/// What [`played_of`] takes for a rounding's sliver.
+const SLIVER: Ticks = Ticks(1);
+
+/// Whether `c` (a playing-lane clip) is a window onto `take` (a take-lane clip): it is a
+/// comp window (`Clip::comp`, schema 32 — said, never guessed from where it lies) that
+/// plays some of the take's stretch of its content (ADR 0058). A window where its take put
+/// it (the same origin) is that take's alone; one slipped or moved (an origin no take of
+/// its content has) shows each take whose stretch it plays. A copy is no window, wherever
+/// it is pasted — over its takes too.
 fn shows_take(track: &Track, c: &Clip, take: &Clip) -> bool {
+    if !c.comp || c.lane != 0 || take.lane == 0 || played_of(c, take).is_none() {
+        return false;
+    }
     let (Some(k), Some(t)) = (content_key(c), content_key(take)) else {
         return false;
     };
-    if c.lane != 0
-        || take.lane == 0
-        || (k.content, k.audio) != (t.content, t.audio)
-        || c.start >= take.end()
-        || c.end() <= take.start
-    {
-        return false;
-    }
     k.origin == t.origin
         || !track
             .clips
@@ -77,31 +93,36 @@ fn shows_take(track: &Track, c: &Clip, take: &Clip) -> bool {
             .any(|x| x.lane > 0 && content_key(x) == Some(k))
 }
 
+/// The take a comp window shows (the first one, by lane), for its number on the playing
+/// lane.
+pub fn take_of<'t>(track: &'t Track, w: &Clip) -> Option<&'t Clip> {
+    track
+        .clips
+        .iter()
+        .filter(|t| shows_take(track, w, t))
+        .min_by_key(|t| (t.lane, t.start))
+}
+
 /// Whether any of the content of `take` (on a take lane) plays — on lane 0 or in an
 /// alternate comp's kept windows (ADR 0058), which play when that comp does — wherever it
-/// was slipped or moved to: a clip of the same source whose stretch of the source overlaps
-/// the take's. What *Delete unused takes* keeps (review 2: a window moved off its take
-/// lost its take).
+/// was slipped or moved to: a clip of the same source that plays some of the take's
+/// stretch of it. What *Delete unused takes* keeps (review 2: a window moved off its take
+/// lost its take). Any playing clip counts, comp window or not: a take is let go only
+/// when nothing plays it.
 fn in_comp(track: &Track, take: &Clip) -> bool {
-    let Some(t) = content_key(take) else {
-        return false;
-    };
-    let plays = |c: &Clip| {
-        c.lane == 0
-            && content_key(c).is_some_and(|k| (k.content, k.audio) == (t.content, t.audio))
-            && c.offset < take.offset + take.length
-            && c.offset + c.length > take.offset
-    };
+    let plays = |c: &Clip| c.lane == 0 && played_of(c, take).is_some();
     track.clips.iter().any(plays) || track.comps.iter().flat_map(|c| c.windows.iter()).any(plays)
 }
 
-/// Call `f` with every range of `take` that the comp plays (for lighting the take lanes).
-/// Allocates nothing.
+/// Call `f` with every range of `take` that the comp plays (for lighting the take lanes):
+/// where on the take lane the content each of its windows plays lies. Allocates nothing.
 pub fn for_each_comped(track: &Track, take: &Clip, mut f: impl FnMut(Ticks, Ticks)) {
     for c in track.clips.iter().filter(|c| shows_take(track, c, take)) {
-        let (a, b) = (c.start.max(take.start), c.end().min(take.end()));
-        if b > a {
-            f(a, b);
+        if let Some((a, b)) = played_of(c, take) {
+            let (a, b) = (a.max(take.start), b.min(take.end()));
+            if b > a {
+                f(a, b);
+            }
         }
     }
 }
@@ -131,9 +152,9 @@ pub fn swipe_in(sim: &mut Sim, tid: TrackId, lane: u8, from: Ticks, to: Ticks, i
             break;
         };
         // A lane-0 window on the same take that touches the swipe grows with it, so a comp
-        // made in several strokes stays one clip.
+        // made in several strokes stays one clip. A copy is no window: it is not grown.
         let key = content_key(&take);
-        for c in track.clips.iter().filter(|c| c.lane == 0) {
+        for c in track.clips.iter().filter(|c| c.lane == 0 && c.comp) {
             if key.is_some() && content_key(c) == key {
                 if c.start < a && c.end() >= a {
                     a = c.start;
@@ -150,7 +171,7 @@ pub fn swipe_in(sim: &mut Sim, tid: TrackId, lane: u8, from: Ticks, to: Ticks, i
         let mut absorbed: Vec<&Clip> = track
             .clips
             .iter()
-            .filter(|c| c.lane == 0 && key.is_some() && content_key(c) == key)
+            .filter(|c| c.lane == 0 && c.comp && key.is_some() && content_key(c) == key)
             .filter(|c| c.start < b && c.end() > a)
             .collect();
         absorbed.sort_by_key(|c| c.start);
@@ -161,6 +182,8 @@ pub fn swipe_in(sim: &mut Sim, tid: TrackId, lane: u8, from: Ticks, to: Ticks, i
         let mut cmds = clear_range(track, a, b, None, ids);
         let mut w = piece(&take, a, b, 0, ids);
         w.muted = false;
+        // The comp's window, said (schema 32): a switch, a new comp and a merge know it.
+        w.comp = true;
         if let (Some(region), Some(from)) = (w.audio.as_mut(), carried) {
             region.pitch = from.pitch;
             region.gain_db = from.gain_db;
@@ -585,20 +608,14 @@ pub fn explode_takes(project: &Project, tid: TrackId, take_word: &str, ids: Ids)
 
 // ---- alternate comps (ADR 0058) ---------------------------------------------------------
 
-/// The windows of the comp playing: the playing lane's clips that are windows onto a take
-/// ([`shows_take`]) — a window slipped or nudged is still the comp's (review 1); a copy
-/// pasted away from its takes is not (review 2).
+/// The windows of the comp playing: the playing lane's comp windows (`Clip::comp`,
+/// schema 32) — a window slipped or moved is still the comp's (review 1), a copy is not,
+/// wherever it was pasted (fix4: a copy pasted over its takes was taken for a window).
 pub fn comp_windows(track: &Track) -> Vec<&Clip> {
     track
         .clips
         .iter()
-        .filter(|c| {
-            c.lane == 0
-                && track
-                    .clips
-                    .iter()
-                    .any(|take| take.lane > 0 && shows_take(track, c, take))
-        })
+        .filter(|c| c.lane == 0 && c.comp)
         .collect()
 }
 
@@ -734,9 +751,10 @@ pub fn rename_comp(project: &Project, tid: TrackId, which: u8, name: &str) -> Ve
     }]
 }
 
-/// Flatten: the comp's windows stay on the playing lane as they are, the takes and the
-/// other comps go, the lanes close, and recordings nothing plays any more leave the pool
-/// (their files stay on disk). One undo step.
+/// Flatten: the comp's windows stay on the playing lane as they are — plain clips now,
+/// the comp is over (`Clip::comp` cleared) — the takes and the other comps go, the lanes
+/// close, and recordings nothing plays any more leave the pool (their files stay on
+/// disk). One undo step.
 pub fn flatten(project: &Project, tid: TrackId) -> Vec<Command> {
     let Some(track) = project.track(tid) else {
         return Vec::new();
@@ -751,6 +769,17 @@ pub fn flatten(project: &Project, tid: TrackId) -> Vec<Command> {
             clip: c.id,
         })
         .collect();
+    cmds.extend(
+        track
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0 && c.comp)
+            .map(|c| Command::SetClipComp {
+                track: tid,
+                clip: c.id,
+                comp: false,
+            }),
+    );
     if !track.comps.is_empty() {
         cmds.push(Command::SetTrackComps {
             track: tid,

@@ -354,6 +354,7 @@ pub fn notes_clip(name: &str, notes: &[Note], at: Ticks, bar: Ticks, ids: Ids) -
         lane: 0,
         automation: None,
         link: None,
+        comp: false,
     }
 }
 
@@ -446,6 +447,9 @@ pub fn paste_clips(
             start: at + r.clip.start,
             lane: 0,
             link: None,
+            // A paste is no comp window, linked or not, wherever it lands — over its takes
+            // too (ADR 0058, schema 32).
+            comp: false,
             ..r.clip.clone()
         };
         if let (Some(a), Some(dst)) = (copy.audio.as_mut(), plays) {
@@ -545,6 +549,8 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
         lane: clip.lane,
         automation: clip.automation.clone(),
         link: clip.link,
+        // Both halves of a comp window are the comp's (ADR 0058, schema 32).
+        comp: clip.comp,
     };
     let audio = split_audio(track, clip, at, &mut right);
     // A linked clip's halves stay in its group — they show the same content through two
@@ -842,8 +848,9 @@ pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
         }),
         lane: clip.lane,
         automation: clip.automation.clone(),
-        // A copy of its own is in no group (ADR 0037).
+        // A copy of its own is in no group (ADR 0037), and no comp window (ADR 0058).
         link: None,
+        comp: false,
         id: ClipId(ids()),
         name: clip.name.clone(),
         start,

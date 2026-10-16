@@ -109,15 +109,10 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     }
 }
 
-/// The take lane whose take a comp window shows.
+/// The take lane whose take a comp window shows (slipped or moved too: the take whose
+/// stretch it plays).
 fn take_lane_of(track: &Track, w: &cantus_core::Clip) -> Option<u8> {
-    let key = comping::content_key(w)?;
-    track
-        .clips
-        .iter()
-        .filter(|c| c.lane > 0)
-        .find(|c| comping::content_key(c) == Some(key))
-        .map(|c| c.lane)
+    comping::take_of(track, w).map(|c| c.lane)
 }
 
 /// A seam being dragged: the track, the two windows.

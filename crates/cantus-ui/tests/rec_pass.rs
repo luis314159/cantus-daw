@@ -457,3 +457,127 @@ fn quick_record_overdubs_the_selected_clip() {
         "the clip grew to hold the take"
     );
 }
+
+/// Run comping's commands on the bus as one step.
+fn comp_step(
+    bus: &mut CommandBus,
+    f: impl FnOnce(&Project, &mut dyn FnMut() -> u64) -> Vec<Command>,
+) {
+    let mut next = bus.project().next_id;
+    let commands = {
+        let mut ids = || {
+            let id = next;
+            next += 1;
+            id
+        };
+        f(bus.project(), &mut ids)
+    };
+    bus.reserve_ids(next);
+    assert!(!commands.is_empty());
+    bus.execute(
+        Command::Batch {
+            label_key: "cmd.comp".into(),
+            commands,
+        },
+        Origin::User,
+    )
+    .expect("applies");
+}
+
+/// Fix4 (schema 32): a pass laid over takes is the comp's window — the loop's last pass
+/// over its earlier passes, a stacked take over what it moved to a take lane — and lights
+/// no take it does not play (the loop's earlier passes are other stretches of its file).
+/// A first recording on an empty track, and what a stack leaves playing around the take,
+/// are plain clips.
+#[test]
+fn a_pass_laid_over_takes_is_the_comps_window() {
+    let (p, t) = project();
+    let mut lp = plan(t, Ticks::ZERO);
+    lp.loop_region = Some((Ticks::ZERO, beats(4)));
+    let pass = 4 * BEAT_FRAMES;
+    let bus = run(
+        p,
+        &lp,
+        &[take(t, 0.0, 2 * pass + 60_000, vec![pass, 2 * pass])],
+        &[],
+        0,
+    );
+    let tr = bus.project().track(t).unwrap();
+    let windows: Vec<(i64, i64)> = cantus_ui::comping::comp_windows(tr)
+        .iter()
+        .map(|c| (c.start.0, c.offset.0))
+        .collect();
+    assert_eq!(windows, vec![(0, 7680)], "the last pass is the comp's");
+    for take in tr.clips.iter().filter(|c| c.lane > 0) {
+        let mut lit = Vec::new();
+        cantus_ui::comping::for_each_comped(tr, take, |a, b| lit.push((a, b)));
+        assert!(lit.is_empty(), "lane {} is not played: {lit:?}", take.lane);
+    }
+
+    let (p, t) = project();
+    let first = run(
+        p,
+        &plan(t, Ticks::ZERO),
+        &[take(t, 0.0, 4 * BEAT_FRAMES, vec![])],
+        &[],
+        0,
+    );
+    assert!(
+        first
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .all(|c| !c.comp),
+        "a first recording is no comp"
+    );
+
+    let (mut p, t) = project();
+    audio_clip(&mut p, t, "Old", Ticks::ZERO, beats(8));
+    let mut sp = plan(t, beats(2));
+    sp.punch = Some((beats(2), beats(6)));
+    let mut bus = run(p, &sp, &[take(t, 0.0, 8 * BEAT_FRAMES, vec![])], &[], 0);
+    let flags = |bus: &CommandBus| -> Vec<(i64, u8, bool)> {
+        let mut v: Vec<_> = bus
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .map(|c| (c.start.0, c.lane, c.comp))
+            .collect();
+        v.sort_by_key(|x| (x.1, x.0));
+        v
+    };
+    assert_eq!(
+        flags(&bus),
+        vec![
+            (0, 0, false),
+            (1920, 0, true),
+            (5760, 0, false),
+            (1920, 1, false)
+        ]
+    );
+    // So alternate comps work after a stacked take: comp B swipes the old take in, and
+    // comp A comes back with the new take whole.
+    comp_step(&mut bus, |p, ids| {
+        cantus_ui::comping::duplicate_comp(p, t, ids)
+    });
+    comp_step(&mut bus, |p, ids| {
+        cantus_ui::comping::swipe(p, t, 1, beats(2), beats(4), ids)
+    });
+    comp_step(&mut bus, |p, _| cantus_ui::comping::switch_comp(p, t, 0));
+    assert_eq!(
+        layout(bus.project(), t)
+            .into_iter()
+            .filter(|c| c.3 == 0)
+            .collect::<Vec<_>>(),
+        vec![
+            (0, 1920, 0, 0),
+            (1920, 3840, 1920, 0),
+            (5760, 1920, 5760, 0)
+        ],
+        "comp A: the new take whole"
+    );
+}

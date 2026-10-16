@@ -40,8 +40,9 @@ pub fn letter(n: usize) -> String {
 }
 
 /// Validate a list of comps for `track` in `project`: at most [`MAX_COMPS`], the active
-/// one playing (no windows kept), every kept window a playing-lane clip whose id nothing
-/// else in the project (nor another kept window) uses, its audio's source in the pool.
+/// one playing (no windows kept), every kept window a playing-lane comp window
+/// (`Clip::comp`, schema 32) whose id nothing else in the project (nor another kept
+/// window) uses, its audio's source in the pool.
 pub(crate) fn check(
     project: &Project,
     track: TrackId,
@@ -67,7 +68,7 @@ pub(crate) fn check(
     }
     let mut seen: Vec<ClipId> = Vec::new();
     for w in comps.iter().flat_map(|c| c.windows.iter()) {
-        if w.lane != 0 || w.length <= Ticks::ZERO {
+        if w.lane != 0 || w.length <= Ticks::ZERO || !w.comp {
             return bad("a kept window");
         }
         if seen.contains(&w.id) {
@@ -218,9 +219,10 @@ mod tests {
             take.lane = k as u8 + 1;
             t.clips.push(take);
         }
-        let l = p.make_audio_clip("a", srcs[0], Ticks::ZERO, Ticks::beats(4));
+        let mut l = p.make_audio_clip("a", srcs[0], Ticks::ZERO, Ticks::beats(4));
         let mut r = p.make_audio_clip("b", srcs[1], Ticks::beats(4), Ticks::beats(4));
         r.offset = Ticks::beats(4);
+        (l.comp, r.comp) = (true, true);
         let (lid, rid) = (l.id, r.id);
         t.clips.extend([l, r]);
         t.clips.sort_by_key(|c| (c.start, c.id));
@@ -426,5 +428,99 @@ mod tests {
         p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
         p.track_mut(tid).unwrap().clips.push(carried.clone());
         assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());
+    }
+
+    /// Schema 32: an alternate comp keeps comp windows only — a clip that is not one
+    /// (`Clip::comp` false) is refused, so a switch back never brings a clip that would
+    /// stay behind at the next switch.
+    #[test]
+    fn a_kept_window_is_a_comp_window() {
+        let (mut p, t, l, _) = comped();
+        let mut kept = p.track(t).unwrap().clip(l).unwrap().clone();
+        kept.id = ClipId(p.alloc_id());
+        let comps = |w: Clip| {
+            vec![
+                Comp {
+                    name: letter(0),
+                    windows: vec![],
+                },
+                Comp {
+                    name: letter(1),
+                    windows: vec![w],
+                },
+            ]
+        };
+        assert!(apply_set_comps(&mut p.clone(), t, comps(kept.clone()), 0).is_ok());
+        kept.comp = false;
+        assert!(matches!(
+            apply_set_comps(&mut p, t, comps(kept), 0),
+            Err(CommandError::InvalidValue(_))
+        ));
+    }
+
+    /// Schema 32: the halves of a split comp window are the comp's; a copy of it — a
+    /// duplicate, a linked copy, a paste, linked or not, even right over its takes — is
+    /// not.
+    #[test]
+    fn a_split_keeps_a_window_in_its_comp_and_a_copy_or_paste_is_none() {
+        let (mut p, t, l, _) = comped();
+        let w = p.track(t).unwrap().clip(l).unwrap().clone();
+        let mut next = 9_000u64;
+        let mut ids = || {
+            next += 1;
+            next
+        };
+        let cmds = crate::clipboard::split(t, &w, Ticks::beats(2), &mut ids).unwrap();
+        let half = cmds
+            .iter()
+            .find_map(|c| match c {
+                Command::InsertClip { clip, .. } => Some(clip.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert!(half.comp, "the right half of a window is the comp's");
+        assert!(!crate::clipboard::copy_of(&w, w.start, &mut ids).comp);
+        let (_, linked) = crate::links::Linker::new().copy(t, &w, w.start, &mut ids);
+        assert!(!linked.comp, "a linked copy is no window");
+        let origin = crate::clipboard::ClipOrigin::default();
+        let payload = crate::clipboard::copy_clips(&p, &[(t, l)]);
+        let board = crate::clipboard::Clipboard::new(origin, &p, payload);
+        for linked in [false, true] {
+            let pasted = crate::clipboard::paste_clips(
+                &p,
+                &board,
+                true,
+                0,
+                w.start,
+                &std::collections::HashMap::new(),
+                linked,
+                &mut ids,
+            );
+            let inserted: Vec<&Clip> = pasted
+                .commands
+                .iter()
+                .filter_map(|c| match c {
+                    Command::InsertClip { clip, .. } => Some(&**clip),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(inserted.len(), 1);
+            assert!(
+                !inserted[0].comp,
+                "a paste over its takes is no window (linked: {linked})"
+            );
+        }
+        // And the flag is a placement's own: a command sets it and takes it back exactly.
+        let before = p.clone();
+        let undo = Command::SetClipComp {
+            track: t,
+            clip: l,
+            comp: false,
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert!(!p.track(t).unwrap().clip(l).unwrap().comp);
+        undo.apply(&mut p).unwrap();
+        assert_eq!(p, before);
     }
 }

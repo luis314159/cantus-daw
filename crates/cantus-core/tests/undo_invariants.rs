@@ -827,7 +827,9 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // the master — sources, routes, depths, nesting — and the refused ones.
         41 => modulator_command(rng, project),
         // Round 28 (ADR 0058): comp seams moved as a unit (and refused where there is no
-        // seam), seam crossfades set, alternate comps kept with their windows.
+        // seam), seam crossfades set, alternate comps kept with their windows; schema 32:
+        // a clip made a comp window and not (refused for a clip that is not there), a comp
+        // window split (both halves stay the comp's), copied and pasted (never one).
         42 if tracks > 0 => comp_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
@@ -1719,9 +1721,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // Pitch edits applied (ADR 0054): set, and cleared.
     let mut pitched = [0usize; 2];
     // Modulators (ADR 0057): inserted, removed, set; comping (ADR 0058): a seam moved, a
-    // comps list keeping windows.
+    // comps list keeping windows, a clip's comp flag set (schema 32), a comp window split
+    // or copied.
     let mut modded = [0usize; 3];
-    let mut comped = [0usize; 2];
+    let mut comped = [0usize; 4];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1761,9 +1764,37 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 {
                     Some(1)
                 }
+                Command::SetClipComp { .. } => Some(2),
+                Command::Batch { label_key, .. } if label_key == "cmd.comp_window_copies" => {
+                    Some(3)
+                }
                 _ => None,
             };
+            // The clips a comp window's copies batch inserts, and whether each is the comp's:
+            // the split's half (the first) is, the copies are not.
+            let made: Vec<(TrackId, ClipId, bool)> = match &cmd {
+                Command::Batch {
+                    label_key,
+                    commands,
+                } if label_key == "cmd.comp_window_copies" => commands
+                    .iter()
+                    .filter_map(|c| match c {
+                        Command::InsertClip { track, clip } => Some((*track, clip.id)),
+                        _ => None,
+                    })
+                    .enumerate()
+                    .map(|(i, (t, c))| (t, c, i == 0))
+                    .collect(),
+                _ => Vec::new(),
+            };
             let ok = bus.execute(cmd, origin).is_ok();
+            // Schema 32: a split comp window's half is the comp's; a copy or a paste is not.
+            if ok {
+                for (t, c, half) in &made {
+                    let clip = bus.project().track(*t).and_then(|t| t.clip(*c)).unwrap();
+                    assert_eq!(clip.comp, *half, "seed {seed}: clip {c:?}");
+                }
+            }
             // Every group's members share their content, whatever was applied or refused.
             links::check(bus.project())
                 .unwrap_or_else(|e| panic!("seed {seed}: link invariant broken: {e}"));
@@ -2289,7 +2320,7 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let ti = rng.below(project.tracks.len() as u64) as usize;
     let track = project.tracks[ti].clone();
     let lane0: Vec<&Clip> = track.clips.iter().filter(|c| c.lane == 0).collect();
-    match rng.below(3) {
+    match rng.below(5) {
         0 if rng.below(4) == 0 => {
             // Two clips that do not meet (or one with itself): refused.
             let c = lane0.first().map_or(ClipId(8_888_887), |c| c.id);
@@ -2365,6 +2396,63 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 commands,
             }
         }
+        3 => match lane0.get(rng.below(lane0.len() as u64 + 1) as usize) {
+            // A clip made a comp window, or no longer one.
+            Some(c) => Command::SetClipComp {
+                track: track.id,
+                clip: c.id,
+                comp: rng.below(3) != 0,
+            },
+            None => Command::SetClipComp {
+                track: track.id,
+                clip: ClipId(8_888_886),
+                comp: true,
+            },
+        },
+        4 => {
+            // A comp window split (its right half the comp's), duplicated and pasted —
+            // linked and not, over itself (never a window).
+            let Some(c) = lane0
+                .iter()
+                .find(|c| c.length > Ticks(1) && c.automation.is_none())
+            else {
+                return Command::SetTrackComps {
+                    track: track.id,
+                    comps: Vec::new(),
+                    active: 0,
+                };
+            };
+            let mut w = (*c).clone();
+            let mut commands = Vec::new();
+            if !w.comp {
+                w.comp = true;
+                commands.push(Command::SetClipComp {
+                    track: track.id,
+                    clip: w.id,
+                    comp: true,
+                });
+            }
+            let mut ids = || project.alloc_id();
+            let at = w.start + Ticks(1 + rng.below((w.length.0 - 1) as u64) as i64);
+            // Strictly inside the window: the split is always made (its half is the batch's
+            // first clip inserted).
+            commands.extend(clipboard::split(track.id, &w, at, &mut ids).unwrap());
+            let copy = clipboard::copy_of(&w, w.start, &mut ids);
+            commands.push(Command::InsertClip {
+                track: track.id,
+                clip: Box::new(copy),
+            });
+            let (pre, linked) = links::Linker::new().copy(track.id, &w, w.end(), &mut ids);
+            commands.extend(pre);
+            commands.push(Command::InsertClip {
+                track: track.id,
+                clip: Box::new(linked),
+            });
+            Command::Batch {
+                label_key: "cmd.comp_window_copies".into(),
+                commands,
+            }
+        }
         1 => match lane0.iter().find(|c| c.audio.is_some()) {
             Some(c) => {
                 let mut a = c.audio.clone().unwrap();
@@ -2393,6 +2481,8 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
             if let Some(c) = lane0.first() {
                 let mut w = (*c).clone();
                 w.id = ClipId(project.alloc_id());
+                // An alternate comp keeps comp windows only (schema 32).
+                w.comp = true;
                 comps.push(Comp {
                     name: letter(1),
                     windows: vec![w],

@@ -36,6 +36,8 @@ fn takes() -> (Project, TrackId, AudioSourceId, AudioSourceId) {
     for (src, lane) in [(a, 1u8), (b, 2), (b, 0)] {
         let mut c = p.make_audio_clip("take", src, Ticks::ZERO, beats(8));
         c.lane = lane;
+        // B plays over the takes: the comp's, as the recording lays it (schema 32).
+        c.comp = lane == 0;
         p.track_mut(tid).unwrap().clips.push(c);
     }
     (p, tid, a, b)

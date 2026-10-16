@@ -340,6 +340,7 @@ fn empty_clip() -> Clip {
         lane: 0,
         automation: None,
         link: None,
+        comp: false,
     }
 }
 

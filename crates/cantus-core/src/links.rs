@@ -258,6 +258,8 @@ impl Linker {
             id: ClipId(ids()),
             start,
             link: Some(link),
+            // A copy is no comp window, linked or not (ADR 0058, schema 32).
+            comp: false,
             ..clip.clone()
         };
         (pre, copy)

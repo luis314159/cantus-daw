@@ -605,6 +605,13 @@ pub enum Command {
         clip: ClipId,
         lane: u8,
     },
+    /// Make a clip a comp window or not (`Clip::comp`, ADR 0058): a glue that takes a
+    /// window in, a flatten that ends the comp, a clip moved to another track.
+    SetClipComp {
+        track: TrackId,
+        clip: ClipId,
+        comp: bool,
+    },
     SetTrackInput {
         id: TrackId,
         input: Option<crate::audio::TrackInput>,
@@ -747,6 +754,7 @@ impl Command {
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
             SetClipAudio { .. } => "cmd.set_clip_audio",
             SetClipLane { .. } => "cmd.set_clip_lane",
+            SetClipComp { .. } => "cmd.set_clip_comp",
             SetClipLink { link: None, .. } => "cmd.make_unique",
             SetClipLink { .. } => "cmd.link_clip",
             SetClipContent { .. } => "cmd.set_clip_content",
@@ -2263,6 +2271,18 @@ impl Command {
                     track,
                     clip,
                     lane: old,
+                })
+            }
+            SetClipComp { track, clip, comp } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let c = t.clip_mut(clip).ok_or(CommandError::ClipNotFound(clip))?;
+                let old = std::mem::replace(&mut c.comp, comp);
+                Ok(SetClipComp {
+                    track,
+                    clip,
+                    comp: old,
                 })
             }
             SetClipLink { track, clip, link } => {
