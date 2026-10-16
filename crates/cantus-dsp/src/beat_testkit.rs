@@ -20,24 +20,29 @@ pub struct Material {
 /// A kick: a falling sine thump.
 fn kick(out: &mut [f32], at: usize, rate: f32, gain: f32) {
     let mut phase = 0.0f32;
-    for k in 0..(0.25 * rate) as usize {
+    let len = (0.6 * rate) as usize;
+    for k in 0..len {
         let Some(o) = out.get_mut(at + k) else { break };
         let t = k as f32 / rate;
         let f = 50.0 + 90.0 * math::exp(-t / 0.03);
         phase += 2.0 * PI * f / rate;
-        let env = math::exp(-t / 0.12) * (k as f32 / (0.0005 * rate)).min(1.0);
+        let env = math::exp(-t / 0.12) * (k as f32 / (0.0005 * rate)).min(1.0) * tail(k, len, rate);
         *o += gain * env * math::sin(phase);
     }
 }
 
 /// A snare: noise and a 190 Hz body.
 fn snare(out: &mut [f32], at: usize, rate: f32, gain: f32, noise: &mut Noise) {
-    for k in 0..(0.2 * rate) as usize {
+    let len = (0.35 * rate) as usize;
+    for k in 0..len {
         let Some(o) = out.get_mut(at + k) else { break };
         let t = k as f32 / rate;
         let a = (k as f32 / (0.0003 * rate)).min(1.0);
         let body = math::sin(2.0 * PI * 190.0 * t) * math::exp(-t / 0.05);
-        *o += gain * a * (0.6 * noise.next() * math::exp(-t / 0.07) + 0.4 * body);
+        *o += gain
+            * a
+            * tail(k, len, rate)
+            * (0.6 * noise.next() * math::exp(-t / 0.07) + 0.4 * body);
     }
 }
 
@@ -138,4 +143,10 @@ pub fn drum_loop(rate: f32, bpm: f64, bars: usize, swing: f64, lead: f64, seed: 
         onsets,
         beats,
     }
+}
+
+/// A 5 ms fade at the end of a generated sound of `len` samples (no click where it stops).
+fn tail(k: usize, len: usize, rate: f32) -> f32 {
+    let f = (0.005 * rate) as usize;
+    ((len - k) as f32 / f as f32).min(1.0)
 }

@@ -18,7 +18,11 @@ fn a_click_track_gives_its_tempo_and_beats() {
         assert!(g.confidence > 0.5, "{bpm}: confidence {}", g.confidence);
         // Every true beat has a tracked beat within 10 ms.
         for b in &m.beats {
-            let near = g.beats.iter().map(|x| (x - b).abs()).fold(f64::MAX, f64::min);
+            let near = g
+                .beats
+                .iter()
+                .map(|x| (x - b).abs())
+                .fold(f64::MAX, f64::min);
             assert!(near < 480.0, "{bpm}: beat at {b} missed by {near}");
         }
         assert_eq!(
@@ -54,7 +58,14 @@ fn a_loop_of_whole_bars_is_told_and_its_tempo_made_exact() {
         let exact = (60.0 / bpm * 4.0 * bars as f64 * 48_000.0).round() as usize;
         m.audio.truncate(exact);
         let g = grid(&m);
-        assert_eq!(g.bars, Some(bars as u32), "{bpm}");
+        assert_eq!(
+            g.bars,
+            Some(bars as u32),
+            "{bpm}: {} bpm, beats {:?}, downbeat {}",
+            g.bpm,
+            &g.beats[..4],
+            g.downbeat
+        );
         assert!((g.bpm - bpm).abs() < 0.01, "{bpm}: {}", g.bpm);
     }
 }
@@ -108,5 +119,8 @@ fn the_corpus_is_within_one_bpm() {
     eprintln!(
         "corpus: {inside_ok}/{inside} within ±1 BPM in 70–180; {outside} outside; {octave} octave errors; misses {misses:?}"
     );
-    assert!(inside_ok * 100 >= inside * 97, "{inside_ok}/{inside}: {misses:?}");
+    assert!(
+        inside_ok * 100 >= inside * 97,
+        "{inside_ok}/{inside}: {misses:?}"
+    );
 }

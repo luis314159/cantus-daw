@@ -19,6 +19,9 @@
 //! kept, the magnitude is moved back under the source's spectral envelope at `m`
 //! (`stretch_env`, the true envelope).
 
+// Index loops over spectra and frames read clearer than iterator chains here.
+#![allow(clippy::needless_range_loop)]
+
 use super::env::Envelope;
 use super::map::Hold;
 use super::Map;
@@ -194,7 +197,14 @@ impl State {
             &mut self.l,
             &mut self.r,
         );
-        analyse(&self.fft, ch, &self.win, a - hs as i64, &mut self.re, &mut self.im);
+        analyse(
+            &self.fft,
+            ch,
+            &self.win,
+            a - hs as i64,
+            &mut self.re,
+            &mut self.im,
+        );
         unpack_mid_phase(&self.re, &self.im, stereo, &mut self.mid0);
         // The instantaneous frequency of every bin (radians per frame).
         for k in 0..bins {
@@ -387,7 +397,12 @@ fn find_peaks(mag: &[f32], peaks: &mut Vec<usize>, owner: &mut [usize]) {
         let p = peaks[w];
         let end = match peaks.get(w + 1) {
             // Up to and including the lowest bin between the two peaks.
-            Some(&q) => (p..=q).min_by(|&a, &b| mag[a].total_cmp(&mag[b])).unwrap_or(p) + 1,
+            Some(&q) => {
+                (p..=q)
+                    .min_by(|&a, &b| mag[a].total_cmp(&mag[b]))
+                    .unwrap_or(p)
+                    + 1
+            }
             None => h,
         };
         for o in &mut owner[start..end] {

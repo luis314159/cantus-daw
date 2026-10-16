@@ -7,6 +7,9 @@
 //! the percussive part is the input less the harmonic one, so the two always sum back to
 //! the input exactly (up to rounding).
 
+// Index loops over spectra and frames read clearer than iterator chains here.
+#![allow(clippy::needless_range_loop)]
+
 use super::Map;
 use crate::aequalis::fft::Fft;
 use crate::math;
@@ -58,7 +61,9 @@ struct Frame {
 }
 
 fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
-    let n = ((0.0213 * rate) as usize).next_power_of_two().clamp(256, 4_096);
+    let n = ((0.0213 * rate) as usize)
+        .next_power_of_two()
+        .clamp(256, 4_096);
     let hop = n / 4;
     let half = n / 2;
     let bins = half + 1;
@@ -172,7 +177,9 @@ pub(super) fn grains(
     len: usize,
     ratio: f64,
 ) -> Vec<Vec<f32>> {
-    let g = ((0.0053 * rate) as usize).next_power_of_two().clamp(64, 1_024);
+    let g = ((0.0053 * rate) as usize)
+        .next_power_of_two()
+        .clamp(64, 1_024);
     let hop = g / 4;
     let win = hann(g);
     let ola: f32 = (0..4).map(|j| win[j * hop]).sum();

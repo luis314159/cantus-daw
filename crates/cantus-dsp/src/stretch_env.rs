@@ -4,6 +4,9 @@
 //! instead of running between them (what a plain cepstral envelope does, and why it would
 //! lose a voice's formants under its harmonics).
 
+// Index loops over spectra and frames read clearer than iterator chains here.
+#![allow(clippy::needless_range_loop)]
+
 use crate::aequalis::fft::Fft;
 use crate::math;
 

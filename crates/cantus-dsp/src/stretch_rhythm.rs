@@ -101,7 +101,11 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
         } else {
             o1
         };
-        let fade_len = if continuous { 0.0 } else { fade.min((end - o0) / 2.0) };
+        let fade_len = if continuous {
+            0.0
+        } else {
+            fade.min((end - o0) / 2.0)
+        };
         let t_start = o0.max(0.0) as i64;
         let t_end = (end.ceil() as i64).min(len as i64);
         for t in t_start..t_end {

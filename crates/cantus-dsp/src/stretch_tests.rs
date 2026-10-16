@@ -272,7 +272,10 @@ fn the_stereo_image_is_kept() {
         let (a, b) = (&out[0][len / 4..len * 3 / 4], &out[1][len / 4..len * 3 / 4]);
         let hz = 330.0 * math::exp2(4.0 / 12.0);
         let d = channel_phase(a, b, SR, hz);
-        assert!((d - 0.6).abs() < 0.05, "×{stretch}: {d} rad between channels");
+        assert!(
+            (d - 0.6).abs() < 0.05,
+            "×{stretch}: {d} rad between channels"
+        );
     }
 }
 

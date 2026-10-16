@@ -46,7 +46,10 @@ fn a_swung_drum_loop_is_found_hit_by_hit() {
         let (found, missed, extra, worst) = score(&o.frames, &m.onsets, 441.0);
         let n = m.onsets.len();
         assert!(missed * 20 <= n, "{bpm}/{swing}: missed {missed} of {n}");
-        assert!(extra * 20 <= n, "{bpm}/{swing}: {extra} extra ({found} found)");
+        assert!(
+            extra * 20 <= n,
+            "{bpm}/{swing}: {extra} extra ({found} found)"
+        );
         assert!(worst <= 88.0, "{bpm}/{swing}: {worst} samples off");
     }
 }
@@ -58,15 +61,16 @@ fn a_vibrato_is_not_a_new_note() {
     let x: Vec<f32> = (0..(2.0 * sr) as usize)
         .map(|i| {
             let t = i as f32 / sr;
-            let f = 330.0 * math::exp2(0.5 / 12.0 * math::sin(2.0 * std::f32::consts::PI * 5.5 * t));
+            let f =
+                330.0 * math::exp2(0.5 / 12.0 * math::sin(2.0 * std::f32::consts::PI * 5.5 * t));
             phase += 2.0 * std::f64::consts::PI * f as f64 / sr as f64;
-            let a = (t / 0.01).min(1.0);
+            let a = (t / 0.01).min(1.0).min((2.0 - t) / 0.01);
             (0.4 * a as f64 * (math::sin(phase) + 0.3 * math::sin(2.0 * phase))) as f32
         })
         .collect();
     let o = detect(&x, sr);
     assert_eq!(o.frames.len(), 1, "{:?}", o.frames);
-    assert!(o.frames[0] < 0.03 * sr as f64);
+    assert!(o.frames[0] < 0.03 * sr as f64, "{:?}", o.frames);
 }
 
 #[test]
