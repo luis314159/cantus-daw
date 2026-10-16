@@ -39,3 +39,11 @@ fix round — regressions hide there). C: was ~99 % full: TMP forced to F: via `
 { value = '…', force = true }` in each worktree's config.
 
 See [[round-27]], [[feedback-no-leftovers]], [[gotcha-boot-path]].
+
+2026-10-16 after the round: the owner SENT the RVR1960 permission e-mail (no reply yet; beta
+ships RV1909 meanwhile). The owner has used Cantus a lot with its native instruments; real
+recordings (interface) still to test. Priorities agreed: effects-on-insert and Chorda's sound
+are NOT priority (backlog only). Next = round 29 "beta competitiva": warp/time-stretch +
+tempo detection, MIDI learn/controller mapping, hosted plug-in crash isolation, tempo track +
+time-signature changes + markers, freeze/bounce in place + low-latency monitoring; plus the
+owner's frictions. Prompt given in chat.

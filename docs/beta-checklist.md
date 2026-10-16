@@ -18,6 +18,8 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
 - [ ] Desde un primer arranque, grabar una guitarra en menos de un minuto.
 - [ ] **2–3 canciones completas** (grabar, programar, arreglar, mezclar, masterizar,
       exportar), anotando cada fricción. Las peores se arreglan antes de la beta.
+      *Avance (2026-10-16): ya lo has usado bastante con los instrumentos digitales de
+      Cantus; faltan las grabaciones (voz, guitarra) con interfaz real.*
 - [ ] **Instalador a mano** en una máquina limpia (Windows Sandbox sirve): instalar, abrir,
       desinstalar; instalar una versión vieja y dejar que se actualice.
 - [ ] Probar a mano lo de las rondas 24 y 25:
@@ -103,7 +105,8 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
     que verá la gente es "SignPath Foundation", no tu nombre.
   - **Certum Open Source** (≈ 30–70 €/año): sale tu nombre, sin esas condiciones.
   - Elegido: ______ · Nombre del editor (`CANTUS_PUBLISHER`, no cambiarlo después): ______
-- [ ] **Biblia RVR1960**: los términos de la American Bible Society permiten hasta 500
+- [ ] **Biblia RVR1960** — *correo enviado; sin respuesta al 2026-10-16. La beta sale con la
+      RV1909 mientras tanto.* Los términos de la American Bible Society permiten hasta 500
       versículos sin permiso en obras no comerciales, **pero piden permiso por escrito para
       "aplicaciones y otros medios nuevos, como sitios web"** — Cantus es una aplicación.
       Escribir a **licensing@americanbible.org** (o su formulario) pidiendo permiso para
