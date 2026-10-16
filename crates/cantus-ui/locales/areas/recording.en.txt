@@ -4,6 +4,7 @@ cmd.remove_audio_source = Remove audio file
 cmd.set_audio_source_path = Relink audio file
 cmd.set_clip_audio = Edit audio clip
 cmd.set_clip_lane = Move to take lane
+cmd.set_clip_comp = Comp window
 cmd.set_track_input = Set track input
 cmd.set_track_armed = Arm track
 cmd.set_track_takes_open = Show takes

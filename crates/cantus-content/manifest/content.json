@@ -1285,7 +1285,7 @@
     }
    ],
    "checked": "2026-10-15",
-   "installed_size": 470879054,
+   "installed_size": 470879297,
    "source": {
     "zip": {
      "url": "https://drumgizmo.org/kits/DRSKit/DRSKit2_1.zip",
@@ -1556,14 +1556,14 @@
      {
       "instrument": "Hihat_semi_open",
       "keys": [
-       21
+       101
       ],
       "label": "Hi-hat half open"
      },
      {
       "instrument": "Hihat_closed",
       "keys": [
-       22
+       102
       ],
       "gain_db": 5.0,
       "label": "Hi-hat closed, tip"
@@ -1571,7 +1571,7 @@
      {
       "instrument": "Hihat_open_tip",
       "keys": [
-       23
+       103
       ],
       "gain_db": 6.0,
       "label": "Hi-hat open, tip"
@@ -1579,7 +1579,7 @@
      {
       "instrument": "Crash_left_tip",
       "keys": [
-       24
+       104
       ],
       "gain_db": 5.0,
       "label": "Crash left, tip"
@@ -1587,7 +1587,7 @@
      {
       "instrument": "Crash_right_tip",
       "keys": [
-       25
+       105
       ],
       "gain_db": 5.0,
       "label": "Crash right, tip"
@@ -1595,7 +1595,7 @@
      {
       "instrument": "Ride_tip_bell",
       "keys": [
-       26
+       106
       ],
       "gain_db": 2.0,
       "label": "Ride bell, tip"

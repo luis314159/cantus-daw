@@ -222,7 +222,7 @@ the code before the fix, except where noted below.
 | Finding | Fix | Test |
 |---|---|---|
 | HIGH: `kit_lanes` panicked on a zone with lo > hi | `hi = hi.max(lo)`, as the engine plays it | `a_zone_whose_high_key_is_below_its_low_one…` (panicked before) |
-| Non-GM sounds sat on GM percussion keys | GM keys now hold the kit's own drums only. The other articulations move to 82–100 (fix3: 21–26 and 88–100, off GM2's 82–87), and GM keys the kit has no sound for stay silent. | `the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only` |
+| Non-GM sounds sat on GM percussion keys | GM keys now hold the kit's own drums only. The other articulations move to 82–100 (fix3: 21–26 and 88–100, off GM2's 82–87; fix4: 88–106, off XG's and GS's 13–26 too), and GM keys the kit has no sound for stay silent. | `the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only` |
 | Round robin counted per pitch, so a tom fill or an accent layer repeated a sample | The snapshot counts turns per round-robin lane: the notes that reach the same samples (`RrLanes`). | core `turns_are_counted_by_drum_and_velocity_layer_not_by_key`; `pack_drums::a_drum_on_two_keys_and_an_accent_layer_take_their_own_turns` |
 | The +24 dB gain cap conflicted with range_db 30 | The range is capped at 24 dB (`validate`), DRSKit uses 24, and `layers` drops any hit beyond. | `a_range_beyond_what_a_zone_can_make_up_is_refused`; `layers` test |
 | A cancel, failure or crash during the mixdown threw away the download | The archive is removed only after the pack is in place. | `a_build_that_fails_keeps_the_download_and_a_good_install_lets_it_go` |
@@ -236,7 +236,7 @@ The schema step is renumbered by the integrator (`migrate_29_to_30`, `v30.cantus
 
 **The real DRSKit after the fixes** (ignored tests, re-run on the archive)
 
-- Installs in 113 s: 496 files, 470 879 054 bytes (the manifest pins this size).
+- Installs in 113 s: 496 files, 470 879 054 bytes (the manifest pins this size; fix4's three-digit keys: 470 879 297 bytes, 124 s).
 - About 7.6 GB free is needed while it installs.
 - Imports 548 zones and holds 117 MiB in memory.
 - A groove plays at −26.0 LUFS / −8.2 dBTP; everything at velocity 127 reaches −0.8 dBTP.

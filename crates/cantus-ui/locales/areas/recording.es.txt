@@ -4,6 +4,7 @@ cmd.remove_audio_source = Quitar archivo de audio
 cmd.set_audio_source_path = Volver a vincular audio
 cmd.set_clip_audio = Editar clip de audio
 cmd.set_clip_lane = Mover a carril de toma
+cmd.set_clip_comp = Ventana del comp
 cmd.set_track_input = Entrada de la pista
 cmd.set_track_armed = Armar pista
 cmd.set_track_takes_open = Mostrar tomas

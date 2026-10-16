@@ -44,10 +44,19 @@ fn every_native_effect_editor_offers_modulate_on_every_control() {
             a.select_track(track);
             a.inspector.show_insert_values(fx);
             probe::start();
-            paint(&ctx(), egui::vec2(360.0, 1800.0), 3, |ui| {
+            let text = paint(&ctx(), egui::vec2(360.0, 1800.0), 3, |ui| {
                 cantus_ui::views::inspector::show(&mut a, ui)
             });
             let drawn = probe::take();
+            // Its switches are there too (review of fix3: Delay's ping-pong was nowhere).
+            for info in kind.params().iter().filter(|p| p.key != "mix" && p.stepped) {
+                let label = cantus_ui::i18n::t(info.label_key);
+                assert!(
+                    text.contains(label.as_str()),
+                    "{kind:?}: the inspector has no {} row: {text}",
+                    info.key
+                );
+            }
             // Every continuous parameter but the mix (review 2: Reverb's pre-delay, its
             // fourth, had no row).
             for info in kind

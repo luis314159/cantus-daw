@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 31;
+pub const SCHEMA_VERSION: u32 = 32;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -214,6 +214,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_28_to_29,
     migrate_29_to_30,
     migrate_30_to_31,
+    migrate_31_to_32,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -734,6 +735,104 @@ fn migrate_30_to_31(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 32 (round 28, fix4 of ADR 0058): a comp window says it is one (`Clip::comp`)
+/// instead of being recognised by where it lies — a copy pasted over its takes was taken
+/// for a window. The step writes the flag on every clip schema 31 counted as a comp
+/// window, so an old project comps exactly as before: a playing-lane clip that shows a
+/// take's content (its audio source, or its first note's id) and lies over that take on
+/// the timeline — where the take put it (the same content origin, `start − offset`), or
+/// slipped or nudged (an origin no take of that content has) — and every window an
+/// alternate comp keeps. Raw JSON, so the step reads a v31 file whatever the model
+/// becomes.
+fn migrate_31_to_32(value: &mut Value) -> Result<(), String> {
+    let tracks = value
+        .get_mut("project")
+        .and_then(|p| p.get_mut("tracks"))
+        .and_then(Value::as_array_mut)
+        .ok_or("missing tracks")?;
+    for t in tracks {
+        if let Some(clips) = t.get_mut("clips").and_then(Value::as_array_mut) {
+            let keys: Vec<Option<WindowKey>> = clips.iter().map(WindowKey::of).collect();
+            let windows: Vec<bool> = (0..clips.len())
+                .map(|i| was_comp_window(&keys, i))
+                .collect();
+            for (c, w) in clips.iter_mut().zip(windows) {
+                if let (true, Some(o)) = (w, c.as_object_mut()) {
+                    o.insert("comp".into(), Value::Bool(true));
+                }
+            }
+        }
+        if let Some(comps) = t.get_mut("comps").and_then(Value::as_array_mut) {
+            for comp in comps {
+                let kept = comp.get_mut("windows").and_then(Value::as_array_mut);
+                for w in kept.into_iter().flatten() {
+                    if let Some(o) = w.as_object_mut() {
+                        o.insert("comp".into(), Value::Bool(true));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// What schema 31 read of a clip to tell a comp window: its lane, its stretch of the
+/// timeline, what it shows and that content's origin on the timeline.
+#[derive(Copy, Clone, PartialEq)]
+struct WindowKey {
+    lane: u64,
+    start: i64,
+    end: i64,
+    content: u64,
+    audio: bool,
+    origin: i64,
+}
+
+impl WindowKey {
+    fn of(c: &Value) -> Option<WindowKey> {
+        let int = |k: &str| c.get(k).and_then(Value::as_i64).unwrap_or(0);
+        let (start, length, offset) = (int("start"), int("length"), int("offset"));
+        let (content, audio) = match c.get("audio").filter(|a| !a.is_null()) {
+            Some(a) => (a.get("source").and_then(Value::as_u64)?, true),
+            None => (
+                c.get("notes")?.as_array()?.first()?.get("id")?.as_u64()?,
+                false,
+            ),
+        };
+        Some(WindowKey {
+            lane: c.get("lane").and_then(Value::as_u64).unwrap_or(0),
+            start,
+            end: start + length,
+            content,
+            audio,
+            origin: start - offset,
+        })
+    }
+
+    fn shows(&self) -> (u64, bool, i64) {
+        (self.content, self.audio, self.origin)
+    }
+}
+
+/// Schema 31's rule (`comping::shows_take`, fix3): clip `i` is on the playing lane and a
+/// window onto some take of its content it lies over.
+fn was_comp_window(keys: &[Option<WindowKey>], i: usize) -> bool {
+    let Some(c) = keys[i] else {
+        return false;
+    };
+    if c.lane != 0 {
+        return false;
+    }
+    let takes = || keys.iter().flatten().filter(|t| t.lane > 0);
+    let at_a_takes_origin = takes().any(|t| t.shows() == c.shows());
+    takes().any(|t| {
+        (t.content, t.audio) == (c.content, c.audio)
+            && c.start < t.end
+            && c.end > t.start
+            && (t.origin == c.origin || !at_a_takes_origin)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1039,6 +1138,121 @@ mod tests {
         assert!(now.iter().any(|n| n.id == 1 && n.corrected), "{now:?}");
         assert!(now.iter().any(|n| !n.corrected));
         assert!(notes("v30.cantus").iter().all(|n| !n.corrected));
+    }
+
+    /// Schema 32 (fix4 of ADR 0058): the migration flags exactly the clips schema 31 took
+    /// for comp windows — a window where its take put it, one slipped or nudged over its
+    /// take, a MIDI window, every window an alternate comp keeps — and nothing else: the
+    /// takes, a clip of another file, a copy away from its takes, a window over no take.
+    #[test]
+    fn schema_32_flags_the_windows_schema_31_counted() {
+        let clip = |id: u64, lane: u64, start: i64, len: i64, off: i64, src: u64| {
+            serde_json::json!({"id": id, "lane": lane, "start": start, "length": len,
+                "offset": off, "notes": [], "audio": {"source": src}})
+        };
+        let midi = |id: u64, lane: u64, start: i64, len: i64, off: i64, note: u64| {
+            serde_json::json!({"id": id, "lane": lane, "start": start, "length": len,
+                "offset": off, "notes": [{"id": note}]})
+        };
+        let mut v = serde_json::json!({"project": {"tracks": [
+            {"clips": [
+                clip(1, 1, 0, 8_000, 0, 7),       // take A
+                clip(2, 2, 0, 8_000, 0, 8),       // take B
+                clip(3, 0, 0, 2_000, 0, 7),       // a window on A where A put it
+                clip(4, 0, 2_000, 2_000, 2_100, 8), // slipped over B
+                clip(5, 0, 4_100, 2_000, 4_000, 7), // nudged over A
+                clip(6, 0, 30_000, 2_000, 0, 7),  // a copy far from its takes
+                clip(7, 0, 0, 2_000, 0, 9),       // another file
+            ],
+             "comps": [{"name": "A"}, {"name": "B", "windows": [clip(10, 0, 0, 100, 0, 7)]}]},
+            {"clips": [
+                midi(20, 1, 0, 960, 0, 500),
+                midi(21, 0, 0, 480, 0, 500),
+                midi(22, 0, 9_000, 480, 0, 501),
+            ]},
+            {"clips": [clip(30, 0, 0, 100, 0, 7)]},
+        ]}});
+        migrate_31_to_32(&mut v).unwrap();
+        let flagged = |t: usize| -> Vec<u64> {
+            v["project"]["tracks"][t]["clips"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|c| c["comp"] == true)
+                .map(|c| c["id"].as_u64().unwrap())
+                .collect()
+        };
+        assert_eq!(flagged(0), vec![3, 4, 5]);
+        assert_eq!(flagged(1), vec![21]);
+        assert!(flagged(2).is_empty(), "a track without takes has no comp");
+        assert_eq!(
+            v["project"]["tracks"][0]["comps"][1]["windows"][0]["comp"],
+            true
+        );
+    }
+
+    /// Schema 32 on the fixtures: every v29–v31 file opens with its comp windows flagged
+    /// as schema 31 counted them (the vocal's two windows, B's kept one, nothing else),
+    /// and the v32 file keeps a copy pasted right over its take out of the comp.
+    #[test]
+    fn schema_32_keeps_old_comps_exactly_and_a_pasted_copy_out() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let load = |name: &str| {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            parse(&text, true).unwrap().file.project
+        };
+        // Schema 31's rule, on the typed clips: a playing-lane clip of a take's content
+        // over that take, where it put it or at an origin no take has.
+        let rule = |t: &cantus_core::Track, c: &cantus_core::Clip| {
+            let key = |c: &cantus_core::Clip| {
+                let content = match &c.audio {
+                    Some(a) => (a.source.0, true),
+                    None => (c.notes.first().map(|n| n.id.0)?, false),
+                };
+                Some((content, (c.start - c.offset).0))
+            };
+            let Some(k) = key(c) else { return false };
+            let takes = || t.clips.iter().filter(|x| x.lane > 0);
+            let exact = takes().any(|x| key(x) == Some(k));
+            c.lane == 0
+                && takes().any(|x| {
+                    key(x).is_some_and(|(xc, xo)| {
+                        xc == k.0 && c.start < x.end() && c.end() > x.start && (xo == k.1 || !exact)
+                    })
+                })
+        };
+        for name in ["v28.cantus", "v29.cantus", "v30.cantus", "v31.cantus"] {
+            let p = load(name);
+            let mut windows = 0;
+            for t in &p.tracks {
+                for c in &t.clips {
+                    assert_eq!(c.comp, rule(t, c), "{name}: {} clip {:?}", t.name, c.id);
+                    windows += usize::from(c.comp);
+                }
+                assert!(t.comps.iter().flat_map(|c| &c.windows).all(|w| w.comp));
+            }
+            // v28's vocal plays its take over the older one: schema 31 counted it too.
+            let want = if name == "v28.cantus" { 1 } else { 2 };
+            assert_eq!(windows, want, "{name}: the vocal's windows");
+        }
+        let p = load("v32.cantus");
+        let vocal = p.tracks.iter().find(|t| t.name == "Vocal").unwrap();
+        let lane0: Vec<(i64, bool)> = vocal
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0 && c.start < Ticks::beats(16))
+            .map(|c| (c.start.0 / cantus_core::PPQ, c.comp))
+            .collect();
+        assert_eq!(lane0, vec![(4, true), (8, true), (12, false)]);
+        let pasted = vocal
+            .clips
+            .iter()
+            .find(|c| c.lane == 0 && c.start == Ticks::beats(12));
+        assert!(
+            pasted.is_some_and(|c| rule(vocal, c)),
+            "schema 31 would have taken the paste for a window"
+        );
+        assert!(vocal.comps[1].windows.iter().all(|w| w.comp));
     }
 
     /// Every historical fixture in `fixtures/` must open, whatever its schema version.

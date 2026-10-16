@@ -28,7 +28,7 @@ fn source(p: &mut Project, name: &str) -> AudioSourceId {
     id
 }
 
-/// Takes A (lane 1) and B (lane 2) over two bars, B playing on lane 0.
+/// Takes A (lane 1) and B (lane 2) over two bars, B playing on lane 0 (a comp window).
 fn takes(p: &mut Project, name: &str) -> (TrackId, AudioSourceId, AudioSourceId) {
     let t = p.make_track(name);
     let tid = t.id;
@@ -38,6 +38,8 @@ fn takes(p: &mut Project, name: &str) -> (TrackId, AudioSourceId, AudioSourceId)
     for (src, lane) in [(a, 1u8), (b, 2), (b, 0)] {
         let mut c = p.make_audio_clip("take", src, Ticks::ZERO, beats(8));
         c.lane = lane;
+        // B plays over the takes, as a recording lays it: the comp's (schema 32).
+        c.comp = lane == 0;
         p.track_mut(tid).unwrap().clips.push(c);
     }
     p.track_mut(tid).unwrap().takes_open = true;
@@ -332,6 +334,8 @@ fn flatten_and_merge_bounces_the_comp_into_one_clip() {
     for (src, lane) in [(srcs[0], 1u8), (srcs[1], 2), (srcs[1], 0)] {
         let mut c = p.make_audio_clip("take", src, Ticks::ZERO, beats(8));
         c.lane = lane;
+        // B plays over the takes, as a recording lays it: the comp's (schema 32).
+        c.comp = lane == 0;
         p.track_mut(tid).unwrap().clips.push(c);
     }
     p.track_mut(tid).unwrap().takes_open = true;
@@ -814,4 +818,193 @@ fn a_linked_window_kept_by_a_comp_comes_back_after_its_group_changed() {
     assert_eq!(a.bus.history().len(), steps + 1, "the switch back took");
     a.switch_comp(t, 1);
     assert_eq!(lane0(&a, t), comp_b);
+}
+
+/// Fix4 (schema 32): a copy pasted right over its take — the same file at the same place,
+/// through the real copy and paste — is no comp window. The comp's windows say they are
+/// (`Clip::comp`); a switch leaves the paste on the playing lane (never doubles it), and
+/// the take lane lights only what the comp plays.
+#[test]
+fn a_copy_pasted_over_its_take_is_not_the_comps() {
+    let mut p = Project::default();
+    let (t, a_src, _) = takes(&mut p, "Vox");
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    a.duplicate_comp(t);
+    let take_a = a
+        .project()
+        .track(t)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.lane == 1)
+        .unwrap()
+        .id;
+    a.focus = cantus_ui::app::EditFocus::Arrangement;
+    a.selected_track = Some(t);
+    a.select_clip(t, take_a);
+    a.clipboard_copy();
+    a.time_selection = None;
+    a.clipboard_paste();
+    let tr = a.project().track(t).unwrap();
+    let pasted: Vec<&Clip> = tr
+        .clips
+        .iter()
+        .filter(|c| {
+            c.lane == 0 && c.length == beats(8) && c.audio.as_ref().unwrap().source == a_src
+        })
+        .collect();
+    assert_eq!(
+        pasted.len(),
+        1,
+        "the paste landed over take A: {:?}",
+        lane0(&a, t)
+    );
+    let pasted = pasted[0].id;
+    assert!(
+        comping::comp_windows(tr).iter().all(|c| c.id != pasted),
+        "a paste is no window"
+    );
+    let take = tr.clips.iter().find(|c| c.lane == 1).unwrap();
+    let mut lit = Vec::new();
+    comping::for_each_comped(tr, take, |x, y| lit.push((x, y)));
+    assert_eq!(
+        lit,
+        vec![(beats(2), beats(4))],
+        "only the swiped stretch is lit"
+    );
+    a.switch_comp(t, 0);
+    let here = |a: &CantusApp| {
+        a.project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0 && c.id == pasted)
+            .count()
+    };
+    assert_eq!(here(&a), 1, "the paste stays on the playing lane");
+    a.switch_comp(t, 1);
+    assert_eq!(here(&a), 1, "and comes back once");
+    let kept = a
+        .project()
+        .track(t)
+        .unwrap()
+        .comps
+        .iter()
+        .flat_map(|c| &c.windows);
+    assert!(kept.clone().all(|w| w.comp && w.id != pasted));
+}
+
+/// Fix4 (schema 32): what each edit does to a comp window. A split's halves stay the
+/// comp's and glue back into one window; a glue that takes a window in is the comp's; a
+/// window dragged to another track, or copied by Alt-drag, is none; flatten ends the comp
+/// (no window left); every step undone exactly.
+#[test]
+fn edits_keep_a_comp_window_said_right() {
+    let mut p = Project::default();
+    let (t, _, _) = takes(&mut p, "Vox");
+    let other = p.make_track("Other");
+    let o = other.id;
+    p.tracks.push(other);
+    let mut a = app(p);
+    a.comp_swipe(t, 1, beats(2), beats(4));
+    let start = a.project().clone();
+    let flags = |a: &CantusApp, track: TrackId| -> Vec<(i64, bool)> {
+        let mut v: Vec<_> = a
+            .project()
+            .track(track)
+            .unwrap()
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0)
+            .map(|c| (c.start.0 / PPQ, c.comp))
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(flags(&a, t), vec![(0, true), (2, true), (4, true)]);
+    // A split: both halves.
+    let w = window_at(&a, t, beats(2));
+    let clip = a.project().track(t).unwrap().clip(w).unwrap().clone();
+    let mut next = a.project().next_id + 100;
+    a.bus.reserve_ids(next + 10_000);
+    let mut ids = || {
+        next += 1;
+        next
+    };
+    let cmds = cantus_core::clipboard::split(t, &clip, beats(3), &mut ids).unwrap();
+    a.exec(Command::Batch {
+        label_key: "cmd.split".into(),
+        commands: cmds,
+    });
+    assert_eq!(
+        flags(&a, t),
+        vec![(0, true), (2, true), (3, true), (4, true)]
+    );
+    // Glued back with a plain clip after it: the glued clip is the comp's.
+    let left = a.project().track(t).unwrap().clip(w).unwrap().clone();
+    let right = a
+        .project()
+        .track(t)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.lane == 0 && c.start == beats(3))
+        .unwrap()
+        .clone();
+    a.exec(Command::SetClipComp {
+        track: t,
+        clip: left.id,
+        comp: false,
+    });
+    let left = a.project().track(t).unwrap().clip(w).unwrap().clone();
+    let glue = cantus_ui::clips::glue(t, &[&left, &right], &mut ids).unwrap();
+    a.exec(Command::Batch {
+        label_key: "cmd.glue".into(),
+        commands: glue,
+    });
+    assert_eq!(flags(&a, t), vec![(0, true), (2, true), (4, true)]);
+    // An Alt-drag copy to the other track is none; a drag there takes the window out.
+    let sel = [(t, w)];
+    let (copy, _) = cantus_ui::clips::transpose_selection(
+        a.project(),
+        &sel,
+        Ticks::ZERO,
+        1,
+        true,
+        false,
+        &mut ids,
+    );
+    a.exec(Command::Batch {
+        label_key: "cmd.copy".into(),
+        commands: copy,
+    });
+    assert_eq!(flags(&a, o), vec![(2, false)]);
+    let (moved, _) = cantus_ui::clips::transpose_selection(
+        a.project(),
+        &sel,
+        Ticks::ZERO,
+        1,
+        false,
+        false,
+        &mut ids,
+    );
+    a.exec(Command::Batch {
+        label_key: "cmd.move".into(),
+        commands: moved,
+    });
+    assert_eq!(flags(&a, o), vec![(2, false), (2, false)]);
+    // Flatten: the windows stay as plain clips.
+    a.flatten_comp(t);
+    assert_eq!(flags(&a, t), vec![(0, false), (4, false)]);
+    // Six steps: the split, the flag, the glue, the copy, the move, the flatten.
+    for _ in 0..6 {
+        a.bus.undo();
+    }
+    assert_eq!(
+        a.project().tracks,
+        start.tracks,
+        "every step undone exactly"
+    );
 }

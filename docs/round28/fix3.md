@@ -68,7 +68,7 @@ has latency before it).
 | 21 — the pack page's error in English bytes | `install_error_text`: the no-space error in the interface's language and in sizes, on the pack's page and the starter card | `the_space_label_fits_and_the_no_space_error_reads_in_words` |
 | 18 — articulations on GM2/GS keys 82–87 | moved to 21–26 (two digits: the built SFZ keeps its pinned size); the test reserves GM2's 27–87; manual (EN/ES), ADR 0042, sound.md | `kit_build::the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only` |
 
-## Found on the way, not fixed (not this round's)
+## Found on the way, not fixed (not this round's) — both closed in fix4 (`fix4.md`)
 
 - The inspector with two modulators on a track reports two egui id clashes (`A1A6`,
   `C807`) — present on the base too (checked); not in the modulator section's ids. Left for

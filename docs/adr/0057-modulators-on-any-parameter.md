@@ -197,3 +197,22 @@ undo step; a loop pass writes over what the previous one wrote.
 - **Synced modulation effects hear the position their audio is at**: each insert's song
   position is moved back by how late its audio is (`EffectUnit::late`: its strip's
   compensation and the inserts before it; on the master likewise), folded into the loop.
+
+## Amended by fix4 (round 28: the review of fix3)
+
+- **A late insert hears the loop wrap where its audio wraps.** The engine cuts a pass at
+  each insert's own wrap — that many samples after the transport's (every distinct
+  lateness, kept without allocating by `scope_delays`) — so a synced LFO or gate behind a
+  latent insert jumps to the loop's start at the same sample at every block size and live
+  as offline. `SongPosition::earlier` folds only once the loop has wrapped
+  (`Transport::since_wrap`; on the first entry the audio is from before the loop), as many
+  passes back as it reaches, in whole samples as the passes are cut, and never moves a
+  stopped playhead (a host-synced display parked on a bar line stays on it).
+- **The cable pills show the modulation they take**: the outline in the modulation hue and
+  a tick where it has the level now. The pinned strip's fader mark sits where the cap would;
+  its pan knob draws the rings and the live dot as the desk's knobs do.
+- **A hosted instrument's rows are wired as the native ones** (`wired_value`): while a
+  modulator maps only the drag is the depth's, and the live tick shows. Its words are keyed
+  by its instance and its *stepped* stored values only — a dragged value re-asks its own
+  row, never all of them.
+- **An editor-less effect's switches have their rows** (Delay's ping-pong).

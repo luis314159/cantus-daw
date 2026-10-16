@@ -579,6 +579,14 @@ impl Processor {
         // that much earlier (`EffectUnit::late`: a synced LFO stays on the beat it shapes,
         // integration review); a watched Speculum dates its frames by it.
         let mut out = [0usize; crate::fx::speculum::MAX_SCOPES];
+        let mut lates = std::mem::take(&mut self.lates);
+        let mut n = 0usize;
+        let mut keep = |l: usize| {
+            if l > 0 && n < lates.len() {
+                lates[n] = l;
+                n += 1;
+            }
+        };
         let scoped = self.scoped;
         let at = |id: EffectId| scoped.iter().position(|s| *s == Some(id));
         let nodes = self.nodes.clone();
@@ -591,6 +599,7 @@ impl Processor {
                 let mut ahead = self.strip_post[slot].saturating_sub(own);
                 for e in st.effects.iter_mut() {
                     e.late = ahead;
+                    keep(ahead);
                     if let Some(k) = at(e.id) {
                         out[k] = ahead;
                     }
@@ -601,12 +610,25 @@ impl Processor {
         let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
         for e in self.master.effects.iter_mut() {
             e.late = ahead;
+            keep(ahead);
             if let Some(k) = at(e.id) {
                 out[k] = ahead;
             }
             ahead += e.latency();
         }
         self.scoped_delay = out;
+        // Distinct, ascending (in place: no allocation).
+        let got = &mut lates[..n];
+        got.sort_unstable();
+        let mut d = 0;
+        for i in 0..got.len() {
+            if d == 0 || got[i] != got[d - 1] {
+                got[d] = got[i];
+                d += 1;
+            }
+        }
+        self.lates = lates;
+        self.late_n = d;
     }
 
     /// Plan compensation again when a latency moved without an edit — automation or a

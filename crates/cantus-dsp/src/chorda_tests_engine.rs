@@ -14,6 +14,24 @@ pub fn keyboard() -> Arc<Keyboard> {
         .clone()
 }
 
+/// A flat keyboard (A4 415 Hz) at 48 kHz, designed once: what a keyboard landing while
+/// the piano plays brings ([`Ev::Retune`]).
+pub fn flat_keyboard() -> Arc<Keyboard> {
+    static K: OnceLock<Arc<Keyboard>> = OnceLock::new();
+    K.get_or_init(|| {
+        Arc::new(Keyboard::compute(
+            Tuning {
+                a4: 415.0,
+                stretch: 1.0,
+                stiffness: 1.0,
+            },
+            48_000.0,
+            8,
+        ))
+    })
+    .clone()
+}
+
 pub fn piano() -> Chorda {
     let mut c = Chorda::new(48_000.0);
     c.set_keyboard(keyboard());
@@ -27,6 +45,8 @@ pub enum Ev {
     Off(u8, u64),
     Pedal(f32),
     Soft(f32),
+    /// The flat keyboard lands ([`flat_keyboard`]).
+    Retune,
 }
 
 /// Render `frames` frames of `events`, `block` frames at a time (events land at their own
@@ -48,6 +68,7 @@ pub fn perform(
                 Ev::Off(k, id) => c.note_off(k, id),
                 Ev::Pedal(p) => c.set_pedal(p),
                 Ev::Soft(s) => c.set_soft(s),
+                Ev::Retune => c.set_keyboard(flat_keyboard()),
             }
             next += 1;
         }
@@ -144,6 +165,39 @@ fn notes_and_pedals_inside_a_block_give_the_same_bits_at_any_split() {
         let par = perform(&mut piano(), &ev, frames, 7, 4);
         assert!(par == reference, "{name}, threads, blocks of 7");
     }
+}
+
+/// Review of fix3: a keyboard landing while the piano plays — the pedal's sympathetic
+/// strings fading to take it, a ringing key struck again (its old strings faded over 128
+/// samples, then struck on the new ones) and let go inside that fade — gives the same
+/// bits at every block size and on several threads.
+#[test]
+fn a_keyboard_landing_mid_phrase_gives_the_same_bits_at_any_split() {
+    let ev = vec![
+        (0, Ev::Pedal(1.0)),
+        (1, Ev::On(48, 0.8, 1)),
+        (1, Ev::On(55, 0.8, 2)),
+        (1, Ev::On(64, 0.8, 3)),
+        (2_000, Ev::On(72, 0.6, 4)),
+        (4_003, Ev::Retune),
+        (4_051, Ev::On(55, 0.7, 5)),
+        (4_120, Ev::Off(55, 5)),
+        (4_500, Ev::On(64, 0.5, 6)),
+        (9_000, Ev::Pedal(0.0)),
+    ];
+    let frames = 14_000;
+    let mut c = piano();
+    let reference = perform(&mut c, &ev, frames, 512, 1);
+    assert!(reference.0[4_100..].iter().any(|x| *x != 0.0));
+    // The paths were taken: every string on the new keyboard, a key struck on it.
+    assert_eq!(c.sympathetic_waiting(), 0);
+    assert_eq!(c.voice_generation(64), c.generation());
+    for block in [1, 37, 64, 512] {
+        let got = perform(&mut piano(), &ev, frames, block, 1);
+        assert!(got == reference, "block {block}");
+    }
+    let par = perform(&mut piano(), &ev, frames, 37, 4);
+    assert!(par == reference, "threads, blocks of 37");
 }
 
 #[test]

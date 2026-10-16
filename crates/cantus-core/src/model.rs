@@ -142,10 +142,25 @@ pub struct Clip {
     /// its own. See [`crate::links`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub link: Option<LinkId>,
+    /// Set on a **comp window** (ADR 0058, schema 32): a playing-lane clip that belongs to
+    /// the track's comp — made by a swipe or a promote, or a recording laid over the
+    /// takes — and so switches with the comp, is kept by an alternate comp and is lit on
+    /// its take's lane. Said, never guessed from where the clip lies: a copy pasted over
+    /// its takes is no window, a window nudged or slipped off them still is. Each
+    /// placement's own, like `lane` (a link group does not share it); the halves of a split
+    /// keep it, a copy or a paste does not, a flatten clears it. It means something on the
+    /// playing lane and in an alternate comp's kept windows (which all carry it) only.
+    /// `false` — every clip before schema 32, except the windows `migrate_31_to_32` found.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub comp: bool,
 }
 
 fn is_zero_u8(x: &u8) -> bool {
     *x == 0
+}
+
+fn is_false(x: &bool) -> bool {
+    !*x
 }
 
 impl Clip {
@@ -1453,6 +1468,7 @@ impl Project {
             lane: 0,
             automation: None,
             link: None,
+            comp: false,
         }
     }
 

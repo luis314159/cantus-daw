@@ -96,6 +96,25 @@ pub fn show(
         }
         EffectKind::External => hosted(sh, app, slot),
         _ => {
+            // An effect with no editor of its own (Delay, Reverb) is edited only here:
+            // its switches too (review of fix3: Delay's ping-pong was reachable nowhere).
+            if !kind.has_editor() {
+                for info in kind
+                    .params()
+                    .iter()
+                    .filter(|p| p.key != "mix" && p.stepped && p.min == 0.0 && p.max == 1.0)
+                {
+                    let on = slot.spec.get(info.key) >= 0.5;
+                    if sh.led_row_of(e, info.label_key, "fx.switch_on", on, f, false) {
+                        sh.acts.push(Act::Exec(Command::SetEffectParam {
+                            strip: host,
+                            effect: e,
+                            key: info.key.to_string(),
+                            value: if on { 0.0 } else { 1.0 },
+                        }));
+                    }
+                }
+            }
             for info in kind
                 .params()
                 .iter()

@@ -594,6 +594,8 @@ fn main() {
             .and_then(|a| a.pitch.clone());
         if let (Some(left), Some(older)) = (vocal.clips.iter_mut().find(|c| c.lane == 0), older) {
             left.length = Ticks::beats(4);
+            // Comp windows, as schema 32 says them (`Clip::comp`).
+            left.comp = true;
             if let Some(a) = left.audio.as_mut() {
                 a.fade_out = Ticks::ZERO;
             }
@@ -602,6 +604,7 @@ fn main() {
             right.start = Ticks::beats(8);
             right.length = Ticks::beats(4);
             right.offset = older.offset + Ticks::beats(4);
+            right.comp = true;
             let mut kept = right.clone();
             if let Some(a) = right.audio.as_mut() {
                 a.xfade = Ticks(19);
@@ -653,6 +656,30 @@ fn main() {
         .find_map(|c| c.audio.as_mut().and_then(|a| a.pitch.as_mut()))
     {
         cantus_core::pitch::edit::correct_pitch(e, &[1], 0.5);
+    }
+    // Schema 32 (round 28, fix4 of ADR 0058): a comp window says it is one. The comp's two
+    // windows and B's kept window carry the flag; a third take on lane 2 (beats 12–16)
+    // has a copy pasted right over it — the same file, the same place — which is no
+    // window: what schema 31 took for one.
+    {
+        let vocal = &mut p.tracks[vocal_index];
+        if let Some(take) = vocal.clips.iter().find(|c| c.lane == 1).cloned() {
+            let mut third = take.clone();
+            third.name = "Vocal take 2".into();
+            third.lane = 2;
+            third.start = Ticks::beats(12);
+            third.length = Ticks::beats(4);
+            third.offset = Ticks::ZERO;
+            let mut pasted = third.clone();
+            pasted.name = "Vocal take 2 (copy)".into();
+            pasted.lane = 0;
+            pasted.comp = false;
+            third.id = ClipId(next_id(&mut p.next_id));
+            pasted.id = ClipId(next_id(&mut p.next_id));
+            let vocal = &mut p.tracks[vocal_index];
+            vocal.clips.extend([third, pasted]);
+            vocal.clips.sort_by_key(|c| (c.start, c.id));
+        }
     }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))

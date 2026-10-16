@@ -211,7 +211,7 @@ pub fn show(
             unity: Some(pos_of(0.0)),
         },
     );
-    fader_mod.paint(b, ui, &resp, fr, s);
+    fader_mod.paint(b, ui, &resp, fr, s, Live::Fader);
 
     // The right-hand block: pan, the readouts, the switches.
     let x0 = fr.right() + k(10.0);
@@ -239,9 +239,9 @@ pub fn show(
         knob_c,
         &hue,
         State::of(&pan_d.resp, false),
-        &KnobLook::new(KnobSize::S, (pan_now + 1.0) * 0.5, 0.5),
+        &pan_mod.knob((pan_now + 1.0) * 0.5, 0.5),
     );
-    pan_mod.paint(b, ui, &pan_d.resp, kr, s);
+    pan_mod.paint(b, ui, &pan_d.resp, kr, s, Live::Knob);
     let cap = Text::key("kit.param.pan", Role::Micro, t.text_dim);
     let _ = text::paint(
         b,
@@ -519,7 +519,7 @@ fn pinned_well(
             std::fmt::Write::write_str(b, &text)
         });
     }
-    pm.paint(&mut st.brush, ui, &d.resp, r, s);
+    pm.paint(&mut st.brush, ui, &d.resp, r, s, Live::Edge);
     d
 }
 
@@ -550,7 +550,27 @@ impl Target {
 struct PinMod {
     target: AutoTarget,
     offer: crate::kit::automate::Offer,
+    /// The modulations arriving, as the desk's knobs draw them (review of fix3: the pinned
+    /// pan knob drew none).
+    rings: [(f32, egui::Color32); crate::views::modulator::MAX_RINGS],
     n: usize,
+}
+
+/// The height of a fader's live mark: where the cap would sit at `live` (review of fix3:
+/// the tick ran over the whole rect, up to half a cap off at the ends).
+fn fader_live_y(rect: Rect, s: &Style, live: f32) -> f32 {
+    fader::cap_rect(rect, s, live.clamp(0.0, 1.0)).center().y
+}
+
+/// Where a pinned control shows the live modulated value.
+#[derive(Copy, Clone, PartialEq)]
+enum Live {
+    /// A tick at the left edge, at its height (the value wells).
+    Edge,
+    /// A mark beside the fader's cap where the cap would sit (as the desk's faders).
+    Fader,
+    /// The knob's own dot and rings.
+    Knob,
 }
 
 impl PinMod {
@@ -564,7 +584,17 @@ impl PinMod {
                 modulation: Some(m),
             },
             target,
+            rings,
             n,
+        }
+    }
+
+    /// The knob's look with its rings and live dot.
+    fn knob(&self, value: f32, default: f32) -> KnobLook<'_> {
+        KnobLook {
+            rings: &self.rings[..self.n],
+            live: self.offer.modulation.and_then(|m| m.live),
+            ..KnobLook::new(KnobSize::S, value, default)
         }
     }
 
@@ -596,21 +626,81 @@ impl PinMod {
         depth
     }
 
-    fn paint(&self, b: &mut crate::kit::Brush, ui: &Ui, resp: &Response, rect: Rect, s: &Style) {
+    #[allow(clippy::too_many_arguments)]
+    fn paint(
+        &self,
+        b: &mut crate::kit::Brush,
+        ui: &Ui,
+        resp: &Response,
+        rect: Rect,
+        s: &Style,
+        how: Live,
+    ) {
         use crate::kit::automate as a;
         if self.offer.automated {
             a::mark(b, rect, s);
         }
         if self.n > 0 {
             a::mod_mark(b, rect, s);
-            if let Some(live) = self.offer.modulation.and_then(|m| m.live) {
-                let x = rect.left() + s.s(3.0);
-                let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
-                b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
+            let live = self.offer.modulation.and_then(|m| m.live);
+            match (how, live) {
+                (Live::Edge, Some(live)) => {
+                    let x = rect.left() + s.s(3.0);
+                    let y = rect.bottom() - rect.height() * live.clamp(0.0, 1.0);
+                    b.hline(x - s.s(2.0), x + s.s(4.0), y, s.s(2.0), s.t.hue_mod);
+                }
+                (Live::Fader, Some(live)) => {
+                    let y = fader_live_y(rect, s, live);
+                    let x = rect.right() - s.s(1.0);
+                    let d = s.s(4.0);
+                    b.polygon(
+                        &[pos2(x, y), pos2(x + d, y - d), pos2(x + d, y + d)],
+                        s.t.hue_mod,
+                    );
+                }
+                _ => {}
             }
         }
         if a::handle_in_flight(ui.ctx()) && resp.contains_pointer() {
             a::drop_target(b, rect, s);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Review of fix3: the pinned fader's live mark sits where the cap would (the desk's
+    /// rule), not a cap's half off at the ends; the pan knob draws its modulation rings.
+    #[test]
+    fn the_pinned_controls_show_their_modulation_as_the_desk_does() {
+        let s = Style::current();
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(30.0, 200.0));
+        for live in [0.0, 0.5, 1.0] {
+            let y = fader_live_y(rect, &s, live);
+            assert_eq!(y, fader::cap_rect(rect, &s, live).center().y);
+        }
+        assert!(
+            fader_live_y(rect, &s, 1.0) > rect.top() + 1.0,
+            "never past the cap"
+        );
+        let mut p = crate::starter_project();
+        let strip = p.tracks[0].strip.unwrap();
+        let t = p.tracks[0].id;
+        let mut m = cantus_core::modulator::Modulator::new(
+            cantus_core::ModulatorId(p.alloc_id()),
+            cantus_core::modulator::ModKind::Lfo,
+        );
+        m.routes.push(cantus_core::modulator::ModRoute {
+            target: AutoTarget::StripPan(strip),
+            depth: 0.4,
+        });
+        p.modulators_mut(cantus_core::modulator::ModHost::Track(t))
+            .unwrap()
+            .push(m);
+        let app = CantusApp::from_parts(Some(p), cantus_engine::EngineHandle::dummy(), false);
+        let pm = PinMod::new(&app, AutoTarget::StripPan(strip), 0.5, &s);
+        assert_eq!(pm.knob(0.5, 0.5).rings.len(), 1, "the pan knob's ring");
     }
 }

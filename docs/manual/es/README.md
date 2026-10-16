@@ -295,6 +295,15 @@ juntos— se componen juntas, el mismo tramo de la misma toma en cada una; sus c
 mueven juntas, toman los mismos fundidos, y sus composiciones se cambian y se crean
 juntas. Cada cambio es un paso de deshacer.
 
+**Qué es de la composición.** Los trozos que hace un arrastre o *Usar esta toma* son de la
+composición, y también la toma que suena sobre las demás tras una grabación (la última
+pasada de un bucle, o una toma grabada sobre otras): cambian con la composición y siguen
+siendo suyos al cortarlos, moverlos o deslizarlos. Una copia nunca es de la composición,
+la pegues donde la pegues —justo sobre su toma también—: queda en el carril que suena en
+todos los cambios, bajo todas las composiciones. Un trozo arrastrado a otra pista sale de
+la composición; tras consolidar, los trozos son clips sin más. Los carriles de tomas
+iluminan el tramo de cada toma que suena en la composición.
+
 ### MIDI
 
 Arma una **pista de instrumento** (una sin entrada de audio) y pulsa `R`: se graban en un
@@ -510,9 +519,9 @@ sobre su automatización.
   (su perilla y su fila en la mesa, el nivel de su cable, las filas de envíos y de entradas
   del inspector; el menú de un envío tiene *Automatizar* y *Modular…* para él), la tira fija
   del inspector y los parámetros de un plug-in alojado aceptan un modulador del mismo modo.
-  La afinación de Chorda (A4, estiramiento, rigidez) se fija; no se automatiza ni se
-  modula. También la **cantidad** de un modulador: deja
-  que una fuente aleatoria mueva cuánto se mueve un LFO (un nivel de anidamiento).
+  También la **cantidad** de un modulador: deja que una fuente aleatoria mueva cuánto se
+  mueve un LFO (un nivel de anidamiento). La afinación de Chorda (A4, estiramiento,
+  rigidez) se fija; no se automatiza ni se modula.
 - **Convertir en automatización**: la tecla de convertir de una ruta (o *Modular… ▸
   Convertir en automatización*) hace del efecto de ese modulador un clip de automatización
   sobre la selección de tiempo (si no, el bucle; si no, la canción) y quita la ruta, en un
@@ -686,9 +695,10 @@ bombo más abierto), golpe de aro 37, caja 38 (40, una caja apagada), toms 41 ·
 47–50, charles cerrado 42, de pedal 44 y abierto 46, crash 49 y 57, ride 51 y 59, campana
 53. Las teclas de General MIDI para las que la batería no tiene sonido (pandereta,
 cencerro, la percusión latina) quedan en silencio, así que una parte de General MIDI nunca
-toca un platillo en su lugar; las otras articulaciones de DrumGizmo están donde no hay
-percusión de General MIDI 2, GS ni XG: el charles medio abierto y las puntas en las teclas
-21–26, el ride con cadena en 88–90 y las escobillas en 91–100. Cada tambor tiene sus intensidades como capas de velocidad hasta 24 dB
+toca un platillo en su lugar; las otras articulaciones de DrumGizmo están por encima de la
+percusión de General MIDI 2 y fuera de las teclas extra de los kits XG y GS por debajo de
+ella (13–26): el ride con cadena en 88–90, las escobillas en 91–100, y el charles medio
+abierto y las puntas en 101–106. Cada tambor tiene sus intensidades como capas de velocidad hasta 24 dB
 por debajo de la más fuerte, y los golpes de una capa se turnan **en orden** — contados
 por tambor y por capa, así que un redoble, un fill de toms entre las teclas del tambor o un
 acento cada cuatro golpes de charles nunca repite la misma muestra dos veces seguidas; un

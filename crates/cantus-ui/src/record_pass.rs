@@ -132,6 +132,9 @@ pub fn piece(clip: &Clip, start: Ticks, end: Ticks, lane: u8, ids: Ids) -> Clip 
         automation: clip.automation.clone(),
         // The same content through another window: still the same clip (ADR 0037).
         link: clip.link,
+        // A comp window's piece on the playing lane is the comp's; on a take lane it is a
+        // take (ADR 0058, schema 32).
+        comp: lane == 0 && clip.comp,
     }
 }
 
@@ -177,6 +180,14 @@ pub fn clear_range(
                     clip: c.id,
                 },
             });
+            // A window stacked onto a take lane is a take now, no longer the comp's.
+            if to_lane.is_some() && c.comp {
+                out.push(Command::SetClipComp {
+                    track: tid,
+                    clip: c.id,
+                    comp: false,
+                });
+            }
             continue;
         }
         if let Some(lane) = to_lane {
@@ -381,6 +392,10 @@ fn lay(
         }])?;
     }
     last.lane = 0;
+    // Laid over takes — what it covered stacked, the loop's earlier passes, takes already
+    // there — the pass that plays is the comp's (ADR 0058, schema 32): an alternate comp
+    // keeps it and a switch takes it away and back.
+    last.comp = sim.track(tid).is_some_and(|t| max_lane(t) > 0);
     sim.push(vec![Command::InsertClip {
         track: tid,
         clip: Box::new(last),
@@ -432,6 +447,7 @@ fn audio_takes(
                 lane: 0,
                 automation: None,
                 link: None,
+                comp: false,
             });
         }
         if clips.is_empty() {
@@ -555,6 +571,7 @@ fn midi_clip(
         lane: 0,
         automation: None,
         link: None,
+        comp: false,
     }
 }
 

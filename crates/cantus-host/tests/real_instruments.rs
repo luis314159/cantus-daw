@@ -81,6 +81,7 @@ fn position(playing: bool, frame: usize) -> SongPosition {
         time_sig_num: 4,
         time_sig_den: 4,
         loop_beats: None,
+        wrap: None,
     }
 }
 

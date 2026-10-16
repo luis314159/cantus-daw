@@ -204,6 +204,12 @@ pub struct Processor {
     scoped: [Option<cantus_core::EffectId>; crate::fx::speculum::MAX_SCOPES],
     /// How late each watched Speculum's signal is against the transport (`scope_delays`).
     scoped_delay: [usize; crate::fx::speculum::MAX_SCOPES],
+    /// Every distinct non-zero lateness of an insert (`EffectUnit::late`, `scope_delays`),
+    /// the first `late_n` of it: after a loop wrap each insert's own wrap is that many
+    /// samples later, and a pass is cut there so it hears the loop's start exactly at
+    /// every block size (review of fix3). Allocated once, filled on the audio thread.
+    lates: Box<[usize]>,
+    late_n: usize,
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -318,6 +324,9 @@ impl Processor {
             analysed: None,
             scoped: [None; crate::fx::speculum::MAX_SCOPES],
             scoped_delay: [0; crate::fx::speculum::MAX_SCOPES],
+            lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
+                .into_boxed_slice(),
+            late_n: 0,
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
@@ -717,6 +726,10 @@ pub(crate) fn song_position_of(
         loop_beats: transport
             .loop_region()
             .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
+        wrap: transport
+            .since_wrap()
+            .zip(transport.samples_until_loop_end())
+            .map(|(since, left)| (since, since + left)),
     }
 }
 

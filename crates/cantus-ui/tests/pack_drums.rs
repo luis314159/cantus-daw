@@ -658,5 +658,9 @@ fn kit_rows_follow_a_language_switch_in_the_rack_and_the_piano_roll() {
             es.contains("Caja acústica"),
             "view {i} after the switch: {es}"
         );
+        // The piano roll's note count too (review of fix3).
+        if i == 1 {
+            assert!(en.contains(" notes") && es.contains(" notas"), "{es}");
+        }
     }
 }

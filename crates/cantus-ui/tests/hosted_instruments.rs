@@ -173,3 +173,119 @@ fn a_missing_hosted_instrument_opens_says_so_and_saves_back_untouched() {
     let back = cantus_project::load(&path, true).unwrap().project;
     assert_eq!(back.tracks[0].instrument, InstrumentSpec::External(plugin));
 }
+
+/// One inspector frame with `events`; every painted text with where it lies.
+fn inspector_frame(
+    ctx: &egui::Context,
+    a: &mut CantusApp,
+    events: Vec<egui::Event>,
+    frame: &mut f64,
+) -> Vec<(String, egui::Rect)> {
+    *frame += 1.0;
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(
+            egui::Pos2::ZERO,
+            egui::vec2(420.0, 4000.0),
+        )),
+        time: Some(*frame / 60.0),
+        events,
+        ..Default::default()
+    };
+    let mut out = ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| cantus_ui::views::inspector::show(a, ui));
+    });
+    out.textures_delta.clear();
+    fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect)>) {
+        match shape {
+            egui::Shape::Text(t) => out.push((
+                t.galley.text().to_string(),
+                t.galley.rect.translate(t.pos.to_vec2()),
+            )),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut v = Vec::new();
+    for c in &out.shapes {
+        walk(&c.shape, &mut v);
+    }
+    v
+}
+
+/// Review of fix3: a hosted instrument's parameter row works as the native rows while a
+/// modulator maps — only the drag is the depth's; a double-click still resets the value.
+#[test]
+fn a_hosted_row_double_clicked_while_a_modulator_maps_resets() {
+    use cantus_core::modulator::{ModHost, ModKind};
+    let mut a = app(cantus_ui::starter_project());
+    let info = knows_synth(&mut a);
+    let track = a.project().tracks[0].id;
+    assert!(a.set_hosted_instrument(track, &info));
+    a.sync_engine();
+    let p = a
+        .plugins
+        .hosted_instrument(track)
+        .expect("loaded")
+        .params
+        .iter()
+        .find(|p| !p.hidden && p.automatable && p.max > p.min && !p.stepped)
+        .cloned()
+        .expect("a continuous parameter");
+    let away = if p.default > (p.min + p.max) * 0.5 {
+        p.min
+    } else {
+        p.max
+    };
+    a.exec(Command::SetInstrumentPluginParam {
+        track,
+        id: p.id,
+        value: Some(away),
+    });
+    let id = a
+        .add_modulator(ModHost::Track(track), ModKind::Lfo, None)
+        .unwrap();
+    a.toggle_mapping(id);
+    a.select_track(track);
+    let ctx = ctx();
+    let mut frame = 0.0;
+    inspector_frame(&ctx, &mut a, vec![], &mut frame);
+    let texts = inspector_frame(&ctx, &mut a, vec![], &mut frame);
+    let label = texts
+        .iter()
+        .find(|(t, _)| *t == p.name)
+        .map(|(_, r)| *r)
+        .unwrap_or_else(|| panic!("the row of {}: {texts:?}", p.name));
+    let at = egui::pos2(label.right() + 60.0, label.center().y);
+    let press = |pressed| egui::Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    inspector_frame(
+        &ctx,
+        &mut a,
+        vec![egui::Event::PointerMoved(at)],
+        &mut frame,
+    );
+    for _ in 0..2 {
+        inspector_frame(&ctx, &mut a, vec![press(true)], &mut frame);
+        inspector_frame(&ctx, &mut a, vec![press(false)], &mut frame);
+    }
+    inspector_frame(&ctx, &mut a, vec![], &mut frame);
+    let now = a
+        .project()
+        .track(track)
+        .unwrap()
+        .instrument
+        .external()
+        .and_then(|e| e.params.get(&p.id).copied());
+    assert_eq!(
+        now,
+        Some(p.default),
+        "{}: reset by the double-click",
+        p.name
+    );
+}

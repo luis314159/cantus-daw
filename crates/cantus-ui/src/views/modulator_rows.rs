@@ -131,7 +131,7 @@ fn switch(
     on: bool,
     flip: impl FnOnce(&mut Modulator),
 ) {
-    if sh.led_row(key, words, on, function_of(m.source.kind()), m.muted) {
+    if sh.led_row_of(m.id, key, words, on, function_of(m.source.kind()), m.muted) {
         let mut e = m.clone();
         flip(&mut e);
         sh.acts.push(Act::Mod(ModAct::Set(Box::new(e), None)));

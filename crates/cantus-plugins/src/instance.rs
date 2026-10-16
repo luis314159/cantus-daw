@@ -199,6 +199,9 @@ impl HostTransport {
             time_sig_num: num,
             time_sig_den: den,
             loop_beats: self.loop_beats,
+            // Inside another host the effect is one insert that hears its own time: no
+            // lateness to fold by (`SongPosition::earlier` is the Cantus engine's).
+            wrap: None,
         }
     }
 }

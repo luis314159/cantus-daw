@@ -28,6 +28,10 @@ pub struct Transport {
     origin_tick: f64,
     samples: u64,
     loop_region: Option<LoopRegion>,
+    /// Samples played since the loop last wrapped; `None` since a start or a seek, before
+    /// any wrap (review of fix3: the audio an insert hears late is from before the loop
+    /// only on its first entry).
+    since_wrap: Option<u64>,
 }
 
 impl Transport {
@@ -39,6 +43,7 @@ impl Transport {
             origin_tick: 0.0,
             samples: 0,
             loop_region: None,
+            since_wrap: None,
         }
     }
 
@@ -105,7 +110,17 @@ impl Transport {
     }
 
     pub fn play(&mut self) {
+        if !self.playing {
+            self.since_wrap = None;
+        }
         self.playing = true;
+    }
+
+    /// Samples played since the loop last wrapped — `None` before the first wrap since the
+    /// transport started or was moved.
+    #[inline]
+    pub fn since_wrap(&self) -> Option<u64> {
+        self.since_wrap
     }
 
     pub fn stop(&mut self) {
@@ -118,6 +133,7 @@ impl Transport {
     pub fn seek(&mut self, tick: Ticks) {
         self.origin_tick = tick.0 as f64;
         self.samples = 0;
+        self.since_wrap = None;
     }
 
     /// Change tempo without moving the playhead.
@@ -169,6 +185,9 @@ impl Transport {
         }
         let before = self.samples;
         self.samples += n;
+        if let Some(s) = self.since_wrap.as_mut() {
+            *s += n;
+        }
         if let Some(l) = &self.loop_region {
             let start = l.start.0 as f64;
             let end = l.end.0 as f64;
@@ -178,6 +197,7 @@ impl Transport {
                 let overshoot = self.position_f64() - end;
                 self.origin_tick = start + overshoot.max(0.0);
                 self.samples = 0;
+                self.since_wrap = Some(0);
                 return true;
             }
         }

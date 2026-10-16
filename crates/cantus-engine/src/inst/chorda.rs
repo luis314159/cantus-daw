@@ -37,6 +37,7 @@ use cantus_core::NativeSpec;
 use cantus_dsp::chorda::design::{Keyboard, Tuning};
 use cantus_dsp::chorda::{Chorda, ChordaSettings};
 use cantus_dsp::modmatrix::{ModCurve, ModMatrix, ModRoute};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 
 pub mod tel {
@@ -139,6 +140,54 @@ static DESIGNER: Mutex<Designer> = Mutex::new(Designer {
     running: false,
 });
 static WAKE: std::sync::Condvar = std::sync::Condvar::new();
+
+// What the audio thread may know of the refusals without the designer's lock (review of
+// fix3): a fresh unit waits silent only for a tuning that can still arrive.
+/// The registry has no room (or too many designs failed to keep count): no tuning not
+/// designed yet will arrive this session.
+static NONE_ARRIVES: AtomicBool = AtomicBool::new(false);
+/// The designer's thread could not start: nothing arrives until it does.
+static NO_DESIGNER: AtomicBool = AtomicBool::new(false);
+/// Designs that failed, written under the designer's lock, read lock-free.
+const FAILED_KEPT: usize = 64;
+static FAILED: [OnceLock<DesignKey>; FAILED_KEPT] = [const { OnceLock::new() }; FAILED_KEPT];
+static FAILED_N: AtomicUsize = AtomicUsize::new(0);
+
+/// Refuse `key` for the session (`d` is the designer, locked): never designed again, and
+/// said where the audio thread can read it.
+fn refuse(d: &mut Designer, key: DesignKey, full: bool) {
+    if !d.refused.contains(&key) {
+        d.refused.push(key);
+    }
+    if full {
+        NONE_ARRIVES.store(true, Ordering::Release);
+        return;
+    }
+    let n = FAILED_N.load(Ordering::Acquire);
+    if FAILED.iter().take(n).any(|k| k.get() == Some(&key)) {
+        return;
+    }
+    if n < FAILED_KEPT {
+        let _ = FAILED[n].set(key);
+        FAILED_N.store(n + 1, Ordering::Release);
+    } else {
+        NONE_ARRIVES.store(true, Ordering::Release);
+    }
+}
+
+/// Whether the keyboard for `key` is designed or can still be: neither refused nor waiting
+/// on a designer that could not start. Lock-free and allocation-free: the audio thread
+/// asks it (a fresh unit drops the reference keyboard only for a tuning on its way).
+pub fn can_arrive(key: DesignKey) -> bool {
+    if lookup(key).is_some() {
+        return true;
+    }
+    if NONE_ARRIVES.load(Ordering::Acquire) || NO_DESIGNER.load(Ordering::Acquire) {
+        return false;
+    }
+    let n = FAILED_N.load(Ordering::Acquire);
+    !FAILED.iter().take(n).any(|k| k.get() == Some(&key))
+}
 
 /// The tuning parameter values ask for.
 pub fn tuning_of(values: &[f32; N]) -> Tuning {
@@ -271,6 +320,10 @@ fn ask(owner: Option<(u64, u32)>, tuning: Tuning, fs: f32) {
                 .spawn(design_loop)
         };
         d.running = spawned.is_ok();
+        NO_DESIGNER.store(!d.running, Ordering::Release);
+        if !d.running {
+            faults::spawn_failed();
+        }
     }
     WAKE.notify_all();
 }
@@ -283,8 +336,20 @@ mod faults {
     /// A design of this A4 (its bits as f32) panics on the designer's thread.
     static PANICS_AT: AtomicU32 = AtomicU32::new(0);
 
+    /// Spawns that failed (the tests prove they took that path).
+    static SPAWN_FAILED: AtomicU32 = AtomicU32::new(0);
+
     pub fn spawn_fails() -> bool {
         SPAWN_FAILS.load(Ordering::Relaxed)
+    }
+
+    pub fn spawn_failed() {
+        SPAWN_FAILED.fetch_add(1, Ordering::Relaxed);
+    }
+
+    #[cfg(test)]
+    pub fn spawns_failed() -> u32 {
+        SPAWN_FAILED.load(Ordering::Relaxed)
     }
 
     pub fn panics(a4: f64) -> bool {
@@ -300,6 +365,19 @@ mod faults {
     #[cfg(test)]
     pub fn set_panics_at(a4: Option<f64>) {
         PANICS_AT.store(a4.map_or(0, |a| (a as f32).to_bits()), Ordering::Relaxed);
+    }
+
+    /// Every fault off again, when a test ends — passed or not.
+    #[cfg(test)]
+    pub struct Reset;
+
+    #[cfg(test)]
+    impl Drop for Reset {
+        fn drop(&mut self) {
+            set_spawn_fails(false);
+            set_panics_at(None);
+            super::NO_DESIGNER.store(false, Ordering::Release);
+        }
     }
 }
 
@@ -352,12 +430,12 @@ fn design_loop() {
             Ok(true) => {}
             Ok(false) => {
                 log::warn!("Chorda: no room for another tuning this session; keeping the last");
-                d.refused.push(key);
+                refuse(&mut d, key, true);
                 d.wants.retain(|w| w.key != key);
             }
             Err(_) => {
                 log::error!("Chorda: a string design failed; it is made where it is needed");
-                d.refused.push(key);
+                refuse(&mut d, key, false);
                 d.wants.retain(|w| w.key != key);
             }
         }
@@ -414,10 +492,7 @@ pub fn refused(tuning: Tuning, fs: f32) -> bool {
 #[doc(hidden)]
 pub fn refuse_for_tests(tuning: Tuning, fs: f32) {
     if let Ok(mut d) = DESIGNER.lock() {
-        let key = key_of(tuning, fs);
-        if !d.refused.contains(&key) {
-            d.refused.push(key);
-        }
+        refuse(&mut d, key_of(tuning, fs), false);
     }
 }
 
@@ -670,6 +745,17 @@ impl Unit {
         if self.offline {
             self.dsp.set_keyboard(ensure(self.want_tuning, self.fs));
             self.have = Some(self.want);
+            return;
+        }
+        // Its own tuning will not come (refused this session, or no designer): a unit with
+        // nothing keeps playing — the reference keyboard, as the editor says (review of
+        // fix3: it stayed silent for the session).
+        if self.have.is_none() && !can_arrive(self.want) {
+            let key = key_of(Tuning::default(), self.fs);
+            if let Some(k) = lookup(key) {
+                self.dsp.set_keyboard(k);
+                self.have = Some(key);
+            }
         }
     }
 
@@ -692,8 +778,10 @@ impl InstrumentUnit for Unit {
         if let Some(k) = lookup(self.want) {
             self.dsp.set_keyboard(k);
             self.have = Some(self.want);
-        } else if !self.struck && self.have.is_some() {
-            // Nothing played yet: silent until its own tuning is designed, never another.
+        } else if !self.struck && self.have.is_some() && can_arrive(self.want) {
+            // Nothing played yet: silent until its own tuning is designed, never another —
+            // unless it will not come, then the keyboard it has plays (lock-free: the audio
+            // thread configures).
             self.dsp.clear_keyboard();
             self.have = None;
         }
@@ -832,20 +920,52 @@ mod tests {
         }
     }
 
+    /// The designer and its faults are the process's: the tests that use them run one at a
+    /// time (review of fix3: in parallel, one test's fault hid another's path), and every
+    /// fault is off again when each ends, passed or not.
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+
+    fn alone() -> (std::sync::MutexGuard<'static, ()>, faults::Reset) {
+        let g = ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner());
+        (g, faults::Reset)
+    }
+
+    /// Wait until the designer's thread has ended (nothing left to design).
+    fn designer_idle() {
+        let since = std::time::Instant::now();
+        while DESIGNER.lock().is_ok_and(|d| d.running) {
+            assert!(since.elapsed().as_secs() < 60, "the designer ends");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
     #[test]
     fn an_export_ends_when_the_designers_thread_cannot_start() {
+        let _alone = alone();
+        designer_idle();
+        let failed = faults::spawns_failed();
         faults::set_spawn_fails(true);
         let k = ensure_within_a_minute(tuning(431.17));
-        faults::set_spawn_fails(false);
+        assert!(
+            faults::spawns_failed() > failed,
+            "the export took the path where the designer could not start"
+        );
         assert_eq!(k.fs, 48_000.0);
     }
 
     #[test]
     fn an_export_ends_when_a_design_fails_on_the_designers_thread() {
+        let _alone = alone();
         faults::set_panics_at(Some(433.33));
         let k = ensure_within_a_minute(tuning(433.33));
         faults::set_panics_at(None);
         assert_eq!(k.fs, 48_000.0);
+        assert!(
+            DESIGNER
+                .lock()
+                .is_ok_and(|d| d.refused.contains(&key_of(tuning(433.33), 48_000.0))),
+            "the design failed on the designer's thread, and was refused there"
+        );
         // The designer is not left busy: another design still comes from it.
         let other = ensure_within_a_minute(tuning(434.44));
         assert_eq!(other.fs, 48_000.0);
@@ -856,6 +976,7 @@ mod tests {
     /// keyboard arrives — never playing A4 440 meanwhile (ADR 0059 §6).
     #[test]
     fn a_fresh_unit_waits_silent_for_its_own_tuning() {
+        let _alone = alone();
         let fs = 48_000.0;
         ensure(Tuning::default(), fs);
         let mut u = Unit::new(fs);
@@ -880,5 +1001,56 @@ mod tests {
         u.process(&mut l, &mut r);
         assert!(l.iter().any(|x| *x != 0.0), "its own keyboard plays");
         assert_eq!(u.telemetry()[tel::DESIGNED], 1.0);
+    }
+
+    /// Review of fix3: a fresh unit set to a tuning the session refuses (the registry full,
+    /// a design that failed) keeps the reference keyboard and plays — the editor's caption
+    /// says "keeping this one" — and one that dropped it while the tuning was on its way
+    /// takes it back when the tuning is refused, as when the designer cannot start.
+    #[test]
+    fn a_fresh_unit_whose_tuning_is_refused_keeps_playing() {
+        let _alone = alone();
+        let fs = 48_000.0;
+        ensure(Tuning::default(), fs);
+        let play = |u: &mut Unit, id| {
+            u.note_on(NoteOn {
+                key: 60,
+                velocity: 0.8,
+                id,
+                channel: 0,
+            });
+            let (mut l, mut r) = (vec![0.0f32; 4_800], vec![0.0f32; 4_800]);
+            u.process(&mut l, &mut r);
+            l.iter().any(|x| *x != 0.0)
+        };
+        let set = |u: &mut Unit, a4: f64| {
+            let mut spec = NativeSpec::new(cantus_core::InstrumentKind::Chorda);
+            spec.set("a4", a4 as f32);
+            u.configure(&spec, &[]);
+        };
+        // Refused before it is set.
+        refuse_for_tests(tuning(441.23), fs);
+        let mut u = Unit::new(fs);
+        set(&mut u, 441.23);
+        assert!(
+            play(&mut u, 1),
+            "a refused tuning keeps the reference keyboard"
+        );
+        // Refused after the unit went silent for it.
+        let mut u = Unit::new(fs);
+        set(&mut u, 442.34);
+        refuse_for_tests(tuning(442.34), fs);
+        assert!(play(&mut u, 2), "the reference keyboard comes back");
+        // No designer: the same.
+        designer_idle();
+        faults::set_spawn_fails(true);
+        let mut u = Unit::new(fs);
+        // The snapshot asks for the track's tuning (`prepare`); the thread cannot start.
+        ask(Some((99, fs.to_bits())), tuning(443.45), fs);
+        set(&mut u, 443.45);
+        assert!(
+            play(&mut u, 3),
+            "nothing will design it: the reference keyboard plays"
+        );
     }
 }
