@@ -202,6 +202,10 @@ pub struct SongPosition {
     pub time_sig_den: u16,
     /// The loop, in quarter notes, when looping.
     pub loop_beats: Option<(f64, f64)>,
+    /// After a loop wrap (none since the start or a seek): the samples played since it,
+    /// and the pass's length in samples (those and the ones left to the loop's end). What
+    /// [`Self::earlier`] folds by — exactly where the engine cuts its passes.
+    pub wrap: Option<(u64, u64)>,
 }
 
 impl SongPosition {
@@ -209,15 +213,22 @@ impl SongPosition {
     /// when the audio reaching it is that late against the transport (delay compensation
     /// and the inserts before it; integration review — a synced LFO led the audio it
     /// shapes by the slot's latency). Inside a loop, a moment before its start is the
-    /// end of the pass before. Unchanged at 0, to the bit.
+    /// end of the pass before — only once the loop has wrapped (on the first entry the
+    /// audio is from before the loop), as many passes back as it reaches (an insert later
+    /// than a loop is long), the pass boundaries counted in whole samples as the engine
+    /// cuts them (review of fix3). Unchanged at 0 and while stopped (nothing plays: the
+    /// parked playhead is where it was), to the bit.
     pub fn earlier(&self, frames: usize, sample_rate: f64) -> SongPosition {
-        if frames == 0 {
+        if frames == 0 || !self.playing {
             return *self;
         }
         let mut beats = self.beats - frames as f64 * self.tempo_bpm / 60.0 / sample_rate.max(1.0);
-        if let Some((ls, le)) = self.loop_beats {
-            if self.playing && le > ls && self.beats >= ls && beats < ls {
-                beats += le - ls;
+        if let (Some((ls, le)), Some((since, pass))) = (self.loop_beats, self.wrap) {
+            let back = frames as u64;
+            if le > ls && back > since {
+                // How many wraps the audio is behind: one per pass length past the last.
+                let passes = (back - since).div_ceil(pass.max(1));
+                beats += passes as f64 * (le - ls);
             }
         }
         let bar = f64::from(self.time_sig_num.max(1)) * 4.0 / f64::from(self.time_sig_den.max(1));
@@ -288,6 +299,8 @@ mod position_tests {
             time_sig_num: 4,
             time_sig_den: 4,
             loop_beats: Some((8.0, 16.0)),
+            // A quarter beat (6 000 samples) after a wrap, the pass 8 beats long.
+            wrap: Some((6_000, 192_000)),
         };
         assert_eq!(p.earlier(0, 48_000.0), p);
         // 12 000 samples at 120 BPM are half a beat: before the loop's start, so the end
@@ -303,5 +316,45 @@ mod position_tests {
         let e = free.earlier(6_000, 48_000.0);
         assert!((e.beats - 8.0).abs() < 1e-12);
         assert_eq!(e.bar_start_beats, 8.0);
+    }
+
+    /// Review of fix3: on the first entry into the loop (no wrap yet) the audio a late
+    /// insert hears is from before the loop — no fold; an insert later than the loop is
+    /// long folds as many passes back as it reaches; a stopped transport is not moved
+    /// (parked on a bar line, or at zero: never negative).
+    #[test]
+    fn earlier_folds_only_after_a_wrap_and_never_moves_a_stopped_playhead() {
+        let p = SongPosition {
+            playing: true,
+            tempo_bpm: 120.0,
+            beats: 8.25,
+            samples: 198_000,
+            bar_start_beats: 8.0,
+            time_sig_num: 4,
+            time_sig_den: 4,
+            loop_beats: Some((8.0, 16.0)),
+            wrap: None,
+        };
+        let e = p.earlier(12_000, 48_000.0);
+        assert!((e.beats - 7.75).abs() < 1e-12, "first entry: {}", e.beats);
+        // A loop of one beat (24 000 samples), 6 000 samples after a wrap, an insert
+        // 60 000 samples late: 54 000 before the wrap, three passes back.
+        let short = SongPosition {
+            loop_beats: Some((8.0, 9.0)),
+            wrap: Some((6_000, 24_000)),
+            ..p
+        };
+        let e = short.earlier(60_000, 48_000.0);
+        assert!((e.beats - 8.75).abs() < 1e-9, "{}", e.beats);
+        for beats in [16.0, 0.0] {
+            let parked = SongPosition {
+                playing: false,
+                beats,
+                samples: (beats * 24_000.0) as i64,
+                bar_start_beats: beats,
+                ..p
+            };
+            assert_eq!(parked.earlier(240, 48_000.0), parked);
+        }
     }
 }

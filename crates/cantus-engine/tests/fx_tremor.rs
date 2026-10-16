@@ -210,3 +210,71 @@ fn a_masters_synced_gate_follows_the_compensated_beat() {
     let edges = 2 * (reference.len() / 2) / BEAT as usize;
     assert!(off <= 2 * edges, "{off} samples off ({edges} edges)");
 }
+
+/// Play `project` live with its loop on, `sizes` frames per callback in turn, for `len`
+/// samples (interleaved stereo).
+fn looping(project: &Project, len: usize, sizes: &[usize]) -> Vec<f32> {
+    let (mut tx, rx_engine) = rtrb::RingBuffer::<cantus_engine::EngineMessage>::new(64);
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<cantus_engine::EngineEvent>::new(4096);
+    let mut p = cantus_engine::Processor::without_midi(48_000.0, rx_engine, tx_engine);
+    let snap = Snapshot::compile(project, 1);
+    assert!(snap.loop_region.is_some(), "the loop is on");
+    for strip in &snap.strips {
+        for slot in &strip.effects {
+            let unit = cantus_engine::EffectUnit::new(slot, 48_000.0);
+            tx.push(cantus_engine::EngineMessage::AddEffect(Box::new(unit)))
+                .unwrap();
+        }
+    }
+    tx.push(cantus_engine::EngineMessage::SetSnapshot(
+        std::sync::Arc::new(snap),
+    ))
+    .unwrap();
+    tx.push(cantus_engine::EngineMessage::Seek(Ticks::ZERO))
+        .unwrap();
+    tx.push(cantus_engine::EngineMessage::Play).unwrap();
+    let mut out = Vec::with_capacity(len);
+    let mut i = 0;
+    while out.len() < len {
+        let n = sizes[i % sizes.len()].min((len - out.len()) / 2);
+        i += 1;
+        let mut buf = vec![0f32; n * 2];
+        p.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+    }
+    out
+}
+
+/// Review of fix3: a synced gate behind a latent insert (240 samples) hears the loop wrap
+/// where its audio wraps — the pass is cut there — so a loop that is not a whole number of
+/// the gate's periods (4⅓ beats) plays the same bits at any block size, live; and on its
+/// first entry from before the loop it hears the song before the loop, not its end.
+#[test]
+fn a_late_synced_gate_wraps_with_its_audio_at_any_block_size() {
+    let mut p = lead_only();
+    let flexus = add_effect(&mut p, EffectKind::Flanger);
+    set_all(&mut p, flexus, &[("tz", 1.0), ("depth", 8.0)]);
+    gated(&mut p);
+    for (start, what) in [
+        (Ticks::ZERO, "a loop from the start"),
+        (Ticks::beats(2), "a loop entered"),
+    ] {
+        p.loop_region = Some(LoopRegion {
+            start,
+            end: start + Ticks::beats(4) + Ticks(PPQ / 3),
+        });
+        p.loop_enabled = true;
+        let len = 2 * (BEAT * 15.0) as usize;
+        let reference = looping(&p, len, &[512]);
+        assert!(reference.iter().any(|x| *x != 0.0));
+        for sizes in [&[37usize, 100, 1024, 7][..], &[1024], &[64, 333]] {
+            assert_null(
+                &reference,
+                &looping(&p, len, sizes),
+                0.0,
+                &format!("{what}, blocks {sizes:?}"),
+            );
+        }
+    }
+}
