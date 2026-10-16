@@ -66,6 +66,11 @@ struct Rig {
 
 impl Rig {
     fn new(project: &Project, latent: &[EffectId]) -> Self {
+        Rig::with(project, latent, DELAY, false)
+    }
+
+    /// [`Rig::new`] with delays of `delay` samples, and the project's loop when `looped`.
+    fn with(project: &Project, latent: &[EffectId], delay: usize, looped: bool) -> Self {
         let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
         let (tx_engine, rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
         let (cap_tx, cap) = rtrb::RingBuffer::<f32>::new(CAPTURE_SAMPLES);
@@ -74,10 +79,12 @@ impl Rig {
         let mut rig = Rig {
             tx: {
                 let mut snap = Snapshot::compile(project, 1);
-                snap.loop_region = None;
+                if !looped {
+                    snap.loop_region = None;
+                }
                 for slot in snap.effect_slots() {
                     let unit = if latent.contains(&slot.id) {
-                        EffectUnit::from_fx(slot, Box::new(PureDelay::new(DELAY)))
+                        EffectUnit::from_fx(slot, Box::new(PureDelay::new(delay)))
                     } else {
                         EffectUnit::new(slot, 48_000.0)
                     };
@@ -338,6 +345,81 @@ fn latency_on_the_master_moves_the_heard_position_by_exactly_that() {
     p.strip_mut(s0).unwrap().effects.push(slot);
     let rig = Rig::new(&p, &[id, sid]);
     assert_eq!(rig.p.stats().latency_samples as usize, 2 * DELAY);
+}
+
+/// Review of fix5: the heard playhead folds back through the loop's wraps as a late
+/// insert's song position does — never through passes that were never played, never on a
+/// first entry. A one-beat loop (8–9 at 120 BPM, 24 000 samples) behind 60 000 samples of
+/// latency, 6 000 samples after its first wrap: the song before the loop, beat 6.75 (the
+/// old fold said 8.75); after a second wrap, the pass before and then the lead-in. And a
+/// tempo change on the first entry into a loop (beats 8–16) does not fold: 7.6, not 15.6.
+#[test]
+fn the_heard_position_folds_only_through_the_wraps_played() {
+    let beats = |t: f64| t / PPQ as f64;
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(8),
+        end: Ticks::beats(9),
+    });
+    p.loop_enabled = true;
+    let id = on_master(&mut p, EffectKind::Eq);
+    let mut rig = Rig::with(&p, &[id], 60_000, true);
+    assert_eq!(rig.p.stats().latency_samples, 60_000);
+    rig.send(EngineMessage::Play);
+    rig.play(9 * 24_000 + 6_000);
+    let heard = beats(rig.p.heard_position_f64());
+    assert!((heard - 6.75).abs() < 1e-6, "one wrap: {heard}");
+    rig.play(24_000);
+    let heard = beats(rig.p.heard_position_f64());
+    assert!((heard - 7.75).abs() < 1e-6, "two wraps: {heard}");
+    rig.play(2 * 24_000);
+    let heard = beats(rig.p.heard_position_f64());
+    assert!((heard - 8.75).abs() < 1e-6, "four wraps: {heard}");
+
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(8),
+        end: Ticks::beats(16),
+    });
+    let mut rig = Rig::with(&p, &[id], 12_000, true);
+    rig.send(EngineMessage::Play);
+    rig.play(8 * 24_000 + 2_400);
+    let mut faster = p.clone();
+    faster.tempo_bpm = 121.0;
+    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(&faster, 2))));
+    rig.play(1);
+    let heard = beats(rig.p.heard_position_f64());
+    assert!(heard < 8.0 && (heard - 7.6).abs() < 0.01, "a first entry: {heard}");
+}
+
+/// Review of fix5: a wrap the engine forces counts, through the processor — the loop's end
+/// moved behind the playing playhead (beat 8½ in a loop 8–9 that becomes 8–8¼) wraps at
+/// the next pass, and what is heard half a beat later is where the playhead was then,
+/// played before the edit (8½ less 11 000 samples), not the song before the loop (the
+/// wraps forgotten, as `seek` did: 7.54) nor a fold into the new loop.
+#[test]
+fn a_forced_wrap_is_heard_where_the_playhead_was() {
+    let beats = |t: f64| t / PPQ as f64;
+    let mut p = demo_project();
+    p.tempo_bpm = 120.0;
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(8),
+        end: Ticks::beats(9),
+    });
+    p.loop_enabled = true;
+    let id = on_master(&mut p, EffectKind::Eq);
+    let mut rig = Rig::with(&p, &[id], 12_000, true);
+    rig.send(EngineMessage::Play);
+    rig.play(9 * 24_000 + 12_000);
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(8),
+        end: Ticks::beats(8) + Ticks(PPQ / 4),
+    });
+    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(&p, 2))));
+    rig.play(1_000);
+    let heard = beats(rig.p.heard_position_f64());
+    let want = 8.5 - 11_000.0 / 24_000.0;
+    assert!((heard - want).abs() < 1e-6, "heard {heard}, want {want}");
 }
 
 /// The click goes through a line of the whole output's latency, the master's included, so

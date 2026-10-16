@@ -215,7 +215,9 @@ pub const PASSES_KEPT: usize = 32;
 
 /// A loop's wraps since the transport started or was moved, as the audio reaching a late
 /// insert lies behind them (review of fix3: folded only after a wrap; review of fix4: no
-/// further back than the wraps played, by the passes' real lengths).
+/// further back than the wraps played, by the passes' real lengths; review of fix5: each
+/// stretch ends where the playhead really was when it wrapped — the loop's end, or where a
+/// forced wrap found it).
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Wraps {
     /// Samples played since the last wrap.
@@ -228,29 +230,41 @@ pub struct Wraps {
     /// The loop's length in samples at the current tempo, for passes older than the
     /// kept ones.
     pub loop_samples: f64,
-    /// The lengths of the last full passes, a ring with the newest at `head`.
+    /// The loop's end, in quarter notes: where the passes older than the kept ones end.
+    pub loop_end: f64,
+    /// Where the stretch before the first wrap ended, in quarter notes.
+    lead_end: f64,
+    /// The last full passes, a ring with the newest at `head`: their lengths in samples
+    /// and where each ended, in quarter notes.
     past: [u32; PASSES_KEPT],
+    ends: [f64; PASSES_KEPT],
     head: u8,
 }
 
 impl Wraps {
-    /// The first wrap, `since` samples ago, of a loop `loop_samples` long; the pass
-    /// playing is `pass` samples.
-    pub fn first(since: u64, pass: u64, loop_samples: f64) -> Wraps {
+    /// The first wrap, `since` samples ago, the playhead at `end` (quarter notes) when it
+    /// wrapped; the pass playing is `pass` samples of a loop `loop_samples` long, ending
+    /// at `loop_end`.
+    pub fn first(since: u64, pass: u64, end: f64, loop_samples: f64, loop_end: f64) -> Wraps {
         Wraps {
             since,
             pass,
             count: 1,
             loop_samples,
+            loop_end,
+            lead_end: end,
             past: [0; PASSES_KEPT],
+            ends: [0.0; PASSES_KEPT],
             head: 0,
         }
     }
 
-    /// Another wrap now, ending a pass `since` samples long.
-    pub fn wrap(&mut self) {
+    /// Another wrap now, the playhead at `end` (quarter notes), ending a pass `since`
+    /// samples long.
+    pub fn wrap(&mut self, end: f64) {
         self.head = ((self.head as usize + 1) % PASSES_KEPT) as u8;
         self.past[self.head as usize] = u32::try_from(self.since).unwrap_or(u32::MAX);
+        self.ends[self.head as usize] = end;
         self.count = self.count.saturating_add(1);
         self.since = 0;
     }
@@ -260,10 +274,9 @@ impl Wraps {
         (self.count - 1).min(PASSES_KEPT as u32)
     }
 
-    /// The full pass `j` before the one playing (1: the last), `j <= kept`.
-    fn past(&self, j: u32) -> u64 {
-        let i = (self.head as usize + PASSES_KEPT - (j as usize - 1)) % PASSES_KEPT;
-        u64::from(self.past[i])
+    /// The ring's index of the full pass `j` before the one playing (1: the last).
+    fn at(&self, j: u32) -> usize {
+        (self.head as usize + PASSES_KEPT - (j as usize - 1)) % PASSES_KEPT
     }
 
     /// Samples from the start of the passes older than the kept ones to `m` passes before
@@ -275,8 +288,9 @@ impl Wraps {
 
     /// Where the audio `back` samples before now lies: `None` in the pass playing (from
     /// the last wrap on), otherwise how many samples before the wrap that ends its stretch
-    /// (1 … that stretch's length; before the first wrap, the song before the loop).
-    pub fn before_wrap(&self, back: u64) -> Option<u64> {
+    /// (1 … that stretch's length; before the first wrap, the song before the loop) and
+    /// where the playhead was at that wrap, in quarter notes.
+    pub fn locate(&self, back: u64) -> Option<(u64, f64)> {
         if back <= self.since {
             return None;
         }
@@ -285,9 +299,10 @@ impl Wraps {
         let kept = self.kept();
         let mut j = 1;
         while j <= kept {
-            let p = self.past(j);
+            let i = self.at(j);
+            let p = u64::from(self.past[i]);
             if r <= p {
-                return Some(r);
+                return Some((r, self.ends[i]));
             }
             r -= p;
             j += 1;
@@ -296,7 +311,7 @@ impl Wraps {
         // back than the wraps played.
         let left = u64::from(full - kept);
         if left == 0 {
-            return Some(r);
+            return Some((r, self.lead_end));
         }
         let mut m = ((r as f64 / self.loop_samples.max(1.0)) as u64).min(left);
         while m > 0 && self.older(m) >= r {
@@ -305,7 +320,17 @@ impl Wraps {
         while m < left && self.older(m + 1) < r {
             m += 1;
         }
-        Some(r - self.older(m))
+        let end = if m == left {
+            self.lead_end
+        } else {
+            self.loop_end
+        };
+        Some((r - self.older(m), end))
+    }
+
+    /// [`Self::locate`]'s samples before the wrap alone.
+    pub fn before_wrap(&self, back: u64) -> Option<u64> {
+        self.locate(back).map(|(r, _)| r)
     }
 }
 
@@ -326,12 +351,8 @@ impl SongPosition {
         }
         let per_sample = self.tempo_bpm / 60.0 / sample_rate.max(1.0);
         let mut beats = self.beats - frames as f64 * per_sample;
-        if let (Some((ls, le)), Some(w)) = (self.loop_beats, self.wrap) {
-            if le > ls {
-                if let Some(r) = w.before_wrap(frames as u64) {
-                    beats = le - r as f64 * per_sample;
-                }
-            }
+        if let Some((r, end)) = self.wrap.and_then(|w| w.locate(frames as u64)) {
+            beats = end - r as f64 * per_sample;
         }
         let bar = f64::from(self.time_sig_num.max(1)) * 4.0 / f64::from(self.time_sig_den.max(1));
         SongPosition {
@@ -402,7 +423,7 @@ mod position_tests {
             time_sig_den: 4,
             loop_beats: Some((8.0, 16.0)),
             // A quarter beat (6 000 samples) after a wrap, the pass 8 beats long.
-            wrap: Some(super::Wraps::first(6_000, 192_000, 192_000.0)),
+            wrap: Some(super::Wraps::first(6_000, 192_000, 16.0, 192_000.0, 16.0)),
         };
         assert_eq!(p.earlier(0, 48_000.0), p);
         // 12 000 samples at 120 BPM are half a beat: before the loop's start, so the end
@@ -444,10 +465,10 @@ mod position_tests {
         // A loop of one beat (24 000 samples), 6 000 samples after a wrap, an insert
         // 60 000 samples late: 54 000 before the wrap.
         let after = |passes: &[u64]| {
-            let mut w = super::Wraps::first(0, 24_000, 24_000.0);
+            let mut w = super::Wraps::first(0, 24_000, 9.0, 24_000.0, 9.0);
             for &len in passes {
                 w.since = len;
-                w.wrap();
+                w.wrap(9.0);
             }
             w.since = 6_000;
             SongPosition {
@@ -472,10 +493,10 @@ mod position_tests {
         }
         // Passes of their real lengths, not the one playing's: a pass a sample longer
         // moves the wrap the audio crosses by that sample.
-        let mut w = super::Wraps::first(0, 24_000, 24_000.0);
+        let mut w = super::Wraps::first(0, 24_000, 9.0, 24_000.0, 9.0);
         for len in [24_001, 24_001] {
             w.since = len;
-            w.wrap();
+            w.wrap(9.0);
         }
         w.since = 6_000;
         assert_eq!(

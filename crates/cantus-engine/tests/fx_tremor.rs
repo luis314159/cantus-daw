@@ -389,8 +389,11 @@ fn a_late_gate_hears_each_wrap_where_its_audio_wraps() {
 
 /// Review of fix4: an insert later than the loop is long (four Flexus, 960 samples; a
 /// loop of a 32nd note, 703⅛ samples — passes of 703 and 704) hears, right after the
-/// first wrap, the song leading into the loop — not passes that were never played — and
-/// after more wraps the passes at their real lengths.
+/// first wrap, the song leading into the loop — not passes that were never played. The
+/// gate cannot tell one pass length from another here (every loop phase is in its shut
+/// half; review of fix5), so the fold it is given is checked against the transport frame
+/// by frame: where the song was 960 frames before, to a quarter of a sample — a pass
+/// counted a sample long or short is a whole sample off.
 #[test]
 fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
     let mut ungated = lead_only();
@@ -420,4 +423,37 @@ fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
         behind > 100,
         "the frames behind the first wrap were checked: {behind}"
     );
+    let frames = len / 2;
+    let (pos, wraps) = positions(&p, frames);
+    assert!(wraps.len() > 20, "{} wraps", wraps.len());
+    let per_sample = p.tempo_bpm / 60.0 / 48_000.0;
+    let mut t = cantus_engine::Transport::new(48_000.0);
+    t.set_bpm(p.tempo_bpm);
+    t.set_loop(p.loop_region.clone());
+    t.seek(Ticks::ZERO);
+    t.play();
+    let mut folded = 0;
+    for f in 0..frames {
+        if f >= 960 && t.wraps().is_some() {
+            let now = cantus_engine::SongPosition {
+                playing: true,
+                tempo_bpm: p.tempo_bpm,
+                beats: t.position_f64() / PPQ as f64,
+                time_sig_num: 4,
+                time_sig_den: 4,
+                loop_beats: Some((6.5, 6.5 + 1.0 / 32.0)),
+                wrap: t.wraps(),
+                ..Default::default()
+            };
+            let heard = now.earlier(960, 48_000.0).beats;
+            assert!(
+                (heard - pos[f - 960]).abs() < 0.25 * per_sample,
+                "frame {f}: folded to {heard}, the transport was at {}",
+                pos[f - 960]
+            );
+            folded += 1;
+        }
+        t.advance(1);
+    }
+    assert!(folded > 20_000, "{folded}");
 }

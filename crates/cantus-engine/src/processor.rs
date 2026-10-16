@@ -463,8 +463,10 @@ impl Processor {
     /// The song position being **heard** now, in ticks: the engine's position less the
     /// output's latency (ADR 0022). Exactly the position the engine was at `latency`
     /// samples ago; after a start or a seek, the start point until its first sample has
-    /// come out; across a loop wrap, counted back into the loop's end. Stopped, the
-    /// engine's position.
+    /// come out; across a loop wrap, counted back through the wraps played as a late
+    /// insert's song position is (`Wraps::before_wrap`; review of fix5: it folded by the
+    /// loop's length through passes never played, and on a first entry after a tempo
+    /// change). Stopped, the engine's position.
     pub fn heard_position_f64(&self) -> f64 {
         let t = &self.transport;
         let latency = self.pdc.total as u64;
@@ -476,14 +478,11 @@ impl Processor {
             return x;
         }
         // The playhead wrapped (or the tempo changed) within the last `back` samples.
-        let mut x = t.position_f64() - back as f64 * t.ticks_per_sample();
-        if let Some(l) = t.loop_region() {
-            let (start, end) = (l.start.0 as f64, l.end.0 as f64);
-            if x < start && end > start {
-                x = end - (start - x).rem_euclid(end - start);
-            }
+        let x = t.position_f64() - back as f64 * t.ticks_per_sample();
+        match t.wraps().and_then(|w| w.locate(back)) {
+            Some((r, end)) => end * cantus_core::PPQ as f64 - r as f64 * t.ticks_per_sample(),
+            None => x,
         }
-        x
     }
 
     /// [`Self::heard_position_f64`] as whole ticks, rounded down like

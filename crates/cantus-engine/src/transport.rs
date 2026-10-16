@@ -132,6 +132,7 @@ impl Transport {
         let l = self.loop_region.as_ref()?;
         w.pass = w.since + self.samples_until_loop_end()?;
         w.loop_samples = (l.end.0 - l.start.0) as f64 / self.ticks_per_sample();
+        w.loop_end = l.end.0 as f64 / PPQ as f64;
         Some(w)
     }
 
@@ -149,13 +150,22 @@ impl Transport {
     }
 
     /// Move the playhead to the loop's start as a wrap (the loop's end due at a pass's first
-    /// sample): counted with the others, as `advance` counts its own (review of fix4).
+    /// sample: played from at or past the loop's end, the loop moved behind the playhead):
+    /// counted with the others, as `advance` counts its own (review of fix4), the stretch
+    /// before it ending where the playhead was (review of fix5).
     pub fn wrap_to(&mut self, start: Ticks) {
+        let at = self.position_f64();
         self.origin_tick = start.0 as f64;
         self.samples = 0;
+        self.count_wrap(at);
+    }
+
+    /// A wrap now, the playhead at `at` (ticks) when it came.
+    fn count_wrap(&mut self, at: f64) {
+        let at = at / PPQ as f64;
         match self.wraps.as_mut() {
-            Some(w) => w.wrap(),
-            None => self.wraps = Some(Wraps::first(0, 0, 0.0)),
+            Some(w) => w.wrap(at),
+            None => self.wraps = Some(Wraps::first(0, 0, at, 0.0, 0.0)),
         }
     }
 
@@ -217,13 +227,11 @@ impl Transport {
             let end_s = self.target_sample(end);
             if self.samples >= end_s && before < end_s && self.position_f64() >= start {
                 // Carry the sub-sample overshoot so loops never drift.
-                let overshoot = self.position_f64() - end;
+                let at = self.position_f64();
+                let overshoot = at - end;
                 self.origin_tick = start + overshoot.max(0.0);
                 self.samples = 0;
-                match self.wraps.as_mut() {
-                    Some(w) => w.wrap(),
-                    None => self.wraps = Some(Wraps::first(0, 0, 0.0)),
-                }
+                self.count_wrap(at);
                 return true;
             }
         }
@@ -293,6 +301,49 @@ mod tests {
         assert_eq!(t.samples_until(-4.0), 0);
         t.advance(10);
         assert_eq!(t.samples_until(1.0), 15);
+    }
+
+    /// Review of fix5: a wrap the engine forces — played from past the loop's end, or the
+    /// loop's end moved behind the playhead — counts like `advance`'s own, and the stretch
+    /// it ends ends where the playhead was (the song straight, or the old loop's pass), so
+    /// a late insert folds back to where its audio was played. Going back to `seek` (the
+    /// wraps forgotten) fails it.
+    #[test]
+    fn a_forced_wrap_counts_and_its_stretch_ends_where_the_playhead_was() {
+        let beats = |n: f64| Ticks((n * PPQ as f64) as i64);
+        let mut t = Transport::new(48_000.0);
+        t.set_bpm(120.0);
+        t.set_loop(Some(LoopRegion {
+            start: beats(8.0),
+            end: beats(9.0),
+        }));
+        // Played from beat 12, past the loop: the end is due at once.
+        t.seek(beats(12.0));
+        t.play();
+        assert_eq!(t.samples_until_loop_end(), Some(0));
+        t.wrap_to(beats(8.0));
+        let w = t.wraps().expect("the forced wrap counts");
+        assert_eq!((w.count, w.since), (1, 0));
+        t.advance(6_000);
+        // 30 000 samples back: 24 000 before the wrap, the song at beat 12 played straight.
+        assert_eq!(t.wraps().unwrap().locate(30_000), Some((24_000, 12.0)));
+        // A natural wrap at beat 9, then halfway through the next pass the loop's end
+        // moved to 8¼, behind the playhead: forced again, ending a stretch at 8½.
+        assert!(t.advance(18_000));
+        t.advance(12_000);
+        t.set_loop(Some(LoopRegion {
+            start: beats(8.0),
+            end: beats(8.25),
+        }));
+        assert_eq!(t.samples_until_loop_end(), Some(0));
+        t.wrap_to(beats(8.0));
+        t.advance(1_000);
+        let w = t.wraps().unwrap();
+        assert_eq!(w.count, 3);
+        assert_eq!(w.locate(1_000), None, "the pass playing");
+        assert_eq!(w.locate(7_000), Some((6_000, 8.5)), "the stretch the edit cut");
+        assert_eq!(w.locate(13_001), Some((1, 9.0)), "the pass before, at its end");
+        assert_eq!(w.locate(37_001), Some((1, 12.0)), "the song before the loop");
     }
 
     /// Play `samples` one at a time from `from` with the loop `[ls, le)` (in ticks), the
