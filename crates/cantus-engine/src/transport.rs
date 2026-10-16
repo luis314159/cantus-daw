@@ -136,6 +136,11 @@ impl Transport {
         Some(w)
     }
 
+    /// TEMPORARY stub (fix7, tests first).
+    pub fn wraps_played(&self) -> Option<Wraps> {
+        self.wraps()
+    }
+
     pub fn stop(&mut self) {
         self.playing = false;
     }
@@ -356,6 +361,51 @@ mod tests {
             Some((1, 12.0)),
             "the song before the loop"
         );
+    }
+
+    /// Review of fix6: a late insert folds back through the wraps played whatever the loop
+    /// does after them. A loop 8–9 turned off, or moved ahead of the playhead (12–13),
+    /// 1 000 samples after a wrap: the song position an insert 12 000 samples late is
+    /// given is beat 9 less 11 000 samples, not the song straight back (≈ 7.54). Played
+    /// past the wraps' reach, straight; a seek, or a stop and a start, forgets them.
+    #[test]
+    fn the_wraps_played_outlive_the_loop() {
+        let sr = 48_000.0;
+        let late = |t: &Transport| {
+            crate::processor::song_position_of(t, &None, sr)
+                .earlier(12_000, sr)
+                .beats
+        };
+        for ahead in [None, Some((12, 13))] {
+            let mut t = Transport::new(sr);
+            t.set_bpm(120.0);
+            t.set_loop(Some(LoopRegion {
+                start: Ticks::beats(8),
+                end: Ticks::beats(9),
+            }));
+            t.seek(Ticks::beats(8));
+            t.play();
+            assert!(t.advance(24_000));
+            t.advance(1_000);
+            t.set_loop(ahead.map(|(s, e)| LoopRegion {
+                start: Ticks::beats(s),
+                end: Ticks::beats(e),
+            }));
+            assert_eq!(t.samples_until_loop_end(), None, "no loop ahead");
+            let want = 9.0 - 11_000.0 / 24_000.0;
+            let got = late(&t);
+            assert!((got - want).abs() < 1e-9, "{ahead:?}: {got}, want {want}");
+            assert_eq!(t.wraps_played().map(|w| w.count), Some(1));
+            t.advance(11_000);
+            let got = late(&t);
+            assert!((got - 8.0).abs() < 1e-9, "{ahead:?}, at the wrap: {got}");
+            let mut stopped = t.clone();
+            stopped.stop();
+            stopped.play();
+            assert_eq!(stopped.wraps_played(), None, "a stop and a start");
+            t.seek(Ticks::beats(10));
+            assert_eq!(t.wraps_played(), None, "a seek");
+        }
     }
 
     /// Play `samples` one at a time from `from` with the loop `[ls, le)` (in ticks), the

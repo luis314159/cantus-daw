@@ -429,6 +429,58 @@ fn a_forced_wrap_is_heard_where_the_playhead_was() {
     assert!((heard - want).abs() < 1e-6, "heard {heard}, want {want}");
 }
 
+/// Review of fix6: the wraps played stay played when the loop changes. A loop 8–9 behind
+/// 12 000 samples of latency, turned off — or moved ahead of the playhead, to 12–13 —
+/// 1 000 samples after a wrap: what is heard is still the pass before the wrap, beat 9
+/// less 11 000 samples (≈ 8.54), not the song straight back from the playhead (≈ 7.54:
+/// the wraps hidden because no loop lay ahead). Once the latency has passed the wrap, the
+/// song straight from the loop's start.
+#[test]
+fn the_heard_position_keeps_the_wraps_played_when_the_loop_changes() {
+    let beats = |t: f64| t / PPQ as f64;
+    let ahead = LoopRegion {
+        start: Ticks::beats(12),
+        end: Ticks::beats(13),
+    };
+    for (what, region, enabled) in [
+        ("the loop turned off", None, false),
+        ("the loop moved ahead", Some(ahead), true),
+    ] {
+        let mut p = demo_project();
+        p.tempo_bpm = 120.0;
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(8),
+            end: Ticks::beats(9),
+        });
+        p.loop_enabled = true;
+        let id = on_master(&mut p, EffectKind::Eq);
+        let mut rig = Rig::with(&p, &[id], 12_000, true);
+        rig.send(EngineMessage::Play);
+        rig.play(9 * 24_000 + 1_000);
+        if region.is_some() {
+            p.loop_region = region.clone();
+        }
+        p.loop_enabled = enabled;
+        rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
+            &p, 2,
+        ))));
+        rig.play(1);
+        let heard = beats(rig.p.heard_position_f64());
+        let want = 9.0 - 10_999.0 / 24_000.0;
+        assert!(
+            (heard - want).abs() < 1e-6,
+            "{what}: heard {heard}, want {want}"
+        );
+        rig.play(12_000);
+        let heard = beats(rig.p.heard_position_f64());
+        let want = 8.0 + 1_001.0 / 24_000.0;
+        assert!(
+            (heard - want).abs() < 1e-6,
+            "{what}, later: heard {heard}, want {want}"
+        );
+    }
+}
+
 /// The click goes through a line of the whole output's latency, the master's included, so
 /// a beat's click still comes out with that beat.
 #[test]
