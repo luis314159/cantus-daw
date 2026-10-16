@@ -1150,6 +1150,35 @@ its name's letters, never by typing with a track selected.** All four landed in 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
 intelligence (stems, audio-to-MIDI, mastering assistant) → E generative audio.
 
+**What an AI needs to make great music in Cantus — learned by doing (2026-10-15).** Round
+28's demo builder composed and mixed *With All Your Heart* in code, which is what an AI
+would do through MCP (`docs/round28/demo.md`). Its findings refine `research/ai/
+mcp-server.md` §3 (the owner asked for them; to build with phase B):
+
+- **Listen and get numbers back, in one call**: `audition(range, solo/mute set, master
+  on/off)` → loudness per section (I, short-term, LRA), true peak, octave spectrum against a
+  reference curve (a genre curve or the user's WAV), stereo correlation, clicks at section
+  boundaries, and a link to the WAV. The demo's mix took four full 3-minute renders.
+- **Per-track analysis in the mix** and a **masking matrix** (who fights in which band),
+  not soloed guesses.
+- **A music linter** (`lint_music`): notes ringing across a chord change, clashes with the
+  sounding chord, doubled notes, out-of-scale notes — the demo's Fm7-under-E♭/G clash was
+  found only by a reviewer.
+- **A machine-readable catalogue** of every instrument and effect: keys, ranges, units,
+  tapers, presets and what they set, latency, typical uses — generated from the parameter
+  tables (the builder read Rust source to learn that `b1.shape = 0` is a bell). **Model
+  limits up front** (±12 dB trims, strip counts).
+- **Chunky musical tools, each one undo step**: `write_part(track, chart, pattern, feel)`,
+  `voice_chords(chart, voices, range)`, `pedal_from_chart`, `automate(target, points in
+  parameter units, shapes)`, `set_mix_targets(per-track LUFS)` solving the trims,
+  `apply_preset`/`list_presets`, `add_modulator`/`route`, comping tools. Analysis tools take
+  solo/mute sets. Drop `analyse_key_tempo` for generated projects (the AI knows them).
+- **What Cantus needs inside for those tools**: a range render that starts from a cached
+  state at section starts (render section 5 without 1–4); per-strip analysis taps during an
+  offline render (Speculum's analysis headless on every strip); a cheap static harmony
+  linter in core; a server-side "live = offline" check (the builder's own harness first
+  diverged from the app by sending automation differently).
+
 ## 8. Polish
 
 - Accessibility (screen-reader semantics for the painted views, keyboard-only operation,
