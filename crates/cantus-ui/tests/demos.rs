@@ -548,22 +548,19 @@ fn the_showcase_plays_round_28() {
     }
 }
 
-/// Played live — irregular blocks, the units sent as the backend sends them, delay
-/// compensation as the engine asks for it — the riser, the filter build and the first
-/// chorus (bars 28–36: automation, modulators, the follower, every insert) are the same
-/// samples as the offline render, to the bit.
-#[test]
-fn the_showcase_renders_the_same_offline_and_in_real_time() {
-    use cantus_engine::{pdc, EffectUnit, EngineEvent, EngineMessage, Processor};
+/// Drive a processor as the audio callback does — the units and the automation sent as the
+/// backend sends them, delay compensation as the engine asks for it, irregular blocks, the
+/// events drained
+/// — from `start` for `frames` frames: what playing the project live sounds like.
+fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
+    use cantus_engine::{
+        pdc, AutomationRuntime, EffectUnit, EngineEvent, EngineMessage, Processor,
+    };
     const SR: f32 = 48_000.0;
     cantus_engine::inst::chorda::ensure(Default::default(), SR);
-    let p = heart();
-    let bar = p.time_signature.ticks_per_bar();
-    let (start, end) = (bar * 28, bar * 36);
-    let offline = render_range(&p, start, Some(end), 0.0);
-    let frames = offline.frames();
-
-    let snap = Arc::new(Snapshot::compile(&p, 1));
+    let mut snap = Snapshot::compile(p, 1);
+    snap.loop_region = None;
+    let snap = Arc::new(snap);
     let (mut tx, rx) = rtrb::RingBuffer::<EngineMessage>::new(256);
     let (etx, mut erx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
     let mut proc_ = Processor::without_midi(SR as f64, rx, etx);
@@ -576,6 +573,8 @@ fn the_showcase_renders_the_same_offline_and_in_real_time() {
             .unwrap();
         proc_.settle();
     }
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+        .unwrap();
     tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
     proc_.settle();
     while let Ok(ev) = erx.pop() {
@@ -588,27 +587,63 @@ fn the_showcase_renders_the_same_offline_and_in_real_time() {
     tx.push(EngineMessage::Seek(start)).unwrap();
     tx.push(EngineMessage::Play).unwrap();
     let sizes = [128usize, 333, 512, 96, 1024, 17];
-    let mut live = Vec::with_capacity(frames * 2);
+    let mut out = Vec::with_capacity(frames * 2);
     let mut i = 0;
-    while live.len() / 2 < frames {
-        let n = sizes[i % sizes.len()].min(frames - live.len() / 2);
+    while out.len() / 2 < frames {
+        let n = sizes[i % sizes.len()].min(frames - out.len() / 2);
         i += 1;
         let mut buf = vec![0f32; n * 2];
         proc_.process(&mut buf, 2);
-        live.extend_from_slice(&buf);
+        out.extend_from_slice(&buf);
         while erx.pop().is_ok() {}
     }
-    let first = offline
-        .samples
-        .iter()
-        .zip(&live)
-        .position(|(a, b)| a.to_bits() != b.to_bits());
+    out
+}
+
+/// The first frame where two renders differ, and by how much at most.
+fn first_difference(a: &[f32], b: &[f32]) -> Option<(usize, f32)> {
+    let at = a.iter().zip(b).position(|(x, y)| x.to_bits() != y.to_bits())?;
+    let most = a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0f32, f32::max);
+    Some((at / 2, most))
+}
+
+/// Played live, the riser, the filter build and the first chorus (bars 28–36: automation,
+/// modulators, the follower, every insert) are the same samples as the offline render, to
+/// the bit.
+#[test]
+fn the_showcase_renders_the_same_offline_and_in_real_time() {
+    let p = heart();
+    let bar = p.time_signature.ticks_per_bar();
+    let (start, end) = (bar * 28, bar * 36);
+    let offline = render_range(&p, start, Some(end), 0.0);
+    let played = live(&p, start, offline.frames());
     assert_eq!(
-        first,
+        first_difference(&offline.samples, &played),
         None,
-        "live differs from offline at frame {:?}",
-        first.map(|i| i / 2)
+        "live differs from offline (frame, largest difference)"
     );
+}
+
+/// Where live and offline part, track by track (each soloed, the master chain out) and
+/// with the master chain: `cargo test -p cantus-ui --test demos -- --ignored --nocapture
+/// live_against_offline`.
+#[test]
+#[ignore]
+fn live_against_offline() {
+    let p = heart();
+    let bar = p.time_signature.ticks_per_bar();
+    let (start, end) = (bar * 28, bar * 30);
+    let mut dry = p.clone();
+    dry.master.fx_enabled = false;
+    let mut cases: Vec<(String, Project)> = vec![("all".into(), p.clone()), ("all, master out".into(), dry.clone())];
+    for i in 0..p.tracks.len() {
+        cases.push((p.tracks[i].name.clone(), solo(&dry, i)));
+    }
+    for (name, q) in cases {
+        let offline = render_range(&q, start, Some(end), 0.0);
+        let played = live(&q, start, offline.frames());
+        println!("{name:<16} {:?}", first_difference(&offline.samples, &played));
+    }
 }
 
 /// Tonus is heard on the topline: against the same render with its amount at 0 (the voice

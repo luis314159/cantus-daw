@@ -170,8 +170,17 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
             let lh = lay(chart, 3, 50, 65, 57);
             let mut v = over(&hold(&lh, 56, 0.98), &lh, len);
             v.extend(over(&bass(&lh, 36, 4.0, &[(0.0, 3.9, 64, B::R)]), &lh, len));
+            // The tune in octaves; the lower one leaves out a note the left hand holds.
             let tune = melody(BREAK_TUNE, 84, 0.95);
-            v.extend(transpose(&tune, -12).iter().map(|e| Ev { vel: e.vel - 16, ..*e }));
+            v.extend(
+                transpose(&tune, -12)
+                    .iter()
+                    .filter(|e| !lh.at(e.at).3.contains(&e.pitch))
+                    .map(|e| Ev {
+                        vel: e.vel - 16,
+                        ..*e
+                    }),
+            );
             v.extend(tune);
             v
         }

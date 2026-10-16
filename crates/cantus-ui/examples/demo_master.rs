@@ -217,13 +217,13 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
     let mut at = 0;
     let (mut re, mut im) = (vec![0f32; N], vec![0f32; N]);
     while at + N <= n {
-        for i in 0..N {
-            re[i] = 0.5 * (l[at + i] + rr[at + i]) * win[i];
-            im[i] = 0.0;
+        for (i, (x, y)) in re.iter_mut().zip(im.iter_mut()).enumerate() {
+            *x = 0.5 * (l[at + i] + rr[at + i]) * win[i];
+            *y = 0.0;
         }
         cantus_dsp::spectrum::fft(&mut re, &mut im);
-        for k in 0..N / 2 {
-            power[k] += (re[k] * re[k] + im[k] * im[k]) as f64;
+        for (p, (x, y)) in power.iter_mut().zip(re.iter().zip(&im)) {
+            *p += (x * x + y * y) as f64;
         }
         frames += 1;
         at += N / 2;
