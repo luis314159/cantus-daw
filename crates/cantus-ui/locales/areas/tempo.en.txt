@@ -1,1 +1,56 @@
 # tempo — round 29: the tempo track, metre changes and markers. Every key here needs its twin in tempo.es.txt.
+
+# Undo labels (cmd.*)
+cmd.tempo.track = tempo track change
+cmd.tempo.add_point = tempo point added
+cmd.tempo.remove_point = tempo point removed
+cmd.tempo.set_point = tempo point change
+cmd.tempo.metres = metre changes
+cmd.tempo.set_metre = metre change
+cmd.tempo.remove_metre = metre change removed
+cmd.tempo.move_metre = metre change moved
+cmd.tempo.add_marker = marker added
+cmd.tempo.remove_marker = marker removed
+cmd.tempo.set_marker = marker change
+cmd.tempo.loop_markers = loop between markers
+
+# Actions (the keymap)
+action.add-marker = Add a marker at the playhead
+action.previous-marker = Go to the previous marker
+action.next-marker = Go to the next marker
+action.loop-between-markers = Loop between markers
+action.select-between-markers = Select between markers
+action.toggle-tempo-track = Show the tempo track
+
+# The tempo track, the metre changes and the markers
+tempo.lane = Tempo
+tempo.marker_lane = Markers
+tempo.marker = Marker
+tempo.metre_change = Metre change
+tempo.view_menu = Tempo track
+tempo.marker_name = Marker {n}
+tempo.status.at_marker = At marker {name}
+tempo.status.no_marker = No marker there
+tempo.menu.ramp = Ramp to the next point
+tempo.menu.type = Type the tempo…
+tempo.menu.remove_point = Remove the point
+tempo.menu.hide = Hide the tempo track
+tempo.menu.add_point = Add a tempo point here
+tempo.menu.remove_track = Remove the tempo track
+tempo.menu.edit_metre = Edit the metre…
+tempo.menu.remove_metre = Remove the metre change
+tempo.menu.rename_marker = Rename…
+tempo.menu.colour = Colour…
+tempo.menu.loop_next = Loop to the next marker
+tempo.menu.select_next = Select to the next marker
+tempo.menu.export_next = Export to the next marker…
+tempo.menu.remove_marker = Remove the marker
+tempo.menu.add_marker = Add a marker here
+tempo.menu.add_metre = Add a metre change here
+tempo.menu.loop_markers = Loop between the markers here
+tempo.menu.select_markers = Select between the markers here
+tempo.menu.go_to = Go to
+tempo.export.markers = Markers
+tempo.export.no_markers = Add two markers to export between them.
+tempo.export.from = From marker
+tempo.export.to = To marker

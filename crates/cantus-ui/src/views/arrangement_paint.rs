@@ -151,7 +151,12 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
     let loop_lane = Rect::from_min_max(rect.min, pos2(rect.right(), rect.top() + LOOP_LANE_H));
     b.rect(b.snap_rect(loop_lane), Fill::Solid(t.ink));
     // Below the loop lane, the punch lane while punch is on (`arrangement_rec`).
-    let numbers_top = geo.punch.map_or(loop_lane.bottom(), |(_, bottom)| bottom);
+    // Under the marker lane and the punch lane, when they are there (ADR 0060).
+    let numbers_top = geo
+        .punch
+        .map(|p| p.1)
+        .or(geo.markers.map(|m| m.1))
+        .unwrap_or(loop_lane.bottom());
     b.hline(
         rect.left(),
         rect.right(),
@@ -197,13 +202,21 @@ pub(super) fn ruler(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
         while narrow * geo.px_per_beat * (every as f32) < 28.0 * s.k && every < 1024 {
             every *= 2;
         }
+        // A metre change's chip at its bar line, the bar's number after it.
+        let chips = super::tempo::chips(app);
         crate::views::bars::each_bar(&map, first, last, |n, start, _| {
+            let x = geo.x(start);
+            let tick = crate::views::beats_to_ticks(start);
+            let mut after = 0.0;
+            if let Some((_, sig)) = chips.iter().find(|(t, _)| *t == tick) {
+                let r = super::tempo::chip_rect(b.ctx(), x, numbers_top, rect.bottom(), *sig, s);
+                after = super::tempo::paint_chip(b, r, *sig, false, s);
+            }
             if (n - 1).rem_euclid(every) != 0 {
                 return;
             }
-            let x = geo.x(start);
             let label = Rect::from_min_max(
-                pos2(x + 3.0 * s.k, numbers_top),
+                pos2(x + 3.0 * s.k + after, numbers_top),
                 pos2(
                     x + narrow * geo.px_per_beat * every as f32 - 2.0 * s.k,
                     rect.bottom() - 1.0,

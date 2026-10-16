@@ -49,6 +49,7 @@ pub mod settings;
 pub mod startup_probe;
 pub mod swap;
 pub mod takes;
+pub mod tempo_ui;
 pub mod theme;
 pub mod theme_family;
 pub mod verse;

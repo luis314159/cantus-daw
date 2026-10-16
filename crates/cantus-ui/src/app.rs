@@ -3138,7 +3138,14 @@ impl CantusApp {
         if self.pitch_action(action) {
             return;
         }
+        // Round 29 (ADR 0060): markers and the tempo track.
+        if self.tempo_action(action) {
+            return;
+        }
         match action {
+            // Handled by `tempo_action` above.
+            AddMarker | PreviousMarker | NextMarker | LoopBetweenMarkers | SelectBetweenMarkers
+            | ToggleTempoTrack => {}
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => {

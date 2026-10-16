@@ -41,7 +41,7 @@ mod snap;
 #[path = "transport_tap.rs"]
 pub mod tap;
 #[path = "transport_tempo.rs"]
-mod tempo;
+pub(crate) mod tempo;
 #[path = "transport_title.rs"]
 pub mod title;
 

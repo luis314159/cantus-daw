@@ -96,14 +96,30 @@ pub fn range_note(app: &CantusApp, scope: Scope) -> Option<String> {
 
 fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     band_row(ui, "export_audio.band.what");
-    let scopes = [Scope::Song, Scope::Selection, Scope::Loop, Scope::Stems];
+    // Between markers (round 29, ADR 0060): the markers around the playhead, until two
+    // are picked below.
+    let markers_scope = match d.scope {
+        Scope::Markers { .. } => d.scope,
+        _ => default_markers(app),
+    };
+    let scopes = [
+        Scope::Song,
+        Scope::Selection,
+        Scope::Loop,
+        markers_scope,
+        Scope::Stems,
+    ];
     let labels = [
         Src::Key("export_audio.scope.song"),
         Src::Key("export_audio.scope.selection"),
         Src::Key("export_audio.scope.loop"),
+        Src::Key("tempo.export.markers"),
         Src::Key("export_audio.scope.stems"),
     ];
-    let at = scopes.iter().position(|s| *s == d.scope).unwrap_or(0);
+    let at = scopes
+        .iter()
+        .position(|s| std::mem::discriminant(s) == std::mem::discriminant(&d.scope))
+        .unwrap_or(0);
     if let Some(i) = row(ui, "export_audio.row.what", |ui| {
         seg(ui, at, &labels, "export_audio.row.what")
     }) {
@@ -121,7 +137,13 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
             super::workspace_settings::note(ui, &t("export_audio.no_selection"), true)
         }
         Some(Scope::Loop) => super::workspace_settings::note(ui, &t("export_audio.no_loop"), true),
+        Some(Scope::Markers { .. }) => {
+            super::workspace_settings::note(ui, &t("tempo.export.no_markers"), true)
+        }
         _ => {}
+    }
+    if let Scope::Markers { from, to } = d.scope {
+        marker_rows(app, ui, d, from, to);
     }
     if let Some(text) = range_note(app, d.scope) {
         super::workspace_settings::note(ui, &text, false);
@@ -448,4 +470,51 @@ pub fn summary(app: &CantusApp, d: &ExportSettings) -> String {
         ));
     }
     line
+}
+
+/// The markers around the playhead as an export range: the one at or before it (the first
+/// otherwise) and the next.
+fn default_markers(app: &CantusApp) -> Scope {
+    let p = app.project();
+    let at = app.engine.position();
+    let i = p.markers.iter().rposition(|m| m.tick <= at).unwrap_or(0);
+    let pick = |k: usize| p.markers.get(k).map_or(0, |m| m.id.0);
+    let (a, b) = if i + 1 < p.markers.len() {
+        (i, i + 1)
+    } else {
+        (i.saturating_sub(1), i)
+    };
+    Scope::Markers {
+        from: pick(a),
+        to: pick(b),
+    }
+}
+
+/// The two markers of a *between markers* export, each picked from the project's markers
+/// by name.
+fn marker_rows(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings, from: u64, to: u64) {
+    let options: Vec<(u64, String)> = app
+        .project()
+        .markers
+        .iter()
+        .map(|m| (m.id.0, m.name.clone()))
+        .collect();
+    let name = |id: u64| {
+        options
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map_or_else(String::new, |(_, n)| n.clone())
+    };
+    let f = row(ui, "tempo.export.from", |ui| {
+        field(ui, &name(from), "tempo.export.from")
+    });
+    if let Some(v) = pick(&f, &options, from) {
+        d.scope = Scope::Markers { from: v, to };
+    }
+    let f = row(ui, "tempo.export.to", |ui| {
+        field(ui, &name(to), "tempo.export.to")
+    });
+    if let Some(v) = pick(&f, &options, to) {
+        d.scope = Scope::Markers { from, to: v };
+    }
 }

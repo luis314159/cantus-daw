@@ -320,6 +320,8 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             app.toggle_pane(pane);
         }
     }
+    // The arrangement's tempo track (round 29, ADR 0060).
+    crate::tempo_ui::view_menu_entry(app, ui);
     // The devices panel (round 20) and the full device picker.
     let mut shown = app.workspace.contains(Pane::Devices);
     if ui

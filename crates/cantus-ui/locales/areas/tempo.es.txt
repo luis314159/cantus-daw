@@ -1,1 +1,56 @@
 # tempo — ronda 29: la pista de tempo, los cambios de compás y los marcadores. Cada clave de tempo.en.txt tiene aquí su gemela.
+
+# Etiquetas de deshacer (cmd.*)
+cmd.tempo.track = cambio de la pista de tempo
+cmd.tempo.add_point = punto de tempo añadido
+cmd.tempo.remove_point = punto de tempo quitado
+cmd.tempo.set_point = cambio de un punto de tempo
+cmd.tempo.metres = cambios de compás
+cmd.tempo.set_metre = cambio de compás
+cmd.tempo.remove_metre = cambio de compás quitado
+cmd.tempo.move_metre = cambio de compás movido
+cmd.tempo.add_marker = marcador añadido
+cmd.tempo.remove_marker = marcador quitado
+cmd.tempo.set_marker = cambio de un marcador
+cmd.tempo.loop_markers = bucle entre marcadores
+
+# Acciones (el mapa de teclas)
+action.add-marker = Añadir un marcador en el cursor
+action.previous-marker = Ir al marcador anterior
+action.next-marker = Ir al marcador siguiente
+action.loop-between-markers = Bucle entre marcadores
+action.select-between-markers = Seleccionar entre marcadores
+action.toggle-tempo-track = Mostrar la pista de tempo
+
+# La pista de tempo, los cambios de compás y los marcadores
+tempo.lane = Tempo
+tempo.marker_lane = Marcadores
+tempo.marker = Marcador
+tempo.metre_change = Cambio de compás
+tempo.view_menu = Pista de tempo
+tempo.marker_name = Marcador {n}
+tempo.status.at_marker = En el marcador {name}
+tempo.status.no_marker = No hay ningún marcador ahí
+tempo.menu.ramp = Rampa hasta el punto siguiente
+tempo.menu.type = Escribir el tempo…
+tempo.menu.remove_point = Quitar el punto
+tempo.menu.hide = Ocultar la pista de tempo
+tempo.menu.add_point = Añadir un punto de tempo aquí
+tempo.menu.remove_track = Quitar la pista de tempo
+tempo.menu.edit_metre = Editar el compás…
+tempo.menu.remove_metre = Quitar el cambio de compás
+tempo.menu.rename_marker = Cambiar el nombre…
+tempo.menu.colour = Color…
+tempo.menu.loop_next = Bucle hasta el marcador siguiente
+tempo.menu.select_next = Seleccionar hasta el marcador siguiente
+tempo.menu.export_next = Exportar hasta el marcador siguiente…
+tempo.menu.remove_marker = Quitar el marcador
+tempo.menu.add_marker = Añadir un marcador aquí
+tempo.menu.add_metre = Añadir un cambio de compás aquí
+tempo.menu.loop_markers = Bucle entre los marcadores de aquí
+tempo.menu.select_markers = Seleccionar entre los marcadores de aquí
+tempo.menu.go_to = Ir a
+tempo.export.markers = Marcadores
+tempo.export.no_markers = Añade dos marcadores para exportar lo que hay entre ellos.
+tempo.export.from = Desde el marcador
+tempo.export.to = Hasta el marcador

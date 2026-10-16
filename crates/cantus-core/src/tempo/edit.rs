@@ -311,3 +311,145 @@ pub(crate) fn apply_set_marker(
     insert_sorted(&mut project.markers, marker);
     Ok(Command::SetMarker { marker: old })
 }
+
+// --- what the interface asks for (the top bar, tap tempo, the tempo lane, controllers,
+// the AI bridge) ------------------------------------------------------------------------
+
+/// The index of the tempo point that governs `at`: the last at or before it (the first
+/// for anything before tick 0); `None` without a tempo track.
+pub fn point_at(project: &Project, at: Ticks) -> Option<usize> {
+    let pts = &project.tempo_points;
+    if pts.is_empty() {
+        return None;
+    }
+    Some(pts.partition_point(|p| p.tick <= at).saturating_sub(1))
+}
+
+/// The command that sets "the tempo" at `at`, as the top bar's field, tap tempo and a
+/// controller mapped to the tempo do (ADR 0060 §2): without a tempo track the song's one
+/// tempo (`SetTempo`); with one, the value of the point that governs `at` — for a ramp,
+/// the value it starts from. `bpm` is clamped to the playable range. Merge the commands of
+/// one gesture under [`set_tempo_merge_key`].
+pub fn set_tempo_at(project: &Project, at: Ticks, bpm: f64) -> Command {
+    let bpm = crate::time::clamp_bpm(bpm);
+    match point_at(project, at) {
+        None | Some(0) => Command::SetTempo { bpm },
+        Some(index) => Command::SetTempoPoint {
+            index,
+            point: TempoPoint {
+                bpm,
+                ..project.tempo_points[index]
+            },
+        },
+    }
+}
+
+/// The merge key of a gesture that sets the tempo at `at` (one undo step per drag, per
+/// point).
+pub fn set_tempo_merge_key(project: &Project, at: Ticks) -> crate::MergeKey {
+    crate::MergeKey::of(&("tempo", point_at(project, at).unwrap_or(0)))
+}
+
+/// The command that sets "the metre" at `at` (ADR 0060 §3): without metre changes the
+/// song's (`SetTimeSignature`); with them, the change in force at `at`, the later changes
+/// keeping their bars.
+pub fn set_metre_at(project: &Project, at: Ticks, signature: TimeSignature) -> Command {
+    if project.metre_changes.is_empty() {
+        return Command::SetTimeSignature {
+            time_signature: signature,
+        };
+    }
+    let i = project
+        .metre_changes
+        .partition_point(|m| m.tick <= at)
+        .saturating_sub(1);
+    Command::SetMetreAt {
+        tick: project.metre_changes[i].tick,
+        signature,
+    }
+}
+
+/// The command that adds a tempo point at `tick` (a tempo track made with it when there is
+/// none; the point there changed when one is there already).
+pub fn add_tempo_point(project: &Project, tick: Ticks, bpm: f64, ramp: bool) -> Command {
+    let bpm = crate::time::clamp_bpm(bpm);
+    let point = TempoPoint { tick, bpm, ramp };
+    let pts = &project.tempo_points;
+    if tick.0 <= 0 {
+        return set_tempo_at(project, Ticks::ZERO, bpm);
+    }
+    if pts.is_empty() {
+        return Command::SetTempoTrack {
+            bpm: project.tempo_bpm,
+            points: vec![
+                TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: project.tempo_bpm,
+                    ramp: false,
+                },
+                point,
+            ],
+        };
+    }
+    match pts.iter().position(|p| p.tick == tick) {
+        Some(index) => Command::SetTempoPoint { index, point },
+        None => Command::InsertTempoPoint {
+            index: pts.partition_point(|p| p.tick < tick),
+            point,
+        },
+    }
+}
+
+#[cfg(test)]
+mod helpers {
+    use super::*;
+
+    #[test]
+    fn the_tempo_now_is_the_governing_points() {
+        let mut p = Project::empty("t");
+        assert_eq!(
+            set_tempo_at(&p, Ticks(5000), 90.0),
+            Command::SetTempo { bpm: 90.0 }
+        );
+        add_tempo_point(&p, Ticks(3840), 140.0, false)
+            .apply(&mut p)
+            .unwrap();
+        assert_eq!(p.tempo_points.len(), 2);
+        assert_eq!(
+            set_tempo_at(&p, Ticks(100), 99.0),
+            Command::SetTempo { bpm: 99.0 }
+        );
+        let c = set_tempo_at(&p, Ticks(5000), 150.0);
+        c.apply(&mut p).unwrap();
+        assert_eq!(p.tempo_points[1].bpm, 150.0);
+        assert_eq!(p.tempo_points[1].tick, Ticks(3840));
+        // Adding where a point is changes it; before it inserts.
+        add_tempo_point(&p, Ticks(3840), 160.0, true)
+            .apply(&mut p)
+            .unwrap();
+        assert_eq!(p.tempo_points.len(), 2);
+        assert!(p.tempo_points[1].ramp);
+        add_tempo_point(&p, Ticks(1920), 100.0, false)
+            .apply(&mut p)
+            .unwrap();
+        assert_eq!(p.tempo_points[1].tick, Ticks(1920));
+        // The metre in force.
+        assert!(matches!(
+            set_metre_at(&p, Ticks(9000), TimeSignature::new(3, 4)),
+            Command::SetTimeSignature { .. }
+        ));
+        Command::SetMetreAt {
+            tick: Ticks(7680),
+            signature: TimeSignature::new(7, 8),
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert_eq!(
+            set_metre_at(&p, Ticks(9000), TimeSignature::new(5, 8)),
+            Command::SetMetreAt {
+                tick: Ticks(7680),
+                signature: TimeSignature::new(5, 8)
+            }
+        );
+    }
+}

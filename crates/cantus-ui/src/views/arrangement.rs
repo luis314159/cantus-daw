@@ -34,12 +34,18 @@ pub mod autolanes;
 /// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
 #[path = "arrangement_comp.rs"]
 pub mod comp;
+/// The markers on the ruler (round 29, ADR 0060).
+#[path = "arrangement_markers.rs"]
+pub(crate) mod markers;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
+/// The tempo track and the metre chips (round 29, ADR 0060).
+#[path = "arrangement_tempo.rs"]
+pub(crate) mod tempo;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
@@ -67,6 +73,10 @@ const PX_MAX: f32 = 400.0;
 
 #[derive(Debug)]
 pub struct ArrangementView {
+    /// The tempo track's lane (round 29, ADR 0060).
+    pub tempo: tempo::State,
+    /// The marker lane (round 29, ADR 0060).
+    pub markers: markers::State,
     pub px_per_beat: f32,
     pub scroll_beats: f32,
     /// How far the rows are scrolled up, in points.
@@ -212,6 +222,8 @@ struct ClipDrag {
 impl Default for ArrangementView {
     fn default() -> Self {
         ArrangementView {
+            tempo: tempo::State::default(),
+            markers: markers::State::default(),
             px_per_beat: 26.0,
             scroll_beats: 0.0,
             scroll_y: 0.0,
@@ -365,39 +377,66 @@ struct Frame {
     /// The punch lane's height (zero while punch is off), between the loop lane and the
     /// bar numbers.
     punch_h: f32,
+    /// The marker lane's height (zero without markers), under the loop lane (ADR 0060).
+    markers_h: f32,
+    /// The tempo track's lane, between the ruler and the tracks (empty while hidden).
+    tempo: Rect,
 }
 
 impl Frame {
-    fn of(full: Rect, header_w: f32, punch_h: f32, s: &Style) -> Frame {
+    /// The regions, with the marker lane in the ruler and the tempo lane under it (round
+    /// 29, ADR 0060).
+    fn with_lanes(
+        full: Rect,
+        header_w: f32,
+        punch_h: f32,
+        markers_h: f32,
+        tempo_h: f32,
+        s: &Style,
+    ) -> Frame {
         let bar = s.s(BAR);
         let hx = full.left() + header_w;
         let right = full.right() - bar;
         let hbar = Rect::from_min_max(pos2(hx + 1.0, full.top()), pos2(right, full.top() + bar));
         let ruler = Rect::from_min_max(
             pos2(hbar.left(), hbar.bottom()),
-            pos2(right, hbar.bottom() + RULER_H + punch_h),
+            pos2(right, hbar.bottom() + RULER_H + punch_h + markers_h),
+        );
+        let tempo = Rect::from_min_max(
+            pos2(hbar.left(), ruler.bottom()),
+            pos2(right, ruler.bottom() + tempo_h),
         );
         let lanes = Rect::from_min_max(
-            pos2(hbar.left(), ruler.bottom()),
+            pos2(hbar.left(), tempo.bottom()),
             pos2(right, full.bottom()),
         );
         Frame {
             corner: Rect::from_min_max(full.min, pos2(hx, ruler.bottom())),
-            headers: Rect::from_min_max(pos2(full.left(), ruler.bottom()), pos2(hx, full.bottom())),
+            headers: Rect::from_min_max(pos2(full.left(), tempo.bottom()), pos2(hx, full.bottom())),
             hbar,
             ruler,
             lanes,
-            vbar: Rect::from_min_max(pos2(right, ruler.bottom()), full.max),
+            vbar: Rect::from_min_max(pos2(right, tempo.bottom()), full.max),
             vcorner: Rect::from_min_max(
                 pos2(right, full.top()),
-                pos2(full.right(), ruler.bottom()),
+                pos2(full.right(), tempo.bottom()),
             ),
             split: Rect::from_center_size(
                 pos2(hx + 0.5, (full.top() + full.bottom()) * 0.5),
                 vec2(s.s(kit::chrome::SPLITTER), full.height()),
             ),
             punch_h,
+            markers_h,
+            tempo,
         }
+    }
+
+    /// The tempo lane's header: the header column beside it.
+    fn tempo_head(&self) -> Rect {
+        Rect::from_min_max(
+            pos2(self.corner.left(), self.tempo.top()),
+            pos2(self.corner.right(), self.tempo.bottom()),
+        )
     }
 }
 
@@ -692,6 +731,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         return;
     }
     let punch_h = rec::punch_height(app, &s);
+    let markers_h = markers::height(app, &s);
+    let tempo_h = tempo::height(app, &s);
     // The automation lanes' order, once per edit.
     let mut auto_st = std::mem::take(&mut app.arrangement.auto);
     auto_st.refresh(app);
@@ -699,7 +740,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let v = &mut app.arrangement;
     let most = HEADER_MAX.min(full.width() * 0.6).max(40.0);
     v.header_width = v.header_width.clamp(HEADER_MIN.min(most), most);
-    let f = Frame::of(full, v.header_width, punch_h, &s);
+    let f = Frame::with_lanes(full, v.header_width, punch_h, markers_h, tempo_h, &s);
     navigate(app, ui, &f, &s);
     let mut geo = layout(app, &f);
     timeline(app, ui, &f, &geo, &s);
@@ -864,14 +905,20 @@ fn layout(app: &mut CantusApp, f: &Frame) -> TimelineGeometry {
         scroll_beats: 0.0,
         rows: Vec::new(),
         punch: None,
+        markers: None,
+        tempo: None,
     });
     geo.left = f.lanes.left();
     geo.width = f.lanes.width();
     geo.ruler_top = f.ruler.top();
     geo.loop_lane_bottom = f.ruler.top() + LOOP_LANE_H;
     geo.body_top = f.lanes.top();
-    geo.punch =
-        (f.punch_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.punch_h));
+    // The marker lane under the loop lane, the punch lane under it (ADR 0060).
+    geo.markers =
+        (f.markers_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.markers_h));
+    let punch_top = geo.loop_lane_bottom + f.markers_h;
+    geo.punch = (f.punch_h > 0.0).then_some((punch_top, punch_top + f.punch_h));
+    geo.tempo = (f.tempo.height() > 0.0).then_some((f.tempo.top(), f.tempo.bottom()));
     geo.px_per_beat = v.px_per_beat;
     geo.scroll_beats = v.scroll_beats;
     let (top, base) = (f.lanes.top() - v.scroll_y, v.track_height);
@@ -1479,6 +1526,10 @@ pub struct TimelineGeometry {
     pub rows: Vec<TrackRow>,
     /// The punch lane's top and bottom, while punch is on (ADR 0025): the red brace.
     pub punch: Option<(f32, f32)>,
+    /// The marker lane's top and bottom, while the song has markers (ADR 0060).
+    pub markers: Option<(f32, f32)>,
+    /// The tempo track's top and bottom, while it is shown (ADR 0060).
+    pub tempo: Option<(f32, f32)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1871,12 +1922,25 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
             paint::ruler(b, a, view, f.ruler, s);
             rec::paint_punch(b, a, view, f.ruler, s);
+            if let Some((top, bottom)) = view.markers {
+                let lane =
+                    Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
+                markers::paint(b, a, view, lane, s);
+            }
         });
+        // The tempo track under the ruler, its name and tempo in the header column.
+        if f.tempo.height() > 0.0 {
+            let head = f.tempo_head();
+            kit::with_brush(&ui.painter().with_clip_rect(f.tempo.union(head)), |b| {
+                tempo::paint(b, a, view, f.tempo, head, s);
+            });
+        }
         kit::with_brush(&lanes_p, |b| {
             paint::lanes(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
             autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
             super::pitch_lane::paint(b, a, view, f.lanes, s);
+            markers::paint_lines(b, a, view, f.lanes, s);
             clips(
                 b,
                 a,
@@ -2279,6 +2343,19 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // Registered after the timeline's own response, so they are on top of it: the punch
     // lane's brace and the take lanes' swipes are theirs, not a clip drag's.
     rec::punch_input(app, ui, view, f.ruler, s);
+    // The marker lane, the metre chips and the tempo track (round 29, ADR 0060).
+    if let Some((top, bottom)) = view.markers {
+        let lane = Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
+        markers::input(app, ui, view, lane, s);
+    }
+    let numbers_top = view
+        .punch
+        .map(|p| p.1)
+        .or(view.markers.map(|m| m.1))
+        .unwrap_or(view.loop_lane_bottom);
+    let numbers = Rect::from_min_max(pos2(f.ruler.left(), numbers_top), f.ruler.max);
+    tempo::metre_input(app, ui, view, numbers, s);
+    tempo::input(app, ui, view, f.tempo, s);
     takes::input(app, ui, view, f.lanes, s);
     autolanes::input(app, ui, f.lanes, s);
     super::pitch_lane::input(app, ui, view, f.lanes, s);

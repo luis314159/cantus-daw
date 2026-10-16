@@ -45,6 +45,17 @@ pub enum Action {
     /// FL's PAT / SONG switch (round 28, ADR 0052).
     TogglePatternMode,
     Panic,
+    /// A marker at the playhead (round 29, ADR 0060).
+    AddMarker,
+    /// The playhead to the marker before it / after it.
+    PreviousMarker,
+    NextMarker,
+    /// The loop from the marker at or before the playhead to the next.
+    LoopBetweenMarkers,
+    /// The time selection from the marker at or before the playhead to the next.
+    SelectBetweenMarkers,
+    /// The arrangement's tempo track shown or hidden.
+    ToggleTempoTrack,
     // File
     NewProject,
     Open,
@@ -196,7 +207,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 82] = [
+    pub const ALL: [Action; 88] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -205,6 +216,12 @@ impl Action {
         Action::ToggleMetronome,
         Action::TapTempo,
         Action::TogglePatternMode,
+        Action::AddMarker,
+        Action::PreviousMarker,
+        Action::NextMarker,
+        Action::LoopBetweenMarkers,
+        Action::SelectBetweenMarkers,
+        Action::ToggleTempoTrack,
         Action::Panic,
         Action::NewProject,
         Action::Open,
@@ -292,6 +309,12 @@ impl Action {
             Action::ToggleMetronome => "toggle-metronome",
             Action::TapTempo => "tap-tempo",
             Action::TogglePatternMode => "toggle-pattern-mode",
+            Action::AddMarker => "add-marker",
+            Action::PreviousMarker => "previous-marker",
+            Action::NextMarker => "next-marker",
+            Action::LoopBetweenMarkers => "loop-between-markers",
+            Action::SelectBetweenMarkers => "select-between-markers",
+            Action::ToggleTempoTrack => "toggle-tempo-track",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
             Action::DemoSongs => "demo-songs",
@@ -382,7 +405,10 @@ impl Action {
         use Action::*;
         match self {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
-            | TogglePatternMode | Panic => Category::Transport,
+            | TogglePatternMode | Panic | AddMarker | PreviousMarker | NextMarker
+            | LoopBetweenMarkers => Category::Transport,
+            SelectBetweenMarkers => Category::Arrangement,
+            ToggleTempoTrack => Category::View,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
@@ -653,6 +679,19 @@ fn common() -> Vec<(Action, Binding)> {
         // the tempo (FL has no key for it; Shift keeps it clear of the tools' T).
         (TogglePatternMode, Binding::key(Key::L)),
         (TapTempo, Binding::shift(Key::T)),
+        // Markers (round 29, ADR 0060): Alt and a key, so the typing piano never takes
+        // them — M for marker; Alt+, and Alt+. step to the one before and after (Logic's
+        // keys, with Alt); Alt+Shift+L loops between the markers around the playhead.
+        (AddMarker, Binding::alt(Key::M)),
+        (PreviousMarker, Binding::alt(Key::Comma)),
+        (NextMarker, Binding::alt(Key::Period)),
+        (
+            LoopBetweenMarkers,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::L)
+            },
+        ),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
         // FL's function keys for the three central views. They are the most widely known
         // — every preset gets them, because arriving from anywhere else they are simply
@@ -1018,6 +1057,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 8 {
             map.fill_in(&NEW_IN_V8);
         }
+        if file.version.unwrap_or(1) < 9 {
+            map.fill_in(&NEW_IN_V9);
+        }
         Ok(map)
     }
 
@@ -1091,8 +1133,20 @@ struct KeymapFile {
 /// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
 /// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26);
-/// version 8 tap tempo and PAT / SONG (round 28).
-pub const FILE_VERSION: u32 = 8;
+/// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
+/// track's actions (round 29).
+pub const FILE_VERSION: u32 = 9;
+
+/// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
+/// 0060); the other round-29 builders append theirs here.
+const NEW_IN_V9: [Action; 6] = [
+    Action::AddMarker,
+    Action::PreviousMarker,
+    Action::NextMarker,
+    Action::LoopBetweenMarkers,
+    Action::SelectBetweenMarkers,
+    Action::ToggleTempoTrack,
+];
 
 /// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round
 /// 28, ADR 0052.
