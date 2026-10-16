@@ -44,6 +44,14 @@ impl Laid {
             .unwrap_or(&self.items[0])
     }
 
+    /// Beats from `beat` to the next chord change: what a note struck there may last
+    /// before it would ring under the next chord.
+    pub fn left(&self, beat: f64) -> f64 {
+        let b = beat.rem_euclid(self.beats.max(1e-9));
+        let (start, len, _, _) = self.at(beat);
+        (start + len - b).max(1.0 / 64.0)
+    }
+
     /// The item after the one sounding at `beat`.
     pub fn next(&self, beat: f64) -> &(f64, f64, Chord, Vec<u8>) {
         let cur = self.at(beat);
@@ -64,7 +72,8 @@ pub fn hold(laid: &Laid, vel: u8, gate: f64) -> Vec<Ev> {
 }
 
 /// Chords struck on a rhythm that repeats every `cycle` beats: `(at, length, velocity)`.
-/// A hit takes the voicing of the chord sounding at its moment.
+/// A hit takes the voicing of the chord sounding at its moment and stops at the next
+/// change (as do [`bass`] and [`arp`]): held on, it would ring under the next chord.
 pub fn comp(laid: &Laid, cycle: f64, rhythm: &[(f64, f64, u8)]) -> Vec<Ev> {
     let mut out = Vec::new();
     let mut base = 0.0;
@@ -74,8 +83,9 @@ pub fn comp(laid: &Laid, cycle: f64, rhythm: &[(f64, f64, u8)]) -> Vec<Ev> {
             if t >= laid.beats - 1e-9 {
                 continue;
             }
+            let len = len.min(laid.left(t));
             for p in &laid.at(t).3 {
-                out.push(Ev::new(t, *len, *p, *vel));
+                out.push(Ev::new(t, len, *p, *vel));
             }
         }
         base += cycle;
@@ -135,7 +145,8 @@ pub fn bass(laid: &Laid, low: u8, cycle: f64, rhythm: &[(f64, f64, u8, B)]) -> V
                 }
                 B::S(s) => r + *s as i32,
             };
-            out.push(Ev::new(t, *len, p.clamp(0, 127) as u8, *vel));
+            let len = len.min(laid.left(t));
+            out.push(Ev::new(t, len, p.clamp(0, 127) as u8, *vel));
         }
         base += cycle;
     }
@@ -154,7 +165,12 @@ pub fn arp(laid: &Laid, low: u8, order: &[usize], step: f64, len: f64, vel: u8) 
         notes.extend(v.iter().copied());
         let idx = order[i % order.len()] % notes.len();
         let accent = if i.is_multiple_of(4) { 10 } else { 0 };
-        out.push(Ev::new(t, len, notes[idx], vel.saturating_add(accent)));
+        out.push(Ev::new(
+            t,
+            len.min(laid.left(t)),
+            notes[idx],
+            vel.saturating_add(accent),
+        ));
         i += 1;
         t += step;
     }
@@ -206,4 +222,36 @@ pub fn swell(evs: &[Ev], beats: f64, from: f64, to: f64) -> Vec<Ev> {
             }
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A comped chord, a bass note or an arpeggio note struck late in a chord stops at the
+    /// next change: held on, it would ring under the next chord (a pedal put down just
+    /// after the change catches it).
+    #[test]
+    fn no_note_rings_into_the_next_chord() {
+        let laid = lay(&[("C", 2.0), ("F", 2.0), ("G", 4.0)], 3, 55, 72, 64);
+        let c = comp(&laid, 4.0, &[(0.0, 3.0, 80), (1.5, 1.0, 70)]);
+        let b = bass(
+            &laid,
+            36,
+            4.0,
+            &[(1.5, 1.0, 80, B::R), (3.5, 2.0, 80, B::O)],
+        );
+        let a = arp(&laid, 36, &[0, 1, 2], 0.5, 1.2, 60);
+        for e in c.iter().chain(&b).chain(&a) {
+            let (start, len, _, _) = laid.at(e.at);
+            let cycle = e.at - e.at.rem_euclid(laid.beats);
+            let change = cycle + start + len;
+            assert!(
+                e.at + e.len <= change + 1e-9,
+                "a note at {} lasting {} rings past the change at {change}",
+                e.at,
+                e.len
+            );
+        }
+    }
 }

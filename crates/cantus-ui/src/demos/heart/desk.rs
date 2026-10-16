@@ -319,8 +319,8 @@ fn levels(s: &mut Song, b: &Band, d: &Desk) {
     for (p, trim, fader, pan) in [
         (b.kick, 2.5, 0.0, 0.0),
         (b.snare, 8.0, 0.0, 0.0),
-        (b.hats, 15.5, 0.0, 0.15),
-        (b.perc, 15.0, 0.0, -0.2),
+        (b.hats, 12.0, 3.5, 0.15),
+        (b.perc, 12.0, 3.0, -0.2),
         (b.fills, 8.0, 0.0, 0.0),
         (b.bass, 0.0, -3.0, 0.0),
         (b.piano, 4.5, 0.0, 0.0),

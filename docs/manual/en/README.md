@@ -696,10 +696,17 @@ harder you play, the brighter; a held chord rings on, the strings beating gently
 works — a pedal partly down damps partly. The **soft pedal** (una corda, controller 67)
 shifts the hammers for the next notes: softer and darker.
 
+The sustain pedal is also a knob — **Sustain**, on the PEDALS card in Play and Edit — so a
+song can pedal without a pedal: draw it as an **automation lane** (right-click the knob ▸ *Create
+automation clip*; points held, up on each chord change and down just after it, is how a pianist
+pedals), or let a **modulator** move it; half pedalling works there too. The pedal the
+strings hear is the higher of the knob and controller 64, so a real pedal still works on
+top of a lane. The demo *With All Your Heart* is pedalled this way.
+
 - **Play** shows the piano from above — every key's strings at their length, the bridge,
   where the hammers strike, the dampers — with the key you last played lit, and the pedals:
   the sustain pedal's travel drawn over the law of how far the dampers are down at each
-  position. Below: the hammer (hardness, dynamics, velocity curve), the resonance
+  position, with the **Sustain**, **Dampers** and **Soft** knobs under it. Below: the hammer (hardness, dynamics, velocity curve), the resonance
   (sympathy, decay, soundboard) and the output (tilt, width, gain).
 - **Edit** adds the tuning (A4, the stretch an aural tuner gives a piano's octaves, the
   strings' stiffness) with its curve in cents across the keyboard, the felt's stiffness,

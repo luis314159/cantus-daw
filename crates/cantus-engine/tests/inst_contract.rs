@@ -743,6 +743,16 @@ fn inst_must_rest(kind: InstrumentKind) -> (bool, bool) {
     }
 }
 
+/// The change made during a rest trial, with Chorda's sustain pedal let up: held down it
+/// keeps the dampers off the strings, which is never rest — as controller 64 held is not
+/// (`inst_chorda::the_pedals_arrive_as_controllers`). Every other contract draws it.
+fn released(mut spec: NativeSpec) -> NativeSpec {
+    if spec.kind == InstrumentKind::Chorda {
+        spec.set("pedal", 0.0);
+    }
+    spec
+}
+
 fn inst_at_rest_is_exact(kind: InstrumentKind) {
     let mut rng = Rng::new(0x1a7_4e57 + kind as u64);
     let mut failures = Vec::new();
@@ -758,7 +768,8 @@ fn inst_at_rest_is_exact(kind: InstrumentKind) {
             // second, so rest is required only there.
             let flushed = trial != 0;
             let _flush = flushed.then(heavy::Flush::new);
-            let change = (trial == 2).then(|| heavy::random_instrument(kind, 0.5, &mut rng));
+            let change =
+                (trial == 2).then(|| released(heavy::random_instrument(kind, 0.5, &mut rng)));
             let seed = rng.next_u64();
             match inst_twins(&spec, chord, seed, cap, change.as_ref()) {
                 Ok(Some(after)) => report.push(format!(

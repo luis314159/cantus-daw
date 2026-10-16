@@ -159,6 +159,10 @@ impl Song {
 
     /// The channel's fader and pan.
     pub fn mix(&mut self, strip: StripId, gain_db: f32, pan: f32) {
+        assert!(
+            (cantus_core::MIN_GAIN_DB..=cantus_core::MAX_GAIN_DB).contains(&gain_db),
+            "a fader at {gain_db} dB, beyond what a command can set"
+        );
         if let Some(s) = self.p.strip_mut(strip) {
             s.gain_db = gain_db;
             s.pan = pan;
@@ -168,6 +172,10 @@ impl Song {
     /// The channel's own volume before its strip (FL's channel volume): where each
     /// instrument is brought to a working level, so the faders sit where a mix sits.
     pub fn trim(&mut self, part: Part, gain_db: f32) {
+        assert!(
+            (cantus_core::MIN_GAIN_DB..=cantus_core::MAX_GAIN_DB).contains(&gain_db),
+            "a channel trim at {gain_db} dB, beyond what a command can set"
+        );
         self.p.tracks[part.track].gain_db = gain_db;
     }
 

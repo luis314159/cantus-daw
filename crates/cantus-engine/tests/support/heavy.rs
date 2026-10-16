@@ -300,10 +300,13 @@ pub fn random_effect(kind: EffectKind, p: f32, rng: &mut Rng) -> EffectSpec {
 pub fn random_instrument(kind: InstrumentKind, p: f32, rng: &mut Rng) -> NativeSpec {
     let mut s = NativeSpec::new(kind);
     for info in kind.params() {
-        // A held controller as a parameter is never drawn: Chorda's sustain pedal (round 28)
-        // held down is not rest by design, as controller 64 held is not, and the
-        // controllers are drawn on their own where the contract wants them.
+        // Chorda's sustain pedal (round 28) is drawn from a stream of its own, so every other
+        // draw stays what it was before the parameter existed.
         if kind == InstrumentKind::Chorda && info.key == "pedal" {
+            let mut side = Rng::new(rng.0 ^ 0x0005_EDA1);
+            if side.chance(p) {
+                s.set(info.key, draw(info, &mut side));
+            }
             continue;
         }
         if rng.chance(p) {

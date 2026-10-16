@@ -756,10 +756,19 @@ sostenido sigue sonando, con el batido suave de sus cuerdas; con el **pedal dere
 medio bajar apaga a medias. El **pedal suave** (una corda, controlador 67) desplaza los
 martillos para las notas siguientes: más suave y más oscuro.
 
+El pedal derecho también es una perilla — **Derecho**, en la tarjeta PEDALES de Tocar y
+Editar —, así que una canción puede pedalear sin pedal: dibújalo como **carril de
+automatización** (clic derecho en la perilla ▸ *Crear clip de automatización*; puntos sostenidos, arriba en
+cada cambio de acorde y abajo justo después, es como pedalea un pianista) o deja que lo
+mueva un **modulador**; el medio pedal también funciona ahí. El pedal que oyen las cuerdas
+es el mayor entre la perilla y el controlador 64, así que un pedal real sigue funcionando
+encima de un carril. La demo *De todo corazón* está pedaleada así.
+
 - **Tocar** muestra el piano visto desde arriba — las cuerdas de cada tecla a su longitud,
   el puente, dónde golpean los martillos, los apagadores — con la última tecla tocada
   iluminada, y los pedales: el recorrido del pedal derecho dibujado sobre la ley de cuánto
-  bajan los apagadores en cada posición. Debajo: el martillo (dureza, dinámica, curva de
+  bajan los apagadores en cada posición, con las perillas **Derecho**, **Apagadores** y
+  **Suave** debajo. Debajo: el martillo (dureza, dinámica, curva de
   velocidad), la resonancia (simpatía, extinción, tabla armónica) y la salida
   (inclinación, anchura, ganancia).
 - **Editar** añade la afinación (La4, el estiramiento que un afinador de oído da a las

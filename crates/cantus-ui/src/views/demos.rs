@@ -21,6 +21,8 @@ pub struct Picker {
     pub selected: usize,
     pub confirm: bool,
     rows: Vec<Row>,
+    /// The keys moved the selection: scroll it into view on the next frame.
+    reveal: bool,
 }
 
 /// What a row shows of its demo.
@@ -81,8 +83,8 @@ fn length(seconds: f64) -> String {
 }
 
 /// One row: the song's colour at its edge, its name, and style · tempo · length under it.
-/// Returns (clicked, double-clicked).
-fn row(ui: &mut egui::Ui, r: &Row, selected: bool) -> (bool, bool) {
+/// Returns (clicked, double-clicked, where it was drawn).
+fn row(ui: &mut egui::Ui, r: &Row, selected: bool) -> (bool, bool, Rect) {
     let s = Style::current();
     let w = ui.available_width().max(s.s(340.0));
     let (rect, resp) = ui.allocate_exact_size(Vec2::new(w, s.s(44.0)), Sense::click());
@@ -128,7 +130,12 @@ fn row(ui: &mut egui::Ui, r: &Row, selected: bool) -> (bool, bool) {
             .policy(Policy::Elide(Elide::End));
         let _ = text::paint(b, bottom, &m, s.tk());
     });
-    (resp.clicked(), resp.double_clicked())
+    (resp.clicked(), resp.double_clicked(), rect)
+}
+
+/// The picker window's id (its area holds where it was drawn).
+pub fn window_id() -> egui::Id {
+    egui::Id::new("demo-songs-picker")
 }
 
 /// Draw the picker when it shows.
@@ -141,6 +148,7 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     let mut save_first = false;
     let project_name = app.project().name.clone();
     egui::Window::new(t("demos.picker.title"))
+        .id(window_id())
         .collapsible(false)
         .resizable(false)
         .anchor(Align2::CENTER_CENTER, Vec2::ZERO)
@@ -166,16 +174,30 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
                 return;
             }
             form::band(ui, "demos.picker.list");
-            for (i, r) in p.rows.clone().iter().enumerate() {
-                let (click, double) = row(ui, r, i == p.selected);
-                if click {
-                    p.selected = i;
-                }
-                if double {
-                    p.selected = i;
-                    open_now = Some(i);
-                }
-            }
+            // The rows scroll when the screen is short (a small laptop at 200 %): the
+            // title, the band, the hint and the buttons always stay on it.
+            let st = Style::current();
+            let room = (ui.ctx().content_rect().height() - st.s(230.0)).max(st.s(88.0));
+            let reveal = std::mem::take(&mut p.reveal);
+            egui::ScrollArea::vertical()
+                .id_salt("demo-rows")
+                .max_height(room)
+                .auto_shrink([false, true])
+                .show(ui, |ui| {
+                    for (i, r) in p.rows.clone().iter().enumerate() {
+                        let (click, double, rect) = row(ui, r, i == p.selected);
+                        if reveal && i == p.selected {
+                            ui.scroll_to_rect(rect, None);
+                        }
+                        if click {
+                            p.selected = i;
+                        }
+                        if double {
+                            p.selected = i;
+                            open_now = Some(i);
+                        }
+                    }
+                });
             ui.add_space(crate::design::space::S2);
             ui.label(
                 egui::RichText::new(t("demos.picker.hint"))
@@ -204,6 +226,7 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
             if down {
                 p.selected = (p.selected + 1) % n;
             }
+            p.reveal |= up || down;
             if enter {
                 open_now = Some(p.selected);
             }
