@@ -466,9 +466,9 @@ several, and they add up on top of its automation.
   and widths (the master's too), every **send's level** (its knob and row on the desk, its
   cable's level, the inspector's send and receive rows; a send's right-click menu has
   *Automate* and *Modulate…* for it), the inspector's pinned strip and a hosted plug-in's
-  parameters take a modulator the same way. Chorda's tuning (A4, stretch, stiffness) is
-  set, never automated or modulated. So does a modulator's own **amount**: let a random source move how deep an LFO
-  goes (one level of nesting).
+  parameters take a modulator the same way. So does a modulator's own **amount**: let a
+  random source move how deep an LFO goes (one level of nesting). Chorda's tuning (A4,
+  stretch, stiffness) is set, never automated or modulated.
 - **Bake to automation**: a route's bake key (or *Modulate… ▸ Bake to automation*) turns
   that modulator's effect into an automation clip over the time selection (else the loop,
   else the song) and removes the route, in one undo step.
@@ -628,8 +628,9 @@ more open kick), side stick 37, snare 38 (40 a damped snare), toms 41 · 43–45
 hi-hat closed 42, pedal 44 and open 46, crashes 49 and 57, ride 51 and 59, bell 53. The
 General MIDI keys the kit has no sound for (tambourine, cowbell, the Latin percussion)
 stay silent, so a General MIDI part never plays a cymbal in their place; DrumGizmo's other
-articulations sit where no General MIDI 2, GS or XG percussion lives: the half-open hi-hat
-and the tips on keys 21–26, the chained ride on 88–90 and the brushes on 91–100. Each drum has its strengths as velocity layers
+articulations sit above General MIDI 2's percussion and clear of the XG and GS kits' extra
+keys below it (13–26): the chained ride on 88–90, the brushes on 91–100, and the half-open
+hi-hat and the tips on 101–106. Each drum has its strengths as velocity layers
 down to 24 dB under its loudest, and the hits of a layer take their turns **in order** —
 counted per drum and per layer, so a roll, a tom fill across the drum's keys or an accent
 on every fourth hat never plays the same sample twice in a row; a closed or pedal hi-hat

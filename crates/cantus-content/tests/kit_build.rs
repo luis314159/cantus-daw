@@ -863,8 +863,10 @@ fn kit_family(instrument: &str) -> &'static str {
 fn the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only() {
     // A General MIDI part (tambourine on 54, cowbell on 56, congas on 62-64) never plays a
     // cymbal or a hi-hat: those keys stay silent, and DrumGizmo's other articulations sit
-    // where no General MIDI 2 / GS / XG percussion lives — below 27 or from 88 (sound
-    // review 2: 82-87 are GM2's shaker, jingle bell, belltree, castanets and surdos).
+    // above General MIDI 2's percussion (27-87; sound review 2: 82-87 are GM2's shaker,
+    // jingle bell, belltree, castanets and surdos) and off the XG and GS kits' keys under
+    // it (13-26: XG's metronome, seq clicks, brush tap and swirl, GS's snare roll and
+    // finger snap; fix4).
     let m = cantus_content::Manifest::bundled();
     let b = m.pack("drskit").unwrap().build.as_ref().unwrap();
     for k in &b.keys {
@@ -878,8 +880,8 @@ fn the_bundled_kit_plays_general_midis_keys_with_their_own_drums_only() {
                 );
             } else {
                 assert!(
-                    !(27..=87).contains(key),
-                    "{} on General MIDI 2's key {key}",
+                    !(13..=87).contains(key),
+                    "{} on a General MIDI 2, XG or GS percussion key {key}",
                     k.instrument
                 );
             }

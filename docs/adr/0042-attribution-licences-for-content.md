@@ -207,7 +207,8 @@ Pulsus III's mic buses), not Exemplar's single stereo output: left there, not ha
 
 **Measured** (`kit_build.rs`, `pack_drums.rs`, ignored tests on the real archive), after
 review 1: the real archive installs from its file in 113–116 s (copy, unpack 4.3 GB, mix)
-to 496 files and 470 879 054 bytes; peak −4.9 dBFS, nothing clamped; Exemplar imports its
+to 496 files and 470 879 054 bytes (470 879 297 since fix4 moved six articulations onto
+three-digit keys, re-measured on the archive in 124 s); peak −4.9 dBFS, nothing clamped; Exemplar imports its
 548 zones in 0.09 s, holds 117 MiB of heads streaming, renders 13.6× faster than real time
 on one thread; a rock groove sits at −26.0 LUFS with −8.2 dBTP, everything at velocity 127
 at −0.8 dBTP — ADR 0039's headroom rule keeps the instrument's gain at 0 dB; 170 velocity
@@ -219,11 +220,15 @@ layers, each with at least two hits in turn.
   articulations on keys General MIDI reserves for other instruments (a crash tip on the
   tambourine's 54, a hi-hat on the cowbell's 56, brushes on the congas). Now the kit's
   drums sit on their General MIDI keys (the fully open hi-hat on 46), the General MIDI
-  keys it has no sound for stay silent, and the other articulations are on 21–26 and
-  88–100, where no General MIDI 2 / GS / XG percussion lives (fix3: they were on 82–87,
-  GM2's shaker, jingle bell, belltree, castanets and surdos;
-  `kit_build::the_bundled_kit_plays_general_midis_keys…`). The build's size is unchanged
-  (the keys keep two digits).
+  keys it has no sound for stay silent, and the other articulations are on 88–106: above
+  General MIDI 2's percussion (27–87) and off the keys the XG and GS kits use under it
+  (13–26: XG's metronome, seq clicks, brush tap and swirl; GS's snare roll and finger
+  snap). fix3 had moved six of them off 82–87 (GM2's shaker, jingle bell, belltree,
+  castanets and surdos) onto 21–26, which XG and GS use; fix4 put them on 101–106 — the
+  half-open hi-hat 101, the closed and open tips 102–103, the crash tips 104–105, the
+  ride bell's tip 106 (`kit_build::the_bundled_kit_plays_general_midis_keys…` refuses
+  13–87 for anything that is not the key's own General MIDI drum). The three-digit keys
+  grow the built SFZ by 243 bytes: the manifest pins 470 879 297.
 - **The range a zone's gain can make up.** Every kept hit is raised to SFZ's curve by its
   zone's gain, which stops at +24 dB: a range of 30 dB played the softest hits up to 6 dB
   under the curve. The range is now at most 24 dB (`Build::validate`), DRSKit's is 24, and
