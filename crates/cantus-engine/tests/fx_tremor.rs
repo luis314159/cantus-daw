@@ -259,9 +259,7 @@ fn looping_then(
             }
         }
         let until = change.map_or(usize::MAX, |(at, _)| at - played);
-        let n = sizes[i % sizes.len()]
-            .min((len - out.len()) / 2)
-            .min(until);
+        let n = sizes[i % sizes.len()].min((len - out.len()) / 2).min(until);
         i += 1;
         let mut buf = vec![0f32; n * 2];
         p.process(&mut buf, 2);
@@ -335,7 +333,13 @@ fn a_late_gate_hears_the_wrap_played_after_the_loop_is_turned_off() {
         end: Ticks::beats(7),
     });
     for (what, then) in [("turned off", &off), ("moved ahead", &ahead)] {
-        for sizes in [&[512usize][..], &[37, 100, 1024, 7], &[1024], &[64, 333], &[1]] {
+        for sizes in [
+            &[512usize][..],
+            &[37, 100, 1024, 7],
+            &[1024],
+            &[64, 333],
+            &[1],
+        ] {
             assert_null(
                 &kept,
                 &looping_then(&p, len, sizes, Some((first + 100, then))),
