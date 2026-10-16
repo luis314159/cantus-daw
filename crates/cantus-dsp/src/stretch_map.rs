@@ -134,59 +134,67 @@ impl Map {
         offset.map(|o| o as i64)
     }
 
-    /// This map with a pure shift (slope 1) held around every transient in `onsets`
-    /// (source frames): from a little before each to the first of its decay, each hold
-    /// through the transient's own place, so a hit read through it is copied, never
-    /// stretched. The breakpoints stay where they are (a hold never crosses one, and takes
-    /// at most [`HOLD_SHARE`] of the room on either side); the stretch moves into the rest.
+    /// This map with a pure shift held around every transient in `onsets` (source frames):
+    /// [`HOLD_BEFORE_S`] before each to [`HOLD_AFTER_S`] after — the percussive part's
+    /// holds. See [`Map::hold`].
     pub fn held_at(&self, onsets: &[f64], rate: f32) -> Map {
-        let before = HOLD_BEFORE_S * rate as f64;
-        let after = HOLD_AFTER_S * rate as f64;
+        let r = rate as f64;
+        self.hold(onsets, HOLD_BEFORE_S * r, HOLD_AFTER_S * r).0
+    }
+
+    /// This map with a pure shift (slope 1) held from `before` frames ahead of every
+    /// transient in `onsets` (source frames) to `after` frames past it, each hold through
+    /// the transient's own place — so what is read through it is copied, never stretched.
+    /// The breakpoints stay where they are (a hold never crosses one, and takes at most
+    /// [`HOLD_SHARE`] of the room on either side, in output and in source frames alike);
+    /// the stretch moves into the rest. Returns the map and the holds kept, in order.
+    pub fn hold(&self, onsets: &[f64], before: f64, after: f64) -> (Map, Vec<Hold>) {
         let mut pts: Vec<(f64, f64)> = self.points.clone();
         if pts.len() < 2 {
             let a = self.source(0.0);
             pts = vec![(0.0, a), (1.0, a + 1.0)];
         }
-        // Output places of the transients, and the fixed points (breakpoints) around them.
         let fixed: Vec<f64> = self.points.iter().map(|p| p.0).collect();
-        let places: Vec<(f64, f64)> = onsets.iter().map(|&s| (self.output(s), s)).collect();
-        let mut holds: Vec<(f64, f64, f64)> = Vec::new(); // (out, back, ahead)
-        for (i, &(o, _)) in places.iter().enumerate() {
+        let places: Vec<f64> = onsets.iter().map(|&s| self.output(s)).collect();
+        let mut holds: Vec<Hold> = Vec::new();
+        for (i, &o) in places.iter().enumerate() {
             let prev_fixed = fixed.iter().rev().find(|&&f| f < o).copied();
             let next_fixed = fixed.iter().find(|&&f| f > o).copied();
-            let prev_onset = i.checked_sub(1).map(|j| places[j].0);
-            let next_onset = places.get(i + 1).map(|p| p.0);
-            // Room in output frames and in source frames alike: a hold copies, so it
-            // takes as much of each.
+            let prev_onset = i.checked_sub(1).map(|j| places[j]);
+            let next_onset = places.get(i + 1).copied();
             let s = self.source(o);
-            let room_back = [prev_fixed, prev_onset]
+            let back = [prev_fixed, prev_onset]
                 .into_iter()
                 .flatten()
                 .map(|f| (o - f).min(s - self.source(f)) * HOLD_SHARE)
-                .fold(before, f64::min);
-            let room_ahead = [next_fixed, next_onset]
+                .fold(before, f64::min)
+                .max(0.0);
+            let ahead = [next_fixed, next_onset]
                 .into_iter()
                 .flatten()
                 .map(|f| (f - o).min(self.source(f) - s) * HOLD_SHARE)
-                .fold(after, f64::min);
-            if room_back + room_ahead >= 1.0 {
-                holds.push((o, room_back.max(0.0), room_ahead.max(0.0)));
+                .fold(after, f64::min)
+                .max(0.0);
+            if back + ahead >= 1.0 {
+                holds.push(Hold {
+                    from: o - back,
+                    at: o,
+                    to: o + ahead,
+                });
             }
         }
         if holds.is_empty() {
-            return Map { points: pts };
+            return (Map { points: pts }, holds);
         }
-        // The breakpoints, and each hold's two ends (a straight line through the
-        // transient's place at slope 1).
-        for &(o, back, ahead) in &holds {
-            let s = self.source(o);
-            pts.push((o - back, s - back));
-            pts.push((o + ahead, s + ahead));
+        for h in &holds {
+            let s = self.source(h.at);
+            pts.push((h.from, s - (h.at - h.from)));
+            pts.push((h.to, s + (h.to - h.at)));
         }
         pts.sort_by(|a, b| a.0.total_cmp(&b.0));
         pts.dedup_by(|b, a| b.0 == a.0);
-        // A hold whose ends would make the source run back (a squeezed segment) is
-        // dropped there: keep the map a function that never reads backwards.
+        // Never read backwards: a point that would is dropped (it cannot happen inside the
+        // shares above; this keeps the map a function whatever the input).
         let mut kept: Vec<(f64, f64)> = Vec::with_capacity(pts.len());
         for p in pts {
             match kept.last() {
@@ -194,6 +202,15 @@ impl Map {
                 _ => kept.push(p),
             }
         }
-        Map { points: kept }
+        (Map { points: kept }, holds)
     }
+}
+
+/// A stretch of output held to a pure shift around a transient (output frames).
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Hold {
+    pub from: f64,
+    /// Where the transient lands.
+    pub at: f64,
+    pub to: f64,
 }
