@@ -152,10 +152,14 @@ window and joined the comp. **`Clip::comp`** now says it: set on a playing-lane 
 is the comp's, false on every other.
 
 - **Who sets it:** a swipe and a promote (each window they make); a recording laid over
-  takes (the loop's last pass over its earlier passes, a take stacked over what it moved
-  to a take lane, anything recorded where take lanes already are) — so alternate comps
-  work after a plain stacked recording too, which before kept the new take out of every
-  comp. A first recording on an empty track is a plain clip.
+  takes — its stretch over a clip on a take lane: the loop's last pass over its earlier
+  passes, a take stacked over what it moved to a take lane, a pass recorded over takes
+  already there — so alternate comps work after a plain stacked recording too, which
+  before kept the new take out of every comp. A first recording on an empty track is a
+  plain clip, and so is a pass recorded where no take lies on a track whose takes are
+  elsewhere (fix5: any take lane anywhere on the track flagged it, and a comp switch took
+  a chorus recorded bars away from the takes off the arrangement; under schema 31 it was
+  never a window). `rec_pass::a_pass_recorded_away_from_the_takes_plays_under_every_comp`.
 - **Who keeps it:** a split (both halves), a seam moved, a trim, a slip, a nudge, a comp
   switched or copied (every kept window carries it: `SetTrackComps` refuses one that does
   not); a glue that takes a window in makes the glued clip the comp's.

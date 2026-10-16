@@ -280,7 +280,8 @@ together. Every change is one undo step.
 
 **What belongs to the comp.** The pieces a swipe or a promote makes are the comp's, and so
 is the take that plays over the others after a recording (the last pass of a loop, or a
-take recorded over older ones): they switch with the comp, and stay its own when split,
+take recorded over older ones; a recording where no take lies is a plain clip that plays
+under every comp): they switch with the comp, and stay its own when split,
 nudged or slipped. A copy is never the comp's, wherever it is pasted — right over its take
 too: it stays on the playing lane through every switch, under every comp. A piece dragged
 to another track leaves the comp; after a flatten the pieces are plain clips. The take

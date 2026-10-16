@@ -619,7 +619,11 @@ fn a_pass_recorded_away_from_the_takes_plays_under_every_comp() {
             .map(|c| (c.lane, c.comp))
             .collect()
     };
-    assert_eq!(at(&far), vec![(0, false)], "a pass over no take is no window");
+    assert_eq!(
+        at(&far),
+        vec![(0, false)],
+        "a pass over no take is no window"
+    );
     let mut far = far;
     comp_step(&mut far, |p, _| cantus_ui::comping::switch_comp(p, t, 0));
     assert_eq!(at(&far), vec![(0, false)], "comp A plays the chorus");

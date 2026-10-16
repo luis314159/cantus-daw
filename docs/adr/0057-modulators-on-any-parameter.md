@@ -216,3 +216,36 @@ undo step; a loop pass writes over what the previous one wrote.
   by its instance and its *stepped* stored values only — a dragged value re-asks its own
   row, never all of them.
 - **An editor-less effect's switches have their rows** (Delay's ping-pong).
+
+## Amended by fix5 (round 28: the review of fix4)
+
+- **A late insert folds back through the wraps that were played, at their samples.**
+  `Transport` keeps the loop's wraps since a start or a seek (`fx::Wraps`, no allocation):
+  how many, the samples since the last, and the exact lengths of the last
+  `PASSES_KEPT` = 32 passes; `SongPosition::wrap` carries them, and both
+  `SongPosition::earlier` and the processor's per-insert pass cuts ask the one
+  `Wraps::before_wrap`. Audio from before the first wrap is the song leading into the
+  loop, played straight — an insert later than the loop is long no longer hears, right
+  after the first wrap, passes that were never played (a loop of one beat, an insert
+  60 000 samples late, 6 000 samples after the first wrap: beat 6.75, not 8.75). A pass
+  whose length in samples differs from the next (a loop that is no whole number of
+  samples, a tempo change between passes) is folded by its own length. A wrap the engine
+  forces at a pass's first sample counts like the others (`Transport::wrap_to`; it used to
+  seek, forgetting the wraps).
+- **The limit that stays, measured** (`transport::tests::the_wraps_are_the_ones_played_at_their_samples`):
+  passes older than the last 32 are counted at the loop's length at the current tempo.
+  While the tempo holds the wraps so placed are within **1 sample** of the real ones (205
+  wraps back, a 1/16-beat loop at 133 BPM: 1 353.38 samples a pass). A tempo change more
+  than 32 passes back misplaces the wraps before it by the passes' difference in length
+  times their number: a 1/16-beat loop from 120 to 121 BPM, heard 60 passes back, **112
+  samples** at most. Only an insert later than 32 of the loop's passes can meet it (a
+  1/16-beat loop at 120 BPM behind a whole second of latency); the bound is
+  `pdc::MAX_DELAY` over the loop's shortest pass, which no fixed history covers.
+- **The late gate end to end** (`fx_tremor::a_late_gate_hears_each_wrap_where_its_audio_wraps`,
+  `a_gate_later_than_the_loop_never_hears_passes_not_played`): frame by frame, the gate
+  behind one and four Flexus is shut or open as the beat of the audio in its hands — where
+  the transport was that many frames before — says; the first entry is the song played
+  straight to the bit, at blocks of 7 too. Each fails with the fold removed, the wraps
+  uncapped, or a fold on the first entry.
+- **The pinned fader's live mark is the desk's drawing** (`kit::fader::live_mark`), and the
+  inspector's probe records which mark each pinned control draws (`probe::note_live`).

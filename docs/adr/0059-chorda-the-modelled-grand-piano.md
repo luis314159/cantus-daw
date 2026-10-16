@@ -199,3 +199,14 @@ changes `MODEL` and never a song made with this one.
   and prove the path they name (the spawn failures are counted); a keyboard landing
   mid-phrase (the sympathetic fade, a ringing key re-struck and let go inside its fade)
   gives the same bits at blocks of 1, 37, 64 and 512 and on threads.
+
+## Amended by fix5 (round 28: the review of fix4)
+
+- **The editor says when no designer can make a tuning.** `chorda::design` says where a
+  tuning's design stands — `Ready`, `Coming(done)`, `Refused` (the registry full, its
+  design failed: `chorda.no_room`) or `NoDesigner` (the thread could not start:
+  `chorda.no_designer`, "the string designer could not start: keeping this one") — and
+  `progress` is `None` for the last two, so the editor never reads "designing: 0 %" for a
+  session while the unit plays the keyboard it has. Tested with the spawn fault
+  (`a_tuning_no_designer_can_make_is_not_on_its_way`, seen failing on `Some(0.0)`) and the
+  caption's words in both languages.

@@ -97,9 +97,9 @@ failed on the base too. The licence's words now wrap in the value column.
 
 ## Left
 
-Nothing that is not the owner's. One limit, written where it lives: a loop shorter than an
-insert's lateness folds by whole passes counted at the current pass length (exact while the
-loop's length in samples does not change from pass to pass).
+Nothing that is not the owner's. (A limit once listed here — a loop shorter than an
+insert's lateness folded by whole passes at the current pass length — was closed by fix5:
+the wraps played, at their real lengths; what stays is measured in ADR 0057.)
 
 ## The runs
 

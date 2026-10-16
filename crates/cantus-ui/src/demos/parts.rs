@@ -279,8 +279,16 @@ mod tests {
         let sub = bass(&laid, 26, 4.0, &[(0.0, 3.9, 90, B::R)]);
         assert_eq!(sub.len(), 2);
         assert!((sub[0].len - 3.9).abs() < 1e-12, "{}", sub[0].len);
-        let lh = bass(&laid, 33, 4.0, &[(0.0, 3.8, 70, B::R), (0.0, 3.8, 70, B::O)]);
-        assert!(lh[..2].iter().all(|e| (e.len - 3.8).abs() < 1e-12), "{lh:?}");
+        let lh = bass(
+            &laid,
+            33,
+            4.0,
+            &[(0.0, 3.8, 70, B::R), (0.0, 3.8, 70, B::O)],
+        );
+        assert!(
+            lh[..2].iter().all(|e| (e.len - 3.8).abs() < 1e-12),
+            "{lh:?}"
+        );
         // The sus chord's fourth (D) is not in A: a comped Asus4 lets it go at the change.
         let c = comp(&laid, 4.0, &[(0.0, 3.0, 80)]);
         for e in c.iter().filter(|e| e.at < 1.0) {
@@ -291,6 +299,9 @@ mod tests {
         // A note running to the chart's end stops there even when the chart's first chord
         // holds it: the next section's chart is another.
         let end = bass(&laid, 26, 4.0, &[(3.0, 3.0, 90, B::R)]);
-        assert!((end[1].at + end[1].len - laid.beats).abs() < 1e-12, "{end:?}");
+        assert!(
+            (end[1].at + end[1].len - laid.beats).abs() < 1e-12,
+            "{end:?}"
+        );
     }
 }

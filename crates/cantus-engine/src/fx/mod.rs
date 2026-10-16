@@ -210,7 +210,7 @@ pub struct SongPosition {
 
 /// How many of a loop's last passes [`Wraps`] keeps the exact lengths of: an insert later
 /// than that many passes counts the ones before at the loop's length at the current tempo
-/// (ADR 0055, *Late inserts in a loop*).
+/// (ADR 0057, as fix5 amended it).
 pub const PASSES_KEPT: usize = 32;
 
 /// A loop's wraps since the transport started or was moved, as the audio reaching a late
@@ -478,7 +478,11 @@ mod position_tests {
             w.wrap();
         }
         w.since = 6_000;
-        assert_eq!(w.before_wrap(6_000), None, "the wrap itself is the pass playing's");
+        assert_eq!(
+            w.before_wrap(6_000),
+            None,
+            "the wrap itself is the pass playing's"
+        );
         assert_eq!(w.before_wrap(6_001), Some(1));
         assert_eq!(w.before_wrap(6_000 + 24_001), Some(24_001));
         assert_eq!(w.before_wrap(6_000 + 24_002), Some(1), "the pass before");

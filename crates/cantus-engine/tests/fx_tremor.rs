@@ -316,7 +316,11 @@ fn check_heard(out: &[f32], ungated: &[f32], project: &Project, late: usize, wha
             continue;
         }
         if ph > 0.5 {
-            assert_eq!(out[2 * f], 0.0, "{what}: frame {f} hears beat {heard}: shut");
+            assert_eq!(
+                out[2 * f],
+                0.0,
+                "{what}: frame {f} hears beat {heard}: shut"
+            );
         } else {
             assert_eq!(
                 out[2 * f].to_bits(),
@@ -357,7 +361,10 @@ fn a_late_gate_hears_each_wrap_where_its_audio_wraps() {
     let out = looping(&p, len, &[37, 100, 1024, 7]);
     let open = looping(&ungated, len, &[512]);
     let behind = check_heard(&out, &open, &p, 240, "4⅓ beats");
-    assert!(behind > 100, "the frames behind a wrap were checked: {behind}");
+    assert!(
+        behind > 100,
+        "the frames behind a wrap were checked: {behind}"
+    );
     // The first entry: up to where the audio wraps, as with no loop — the audio from just
     // before the loop's start (beat 2, shut) sounds as the transport enters it.
     let entry = (2.0 * BEAT).ceil() as usize;
@@ -368,8 +375,16 @@ fn a_late_gate_hears_each_wrap_where_its_audio_wraps() {
     assert_null(&straight[..first], &out[..first], 0.0, "the first entry");
     // In blocks of 7, a pass starts on nearly every few samples after the entry.
     let fine = looping(&p, first, &[7]);
-    assert_null(&straight[..first], &fine, 0.0, "the first entry, blocks of 7");
-    assert!(out[first..].iter().zip(&straight[first..]).any(|(a, b)| a != b));
+    assert_null(
+        &straight[..first],
+        &fine,
+        0.0,
+        "the first entry, blocks of 7",
+    );
+    assert!(out[first..]
+        .iter()
+        .zip(&straight[first..])
+        .any(|(a, b)| a != b));
 }
 
 /// Review of fix4: an insert later than the loop is long (four Flexus, 960 samples; a
@@ -394,6 +409,15 @@ fn a_gate_later_than_the_loop_never_hears_passes_not_played() {
     gated(&mut p);
     let len = 2 * (BEAT * 8.0) as usize;
     let out = looping(&p, len, &[64, 333]);
-    let behind = check_heard(&out, &looping(&ungated, len, &[512]), &p, 960, "a 32nd's loop");
-    assert!(behind > 100, "the frames behind the first wrap were checked: {behind}");
+    let behind = check_heard(
+        &out,
+        &looping(&ungated, len, &[512]),
+        &p,
+        960,
+        "a 32nd's loop",
+    );
+    assert!(
+        behind > 100,
+        "the frames behind the first wrap were checked: {behind}"
+    );
 }

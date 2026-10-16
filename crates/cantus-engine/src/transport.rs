@@ -364,6 +364,12 @@ mod tests {
             }
         }
         assert!(worst <= 1, "the measured worst case: {worst} samples");
+        let placed = wrap_error(&w, &wraps, now);
+        eprintln!(
+            "steady tempo, {} wraps back: off by {placed} samples at most",
+            wraps.len()
+        );
+        assert!(placed <= 1, "{placed}");
         // Only one wrap played: the audio before it is the lead-in, however far back.
         let (t, wraps) = run(120.0, 7680, 8640, 0, 230_000, |_| 120.0);
         let w = t.wraps().expect("wrapped");
@@ -372,12 +378,49 @@ mod tests {
         assert_eq!(w.before_wrap(since + 60_000), Some(60_000));
         // A tempo that changes at every wrap, the passes 24 000 · 120/bpm samples long:
         // exact over the kept passes.
-        let (t, wraps) = run(120.0, 960, 1920, 960, 400_000, |n| 100.0 + (n % 5) as f64 * 9.0);
+        let (t, wraps) = run(120.0, 960, 1920, 960, 400_000, |n| {
+            100.0 + (n % 5) as f64 * 9.0
+        });
         let w = t.wraps().expect("wrapped");
         let now = 400_000;
         let kept_span = now - wraps[wraps.len() - 1 - crate::fx::PASSES_KEPT.min(wraps.len() - 1)];
         for back in (1..kept_span).step_by(3) {
             assert_eq!(w.before_wrap(back), truth(&wraps, now, back), "{back} back");
         }
+        // The documented limit (ADR 0057, fix5): a tempo change more than the kept passes
+        // back. A 1/16-beat loop (1 500 samples at 120 BPM, 1 487.6 at 121) whose tempo
+        // went from 120 to 121 at its 10th wrap, heard 60 passes back: the passes before
+        // the change are counted at 121's length, 12.4 samples short each.
+        let (t, wraps) = run(120.0, 960, 1020, 960, 1500 * 70, |n| {
+            if n >= 10 {
+                121.0
+            } else {
+                120.0
+            }
+        });
+        let w = t.wraps().expect("wrapped");
+        let worst = wrap_error(&w, &wraps, 1500 * 70);
+        eprintln!(
+            "a tempo change {} passes back: the wraps before it off by {worst} samples at most",
+            wraps.len() - 10
+        );
+        assert!(worst > 100 && worst < 140, "{worst}");
+    }
+
+    /// How far the wraps `w` places differ from the real ones, at most: the model's wrap
+    /// is where the audio one sample earlier lies one sample before it.
+    fn wrap_error(w: &Wraps, wraps: &[u64], now: u64) -> u64 {
+        let model: Vec<u64> = (1..now)
+            .filter(|b| w.before_wrap(*b) == Some(1))
+            .map(|b| b - 1)
+            .collect();
+        let real: Vec<u64> = wraps.iter().rev().map(|t| now - t).collect();
+        assert_eq!(model.len(), real.len(), "as many wraps as were played");
+        model
+            .iter()
+            .zip(&real)
+            .map(|(m, r)| m.abs_diff(*r))
+            .max()
+            .unwrap_or(0)
     }
 }

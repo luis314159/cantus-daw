@@ -703,7 +703,10 @@ mod tests {
             assert_eq!(at.y, desk, "at {live}");
             assert!(at.x >= rect.right() - s.s(2.0), "beside the cap: {at:?}");
             let edge = Live::Edge.at(rect, &s, live).expect("a tick");
-            assert!((edge.y - desk).abs() > 1.0, "the edge tick is not the desk's");
+            assert!(
+                (edge.y - desk).abs() > 1.0,
+                "the edge tick is not the desk's"
+            );
         }
         assert_eq!(Live::Knob.at(rect, &s, 0.5), None);
         let mut p = crate::starter_project();

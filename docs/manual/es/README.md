@@ -295,9 +295,10 @@ juntos— se componen juntas, el mismo tramo de la misma toma en cada una; sus c
 mueven juntas, toman los mismos fundidos, y sus composiciones se cambian y se crean
 juntas. Cada cambio es un paso de deshacer.
 
-**Qué es de la composición.** Los trozos que hace un arrastre o *Usar esta toma* son de la
-composición, y también la toma que suena sobre las demás tras una grabación (la última
-pasada de un bucle, o una toma grabada sobre otras): cambian con la composición y siguen
+**Qué forma parte de la composición.** Los trozos que hace un arrastre o *Usar esta toma*
+son de la composición, y también la toma que suena sobre las demás tras una grabación (la
+última pasada de un bucle, o una toma grabada sobre otras; una grabación donde no hay
+ninguna toma es un clip sin más, que suena bajo todas las composiciones): cambian con la composición y siguen
 siendo suyos al cortarlos, moverlos o deslizarlos. Una copia nunca es de la composición,
 la pegues donde la pegues —justo sobre su toma también—: queda en el carril que suena en
 todos los cambios, bajo todas las composiciones. Un trozo arrastrado a otra pista sale de

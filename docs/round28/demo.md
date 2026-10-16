@@ -218,6 +218,12 @@ first.
    nothing rings under the next chord); Neon Tide, Sunday Strut, Paper Lanterns and
    Midnight Static are unchanged note for note. Every demo still passes its loudness test
    (now −14.1 … −14.8 LUFS, −1.14 … −1.18 dBTP).
+   *fix5 (review of fix4):* the cut left holes where the next chord still holds the note
+   (Aurora's sub and Morning Light's left hand on Asus4 → A): a note now rings on through
+   every change to a chord that holds its pitch class, to its chart's end at most
+   (`Laid::held`). Morning Light's notes grow back 0.77 % of their total length, Aurora's
+   0.32 %, this demo's 0.23 % (common tones only — the A♭ still stops under E♭/G); the four
+   others are unchanged note for note.
 2. **Hats and percussion trims at +15.5 / +15 dB**, beyond the +12 dB a command can set:
    now +12 with the rest on their faders (+3.5 / +3 dB). `Song::trim` and `Song::mix`
    assert the command range, so no demo can do it again. Test
