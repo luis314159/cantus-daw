@@ -2,7 +2,9 @@
 //! back in the breakdown and the outro; the verse starts half-time; the pre-chorus drops
 //! the kick for a snare roll and a silent last beat; the choruses go four on the floor.
 
-use super::{Band, CLAP, CRASH, FINAL, HAT, KICK, OPEN, RIM, SHAKER, SNARE, TOM_HI, TOM_LO, TOM_MID};
+use super::{
+    Band, CLAP, CRASH, FINAL, HAT, KICK, OPEN, RIM, SHAKER, SNARE, TOM_HI, TOM_LO, TOM_MID,
+};
 use crate::demos::parts::{bars, drums, swell};
 use crate::demos::song::{section as name_of, Song};
 use crate::demos::theory::Ev;
@@ -33,7 +35,14 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
     let last = at >= FINAL;
     let heart = |loud: bool| {
         drums(
-            &[(if loud { "X..o............" } else { "o..g............" }, KICK)],
+            &[(
+                if loud {
+                    "X..o............"
+                } else {
+                    "o..g............"
+                },
+                KICK,
+            )],
             Q,
         )
     };
@@ -89,10 +98,7 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
         "prechorus" if i < 4 => drums(&[("x.o.x.o.x.o.x.o.", HAT)], Q),
         "prechorus" if i == n - 1 => drums(&[("xoooxoooxooo....", HAT)], Q),
         "prechorus" => drums(&[("xoooxoooxoooxooo", HAT)], Q),
-        "chorus" => drums(
-            &[("xo.oxo.oxo.oxo.o", HAT), ("..x...x...x...x.", OPEN)],
-            Q,
-        ),
+        "chorus" => drums(&[("xo.oxo.oxo.oxo.o", HAT), ("..x...x...x...x.", OPEN)], Q),
         "outro" if i < 4 => drums(&[("o.g.o.g.o.g.o.g.", HAT)], Q),
         _ => vec![],
     });
@@ -146,7 +152,10 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
             ));
         }
         if key == "verse" && i == n - 1 {
-            v.extend(drums(&[("............o.x.", TOM_MID), ("..............xX", TOM_LO)], Q));
+            v.extend(drums(
+                &[("............o.x.", TOM_MID), ("..............xX", TOM_LO)],
+                Q,
+            ));
         }
         v
     });

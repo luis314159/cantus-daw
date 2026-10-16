@@ -44,7 +44,12 @@ fn setup(app: &mut CantusApp, show: Show) {
                 let clip = app
                     .project()
                     .track(track)
-                    .and_then(|t| t.clips.iter().find(|c| c.automation.is_none() && c.start.0 > 0))
+                    .and_then(|t| {
+                        let chorus = en("demos.section.chorus");
+                        t.clips
+                            .iter()
+                            .find(|c| c.automation.is_none() && c.name == chorus)
+                    })
                     .map(|c| c.id);
                 if let Some(clip) = clip {
                     app.select_clip(track, clip);
@@ -89,7 +94,15 @@ fn setup(app: &mut CantusApp, show: Show) {
     }
 }
 
-fn shoot(dir: &Path, name: &str, dark: bool, locale: Locale, zoom: f32, size: (f32, f32), show: Show) {
+fn shoot(
+    dir: &Path,
+    name: &str,
+    dark: bool,
+    locale: Locale,
+    zoom: f32,
+    size: (f32, f32),
+    show: Show,
+) {
     i18n::set_locale(locale);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
@@ -130,10 +143,22 @@ fn main() {
         ("mixer", Show::Mixer),
         ("topline", Show::Topline),
         ("chorda", Show::Piano),
-        ("tonus", Show::Effect("demos.track.vox", EffectKind::AutoTune)),
-        ("fluctus", Show::Effect("demos.track.pad", EffectKind::VolumeShaper)),
-        ("concentus", Show::Effect("demos.track.pad", EffectKind::Chorus)),
-        ("tremor", Show::Effect("demos.track.keys", EffectKind::Tremolo)),
+        (
+            "tonus",
+            Show::Effect("demos.track.vox", EffectKind::AutoTune),
+        ),
+        (
+            "fluctus",
+            Show::Effect("demos.track.pad", EffectKind::VolumeShaper),
+        ),
+        (
+            "concentus",
+            Show::Effect("demos.track.pad", EffectKind::Chorus),
+        ),
+        (
+            "tremor",
+            Show::Effect("demos.track.keys", EffectKind::Tremolo),
+        ),
         ("speculum", Show::Master(EffectKind::Analyzer)),
     ];
     for (theme, dark) in [("night", true), ("paper", false)] {

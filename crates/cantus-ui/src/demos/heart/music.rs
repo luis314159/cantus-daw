@@ -62,7 +62,8 @@ pub fn chart(key: &str) -> Chart<'static> {
 
 const VERSE_A: &str = "r:1 C5:.5 C5:.5 Eb5:.75 C5:.75 Ab4:.5 | F4:1 r:1 Ab4:.5 C5:.5 Db5:.5 C5:.5 \
      | C5:1.5 Bb4:.5 Ab4:1 Bb4:.5 C5:.5 | Bb4:2.5 r:1.5";
-const VERSE_B: &str = "r:1 C5:.5 C5:.5 Eb5:.75 F5:.75 Eb5:.5 | Db5:1 C5:1 Ab4:.5 Bb4:.5 C5:.5 Db5:.5 \
+const VERSE_B: &str =
+    "r:1 C5:.5 C5:.5 Eb5:.75 F5:.75 Eb5:.5 | Db5:1 C5:1 Ab4:.5 Bb4:.5 C5:.5 Db5:.5 \
      | Eb5:1.5 Db5:.5 C5:1 Ab4:1 | Bb4:3 r:1";
 const PRE_A: &str = "Db5:1 C5:.5 Bb4:.5 Db5:1 C5:.5 Bb4:.5 | C5:1 Ab4:.5 Ab4:.5 C5:1 Eb5:1 \
      | F5:1 Eb5:.5 Db5:.5 F5:1 Eb5:.5 Db5:.5 | Eb5:3 r:1";
@@ -92,7 +93,11 @@ pub fn hook() -> Vec<Ev> {
 
 /// `laid`'s events repeated over `bars` bars.
 fn over(evs: &[Ev], laid: &Laid, bars: f64) -> Vec<Ev> {
-    repeat(evs, laid.beats, ((bars * 4.0) / laid.beats).round() as usize)
+    repeat(
+        evs,
+        laid.beats,
+        ((bars * 4.0) / laid.beats).round() as usize,
+    )
 }
 
 pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
@@ -106,7 +111,11 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
     let rh = lay(chart, 4, 58, 77, 67);
     let piano: Vec<Ev> = match key {
         "intro" => {
-            let a = over(&arp(&rh, 36, &[0, 1, 2, 3, 4, 3, 2, 1], 0.5, 1.2, 54), &rh, len);
+            let a = over(
+                &arp(&rh, 36, &[0, 1, 2, 3, 4, 3, 2, 1], 0.5, 1.2, 54),
+                &rh,
+                len,
+            );
             swell(&a, beats, 0.85, 1.1)
         }
         "verse" => {
@@ -121,7 +130,11 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
                     &rh,
                     36,
                     4.0,
-                    &[(0.0, 1.9, 68, B::R), (0.0, 1.9, 56, B::O), (2.0, 1.9, 56, B::O)],
+                    &[
+                        (0.0, 1.9, 68, B::R),
+                        (0.0, 1.9, 56, B::O),
+                        (2.0, 1.9, 56, B::O),
+                    ],
                 ));
                 v.extend(shift(&repeat(&h, rh.beats, 2), half as f64 * 32.0));
             }
@@ -150,7 +163,12 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
             let mut h = comp(
                 &rh,
                 4.0,
-                &[(0.0, 1.4, 86), (1.5, 0.9, 74), (2.5, 1.4, 82), (3.5, 0.45, 68)],
+                &[
+                    (0.0, 1.4, 86),
+                    (1.5, 0.9, 74),
+                    (2.5, 1.4, 82),
+                    (3.5, 0.45, 68),
+                ],
             );
             h.extend(bass(
                 &rh,
@@ -192,9 +210,9 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
                 .collect();
             v = swell(&v, 24.0, 1.0, 0.8);
             let (_, _, c, voicing) = rh.at(24.0);
-            v.push(Ev::new(24.0, 7.9, c.bass_at(36), 60));
+            v.push(Ev::new(24.0, 7.9, c.bass_at(36), 72));
             for (i, p) in voicing.iter().enumerate() {
-                v.push(Ev::new(24.08 + i as f64 * 0.06, 7.8, *p, 54));
+                v.push(Ev::new(24.08 + i as f64 * 0.06, 7.8, *p, 66));
             }
             v
         }
@@ -210,7 +228,11 @@ pub fn section(s: &mut Song, b: &Band, key: &str, at: f64, len: f64) {
                 &low,
                 29,
                 4.0,
-                &[(0.0, 1.9, 96, B::R), (2.0, 1.4, 86, B::R), (3.5, 0.45, 84, B::A)],
+                &[
+                    (0.0, 1.9, 96, B::R),
+                    (2.0, 1.4, 86, B::R),
+                    (3.5, 0.45, 84, B::A),
+                ],
             );
             shift(&over(&walk, &low, 8.0), 32.0)
         }
@@ -283,7 +305,12 @@ fn keys_and_pads(
             &comp(
                 &k,
                 4.0,
-                &[(0.5, 0.35, 74), (1.5, 0.35, 62), (2.5, 0.35, 72), (3.5, 0.35, 62)],
+                &[
+                    (0.5, 0.35, 74),
+                    (1.5, 0.35, 62),
+                    (2.5, 0.35, 72),
+                    (3.5, 0.35, 62),
+                ],
             ),
             &k,
             len,
@@ -316,7 +343,10 @@ fn keys_and_pads(
     let notes: Vec<Ev> = match key {
         "verse" => arp(&a, 48, &[1, 2, 3, 4, 3, 2], 0.5, 0.4, 56)
             .into_iter()
-            .map(|e| Ev { at: e.at + 32.0, ..e })
+            .map(|e| Ev {
+                at: e.at + 32.0,
+                ..e
+            })
             .filter(|e| e.at < beats)
             .collect(),
         "prechorus" => {
@@ -327,7 +357,10 @@ fn keys_and_pads(
             v.extend(
                 arp(&a, 48, &[1, 2, 3, 4, 2, 3, 4, 3], 0.25, 0.22, 60)
                     .into_iter()
-                    .map(|e| Ev { at: e.at + 16.0, ..e })
+                    .map(|e| Ev {
+                        at: e.at + 16.0,
+                        ..e
+                    })
                     .filter(|e| e.at < beats - 1.0),
             );
             v
@@ -368,7 +401,11 @@ fn keys_and_pads(
     // Exemplar's choir: the breakdown's chords, and under the last chorus.
     if key == "break" || (key == "chorus" && last) {
         let c = lay(chart, 3, 57, 74, 65);
-        let v = over(&hold(&c, if key == "break" { 84 } else { 70 }, 0.99), &c, len);
+        let v = over(
+            &hold(&c, if key == "break" { 84 } else { 70 }, 0.99),
+            &c,
+            len,
+        );
         s.clip(b.choir, name, at, len, &v);
     }
 }

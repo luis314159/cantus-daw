@@ -242,7 +242,11 @@ fn every_demo_renders_clean_and_at_a_sane_loudness() {
         eprintln!("{}: {l:.1} LUFS, {tp:.2} dBTP", d.id);
         assert!(tp <= ceiling, "{}: true peak {tp:.2} dBTP", d.id);
         let secs = demos::seconds(p);
-        assert!((55.0..=longest).contains(&secs), "{} lasts {secs:.0} s", d.id);
+        assert!(
+            (55.0..=longest).contains(&secs),
+            "{} lasts {secs:.0} s",
+            d.id
+        );
     });
 }
 
@@ -477,7 +481,9 @@ fn the_startup_project_is_a_full_session_that_loops() {
 
 fn heart() -> Project {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
-    (demos::find("heart").expect("the showcase is in the list").build)()
+    (demos::find("heart")
+        .expect("the showcase is in the list")
+        .build)()
 }
 
 /// The showcase plays what round 28 made: Chorda pedalled from the arrangement, every new
@@ -488,9 +494,10 @@ fn the_showcase_plays_round_28() {
     use cantus_core::{AutoTarget, EffectKind as K, ModKind};
     let p = heart();
     assert!(
-        p.tracks
-            .iter()
-            .any(|t| t.instrument.native().is_some_and(|n| n.kind == InstrumentKind::Chorda)),
+        p.tracks.iter().any(|t| t
+            .instrument
+            .native()
+            .is_some_and(|n| n.kind == InstrumentKind::Chorda)),
         "Chorda plays"
     );
     let slots: Vec<&cantus_core::EffectSlot> = p
@@ -512,7 +519,11 @@ fn the_showcase_plays_round_28() {
     );
     let tonus = slots.iter().find(|e| e.spec.kind == K::AutoTune).unwrap();
     assert_eq!(
-        (tonus.spec.get("key"), tonus.spec.get("scale"), tonus.spec.get("speed")),
+        (
+            tonus.spec.get("key"),
+            tonus.spec.get("scale"),
+            tonus.spec.get("speed")
+        ),
         (5.0, 2.0, 0.0),
         "Tonus hard-tunes the topline to F minor"
     );
@@ -521,8 +532,16 @@ fn the_showcase_plays_round_28() {
         .filter(|(_, m)| !m.routes.is_empty() && !m.muted)
         .map(|(_, m)| format!("{:?}", m.source.kind()))
         .collect();
-    for k in [ModKind::Lfo, ModKind::Follower, ModKind::Step, ModKind::Random] {
-        assert!(kinds.contains(&format!("{k:?}")), "no {k:?} modulator: {kinds:?}");
+    for k in [
+        ModKind::Lfo,
+        ModKind::Follower,
+        ModKind::Step,
+        ModKind::Random,
+    ] {
+        assert!(
+            kinds.contains(&format!("{k:?}")),
+            "no {k:?} modulator: {kinds:?}"
+        );
     }
     let lanes: Vec<&AutoTarget> = p
         .tracks
@@ -569,8 +588,10 @@ fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
         proc_.settle();
     }
     for slot in snap.effect_slots() {
-        tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(slot, SR))))
-            .unwrap();
+        tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
+            slot, SR,
+        ))))
+        .unwrap();
         proc_.settle();
     }
     tx.push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
@@ -602,8 +623,15 @@ fn live(p: &Project, start: Ticks, frames: usize) -> Vec<f32> {
 
 /// The first frame where two renders differ, and by how much at most.
 fn first_difference(a: &[f32], b: &[f32]) -> Option<(usize, f32)> {
-    let at = a.iter().zip(b).position(|(x, y)| x.to_bits() != y.to_bits())?;
-    let most = a.iter().zip(b).map(|(x, y)| (x - y).abs()).fold(0f32, f32::max);
+    let at = a
+        .iter()
+        .zip(b)
+        .position(|(x, y)| x.to_bits() != y.to_bits())?;
+    let most = a
+        .iter()
+        .zip(b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0f32, f32::max);
     Some((at / 2, most))
 }
 
@@ -635,14 +663,20 @@ fn live_against_offline() {
     let (start, end) = (bar * 28, bar * 30);
     let mut dry = p.clone();
     dry.master.fx_enabled = false;
-    let mut cases: Vec<(String, Project)> = vec![("all".into(), p.clone()), ("all, master out".into(), dry.clone())];
+    let mut cases: Vec<(String, Project)> = vec![
+        ("all".into(), p.clone()),
+        ("all, master out".into(), dry.clone()),
+    ];
     for i in 0..p.tracks.len() {
         cases.push((p.tracks[i].name.clone(), solo(&dry, i)));
     }
     for (name, q) in cases {
         let offline = render_range(&q, start, Some(end), 0.0);
         let played = live(&q, start, offline.frames());
-        println!("{name:<16} {:?}", first_difference(&offline.samples, &played));
+        println!(
+            "{name:<16} {:?}",
+            first_difference(&offline.samples, &played)
+        );
     }
 }
 

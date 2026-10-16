@@ -10,9 +10,9 @@ use super::theory::{Ev, Rng};
 use crate::i18n::t;
 use cantus_core::model::ModulatorId;
 use cantus_core::{
-    AutoPoint, AutoTarget, Color, Dock, DrumPad, EffectId, EffectKind, EffectSlot,
-    InstrumentKind, InstrumentSpec, LoopRegion, ModHost, ModRoute, ModSource, Modulator,
-    Project, PulsusParams, Send, Shape, StripId, Ticks, TrackIcon,
+    AutoPoint, AutoTarget, Color, Dock, DrumPad, EffectId, EffectKind, EffectSlot, InstrumentKind,
+    InstrumentSpec, LoopRegion, ModHost, ModRoute, ModSource, Modulator, Project, PulsusParams,
+    Send, Shape, StripId, Ticks, TrackIcon,
 };
 
 /// How a part is played: how far off the grid (in beats), how much the velocities move,
@@ -134,7 +134,14 @@ impl Song {
     /// At least `middle` strips in the middle of the desk (a project opens with sixteen in
     /// all): more are added before the returns docked on the right, as the mixer's `+` does.
     pub fn strips(&mut self, middle: usize) {
-        while self.p.strips.iter().filter(|s| s.dock == Dock::Middle).count() < middle {
+        while self
+            .p
+            .strips
+            .iter()
+            .filter(|s| s.dock == Dock::Middle)
+            .count()
+            < middle
+        {
             let fresh = self.p.make_strip("");
             let at = self
                 .p

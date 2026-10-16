@@ -116,7 +116,12 @@ fn music_desk(s: &mut Song, b: &Band, d: &Desk) {
         &[("depth", 0.0), ("spread", 0.0)],
     );
     // Keys: Juno chorus, Tremor's wide auto-pan, Fluctus pumping in the choruses.
-    s.insert(b.keys.strip, K::Chorus, Some("preset.concentus.juno_two"), &[]);
+    s.insert(
+        b.keys.strip,
+        K::Chorus,
+        Some("preset.concentus.juno_two"),
+        &[],
+    );
     s.insert(
         b.keys.strip,
         K::Tremolo,

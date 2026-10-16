@@ -74,7 +74,12 @@ pub fn automation(s: &mut Song, b: &Band, d: &Desk) {
             &name,
             at,
             8.0,
-            &[(0.0, 20.0, Hold), (16.0, 20.0, SCurve), (31.5, top, Hold), (31.9, 20.0, Hold)],
+            &[
+                (0.0, 20.0, Hold),
+                (16.0, 20.0, SCurve),
+                (31.5, top, Hold),
+                (31.9, 20.0, Hold),
+            ],
         );
     }
 
@@ -104,7 +109,14 @@ pub fn automation(s: &mut Song, b: &Band, d: &Desk) {
         let depth = param(fx(s, part.strip, K::VolumeShaper), "depth");
         for (key, at, _) in FORM.iter().filter(|(_, at, _)| *at >= 32.0) {
             let v = if *key == "chorus" { 0.75 } else { 0.0 };
-            s.automate(part, depth.clone(), &t("demos.auto.pump"), *at, 1.0, &[(0.0, v, Hold)]);
+            s.automate(
+                part,
+                depth.clone(),
+                &t("demos.auto.pump"),
+                *at,
+                1.0,
+                &[(0.0, v, Hold)],
+            );
         }
     }
 
@@ -115,7 +127,12 @@ pub fn automation(s: &mut Song, b: &Band, d: &Desk) {
         &t("demos.auto.ring"),
         48.0,
         8.0,
-        &[(0.0, 0.0, Curve), (14.0, 0.2, Curve), (28.0, 0.65, Hold), (31.0, 0.0, Hold)],
+        &[
+            (0.0, 0.0, Curve),
+            (14.0, 0.2, Curve),
+            (28.0, 0.65, Hold),
+            (31.0, 0.0, Hold),
+        ],
     );
 
     // A reverb throw on the last word of each chorus.
@@ -131,7 +148,13 @@ pub fn automation(s: &mut Song, b: &Band, d: &Desk) {
             &t("demos.auto.throw"),
             at,
             4.0,
-            &[(0.0, dry, Hold), (4.0, dry, Curve), (5.0, wet, Hold), (13.0, wet, Curve), (15.0, dry, Hold)],
+            &[
+                (0.0, dry, Hold),
+                (4.0, dry, Curve),
+                (5.0, wet, Hold),
+                (13.0, wet, Curve),
+                (15.0, dry, Hold),
+            ],
         );
     }
 }
@@ -159,7 +182,13 @@ fn pedal(s: &mut Song, b: &Band) {
             }
             t0 += cycle;
         }
-        s.automate(b.piano, target.clone(), &name, at, len, &points);
+        // The last chord rings on two more bars, then the pianist lets the pedal up: the
+        // song ends on the dampers and the hall, never on a cut.
+        let ring = if key == "outro" { 2.0 } else { 0.0 };
+        if ring > 0.0 {
+            points.push(((len + ring) * 4.0 - 0.5, 0.0, Hold));
+        }
+        s.automate(b.piano, target.clone(), &name, at, len + ring, &points);
     }
 }
 

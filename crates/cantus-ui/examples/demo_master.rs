@@ -127,8 +127,20 @@ fn main() {
     let at = |bar: f64| (bar * spb * r.sample_rate as f64) as usize;
     let short_title = format!("{title} (excerpt)");
     let excerpt = || excerpt(&r, at(24.0), at(48.0), r.sample_rate as usize * 2);
-    write(&out, &format!("{id}-short.mp3"), excerpt(), mp3, &short_title);
-    write(&out, &format!("{id}-short.ogg"), excerpt(), ogg, &short_title);
+    write(
+        &out,
+        &format!("{id}-short.mp3"),
+        excerpt(),
+        mp3,
+        &short_title,
+    );
+    write(
+        &out,
+        &format!("{id}-short.ogg"),
+        excerpt(),
+        ogg,
+        &short_title,
+    );
 }
 
 /// Frames `a..b` of a stereo render and `fade` more, faded out over those.
@@ -171,7 +183,9 @@ fn section_starts(p: &cantus_core::Project) -> Vec<f64> {
 fn report(p: &cantus_core::Project, r: &Rendered) {
     let sr = r.sample_rate as f32;
     let n = r.frames();
-    let (l, rr): (Vec<f32>, Vec<f32>) = (0..n).map(|i| (r.samples[2 * i], r.samples[2 * i + 1])).unzip();
+    let (l, rr): (Vec<f32>, Vec<f32>) = (0..n)
+        .map(|i| (r.samples[2 * i], r.samples[2 * i + 1]))
+        .unzip();
 
     // Loudness, by Speculum's own meter; the loudest short-term second by sliding it.
     let mut a = cantus_dsp::speculum::Analysis::new(sr);
@@ -197,12 +211,19 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
     edges.push(p.content_end().as_beats_f64() / 4.0);
     print!("  sections (bar: integrated LUFS):");
     for w in edges.windows(2) {
-        let (i0, i1) = ((w[0] * spb * sr as f64) as usize, ((w[1] * spb * sr as f64) as usize).min(n));
+        let (i0, i1) = (
+            (w[0] * spb * sr as f64) as usize,
+            ((w[1] * spb * sr as f64) as usize).min(n),
+        );
         let mut a = cantus_dsp::speculum::Analysis::new(sr);
         for (x, y) in l[i0..i1].chunks(4_800).zip(rr[i0..i1].chunks(4_800)) {
             a.push(x, y, None);
         }
-        print!(" {:.0}: {:.1}", w[0], a.loudness().integrated.unwrap_or(f64::NAN));
+        print!(
+            " {:.0}: {:.1}",
+            w[0],
+            a.loudness().integrated.unwrap_or(f64::NAN)
+        );
     }
     println!();
 
@@ -281,7 +302,10 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
     // the median of the same on the other bars' downbeats.
     let sharp = |bar: f64| {
         let c = (bar * spb * sr as f64) as usize;
-        let (i0, i1) = (c.saturating_sub((0.03 * sr) as usize).max(2), (c + (0.03 * sr) as usize).min(n));
+        let (i0, i1) = (
+            c.saturating_sub((0.03 * sr) as usize).max(2),
+            (c + (0.03 * sr) as usize).min(n),
+        );
         (i0..i1)
             .map(|i| {
                 let d = |x: &[f32]| (x[i] - 2.0 * x[i - 1] + x[i - 2]).abs();
@@ -291,7 +315,10 @@ fn report(p: &cantus_core::Project, r: &Rendered) {
     };
     let bars = (p.content_end().as_beats_f64() / 4.0) as i64;
     let changes: Vec<f64> = section_starts(p);
-    let mut inside: Vec<f32> = (1..bars).filter(|b| !changes.contains(&(*b as f64))).map(|b| sharp(b as f64)).collect();
+    let mut inside: Vec<f32> = (1..bars)
+        .filter(|b| !changes.contains(&(*b as f64)))
+        .map(|b| sharp(b as f64))
+        .collect();
     inside.sort_by(f32::total_cmp);
     let median = inside[inside.len() / 2].max(1e-6);
     let worst_in = inside.last().copied().unwrap_or(0.0);

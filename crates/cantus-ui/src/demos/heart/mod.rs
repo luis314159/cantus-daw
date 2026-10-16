@@ -15,7 +15,7 @@
 //! Tonsor, Culmen to −1 dBTP, Speculum to look at.
 //!
 //! Intro 8 · verse 16 · pre-chorus 8 · chorus 16 · breakdown 8 · chorus 16 · outro 8 = 80
-//! bars, 2 min 46 s.
+//! bars, and two more of the last chord ringing on the pedal: 2 min 50 s.
 
 mod desk;
 mod drums;
@@ -101,15 +101,26 @@ fn band(s: &mut Song) -> Band {
     let studio = song::kit("pulsus.kit.studio");
     let k909 = song::kit("pulsus.kit.909");
     let perc = song::kit("pulsus.kit.percussion");
-    let drum = |s: &mut Song, name: &str, spec, color| s.part(&t(name), spec, color, TrackIcon::Drums);
-    let kick = drum(s, "demos.track.kick", song::pads(&electro, &[KICK]), colors::KICK);
+    let drum =
+        |s: &mut Song, name: &str, spec, color| s.part(&t(name), spec, color, TrackIcon::Drums);
+    let kick = drum(
+        s,
+        "demos.track.kick",
+        song::pads(&electro, &[KICK]),
+        colors::KICK,
+    );
     let snare = drum(
         s,
         "demos.track.snare",
         song::pads_from(&[(&studio, SNARE), (&k909, CLAP)]),
         colors::SNARE,
     );
-    let hats = drum(s, "demos.track.hats", song::pads(&k909, &[HAT, OPEN]), colors::HATS);
+    let hats = drum(
+        s,
+        "demos.track.hats",
+        song::pads(&k909, &[HAT, OPEN]),
+        colors::HATS,
+    );
     let perc = drum(
         s,
         "demos.track.perc",
