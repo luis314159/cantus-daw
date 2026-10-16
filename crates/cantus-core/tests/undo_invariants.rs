@@ -1735,6 +1735,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // or copied.
     let mut modded = [0usize; 3];
     let mut comped = [0usize; 4];
+    // Round 29, warp (ADR 0061): a warp set, cleared, and a marker edit applied.
+    let mut warped = [0usize; 3];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1761,6 +1763,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::InsertModulator { .. } => Some(0),
                 Command::RemoveModulator { .. } => Some(1),
                 Command::SetModulator { .. } => Some(2),
+                _ => None,
+            };
+            let warp = match &cmd {
+                Command::SetClipWarp { warp: None, .. } => Some(1),
+                Command::SetClipWarp {
+                    op: cantus_core::warp::WarpOp::AddMarker | cantus_core::warp::WarpOp::MoveMarker,
+                    ..
+                } => Some(2),
+                Command::SetClipWarp { .. } => Some(0),
                 _ => None,
             };
             let comp = match &cmd {
@@ -1821,6 +1832,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = modulator {
                     modded[k] += 1;
+                }
+                if let Some(k) = warp {
+                    warped[k] += 1;
                 }
                 if let Some(k) = comp {
                     comped[k] += 1;
@@ -1890,6 +1904,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         comped.iter().all(|n| *n > 0),
         "comp commands never applied: {comped:?}"
+    );
+    assert!(
+        warped.iter().all(|n| *n > 0),
+        "warp commands never applied: {warped:?}"
     );
 }
 
@@ -2516,10 +2534,165 @@ fn round29_tempo_command(rng: &mut Lcg, _project: &mut Project) -> Command {
     }
 }
 
-/// Round 29, warp (ADR 0061): warp markers, modes and transposition on audio clips.
-fn round29_warp_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, warp (ADR 0061): warp markers, modes and transposition on audio clips —
+/// `SetClipWarp` with every edit, cleared, and one time in nine refused (an invalid warp,
+/// or a valid one sent to a clip that is not audio).
+fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::warp::{Detected, Warp, WarpMode, WarpOp, WarpTail};
+    let audio: Vec<(TrackId, Clip)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.clone())))
+        .filter(|(_, c)| c.audio.is_some())
+        .collect();
+    let Some((track, clip)) =
+        (!audio.is_empty()).then(|| audio[rng.below(audio.len() as u64) as usize].clone())
+    else {
+        // No audio clip yet: a loop and a clip over it, in one step.
+        let tid = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+        let s = AudioSource {
+            id: AudioSourceId(project.alloc_id()),
+            name: "loop".into(),
+            path: "C:/loops/drums 92.wav".into(),
+            sample_rate: 44_100,
+            channels: 2,
+            frames: 44_100 * 6,
+            sha256: None,
+            recorded: false,
+        };
+        let c = project.make_audio_clip("loop", s.id, Ticks::ZERO, Ticks::beats(8));
+        return Command::Batch {
+            label_key: "fuzz.loop".into(),
+            commands: vec![
+                Command::InsertAudioSource { source: s },
+                Command::InsertClip {
+                    track: tid,
+                    clip: Box::new(c),
+                },
+            ],
+        };
+    };
+    let rate = clip
+        .audio
+        .as_ref()
+        .and_then(|a| project.audio_source(a.source))
+        .map_or(48_000, |s| s.sample_rate.max(1));
+    let slip = clip.audio.as_ref().map_or(0, |a| a.slip_frames);
+    let w = clip
+        .audio
+        .as_ref()
+        .and_then(|a| a.warp.clone())
+        .map(|b| *b)
+        .unwrap_or_else(|| Warp::identity(rate, project.tempo_bpm, slip));
+    let n = w.markers.len().max(1) as u64;
+    let i = rng.below(n) as usize;
+    let (next, op) = match rng.below(14) {
+        0 => (
+            w.add_marker(Ticks(rng.below(16 * 960) as i64)).unwrap_or(w),
+            WarpOp::AddMarker,
+        ),
+        1 => (
+            w.move_marker(i, Ticks(rng.below(16 * 960) as i64 - 960)),
+            WarpOp::MoveMarker,
+        ),
+        2 => {
+            let f = w.markers.get(i).map_or(0.0, |m| m.frame) + rng.f32(-900.0, 900.0) as f64;
+            (w.move_content(i, f), WarpOp::MoveContent)
+        }
+        3 => (w.remove_marker(i), WarpOp::RemoveMarker),
+        4 => {
+            let hits: Vec<f64> = (0..8)
+                .map(|k| k as f64 * 15_000.0 + rng.below(900) as f64)
+                .collect();
+            (
+                w.quantise(
+                    &hits,
+                    Ticks(480),
+                    rng.f32(0.0, 1.0),
+                    Ticks::ZERO,
+                    Ticks::beats(16),
+                ),
+                WarpOp::Quantise,
+            )
+        }
+        5 => {
+            let mut v = w;
+            v.mode = WarpMode::ALL[rng.below(4) as usize];
+            (v, WarpOp::Mode)
+        }
+        6 => {
+            let mut v = w;
+            v.cents = rng.below(4_801) as i32 - 2_400;
+            (v, WarpOp::Transpose)
+        }
+        7 => {
+            let mut v = w;
+            v.formants = !v.formants;
+            v.tail = WarpTail::ALL[rng.below(3) as usize];
+            (
+                v,
+                if rng.below(2) == 0 {
+                    WarpOp::Formants
+                } else {
+                    WarpOp::Tail
+                },
+            )
+        }
+        8 => {
+            let mut v = w;
+            v.follow = !v.follow;
+            (v, WarpOp::Follow)
+        }
+        9 => (w.with_tempo(60.0 + rng.below(120) as f64), WarpOp::Tempo),
+        10 => {
+            let per = rate as f64 * 60.0 / 92.0;
+            let beats: Vec<f64> = (0..16).map(|k| 1_000.0 + k as f64 * per).collect();
+            let d = Detected {
+                bpm: 92.0,
+                confidence: rng.f32(0.0, 1.0),
+                downbeat: 1_000.0,
+                bars: Some(4),
+            };
+            (Warp::from_grid(rate, 92.0, &beats, 0, 4, d), WarpOp::Set)
+        }
+        11 => {
+            return Command::SetClipWarp {
+                track,
+                clip: clip.id,
+                warp: None,
+                op: WarpOp::Reset,
+            };
+        }
+        12 => (w.reset(), WarpOp::Reset),
+        _ => {
+            // Refused: a valid warp on a clip that is not audio, or an invalid warp.
+            let other = project
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
+                .find(|(_, c)| c.audio.is_none())
+                .map(|(t, c)| (t, c.id));
+            let (target, warp) = match other.filter(|_| rng.below(2) == 0) {
+                Some(t) => (t, w),
+                None => {
+                    let mut v = w;
+                    v.bpm = 0.0;
+                    ((track, clip.id), v)
+                }
+            };
+            return Command::SetClipWarp {
+                track: target.0,
+                clip: target.1,
+                warp: Some(Box::new(warp)),
+                op: WarpOp::Set,
+            };
+        }
+    };
+    Command::SetClipWarp {
+        track,
+        clip: clip.id,
+        warp: Some(Box::new(next)),
+        op,
     }
 }
 

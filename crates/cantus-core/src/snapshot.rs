@@ -114,6 +114,13 @@ pub struct AudioClipSnapshot {
     pub xin: Option<(Ticks, Ticks)>,
     /// The seam's crossfade out of this window into the next.
     pub xout: Option<(Ticks, Ticks)>,
+    /// The clip's warp (ADR 0061), unless it plays as the source: the sample cache
+    /// attaches its render — laid out so frame `k` is content time `k / rate` at the
+    /// project's tempo from the window's content origin, its fine offset inside — and sets
+    /// `slip` to 0.
+    pub warp: Option<std::sync::Arc<crate::warp::Warp>>,
+    /// The source file's own rate (the warp's frames count at it).
+    pub source_rate: u32,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -368,6 +375,13 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
+            // A warp that plays as the source (ADR 0061) is no warp: the bits of today.
+            warp: a
+                .warp
+                .as_ref()
+                .filter(|w| !w.is_identity(project.tempo_bpm, a.slip_frames))
+                .map(|w| std::sync::Arc::new((**w).clone())),
+            source_rate: src.sample_rate,
         };
         match c.period() {
             Some(period) if period < c.length => {

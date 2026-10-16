@@ -30,6 +30,7 @@ pub mod routing;
 pub mod snapshot;
 pub mod tempo;
 pub mod time;
+pub mod warp;
 
 pub use audio::{
     AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,

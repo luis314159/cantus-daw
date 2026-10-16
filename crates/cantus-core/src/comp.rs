@@ -114,14 +114,17 @@ pub(crate) fn apply_set_comps(
 }
 
 /// Whether a clip can be one side of a comp seam (ADR 0058): a playing-lane audio window
-/// with a length, neither reversed nor looping — the windows the engine crossfades. One
+/// with a length, neither reversed, looping nor warped (ADR 0061: a warped window plays a
+/// render, whose seams would need the warp map) — the windows the engine crossfades. One
 /// test for the snapshot, the seam command and the arrangement, so none of them shows or
 /// moves a seam another does not play.
 pub fn seam_window(c: &Clip) -> bool {
     c.lane == 0
         && c.length > Ticks::ZERO
         && c.period().is_none_or(|p| p >= c.length)
-        && c.audio.as_ref().is_some_and(|a| !a.reverse)
+        && c.audio
+            .as_ref()
+            .is_some_and(|a| !a.reverse && a.warp.is_none())
 }
 
 /// Whether `left` and `right` make a comp seam (ADR 0058): two seam windows
