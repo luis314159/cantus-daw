@@ -61,4 +61,5 @@ pub use pads::{
     PulsusParams, RoundRobin, SampleData, StreamRef, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
 pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
+pub use tempo::{Marker, MarkerId, MetreChange, TempoMap, TempoPoint};
 pub use time::{Ticks, TimeSignature, PPQ};

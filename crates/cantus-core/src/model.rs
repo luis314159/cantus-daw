@@ -1024,6 +1024,18 @@ pub struct Project {
     /// written while it says *song*.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pattern_mode: bool,
+    /// The tempo track (schema 33, ADR 0060): empty without one — the song plays at
+    /// `tempo_bpm` throughout. With one, the first point is at tick 0 and agrees with
+    /// `tempo_bpm`; each point holds its tempo or ramps to the next.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tempo_points: Vec<crate::tempo::TempoPoint>,
+    /// The metre changes (schema 33, ADR 0060): empty with one metre throughout. With
+    /// some, the first is at tick 0 and agrees with `time_signature`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metre_changes: Vec<crate::tempo::MetreChange>,
+    /// The named markers (schema 33, ADR 0060), sorted by position, then id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<crate::tempo::Marker>,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1064,6 +1076,9 @@ impl Project {
             audio_pool: Vec::new(),
             recording: crate::audio::RecordSettings::default(),
             pattern_mode: false,
+            tempo_points: Vec::new(),
+            metre_changes: Vec::new(),
+            markers: Vec::new(),
             next_id: 1,
         }
     }

@@ -1735,6 +1735,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // or copied.
     let mut modded = [0usize; 3];
     let mut comped = [0usize; 4];
+    // The tempo track, metre and markers (ADR 0060): one count per command kind.
+    let mut tempoed = [0usize; 12];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1797,6 +1799,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     .collect(),
                 _ => Vec::new(),
             };
+            let tempo = tempo_kind(&cmd);
             let ok = bus.execute(cmd, origin).is_ok();
             // Schema 32: a split comp window's half is the comp's; a copy or a paste is not.
             if ok {
@@ -1824,6 +1827,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = comp {
                     comped[k] += 1;
+                }
+                if let Some(k) = tempo {
+                    tempoed[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1890,6 +1896,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         comped.iter().all(|n| *n > 0),
         "comp commands never applied: {comped:?}"
+    );
+    assert!(
+        tempoed.iter().all(|n| *n > 0),
+        "tempo commands never applied: {tempoed:?}"
     );
 }
 
@@ -2509,11 +2519,174 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
 
 // --- Round 29: one section per builder (the contract's placeholders) --------------------
 
-/// Round 29, tempo (ADR 0060): tempo points, ramps, metre changes and markers.
-fn round29_tempo_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, tempo (ADR 0060): tempo points, ramps, metre changes and markers — and the
+/// song's metre (no arm drew `SetTimeSignature` before).
+fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    // One draw from the shared generator, as the contract's placeholder took, so the other
+    // arms' draws stay where the coverage checks count on them; the rest from our own.
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x7e3_9a11);
+    // The model's invariant: a tempo track starts at tick 0 at the song's tempo, and the
+    // metre list at the song's metre.
+    if let Some(p) = project.tempo_points.first() {
+        assert_eq!((p.tick, p.bpm), (Ticks::ZERO, project.tempo_bpm));
     }
+    if let Some(m) = project.metre_changes.first() {
+        assert_eq!((m.tick, m.signature), (Ticks::ZERO, project.time_signature));
+    }
+    let point = |rng: &mut Lcg, tick: i64| TempoPoint {
+        tick: Ticks(tick),
+        bpm: f64::from(rng.f32(40.0, 240.0)),
+        ramp: rng.below(2) == 0,
+    };
+    let sigs = [(4, 4), (3, 4), (7, 8), (5, 4), (6, 8), (2, 2)];
+    let mut sig = |rng: &mut Lcg| {
+        let (n, d) = sigs[rng.below(sigs.len() as u64) as usize];
+        TimeSignature::new(n, d)
+    };
+    let pts = project.tempo_points.clone();
+    let len = pts.len() as u64;
+    let map = project.tempo_map();
+    let changes = project.metre_changes.clone();
+    let markers = project.markers.clone();
+    // Draw among the kinds the project can take now, so each is applied often enough.
+    let can = |k: u64| match k {
+        1 | 3 => !pts.is_empty(),
+        2 => pts.len() > 1,
+        5 | 6 => changes.len() > 1,
+        9 | 10 => !markers.is_empty(),
+        _ => true,
+    };
+    let open: Vec<u64> = (0..12).filter(|k| can(*k)).collect();
+    match open[rng.below(open.len() as u64) as usize] {
+        0 if pts.is_empty() || rng.below(4) != 0 => {
+            let bpm = project.tempo_bpm;
+            let mut points = vec![TempoPoint {
+                tick: Ticks::ZERO,
+                bpm,
+                ramp: rng.below(2) == 0,
+            }];
+            let mut tick = 0;
+            for _ in 0..1 + rng.below(3) {
+                tick += 960 + rng.below(30_000) as i64;
+                points.push(point(rng, tick));
+            }
+            Command::SetTempoTrack { bpm, points }
+        }
+        0 => Command::SetTempoTrack {
+            bpm: project.tempo_bpm,
+            points: Vec::new(),
+        },
+        1 => {
+            let index = 1 + rng.below(len.max(1)) as usize;
+            let prev = pts.get(index - 1).map_or(0, |p| p.tick.0);
+            let next = pts.get(index).map_or(prev + 20_000, |p| p.tick.0);
+            let tick = prev + 1 + rng.below((next - prev - 1).max(1) as u64) as i64;
+            Command::InsertTempoPoint {
+                index,
+                point: point(rng, tick),
+            }
+        }
+        2 => Command::RemoveTempoPoint {
+            index: 1 + rng.below(len.max(2) - 1) as usize,
+        },
+        3 => {
+            let index = rng.below(len.max(1)) as usize;
+            let tick = if index == 0 {
+                0
+            } else {
+                let prev = pts[index - 1].tick.0;
+                let next = pts.get(index + 1).map_or(prev + 20_000, |p| p.tick.0);
+                prev + 1 + rng.below((next - prev - 1).max(1) as u64) as i64
+            };
+            Command::SetTempoPoint {
+                index,
+                point: point(rng, tick),
+            }
+        }
+        4 => Command::SetMetreAt {
+            tick: map.bar_tick(1 + rng.below(8) as i64),
+            signature: sig(rng),
+        },
+        5 => Command::RemoveMetreAt {
+            tick: changes
+                .get(1 + rng.below(changes.len().max(2) as u64 - 1) as usize)
+                .map_or(Ticks::ZERO, |m| m.tick),
+        },
+        6 => {
+            let i = 1 + rng.below(changes.len().max(2) as u64 - 1) as usize;
+            let from = changes.get(i).map_or(Ticks::ZERO, |m| m.tick);
+            let mut without = changes.clone();
+            if i < without.len() {
+                without.remove(i);
+            }
+            let other = TempoMap::new(120.0, project.time_signature, &[], &without);
+            let (bar, _, _) = other.bbt(from);
+            Command::MoveMetre {
+                from,
+                to: other.bar_tick(bar - 1 + rng.below(3) as i64),
+            }
+        }
+        7 => Command::SetMetreTrack {
+            signature: project.time_signature,
+            metres: if rng.below(2) == 0 {
+                Vec::new()
+            } else {
+                vec![MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: project.time_signature,
+                }]
+            },
+        },
+        8 => Command::AddMarker {
+            marker: Marker {
+                id: MarkerId(project.alloc_id()),
+                tick: Ticks(rng.below(40_000) as i64),
+                name: format!("M{}", rng.below(100)),
+                color: (rng.below(2) == 0).then(|| Color::PALETTE[rng.below(8) as usize]),
+            },
+        },
+        9 => Command::RemoveMarker {
+            id: markers
+                .get(rng.below(markers.len().max(1) as u64) as usize)
+                .map_or(MarkerId(u64::MAX), |m| m.id),
+        },
+        10 => {
+            let Some(m) = markers.get(rng.below(markers.len().max(1) as u64) as usize) else {
+                return Command::RemoveMarker {
+                    id: MarkerId(u64::MAX),
+                };
+            };
+            Command::SetMarker {
+                marker: Marker {
+                    tick: Ticks(rng.below(40_000) as i64),
+                    name: format!("N{}", rng.below(100)),
+                    ..m.clone()
+                },
+            }
+        }
+        _ => Command::SetTimeSignature {
+            time_signature: sig(rng),
+        },
+    }
+}
+
+/// Which tempo command a generated command is, for the coverage check (ADR 0060).
+fn tempo_kind(cmd: &Command) -> Option<usize> {
+    Some(match cmd {
+        Command::SetTempoTrack { .. } => 0,
+        Command::InsertTempoPoint { .. } => 1,
+        Command::RemoveTempoPoint { .. } => 2,
+        Command::SetTempoPoint { .. } => 3,
+        Command::SetMetreAt { .. } => 4,
+        Command::RemoveMetreAt { .. } => 5,
+        Command::MoveMetre { .. } => 6,
+        Command::SetMetreTrack { .. } => 7,
+        Command::AddMarker { .. } => 8,
+        Command::RemoveMarker { .. } => 9,
+        Command::SetMarker { .. } => 10,
+        Command::SetTimeSignature { .. } => 11,
+        _ => return None,
+    })
 }
 
 /// Round 29, warp (ADR 0061): warp markers, modes and transposition on audio clips.
