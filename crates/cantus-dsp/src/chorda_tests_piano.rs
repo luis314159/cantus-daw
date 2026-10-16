@@ -201,8 +201,8 @@ fn the_strings_ring_in_sympathy_with_the_pedal_down() {
 /// 64 voices sounding with the pedal down, 256-frame blocks, one thread: the time it takes
 /// against the time it plays. ADR 0059's target is a quarter of one core.
 ///
-/// Measured as the best of 48 stretches of a quarter second (12 s of audio, as the three
-/// 4-second runs before): a preempted stretch only takes longer, so on a loaded machine
+/// Measured as the best of 48 stretches of a quarter second (47 blocks; 12 s of audio, as
+/// the three 4-second runs before): a preempted stretch only takes longer, so on a loaded machine
 /// the quickest is the instrument's own cost (fix6: under a full test run beside a Linux
 /// one even the best 4-second run was preempted past the bound). Wall time, the same on
 /// every system.
@@ -212,8 +212,10 @@ fn sixty_four_pedal_down_voices() -> f64 {
     for (i, k) in (30u8..94).enumerate() {
         ev.push((1 + i * 37, Ev::On(k, 0.7, i as u64 + 1)));
     }
-    // A stretch: 47 blocks of 256, a quarter second.
-    let blocks = (0.25 * FS) as usize / 256;
+    // A stretch: 47 blocks of 256 (12 032 samples), a quarter second rounded up to a
+    // whole block; 48 of them, 12.03 s of audio.
+    let blocks = ((0.25 * FS) as usize).div_ceil(256);
+    assert_eq!(blocks, 47);
     let seconds = (blocks * 256) as f64 / FS;
     // Warm up: every voice struck and ringing.
     perform(&mut c, &ev, 4_096, 256, 1);

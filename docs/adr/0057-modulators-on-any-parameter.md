@@ -267,3 +267,21 @@ undo step; a loop pass writes over what the previous one wrote.
   after a tempo change (7.6, not 15.6) — `master_chain::the_heard_position_folds_only_through_the_wraps_played`.
 - The 32nd-note loop test checks the fold the gate is given against the transport frame by
   frame, to a quarter of a sample: a pass counted a sample off fails it.
+
+## Amended by fix7 (round 28: the review of fix6)
+
+- **The wraps played outlive the loop.** `Transport::wraps` answered only while a loop lay
+  ahead of the playhead, so a loop turned off — or moved ahead of the playhead — just after
+  a wrap hid the wraps whose audio was still in flight: the heard playhead and a late
+  insert's position went straight back from the playhead (12 000 samples of latency,
+  1 000 samples after a wrap of a loop 8–9: 7.54, not 8.54), and a late insert's pass was
+  no longer cut at its own wrap. `Transport::wraps_played` keeps them readable whatever the
+  loop is now — the heard position, `SongPosition::wrap` and the processor's pass cuts all
+  read it — and counts the passes older than the kept ones at the length of the loop the
+  last wrap came in (at the tempo now). A start or a seek still forgets them. Tests:
+  `transport::tests::the_wraps_played_outlive_the_loop`,
+  `master_chain::the_heard_position_keeps_the_wraps_played_when_the_loop_changes`, and end
+  to end `fx_tremor::a_late_gate_hears_the_wrap_played_after_the_loop_is_turned_off` (a
+  gate 240 samples late, the loop turned off or moved ahead 100 samples after a wrap,
+  renders to the bit what it renders with the loop kept on, at blocks of 1 to 1 024; fails
+  with the fold or the pass cut taken back to `wraps`).
