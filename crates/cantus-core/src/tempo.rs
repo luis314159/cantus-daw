@@ -230,11 +230,15 @@ mod tests {
     fn bars_of_a_constant_metre() {
         let map = TempoMap::constant(120.0, TimeSignature::new(3, 4));
         let lines: Vec<Ticks> = map.bar_lines(Ticks(100), Ticks::beats(10)).collect();
-        assert_eq!(lines, vec![Ticks::beats(3), Ticks::beats(6), Ticks::beats(9)]);
+        assert_eq!(
+            lines,
+            vec![Ticks::beats(3), Ticks::beats(6), Ticks::beats(9)]
+        );
         assert_eq!(map.bar_start(Ticks::beats(4)), Ticks::beats(3));
         assert_eq!(map.bbt(Ticks::beats(4)), (2, 2, 0));
         assert_eq!(
-            map.bar_lines(Ticks::ZERO, Ticks::beats(3)).collect::<Vec<_>>(),
+            map.bar_lines(Ticks::ZERO, Ticks::beats(3))
+                .collect::<Vec<_>>(),
             vec![Ticks::ZERO]
         );
     }
