@@ -249,3 +249,21 @@ undo step; a loop pass writes over what the previous one wrote.
   uncapped, or a fold on the first entry.
 - **The pinned fader's live mark is the desk's drawing** (`kit::fader::live_mark`), and the
   inspector's probe records which mark each pinned control draws (`probe::note_live`).
+
+## Amended by fix6 (round 28: the review of fix5)
+
+- **Each stretch ends where the playhead was.** `Wraps` keeps, with each kept pass's
+  length, the song position its wrap came at (the loop's end and the transport's sub-sample
+  carry for a natural wrap; where the playhead stood for a forced one), and where the
+  lead-in ended; `Wraps::locate` answers both the samples before the wrap and that end. A
+  late insert's position is that end less the samples, so played from past the loop's end
+  (beat 12, a loop 8–9) the audio before the forced wrap is beat 12's, and a loop end moved
+  behind the playhead leaves the stretch the edit cut where it was played (8½), not in the
+  new loop. `Transport::wrap_to` counts its wrap (`transport::tests::a_forced_wrap_counts_…`,
+  `master_chain::a_forced_wrap_is_heard_where_the_playhead_was` — both fail with `seek`).
+- **The heard playhead folds by the same `Wraps`** (`Processor::heard_position_f64`): it
+  folded by the loop's length through passes never played (60 000 samples of latency, a
+  one-beat loop, 6 000 samples after the first wrap: 6.75, not 8.75) and on a first entry
+  after a tempo change (7.6, not 15.6) — `master_chain::the_heard_position_folds_only_through_the_wraps_played`.
+- The 32nd-note loop test checks the fold the gate is given against the transport frame by
+  frame, to a quarter of a sample: a pass counted a sample off fails it.

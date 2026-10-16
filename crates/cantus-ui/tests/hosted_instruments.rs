@@ -169,9 +169,8 @@ fn opening_its_editor_from_the_track_opens_the_plugin_window() {
 fn on_top_and_pumped(a: &CantusApp, track: TrackId) {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, PeekMessageW, SetWindowPos, ShowWindow, TranslateMessage,
-        HWND_TOPMOST, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
-        SW_SHOWNOACTIVATE,
+        DispatchMessageW, PeekMessageW, SetWindowPos, ShowWindow, TranslateMessage, HWND_TOPMOST,
+        MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SW_SHOWNOACTIVATE,
     };
     let h = a
         .plugins
@@ -348,4 +347,3 @@ fn a_hosted_row_double_clicked_while_a_modulator_maps_resets() {
         p.name
     );
 }
-

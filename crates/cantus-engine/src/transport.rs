@@ -341,9 +341,21 @@ mod tests {
         let w = t.wraps().unwrap();
         assert_eq!(w.count, 3);
         assert_eq!(w.locate(1_000), None, "the pass playing");
-        assert_eq!(w.locate(7_000), Some((6_000, 8.5)), "the stretch the edit cut");
-        assert_eq!(w.locate(13_001), Some((1, 9.0)), "the pass before, at its end");
-        assert_eq!(w.locate(37_001), Some((1, 12.0)), "the song before the loop");
+        assert_eq!(
+            w.locate(7_000),
+            Some((6_000, 8.5)),
+            "the stretch the edit cut"
+        );
+        assert_eq!(
+            w.locate(13_001),
+            Some((1, 9.0)),
+            "the pass before, at its end"
+        );
+        assert_eq!(
+            w.locate(37_001),
+            Some((1, 12.0)),
+            "the song before the loop"
+        );
     }
 
     /// Play `samples` one at a time from `from` with the loop `[ls, le)` (in ticks), the

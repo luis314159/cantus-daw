@@ -386,10 +386,15 @@ fn the_heard_position_folds_only_through_the_wraps_played() {
     rig.play(8 * 24_000 + 2_400);
     let mut faster = p.clone();
     faster.tempo_bpm = 121.0;
-    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(&faster, 2))));
+    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
+        &faster, 2,
+    ))));
     rig.play(1);
     let heard = beats(rig.p.heard_position_f64());
-    assert!(heard < 8.0 && (heard - 7.6).abs() < 0.01, "a first entry: {heard}");
+    assert!(
+        heard < 8.0 && (heard - 7.6).abs() < 0.01,
+        "a first entry: {heard}"
+    );
 }
 
 /// Review of fix5: a wrap the engine forces counts, through the processor — the loop's end
@@ -415,7 +420,9 @@ fn a_forced_wrap_is_heard_where_the_playhead_was() {
         start: Ticks::beats(8),
         end: Ticks::beats(8) + Ticks(PPQ / 4),
     });
-    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(&p, 2))));
+    rig.send(EngineMessage::SetSnapshot(Arc::new(Snapshot::compile(
+        &p, 2,
+    ))));
     rig.play(1_000);
     let heard = beats(rig.p.heard_position_f64());
     let want = 8.5 - 11_000.0 / 24_000.0;

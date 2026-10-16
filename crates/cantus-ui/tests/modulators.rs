@@ -889,7 +889,11 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
             .map(|(_, h)| *h)
             .collect()
     };
-    let live = marks(&[AutoTarget::StripGain, AutoTarget::StripPan, AutoTarget::StripWidth]);
+    let live = marks(&[
+        AutoTarget::StripGain,
+        AutoTarget::StripPan,
+        AutoTarget::StripWidth,
+    ]);
     // The volume's fader the desk's way and the pan knob its own dot, their readout wells
     // the edge tick; the width's well the edge tick.
     let sorted = |name: &str| {
@@ -897,7 +901,11 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
         v.sort_unstable();
         v
     };
-    assert_eq!(sorted("kit.param.volume"), vec!["edge", "fader"], "{live:?}");
+    assert_eq!(
+        sorted("kit.param.volume"),
+        vec!["edge", "fader"],
+        "{live:?}"
+    );
     assert_eq!(sorted("kit.param.pan"), vec!["edge", "knob"], "{live:?}");
     assert_eq!(how(&live, "kit.param.width"), vec!["edge"], "{live:?}");
     // Nothing modulated: no mark anywhere.
