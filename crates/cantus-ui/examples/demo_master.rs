@@ -50,7 +50,7 @@ fn audio(r: &Rendered) -> Audio {
     }
 }
 
-fn write(out: &PathBuf, name: &str, a: Audio, s: ExportSettings, title: &str) {
+fn write(out: &std::path::Path, name: &str, a: Audio, s: ExportSettings, title: &str) {
     let tags = Tags {
         title: title.to_string(),
         artist: "Cantus".into(),
