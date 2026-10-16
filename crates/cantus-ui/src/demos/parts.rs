@@ -44,12 +44,23 @@ impl Laid {
             .unwrap_or(&self.items[0])
     }
 
-    /// Beats from `beat` to the next chord change: what a note struck there may last
-    /// before it would ring under the next chord.
-    pub fn left(&self, beat: f64) -> f64 {
+    /// Beats from `beat` to the first change to a chord without `pitch` (in any octave),
+    /// or to the chart's end: how long a note struck there may ring without sounding under
+    /// a chord that lacks it. A change to a chord that still holds it — Asus4 to A under a
+    /// held A — does not stop it (review of fix4: cutting at every change left holes where
+    /// the bass stays).
+    pub fn held(&self, beat: f64, pitch: u8) -> f64 {
         let b = beat.rem_euclid(self.beats.max(1e-9));
-        let (start, len, _, _) = self.at(beat);
-        (start + len - b).max(1.0 / 64.0)
+        let cur = self.at(beat);
+        let i = self.items.iter().position(|x| x.0 == cur.0).unwrap_or(0);
+        let mut end = cur.0 + cur.1;
+        for next in &self.items[i + 1..] {
+            if !next.2.holds(pitch) {
+                break;
+            }
+            end = next.0 + next.1;
+        }
+        (end - b).max(1.0 / 64.0)
     }
 
     /// The item after the one sounding at `beat`.
@@ -72,8 +83,9 @@ pub fn hold(laid: &Laid, vel: u8, gate: f64) -> Vec<Ev> {
 }
 
 /// Chords struck on a rhythm that repeats every `cycle` beats: `(at, length, velocity)`.
-/// A hit takes the voicing of the chord sounding at its moment and stops at the next
-/// change (as do [`bass`] and [`arp`]): held on, it would ring under the next chord.
+/// A hit takes the voicing of the chord sounding at its moment; each of its notes stops at
+/// the first change to a chord without it (as in [`bass`] and [`arp`]): held on, it would
+/// ring under that chord.
 pub fn comp(laid: &Laid, cycle: f64, rhythm: &[(f64, f64, u8)]) -> Vec<Ev> {
     let mut out = Vec::new();
     let mut base = 0.0;
@@ -83,9 +95,8 @@ pub fn comp(laid: &Laid, cycle: f64, rhythm: &[(f64, f64, u8)]) -> Vec<Ev> {
             if t >= laid.beats - 1e-9 {
                 continue;
             }
-            let len = len.min(laid.left(t));
             for p in &laid.at(t).3 {
-                out.push(Ev::new(t, len, *p, *vel));
+                out.push(Ev::new(t, len.min(laid.held(t, *p)), *p, *vel));
             }
         }
         base += cycle;
@@ -145,8 +156,8 @@ pub fn bass(laid: &Laid, low: u8, cycle: f64, rhythm: &[(f64, f64, u8, B)]) -> V
                 }
                 B::S(s) => r + *s as i32,
             };
-            let len = len.min(laid.left(t));
-            out.push(Ev::new(t, len, p.clamp(0, 127) as u8, *vel));
+            let p = p.clamp(0, 127) as u8;
+            out.push(Ev::new(t, len.min(laid.held(t, p)), p, *vel));
         }
         base += cycle;
     }
@@ -167,7 +178,7 @@ pub fn arp(laid: &Laid, low: u8, order: &[usize], step: f64, len: f64, vel: u8) 
         let accent = if i.is_multiple_of(4) { 10 } else { 0 };
         out.push(Ev::new(
             t,
-            len.min(laid.left(t)),
+            len.min(laid.held(t, notes[idx])),
             notes[idx],
             vel.saturating_add(accent),
         ));

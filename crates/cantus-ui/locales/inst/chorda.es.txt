@@ -77,3 +77,4 @@ chorda.width.short = ANCHURA
 chorda.not_automatable = La4, el estiramiento y la rigidez diseñan las cuerdas: se fijan, no se automatizan.
 chorda.designing_pct = diseñando las cuerdas: {pct} %
 chorda.no_room = sin sitio para otra afinación esta sesión: se queda esta
+chorda.no_designer = el diseñador de cuerdas no pudo arrancar: se queda esta

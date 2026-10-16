@@ -355,11 +355,25 @@ fn the_copy_allocates_nothing() {
     h.watch_scope(master);
     h.watch_scope(strip);
     let mut buf = vec![0f32; 2 * 512];
-    // Warm: the messages land, the pool starts, the first blocks run.
-    for _ in 0..16 {
+    // Warm: the messages land, the pool starts, the first blocks run — and both workers
+    // have joined, however loaded the machine (fix5: a pass runs on the pool only once a
+    // worker is available, and under a full test run the threads took longer to start
+    // than sixteen blocks, so the armed blocks ran serial and the test failed).
+    let since = std::time::Instant::now();
+    let mut warm = 0;
+    while warm < 16 || proc.stats().workers < 2 {
+        assert!(
+            since.elapsed() < std::time::Duration::from_secs(120),
+            "the pool's workers joined: {}",
+            proc.stats().workers
+        );
         proc.process(&mut buf, 2);
         h.drain_scope(master, |_| {});
         h.drain_scope(strip, |_| {});
+        warm += 1;
+        if warm >= 16 {
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
     }
     COUNT.store(0, Relaxed);
     ARMED.store(true, Relaxed);
@@ -373,7 +387,7 @@ fn the_copy_allocates_nothing() {
     ARMED.store(false, Relaxed);
     // The armed blocks ran on the pool, its workers serving (their allocations counted
     // through the hook from the moment they started).
-    assert!(parallel > 0, "the blocks ran on the pool");
+    assert_eq!(parallel, 30, "every armed block ran on the pool");
     assert!(proc.stats().workers > 0, "workers running");
     assert_eq!(COUNT.load(Relaxed), 0, "allocations on the audio threads");
 }

@@ -299,14 +299,15 @@ fn positions(project: &Project, frames: usize) -> (Vec<f64>, Vec<usize>) {
 
 /// Check a quarter-note gate `late` frames behind the transport against the position of
 /// the audio it hears — where the transport was `late` frames before — frame by frame:
-/// shut in the second half of that beat, the ungated bits in the first, a few samples'
-/// margin at each edge. How many frames it found open with sound, lying behind a wrap
+/// shut in the second half of that beat, the ungated bits in the first, a little
+/// margin at each edge (its soft turn). How many frames it found open with sound, lying behind a wrap
 /// (the transport already in the next pass, the audio still before it).
 fn check_heard(out: &[f32], ungated: &[f32], project: &Project, late: usize, what: &str) -> usize {
     let frames = out.len() / 2;
     let (pos, wraps) = positions(project, frames);
     assert!(wraps.len() >= 2, "{what}: it loops");
-    let margin = 8.0 / BEAT;
+    // The square turns over 0.002 of a beat (`modfx_lfo::MIN_EDGE`) around each edge.
+    let margin = 0.003;
     let mut behind = 0;
     for f in late..frames {
         let heard = pos[f - late];
@@ -347,17 +348,27 @@ fn a_late_gate_hears_each_wrap_where_its_audio_wraps() {
         end: Ticks::beats(6) + Ticks(PPQ / 3),
     });
     ungated.loop_enabled = true;
+    // A note sounding into the loop's start, so the first entry has something to shut.
+    let held = ungated.make_note(Ticks::beats(1), Ticks::beats(2), 52, 90);
+    ungated.tracks[0].clips[0].notes.push(held);
     let mut p = ungated.clone();
     gated(&mut p);
     let len = 2 * (BEAT * 15.0) as usize;
     let out = looping(&p, len, &[37, 100, 1024, 7]);
-    let behind = check_heard(&out, &looping(&ungated, len, &[512]), &p, 240, "4⅓ beats");
+    let open = looping(&ungated, len, &[512]);
+    let behind = check_heard(&out, &open, &p, 240, "4⅓ beats");
     assert!(behind > 100, "the frames behind a wrap were checked: {behind}");
-    // The first entry: up to where the audio wraps, as with no loop.
+    // The first entry: up to where the audio wraps, as with no loop — the audio from just
+    // before the loop's start (beat 2, shut) sounds as the transport enters it.
+    let entry = (2.0 * BEAT).ceil() as usize;
+    assert!(open[2 * entry..2 * (entry + 240)].iter().any(|x| *x != 0.0));
     let (_, wraps) = positions(&p, len / 2);
     let straight = realtime(&p, len);
     let first = 2 * (wraps[0] + 240);
     assert_null(&straight[..first], &out[..first], 0.0, "the first entry");
+    // In blocks of 7, a pass starts on nearly every few samples after the entry.
+    let fine = looping(&p, first, &[7]);
+    assert_null(&straight[..first], &fine, 0.0, "the first entry, blocks of 7");
     assert!(out[first..].iter().zip(&straight[first..]).any(|(a, b)| a != b));
 }
 

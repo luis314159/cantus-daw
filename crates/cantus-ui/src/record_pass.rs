@@ -393,9 +393,15 @@ fn lay(
     }
     last.lane = 0;
     // Laid over takes — what it covered stacked, the loop's earlier passes, takes already
-    // there — the pass that plays is the comp's (ADR 0058, schema 32): an alternate comp
-    // keeps it and a switch takes it away and back.
-    last.comp = sim.track(tid).is_some_and(|t| max_lane(t) > 0);
+    // under its stretch — the pass that plays is the comp's (ADR 0058, schema 32): an
+    // alternate comp keeps it and a switch takes it away and back. One laid where no take
+    // lies is a plain clip that plays under every comp (review of fix4: any take lane
+    // anywhere on the track made it a window).
+    last.comp = sim.track(tid).is_some_and(|t| {
+        t.clips
+            .iter()
+            .any(|c| c.lane > 0 && c.start < last.end() && c.end() > last.start)
+    });
     sim.push(vec![Command::InsertClip {
         track: tid,
         clip: Box::new(last),

@@ -92,17 +92,26 @@ pub fn designing(app: &CantusApp, spec: &NativeSpec) -> Option<String> {
 /// or — when this session cannot design it (sound review 2: it read "0 %" for good) —
 /// that the piano keeps the tuning it has.
 fn caption(spec: &NativeSpec, fs: f32) -> Option<String> {
-    use cantus_engine::inst::chorda::{progress, refused};
-    let tuning = tuning_of(&values_of(spec));
-    if refused(tuning, fs) {
-        return Some(t("chorda.no_room"));
-    }
-    progress(tuning, fs).map(|done| {
-        crate::i18n::tf(
+    words(cantus_engine::inst::chorda::design(
+        tuning_of(&values_of(spec)),
+        fs,
+    ))
+}
+
+/// What the caption says of a design: how far it has come, or that it will not come and
+/// the unit keeps the keyboard it has (the registry full, or no designer — review of fix4:
+/// that read "designing: 0 %" for the session); nothing once designed.
+fn words(d: cantus_engine::inst::chorda::Design) -> Option<String> {
+    use cantus_engine::inst::chorda::Design;
+    match d {
+        Design::Ready => None,
+        Design::Refused => Some(t("chorda.no_room")),
+        Design::NoDesigner => Some(t("chorda.no_designer")),
+        Design::Coming(done) => Some(crate::i18n::tf(
             "chorda.designing_pct",
             &[("pct", &format!("{:.0}", done * 100.0))],
-        )
-    })
+        )),
+    }
 }
 
 /// The height of a card with a `display` and a `body`, at 100 %.
@@ -537,5 +546,23 @@ mod tests {
         let said = super::caption(&spec, 48_000.0).expect("a caption");
         assert_eq!(said, crate::i18n::t("chorda.no_room"));
         assert!(!said.contains('%'), "{said}");
+    }
+
+    /// Review of fix4: with no designer (its thread could not start — the engine's
+    /// `a_tuning_no_designer_can_make_is_not_on_its_way` puts it there with the spawn
+    /// fault) the caption says so in both languages, never a percentage.
+    #[test]
+    fn a_tuning_no_designer_can_make_says_so_never_zero_percent() {
+        use cantus_engine::inst::chorda::Design;
+        for locale in [crate::i18n::Locale::En, crate::i18n::Locale::Es] {
+            crate::i18n::set_locale(locale);
+            let said = super::words(Design::NoDesigner).expect("a caption");
+            assert_eq!(said, crate::i18n::t("chorda.no_designer"));
+            assert!(!said.contains('%'), "{said}");
+            assert_ne!(said, crate::i18n::t("chorda.no_room"));
+            assert!(super::words(Design::Coming(0.5)).is_some_and(|w| w.contains("50")));
+            assert_eq!(super::words(Design::Ready), None);
+        }
+        crate::i18n::set_locale(crate::i18n::Locale::En);
     }
 }

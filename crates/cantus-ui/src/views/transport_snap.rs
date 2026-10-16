@@ -181,7 +181,14 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         kit::well::menu_field(b, field, s, st, value, false)
     });
     if st.hovered {
-        let name = format!("{} \u{2014} {}", t("topbar.grid"), t(e.title_key()));
+        // The track is what Quantise moves to, not a grid (review of fix4): the hint says
+        // so, as the pitch bar's caption does, and holds the whole name the field may cut.
+        let what = if target.is_some() {
+            t("pitch.quantise_to")
+        } else {
+            t("topbar.grid")
+        };
+        let name = format!("{what} \u{2014} {}", t(e.title_key()));
         let caps = Caps {
             menu: true,
             ..Caps::NONE

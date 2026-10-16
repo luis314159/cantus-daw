@@ -880,8 +880,9 @@ fn the_pinned_strip_shows_its_modulation_the_desks_way() {
             .map(|(_, h)| *h)
             .collect()
     };
-    assert_eq!(how("kit.param.volume"), vec!["fader"], "{live:?}");
-    assert_eq!(how("kit.param.pan"), vec!["knob"], "{live:?}");
+    // The volume's fader the desk's way (its readout well beside keeps the edge tick).
+    assert!(how("kit.param.volume").contains(&"fader"), "{live:?}");
+    assert!(how("kit.param.pan").contains(&"knob"), "{live:?}");
     assert!(
         live.iter().any(|(_, h)| *h == "edge"),
         "the value wells keep the edge tick: {live:?}"
