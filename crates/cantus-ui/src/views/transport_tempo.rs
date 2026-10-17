@@ -94,7 +94,11 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let resp = ui.interact(well, Id::new("toolbar-tempo"), Sense::click_and_drag());
     let mut bpm = app.tempo_now();
     let before = bpm;
+    // Only a gesture sets the tempo: the value shown is rounded, and showing it must never
+    // write it back (inside a ramp the tempo at the playhead is seldom a tenth).
+    let mut touched = false;
     if resp.dragged() {
+        touched = true;
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.02
         } else {
@@ -106,13 +110,15 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         let dy = ui.input(|i| i.smooth_scroll_delta.y);
         if dy != 0.0 {
             bpm += dy.signum() as f64;
+            touched = true;
         }
     }
     if resp.double_clicked() {
         bpm = 120.0;
+        touched = true;
     }
     let bpm = ((bpm * 10.0).round() / 10.0).clamp(20.0, 999.0);
-    if (bpm - before).abs() > 1e-4 {
+    if touched && (bpm - before).abs() > 1e-4 {
         app.set_tempo_now(bpm, "tempo");
     }
     if resp.drag_stopped() {

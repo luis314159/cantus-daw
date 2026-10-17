@@ -73,7 +73,12 @@ fn tabs(
         if x > lane.right() || next < lane.left() {
             continue;
         }
-        let w = text::measure(ctx, &Text::new(&m.name, Role::Micro, s.t.text), s.tk()).x;
+        let w = text::measure(
+            ctx,
+            &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
+            s.tk(),
+        )
+        .x;
         let right = (x + w + 10.0 * k).min(next - 2.0 * k).max(x + 6.0 * k);
         let tab = Rect::from_min_max(pos2(x, lane.top() + 1.0), pos2(right, lane.bottom() - 1.0));
         let letters = Rect::from_min_max(
@@ -109,6 +114,7 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane
             b,
             tab.shrink2(vec2(4.0 * k, 0.0)),
             &Text::new(&m.name, Role::Micro, t.text)
+                .caps(false)
                 .align(Align2::LEFT_CENTER)
                 .policy(Policy::Elide(Elide::End)),
             s.tk(),
