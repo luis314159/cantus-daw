@@ -581,3 +581,8 @@ impl Hits {
         &self.onset_xs[..self.m]
     }
 }
+
+/// Whether a drag of a clip's right edge stretches it (Alt held; ADR 0061 §5).
+pub fn stretching(app: &CantusApp) -> bool {
+    app.arrangement.audio.mods.alt
+}

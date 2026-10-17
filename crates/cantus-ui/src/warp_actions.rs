@@ -321,3 +321,62 @@ impl CantusApp {
         }
     }
 }
+
+impl CantusApp {
+    /// A finished right-edge drag with Alt on an audio clip: the clip stretched to its new
+    /// length — its window's content played that much slower or faster (its warp scaled
+    /// about the window's start), one undo step. Returns whether it was one.
+    pub fn warp_stretch_drag(
+        &mut self,
+        anchor: ClipRef,
+        result: crate::views::arrangement::ClipDragResult,
+    ) -> bool {
+        use crate::views::arrangement::ClipDragResult as R;
+        let R::TrimEnd { delta } = result else {
+            return false;
+        };
+        if !crate::views::arrangement::warp_api::stretching(self) || delta == Ticks::ZERO {
+            return false;
+        }
+        let Some(c) = self.project().track(anchor.0).and_then(|t| t.clip(anchor.1)).cloned() else {
+            return false;
+        };
+        if c.audio.is_none() {
+            return false;
+        }
+        let Some(w) = self.warp_to_edit(anchor) else {
+            return false;
+        };
+        let length = (c.length + delta).max(Ticks::SIXTEENTH);
+        let next = w.stretched(c.offset, length.0 as f64 / c.length.0.max(1) as f64);
+        if !next.is_valid() {
+            return false;
+        }
+        let mut commands = vec![Command::SetClipWarp {
+            track: anchor.0,
+            clip: anchor.1,
+            warp: Some(Box::new(next)),
+            op: WarpOp::Set,
+        }];
+        // A loop's period stretches with its content.
+        if let Some(p) = c.content_length {
+            let k = length.0 as f64 / c.length.0.max(1) as f64;
+            commands.push(Command::SetClipLoop {
+                track: anchor.0,
+                clip: anchor.1,
+                content_length: Some(Ticks(((p.0 as f64) * k).round().max(1.0) as i64)),
+            });
+        }
+        commands.push(Command::SetClipBounds {
+            track: anchor.0,
+            clip: anchor.1,
+            start: c.start,
+            length,
+        });
+        self.exec(Command::Batch {
+            label_key: "cmd.warp.stretch".into(),
+            commands,
+        });
+        true
+    }
+}

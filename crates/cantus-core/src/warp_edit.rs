@@ -143,6 +143,26 @@ impl Warp {
         w
     }
 
+    /// The content stretched `k` times longer about content tick `about` (a clip's right
+    /// edge dragged with Alt): every marker's distance from it scaled, the tempo outside
+    /// the markers scaled with them (a source read slower is a source of a faster tempo,
+    /// against the project's). Markers that would meet keep a tick apart.
+    pub fn stretched(&self, about: Ticks, k: f64) -> Warp {
+        let mut w = self.clone();
+        if !k.is_finite() || k <= 0.0 {
+            return w;
+        }
+        w.bpm = (self.bpm * k).clamp(super::MIN_BPM, super::MAX_BPM);
+        let mut last = i64::MIN;
+        for m in &mut w.markers {
+            let t = about.0 + ((m.tick.0 - about.0) as f64 * k).round() as i64;
+            let t = t.max(last.saturating_add(MIN_GAP.0));
+            m.tick = Ticks(t);
+            last = t;
+        }
+        w
+    }
+
     /// Quantise: each transient (source frames) heard between content ticks `from` and
     /// `to` pulled toward the nearest line of `grid` by `strength` (0 … 1) — a marker put on
     /// it (or the one already there moved). Transients that would cross a neighbour stay.

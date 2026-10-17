@@ -111,6 +111,7 @@ pub fn gain_y(wave: Rect, db: f32) -> f32 {
 
 /// What the painter needs of a clip, as it is drawn this frame (a drag's preview moves
 /// the window).
+#[derive(Copy, Clone)]
 pub struct Shown<'a> {
     pub track: TrackId,
     pub clip: &'a Clip,
@@ -202,6 +203,27 @@ pub fn paint(
     scratch: &mut Scratch,
     s: &Style,
 ) -> Option<Handles> {
+    // An Alt-drag of the right edge stretches the clip (ADR 0061): drawn stretched.
+    let stretched_region;
+    let stretched;
+    let shown = match app
+        .arrangement
+        .stretch_preview((shown.track, shown.clip.id))
+        .zip(app.warp_to_edit((shown.track, shown.clip.id)))
+    {
+        Some((delta, w)) if shown.clip.length.0 > 0 => {
+            let k = (shown.clip.length + delta).0 as f64 / shown.clip.length.0 as f64;
+            let mut r = shown.region.clone();
+            r.warp = Some(Box::new(w.stretched(shown.offset, k.max(1e-3))));
+            stretched_region = r;
+            stretched = Shown {
+                region: &stretched_region,
+                ..*shown
+            };
+            &stretched
+        }
+        _ => shown,
+    };
     let k = s.k;
     let project = app.project();
     b.register(

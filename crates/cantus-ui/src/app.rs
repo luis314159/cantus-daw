@@ -2144,6 +2144,10 @@ impl CantusApp {
     /// Apply a finished drag from the arrangement. One batch, one undo step, whatever the
     /// pointer did on the way there.
     pub fn commit_clip_drag(&mut self, anchor: ClipRef, result: ClipDragResult) {
+        // Alt-drag of an audio clip's right edge stretches it (round 29, ADR 0061).
+        if self.warp_stretch_drag(anchor, result) {
+            return;
+        }
         let sel = self.clip_selection();
         let link = self.settings.link_copies;
         let (commands, made) = self.with_ids(|project, ids| {

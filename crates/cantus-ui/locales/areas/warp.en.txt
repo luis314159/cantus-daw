@@ -16,6 +16,7 @@ cmd.warp.follow = Follow the project tempo
 cmd.warp.tempo = Clip tempo
 cmd.warp.reset = Reset warp
 cmd.warp.bounce = Bounce warped audio
+cmd.warp.stretch = Stretch the clip
 
 # The modes.
 warp.mode.complex = Complex

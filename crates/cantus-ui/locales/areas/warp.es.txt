@@ -16,6 +16,7 @@ cmd.warp.follow = Seguir el tempo del proyecto
 cmd.warp.tempo = Tempo del clip
 cmd.warp.reset = Restablecer warp
 cmd.warp.bounce = Renderizar el audio ajustado
+cmd.warp.stretch = Estirar el clip
 
 # Los modos.
 warp.mode.complex = Complejo

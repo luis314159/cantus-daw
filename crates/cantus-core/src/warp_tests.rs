@@ -247,3 +247,19 @@ fn a_clip_never_warped_writes_nothing_new() {
     );
     assert_eq!(serde_json::from_str::<AudioRegion>(&json).unwrap(), b);
 }
+
+#[test]
+fn a_stretched_warp_plays_its_window_longer() {
+    let w = warp();
+    let s = w.stretched(Ticks(960), 2.0);
+    assert!(s.is_valid());
+    // The frame heard at a content tick is now heard twice as far from the anchor.
+    for t in [960.0, 1_500.0, 2_880.0, 4_000.0] {
+        let f = w.frame_at(t);
+        let back = s.tick_at(f);
+        assert!((back - (960.0 + (t - 960.0) * 2.0)).abs() <= 1.0, "{t}: {back}");
+    }
+    let one = Warp::identity(SR, 120.0, 0).stretched(Ticks::ZERO, 1.5);
+    assert!((one.bpm - 180.0).abs() < 1e-9);
+    assert!((one.tick_at(48_000.0) - 2.0 * 1.5 * PPQ as f64).abs() < 1e-6);
+}

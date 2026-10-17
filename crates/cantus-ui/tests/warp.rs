@@ -247,3 +247,33 @@ fn bounce_warped_audio_leaves_the_clip_playing_a_file_of_its_own() {
     a.undo();
     assert!(a.clip_warp(r).is_some());
 }
+
+#[test]
+fn alt_dragging_the_right_edge_stretches_the_clip() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    let m = click_track(48_000.0, 120.0, 2, 0.0);
+    wav(&path, 48_000, &m.audio);
+    let mut a = app(project(120.0));
+    a.import_audio(&[path], Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    let r = (t, c.id);
+    let alt = egui::Modifiers {
+        alt: true,
+        ..Default::default()
+    };
+    cantus_ui::views::arrangement::warp_api::modifiers(&mut a, alt);
+    a.commit_clip_drag(
+        r,
+        cantus_ui::views::arrangement::ClipDragResult::TrimEnd { delta: c.length },
+    );
+    let after = a.project().track(t).unwrap().clip(r.1).unwrap().clone();
+    assert_eq!(after.length, c.length + c.length, "twice as long");
+    let w = a.clip_warp(r).expect("stretched through a warp");
+    // The file's last frame is heard at the new end.
+    let end = w.tick_at(m.audio.len() as f64);
+    assert!((end - after.length.0 as f64).abs() < 0.5 * PPQ as f64, "{end}");
+    a.undo();
+    assert_eq!(a.project().track(t).unwrap().clip(r.1).unwrap().length, c.length);
+}

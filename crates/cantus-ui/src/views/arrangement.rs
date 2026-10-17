@@ -347,6 +347,13 @@ impl ArrangementView {
             _ => Ticks::ZERO,
         }
     }
+
+    /// The right-edge drag of clip `r` with Alt (round 29, ADR 0061): how far, while it
+    /// stretches the clip — the painter previews the stretched waveform.
+    pub fn stretch_preview(&self, r: (TrackId, ClipId)) -> Option<Ticks> {
+        let d = self.drag.as_ref()?;
+        (d.anchor == r && d.mode == DragMode::TrimEnd && self.audio.mods.alt).then_some(d.delta)
+    }
 }
 
 /// Where the view's regions are this frame.
@@ -2148,6 +2155,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                         DragMode::Move => None,
                     };
                     match (edit, crate::clips::clip_of(app.project(), anchor)) {
+                        // Alt on the right edge stretches the clip (ADR 0061): past the file.
+                        (Some(WindowEdit::TrimEnd), Some(_)) if audio::warp::stretching(app) => {
+                            delta
+                        }
                         (Some(e), Some(c)) => clamp_edit(app.project(), c, e, delta),
                         _ => delta,
                     }
