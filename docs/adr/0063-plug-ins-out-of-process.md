@@ -121,7 +121,11 @@ delayed by the latency it reported** (as a bypassed slot plays, so nothing in pa
 moves against it); an **instrument is silent**; a block that only went **late** does the
 same and is counted (`Status::late`, shown in the status bar as *Plug-ins late*, beside the
 engine's own drops: the bridge knows it before the engine could, and the engine stays
-unaware). `MainThread::idle` says `Notice::Crashed { reason }` once; `PluginHost` marks the
+unaware). The crashing block itself is the one glitch: if the system takes longer to end the
+process than the block's deadline, it waits for the deadline — which Windows rounds up to
+its timer tick (15.6 ms unless something raised the timer resolution; 15–21 ms measured in
+the shots) — and is a dropout the profiler names; every block after it passes at once.
+`MainThread::idle` says `Notice::Crashed { reason }` once; `PluginHost` marks the
 slot crashed, counts it (this session, and in the plug-in database for good:
 `PluginDb::crashes`) and tells the application `HostNotice::{PluginCrashed,
 InstrumentCrashed}`.
