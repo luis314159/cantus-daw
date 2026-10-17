@@ -304,7 +304,8 @@ impl Server {
                 }
             }
         };
-        let after = named.and_then(|n| self.instances.get_mut(&n).map(|i| (n, i.after())));
+        let after =
+            named.and_then(|n| self.instances.get_mut(&n).map(|i| Box::new((n, i.after()))));
         self.send(&Message::Reply { id, result, after }, &reply_blob);
         Some(())
     }

@@ -129,6 +129,9 @@ impl Inbox {
     }
 }
 
+/// An answer as it arrives: what the helper said, and its blob.
+type Answered = (Result<Answer, Failure>, Vec<u8>);
+
 /// What a background request was for.
 #[derive(Clone, Copy, Debug)]
 enum Background {
@@ -151,7 +154,7 @@ pub struct Sandbox {
     /// Its processing threads' lobby.
     pub lobby: Arc<LobbyMem>,
     to_child: Mutex<Option<mpsc::Sender<Vec<u8>>>>,
-    waiters: Mutex<HashMap<u64, mpsc::Sender<(Result<Answer, Failure>, Vec<u8>)>>>,
+    waiters: Mutex<HashMap<u64, mpsc::Sender<Answered>>>,
     background: Mutex<HashMap<u64, Background>>,
     instances: Mutex<HashMap<u32, Registered>>,
     next_id: AtomicU64,
@@ -381,7 +384,7 @@ impl Sandbox {
                 }
             }
             Message::Reply { id, result, after } => {
-                if let Some((instance, after)) = after {
+                if let Some((instance, after)) = after.map(|b| *b) {
                     if let Some(inbox) = self.inbox(instance) {
                         inbox.absorb(after);
                     }

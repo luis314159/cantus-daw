@@ -217,8 +217,9 @@ pub enum Message {
     Reply {
         id: u64,
         result: Result<Answer, Failure>,
-        /// The instance's news after the call, when the call named one.
-        after: Option<(u32, After)>,
+        /// The instance's news after the call, when the call named one (boxed: the news
+        /// are much larger than the other messages).
+        after: Option<Box<(u32, After)>>,
     },
     /// An instance's requests, values or flushed events, between calls.
     News {

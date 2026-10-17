@@ -97,9 +97,12 @@ pub fn set_default(app: &mut CantusApp, mode: PluginIsolation) {
     apply_default(app);
 }
 
+/// The card's words: title, body, buttons (with what each does), the reasons.
+pub type Card = (String, String, Vec<(String, Answer)>, String);
+
 /// The card's title, body, button labels (with what each does), and the reasons (its
 /// hint), or `None` when nothing waits.
-pub fn card(app: &CantusApp) -> Option<(String, String, Vec<(String, Answer)>, String)> {
+pub fn card(app: &CantusApp) -> Option<Card> {
     let w = &app.plugin_crashes.waiting;
     let first = w.first()?;
     let one = w.len() == 1;
