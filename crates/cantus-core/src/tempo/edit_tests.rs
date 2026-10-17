@@ -270,3 +270,113 @@ fn markers_are_added_moved_renamed_and_removed_exactly() {
         .apply(&mut p.clone())
         .is_err());
 }
+
+/// Review 1 (findings 2, 3, 13, 14): a metre edit keeps every change before it at its
+/// tick, lands the edited change exactly where it was asked, and moves the later changes
+/// only so they keep their bar numbers — an off-line change (a short bar before it) stays
+/// off-line by the same remainder; the song's metre changed by `SetTimeSignature` does the
+/// same as `SetMetreAt` at tick 0.
+#[test]
+fn metre_edits_keep_the_ticks_they_do_not_move() {
+    // 4/4, 3/4 from bar 3 (7680); then the song's metre 7/8 makes bar 3 a short bar of
+    // 960 ticks... with SetTimeSignature routed through the bars, the 3/4 keeps bar 3.
+    let mut p = Project::empty("t");
+    Command::SetMetreAt { tick: Ticks(7680), signature: sig(3, 4) }
+        .apply(&mut p)
+        .unwrap();
+    let mut q = p.clone();
+    Command::SetTimeSignature { time_signature: sig(7, 8) }
+        .apply(&mut q)
+        .unwrap();
+    assert_eq!(q.metre_changes[1].tick, Ticks(2 * 3360), "keeps bar 3");
+    let mut r = p.clone();
+    Command::SetMetreAt { tick: Ticks::ZERO, signature: sig(7, 8) }
+        .apply(&mut r)
+        .unwrap();
+    assert_eq!(q.metre_changes, r.metre_changes);
+    // An off-line state (from a file): 7/8 at 0, 3/4 at 7680 (a short bar of 960 before it).
+    let mut p = Project::empty("t");
+    Command::SetMetreTrack {
+        signature: sig(7, 8),
+        metres: vec![
+            MetreChange { tick: Ticks::ZERO, signature: sig(7, 8) },
+            MetreChange { tick: Ticks(7680), signature: sig(3, 4) },
+        ],
+    }
+    .apply(&mut p)
+    .unwrap();
+    let at = p.tempo_map().bar_tick(6);
+    Command::SetMetreAt { tick: at, signature: sig(4, 4) }
+        .apply(&mut p)
+        .unwrap();
+    assert_eq!(p.metre_changes[1].tick, Ticks(7680), "the earlier change stays");
+    assert_eq!(p.metre_changes[2].tick, at, "the new one lands where asked");
+    // A move lands exactly on the tick asked, counted in the metre before it (review 1's
+    // example: 3/4, a bar of 1/8 at bar 2, 4/4 at bar 18).
+    let mut p = Project::empty("t");
+    Command::SetMetreTrack {
+        signature: sig(3, 4),
+        metres: vec![
+            MetreChange { tick: Ticks::ZERO, signature: sig(3, 4) },
+            MetreChange { tick: Ticks(2880), signature: sig(1, 8) },
+            MetreChange { tick: Ticks(2880 + 16 * 480), signature: sig(4, 4) },
+        ],
+    }
+    .apply(&mut p)
+    .unwrap();
+    let mut q = p.clone();
+    Command::MoveMetre { from: Ticks(2880), to: Ticks(5760) }.apply(&mut q).unwrap();
+    assert_eq!(q.metre_changes[1].tick, Ticks(5760));
+    let map = q.tempo_map();
+    assert_eq!(map.bbt(q.metre_changes[2].tick).0, 18, "the 4/4 keeps bar 18");
+    // Off the bar lines of the metre before it, or past the next change: refused.
+    for to in [5000, 18_240] {
+        assert!(Command::MoveMetre { from: Ticks(2880), to: Ticks(to) }
+            .apply(&mut p.clone())
+            .is_err(), "{to}");
+    }
+}
+
+/// Review 1 (finding 25): a drag of a tempo point, of a metre change or of a marker is one
+/// undo step however many moves it made, and that step gives everything back.
+#[test]
+fn a_drag_is_one_undo_step() {
+    use crate::bus::CommandBus;
+    use crate::command::Origin;
+    use crate::MergeKey;
+    let mut bus = CommandBus::default();
+    bus.execute(
+        Command::SetTempoTrack {
+            bpm: 120.0,
+            points: vec![pt(0, 120.0, false), pt(3840, 100.0, false)],
+        },
+        Origin::User,
+    )
+    .unwrap();
+    bus.execute(Command::AddMarker { marker: marker(1_000_000, 0, "A") }, Origin::User)
+        .unwrap();
+    let before = bus.project().clone();
+    let n = bus.history().len();
+    for k in 1..20 {
+        bus.execute_merging(
+            Command::SetTempoPoint { index: 1, point: pt(3840 + 10 * k, 100.0 + k as f64, false) },
+            Origin::User,
+            MergeKey::of(&("tempo-point", 1usize)),
+        )
+        .unwrap();
+    }
+    bus.end_gesture();
+    for k in 1..20 {
+        bus.execute_merging(
+            Command::SetMarker { marker: marker(1_000_000, 100 * k, "A") },
+            Origin::User,
+            MergeKey::of(&("marker-move", 1_000_000u64)),
+        )
+        .unwrap();
+    }
+    bus.end_gesture();
+    assert_eq!(bus.history().len(), n + 2, "two gestures, two steps");
+    bus.undo();
+    bus.undo();
+    assert_eq!(*bus.project(), before);
+}

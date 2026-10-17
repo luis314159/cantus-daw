@@ -36,7 +36,7 @@ pub mod autolanes;
 pub mod comp;
 /// The markers on the ruler (round 29, ADR 0060).
 #[path = "arrangement_markers.rs"]
-pub(crate) mod markers;
+pub mod markers;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
@@ -45,7 +45,7 @@ mod rec;
 mod takes;
 /// The tempo track and the metre chips (round 29, ADR 0060).
 #[path = "arrangement_tempo.rs"]
-pub(crate) mod tempo;
+pub mod tempo;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.

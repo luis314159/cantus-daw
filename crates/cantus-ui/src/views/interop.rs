@@ -209,8 +209,12 @@ pub fn import_midi(
 ) -> bool {
     let target_bpm = (!apply_tempo).then(|| app.project().tempo_bpm);
     let opts = midi::ImportOptions {
+        // Keeping the bars with the song's tempo set from the file keeps its whole tempo
+        // map (round 29, ADR 0060); into a song whose tempo stays, its bars at one tempo.
         tempo_mode: if keep_time {
             midi::TempoMode::Seconds
+        } else if apply_tempo {
+            midi::TempoMode::Map
         } else {
             midi::TempoMode::Beats
         },
@@ -647,11 +651,8 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
     };
     let (mut import, mut close) = (false, false);
     let p = &d.preview;
-    let changes = p
-        .report
-        .get("interop.report.tempo_changes")
-        .and_then(|i| i.arg("n"))
-        .map(str::to_string);
+    let changes = (p.tempo_points.len() > 1).then(|| (p.tempo_points.len() - 1).to_string());
+    let has_map = p.tempo_points.len() > 1 || !p.metre_changes.is_empty() || !p.markers.is_empty();
     let sig = p
         .time_signature
         .unwrap_or(app.project().time_signature)
@@ -685,6 +686,9 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         );
         if form::choice(ui, d.apply_tempo, true, &apply) {
             d.apply_tempo = !d.apply_tempo;
+        }
+        if d.apply_tempo && !d.keep_time && has_map {
+            hint(ui, t("tempo.midi.map_kept"));
         }
         hint(ui, tf("interop.midi_import.at", &[("bar", &bar)]));
         form::buttons(ui, |ui| {

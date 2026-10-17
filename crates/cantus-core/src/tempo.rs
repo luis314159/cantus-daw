@@ -337,6 +337,12 @@ impl TempoMap {
         Some((s.bpm, from, to))
     }
 
+    /// The tick of the tempo point at or before `tick` (tick 0 for anything before it): where
+    /// the segment holding `tick` starts.
+    pub fn point_at_or_before(&self, tick: f64) -> f64 {
+        self.segs[self.seg_of(tick)].tick
+    }
+
     /// Whether `tick` lies inside a ramp (from its start, before its end).
     pub fn in_ramp(&self, tick: f64) -> bool {
         tick >= 0.0 && self.segs[self.seg_of(tick)].k != 0.0
@@ -424,7 +430,11 @@ impl TempoMap {
     /// point, or a ramp's start or end) — where a pass that wants one tempo must end.
     pub fn next_change_after(&self, tick: f64) -> Option<f64> {
         let i = self.segs.partition_point(|s| s.tick <= tick);
-        self.segs.get(i).map(|s| s.tick)
+        match self.segs.get(i) {
+            // Before tick 0 a held first tempo goes on through 0: no change there (review 1).
+            Some(s) if i == 0 && s.k == 0.0 => self.segs.get(1).map(|s| s.tick),
+            other => other.map(|s| s.tick),
+        }
     }
 
     /// The start of the tempo step holding `tick`: inside a ramp the last multiple of
@@ -477,7 +487,10 @@ impl TempoMap {
         if s.k != 0.0 && a >= s.tick {
             eat(s.k.to_bits());
         }
-        for s in self.segs[i + 1..]
+        // Every segment starting inside the span — the first too, for a span that starts
+        // before tick 0 (review 1).
+        let next = if a < s.tick { i } else { i + 1 };
+        for s in self.segs[next..]
             .iter()
             .take_while(|s| s.tick < to.0 as f64)
         {

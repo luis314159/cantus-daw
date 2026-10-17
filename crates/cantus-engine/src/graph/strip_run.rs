@@ -41,6 +41,7 @@ pub(crate) fn scope(
     scoped: &[Option<EffectId>],
     delays: &[usize],
     position: &crate::fx::SongPosition,
+    map: &cantus_core::TempoMap,
     sample_rate: f64,
     id: EffectId,
     l: &[f32],
@@ -63,9 +64,15 @@ pub(crate) fn scope(
     }
     let per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
     let late = delays.get(i).copied().unwrap_or(0) as f64;
-    let first = position
-        .playing
-        .then_some(position.beats - late * per_frame);
+    // Where the audio reaching the scope is: through the tempo map when it moves (review
+    // 1: across a point the constant arithmetic misplaced late audio).
+    let first = position.playing.then(|| {
+        if map.is_constant() {
+            position.beats - late * per_frame
+        } else {
+            position.earlier_in(late as usize, sample_rate, map).beats
+        }
+    });
     // Does this pass carry on from the chunk being filled?
     let p = &tap.pending;
     if p.frames > 0 {
@@ -249,6 +256,7 @@ pub(crate) fn strip_chain(
                 &ctx.scoped,
                 &ctx.scoped_delay,
                 &ctx.position,
+                ctx.transport.map(),
                 ctx.sample_rate,
                 e.id,
                 l,
@@ -325,6 +333,7 @@ pub(crate) fn strip_chain(
             &ctx.scoped,
             &ctx.scoped_delay,
             &ctx.position,
+            ctx.transport.map(),
             ctx.sample_rate,
             e.id,
             l,

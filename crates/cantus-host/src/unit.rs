@@ -403,7 +403,9 @@ pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
     TransportInfo {
         playing: p.playing,
         recording: false,
-        tempo_bpm: p.tempo_bpm,
+        // The tempo exactly here, which `tempo_inc` moves on from (review 1: the step's
+        // start tempo with a slope told a sawtooth).
+        tempo_bpm: p.tempo_now,
         tempo_inc: p.tempo_inc,
         position_beats: p.beats,
         position_samples: p.samples,
@@ -526,9 +528,8 @@ mod tests {
         let p = cantus_engine::fx::position_at_tick(&map, tick, true, sr);
         let t = transport_of(&p);
         assert!((t.position_seconds - map.seconds_at(tick)).abs() < 1e-12);
-        let step = map.step_start(tick);
-        assert_eq!(t.tempo_bpm, map.bpm_at(step));
-        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(step) * 960.0 / (60.0 * sr);
+        assert_eq!(t.tempo_bpm, map.bpm_at(tick), "the tempo exactly there");
+        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(tick) * 960.0 / (60.0 * sr);
         assert!(
             (t.tempo_inc - inc).abs() < 1e-15,
             "{} vs {inc}",

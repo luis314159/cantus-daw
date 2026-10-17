@@ -54,3 +54,9 @@ tempo.export.markers = Markers
 tempo.export.no_markers = Add two markers to export between them.
 tempo.export.from = From marker
 tempo.export.to = To marker
+
+# Interchange reports
+tempo.report.tempo_kept = {n} tempo changes kept in the tempo track
+tempo.report.metres_kept = {n} metre changes kept
+tempo.report.markers_kept = {n} markers kept
+tempo.midi.map_kept = The file's tempo changes, metre changes and markers go into the tempo track, the ruler and the marker lane.

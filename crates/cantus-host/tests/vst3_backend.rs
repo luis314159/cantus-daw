@@ -885,6 +885,33 @@ fn notes_and_expressions_land_on_their_samples() {
     let want = 2 | 4 | 512 | 1024 | 2048 | 4096 | 8192 | 131_072;
     assert_eq!(state, want, "{state:#b}");
     assert_eq!(v, [128.0, 6.5, 6.0, 0.0, 12.0, 3.0, 4.0, 146_250.0]);
+    // Under a tempo map (round 29, ADR 0060; review 1): the song's real seconds become
+    // `projectTimeSamples`, whatever the beats would be at the tempo now.
+    let ramp = TransportInfo {
+        tempo_bpm: 131.5,
+        tempo_inc: 1e-4,
+        position_beats: 14.0,
+        position_seconds: 7.25,
+        bar_start_beats: 12.0,
+        bar_number: 4,
+        ..transport
+    };
+    let (mut l, mut r) = (vec![0.0f32; 32], vec![0.0f32; 32]);
+    audio.process(
+        Audio {
+            left: &mut l,
+            right: &mut r,
+            key: None,
+            transport: Some(&ramp),
+        },
+        &[],
+        &[],
+        &mut out,
+    );
+    let (_, v) = probe.last_context();
+    assert_eq!(v[0], 131.5, "the tempo");
+    assert_eq!(v[1], 14.0, "the beats");
+    assert_eq!(v[7], 348_000.0, "7.25 s at 48 kHz");
     audio.stop();
 }
 

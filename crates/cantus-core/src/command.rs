@@ -1143,12 +1143,16 @@ impl Command {
                         "time signature {time_signature}"
                     )));
                 }
-                let old = std::mem::replace(&mut project.time_signature, time_signature);
-                // With metre changes the first is the song's metre (ADR 0060); the later
-                // ones stay at their ticks.
-                if let Some(m) = project.metre_changes.first_mut() {
-                    m.signature = time_signature;
+                // With metre changes the song's metre is the first, and the later changes
+                // keep their bars, as `SetMetreAt` at tick 0 (ADR 0060, review 1).
+                if !project.metre_changes.is_empty() {
+                    return crate::tempo::edit::apply_set_metre_at(
+                        project,
+                        Ticks::ZERO,
+                        time_signature,
+                    );
                 }
+                let old = std::mem::replace(&mut project.time_signature, time_signature);
                 Ok(SetTimeSignature {
                     time_signature: old,
                 })

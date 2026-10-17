@@ -99,6 +99,8 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
             let mut alone = Project::empty(project.name.clone());
             alone.tempo_bpm = project.tempo_bpm;
             alone.time_signature = project.time_signature;
+            alone.tempo_points = project.tempo_points.clone();
+            alone.metre_changes = project.metre_changes.clone();
             alone.tracks.push(Track {
                 clips: vec![c.clone()],
                 ..t.clone()
@@ -115,12 +117,7 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
 
     let end_tick = to_file_ticks(end - shift, ppq);
     let mut tracks = Vec::with_capacity(compiled.tracks.len() + 1);
-    tracks.push(conductor(
-        &file_name,
-        project.tempo_bpm,
-        project.time_signature,
-        end_tick,
-    ));
+    tracks.push(conductor(project, &file_name, shift, end - shift, ppq, end_tick));
     let mut melodic = (0u8..16).filter(|c| *c != DRUM_CHANNEL).cycle();
     for ct in &compiled.tracks {
         let channel = if ct.drums {
@@ -176,25 +173,99 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
     })
 }
 
-/// Track 0 of a type 1 file: the name of the piece, its metre and its tempo.
-fn conductor(name: &str, bpm: f64, ts: TimeSignature, end: u64) -> Vec<TimedEvent> {
-    let at0 = |event| TimedEvent { tick: 0, event };
-    let denominator_pow = (ts.denominator.max(1) as f64).log2().round() as u8;
-    vec![
-        at0(Event::TrackName(name.to_string())),
-        at0(Event::TimeSignature {
-            numerator: ts.numerator.max(1),
-            denominator_pow,
-            // One metronome click per beat of the signature, in MIDI clocks (24 a quarter).
-            clocks: (96 / ts.denominator.max(1) as u32).clamp(1, 255) as u8,
-            n32: 8,
-        }),
-        at0(Event::Tempo(tempo_us(bpm))),
-        TimedEvent {
-            tick: end,
-            event: Event::EndOfTrack,
-        },
-    ]
+/// How finely a ramp is written: SMF has no ramps, so a ramp becomes a tempo event every
+/// sixteenth note, each the average tempo over its sixteenth — so every sixteenth (and the
+/// whole ramp) lasts exactly as long as it plays (ADR 0060).
+pub const RAMP_EXPORT_STEP: i64 = PPQ / 4;
+
+/// Track 0 of a type 1 file: the name of the piece, and its whole tempo map from `shift`
+/// (the file's tick 0) for `len` ticks — every metre change, every tempo point (a ramp in
+/// steps of [`RAMP_EXPORT_STEP`]) and every marker as a marker meta event (0x06).
+fn conductor(
+    project: &Project,
+    name: &str,
+    shift: Ticks,
+    len: Ticks,
+    ppq: u16,
+    end: u64,
+) -> Vec<TimedEvent> {
+    let map = project.tempo_map();
+    let at = |t: Ticks| to_file_ticks((t - shift).max(Ticks::ZERO), ppq);
+    let mut ev = vec![TimedEvent {
+        tick: 0,
+        event: Event::TrackName(name.to_string()),
+    }];
+    let metre = |ev: &mut Vec<TimedEvent>, tick: u64, ts: TimeSignature| {
+        let denominator_pow = (ts.denominator.max(1) as f64).log2().round() as u8;
+        ev.push(TimedEvent {
+            tick,
+            event: Event::TimeSignature {
+                numerator: ts.numerator.max(1),
+                denominator_pow,
+                // One metronome click per beat of the signature, in MIDI clocks (24 a quarter).
+                clocks: (96 / ts.denominator.max(1) as u32).clamp(1, 255) as u8,
+                n32: 8,
+            },
+        });
+    };
+    // The metre in force at the file's start, then each change inside it.
+    metre(&mut ev, 0, map.signature_at(shift));
+    for m in map.metres().iter().filter(|m| m.tick > shift && m.tick < shift + len) {
+        metre(&mut ev, at(m.tick), m.signature);
+    }
+    // The tempo: at the file's start, then at each point and each step of a ramp.
+    let stop = shift + len;
+    let tempo_at = |ev: &mut Vec<TimedEvent>, from: Ticks, to: Ticks| {
+        let bpm = if map.in_ramp(from.0 as f64) && to > from {
+            // The average over the step: it lasts exactly as long as the ramp's stretch.
+            (to - from).as_beats_f64() * 60.0 / map.seconds_between(from, to)
+        } else {
+            map.bpm_at(from.0 as f64)
+        };
+        ev.push(TimedEvent {
+            tick: at(from),
+            event: Event::Tempo(tempo_us(bpm)),
+        });
+    };
+    let mut t = shift;
+    loop {
+        let next_point = map
+            .next_change_after(t.0 as f64)
+            .map(|x| Ticks(x as i64))
+            .unwrap_or(stop)
+            .min(stop);
+        if map.in_ramp(t.0 as f64) {
+            // From the ramp's start: steps on the ramp's own sixteenths.
+            let ramp_start = map.point_at_or_before(t.0 as f64) as i64;
+            let k = (t.0 - ramp_start).div_euclid(RAMP_EXPORT_STEP) + 1;
+            let step = Ticks(ramp_start + k * RAMP_EXPORT_STEP).min(next_point);
+            tempo_at(&mut ev, t, step);
+            t = step;
+        } else {
+            tempo_at(&mut ev, t, next_point);
+            t = next_point;
+        }
+        if t >= stop {
+            break;
+        }
+    }
+    for m in &project.markers {
+        if m.tick >= shift && m.tick < stop {
+            ev.push(TimedEvent {
+                tick: at(m.tick),
+                event: Event::Text {
+                    kind: 0x06,
+                    text: m.name.clone(),
+                },
+            });
+        }
+    }
+    ev.push(TimedEvent {
+        tick: end,
+        event: Event::EndOfTrack,
+    });
+    ev.sort_by_key(|e| e.tick);
+    ev
 }
 
 /// Microseconds per quarter note for a tempo, as the tempo meta event carries it.

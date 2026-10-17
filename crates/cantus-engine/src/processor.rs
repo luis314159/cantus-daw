@@ -747,9 +747,12 @@ pub(crate) fn song_position_of(
         playing: transport.is_playing(),
         tempo_bpm: tempo,
         tempo_inc: 0.0,
+        tempo_now: tempo,
         beats,
         samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
-        seconds: beats * (60.0 / tempo.max(1e-9)),
+        // The expression `samples` rounds, so a host's sample position (VST3's
+        // `projectTimeSamples`) is the one it was before round 29 (review 1).
+        seconds: beats * 60.0 / tempo.max(1e-9),
         bar_start_beats: (beats / bar).floor() * bar,
         bar_number: (beats / bar).floor() as i32,
         time_sig_num: u16::from(num),

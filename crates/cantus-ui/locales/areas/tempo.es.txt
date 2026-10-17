@@ -54,3 +54,9 @@ tempo.export.markers = Marcadores
 tempo.export.no_markers = Añade dos marcadores para exportar lo que hay entre ellos.
 tempo.export.from = Desde el marcador
 tempo.export.to = Hasta el marcador
+
+# Informes de intercambio
+tempo.report.tempo_kept = {n} cambios de tempo conservados en la pista de tempo
+tempo.report.metres_kept = {n} cambios de compás conservados
+tempo.report.markers_kept = {n} marcadores conservados
+tempo.midi.map_kept = Los cambios de tempo, los cambios de compás y los marcadores del archivo van a la pista de tempo, a la regla y a la franja de marcadores.

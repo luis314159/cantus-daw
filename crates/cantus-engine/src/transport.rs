@@ -341,7 +341,9 @@ impl Transport {
     /// the tempo holds at the clip's start, the old arithmetic to the bit.
     pub fn clip_zero(&self, start: Ticks, offset: Ticks, slip: f64) -> i64 {
         let s = start.0 as f64;
-        match self.held_over(&[s]) {
+        // Only where the clip starts inside the held stretch: on its end (the next point)
+        // the offset is read at the tempo that begins there (review 1).
+        match self.held.filter(|h| s >= h.from && s < h.to) {
             Some(h) => (((start.0 - offset.0) as f64 - self.origin_tick) / h.tps
                 - slip * self.sample_rate)
                 .round() as i64,
@@ -393,6 +395,15 @@ impl Transport {
     pub fn samples_until_step(&self) -> Option<u64> {
         let next = self.map.next_step_after(self.step_tick())?;
         Some(self.samples_until(next))
+    }
+
+    /// [`Self::samples_until_step`] for a unit whose audio is `late` samples behind the
+    /// transport: samples until the position it hears reaches its next step.
+    pub fn samples_until_step_late(&self, late: u64) -> Option<u64> {
+        let heard = self.tick_before(self.position_f64(), late);
+        let next = self.map.next_step_after(crate::fx::step_of(&self.map, heard))?;
+        let x = self.sample_of_f64(next) + late as f64 - self.samples as f64;
+        Some(ceil_sample(x))
     }
 
     /// Samples until the loop end, if looping and the playhead is inside the loop.
@@ -551,6 +562,70 @@ mod tests {
         }
         let w = t.wraps().unwrap();
         assert!((w.loop_samples - len).abs() < 1e-6);
+    }
+
+    /// Review 1 (finding 26): at one tempo a host's real sample position — the song's
+    /// seconds × the rate, what VST3's `projectTimeSamples` is now — is the sample position
+    /// it was told before round 29 (`samples`), to the sample, everywhere.
+    #[test]
+    fn one_tempo_tells_hosts_the_sample_position_they_had() {
+        for (bpm, sr) in [(120.0, 48_000.0), (133.0, 44_100.0), (97.3, 96_000.0)] {
+            let mut t = Transport::new(sr);
+            t.set_bpm(bpm);
+            t.seek(Ticks(-3840));
+            t.play();
+            for _ in 0..2_000 {
+                let p = crate::processor::song_position_of(&t, &None, sr);
+                assert_eq!((p.seconds * sr).round() as i64, p.samples, "{bpm} at {}", p.beats);
+                t.advance(997);
+            }
+        }
+    }
+
+    /// A late unit under a ramp hears the song through the map: its beats are the map's
+    /// tick the latency's seconds back (review 1, finding 22).
+    #[test]
+    fn a_late_unit_hears_the_ramp_through_the_map() {
+        let map = ramp_map();
+        let sr = 48_000.0;
+        let mut t = on_map(&map, sr);
+        t.advance(400_000);
+        let p = crate::processor::song_position_of(&t, &None, sr);
+        let e = p.earlier_in(5_000, sr, &map);
+        let want = map.tick_after_seconds(t.position_f64(), -5_000.0 / sr) / PPQ as f64;
+        assert!((e.beats - want).abs() < 1e-9);
+        assert_eq!(e.tempo_bpm, map.bpm_at(map.step_start(want * PPQ as f64)));
+        assert!((e.seconds - map.seconds_at(want * PPQ as f64)).abs() < 1e-12);
+    }
+
+    /// Review 1 (finding 0): a clip starting exactly on a tempo point reads its offset at the
+    /// tempo there — the same source frame at its start from a seek before the point and
+    /// from a seek at it, as `cantus_core::audio_time` says.
+    #[test]
+    fn a_clip_on_a_tempo_point_reads_its_offset_at_the_tempo_there() {
+        let pt = |tick: i64, bpm: f64| TempoPoint {
+            tick: Ticks(tick),
+            bpm,
+            ramp: false,
+        };
+        let map = Arc::new(TempoMap::new(
+            120.0,
+            TimeSignature::default(),
+            &[pt(0, 120.0), pt(7680, 60.0)],
+            &[],
+        ));
+        let sr = 48_000.0;
+        let (start, offset) = (Ticks(7680), Ticks(960));
+        // One beat at 60 BPM: a second into the file at the clip's start.
+        let want = cantus_core::audio_time::frame_at(&map, start, offset, 0.0, sr, 7680.0);
+        assert_eq!(want, 48_000.0);
+        for from in [0, 7680] {
+            let mut t = on_map(&map, sr);
+            t.seek(Ticks(from));
+            let at_start = t.sample_of_f64(start.0 as f64).round() as i64;
+            let frame = at_start - t.clip_zero(start, offset, 0.0);
+            assert_eq!(frame, 48_000, "played from {from}");
+        }
     }
 
     /// The tempo units are told is held for a step of the ramp, and a pass that starts on

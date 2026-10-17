@@ -503,15 +503,8 @@ impl EngineHandle {
         // Ticks per frame at the tempo the pass was recorded at (one tempo); through the
         // tempo map it was recorded under otherwise (ADR 0060), so a take played across a
         // ramp lands where it was played.
-        let tpf = pass.tempo_bpm * cantus_core::PPQ as f64 / (60.0 * pass.rate as f64);
-        let back = |started: f64| {
-            if pass.tempo.is_constant() {
-                started - latency as f64 * tpf
-            } else {
-                pass.tempo
-                    .tick_after_seconds(started, -(latency as f64) / f64::from(pass.rate.max(1)))
-            }
-        };
+        let back =
+            |started: f64| take_start(&pass.tempo, pass.tempo_bpm, pass.rate, started, latency as u64);
         let mut takes = Vec::new();
         for (o, t) in outcomes.into_iter().zip(&pass.tracks) {
             let frames = o.samples / t.channels.max(1) as u64;
@@ -544,6 +537,25 @@ impl EngineHandle {
             });
         }
         takes
+    }
+}
+
+/// Where a take's first frame belongs on the timeline: `latency` frames (at `rate`) before
+/// the tick `started` the pass began at — at one tempo the old ticks-per-frame arithmetic,
+/// through the tempo map the pass was recorded under otherwise (ADR 0060: a take played
+/// across a ramp lands where it was played).
+pub(crate) fn take_start(
+    map: &cantus_core::TempoMap,
+    tempo_bpm: f64,
+    rate: u32,
+    started: f64,
+    latency: u64,
+) -> f64 {
+    if map.is_constant() {
+        let tpf = tempo_bpm * cantus_core::PPQ as f64 / (60.0 * rate as f64);
+        started - latency as f64 * tpf
+    } else {
+        map.tick_after_seconds(started, -(latency as f64) / f64::from(rate.max(1)))
     }
 }
 
@@ -834,6 +846,36 @@ fn unique_path(dir: &Path, name: &str, stamp: &str) -> PathBuf {
         n += 1;
     }
     path
+}
+
+#[cfg(test)]
+mod tempo_tests {
+    use super::*;
+
+    /// Review 1 (finding 23): a take recorded across a ramp is moved back by the latency's
+    /// seconds through the map — 4 800 frames at 48 kHz in a 60-BPM stretch are 96 ticks,
+    /// in a 120-BPM one 192 — and at one tempo the arithmetic is the old one.
+    #[test]
+    fn a_take_across_a_ramp_lands_where_it_was_played() {
+        use cantus_core::tempo::TempoPoint;
+        use cantus_core::{TempoMap, Ticks, TimeSignature};
+        let pt = |b: i64, bpm: f64| TempoPoint {
+            tick: Ticks::beats(b),
+            bpm,
+            ramp: false,
+        };
+        let map = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0), pt(8, 60.0)], &[]);
+        let at = |beats: f64| beats * 960.0;
+        assert!((take_start(&map, 120.0, 48_000, at(10.0), 4_800) - (at(10.0) - 96.0)).abs() < 1e-9);
+        assert!((take_start(&map, 120.0, 48_000, at(4.0), 4_800) - (at(4.0) - 192.0)).abs() < 1e-9);
+        // Straddling the point: 0.1 s back from beat 8 + 48 ticks (0.05 s at 60) is 0.05 s
+        // more at 120: 96 ticks before beat 8.
+        let got = take_start(&map, 120.0, 48_000, at(8.0) + 48.0, 4_800);
+        assert!((got - (at(8.0) - 96.0)).abs() < 1e-9, "{got}");
+        let c = TempoMap::constant(97.0, TimeSignature::default());
+        let tpf: f64 = 97.0 * 960.0 / (60.0 * 48_000.0);
+        assert_eq!(take_start(&c, 97.0, 48_000, 5_000.0, 333).to_bits(), (5_000.0 - 333.0 * tpf).to_bits());
+    }
 }
 
 #[cfg(test)]
