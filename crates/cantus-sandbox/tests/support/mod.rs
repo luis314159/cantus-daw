@@ -8,8 +8,8 @@ use cantus_engine::{EngineHandle, Processor};
 use cantus_host::bridge::{BridgedBackend, Sandboxes};
 use cantus_host::db::{stamp, DbEntry, ScanStatus};
 use cantus_host::{
-    Audio, AudioSetup, AudioThread, Format, NoteEvent, ParamChange, ParamOut,
-    PluginHost, PluginInfo,
+    Audio, AudioSetup, AudioThread, Format, NoteEvent, ParamChange, ParamOut, PluginHost,
+    PluginInfo,
 };
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
@@ -166,7 +166,12 @@ pub fn pool() -> Arc<Sandboxes> {
     Sandboxes::new(sandbox_exe())
 }
 
-pub fn bridged(pool: &Arc<Sandboxes>, format: Format, group: &str, offline: bool) -> BridgedBackend {
+pub fn bridged(
+    pool: &Arc<Sandboxes>,
+    format: Format,
+    group: &str,
+    offline: bool,
+) -> BridgedBackend {
     BridgedBackend {
         format,
         group: group.to_string(),

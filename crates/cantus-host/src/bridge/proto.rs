@@ -166,16 +166,25 @@ pub struct Described {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum Answer {
     Done,
-    Hello { protocol: u32, pid: u32 },
+    Hello {
+        protocol: u32,
+        pid: u32,
+    },
     Loaded(Described),
     /// `None`: the old audio half is still on its way back; call again.
     Restarted(Option<Described>),
     /// The blob is the state.
     State,
-    Flushed { processed: bool, out: Vec<WireEvent> },
+    Flushed {
+        processed: bool,
+        out: Vec<WireEvent>,
+    },
     Text(Option<String>),
     Params(Vec<ParamInfo>),
-    Editor { width: u32, height: u32 },
+    Editor {
+        width: u32,
+        height: u32,
+    },
 }
 
 /// A failure, as `HostError` says it.
@@ -247,7 +256,10 @@ pub fn read_frame<T: for<'de> Deserialize<'de>>(
     let json_len = u32::from_le_bytes(head[..4].try_into().unwrap_or([0; 4])) as usize;
     let blob_len = u32::from_le_bytes(head[4..].try_into().unwrap_or([0; 4])) as usize;
     if json_len > MAX_FRAME || blob_len > MAX_FRAME {
-        return Err(io::Error::new(io::ErrorKind::InvalidData, "frame too large"));
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "frame too large",
+        ));
     }
     let mut json = vec![0u8; json_len];
     r.read_exact(&mut json)?;

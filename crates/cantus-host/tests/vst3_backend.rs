@@ -819,7 +819,11 @@ fn notes_and_expressions_land_on_their_samples() {
     let Loaded { main, mut audio } = load(PULSE_ID);
     assert_eq!(main.info().kind, PluginKind::Instrument);
     // Only the hidden Fault and Process of round 29's isolation tests.
-    assert!(main.params().iter().all(|p| p.hidden), "{:?}", main.params());
+    assert!(
+        main.params().iter().all(|p| p.hidden),
+        "{:?}",
+        main.params()
+    );
     let note = |offset, kind| NoteEvent {
         offset,
         note_id: -1,

@@ -186,8 +186,7 @@ impl Sandbox {
             _ => "on",
         };
         let lobby = Arc::new(
-            LobbyMem::create()
-                .map_err(|e| HostError::Load(format!("shared memory: {e}")))?,
+            LobbyMem::create().map_err(|e| HostError::Load(format!("shared memory: {e}")))?,
         );
         let mut cmd = Command::new(&pool.exe);
         cmd.arg("--serve")
@@ -208,14 +207,12 @@ impl Sandbox {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
-        let mut child = cmd
-            .spawn()
-            .map_err(|e| {
-                HostError::Load(format!(
-                    "cannot start the plug-in sandbox ({}): {e}",
-                    pool.exe.display()
-                ))
-            })?;
+        let mut child = cmd.spawn().map_err(|e| {
+            HostError::Load(format!(
+                "cannot start the plug-in sandbox ({}): {e}",
+                pool.exe.display()
+            ))
+        })?;
         pool.adopt(&child);
         let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
             let _ = child.kill();
@@ -286,7 +283,14 @@ impl Sandbox {
             .spawn(move || watch(child, kill, me))
             .map_err(|e| HostError::Load(e.to_string()))?;
         // The handshake.
-        match sandbox.call(None, Call::Hello { protocol: proto::PROTOCOL }, &[], LOAD_TIMEOUT) {
+        match sandbox.call(
+            None,
+            Call::Hello {
+                protocol: proto::PROTOCOL,
+            },
+            &[],
+            LOAD_TIMEOUT,
+        ) {
             Ok((Answer::Hello { protocol, .. }, _)) if protocol == proto::PROTOCOL => Ok(sandbox),
             Ok((Answer::Hello { protocol, .. }, _)) => {
                 sandbox.request_kill();
@@ -508,7 +512,15 @@ impl Sandbox {
         }
         let rid = self.next_id.fetch_add(1, Ordering::Relaxed);
         lock(&self.background).insert(rid, Background::Text(instance, id, value.to_bits()));
-        self.post(Self::frame(rid, &Call::ParamText { instance, id, value }, &[]));
+        self.post(Self::frame(
+            rid,
+            &Call::ParamText {
+                instance,
+                id,
+                value,
+            },
+            &[],
+        ));
     }
 
     /// A state asked for in the background; it lands in the instance's inbox.
@@ -525,7 +537,13 @@ impl Sandbox {
         self.next_instance.fetch_add(1, Ordering::Relaxed)
     }
 
-    pub(crate) fn register(&self, instance: u32, inbox: Arc<Inbox>, slot: Arc<Slot>, closer: Closer) {
+    pub(crate) fn register(
+        &self,
+        instance: u32,
+        inbox: Arc<Inbox>,
+        slot: Arc<Slot>,
+        closer: Closer,
+    ) {
         lock(&self.instances).insert(
             instance,
             Registered {
@@ -694,9 +712,7 @@ impl Sandboxes {
             exe,
             groups: Mutex::new(HashMap::new()),
             hang_limit_ms: AtomicU64::new(HANG_LIMIT.as_millis() as u64),
-            deadline_floor_us: AtomicU64::new(
-                super::audio::DEADLINE_FLOOR.as_micros() as u64,
-            ),
+            deadline_floor_us: AtomicU64::new(super::audio::DEADLINE_FLOOR.as_micros() as u64),
             #[cfg(windows)]
             job: job::Job::new(),
         })

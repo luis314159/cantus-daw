@@ -151,7 +151,9 @@ pub enum Notice {
     /// and was ended. Its audio half passes the sound through (an effect) or stays silent
     /// (an instrument) until it is reloaded; its last-good state is what `save_state`
     /// answers from now on. Said once.
-    Crashed { reason: String },
+    Crashed {
+        reason: String,
+    },
 }
 
 /// Everything called on the main (UI) thread.

@@ -240,7 +240,9 @@ fn the_uninstaller_removes_exactly_what_the_installer_writes() {
     };
     assert_eq!(
         (files("CANTUS_APP_FILES"), deletes("CANTUS_APP_REMOVE")),
-        (9, 9)
+        // The launcher, two levels, the scanner, the plug-in sandbox (round 29), three
+        // texts, the notices, the manual's page.
+        (10, 10)
     );
     // The manual's folders go with it, deepest first.
     let app = macro_body("CANTUS_APP_REMOVE");

@@ -143,7 +143,11 @@ fn pair(mode: &str) -> Pair {
 fn call(p: &Pair, i: usize, x: u64, deadline: Duration) -> Outcome {
     payload(&p.mem, i).store(x, Ordering::Relaxed);
     let n = p.callers[i].submit();
-    p.callers[i].wait(n, Duration::from_micros(50), Some(Instant::now() + deadline))
+    p.callers[i].wait(
+        n,
+        Duration::from_micros(50),
+        Some(Instant::now() + deadline),
+    )
 }
 
 fn stop(p: &mut Pair) {
@@ -158,7 +162,11 @@ fn round_trips_between_two_processes_carry_their_data() {
     for x in 0..2_000u64 {
         let i = (x % 2) as usize;
         let t = Instant::now();
-        assert_eq!(call(&p, i, x, Duration::from_secs(10)), Outcome::Done, "job {x}");
+        assert_eq!(
+            call(&p, i, x, Duration::from_secs(10)),
+            Outcome::Done,
+            "job {x}"
+        );
         times.push(t.elapsed());
         assert_eq!(payload(&p.mem, i).load(Ordering::Relaxed), x * 2 + 1);
     }
@@ -184,7 +192,10 @@ fn two_callers_at_once_are_served_together() {
         assert_eq!(p.callers[0].wait(a, Duration::ZERO, d), Outcome::Done);
         assert_eq!(p.callers[1].wait(b, Duration::ZERO, d), Outcome::Done);
         assert_eq!(payload(&p.mem, 0).load(Ordering::Relaxed), round * 2 + 1);
-        assert_eq!(payload(&p.mem, 1).load(Ordering::Relaxed), (round + 7) * 2 + 1);
+        assert_eq!(
+            payload(&p.mem, 1).load(Ordering::Relaxed),
+            (round + 7) * 2 + 1
+        );
     }
     stop(&mut p);
 }

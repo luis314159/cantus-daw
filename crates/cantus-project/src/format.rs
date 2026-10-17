@@ -1719,7 +1719,12 @@ mod send_tap_tests {
 mod isolation_tests {
     use super::*;
 
-    fn hosted(file: &str) -> (Option<cantus_core::PluginIsolation>, Option<cantus_core::PluginIsolation>) {
+    fn hosted(
+        file: &str,
+    ) -> (
+        Option<cantus_core::PluginIsolation>,
+        Option<cantus_core::PluginIsolation>,
+    ) {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("fixtures")
             .join(file);

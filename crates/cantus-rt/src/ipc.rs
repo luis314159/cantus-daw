@@ -536,7 +536,11 @@ mod bell {
             let w = wide(name);
             // SAFETY: a NUL-terminated name that outlives the call.
             let h = unsafe {
-                OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE, 0, w.as_ptr())
+                OpenEventW(
+                    EVENT_MODIFY_STATE | SYNCHRONIZATION_SYNCHRONIZE,
+                    0,
+                    w.as_ptr(),
+                )
             };
             if h.is_null() {
                 return Err(io::Error::last_os_error());

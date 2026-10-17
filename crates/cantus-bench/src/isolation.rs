@@ -22,9 +22,7 @@ use crate::Plan;
 use cantus_core::*;
 use cantus_engine::{EngineHandle, Processor};
 use cantus_host::bridge::Sandboxes;
-use cantus_host::{
-    Audio, AudioSetup, Backend, Format, Loaded, ParamOut, PluginHost, PluginInfo,
-};
+use cantus_host::{Audio, AudioSetup, Backend, Format, Loaded, ParamOut, PluginHost, PluginInfo};
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
 use std::sync::Arc;
@@ -118,7 +116,12 @@ fn load(pool: &Arc<Sandboxes>, info: &PluginInfo, mode: PluginIsolation, frames:
     }
 }
 
-fn call(audio: &mut dyn cantus_host::AudioThread, l: &mut [f32], r: &mut [f32], out: &mut ParamOut) {
+fn call(
+    audio: &mut dyn cantus_host::AudioThread,
+    l: &mut [f32],
+    r: &mut [f32],
+    out: &mut ParamOut,
+) {
     out.clear();
     audio.process(
         Audio {
@@ -145,7 +148,11 @@ fn until(at: Instant) {
 }
 
 /// Round trips of one instance: (back-to-back µs, paced µs).
-fn round_trips(audio: &mut dyn cantus_host::AudioThread, frames: usize, calls: usize) -> (Vec<f64>, Vec<f64>) {
+fn round_trips(
+    audio: &mut dyn cantus_host::AudioThread,
+    frames: usize,
+    calls: usize,
+) -> (Vec<f64>, Vec<f64>) {
     let (mut l, mut r) = (vec![0.25f32; frames], vec![-0.25f32; frames]);
     let mut out = ParamOut::new();
     for _ in 0..200 {
@@ -229,7 +236,13 @@ mod os {
 
 /// Eight instances of `info` run `mode`, paced at real time for `seconds`: the share of a
 /// core per instance (Cantus's thread plus the helpers).
-fn cpu_share(pool: &Arc<Sandboxes>, info: &PluginInfo, mode: PluginIsolation, frames: usize, seconds: f64) -> f64 {
+fn cpu_share(
+    pool: &Arc<Sandboxes>,
+    info: &PluginInfo,
+    mode: PluginIsolation,
+    frames: usize,
+    seconds: f64,
+) -> f64 {
     let mut halves: Vec<Loaded> = (0..8).map(|_| load(pool, info, mode, frames)).collect();
     let pids: Vec<u32> = {
         let mut p: Vec<u32> = halves.iter().filter_map(|h| h.main.isolated_in()).collect();
@@ -261,7 +274,13 @@ fn cpu_share(pool: &Arc<Sandboxes>, info: &PluginInfo, mode: PluginIsolation, fr
 }
 
 /// The DAWbench row: 32 tracks, each through one Comprimo — native, or hosted `mode`.
-fn dsp32(pool: &Arc<Sandboxes>, comprimo: Option<&PluginInfo>, mode: Option<PluginIsolation>, frames: usize, seconds: f64) -> f64 {
+fn dsp32(
+    pool: &Arc<Sandboxes>,
+    comprimo: Option<&PluginInfo>,
+    mode: Option<PluginIsolation>,
+    frames: usize,
+    seconds: f64,
+) -> f64 {
     let mut p = crate::sessions::dsp(32, 0);
     let strips: Vec<StripId> = p.tracks.iter().filter_map(|t| t.strip).collect();
     let mut host = PluginHost::new(None, SR);
@@ -324,7 +343,12 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
     let Some(pool) = pool() else {
         return out;
     };
-    let Some(gain_path) = build("cantus-test-clap", "cantus_test_clap", &[], "bench-gain.clap") else {
+    let Some(gain_path) = build(
+        "cantus-test-clap",
+        "cantus_test_clap",
+        &[],
+        "bench-gain.clap",
+    ) else {
         return out;
     };
     let Some(gain) = scan(&gain_path).into_iter().next() else {

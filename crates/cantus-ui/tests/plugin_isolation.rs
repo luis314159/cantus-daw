@@ -78,10 +78,11 @@ fn a_crash_is_one_card_with_reload_and_keep_it_off() {
     // The same plug-in told twice is still one entry; another makes the card plural.
     plugin_notice::on_notice(&mut a, crashed(id, "Glacier"));
     assert_eq!(a.plugin_crashes.waiting.len(), 1);
+    let track = a.project().tracks[0].id;
     plugin_notice::on_notice(
         &mut a,
         HostNotice::InstrumentCrashed {
-            track: a.project().tracks[0].id,
+            track,
             name: "Odin 2".into(),
             reason: "it stopped answering".into(),
         },

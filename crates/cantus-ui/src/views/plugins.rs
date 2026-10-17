@@ -236,6 +236,7 @@ fn isolation_section(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, width: f
     });
     controls::line(ui, s, &what, s.t.text_dim, width);
     controls::line(ui, s, &t("isolation.manager.cost"), s.t.text_dim, width);
+    controls::line(ui, s, &t("isolation.manager.own"), s.t.text_dim, width);
     if !app.plugins.isolation_available() {
         controls::line(ui, s, &t("isolation.unavailable"), s.t.danger, width);
     }
@@ -251,7 +252,7 @@ fn isolation_section(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, width: f
             ui.spacing_mut().item_spacing.x = 6.0;
             controls::line(ui, s, &c.name, s.t.danger, (width * 0.4).max(140.0));
             badge(ui, cantus_host::to_project_format(c.format).badge());
-            let times = tf("isolation.manager.times", &[("n", &c.count)]);
+            let times = crate::i18n::tf_count("isolation.manager.times", c.count as usize, &[]);
             controls::line(ui, s, &times, s.t.text_dim, (width * 0.3).max(110.0));
             if controls::key(
                 ui,
@@ -396,41 +397,43 @@ fn isolation_card(
     let Some(chosen) = notice::chosen(app, target) else {
         return;
     };
-    controls::card(ui, s, rect, Src::Key("isolation.slot.band"), None, |ui, cr| {
-        let w = cr.body.width() / k;
-        let choices: [Option<P>; 5] = [
-            None,
-            Some(P::Within),
-            Some(P::Together),
-            Some(P::ByVendor),
-            Some(P::Individually),
-        ];
-        let labels = [
-            Src::Key("isolation.short.default"),
-            Src::Key("isolation.short.within"),
-            Src::Key("isolation.short.together"),
-            Src::Key("isolation.short.by_vendor"),
-            Src::Key("isolation.short.individually"),
-        ];
-        let now = choices.iter().position(|c| *c == chosen).unwrap_or(0);
-        let seg_w = (w * 0.62).clamp(260.0, 520.0);
-        if let Some(i) = controls::segmented(
-            ui,
-            s,
-            now,
-            &labels,
-            frame_tr("isolation.slot.band"),
-            seg_w,
-        ) {
-            notice::set_isolation(app, target, choices[i]);
-        }
-        let cpu = app
-            .plugins
-            .cpu(effect)
-            .map(|c| tf("isolation.tip.cpu", &[("share", &notice::percent(c.share))]))
-            .unwrap_or_default();
-        controls::line(ui, s, &cpu, s.t.text_dim, (w - seg_w - 8.0).max(60.0));
-    });
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("isolation.slot.band"),
+        None,
+        |ui, cr| {
+            let w = cr.body.width() / k;
+            let choices: [Option<P>; 5] = [
+                None,
+                Some(P::Within),
+                Some(P::Together),
+                Some(P::ByVendor),
+                Some(P::Individually),
+            ];
+            let labels = [
+                Src::Key("isolation.short.default"),
+                Src::Key("isolation.short.within"),
+                Src::Key("isolation.short.together"),
+                Src::Key("isolation.short.by_vendor"),
+                Src::Key("isolation.short.individually"),
+            ];
+            let now = choices.iter().position(|c| *c == chosen).unwrap_or(0);
+            let seg_w = (w * 0.62).clamp(260.0, 520.0);
+            if let Some(i) =
+                controls::segmented(ui, s, now, &labels, frame_tr("isolation.slot.band"), seg_w)
+            {
+                notice::set_isolation(app, target, choices[i]);
+            }
+            let cpu = app
+                .plugins
+                .cpu(effect)
+                .map(|c| tf("isolation.tip.cpu", &[("share", &notice::percent(c.share))]))
+                .unwrap_or_default();
+            controls::line(ui, s, &cpu, s.t.text_dim, (w - seg_w - 8.0).max(60.0));
+        },
+    );
 }
 
 /// The inspector's picture of a hosted plug-in: how many values it holds, and its latency.
@@ -627,31 +630,45 @@ fn body_ui(
     }
     if let Some(why) = app.plugins.crashed(effect).map(str::to_string) {
         let rest = g.rest();
-        controls::card(ui, s, rest, Src::Key("isolation.stopped_card"), None, |ui, cr| {
-            let w = cr.body.width() / k;
-            controls::column(ui, s, w, |ui| {
-                let name = app.plugins.hosted(effect).map_or(String::new(), |h| h.info.name.clone());
-                let line = tf("isolation.editor.stopped", &[("name", &name), ("reason", &why)]);
-                controls::line(ui, s, &line, s.t.danger, w);
-                controls::line(ui, s, frame_tr("isolation.editor.kept"), s.t.text_dim, w);
-                if controls::key(
-                    ui,
-                    s,
-                    Src::Key("isolation.slot.reload"),
-                    frame_tr("isolation.slot.reload"),
-                    170.0,
-                    false,
-                )
-                .clicked()
-                {
-                    crate::views::plugin_notice::reload(
-                        app,
-                        crate::views::plugin_notice::Target::Insert(effect),
-                        &name,
+        controls::card(
+            ui,
+            s,
+            rest,
+            Src::Key("isolation.stopped_card"),
+            None,
+            |ui, cr| {
+                let w = cr.body.width() / k;
+                controls::column(ui, s, w, |ui| {
+                    let name = app
+                        .plugins
+                        .hosted(effect)
+                        .map_or(String::new(), |h| h.info.name.clone());
+                    let why = crate::views::plugin_notice::reason_words(&why);
+                    let line = tf(
+                        "isolation.editor.stopped",
+                        &[("name", &name), ("reason", &why)],
                     );
-                }
-            });
-        });
+                    controls::line(ui, s, &line, s.t.danger, w);
+                    controls::line(ui, s, frame_tr("isolation.editor.kept"), s.t.text_dim, w);
+                    if controls::key(
+                        ui,
+                        s,
+                        Src::Key("isolation.slot.reload"),
+                        frame_tr("isolation.slot.reload"),
+                        170.0,
+                        false,
+                    )
+                    .clicked()
+                    {
+                        crate::views::plugin_notice::reload(
+                            app,
+                            crate::views::plugin_notice::Target::Insert(effect),
+                            &name,
+                        );
+                    }
+                });
+            },
+        );
         return;
     }
     if let Some(why) = app.plugins.missing(effect) {

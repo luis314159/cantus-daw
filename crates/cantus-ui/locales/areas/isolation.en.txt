@@ -46,12 +46,14 @@ isolation.editor.kept = Cantus kept playing without it, and its settings are kep
 # --- Settings' plug-in manager ---
 isolation.manager.band = Where third-party plug-ins run
 isolation.manager.within = Within Cantus: no round trip, and a plug-in that crashes takes Cantus with it.
-isolation.manager.together = Together: one helper process for all of them; one that crashes stops only that helper, never Cantus.
-isolation.manager.by_vendor = By maker: one helper process per maker; a crash stops only that maker's plug-ins.
-isolation.manager.individually = Individually: a helper process each; a crash stops only that plug-in.
-isolation.manager.cost = Each plug-in can be set apart in its slot's menu. Cantus's own effects and instruments always run within.
+isolation.manager.together = Together: one helper for all of them; one that crashes stops only that helper, never Cantus.
+isolation.manager.by_vendor = By maker: one helper per maker; a crash stops only that maker's plug-ins.
+isolation.manager.individually = Individually: a helper each; a crash stops only that plug-in.
+isolation.manager.cost = Each plug-in can be set apart in its slot's menu.
+isolation.manager.own = Cantus's own effects and instruments always run within.
 isolation.manager.crashed = Plug-ins that stopped working on this computer
 isolation.manager.times = {n} times
+isolation.manager.times_one = once
 isolation.manager.forget = Forget
 isolation.manager.forget_tip = Forget that it stopped working (it was fixed)
 isolation.cpu = CPU
@@ -60,3 +62,16 @@ isolation.cpu = CPU
 isolation.status.late = Plug-ins late: {n}
 isolation.status.late_tip = {n} blocks played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it
 isolation.status.late_tip_one = A block played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it
+
+# --- why a plug-in stopped ---
+isolation.why.access = it crashed: it touched memory that was not its own
+isolation.why.abort = it crashed: it aborted
+isolation.why.stack = it crashed: its stack overflowed
+isolation.why.illegal = it crashed: an instruction the processor refused
+isolation.why.division = it crashed: a division by zero
+isolation.why.crashed = it crashed
+isolation.why.hung_audio = it stopped responding while it processed audio
+isolation.why.hung = its helper stopped answering
+isolation.why.timeout = it did not answer in time
+isolation.why.protocol = its helper sent something Cantus could not read
+isolation.why.ended = its helper ended

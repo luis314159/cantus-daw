@@ -2569,7 +2569,10 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
         .collect();
     match rng.below(8) {
         // A refused one: a native slot, or a track that hosts no plug-in.
-        0 => match project.all_effects().find(|(_, e)| e.spec.external.is_none()) {
+        0 => match project
+            .all_effects()
+            .find(|(_, e)| e.spec.external.is_none())
+        {
             Some((strip, e)) => Command::SetPluginIsolation {
                 strip,
                 effect: e.id,

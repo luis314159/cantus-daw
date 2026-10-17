@@ -16,9 +16,8 @@ use vst3::Steinberg::Vst::{
     BusDirection, BusInfo, Event, IAudioProcessor, IAudioProcessorTrait, IComponent,
     IComponentHandler, IComponentTrait, IEditController, IEditControllerTrait, IEventListTrait,
     IParamValueQueueTrait, IParameterChangesTrait, IProcessContextRequirements,
-    IProcessContextRequirementsTrait, IoMode, MediaType,
-    ParameterInfo, ProcessData, ProcessSetup, RoutingInfo, SpeakerArr, SpeakerArrangement,
-    String128, TChar,
+    IProcessContextRequirementsTrait, IoMode, MediaType, ParameterInfo, ProcessData, ProcessSetup,
+    RoutingInfo, SpeakerArr, SpeakerArrangement, String128, TChar,
 };
 use vst3::Steinberg::{
     kInvalidArgument, kResultFalse, kResultOk, kResultTrue, tresult, FIDString, FUnknown, IBStream,

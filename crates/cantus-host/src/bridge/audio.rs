@@ -234,8 +234,7 @@ impl BridgeAudio {
         }
         // SAFETY: no job is in flight (`ready`), so the slot's job area is ours.
         unsafe {
-            self.slot
-                .put_job(op, &[], &[], None, None, &[], &[], false);
+            self.slot.put_job(op, &[], &[], None, None, &[], &[], false);
         }
         self.run(0);
     }

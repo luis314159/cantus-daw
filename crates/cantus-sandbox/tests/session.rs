@@ -127,8 +127,16 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     assert_eq!(rig.host.hosted(id).unwrap().param_value(P_GAIN), Some(-6.0));
     assert_eq!(rig.host.hosted(id).unwrap().latency(), 37);
     let again = rig.play(188 * 256, 256);
-    assert_eq!(differing(&again, &with_gain), 0, "what the user had, to the bit");
-    assert_eq!(rig.host.crashes_this_session(cantus_host::Format::Clap, GAIN_ID), 1);
+    assert_eq!(
+        differing(&again, &with_gain),
+        0,
+        "what the user had, to the bit"
+    );
+    assert_eq!(
+        rig.host
+            .crashes_this_session(cantus_host::Format::Clap, GAIN_ID),
+        1
+    );
 }
 
 #[test]
@@ -335,7 +343,11 @@ fn every_crash_is_counted_and_the_database_remembers_it() {
             .expect("reloads");
         rig.settle();
     }
-    assert_eq!(rig.host.crashes_this_session(cantus_host::Format::Clap, GAIN_ID), 3);
+    assert_eq!(
+        rig.host
+            .crashes_this_session(cantus_host::Format::Clap, GAIN_ID),
+        3
+    );
     let record = rig
         .host
         .db

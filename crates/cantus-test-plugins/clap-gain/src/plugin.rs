@@ -37,7 +37,16 @@ pub const PARAMS: [ParamRow; PARAM_COUNT] = [
     ),
     (P_KEY, "Key", "Sidechain", 0.0, 1.0, 0.0, true, false),
     (P_GESTURE, "Gesture", "Test", 0.0, 100.0, 0.0, true, true),
-    (P_FAULT, "Fault", "Test", 0.0, crate::fault::LAST, 0.0, true, true),
+    (
+        P_FAULT,
+        "Fault",
+        "Test",
+        0.0,
+        crate::fault::LAST,
+        0.0,
+        true,
+        true,
+    ),
     (P_PROCESS, "Process", "Test", 0.0, 4.0e9, 0.0, true, true),
 ];
 

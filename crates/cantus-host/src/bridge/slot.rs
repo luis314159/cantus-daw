@@ -13,7 +13,9 @@
 //! [`Caller::submit`]: cantus_rt::ipc::Caller::submit
 //! [`Caller::finished`]: cantus_rt::ipc::Caller::finished
 
-use crate::backend::{NoteEvent, NoteExpression, NoteKind, ParamChange, ParamEvent, ParamOut, TransportInfo};
+use crate::backend::{
+    NoteEvent, NoteExpression, NoteKind, ParamChange, ParamEvent, ParamOut, TransportInfo,
+};
 use cantus_rt::ipc::Exchange;
 use cantus_rt::shm::{unique_name, SharedMemory};
 use std::io;
@@ -436,7 +438,12 @@ impl Slot {
     ///
     /// # Safety
     /// The job finished (its area is Cantus's again).
-    pub unsafe fn take_result(&self, left: &mut [f32], right: &mut [f32], out: &mut ParamOut) -> u32 {
+    pub unsafe fn take_result(
+        &self,
+        left: &mut [f32],
+        right: &mut [f32],
+        out: &mut ParamOut,
+    ) -> u32 {
         // SAFETY: the caller's contract: the job finished, the area is ours.
         unsafe {
             let h = &*self.header();

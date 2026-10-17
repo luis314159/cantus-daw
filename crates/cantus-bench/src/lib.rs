@@ -68,7 +68,16 @@ impl Plan {
 
 /// The groups of the suite, by the name the command line takes.
 pub const GROUPS: [&str; 10] = [
-    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup", "isolation",
+    "fx",
+    "inst",
+    "engine",
+    "demos",
+    "render",
+    "open",
+    "ui",
+    "dawbench",
+    "startup",
+    "isolation",
 ];
 
 /// Run the groups in `only` (all of them when empty; the quick plan never runs

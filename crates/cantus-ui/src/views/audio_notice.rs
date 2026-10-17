@@ -318,7 +318,8 @@ fn draw(
                 let mut bx = r.left() + 84.0 * k;
                 for (j, w) in buttons {
                     let (label, a) = &card.buttons[j];
-                    let br = Rect::from_min_size(Pos2::new(bx, top + 3.0 * k), Vec2::new(w, 22.0 * k));
+                    let br =
+                        Rect::from_min_size(Pos2::new(bx, top + 3.0 * k), Vec2::new(w, 22.0 * k));
                     bx = br.right() + 6.0 * k;
                     let resp =
                         ui.interact(br, Id::new(("corner-card-b", card.id, j)), Sense::click());

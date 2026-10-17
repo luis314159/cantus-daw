@@ -99,7 +99,11 @@ fn sandbox_exe() -> PathBuf {
     }
     std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().and_then(|d| d.parent()).map(|d| d.join(cantus_host::bridge::sandbox::EXE)))
+        .and_then(|p| {
+            p.parent()
+                .and_then(|d| d.parent())
+                .map(|d| d.join(cantus_host::bridge::sandbox::EXE))
+        })
         .unwrap_or_default()
 }
 
@@ -168,17 +172,50 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
             shoot(&ctx, size, ppp, 6, Some(&path), |root| app.frame(root));
             println!("wrote {}", path.display());
         }
+        // The generic editor of the stopped plug-in: its *Runs* card and Reload.
+        let ctx = egui::Context::default();
+        cantus_ui::design::install_fonts(&ctx);
+        cantus_ui::design::install_style(&ctx);
+        cantus_ui::theme::apply(&theme, &ctx);
+        let mut app = crash_app();
+        let strip = app.project().tracks[0].strip.expect("a strip");
+        let effect = app
+            .project()
+            .strip(strip)
+            .and_then(|s| s.effects.iter().find(|e| e.spec.external.is_some()))
+            .map(|e| e.id);
+        if let Some(e) = effect {
+            app.open_effect_editor(strip, e);
+        }
+        let path = dir.join(format!("isolation-editor-{theme_name}-{code}-{ppp}x.png"));
+        shoot(
+            &ctx,
+            egui::vec2(1280.0, 760.0),
+            ppp,
+            6,
+            Some(&path),
+            |root| app.frame(root),
+        );
+        println!("wrote {}", path.display());
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
         cantus_ui::theme::apply(&theme, &ctx);
         let mut app = crash_app();
         let path = dir.join(format!("isolation-manager-{theme_name}-{code}-{ppp}x.png"));
-        shoot(&ctx, egui::vec2(640.0, 1000.0), ppp, 6, Some(&path), |root| {
-            egui::CentralPanel::default().show(root, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| views::plugins::manager(&mut app, ui));
-            });
-        });
+        shoot(
+            &ctx,
+            egui::vec2(640.0, 1000.0),
+            ppp,
+            6,
+            Some(&path),
+            |root| {
+                egui::CentralPanel::default().show(root, |ui| {
+                    egui::ScrollArea::vertical()
+                        .show(ui, |ui| views::plugins::manager(&mut app, ui));
+                });
+            },
+        );
         println!("wrote {}", path.display());
     }
 }

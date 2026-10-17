@@ -19,9 +19,7 @@
 //!   turns that into a figure per plug-in twice a second.
 
 use super::{changes, settle_new, HostNotice, PluginHost};
-use crate::backend::{
-    AudioSetup, AudioThread, Backend, Format, MainThread, ParamOut, PluginInfo,
-};
+use crate::backend::{AudioSetup, AudioThread, Backend, Format, MainThread, ParamOut, PluginInfo};
 use crate::bridge::{group_key, BridgedBackend, Sandboxes};
 use crate::unit::CpuMeter;
 use cantus_core::{EffectId, PluginIsolation, PluginState, Project, TrackId};
@@ -185,8 +183,15 @@ impl PluginHost {
         }
         let mut out = ParamOut::new();
         main.flush(&changes(values), &mut out);
-        let audio = settle_new(&mut main, loaded.audio, info, setup, values, backend.as_ref())
-            .ok_or_else(|| "it could not restart after its state was loaded".to_string())?;
+        let audio = settle_new(
+            &mut main,
+            loaded.audio,
+            info,
+            setup,
+            values,
+            backend.as_ref(),
+        )
+        .ok_or_else(|| "it could not restart after its state was loaded".to_string())?;
         Ok(Instance {
             main,
             audio,
@@ -339,7 +344,11 @@ impl PluginHost {
     }
 
     /// Reloads every crashed plug-in; returns the names that could not be.
-    pub fn reload_all_crashed(&mut self, project: &Project, engine: &mut EngineHandle) -> Vec<String> {
+    pub fn reload_all_crashed(
+        &mut self,
+        project: &Project,
+        engine: &mut EngineHandle,
+    ) -> Vec<String> {
         let (effects, tracks) = self.crashed_all();
         let mut failed = Vec::new();
         for e in effects {

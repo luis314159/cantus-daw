@@ -46,12 +46,14 @@ isolation.editor.kept = Cantus siguió sonando sin él, y sus ajustes se conserv
 # --- el gestor de plug-ins de Ajustes ---
 isolation.manager.band = Dónde se ejecutan los plug-ins de terceros
 isolation.manager.within = Dentro de Cantus: sin ida y vuelta, y un plug-in que falla se lleva Cantus con él.
-isolation.manager.together = Juntos: un proceso ayudante para todos; el que falla detiene solo ese ayudante, nunca Cantus.
-isolation.manager.by_vendor = Por fabricante: un proceso ayudante por fabricante; un fallo detiene solo los plug-ins de ese fabricante.
-isolation.manager.individually = Por separado: un proceso ayudante para cada uno; un fallo detiene solo ese plug-in.
-isolation.manager.cost = Cada plug-in puede separarse desde el menú de su ranura. Los efectos e instrumentos propios de Cantus siempre se ejecutan dentro.
+isolation.manager.together = Juntos: un ayudante para todos; el que falla detiene solo ese ayudante, nunca Cantus.
+isolation.manager.by_vendor = Por fabricante: un ayudante por fabricante; un fallo detiene solo los de ese fabricante.
+isolation.manager.individually = Por separado: un ayudante para cada uno; un fallo detiene solo ese plug-in.
+isolation.manager.cost = Cada plug-in puede separarse desde el menú de su ranura.
+isolation.manager.own = Los efectos e instrumentos propios de Cantus siempre se ejecutan dentro.
 isolation.manager.crashed = Plug-ins que dejaron de funcionar en este equipo
 isolation.manager.times = {n} veces
+isolation.manager.times_one = una vez
 isolation.manager.forget = Olvidar
 isolation.manager.forget_tip = Olvidar que dejó de funcionar (ya se arregló)
 isolation.cpu = CPU
@@ -60,3 +62,16 @@ isolation.cpu = CPU
 isolation.status.late = Plug-ins tarde: {n}
 isolation.status.late_tip = {n} bloques sonaron sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
 isolation.status.late_tip_one = Un bloque sonó sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
+
+# --- por qué se detuvo un plug-in ---
+isolation.why.access = falló: tocó memoria que no era suya
+isolation.why.abort = falló: se abortó
+isolation.why.stack = falló: se desbordó su pila
+isolation.why.illegal = falló: una instrucción que el procesador rechazó
+isolation.why.division = falló: una división por cero
+isolation.why.crashed = falló
+isolation.why.hung_audio = dejó de responder mientras procesaba audio
+isolation.why.hung = su ayudante dejó de responder
+isolation.why.timeout = no respondió a tiempo
+isolation.why.protocol = su ayudante envió algo que Cantus no pudo leer
+isolation.why.ended = su ayudante terminó

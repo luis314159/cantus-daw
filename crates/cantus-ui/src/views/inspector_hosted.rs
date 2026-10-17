@@ -45,6 +45,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
             .ui
             .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
         if r.hovered() {
+            let why = crate::views::plugin_notice::reason_words(why);
             let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
             hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
         }

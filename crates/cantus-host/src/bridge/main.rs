@@ -129,7 +129,12 @@ impl BridgeMain {
         }
     }
 
-    fn call(&self, call: Call, blob: &[u8], timeout: Duration) -> Result<(Answer, Vec<u8>), HostError> {
+    fn call(
+        &self,
+        call: Call,
+        blob: &[u8],
+        timeout: Duration,
+    ) -> Result<(Answer, Vec<u8>), HostError> {
         self.sandbox.call(Some(self.instance), call, blob, timeout)
     }
 
@@ -167,8 +172,10 @@ pub(crate) fn new_caller(
 ) -> Result<cantus_rt::ipc::Caller, HostError> {
     // SAFETY: the exchange lives in `slot`'s mapping and the lobby in `lobby`'s, both kept
     // alive by the audio half that holds the caller.
-    unsafe { cantus_rt::ipc::Caller::create(slot.name(), slot.exchange(), &lobby.name, lobby.lobby()) }
-        .map_err(|e| HostError::Load(format!("shared memory: {e}")))
+    unsafe {
+        cantus_rt::ipc::Caller::create(slot.name(), slot.exchange(), &lobby.name, lobby.lobby())
+    }
+    .map_err(|e| HostError::Load(format!("shared memory: {e}")))
 }
 
 impl MainThread for BridgeMain {
@@ -200,7 +207,13 @@ impl MainThread for BridgeMain {
     fn save_state(&mut self) -> Result<Vec<u8>, HostError> {
         self.take_answered_state();
         if !self.gone() {
-            match self.call(Call::SaveState { instance: self.instance }, &[], STATE_TIMEOUT) {
+            match self.call(
+                Call::SaveState {
+                    instance: self.instance,
+                },
+                &[],
+                STATE_TIMEOUT,
+            ) {
                 Ok((Answer::State, blob)) => {
                     self.last_good = Some(blob.clone());
                     self.dirty_since = None;
@@ -218,7 +231,13 @@ impl MainThread for BridgeMain {
     }
 
     fn load_state(&mut self, data: &[u8]) -> Result<(), HostError> {
-        match self.call(Call::LoadState { instance: self.instance }, data, STATE_TIMEOUT) {
+        match self.call(
+            Call::LoadState {
+                instance: self.instance,
+            },
+            data,
+            STATE_TIMEOUT,
+        ) {
             Ok(_) => {
                 self.last_good = Some(data.to_vec());
                 self.dirty_since = None;
@@ -250,7 +269,9 @@ impl MainThread for BridgeMain {
             CALL_TIMEOUT,
         )? {
             (Answer::Editor { width, height }, _) => Ok(EditorSize { width, height }),
-            _ => Err(HostError::Editor("the plug-in sandbox did not open it".into())),
+            _ => Err(HostError::Editor(
+                "the plug-in sandbox did not open it".into(),
+            )),
         }
     }
 
@@ -374,7 +395,13 @@ impl MainThread for BridgeMain {
             &[],
             CALL_TIMEOUT,
         ) {
-            Ok((Answer::Flushed { processed, out: events }, _)) => {
+            Ok((
+                Answer::Flushed {
+                    processed,
+                    out: events,
+                },
+                _,
+            )) => {
                 for e in events {
                     out.push(e.event());
                 }
@@ -400,7 +427,8 @@ impl MainThread for BridgeMain {
 
     fn checkpoint(&mut self) {
         if !self.gone() {
-            self.dirty_since.get_or_insert(Instant::now() - REFRESH_AFTER);
+            self.dirty_since
+                .get_or_insert(Instant::now() - REFRESH_AFTER);
         }
     }
 

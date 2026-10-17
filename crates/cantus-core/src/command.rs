@@ -728,9 +728,7 @@ impl Command {
             SetPluginState { .. } => "cmd.set_plugin_state",
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
-            SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => {
-                "cmd.set_plugin_isolation"
-            }
+            SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",

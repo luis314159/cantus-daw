@@ -16,9 +16,7 @@ use crate::inst_unit::HostedInstrument;
 use crate::session::HostNotice;
 use crate::window::PluginWindow;
 use crate::{from_project_format, to_project_format};
-use cantus_core::{
-    ExternalPlugin, InstrumentSpec, PluginIsolation, PluginState, Project, TrackId,
-};
+use cantus_core::{ExternalPlugin, InstrumentSpec, PluginIsolation, PluginState, Project, TrackId};
 use cantus_engine::{hosted_key, EngineHandle, NativeUnit};
 use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -266,9 +264,21 @@ impl PluginHost {
             .remove(&(track, key))
             .unwrap_or_else(|| plugin.state.clone());
         let setup = self.setup;
-        let inst = self.instantiate(&info, plugin.isolation, &state, &plugin.params, setup, false)?;
+        let inst = self.instantiate(
+            &info,
+            plugin.isolation,
+            &state,
+            &plugin.params,
+            setup,
+            false,
+        )?;
         self.learn(inst.main.as_ref());
-        let mut h = HostedInst::new(inst.main.info().clone(), inst.main, inst.audio, inst.isolation);
+        let mut h = HostedInst::new(
+            inst.main.info().clone(),
+            inst.main,
+            inst.audio,
+            inst.isolation,
+        );
         h.synced_state = plugin.state.clone();
         h.flushed = plugin.params.clone();
         Ok(h)

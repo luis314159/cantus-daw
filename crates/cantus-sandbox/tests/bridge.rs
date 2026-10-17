@@ -20,7 +20,11 @@ fn load_within(id: &str) -> Loaded {
         .expect("loads in process")
 }
 
-fn load_isolated(pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>, id: &str, group: &str) -> Loaded {
+fn load_isolated(
+    pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>,
+    id: &str,
+    group: &str,
+) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, false)
         .load(&info, setup())
@@ -29,7 +33,11 @@ fn load_isolated(pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>, id: &str
 
 /// Loaded for an offline render: every block waited for, without a deadline — what makes
 /// the comparison of bits independent of how busy the machine is.
-fn load_offline(pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>, id: &str, group: &str) -> Loaded {
+fn load_offline(
+    pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>,
+    id: &str,
+    group: &str,
+) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, true)
         .load(&info, setup())
@@ -41,7 +49,10 @@ fn load_offline(pool: &std::sync::Arc<cantus_host::bridge::Sandboxes>, id: &str,
 fn arrived(main: &mut dyn MainThread, id: u32, value: f64) {
     let start = Instant::now();
     while main.param_value(id) != Some(value) {
-        assert!(start.elapsed() < Duration::from_secs(5), "parameter {id} never arrived");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "parameter {id} never arrived"
+        );
         main.idle();
         std::thread::sleep(Duration::from_millis(2));
     }
@@ -81,7 +92,11 @@ fn an_isolated_gain_renders_the_same_bits_as_in_process_at_every_block_size() {
             .find(|p| p.name == "Process")
             .and_then(|p| m_out.param_value(p.id))
             .expect("the Process parameter");
-        assert_ne!(pid.round() as u32, std::process::id(), "{id} ran in this process");
+        assert_ne!(
+            pid.round() as u32,
+            std::process::id(),
+            "{id} ran in this process"
+        );
         assert_eq!(Some(pid.round() as u32), m_out.isolated_in());
         let change = [ParamChange {
             offset: 0,
@@ -161,9 +176,17 @@ fn a_plugin_that_aborts_in_process_leaves_the_block_dry_and_says_so_once() {
         assert!(same_bits(&l, &l0), "0 dB passes through");
         let t = Instant::now();
         let (mut l, mut r) = (l0.clone(), r0.clone());
-        call(audio.as_mut(), &mut l, &mut r, &fault(fault_id, ABORT_PROCESS), &[]);
+        call(
+            audio.as_mut(),
+            &mut l,
+            &mut r,
+            &fault(fault_id, ABORT_PROCESS),
+            &[],
+        );
         assert!(
-            t.elapsed() < deadline(256, SR, cantus_host::bridge::audio::DEADLINE_FLOOR) + Duration::from_millis(50),
+            t.elapsed()
+                < deadline(256, SR, cantus_host::bridge::audio::DEADLINE_FLOOR)
+                    + Duration::from_millis(50),
             "{id}: the audio thread waited {:?}",
             t.elapsed()
         );
@@ -217,7 +240,11 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
         // The interface's frame: never blocked by the hang.
         let t = Instant::now();
         let n = main.idle();
-        assert!(t.elapsed() < Duration::from_millis(50), "idle took {:?}", t.elapsed());
+        assert!(
+            t.elapsed() < Duration::from_millis(50),
+            "idle took {:?}",
+            t.elapsed()
+        );
         if n.iter().any(|n| matches!(n, Notice::Crashed { .. })) {
             break;
         }
@@ -226,7 +253,9 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     assert!(dry > 0);
     // Windows' timer may round the deadline up to its tick (15.6 ms).
     assert!(
-        worst < deadline(128, SR, cantus_host::bridge::audio::DEADLINE_FLOOR) + Duration::from_millis(25),
+        worst
+            < deadline(128, SR, cantus_host::bridge::audio::DEADLINE_FLOOR)
+                + Duration::from_millis(25),
         "the audio thread waited {worst:?}"
     );
     assert!(
@@ -256,9 +285,17 @@ fn a_crash_while_saving_keeps_the_last_good_state() {
     let good = main.save_state().expect("a state");
     assert_eq!(main.param_value(P_GAIN), Some(-6.0));
     let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
-    call(audio.as_mut(), &mut l, &mut r, &fault(P_FAULT, ABORT_SAVE), &[]);
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &fault(P_FAULT, ABORT_SAVE),
+        &[],
+    );
     arrived(main.as_mut(), P_FAULT, ABORT_SAVE);
-    let saved = main.save_state().expect("the last-good state, not an error");
+    let saved = main
+        .save_state()
+        .expect("the last-good state, not an error");
     assert_eq!(saved, good);
     assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
 }
@@ -274,7 +311,13 @@ fn a_crash_while_loading_a_state_or_activating_is_an_error_and_a_crash() {
         } = load_isolated(&pool, GAIN_ID, &format!("own-{what}"));
         let state = main.save_state().unwrap();
         let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
-        call(audio.as_mut(), &mut l, &mut r, &fault(P_FAULT, fault_value), &[]);
+        call(
+            audio.as_mut(),
+            &mut l,
+            &mut r,
+            &fault(P_FAULT, fault_value),
+            &[],
+        );
         arrived(main.as_mut(), P_FAULT, fault_value);
         let failed = if what == "load" {
             main.load_state(&state).is_err()
@@ -323,11 +366,17 @@ fn a_crash_when_the_editor_opens_is_an_error_and_a_crash() {
         mut audio,
     } = load_isolated(&pool, GAIN_ID, "own-editor");
     let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
-    call(audio.as_mut(), &mut l, &mut r, &fault(P_FAULT, ABORT_EDITOR), &[]);
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &fault(P_FAULT, ABORT_EDITOR),
+        &[],
+    );
     arrived(main.as_mut(), P_FAULT, ABORT_EDITOR);
-    let parent = raw_window_handle::RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
-        std::num::NonZeroIsize::new(1).unwrap(),
-    ));
+    let parent = raw_window_handle::RawWindowHandle::Win32(
+        raw_window_handle::Win32WindowHandle::new(std::num::NonZeroIsize::new(1).unwrap()),
+    );
     assert!(main.open_editor(parent).is_err());
     assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
 }
@@ -351,7 +400,13 @@ fn together_shares_one_process_and_one_crash_takes_both_individually_does_not() 
     assert_eq!(a_main.isolated_in(), b_main.isolated_in());
     assert_ne!(a_main.isolated_in(), c_main.isolated_in());
     let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
-    call(a_audio.as_mut(), &mut l, &mut r, &fault(P_FAULT, ABORT_PROCESS), &[]);
+    call(
+        a_audio.as_mut(),
+        &mut l,
+        &mut r,
+        &fault(P_FAULT, ABORT_PROCESS),
+        &[],
+    );
     assert!(crashed_within(a_main.as_mut(), Duration::from_secs(5)).is_some());
     assert!(crashed_within(b_main.as_mut(), Duration::from_secs(5)).is_some());
     // The other process plays on.

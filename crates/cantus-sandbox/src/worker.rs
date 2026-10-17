@@ -96,7 +96,12 @@ pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
                 .enumerate()
                 .find_map(|(i, rt)| rt.completer.exchange().take().map(|n| (i, n)))
         },
-        || seen.borrow().1.iter().any(|rt| rt.completer.exchange().pending()),
+        || {
+            seen.borrow()
+                .1
+                .iter()
+                .any(|rt| rt.completer.exchange().pending())
+        },
         |i, n| {
             let rt = seen.borrow().1[i].clone();
             run(&rt, n, &mut params, &mut notes, &mut out);
@@ -146,7 +151,6 @@ fn run(
     };
     // SAFETY: still job `n`'s area, not yet completed.
     unsafe { rt.slot.put_result(out, st) };
-    rt.slot
-        .account(started.elapsed().as_nanos() as u64, frames);
+    rt.slot.account(started.elapsed().as_nanos() as u64, frames);
     rt.completer.complete(n);
 }

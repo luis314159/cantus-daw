@@ -75,7 +75,10 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
     };
     for (id, latency_id) in [(GAIN_ID, Some(P_LATENCY)), (SYNTH_ID, None)] {
         let info = info(id);
-        let Loaded { mut main, mut audio } = bridged(&pool, info.format, &format!("own-rt-{id}"), false)
+        let Loaded {
+            mut main,
+            mut audio,
+        } = bridged(&pool, info.format, &format!("own-rt-{id}"), false)
             .load(&info, setup())
             .unwrap();
         if let Some(l) = latency_id {

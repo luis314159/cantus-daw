@@ -112,7 +112,9 @@ impl Backend for BridgedBackend {
             Ok((Answer::Loaded(d), state)) => (d, state),
             Ok(_) => {
                 sandbox.unregister(instance);
-                return Err(HostError::Load("the plug-in sandbox did not load it".into()));
+                return Err(HostError::Load(
+                    "the plug-in sandbox did not load it".into(),
+                ));
             }
             Err(e) => {
                 sandbox.unregister(instance);

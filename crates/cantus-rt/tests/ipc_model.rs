@@ -322,7 +322,10 @@ fn no_interleaving_of_two_callers_and_two_workers_loses_a_wake_up_with_an_event(
     // The first caller's second job meets the workers after they served both (the spin
     // and park paths again); the second caller's one job races the first's.
     let states = explore([2, 1], Sem::Event);
-    assert!(states > 10_000, "{states} states: too small a model to mean much");
+    assert!(
+        states > 10_000,
+        "{states} states: too small a model to mean much"
+    );
 }
 
 #[test]

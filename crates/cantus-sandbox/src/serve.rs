@@ -15,14 +15,12 @@ use cantus_host::bridge::proto::{
 };
 use cantus_host::bridge::slot::Slot;
 use cantus_host::window::PluginWindow;
-use cantus_host::{
-    AudioSetup, HostError, MainThread, Notice, ParamChange, ParamOut,
-};
+use cantus_host::{AudioSetup, HostError, MainThread, Notice, ParamChange, ParamOut};
 use std::collections::HashMap;
 use std::io::{BufReader, BufWriter, Write};
 use std::sync::atomic::AtomicBool;
-use std::sync::{mpsc, Arc, Mutex};
 use std::sync::atomic::Ordering;
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -178,7 +176,8 @@ impl Server {
         let backend = cantus_host::backend_for(info.format)
             .ok_or_else(|| Failure::Unsupported("format".into()))?;
         let slot = Arc::new(
-            Slot::open(slot_name, max_block).map_err(|e| Failure::Load(format!("shared memory: {e}")))?,
+            Slot::open(slot_name, max_block)
+                .map_err(|e| Failure::Load(format!("shared memory: {e}")))?,
         );
         // SAFETY: the exchange lives in `slot`, which the instance's `Rt` keeps alive.
         let completer = unsafe { cantus_rt::ipc::Completer::open(slot_name, slot.exchange()) }
@@ -419,7 +418,8 @@ fn on_instance(
 pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
     let _ = group;
     cantus_host::mark_main_thread();
-    let Ok(lobby_mem) = cantus_rt::shm::SharedMemory::open(lobby, cantus_host::bridge::sandbox::LOBBY_BYTES)
+    let Ok(lobby_mem) =
+        cantus_rt::shm::SharedMemory::open(lobby, cantus_host::bridge::sandbox::LOBBY_BYTES)
     else {
         return 4;
     };

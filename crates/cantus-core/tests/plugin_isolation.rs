@@ -54,7 +54,10 @@ fn an_inserts_isolation_is_set_and_undone_exactly() {
         Origin::User,
     )
     .unwrap();
-    assert_eq!(insert_isolation(&bus, effect), Some(PluginIsolation::Within));
+    assert_eq!(
+        insert_isolation(&bus, effect),
+        Some(PluginIsolation::Within)
+    );
     // Two steps: each choice is its own undo step.
     bus.undo().unwrap();
     assert_eq!(

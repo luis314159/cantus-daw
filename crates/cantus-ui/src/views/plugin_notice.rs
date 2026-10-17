@@ -136,7 +136,12 @@ pub fn card(app: &CantusApp) -> Option<(String, String, Vec<(String, Answer)>, S
     }
     let reasons = w
         .iter()
-        .map(|c| tf("isolation.reason", &[("name", &c.name), ("reason", &c.reason)]))
+        .map(|c| {
+            tf(
+                "isolation.reason",
+                &[("name", &c.name), ("reason", &reason_words(&c.reason))],
+            )
+        })
         .collect::<Vec<_>>()
         .join("\n");
     Some((title, body, buttons, reasons))
@@ -260,7 +265,11 @@ pub fn menu_rows(app: &CantusApp, target: Target) -> Vec<(String, Option<bool>, 
         MenuAct::Run(None),
     ));
     for m in PluginIsolation::ALL {
-        rows.push((t(m.label_key()), Some(chosen == Some(m)), MenuAct::Run(Some(m))));
+        rows.push((
+            t(m.label_key()),
+            Some(chosen == Some(m)),
+            MenuAct::Run(Some(m)),
+        ));
     }
     rows
 }
@@ -286,7 +295,10 @@ pub fn run_menu(app: &mut CantusApp, target: Target, act: MenuAct) {
 fn name_of(app: &CantusApp, target: Target) -> String {
     match target {
         Target::Insert(e) => app.plugins.hosted(e).map(|h| h.info.name.clone()),
-        Target::Instrument(tr) => app.plugins.hosted_instrument(tr).map(|h| h.info.name.clone()),
+        Target::Instrument(tr) => app
+            .plugins
+            .hosted_instrument(tr)
+            .map(|h| h.info.name.clone()),
     }
     .unwrap_or_default()
 }
@@ -318,7 +330,10 @@ pub fn tip(app: &CantusApp, target: Target) -> String {
     };
     let mut lines = vec![tf("isolation.tip.runs", &[("mode", &t(runs.label_key()))])];
     if let Some(why) = crashed {
-        lines.push(tf("isolation.tip.stopped", &[("reason", &why)]));
+        lines.push(tf(
+            "isolation.tip.stopped",
+            &[("reason", &reason_words(why))],
+        ));
     } else if let Some(c) = cpu {
         lines.push(tf("isolation.tip.cpu", &[("share", &percent(c.share))]));
         if let Some(own) = c.own {
@@ -349,12 +364,7 @@ pub fn paint_header_stopped(
             icon.width().min(icon.height()) * 0.5,
             crate::kit::Fill::Solid(s.t.panel),
         );
-        crate::kit::glyph::paint(
-            b,
-            icon,
-            crate::kit::glyph::Glyph::PluginStopped,
-            s.t.danger,
-        );
+        crate::kit::glyph::paint(b, icon, crate::kit::glyph::Glyph::PluginStopped, s.t.danger);
     });
 }
 
@@ -369,5 +379,44 @@ pub fn paint_rack_stopped(
 ) {
     if app.plugins.instrument_crashed(track).is_some() {
         b.rrect_stroke(button.shrink(0.5), s.r(3.0), 1.5 * s.k, s.t.danger);
+    }
+}
+
+/// The host's account of why a plug-in stopped, in the interface's language: the forms
+/// `cantus_host::bridge::sandbox` writes (an exception, a signal, a hang, a timeout), with
+/// the system's code kept; anything else as the host said it.
+pub fn reason_words(reason: &str) -> String {
+    let code = reason
+        .find("(0x")
+        .and_then(|i| reason[i + 1..].split(')').next())
+        .map(str::to_string);
+    let key = if reason.contains("access violation") {
+        "isolation.why.access"
+    } else if reason.contains("stack buffer overrun or an abort") || reason.contains("an abort") {
+        "isolation.why.abort"
+    } else if reason.contains("stack overflow") {
+        "isolation.why.stack"
+    } else if reason.contains("illegal instruction") {
+        "isolation.why.illegal"
+    } else if reason.contains("division by zero") {
+        "isolation.why.division"
+    } else if reason.contains("processed audio") {
+        "isolation.why.hung_audio"
+    } else if reason.contains("stopped answering") {
+        "isolation.why.hung"
+    } else if reason.contains("did not answer in") {
+        "isolation.why.timeout"
+    } else if reason.contains("broke its protocol") {
+        "isolation.why.protocol"
+    } else if reason.contains("crashed") {
+        "isolation.why.crashed"
+    } else if reason.contains("ended") {
+        "isolation.why.ended"
+    } else {
+        return reason.to_string();
+    };
+    match code {
+        Some(c) => format!("{} ({c})", t(key)),
+        None => t(key),
     }
 }

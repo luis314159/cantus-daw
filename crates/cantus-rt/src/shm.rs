@@ -106,8 +106,8 @@ mod imp {
         CloseHandle, GetLastError, ERROR_ALREADY_EXISTS, HANDLE, INVALID_HANDLE_VALUE,
     };
     use windows_sys::Win32::System::Memory::{
-        CreateFileMappingW, MapViewOfFile, OpenFileMappingW, UnmapViewOfFile,
-        FILE_MAP_ALL_ACCESS, MEMORY_MAPPED_VIEW_ADDRESS, PAGE_READWRITE,
+        CreateFileMappingW, MapViewOfFile, OpenFileMappingW, UnmapViewOfFile, FILE_MAP_ALL_ACCESS,
+        MEMORY_MAPPED_VIEW_ADDRESS, PAGE_READWRITE,
     };
 
     #[derive(Debug)]

@@ -536,7 +536,14 @@ impl PluginHost {
             .remove(&slot.id)
             .unwrap_or_else(|| plugin.state.clone());
         let setup = self.setup;
-        let inst = self.instantiate(&info, plugin.isolation, &state, &plugin.params, setup, false)?;
+        let inst = self.instantiate(
+            &info,
+            plugin.isolation,
+            &state,
+            &plugin.params,
+            setup,
+            false,
+        )?;
         self.learn(inst.main.as_ref());
         let mut h = Hosted::new(strip, info, inst.main, inst.audio, inst.isolation);
         h.synced_state = plugin.state.clone();
@@ -1171,9 +1178,7 @@ impl PluginHost {
             return Ok(());
         }
         if h.crashed.is_some() {
-            return Err(HostError::Crashed(
-                h.crashed.clone().unwrap_or_default(),
-            ));
+            return Err(HostError::Crashed(h.crashed.clone().unwrap_or_default()));
         }
         let window = PluginWindow::open(title, owner, h.main.as_mut())?;
         // An isolated plug-in's window is its helper's: brought to the front there.

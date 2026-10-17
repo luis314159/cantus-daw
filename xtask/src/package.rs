@@ -459,7 +459,12 @@ fn build_scanner(level: Level, triple: &str) {
 /// The plug-in sandbox (ADR 0063), built with the lowest level's flags like the scanner: it
 /// runs third-party plug-ins, whose code is theirs, and moves their audio, not ours.
 fn build_sandbox(level: Level, triple: &str) {
-    run(levels::cargo_build(level, triple).args(["-p", "cantus-sandbox", "--bin", "cantus-sandbox"]));
+    run(levels::cargo_build(level, triple).args([
+        "-p",
+        "cantus-sandbox",
+        "--bin",
+        "cantus-sandbox",
+    ]));
 }
 
 /// The launcher, in the ordinary target and with no `target-cpu`, so that it runs on any
