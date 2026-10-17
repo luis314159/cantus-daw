@@ -512,16 +512,22 @@ fn measure_the_cost_of_ramp_steps() {
     let mut flat = ramp.clone();
     flat.tempo_points.clear();
     flat.metre_changes.clear();
-    let time = |p: &Project| {
+    let time_at = |p: &Project, block: usize| {
         (0..5)
             .map(|_| {
                 let t0 = std::time::Instant::now();
-                let _ = render_with(p, 256);
+                let _ = render_with(p, block);
                 t0.elapsed().as_secs_f64()
             })
             .fold(f64::MAX, f64::min)
     };
+    let time = |p: &Project| time_at(p, 256);
     let (a, b) = (time(&ramp), time(&flat));
+    // What the extra passes alone cost: the one-tempo song cut into the passes a ramp adds
+    // (a 60-tick step every ~1 560 samples at these tempos on top of 256-sample blocks is
+    // ~16 % more passes: blocks of 221).
+    let (c, d) = (time_at(&flat, 256), time_at(&flat, 221));
+    eprintln!("one tempo, 16 % more passes: ratio {:.3}", d / c);
     let secs = |p: &Project| p.tempo_map().seconds_between(Ticks::ZERO, p.content_end());
     let (sa, sb) = (secs(&ramp), secs(&flat));
     eprintln!(

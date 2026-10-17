@@ -170,7 +170,7 @@ pub(super) fn grid(
         if several {
             crate::views::bars::is_bar_line(&map, pattern.tick(step))
         } else {
-            step % per_bar == 0
+            step.is_multiple_of(per_bar)
         }
     };
     for step in first..last {

@@ -130,7 +130,26 @@ scope of the export dialog (`Scope::Markers`), the two markers picked by name.
 
 ### 6. Interchange (amends ADR 0021)
 
-See §7 of `docs/round29/tempo.md` for what each format carries.
+ADR 0021 dropped, with a report, a MIDI file's tempo changes (kept by beats or by seconds)
+and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. Now:
+
+- **MIDI export** writes the whole conductor track: the metre in force and every metre
+  change, every tempo point — a ramp as a tempo event every sixteenth note
+  (`RAMP_EXPORT_STEP`), each the *average* tempo of its sixteenth, so every sixteenth and
+  the whole ramp last exactly as long as they play — and every marker as a marker meta
+  event (0x06); a clip or a range starts the map at its own start.
+- **MIDI import** has a new default mode, *keep the tempo map* (`TempoMode::Map`): notes by
+  beats, and — when the import sets the song's tempo (an empty project) — the file's tempo
+  changes in the tempo track, its metre changes and its markers; the report says how many
+  of each were kept. `Beats` and `Seconds` stay for importing into a song whose tempo
+  stays.
+- **DAWproject** writes the arrangement's `Markers` (name, colour), `TempoAutomation`
+  (`RealPoint`s on the transport's tempo parameter; a ramp `linear`, a held point `hold`)
+  and `TimeSignatureAutomation` (`TimeSignaturePoint`s), valid against the official schema,
+  and reads them back (in beats or seconds); markers inside lanes or clips are still
+  counted as dropped (nowhere to go).
+- **The AI bridge** sees every tempo point, metre change and marker in its context and has
+  a `set_tempo_point` tool (an ordinary, undoable command).
 
 ### 7. Licences
 
@@ -138,8 +157,22 @@ All of it is our own code in the MPL crates; the closed forms are textbook calcu
 
 ### 8. Measurements
 
-Filled from `tempo_map::measure_the_cost_of_ramp_steps` and the tests (see
-`docs/round29/tempo.md`).
+- **The cost of the ramp's steps** (`tempo_map::measure_the_cost_of_ramp_steps`, best of
+  five, 48 kHz, 256-sample blocks, the demo song with a synced tremolo): cutting a pass at
+  every 60-tick step adds about 16 % more passes at 90–140 BPM; the same one-tempo song
+  rendered in 16 % more passes costs **1.8 %** more. The ramped song as a whole costs 9–15 %
+  more per song second than at one tempo, most of it the denser notes of its faster tempo.
+  Splitting at the automation grid (16 samples) instead would multiply the passes by ~16:
+  rejected — the per-pass tempo with `tempo_inc` is exact for the engine's own timing and
+  within a sixtieth of a beat's tempo change for the units.
+- **Accuracy**: seconds ↔ ticks inverse within 1e-9 s over 300 random maps of up to 8
+  points (tempos 20–999); a ramp's closed form within 1e-9 s of Simpson's rule; an event
+  after a ramp due at the analytic sample, to the sample; a loop over a tempo change
+  wraps within 1e-3 sample of the map's length over 40 passes; a MIDI round trip of a ramp
+  within 1e-4 s at every sixteenth.
+- **Real time**: `rt_memory::a_tempo_map_never_allocates` (serial and with the pool): a
+  ramp, steps, metre changes, a loop over the tempo change, a tempo edit while playing, a
+  count-in, a stop — no allocation, no free on the audio thread or a worker.
 
 ## Consequences
 
