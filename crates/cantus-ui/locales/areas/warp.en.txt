@@ -1,1 +1,94 @@
 # warp — round 29: warping, time-stretch and pitch-shift of audio clips. Every key here needs its twin in warp.es.txt.
+
+# The undo menu (ADR 0061).
+cmd.warp.set = Warp the clip
+cmd.warp.auto = Warp the loop to the tempo
+cmd.warp.add_marker = Add warp marker
+cmd.warp.move_marker = Move warp marker
+cmd.warp.move_content = Slide audio under a warp marker
+cmd.warp.remove_marker = Remove warp marker
+cmd.warp.quantise = Quantise audio
+cmd.warp.mode = Warp mode
+cmd.warp.transpose = Transpose audio
+cmd.warp.formants = Keep formants
+cmd.warp.tail = Slice ends
+cmd.warp.follow = Follow the project tempo
+cmd.warp.tempo = Clip tempo
+cmd.warp.reset = Reset warp
+cmd.warp.bounce = Bounce warped audio
+
+# The modes.
+warp.mode.complex = Complex
+warp.mode.rhythm = Rhythm
+warp.mode.melodic = Melodic
+warp.mode.repitch = Re-pitch
+warp.badge.complex = Warp
+warp.badge.rhythm = Warp: Rhythm
+warp.badge.melodic = Warp: Melodic
+warp.badge.repitch = Warp: Re-pitch
+
+# On the clip.
+warp.marker = Warp marker
+warp.transient = Transient
+warp.transient.tip = Double-click to pin it with a warp marker; drag to pin it and move it
+warp.band = Warp markers
+warp.band.tip = Double-click to add a warp marker here; drag to add one and move it
+
+# The clip's menu.
+warp.menu.band = Warp
+warp.menu.follow = Follow the project tempo
+warp.menu.quantise = Quantise audio…
+warp.menu.quantise_short = Quantise…
+warp.menu.detect = Detect tempo
+warp.menu.from_here = Warp from here
+warp.menu.project_tempo = Set the project tempo from this clip
+warp.menu.edit = Edit warp
+warp.menu.bounce = Bounce warped audio
+warp.menu.reset = Reset warp
+warp.menu.remove_marker = Remove warp marker
+
+# The inspector.
+warp.inspector.band = Warp
+warp.inspector.follow = Follow tempo
+warp.inspector.follow_short = Follow
+warp.inspector.mode = Mode
+warp.inspector.mode_more = More modes
+warp.inspector.transpose = Transpose
+warp.inspector.formants = Formants
+warp.inspector.formants_on = Keep
+warp.inspector.tail = Slice ends
+warp.inspector.tempo = Clip tempo
+warp.inspector.detected = Detected
+warp.inspector.bars = {n} bars
+warp.inspector.none = Not analysed
+warp.tail.fade = Fade
+warp.tail.loop = Loop
+warp.tail.pingpong = Back and forth
+
+# The clip editor.
+warp.tab.pitch = Pitch
+warp.tab.warp = Warp
+warp.tempo.half = ½
+warp.tempo.double = ×2
+
+# Quantise audio.
+warp.quantise.title = Quantise audio
+warp.quantise.grid = Grid
+warp.quantise.strength = Strength
+warp.quantise.threshold = Transients over
+warp.quantise.note = Pulls the transients of {n} clip(s) toward the grid; the files are never changed
+warp.quantise.apply = Quantise
+warp.quantise.cancel = Cancel
+
+# The status line.
+warp.status.analysing = The clip's file is still being analysed: try again in a moment
+warp.status.analysing_short = Analysing…
+warp.status.no_tempo = No steady tempo was found in this clip
+warp.status.detected = Warped at {bpm} BPM
+warp.status.quantised = Quantised {n} clip(s)
+warp.bounce.file = {name} (warped)
+warp.bounce.busy = A bounce is already being written
+warp.bounce.working = Bouncing {name}…
+warp.bounce.done = {name} now plays its bounced audio
+warp.bounce.failed = The bounce could not be written: {error}
+warp.bounce.nothing = Nothing to bounce: the clip's file cannot be read

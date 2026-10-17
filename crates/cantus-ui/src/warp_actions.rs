@@ -53,7 +53,11 @@ impl CantusApp {
         let c = self.project().track(r.0)?.clip(r.1)?;
         let a = c.audio.as_ref()?;
         let s = self.project().audio_source(a.source)?;
-        let mut w = Warp::identity(s.sample_rate.max(1), self.project().tempo_bpm, a.slip_frames);
+        let mut w = Warp::identity(
+            s.sample_rate.max(1),
+            self.project().tempo_bpm,
+            a.slip_frames,
+        );
         if let Some(an) = self.warp_analysis(r) {
             if let Some(d) = an.grid.first_downbeat() {
                 w.detected = Some(cantus_core::warp::Detected {
@@ -166,7 +170,9 @@ impl CantusApp {
             self.set_status(t("warp.status.analysing"));
             return false;
         };
-        let mode = self.clip_warp(r).map_or_else(|| super::mode_for(&a), |w| w.mode);
+        let mode = self
+            .clip_warp(r)
+            .map_or_else(|| super::mode_for(&a), |w| w.mode);
         let bpb = self.project().time_signature.numerator.max(1) as u32;
         let Some(mut w) = warp_from(&a, bpb, mode) else {
             self.set_status(t("warp.status.no_tempo"));
@@ -179,7 +185,10 @@ impl CantusApp {
         }
         let ok = self.commit_warp(r, Some(w), WarpOp::Set, false);
         if ok {
-            self.set_status(tf("warp.status.detected", &[("bpm", &format!("{:.2}", a.bpm()))]));
+            self.set_status(tf(
+                "warp.status.detected",
+                &[("bpm", &format!("{:.2}", a.bpm()))],
+            ));
         }
         ok
     }

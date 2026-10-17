@@ -12,7 +12,13 @@ use std::path::{Path, PathBuf};
 
 /// Render clip `id` of `snapshot` (its first window) through a cache of its own and write
 /// it to `file` (32-bit float WAV at `rate`).
-fn write(mut snapshot: Snapshot, dir: Option<PathBuf>, id: cantus_core::ClipId, rate: u32, file: &Path) -> Result<Written, String> {
+fn write(
+    mut snapshot: Snapshot,
+    dir: Option<PathBuf>,
+    id: cantus_core::ClipId,
+    rate: u32,
+    file: &Path,
+) -> Result<Written, String> {
     let mut cache = cantus_engine::SampleCache::new();
     cache.set_project_dir(dir);
     let errors = cache.attach_audio(&mut snapshot, rate);
@@ -118,7 +124,12 @@ impl CantusApp {
         match result {
             Err(e) => self.set_error(tf("warp.bounce.failed", &[("error", &e)])),
             Ok(w) => {
-                let Some(c) = self.project().track(b.r.0).and_then(|t| t.clip(b.r.1)).cloned() else {
+                let Some(c) = self
+                    .project()
+                    .track(b.r.0)
+                    .and_then(|t| t.clip(b.r.1))
+                    .cloned()
+                else {
                     return;
                 };
                 let Some(a) = c.audio.clone() else { return };

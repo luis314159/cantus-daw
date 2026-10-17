@@ -21,8 +21,6 @@
 //! change (`Fmt`), lists are built when their menu opens, curves when their settings
 //! move.
 
-#[path = "inspector_warp.rs"]
-pub mod warp;
 #[path = "inspector_audio.rs"]
 pub mod audio;
 #[path = "inspector_channel.rs"]
@@ -55,6 +53,8 @@ mod sends;
 mod sheet;
 #[path = "inspector_track.rs"]
 mod track;
+#[path = "inspector_warp.rs"]
+pub mod warp;
 
 use crate::app::CantusApp;
 use crate::kit::color::shade;

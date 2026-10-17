@@ -106,15 +106,18 @@ pub(super) fn canvas(
         .project()
         .track(track)
         .and_then(|t| t.clip(clip))
-        .and_then(|c| time.map(|tm| (tm.frame(c.start), tm.frame(c.end()))));
+        .and_then(|c| {
+            time.as_ref()
+                .map(|tm| (tm.frame(c.start), tm.frame(c.end())))
+        });
     let g = geo.grid;
     let blobs = kit::with_brush(&ui.painter().with_clip_rect(g), |b| {
         rows(b, geo, s);
         if let Some(w) = window {
             outside(b, geo, w, s);
         }
-        if let Some(tm) = time {
-            ladder(b, app, geo, &tm, s);
+        if let Some(tm) = &time {
+            ladder(b, app, geo, tm, s);
         }
         waveform(b, app, track, clip, geo, map, color, s);
         if let Some(a) = analysis {
@@ -138,7 +141,7 @@ pub(super) fn canvas(
             b.rect(r, Fill::Solid(with_alpha(s.t.selection, 0.15)));
             b.rrect_stroke(r, 0.0, b.px(), s.t.selection);
         }
-        if let Some(tm) = time {
+        if let Some(tm) = &time {
             let x = geo.x(tm.frame(app.engine.position()));
             if x >= g.left() && x <= g.right() {
                 b.vline(x, g.top(), g.bottom(), 1.5 * s.k, s.t.playhead);

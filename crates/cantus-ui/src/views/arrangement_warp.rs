@@ -11,8 +11,8 @@
 //! select it (a click) and press Del. A clip not yet warped is warped by its first marker.
 //! **Alt**-drag a clip's right edge stretches the whole clip (`clips.rs`, ADR 0061 §5).
 
-use super::{Handle, Shown};
 use super::super::TimelineGeometry;
+use super::{Handle, Shown};
 use crate::app::CantusApp;
 use crate::clips::ClipRef;
 use crate::kit::color::with_alpha;
@@ -90,7 +90,11 @@ impl Hits {
             if let Some(i) = near(&self.onset_xs[..self.m]) {
                 return Some(Handle::WarpOnset(self.onset_ids[i]));
             }
-            return Some(Handle::WarpBand(self.tick_at(pos.x).0.clamp(i32::MIN as i64, i32::MAX as i64) as i32));
+            return Some(Handle::WarpBand(
+                self.tick_at(pos.x)
+                    .0
+                    .clamp(i32::MIN as i64, i32::MAX as i64) as i32,
+            ));
         }
         None
     }
@@ -175,18 +179,21 @@ pub fn paint(
     s: &Style,
 ) -> Option<Hits> {
     let k = s.k;
-    if inner.height() < BAND * k * 3.0 {
+    if inner.height() < 8.0 * k {
         return None;
     }
     let r: ClipRef = (shown.track, shown.clip.id);
-    let band = Rect::from_min_max(inner.min, pos2(inner.right(), inner.top() + BAND * k));
+    // The band: a third of a short clip at most.
+    let bh = (BAND * k).min(inner.height() * 0.35);
+    let band = Rect::from_min_max(inner.min, pos2(inner.right(), inner.top() + bh));
     let ppt = geo.px_per_beat / PPQ as f32;
     let origin = geo.x(shown.start.as_beats_f64() as f32) - shown.offset.0 as f32 * ppt;
     let mut hits = Hits::new(band, inner, origin, ppt, k);
     let warp = shown.region.warp.as_deref();
     let selected = app.warp.selected.filter(|(c, _)| *c == r).map(|(_, i)| i);
     let x_of = |content: f64| origin + content as f32 * ppt;
-    let visible = |x: f32| x >= inner.left().max(lanes.left()) && x <= inner.right().min(lanes.right());
+    let visible =
+        |x: f32| x >= inner.left().max(lanes.left()) && x <= inner.right().min(lanes.right());
     // The transients, when the analysis is in.
     if show {
         if let Some(a) = app.warp_analysis(r) {
@@ -211,7 +218,7 @@ pub fn paint(
                 if !visible(x) {
                     continue;
                 }
-                b.vline(x, band.bottom() - BAND * k * 0.6, band.bottom(), b.px(), ink);
+                b.vline(x, band.bottom() - bh * 0.6, band.bottom(), b.px(), ink);
                 if hits.m < MAX_HITS {
                     hits.onset_xs[hits.m] = x;
                     hits.onset_ids[hits.m] = id as u32;
@@ -219,7 +226,13 @@ pub fn paint(
                 }
             }
         }
-        b.hline(band.left(), band.right(), band.bottom(), b.px(), with_alpha(s.t.text_dim, 0.25));
+        b.hline(
+            band.left(),
+            band.right(),
+            band.bottom(),
+            b.px(),
+            with_alpha(s.t.text_dim, 0.25),
+        );
     }
     // The markers.
     if let Some(w) = warp.filter(|w| w.follow) {
@@ -230,15 +243,25 @@ pub fn paint(
             if c < off || c > off + len {
                 continue;
             }
-            let c = if shown.region.reverse { 2.0 * off + len - c } else { c };
+            let c = if shown.region.reverse {
+                2.0 * off + len - c
+            } else {
+                c
+            };
             let x = x_of(c);
             if !visible(x) {
                 continue;
             }
             let on = selected == Some(i);
             let ink = if on { s.t.highlight } else { s.t.brand_bright };
-            b.vline(x, band.top(), inner.bottom(), b.px() * if on { 2.0 } else { 1.0 }, with_alpha(ink, if on { 0.95 } else { 0.7 }));
-            let hw = BAND * k * 0.6;
+            b.vline(
+                x,
+                band.top(),
+                inner.bottom(),
+                b.px() * if on { 2.0 } else { 1.0 },
+                with_alpha(ink, if on { 0.95 } else { 0.7 }),
+            );
+            let hw = bh * 0.6;
             b.polygon(
                 &[
                     pos2(x - hw, band.top()),
@@ -315,7 +338,10 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
     let dx = if reverse { -dx.0 } else { dx.0 };
     let (next, op) = if d.slide {
         let f = d.warp0.frame_at((m.tick.0 - dx) as f64);
-        (d.warp0.move_content(d.marker, f), cantus_core::warp::WarpOp::MoveContent)
+        (
+            d.warp0.move_content(d.marker, f),
+            cantus_core::warp::WarpOp::MoveContent,
+        )
     } else {
         let origin = c.start - c.offset;
         let mut tick = Ticks(m.tick.0 + dx);
@@ -323,7 +349,10 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
         if a.snap && !a.audio.mods.command && !reverse {
             tick = (tick + origin).snap(a.grid) - origin;
         }
-        (d.warp0.move_marker(d.marker, tick), cantus_core::warp::WarpOp::MoveMarker)
+        (
+            d.warp0.move_marker(d.marker, tick),
+            cantus_core::warp::WarpOp::MoveMarker,
+        )
     };
     app.commit_warp(r, Some(next), op, true);
 }
@@ -335,7 +364,10 @@ pub fn double_click(app: &mut CantusApp, r: ClipRef, handle: Handle) {
             app.remove_warp_marker(r, i as usize);
         }
         Handle::WarpOnset(id) => {
-            if let Some(f) = app.warp_analysis(r).and_then(|a| a.onsets.get(id as usize).copied()) {
+            if let Some(f) = app
+                .warp_analysis(r)
+                .and_then(|a| a.onsets.get(id as usize).copied())
+            {
                 app.add_warp_marker(r, Ticks::ZERO, Some(f));
             }
         }
@@ -371,7 +403,12 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
             true
         }
         Handle::WarpOnset(_) => {
-            hint::set_text(ctx, &t("warp.transient"), &t("warp.transient.tip"), Caps::NONE);
+            hint::set_text(
+                ctx,
+                &t("warp.transient"),
+                &t("warp.transient.tip"),
+                Caps::NONE,
+            );
             true
         }
         Handle::WarpBand(_) => {
@@ -407,7 +444,9 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     let warped = w.as_ref().is_some_and(|w| w.follow);
     let mode = w.as_ref().map(|w| w.mode);
     let on_marker = match app.arrangement.audio.menu {
-        Some(Handle::WarpMarker(i)) if w.as_ref().is_some_and(|w| (i as usize) < w.markers.len()) => {
+        Some(Handle::WarpMarker(i))
+            if w.as_ref().is_some_and(|w| (i as usize) < w.markers.len()) =>
+        {
             Some(i as usize)
         }
         _ => None,
@@ -442,9 +481,17 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         ("warp.menu.quantise", Pick::Quantise, true),
         ("warp.menu.detect", Pick::Detect, ready),
         ("warp.menu.from_here", Pick::FromHere, ready),
-        ("warp.menu.project_tempo", Pick::ProjectTempo, ready || w.is_some()),
+        (
+            "warp.menu.project_tempo",
+            Pick::ProjectTempo,
+            ready || w.is_some(),
+        ),
         ("warp.menu.edit", Pick::Edit, true),
-        ("warp.menu.bounce", Pick::Bounce, warped || w.as_ref().is_some_and(|w| w.cents != 0)),
+        (
+            "warp.menu.bounce",
+            Pick::Bounce,
+            warped || w.as_ref().is_some_and(|w| w.cents != 0),
+        ),
         ("warp.menu.reset", Pick::Reset, w.is_some()),
     ] {
         items.push(action(label, Check::None, enabled));
@@ -521,4 +568,16 @@ enum Pick {
     Bounce,
     Reset,
     Remove(usize),
+}
+
+impl Hits {
+    /// The x of every marker drawn (tests, the shots).
+    pub fn marker_xs(&self) -> &[f32] {
+        &self.xs[..self.n]
+    }
+
+    /// The x of every transient drawn.
+    pub fn onset_xs(&self) -> &[f32] {
+        &self.onset_xs[..self.m]
+    }
 }

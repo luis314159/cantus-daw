@@ -1,1 +1,94 @@
 # warp — ronda 29: warp, estiramiento de tiempo y cambio de tono de los clips de audio. Cada clave de warp.en.txt tiene aquí su gemela.
+
+# El menú de deshacer (ADR 0061).
+cmd.warp.set = Ajustar el clip al tempo
+cmd.warp.auto = Ajustar el loop al tempo
+cmd.warp.add_marker = Añadir marcador de warp
+cmd.warp.move_marker = Mover marcador de warp
+cmd.warp.move_content = Deslizar el audio bajo un marcador
+cmd.warp.remove_marker = Quitar marcador de warp
+cmd.warp.quantise = Cuantizar audio
+cmd.warp.mode = Modo de warp
+cmd.warp.transpose = Transponer audio
+cmd.warp.formants = Conservar formantes
+cmd.warp.tail = Final de los cortes
+cmd.warp.follow = Seguir el tempo del proyecto
+cmd.warp.tempo = Tempo del clip
+cmd.warp.reset = Restablecer warp
+cmd.warp.bounce = Renderizar el audio ajustado
+
+# Los modos.
+warp.mode.complex = Complejo
+warp.mode.rhythm = Ritmo
+warp.mode.melodic = Melódico
+warp.mode.repitch = Varispeed
+warp.badge.complex = Warp
+warp.badge.rhythm = Warp: Ritmo
+warp.badge.melodic = Warp: Melódico
+warp.badge.repitch = Warp: Varispeed
+
+# Sobre el clip.
+warp.marker = Marcador de warp
+warp.transient = Transitorio
+warp.transient.tip = Doble clic para fijarlo con un marcador; arrastre para fijarlo y moverlo
+warp.band = Marcadores de warp
+warp.band.tip = Doble clic para añadir aquí un marcador; arrastre para añadirlo y moverlo
+
+# El menú del clip.
+warp.menu.band = Warp
+warp.menu.follow = Seguir el tempo del proyecto
+warp.menu.quantise = Cuantizar audio…
+warp.menu.quantise_short = Cuantizar…
+warp.menu.detect = Detectar el tempo
+warp.menu.from_here = Ajustar desde aquí
+warp.menu.project_tempo = Tomar el tempo del proyecto de este clip
+warp.menu.edit = Editar el warp
+warp.menu.bounce = Renderizar el audio ajustado
+warp.menu.reset = Restablecer warp
+warp.menu.remove_marker = Quitar marcador de warp
+
+# El inspector.
+warp.inspector.band = Warp
+warp.inspector.follow = Seguir el tempo
+warp.inspector.follow_short = Seguir
+warp.inspector.mode = Modo
+warp.inspector.mode_more = Más modos
+warp.inspector.transpose = Transponer
+warp.inspector.formants = Formantes
+warp.inspector.formants_on = Conservar
+warp.inspector.tail = Final de cortes
+warp.inspector.tempo = Tempo del clip
+warp.inspector.detected = Detectado
+warp.inspector.bars = {n} compases
+warp.inspector.none = Sin analizar
+warp.tail.fade = Desvanecer
+warp.tail.loop = Bucle
+warp.tail.pingpong = Ida y vuelta
+
+# El editor del clip.
+warp.tab.pitch = Afinación
+warp.tab.warp = Warp
+warp.tempo.half = ½
+warp.tempo.double = ×2
+
+# Cuantizar audio.
+warp.quantise.title = Cuantizar audio
+warp.quantise.grid = Rejilla
+warp.quantise.strength = Intensidad
+warp.quantise.threshold = Transitorios desde
+warp.quantise.note = Acerca a la rejilla los transitorios de {n} clip(s); los archivos nunca cambian
+warp.quantise.apply = Cuantizar
+warp.quantise.cancel = Cancelar
+
+# La línea de estado.
+warp.status.analysing = El archivo del clip aún se está analizando: inténtelo en un momento
+warp.status.analysing_short = Analizando…
+warp.status.no_tempo = No se encontró un tempo estable en este clip
+warp.status.detected = Ajustado a {bpm} BPM
+warp.status.quantised = {n} clip(s) cuantizados
+warp.bounce.file = {name} (ajustado)
+warp.bounce.busy = Ya se está renderizando otro clip
+warp.bounce.working = Renderizando {name}…
+warp.bounce.done = {name} reproduce ahora su audio renderizado
+warp.bounce.failed = No se pudo escribir el render: {error}
+warp.bounce.nothing = Nada que renderizar: no se puede leer el archivo del clip

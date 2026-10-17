@@ -114,7 +114,14 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
                 q.strength = v;
             }
             let threshold = q.threshold;
-            if let Some(v) = percent(ui, row(2), "warp.quantise.threshold", threshold, label_w, &s) {
+            if let Some(v) = percent(
+                ui,
+                row(2),
+                "warp.quantise.threshold",
+                threshold,
+                label_w,
+                &s,
+            ) {
                 q.threshold = v;
             }
             // What it will do.
@@ -128,14 +135,26 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
             let mut keys = ui.new_child(egui::UiBuilder::new().max_rect(r4));
             keys.horizontal(|ui| {
                 let mut on = false;
-                if kit::widgets::led_button(ui, &mut on, Src::Key("warp.quantise.apply"), &t("warp.quantise.apply"), 120.0)
-                    .clicked()
+                if kit::widgets::led_button(
+                    ui,
+                    &mut on,
+                    Src::Key("warp.quantise.apply"),
+                    &t("warp.quantise.apply"),
+                    120.0,
+                )
+                .clicked()
                 {
                     apply = true;
                 }
                 let mut off = false;
-                if kit::widgets::led_button(ui, &mut off, Src::Key("warp.quantise.cancel"), &t("warp.quantise.cancel"), 100.0)
-                    .clicked()
+                if kit::widgets::led_button(
+                    ui,
+                    &mut off,
+                    Src::Key("warp.quantise.cancel"),
+                    &t("warp.quantise.cancel"),
+                    100.0,
+                )
+                .clicked()
                 {
                     close = true;
                 }
@@ -160,14 +179,22 @@ fn label(ui: &egui::Ui, r: Rect, key: &str, w: f32, s: &Style) {
     let words = t(key);
     let tx = Text::new(&words, Role::Label, s.t.text_dim).align(Align2::LEFT_CENTER);
     kit::with_brush(ui.painter(), |b| {
-        let _ = text::paint(b, Rect::from_min_size(r.min, vec2(w, r.height())), &tx, s.tk());
+        let _ = text::paint(
+            b,
+            Rect::from_min_size(r.min, vec2(w, r.height())),
+            &tx,
+            s.tk(),
+        );
     });
 }
 
 /// A labelled 0 … 100 % value dragged sideways; the new value while dragged.
 fn percent(ui: &mut egui::Ui, r: Rect, key: &str, v: f32, label_w: f32, s: &Style) -> Option<f32> {
     label(ui, r, key, label_w, s);
-    let well_r = Rect::from_min_max(pos2(r.left() + label_w, r.top()), pos2(r.left() + label_w + 120.0 * s.k, r.bottom()));
+    let well_r = Rect::from_min_max(
+        pos2(r.left() + label_w, r.top()),
+        pos2(r.left() + label_w + 120.0 * s.k, r.bottom()),
+    );
     let resp = ui.interact(well_r, Id::new(("warp-q", key)), Sense::click_and_drag());
     let face = format!("{:.0} %", v * 100.0);
     kit::with_brush(ui.painter(), |b| {

@@ -11,8 +11,8 @@ use crate::app::CantusApp;
 use crate::clips::ClipRef;
 use crate::kit::text::{self, Role, Src, Text};
 use crate::kit::{self, well, State, Style};
-use crate::views::arrangement::{AudioHandle as Handle, TimelineGeometry};
 use crate::views::arrangement::warp_api as aw;
+use crate::views::arrangement::{AudioHandle as Handle, TimelineGeometry};
 use crate::waveform::{fill_peaks, Lookup, Which};
 use cantus_core::warp::WarpMode;
 use cantus_core::{ClipId, Ticks, TrackId, PPQ};
@@ -70,14 +70,20 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         return;
     }
     let resp = ui.allocate_rect(full, Sense::click_and_drag());
-    let Some(c) = app.project().track(track).and_then(|t| t.clip(clip)).cloned() else {
+    let Some(c) = app
+        .project()
+        .track(track)
+        .and_then(|t| t.clip(clip))
+        .cloned()
+    else {
         return;
     };
     let Some(region) = c.audio.clone() else {
         return;
     };
     let ruler = Rect::from_min_max(full.min, pos2(full.right(), full.top() + s.s(RULER_H)));
-    let wave = Rect::from_min_max(pos2(full.left(), ruler.bottom()), full.max).shrink2(vec2(0.0, s.s(4.0)));
+    let wave = Rect::from_min_max(pos2(full.left(), ruler.bottom()), full.max)
+        .shrink2(vec2(0.0, s.s(4.0)));
     // The clip's window fitted, a twentieth of it either side.
     let len_b = (c.length.0.max(1) as f64 / PPQ as f64) as f32;
     let px_per_beat = full.width() / (len_b * 1.1);
@@ -112,15 +118,39 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
                 let n = (((x1 - x0) * b.ppp()).ceil() as usize).clamp(1, 8192);
                 let (mut out, mut run) = (Vec::new(), Vec::new());
                 match region.warp.as_deref().filter(|w| w.follow) {
-                    Some(w) => aw::columns(&peaks, Which::Mono, &geo, &shown, w, x0, x1, n, &mut out, &mut run),
+                    Some(w) => aw::columns(
+                        &peaks,
+                        Which::Mono,
+                        &geo,
+                        &shown,
+                        w,
+                        x0,
+                        x1,
+                        n,
+                        &mut out,
+                        &mut run,
+                    ),
                     None => {
                         let map = app.project().tempo_map();
                         let f = |x: f32| {
                             let t = geo.beats(x) as f64 * PPQ as f64;
-                            cantus_core::audio_time::clip_frame_at(&map, c.start, c.offset, &region, peaks.rate as f64, t)
+                            cantus_core::audio_time::clip_frame_at(
+                                &map,
+                                c.start,
+                                c.offset,
+                                &region,
+                                peaks.rate as f64,
+                                t,
+                            )
                         };
                         let (fa, fb) = (f(x0), f(x1));
-                        peaks.columns(Which::Mono, fa, ((fb - fa) / n as f64).max(1e-6), n, &mut out);
+                        peaks.columns(
+                            Which::Mono,
+                            fa,
+                            ((fb - fa) / n as f64).max(1e-6),
+                            n,
+                            &mut out,
+                        );
                     }
                 }
                 let band = Rect::from_min_max(pos2(x0, wave.top()), pos2(x1, wave.bottom()));
@@ -137,19 +167,40 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     input(app, ui, &resp, r, px_per_beat / PPQ as f32);
 }
 
-fn paint_ruler(b: &mut kit::Brush, app: &CantusApp, geo: &TimelineGeometry, ruler: Rect, s: &Style) {
+fn paint_ruler(
+    b: &mut kit::Brush,
+    app: &CantusApp,
+    geo: &TimelineGeometry,
+    ruler: Rect,
+    s: &Style,
+) {
     let map = app.project().tempo_map();
     let from = Ticks((geo.beats(ruler.left()).max(0.0) as f64 * PPQ as f64) as i64);
     let to = Ticks((geo.beats(ruler.right()) as f64 * PPQ as f64) as i64 + 1);
-    b.hline(ruler.left(), ruler.right(), ruler.bottom(), b.px(), s.t.text_dim);
+    b.hline(
+        ruler.left(),
+        ruler.right(),
+        ruler.bottom(),
+        b.px(),
+        s.t.text_dim,
+    );
     let mut word = String::new();
     for t in map.bar_lines(from, to) {
         let x = geo.x(t.as_beats_f64() as f32);
-        b.vline(x, ruler.top() + ruler.height() * 0.35, ruler.bottom(), b.px(), s.t.text_dim);
+        b.vline(
+            x,
+            ruler.top() + ruler.height() * 0.35,
+            ruler.bottom(),
+            b.px(),
+            s.t.text_dim,
+        );
         word.clear();
         use std::fmt::Write as _;
         let _ = write!(word, "{}", map.bbt(t).0);
-        let r = Rect::from_min_max(pos2(x + s.s(3.0), ruler.top()), pos2(x + s.s(40.0), ruler.bottom()));
+        let r = Rect::from_min_max(
+            pos2(x + s.s(3.0), ruler.top()),
+            pos2(x + s.s(40.0), ruler.bottom()),
+        );
         let tx = Text::new(&word, Role::Micro, s.t.text_dim).align(Align2::LEFT_CENTER);
         let _ = text::paint(b, r, &tx, s.tk());
     }
@@ -171,7 +222,9 @@ fn input(app: &mut CantusApp, ui: &egui::Ui, resp: &egui::Response, r: ClipRef, 
     }
     if resp.drag_started() {
         if let Some(p) = resp.interact_pointer_pos() {
-            if let Some(h @ (Handle::WarpMarker(_) | Handle::WarpOnset(_) | Handle::WarpBand(_))) = at(p) {
+            if let Some(h @ (Handle::WarpMarker(_) | Handle::WarpOnset(_) | Handle::WarpBand(_))) =
+                at(p)
+            {
                 if let Some(d) = aw::begin(app, r, h) {
                     app.warp.view.drag = Some((r, d, p.x, px_per_tick.max(1e-6)));
                 }
@@ -179,7 +232,9 @@ fn input(app: &mut CantusApp, ui: &egui::Ui, resp: &egui::Response, r: ClipRef, 
         }
     }
     if resp.dragged() {
-        if let (Some((r, d, x0, ppt)), Some(p)) = (app.warp.view.drag.clone(), resp.interact_pointer_pos()) {
+        if let (Some((r, d, x0, ppt)), Some(p)) =
+            (app.warp.view.drag.clone(), resp.interact_pointer_pos())
+        {
             let dx = Ticks(((p.x - x0) / ppt).round() as i64);
             aw::update(app, r, &d, dx);
         }

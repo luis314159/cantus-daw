@@ -197,9 +197,7 @@ impl CantusApp {
         let waiting = std::mem::take(&mut self.warp.auto);
         for job in waiting {
             match svc.lookup(&job.path, job.rate) {
-                Lookup::Pending
-                    if job.since.elapsed().as_secs_f64() < AUTO_PATIENCE_S =>
-                {
+                Lookup::Pending if job.since.elapsed().as_secs_f64() < AUTO_PATIENCE_S => {
                     self.warp.auto.push(job);
                 }
                 Lookup::Ready(a) => self.land_auto_warp(&job, &a),

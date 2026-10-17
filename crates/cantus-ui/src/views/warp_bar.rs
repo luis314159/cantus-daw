@@ -41,7 +41,8 @@ fn drag_value(
         hint::set_text(ui.ctx(), name, face, Caps::PARAM);
     }
     if resp.drag_started() {
-        app.warp.view_value_start(which, now, resp.interact_pointer_pos().map_or(0.0, |p| p.x));
+        app.warp
+            .view_value_start(which, now, resp.interact_pointer_pos().map_or(0.0, |p| p.x));
     }
     let mut out = None;
     if resp.dragged() {
@@ -80,8 +81,14 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                 ui.horizontal(|ui| {
                     let mut m = mode_index(w.mode);
                     let labels = MODES.map(Src::Key);
-                    if kit::widgets::segmented(ui, &mut m, &labels, &t("warp.inspector.mode"), 300.0)
-                        .changed()
+                    if kit::widgets::segmented(
+                        ui,
+                        &mut m,
+                        &labels,
+                        &t("warp.inspector.mode"),
+                        300.0,
+                    )
+                    .changed()
                     {
                         let mode = WarpMode::ALL[m];
                         app.edit_warp(r, WarpOp::Mode, |w| {

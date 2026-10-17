@@ -73,12 +73,19 @@ pub fn apply(app: &mut CantusApp, a: WarpAct) {
 }
 
 /// A key across the value column (the audio section's look); whether it was clicked.
-fn key(sh: &mut Sheet<'_>, id: impl std::hash::Hash + std::fmt::Debug, word: &str, enabled: bool) -> bool {
+fn key(
+    sh: &mut Sheet<'_>,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    word: &str,
+    enabled: bool,
+) -> bool {
     let s = sh.s;
     let row = sh.row();
     let w = row.value.width().min(s.s(170.0));
     let br = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
-    let r = sh.ui.interact(br, Id::new(("insp-warp-key", id)), Sense::click());
+    let r = sh
+        .ui
+        .interact(br, Id::new(("insp-warp-key", id)), Sense::click());
     let st = State {
         disabled: !enabled,
         ..State::of(&r, false)
@@ -102,7 +109,14 @@ fn key(sh: &mut Sheet<'_>, id: impl std::hash::Hash + std::fmt::Debug, word: &st
 
 /// A row of LED choices across the value column (`labels`, the lit one `on`); the one
 /// clicked.
-fn choices(sh: &mut Sheet<'_>, label: &str, id: &str, labels: &[&'static str], on: Option<usize>, dim: bool) -> Option<usize> {
+fn choices(
+    sh: &mut Sheet<'_>,
+    label: &str,
+    id: &str,
+    labels: &[&'static str],
+    on: Option<usize>,
+    dim: bool,
+) -> Option<usize> {
     let row = sh.row();
     sh.label(row.label, label, dim);
     let n = labels.len().max(1) as f32;
@@ -114,7 +128,9 @@ fn choices(sh: &mut Sheet<'_>, label: &str, id: &str, labels: &[&'static str], o
             row.value.min + Vec2::new(i as f32 * (w + gap), 0.0),
             Vec2::new(w, row.value.height()),
         );
-        let resp = sh.ui.interact(r, Id::new(("insp-warp-choice", id, i)), Sense::click());
+        let resp = sh
+            .ui
+            .interact(r, Id::new(("insp-warp-choice", id, i)), Sense::click());
         let st = State {
             disabled: dim,
             ..State::of(&resp, on == Some(i))
@@ -123,7 +139,13 @@ fn choices(sh: &mut Sheet<'_>, label: &str, id: &str, labels: &[&'static str], o
             let name = sh.fmt.tr(l).to_string();
             hint::set_text(sh.ui.ctx(), &name, "", Caps::NONE);
         }
-        led::button(sh.b, r, &sh.s.function(Function::Source), st, crate::kit::text::Src::Key(l));
+        led::button(
+            sh.b,
+            r,
+            &sh.s.function(Function::Source),
+            st,
+            crate::kit::text::Src::Key(l),
+        );
         if resp.clicked() && !dim {
             hit = Some(i);
         }
@@ -151,11 +173,26 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     }
     let mode = warped.then_some(super::super::warp::mode_index(w.mode));
     let half = |i: usize| super::super::warp::MODES[i];
-    if let Some(i) = choices(sh, "warp.inspector.mode", "mode-a", &[half(0), half(1)], mode.filter(|m| *m < 2), false) {
+    if let Some(i) = choices(
+        sh,
+        "warp.inspector.mode",
+        "mode-a",
+        &[half(0), half(1)],
+        mode.filter(|m| *m < 2),
+        false,
+    ) {
         sh.acts.push(Act::Warp(WarpAct::Mode(r, WarpMode::ALL[i])));
     }
-    if let Some(i) = choices(sh, "warp.inspector.mode_more", "mode-b", &[half(2), half(3)], mode.filter(|m| *m >= 2).map(|m| m - 2), false) {
-        sh.acts.push(Act::Warp(WarpAct::Mode(r, WarpMode::ALL[i + 2])));
+    if let Some(i) = choices(
+        sh,
+        "warp.inspector.mode_more",
+        "mode-b",
+        &[half(2), half(3)],
+        mode.filter(|m| *m >= 2).map(|m| m - 2),
+        false,
+    ) {
+        sh.acts
+            .push(Act::Warp(WarpAct::Mode(r, WarpMode::ALL[i + 2])));
     }
     // The transposition, in semitones (cents as the fraction).
     let wt = w.clone();
@@ -234,9 +271,17 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             (Some(a), _) if a.bpm() > 0.0 => {
                 let _ = write!(b, "{:.2} BPM", a.bpm());
                 if let Some(bars) = a.grid.bars {
-                    let _ = write!(b, " · {}", crate::i18n::tf("warp.inspector.bars", &[("n", &bars)]));
+                    let _ = write!(
+                        b,
+                        " · {}",
+                        crate::i18n::tf("warp.inspector.bars", &[("n", &bars)])
+                    );
                 }
-                let sure = if a.acid_bpm.is_some() { 1.0 } else { a.grid.confidence };
+                let sure = if a.acid_bpm.is_some() {
+                    1.0
+                } else {
+                    a.grid.confidence
+                };
                 let _ = write!(b, " · {:.0} %", sure * 100.0);
             }
             (_, true) => b.push_str(&crate::i18n::t("warp.status.analysing_short")),
@@ -249,7 +294,11 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         ("warp.menu.detect", WarpAct::Detect(r), ready),
         ("warp.menu.quantise", WarpAct::Quantise(r), true),
         ("warp.menu.from_here", WarpAct::FromHere(r), ready),
-        ("warp.menu.project_tempo", WarpAct::ProjectTempo(r), ready || warp.is_some()),
+        (
+            "warp.menu.project_tempo",
+            WarpAct::ProjectTempo(r),
+            ready || warp.is_some(),
+        ),
         ("warp.menu.edit", WarpAct::Edit(r), true),
         ("warp.menu.bounce", WarpAct::Bounce(r), warp.is_some()),
         ("warp.menu.reset", WarpAct::Reset(r), warp.is_some()),
