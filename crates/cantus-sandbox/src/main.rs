@@ -3,7 +3,8 @@
 //! never the session.
 //!
 //! Cantus starts one per group of isolated plug-ins (*Together*, *By vendor*,
-//! *Individually*) as `cantus-sandbox --serve <protocol> --crt-fma3 on|off --group <key>`,
+//! *Individually*) as `cantus-sandbox --serve <protocol> --crt-fma3 on|off --group <key>
+//! --lobby <name>`,
 //! talks to it on its standard pipes (`cantus_host::bridge::proto`) and hands it each
 //! block of audio through shared memory (`cantus_host::bridge::slot`). Inside, the plug-ins
 //! run under `cantus-host`'s own CLAP and VST3 backends, unchanged:
@@ -11,9 +12,10 @@
 //! - the **main thread** ([`serve`]) loads them, answers Cantus's calls, pumps the
 //!   plug-ins' windows (and COM, for VST3 editors), forwards their requests and changed
 //!   values, and says it is alive every 200 ms;
-//! - one **processing thread per instance** ([`worker`]) waits for its jobs — a short spin
-//!   after each, then parked on its bell — runs the plug-in's audio half with the same
-//!   floating-point environment as Cantus's thread, and reports what it took.
+//! - a small pool of **processing threads** ([`worker`]) serves every instance through the
+//!   lobby Cantus made for this helper — a short spin after each burst of jobs, then parked
+//!   on the lobby's bell — runs the plug-ins' audio halves with the same floating-point
+//!   environment as Cantus's thread, and reports what each took.
 //!
 //! The plug-ins' own printing goes nowhere (the standard handles are moved off the
 //! protocol's pipes first), a crash ends the process at once without the system's error
@@ -57,6 +59,7 @@ fn main() {
     }
     platform::init_com();
     let group = arg("--group").unwrap_or_default();
-    let code = serve::run(pipes, &group);
+    let lobby = arg("--lobby").unwrap_or_default();
+    let code = serve::run(pipes, &group, &lobby);
     std::process::exit(code);
 }

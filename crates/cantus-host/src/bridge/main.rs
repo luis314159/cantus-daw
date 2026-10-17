@@ -141,11 +141,11 @@ impl BridgeMain {
 
     /// A new audio half over this instance's slot.
     pub(crate) fn audio_half(&self) -> Result<Box<dyn AudioThread>, HostError> {
-        let caller = new_caller(&self.slot)?;
+        let caller = new_caller(&self.slot, &self.sandbox.lobby)?;
         let sandbox = self.sandbox.clone();
         let instance = self.instance;
         Ok(Box::new(BridgeAudio::new(
-            self.slot.clone(),
+            (self.slot.clone(), self.sandbox.lobby.clone()),
             caller,
             self.status.clone(),
             (
@@ -159,12 +159,15 @@ impl BridgeMain {
     }
 }
 
-/// The audio thread's side of an instance's exchange.
-pub(crate) fn new_caller(slot: &Slot) -> Result<cantus_rt::ipc::Caller, HostError> {
-    // The bells were made with the slot (`super::BridgedBackend::load`); a second caller
-    // for a restart opens the same ones by name.
-    // SAFETY: the exchange lives in `slot`'s mapping, which the audio half keeps alive.
-    unsafe { cantus_rt::ipc::Caller::create(slot.name(), slot.exchange()) }
+/// The audio thread's side of an instance's exchange: its own bell (made with the first
+/// caller, opened again by a restart's) and its helper's lobby bell.
+pub(crate) fn new_caller(
+    slot: &Slot,
+    lobby: &super::sandbox::LobbyMem,
+) -> Result<cantus_rt::ipc::Caller, HostError> {
+    // SAFETY: the exchange lives in `slot`'s mapping and the lobby in `lobby`'s, both kept
+    // alive by the audio half that holds the caller.
+    unsafe { cantus_rt::ipc::Caller::create(slot.name(), slot.exchange(), &lobby.name, lobby.lobby()) }
         .map_err(|e| HostError::Load(format!("shared memory: {e}")))
 }
 

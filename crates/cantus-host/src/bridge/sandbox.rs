@@ -43,6 +43,41 @@ pub const SILENCE_LIMIT: Duration = Duration::from_secs(5);
 /// passes dry meanwhile, never waited for).
 pub const HANG_LIMIT: Duration = Duration::from_secs(2);
 
+/// The size of a helper's lobby region (the words its processing threads share).
+pub const LOBBY_BYTES: usize = 4096;
+
+/// A helper's lobby: the region its processing threads share, and the bell Cantus rings
+/// when none of them is scanning (`cantus_rt::ipc`). Made here, before the helper starts;
+/// every audio half of the helper's instances keeps it alive.
+#[derive(Debug)]
+pub struct LobbyMem {
+    pub name: String,
+    mem: cantus_rt::shm::SharedMemory,
+    /// Kept: the bell lives while one side holds it.
+    _bell: cantus_rt::ipc::LobbyBell,
+}
+
+impl LobbyMem {
+    fn create() -> std::io::Result<LobbyMem> {
+        let name = cantus_rt::shm::unique_name("cantus-lobby");
+        let mem = cantus_rt::shm::SharedMemory::create(&name, LOBBY_BYTES)?;
+        // SAFETY: the lobby is at the start of the zeroed region, which this value keeps
+        // mapped as long as the bell.
+        let bell = unsafe {
+            cantus_rt::ipc::LobbyBell::create(&name, mem.as_ptr() as *const cantus_rt::ipc::Lobby)?
+        };
+        Ok(LobbyMem {
+            name,
+            mem,
+            _bell: bell,
+        })
+    }
+
+    pub fn lobby(&self) -> *const cantus_rt::ipc::Lobby {
+        self.mem.as_ptr() as *const cantus_rt::ipc::Lobby
+    }
+}
+
 /// Time limits of the main-thread calls.
 pub const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
 pub const STATE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -113,6 +148,8 @@ struct Registered {
 pub struct Sandbox {
     pub key: String,
     pub pid: u32,
+    /// Its processing threads' lobby.
+    pub lobby: Arc<LobbyMem>,
     to_child: Mutex<Option<mpsc::Sender<Vec<u8>>>>,
     waiters: Mutex<HashMap<u64, mpsc::Sender<(Result<Answer, Failure>, Vec<u8>)>>>,
     background: Mutex<HashMap<u64, Background>>,
@@ -148,6 +185,10 @@ impl Sandbox {
             Some(false) => "off",
             _ => "on",
         };
+        let lobby = Arc::new(
+            LobbyMem::create()
+                .map_err(|e| HostError::Load(format!("shared memory: {e}")))?,
+        );
         let mut cmd = Command::new(&pool.exe);
         cmd.arg("--serve")
             .arg(proto::PROTOCOL.to_string())
@@ -155,6 +196,8 @@ impl Sandbox {
             .arg(fma3)
             .arg("--group")
             .arg(key)
+            .arg("--lobby")
+            .arg(&lobby.name)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -182,6 +225,7 @@ impl Sandbox {
         let sandbox = Arc::new(Sandbox {
             key: key.to_string(),
             pid: child.id(),
+            lobby,
             to_child: Mutex::new(Some(tx)),
             waiters: Mutex::new(HashMap::new()),
             background: Mutex::new(HashMap::new()),

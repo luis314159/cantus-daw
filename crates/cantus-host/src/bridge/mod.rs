@@ -89,7 +89,7 @@ impl Backend for BridgedBackend {
             slot::Slot::create(setup.max_block)
                 .map_err(|e| HostError::Load(format!("shared memory: {e}")))?,
         );
-        let caller = main::new_caller(&slot)?;
+        let caller = main::new_caller(&slot, &sandbox.lobby)?;
         let closer = caller
             .closer(slot.name())
             .map_err(|e| HostError::Load(format!("shared memory: {e}")))?;
@@ -137,7 +137,7 @@ impl Backend for BridgedBackend {
         let audio = {
             let sandbox = main.sandbox.clone();
             Box::new(BridgeAudio::new(
-                slot,
+                (slot, main.sandbox.lobby.clone()),
                 caller,
                 main.status.clone(),
                 (

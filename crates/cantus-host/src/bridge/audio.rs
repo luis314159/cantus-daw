@@ -91,6 +91,8 @@ impl Status {
 /// The audio half.
 pub struct BridgeAudio {
     slot: Arc<Slot>,
+    /// Keeps the helper's lobby mapped while the caller points into it.
+    _lobby: Arc<super::sandbox::LobbyMem>,
     caller: Caller,
     status: Arc<Status>,
     /// A job that went past its deadline and has not finished.
@@ -119,7 +121,7 @@ impl std::fmt::Debug for BridgeAudio {
 
 impl BridgeAudio {
     pub(crate) fn new(
-        slot: Arc<Slot>,
+        (slot, lobby): (Arc<Slot>, Arc<super::sandbox::LobbyMem>),
         caller: Caller,
         status: Arc<Status>,
         (offline, sample_rate, floor, latency): (bool, f64, Duration, usize),
@@ -128,6 +130,7 @@ impl BridgeAudio {
         let longest = if latency > 0 { slot.max_block() } else { 0 };
         BridgeAudio {
             slot,
+            _lobby: lobby,
             caller,
             status,
             outstanding: None,

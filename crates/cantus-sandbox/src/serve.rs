@@ -9,7 +9,7 @@
 //! window's close box and resizes; what changed goes to Cantus as news.
 
 use crate::platform::{Pipes, Wake};
-use crate::worker::{self, Half};
+use crate::worker::{self, Half, Rt, Table};
 use cantus_host::bridge::proto::{
     self, After, Answer, Call, Described, Failure, Message, Request, WireEvent, WireNotice,
 };
@@ -22,6 +22,7 @@ use std::collections::HashMap;
 use std::io::{BufReader, BufWriter, Write};
 use std::sync::atomic::AtomicBool;
 use std::sync::{mpsc, Arc, Mutex};
+use std::sync::atomic::Ordering;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -33,8 +34,8 @@ const ALIVE: Duration = Duration::from_millis(200);
 struct Instance {
     main: Box<dyn MainThread>,
     half: Half,
-    stop: Arc<AtomicBool>,
-    thread: Option<JoinHandle<()>>,
+    /// Its entry in the processing threads' table.
+    rt: Arc<Rt>,
     window: Option<PluginWindow>,
     /// The values Cantus was last told.
     told: HashMap<u32, f64>,
@@ -42,15 +43,13 @@ struct Instance {
 }
 
 impl Instance {
+    /// Ends it, on the main thread: its window, its audio half (once no job runs it), its
+    /// main half. It left the threads' table before.
     fn finish(mut self) {
         if let Some(w) = self.window.take() {
             self.main.close_editor();
             #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
             drop(w);
-        }
-        self.stop.store(true, std::sync::atomic::Ordering::Release);
-        if let Some(t) = self.thread.take() {
-            let _ = t.join();
         }
         let half = self.half.lock().unwrap_or_else(|e| e.into_inner()).take();
         drop(half);
@@ -153,6 +152,14 @@ fn failure(e: HostError) -> Failure {
 struct Server {
     out: BufWriter<std::fs::File>,
     instances: HashMap<u32, Instance>,
+    /// What the processing threads serve, their lobby's bell, their stop.
+    table: Arc<Table>,
+    bell: Arc<cantus_rt::ipc::LobbyBell>,
+    stop: Arc<AtomicBool>,
+    threads: Vec<JoinHandle<()>>,
+    /// The most processing threads: as many as the plug-ins Cantus may call at once, no
+    /// more than the cores beside Cantus's own (ADR 0031 R15).
+    max_threads: usize,
 }
 
 impl Server {
@@ -173,8 +180,8 @@ impl Server {
         let slot = Arc::new(
             Slot::open(slot_name, max_block).map_err(|e| Failure::Load(format!("shared memory: {e}")))?,
         );
-        // SAFETY: the exchange lives in `slot`, which the worker thread keeps alive.
-        let bells = unsafe { cantus_rt::ipc::Worker::open(slot_name, slot.exchange()) }
+        // SAFETY: the exchange lives in `slot`, which the instance's `Rt` keeps alive.
+        let completer = unsafe { cantus_rt::ipc::Completer::open(slot_name, slot.exchange()) }
             .map_err(|e| Failure::Load(format!("shared memory: {e}")))?;
         let loaded = backend
             .load(
@@ -186,24 +193,19 @@ impl Server {
             )
             .map_err(failure)?;
         let half: Half = Arc::new(Mutex::new(Some(loaded.audio)));
-        let stop = Arc::new(AtomicBool::new(false));
-        let (ready, started) = mpsc::channel();
-        let thread = {
-            let (slot, half, stop) = (slot.clone(), half.clone(), stop.clone());
-            std::thread::Builder::new()
-                .name(format!("cantus-sandbox-audio-{instance}"))
-                .spawn(move || worker::serve(slot, bells, half, stop, ready))
-                .map_err(|e| Failure::Load(e.to_string()))?
-        };
-        // The first block finds the thread waiting, not starting.
-        let _ = started.recv_timeout(Duration::from_secs(5));
+        let rt = Arc::new(Rt {
+            slot,
+            completer,
+            half: half.clone(),
+        });
+        self.table.change(|t| t.push(rt.clone()));
+        self.grow(self.instances.len() + 1)?;
         let main = loaded.main;
         let ids = main.params().iter().map(|p| p.id).collect();
         let inst = Instance {
             main,
             half,
-            stop,
-            thread: Some(thread),
+            rt,
             window: None,
             told: HashMap::new(),
             ids,
@@ -211,6 +213,31 @@ impl Server {
         let described = inst.described();
         self.instances.insert(instance, inst);
         Ok(Answer::Loaded(described))
+    }
+
+    /// Starts processing threads until there are as many as `instances` (at most
+    /// `max_threads`); returns once each is waiting, so a first block finds it ready.
+    fn grow(&mut self, instances: usize) -> Result<(), Failure> {
+        let want = instances.min(self.max_threads).max(1);
+        while self.threads.len() < want {
+            let (table, bell, stop) = (self.table.clone(), self.bell.clone(), self.stop.clone());
+            let k = self.threads.len();
+            let t = std::thread::Builder::new()
+                .name(format!("cantus-sandbox-audio-{k}"))
+                .spawn(move || worker::serve(table, bell, stop))
+                .map_err(|e| Failure::Load(e.to_string()))?;
+            self.threads.push(t);
+        }
+        Ok(())
+    }
+
+    /// An instance leaves the threads' table, then ends on this thread.
+    fn unload(&mut self, instance: u32) {
+        if let Some(i) = self.instances.remove(&instance) {
+            let rt = i.rt.clone();
+            self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
+            i.finish();
+        }
     }
 
     /// One call; `None` for Quit.
@@ -253,9 +280,7 @@ impl Server {
                 r
             }
             Call::Unload { instance } => {
-                if let Some(i) = self.instances.remove(&instance) {
-                    i.finish();
-                }
+                self.unload(instance);
                 Ok(Answer::Done)
             }
             call => {
@@ -389,10 +414,24 @@ fn on_instance(
     }
 }
 
-/// Serves until Cantus says Quit or its pipe closes; returns the exit code.
-pub fn run(pipes: Pipes, group: &str) -> i32 {
+/// Serves until Cantus says Quit or its pipe closes; returns the exit code. `lobby` names
+/// the shared region (and bell) Cantus made for this helper's threads.
+pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
     let _ = group;
     cantus_host::mark_main_thread();
+    let Ok(lobby_mem) = cantus_rt::shm::SharedMemory::open(lobby, cantus_host::bridge::sandbox::LOBBY_BYTES)
+    else {
+        return 4;
+    };
+    let lobby_mem = Arc::new(lobby_mem);
+    // SAFETY: the lobby is at the start of its region, which `lobby_mem` keeps mapped for
+    // the life of the process (it is never dropped before the threads end).
+    let Ok(bell) = (unsafe {
+        cantus_rt::ipc::LobbyBell::open(lobby, lobby_mem.as_ptr() as *const cantus_rt::ipc::Lobby)
+    }) else {
+        return 4;
+    };
+    let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
     let wake = Wake::new();
     let (tx, rx) = mpsc::channel::<Option<(Request, Vec<u8>)>>();
     let input = pipes.input;
@@ -420,6 +459,11 @@ pub fn run(pipes: Pipes, group: &str) -> i32 {
     let mut server = Server {
         out: BufWriter::new(pipes.output),
         instances: HashMap::new(),
+        table: Arc::new(Table::default()),
+        bell: Arc::new(bell),
+        stop: Arc::new(AtomicBool::new(false)),
+        threads: Vec::new(),
+        max_threads: cores.saturating_sub(2).clamp(1, 8),
     };
     let mut last_tick = Instant::now();
     let mut last_alive = Instant::now() - ALIVE;
@@ -457,7 +501,13 @@ pub fn run(pipes: Pipes, group: &str) -> i32 {
 }
 
 fn finish(mut server: Server) {
-    for (_, i) in server.instances.drain() {
-        i.finish();
+    let ids: Vec<u32> = server.instances.keys().copied().collect();
+    for id in ids {
+        server.unload(id);
+    }
+    server.stop.store(true, Ordering::Release);
+    server.bell.bell().ring();
+    for t in server.threads.drain(..) {
+        let _ = t.join();
     }
 }
