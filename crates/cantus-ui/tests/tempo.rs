@@ -21,6 +21,8 @@ fn pt(tick: i64, bpm: f64, ramp: bool) -> TempoPoint {
 /// The app as the desktop assembles it (`run` → `boot::Boot` → `assemble`), on `project`.
 fn assembled(project: Project) -> CantusApp {
     let data = tempfile::tempdir().unwrap();
+    // A data folder of its own, never the user's (`boot_window.rs`).
+    std::env::set_var("CANTUS_DATA_DIR", data.path());
     let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
     let ctx = egui::Context::default();
     let mut app = CantusApp::assemble(

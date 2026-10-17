@@ -487,3 +487,46 @@ fn colours(app: &mut CantusApp, ui: &mut egui::Ui, id: MarkerId, tab: Rect, s: &
         app.arrangement.markers.colour = None;
     }
 }
+
+/// The empty timeline's (and the ruler's) entries for the tempo map: a marker or a metre
+/// change where the menu was opened (the playhead without a point), and the tempo track
+/// shown or hidden. A separate list, so the arrangement's own menu keeps its indices.
+pub(super) fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
+    let at = app
+        .arrangement
+        .menu_at
+        .map_or(app.engine.position(), |(t, _)| t)
+        .max(Ticks::ZERO);
+    let shown = app.tempo_lane_shown();
+    let items = [
+        Item::Separator,
+        Item::action(Src::Key("tempo.menu.add_marker")),
+        Item::action(Src::Key("tempo.menu.add_metre")),
+        Item::Action {
+            label: Src::Key("tempo.view_menu"),
+            check: if shown { Check::On } else { Check::Off },
+            shortcut: None,
+            submenu: false,
+            enabled: true,
+        },
+    ];
+    match kit::widgets::menu_list(ui, &items, 240.0).1.clicked {
+        Some(1) => {
+            if let Some(id) = app.add_marker(at) {
+                let name = app.project().marker(id).map(|m| m.name.clone());
+                app.arrangement.markers.rename = name.map(|n| (id, n));
+            }
+            ui.close();
+        }
+        Some(2) => {
+            super::tempo::add_metre_change(app, at);
+            ui.close();
+        }
+        Some(3) => {
+            app.toggle_tempo_lane();
+            ui.close();
+        }
+        Some(_) => ui.close(),
+        None => {}
+    }
+}

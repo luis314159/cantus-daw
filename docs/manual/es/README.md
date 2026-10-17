@@ -388,6 +388,47 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
 La **rejilla** (barra del arreglo) empieza en un compás; elige valores más finos para el
 detalle. Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom.
 
+### La pista de tempo y los marcadores
+
+Una canción puede cambiar de tempo y de compás a lo largo de ella y llevar marcadores con
+nombre (ronda 29).
+
+- **La pista de tempo** es una franja bajo la regla (*Ver ▸ Pista de tempo*, o el menú de
+  la regla): cada punto es un tempo, que se mantiene plano hasta el siguiente o hace una
+  **rampa** recta hasta él. Doble clic en la franja para añadir un punto (en la rejilla, al
+  tempo donde hiciste clic); arrastra un punto para moverlo (`Mayús` para pasos finos de
+  tempo, `Ctrl` fuera de la rejilla); `Alt+clic` activa o quita la rampa de un punto;
+  doble clic en un punto para escribir su tempo; clic derecho para *Rampa hasta el punto
+  siguiente*, *Quitar el punto* y *Quitar la pista de tempo*. La cabecera junto a la franja
+  muestra el tempo en el cursor de reproducción.
+- **El tempo de la barra superior** muestra el tempo en el cursor (dentro de una rampa, su
+  valor ahí). Arrastrarlo, la rueda, un doble clic o **TAP** cambian el punto bajo el que
+  está el cursor — el tempo de la canción cuando no hay pista de tempo.
+- **Los cambios de compás** son fichas en la regla antes del número del compás ("7/8").
+  Clic derecho en la franja de marcadores (o el menú de la regla) ▸ *Añadir un cambio de
+  compás aquí*; clic en una ficha para editar su compás, arrástrala por las líneas de
+  compás, clic derecho para quitarla. Los compases que siguen a un cambio conservan su
+  número; las notas nunca se mueven. El compás de la barra superior edita el que rige en el
+  cursor.
+- **Los marcadores** aparecen en una franja bajo la del bucle. `Alt+M` añade uno en el
+  cursor (o doble clic en la franja); clic en un marcador para llevar el cursor ahí; clic
+  en su **nombre** para renombrarlo; arrástralo por la rejilla; clic derecho para
+  *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
+  siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar*. `Alt+,` y `Alt+.` van al
+  marcador anterior y al siguiente; `Alt+Mayús+L` hace un bucle entre los marcadores que
+  rodean el cursor. El menú de la franja lista todos los marcadores bajo *Ir a*.
+- **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
+  elige los dos marcadores por su nombre.
+- Todo sigue al tempo: las notas, los clips de audio (un clip de audio suena a su
+  velocidad natural desde donde empieza), la automatización, los moduladores, los efectos
+  sincronizados, el metrónomo (acentuando el compás 1 de cada compás; un compás de 7/8 se
+  cuenta en corcheas) y los plug-ins de otros.
+- **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
+  de tempo cada semicorchea) y al importar — en una canción vacía con *Poner el tempo de la
+  canción* se conservan los cambios de tempo, de compás y los marcadores del archivo. Los
+  archivos **DAWproject** llevan la pista de tempo, los cambios de compás y los marcadores
+  en ambos sentidos.
+
 ### El piano roll
 
 Selecciona un clip MIDI y muestra el piano roll (`F7`, o su pestaña bajo el arreglo):

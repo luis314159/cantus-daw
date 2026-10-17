@@ -2467,6 +2467,8 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Some(_) => ui.close(),
         None => {}
     }
+    // The tempo track, markers and metre (round 29, ADR 0060): a list of their own.
+    markers::timeline_menu(app, ui);
 }
 
 /// The empty-timeline menu's *Paste*: at the point the menu was opened on (snapped down to

@@ -692,6 +692,21 @@ fn common() -> Vec<(Action, Binding)> {
                 ..Binding::alt(Key::L)
             },
         ),
+        // Alt+Shift+M selects between them; Alt+Shift+T shows the tempo track.
+        (
+            SelectBetweenMarkers,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::M)
+            },
+        ),
+        (
+            ToggleTempoTrack,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::T)
+            },
+        ),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
         // FL's function keys for the three central views. They are the most widely known
         // — every preset gets them, because arriving from anywhere else they are simply
