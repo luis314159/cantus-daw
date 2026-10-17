@@ -167,6 +167,21 @@ fn badge_text(a: &AudioRegion, out: &mut String) {
             "pitch.badge"
         }));
     }
+    // Round 29 (ADR 0061): warped (its mode), transposed (semitones and cents).
+    if let Some(w) = a.warp.as_deref() {
+        if !out.is_empty() {
+            out.push_str("  ");
+        }
+        if w.follow {
+            out.push_str(&crate::i18n::t(&format!("warp.badge.{}", w.mode.id())));
+        }
+        if w.cents != 0 && w.mode.transposes() {
+            if w.follow {
+                out.push(' ');
+            }
+            crate::warp::write_cents(out, w.cents);
+        }
+    }
 }
 
 /// Paint an audio clip's body: the waveform, the fades, the gain line, the badges, the

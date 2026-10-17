@@ -26,6 +26,8 @@ pub struct HandleDrag {
     region0: AudioRegion,
     press: Pos2,
     px_per_tick: f32,
+    /// A warp marker's drag (ADR 0061): the warp at the press and the marker moved.
+    pub(super) warp: Option<super::warp::MarkerDrag>,
 }
 
 /// The audio part of the arrangement's state.
@@ -35,6 +37,9 @@ pub struct State {
     /// The handle the context menu was opened on (a fade's curve menu), captured at the
     /// press like the clip the menu is about.
     pub menu: Option<Handle>,
+    /// The modifiers held this frame (the arrangement sets them before its input): a
+    /// warp marker's Alt-drag slides the content, Ctrl lets the grid go (ADR 0061).
+    pub mods: egui::Modifiers,
 }
 
 fn key(r: ClipRef) -> MergeKey {
@@ -57,12 +62,15 @@ pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle, press: Pos2, px_pe
     let Some((_, a)) = ac::region(app.project(), r) else {
         return;
     };
+    let region0 = a.clone();
+    let warp = super::warp::begin(app, r, handle);
     app.arrangement.audio.drag = Some(HandleDrag {
         r,
         handle,
-        region0: a.clone(),
+        region0,
         press,
         px_per_tick: (px_per_beat / cantus_core::PPQ as f32).max(1e-6),
+        warp,
     });
 }
 
@@ -82,6 +90,13 @@ pub fn update(app: &mut CantusApp, pos: Pos2, fine: bool) {
         Handle::Gain => {
             let per = if fine { 0.02 } else { 0.2 };
             ac::with_gain(a, a.gain_db - (pos.y - d.press.y) * per)
+        }
+        // A warp marker (ADR 0061).
+        Handle::WarpMarker(_) | Handle::WarpOnset(_) | Handle::WarpBand(_) => {
+            if let Some(m) = d.warp.as_ref() {
+                super::warp::update(app, d.r, m, dx);
+            }
+            return;
         }
     };
     apply(app, d.r, next);
@@ -103,6 +118,11 @@ pub fn reset(app: &mut CantusApp, r: ClipRef, handle: Handle) {
         Handle::FadeIn => ac::with_fade_in(clip, a, Ticks::ZERO),
         Handle::FadeOut => ac::with_fade_out(clip, a, Ticks::ZERO),
         Handle::Gain => ac::with_gain(a, 0.0),
+        // A warp marker removed; one added on the band or a transient (ADR 0061).
+        Handle::WarpMarker(_) | Handle::WarpOnset(_) | Handle::WarpBand(_) => {
+            super::warp::double_click(app, r, handle);
+            return;
+        }
     };
     apply(app, r, next);
     app.end_gesture();
@@ -113,6 +133,9 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
     let Some((_, a)) = ac::region(app.project(), r) else {
         return;
     };
+    if super::warp::hint(ctx, app, r, handle, live) {
+        return;
+    }
     let bpm = app.project().tempo_bpm;
     let (name, value) = match handle {
         Handle::FadeIn => ("audioclips.fade_in", Value::Time(a.fade_in.to_seconds(bpm))),
@@ -121,6 +144,7 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
             Value::Time(a.fade_out.to_seconds(bpm)),
         ),
         Handle::Gain => ("audioclips.gain", Value::Db(a.gain_db)),
+        _ => return,
     };
     let caps = Caps {
         menu: handle != Handle::Gain,

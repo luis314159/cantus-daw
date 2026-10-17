@@ -56,6 +56,8 @@ pub mod picker_snap;
 pub mod picker_thumbs;
 pub mod pitch;
 pub mod pitch_lane;
+pub mod warp;
+pub mod warp_quantise;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;

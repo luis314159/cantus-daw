@@ -110,6 +110,9 @@ pub enum Glyph {
     Cables,
     /// A funnel: a view's filter options (the cable view's options menu).
     Filter,
+    // --- warping (round 29, ADR 0061) ---
+    /// A warp marker over a stretched wave: the warp editor, *Quantise audio*.
+    Warp,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -461,6 +464,24 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
             b.polyline(&pts, w, color);
             b.dot(p(-4.2, -3.2), 1.7 * u, color);
             b.dot(p(4.2, -3.2), 1.7 * u, color);
+        }
+        Glyph::Warp => {
+            // A flag on its staff over a wave pulled out to the right.
+            b.polygon(&[p(-1.6, -5.0), p(1.6, -5.0), p(0.0, -2.6)], color);
+            b.segment(p(0.0, -2.6), p(0.0, 5.0), w * 0.8, color, false);
+            // The wave: tight zigzags left of the flag, the same pulled wide to its right.
+            let pts = [
+                p(-5.2, 1.6),
+                p(-4.3, -0.2),
+                p(-3.4, 3.4),
+                p(-2.5, -0.2),
+                p(-1.6, 3.4),
+                p(-0.7, 1.6),
+                p(1.2, -0.2),
+                p(3.1, 3.4),
+                p(5.2, 1.6),
+            ];
+            b.polyline(&pts, w * 0.8, color);
         }
         Glyph::Filter => {
             // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.

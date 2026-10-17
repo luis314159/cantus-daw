@@ -256,3 +256,269 @@ pub fn paint(
     }
     Some(hits)
 }
+
+// ---- the gestures --------------------------------------------------------------------
+
+/// A warp marker being dragged: the warp at the press (with the marker a band drag made),
+/// which marker, and whether Alt slides the content under it.
+#[derive(Clone, Debug)]
+pub struct MarkerDrag {
+    pub warp0: Warp,
+    pub marker: usize,
+    pub slide: bool,
+}
+
+/// The arrangement's modifiers this frame (set before its input).
+pub fn modifiers(app: &mut CantusApp, mods: egui::Modifiers) {
+    app.arrangement.audio.mods = mods;
+}
+
+/// The button went down on a warp handle of `r`: a marker to drag, or — on the band or a
+/// transient — a marker made there to drag (nothing is written until it moves).
+pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDrag> {
+    let slide = app.arrangement.audio.mods.alt;
+    let w = app.warp_to_edit(r)?;
+    let (warp0, marker) = match handle {
+        Handle::WarpMarker(i) => (w, i as usize),
+        Handle::WarpOnset(id) => {
+            let f = *app.warp_analysis(r)?.onsets.get(id as usize)?;
+            let n = w.add_marker_at_frame(f)?;
+            let i = n.markers.iter().position(|m| m.frame == f)?;
+            (n, i)
+        }
+        Handle::WarpBand(t) => {
+            let n = w.add_marker(Ticks(t as i64))?;
+            let i = n.marker_at(Ticks(t as i64))?;
+            (n, i)
+        }
+        _ => return None,
+    };
+    app.warp.selected = Some((r, marker));
+    Some(MarkerDrag {
+        warp0,
+        marker,
+        slide,
+    })
+}
+
+/// The pointer moved `dx` ticks along the timeline: the marker to its new tick (the grid's
+/// line under it unless Ctrl), or — sliding — the content under it by as much.
+pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
+    let Some(c) = app.project().track(r.0).and_then(|t| t.clip(r.1)) else {
+        return;
+    };
+    let Some(m) = d.warp0.markers.get(d.marker).copied() else {
+        return;
+    };
+    let reverse = c.audio.as_ref().is_some_and(|a| a.reverse);
+    // Reversed, the content runs right to left.
+    let dx = if reverse { -dx.0 } else { dx.0 };
+    let (next, op) = if d.slide {
+        let f = d.warp0.frame_at((m.tick.0 - dx) as f64);
+        (d.warp0.move_content(d.marker, f), cantus_core::warp::WarpOp::MoveContent)
+    } else {
+        let origin = c.start - c.offset;
+        let mut tick = Ticks(m.tick.0 + dx);
+        let a = &app.arrangement;
+        if a.snap && !a.audio.mods.command && !reverse {
+            tick = (tick + origin).snap(a.grid) - origin;
+        }
+        (d.warp0.move_marker(d.marker, tick), cantus_core::warp::WarpOp::MoveMarker)
+    };
+    app.commit_warp(r, Some(next), op, true);
+}
+
+/// A double-click on a warp handle: a marker removed; on the band or a transient, one added.
+pub fn double_click(app: &mut CantusApp, r: ClipRef, handle: Handle) {
+    match handle {
+        Handle::WarpMarker(i) => {
+            app.remove_warp_marker(r, i as usize);
+        }
+        Handle::WarpOnset(id) => {
+            if let Some(f) = app.warp_analysis(r).and_then(|a| a.onsets.get(id as usize).copied()) {
+                app.add_warp_marker(r, Ticks::ZERO, Some(f));
+            }
+        }
+        Handle::WarpBand(t) => {
+            app.add_warp_marker(r, Ticks(t as i64), None);
+        }
+        _ => {}
+    }
+    app.end_gesture();
+}
+
+/// The hint for a warp handle (the marker's segment tempo while it is dragged). Returns
+/// whether it was one.
+pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, live: bool) -> bool {
+    use crate::i18n::t;
+    use crate::kit::hint::{self, Caps};
+    use std::fmt::Write as _;
+    match handle {
+        Handle::WarpMarker(i) => {
+            let w = app.clip_warp(r);
+            let speed = w.and_then(|w| {
+                let m = w.markers.get(i as usize)?;
+                Some(w.speed_at(m.tick.0 as f64 + 0.5, app.project().tempo_bpm))
+            });
+            let caps = Caps {
+                menu: true,
+                ..Caps::NONE
+            };
+            hint::set(ctx, &t("warp.marker"), caps, live, |b| match speed {
+                Some(k) => write!(b, "×{k:.3}"),
+                None => Ok(()),
+            });
+            true
+        }
+        Handle::WarpOnset(_) => {
+            hint::set_text(ctx, &t("warp.transient"), &t("warp.transient.tip"), Caps::NONE);
+            true
+        }
+        Handle::WarpBand(_) => {
+            hint::set_text(ctx, &t("warp.band"), &t("warp.band.tip"), Caps::NONE);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// A click on a clip: a warp marker under it is selected; anywhere else lets it go.
+pub fn clicked(app: &mut CantusApp, r: ClipRef, handle: Option<Handle>) {
+    app.warp.selected = match handle {
+        Some(Handle::WarpMarker(i)) => Some((r, i as usize)),
+        _ => None,
+    };
+}
+
+// ---- the clip menu's warp section ------------------------------------------------------
+
+/// The warp entries of an audio clip's menu (a list of its own, after the audio entries):
+/// the modes, *Follow the project tempo*, *Quantise audio…*, *Detect tempo*, *Warp from
+/// here*, *Set the project tempo from this clip*, *Edit warp*, *Bounce warped audio*,
+/// *Reset warp* — and *Remove warp marker* when the menu was opened on one.
+pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
+    use crate::kit::menu::{Check, Item};
+    use crate::kit::text::Src;
+    use cantus_core::warp::WarpMode;
+    if crate::audio_clips::region(app.project(), r).is_none() {
+        return;
+    }
+    let w = app.clip_warp(r).cloned();
+    let warped = w.as_ref().is_some_and(|w| w.follow);
+    let mode = w.as_ref().map(|w| w.mode);
+    let on_marker = match app.arrangement.audio.menu {
+        Some(Handle::WarpMarker(i)) if w.as_ref().is_some_and(|w| (i as usize) < w.markers.len()) => {
+            Some(i as usize)
+        }
+        _ => None,
+    };
+    let ready = app.warp_analysis(r).is_some();
+    let action = |label: &'static str, check: Check, enabled: bool| Item::Action {
+        label: Src::Key(label),
+        check,
+        shortcut: None,
+        submenu: false,
+        enabled,
+    };
+    let mut items = vec![Item::Band(Src::Key("warp.menu.band"))];
+    let mut acts: Vec<Option<Pick>> = vec![None];
+    for m in WarpMode::ALL {
+        items.push(action(
+            mode_key(m),
+            Check::Radio(warped && mode == Some(m)),
+            true,
+        ));
+        acts.push(Some(Pick::Mode(m)));
+    }
+    items.push(action(
+        "warp.menu.follow",
+        if warped { Check::On } else { Check::Off },
+        w.is_some(),
+    ));
+    acts.push(Some(Pick::Follow));
+    items.push(Item::Separator);
+    acts.push(None);
+    for (label, pick, enabled) in [
+        ("warp.menu.quantise", Pick::Quantise, true),
+        ("warp.menu.detect", Pick::Detect, ready),
+        ("warp.menu.from_here", Pick::FromHere, ready),
+        ("warp.menu.project_tempo", Pick::ProjectTempo, ready || w.is_some()),
+        ("warp.menu.edit", Pick::Edit, true),
+        ("warp.menu.bounce", Pick::Bounce, warped || w.as_ref().is_some_and(|w| w.cents != 0)),
+        ("warp.menu.reset", Pick::Reset, w.is_some()),
+    ] {
+        items.push(action(label, Check::None, enabled));
+        acts.push(Some(pick));
+    }
+    if let Some(i) = on_marker {
+        items.push(action("warp.menu.remove_marker", Check::None, true));
+        acts.push(Some(Pick::Remove(i)));
+    }
+    let Some(i) = crate::kit::widgets::menu_list(ui, &items, super::super::MENU_W)
+        .1
+        .clicked
+    else {
+        return;
+    };
+    let Some(Some(pick)) = acts.get(i).copied() else {
+        return;
+    };
+    match pick {
+        Pick::Mode(m) => {
+            app.edit_warp(r, cantus_core::warp::WarpOp::Mode, |w| {
+                w.mode = m;
+                w.follow = true;
+            });
+        }
+        Pick::Follow => {
+            app.set_warp_follow(r, !warped);
+        }
+        Pick::Quantise => app.open_quantise(vec![r]),
+        Pick::Detect => {
+            app.warp_by_analysis(r);
+        }
+        Pick::FromHere => {
+            let at = app.engine.position();
+            app.warp_from_here(r, at);
+        }
+        Pick::ProjectTempo => {
+            app.project_tempo_from_clip(r);
+        }
+        Pick::Edit => app.open_warp_editor(r),
+        Pick::Bounce => {
+            app.bounce_warped(r);
+        }
+        Pick::Reset => {
+            app.reset_warp(r);
+        }
+        Pick::Remove(i) => {
+            app.remove_warp_marker(r, i);
+        }
+    }
+    ui.close();
+}
+
+/// The words of a mode.
+pub fn mode_key(m: cantus_core::warp::WarpMode) -> &'static str {
+    use cantus_core::warp::WarpMode;
+    match m {
+        WarpMode::Complex => "warp.mode.complex",
+        WarpMode::Rhythm => "warp.mode.rhythm",
+        WarpMode::Melodic => "warp.mode.melodic",
+        WarpMode::Repitch => "warp.mode.repitch",
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+enum Pick {
+    Mode(cantus_core::warp::WarpMode),
+    Follow,
+    Quantise,
+    Detect,
+    FromHere,
+    ProjectTempo,
+    Edit,
+    Bounce,
+    Reset,
+    Remove(usize),
+}

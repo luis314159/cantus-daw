@@ -26,7 +26,8 @@ pub struct Written {
     pub frames: u64,
 }
 
-fn key(r: ClipRef, op: WarpOp) -> MergeKey {
+/// The merge key of a drag on clip `r`'s warp (one undo step per gesture).
+pub fn merge_key(r: ClipRef, op: WarpOp) -> MergeKey {
     MergeKey::of(&("warp", r.0 .0, r.1 .0, op.label_key()))
 }
 
@@ -78,7 +79,7 @@ impl CantusApp {
             op,
         };
         if merge {
-            self.exec_merging(cmd, key(r, op))
+            self.exec_merging(cmd, merge_key(r, op))
         } else {
             self.exec(cmd)
         }

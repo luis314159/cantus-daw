@@ -584,6 +584,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             app.selected_clip = None;
             return;
         }
+        // An audio clip in its Warp mode (round 29, ADR 0061).
+        Some(c) if c.audio.is_some() && app.warp.view.open => {
+            super::warp::show(app, ui, track_id, clip_id);
+            return;
+        }
         // An audio clip: its notes in the pitch editor (round 28, ADR 0054); its fades,
         // gain and file stay in the inspector (ADR 0025 §1).
         Some(c) if c.audio.is_some() => {

@@ -243,3 +243,15 @@ impl CantusApp {
         )
     }
 }
+
+/// A transposition in label/value units: `+3 st`, `-2 st 50 ct`, `+15 ct`.
+pub fn write_cents(out: &mut String, cents: i32) {
+    use std::fmt::Write as _;
+    let sign = if cents < 0 { '-' } else { '+' };
+    let (st, ct) = (cents.abs() / 100, cents.abs() % 100);
+    let _ = match (st, ct) {
+        (0, c) => write!(out, "{sign}{c} ct"),
+        (s, 0) => write!(out, "{sign}{s} st"),
+        (s, c) => write!(out, "{sign}{s} st {c} ct"),
+    };
+}
