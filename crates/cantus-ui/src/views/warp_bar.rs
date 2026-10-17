@@ -33,6 +33,15 @@ fn drag_value(
     width: f32,
 ) -> (Option<f64>, bool) {
     let s = Style::current();
+    // Its name before it: label and value (ADR 0024).
+    let (lr, _) = ui.allocate_exact_size(vec2(s.s(96.0), s.d(24.0)), Sense::hover());
+    let words = name;
+    let tx = crate::kit::text::Text::new(words, crate::kit::text::Role::Label, s.t.text_dim)
+        .align(egui::Align2::RIGHT_CENTER)
+        .policy(crate::kit::text::Policy::Elide(crate::kit::text::Elide::End));
+    kit::with_brush(ui.painter(), |b| {
+        let _ = crate::kit::text::paint(b, lr, &tx, s.tk());
+    });
     let (rect, resp) = ui.allocate_exact_size(vec2(s.s(width), s.d(24.0)), Sense::click_and_drag());
     kit::with_brush(ui.painter(), |b| {
         well::readout(b, rect, &s, State::of(&resp, false), face, true);
@@ -159,19 +168,19 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                     if ended {
                         app.end_gesture();
                     }
-                    if key(ui, "warp.tempo.half", true, 36.0) {
+                    if key(ui, "warp.tempo.half", true, 46.0) {
                         app.set_warp_tempo(r, bpm / 2.0, false);
                     }
-                    if key(ui, "warp.tempo.double", true, 36.0) {
+                    if key(ui, "warp.tempo.double", true, 46.0) {
                         app.set_warp_tempo(r, bpm * 2.0, false);
                     }
-                    if key(ui, "warp.menu.detect", true, 96.0) {
+                    if key(ui, "warp.menu.detect", true, 140.0) {
                         app.warp_by_analysis(r);
                     }
-                    if key(ui, "warp.menu.quantise_short", true, 96.0) {
+                    if key(ui, "warp.menu.quantise_short", true, 120.0) {
                         app.open_quantise(vec![r]);
                     }
-                    if key(ui, "warp.menu.reset", app.clip_warp(r).is_some(), 80.0) {
+                    if key(ui, "warp.menu.reset", app.clip_warp(r).is_some(), 130.0) {
                         app.reset_warp(r);
                     }
                 });

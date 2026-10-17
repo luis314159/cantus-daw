@@ -42,7 +42,7 @@ warp.menu.quantise = Cuantizar audio…
 warp.menu.quantise_short = Cuantizar…
 warp.menu.detect = Detectar el tempo
 warp.menu.from_here = Ajustar desde aquí
-warp.menu.project_tempo = Tomar el tempo del proyecto de este clip
+warp.menu.project_tempo = Usar su tempo en el proyecto
 warp.menu.edit = Editar el warp
 warp.menu.bounce = Renderizar el audio ajustado
 warp.menu.reset = Restablecer warp
@@ -64,7 +64,7 @@ warp.inspector.bars = {n} compases
 warp.inspector.none = Sin analizar
 warp.tail.fade = Desvanecer
 warp.tail.loop = Bucle
-warp.tail.pingpong = Ida y vuelta
+warp.tail.pingpong = Vaivén
 
 # El editor del clip.
 warp.tab.pitch = Afinación

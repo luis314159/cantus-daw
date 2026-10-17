@@ -64,7 +64,7 @@ warp.inspector.bars = {n} bars
 warp.inspector.none = Not analysed
 warp.tail.fade = Fade
 warp.tail.loop = Loop
-warp.tail.pingpong = Back and forth
+warp.tail.pingpong = Ping-pong
 
 # The clip editor.
 warp.tab.pitch = Pitch

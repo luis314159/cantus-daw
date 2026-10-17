@@ -248,6 +248,7 @@ pub fn write_cents(out: &mut String, cents: i32) {
     let sign = if cents < 0 { '-' } else { '+' };
     let (st, ct) = (cents.abs() / 100, cents.abs() % 100);
     let _ = match (st, ct) {
+        (0, 0) => write!(out, "0 st"),
         (0, c) => write!(out, "{sign}{c} ct"),
         (s, 0) => write!(out, "{sign}{s} st"),
         (s, c) => write!(out, "{sign}{s} st {c} ct"),

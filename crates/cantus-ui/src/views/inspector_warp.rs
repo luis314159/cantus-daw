@@ -81,7 +81,7 @@ fn key(
 ) -> bool {
     let s = sh.s;
     let row = sh.row();
-    let w = row.value.width().min(s.s(170.0));
+    let w = row.value.width();
     let br = Rect::from_min_size(row.value.min, Vec2::new(w, row.value.height()));
     let r = sh
         .ui

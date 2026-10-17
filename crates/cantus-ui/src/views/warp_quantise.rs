@@ -18,7 +18,7 @@ use egui::{pos2, vec2, Align2, Context, Id, Key, Rect, Sense};
 
 /// The panel's size at 100 %.
 pub const WIDTH: f32 = 420.0;
-const HEIGHT: f32 = 232.0;
+const HEIGHT: f32 = 196.0;
 const TITLE: f32 = 30.0;
 const ROW: f32 = 30.0;
 const PAD: f32 = 12.0;
