@@ -74,7 +74,12 @@ fn a_crash_is_one_card_with_reload_and_keep_it_off() {
     assert!(body.contains("kept playing"), "{body}");
     let labels: Vec<&str> = buttons.iter().map(|(l, _)| l.as_str()).collect();
     assert_eq!(labels, ["Reload", "Keep it off"]);
-    assert!(reasons.contains("access violation"), "{reasons}");
+    // The host's account, in the interface's words, its code kept.
+    assert!(
+        reasons
+            .contains("Glacier: it crashed: it touched memory that was not its own (0xC0000005)"),
+        "{reasons}"
+    );
     // The same plug-in told twice is still one entry; another makes the card plural.
     plugin_notice::on_notice(&mut a, crashed(id, "Glacier"));
     assert_eq!(a.plugin_crashes.waiting.len(), 1);
