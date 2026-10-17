@@ -59,6 +59,12 @@ impl Warp {
         })
     }
 
+    /// A marker pairing source frame `frame` with content tick `tick` exactly; `None` where
+    /// it would not keep the markers in order.
+    pub fn with_marker(&self, frame: f64, tick: Ticks) -> Option<Warp> {
+        self.insert(WarpMarker { frame, tick })
+    }
+
     /// A marker on source frame `frame` (a transient), at the whole tick nearest where it
     /// is heard now.
     pub fn add_marker_at_frame(&self, frame: f64) -> Option<Warp> {
@@ -148,6 +154,20 @@ impl Warp {
         from: Ticks,
         to: Ticks,
     ) -> Warp {
+        self.quantise_from(transients, grid, Ticks::ZERO, strength, from, to)
+    }
+
+    /// [`Warp::quantise`] to a grid laid from timeline tick 0 when content tick 0 sits at
+    /// timeline tick `origin` (`start − offset`): the lines the user sees.
+    pub fn quantise_from(
+        &self,
+        transients: &[f64],
+        grid: Ticks,
+        origin: Ticks,
+        strength: f32,
+        from: Ticks,
+        to: Ticks,
+    ) -> Warp {
         let mut w = self.clone();
         if grid.0 <= 0 {
             return w;
@@ -162,7 +182,8 @@ impl Warp {
                 if t < from.0 as f64 || t >= to.0 as f64 {
                     return None;
                 }
-                let line = (t / grid.0 as f64).round() * grid.0 as f64;
+                let o = origin.0 as f64;
+                let line = ((t + o) / grid.0 as f64).round() * grid.0 as f64 - o;
                 Some((f, (t + s * (line - t)).round() as i64))
             })
             .collect();

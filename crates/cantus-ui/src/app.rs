@@ -269,6 +269,9 @@ pub struct CantusApp {
     pub merge_job: Option<crate::record_session::MergeJob>,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
+    /// Warping (round 29, ADR 0061): imports waiting for their analysis, the selected
+    /// marker, the quantise dialog, the warp editor, a bounce on its way.
+    pub warp: crate::warp::WarpUi,
 }
 
 impl CantusApp {
@@ -433,6 +436,11 @@ impl CantusApp {
             .samples
             .pitch()
             .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
+        // Warping's analyses (transients, tempo, grid) beside them (round 29, ADR 0061).
+        app.engine
+            .samples
+            .warp()
+            .set_disk_cache(Some(directories_fallback().join("cache").join("warp")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
@@ -587,6 +595,7 @@ impl CantusApp {
             modulators: Default::default(),
             merge_job: None,
             pitch: Default::default(),
+            warp: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -3132,6 +3141,10 @@ impl CantusApp {
         if self.pitch_action(action) {
             return;
         }
+        // A selected warp marker takes Del (round 29, ADR 0061).
+        if self.warp_action(action) {
+            return;
+        }
         match action {
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
@@ -3603,6 +3616,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
+        views::warp_quantise::frame(self, ctx);
         views::modulator::popup::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
@@ -3670,6 +3684,10 @@ impl CantusApp {
         // them on, and collect them when their worker is done, even with nothing else
         // moving.
         self.poll_merge();
+        // Imports waiting for their analysis, a warped bounce being written (ADR 0061).
+        if self.poll_warp() {
+            ticker::wake_after(ctx, Duration::from_millis(50));
+        }
         if self.modulators.pending_bake.is_some() || self.merge_job.is_some() {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }

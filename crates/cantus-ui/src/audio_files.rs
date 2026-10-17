@@ -179,12 +179,19 @@ impl CantusApp {
         }
         let commands = self.import_commands(&files, at, onto);
         let made = commands.1;
-        if !self.exec(Command::Batch {
-            label_key: "cmd.import_audio".into(),
-            commands: commands.0,
-        }) {
+        // Its own undo step, kept open for the warp a loop gets when its analysis lands
+        // (round 29, ADR 0061: the import rule, `crate::warp`).
+        let key = cantus_core::MergeKey::of(&("import", self.project().next_id, made.len()));
+        if !self.exec_merging(
+            Command::Batch {
+                label_key: "cmd.import_audio".into(),
+                commands: commands.0,
+            },
+            key,
+        ) {
             return 0;
         }
+        self.warp_after_import(&made, key);
         for f in &files {
             self.peaks.insert_data(&f.path, f.data.clone());
         }
