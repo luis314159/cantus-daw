@@ -402,7 +402,11 @@ fn a_late_synced_unit_hears_the_steps_at_every_block_size() {
     p.loop_enabled = false;
     let reference = render_with(&p, 64);
     for block in [1usize, 37, 512] {
-        same_bits(&reference, &render_with(&p, block), &format!("block {block}"));
+        same_bits(
+            &reference,
+            &render_with(&p, block),
+            &format!("block {block}"),
+        );
     }
 }
 
@@ -416,7 +420,8 @@ fn a_rendered_range_is_as_long_as_the_map_says() {
     let mut t = p.make_track("Square");
     t.instrument.firmus_mut().unwrap().osc1_wave = Waveform::Square;
     let mut clip = p.make_clip("n", Ticks::ZERO, Ticks::beats(8));
-    clip.notes.push(p.make_note(Ticks::beats(6), Ticks::QUARTER, 60, 120));
+    clip.notes
+        .push(p.make_note(Ticks::beats(6), Ticks::QUARTER, 60, 120));
     t.clips.push(clip);
     p.tracks.push(t);
     let opts = RenderOptions {
@@ -430,7 +435,10 @@ fn a_rendered_range_is_as_long_as_the_map_says() {
         .samples;
     let want = (p.tempo_map().seconds_between(Ticks::ZERO, Ticks::beats(6)) * SR).ceil() as usize;
     assert_eq!(out.len() / 2, want);
-    assert!(out.iter().all(|x| *x == 0.0), "the note at the end never sounds");
+    assert!(
+        out.iter().all(|x| *x == 0.0),
+        "the note at the end never sounds"
+    );
 }
 
 /// Review 1 (finding 19): played live — the click, a loop over the tempo change and an
@@ -448,12 +456,22 @@ fn the_click_a_loop_and_automation_live_are_the_same_at_every_block_size() {
         AutoPoint::new(Ticks::ZERO, 0.3),
         AutoPoint::new(Ticks::beats(5), 0.9),
     ];
-    let c = p.make_automation_clip("g", AutoTarget::StripGain(strip), Ticks::ZERO, Ticks::beats(8), points);
+    let c = p.make_automation_clip(
+        "g",
+        AutoTarget::StripGain(strip),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        points,
+    );
     p.tracks[0].clips.push(c);
     let frames = 200_000;
     let reference = play(&p, Ticks::ZERO, frames, 64);
     for block in [1usize, 37, 512] {
-        same_bits(&reference, &play(&p, Ticks::ZERO, frames, block), &format!("block {block}"));
+        same_bits(
+            &reference,
+            &play(&p, Ticks::ZERO, frames, block),
+            &format!("block {block}"),
+        );
     }
 }
 

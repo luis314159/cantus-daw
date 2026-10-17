@@ -61,8 +61,6 @@ pub const KEYS: &[&str] = &[
     "interop.report.d_expressions",
     "interop.report.d_references",
     "interop.report.d_loop",
-    "interop.report.d_tempo_automation",
-    "interop.report.d_metre_automation",
     "interop.report.d_seconds",
 ];
 

@@ -250,7 +250,10 @@ pub(crate) fn apply_set_metre_at(
     if i + 1 < metres.len() {
         // The next change's seat in the list as it was.
         let old = current(project);
-        let j = old.iter().position(|m| m.tick == metres[i + 1].tick).unwrap_or(0);
+        let j = old
+            .iter()
+            .position(|m| m.tick == metres[i + 1].tick)
+            .unwrap_or(0);
         if j > 0 {
             let seat = seat(&old, j);
             reseat(&mut metres, i + 1, tick, b_tick, signature, seat)?;

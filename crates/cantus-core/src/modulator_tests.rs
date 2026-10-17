@@ -674,7 +674,10 @@ fn modulators_read_time_through_a_moving_tempo_map() {
         let want = super::eval::gate_level(
             &env,
             from,
-            Gate { on: 0.0, off: off - on },
+            Gate {
+                on: 0.0,
+                off: off - on,
+            },
             map.seconds_at(beat * ppq) - on,
         );
         assert_eq!(compiled.level_at(&env, &t), want, "beat {beat}");

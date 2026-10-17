@@ -125,6 +125,8 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         &[("name", a(APPLICATION)), ("version", a(app_version))],
     );
     w.open("Transport", &[]);
+    let tempo_id = ids.next();
+    let metre_id = ids.next();
     w.empty(
         "Tempo",
         &[
@@ -132,7 +134,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
             ("min", a(num(cantus_core::time::MIN_BPM))),
             ("unit", a("bpm")),
             ("value", a(num(project.tempo_bpm))),
-            ("id", a(ids.next())),
+            ("id", a(tempo_id.clone())),
             ("name", a("Tempo")),
         ],
     );
@@ -141,7 +143,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         &[
             ("denominator", a(project.time_signature.denominator)),
             ("numerator", a(project.time_signature.numerator)),
-            ("id", a(ids.next())),
+            ("id", a(metre_id.clone())),
         ],
     );
     w.close();
@@ -315,6 +317,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         w.close();
     }
     w.close();
+    tempo_map(&mut w, &mut ids, project, &tempo_id, &metre_id);
     w.close();
     w.open("Scenes", &[]);
     w.close();
@@ -768,4 +771,66 @@ fn clip(w: &mut XmlWriter, ids: &mut Ids, c: &Clip) -> usize {
     w.close();
     w.close();
     muted
+}
+
+/// The arrangement's markers, tempo automation and time-signature automation (round 29,
+/// ADR 0060), in beats: every marker with its name and colour; every tempo point, a ramp
+/// as a linear point (the tempo moves linearly in beats to the next, as DAWproject's
+/// `linear` interpolation draws it), a held one as `hold`; every metre change.
+fn tempo_map(w: &mut XmlWriter, ids: &mut Ids, project: &Project, tempo_id: &str, metre_id: &str) {
+    let beats = |t: cantus_core::Ticks| num(t.as_beats_f64());
+    if !project.markers.is_empty() {
+        w.open(
+            "Markers",
+            &[("timeUnit", a("beats")), ("id", a(ids.next()))],
+        );
+        for m in &project.markers {
+            let mut at = vec![("time", a(beats(m.tick))), ("name", a(m.name.clone()))];
+            if let Some(c) = m.color {
+                at.push(("color", a(color(c))));
+            }
+            w.empty("Marker", &at);
+        }
+        w.close();
+    }
+    if !project.tempo_points.is_empty() {
+        w.open(
+            "TempoAutomation",
+            &[
+                ("unit", a("bpm")),
+                ("timeUnit", a("beats")),
+                ("id", a(ids.next())),
+            ],
+        );
+        w.empty("Target", &[("parameter", a(tempo_id))]);
+        for p in &project.tempo_points {
+            w.empty(
+                "RealPoint",
+                &[
+                    ("time", a(beats(p.tick))),
+                    ("value", a(num(p.bpm))),
+                    ("interpolation", a(if p.ramp { "linear" } else { "hold" })),
+                ],
+            );
+        }
+        w.close();
+    }
+    if !project.metre_changes.is_empty() {
+        w.open(
+            "TimeSignatureAutomation",
+            &[("timeUnit", a("beats")), ("id", a(ids.next()))],
+        );
+        w.empty("Target", &[("parameter", a(metre_id))]);
+        for m in &project.metre_changes {
+            w.empty(
+                "TimeSignaturePoint",
+                &[
+                    ("time", a(beats(m.tick))),
+                    ("numerator", a(m.signature.numerator)),
+                    ("denominator", a(m.signature.denominator)),
+                ],
+            );
+        }
+        w.close();
+    }
 }

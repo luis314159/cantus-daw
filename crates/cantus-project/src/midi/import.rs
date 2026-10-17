@@ -291,15 +291,10 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
     if metre_list.len() < 2 {
         metre_list.clear();
     }
-    let markers: Vec<(Ticks, String)> = marks
-        .into_iter()
-        .map(|(t, s)| (beats_tick(t), s))
-        .collect();
+    let markers: Vec<(Ticks, String)> =
+        marks.into_iter().map(|(t, s)| (beats_tick(t), s)).collect();
     if keep_map && changes > 0 {
-        report.info(
-            "tempo.report.tempo_kept",
-            vec![("n", changes.to_string())],
-        );
+        report.info("tempo.report.tempo_kept", vec![("n", changes.to_string())]);
     } else if changes > 0 {
         if clock.mode == TempoMode::Seconds {
             report.info(
@@ -623,10 +618,16 @@ pub fn import_commands(
                 bpm,
                 ramp: false,
             }];
-            points.extend(import.tempo_points.iter().skip(1).map(|p| cantus_core::TempoPoint {
-                tick: p.tick + at,
-                ..*p
-            }));
+            points.extend(
+                import
+                    .tempo_points
+                    .iter()
+                    .skip(1)
+                    .map(|p| cantus_core::TempoPoint {
+                        tick: p.tick + at,
+                        ..*p
+                    }),
+            );
             commands.push(Command::SetTempoTrack { bpm, points });
         }
         if !import.metre_changes.is_empty() {
@@ -635,10 +636,16 @@ pub fn import_commands(
                 tick: Ticks::ZERO,
                 signature,
             }];
-            metres.extend(import.metre_changes.iter().skip(1).map(|m| cantus_core::MetreChange {
-                tick: m.tick + at,
-                ..*m
-            }));
+            metres.extend(
+                import
+                    .metre_changes
+                    .iter()
+                    .skip(1)
+                    .map(|m| cantus_core::MetreChange {
+                        tick: m.tick + at,
+                        ..*m
+                    }),
+            );
             commands.push(Command::SetMetreTrack { signature, metres });
         }
         for (tick, name) in &import.markers {

@@ -21,7 +21,8 @@ use super::{effect_kind_of, DawProjectError, Imported, APPLICATION, DEVICE_PREFI
 use crate::report::Report;
 use cantus_core::{
     linear_to_db, Color, Dock, EffectId, EffectSlot, InstrumentSpec, Project, Send, SendTap,
-    StripId, TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MIN_GAIN_DB,
+    StripId, Ticks, TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS,
+    MIN_GAIN_DB,
 };
 use roxmltree::Node;
 use std::collections::HashMap;
@@ -280,6 +281,7 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
     let timeline = child(root, "Arrangement")
         .map(|arr| read_timeline::read(arr, &project, &mut report))
         .unwrap_or_default();
+    tempo_map(&mut project, &timeline, &mut report);
     if let Some(scenes) = child(root, "Scenes") {
         let n = scenes.children().filter(|c| c.is_element()).count();
         report.count_dropped("interop.report.d_scenes", n);
@@ -692,4 +694,92 @@ fn channel_eq(project: &mut Project, sid: StripId, eq: Node) -> bool {
     }
     project.strip_mut(sid).expect("made").eq = out;
     true
+}
+
+/// The tempo track, the metre changes and the markers from the file's arrangement (round
+/// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
+/// standing in where the automation starts later.
+fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
+    use cantus_core::tempo::{valid_signature, Marker, MarkerId, MetreChange, TempoPoint};
+    let mut pts: Vec<TempoPoint> = t
+        .tempo
+        .iter()
+        .filter(|(tick, _, _)| tick.0 >= 0)
+        .map(|(tick, bpm, ramp)| TempoPoint {
+            tick: *tick,
+            bpm: cantus_core::time::clamp_bpm(*bpm),
+            ramp: *ramp,
+        })
+        .collect();
+    pts.sort_by_key(|p| p.tick);
+    pts.dedup_by_key(|p| p.tick);
+    if !pts.is_empty() {
+        if pts[0].tick != Ticks::ZERO {
+            pts.insert(
+                0,
+                TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: project.tempo_bpm,
+                    ramp: false,
+                },
+            );
+        }
+        if let Some(last) = pts.last_mut() {
+            last.ramp = false;
+        }
+        project.tempo_bpm = pts[0].bpm;
+        if pts.len() > 1 {
+            report.info(
+                "tempo.report.tempo_kept",
+                vec![("n", (pts.len() - 1).to_string())],
+            );
+            project.tempo_points = pts;
+        }
+    }
+    let mut ms: Vec<MetreChange> = t
+        .metres
+        .iter()
+        .map(|(tick, n, d)| MetreChange {
+            tick: *tick,
+            signature: TimeSignature::new(*n, *d),
+        })
+        .filter(|m| m.tick.0 >= 0 && valid_signature(m.signature))
+        .collect();
+    ms.sort_by_key(|m| m.tick);
+    ms.dedup_by_key(|m| m.tick);
+    if !ms.is_empty() {
+        if ms[0].tick != Ticks::ZERO {
+            ms.insert(
+                0,
+                MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: project.time_signature,
+                },
+            );
+        }
+        project.time_signature = ms[0].signature;
+        if ms.len() > 1 {
+            report.info(
+                "tempo.report.metres_kept",
+                vec![("n", (ms.len() - 1).to_string())],
+            );
+            project.metre_changes = ms;
+        }
+    }
+    for (tick, name, color) in &t.markers {
+        let id = MarkerId(project.alloc_id());
+        project.markers.push(Marker {
+            id,
+            tick: (*tick).max(Ticks::ZERO),
+            name: name.clone(),
+            color: *color,
+        });
+    }
+    project.markers.sort_by_key(|m| (m.tick, m.id));
+    if !t.markers.is_empty() {
+        report.info(
+            "tempo.report.markers_kept",
+            vec![("n", t.markers.len().to_string())],
+        );
+    }
 }

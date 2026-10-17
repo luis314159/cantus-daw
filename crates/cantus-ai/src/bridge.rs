@@ -35,6 +35,19 @@ pub fn tool_specs() -> Vec<ToolSpec> {
             }),
         },
         ToolSpec {
+            name: "set_tempo_point".into(),
+            description: "Put a tempo change on the tempo track at a beat (a ramp when `ramp` is true: the tempo moves linearly from this point to the next). Beat 0 sets the song's starting tempo.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "beat": { "type": "number" },
+                    "bpm": { "type": "number" },
+                    "ramp": { "type": "boolean" }
+                },
+                "required": ["beat", "bpm"]
+            }),
+        },
+        ToolSpec {
             name: "add_track".into(),
             description: "Create a new instrument track playing the built-in Firmus synth.".into(),
             input_schema: json!({
@@ -107,6 +120,32 @@ pub fn describe_project(project: &Project) -> String {
         "<project name=\"{}\" tempo_bpm=\"{}\" time_signature=\"{}\">\n",
         project.name, project.tempo_bpm, project.time_signature
     );
+    // The tempo map (round 29, ADR 0060): every tempo point, metre change and marker.
+    for p in &project.tempo_points {
+        s.push_str(&format!(
+            "  <tempo beat=\"{}\" bpm=\"{}\" ramp=\"{}\"/>
+",
+            p.tick.as_beats_f64(),
+            p.bpm,
+            p.ramp
+        ));
+    }
+    for m in &project.metre_changes {
+        s.push_str(&format!(
+            "  <metre beat=\"{}\" signature=\"{}\"/>
+",
+            m.tick.as_beats_f64(),
+            m.signature
+        ));
+    }
+    for m in &project.markers {
+        s.push_str(&format!(
+            "  <marker beat=\"{}\" name=\"{}\"/>
+",
+            m.tick.as_beats_f64(),
+            m.name
+        ));
+    }
     for t in &project.tracks {
         let notes: usize = t.clips.iter().map(|c| c.notes.len()).sum();
         s.push_str(&format!(
@@ -129,6 +168,25 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
                 .and_then(Value::as_f64)
                 .ok_or(BridgeError::BadArgument("bpm"))?;
             Ok(Some(Command::SetTempo { bpm }))
+        }
+        "set_tempo_point" => {
+            let beat = a
+                .get("beat")
+                .and_then(Value::as_f64)
+                .filter(|b| b.is_finite() && *b >= 0.0)
+                .ok_or(BridgeError::BadArgument("beat"))?;
+            let bpm = a
+                .get("bpm")
+                .and_then(Value::as_f64)
+                .filter(|b| b.is_finite())
+                .ok_or(BridgeError::BadArgument("bpm"))?;
+            let ramp = a.get("ramp").and_then(Value::as_bool).unwrap_or(false);
+            Ok(Some(cantus_core::tempo::edit::add_tempo_point(
+                bus.project(),
+                Ticks::from_beats_f64(beat),
+                bpm,
+                ramp,
+            )))
         }
         "add_track" => {
             let name = a
@@ -387,5 +445,24 @@ mod tests {
         let d = describe_project(bus.project());
         assert!(d.starts_with("<project"));
         assert!(d.contains("name=\"Keys\""));
+    }
+
+    /// Round 29 (ADR 0060): the agent sees the tempo map and can put a tempo point, an
+    /// ordinary undoable command.
+    #[test]
+    fn the_agent_sees_the_tempo_map_and_sets_a_tempo_point() {
+        let mut bus = CommandBus::default();
+        let call = ToolCall {
+            name: "set_tempo_point".into(),
+            input: json!({ "beat": 8.0, "bpm": 140.0, "ramp": false }),
+        };
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
+        assert_eq!(bus.project().tempo_points.len(), 2);
+        assert_eq!(bus.project().tempo_points[1].bpm, 140.0);
+        let text = describe_project(bus.project());
+        assert!(text.contains("<tempo beat=\"8\" bpm=\"140\""), "{text}");
+        assert!(bus.undo().is_some());
+        assert!(bus.project().tempo_points.is_empty());
     }
 }

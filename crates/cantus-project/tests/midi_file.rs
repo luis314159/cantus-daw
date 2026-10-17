@@ -556,7 +556,11 @@ fn the_tempo_map_round_trips_through_a_midi_file() {
         bpm,
         ramp,
     };
-    p.tempo_points = vec![pt(0, 90.0, true), pt(7680, 140.0, false), pt(15_360, 110.0, false)];
+    p.tempo_points = vec![
+        pt(0, 90.0, true),
+        pt(7680, 140.0, false),
+        pt(15_360, 110.0, false),
+    ];
     p.metre_changes = vec![
         MetreChange {
             tick: Ticks::ZERO,
@@ -571,7 +575,10 @@ fn the_tempo_map_round_trips_through_a_midi_file() {
             signature: TimeSignature::new(3, 4),
         },
     ];
-    for (i, (tick, name)) in [(0, "Intro"), (7680, "Verse"), (11_040, "Chorus")].iter().enumerate() {
+    for (i, (tick, name)) in [(0, "Intro"), (7680, "Verse"), (11_040, "Chorus")]
+        .iter()
+        .enumerate()
+    {
         p.markers.push(Marker {
             id: MarkerId(900 + i as u64),
             tick: Ticks(*tick),
@@ -582,17 +589,26 @@ fn the_tempo_map_round_trips_through_a_midi_file() {
     let bytes = midi::export(&p, &ExportOptions::default()).unwrap();
     let back = import_into_empty(&bytes, &ImportOptions::default(), true);
     let (a, b) = (p.tempo_map(), back.tempo_map());
-    for tick in [0.0, 960.0, 3_000.0, 7_680.0, 9_000.0, 15_360.0, 20_000.0] {
+    // On the sixteenths the ramp is written in (between them a step holds its average).
+    for tick in [0.0, 960.0, 3_120.0, 7_680.0, 9_000.0, 15_360.0, 20_000.0] {
         let (x, y) = (a.seconds_at(tick), b.seconds_at(tick));
         assert!((x - y).abs() < 1e-4, "{tick}: {x} vs {y}");
     }
     // The ramp is in sixteenths: 32 steps over its 8 beats.
     assert!(back.tempo_points.len() >= 32, "{}", back.tempo_points.len());
     assert_eq!(back.metre_changes, p.metre_changes);
-    let names: Vec<(Ticks, &str)> = back.markers.iter().map(|m| (m.tick, m.name.as_str())).collect();
+    let names: Vec<(Ticks, &str)> = back
+        .markers
+        .iter()
+        .map(|m| (m.tick, m.name.as_str()))
+        .collect();
     assert_eq!(
         names,
-        [(Ticks(0), "Intro"), (Ticks(7680), "Verse"), (Ticks(11_040), "Chorus")]
+        [
+            (Ticks(0), "Intro"),
+            (Ticks(7680), "Verse"),
+            (Ticks(11_040), "Chorus")
+        ]
     );
     assert_eq!(played(&back), played(&p), "every note where it was");
     // The file of `tempo_map_file`, imported keeping its map: the note on beat 6 sounds

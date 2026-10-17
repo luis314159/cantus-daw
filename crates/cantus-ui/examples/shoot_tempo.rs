@@ -134,12 +134,19 @@ fn main() {
         let mut a = app();
         a.export_between_markers(MarkerId(10_001), MarkerId(10_003));
         let out = dir.join(format!("tempo-export-night-{}.png", lang.code()));
-        shoot(&ctx, egui::vec2(1200.0, 820.0), 1.0, 6, Some(&out), |root| {
-            egui::CentralPanel::default()
-                .frame(egui::Frame::NONE)
-                .show(root, |ui| views::transport::show(&mut a, ui));
-            views::export_dialog::show(&mut a, root);
-        });
+        shoot(
+            &ctx,
+            egui::vec2(1200.0, 820.0),
+            1.0,
+            6,
+            Some(&out),
+            |root| {
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::NONE)
+                    .show(root, |ui| views::transport::show(&mut a, ui));
+                views::export_dialog::show(&mut a, root);
+            },
+        );
         println!("{}", out.display());
     }
     // Narrow: the lanes keep their words inside their widths.

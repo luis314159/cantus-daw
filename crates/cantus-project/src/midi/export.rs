@@ -117,7 +117,14 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
 
     let end_tick = to_file_ticks(end - shift, ppq);
     let mut tracks = Vec::with_capacity(compiled.tracks.len() + 1);
-    tracks.push(conductor(project, &file_name, shift, end - shift, ppq, end_tick));
+    tracks.push(conductor(
+        project,
+        &file_name,
+        shift,
+        end - shift,
+        ppq,
+        end_tick,
+    ));
     let mut melodic = (0u8..16).filter(|c| *c != DRUM_CHANNEL).cycle();
     for ct in &compiled.tracks {
         let channel = if ct.drums {
@@ -210,7 +217,11 @@ fn conductor(
     };
     // The metre in force at the file's start, then each change inside it.
     metre(&mut ev, 0, map.signature_at(shift));
-    for m in map.metres().iter().filter(|m| m.tick > shift && m.tick < shift + len) {
+    for m in map
+        .metres()
+        .iter()
+        .filter(|m| m.tick > shift && m.tick < shift + len)
+    {
         metre(&mut ev, at(m.tick), m.signature);
     }
     // The tempo: at the file's start, then at each point and each step of a ramp.

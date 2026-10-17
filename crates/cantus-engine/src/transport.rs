@@ -401,7 +401,9 @@ impl Transport {
     /// transport: samples until the position it hears reaches its next step.
     pub fn samples_until_step_late(&self, late: u64) -> Option<u64> {
         let heard = self.tick_before(self.position_f64(), late);
-        let next = self.map.next_step_after(crate::fx::step_of(&self.map, heard))?;
+        let next = self
+            .map
+            .next_step_after(crate::fx::step_of(&self.map, heard))?;
         let x = self.sample_of_f64(next) + late as f64 - self.samples as f64;
         Some(ceil_sample(x))
     }
@@ -576,7 +578,12 @@ mod tests {
             t.play();
             for _ in 0..2_000 {
                 let p = crate::processor::song_position_of(&t, &None, sr);
-                assert_eq!((p.seconds * sr).round() as i64, p.samples, "{bpm} at {}", p.beats);
+                assert_eq!(
+                    (p.seconds * sr).round() as i64,
+                    p.samples,
+                    "{bpm} at {}",
+                    p.beats
+                );
                 t.advance(997);
             }
         }

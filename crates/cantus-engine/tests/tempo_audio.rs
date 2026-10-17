@@ -120,7 +120,10 @@ fn an_unwarped_clip_plays_where_audio_time_says_through_a_ramp() {
         let f = (lo..lo + 4)
             .filter(|f| *f < frames)
             .find(|f| file[*f].to_bits() == out[k].to_bits() && (*f as f64 - ui).abs() <= 1.0);
-        assert!(f.is_some(), "sample {k}: the engine plays no frame within one of {ui}");
+        assert!(
+            f.is_some(),
+            "sample {k}: the engine plays no frame within one of {ui}"
+        );
         checked += 1;
     }
     assert!(checked > 1000, "{checked}");
@@ -140,10 +143,21 @@ fn a_clip_on_a_tempo_point_plays_the_same_from_wherever_playback_started() {
     p.tracks[0].clips.push(c);
     let want = file[32_000];
     let from_start = render_at(&p, Ticks::ZERO, 256);
-    let at = p.tempo_map().sample_at(Ticks::beats(8).0 as f64, SR as f64).round() as usize;
-    assert_eq!(from_start[at].to_bits(), want.to_bits(), "played from the start");
+    let at = p
+        .tempo_map()
+        .sample_at(Ticks::beats(8).0 as f64, SR as f64)
+        .round() as usize;
+    assert_eq!(
+        from_start[at].to_bits(),
+        want.to_bits(),
+        "played from the start"
+    );
     let from_point = render_at(&p, Ticks::beats(8), 256);
-    assert_eq!(from_point[0].to_bits(), want.to_bits(), "played from the point");
+    assert_eq!(
+        from_point[0].to_bits(),
+        want.to_bits(),
+        "played from the point"
+    );
 }
 
 #[test]
@@ -166,7 +180,10 @@ fn audio_under_a_map_is_the_same_at_every_block_size_and_its_fades_are_measured_
     for block in [1usize, 37, 512] {
         let other = render_at(&p, Ticks::ZERO, block);
         assert!(
-            reference.iter().zip(&other).all(|(a, b)| a.to_bits() == b.to_bits()),
+            reference
+                .iter()
+                .zip(&other)
+                .all(|(a, b)| a.to_bits() == b.to_bits()),
             "block {block}"
         );
     }
@@ -177,8 +194,15 @@ fn audio_under_a_map_is_the_same_at_every_block_size_and_its_fades_are_measured_
     let s3 = map.sample_at(Ticks::beats(3).0 as f64, SR as f64).round() as usize;
     let len = s3 - s1;
     for k in [s3 + 1, s3 + 500, s3 + 5_000] {
-        assert_eq!(reference[k].to_bits(), file[k - s1].to_bits(), "after the fade, {k}");
+        assert_eq!(
+            reference[k].to_bits(),
+            file[k - s1].to_bits(),
+            "after the fade, {k}"
+        );
     }
     let k = s1 + len / 2;
-    assert!(reference[k].abs() < file[k - s1].abs() || file[k - s1] == 0.0, "inside it");
+    assert!(
+        reference[k].abs() < file[k - s1].abs() || file[k - s1] == 0.0,
+        "inside it"
+    );
 }

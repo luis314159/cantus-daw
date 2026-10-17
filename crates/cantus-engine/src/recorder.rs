@@ -503,8 +503,15 @@ impl EngineHandle {
         // Ticks per frame at the tempo the pass was recorded at (one tempo); through the
         // tempo map it was recorded under otherwise (ADR 0060), so a take played across a
         // ramp lands where it was played.
-        let back =
-            |started: f64| take_start(&pass.tempo, pass.tempo_bpm, pass.rate, started, latency as u64);
+        let back = |started: f64| {
+            take_start(
+                &pass.tempo,
+                pass.tempo_bpm,
+                pass.rate,
+                started,
+                latency as u64,
+            )
+        };
         let mut takes = Vec::new();
         for (o, t) in outcomes.into_iter().zip(&pass.tracks) {
             let frames = o.samples / t.channels.max(1) as u64;
@@ -864,9 +871,16 @@ mod tempo_tests {
             bpm,
             ramp: false,
         };
-        let map = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0), pt(8, 60.0)], &[]);
+        let map = TempoMap::new(
+            120.0,
+            TimeSignature::default(),
+            &[pt(0, 120.0), pt(8, 60.0)],
+            &[],
+        );
         let at = |beats: f64| beats * 960.0;
-        assert!((take_start(&map, 120.0, 48_000, at(10.0), 4_800) - (at(10.0) - 96.0)).abs() < 1e-9);
+        assert!(
+            (take_start(&map, 120.0, 48_000, at(10.0), 4_800) - (at(10.0) - 96.0)).abs() < 1e-9
+        );
         assert!((take_start(&map, 120.0, 48_000, at(4.0), 4_800) - (at(4.0) - 192.0)).abs() < 1e-9);
         // Straddling the point: 0.1 s back from beat 8 + 48 ticks (0.05 s at 60) is 0.05 s
         // more at 120: 96 ticks before beat 8.
@@ -874,7 +888,10 @@ mod tempo_tests {
         assert!((got - (at(8.0) - 96.0)).abs() < 1e-9, "{got}");
         let c = TempoMap::constant(97.0, TimeSignature::default());
         let tpf: f64 = 97.0 * 960.0 / (60.0 * 48_000.0);
-        assert_eq!(take_start(&c, 97.0, 48_000, 5_000.0, 333).to_bits(), (5_000.0 - 333.0 * tpf).to_bits());
+        assert_eq!(
+            take_start(&c, 97.0, 48_000, 5_000.0, 333).to_bits(),
+            (5_000.0 - 333.0 * tpf).to_bits()
+        );
     }
 }
 

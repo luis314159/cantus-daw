@@ -711,8 +711,16 @@ fn an_audio_clip_pasted_under_a_tempo_track_keeps_its_seconds() {
         vec![Command::SetTempoTrack {
             bpm: 120.0,
             points: vec![
-                TempoPoint { tick: Ticks::ZERO, bpm: 120.0, ramp: false },
-                TempoPoint { tick: Ticks::beats(16), bpm: 60.0, ramp: false },
+                TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: 120.0,
+                    ramp: false,
+                },
+                TempoPoint {
+                    tick: Ticks::beats(16),
+                    bpm: 60.0,
+                    ramp: false,
+                },
             ],
         }],
     );
@@ -727,8 +735,13 @@ fn an_audio_clip_pasted_under_a_tempo_track_keeps_its_seconds() {
         &mut bus,
         "import",
         vec![
-            Command::InsertAudioSource { source: source(sid.0, "C:/a.wav") },
-            Command::InsertClip { track: t[0], clip: Box::new(c) },
+            Command::InsertAudioSource {
+                source: source(sid.0, "C:/a.wav"),
+            },
+            Command::InsertClip {
+                track: t[0],
+                clip: Box::new(c),
+            },
         ],
     );
     let origin = clipboard::copy_origin(bus.project(), &[(t[0], cid)]);
@@ -738,7 +751,10 @@ fn an_audio_clip_pasted_under_a_tempo_track_keeps_its_seconds() {
     plans.insert(sid, SourcePlan::Reuse(sid));
     let paste = |at: Ticks| {
         let mut ids = Counter::of(&bus);
-        let out = clipboard::paste_clips(bus.project(), &b, true, 0, at, &plans, false, &mut || ids.take());
+        let out =
+            clipboard::paste_clips(bus.project(), &b, true, 0, at, &plans, false, &mut || {
+                ids.take()
+            });
         let Command::InsertClip { clip, .. } = &out.commands[0] else {
             panic!("an InsertClip");
         };
@@ -746,10 +762,16 @@ fn an_audio_clip_pasted_under_a_tempo_track_keeps_its_seconds() {
     };
     // Inside the same held 60: exactly as it was.
     let same = paste(Ticks::beats(24));
-    assert_eq!((same.length, same.offset), (Ticks::beats(4), Ticks::beats(2)));
+    assert_eq!(
+        (same.length, same.offset),
+        (Ticks::beats(4), Ticks::beats(2))
+    );
     assert_eq!(same.audio.unwrap().fade_in, Ticks::beats(1));
     // At 120 BPM: twice the ticks, the same seconds.
     let fast = paste(Ticks::beats(4));
-    assert_eq!((fast.length, fast.offset), (Ticks::beats(8), Ticks::beats(4)));
+    assert_eq!(
+        (fast.length, fast.offset),
+        (Ticks::beats(8), Ticks::beats(4))
+    );
     assert_eq!(fast.audio.unwrap().fade_in, Ticks::beats(2));
 }

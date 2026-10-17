@@ -371,10 +371,20 @@ fn a_held_first_tempo_has_no_change_at_zero() {
     let c = TempoMap::constant(120.0, TimeSignature::default());
     assert_eq!(c.next_change_after(-3840.0), None);
     assert_eq!(c.next_step_after(-3840.0), None);
-    let step = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, false), pt(1920, 90.0, false)], &[]);
+    let step = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, false), pt(1920, 90.0, false)],
+        &[],
+    );
     assert_eq!(step.next_change_after(-10.0), Some(1920.0));
     // A ramp from tick 0 does start there.
-    let ramp = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, true), pt(1920, 90.0, false)], &[]);
+    let ramp = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, true), pt(1920, 90.0, false)],
+        &[],
+    );
     assert_eq!(ramp.next_change_after(-10.0), Some(0.0));
     assert_eq!(ramp.next_step_after(-10.0), Some(0.0));
 }
@@ -382,8 +392,18 @@ fn a_held_first_tempo_has_no_change_at_zero() {
 /// Review 1 (finding 4): a span starting before tick 0 keys on the first segment's ramp.
 #[test]
 fn the_span_key_before_zero_sees_the_first_ramp() {
-    let a = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, true), pt(1920, 140.0, false)], &[]);
-    let b = TempoMap::new(120.0, TimeSignature::default(), &[pt(0, 120.0, false), pt(1920, 140.0, false)], &[]);
+    let a = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, true), pt(1920, 140.0, false)],
+        &[],
+    );
+    let b = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[pt(0, 120.0, false), pt(1920, 140.0, false)],
+        &[],
+    );
     let c = TempoMap::constant(120.0, TimeSignature::default());
     let (from, to) = (Ticks(-960), Ticks(1920));
     assert_ne!(a.span_key(from, to), b.span_key(from, to));
