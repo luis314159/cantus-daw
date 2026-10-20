@@ -254,3 +254,62 @@ fn a_late_job_is_left_to_finish_and_seen_finished_later() {
     assert_eq!(payload(&p.mem, 0).load(Ordering::Relaxed), 3);
     stop(&mut p);
 }
+
+/// The deadline is the bound the ADR states (review #12): a late job's wait ends within
+/// 2 ms of it — not on the next tick of a coarse system timer (15.6 ms on Windows by
+/// default). No worker runs, so every wait is late; the median of twenty is judged, so one
+/// preempted wait on a busy machine does not decide it.
+#[test]
+fn a_late_wait_ends_within_two_milliseconds_of_its_deadline() {
+    let name = unique_name("cantus-ipc-deadline");
+    let mem = SharedMemory::create(&name, REGION).expect("make the region");
+    // SAFETY: `mem` outlives the bell and the caller, dropped after them below.
+    let bell = unsafe { LobbyBell::create(&name, lobby(&mem)) }.expect("the lobby bell");
+    // SAFETY: as above.
+    let caller =
+        unsafe { Caller::create(&format!("{name}-0"), exchange(&mem, 0), &name, lobby(&mem)) }
+            .expect("the caller");
+    let deadline = Duration::from_millis(5);
+    let mut took: Vec<Duration> = (0..20)
+        .map(|_| {
+            let n = caller.submit();
+            let t = Instant::now();
+            assert_eq!(
+                caller.wait(n, Duration::from_micros(50), Some(t + deadline)),
+                Outcome::Late
+            );
+            let e = t.elapsed();
+            // The next job takes the late one's place (nobody serves them).
+            // SAFETY: the exchange is in our live region.
+            let x = unsafe { &*exchange(&mem, 0) };
+            while x.take().is_some() {}
+            e
+        })
+        .collect();
+    took.sort();
+    let median = took[took.len() / 2];
+    assert!(
+        median < deadline + Duration::from_millis(2),
+        "a 5 ms deadline waited {median:?} (all: {took:?})"
+    );
+    drop(caller);
+    drop(bell);
+}
+
+/// Once the other side has mapped a region, its creator removes the name (review #43): on
+/// Unix nothing is left in `/dev/shm` if Cantus is killed; both mappings keep sharing.
+#[test]
+fn an_unlinked_region_still_shares_its_pages_and_cannot_be_opened_again() {
+    let name = unique_name("cantus-shm-unlink");
+    let made = SharedMemory::create(&name, REGION).expect("make the region");
+    let opened = SharedMemory::open(&name, REGION).expect("open it");
+    made.unlink_name();
+    made.unlink_name();
+    payload(&made, 0).store(42, Ordering::Relaxed);
+    assert_eq!(payload(&opened, 0).load(Ordering::Relaxed), 42);
+    #[cfg(unix)]
+    assert!(
+        SharedMemory::open(&name, REGION).is_err(),
+        "the name is gone"
+    );
+}

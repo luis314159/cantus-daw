@@ -46,6 +46,11 @@ pub const ABORT_SAVE: f64 = 3.0;
 pub const ABORT_LOAD: f64 = 4.0;
 pub const ABORT_ACTIVATE: f64 = 5.0;
 pub const ABORT_EDITOR: f64 = 6.0;
+pub const HANG_SAVE: f64 = 7.0;
+pub const HANG_LOAD: f64 = 8.0;
+pub const HANG_EDITOR: f64 = 9.0;
+pub const PUMP_SAVE: f64 = 10.0;
+pub const SLOW_ONCE: f64 = 11.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
