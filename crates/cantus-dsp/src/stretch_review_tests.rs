@@ -789,3 +789,85 @@ fn a_stereo_image_over_independent_noise_is_kept() {
         }
     }
 }
+
+/// Round 29's third review (finding 28): a Rhythm window of a long file that ends between
+/// two hits, slowed ×0.8 and transposed +3 st, plays nothing of the hit after its end —
+/// its last slice ends by its tail — and two halves of it split between hits sum to it.
+#[test]
+fn rhythms_last_slice_never_plays_the_next_windows_hit() {
+    let n = 20 * 48_000;
+    let (x, at) = hits(n, 3_000, 21_000, 17);
+    // Source 384 000..460 800 over 96 000 output frames: the window ends 4 200 frames
+    // before the hit at 465 000.
+    let len = 96_000;
+    let map = Map::new(vec![(0.0, 384_000.0), (len as f64, 460_800.0)]).unwrap();
+    let q = req(Mode::Rhythm, &map, len, 3.0, &at);
+    let y = render(&[&x], SR, &q);
+    // The last slice starts at the hit at 444 000 (output 75 000): its own hit, then its
+    // fade — never a second onset before the window ends.
+    let tail = &y[0][90_000..len];
+    let peak = tail.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak < 0.05, "the next hit inside the window: {peak}");
+    // Split at output 48 000 (source 422 400, between hits): the halves sum to the whole
+    // around the split.
+    let mid = 48_000usize;
+    let left = Map::new(vec![(0.0, 384_000.0), (mid as f64, 422_400.0)]).unwrap();
+    let right = Map::new(vec![(0.0, 422_400.0), ((len - mid) as f64, 460_800.0)]).unwrap();
+    let a = render(&[&x], SR, &req(Mode::Rhythm, &left, mid, 3.0, &at));
+    let b = render(&[&x], SR, &req(Mode::Rhythm, &right, len - mid, 3.0, &at));
+    let joined: Vec<f32> = a[0].iter().chain(&b[0]).copied().collect();
+    let worst = joined[mid - 2_000..mid + 2_000]
+        .iter()
+        .zip(&y[0][mid - 2_000..mid + 2_000])
+        .map(|(p, q)| (p - q).abs())
+        .fold(0.0f32, f32::max);
+    assert!(
+        worst < 0.05,
+        "the halves differ from the whole by {worst} at the split"
+    );
+}
+
+/// Round 29's third review (finding 8): a sped-up window (×1.6, ×2) whose first hit comes
+/// 20 to 90 ms after its start renders as the whole file would — the vocoder's frames
+/// before the window read at the window's own speed, never far before it — and what was
+/// a third of a second before the window never sounds in its first frames.
+#[test]
+fn a_sped_up_window_starting_before_a_hit_reads_no_further_back_than_its_speed() {
+    let n = 20 * 48_000;
+    let (h, at) = hits(n, 3_000, 21_000, 17);
+    // A 1 kHz tone up to a third of a second before each window, 200 Hz after.
+    for (k, ms) in [(1.6, 20.0), (2.0, 50.0), (2.0, 90.0)] {
+        let first = 402_000.0;
+        let a = first - k * ms / 1_000.0 * SR as f64;
+        let change = (a - 16_000.0) as usize;
+        let tone: Vec<f32> = (0..n)
+            .map(|i| {
+                let hz = if i < change { 1_000.0 } else { 200.0 };
+                0.3 * math::sin(2.0 * std::f64::consts::PI * hz * i as f64 / SR as f64) as f32
+            })
+            .collect();
+        let x: Vec<f32> = h.iter().zip(&tone).map(|(a, b)| a + b).collect();
+        let len = 96_000;
+        let map = Map::new(vec![(0.0, a), (len as f64, a + k * len as f64)]).unwrap();
+        // The window's first hit is the first detected (none in the second before it).
+        let at: Vec<f64> = at.iter().copied().filter(|s| *s >= first).collect();
+        let q = req(Mode::Complex, &map, len, 0.0, &at);
+        let whole = dispatch(&[&x], SR, &q, 0.0);
+        let windowed = render(&[&x], SR, &q);
+        let worst = windowed[0]
+            .iter()
+            .zip(&whole[0])
+            .map(|(p, q)| (p - q).abs())
+            .fold(0.0f32, f32::max);
+        assert!(worst < 1e-4, "×{k}, {ms} ms: {worst} from the whole file");
+        // The tones alone (the hits' places still held): nothing of the 1 kHz.
+        let whole = dispatch(&[&tone], SR, &q, 0.0);
+        let head = &whole[0][..2_048];
+        let far = amplitude(head, SR, 1_000.0);
+        let near = amplitude(head, SR, 200.0);
+        assert!(
+            far < 0.01 * near,
+            "×{k}, {ms} ms: the 1 kHz from before the window at {far} (200 Hz {near})"
+        );
+    }
+}

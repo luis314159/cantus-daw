@@ -31,8 +31,13 @@ fn read(x: &[f32], pos: f64) -> f32 {
 }
 
 /// The slices of a render: `(source start, output start)`, the first from wherever output
-/// 0 reads — and the cut that started it, when a transient before the output did.
-fn slices(req: &Request, ratio: f64, src_len: f64) -> (Vec<(f64, f64)>, Option<f64>) {
+/// 0 reads — and the cut that started it, when a transient before the output did; and
+/// where the last slice's source ends: the first cut at or past the output's end (the
+/// window's hard end, else the next transient), else `src_len` — round 29's third review:
+/// bounded by the file, a slowed window's last slice played the next window's hit.
+type Slices = (Vec<(f64, f64)>, Option<f64>, f64);
+
+fn slices(req: &Request, ratio: f64, src_len: f64) -> Slices {
     let map = req.map;
     let len = req.len;
     // The cuts: every transient and every hard breakpoint (a warp marker, a window's end),
@@ -50,9 +55,14 @@ fn slices(req: &Request, ratio: f64, src_len: f64) -> (Vec<(f64, f64)>, Option<f
     cuts.dedup_by(|b, a| (*b - *a).abs() < 1.0);
     let mut slices: Vec<(f64, f64)> = vec![(map.source(0.0).round(), 0.0)];
     let mut first = None;
+    let mut last = src_len;
     for &s in &cuts {
         let o = map.output(s).round();
-        if o <= slices.last().map_or(f64::NEG_INFINITY, |l| l.1) || o >= len as f64 {
+        if o >= len as f64 {
+            last = last.min(s);
+            continue;
+        }
+        if o <= slices.last().map_or(f64::NEG_INFINITY, |l| l.1) {
             if o <= 0.0 {
                 // A transient before the output starts: the first slice starts there.
                 slices[0] = (s + (0.0 - o) * ratio, 0.0);
@@ -62,12 +72,15 @@ fn slices(req: &Request, ratio: f64, src_len: f64) -> (Vec<(f64, f64)>, Option<f
         }
         slices.push((s, o));
     }
-    (slices, first)
+    // A cut at or before the last slice's start bounds nothing.
+    let s_last = slices.last().map_or(0.0, |l| l.0);
+    let last = if last > s_last { last } else { src_len };
+    (slices, first, last)
 }
 
 /// The source frames `[lo, hi]` the slices read (a looped tail's cross-fade aside, which
-/// reaches a fifth of a slice before it at most).
-fn read_span(slices: &[(f64, f64)], len: usize, ratio: f64, src_len: f64) -> (f64, f64) {
+/// reaches a fifth of a slice before it at most), the last ending at `end`.
+fn read_span(slices: &[(f64, f64)], len: usize, ratio: f64, end: f64) -> (f64, f64) {
     let lo = slices.iter().map(|s| s.0).fold(f64::MAX, f64::min);
     let hi = slices
         .iter()
@@ -75,7 +88,7 @@ fn read_span(slices: &[(f64, f64)], len: usize, ratio: f64, src_len: f64) -> (f6
         .map(|(i, &(s0, o0))| {
             let (s1, o1) = slices
                 .get(i + 1)
-                .map_or((src_len, len as f64), |&(s, o)| (s, o));
+                .map_or((end, len as f64), |&(s, o)| (s, o));
             (s0 + (o1 - o0) * ratio).min(s1)
         })
         .fold(lo, f64::max);
@@ -87,15 +100,15 @@ fn read_span(slices: &[(f64, f64)], len: usize, ratio: f64, src_len: f64) -> (f6
 /// starts it — to the furthest a slice reads (round 29's second review: it took the whole
 /// file for every window).
 pub(super) fn reach(req: &Request, ratio: f64, src_len: usize) -> (f64, f64) {
-    let (s, first) = slices(req, ratio, src_len as f64);
-    let (lo, hi) = read_span(&s, req.len, ratio, src_len as f64);
+    let (s, first, last) = slices(req, ratio, src_len as f64);
+    let (lo, hi) = read_span(&s, req.len, ratio, last);
     (first.map_or(lo, |f| f.min(lo)), hi)
 }
 
 pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) -> Vec<Vec<f32>> {
     let len = req.len;
     let src_len = channels.iter().map(|c| c.len()).max().unwrap_or(0) as f64;
-    let (slices, _) = slices(req, ratio, src_len);
+    let (slices, _, last) = slices(req, ratio, src_len);
     let fade = (FADE_S * rate as f64).max(1.0);
     // Transposed up, a slice is read faster than it was recorded: through the band-limited
     // reader (nothing above the output's band folds back), over the span the slices read.
@@ -103,7 +116,7 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
         .iter()
         .map(|c| {
             (ratio > 1.0).then(|| {
-                let (lo, hi) = read_span(&slices, len, ratio, src_len);
+                let (lo, hi) = read_span(&slices, len, ratio, last);
                 Fast::new(c, lo, hi, ratio)
             })
         })
@@ -118,7 +131,7 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
     for (i, &(s0, o0)) in slices.iter().enumerate() {
         let (s1, o1) = slices
             .get(i + 1)
-            .map_or((src_len, len as f64), |&(s, o)| (s, o));
+            .map_or((last, len as f64), |&(s, o)| (s, o));
         let room = s1 - s0; // source frames the slice owns
         let span = o1 - o0; // output frames it fills
         if span <= 0.0 || room <= 0.0 {
