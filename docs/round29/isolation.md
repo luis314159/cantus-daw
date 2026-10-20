@@ -322,6 +322,7 @@ helper's own), `rt_alloc.rs` (a carry and its delivery), and `cantus-ui`
 | 38 | No interface test of a reload that crashes again | — | `a_reload_that_crashes_again_brings_its_card_back_in_its_words` ✗→✓ (card return removed) |
 | 31 | The modal-loop test held neither the safety half nor nested unloads | Asserts the held load is Busy at once and runs after, in order; the neighbour removed during the dialog; `must_wait` unit-tested | `a_long_modal_loop_kills_nothing_and_freezes_nothing`, `what_a_nested_loop_serves` |
 | 32 | Crash-handler tests passed on one processing thread; the pool test held nothing new | `Sandboxes::set_threads` (`--threads`); two threads in the handler test; a fail-fast with two jobs running | `the_crash_handler_names_the_plugin_whose_thread_crashed` ✗→✓ (handler's record removed), `a_fail_fast_with_two_jobs_running_is_nobodys` (coverage) |
+| (Linux run) | A wait's slice could sleep past a limit shorter than itself (a 1 ms handshake limit waited 20 ms; a fast Linux helper answered within it) | A slice never sleeps past the wait's own end | `a_render_that_cannot_load_a_plugin_says_so` on Linux ✗→✓ |
 | 42 | The shots did not show the fixes | `three_button_app` lists two plug-ins (the named Run button); EN shots taken again; the chain hint is `views::mixer::chain_hint`, tested; a waiting-card shot | `the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back` ✗→✓, shots |
 
 Faults added (CLAP gain and synth): 18 a one-second `process`; 19 an access violation in the
@@ -345,3 +346,16 @@ added: `Win32_System_ProcessStatus`, `Win32_UI_Input_KeyboardAndMouse` (cantus-s
 `Win32_Graphics_Gdi`, `Win32_System_Diagnostics_Debug`, `Win32_System_Kernel` (the CLAP
 test plug-ins). No
 schema change, no new command.
+
+Runs after the third fix round (Windows, the machine shared with two builds):
+`cantus-rt`, `cantus-host`, `cantus-sandbox` 238 passed (2 ignored, as before); `cantus-ui`
+1 615 passed (and its isolation tests again after the last two small fixes); `cargo clippy
+--workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL):
+`tools/wsl/check.sh r29/isolation clippy` clean (with the plug-ins built without their
+editor), and `cantus-rt`/`cantus-host`/`cantus-sandbox` 211 passed there. The sandbox
+tests' copies of the CLAP test plug-ins (a static never dropped) are now named
+`cantus-test-clap-*` and cleared after an hour, so the temporary folder no longer fills with
+them. Shots in `F:\projects\daw-r29\shots\isolation\`, English taken again with Spanish:
+`isolation-three-buttons-night-{en,es}-1x.png` (two plug-ins: *Run Spectras…Edition
+individually*), `isolation-waiting-night-{en,es}-1x.png` (new: the waiting card, and a busy
+window said on the status line), the mixer at XL with its chain line in both languages.

@@ -113,7 +113,30 @@ fn built(package: &str, stem: &str) -> PathBuf {
 pub fn clap_folder() -> &'static Path {
     static DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
     DIR.get_or_init(|| {
-        let dir = tempfile::tempdir().expect("temp dir");
+        // A test binary never drops its statics: copies other runs left behind an hour ago
+        // and more are cleared first, so the temporary folder stays small.
+        let tmp = std::env::temp_dir();
+        if let Ok(entries) = std::fs::read_dir(&tmp) {
+            for e in entries.flatten() {
+                let old = e
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.elapsed().ok())
+                    .is_some_and(|age| age > std::time::Duration::from_secs(3_600));
+                if old
+                    && e.file_name()
+                        .to_string_lossy()
+                        .starts_with("cantus-test-clap-")
+                {
+                    let _ = std::fs::remove_dir_all(e.path());
+                }
+            }
+        }
+        let dir = tempfile::Builder::new()
+            .prefix("cantus-test-clap-")
+            .tempdir()
+            .expect("temp dir");
         std::fs::copy(
             built("cantus-test-clap", "cantus_test_clap"),
             dir.path().join("cantus-test-gain.clap"),
