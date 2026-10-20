@@ -558,3 +558,78 @@ fn the_warp_bar_scrolls_in_a_narrow_pane() {
     let after = mode(&a);
     assert!(after.right() <= size.x + 0.5, "never reached: {after:?}");
 }
+
+/// Finding 38: a first warping edit — a marker added, *Follow* pressed — on a clip that
+/// straddles a 60→180 BPM ramp and a step, trimmed 3 beats and 13 ticks in, forwards and
+/// reversed, leaves what plays alone: every place inside the window within half a frame.
+#[test]
+fn a_first_edit_on_a_ramped_trimmed_or_reversed_clip_leaves_what_plays_alone() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("long.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 12, 0.25).audio);
+    for reverse in [false, true] {
+        for edit in 0..2 {
+            let mut p = project(120.0);
+            p.tempo_points = vec![
+                point(Ticks::ZERO, 120.0, false),
+                point(Ticks::beats(4), 60.0, true),
+                point(Ticks::beats(12), 180.0, false),
+                point(Ticks::beats(16), 100.0, false),
+            ];
+            let mut a = app(p);
+            a.import_audio(std::slice::from_ref(&path), Ticks::beats(2), None);
+            settle(&mut a);
+            let (t, c) = audio_clips(&a).remove(0);
+            let r = (t, c.id);
+            assert!(a.clip_warp(r).is_none(), "not warped by itself");
+            let trim = Ticks::beats(3) + Ticks(13);
+            a.exec(Command::SetClipBounds {
+                track: t,
+                clip: r.1,
+                start: c.start + trim,
+                length: Ticks::beats(18),
+            });
+            a.exec(Command::SetClipOffset {
+                track: t,
+                clip: r.1,
+                offset: c.offset + trim,
+            });
+            if reverse {
+                let mut region = clip(&a, r).audio.unwrap();
+                region.reverse = true;
+                a.exec(Command::SetClipAudio {
+                    track: t,
+                    clip: r.1,
+                    audio: Some(region),
+                });
+            }
+            let c = clip(&a, r);
+            let at: Vec<Ticks> = (1..=9)
+                .map(|k| c.start + Ticks(c.length.0 * k / 10 + 9))
+                .collect();
+            let before: Vec<f64> = at.iter().map(|t| heard(&a, r, *t)).collect();
+            if edit == 0 {
+                assert!(a.add_warp_marker(r, Ticks::beats(5), None));
+                // On the content tick asked (the clip's content ticks as they are now).
+                let at = Ticks::beats(5);
+                let w = a.clip_warp(r).unwrap();
+                assert!(
+                    w.markers.iter().any(|m| !m.auto && m.tick == at),
+                    "{:?}",
+                    w.markers.iter().filter(|m| !m.auto).collect::<Vec<_>>()
+                );
+            } else {
+                assert!(a.set_warp_follow(r, true));
+            }
+            assert!(a.clip_warp(r).is_some_and(|w| w.follow));
+            for (t, f) in at.iter().zip(&before) {
+                let d = heard(&a, r, *t) - f;
+                assert!(
+                    d.abs() <= 0.5,
+                    "reversed {reverse}, edit {edit}: {d:+} frames at tick {}",
+                    t.0
+                );
+            }
+        }
+    }
+}

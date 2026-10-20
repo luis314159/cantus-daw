@@ -718,3 +718,37 @@ fn a_following_warp_on_the_natural_line_plays_the_source_to_the_bit() {
         }
     }
 }
+
+/// Tempo's relay (its old 1/9): a transposed window that does not follow, a tempo point
+/// moved inside its hidden part with nothing re-anchoring it, plays a new render — the
+/// render kept through a re-anchoring is never kept past it.
+#[test]
+fn a_tempo_edit_in_the_hidden_part_renders_a_transposed_window_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("take.wav");
+    let x = sine(48_000, 220.0, 12.0);
+    write_wav(&path, &x, 48_000);
+    let mut p = project(
+        &path,
+        48_000,
+        x.len(),
+        Ticks::beats(8),
+        Ticks::beats(6),
+        Ticks::beats(4),
+        Some(transposed(48_000)),
+    );
+    p.tempo_points = vec![point(Ticks::ZERO, 120.0), point(Ticks::beats(4), 100.0)];
+    let mut cache = SampleCache::new();
+    let mut s = Snapshot::compile(&p, 1);
+    cache.attach_audio(&mut s, 48_000);
+    let first = s.tracks[0].audio[0].data.clone().unwrap();
+    p.tempo_points = vec![point(Ticks::ZERO, 120.0), point(Ticks::beats(3), 100.0)];
+    let mut s = Snapshot::compile(&p, 2);
+    cache.attach_audio(&mut s, 48_000);
+    let c = &s.tracks[0].audio[0];
+    assert!(
+        !Arc::ptr_eq(c.data.as_ref().unwrap(), &first),
+        "the render of the frame it played before"
+    );
+    assert_eq!(c.zero_at, Some((c.start, 0.0)), "its own render");
+}
