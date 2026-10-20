@@ -916,6 +916,23 @@ fn a_render_that_needs_a_plugin_not_loaded_is_refused_and_says_which() {
             .unwrap_or(false)
     };
     assert!(!written(&dir.join("renders")) && !written(&dir.join("Freeze")));
+    // On a strip the render does not run (the bass's), it is not needed — nor made
+    // (review 1: every plug-in of the project was instantiated for one freeze).
+    let (mut app, _dir) = self::app("missing-elsewhere");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let bass = app.project().tracks[1].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut e = p.make_effect(EffectKind::Delay);
+    e.spec = EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.nowhere.reverb",
+        "Nowhere Reverb",
+    ));
+    p.strip_mut(bass).unwrap().effects.push(e);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
 }
 
 #[test]
@@ -1028,4 +1045,50 @@ fn a_modulator_bake_waits_for_a_freeze_rendering() {
     assert!(app.freeze.job.is_some());
     assert!(!app.bake_route(id, &target), "it waits");
     assert!(app.status.error);
+}
+
+/// The samples of the bounce on track `index`.
+fn bounced(app: &CantusApp, index: usize) -> Vec<f32> {
+    let p = app.project();
+    let a = p.tracks[index].clips[0]
+        .audio
+        .as_ref()
+        .expect("an audio clip");
+    let s = p.audio_source(a.source).unwrap();
+    let path = cantus_ui::waveform::resolve(app.audio_base(), &s.path);
+    hound::WavReader::open(path)
+        .unwrap()
+        .samples::<f32>()
+        .map(|x| x.unwrap())
+        .collect()
+}
+
+#[test]
+fn a_track_that_shares_the_strip_for_its_notes_does_not_leak_into_a_bounce() {
+    let ctx = support::ctx();
+    let make = |name: &str, on_strip: bool| {
+        let (mut app, dir) = app(name);
+        let strip = app.project().tracks[0].strip.unwrap();
+        let mut p = app.project().clone();
+        // An insert on the synth's strip hears the bass's notes; the bass plays into the
+        // synth's strip too, or to the master.
+        let bass = p.tracks[1].id;
+        p.strip_mut(strip).unwrap().effects[0].midi_from = Some(bass);
+        p.tracks[1].strip = if on_strip { Some(strip) } else { None };
+        app.bus = CommandBus::new(p);
+        let synth = app.project().tracks[0].id;
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through: Through::Inserts,
+                range: Range::Track,
+            },
+        );
+        (bounced(&app, 1), dir)
+    };
+    let (shared, _a) = make("leak-shared", true);
+    let (apart, _b) = make("leak-apart", false);
+    same_bits(&shared, &apart, "the synth through its inserts alone");
 }

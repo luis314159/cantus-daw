@@ -920,9 +920,11 @@ fn list(
         clicked: None,
         hovered: None,
     };
+    // Its size given, not egui's default area size (400 points tall): see `mixer_menu`.
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
+        .default_size(egui::vec2(width, h))
         .constrain(true)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()

@@ -139,9 +139,11 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
         + crate::kit::menu::height(&items(None, &new), s.d(1.0))
         + crate::kit::menu::height(&items(None, &bake), s.d(1.0));
     let room = (screen - fixed - s.s(48.0)).max(s.s(120.0));
+    // Room for all of it, not egui's default area size (400 points tall): see `mixer_menu`.
     let area = egui::Area::new(Id::new("mod-popup"))
         .order(Order::Foreground)
         .fixed_pos(egui::pos2(anchor.right() + s.s(4.0), anchor.top()))
+        .default_size(egui::vec2(s.s(width) + s.s(16.0), screen))
         .constrain(true)
         .show(ctx, |ui| {
             crate::kit::automate::frame().show(ui, |ui| {

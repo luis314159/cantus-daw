@@ -140,13 +140,22 @@ fn run() {
                     panel(root, |ui| views::arrangement::show(&mut a, ui));
                 });
                 println!("{}", out.display());
-                // The mixer: the frozen strip's head, its menu open.
+                // The mixer: the frozen strip's head (its snowflake lit; the bass's strip,
+                // holding a frozen source, dim).
+                let ctx = context(dark);
+                let (mut a, _p) = app();
+                let out = dir.join(format!("freeze-mixer-{tag}.png"));
+                shoot(&ctx, egui::vec2(1400.0, 760.0), k, 6, Some(&out), |root| {
+                    panel(root, |ui| views::mixer::show(&mut a, ui));
+                });
+                println!("{}", out.display());
+                // Its menu, beside the strips, down to the Freeze band and Routing.
                 let ctx = context(dark);
                 let (mut a, _p) = app();
                 let lead = a.project().tracks[0].strip;
-                views::mixer::open_menu(&mut a, lead, egui::pos2(150.0, 120.0));
-                let out = dir.join(format!("freeze-mixer-{tag}.png"));
-                shoot(&ctx, egui::vec2(1400.0, 760.0), k, 6, Some(&out), |root| {
+                views::mixer::open_menu(&mut a, lead, egui::pos2(480.0, 30.0));
+                let out = dir.join(format!("freeze-strip-menu-{tag}.png"));
+                shoot(&ctx, egui::vec2(1000.0, 1100.0), k, 6, Some(&out), |root| {
                     panel(root, |ui| views::mixer::show(&mut a, ui));
                 });
                 println!("{}", out.display());

@@ -980,9 +980,13 @@ fn list(
         hovered: None,
         row_of_hovered: None,
     };
+    // Its size given: egui's first (sizing) pass would hold it to its default area size —
+    // 400 points tall — and every row below that sat behind a scroll that does not show
+    // (round 29, review 1: the strip menu ended at Mute; Freeze and Routing were below).
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
+        .default_size(vec2(width, h))
         .constrain(true)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()
