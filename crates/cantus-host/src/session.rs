@@ -941,7 +941,9 @@ impl PluginHost {
         let cantus_core::CommandError::Frozen(target) = error else {
             return false;
         };
-        if let (Some(h), Some((_, slot))) = (self.slots.get_mut(&effect), find_slot(project, effect)) {
+        if let (Some(h), Some((_, slot))) =
+            (self.slots.get_mut(&effect), find_slot(project, effect))
+        {
             if let Some(plugin) = slot.spec.external.as_deref() {
                 if !plugin.state.is_empty() {
                     if let Err(e) = h.main.load_state(plugin.state.bytes()) {

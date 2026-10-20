@@ -126,18 +126,33 @@ pub fn veil_clip(b: &mut Brush, body: Rect, lanes: Rect, s: &Style) {
     }
 }
 
-/// A strip's head: the snowflake in its number cell's corner — lit when it is frozen, dim
-/// when a frozen strip holds it.
+/// The snowflake's size in a strip head's number cell.
+fn mark_size(cell: Rect, s: &Style) -> f32 {
+    (cell.height() * 0.5).min(s.s(9.0))
+}
+
+/// The room a strip head's number cell keeps at its right for the snowflake (0 without
+/// one): the number is laid out beside it, never under it (review 2).
+pub fn strip_mark_room(app: &CantusApp, strip: StripId, cell: Rect, s: &Style) -> f32 {
+    if held(app).held_strips.contains(&strip) {
+        mark_size(cell, s) + s.s(2.0)
+    } else {
+        0.0
+    }
+}
+
+/// A strip's head: the snowflake at its number cell's right edge — lit when it is frozen,
+/// dim when a frozen strip holds it.
 pub fn paint_strip_mark(b: &mut Brush, cell: Rect, app: &CantusApp, strip: StripId, s: &Style) {
     let h = held(app);
     if !h.held_strips.contains(&strip) {
         return;
     }
     let lit = h.strips.contains(&strip);
-    let d = (cell.height() * 0.62).min(s.s(12.0));
+    let d = mark_size(cell, s);
     let gr = Rect::from_min_size(
         egui::pos2(
-            cell.right() - d - s.s(2.0),
+            cell.right() - d - s.s(1.0),
             cell.top() + (cell.height() - d) * 0.5,
         ),
         Vec2::splat(d),
@@ -166,6 +181,26 @@ pub enum Answer {
 pub type Card = (String, String, Vec<(String, Answer)>, Answer);
 
 pub fn card(app: &CantusApp) -> Option<Card> {
+    // Waiting (behind an export, a bake, files loading): said, and it can be stopped
+    // (review 2: it waited unseen).
+    if let Some(w) = app.freeze.waiting() {
+        let name = match w {
+            crate::freeze::Want::Freeze(t) | crate::freeze::Want::Refresh(t) => {
+                crate::freeze::name_of(app.project(), *t)
+            }
+            crate::freeze::Want::Bounce(p) => app
+                .project()
+                .track(p.track)
+                .map(|t| t.name.clone())
+                .unwrap_or_default(),
+        };
+        return Some((
+            tf("freeze.card.waiting", &[("name", &name)]),
+            t("freeze.card.waiting_body"),
+            vec![(t("freeze.card.stop"), Answer::Stop)],
+            Answer::Stop,
+        ));
+    }
     if let Some(j) = &app.freeze.job {
         let pct = (j.progress.fraction() * 100.0).round() as u32;
         let (title, body) = match &j.want {
@@ -182,6 +217,13 @@ pub fn card(app: &CantusApp) -> Option<Card> {
                 tf("freeze.card.bouncing_body", &[("pct", &pct)]),
             ),
         };
+        // What waits after it.
+        let more = app.freeze.queued();
+        let body = if more > 0 {
+            tf("freeze.card.more", &[("body", &body), ("n", &more)])
+        } else {
+            body
+        };
         return Some((
             title,
             body,
@@ -196,13 +238,36 @@ pub fn card(app: &CantusApp) -> Option<Card> {
     let name = crate::freeze::name_of(app.project(), target);
     Some((
         tf("freeze.card.refused", &[("name", &name)]),
-        t("freeze.card.refused_body"),
+        t(live_words(
+            app.project(),
+            target,
+            "freeze.card.refused_body",
+        )),
         vec![
             (t("freeze.unfreeze"), Answer::Unfreeze(target)),
             (t("freeze.card.ok"), Answer::Dismiss),
         ],
         Answer::Dismiss,
     ))
+}
+
+/// The key of what stays live of `target` (review 2: the words said its fader stayed live
+/// when a modulator in its region heard it and the fader was locked): `base`, or
+/// `base_heard` (its mix is part of its sound), or `base_track` (a track's level, balance,
+/// mute and solo).
+pub fn live_words(
+    project: &cantus_core::Project,
+    target: FreezeTarget,
+    base: &'static str,
+) -> &'static str {
+    let heard = cantus_core::freeze::region(project, target).hears_root;
+    match (target, heard, base) {
+        (_, true, "freeze.done") => "freeze.done_heard",
+        (_, true, _) => "freeze.card.refused_body_heard",
+        (FreezeTarget::Track(_), false, "freeze.done") => "freeze.done_track",
+        (FreezeTarget::Track(_), false, _) => "freeze.card.refused_body_track",
+        _ => base,
+    }
 }
 
 pub fn answer(app: &mut CantusApp, a: Answer) {
@@ -312,9 +377,39 @@ pub fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) -> bool {
 /// selected clips — each track's, one bounce after the other (review 1: only the first
 /// track's were) — else the time selection, else the whole track.
 pub fn bounce_selection(app: &mut CantusApp, through: Through) {
+    use super::inspector::Subject;
+    let subject = super::inspector::subject(app);
+    // A strip chosen on the desk: that strip, whole (review 2: the last track chosen was
+    // bounced instead); the master is never bounced.
+    match subject {
+        Subject::Strip(s) => {
+            if through == Through::Inserts {
+                app.bounce_strip(s);
+            } else {
+                app.set_status(t("bounce.strip_source"));
+            }
+            return;
+        }
+        Subject::Master => {
+            app.set_status(t("freeze.master"));
+            return;
+        }
+        _ => {}
+    }
     let time = app.time_selection.filter(|(a, b)| b > a);
-    let sel = app.clip_selection();
     let time_last = app.last_selection == crate::clipboard::SelKind::Time;
+    // A track header chosen last: the whole track, as the manual says (review 2: choosing
+    // a track selects its first clip, and only that was bounced).
+    let track_last = app.last_selection == crate::clipboard::SelKind::Track;
+    if let (Subject::Track(track), true) = (subject, track_last) {
+        app.bounce(Plan {
+            track,
+            through,
+            range: Range::Track,
+        });
+        return;
+    }
+    let sel = app.clip_selection();
     if !sel.is_empty() && !(time_last && time.is_some()) {
         let mut tracks: Vec<cantus_core::TrackId> = Vec::new();
         for (t, _) in &sel {
@@ -362,10 +457,8 @@ pub fn action(app: &mut CantusApp, action: crate::keymap::Action) -> bool {
             super::inspector::Subject::Track(t)
             | super::inspector::Subject::Clip(t, _)
             | super::inspector::Subject::Notes(t, _) => app.toggle_freeze_track(t),
-            super::inspector::Subject::Master => match app.selected_track {
-                Some(t) => app.toggle_freeze_track(t),
-                None => app.set_status(t("bounce.no_track")),
-            },
+            // The master is never frozen (review 2: an unrelated track was).
+            super::inspector::Subject::Master => app.set_status(t("freeze.master")),
         },
         Action::BounceInPlace => bounce_selection(app, Through::Inserts),
         Action::BounceSource => bounce_selection(app, Through::Source),

@@ -344,6 +344,17 @@ pub fn write_render(
 
 /// A 32-bit float stereo WAV of `t` at `path` (a bounce in place's audio file).
 pub fn write_wav(t: &Tapped, path: &Path, progress: &RenderProgress) -> Result<(), RenderError> {
+    write_wav_padded(t, path, 0, progress)
+}
+
+/// [`write_wav`] with `pad` frames of silence in front (a bounce that keeps a latency
+/// longer than its render's: review 2).
+pub fn write_wav_padded(
+    t: &Tapped,
+    path: &Path,
+    pad: usize,
+    progress: &RenderProgress,
+) -> Result<(), RenderError> {
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: t.sample_rate,
@@ -352,6 +363,9 @@ pub fn write_wav(t: &Tapped, path: &Path, progress: &RenderProgress) -> Result<(
     };
     let written = (|| -> Result<(), RenderError> {
         let mut w = hound::WavWriter::create(path, spec)?;
+        for _ in 0..pad * 2 {
+            w.write_sample(0f32)?;
+        }
         let mut fill = frames_of(t, progress).map_err(io)?;
         let mut chunk = vec![0f32; 8192 * 2];
         let mut left = t.frames;

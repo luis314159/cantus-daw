@@ -430,6 +430,7 @@ impl CantusApp {
             controllers,
             controllers_path,
             controllers_damaged,
+            project_path,
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
@@ -443,8 +444,13 @@ impl CantusApp {
         // This computer's choice of where third-party plug-ins run goes in before the
         // first sync: a start-up project's plug-ins load there at once, never within Cantus
         // first (review #14).
-        let mut app =
-            Self::from_parts_with(project, engine, stress, Some(settings.plugin_isolation));
+        let mut app = Self::from_parts_at(
+            project,
+            engine,
+            stress,
+            Some(settings.plugin_isolation),
+            project_path,
+        );
         app.peaks.set_disk_cache(Some(peak_cache));
         // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
         app.engine
@@ -518,6 +524,19 @@ impl CantusApp {
         engine: EngineHandle,
         stress: bool,
         isolation: Option<cantus_core::PluginIsolation>,
+    ) -> Self {
+        Self::from_parts_at(project, engine, stress, isolation, None)
+    }
+
+    /// [`Self::from_parts_with`] for a project read from `path`: the path, and the frozen
+    /// renders' folders, set before the first compile (round 29, review 2: a frozen project
+    /// opened at start loaded every plug-in its renders replace, for one frame).
+    pub fn from_parts_at(
+        project: Option<Project>,
+        engine: EngineHandle,
+        stress: bool,
+        isolation: Option<cantus_core::PluginIsolation>,
+        path: Option<PathBuf>,
     ) -> Self {
         let audio_error = if engine.is_live() {
             None
@@ -649,6 +668,8 @@ impl CantusApp {
         if let Some(e) = audio_error {
             app.set_error(tf("status.audio_failed", &[("error", &e)]));
         }
+        app.path = path;
+        app.engine.frozen.set_app_dir(crate::freeze::app_dir());
         app.sync_engine();
         app
     }
@@ -1569,6 +1590,7 @@ impl CantusApp {
 
     pub fn select_track(&mut self, id: TrackId) {
         self.inspector.follow(views::inspector::Subject::Track(id));
+        self.last_selection = crate::clipboard::SelKind::Track;
         if self.selected_track != Some(id) {
             for ev in self.keyboard.release_all() {
                 self.apply_key_event(ev);
@@ -3967,6 +3989,10 @@ pub struct Files {
     pub controllers_path: PathBuf,
     /// The global controller map's file could not be read (kept beside as `.bad`).
     pub controllers_damaged: bool,
+    /// The file the start-up project was read from, when it was one (round 29, review 2):
+    /// known before the first compile, so its frozen renders are found then and the
+    /// plug-ins they replace are never loaded.
+    pub project_path: Option<PathBuf>,
 }
 
 impl Files {
@@ -4012,6 +4038,7 @@ impl Files {
             controllers,
             controllers_path,
             controllers_damaged,
+            project_path: None,
         }
     }
 }

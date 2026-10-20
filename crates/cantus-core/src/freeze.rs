@@ -673,9 +673,14 @@ pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Va
         }
     };
     let r = region(project, target);
-    Some(subject_with(project, &r, kind, root_strip, source_track, &|t| {
-        reaches(project, target, &r, t)
-    }))
+    Some(subject_with(
+        project,
+        &r,
+        kind,
+        root_strip,
+        source_track,
+        &|t| reaches(project, target, &r, t),
+    ))
 }
 
 /// A key of everything a region's sound is made of — all its controls included (no frozen
@@ -765,11 +770,7 @@ fn subject_with(
     automation.sort_by_cached_key(|v| v.to_string());
     let modulators: Vec<Value> = project
         .all_modulators()
-        .filter(|(_, m)| {
-            m.routes
-                .iter()
-                .any(|x| reach(&x.target))
-        })
+        .filter(|(_, m)| m.routes.iter().any(|x| reach(&x.target)))
         .map(|(host, m)| json!({ "host": value(&host), "m": scrub(value(m), &["name"]) }))
         .collect();
     // The sources the region's clips play (and its comps keep), in the pool's order.
@@ -921,6 +922,27 @@ pub fn freeze_command(project: &Project, target: FreezeTarget) -> Option<Command
         FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
         FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
     })
+}
+
+/// Every content key a command freezes with (a batch's included): what an undo or a redo
+/// would want a render of.
+pub fn keys_in(cmd: &Command, out: &mut BTreeSet<String>) {
+    match cmd {
+        Command::SetStripFrozen {
+            frozen: Some(f), ..
+        }
+        | Command::SetTrackFrozen {
+            frozen: Some(f), ..
+        } => {
+            out.insert(f.content.clone());
+        }
+        Command::Batch { commands, .. } => {
+            for c in commands {
+                keys_in(c, out);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// The command that unfreezes `target`.

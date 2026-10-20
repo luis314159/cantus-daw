@@ -557,6 +557,7 @@ impl Processor {
             }
         }
         self.strip_post = post;
+        self.track_leave = leave;
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
         // before it — so note and sound meet at the effect.

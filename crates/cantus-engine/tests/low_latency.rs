@@ -385,7 +385,10 @@ fn a_voice_two_buses_down_waits_with_the_backing_it_is_mixed_with() {
         at as u64, stats.latency_samples,
         "it reaches the master with the backing"
     );
-    assert_eq!(stats.low_latency.monitored_samples as usize, at, "the figure");
+    assert_eq!(
+        stats.low_latency.monitored_samples as usize, at,
+        "the figure"
+    );
 }
 
 #[test]
@@ -431,5 +434,9 @@ fn a_take_follows_the_backing_when_its_heard_latency_moves_mid_pass() {
         .filter(|(_, v)| **v == 1.0)
         .map(|(i, _)| take.start_tick / tpf + i as f64)
         .collect();
-    assert_eq!(at, vec![beat2 as f64, beat4 as f64], "each where it was played");
+    assert_eq!(
+        at,
+        vec![beat2 as f64, beat4 as f64],
+        "each where it was played"
+    );
 }
