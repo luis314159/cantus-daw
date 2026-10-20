@@ -60,7 +60,12 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | AddMarker { .. }
         | RemoveMarker { .. }
         | SetMarker { .. }
-        | SetRecordSettings { .. } => vec![],
+        | SetRecordSettings { .. }
+        // A controller mapping (ADR 0062) moves nothing until a controller moves a
+        // parameter: that is its own command, classified as it is.
+        | InsertMapping { .. }
+        | RemoveMapping { .. }
+        | SetMapping { .. } => vec![],
         SetTempo { .. }
         | SetTimeSignature { .. }
         | SetTempoTrack { .. }

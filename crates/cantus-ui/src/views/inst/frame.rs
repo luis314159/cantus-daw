@@ -926,7 +926,12 @@ pub fn wired(
     match choice {
         Some(Choice::Automate) => app.automate(w.target.clone()),
         Some(
-            c @ (Choice::Modulate | Choice::Depth(_) | Choice::DepthDone | Choice::Connect(_)),
+            c @ (Choice::Modulate
+            | Choice::Depth(_)
+            | Choice::DepthDone
+            | Choice::Connect(_)
+            | Choice::Learn
+            | Choice::Forget),
         ) => app.modulation_choice(&w.target, c, rect),
         _ => {}
     }

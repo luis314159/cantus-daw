@@ -16,6 +16,7 @@ pub mod bus;
 pub mod clipboard;
 pub mod command;
 pub mod comp;
+pub mod controller;
 pub mod effect;
 pub mod external;
 pub mod freeze;

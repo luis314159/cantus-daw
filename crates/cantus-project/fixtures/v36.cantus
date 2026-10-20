@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 36,
   "app_version": "fixture",
-  "saved_at": 1792471123,
+  "saved_at": 1792476753,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -2783,7 +2783,136 @@
         "name": "Chorus"
       }
     ],
+    "controllers": {
+      "mappings": [
+        {
+          "id": 1,
+          "source": {
+            "port": {
+              "name": "Keystation 49"
+            },
+            "channel": 0,
+            "control": {
+              "Cc": 74
+            }
+          },
+          "target": {
+            "Param": {
+              "Effect": {
+                "effect": 18,
+                "key": "mix"
+              }
+            }
+          },
+          "mode": "Absolute",
+          "min": 0.1,
+          "max": 0.9,
+          "curve": 0.4,
+          "takeover": "Pickup"
+        },
+        {
+          "id": 2,
+          "source": {
+            "port": {
+              "name": "Keystation 49"
+            },
+            "channel": 0,
+            "control": {
+              "Cc14": 7
+            }
+          },
+          "target": {
+            "Param": {
+              "StripGain": 1
+            }
+          },
+          "mode": "Absolute",
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Pickup",
+          "feedback": true
+        },
+        {
+          "id": 3,
+          "source": {
+            "port": {
+              "name": ""
+            },
+            "channel": null,
+            "control": {
+              "Cc": 16
+            }
+          },
+          "target": "Tempo",
+          "mode": {
+            "Relative": "SignBit"
+          },
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Jump",
+          "sensitivity": 0.5
+        },
+        {
+          "id": 4,
+          "source": {
+            "port": {
+              "name": "Keystation 49",
+              "ordinal": 1
+            },
+            "channel": 9,
+            "control": {
+              "Note": 36
+            }
+          },
+          "target": {
+            "TrackMute": 17
+          },
+          "mode": "Toggle",
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Pickup"
+        },
+        {
+          "id": 5,
+          "source": {
+            "port": {
+              "name": "Keystation 49"
+            },
+            "channel": 0,
+            "control": {
+              "Cc": 41
+            }
+          },
+          "target": {
+            "Action": "play-pause"
+          },
+          "mode": "Trigger",
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Pickup"
+        },
+        {
+          "id": 6,
+          "source": {
+            "port": {
+              "name": "Keystation 49"
+            },
+            "channel": 0,
+            "control": {
+              "Cc": 75
+            }
+          },
+          "target": {
+            "TrackSolo": 999999
+          },
+          "mode": "Toggle",
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Pickup"
+        }
+      ]
+    },
     "next_id": 89
   },
-  "integrity": "a5574bc58b18baf23929de214d37215cf1a967362f0e16a3eb774495768a4c49"
+  "integrity": "03081dd45c43422e7471eff51dfa44517a8ce8427155330c53108a43806e6c2c"
 }

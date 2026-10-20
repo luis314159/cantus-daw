@@ -1,10 +1,22 @@
 //! Hardware MIDI input (midir). Each port's callback runs on its own OS thread and pushes
 //! into one shared ring buffer that the audio thread drains at the start of every block.
+//!
+//! **The controller tap** (round 29, ADR 0062): each callback also tees what the interface
+//! needs — the messages the controller map takes, and every message while a control is
+//! being learnt — into a ring of its own port (single producer, single consumer: no lock),
+//! with the port and the moment it came, and wakes the interface. A message the map takes
+//! is **consumed**: it never reaches the engine's ring, so a knob mapped to a filter no
+//! longer bends the instrument and a mapped pad no longer plays a note. Which messages the
+//! map takes is a lock-free bit set ([`MidiFilter`]) the interface publishes. Nothing here
+//! runs on the audio thread.
 
 use crate::messages::MidiEvent;
-use midir::{Ignore, MidiInput, MidiInputConnection};
-use rtrb::Producer;
+use cantus_core::controller::Control;
+use midir::{Ignore, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
+use rtrb::{Consumer, Producer, RingBuffer};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 /// Cloneable sender for MIDI threads. The mutex is only ever contended between MIDI
 /// callbacks, never touched by the audio thread.
@@ -12,7 +24,7 @@ use std::sync::{Arc, Mutex};
 pub struct MidiSender {
     inner: Arc<Mutex<Producer<MidiEvent>>>,
     /// Events sent since the sender was made: the top bar's MIDI-input lamp (ADR 0052).
-    sent: Arc<std::sync::atomic::AtomicU64>,
+    sent: Arc<AtomicU64>,
 }
 
 impl std::fmt::Debug for MidiSender {
@@ -32,12 +44,18 @@ impl MidiSender {
     /// How many events have come in through this sender and its clones, ever: what the top
     /// bar's MIDI lamp watches. Off the audio thread; never reset.
     pub fn received(&self) -> u64 {
-        self.sent.load(std::sync::atomic::Ordering::Relaxed)
+        self.sent.load(Ordering::Relaxed)
+    }
+
+    /// Count an event that came in but went to the controller map only: the lamp lights
+    /// for a mapped knob too.
+    pub fn count(&self) {
+        self.sent.fetch_add(1, Ordering::Relaxed);
     }
 
     /// Returns `false` if the queue was full (the event is dropped).
     pub fn send(&self, ev: MidiEvent) -> bool {
-        self.sent.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.count();
         match self.inner.lock() {
             Ok(mut p) => p.push(ev).is_ok(),
             Err(_) => false,
@@ -63,9 +81,252 @@ pub fn parse(bytes: &[u8]) -> Option<MidiEvent> {
     }
 }
 
+// ---- the controller tap (round 29, ADR 0062) ----------------------------------------------
+
+/// The most ports the filter tells apart (more are heard, never consumed).
+pub const FILTER_PORTS: usize = 32;
+/// Bits per port and channel: 128 controllers, 128 notes, 128 key pressures, 128 programs,
+/// the pitch wheel and channel pressure.
+const SLOTS: usize = 514;
+const WORDS: usize = SLOTS.div_ceil(64);
+/// How many messages each port's tap ring holds for the interface (it drains every frame).
+pub const TAP_QUEUE: usize = 1024;
+
+/// A message the interface hears from the tap.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Heard {
+    /// The port's index among the ports open now ([`MidiInputs::names`]).
+    pub port: u8,
+    pub event: MidiEvent,
+    /// When it came (the callback's clock): a mapped move is recorded at its own time.
+    pub at: Instant,
+}
+
+/// The bit of a message's address in one port-and-channel's row.
+fn slot_of(ev: &MidiEvent) -> Option<usize> {
+    let n = usize::from(ev.data1 & 0x7F);
+    Some(match ev.status & 0xF0 {
+        0xB0 => n,
+        0x80 | 0x90 => 128 + n,
+        0xA0 => 256 + n,
+        0xC0 => 384 + n,
+        0xE0 => 512,
+        0xD0 => 513,
+        _ => return None,
+    })
+}
+
+/// The bits a control takes in its row.
+fn slots_of(control: Control) -> ([usize; 2], usize) {
+    match control {
+        Control::Cc(n) => ([usize::from(n & 0x7F), 0], 1),
+        Control::Cc14(n) => {
+            let n = usize::from(n & 31);
+            ([n, n + 32], 2)
+        }
+        Control::Note(n) => ([128 + usize::from(n & 0x7F), 0], 1),
+        Control::PolyPressure(n) => ([256 + usize::from(n & 0x7F), 0], 1),
+        Control::Program(n) => ([384 + usize::from(n & 0x7F), 0], 1),
+        Control::PitchBend => ([512, 0], 1),
+        Control::ChannelPressure => ([513, 0], 1),
+    }
+}
+
+/// Which messages the controller map takes, as the interface wants it: plain bits, built
+/// on the interface thread and [published](MidiFilter::publish) whole.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FilterSet {
+    words: Vec<u64>,
+}
+
+impl Default for FilterSet {
+    fn default() -> Self {
+        FilterSet {
+            words: vec![0; FILTER_PORTS * 16 * WORDS],
+        }
+    }
+}
+
+impl FilterSet {
+    /// Take `control` on port `port` (its index now), on `channel` or every channel.
+    pub fn take(&mut self, port: usize, channel: Option<u8>, control: Control) {
+        if port >= FILTER_PORTS {
+            return;
+        }
+        let channels = match channel {
+            Some(c) if c < 16 => c..c + 1,
+            Some(_) => return,
+            None => 0..16,
+        };
+        let (slots, n) = slots_of(control);
+        for c in channels {
+            for s in &slots[..n] {
+                let bit = (port * 16 + usize::from(c)) * WORDS * 64 + s;
+                self.words[bit / 64] |= 1 << (bit % 64);
+            }
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.words.iter().all(|w| *w == 0)
+    }
+}
+
+/// The lock-free set the callbacks read: atomics written by the interface, read by the MIDI
+/// threads with a relaxed load (a message racing an edit of the map goes one way or the
+/// other, and the next is right).
+#[derive(Debug)]
+pub struct MidiFilter {
+    words: Box<[AtomicU64]>,
+    /// A control is being learnt: every message is heard, and none reaches the engine (the
+    /// knob the user turns to teach Cantus must not bend the instrument meanwhile).
+    learning: AtomicBool,
+}
+
+impl Default for MidiFilter {
+    fn default() -> Self {
+        MidiFilter {
+            words: (0..FILTER_PORTS * 16 * WORDS)
+                .map(|_| AtomicU64::new(0))
+                .collect(),
+            learning: AtomicBool::new(false),
+        }
+    }
+}
+
+impl MidiFilter {
+    /// Whether the map takes `ev` from port `port`.
+    pub fn takes(&self, port: usize, ev: &MidiEvent) -> bool {
+        if port >= FILTER_PORTS {
+            return false;
+        }
+        let Some(s) = slot_of(ev) else {
+            return false;
+        };
+        let bit = (port * 16 + usize::from(ev.status & 0x0F)) * WORDS * 64 + s;
+        self.words[bit / 64].load(Ordering::Relaxed) & (1 << (bit % 64)) != 0
+    }
+
+    /// Make `set` the messages taken.
+    pub fn publish(&self, set: &FilterSet) {
+        for (w, v) in self.words.iter().zip(&set.words) {
+            w.store(*v, Ordering::Relaxed);
+        }
+    }
+
+    pub fn set_learning(&self, on: bool) {
+        self.learning.store(on, Ordering::Relaxed);
+    }
+
+    pub fn learning(&self) -> bool {
+        self.learning.load(Ordering::Relaxed)
+    }
+}
+
+type Wake = Arc<dyn Fn() + Send + Sync>;
+
+struct TapShared {
+    filter: MidiFilter,
+    /// What wakes the interface (set at boot: egui's repaint).
+    wake: Option<Wake>,
+    /// A wake is on its way and the interface has not drained yet: no other is sent.
+    pending: AtomicBool,
+}
+
+/// The controller tap's shared half: the filter and the interface's wake. Cloned into
+/// every port's callback; it survives a rescan and an audio restart (the app keeps it and
+/// opens the new ports with it).
+#[derive(Clone)]
+pub struct MidiTap {
+    shared: Arc<TapShared>,
+}
+
+impl std::fmt::Debug for MidiTap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MidiTap")
+            .field("wake", &self.shared.wake.is_some())
+            .finish()
+    }
+}
+
+impl Default for MidiTap {
+    fn default() -> Self {
+        MidiTap::new(None)
+    }
+}
+
+impl MidiTap {
+    pub fn new(wake: Option<Wake>) -> MidiTap {
+        MidiTap {
+            shared: Arc::new(TapShared {
+                filter: MidiFilter::default(),
+                wake,
+                pending: AtomicBool::new(false),
+            }),
+        }
+    }
+
+    pub fn filter(&self) -> &MidiFilter {
+        &self.shared.filter
+    }
+
+    /// Whether something wakes the interface (the boot path sets it).
+    pub fn wakes(&self) -> bool {
+        self.shared.wake.is_some()
+    }
+
+    /// Whether `other` is this tap (a clone of it).
+    pub fn same(&self, other: &MidiTap) -> bool {
+        Arc::ptr_eq(&self.shared, &other.shared)
+    }
+
+    /// Wake the interface, once until it drains.
+    fn wake(&self) {
+        if !self.shared.pending.swap(true, Ordering::AcqRel) {
+            if let Some(w) = &self.shared.wake {
+                w();
+            }
+        }
+    }
+
+    /// The interface drained the rings: the next message wakes it again.
+    pub fn rearm(&self) {
+        self.shared.pending.store(false, Ordering::Release);
+    }
+}
+
+/// One message from port `port`: teed to the interface's ring when the map takes it or a
+/// control is being learnt, and sent to the engine unless the map took it. Returns whether
+/// the engine got it. What every port's callback runs (and what the tests drive).
+pub fn route(
+    ev: MidiEvent,
+    port: usize,
+    tap: &MidiTap,
+    engine: &MidiSender,
+    ui: &mut Producer<Heard>,
+) -> bool {
+    let consumed = tap.filter().learning() || tap.filter().takes(port, &ev);
+    if consumed {
+        engine.count();
+        // A full ring drops the message: the interface is not draining (it is closing).
+        let _ = ui.push(Heard {
+            port: port.min(u8::MAX as usize) as u8,
+            event: ev,
+            at: Instant::now(),
+        });
+        tap.wake();
+        false
+    } else {
+        engine.send(ev)
+    }
+}
+
 pub struct MidiInputs {
     _connections: Vec<MidiInputConnection<()>>,
     pub names: Vec<String>,
+    /// Each open port's tap ring, in the order of `names` (round 29, ADR 0062).
+    taps: Vec<Consumer<Heard>>,
+    tap: MidiTap,
 }
 
 impl std::fmt::Debug for MidiInputs {
@@ -89,11 +350,18 @@ pub fn list_ports() -> Vec<String> {
 }
 
 impl MidiInputs {
-    /// Open every input port. Failures are logged and skipped: a broken driver must never
-    /// stop the DAW from starting.
+    /// Open every input port with a tap of its own (no wake, nothing consumed): what a
+    /// caller that needs no controller map uses.
     pub fn open_all(sender: MidiSender) -> MidiInputs {
+        MidiInputs::open_with(sender, MidiTap::default())
+    }
+
+    /// Open every input port, each teeing into `tap` (round 29, ADR 0062). Failures are
+    /// logged and skipped: a broken driver must never stop the DAW from starting.
+    pub fn open_with(sender: MidiSender, tap: MidiTap) -> MidiInputs {
         let mut connections = Vec::new();
         let mut names = Vec::new();
+        let mut taps = Vec::new();
         let ports = match MidiInput::new("cantus-scan") {
             Ok(i) => i.ports(),
             Err(e) => {
@@ -101,6 +369,8 @@ impl MidiInputs {
                 return MidiInputs {
                     _connections: connections,
                     names,
+                    taps,
+                    tap,
                 };
             }
         };
@@ -113,12 +383,15 @@ impl MidiInputs {
                 .port_name(&port)
                 .unwrap_or_else(|_| "unknown".to_string());
             let tx = sender.clone();
+            let (mut ui, heard) = RingBuffer::<Heard>::new(TAP_QUEUE);
+            let index = connections.len();
+            let tap2 = tap.clone();
             match input.connect(
                 &port,
                 "cantus-in",
                 move |_stamp, bytes, _| {
                     if let Some(ev) = parse(bytes) {
-                        tx.send(ev);
+                        route(ev, index, &tap2, &tx, &mut ui);
                     }
                 },
                 (),
@@ -127,6 +400,7 @@ impl MidiInputs {
                     log::info!("midi: opened input {name}");
                     connections.push(c);
                     names.push(name);
+                    taps.push(heard);
                 }
                 Err(e) => log::warn!("midi: cannot open {name}: {e}"),
             }
@@ -134,7 +408,141 @@ impl MidiInputs {
         MidiInputs {
             _connections: connections,
             names,
+            taps,
+            tap,
         }
+    }
+
+    /// The tap the ports were opened with.
+    pub fn tap(&self) -> &MidiTap {
+        &self.tap
+    }
+
+    /// Everything the ports teed since the last call, port by port, each port's in order;
+    /// then the tap may wake the interface again. Interface thread.
+    pub fn drain(&mut self, out: &mut Vec<Heard>) {
+        self.tap.rearm();
+        for ring in &mut self.taps {
+            while let Ok(h) = ring.pop() {
+                out.push(h);
+            }
+        }
+    }
+}
+
+// ---- MIDI out, for controller feedback (round 29, ADR 0062) -------------------------------
+
+/// Names of the MIDI output ports currently present.
+pub fn list_outputs() -> Vec<String> {
+    let Ok(out) = MidiOutput::new("cantus-scan") else {
+        return Vec::new();
+    };
+    out.ports()
+        .iter()
+        .filter_map(|p| out.port_name(p).ok())
+        .collect()
+}
+
+/// The output that belongs to the input called `input` (the same device's other half):
+/// the same name; or, as Windows names them, `MIDIIN2 (X)` → `MIDIOUT2 (X)`; or the name
+/// with its *in* word turned to *out*. `None` when no output looks like it.
+pub fn output_for(input: &str, outputs: &[String]) -> Option<usize> {
+    if let Some(i) = outputs.iter().position(|o| o == input) {
+        return Some(i);
+    }
+    let swaps = [
+        ("MIDIIN", "MIDIOUT"),
+        ("MIDI IN", "MIDI OUT"),
+        (" IN", " OUT"),
+        (" In", " Out"),
+        (" in", " out"),
+        ("Input", "Output"),
+        ("input", "output"),
+    ];
+    for (from, to) in swaps {
+        if input.contains(from) {
+            let want = input.replacen(from, to, 1);
+            if let Some(i) = outputs.iter().position(|o| *o == want) {
+                return Some(i);
+            }
+        }
+    }
+    None
+}
+
+/// Output ports opened for feedback, by the name of the input they answer. Opened on
+/// demand (the first mapping with feedback on a port); interface thread.
+#[derive(Default)]
+pub struct MidiOutputs {
+    open: Vec<(String, MidiOutputConnection)>,
+    /// Inputs whose output could not be found or opened (not tried again until a rescan).
+    missing: Vec<String>,
+}
+
+impl std::fmt::Debug for MidiOutputs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MidiOutputs")
+            .field(
+                "open",
+                &self.open.iter().map(|(n, _)| n).collect::<Vec<_>>(),
+            )
+            .field("missing", &self.missing)
+            .finish()
+    }
+}
+
+impl MidiOutputs {
+    /// Send `bytes` to the output that answers the input `input`, opening it the first
+    /// time. Returns whether it went out.
+    pub fn send(&mut self, input: &str, bytes: &[u8]) -> bool {
+        if let Some((_, c)) = self.open.iter_mut().find(|(n, _)| n == input) {
+            return c.send(bytes).is_ok();
+        }
+        if self.missing.iter().any(|n| n == input) {
+            return false;
+        }
+        match Self::connect(input) {
+            Some(mut c) => {
+                let ok = c.send(bytes).is_ok();
+                self.open.push((input.to_string(), c));
+                ok
+            }
+            None => {
+                self.missing.push(input.to_string());
+                false
+            }
+        }
+    }
+
+    fn connect(input: &str) -> Option<MidiOutputConnection> {
+        let out = MidiOutput::new("cantus").ok()?;
+        let ports = out.ports();
+        let names: Vec<String> = ports
+            .iter()
+            .map(|p| out.port_name(p).unwrap_or_default())
+            .collect();
+        let i = output_for(input, &names)?;
+        match out.connect(&ports[i], "cantus-out") {
+            Ok(c) => {
+                log::info!("midi: opened output {} for feedback", names[i]);
+                Some(c)
+            }
+            Err(e) => {
+                log::warn!("midi: cannot open output {}: {e}", names[i]);
+                None
+            }
+        }
+    }
+
+    /// Close everything (a rescan, a restart): the next send opens again.
+    pub fn reset(&mut self) {
+        self.open.clear();
+        self.missing.clear();
+    }
+
+    /// The inputs whose output is open now.
+    pub fn open_names(&self) -> Vec<&str> {
+        self.open.iter().map(|(n, _)| n.as_str()).collect()
     }
 }
 
@@ -183,5 +591,101 @@ mod tests {
         assert_eq!(parse(&[0xF8]), None);
         assert_eq!(parse(&[0x90]), None);
         assert_eq!(parse(&[]), None);
+    }
+
+    fn ev(status: u8, data1: u8, data2: u8) -> MidiEvent {
+        MidiEvent {
+            status,
+            data1,
+            data2,
+        }
+    }
+
+    /// The filter takes exactly the addresses published, per port and channel; a 14-bit
+    /// pair takes both halves; every channel when none is named.
+    #[test]
+    fn the_filter_takes_what_the_map_names_and_nothing_else() {
+        let f = MidiFilter::default();
+        let mut set = FilterSet::default();
+        assert!(set.is_empty());
+        set.take(1, Some(2), Control::Cc(74));
+        set.take(0, None, Control::Note(36));
+        set.take(3, Some(0), Control::Cc14(7));
+        set.take(2, Some(5), Control::PitchBend);
+        set.take(2, Some(5), Control::Program(9));
+        set.take(2, Some(5), Control::ChannelPressure);
+        set.take(2, Some(5), Control::PolyPressure(60));
+        f.publish(&set);
+        assert!(f.takes(1, &ev(0xB2, 74, 10)));
+        assert!(!f.takes(1, &ev(0xB3, 74, 10)), "another channel");
+        assert!(!f.takes(0, &ev(0xB2, 74, 10)), "another port");
+        assert!(!f.takes(1, &ev(0xB2, 75, 10)), "another controller");
+        for ch in 0..16 {
+            assert!(f.takes(0, &ev(0x90 | ch, 36, 100)));
+            assert!(f.takes(0, &ev(0x80 | ch, 36, 0)), "its note-off too");
+        }
+        assert!(!f.takes(0, &ev(0x90, 37, 100)));
+        assert!(f.takes(3, &ev(0xB0, 7, 1)) && f.takes(3, &ev(0xB0, 39, 1)));
+        assert!(f.takes(2, &ev(0xE5, 0, 64)));
+        assert!(f.takes(2, &ev(0xC5, 9, 0)) && !f.takes(2, &ev(0xC5, 8, 0)));
+        assert!(f.takes(2, &ev(0xD5, 40, 0)));
+        assert!(f.takes(2, &ev(0xA5, 60, 40)) && !f.takes(2, &ev(0xA5, 61, 40)));
+        assert!(!f.takes(FILTER_PORTS, &ev(0xB2, 74, 10)));
+        f.publish(&FilterSet::default());
+        assert!(!f.takes(1, &ev(0xB2, 74, 10)));
+    }
+
+    /// A taken message goes to the interface's ring, not the engine's, and wakes the
+    /// interface once until it drains; an untaken one goes to the engine only; while a
+    /// control is learnt everything goes to the interface.
+    #[test]
+    fn route_tees_what_is_taken_and_wakes_once() {
+        let wakes = Arc::new(AtomicU64::new(0));
+        let w = wakes.clone();
+        let tap = MidiTap::new(Some(Arc::new(move || {
+            w.fetch_add(1, Ordering::Relaxed);
+        })));
+        assert!(tap.wakes());
+        let mut set = FilterSet::default();
+        set.take(0, Some(0), Control::Cc(74));
+        tap.filter().publish(&set);
+        let (p, mut engine) = RingBuffer::<MidiEvent>::new(16);
+        let sender = MidiSender::new(p);
+        let (mut ui, mut heard) = RingBuffer::<Heard>::new(16);
+        assert!(!route(ev(0xB0, 74, 3), 0, &tap, &sender, &mut ui));
+        assert!(!route(ev(0xB0, 74, 4), 0, &tap, &sender, &mut ui));
+        assert!(route(ev(0xB0, 1, 99), 0, &tap, &sender, &mut ui));
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 1, 99));
+        assert!(engine.pop().is_err());
+        assert_eq!(heard.pop().unwrap().event, ev(0xB0, 74, 3));
+        assert_eq!(heard.pop().unwrap().event, ev(0xB0, 74, 4));
+        assert!(heard.pop().is_err());
+        assert_eq!(wakes.load(Ordering::Relaxed), 1, "one wake until it drains");
+        assert_eq!(sender.received(), 3, "the lamp counts the mapped ones too");
+        tap.rearm();
+        tap.filter().set_learning(true);
+        assert!(!route(ev(0x90, 60, 100), 0, &tap, &sender, &mut ui));
+        assert_eq!(heard.pop().unwrap().event, ev(0x90, 60, 100));
+        assert!(
+            engine.pop().is_err(),
+            "a learnt control does not play meanwhile"
+        );
+        assert_eq!(wakes.load(Ordering::Relaxed), 2);
+    }
+
+    #[test]
+    fn an_input_finds_its_output() {
+        let outs: Vec<String> = [
+            "Microsoft GS Wavetable Synth",
+            "MIDIOUT2 (nanoKONTROL2)",
+            "nanoKONTROL2",
+            "Launchkey MK3 49 MIDI Out",
+        ]
+        .map(String::from)
+        .to_vec();
+        assert_eq!(output_for("nanoKONTROL2", &outs), Some(2));
+        assert_eq!(output_for("MIDIIN2 (nanoKONTROL2)", &outs), Some(1));
+        assert_eq!(output_for("Launchkey MK3 49 MIDI In", &outs), Some(3));
+        assert_eq!(output_for("Arturia KeyStep", &outs), None);
     }
 }

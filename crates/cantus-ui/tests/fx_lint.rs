@@ -82,6 +82,8 @@ const ON_THE_KIT: &[&str] = &[
     "views/freeze_monitor.rs",
     "views/plugins.rs",
     "views/audio_notice.rs",
+    // Round 29, controllers (ADR 0062): the mappings pane.
+    "views/controllers.rs",
 ];
 
 /// What a file on the kit never says.

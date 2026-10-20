@@ -16,6 +16,11 @@ pub mod bounce;
 pub mod clipboard;
 pub mod clips;
 pub mod comping;
+/// MIDI learn and controller mapping (round 29, ADR 0062).
+pub mod controllers;
+pub mod controllers_feedback;
+pub mod controllers_input;
+pub mod controllers_learn;
 pub mod demos;
 pub mod design;
 pub mod docs;

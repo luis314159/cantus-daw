@@ -103,7 +103,7 @@ use strip::{StripOut, StripSlot};
 use track::{TrackOut, TrackSlot};
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
-const LIVE_TAG: u64 = u64::MAX;
+pub(crate) const LIVE_TAG: u64 = u64::MAX;
 /// How many snapshots we can hold back when the garbage queue is full.
 const PENDING_GARBAGE: usize = 8;
 /// MIDI events drained per block at most.
@@ -816,6 +816,8 @@ fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
             let raw = ((ev.data2 as i32) << 7 | ev.data1 as i32) - 8192;
             Some((Controller::PitchBend, raw as f32 / 8192.0 * 2.0))
         }
+        // Channel pressure (round 29): one data byte.
+        0xD0 => Some((Controller::Pressure, f32::from(ev.data1) / 127.0)),
         0xB0 => {
             let v = ev.data2 as f32 / 127.0;
             Some(match ev.data1 {

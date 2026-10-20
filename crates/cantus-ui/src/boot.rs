@@ -242,8 +242,11 @@ impl Boot {
                     let (tx, rx) = channel();
                     let sender = engine.midi_sender();
                     let ctx2 = ctx.clone();
+                    // The controller tap (round 29, ADR 0062): mapped messages wake the
+                    // window; `assemble` keeps the tap for rescans and restarts.
+                    let tap = crate::controllers::waking_tap(ctx);
                     std::thread::spawn(move || {
-                        let _ = tx.send(MidiInputs::open_all(sender));
+                        let _ = tx.send(MidiInputs::open_with(sender, tap));
                         ctx2.request_repaint();
                     });
                     self.midi = Some(rx);

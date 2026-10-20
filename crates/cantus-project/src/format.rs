@@ -801,8 +801,11 @@ fn migrate_33_to_34(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 35 belongs to round 29's controllers builder; until it merges it is a
-/// placeholder that writes nothing, replaced by theirs at the merge.
+/// Schema 35 (round 29, controllers — ADR 0062): the project keeps its MIDI controller
+/// mappings (`Project::controllers`: each a port by name and ordinal, a channel, a
+/// control; a target; a mode, a range, a bend, a takeover, feedback). A file without them
+/// had none, so the step writes nothing; the number makes an older build refuse a file
+/// whose knobs it would silently forget.
 fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
@@ -1002,6 +1005,50 @@ mod tests {
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tempo_points.is_empty() && p.metre_changes.is_empty() && p.markers.is_empty());
         assert!(p.tempo_map().is_constant() && p.tempo_map().is_one_metre());
+    }
+
+    /// Schema 35 (round 29, ADR 0062): the fixture's controller mappings come back whole —
+    /// a knob on a filter with its range and bend, a 14-bit fader picking up with
+    /// feedback, an encoder in sign-bit on the tempo, a pad toggling a mute, a button
+    /// firing *play*, one whose target is gone (kept dormant); an older file (33) has none.
+    /// (The tree's newest fixture holds them: the integrator regenerates `v35.cantus` once
+    /// the round's schemas are chained.)
+    #[test]
+    fn schema_35_keeps_the_controller_mappings() {
+        use cantus_core::controller::*;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let newest = format!("v{SCHEMA_VERSION}.cantus");
+        let text = std::fs::read_to_string(dir.join(newest)).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let maps = &p.controllers.mappings;
+        assert_eq!(maps.len(), 6);
+        let knob = &maps[0];
+        assert_eq!(knob.source.port.name, "Keystation 49");
+        assert_eq!(knob.source.control, Control::Cc(74));
+        assert_eq!((knob.min, knob.max, knob.curve), (0.1, 0.9, 0.4));
+        assert!(matches!(
+            knob.target,
+            MappingTarget::Param(cantus_core::AutoTarget::Effect { .. })
+        ));
+        assert!(knob.target.exists(&p));
+        let fader = &maps[1];
+        assert_eq!(fader.source.control, Control::Cc14(7));
+        assert!(fader.feedback);
+        assert_eq!(fader.takeover, Takeover::Pickup);
+        assert_eq!(maps[2].mode, MapMode::Relative(Encoding::SignBit));
+        assert_eq!(maps[2].target, MappingTarget::Tempo);
+        assert_eq!(maps[2].sensitivity, 0.5);
+        assert_eq!(maps[3].mode, MapMode::Toggle);
+        assert_eq!(maps[3].source.port.ordinal, 1);
+        assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
+        assert!(!maps[5].target.exists(&p), "the dormant one stays");
+        let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
+        assert!(parse(&old, true)
+            .unwrap()
+            .file
+            .project
+            .controllers
+            .is_empty());
     }
 
     #[test]

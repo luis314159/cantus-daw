@@ -167,6 +167,9 @@ pub struct Settings {
     pub low_latency_ms: f32,
     /// Bounce in place removes the original (else mutes it): the last choice, remembered.
     pub bounce_removes: bool,
+    /// How a newly learnt controller takes over a parameter that moved elsewhere (round 29,
+    /// ADR 0062): *pick up* unless the user chose otherwise in the mappings view.
+    pub controller_takeover: cantus_core::controller::Takeover,
 }
 
 /// Low-latency monitoring's limit on a new installation, ms: just above Tonus's 2.7 ms (the
@@ -261,6 +264,7 @@ impl Default for Settings {
             low_latency: false,
             low_latency_ms: DEFAULT_LOW_LATENCY_MS,
             bounce_removes: false,
+            controller_takeover: cantus_core::controller::Takeover::Pickup,
         }
     }
 }

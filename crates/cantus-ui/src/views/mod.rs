@@ -28,6 +28,7 @@ pub mod channel_rack;
 pub mod clip_browser;
 pub mod clips_chrome;
 pub mod comp_editor;
+pub mod controllers;
 pub mod demos;
 pub mod device_chrome;
 /// A drum kit's row names in the interface's language (round 28).

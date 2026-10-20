@@ -212,6 +212,12 @@ impl CantusApp {
             depth,
             mapping: mapping.is_some(),
             live: (n > 0).then_some(live.clamp(0.0, 1.0)),
+            // MIDI learn (round 29, ADR 0062).
+            learn: Some(
+                self.learn_offer(&cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                )),
+            ),
         };
         (offer, n)
     }
@@ -235,6 +241,22 @@ impl CantusApp {
     /// open *Modulate…* at `rect`, set a depth (a drag merges), end the drag, connect a
     /// dropped handle.
     pub fn modulation_choice(&mut self, target: &AutoTarget, choice: Choice, rect: egui::Rect) {
+        // MIDI learn (round 29, ADR 0062): every parameter that offers it.
+        match choice {
+            Choice::Learn => {
+                self.learn_target(cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                ));
+                return;
+            }
+            Choice::Forget => {
+                self.forget_target(&cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                ));
+                return;
+            }
+            _ => {}
+        }
         if !self.modulatable(target) {
             return;
         }
@@ -255,7 +277,7 @@ impl CantusApp {
             Choice::Connect(id) => {
                 self.connect(ModulatorId(id), target.clone());
             }
-            Choice::Automate | Choice::Type | Choice::Reset => {}
+            Choice::Automate | Choice::Type | Choice::Reset | Choice::Learn | Choice::Forget => {}
         }
     }
 

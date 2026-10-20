@@ -143,6 +143,30 @@ impl TrackSlot {
         }
     }
 
+    /// A live key's expression (polyphonic pressure, round 29): the note the live key
+    /// sounds, by its id. Firmus and Pulsus read none.
+    pub fn expression_live(
+        &mut self,
+        pitch: u8,
+        expression: crate::inst::NoteExpression,
+        value: f32,
+    ) {
+        if let (SlotInstrument::Native, Some(n)) = (self.instrument, self.native.as_mut()) {
+            n.unit.expression(
+                native_id(pitch, crate::processor::LIVE_TAG),
+                expression,
+                value,
+            );
+        }
+    }
+
+    /// A live program change (round 29): a native unit's to take or leave.
+    pub fn program(&mut self, program: u8) {
+        if let (SlotInstrument::Native, Some(n)) = (self.instrument, self.native.as_mut()) {
+            n.unit.program(program);
+        }
+    }
+
     pub fn all_notes_off(&mut self) {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.all_notes_off(),
