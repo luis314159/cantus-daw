@@ -206,6 +206,206 @@ pub fn block_start(
     Ticks(dst.tick_after_seconds(to_anchor.0 as f64, secs).round() as i64)
 }
 
+// --- Moving several windows together (reviews 3–4) -----------------------------------
+
+/// One clip of a block moved or pasted together.
+#[derive(Copy, Clone, Debug)]
+pub struct Member<'a> {
+    pub clip: &'a crate::model::Clip,
+    /// Its row (a track): the windows of one take are on one row.
+    pub row: u64,
+    /// Where it starts before the move (under the source map).
+    pub from: Ticks,
+    /// Its file's rate.
+    pub rate: f64,
+}
+
+/// Where a window of a chain lands: its start, its window and fades, its fine offset.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Laid {
+    pub start: Ticks,
+    pub length: Ticks,
+    pub offset: Ticks,
+    pub fade_in: Ticks,
+    pub fade_out: Ticks,
+    pub slip_frames: i32,
+}
+
+/// A window that can be in a chain: unwarped audio (or a warp that does not follow the
+/// tempo) that does not loop.
+fn chains_with(c: &crate::model::Clip) -> bool {
+    c.audio
+        .as_ref()
+        .is_some_and(|a| !a.warp.as_ref().is_some_and(|w| w.follow))
+        && !c.content_length.is_some_and(|p| p < c.length)
+}
+
+/// The **chains** of a block moved by `delta` from under `src` to under `dst` (review 4):
+/// the windows of one take moved together — on one row, one file, one direction, sharing
+/// their content origin and fine offset, or meeting end to start and playing on there
+/// within a frame. A chain keeps its own shape through a tempo change: its first window
+/// lands at its start plus `delta`, the others the same *seconds* after it (both edges, so
+/// windows that met still meet), each playing the second of its file it played (windows
+/// that shared an origin and fine offset share them still, exactly). `Some` for each window
+/// of a chain of two or more whose tempo differs where it lands; `None` for every other
+/// clip — it moves by `delta` and is relocated on its own ([`relocate`]), MIDI and audio
+/// alike, so clips that do not belong to one take keep their bars.
+pub fn lay_chains(src: &TempoMap, dst: &TempoMap, delta: Ticks, members: &[Member]) -> Vec<Option<Laid>> {
+    let n = members.len();
+    let mut out = vec![None; n];
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(p: &mut [usize], mut i: usize) -> usize {
+        while p[i] != i {
+            p[i] = p[p[i]];
+            i = p[i];
+        }
+        i
+    }
+    fn join(p: &mut [usize], a: usize, b: usize) {
+        let (x, y) = (find(p, a), find(p, b));
+        if x != y {
+            p[x.max(y)] = x.min(y);
+        }
+    }
+    // Each window's take: (row, file, direction).
+    let take = |m: &Member| {
+        let a = m.clip.audio.as_ref().expect("an audio window");
+        (m.row, a.source, a.reverse)
+    };
+    let slip = |m: &Member| m.clip.audio.as_ref().map_or(0, |a| a.slip_frames);
+    let eligible: Vec<usize> = (0..n).filter(|&i| chains_with(members[i].clip)).collect();
+    // Sharing an origin and a fine offset (forwards).
+    let mut shared: std::collections::HashMap<_, usize> = std::collections::HashMap::new();
+    // Meeting: by where a window starts.
+    let mut starts: std::collections::HashMap<_, Vec<usize>> = std::collections::HashMap::new();
+    for &i in &eligible {
+        let m = &members[i];
+        let (row, source, reverse) = take(m);
+        if !reverse {
+            let key = (row, source, m.from - m.clip.offset, slip(m));
+            match shared.get(&key) {
+                Some(&j) => join(&mut parent, i, j),
+                None => {
+                    shared.insert(key, i);
+                }
+            }
+        }
+        starts.entry((row, source, reverse, m.from)).or_default().push(i);
+    }
+    // The frame a window plays at `tick` before the move (backwards when reversed).
+    let frame = |m: &Member, tick: Ticks| {
+        let a = m.clip.audio.as_ref().expect("an audio window");
+        let s = f64::from(a.slip_frames);
+        let o = m.clip.offset;
+        if a.reverse {
+            frame_at(src, m.from, o, s, m.rate, m.from.0 as f64)
+                + src.seconds_between(tick, m.from + m.clip.length) * m.rate
+        } else {
+            frame_at(src, m.from, o, s, m.rate, tick.0 as f64)
+        }
+    };
+    for &i in &eligible {
+        let m = &members[i];
+        let (row, source, reverse) = take(m);
+        let end = m.from + m.clip.length;
+        if let Some(next) = starts.get(&(row, source, reverse, end)) {
+            for &j in next {
+                if (frame(m, end) - frame(&members[j], end)).abs() <= 1.0 {
+                    join(&mut parent, i, j);
+                }
+            }
+        }
+    }
+    let mut chains: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
+    for &i in &eligible {
+        let r = find(&mut parent, i);
+        chains.entry(r).or_default().push(i);
+    }
+    for chain in chains.into_values().filter(|c| c.len() > 1) {
+        let lo = chain
+            .iter()
+            .map(|&i| members[i].from - members[i].clip.offset.max(Ticks::ZERO))
+            .min()
+            .expect("a chain");
+        let hi = chain
+            .iter()
+            .map(|&i| members[i].from + members[i].clip.length)
+            .max()
+            .expect("a chain");
+        // The same tempo function over the whole chain where it lands: the ticks exactly.
+        if src.span_key(lo, hi) == dst.span_key(lo + delta, hi + delta) {
+            continue;
+        }
+        let head = chain
+            .iter()
+            .copied()
+            .min_by_key(|&i| members[i].from)
+            .expect("a chain");
+        let (from_h, to_h) = (members[head].from, members[head].from + delta);
+        let at = |t: Ticks| block_start(src, from_h, dst, to_h, t, false);
+        let place = |i: usize| {
+            let m = &members[i];
+            let a = m.clip.audio.as_ref().expect("an audio window");
+            let (start, end) = (at(m.from), at(m.from + m.clip.length));
+            let end = end.max(start + Ticks(1));
+            let fi = src.seconds_between(m.from, m.from + a.fade_in);
+            let fo = src.seconds_between(m.from + m.clip.length - a.fade_out, m.from + m.clip.length);
+            let (s, e) = (start.0 as f64, end.0 as f64);
+            let round = |x: f64| Ticks(x.round() as i64).max(Ticks::ZERO);
+            (
+                start,
+                end - start,
+                round(dst.tick_after_seconds(s, fi) - s),
+                round(e - dst.tick_after_seconds(e, -fo)),
+            )
+        };
+        // The windows sharing an origin and a fine offset share them where they land.
+        let mut done = vec![false; n];
+        let mut by_start = chain.clone();
+        by_start.sort_by_key(|&i| members[i].from);
+        for &s in &by_start {
+            if done[s] {
+                continue;
+            }
+            let m = &members[s];
+            let a = m.clip.audio.as_ref().expect("an audio window");
+            let (start, length, fade_in, fade_out) = place(s);
+            let seconds = offset_seconds(src, m.from, m.clip.offset);
+            let (offset, slip_frames) = anchor(dst, start, seconds, a.slip_frames, m.rate);
+            out[s] = Some(Laid {
+                start,
+                length,
+                offset,
+                fade_in,
+                fade_out,
+                slip_frames,
+            });
+            done[s] = true;
+            if a.reverse {
+                continue;
+            }
+            let key = (take(m), m.from - m.clip.offset, a.slip_frames);
+            for &k in &by_start {
+                let o = &members[k];
+                if done[k] || (take(o), o.from - o.clip.offset, slip(o)) != key {
+                    continue;
+                }
+                let (start_k, length, fade_in, fade_out) = place(k);
+                out[k] = Some(Laid {
+                    start: start_k,
+                    length,
+                    offset: offset + (start_k - start),
+                    fade_in,
+                    fade_out,
+                    slip_frames,
+                });
+                done[k] = true;
+            }
+        }
+    }
+    out
+}
+
 /// What [`relocate`] gives a moved audio window: its offset, length, fades and fine
 /// offset where it lands.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

@@ -158,7 +158,13 @@ struct Scratch {
     counts: Vec<String>,
     /// The height a clip label's words need at full size, this frame.
     label_row: f32,
+    /// A clip drag's landing under a tempo track (review 4): built when the drag's result
+    /// or the song changes, not every frame — the revision, the anchor, the result.
+    dropped: Option<(DropKey, std::collections::HashMap<(TrackId, ClipId), cantus_core::Clip>)>,
 }
+
+/// What a drag's landing was built for.
+type DropKey = (u64, (TrackId, ClipId), ClipDragResult);
 
 impl Scratch {
     fn refresh_words(&mut self) {
@@ -1729,17 +1735,21 @@ fn clips(
     let (vis_l, vis_r) = (geo.beats(lanes.left()), geo.beats(lanes.right()));
     // Under a tempo track a drag of unwarped audio re-derives the clips it moves (review
     // 3): the clips its release would leave are drawn, not tick arithmetic.
-    let dropped: Vec<((TrackId, ClipId), cantus_core::Clip)> = match v.drag_result() {
+    let mut dropped = std::mem::take(&mut scratch.dropped);
+    match v.drag_result() {
         Some((anchor, result))
             if !app.project().tempo_points.is_empty() && v.stretch_preview(anchor).is_none() =>
         {
-            crate::clips::drag_preview(app.project(), &app.clip_selection(), anchor, result)
-                .into_iter()
-                .filter(|(_, c)| c.audio.is_some())
-                .collect()
+            let key = (app.bus.revision(), anchor, result);
+            if dropped.as_ref().is_none_or(|(k, _)| *k != key) {
+                let landing =
+                    crate::clips::drag_preview(app.project(), &app.clip_selection(), anchor, result);
+                dropped = Some((key, landing));
+            }
         }
-        _ => Vec::new(),
-    };
+        _ => dropped = None,
+    }
+    let landings = dropped.as_ref().map(|(_, m)| m);
     for (i, track) in app.project().tracks.iter().enumerate() {
         let Some(here) = geo.rows.get(i).copied() else {
             continue;
@@ -1773,7 +1783,7 @@ fn clips(
             if target.top + target.height < lanes.top() || target.top > lanes.bottom() {
                 continue;
             }
-            let landed = dropped.iter().find(|(k, _)| *k == r).map(|(_, c)| c);
+            let landed = landings.and_then(|m| m.get(&r));
             let (start, length) = match landed {
                 Some(c) => (c.start, c.length.max(Ticks::SIXTEENTH)),
                 None => (
@@ -1993,6 +2003,7 @@ fn clips(
         }
     }
     scratch.counts = counts;
+    scratch.dropped = dropped;
     out
 }
 

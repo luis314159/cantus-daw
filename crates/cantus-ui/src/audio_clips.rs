@@ -298,7 +298,9 @@ pub fn reversed_edit(
             length,
         });
     }
-    let offset = offset.max(Ticks::ZERO);
+    // No clamp at zero (review 4): under a tempo map a reversed window widened to its
+    // file's start can read before it in ticks, the rest in its fine offset, as `anchor`
+    // leaves it everywhere else.
     if offset != clip.offset {
         out.push(Command::SetClipOffset {
             track,

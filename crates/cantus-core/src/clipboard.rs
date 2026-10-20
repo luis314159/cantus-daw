@@ -443,19 +443,37 @@ pub fn paste_clips(
     // clip measured in seconds where it was copied and laid out where it lands.
     let (src_map, dst_map) = (board.tempo_map(), project.tempo_map());
     let mapped = !(src_map.is_constant() && dst_map.is_constant());
-    // The block's anchor (its earliest clip) and whether the tempo over the block is the
-    // same function where it lands: unwarped audio is laid the same seconds after the
-    // anchor, so windows that met still meet (review 3).
-    let first = rows
-        .iter()
-        .map(|r| r.clip.start)
-        .min()
-        .unwrap_or(Ticks::ZERO);
-    let last_end = rows.iter().map(|r| r.clip.end()).max().unwrap_or(first);
-    let (from_anchor, to_anchor) = (board.at + first, at + first);
-    let same_block = !mapped
-        || src_map.span_key(from_anchor, board.at + last_end)
-            == dst_map.span_key(to_anchor, at + last_end);
+    // Every clip lands at its own distance from the paste point (its bars kept); the
+    // windows of one take pasted together keep their shape (reviews 3–4,
+    // `audio_time::lay_chains`), so windows that met still meet.
+    let laid: Vec<Option<crate::audio_time::Laid>> = if mapped {
+        let rate_of = |a: &crate::audio::AudioRegion| {
+            project
+                .audio_source(a.source)
+                .or_else(|| board.sources.iter().find(|s| s.id == a.source))
+                .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)))
+        };
+        let members: Vec<crate::audio_time::Member> = rows
+            .iter()
+            .filter_map(|r| {
+                let a = r.clip.audio.as_ref()?;
+                Some(crate::audio_time::Member {
+                    clip: &r.clip,
+                    row: r.row as u64,
+                    from: board.at + r.clip.start,
+                    rate: rate_of(a),
+                })
+            })
+            .collect();
+        let mut laid_audio =
+            crate::audio_time::lay_chains(&src_map, &dst_map, at - board.at, &members)
+                .into_iter();
+        rows.iter()
+            .map(|r| r.clip.audio.as_ref().and_then(|_| laid_audio.next().flatten()))
+            .collect()
+    } else {
+        vec![None; rows.len()]
+    };
     let scale = if !mapped
         && !same_origin
         && board.tempo_bpm > 0.0
@@ -466,7 +484,7 @@ pub fn paste_clips(
         None
     };
     let mut inserted: Vec<AudioSourceId> = Vec::new();
-    for r in rows {
+    for (r, laid) in rows.iter().zip(laid) {
         let track = if r.clip.automation.is_some() {
             if same_origin && project.track(r.track).is_some() {
                 r.track
@@ -503,23 +521,7 @@ pub fn paste_clips(
             }
             plays = Some(dst);
         }
-        let unwarped = r
-            .clip
-            .audio
-            .as_ref()
-            .is_some_and(|a| !a.warp.as_ref().is_some_and(|w| w.follow));
-        let start = if unwarped {
-            crate::audio_time::block_start(
-                &src_map,
-                from_anchor,
-                &dst_map,
-                to_anchor,
-                board.at + r.clip.start,
-                same_block,
-            )
-        } else {
-            at + r.clip.start
-        };
+        let start = laid.map_or(at + r.clip.start, |l| l.start);
         let mut copy = Clip {
             id: ClipId(ids()),
             start,
@@ -544,7 +546,13 @@ pub fn paste_clips(
                 copy.length = s(copy.length).max(Ticks(1));
             }
         }
-        if plays.is_some() && scale.is_none() && mapped {
+        // Where it lands in its file: (fades in, out, fine offset) a free copy takes.
+        let mut region = None;
+        if let (Some(l), true) = (laid, plays.is_some()) {
+            copy.offset = l.offset;
+            copy.length = l.length;
+            region = Some((l.fade_in, l.fade_out, l.slip_frames));
+        } else if plays.is_some() && scale.is_none() && mapped {
             // Only where the tempo under the clip differs (the same tempo function
             // over both spans keeps the ticks exactly): the same seconds of its file
             // (`audio_time::relocate`, which a move and a drag-copy share).
@@ -554,14 +562,7 @@ pub fn paste_clips(
             {
                 copy.offset = m.offset;
                 copy.length = m.length;
-                // A paste that links takes the group's fades and fine offset as they are
-                // (they are shared): its window alone (review 3).
-                if !(linked && same_origin) {
-                    let a = copy.audio.as_mut().expect("an audio clip");
-                    a.fade_in = m.fade_in;
-                    a.fade_out = m.fade_out;
-                    a.slip_frames = m.slip_frames;
-                }
+                region = Some((m.fade_in, m.fade_out, m.slip_frames));
             }
         }
         let group = if linked && same_origin {
@@ -569,6 +570,16 @@ pub fn paste_clips(
         } else {
             None
         };
+        // A paste that joins a group takes the group's fades and fine offset as they are
+        // (they are shared): its window alone (review 3). Every other paste plays the
+        // seconds it played (review 4: a cut and paste with *Link copies* on, which finds
+        // no group, kept the old fades and dropped the fine offset).
+        if let (None, Some((fade_in, fade_out, slip))) = (&group, region) {
+            let a = copy.audio.as_mut().expect("an audio clip");
+            a.fade_in = fade_in;
+            a.fade_out = fade_out;
+            a.slip_frames = slip;
+        }
         match group {
             Some(Target::Clip(t, c, l)) => {
                 let (pre, link) = linker.group_of(t, c, l, ids);
