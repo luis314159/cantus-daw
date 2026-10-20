@@ -221,7 +221,20 @@ fn a_render_waits_for_a_state_that_takes_its_time() {
     let strip = strip_of(&project, 0);
     let mut rig = Rig::new(project, patient_host());
     let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
-    rig.set_param(strip, id, P_GAIN, -12.0);
+    // A state that doubles its output: what only the state carries, never the values the
+    // engine sends with the first block.
+    let mut state = b"CTG1".to_vec();
+    for v in [-12.0f64, 0.0, 0.0, 0.0] {
+        state.extend_from_slice(&v.to_le_bytes());
+    }
+    state.extend_from_slice(&2u32.to_le_bytes());
+    state.extend_from_slice(b"x2");
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state: PluginState::new(state),
+        params: [(P_GAIN, -12.0)].into_iter().collect(),
+    });
     rig.settle();
     let reference = render(&mut rig, false);
     assert!(rig.host.render_failures().is_empty());

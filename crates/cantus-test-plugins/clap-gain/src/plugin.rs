@@ -58,6 +58,9 @@ pub struct Plugin {
     pub active_latency: AtomicU32,
     /// A tag carried in the state that is not a parameter.
     pub tag: Mutex<Vec<u8>>,
+    /// The tag says `x2`: the output is doubled — what only the state, never the values,
+    /// carries (the isolation tests: a render that starts before its state is in).
+    pub doubled: AtomicBool,
     pub processing: AtomicBool,
     /// A failure armed by the Fault parameter (round 29).
     pub fault: crate::fault::Fault,
@@ -143,6 +146,7 @@ pub unsafe fn create(
         values: std::array::from_fn(|i| AtomicU64::new(PARAMS[i].5.to_bits())),
         active_latency: AtomicU32::new(0),
         tag: Mutex::new(Vec::new()),
+        doubled: AtomicBool::new(false),
         processing: AtomicBool::new(false),
         fault: crate::fault::Fault::default(),
         editor_created: false,
@@ -353,6 +357,11 @@ fn run(
     out_r: &mut [f32],
 ) {
     let gain = 10f64.powf(p.get(P_GAIN) / 20.0) as f32;
+    let gain = if p.doubled.load(Ordering::Acquire) {
+        gain * 2.0
+    } else {
+        gain
+    };
     let key_on = p.get(P_KEY) >= 0.5;
     let len = p.delay_l.len().max(1);
     for i in 0..in_l.len() {

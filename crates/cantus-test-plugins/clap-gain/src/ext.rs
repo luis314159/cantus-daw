@@ -232,6 +232,7 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     let Some(tag) = bytes.get(at..at + len) else {
         return false;
     };
+    me.doubled.store(tag == b"x2", std::sync::atomic::Ordering::Release);
     if let Ok(mut t) = me.tag.lock() {
         *t = tag.to_vec();
     }
