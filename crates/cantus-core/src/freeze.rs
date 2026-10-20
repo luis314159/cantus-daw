@@ -1034,6 +1034,11 @@ pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
     });
     for s in &mut snapshot.strips {
         s.rest = d.strips.contains(&s.id);
+        // A resting strip's hosted plug-ins are unloaded (`Dormant::effect_rests`): the
+        // engine lets their units go too.
+        if s.rest {
+            s.effects.retain(|e| e.spec.external.is_none());
+        }
         if let Some(f) = s.frozen.as_ref().filter(|f| f.plays()) {
             let silenced = f.silenced;
             s.effects.clear();
@@ -1046,6 +1051,11 @@ pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
     }
     for t in &mut snapshot.tracks {
         t.rest = d.tracks.contains(&t.id);
+        // A hosted instrument that is not run is unloaded (`Dormant::instrument_rests`):
+        // the engine lets its unit go (the slot keeps a silent built-in one, never played).
+        if d.instrument_rests(t.id) && t.instrument.external().is_some() {
+            t.instrument = crate::instrument::InstrumentSpec::default();
+        }
     }
 }
 

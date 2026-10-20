@@ -272,6 +272,8 @@ pub struct CantusApp {
     pub merge_job: Option<crate::record_session::MergeJob>,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
+    /// Freezing and bouncing in place (round 29, ADR 0064): the renders, their queue.
+    pub freeze: crate::freeze::FreezeState,
 }
 
 impl CantusApp {
@@ -441,6 +443,8 @@ impl CantusApp {
         app.settings_path = settings_path;
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
         views::plugin_notice::apply_default(&mut app);
+        // Frozen renders' folders and low-latency monitoring (round 29, ADR 0064).
+        crate::freeze::wire(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -593,6 +597,7 @@ impl CantusApp {
             modulators: Default::default(),
             merge_job: None,
             pitch: Default::default(),
+            freeze: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -614,6 +619,11 @@ impl CantusApp {
         self.note_tweak(&cmd);
         match self.bus.execute(cmd, Origin::User) {
             Ok(()) => true,
+            // A frozen sound refused it (ADR 0064): which, and how to give it back.
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -625,6 +635,10 @@ impl CantusApp {
         self.note_tweak(&cmd);
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => true,
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -863,6 +877,8 @@ impl CantusApp {
                 // The new engine has never seen this project.
                 self.synced_revision = u64::MAX;
                 self.live_track_sent = None;
+                // Nor its frozen renders' folders, nor low-latency monitoring (ADR 0064).
+                crate::freeze::engine_replaced(self);
                 self.sync_engine();
                 self.sync_live_track();
                 crate::audio_setup::apply_routing(self);
@@ -3694,6 +3710,8 @@ impl CantusApp {
         // them on, and collect them when their worker is done, even with nothing else
         // moving.
         self.poll_merge();
+        // Freezes and bounces rendering (round 29, ADR 0064).
+        crate::freeze::tick(self, ctx);
         if self.modulators.pending_bake.is_some() || self.merge_job.is_some() {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }

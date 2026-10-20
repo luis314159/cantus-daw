@@ -159,7 +159,20 @@ pub struct Settings {
     /// Where third-party plug-ins run unless their project says otherwise (round 29,
     /// ADR 0063): this machine's choice, in Settings' plug-in manager.
     pub plugin_isolation: cantus_core::PluginIsolation,
+    /// Low-latency monitoring (round 29, ADR 0064 §4): while on, an insert on a monitored
+    /// path whose latency is above `low_latency_ms` is bypassed, and the monitored path is
+    /// not held back for other strips' latency. Off by default: it changes what is heard.
+    pub low_latency: bool,
+    /// Its limit, ms ([`DEFAULT_LOW_LATENCY_MS`]).
+    pub low_latency_ms: f32,
+    /// Bounce in place removes the original (else mutes it): the last choice, remembered.
+    pub bounce_removes: bool,
 }
+
+/// Low-latency monitoring's limit on a new installation, ms: just above Tonus's 2.7 ms (the
+/// voice's own tuner stays), well below any linear-phase or look-ahead mastering unit —
+/// what Logic's *Low Latency Mode* defaults near.
+pub const DEFAULT_LOW_LATENCY_MS: f32 = 3.0;
 
 /// Where third-party plug-ins run on a new installation (ADR 0063): *Together* — one helper
 /// process for all of them, so a crash never takes the session down, at the cost the ADR
@@ -245,11 +258,27 @@ impl Default for Settings {
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
             plugin_isolation: DEFAULT_PLUGIN_ISOLATION,
+            low_latency: false,
+            low_latency_ms: DEFAULT_LOW_LATENCY_MS,
+            bounce_removes: false,
         }
     }
 }
 
 impl Settings {
+    /// Low-latency monitoring's limit in samples at `rate`, when it is on (ADR 0064 §4).
+    pub fn low_latency_samples(&self, rate: f64) -> Option<u32> {
+        if !self.low_latency {
+            return None;
+        }
+        let ms = if self.low_latency_ms.is_finite() {
+            self.low_latency_ms.clamp(0.0, 100.0)
+        } else {
+            DEFAULT_LOW_LATENCY_MS
+        };
+        Some((f64::from(ms) * rate / 1000.0).round() as u32)
+    }
+
     /// The UI scale, clamped: a settings file hand-edited to 0 would draw nothing at all,
     /// and one edited to 50 would draw a single letter.
     pub fn ui_scale(&self) -> f32 {
