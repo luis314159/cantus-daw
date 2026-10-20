@@ -1996,7 +1996,11 @@ fn a_bounced_clip_copied_and_pasted_on_a_plain_track_plays_on_the_grid() {
             .any(|c| c.audio.is_some()),
         "pasted"
     );
-    same_prefix(&mix(&mut app), &live, "pasted on a plain track: on the grid");
+    same_prefix(
+        &mix(&mut app),
+        &live,
+        "pasted on a plain track: on the grid",
+    );
 }
 
 #[test]
@@ -2055,12 +2059,7 @@ fn a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere() {
         1e-4,
         "the bounce in time in the round trip",
     );
-    within(
-        &there[..n],
-        &live[..n],
-        1e-4,
-        "elsewhere as it played live",
-    );
+    within(&there[..n], &live[..n], 1e-4, "elsewhere as it played live");
 }
 
 #[test]
@@ -2470,7 +2469,10 @@ fn the_clip_menus_bounce_takes_the_clip_right_clicked() {
     cantus_ui::views::arrangement::clip_menu_opened(&mut app, synth, clip);
     app.run_action(Action::BounceInPlace);
     settle(&mut app, &ctx);
-    assert!(!app.project().strip(bus).unwrap().muted, "the bus left alone");
+    assert!(
+        !app.project().strip(bus).unwrap().muted,
+        "the bus left alone"
+    );
     assert!(
         app.project().tracks[0].clips[0].muted,
         "the clip bounced: {}",
