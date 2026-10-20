@@ -210,6 +210,11 @@ pub struct Processor {
     /// every block size (review of fix3). Allocated once, filled on the audio thread.
     lates: Box<[usize]>,
     late_n: usize,
+    /// The same for the inserts that follow the song (`EffectUnit::follows_song`, and a
+    /// watched Speculum, which dates its frames): only their steps cut passes inside a
+    /// ramp (review 2, finding 10), the first `follow_n`.
+    follow_lates: Box<[usize]>,
+    follow_n: usize,
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -327,6 +332,9 @@ impl Processor {
             lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
                 .into_boxed_slice(),
             late_n: 0,
+            follow_lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
+                .into_boxed_slice(),
+            follow_n: 0,
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
@@ -695,6 +703,12 @@ impl Processor {
 
     /// Handle every pending message now, outside a block — for an offline render, which
     /// must have its delay lines before the first sample it keeps.
+    /// The passes run so far (every pass is a whole graph run): the measurements' and the
+    /// tests' count of what cutting passes costs.
+    pub fn passes_run(&self) -> u64 {
+        self.pass
+    }
+
     pub fn settle(&mut self) {
         while !self.rx.is_empty() {
             self.drain_messages();
@@ -750,9 +764,10 @@ pub(crate) fn song_position_of(
         tempo_now: tempo,
         beats,
         samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
-        // The expression `samples` rounds, so a host's sample position (VST3's
-        // `projectTimeSamples`) is the one it was before round 29 (review 1).
-        seconds: beats * 60.0 / tempo.max(1e-9),
+        // A host's sample clock (VST3's `projectTimeSamples`) is the one it was before
+        // round 29 (review 1), and CLAP's seconds round 28's expression (review 2).
+        project_samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
+        seconds: beats * (60.0 / tempo),
         bar_start_beats: (beats / bar).floor() * bar,
         bar_number: (beats / bar).floor() as i32,
         time_sig_num: u16::from(num),

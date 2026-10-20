@@ -399,12 +399,28 @@ impl Transport {
 
     /// [`Self::samples_until_step`] for a unit whose audio is `late` samples behind the
     /// transport: samples until the position it hears reaches its next step.
+    ///
+    /// After a loop's wrap the unit may still hear the pass before (review 2, findings 4
+    /// and 9): its steps there are counted to that pass's end, as the position it is told
+    /// folds (`fx::heard_tick`, shared); a step at or past the end is no cut of its own —
+    /// the late wrap's cut (`Wraps::before_wrap`) is.
     pub fn samples_until_step_late(&self, late: u64) -> Option<u64> {
-        let heard = self.tick_before(self.position_f64(), late);
+        let sr = self.sample_rate;
+        let wraps = self.wraps_played();
+        let (heard, folded) =
+            crate::fx::heard_tick(&self.map, self.position_f64(), wraps.as_ref(), late, sr);
         let next = self
             .map
-            .next_step_after(crate::fx::step_of(&self.map, heard))?;
-        let x = self.sample_of_f64(next) + late as f64 - self.samples as f64;
+            .next_step_after(crate::fx::step_of(&self.map, heard, sr))?;
+        let x = match folded {
+            Some((r, end)) => {
+                if next >= end {
+                    return None;
+                }
+                r as f64 - self.map.seconds_between_f64(next, end) * sr
+            }
+            None => self.sample_of_f64(next) + late as f64 - self.samples as f64,
+        };
         Some(ceil_sample(x))
     }
 
@@ -578,12 +594,15 @@ mod tests {
             t.play();
             for _ in 0..2_000 {
                 let p = crate::processor::song_position_of(&t, &None, sr);
+                // CLAP's seconds are round 28's expression to the bit (review 2, finding
+                // 13); VST3's sample position the one it had.
                 assert_eq!(
-                    (p.seconds * sr).round() as i64,
-                    p.samples,
+                    p.seconds.to_bits(),
+                    (p.beats * (60.0 / bpm)).to_bits(),
                     "{bpm} at {}",
                     p.beats
                 );
+                assert_eq!(p.project_samples, p.samples, "{bpm} at {}", p.beats);
                 t.advance(997);
             }
         }

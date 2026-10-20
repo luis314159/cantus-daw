@@ -114,6 +114,13 @@ pub trait FxUnit: Send + std::fmt::Debug {
     fn set_position(&mut self, position: &SongPosition) {
         let _ = position;
     }
+    /// Whether the unit reads the song position ([`Self::set_position`]): only such a
+    /// unit is told it, and only its lateness cuts the passes at its own tempo steps
+    /// (review 2, finding 10 — a unit that ignores the song costs nothing there). Every
+    /// unit that overrides `set_position` says `true`.
+    fn follows_song(&self) -> bool {
+        false
+    }
     /// What the unit's own editor did in the last `process` calls (a hosted plug-in's
     /// window moving a parameter), oldest first. The processor forwards each as
     /// `EngineEvent::FxParam` and then calls [`Self::clear_param_events`].
@@ -207,8 +214,13 @@ pub struct SongPosition {
     /// ramp, counted on from the step's start, so it moves one per sample within a step.
     pub samples: i64,
     /// Seconds from the song start through the tempo map: the real time a host's
-    /// `song_pos_seconds` and `projectTimeSamples` report.
+    /// `song_pos_seconds` reports.
     pub seconds: f64,
+    /// The real samples from the song start through the tempo map, rounded once: a host's
+    /// sample clock (VST3's `projectTimeSamples`). At one tempo the expression every
+    /// project before round 29 told, which `seconds` (CLAP's round-28 expression there)
+    /// would round differently (review 2, finding 13).
+    pub project_samples: i64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
     /// The current bar's index from bar 1 (0-based), counted through every metre change.
@@ -376,11 +388,13 @@ impl SongPosition {
             return *self;
         }
         let ppq = cantus_core::PPQ as f64;
-        let back = frames as f64 / sample_rate.max(1.0);
-        let mut tick = map.tick_after_seconds(self.beats * ppq, -back);
-        if let Some((r, end)) = self.wrap.and_then(|w| w.locate(frames as u64)) {
-            tick = map.tick_after_seconds(end * ppq, -(r as f64) / sample_rate.max(1.0));
-        }
+        let (tick, _) = heard_tick(
+            map,
+            self.beats * ppq,
+            self.wrap.as_ref(),
+            frames as u64,
+            sample_rate,
+        );
         SongPosition {
             loop_beats: self.loop_beats,
             loop_seconds: self.loop_seconds,
@@ -400,10 +414,12 @@ impl SongPosition {
             beats = end - r as f64 * per_sample;
         }
         let bar = f64::from(self.time_sig_num.max(1)) * 4.0 / f64::from(self.time_sig_den.max(1));
+        let samples = (beats * 60.0 / self.tempo_bpm.max(1e-9) * sample_rate).round() as i64;
         SongPosition {
             beats,
-            samples: (beats * 60.0 / self.tempo_bpm.max(1e-9) * sample_rate).round() as i64,
-            seconds: beats * 60.0 / self.tempo_bpm.max(1e-9),
+            samples,
+            project_samples: samples,
+            seconds: beats * (60.0 / self.tempo_bpm),
             bar_start_beats: (beats / bar).floor() * bar,
             bar_number: (beats / bar).floor() as i32,
             ..*self
@@ -421,16 +437,43 @@ pub fn position_at_tick(
     playing: bool,
     sample_rate: f64,
 ) -> SongPosition {
-    position_at_step(map, tick, step_of(map, tick), playing, sample_rate)
+    position_at_step(map, tick, step_of(map, tick, sample_rate), playing, sample_rate)
 }
 
 /// The start of the tempo step that holds `tick` — a step whose boundary `tick` is a
 /// hair short of (the rounding of a position reached by the engine's own samples) counts
 /// as reached, so a pass cut there is in the new step at every block size (review 1).
-pub fn step_of(map: &cantus_core::TempoMap, tick: f64) -> f64 {
+/// "A hair" is the engine's own rounding of a cut, a millionth of a **sample** at the
+/// tempo there (review 2, finding 11: a millionth of a tick told a late unit its step a
+/// sample before the pass was cut for it at a slow tempo).
+pub fn step_of(map: &cantus_core::TempoMap, tick: f64, sample_rate: f64) -> f64 {
+    let ppq = cantus_core::PPQ as f64;
     match map.next_step_after(tick) {
-        Some(n) if n - tick < 1e-6 => n,
+        Some(n) if n - tick < 1e-6 * map.bpm_at(tick) * ppq / (60.0 * sample_rate.max(1.0)) => n,
         _ => map.step_start(tick),
+    }
+}
+
+/// The tick a unit `late` samples behind the transport (at `now`) hears: after a loop's
+/// wrap folded through it (`Wraps::locate`: the end of the pass before, `r` samples back
+/// from its end), otherwise counted back through the map — and that fold, `(r, end tick)`.
+/// One rule for the position a late unit is told ([`SongPosition::earlier_in`]) and the
+/// transport's cut at its steps (`Transport::samples_until_step_late`), so the two never
+/// disagree (review 2, findings 4 and 9).
+pub fn heard_tick(
+    map: &cantus_core::TempoMap,
+    now: f64,
+    wrap: Option<&Wraps>,
+    late: u64,
+    sample_rate: f64,
+) -> (f64, Option<(u64, f64)>) {
+    let sr = sample_rate.max(1.0);
+    match wrap.and_then(|w| w.locate(late)) {
+        Some((r, end)) => {
+            let end = end * cantus_core::PPQ as f64;
+            (map.tick_after_seconds(end, -(r as f64) / sr), Some((r, end)))
+        }
+        None => (map.tick_after_seconds(now, -(late as f64) / sr), None),
     }
 }
 
@@ -461,6 +504,7 @@ pub fn position_at_step(
         beats,
         samples: samples.round() as i64,
         seconds: map.seconds_at(tick),
+        project_samples: (map.seconds_at(tick) * sample_rate).round() as i64,
         bar_start_beats: map.bar_start(cantus_core::Ticks(tick.floor() as i64)).0 as f64 / ppq,
         bar_number: (map.bbt(cantus_core::Ticks(tick.floor() as i64)).0 - 1) as i32,
         time_sig_num: u16::from(sig.numerator),
@@ -525,6 +569,7 @@ mod position_tests {
             tempo_bpm: 120.0,
             beats: 8.25,
             samples: 198_000,
+            project_samples: 198_000,
             tempo_inc: 0.0,
             tempo_now: 120.0,
             seconds: 4.125,
@@ -566,6 +611,7 @@ mod position_tests {
             tempo_bpm: 120.0,
             beats: 8.25,
             samples: 198_000,
+            project_samples: 198_000,
             tempo_inc: 0.0,
             tempo_now: 120.0,
             seconds: 4.125,

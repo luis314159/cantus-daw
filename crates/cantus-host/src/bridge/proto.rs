@@ -16,7 +16,7 @@ use std::io::{self, Read, Write};
 
 /// Bumped whenever a message or the slot layout changes: a helper from another build is
 /// refused at the handshake.
-pub const PROTOCOL: u32 = 2;
+pub const PROTOCOL: u32 = 3;
 
 /// The largest frame accepted (a plug-in state of 256 MB is already absurd).
 pub const MAX_FRAME: usize = 256 << 20;
