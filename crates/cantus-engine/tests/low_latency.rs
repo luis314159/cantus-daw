@@ -163,3 +163,161 @@ fn the_monitored_path_waits_only_for_its_own_chain() {
     drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 4], block);
     assert!(!proc.stats().low_latency.on);
 }
+
+// ---- review 1 ---------------------------------------------------------------------------
+
+/// Play `input` (mono) into the voice, stopped, monitoring, and return the left output.
+fn monitor(p: &Project, low: Option<u32>, input: &[f32]) -> (Vec<f32>, EngineStats) {
+    let block = 256;
+    let (mut h, mut proc, mut ring) = rig(p);
+    h.send(EngineMessage::SetLowLatency(low));
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 4], block);
+    let mut out = Vec::with_capacity(input.len());
+    let mut buf = vec![0f32; block * 2];
+    for chunk in input.chunks(block) {
+        for x in chunk {
+            ring.push(*x).unwrap();
+        }
+        proc.process(&mut buf[..chunk.len() * 2], 2);
+        h.poll();
+        out.extend(buf[..chunk.len() * 2].iter().step_by(2));
+    }
+    (out, *proc.stats())
+}
+
+/// The voice through Tonus (128 samples, under the limit) into a bus; the backing (a
+/// linear-phase EQ, far over it) into the master, or into the same bus (`mixed`).
+fn through_a_bus(mixed: bool) -> Project {
+    let mut p = Project::new("bus");
+    p.tempo_bpm = 120.0;
+    let mut t = p.make_track("Voice");
+    t.input = Some(TrackInput::mono(0));
+    t.armed = true;
+    p.tracks.push(t);
+    let backing = p.make_track("Backing");
+    p.tracks.push(backing);
+    let voice = p.tracks[0].strip.unwrap();
+    let back = p.tracks[1].strip.unwrap();
+    let bus = p.strips[6].id;
+    let tonus = p.make_effect(EffectKind::AutoTune);
+    p.strip_mut(voice).unwrap().effects.push(tonus);
+    p.strip_mut(voice).unwrap().output = Some(bus);
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("mode", 2.0).unwrap();
+    p.strip_mut(back).unwrap().effects.push(eq);
+    if mixed {
+        p.strip_mut(back).unwrap().output = Some(bus);
+    }
+    p
+}
+
+/// Where an impulse at frame 2 000 of the input comes out, frames after it.
+fn heard_after(p: &Project) -> (usize, u64) {
+    let mut x = vec![0f32; 24_000];
+    x[2_000] = 1.0;
+    let (out, stats) = monitor(p, Some(144), &x);
+    let at = out
+        .iter()
+        .position(|v| v.abs() > 1e-4)
+        .expect("the voice is heard");
+    (at - 2_000, stats.low_latency.monitored_samples)
+}
+
+#[test]
+fn the_monitored_wait_is_measured_through_the_buses_it_goes_by() {
+    // A bus of monitored input only: not held back, the voice heard after Tonus.
+    let (heard, said) = heard_after(&through_a_bus(false));
+    assert!(heard >= 100 && heard < 200, "Tonus's latency: {heard}");
+    assert_eq!(said as usize, heard, "the figure is what is heard");
+    // A bus that mixes it with the backing: it waits there with the backing.
+    let (heard, said) = heard_after(&through_a_bus(true));
+    assert!(heard > 4_000, "with the backing's EQ: {heard}");
+    assert_eq!(said as usize, heard, "the figure is what is heard");
+}
+
+#[test]
+fn an_insert_back_from_a_hard_bypass_holds_nothing_from_before() {
+    let p = project(false);
+    let block = 256;
+    let (mut h, mut proc, mut ring) = rig(&p);
+    // Off: the voice's linear-phase EQ hears a noise.
+    let mut rng = 1u32;
+    let noise: Vec<f32> = (0..block * 40)
+        .map(|_| {
+            rng = rng.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (rng >> 8) as f32 / (1u32 << 24) as f32 - 0.5
+        })
+        .collect();
+    drive(&mut h, &mut proc, &mut ring, &noise, block);
+    // On: bypassed hard while silence comes in; then off again.
+    h.send(EngineMessage::SetLowLatency(Some(144)));
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 40], block);
+    assert!(proc.stats().low_latency.off_count >= 1);
+    h.send(EngineMessage::SetLowLatency(None));
+    let mut out = vec![0f32; block * 2];
+    for _ in 0..40 {
+        for _ in 0..block {
+            ring.push(0.0).unwrap();
+        }
+        proc.process(&mut out, 2);
+        h.poll();
+        assert!(
+            out.iter().all(|v| *v == 0.0),
+            "no noise from before the bypass"
+        );
+    }
+}
+
+#[test]
+fn an_armed_instrument_track_is_monitored_with_low_latency() {
+    let mut p = project(true);
+    // The voice disarmed; a synth armed (no audio input) through a linear-phase EQ.
+    p.tracks[0].armed = false;
+    let mut synth = p.make_track("Synth");
+    synth.armed = true;
+    let s = synth.strip.unwrap();
+    p.tracks.push(synth);
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("mode", 2.0).unwrap();
+    p.strip_mut(s).unwrap().effects.push(eq);
+    let (_, stats) = monitor(&p, Some(144), &vec![0.0; 4096]);
+    let ll = stats.low_latency;
+    assert!(ll.monitoring, "its notes are monitored");
+    assert!(ll.off_count >= 2, "its EQ and the master's limiter");
+    assert_eq!(ll.off_total, ll.off_count as u16);
+    assert_eq!(ll.monitored_samples, 0, "its instrument has no latency");
+}
+
+#[test]
+fn an_insert_after_a_hard_bypassed_one_is_dated_without_it() {
+    let mut p = project(false);
+    let voice = p.tracks[0].strip.unwrap();
+    let delay = p.make_effect(EffectKind::Delay);
+    let id = delay.id;
+    p.strip_mut(voice).unwrap().effects.push(delay);
+    let (mut h, mut proc, mut ring) = rig(&p);
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; 1024], 256);
+    assert!(proc.effect_late(id).unwrap() > 1000, "after the EQ");
+    h.send(EngineMessage::SetLowLatency(Some(144)));
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; 1024], 256);
+    assert_eq!(
+        proc.effect_late(id),
+        Some(0),
+        "the EQ bypassed delays nothing"
+    );
+}
+
+#[test]
+fn every_bypass_is_counted_past_the_names_kept() {
+    let mut p = project(false);
+    let voice = p.tracks[0].strip.unwrap();
+    for _ in 0..10 {
+        let mut eq = p.make_effect(EffectKind::Eq);
+        eq.spec.set("mode", 2.0).unwrap();
+        p.strip_mut(voice).unwrap().effects.push(eq);
+    }
+    let (_, stats) = monitor(&p, Some(144), &vec![0.0; 1024]);
+    let ll = stats.low_latency;
+    assert_eq!(ll.off_count as usize, ll.off.len());
+    assert!(ll.off_total as usize > ll.off.len(), "{}", ll.off_total);
+}

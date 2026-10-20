@@ -551,6 +551,15 @@ impl Processor {
             .unwrap_or(0)
     }
 
+    /// How late an insert's audio is against the transport (`EffectUnit::late`: what a
+    /// tempo-synced unit and a watched Speculum are dated by), if it is on a strip.
+    pub fn effect_late(&self, id: EffectId) -> Option<usize> {
+        (0..MAX_STRIPS).find_map(|slot| {
+            let st = self.nodes.strip(slot)?;
+            st.effects.iter().find(|e| e.id == id).map(|e| e.late)
+        })
+    }
+
     /// How many samples a snapshot strip's fader output lags the timeline.
     pub fn strip_latency(&self, index: usize) -> usize {
         self.strip_slot(index)
