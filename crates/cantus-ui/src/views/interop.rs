@@ -1085,7 +1085,7 @@ fn open_imported(app: &mut CantusApp, mut project: Project, report: Report, name
     // A save in flight writes the project being replaced: it lands first (`save_job`).
     app.wait_for_save();
     // A pass in progress belongs to the song it was recorded into (tempo's review 5), as
-    //  has it; and a gesture to the project it was begun on (round 29's
+    // `replace_project` has it; and a gesture to the project it was begun on (round 29's
     // third review).
     if app.is_recording() {
         app.stop_recording();

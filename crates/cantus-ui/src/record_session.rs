@@ -1132,7 +1132,7 @@ impl CantusApp {
         });
         self.drop_missing_clips();
         if ok {
-            self.set_status(t("rec.merged"));
+            self.say_done(t("rec.merged"), run.late);
         }
         ok
     }
@@ -1172,9 +1172,10 @@ impl CantusApp {
         lone.clips = windows.clone();
         alone.tracks.push(lone);
         let rate = self.engine.sample_rate.round() as u32;
-        let late = self.engine.renders_late();
+        let before = self.engine.renders_late();
         let snapshot = self.engine.compile_for_render(&alone, 1);
-        self.say_late(late);
+        self.say_late(before);
+        let late = self.late_since(before);
         if self.engine.samples.loading() {
             // What it plays started loading just now: wait for it.
             return false;
@@ -1220,6 +1221,7 @@ impl CantusApp {
                 from,
                 to,
                 windows: windows.iter().map(|c| c.id).collect(),
+                late,
             });
         }
         false
@@ -1263,4 +1265,7 @@ struct MergeRun {
     from: Ticks,
     to: Ticks,
     windows: Vec<cantus_core::ClipId>,
+    /// A warped window's render was late at its compile: said as it lands (warp, round
+    /// 29's third review).
+    late: bool,
 }

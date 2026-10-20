@@ -91,6 +91,9 @@ pub struct Prepared {
     /// The latency its file keeps (frames at `rate`), set by the worker: the new track
     /// reports it (`Track::lateness`, review 2).
     latency: Arc<std::sync::atomic::AtomicU64>,
+    /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
+    /// third review).
+    late_render: bool,
 }
 
 /// What a bounce's render depends on: the region it hears (`depends`).
@@ -472,9 +475,10 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
         return Err(tf("freeze.file_missing", &[("file", &file)]));
     }
     crate::freeze::retry_back(app, &keep);
-    let late = app.engine.renders_late();
+    let before = app.engine.renders_late();
     let compiled = app.engine.compile_for_render(&alone, 0);
-    app.say_late(late);
+    app.say_late(before);
+    let late_render = app.late_since(before);
     let mut snap = (*compiled).clone();
     freeze::isolate(&mut snap, &keep);
     let rate = app.engine.sample_rate.round() as u32;
@@ -541,6 +545,7 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
         replaced: taken,
         depends: depends(&project, &plan).unwrap_or_default(),
         latency,
+        late_render,
     };
     Ok(Some(crate::freeze::bounce_job(
         app,
@@ -1076,15 +1081,17 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         commands,
     }) {
         app.select_track(tid);
-        // Why "remove" was not done, said with it (review 2: it was overwritten).
-        if kept {
-            app.set_status(tf(
+        // Why "remove" was not done, said with it (review 2: it was overwritten); a
+        // warped clip's render late at its compile too (warp, round 29's third review).
+        let text = if kept {
+            tf(
                 "bounce.done_kept",
                 &[("name", &label), ("track", &orig.name)],
-            ));
+            )
         } else {
-            app.set_status(tf("bounce.done", &[("name", &label)]));
-        }
+            tf("bounce.done", &[("name", &label)])
+        };
+        app.say_done(text, prepared.late_render);
     } else {
         let _ = std::fs::remove_file(&wav);
     }

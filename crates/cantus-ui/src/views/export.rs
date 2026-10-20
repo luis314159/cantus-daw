@@ -56,6 +56,8 @@ struct Job {
     settings: ExportSettings,
     /// The percentage last shown in the status line.
     shown: Option<u32>,
+    /// A warped clip's render was late at its compile: said when it lands.
+    late: bool,
 }
 
 impl ExportUi {
@@ -341,11 +343,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         return true;
     }
     let rate = app.engine.sample_rate.round() as u32;
-    let late = app.engine.renders_late();
+    let before = app.engine.renders_late();
     let snapshot = app
         .engine
         .compile_for_render(app.bus.project(), app.bus.revision());
-    app.say_late(late);
+    let late = app.late_since(before);
     let mut render = RenderOptions {
         sample_rate: rate,
         tail_seconds: d.tail_seconds.max(0.0) as f64,
@@ -413,9 +415,12 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         target: target.to_path_buf(),
         settings: asked,
         shown: None,
+        late,
     });
     app.export.last = None;
     app.set_status(t("status.exporting"));
+    // Said after "exporting", so its quiet keeps it on the line meanwhile.
+    app.say_late(before);
     true
 }
 
@@ -538,10 +543,14 @@ fn finish(app: &mut CantusApp, result: Result<Done, String>) {
             if let Some(w) = &warnings {
                 text = format!("{text} {w}");
             }
+            // A warped clip's quick version in the file, said (round 29's third review).
+            if j.late {
+                text = format!("{text} {}", t("warp.status.late"));
+            }
             app.export.last = Some(Ok(text.clone()));
             if done.unaligned {
                 app.set_error(format!("{text} {}", t("interop.stems.unaligned")));
-            } else if warnings.is_some() {
+            } else if warnings.is_some() || j.late {
                 app.set_error(text);
             } else {
                 app.set_status(text);

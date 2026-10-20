@@ -411,3 +411,49 @@ fn an_import_error_is_said_in_the_interfaces_language() {
     assert_eq!(said, "el archivo está dañado o incompleto");
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Findings 35 and 39: an export compiled while a warped clip's render was on its way says
+/// so when it lands — through the export's own entry point, after its own words.
+#[test]
+fn a_late_render_is_said_when_an_export_lands() {
+    use cantus_ui::views::export;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    a.engine.samples.warp().hold_finals(true);
+    a.engine.set_render_patience(Duration::from_millis(20));
+    assert!(a.set_warp_cents((t, c.id), 300, false));
+    export::open(&mut a, None);
+    let d = a.export.dialog.as_mut().unwrap();
+    d.scope = cantus_export::Scope::Song;
+    d.loudness.target_lufs = None;
+    d.tail_seconds = 0.0;
+    assert!(export::start(&mut a, &dir.path().join("out.wav")));
+    export::wait(&mut a);
+    a.engine.samples.warp().hold_finals(false);
+    let late = cantus_ui::i18n::t("warp.status.late");
+    assert!(a.status.error, "said as a warning: {}", a.status.text);
+    assert!(a.status.text.ends_with(&late), "{}", a.status.text);
+    let last = a.export.last.clone().unwrap().unwrap();
+    assert!(last.ends_with(&late), "the dialog's last word too: {last}");
+}
+
+/// Finding 39: the note goes with a job's own message — a freeze's or a merge's "done" —
+/// as a warning, never replaced by it.
+#[test]
+fn a_jobs_done_message_carries_the_late_note() {
+    let mut a = app(project(120.0));
+    a.say_done("Frozen".into(), true);
+    assert!(a.status.error);
+    assert_eq!(
+        a.status.text,
+        format!("Frozen {}", cantus_ui::i18n::t("warp.status.late"))
+    );
+    a.say_done("Frozen".into(), false);
+    assert!(!a.status.error);
+    assert_eq!(a.status.text, "Frozen");
+}

@@ -27,6 +27,9 @@ pub struct Pending {
     span: (Ticks, Ticks),
     revision: u64,
     rx: mpsc::Receiver<Vec<(f64, f32)>>,
+    /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
+    /// third review).
+    late: bool,
 }
 
 impl CantusApp {
@@ -88,11 +91,11 @@ impl CantusApp {
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
-        let late = self.engine.renders_late();
+        let before = self.engine.renders_late();
         let snapshot = self
             .engine
             .compile_for_render(self.bus.project(), self.bus.revision());
-        self.say_late(late);
+        let late = self.late_since(before);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: span.0,
@@ -125,8 +128,11 @@ impl CantusApp {
             span,
             revision: self.bus.revision(),
             rx,
+            late,
         });
         self.set_status(t("mods.status.baking"));
+        // After "baking", so the line keeps it while the trace runs.
+        self.say_late(before);
         true
     }
 
@@ -159,7 +165,9 @@ impl CantusApp {
             self.set_error(t("mods.status.bake_moved"));
             return;
         }
-        self.finish_bake(p.id, &p.target, p.span, Some(&trace));
+        if self.finish_bake(p.id, &p.target, p.span, Some(&trace)) && p.late {
+            self.say_done(t("mods.status.baked"), true);
+        }
     }
 
     /// The bake itself: the curve, the clips it plays over, the route gone — one step.

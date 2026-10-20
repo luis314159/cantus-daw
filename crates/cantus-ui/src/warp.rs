@@ -288,8 +288,25 @@ impl CantusApp {
     /// file holds a warped clip's quick version (or a pitch edit's source) — said, never
     /// silently written (round 29's second review).
     pub fn say_late(&mut self, before: u64) {
-        if self.engine.renders_late() > before {
+        if self.late_since(before) {
             self.set_error(crate::i18n::t("warp.status.late"));
+        }
+    }
+
+    /// Whether a warped clip's render was late since `before` (the engine's
+    /// `renders_late`): what a job compiled then writes holds the render's quick version.
+    pub fn late_since(&self, before: u64) -> bool {
+        self.engine.renders_late() > before
+    }
+
+    /// A job's own words as it lands (an export, a bounce, a freeze, a comp merge, a bake),
+    /// with the late-render note when its compile found a render on its way — round 29's
+    /// third review: the job's message replaced the note, so it was never seen.
+    pub fn say_done(&mut self, text: String, late: bool) {
+        if late {
+            self.set_error(format!("{text} {}", crate::i18n::t("warp.status.late")));
+        } else {
+            self.set_status(text);
         }
     }
 
