@@ -209,7 +209,7 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     let rows = rows(avail, gap, k);
     let row_h = s.s(super::BAR_H);
     app.warp.view.bar_rects.clear();
-    let mut lay = |app: &mut CantusApp, ui: &mut egui::Ui| {
+    let lay = |app: &mut CantusApp, ui: &mut egui::Ui| {
         ui.allocate_ui(vec2(avail, row_h * rows.len() as f32), |ui| {
             ui.vertical(|ui| {
                 for row in &rows {
