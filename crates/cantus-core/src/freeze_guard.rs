@@ -273,6 +273,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         }
         // ---- freezing: validated where they are applied --------------------------------
         SetStripFrozen { .. } | SetTrackFrozen { .. } => vec![],
+        // When its source reaches its level: part of its source's sound.
+        SetTrackLateness { id, .. } => vec![TrackSource(*id)],
         // Each command of a batch is guarded as it is applied.
         Batch { .. } => vec![],
     }

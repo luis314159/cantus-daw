@@ -529,16 +529,20 @@ pub struct Track {
     /// render — the track's level, balance, mute and solo stay live. `None` plays live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frozen: Option<crate::freeze::Frozen>,
-    /// How late this track's audio arrives at its level (schema 38, ADR 0064 §6): a bounce
-    /// in place keeps the latency its source or its chain had in its file, and the track
-    /// reports it as its own, so its level, its strip's fader, sends and keys meet the
-    /// audio as late as they did before (review 2). `None`: on time.
+    /// How long this track delays its source before its level (schema 38, ADR 0064 §6): a
+    /// bounce in place writes its audio on the grid and keeps here the latency what it
+    /// replaced was heard with, so the track plays everything it holds — the bounce, any
+    /// clip or take put on it later — that much later and reports it as its own: its
+    /// level, its strip's fader, sends and keys meet the audio as late as they did before
+    /// (review 2), while the audio itself moves, pastes and exports on the grid (review 3:
+    /// the latency was in the bounce's file, and every other path missed it). `None`: no
+    /// delay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lateness: Option<Lateness>,
 }
 
-/// A latency kept in a track's audio: `frames` at `rate` (the engine converts it to its own
-/// rate).
+/// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
+/// its own rate).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Lateness {
     pub frames: u64,
@@ -546,9 +550,22 @@ pub struct Lateness {
 }
 
 impl Lateness {
-    /// In frames at `rate`.
+    /// The longest delay a track keeps, in seconds (compensation's own ceiling is 2¹⁹
+    /// samples: 10.9 s at 48 kHz).
+    pub const MAX_SECONDS: f64 = 10.0;
+    /// The rates it can be counted at.
+    pub const RATES: std::ops::RangeInclusive<u32> = 8_000..=768_000;
+
+    /// Whether a bounce can have kept it: a rate a device runs at, at most
+    /// [`Self::MAX_SECONDS`] (review 3: a hand-edited file's went into the plan unchecked).
+    pub fn is_valid(&self) -> bool {
+        Self::RATES.contains(&self.rate)
+            && self.frames as f64 <= Self::MAX_SECONDS * self.rate as f64
+    }
+
+    /// In frames at `rate`; 0 for one that is not valid.
     pub fn at(&self, rate: f64) -> usize {
-        if self.rate == 0 {
+        if !self.is_valid() || !rate.is_finite() || rate <= 0.0 {
             return 0;
         }
         (self.frames as f64 * rate / self.rate as f64).round() as usize
@@ -1445,6 +1462,19 @@ impl Project {
     }
 
     /// Whether the track is audible given mute/solo state.
+    /// Drop every track delay a bounce could not have kept (a hand-edited or damaged file,
+    /// `Lateness::is_valid`); how many went (review 3).
+    pub fn repair_lateness(&mut self) -> usize {
+        let mut n = 0;
+        for t in &mut self.tracks {
+            if t.lateness.is_some_and(|l| !l.is_valid()) {
+                t.lateness = None;
+                n += 1;
+            }
+        }
+        n
+    }
+
     pub fn track_audible(&self, track: &Track) -> bool {
         if track.muted {
             return false;

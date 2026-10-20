@@ -3370,6 +3370,24 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
 /// key is still its content key (the edit lock's invariant).
 fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
     use cantus_core::freeze::{self, FreezeTarget};
+    // A track's kept delay (a bounce's, review 3) set, changed or cleared — refused inside
+    // a frozen region, as any change of its source.
+    if rng.below(6) == 0 {
+        let id = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+        let lateness = match rng.below(3) {
+            0 => None,
+            1 => Some(cantus_core::Lateness {
+                frames: rng.below(9_000),
+                rate: 48_000,
+            }),
+            // Not one a bounce could keep: refused.
+            _ => Some(cantus_core::Lateness {
+                frames: u64::MAX / 2,
+                rate: 1,
+            }),
+        };
+        return Command::SetTrackLateness { id, lateness };
+    }
     let frozen = project.frozen_targets();
     // A frozen target stays so until this arm runs again (about 48 commands), so the
     // other arms keep most of the project to themselves.
