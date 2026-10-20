@@ -215,6 +215,81 @@ Files outside my area touched by the review's fixes: `cantus-core` `bus.rs`
 `views/modulator_section.rs`, `views/fx/controls.rs`, `views/arrangement_rec.rs`
 (`header_input` takes the clip), `kit/automate.rs`, `app.rs` (the damaged-file status).
 
+## Review 2 (`reviews/controllers-2.json`, 55 confirmed) — how each was fixed
+
+Merged `r29/integration` 6e74f7e first. Every fix has a test, and each test was seen
+failing with its fix taken out again. The fixes were broken on purpose, then put back:
+
+- core: 4 broken, 4 caught (plus the bus test, written before its fix);
+- engine: 3 broken, 2 tests caught them;
+- interface: 25 broken in one run, 23 tests caught them; the 2 left were the bus fix and the
+  commit's own guard, each caught on its own;
+- the stepped-control test: 239 keys named when the offers were removed;
+- VST3 program change: 1 broken, 1 caught;
+- frame budget: 1 broken (the copy of a hosted parameter), 1 caught.
+
+Tests live in `crates/cantus-ui/tests/controllers_review2.rs` unless named otherwise.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0, 19, 23, 40 (high) | an undo, a redo or a mouse edit during a two-knob gesture was overwritten by the gesture's stored commands | the gesture remembers the revision after its own step; another revision seals it and only this frame's targets are sent | `an_undo_during_a_gesture_sticks`, `a_mouse_edit_during_a_gesture_sticks` |
+| 17 (high) | a move in the count-in, or heard before a pass at tick 0, failed the commit: the pass's automation lost | `record_point_at` keeps points inside the pass (record start, loop start, punch-in … punch-out); the commit's start never below 0 | `a_move_heard_before_a_pass_at_zero_keeps_the_pass`, `a_move_during_the_count_in_is_not_written_before_the_pass` |
+| 20, 53 | a gesture sealed under a mouse step stayed open; an undo let a later turn merge into it | a serial in every gesture's key; `end_gesture_if` seals the key's step wherever it is | bus `a_buried_gesture_is_sealed_by_its_key`, `a_later_turn_is_its_own_step_after_an_undo` |
+| 7, 18 | a move just before the loop's start landed at its end on the first entry | a wrap is seen (the playhead going back while looping) and only a message from before it is moved | `the_first_entry_into_a_loop_is_no_wrap`, `a_message_before_a_real_wrap_lands_at_the_loops_end` |
+| 1, 24, 51 | learning again a swapped plug-in's parameter kept the old plug-in; the mark and *Forget* acted on the dormant mapping | `Mapping::fits` / `ControllerMap::of_target_in` (no allocation) in learn, the mark and *Forget*; learning again sets `plugin` | `learning_a_swapped_plug_ins_parameter_makes_a_live_mapping`, `learning_again_sets_the_plug_in`, core `the_map_finds_only_the_mappings_of_the_plug_in_loaded` |
+| 2, 41 | a momentary CC button held past 300 ms learnt as absolute | a button heard at 127 only waits `HOLD_WINDOW` (1.5 s) for its release; a release learns at once | `a_held_momentary_button_is_learnt_as_a_toggle` |
+| 2 (second half) | pick-up on a switch made presses dead | a switch target takes no takeover | core `a_switch_takes_no_takeover` |
+| 6 | bank select before a program change learnt a 14-bit CC 0 | `learn::program_after_bank`: the program change is the control, learnt at once | core `a_program_after_bank_select_is_learnt_as_the_program`, `a_program_button_with_bank_select_is_learnt_as_the_program` |
+| 4, 12, 27 | learning took a feedback echo for the control | echoes are dropped before learning or driving | `learning_takes_no_feedback_echo` |
+| 3, 10, 28, 31 | the echo window ate real presses and was judged at drain time | judged by the message's own arrival, within 30 ms of the send | `a_press_after_feedback_is_a_press_and_a_late_read_echo_is_an_echo` |
+| 11, 26 | the echo list grew without limit | pruned before each send (2 s) and bounded (256) | `the_echo_list_stays_bounded` |
+| 5, 22, 38 | after a fine half, a coarse half alone was ignored; a fine-first sender lagged | a coarse half alone is read with a fine 0 at the end of the burst; a fine half first, then its coarse half, is the pair (the pairs are cleared on a rescan already) | `a_14_bit_pair_reads_a_coarse_half_alone_and_a_fine_half_first`, round 1's 14-bit test updated |
+| 8 | *scale* never moved a stepped parameter | `DriveState::scaled`: its own unrounded position | core `scale_moves_a_stepped_target` |
+| 9, 29, 39 | a global file not text, unreadable, newer, or with an unreadable mapping was lost on the next save | read as bytes; any loss keeps the file beside (`.bad`, an earlier one kept with the time) and is said | `a_global_file_that_loses_anything_is_kept_beside` |
+| 13 | the rearm could lose the last wake | the rearm is a swap | engine `the_rearm_reports_a_pending_wake` (and the swap's ordering) |
+| 14 | the learn hand-off used relaxed atomics | learning stored with release, read with acquire | (ordering; reviewed) |
+| 15 | a half-pedal release reached the engine as it was; reset-all and sostenuto not kept | the release sent fully up; CC 121 lets the pedals go; CC 66 tracked | engine `a_pedal_let_go_while_taken_reaches_the_engine_fully_up` |
+| 16 | a full ring dropped the newest messages | the newest per address kept aside, handed over after the ring | engine `a_full_ring_keeps_the_newest_value` |
+| 21 | the amount row's mouse sent `SetModulator`: not recorded, not last tweaked | `edit_modulator` sends `SetModulatorAmount` when only the amount moved | `a_modulator_amount_moved_with_the_mouse_is_recorded` |
+| 25 | a frozen target stopped the gesture and printed a raw error | `freeze::refuses` per target: left out, refused once in words | `a_frozen_target_in_a_gesture_leaves_the_others_moving` |
+| 30 | an idle frame allocated per hosted mapping | `hosted_param_info` (looked up, not copied); feedback gathers nothing when none sends | `frame_budget.rs` `an_idle_frame_with_a_hosted_mapping_costs_no_allocation` |
+| 32 | no test held the lock-free wake | the wake must run on another thread | engine `the_wake_runs_on_its_own_thread` |
+| 33 | `controller_wakes` untested | the ticker's asked delay read after a frame | `an_idle_window_is_woken_for_the_controllers_clocks` |
+| 34, 20 | the tempo test could not fail; no gesture across a point | a tempo knob across two points: one step, one command per point, no growth, undo restores both | `a_tempo_gesture_across_a_point_is_one_step` |
+| 35 | the typed-curve test was vacuous | `parse_curve`, which the curve cell reads through | `a_curve_is_typed_in_percent` |
+| 36, 45 | the rack, the hosted editor, modulator rows, the route menu never probed; the mixer probe near-tautological | probes per row and per strip | `the_channel_rack_offers_learn_on_every_row`, `the_mixer_offers_learn_on_every_strips_controls`, `a_modulator_row_offers_learn`, `a_sends_menu_learns_its_level_by_name`, `a_hosted_editor_offers_learn_on_its_parameters` |
+| 37 | the clip test never clicked outside the clip | a spot half under its clip: below, the control's click; inside, the learn | `a_learn_spot_is_clipped_by_its_view` |
+| 42 | no v35 fixture; `Mapping::plugin` in no fixture | `write_fixture 35` writes `fixtures/v35.cantus`; the schema-35 block has a hosted mapping with its plug-in | project `schema_35_keeps_the_controller_mappings`, `all_fixtures_load_and_migrate`, core `a_mappings_plug_in_survives_serde` |
+| 43 | every action named *Transport* | named by its own group | `an_action_is_named_by_its_group` |
+| 44 | stepped controls in instruments and many effects skipped learn | `stepped_param` / `stepped_inst`, `fx::controls::stepped_offer` and keyed segmented, field, card-lamp, selector, LED variants at every plain stepped control | `learn_everywhere.rs` `every_stepped_parameter_is_drawn_with_its_offer` (282 keys) |
+| 45 | shots older than the fixes | `shoot_controllers` re-shot with the rack in learn mode, mapped marks on the mixer and an effect, a send's route menu, the pane's action row and idle pills | `F:\projects\daw-r29\shots\controllers\` (`controllers-learn-rack-*`, `-marks-mixer-*`, `-marks-editor-*`, `-route-menu-*`, `-pane-*`) |
+| 46 | forgetting an insert named its Bypass | `forget_slot` names the insert | `forgetting_an_inserts_controllers_names_the_insert` |
+| 47 | the send menu's learn row did not say what it learns | *Learn the send's level* / *Change …* / *Forget the send level's controller*, both languages | `a_sends_menu_learns_its_level_by_name` |
+| 48 | Spanish caption without its noun | *Toma de control de las asignaciones nuevas* | (i18n; shots) |
+| 49, 54 | an unloaded or frozen plug-in's mapping read *Missing*; a frozen hosted mapping leaked its control | `mapping_state`: *Missing*, *Other plug-in*, *Not loaded*, *Frozen*; frozen hosted mappings stay the map's and refuse | `a_hosted_mapping_on_a_frozen_track_is_frozen_not_missing` |
+| 50 | toggles offered by Add fed nothing back | `action_state` for punch, count-in, low latency, tempo track, typing keyboard, meter wave, arm, strip mute and solo | `every_toggle_with_a_state_feeds_it_back` |
+| 52 | a VST3 program change made two undo steps | no parameter event; the idle says the state changed | host `a_program_change_reaches_the_program_list_and_the_project` |
+
+Files outside my area touched by review 2's fixes:
+- `cantus-core`: `bus.rs` (`end_gesture_if` searches the history), `freeze_guard.rs` and
+  `freeze.rs` (`refuses`, exported).
+- `cantus-host`: `vst3/{audio_thread,main_thread}.rs` (the program change as a state change).
+- `cantus-project`: `examples/write_fixture.rs` (a schema to stop at; the schema-36 and -37
+  blocks run only from their own schema on), `fixtures/v35.cantus` (new),
+  `fixtures/v37.cantus` (regenerated).
+- `cantus-ui`, kit and models: `kit/automate.rs` (the offers probe),
+  `views/modulator.rs` (`mod_offer` notes it; `edit_modulator`),
+  `views/modulator_record.rs`, `views/mixer_menu.rs`, `views/route_menu.rs`,
+  `views/channel_rack.rs`, `views/plugins.rs`.
+- `cantus-ui`, effect editors: `views/fx/{controls,gate,limiter,maximizer_bands,
+  maximizer_meters,stereo,stereo_map,tonus,tonus_keys,fluctus_curve,multiband,space,modfx,
+  saturator}.rs`, `views/eq_editor_panel.rs`, `views/comp_editor.rs`,
+  `views/comp_editor/key.rs`.
+- `cantus-ui`, instrument editors: `views/inst/{analog_parts,organ_parts,organ_drawbars,
+  wavetable_parts,wavetable_filter,sampler_parts,sampler_cards,fm_env,fm_ops,frame}.rs`.
+- Tests and examples: `learn_everywhere.rs`, `frame_budget.rs`, `controllers_review.rs`
+  (round 1's loop and 14-bit tests follow the new rules), `examples/shoot_controllers.rs`.
+
 ## Left
 
 Nothing of mine. Owner-only: trying it with a real controller (a keyboard with knobs and

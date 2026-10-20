@@ -345,7 +345,10 @@ controller**, FL Studio's way — also in the top bar's **Clip** menu) and move 
 
 Cantus tells what you moved: a plain knob, a **14-bit fader** (its fine controller came
 too), an **endless encoder** (and which of the three encodings it speaks), a button, a pad
-(on a switch it toggles; on a knob its velocity sets the value) or a program change.
+(on a switch it toggles; on a knob its velocity sets the value) or a program change (the
+bank select a keyboard sends before it is passed over). Press a button and let it go:
+pressed and released it toggles; a button that stays down by itself (it sends its top
+value only) sets the target on and off as it is.
 
 **How a mapping reads its control** — in the **Controllers** pane (View menu, or
 `Ctrl+Shift+K`), one row per mapping:
@@ -362,12 +365,19 @@ too), an **endless encoder** (and which of the three encodings it speaks), a but
   *Scale* (the value moves with the knob, so both reach the end together), *Jump*. The
   header sets the takeover new mappings get.
 - **Feedback** (*Send*): the value goes back to the controller whenever it changes — for
-  motor faders and LED rings. Off by default.
+  motor faders and LED rings, and the lights of the transport's buttons and every switch
+  with a state (play, record, loop, the metronome, punch, count-in…). Off by default; an
+  action that has no state (stop, undo) has no *Send*. What a controller or a loopback port
+  sends straight back is recognised as the echo it is.
 
 A lit dot at the left of a row shows a message just came. **Shared** marks one control
 on several targets (allowed: one knob can open two filters at once). A row whose target is
 gone (a deleted track) is kept, marked **Missing**, and works again if undo brings the
-target back.
+target back. A plug-in's parameter is learnt with that plug-in: after the instrument or the
+insert is swapped for another, the row says **Other plug-in** and its knob is free (learn
+the new one's parameter; an undo of the swap brings the old row back to life). **Not
+loaded** says the plug-in is in the project but not running here; **Frozen**, that its
+sound is frozen — a move is refused and said, and the knob reaches no other instrument.
 
 **Two maps.** *This project*'s mappings are saved with the project, and every change is
 one undo step. **Everywhere** — your global mappings, kept beside your keyboard shortcuts
