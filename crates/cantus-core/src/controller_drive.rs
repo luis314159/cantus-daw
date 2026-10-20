@@ -2,7 +2,7 @@
 //! the range, the bend and the takeover, pure and deterministic, so the interface only
 //! reads messages and sends commands.
 
-use super::{Control, MapMode, Mapping, Takeover};
+use super::{Control, Encoding, MapMode, Mapping, Takeover};
 
 /// One message as a mapping reads it.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -27,6 +27,15 @@ pub struct DriveState {
     pub last_out: Option<f32>,
     /// A button is held (a press is counted once, however many messages say so).
     pub held: bool,
+    /// The control's last raw value: a button that never sends a release repeats its press
+    /// value, and each repeat is a press of its own (review 1, #0).
+    pub last_raw: Option<u16>,
+    /// The encoding an encoder turned out to speak when its learnt one read a message as a
+    /// jump of half the range (review 1, #6): a sign-bit encoder learnt turning one way.
+    pub encoding: Option<Encoding>,
+    /// A relative control's own position (0…1 of the control's travel), unrounded: a
+    /// stepped target or a switch keeps the steps it has not reached yet (review 1, #2).
+    pub rel: Option<f32>,
 }
 
 /// What a message asks.
@@ -39,6 +48,10 @@ pub enum Drive {
     /// Nothing (a release, a knob still picking up, a repeated press).
     Nothing,
 }
+
+/// An encoder message read as this many steps or more is a jump of half the range: another
+/// encoding is tried (review 1, #6).
+pub const JUMP: i32 = 40;
 
 /// Within this of each other, two positions agree: a little more than one step of a 7-bit
 /// control over the whole travel.
@@ -75,6 +88,49 @@ impl Mapping {
         }
     }
 
+    /// A message as this mapping reads it, and what it does: [`Self::input`] and
+    /// [`Self::drive`] with what a message alone cannot say — a button that never sends a
+    /// release (a program change; a CC button that only sends its press value) presses
+    /// anew each time, and an encoder whose learnt encoding reads a message as a jump of
+    /// half the range is read in the encoding that makes it a step. What the interface calls.
+    pub fn read(
+        &self,
+        value: u16,
+        on: bool,
+        current: Option<f32>,
+        state: &mut DriveState,
+    ) -> Drive {
+        let input = match self.mode {
+            MapMode::Relative(learnt) => {
+                let v = value.min(127) as u8;
+                let enc = state.encoding.unwrap_or(learnt);
+                let mut n = enc.steps(v);
+                if n.abs() >= JUMP {
+                    if let Some(other) = enc.reinterpret(v) {
+                        state.encoding = Some(other);
+                        n = other.steps(v);
+                    }
+                }
+                Input::Steps(n)
+            }
+            _ => self.input(value, on),
+        };
+        let release_less = matches!(self.source.control, Control::Program(_));
+        // A CC button that sends its press value again with no release between: a new press.
+        if !self.source.control.is_button()
+            && matches!(input, Input::Press(true))
+            && state.last_raw == Some(value)
+        {
+            state.held = false;
+        }
+        state.last_raw = Some(value);
+        let out = self.drive(input, current, state);
+        if release_less {
+            state.held = false;
+        }
+        out
+    }
+
     /// What `input` does, the target being at `current` (0…1; `None` when unknown — a
     /// hosted plug-in not loaded, an action). Updates `state`.
     pub fn drive(&self, input: Input, current: Option<f32>, state: &mut DriveState) -> Drive {
@@ -82,12 +138,32 @@ impl Mapping {
             self.press(input, state).then_some(Drive::Fire)
         } else {
             match (self.mode, input) {
-                (MapMode::Relative(_), Input::Steps(n)) => {
-                    let from = current.or(state.last_out).unwrap_or(self.min);
-                    let x = self.unshape(from) + n as f32 * self.sensitivity / 128.0;
-                    Some(Drive::Set(self.shape(x.clamp(0.0, 1.0))))
+                (MapMode::Relative(_), Input::Steps(0)) => None,
+                (MapMode::Relative(_), Input::Steps(n)) if self.target.is_switch() => {
+                    // A switch on an encoder: a turn either way puts it that way.
+                    state.rel = None;
+                    Some(Drive::Set(self.shape(if n > 0 { 1.0 } else { 0.0 })))
                 }
-                (_, Input::Abs(x)) => self.absolute(x, current, state),
+                (MapMode::Relative(_), Input::Steps(n)) => {
+                    // From where this control left it — unrounded, so a stepped target
+                    // gathers the steps it has not reached yet — unless something else
+                    // moved the target since.
+                    let untouched = match (current, state.last_out) {
+                        (Some(c), Some(o)) => (c - o).abs() <= 1e-4,
+                        _ => true,
+                    };
+                    let from = match state.rel {
+                        Some(x) if untouched => x,
+                        _ => self.unshape(current.or(state.last_out).unwrap_or(self.min)),
+                    };
+                    let x = (from + n as f32 * self.sensitivity / 128.0).clamp(0.0, 1.0);
+                    state.rel = Some(x);
+                    Some(Drive::Set(self.shape(x)))
+                }
+                (_, Input::Abs(x)) => {
+                    state.rel = None;
+                    self.absolute(x, current, state)
+                }
                 (MapMode::Toggle, i) => self.press(i, state).then(|| {
                     let now = current.or(state.last_out).unwrap_or(self.min);
                     let (lo, hi) = (self.shape(0.0), self.shape(1.0));
@@ -132,7 +208,8 @@ impl Mapping {
     fn absolute(&self, x: f32, current: Option<f32>, state: &mut DriveState) -> Option<Drive> {
         let want = self.shape(x);
         let prev = state.last_in.replace(x);
-        let Some(cur) = current else {
+        // A pad's velocity is where it puts the target: no takeover (review 1, #4).
+        let Some(cur) = current.filter(|_| !self.source.control.is_button()) else {
             state.picked = true;
             return Some(Drive::Set(want));
         };

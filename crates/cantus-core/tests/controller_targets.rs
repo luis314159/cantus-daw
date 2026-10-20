@@ -78,6 +78,30 @@ fn rich() -> (Project, Vec<AutoTarget>) {
     (p, targets)
 }
 
+/// How many kinds of target there are.
+const KINDS: usize = 15;
+
+/// Each kind of target's number: an exhaustive match, no wildcard (review 1, #34).
+fn kind(t: &AutoTarget) -> usize {
+    match t {
+        AutoTarget::TrackGain(_) => 0,
+        AutoTarget::TrackPan(_) => 1,
+        AutoTarget::StripGain(_) => 2,
+        AutoTarget::StripPan(_) => 3,
+        AutoTarget::StripWidth(_) => 4,
+        AutoTarget::Send { .. } => 5,
+        AutoTarget::MasterGain => 6,
+        AutoTarget::MasterPan => 7,
+        AutoTarget::MasterWidth => 8,
+        AutoTarget::Effect { .. } => 9,
+        AutoTarget::Instrument { .. } => 10,
+        AutoTarget::Firmus { .. } => 11,
+        AutoTarget::Plugin { .. } => 12,
+        AutoTarget::PluginInstrument { .. } => 13,
+        AutoTarget::ModAmount(_) => 14,
+    }
+}
+
 /// A value inside the target's range (a hosted parameter's own range is the plug-in's:
 /// any number goes to the project as it is).
 fn a_value(p: &Project, t: &AutoTarget) -> f64 {
@@ -92,19 +116,23 @@ fn a_value(p: &Project, t: &AutoTarget) -> f64 {
 #[test]
 fn every_target_has_the_command_that_sets_it() {
     let (p, targets) = rich();
-    // Every kind of target is here (the list is checked against the enum's arms by name).
-    assert_eq!(targets.len(), 16);
+    // Every kind of target is here: `kind` matches every variant with no wildcard, so a
+    // new one fails to compile until it has a number, and then this until rich() has it.
+    let kinds: std::collections::BTreeSet<usize> = targets.iter().map(kind).collect();
+    assert_eq!(
+        kinds,
+        (0..KINDS).collect(),
+        "a kind of target is missing from rich()"
+    );
     for t in &targets {
         let v = a_value(&p, t);
         let cmd = t
             .command(&p, v)
             .unwrap_or_else(|| panic!("{t:?}: no command"));
         // value_of_command reads back the same target and value…
-        if !matches!(t, AutoTarget::ModAmount(_)) {
-            let (back, bv) = AutoTarget::value_of_command(&cmd).expect("read back");
-            assert_eq!(&back, t);
-            assert!((bv - v).abs() < 1e-6, "{t:?}: {v} → {bv}");
-        }
+        let (back, bv) = AutoTarget::value_of_command(&cmd).expect("read back");
+        assert_eq!(&back, t);
+        assert!((bv - v).abs() < 1e-6, "{t:?}: {v} → {bv}");
         // …and applied, the project holds that value.
         let mut q = p.clone();
         cmd.apply(&mut q).unwrap_or_else(|e| panic!("{t:?}: {e}"));
@@ -122,9 +150,6 @@ fn every_target_has_the_command_that_sets_it() {
 fn command_of_value_of_command_is_the_command() {
     let (p, targets) = rich();
     for t in &targets {
-        if matches!(t, AutoTarget::ModAmount(_)) {
-            continue;
-        }
         let c = t.command(&p, a_value(&p, t)).unwrap();
         let (target, value) = AutoTarget::value_of_command(&c).unwrap();
         assert_eq!(target.command(&p, value), Some(c), "{t:?}");

@@ -174,6 +174,12 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
     // made again (ADR 0064). After the links' repair, which may change what one holds.
     cantus_core::freeze::repair(&mut file.project);
+    // Controller mappings a command would refuse (a hand edit): dropped, so every edit of
+    // the map has an exact inverse (ADR 0062, review 1).
+    let dropped = file.project.controllers.repair();
+    if dropped > 0 {
+        log::warn!("{dropped} malformed controller mapping(s) dropped");
+    }
     Ok(LoadReport {
         file,
         migrated_from,

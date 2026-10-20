@@ -104,12 +104,8 @@ impl AutoTarget {
                 }
             }
             AutoTarget::ModAmount(id) => {
-                let (_, _, m) = project.modulator(*id)?;
-                let mut m = m.clone();
-                m.amount = v;
-                Command::SetModulator {
-                    modulator: Box::new(m),
-                }
+                project.modulator(*id)?;
+                Command::SetModulatorAmount { id: *id, amount: v }
             }
         })
     }

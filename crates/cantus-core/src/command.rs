@@ -158,6 +158,13 @@ pub enum Command {
     SetMapping {
         mapping: Box<crate::controller::Mapping>,
     },
+    /// A modulator's amount (0…1) alone: what a controller or a script sets on
+    /// `AutoTarget::ModAmount`, read back by `AutoTarget::value_of_command` (round 29,
+    /// review 1 of ADR 0062). Its inverse is the amount it had.
+    SetModulatorAmount {
+        id: crate::model::ModulatorId,
+        amount: f32,
+    },
     SetMasterGain {
         gain_db: f32,
     },
@@ -784,6 +791,7 @@ impl Command {
             InsertMapping { .. } => "cmd.controllers.add",
             RemoveMapping { .. } => "cmd.controllers.remove",
             SetMapping { .. } => "cmd.controllers.set",
+            SetModulatorAmount { .. } => "cmd.set_modulator",
             AddMarker { .. } => "cmd.tempo.add_marker",
             RemoveMarker { .. } => "cmd.tempo.remove_marker",
             SetMarker { .. } => "cmd.tempo.set_marker",
@@ -932,6 +940,8 @@ impl Command {
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
             (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
+            (SetModulatorAmount { id: a, .. }, SetModulatorAmount { id: b, .. }) => a == b,
+            (SetTrackArmed { id: a, .. }, SetTrackArmed { id: b, .. }) => a == b,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             (
                 SetClipAudio {
@@ -2507,6 +2517,19 @@ impl Command {
             }
             RemoveMapping { id } => crate::controller::apply_remove(project, id),
             SetMapping { mapping } => crate::controller::apply_set(project, *mapping),
+            SetModulatorAmount { id, amount } => {
+                if !amount.is_finite() || !(0.0..=1.0).contains(&amount) {
+                    return Err(CommandError::InvalidValue("modulator amount".into()));
+                }
+                let (host, index, _) = project.modulator(id).ok_or_else(|| {
+                    CommandError::InvalidValue(format!("modulator {id} not found"))
+                })?;
+                let list = project
+                    .modulators_mut(host)
+                    .ok_or_else(|| CommandError::InvalidValue("modulator host".into()))?;
+                let old = std::mem::replace(&mut list[index].amount, amount);
+                Ok(SetModulatorAmount { id, amount: old })
+            }
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,

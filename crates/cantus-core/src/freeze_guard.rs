@@ -254,6 +254,11 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
             .modulator(*id)
             .map(|(_, _, m)| routes(&m.routes))
             .unwrap_or_default(),
+        // The amount scales every route: it touches each target the modulator drives.
+        SetModulatorAmount { id, .. } => project
+            .modulator(*id)
+            .map(|(_, _, m)| routes(&m.routes))
+            .unwrap_or_default(),
         SetModulator { modulator } => {
             let mut v = routes(&modulator.routes);
             if let Some((_, _, m)) = project.modulator(modulator.id) {

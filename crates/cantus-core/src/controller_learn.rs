@@ -43,11 +43,16 @@ pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Contr
             if let Some(enc) = encoder(&values) {
                 MapMode::Relative(enc)
             } else if values.iter().all(|v| *v == 0 || *v == 127) {
-                // A button that sends its two ends.
+                // A button that sends its two ends. Both heard: a momentary button (press,
+                // release) toggles; one only: a button latching in the controller itself
+                // (127 on one press, 0 on the next) says on or off as it is (review 1, #10).
+                let both = values.contains(&0) && values.contains(&127);
                 if target.is_action() {
                     MapMode::Trigger
-                } else {
+                } else if both {
                     MapMode::Toggle
+                } else {
+                    MapMode::Absolute
                 }
             } else if target.is_action() {
                 MapMode::Trigger

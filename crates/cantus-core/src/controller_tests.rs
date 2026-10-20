@@ -602,3 +602,290 @@ fn a_project_without_mappings_saves_no_controllers_field() {
     let back: Project = serde_json::from_str(&json).unwrap();
     assert_eq!(back, q);
 }
+
+// ---- review 1 (ADR 0062) ------------------------------------------------------------------
+
+/// #0: a program change has no release: the same one pressed twice fires twice, toggles
+/// twice.
+#[test]
+fn a_program_change_presses_every_time() {
+    let fire = Mapping::new(
+        MappingId(1),
+        src(Control::Program(4)),
+        MappingTarget::Action("play-pause".into()),
+        MapMode::Trigger,
+    );
+    let mut st = DriveState::default();
+    assert_eq!(fire.read(127, true, None, &mut st), Drive::Fire);
+    assert_eq!(fire.read(127, true, None, &mut st), Drive::Fire);
+    let toggle = Mapping {
+        target: MappingTarget::TrackMute(crate::TrackId(1)),
+        mode: MapMode::Toggle,
+        ..fire.clone()
+    };
+    let mut st = DriveState::default();
+    assert_eq!(toggle.read(127, true, Some(0.0), &mut st), Drive::Set(1.0));
+    assert_eq!(toggle.read(127, true, Some(1.0), &mut st), Drive::Set(0.0));
+}
+
+/// #0: a CC button that only ever sends its press value (no 0): each press counts.
+#[test]
+fn a_cc_button_without_a_release_presses_every_time() {
+    let m = Mapping::new(
+        MappingId(1),
+        src(Control::Cc(41)),
+        MappingTarget::Action("stop".into()),
+        MapMode::Trigger,
+    );
+    let mut st = DriveState::default();
+    assert_eq!(m.read(127, true, None, &mut st), Drive::Fire);
+    assert_eq!(m.read(127, true, None, &mut st), Drive::Fire);
+    // A knob turned through the middle is not a stream of presses.
+    let mut st = DriveState::default();
+    assert_eq!(m.read(70, true, None, &mut st), Drive::Fire);
+    assert_eq!(m.read(71, true, None, &mut st), Drive::Nothing);
+    assert_eq!(m.read(72, true, None, &mut st), Drive::Nothing);
+}
+
+/// #2, #54: an encoder on a stepped target gathers its steps: the target, rounded after
+/// every frame as the interface rounds it, still moves.
+#[test]
+fn an_encoder_moves_a_stepped_target_one_frame_at_a_time() {
+    let m = knob(MapMode::Relative(Encoding::TwosComplement));
+    let q = |p: f32| (p * 3.0).round() / 3.0; // four steps
+    let mut st = DriveState::default();
+    let mut now = 0.0f32;
+    let mut ticks = 0;
+    while now == 0.0 && ticks < 200 {
+        if let Drive::Set(p) = m.read(1, true, Some(now), &mut st) {
+            now = q(p);
+            // What the interface does after applying: the target's rounded position.
+            st.last_out = Some(now);
+        }
+        ticks += 1;
+    }
+    assert!((now - 1.0 / 3.0).abs() < 1e-6, "one step up: {now}");
+    assert!(
+        (20..=30).contains(&ticks),
+        "after about 128/6 ticks: {ticks}"
+    );
+    // Something else moves it: the encoder steps from there.
+    let d = m.read(1, true, Some(1.0), &mut st);
+    assert_eq!(d, Drive::Set(1.0));
+}
+
+/// #2: a switch on an encoder flips with one turn either way.
+#[test]
+fn an_encoder_flips_a_switch_with_one_turn() {
+    let m = Mapping::new(
+        MappingId(1),
+        src(Control::Cc(16)),
+        MappingTarget::TrackMute(crate::TrackId(1)),
+        MapMode::Relative(Encoding::TwosComplement),
+    );
+    let mut st = DriveState::default();
+    assert_eq!(m.read(1, true, Some(0.0), &mut st), Drive::Set(1.0));
+    assert_eq!(m.read(127, true, Some(1.0), &mut st), Drive::Set(0.0));
+}
+
+/// #6: a sign-bit encoder learnt clockwise (as two's complement) turned back: one step
+/// back, not half the range — and from then on read as sign-bit.
+#[test]
+fn an_encoder_learnt_one_way_is_read_right_the_other_way() {
+    let m = Mapping {
+        takeover: Takeover::Jump,
+        ..knob(MapMode::Relative(Encoding::TwosComplement))
+    };
+    let mut st = DriveState::default();
+    let Drive::Set(a) = m.read(1, true, Some(0.5), &mut st) else {
+        panic!()
+    };
+    st.last_out = Some(a);
+    let Drive::Set(b) = m.read(65, true, Some(a), &mut st) else {
+        panic!()
+    };
+    assert!((b - 0.5).abs() < 1e-5, "one step back: {a} → {b}");
+    assert_eq!(st.encoding, Some(Encoding::SignBit));
+    assert_eq!(
+        Encoding::BinaryOffset.reinterpret(1),
+        Some(Encoding::SignBit)
+    );
+    assert_eq!(
+        Encoding::SignBit.reinterpret(127),
+        Some(Encoding::TwosComplement)
+    );
+    assert_eq!(
+        Encoding::SignBit.reinterpret(63),
+        Some(Encoding::BinaryOffset)
+    );
+    assert_eq!(Encoding::TwosComplement.reinterpret(3), None);
+}
+
+/// #4: a pad on a parameter puts it at its velocity under the default pick up.
+#[test]
+fn a_pad_sets_its_velocity_under_pick_up() {
+    let m = Mapping {
+        source: src(Control::Note(40)),
+        ..knob(MapMode::Absolute)
+    };
+    assert_eq!(m.takeover, Takeover::Pickup);
+    let mut st = DriveState::default();
+    assert_eq!(
+        m.read(64, true, Some(0.8), &mut st),
+        Drive::Set(64.0 / 127.0)
+    );
+    assert_eq!(
+        m.read(76, true, Some(64.0 / 127.0), &mut st),
+        Drive::Set(76.0 / 127.0)
+    );
+}
+
+/// #10: a latching button (127 on one press, 0 on the next) is learnt to say what it is;
+/// a momentary one (press and release heard) toggles.
+#[test]
+fn a_latching_button_is_learnt_absolute() {
+    let mute = MappingTarget::TrackMute(crate::TrackId(1));
+    assert_eq!(
+        detect(&[(Control::Cc(50), 127)], &mute),
+        Some((Control::Cc(50), MapMode::Absolute))
+    );
+    assert_eq!(
+        detect(&[(Control::Cc(50), 127), (Control::Cc(50), 0)], &mute),
+        Some((Control::Cc(50), MapMode::Toggle))
+    );
+}
+
+/// #1, #19: on a ramp the tempo target reads the governing point's tempo — what its
+/// command writes — so one encoder step moves that point by one step.
+#[test]
+fn the_tempo_target_reads_what_it_writes_on_a_ramp() {
+    use crate::tempo::TempoPoint;
+    let mut p = project();
+    p.tempo_bpm = 100.0;
+    p.tempo_points = vec![
+        TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 100.0,
+            ramp: true,
+        },
+        TempoPoint {
+            tick: Ticks::beats(32),
+            bpm: 140.0,
+            ramp: false,
+        },
+    ];
+    let mid = Ticks::beats(16);
+    let pos = MappingTarget::Tempo.current_pos(&p, mid).unwrap();
+    let (lo, hi) = TEMPO_TRAVEL;
+    assert!(
+        (f64::from(pos) - (100.0 - lo) / (hi - lo)).abs() < 1e-6,
+        "{pos}"
+    );
+    let m = Mapping {
+        target: MappingTarget::Tempo,
+        ..knob(MapMode::Relative(Encoding::TwosComplement))
+    };
+    let mut st = DriveState::default();
+    let Drive::Set(to) = m.read(1, true, Some(pos), &mut st) else {
+        panic!()
+    };
+    MappingTarget::Tempo
+        .command(&p, to, mid)
+        .unwrap()
+        .apply(&mut p)
+        .unwrap();
+    let step = (hi - lo) / 128.0;
+    assert!(
+        (p.tempo_points[0].bpm - (100.0 + step)).abs() < 1e-3,
+        "{}",
+        p.tempo_points[0].bpm
+    );
+}
+
+/// #41: an insert's bypass and mix as targets.
+#[test]
+fn an_inserts_bypass_and_mix_set_and_read() {
+    let mut p = project();
+    let s = p.strips[0].id;
+    let fx = p.make_effect(crate::EffectKind::Compressor);
+    let id = fx.id;
+    p.strip_mut(s).unwrap().effects.push(fx);
+    let bypass = MappingTarget::EffectBypass(id);
+    bypass
+        .command(&p, 1.0, Ticks::ZERO)
+        .unwrap()
+        .apply(&mut p)
+        .unwrap();
+    assert!(p.effect(s, id).unwrap().bypass);
+    assert_eq!(bypass.current_pos(&p, Ticks::ZERO), Some(1.0));
+    let mix = MappingTarget::EffectMix(id);
+    mix.command(&p, 0.3, Ticks::ZERO)
+        .unwrap()
+        .apply(&mut p)
+        .unwrap();
+    assert!((p.effect(s, id).unwrap().mix - 0.3).abs() < 1e-6);
+    assert!((mix.current_pos(&p, Ticks::ZERO).unwrap() - 0.3).abs() < 1e-6);
+}
+
+/// #21 and the new amount command: a gesture over an arm or a modulator amount merges.
+#[test]
+fn arming_and_a_modulator_amount_supersede_per_target() {
+    let t = crate::TrackId(1);
+    let a = Command::SetTrackArmed { id: t, armed: true };
+    let b = Command::SetTrackArmed {
+        id: t,
+        armed: false,
+    };
+    assert!(b.supersedes(&a));
+    let m = crate::ModulatorId(4);
+    let x = Command::SetModulatorAmount { id: m, amount: 0.2 };
+    let y = Command::SetModulatorAmount { id: m, amount: 0.7 };
+    assert!(y.supersedes(&x));
+    assert_eq!(
+        crate::AutoTarget::value_of_command(&y),
+        Some((crate::AutoTarget::ModAmount(m), 0.7f32 as f64))
+    );
+}
+
+/// #8: a map read from a file keeps only what a command would accept.
+#[test]
+fn a_map_from_a_file_is_repaired() {
+    let mut map = ControllerMap::default();
+    map.mappings.push(mapping(1));
+    map.mappings.push(Mapping {
+        sensitivity: 0.0,
+        ..mapping(2)
+    });
+    map.mappings.push(mapping(1));
+    map.mappings.push(Mapping {
+        source: src(Control::Cc(121)),
+        ..mapping(3)
+    });
+    assert_eq!(map.repair(), 3);
+    assert_eq!(map.mappings, vec![mapping(1)]);
+}
+
+/// #56: a mapping learnt on one hosted plug-in is dormant under another in its place.
+#[test]
+fn a_hosted_mapping_is_dormant_under_another_plug_in() {
+    use crate::external::{ExternalPlugin, PluginFormat};
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let vital = ExternalPlugin::new(PluginFormat::Clap, "audio.vital", "Vital");
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(vital.clone());
+    let target = MappingTarget::Param(crate::AutoTarget::PluginInstrument { track: t, id: 17 });
+    let mut m = Mapping::new(
+        MappingId(1),
+        src(Control::Cc(1)),
+        target.clone(),
+        MapMode::Absolute,
+    );
+    m.plugin = target.plugin_of(&p);
+    assert_eq!(m.plugin, Some(PluginRef::of(&vital)));
+    assert!(m.alive(&p));
+    let other = ExternalPlugin::new(PluginFormat::Vst3, "ABCD", "Other");
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(other);
+    assert!(!m.alive(&p), "another plug-in: dormant");
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(vital);
+    assert!(m.alive(&p), "back: alive");
+}

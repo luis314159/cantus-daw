@@ -1745,7 +1745,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // command some frozen target refused.
     let mut froze = [0usize; 4];
     // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
-    let mut mappings = [0usize; 3];
+    let mut mappings = [0usize; 4];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1804,6 +1804,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::InsertMapping { .. } => Some(0),
                 Command::RemoveMapping { .. } => Some(1),
                 Command::SetMapping { .. } => Some(2),
+                Command::SetModulatorAmount { .. } => Some(3),
                 _ => None,
             };
             let isolation = match &cmd {
@@ -3006,12 +3007,26 @@ fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
         takeover: takeovers[rng.below(3) as usize],
         feedback: rng.below(2) == 0,
         sensitivity: rng.f32(0.25, 4.0),
+        plugin: None,
     };
     let pick = |rng: &mut Lcg| {
         maps.get(rng.below(maps.len().max(1) as u64) as usize)
             .cloned()
     };
-    match rng.below(10) {
+    let mods: Vec<ModulatorId> = project.all_modulators().map(|(_, m)| m.id).collect();
+    match rng.below(12) {
+        // A modulator's amount alone (review 1): an amount out of range now and then.
+        10 | 11 => Command::SetModulatorAmount {
+            id: mods
+                .get(rng.below(mods.len().max(1) as u64) as usize)
+                .copied()
+                .unwrap_or(ModulatorId(u64::MAX)),
+            amount: if rng.below(8) == 0 {
+                1.5
+            } else {
+                rng.f32(0.0, 1.0)
+            },
+        },
         // Malformed: refused, nothing changes.
         0 => {
             let id = MappingId(rng.below(1 << 20) + 1);

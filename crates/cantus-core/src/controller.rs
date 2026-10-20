@@ -188,6 +188,21 @@ impl Encoding {
         Encoding::SignBit,
     ];
 
+    /// The encoding that reads `value` as a small step where this one reads it as a jump of
+    /// half the range — what an encoder learnt turning one way turns out to speak when it
+    /// turns the other: a sign-bit encoder learnt clockwise looks like two's complement
+    /// (1, 1, 1…), learnt counter-clockwise like binary offset (65, 65…).
+    pub fn reinterpret(self, value: u8) -> Option<Encoding> {
+        let v = value & 0x7F;
+        match self {
+            Encoding::TwosComplement if (65..=79).contains(&v) => Some(Encoding::SignBit),
+            Encoding::BinaryOffset if (1..=15).contains(&v) => Some(Encoding::SignBit),
+            Encoding::SignBit if (113..=127).contains(&v) => Some(Encoding::TwosComplement),
+            Encoding::SignBit if (49..=63).contains(&v) => Some(Encoding::BinaryOffset),
+            _ => None,
+        }
+    }
+
     /// The steps one value means (0 for none).
     pub fn steps(self, value: u8) -> i32 {
         let v = i32::from(value & 0x7F);
@@ -416,6 +431,27 @@ impl MappingTarget {
         }
     }
 
+    /// The hosted plug-in a hosted parameter target belongs to now (`None` for any other).
+    pub fn plugin_of(&self, project: &Project) -> Option<PluginRef> {
+        match self {
+            MappingTarget::Param(AutoTarget::Plugin { effect, .. }) => {
+                let h = project.effect_host(*effect)?;
+                project
+                    .effect(h, *effect)?
+                    .spec
+                    .external
+                    .as_deref()
+                    .map(PluginRef::of)
+            }
+            MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => project
+                .track(*track)?
+                .instrument
+                .external()
+                .map(PluginRef::of),
+            _ => None,
+        }
+    }
+
     /// Where the target is now (0…1 of its travel), for what core knows; `None` for a
     /// hosted parameter (the plug-in owns its range: the interface asks it), an action, a
     /// relative target or one that is gone. `at` is the playhead (the tempo there).
@@ -444,7 +480,12 @@ impl MappingTarget {
                 Some(project.effect(h, *e)?.mix.clamp(0.0, 1.0))
             }
             MappingTarget::Tempo => {
-                let bpm = project.tempo_map().bpm_at(at.0 as f64);
+                // What the command writes (ADR 0060 §2): the governing point's own tempo,
+                // not the tempo a ramp has reached at the playhead (review 1, #1).
+                let bpm = match crate::tempo::edit::point_at(project, at) {
+                    None | Some(0) => project.tempo_bpm,
+                    Some(i) => project.tempo_points[i].bpm,
+                };
                 let (lo, hi) = TEMPO_TRAVEL;
                 Some((((bpm - lo) / (hi - lo)) as f32).clamp(0.0, 1.0))
             }
@@ -540,6 +581,27 @@ pub struct Mapping {
     /// How far one step of a relative encoder moves, in 128ths of the range.
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub sensitivity: f32,
+    /// For a hosted plug-in's parameter: the plug-in it was learnt on. A parameter id means
+    /// something only inside one plug-in, so another plug-in in its place leaves the
+    /// mapping dormant (review 1, #56).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<PluginRef>,
+}
+
+/// A hosted plug-in's identity: its standard and its id (a CLAP id, a VST3 class id).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct PluginRef {
+    pub format: crate::external::PluginFormat,
+    pub id: String,
+}
+
+impl PluginRef {
+    pub fn of(p: &crate::external::ExternalPlugin) -> PluginRef {
+        PluginRef {
+            format: p.format,
+            id: p.id.clone(),
+        }
+    }
 }
 
 fn is_zero_f32(v: &f32) -> bool {
@@ -575,7 +637,19 @@ impl Mapping {
             takeover: Takeover::default(),
             feedback: false,
             sensitivity: 1.0,
+            plugin: None,
         }
+    }
+
+    /// Whether the mapping can drive its target in `project`: the target exists and, for a
+    /// hosted parameter, it is still the plug-in it was learnt on. A mapping that cannot is
+    /// dormant: shown, consuming nothing, alive again when undo brings its target back.
+    pub fn alive(&self, project: &Project) -> bool {
+        self.target.exists(project)
+            && match &self.plugin {
+                None => true,
+                Some(p) => self.target.plugin_of(project).as_ref() == Some(p),
+            }
     }
 
     /// What a command accepts: a well formed source and target, a range within the
@@ -668,6 +742,20 @@ impl ControllerMap {
 
 fn invalid(what: &str) -> CommandError {
     CommandError::InvalidValue(what.to_string())
+}
+
+impl ControllerMap {
+    /// Keep only what a command would accept: drop a malformed mapping and a second one
+    /// with an id already used (a hand-edited or foreign file). Returns how many were
+    /// dropped. Run on every project read, so every edit of the map has an exact inverse
+    /// (review 1, #8).
+    pub fn repair(&mut self) -> usize {
+        let before = self.mappings.len();
+        let mut seen = std::collections::BTreeSet::new();
+        self.mappings.retain(|m| m.is_valid() && seen.insert(m.id));
+        self.mappings.truncate(MAX_MAPPINGS);
+        before - self.mappings.len()
+    }
 }
 
 /// `Command::InsertMapping`: a new mapping at `index` (clamped to the end). Refused when
