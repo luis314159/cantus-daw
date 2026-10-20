@@ -331,6 +331,12 @@ pub struct MarkerDrag {
     pub slide: bool,
     /// The grid it snaps to (`None`: free) — the arrangement's, or the warp editor's own.
     pub snap: Option<Ticks>,
+    /// The warp the clip turns to follow from with this drag's first step, when it does
+    /// not follow yet (its windows kept on their audio then — round 29's second review).
+    pub base: Option<Warp>,
+    /// What a content tick counted from the clip's offset at the press becomes with
+    /// `base`.
+    pub shift: Ticks,
 }
 
 /// The arrangement's modifiers this frame (set before its input).
@@ -342,9 +348,13 @@ pub fn modifiers(app: &mut CantusApp, mods: egui::Modifiers) {
 /// transient — a marker made there to drag (nothing is written until it moves).
 pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDrag> {
     let slide = app.arrangement.audio.mods.alt;
-    let w = app.warp_to_warp(r)?;
+    let start = app.warp_start(r)?;
+    let w = start.warp;
     let (warp0, marker) = match handle {
-        Handle::WarpMarker(i) => (w, i as usize),
+        // Only the user's markers are offered (the warp's own are never grabbed).
+        Handle::WarpMarker(i) if w.markers.get(i as usize).is_some_and(|m| !m.auto) => {
+            (w, i as usize)
+        }
         Handle::WarpOnset(id) => {
             let f = *app.warp_analysis(r)?.onsets.get(id as usize)?;
             let n = w.add_marker_at_frame(f)?;
@@ -352,8 +362,9 @@ pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDr
             (n, i)
         }
         Handle::WarpBand(t) => {
-            let n = w.add_marker(Ticks(t as i64))?;
-            let i = n.marker_at(Ticks(t as i64))?;
+            let at = Ticks(t as i64) + start.shift;
+            let n = w.add_marker(at)?;
+            let i = n.marker_at(at)?;
             (n, i)
         }
         _ => return None,
@@ -365,6 +376,8 @@ pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDr
         marker,
         slide,
         snap: a.snap.then_some(a.grid),
+        base: start.base,
+        shift: start.shift,
     })
 }
 
@@ -378,6 +391,13 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
         return;
     };
     let reverse = c.audio.as_ref().is_some_and(|a| a.reverse);
+    // The offset the clip plays from with the drag's warp (its window kept on its audio
+    // as it turns to follow, on the first step).
+    let offset = if d.base.is_some() && !app.clip_warp(r).is_some_and(|w| w.follow) {
+        c.offset + d.shift
+    } else {
+        c.offset
+    };
     // Reversed, the content runs right to left.
     let dx = if reverse { -dx.0 } else { dx.0 };
     let (next, op) = if d.slide {
@@ -387,7 +407,7 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
             cantus_core::warp::WarpOp::MoveContent,
         )
     } else {
-        let origin = c.start - c.offset;
+        let origin = c.start - offset;
         let mut tick = Ticks(m.tick.0 + dx);
         if let Some(g) = d
             .snap
@@ -400,7 +420,11 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
             cantus_core::warp::WarpOp::MoveMarker,
         )
     };
-    app.commit_warp(r, Some(next), op, true);
+    let keep = d
+        .base
+        .as_ref()
+        .map_or(crate::warp::Keep::No, crate::warp::Keep::Base);
+    app.commit_warp_keeping(r, Some(next), op, true, keep);
 }
 
 /// A double-click on a warp handle: a marker removed; on the band or a transient, one added.

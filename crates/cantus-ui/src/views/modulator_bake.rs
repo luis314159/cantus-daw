@@ -61,7 +61,7 @@ impl CantusApp {
         // waits for them beside the window, as an export does — it never blocks the frame
         // (round 29's review); started again once they are in.
         if self.engine.samples.loading() {
-            self.warp.pending_bake = Some((id, target.clone()));
+            self.warp.pending_bake = Some((id, target.clone(), self.epoch));
             self.set_status(crate::i18n::t("warp.status.bake_waiting"));
             return true;
         }

@@ -178,6 +178,13 @@ impl CommandBus {
         }
     }
 
+    /// Whether the step on top is `key`'s gesture, still open (a drag going on).
+    pub fn merging(&self, key: MergeKey) -> bool {
+        self.undo
+            .last()
+            .is_some_and(|top| top.merge_key == Some(key))
+    }
+
     /// Seal the current gesture only if the step on top is `key`'s: a gesture that ends on
     /// its own clock (a controller's) never seals another's (a mouse drag going on).
     pub fn end_gesture_if(&mut self, key: MergeKey) {

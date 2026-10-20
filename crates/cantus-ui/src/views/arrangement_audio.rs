@@ -210,15 +210,17 @@ pub fn paint(
     let shown = match app
         .arrangement
         .stretch_preview((shown.track, shown.clip.id))
-        .zip(app.warp_to_warp((shown.track, shown.clip.id)))
+        .zip(app.warp_start((shown.track, shown.clip.id)))
     {
-        Some((delta, w)) if shown.clip.length.0 > 0 => {
+        Some((delta, s)) if shown.clip.length.0 > 0 => {
             let k = (shown.clip.length + delta).0 as f64 / shown.clip.length.0 as f64;
             let mut r = shown.region.clone();
-            r.warp = Some(Box::new(w.stretched(shown.offset, k.max(1e-3))));
+            let offset = shown.offset + s.shift;
+            r.warp = Some(Box::new(s.warp.stretched(offset, k.max(1e-3))));
             stretched_region = r;
             stretched = Shown {
                 region: &stretched_region,
+                offset,
                 ..*shown
             };
             &stretched
