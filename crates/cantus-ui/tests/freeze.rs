@@ -527,6 +527,8 @@ fn a_bounce_asked_twice_while_it_renders_is_made_once() {
     };
     app.bounce(plan.clone());
     app.bounce(plan.clone());
+    assert!(app.freeze.job.is_some());
+    assert_eq!(app.freeze.queued(), 0, "not asked again while it renders");
     settle(&mut app, &ctx);
     assert_eq!(app.project().tracks.len(), 3, "one bounce");
     // And once bounced (the original muted), it is not bounced again.
@@ -875,5 +877,155 @@ fn a_freeze_that_cannot_land_says_why() {
     }));
     settle(&mut app, &ctx);
     assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_none());
-    assert!(app.status.error, "said, not dropped in silence");
+    assert!(
+        app.status.error && app.status.text.contains("monitors its input"),
+        "said, not dropped in silence: {}",
+        app.status.text
+    );
+}
+
+#[test]
+fn a_render_that_needs_a_plugin_not_loaded_is_refused_and_says_which() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("missing-plugin");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut e = p.make_effect(EffectKind::Delay);
+    e.spec = EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.nowhere.reverb",
+        "Nowhere Reverb",
+    ));
+    p.strip_mut(strip).unwrap().effects.push(e);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_none());
+    assert!(
+        app.status.error && app.status.text.contains("Nowhere Reverb"),
+        "{}",
+        app.status.text
+    );
+    // No render written under the true key.
+    let written = |d: &std::path::Path| {
+        std::fs::read_dir(d)
+            .map(|r| {
+                r.flatten()
+                    .any(|e| e.path().extension().is_some_and(|x| x == "cfrz"))
+            })
+            .unwrap_or(false)
+    };
+    assert!(!written(&dir.join("renders")) && !written(&dir.join("Freeze")));
+}
+
+#[test]
+fn a_render_older_than_a_file_it_plays_is_made_again() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("older");
+    let take = dir.join("take.wav");
+    let write = |level: f32| {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut w = hound::WavWriter::create(&take, spec).unwrap();
+        for i in 0..48_000 {
+            w.write_sample(if i % 100 == 0 { level } else { 0.0 })
+                .unwrap();
+        }
+        w.finalize().unwrap();
+    };
+    write(0.5);
+    let mut p = app.project().clone();
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "take".into(),
+        path: take.to_string_lossy().into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000,
+        sha256: None,
+        recorded: false,
+    });
+    let clip = p.make_audio_clip("take", id, Ticks::ZERO, Ticks::beats(2));
+    p.tracks[0].clips.push(clip);
+    app.bus = CommandBus::new(p);
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    app.unfreeze_target(target);
+    // Edited elsewhere (louder), then frozen again: the render is not the file's now.
+    std::thread::sleep(Duration::from_millis(1100));
+    write(0.9);
+    app.freeze_target(target);
+    assert!(app.freeze.job.is_some(), "rendered again, not reused");
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(target).is_some());
+}
+
+#[test]
+fn the_renders_folder_follows_the_project_before_its_first_compile() {
+    let (mut app, dir) = app("follow");
+    app.path = Some(dir.join("other").join("song.cantus"));
+    app.sync_engine();
+    assert_eq!(
+        app.engine.frozen.project_dir(),
+        Some(dir.join("other").join("Freeze").as_path())
+    );
+}
+
+#[test]
+fn half_written_files_are_tidied_and_the_cache_kept_to_its_size() {
+    let dir = std::env::temp_dir()
+        .join("cantus-freeze-ui")
+        .join(format!("tidy-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let old = std::time::SystemTime::now() - Duration::from_secs(3600);
+    for (name, len) in [
+        ("a.raw.part", 10usize),
+        ("b.part1234", 10),
+        ("1.cfrz", 300),
+        ("2.cfrz", 300),
+        ("3.cfrz", 300),
+    ] {
+        let p = dir.join(name);
+        std::fs::write(&p, vec![0u8; len]).unwrap();
+        let f = std::fs::File::options().write(true).open(&p).unwrap();
+        f.set_modified(old + Duration::from_secs(len as u64 + name.len() as u64))
+            .unwrap();
+    }
+    cantus_ui::freeze::tidy(&dir);
+    assert!(!dir.join("a.raw.part").exists() && !dir.join("b.part1234").exists());
+    cantus_ui::freeze::prune(&dir, 650);
+    let left = std::fs::read_dir(&dir).unwrap().count();
+    assert_eq!(left, 2, "the oldest render went");
+}
+
+#[test]
+fn a_modulator_bake_waits_for_a_freeze_rendering() {
+    let (mut app, _dir) = app("bake");
+    let synth_strip = app.project().tracks[0].strip.unwrap();
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(synth_strip);
+    }
+    let target = AutoTarget::StripPan(bass_strip);
+    f.routes.push(ModRoute {
+        target: target.clone(),
+        depth: 0.4,
+    });
+    let id = f.id;
+    p.strip_mut(bass_strip).unwrap().modulators.push(f);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(synth_strip));
+    assert!(app.freeze.job.is_some());
+    assert!(!app.bake_route(id, &target), "it waits");
+    assert!(app.status.error);
 }

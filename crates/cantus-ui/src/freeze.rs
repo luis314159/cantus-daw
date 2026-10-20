@@ -97,6 +97,11 @@ impl FreezeState {
             .map(|j| (j.name.as_str(), j.progress.fraction()))
     }
 
+    /// How many renders wait after the running one.
+    pub fn queued(&self) -> usize {
+        self.queue.len()
+    }
+
     /// Whether the running render is a background refresh (an export may stop it).
     pub fn refreshing(&self) -> bool {
         self.job
