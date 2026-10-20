@@ -105,12 +105,14 @@ Undo-fuzz arm 45.
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean. `cargo fmt --all`:
   clean.
 - `cargo test -p cantus-core -p cantus-project -p cantus-host --no-fail-fast`: 472 passed.
-- `cargo test -p cantus-engine --no-fail-fast` (before the merge; the merge changed no
-  engine file of mine): 715 passed; `inst_stream::the_suite_leaves_no_cache_folder_behind`
-  failed once under load (its child run) and passed on its own — unrelated (Exemplar's
-  streaming cache).
-- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 720 passed.
-- `cargo test -p cantus-ui --no-fail-fast`: see the final report.
+- `cargo test -p cantus-engine --no-fail-fast`: 725 passed on the merged tree (before
+  the merge, `inst_stream::the_suite_leaves_no_cache_folder_behind` once failed under the
+  machine's load and passed alone — Exemplar's streaming cache, not this work).
+- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 720 passed (before the
+  merge; the merge brought warp's engine files, none of mine).
+- `cargo test -p cantus-ui --no-fail-fast`: 1 333 passed (the merged tree).
+- Not run here: the Linux check in WSL (`tools/wsl/check.sh`); nothing of mine is behind
+  `#[cfg(windows)]` (midir is cross-platform).
 
 ## Files outside my area (additive)
 
