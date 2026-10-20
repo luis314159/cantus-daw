@@ -29,6 +29,7 @@
 //! | 20 | an access violation in a thread timer of the main thread (no window: as a framework's) |
 //! | 21 | a thread timer of the main thread that never returns |
 //! | 22 | it asks the host to rescan its parameters, and the second list read takes 2 s |
+//! | 23 | this `process` raises an exception its own crash filter handles (it goes on) |
 //!
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
@@ -63,8 +64,13 @@ pub const SEGV_DESTROY: u32 = 19;
 pub const SEGV_THREAD_TIMER: u32 = 20;
 pub const HANG_THREAD_TIMER: u32 = 21;
 pub const RESCAN_SLOW: u32 = 22;
+pub const RAISE_HANDLED: u32 = 23;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 22.0;
+pub const LAST: f64 = 23.0;
+
+/// The exception `RAISE_HANDLED` raises, which the plug-in's own crash filter
+/// (`CANTUS_TEST_GAIN_CHAIN_FILTER`) resumes, as a licence check's trick does.
+pub const HANDLED_CODE: u32 = 0xE000_0CA7;
 
 /// A rescan to ask for on the main thread (`RESCAN_SLOW`).
 static RESCAN: AtomicBool = AtomicBool::new(false);
@@ -119,6 +125,10 @@ impl Fault {
             RESCAN_SLOW => {
                 self.0.store(0, Ordering::Release);
                 RESCAN.store(true, Ordering::Release);
+            }
+            RAISE_HANDLED => {
+                self.0.store(0, Ordering::Release);
+                raise_handled();
             }
             _ => {}
         }
@@ -297,6 +307,16 @@ pub fn chain_filter() {
     static PREV: AtomicUsize = AtomicUsize::new(0);
     static ONCE: std::sync::Once = std::sync::Once::new();
     unsafe extern "system" fn mine(info: *const EXCEPTION_POINTERS) -> i32 {
+        // Its own exception: handled, and the code goes on.
+        // SAFETY: the record the system hands.
+        let code = unsafe {
+            info.as_ref()
+                .and_then(|i| i.ExceptionRecord.as_ref())
+                .map_or(0, |r| r.ExceptionCode as u32)
+        };
+        if code == HANDLED_CODE {
+            return -1; // EXCEPTION_CONTINUE_EXECUTION
+        }
         let prev = PREV.load(Ordering::Acquire);
         if prev != 0 {
             // SAFETY: the filter that was in place before ours, called as the system would.
@@ -318,6 +338,23 @@ pub fn chain_filter() {
 
 #[cfg(not(windows))]
 pub fn chain_filter() {}
+
+/// Raises the exception the plug-in's own filter resumes (`RAISE_HANDLED`).
+#[cfg(windows)]
+fn raise_handled() {
+    // SAFETY: a continuable exception of ours, with no arguments.
+    unsafe {
+        windows_sys::Win32::System::Diagnostics::Debug::RaiseException(
+            HANDLED_CODE,
+            0,
+            0,
+            std::ptr::null(),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn raise_handled() {}
 
 fn hang() -> ! {
     loop {

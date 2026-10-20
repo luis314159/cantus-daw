@@ -642,7 +642,7 @@ pub mod blame {
 
         /// Whether `addr` is in a library still loaded (a filter of one that was unloaded
         /// is never called).
-        fn loaded(addr: usize) -> bool {
+        pub(super) fn loaded(addr: usize) -> bool {
             let mut h: HMODULE = std::ptr::null_mut();
             // SAFETY: a lookup of the module an address is in, not changing its count.
             unsafe {
@@ -698,14 +698,17 @@ pub mod blame {
         pub fn install() {
             // SAFETY: a filter for this process's unhandled exceptions, which stores an
             // atomic and hands on; the previous one, kept to hand on to — or forgotten when
-            // it is ours or none (review isolation-4 #61).
+            // there is none (review isolation-4 #61).
             let prev: LPTOP_LEVEL_EXCEPTION_FILTER =
                 unsafe { SetUnhandledExceptionFilter(Some(filter)) };
             match prev {
                 Some(p) if p as usize != filter as *const () as usize => {
                     CHAINED.store(p as usize, Ordering::Release);
                 }
-                _ => CHAINED.store(0, Ordering::Release),
+                // Ours on top already: what it hands on to stands (and is never called
+                // once its library is gone).
+                Some(_) => {}
+                None => CHAINED.store(0, Ordering::Release),
             }
             // SAFETY: a handler for the C runtime's abort signal, which only stores an
             // atomic; returning lets the abort end the process as it would have.
@@ -820,6 +823,18 @@ pub mod blame {
 
     #[cfg(windows)]
     pub(crate) use imp::owner as message_owner;
+
+    #[cfg(all(test, windows))]
+    mod tests {
+        /// A filter is called only while its library is loaded: one in this program is, an
+        /// address in no library is not (review isolation-4 #7, #16, #19, #28, #61).
+        #[test]
+        fn a_filter_in_no_library_is_never_called() {
+            let here = a_filter_in_no_library_is_never_called as *const () as usize;
+            assert!(super::imp::loaded(here));
+            assert!(!super::imp::loaded(0x10));
+        }
+    }
 
     #[cfg(unix)]
     mod imp {

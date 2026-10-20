@@ -235,3 +235,36 @@ fn the_last_plugins_destructor_runs_to_its_end() {
         std::thread::sleep(Duration::from_millis(20));
     }
 }
+
+/// A plug-in's crash reporter that resumes an exception of its own (a licence check's
+/// trick): no crash after all — so a later end of the helper is not laid on it (review
+/// isolation-4 #47).
+#[cfg(windows)]
+#[test]
+fn an_exception_a_plugin_handled_is_no_crash_of_its() {
+    let _g = serial();
+    let pool = pool();
+    std::env::set_var("CANTUS_TEST_GAIN_CHAIN_FILTER", "1");
+    let loaded = std::panic::catch_unwind(|| load(&pool, GAIN_ID, "together-handled"));
+    std::env::remove_var("CANTUS_TEST_GAIN_CHAIN_FILTER");
+    let Loaded {
+        main: mut a,
+        audio: mut a_audio,
+    } = loaded.expect("loads");
+    let Loaded {
+        main: mut b,
+        audio: mut b_audio,
+    } = load(&pool, SYNTH_ID, "together-handled");
+    // A raises its own exception, which its reporter resumes: it plays on.
+    block(a_audio.as_mut(), &fault(P_FAULT, RAISE_HANDLED), &[]);
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(crashed(a.as_mut()).is_none(), "it went on");
+    // B then aborts (a fail-fast: no handler runs) with its job running alone.
+    block(b_audio.as_mut(), &fault(S_FAULT, ABORT_PROCESS), &[]);
+    let (blame, why) = crashed_within(b.as_mut(), Duration::from_secs(5)).expect("it ended");
+    assert_eq!(blame, Blame::This, "{why}");
+    assert_eq!(
+        crashed_within(a.as_mut(), Duration::from_secs(2)).map(|c| c.0),
+        Some(Blame::Neighbour)
+    );
+}
