@@ -131,3 +131,5 @@ interop.status.import_busy = Ya se está leyendo un archivo DAWproject
 interop.status.import_stopped = la importación se detuvo antes de terminar
 interop.status.export_busy = Ya se está escribiendo un archivo DAWproject
 warp.status.bake_waiting = Se convertirá en automatización en cuanto lleguen los renders en camino…
+interop.report.d_part_too_large = Una parte del paquete .dawproject demasiado grande para leerla, omitida (el estado de un dispositivo: el dispositivo se reemplaza): {file}
+interop.report.d_warp_natural = Los puntos de warp de {clip} siguen su velocidad natural: suena sin warp

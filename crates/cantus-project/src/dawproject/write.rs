@@ -345,7 +345,15 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
         // The playing lane only: a take lane is never heard (ADR 0058), and DAWproject's
         // one lane per track would play every take at once (round 29's review).
         for c in t.clips.iter().filter(|c| c.lane == 0) {
-            muted_notes += clip(&mut w, &mut ids, c, project, base, &mut audio, &mut report);
+            muted_notes += clip(
+                &mut w,
+                &mut ids,
+                c,
+                project,
+                base,
+                (&mut audio, &mut files),
+                &mut report,
+            );
         }
         let takes = t.clips.iter().filter(|c| c.lane != 0).count();
         if takes > 0 {
@@ -782,7 +790,10 @@ fn clip(
     c: &Clip,
     project: &Project,
     base: Option<&std::path::Path>,
-    audio: &mut Vec<(String, std::path::PathBuf)>,
+    (audio, files): (
+        &mut Vec<(String, std::path::PathBuf)>,
+        &mut Vec<(String, Vec<u8>)>,
+    ),
     report: &mut Report,
 ) -> usize {
     let period = c.period();
@@ -825,7 +836,17 @@ fn clip(
     );
     // An audio clip (round 29, ADR 0061): its file and its warp.
     if let Some(au) = &c.audio {
-        super::audio::write(w, &mut || ids.next(), project, c, au, base, audio, report);
+        super::audio::write(
+            w,
+            &mut || ids.next(),
+            project,
+            c,
+            au,
+            base,
+            audio,
+            files,
+            report,
+        );
         w.close();
         return 0;
     }

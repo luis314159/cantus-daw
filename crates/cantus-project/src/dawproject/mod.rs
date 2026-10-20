@@ -202,7 +202,9 @@ pub fn import_from(
 }
 
 /// The most a part of an archive read into memory may hold — the project's XML, its
-/// metadata, a device's state — bytes; a larger one refuses the file.
+/// metadata, a device's state — bytes: a larger project.xml refuses the file; a larger
+/// metadata or device state is left in the archive and said (the title stays "Imported",
+/// the device is replaced as any other application's is).
 pub const PART_LIMIT: u64 = 64 << 20;
 
 /// A `.dawproject` read from a file ([`import_file`]).
@@ -212,33 +214,8 @@ pub struct ImportedFile {
     pub report: Report,
     /// The archive's audio files that could not be written into the media folder.
     pub unwritten: Vec<String>,
-}
-
-/// Whether an archive entry is an audio file (never read into memory: copied to disk).
-fn is_audio_name(name: &str) -> bool {
-    let ext = std::path::Path::new(name)
-        .extension()
-        .map(|e| e.to_string_lossy().to_ascii_lowercase())
-        .unwrap_or_default();
-    matches!(
-        ext.as_str(),
-        "wav"
-            | "wave"
-            | "bwf"
-            | "w64"
-            | "aif"
-            | "aiff"
-            | "aifc"
-            | "caf"
-            | "flac"
-            | "mp3"
-            | "ogg"
-            | "oga"
-            | "opus"
-            | "m4a"
-            | "mp4"
-            | "aac"
-    )
+    /// The parts it needed that were too large to read ([`PART_LIMIT`]), left out.
+    pub too_large: Vec<String>,
 }
 
 /// Where archive entry `inner` is written under `dir`: its folders kept, every part that
@@ -283,12 +260,14 @@ pub fn media_path(
     unreachable!()
 }
 
-/// Read the `.dawproject` at `path` into a new project: its parts read into memory (each at
-/// most [`PART_LIMIT`]), every audio file it carries copied straight from the archive into
-/// `media` ([`media_path`]), its checksum checked, the sources pointed at it; a file it
-/// references outside the archive found against its folder. Neither the archive nor any
-/// audio file is ever held whole in memory (round 29's second review: a ZIP64 project
-/// was read three times over).
+/// Read the `.dawproject` at `path` into a new project: its project.xml first, then only the
+/// parts that read takes — its metadata and Cantus's own device states and warps
+/// ([`read::needed_parts`]), each at most [`PART_LIMIT`] — every audio file it carries
+/// copied straight from the archive into `media` ([`media_path`]), its checksum checked,
+/// the sources pointed at it; a file it references outside the archive found against its
+/// folder. Neither the archive nor any audio file is ever held whole in memory (round 29's
+/// second review: a ZIP64 project was read three times over), and no part it never reads
+/// (a plug-in's state) is read at all (third review).
 pub fn import_file(
     path: &std::path::Path,
     media: &std::path::Path,
@@ -305,18 +284,36 @@ pub fn import_file_within(
 ) -> Result<ImportedFile, DawProjectError> {
     let mut r = std::io::BufReader::new(std::fs::File::open(path)?);
     let entries = zip::directory(&mut r)?;
-    let mut parts: Vec<(String, Vec<u8>)> = Vec::with_capacity(entries.len());
-    for e in &entries {
-        let part = matches!(
-            e.name.trim_start_matches("./"),
-            "project.xml" | "metadata.xml"
-        ) || (!is_audio_name(&e.name) && e.size <= limit);
-        let data = if part {
-            zip::read_entry(&mut r, e, limit)?
-        } else {
-            Vec::new() // its name only: an audio file, copied below
+    let named = |want: &str| {
+        entries
+            .iter()
+            .find(|e| e.name.trim_start_matches("./").eq_ignore_ascii_case(want))
+    };
+    // The project's XML first: what it takes decides what else is read.
+    let xml = match named("project.xml") {
+        Some(e) => zip::read_entry(&mut r, e, limit)?,
+        None => return Err(DawProjectError::NoProject),
+    };
+    let names: Vec<String> = entries.iter().map(|e| e.name.clone()).collect();
+    let mut wanted = read::needed_parts(&xml, &names);
+    wanted.push("metadata.xml".into());
+    let mut parts: Vec<(String, Vec<u8>)> = vec![("project.xml".into(), xml)];
+    let mut too_large = Vec::new();
+    for want in &wanted {
+        let Some(e) = named(want) else {
+            continue;
         };
-        parts.push((e.name.clone(), data));
+        if e.size > limit {
+            too_large.push(e.name.clone());
+            continue;
+        }
+        parts.push((e.name.clone(), zip::read_entry(&mut r, e, limit)?));
+    }
+    // The rest by name only (the audio, copied below).
+    for e in &entries {
+        if !parts.iter().any(|(n, _)| *n == e.name) {
+            parts.push((e.name.clone(), Vec::new()));
+        }
     }
     let imported = read::project(&parts)?;
     drop(parts);
@@ -359,10 +356,17 @@ pub fn import_file_within(
         }
     }
     find_external(&mut project, &mut report, &carried, path.parent());
+    for part in &too_large {
+        report.dropped(
+            "interop.report.d_part_too_large",
+            vec![("file", part.clone())],
+        );
+    }
     Ok(ImportedFile {
         project,
         report,
         unwritten,
+        too_large,
     })
 }
 

@@ -8,11 +8,18 @@
 //! tempo elsewhere). Each file goes into the archive once (stored, not deflated), or is
 //! referenced where it is (its absolute path) when it cannot be read. Read back the same
 //! way from any application's file (Bitwig and Studio One write them so).
+//!
+//! **Cantus's own warp** goes beside each `<Warps>` as `cantus/warps/<id>.json` (its
+//! markers with the warp's own flagged, Follow, the transposition, the formants, the tail,
+//! the fine offset): a file Cantus wrote comes back with the warp it had, while any other
+//! application reads the `<Warp>` points (round 29's third review: the warp's own markers
+//! came back as the user's, the barcode with them).
 
 use super::xml::{a, num, XmlWriter};
 use crate::report::Report;
 use cantus_core::warp::{Warp, WarpMarker, WarpMode, WarpTail};
 use cantus_core::{AudioRegion, AudioSource, Clip, Project, Ticks, PPQ};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
 /// The algorithm a mode is written as (Ableton's words, which Bitwig reads too).
@@ -74,6 +81,20 @@ pub fn points(w: &Warp, s: &AudioSource) -> Vec<(f64, f64)> {
     pts
 }
 
+/// What Cantus writes beside a `<Warps>` ([`side_path`]): the clip's warp as it is, and its
+/// fine offset.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Side {
+    pub warp: Warp,
+    #[serde(default)]
+    pub slip_frames: i32,
+}
+
+/// The archive path of the warp beside the `<Warps>` whose id is `id`.
+pub fn side_path(id: &str) -> String {
+    format!("cantus/warps/{id}.json")
+}
+
 /// Where a source's file is on disk: its stored path, a relative one against `base`.
 pub fn file_of(s: &AudioSource, base: Option<&Path>) -> PathBuf {
     let stored = Path::new(&s.path);
@@ -96,6 +117,7 @@ pub fn write(
     au: &AudioRegion,
     base: Option<&Path>,
     audio: &mut Vec<(String, PathBuf)>,
+    files: &mut Vec<(String, Vec<u8>)>,
     report: &mut Report,
 ) {
     let Some(s) = project.audio_source(au.source) else {
@@ -105,12 +127,19 @@ pub fn write(
     let warp = au.warp.as_deref().filter(|w| w.follow);
     let mode = warp.map_or(WarpMode::Repitch, |w| w.mode);
     if !natural {
+        let id = next_id();
+        if let Some(wp) = warp {
+            let side = Side {
+                warp: wp.clone(),
+                slip_frames: au.slip_frames,
+            };
+            if let Ok(json) = serde_json::to_vec(&side) {
+                files.push((side_path(&id), json));
+            }
+        }
         w.open(
             "Warps",
-            &[
-                ("contentTimeUnit", Some("seconds".into())),
-                ("id", a(next_id())),
-            ],
+            &[("contentTimeUnit", Some("seconds".into())), ("id", a(id))],
         );
     }
     let seconds = s.frames as f64 / s.sample_rate.max(1) as f64;
@@ -202,20 +231,73 @@ pub struct AudioData {
     pub algorithm: Option<String>,
     /// (content beats, file seconds), in order; empty: natural speed.
     pub warps: Vec<(f64, f64)>,
+    /// The `<Warps>` element's id (Cantus's own warp beside it: [`side_path`]).
+    pub id: Option<String>,
+}
+
+/// Whether warp points `pts` (content beats, file seconds; sorted) lie on the natural line
+/// — the content at natural speed from timeline tick `origin` through `map`, moved by
+/// `slip` seconds — to within half a frame at `rate`: at every point, and along every
+/// straight segment between two (at each tempo point inside it, and through a ramp at
+/// samples along it) — round 29's third review: points alone missed a segment across a
+/// tempo step whose ends happened to land on the curve.
+fn on_natural_line(
+    pts: &[(f64, f64)],
+    map: &cantus_core::tempo::TempoMap,
+    origin: f64,
+    slip: f64,
+    rate: f64,
+) -> bool {
+    let natural = |b: f64| map.seconds_between_f64(origin, origin + b * PPQ as f64);
+    let on = |b: f64, s: f64| ((natural(b) + slip) - s).abs() * rate < 0.5;
+    if !pts.iter().all(|(b, s)| on(*b, *s)) {
+        return false;
+    }
+    pts.windows(2).all(|w| {
+        let ((b0, s0), (b1, s1)) = (w[0], w[1]);
+        if b1 <= b0 {
+            return true;
+        }
+        let line = |b: f64| s0 + (s1 - s0) * (b - b0) / (b1 - b0);
+        let (t0, t1) = (origin + b0 * PPQ as f64, origin + b1 * PPQ as f64);
+        let mut corners = vec![t0, t1];
+        let mut t = t0;
+        while let Some(n) = map.next_change_after(t).filter(|n| *n < t1) {
+            corners.push(n);
+            t = n;
+        }
+        corners.sort_by(f64::total_cmp);
+        let beat = |t: f64| (t - origin) / PPQ as f64;
+        corners.iter().all(|t| on(beat(*t), line(beat(*t))))
+            && corners.windows(2).all(|c| {
+                // A ramp between two corners: its curve sampled.
+                let mid = 0.5 * (c[0] + c[1]);
+                !map.in_ramp(mid)
+                    || (1..32).all(|k| {
+                        let t = c[0] + (c[1] - c[0]) * k as f64 / 32.0;
+                        on(beat(t), line(beat(t)))
+                    })
+            })
+    })
 }
 
 /// The region an imported audio clip plays: its warp from the points. Points that lie on
 /// the clip's natural line — its content at natural speed from its content origin
-/// (`origin`, a timeline tick) through the tempo map `map`, to within half a frame — come
-/// back unwarped, the fine offset kept (round 29's second review: a line at one tempo was
-/// taken for natural speed under a map that changes). No points: natural speed (the caller
-/// places it from its `playStart`).
+/// (`origin`, a timeline tick) through the tempo map `map`, to within half a frame, along
+/// every segment ([`on_natural_line`]) — come back unwarped, the fine offset kept (round 29's
+/// second review: a line at one tempo was taken for natural speed under a map that
+/// changes); from a file Cantus wrote (`ours`: every `<Warps>` of it follows the tempo),
+/// as the warp that follows from natural speed (`Warp::natural_of` over `window`, the
+/// clip's start and length — third review: it came back not following). The second value
+/// says a `<Warps>` was read as natural speed. No points: natural speed (the caller places
+/// it from its `playStart`).
 pub fn region(
     source: cantus_core::AudioSourceId,
     d: &AudioData,
     map: &cantus_core::tempo::TempoMap,
     origin: f64,
-) -> AudioRegion {
+    ours: Option<(Ticks, Ticks)>,
+) -> (AudioRegion, bool) {
     let mut r = AudioRegion::of(source);
     let rate = d.rate.max(1) as f64;
     let mut pts: Vec<(f64, f64)> = d
@@ -226,18 +308,24 @@ pub fn region(
         .collect();
     pts.sort_by(|a, b| a.0.total_cmp(&b.0));
     if pts.is_empty() {
-        return r;
+        return (r, false);
     }
     // On the natural line: secs = the seconds from the origin to the content beat, through
     // the map, + slip.
     let natural = |b: f64| map.seconds_between_f64(origin, origin + b * PPQ as f64);
     let slip = pts[0].1 - natural(pts[0].0);
-    let on_line = pts
-        .iter()
-        .all(|(b, s)| ((natural(*b) + slip) - s).abs() * rate < 0.5);
-    if on_line {
+    if on_natural_line(&pts, map, origin, slip, rate) {
         r.slip_frames = (slip * rate).round() as i32;
-        return r;
+        if let Some((start, length)) = ours {
+            let offset = start - Ticks(origin.round() as i64);
+            let mut w = Warp::natural_of(map, start, offset, length, r.slip_frames, d.rate.max(1));
+            w.mode = mode_of(d.algorithm.as_deref());
+            if w.is_valid() {
+                r.warp = Some(Box::new(w));
+                return (r, false);
+            }
+        }
+        return (r, true);
     }
     let bpm = map.bpm_at(origin);
     let (b0, s0) = pts[0];
@@ -258,7 +346,7 @@ pub fn region(
     if w.is_valid() {
         r.warp = Some(Box::new(w));
     }
-    r
+    (r, false)
 }
 
 /// Read a clip's `<Warps>` (over `<Audio>`) or bare `<Audio>` content; `None` for anything
@@ -272,6 +360,10 @@ pub fn read(
     beats_in_seconds: bool,
 ) -> Option<AudioData> {
     use super::read::{attr, attr_f64, child};
+    let id = n
+        .has_tag_name("Warps")
+        .then(|| attr(n, "id").map(str::to_string))
+        .flatten();
     let (audio, warps) = match n.tag_name().name() {
         "Warps" => {
             if attr(n, "contentTimeUnit") != Some("seconds") {
@@ -302,5 +394,6 @@ pub fn read(
         seconds: attr_f64(audio, "duration").unwrap_or(0.0).max(0.0),
         algorithm: attr(audio, "algorithm").map(str::to_string),
         warps,
+        id,
     })
 }

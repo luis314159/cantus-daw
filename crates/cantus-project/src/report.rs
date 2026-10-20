@@ -61,6 +61,8 @@ pub const KEYS: &[&str] = &[
     "interop.report.d_foreign",
     "interop.report.d_instrument",
     "interop.report.d_plugin",
+    "interop.report.d_part_too_large",
+    "interop.report.d_warp_natural",
     "interop.report.d_device",
     "interop.report.d_master_device",
     "interop.report.d_vca",
