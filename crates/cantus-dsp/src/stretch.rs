@@ -133,16 +133,13 @@ pub fn render(channels: &[&[f32]], rate: f32, req: &Request) -> Vec<Vec<f32>> {
     if channels.is_empty() || req.len == 0 {
         return channels.iter().map(|_| vec![0.0; req.len]).collect();
     }
-    // Complex and Melodic work on the span the window reads (with the context their
-    // analyses need), never the whole file: a short window of a long take costs its own
-    // length (round 29's review).
+    // Every mode works on the span the window reads (with the context its analyses and
+    // readers need), never the whole file: a short window of a long take costs its own
+    // length (round 29's reviews).
     let src_end = req.origin + channels.iter().map(|c| c.len()).max().unwrap_or(0);
-    let (lo, hi) = match req.mode {
-        Mode::Complex | Mode::Melodic => {
-            let (lo, hi) = reach(req, rate, src_end);
-            (lo.max(req.origin), hi.min(src_end).max(lo.max(req.origin)))
-        }
-        _ => (req.origin, src_end),
+    let (lo, hi) = {
+        let (lo, hi) = reach(req, rate, src_end);
+        (lo.max(req.origin), hi.min(src_end).max(lo.max(req.origin)))
     };
     if lo != 0 || hi < src_end {
         let local: Vec<&[f32]> = channels
@@ -215,10 +212,13 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
     let p: Vec<&[f32]> = percussive.iter().map(Vec::as_slice).collect();
     let shifted = req.map.held_at(req.onsets, rate);
     let hits = hpss::grains(&p, rate, &shifted, req.len, ratio, req.onsets);
-    // The level each frame means: the source's own where the frame read it, moved by what
-    // the transposition did to the harmonic frame there (a band moved out of reach, the
-    // formants put back). Not the parts' powers summed: the parts were correlated in the
-    // source and are not after.
+    // The level the vocoder's frames mean: each its own (what it carries, the
+    // transposition's doing included), and the power the two parts shared where it read —
+    // correlated in the source, not after: the split's parts summed lose it (round 29's
+    // review: noise sank a decibel). Matched on the vocoder's output alone, the copied hits
+    // added after as they are: a hit's power is never counted again at every frame that
+    // reads near it (round 29's second review: slowed hits came out louder, sped-up ones
+    // quieter).
     let win = pv::window(pv::frame_len(rate));
     let w2: f64 = win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
     let target: Vec<(i64, f64)> = meant
@@ -229,15 +229,17 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
             } else {
                 1.0
             };
-            (m.centre, pv::power_of(channels, m.read, &win, w2) * k)
+            let whole = pv::power_of(channels, m.read, &win, w2);
+            let parts = pv::power_of(&h, m.read, &win, w2) + pv::power_of(&p, m.read, &win, w2);
+            (m.centre, m.meant + (whole - parts).max(0.0) * k)
         })
         .collect();
+    pv::level_match(&mut out, &target, rate);
     for (o, h) in out.iter_mut().zip(&hits) {
         for (a, b) in o.iter_mut().zip(h) {
             *a += *b;
         }
     }
-    pv::level_match(&mut out, &target, rate);
     out
 }
 
@@ -261,15 +263,37 @@ fn copy(channels: &[&[f32]], len: usize, shift: i64) -> Vec<Vec<f32>> {
         .collect()
 }
 
+/// What the band-limited reader and the interpolators reach past the span read, frames
+/// (the deepest mip level's kernel and margin, 128 × 128), and the grid a span starts on
+/// (the deepest level's step): so a window reads exactly as the whole file would.
+const READ_PAD: f64 = 16_384.0 + 2_048.0;
+const READ_ALIGN: usize = 128;
+
 /// The span of the source, frames `[from, to)`, a render of `req` reads: for Complex and
 /// Melodic the source under the window plus the context their analyses reach (the
 /// harmonic/percussive split's median over 17 frames, the vocoder's frames, the grains),
 /// its start on the split's and the pitch analysis' frame grid so a window renders as the
-/// whole file would there; for Rhythm and Re-pitch (which read only where they play) the
-/// whole source. `src_len` is the source's length.
+/// whole file would there; for Re-pitch the span its map reads, and for Rhythm the span
+/// its slices read (round 29's second review: both took the whole file), each with its
+/// readers' reach, on their grid. `src_len` is the source's length.
 pub fn reach(req: &Request, rate: f32, src_len: usize) -> (usize, usize) {
-    if !matches!(req.mode, Mode::Complex | Mode::Melodic) {
-        return (0, src_len);
+    let span = |a: f64, b: f64| {
+        let lo = ((a - READ_PAD).max(0.0) as usize / READ_ALIGN) * READ_ALIGN;
+        let hi = ((b + READ_PAD).max(0.0).ceil() as usize).min(src_len);
+        (lo.min(src_len), hi.max(lo.min(src_len)))
+    };
+    match req.mode {
+        Mode::Repitch => {
+            let (a, b) = (req.map.source(0.0), req.map.source(req.len as f64));
+            return span(a.min(b), a.max(b));
+        }
+        Mode::Rhythm => {
+            let semis = req.semitones.clamp(-MAX_SEMITONES, MAX_SEMITONES);
+            let ratio = crate::math::exp2(semis / 12.0);
+            let (a, b) = rhythm::reach(req, ratio, src_len);
+            return span(a, b);
+        }
+        Mode::Complex | Mode::Melodic => {}
     }
     let a = req.map.source(0.0);
     let b = req.map.source(req.len as f64);

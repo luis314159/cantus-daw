@@ -30,10 +30,11 @@ fn read(x: &[f32], pos: f64) -> f32 {
     }
 }
 
-pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) -> Vec<Vec<f32>> {
+/// The slices of a render: `(source start, output start)`, the first from wherever output
+/// 0 reads — and the cut that started it, when a transient before the output did.
+fn slices(req: &Request, ratio: f64, src_len: f64) -> (Vec<(f64, f64)>, Option<f64>) {
     let map = req.map;
     let len = req.len;
-    let src_len = channels.iter().map(|c| c.len()).max().unwrap_or(0) as f64;
     // The cuts: every transient and every hard breakpoint (a warp marker, a window's end),
     // in the source — never a tempo ramp's samples (soft points): a slice rides through
     // them at its own speed.
@@ -47,19 +48,54 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
         .collect();
     cuts.sort_by(f64::total_cmp);
     cuts.dedup_by(|b, a| (*b - *a).abs() < 1.0);
-    // The slices: (source start, output start), the first from wherever output 0 reads.
     let mut slices: Vec<(f64, f64)> = vec![(map.source(0.0).round(), 0.0)];
+    let mut first = None;
     for &s in &cuts {
         let o = map.output(s).round();
         if o <= slices.last().map_or(f64::NEG_INFINITY, |l| l.1) || o >= len as f64 {
             if o <= 0.0 {
                 // A transient before the output starts: the first slice starts there.
                 slices[0] = (s + (0.0 - o) * ratio, 0.0);
+                first = Some(s);
             }
             continue;
         }
         slices.push((s, o));
     }
+    (slices, first)
+}
+
+/// The source frames `[lo, hi]` the slices read (a looped tail's cross-fade aside, which
+/// reaches a fifth of a slice before it at most).
+fn read_span(slices: &[(f64, f64)], len: usize, ratio: f64, src_len: f64) -> (f64, f64) {
+    let lo = slices.iter().map(|s| s.0).fold(f64::MAX, f64::min);
+    let hi = slices
+        .iter()
+        .enumerate()
+        .map(|(i, &(s0, o0))| {
+            let (s1, o1) = slices
+                .get(i + 1)
+                .map_or((src_len, len as f64), |&(s, o)| (s, o));
+            (s0 + (o1 - o0) * ratio).min(s1)
+        })
+        .fold(lo, f64::max);
+    (lo, hi)
+}
+
+/// The span of a source `src_len` frames long a Rhythm render reads (before the readers'
+/// own reach): from the first slice's start — or the transient before the output that
+/// starts it — to the furthest a slice reads (round 29's second review: it took the whole
+/// file for every window).
+pub(super) fn reach(req: &Request, ratio: f64, src_len: usize) -> (f64, f64) {
+    let (s, first) = slices(req, ratio, src_len as f64);
+    let (lo, hi) = read_span(&s, req.len, ratio, src_len as f64);
+    (first.map_or(lo, |f| f.min(lo)), hi)
+}
+
+pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) -> Vec<Vec<f32>> {
+    let len = req.len;
+    let src_len = channels.iter().map(|c| c.len()).max().unwrap_or(0) as f64;
+    let (slices, _) = slices(req, ratio, src_len);
     let fade = (FADE_S * rate as f64).max(1.0);
     // Transposed up, a slice is read faster than it was recorded: through the band-limited
     // reader (nothing above the output's band folds back), over the span the slices read.
@@ -67,17 +103,7 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
         .iter()
         .map(|c| {
             (ratio > 1.0).then(|| {
-                let lo = slices.iter().map(|s| s.0).fold(f64::MAX, f64::min);
-                let hi = slices
-                    .iter()
-                    .enumerate()
-                    .map(|(i, &(s0, o0))| {
-                        let (s1, o1) = slices
-                            .get(i + 1)
-                            .map_or((src_len, len as f64), |&(s, o)| (s, o));
-                        (s0 + (o1 - o0) * ratio).min(s1)
-                    })
-                    .fold(lo, f64::max);
+                let (lo, hi) = read_span(&slices, len, ratio, src_len);
                 Fast::new(c, lo, hi, ratio)
             })
         })

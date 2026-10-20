@@ -281,8 +281,16 @@ fn a_window_of_a_long_file_renders_as_the_whole_file_would() {
     let len = 96_000;
     let map = Map::new(vec![(0.0, 384_000.0), (len as f64, 460_800.0)]).unwrap();
     let analysis = crate::pitch::analyse(&x, SR);
-    for mode in [Mode::Complex, Mode::Melodic] {
-        let mut q = req(mode, &map, len, 3.0, &at);
+    // And faster than recorded (Re-pitch through its band-limited reader).
+    let fast = Map::new(vec![(0.0, 384_000.0), (len as f64, 504_000.0)]).unwrap();
+    for (mode, map) in [
+        (Mode::Complex, &map),
+        (Mode::Melodic, &map),
+        (Mode::Rhythm, &map),
+        (Mode::Repitch, &map),
+        (Mode::Repitch, &fast),
+    ] {
+        let mut q = req(mode, map, len, 3.0, &at);
         q.pitch = Some(&analysis);
         let whole = dispatch(&[&x], SR, &q, 3.0);
         let windowed = render(&[&x], SR, &q);
@@ -330,6 +338,33 @@ fn a_short_hold_still_gets_its_reset_frame() {
         .filter(|j| pv::at_hold(&holds, &mut next, (j * 512) as f64, 512, false))
         .count();
     assert_eq!(resets, 1);
+}
+
+/// Round 29's second review (finding 13): untransposed, a frame inside a hold resets even
+/// when a short hold just before it (a flam) still waits for its own nearest frame.
+#[test]
+fn a_flams_second_hold_still_resets_untransposed() {
+    let holds = [
+        map::Hold {
+            from: 3_008.0,
+            at: 3_200.0,
+            to: 3_470.0,
+        },
+        map::Hold {
+            from: 3_608.0,
+            at: 3_800.0,
+            to: 5_240.0,
+        },
+    ];
+    let mut next = 0;
+    let hit: Vec<bool> = (0..4)
+        .map(|j| pv::at_hold(&holds, &mut next, (j * 2_048) as f64, 2_048, true))
+        .collect();
+    assert_eq!(
+        hit,
+        vec![false, false, true, false],
+        "frame 4 096 lies in the second"
+    );
 }
 
 #[test]
@@ -450,6 +485,71 @@ fn a_chords_close_voices_do_not_wander() {
                     "x{stretch} ch{ch} {hz:.1} Hz: {own:.2} dB, {w:.2} dB"
                 );
             }
+        }
+    }
+}
+
+/// Hats: a short noise burst every `every` frames from `first`.
+fn hats(n: usize, first: usize, every: usize, seed: u64) -> (Vec<f32>, Vec<f64>) {
+    let mut x = vec![0.0f32; n];
+    let mut g = Noise::new(seed);
+    let mut at = Vec::new();
+    let mut s = first;
+    while s < n {
+        at.push(s as f64);
+        for k in 0..(0.04 * SR) as usize {
+            if s + k >= n {
+                break;
+            }
+            let t = k as f32 / SR;
+            x[s + k] += 0.5 * math::exp(-t / 0.008) * (k as f32 / 8.0).min(1.0) * g.next();
+        }
+        s += every;
+    }
+    (x, at)
+}
+
+/// Round 29's second review (finding 12): a Complex render's copied hits keep the
+/// source's level slowed and sped up — the level match holds the vocoder's own frames to
+/// what they mean, never the hits' power counted again at every frame that reads near them.
+/// A drum hit every half second, and hats every sixteenth at 120 BPM: each hit's peak and
+/// its energy over its first 30 ms within 0.3 dB of the source's, on average.
+#[test]
+fn a_complex_renders_hits_keep_their_level_slowed_and_sped_up() {
+    for every in [24_000usize, 6_000] {
+        let n = 10 * 48_000;
+        let (x, at) = if every == 6_000 {
+            hats(n, 12_000, every, 31)
+        } else {
+            hits(n, 12_000, every, 31)
+        };
+        for k in [0.5f64, 2.0] {
+            // Output frame t reads source t × k (slowed at 0.5).
+            let len = (n as f64 / k) as usize - 48_000;
+            let map = Map::new(vec![(0.0, 0.0), (len as f64, len as f64 * k)]).unwrap();
+            let out = render(&[&x], SR, &req(Mode::Complex, &map, len, 0.0, &at));
+            let span = (0.030 * SR) as usize;
+            let (mut peaks, mut energies) = (Vec::new(), Vec::new());
+            for s in at.iter().copied().filter(|s| *s > 24_000.0) {
+                let o = map.output(s).round() as usize;
+                if o + span + 48 >= len {
+                    break;
+                }
+                let s = s as usize;
+                let db = |a: f64, b: f64| 10.0 * math::log10(a / b.max(1e-30));
+                let pk = |v: &[f32]| v.iter().fold(0.0f32, |m, x| m.max(x.abs())) as f64;
+                let en = |v: &[f32]| v.iter().map(|x| (*x as f64) * (*x as f64)).sum::<f64>();
+                let (src, got) = (&x[s - 48..s + span], &out[0][o - 48..o + span]);
+                peaks.push(2.0 * db(pk(got), pk(src)));
+                energies.push(db(en(got), en(src)));
+            }
+            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len().max(1) as f64;
+            assert!(peaks.len() >= 4);
+            let (p, e) = (mean(&peaks), mean(&energies));
+            assert!(
+                p.abs() < 0.3 && e.abs() < 0.3,
+                "hits every {every} at ×{k}: peak {p:+.2} dB, energy {e:+.2} dB"
+            );
         }
     }
 }

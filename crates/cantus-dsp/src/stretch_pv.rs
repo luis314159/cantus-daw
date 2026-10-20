@@ -550,20 +550,25 @@ pub(crate) fn level_match(acc: &mut [Vec<f32>], meant: &[(i64, f64)], rate: f32)
 
 /// Whether the synthesis frame centred at `cf` resets at a hold: untransposed, every
 /// frame inside one; transposed, the frame nearest its transient. `next` walks the holds
-/// (in order) as the frames do; a hold is passed only once both its end and its nearest
-/// frame are behind — a short hold may end before the frame nearest its transient.
+/// (in order) as the frames do. Untransposed, a hold is passed once it ends, and every
+/// hold that has begun is asked (round 29's second review: a flam's short first hold hid
+/// the second); transposed, only once both its end and its nearest frame are behind — a
+/// short hold may end before the frame nearest its transient.
 pub(crate) fn at_hold(holds: &[Hold], next: &mut usize, cf: f64, hs: usize, plain: bool) -> bool {
     let nearest = |h: &Hold| (h.at / hs as f64).round() * hs as f64;
+    if plain {
+        while *next < holds.len() && holds[*next].to < cf {
+            *next += 1;
+        }
+        return holds[*next..]
+            .iter()
+            .take_while(|h| h.from <= cf)
+            .any(|h| cf <= h.to);
+    }
     while *next < holds.len() && holds[*next].to < cf && nearest(&holds[*next]) < cf {
         *next += 1;
     }
-    holds.get(*next).is_some_and(|h| {
-        if plain {
-            h.from <= cf && cf <= h.to
-        } else {
-            nearest(h) == cf
-        }
-    })
+    holds.get(*next).is_some_and(|h| nearest(h) == cf)
 }
 
 impl State {
