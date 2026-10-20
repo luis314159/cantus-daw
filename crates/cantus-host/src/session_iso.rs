@@ -97,7 +97,8 @@ pub struct CpuFigure {
     pub share: f32,
     /// Of which the plug-in's own processing, measured in its helper (isolated only).
     pub own: Option<f32>,
-    /// Blocks that passed without it because it was late (isolated only).
+    /// Times a job of it missed its deadline (isolated only); the blocks that then passed
+    /// without it are not counted one by one.
     pub late: u64,
 }
 
@@ -629,6 +630,16 @@ impl PluginHost {
             .crash_counts
             .entry((format, id.to_string()))
             .or_default() += times;
+    }
+
+    /// For the interface's tests: the running render lost `name` (as a render instance
+    /// that could not be loaded does). The application never calls it.
+    #[doc(hidden)]
+    pub fn lose_in_render_for_tests(&mut self, name: &str, reason: &str) {
+        self.render_lost.push(RenderFailure {
+            name: name.to_string(),
+            reason: reason.to_string(),
+        });
     }
 
     /// The plug-ins of the running render (export, stems, bake) that stopped working

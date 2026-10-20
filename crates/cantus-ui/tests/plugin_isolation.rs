@@ -508,3 +508,81 @@ fn a_bake_and_an_export_never_render_at_once() {
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
+
+/// A render that lost a plug-in is never reported done: the export says so, the bake
+/// bakes nothing, the freeze freezes nothing (review #6, #21, #47).
+#[test]
+fn every_render_that_lost_a_plugin_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    // The export.
+    let mut a = app(cantus_ui::starter_project());
+    assert!(cantus_ui::views::export::start_with(
+        &mut a,
+        &dir.path().join("mix.wav"),
+        None
+    ));
+    a.plugins
+        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+    cantus_ui::views::export::wait(&mut a);
+    assert!(a.status.error, "{}", a.status.text);
+    assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
+    assert!(matches!(a.export.last, Some(Err(_))));
+    // The freeze.
+    let mut a = app(cantus_ui::starter_project());
+    a.engine.frozen.set_app_dir(dir.path().join("renders"));
+    a.path = Some(dir.path().join("song.cantus"));
+    let strip = a.project().tracks[0].strip.unwrap();
+    a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
+    assert!(a.freeze.job.is_some());
+    a.plugins
+        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+    let ctx = ctx();
+    let start = std::time::Instant::now();
+    while a.freeze.job.is_some() && start.elapsed().as_secs() < 30 {
+        cantus_ui::freeze::tick(&mut a, &ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(a.status.error, "{}", a.status.text);
+    assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
+    assert!(
+        a.project().strip(strip).is_some_and(|s| s.frozen.is_none()),
+        "nothing frozen"
+    );
+}
+
+/// A modulator bake whose render lost a plug-in bakes nothing, and says why (#21).
+#[test]
+fn a_bake_that_lost_a_plugin_bakes_nothing() {
+    let mut p = cantus_ui::starter_project();
+    let second = p.make_track("Second");
+    p.tracks.push(second);
+    let listen = p.tracks[0].strip.unwrap();
+    let target_strip = p.tracks[1].strip.unwrap();
+    let mut f = cantus_core::Modulator::new(
+        cantus_core::ModulatorId(p.alloc_id()),
+        cantus_core::ModKind::Follower,
+    );
+    if let cantus_core::ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(listen);
+    }
+    let target = AutoTarget::StripPan(target_strip);
+    f.routes.push(cantus_core::ModRoute {
+        target: target.clone(),
+        depth: 0.4,
+    });
+    let mid = f.id;
+    p.strip_mut(target_strip).unwrap().modulators.push(f);
+    let mut a = app(p);
+    let before = a.bus.history().len();
+    assert!(a.bake_route(mid, &target));
+    a.plugins
+        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+    let start = std::time::Instant::now();
+    while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
+        a.poll_bake();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(a.status.error, "{}", a.status.text);
+    assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
+    assert_eq!(a.bus.history().len(), before, "nothing baked");
+}
