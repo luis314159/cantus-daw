@@ -91,7 +91,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         SetTrackGain { id, .. } | SetTrackPan { id, .. } => vec![TrackMix(*id)],
         // Where a track sits orders the sums it is in (and its modulators): applied, then
         // checked (review 1 — a key moved without a refusal).
-        MoveTrack { id, .. } => vec![TrackMix(*id), Global],
+        // Applied and checked only (review 2: the frozen strip's only track could not be
+        // reordered): the key holds the order of the tracks a strip sums, and nothing else.
+        MoveTrack { .. } => vec![Global],
         SetTrackMute { id, .. } | SetTrackSolo { id, .. } => vec![TrackAudibility(*id)],
         SetTrackName { .. }
         | SetTrackColor { .. }

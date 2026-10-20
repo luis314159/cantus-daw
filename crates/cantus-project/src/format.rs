@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 37;
+pub const SCHEMA_VERSION: u32 = 38;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -234,6 +234,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_34_to_35,
     migrate_35_to_36,
     migrate_36_to_37,
+    migrate_37_to_38,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -836,6 +837,15 @@ fn migrate_35_to_36(_value: &mut Value) -> Result<(), String> {
 /// older build must refuse a v37 file, or it would play a frozen strip's chain live and let
 /// edits through that the render no longer matches.
 fn migrate_36_to_37(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 38 (round 29, ADR 0064 §6, review 2): a track may carry the latency its audio
+/// was rendered with — `Track::lateness`, set by a bounce in place, which keeps its source's
+/// or its chain's latency in its file so the level, the fader, the sends and the keys meet
+/// the audio as late as before. Nothing to write: a v37 track's audio is on time. An older
+/// build must refuse a v38 file, or it would play a bounced track early.
+fn migrate_37_to_38(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1936,13 +1946,32 @@ mod freeze_tests {
         assert_eq!(targets.len(), 2, "{targets:?}");
         assert!(matches!(targets[0], FreezeTarget::Strip(_)));
         assert!(matches!(targets[1], FreezeTarget::Track(_)));
+        // Re-keyed on load when its subject was an older one's: what it holds now.
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
-        // As written, not as repaired on load (review 1: the check above holds after any
-        // repair): each stored key is the content key — the subject did not move under
-        // the fixture, and nobody's renders are re-keyed when they open their projects.
+    }
+
+    /// Schema 38 (round 29, review 2): a bounced track keeps its lateness; a v37 track has
+    /// none. And the current fixture's frozen keys, as written, need no repair (review 1:
+    /// a check after loading holds after any repair) — the subject did not move under it.
+    #[test]
+    fn schema_38_keeps_a_tracks_lateness_and_its_keys_as_written() {
+        let p = fixture("v38.cantus");
+        let late: Vec<_> = p.tracks.iter().filter_map(|t| t.lateness).collect();
+        assert_eq!(
+            late,
+            vec![cantus_core::Lateness {
+                frames: 4_608,
+                rate: 48_000
+            }]
+        );
+        assert!(fixture("v37.cantus")
+            .tracks
+            .iter()
+            .all(|t| t.lateness.is_none()));
+        let targets = p.frozen_targets();
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v37.cantus"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v38.cantus"),
         )
         .unwrap();
         let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
