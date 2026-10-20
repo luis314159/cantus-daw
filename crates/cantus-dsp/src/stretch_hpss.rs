@@ -195,10 +195,16 @@ pub(super) fn grains(
     let g = ((0.0053 * rate) as usize)
         .next_power_of_two()
         .clamp(64, 1_024);
-    grains_of(channels, map, len, ratio, g, anchors)
+    let r = rate as f64;
+    let hold = (super::map::HOLD_BEFORE_S * r, super::map::HOLD_AFTER_S * r);
+    grains_of(channels, map, len, ratio, g, anchors, hold)
 }
 
-/// [`grains`] with grains `g` frames long (a power of two).
+/// [`grains`] with grains `g` frames long (a power of two). Transposed, every grain that
+/// reaches into a transient's hold (`hold`: frames before and after it, the map's pure
+/// shift there) reads from the transient outward: the hit is one coherent resampled copy,
+/// its level whole — read from their own centres, neighbouring grains disagreed by a few
+/// frames and their overlap-add lost up to 4 dB of it (round 29's third review).
 pub(super) fn grains_of(
     channels: &[&[f32]],
     map: &Map,
@@ -206,6 +212,7 @@ pub(super) fn grains_of(
     ratio: f64,
     g: usize,
     anchors: &[f64],
+    hold: (f64, f64),
 ) -> Vec<Vec<f32>> {
     let hop = g / 4;
     let win = hann(g);
@@ -230,17 +237,18 @@ pub(super) fn grains_of(
         }
         let at = map.source(c as f64);
         let start = at.round() as i64;
-        // Transposed: the transient this grain reads, if any, and where it is heard.
+        // Transposed: the transient whose hold this grain reaches into, if any (the next
+        // one's first, its attack), and where it is heard.
         let anchor = (ratio != 1.0)
             .then(|| {
                 let reach = half as f64 * ratio;
                 let i = anchors.partition_point(|s| *s < at);
-                [i.checked_sub(1), Some(i)]
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|i| anchors.get(i).copied())
-                    .filter(|s| (s - at).abs() <= reach)
-                    .min_by(|a, b| (a - at).abs().total_cmp(&(b - at).abs()))
+                let next = anchors.get(i).copied().filter(|s| at >= s - hold.0 - reach);
+                let prev = i
+                    .checked_sub(1)
+                    .and_then(|j| anchors.get(j).copied())
+                    .filter(|s| at <= s + hold.1 + reach);
+                next.or(prev)
             })
             .flatten()
             .map(|s| (s, map.output(s)));

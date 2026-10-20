@@ -23,9 +23,9 @@ const PLAIN_SLOPE: f64 = 1e-12;
 const PLAIN_OFFSET: f64 = 1e-7;
 
 /// Around a transient, the percussive part is copied over this long before it…
-const HOLD_BEFORE_S: f64 = 0.004;
+pub(crate) const HOLD_BEFORE_S: f64 = 0.004;
 /// …and this long after it (the attack and the first of the decay).
-const HOLD_AFTER_S: f64 = 0.030;
+pub(crate) const HOLD_AFTER_S: f64 = 0.030;
 /// A held stretch takes at most this share of the gap to the next transient or
 /// breakpoint, so the rest can still stretch.
 const HOLD_SHARE: f64 = 0.45;

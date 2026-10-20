@@ -871,3 +871,167 @@ fn a_sped_up_window_starting_before_a_hit_reads_no_further_back_than_its_speed()
         );
     }
 }
+
+/// The energy (dB) of `x` read from `s` at `r` source frames an output frame, over `w`
+/// output frames: a resampled copy of a hit, through the readers the stretcher uses (read
+/// faster, band-limited: nothing above the output's band).
+fn copy_db(x: &[f32], s: f64, r: f64, w: usize) -> f32 {
+    let fast = (r > 1.0).then(|| read::Fast::new(x, s - 64.0, s + w as f64 * r + 64.0, r));
+    let e: f64 = (0..w)
+        .map(|t| {
+            let p = s + t as f64 * r;
+            let v = match &fast {
+                Some(f) => f.read(p, r),
+                None => crate::psola::read_at(x, p),
+            };
+            (v * v) as f64
+        })
+        .sum();
+    (10.0 * math::log10(e.max(1e-30))) as f32
+}
+
+/// A drum hit's noise alone (`hits`' without its tonal thump).
+fn noise_hits(n: usize, first: usize, every: usize, seed: u64) -> (Vec<f32>, Vec<f64>) {
+    let mut x = vec![0.0f32; n];
+    let mut g = Noise::new(seed);
+    let mut at = Vec::new();
+    let mut s = first;
+    while s < n {
+        at.push(s as f64);
+        for k in 0..(0.12 * SR) as usize {
+            if s + k >= n {
+                break;
+            }
+            let t = k as f32 / SR;
+            let env = math::exp(-t / 0.025) * (k as f32 / (0.0002 * SR)).min(1.0);
+            x[s + k] += 0.6 * env * g.next();
+        }
+        s += every;
+    }
+    (x, at)
+}
+
+/// Round 29's third review (finding 6): transposed in Complex — down an octave, −3, +7, up
+/// an octave — on an identity map and slowed and sped up, each hit's noise and each hat
+/// keeps the energy over its first 30 ms of a resampled copy of it (the readers the
+/// stretcher uses), within half a decibel (median); a drum hit with a tonal body within
+/// one and a half (its body is stretched, keeping its decay, not resampled).
+#[test]
+fn transposed_hits_keep_the_level_of_a_resampled_copy() {
+    let n = 6 * 48_000;
+    let (dr, dat) = hits(n, 6_000, 24_000, 21);
+    let (nh, nat) = noise_hits(n, 6_000, 24_000, 23);
+    let (hh, hat) = hats(n, 18_000, 24_000, 22);
+    let w = (0.030 * SR) as usize;
+    for (name, x, at, bound) in [
+        ("noise hits", &nh, &nat, 0.5f32),
+        ("hats", &hh, &hat, 0.5),
+        ("drum hits", &dr, &dat, 1.5),
+    ] {
+        for k in [1.0, 0.8, 1.25] {
+            for semis in [-12.0, -3.0, 7.0, 12.0] {
+                let r = math::powf(2.0f64, semis / 12.0);
+                let len = (n as f64 / k) as usize - 48_000;
+                let map = Map::new(vec![(0.0, 0.0), (len as f64, len as f64 * k)]).unwrap();
+                let y = render(&[x], SR, &req(Mode::Complex, &map, len, semis, at));
+                let mut d: Vec<f32> = at
+                    .iter()
+                    .filter(|s| (**s as usize) + 2 * w < (len as f64 * k) as usize)
+                    .map(|s| {
+                        let o = map.output(*s).round() as usize;
+                        let got = &y[0][o..o + w];
+                        let e: f64 = got.iter().map(|v| (*v as f64) * (*v as f64)).sum();
+                        (10.0 * math::log10(e.max(1e-30))) as f32 - copy_db(x, *s, r, w)
+                    })
+                    .collect();
+                d.sort_by(f32::total_cmp);
+                let med = d[d.len() / 2];
+                assert!(
+                    med.abs() <= bound,
+                    "{name} ×{k} {semis:+} st: {med:+.2} dB against a resampled copy ({d:?})"
+                );
+            }
+        }
+    }
+}
+
+/// The bench's pad: two detuned saws a note (one per channel), `n` frames, a fade in and
+/// out.
+fn detuned_pad(n: usize, notes: &[i32]) -> (Vec<f32>, Vec<f32>) {
+    let mut l = vec![0.0f32; n];
+    let mut r = vec![0.0f32; n];
+    let secs = n as f64 / SR as f64;
+    for (v, &note) in notes.iter().enumerate() {
+        for (d, detune) in [-0.08f64, 0.08].iter().enumerate() {
+            let f = crate::pitch::midi_to_hz(note as f32) as f64 * (1.0 + detune / 100.0 * 12.0);
+            let mut ph = (v * 7 + d * 3) as f64 * 0.37;
+            for i in 0..n {
+                let t = i as f64 / SR as f64;
+                ph += f / SR as f64;
+                let saw = 2.0 * (ph - ph.floor()) - 1.0;
+                let env = (t / 0.3).min(1.0) * ((secs - t) / 0.05).clamp(0.0, 1.0);
+                let s = (0.05 * env * saw) as f32;
+                if d == 0 {
+                    l[i] += s
+                } else {
+                    r[i] += s
+                }
+            }
+        }
+    }
+    (l, r)
+}
+
+/// Round 29's third review (finding 7): a detuned pad under sixteenth hats (120 BPM), with
+/// the detector's onsets, slowed and sped up: the hats never take the pad's long frame
+/// away — each voice's wander over the mix's own within a decibel over 100 ms windows,
+/// within three over 40 ms (the short frame added up to 3 and 11).
+#[test]
+fn hats_over_a_pad_leave_its_voices_steady() {
+    let notes = [48, 52, 55, 60];
+    let n = 2 * 48_000;
+    let (pl, pr) = detuned_pad(n, &notes);
+    let (hh, _) = hats(n, 3_000, 6_000, 51);
+    let l: Vec<f32> = pl.iter().zip(&hh).map(|(a, b)| a + b).collect();
+    let r: Vec<f32> = pr.iter().zip(&hh).map(|(a, b)| a + b).collect();
+    let mono: Vec<f32> = l.iter().zip(&r).map(|(a, b)| 0.5 * (a + b)).collect();
+    let found = crate::onset::detect(&mono, SR).frames;
+    assert!(found.len() > 8, "the hats detected: {}", found.len());
+    for stretch in [0.8, 1.25] {
+        let len = (n as f64 * stretch) as usize;
+        let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
+        let y = render(&[&l, &r], SR, &req(Mode::Complex, &map, len, 0.0, &found));
+        for (ch, detune, src) in [(0usize, -0.08f64, &l), (1, 0.08, &r)] {
+            for note in notes {
+                let hz = (crate::pitch::midi_to_hz(note as f32) as f64
+                    * (1.0 + detune / 100.0 * 12.0)) as f32;
+                for win in [0.1f32, 0.04] {
+                    let (a, b) = (0.4f64, 1.6f64);
+                    let own = level_wander_db_in(
+                        src,
+                        SR,
+                        hz,
+                        (a * SR as f64) as usize,
+                        (b * SR as f64) as usize,
+                        win,
+                    );
+                    let w = level_wander_db_in(
+                        &y[ch],
+                        SR,
+                        hz,
+                        (a * SR as f64 * stretch) as usize,
+                        (b * SR as f64 * stretch) as usize,
+                        win,
+                    );
+                    // Over 40 ms (which do not resolve voices 2 Hz apart: the pad alone
+                    // adds up to 1.5 dB there) within 3 dB; the short frame added up to 11.
+                    let bound = if win > 0.05 { 1.0 } else { 3.0 };
+                    assert!(
+                        w - own <= bound,
+                        "×{stretch} ch{ch} {hz:.1} Hz over {win} s: {own:.2} dB, {w:.2} dB"
+                    );
+                }
+            }
+        }
+    }
+}
