@@ -1739,24 +1739,61 @@ mod tests {
         v.iter().copied().collect()
     }
 
-    /// Who an end is laid on (review #0, #38, #45, #20, #39).
+    /// Who an end is laid on (review #0, #38, #45, #20, #39; isolation-4 #2, #3, #6, #47).
     #[test]
     fn an_end_is_laid_on_one_plugin_or_on_nobody() {
         let all = [1, 2, 3];
-        // A known culprit (its job or call hung) alone, whoever else was busy.
-        assert_eq!(culprits(Some(1), 0, 3, &[2], &all), set(&[1]));
+        let seen = End::Observed;
+        // A culprit Cantus names when it ends the helper alone, whoever else was busy.
+        assert_eq!(culprits(End::Decided(Some(1)), 0, 3, &[2], &all), set(&[1]));
         // The crash handler's word alone.
-        assert_eq!(culprits(None, 2, 3, &[1], &all), set(&[2]));
+        assert_eq!(culprits(seen, 2, 3, &[1], &all), set(&[2]));
         // The handler ran on a thread of no instance: nobody.
-        assert_eq!(culprits(None, OUTSIDE, 3, &[1], &all), set(&[]));
+        assert_eq!(culprits(seen, OUTSIDE, 3, &[1], &all), set(&[]));
         // No handler: the one candidate...
-        assert_eq!(culprits(None, 0, 0, &[2], &all), set(&[2]));
-        assert_eq!(culprits(None, 0, 3, &[], &all), set(&[3]));
+        assert_eq!(culprits(seen, 0, 0, &[2], &all), set(&[2]));
+        assert_eq!(culprits(seen, 0, 3, &[], &all), set(&[3]));
         // ...or nobody when several were busy (a fail-fast abort under the pool).
-        assert_eq!(culprits(None, 0, 0, &[1, 2], &all), set(&[]));
-        assert_eq!(culprits(None, 0, 3, &[1], &all), set(&[]));
+        assert_eq!(culprits(seen, 0, 0, &[1, 2], &all), set(&[]));
+        assert_eq!(culprits(seen, 0, 3, &[1], &all), set(&[]));
         // One plug-in in it: its own end.
-        assert_eq!(culprits(None, 0, 0, &[], &[7]), set(&[7]));
+        assert_eq!(culprits(seen, 0, 0, &[], &[7]), set(&[7]));
+    }
+
+    /// The only plug-in of a helper is laid its end whatever thread it crashed on — its
+    /// own, a framework's timer (review isolation-4 #6, #18, #29, #49).
+    #[test]
+    fn the_only_plugin_is_laid_its_end_from_any_thread() {
+        assert_eq!(culprits(End::Observed, OUTSIDE, 0, &[], &[7]), set(&[7]));
+    }
+
+    /// A plug-in that crashed while it left (its destructor) — by the handler's word or,
+    /// with none, the main thread's — never lays it on one that stays (review isolation-4
+    /// #2, #45, #56).
+    #[test]
+    fn a_plugin_crashing_as_it_leaves_is_laid_its_own_end() {
+        let seen = End::Observed;
+        assert_eq!(culprits(seen, 9, 0, &[], &[7]), set(&[9]));
+        assert_eq!(culprits(seen, 0, 9, &[], &[7]), set(&[9]));
+        assert_eq!(culprits(seen, 9, 0, &[2], &[1, 2, 3]), set(&[9]));
+    }
+
+    /// A crash recorded while Cantus ended the helper for a hang stands (review isolation-4
+    /// #47).
+    #[test]
+    fn a_recorded_crash_stands_over_a_decided_hang() {
+        assert_eq!(
+            culprits(End::Decided(Some(1)), 2, 0, &[], &[1, 2, 3]),
+            set(&[2])
+        );
+    }
+
+    /// A hang Cantus judged with nothing named is nobody's — not a bystander's whose job was
+    /// running — but the only plug-in's (review isolation-4 #3, #30, #44, #55).
+    #[test]
+    fn a_hang_with_nothing_named_is_nobodys() {
+        assert_eq!(culprits(End::Decided(None), 0, 0, &[2], &[1, 2, 3]), set(&[]));
+        assert_eq!(culprits(End::Decided(None), 0, 0, &[], &[7]), set(&[7]));
     }
 
     /// A gap longer than the silence limit since the last judgement is Cantus's own pause.
