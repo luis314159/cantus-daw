@@ -33,6 +33,8 @@ fn quick_pool() -> Arc<Sandboxes> {
         call: Duration::from_secs(1),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(1),
+        heavy: Duration::from_secs(1),
+        modal: Duration::from_secs(10),
     });
     pool
 }
@@ -204,12 +206,22 @@ fn a_background_state_older_than_a_loaded_one_is_dropped() {
         main.idle();
         std::thread::sleep(Duration::from_millis(10));
     }
-    main.load_state(&first)
-        .expect("loads after the save's loop");
-    for _ in 0..30 {
+    // Its own dialog runs the save: the load is held for after it — not waited for
+    // (review isolation-4 #54) — and runs then.
+    match main.load_state(&first) {
+        Ok(()) | Err(cantus_host::HostError::Busy(_)) => {}
+        Err(e) => panic!("{e}"),
+    }
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(3_500) {
         main.idle();
         std::thread::sleep(Duration::from_millis(10));
     }
+    assert_eq!(
+        main.save_state().unwrap(),
+        first,
+        "the held load ran after the loop"
+    );
     arm_crash(main.as_mut(), audio.as_mut());
     assert_eq!(main.save_state().unwrap(), first);
 }
@@ -240,6 +252,7 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
     // A state may take 3 s: the hung background save is not overdue when Cantus saves.
     pool.set_limits(Limits {
         state: Duration::from_secs(3),
+        heavy: Duration::from_secs(3),
         ..pool.limits()
     });
     let Loaded {
@@ -260,14 +273,14 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
                 told = Some(reason);
             }
         }
-        // Saving meanwhile answers with what it said last, never waiting past the state's
-        // own limit (its own background save may be slow, not hung: it is waited for that
-        // long — review isolation-3 #2, #24 — and the interface never longer).
+        // Saving meanwhile answers at once with what it said last: its own request has
+        // run a second with its helper silent — the helper's main thread is stuck in its
+        // code (review #51; isolation-4 #27).
         if !saved_quickly && start.elapsed() > Duration::from_millis(1600) && told.is_none() {
             let t = Instant::now();
             assert_eq!(main.save_state().unwrap(), good);
             assert!(
-                t.elapsed() < Duration::from_millis(3_500),
+                t.elapsed() < Duration::from_millis(300),
                 "{:?}",
                 t.elapsed()
             );

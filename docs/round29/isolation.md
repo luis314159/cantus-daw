@@ -273,3 +273,89 @@ editor's timer, 17 a 3 s save without pumping; and the gain aborts on activate w
 `CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE` is set (a plug-in that crashes on every load).
 
 Runs after the second fix round (Windows, the machine shared with two builds): `cantus-rt`, `cantus-host`, `cantus-sandbox` 187 passed (2 ignored, as before); `cantus-ui` 1 420 passed and one other area's test failed once under load (`font_fallback_live`: a system font not in time; it passes alone, twice). `cargo clippy --workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL): `tools/wsl/check.sh r29/isolation clippy` clean, and `cantus-rt`/`cantus-sandbox`/`cantus-host` 144 passed there. New shots in `F:\projects\daw-r29\shots\isolation\`: `isolation-{mixer,mixer-menu,insert-selected,instrument-loaded,rack,three-buttons}-night-{en,es}-1x.png`.
+
+## The third fix round (review isolation-4: 67 findings, all closed)
+
+Merged `r29/integration` first (e1c1d71: every fix round so far, freeze's second with
+schema 38 `Track::lateness`). Freeze's `render_units_stored` / `render_instruments_stored`,
+`refused_by_freeze`, `HostNotice::Frozen` and `project_for_save`'s frozen states work
+unchanged with isolated plug-ins (a stored render takes the project's states, so it never
+asks a busy plug-in; `freeze.rs` says a stale or never-loaded plug-in in its own words).
+PROTOCOL is now 5 (`Message::Behind`, `Call::Surface`). **Seen failing first**: each new
+test against the code with its fix put back as it was (a script swaps the old lines in,
+runs the one test, swaps them out — *✗→✓*), or, for the carry, the tests written before
+the change ran against the old carry (7 of its 10 failed). Tests: `bridge_faults4.rs`
+(12), `bridge_blame.rs` (10), `session_faults4.rs` (8), unit tests in `bridge/audio.rs`
+(13), `bridge/sandbox.rs` (6), `session_iso.rs` (3), `serve.rs` and `platform.rs` (the
+helper's own), `rt_alloc.rs` (a carry and its delivery), and `cantus-ui`
+`plugin_isolation.rs` (+9). Duplicates share a row.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 54, 43, 13 (high) | A dialog inside a served call (a licence nag in a load, a progress window in a state) served nothing: every other call waited its full limit, saves went stale, loads into the helper failed | The helper keeps each instance in a cell of its own and holds none across a call, so its pulse serves from **any** nested loop: other instances' calls are served there; a call on the busy instance waits behind it, told `Message::Behind`; a request served past its limit while alive makes the calls behind it give up at once (else after a 2 s grace); a card *X is waiting on a window of its own* with **Show it** (`AllowSetForegroundWindow` before every call that may open a window; `Call::Surface`) and **Stop it** | `a_dialog_inside_a_call_never_holds_the_neighbours` ✗→✓ (neighbours' states taken from inside the dialog, the save within one limit), `what_a_nested_loop_serves` ✗→✓ (`must_wait` unit), `a_plugin_waiting_on_its_window_has_a_card` |
+| 10 (high) | An offline instance whose state load ran past 10 s rendered with the wrong state, silently | Offline `load_state` and `flush` wait while the helper lives (`Wait::WhileAlive`: until Stop, or the offline limit, which ends the helper); a refused state fails the instance (`RenderLoss::NeverLoaded`); a busy live source state is said (`RenderLoss::Stale`, `MainThread::fresh_state`) | `a_render_waits_for_a_state_that_takes_its_time` ✗→✓ (a state only the state carries: the gain's `x2` tag), `a_render_whose_state_never_comes_says_so` |
+| 0, 11 | A late job's events were lost when the interface's frame saw the job finish first | `Status::unfinished_for` only reads; the audio half keeps its late job's number (`late_job`) and takes its events whatever the interface saw | `a_late_jobs_events_survive_the_interface_seeing_it_finish_first` ✗→✓ |
+| 1 | A save queued behind a slow one gave up and wrote a stale state, ignoring the fresh one that came | A call's limit runs from its start; `save_state` takes an answered state after Busy; a dropped `SaveState` lands as the last-good state | `a_save_behind_a_slow_one_waits_from_its_own_start` ✗→✓ |
+| 4, 23, 26, 51, 60, 13 | A pending restart re-waited its full limit every frame (50 ms while held, 5 s while slow) | Asked: waited 100 ms (`Wait::For`); pending: only looked at (`Wait::Poll`); every wait looks before it sleeps | `a_restart_is_polled_never_waited_for` ✗→✓ (behind its own dialog and behind a neighbour's slow save) |
+| 20, 39 | A call given up on threw its answer away (a parameter list never refreshed, a window opened that Cantus thought closed); Busy said in English with a false time | Late answers kept: `Background::{State, Params}`; an editor asked for stays pending and is adopted when it opens (`Notice::EditorOpened`, `PluginWindow::floating`); Busy says whether its own window held it; the interface says *{name} is busy … its window opens when it is free* (`isolation.busy`) | `a_parameter_list_given_up_on_is_taken_when_it_comes` ✗→✓ (fault 22), `a_window_asked_for_during_a_dialog_opens_after_it` ✗→✓, `a_busy_window_is_said_in_its_words` ✗→✓ |
+| 27 | Saving while its own background save hung froze up to 10 s; the test was loosened to 3.5 s | Its own started request with the helper silent a second is its own trouble: the last-good state at once | the 300 ms bound restored in `a_background_save_that_hangs_is_ended…`, `saving_while_its_own_save_hangs_answers_at_once_with_real_limits` ✗→✓ |
+| 66 | A long non-pumping state load got the helper killed at project load and remembered as a crash | `Limits::heavy` (120 s) judges a silent load, state or unload; the caller gives up at its own limit, the helper is not killed | `a_slow_state_past_its_limit_is_not_a_hang` ✗→✓ |
+| 50 | A helper slow to start was killed by the 5 s silence limit | Until its first frame a helper is judged by its handshake's own limit | `a_helper_slow_to_start_is_not_taken_for_hung` ✗→✓ (`CANTUS_SANDBOX_START_DELAY_MS`) |
+| 57 | A load given up on as busy stayed missing for the session, with no Reload | `Missing::retry_at`: tried again after 2 s, doubling to a minute (`PluginHost::wants_sync`, honoured by the app); *Reload* for any plug-in that was found and not loaded (`load_error`), in the menus and the instrument inspector; a load the helper serves while it lives (its own dialog) is waited for up to `Limits::modal` | `a_load_given_up_on_while_busy_is_tried_again` ✗→✓ (`CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE`), `a_plugin_that_never_loaded_can_be_reloaded_from_its_menu` ✗→✓ |
+| 2, 45, 56 | A crash in a departing plug-in's destructor was laid on the plug-in that stayed | The handler's word stands for an instance leaving (its destructor runs as a call into it; its libraries forgotten after); `main_at` of a leaving instance too; its plug-in kept on record until its unload is answered and counted (`Sandboxes::take_departed_crashes`, `PluginHost::count_departed`) | `a_plugin_crashing_as_it_leaves_is_laid_its_own_end` ✗→✓ (unit), `a_crash_in_a_destructor_is_the_leaving_plugins` ✗→✓ (fault 19), `a_plugin_that_crashes_as_it_leaves_is_counted` ✗→✓ |
+| 3, 30, 44, 55 | A hang outside any call was laid on the waiting caller or a bystander's running job | An end Cantus decides (`End::Decided`) is laid on what the main thread was doing (`hung_on`) or on nobody — never `p.instance` for a request not started, never the running jobs; the reader's protocol end too | `a_hang_with_nothing_named_is_nobodys` ✗→✓ (unit), `a_hang_in_a_framework_timer_is_its_plugins` ✗→✓ (fault 21, B's jobs running) |
+| 6, 18, 29, 49 | *Outside* overrode the only-instance rule: an *Individually* plug-in's thread crash was nobody's | The only instance of a helper is laid any end | `the_only_plugin_is_laid_its_end_from_any_thread` ✗→✓ |
+| 37, 48, 55 | Messages dispatched by a plug-in's own loop ran under the loop's owner; framework timers (JUCE's hidden window, VSTGUI's thread timers) were nobody's | A `WH_GETMESSAGE` hook attributes every retrieved message (root owner, else the library of its window class or timer procedure); the crash handler names the instance whose library the faulting code is in (libraries learnt at load: the plug-in's and those from its folder) | `a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours` ✗→✓ (hook removed), `a_crash_in_a_framework_timer_is_its_plugins` ✗→✓ (fault 20; module lookup removed), `a_hang_in_a_frameworks_hidden_window_is_its_plugins` ✗→✓ (fault 24; the window class's library not looked at) |
+| 7, 16, 19, 28, 47, 61 | The chained crash filter could recurse for ever, call into an unloaded library, keep a resumed record, lose to a decided hang; reinstalled only after loads | A re-entry guard; a filter called only while its library is loaded; a resumed (`CONTINUE_EXECUTION`) record taken back; the handler's word over a decided culprit; ours put back after every call | `a_crash_reporter_that_hands_back_changes_nothing` ✗→✓ (guard removed: a stack overflow), `an_exception_a_plugin_handled_is_no_crash_of_its` ✗→✓ (fault 23), `a_recorded_crash_stands_over_a_decided_hang` ✗→✓, `a_filter_in_no_library_is_never_called` |
+| 17, 52, 19 | On Linux every load replaced a plug-in's own fault handlers | Ours goes back only where the default was restored; a plug-in's handler stays on top | (Linux: clippy and the Linux run; the rule is four lines) |
+| 58 | Unknown deaths were counted for every plug-in and *Run individually* offered for an arbitrary one | Only `This` is counted and offered | `an_end_nothing_lays_on_one_plugin_is_counted_for_none` ✗→✓, `deaths_are_counted_once_per_helper_and_never_for_nobody` |
+| 35, 53, 59 | Deaths de-duplicated by process id: a reused pid hid a crash | A serial per helper, never reused (`MainThread::helper_id`) | `helpers_are_numbered_for_good`, `deaths_are_counted_once_per_helper_and_never_for_nobody` |
+| 64 | A failed reload kept the first death's reason and blame | The reload's error sets why it is off now, and its blame when it crashed | `a_reload_that_fails_says_why_now_and_whose` ✗→✓ |
+| 46 | The watchdog killed a helper at once when its last user let go: the last destructor cut | Told to quit, a helper is given the call limit to end by itself; a crash then is still counted | `the_last_plugins_destructor_runs_to_its_end` ✗→✓ (`CANTUS_TEST_GAIN_DESTROY_MARKER`, a 300 ms destructor) |
+| 62 | A stalled helper made one callback wait a deadline per instance | A job not even taken by its deadline marks the helper stalled (lobby words `JOBS_DONE`, `STALLED`); its other instances pass dry until a job finishes | `a_stalled_helper_costs_one_deadline_not_one_per_plugin` ✗→✓ (one processing thread, fault 18) |
+| 12, 22, 36 | The pause guard missed the job clocks: after sleep a late plug-in was killed and remembered | `Sandbox::pauses`; each instance's late-job clock restarts (`Status::rebase`); an offline slice far longer than asked restarts its job's clock | `a_pause_while_a_job_is_late_ends_nothing` ✗→✓, `a_pause_is_not_a_silence_but_a_real_silence_still_is` ✗→✓, `a_long_slice_is_a_pause` |
+| 8, 9, 14, 15, 33, 65 | The carry folded pedals and poly pressure, reordered events, dropped controllers after a reset, lost a late reset's merge, counted nothing | Arrival order; values folded by removal and append; poly pressure per key; switches keep a lift and a press; (N)RPN, data entry, mode messages unfolded; a reset supersedes only voices; reset-first decided before merging, a late one keeps the carry whole; dropped controllers counted | 10 unit tests in `bridge/audio.rs` (7 ✗ on the old carry), `a_late_reset_first_keeps_the_carry_and_the_blocks_events` ✗→✓, `rt_alloc.rs` (a carry and a reset-first delivery, counted) |
+| 24, 34, 63 | A render instance that refused its state or failed to settle was dropped silently | Every offline `instantiate` error is a render that never had it | `a_render_whose_state_is_refused_says_so` ✗→✓, `a_render_whose_plugin_crashes_loading_says_it_never_had_it` |
+| 41 | A never-loaded plug-in read as stopped "from that point on" | `RenderLoss::{Stopped, NeverLoaded, Stale}`; words per kind for export, bake and freeze (`isolation.{export,bake,freeze}.{never,stale}`) | `a_render_that_never_had_a_plugin_says_so_in_its_words` ✗→✓ |
+| 5, 21 | A second bake while one traced threw the first away | One bake at a time (a pending trace or a bake waiting for samples) | `two_bakes_in_a_row_never_overlap` ✗→✓ |
+| 25, 40 | Reload failures (and load failures) said in the host's English; the fallback key unused | `stopped_words` / `load_words`: the host's forms in the interface's words, else *it could not be loaded (again)*; new forms (busy, no helper, not restarted, not installed); used by the card, tips, status line, missing cards | `a_reload_that_fails_without_crashing_says_so_in_its_words` ✗→✓, `a_plugin_that_could_not_be_loaded_is_said_in_its_words` ✗→✓ |
+| 38 | No interface test of a reload that crashes again | — | `a_reload_that_crashes_again_brings_its_card_back_in_its_words` ✗→✓ (card return removed) |
+| 31 | The modal-loop test held neither the safety half nor nested unloads | Asserts the held load is Busy at once and runs after, in order; the neighbour removed during the dialog; `must_wait` unit-tested | `a_long_modal_loop_kills_nothing_and_freezes_nothing`, `what_a_nested_loop_serves` |
+| 32 | Crash-handler tests passed on one processing thread; the pool test held nothing new | `Sandboxes::set_threads` (`--threads`); two threads in the handler test; a fail-fast with two jobs running | `the_crash_handler_names_the_plugin_whose_thread_crashed` ✗→✓ (handler's record removed), `a_fail_fast_with_two_jobs_running_is_nobodys` (coverage) |
+| (Linux run) | A wait's slice could sleep past a limit shorter than itself (a 1 ms handshake limit waited 20 ms; a fast Linux helper answered within it) | A slice never sleeps past the wait's own end | `a_render_that_cannot_load_a_plugin_says_so` on Linux ✗→✓ |
+| 42 | The shots did not show the fixes | `three_button_app` lists two plug-ins (the named Run button); EN shots taken again; the chain hint is `views::mixer::chain_hint`, tested; a waiting-card shot | `the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back` ✗→✓, shots |
+
+Faults added (CLAP gain and synth): 18 a one-second `process`; 19 an access violation in the
+destructor; 20 and 21 an access violation and a hang in a thread timer (no window); 22 a
+rescan whose second list read takes 2 s; 23 an exception its own filter resumes; 24 a hang in
+a hidden window of its own (its class from its library, as a framework's). Window
+faults are per instance now (the timer's id is its instance). From the environment:
+`CANTUS_TEST_GAIN_DESTROY_MARKER`, `…_PUMP_LOAD_MS`, `…_PUMP_ACTIVATE_ONCE`,
+`…_CHAIN_FILTER`; the gain doubles its output when its state's tag says `x2`; the helper
+waits `CANTUS_SANDBOX_START_DELAY_MS` before it starts.
+
+**For the integrator.** PROTOCOL 5. New `MainThread` methods with defaults (`helper_id`,
+`waiting`, `surface`, `stop`, `fresh_state`); a new `Notice::EditorOpened` (an exhaustive
+`match` on `Notice` needs its arm); `RenderFailure::kind` and `RenderLoss` (public);
+`lose_in_render_for_tests` takes the kind; `Limits` has `heavy` and `modal` (struct
+literals add them or use `..Limits::default()`); `PluginHost::{wants_sync, load_error,
+instrument_load_error, waiting, surface, surface_instrument, stop, stop_instrument}` and
+test seams `fail_next_reload_for_tests`, `mark_missing_for_tests`,
+`set_waiting_for_tests`; the app syncs when `wants_sync` says. `windows-sys` features
+added: `Win32_System_ProcessStatus`, `Win32_UI_Input_KeyboardAndMouse` (cantus-sandbox),
+`Win32_Graphics_Gdi`, `Win32_System_Diagnostics_Debug`, `Win32_System_Kernel` (the CLAP
+test plug-ins). No
+schema change, no new command.
+
+Runs after the third fix round (Windows, the machine shared with two builds):
+`cantus-rt`, `cantus-host`, `cantus-sandbox` 238 passed (2 ignored, as before); `cantus-ui`
+1 615 passed (and its isolation tests again after the last two small fixes); `cargo clippy
+--workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL):
+`tools/wsl/check.sh r29/isolation clippy` clean (with the plug-ins built without their
+editor), and `cantus-rt`/`cantus-host`/`cantus-sandbox` 211 passed there. The sandbox
+tests' copies of the CLAP test plug-ins (a static never dropped) are now named
+`cantus-test-clap-*` and cleared after an hour, so the temporary folder no longer fills with
+them. Shots in `F:\projects\daw-r29\shots\isolation\`, English taken again with Spanish:
+`isolation-three-buttons-night-{en,es}-1x.png` (two plug-ins: *Run Spectras…Edition
+individually*), `isolation-waiting-night-{en,es}-1x.png` (new: the waiting card, and a busy
+window said on the status line), the mixer at XL with its chain line in both languages.

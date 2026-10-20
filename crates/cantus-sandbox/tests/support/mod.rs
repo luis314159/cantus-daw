@@ -58,6 +58,16 @@ pub const SEGV_PROCESS: f64 = 14.0;
 pub const PUMP_WINDOW_LONG: f64 = 15.0;
 pub const SEGV_EDITOR: f64 = 16.0;
 pub const SLOW_SAVE: f64 = 17.0;
+pub const SLOW_SECOND: f64 = 18.0;
+pub const SEGV_DESTROY: f64 = 19.0;
+pub const SEGV_THREAD_TIMER: f64 = 20.0;
+pub const HANG_THREAD_TIMER: f64 = 21.0;
+pub const RESCAN_SLOW: f64 = 22.0;
+pub const RAISE_HANDLED: f64 = 23.0;
+pub const HANG_HIDDEN_WINDOW: f64 = 24.0;
+/// The Fault parameter's top (`fault::LAST` in the test plug-ins): what a normalised
+/// automation value is scaled by.
+pub const FAULT_LAST: f64 = 24.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -103,7 +113,30 @@ fn built(package: &str, stem: &str) -> PathBuf {
 pub fn clap_folder() -> &'static Path {
     static DIR: OnceLock<tempfile::TempDir> = OnceLock::new();
     DIR.get_or_init(|| {
-        let dir = tempfile::tempdir().expect("temp dir");
+        // A test binary never drops its statics: copies other runs left behind an hour ago
+        // and more are cleared first, so the temporary folder stays small.
+        let tmp = std::env::temp_dir();
+        if let Ok(entries) = std::fs::read_dir(&tmp) {
+            for e in entries.flatten() {
+                let old = e
+                    .metadata()
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| t.elapsed().ok())
+                    .is_some_and(|age| age > std::time::Duration::from_secs(3_600));
+                if old
+                    && e.file_name()
+                        .to_string_lossy()
+                        .starts_with("cantus-test-clap-")
+                {
+                    let _ = std::fs::remove_dir_all(e.path());
+                }
+            }
+        }
+        let dir = tempfile::Builder::new()
+            .prefix("cantus-test-clap-")
+            .tempdir()
+            .expect("temp dir");
         std::fs::copy(
             built("cantus-test-clap", "cantus_test_clap"),
             dir.path().join("cantus-test-gain.clap"),
@@ -365,6 +398,10 @@ impl Rig {
         self.engine.poll();
         let n = self.host.idle(&mut self.bus, &mut self.engine);
         self.notices.extend(n);
+        // A plug-in due to be tried again (its helper was busy): synced, as the app does.
+        if self.host.wants_sync() {
+            self.synced = u64::MAX;
+        }
         self.sync();
     }
 

@@ -79,6 +79,7 @@ mod meters;
 mod paint;
 #[path = "mixer_parts.rs"]
 mod parts;
+pub use parts::chain_hint;
 #[path = "mixer_routehere.rs"]
 mod routehere;
 #[path = "mixer_strip.rs"]

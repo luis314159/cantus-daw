@@ -92,3 +92,22 @@ isolation.render.export = la exportación
 isolation.render.bake = la conversión
 isolation.slot.recover = Recuperar
 isolation.tip.reload_menu = Recárgalo desde su menú.
+
+# --- review fixes (round 29, isolation-4) ---
+isolation.why.busy = estaba ocupado: tenía abierta una ventana suya, o iba por delante una petición lenta
+isolation.why.no_helper = su ayudante no pudo arrancar
+isolation.why.no_restart = no pudo arrancar de nuevo después de cargar su estado
+isolation.why.not_loaded = no se pudo cargar
+isolation.why.stopped_waiting = se detuvo mientras esperaba en una ventana suya
+isolation.busy = {name} está ocupado: tiene abierta una ventana suya, o va por delante una petición lenta. Su ventana se abre cuando quede libre.
+isolation.export.never = No se pudo cargar {name} para la exportación — {reason}. El archivo se hizo sin él.
+isolation.export.stale = {name} estaba ocupado al empezar la exportación: el archivo usó el estado que guardó por última vez.
+isolation.bake.never = No se pudo cargar {name} para la conversión — {reason}. No se convirtió nada en automatización.
+isolation.bake.stale = {name} estaba ocupado al empezar la conversión: se usó el estado que guardó por última vez.
+isolation.freeze.never = No se pudo cargar {name} para el render — {reason}. {job} no se congeló ni se pasó a audio.
+isolation.freeze.stale = {name} estaba ocupado al empezar el render: {job} usó el estado que guardó por última vez.
+isolation.waiting.title = espera en una ventana suya
+isolation.waiting.body = Puede que un diálogo suyo esté abierto detrás de Cantus. Respóndelo allí, o detén el plug-in: Cantus sigue sonando sin él.
+isolation.waiting.show = Mostrarlo
+isolation.waiting.stop = Detenerlo
+isolation.why.not_installed = no está instalado en este equipo

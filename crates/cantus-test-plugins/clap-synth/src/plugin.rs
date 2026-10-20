@@ -160,6 +160,11 @@ impl Plugin {
         self.set(e.param_id, e.value);
         if processing && e.param_id == P_FAULT {
             self.fault.arm(e.value);
+            if crate::fault::Fault::wants_main_thread(e.value) {
+                if let Some(f) = (*self.host).request_callback {
+                    f(self.host);
+                }
+            }
         }
         if e.param_id == P_LATENCY
             && self.get(P_LATENCY) as u32 != self.active_latency.load(Ordering::Acquire)
@@ -358,16 +363,19 @@ pub unsafe fn me<'a>(plugin: *const clap_plugin) -> &'a mut Plugin {
 }
 
 unsafe extern "C" fn init(_plugin: *const clap_plugin) -> bool {
+    crate::fault::chain_filter();
     true
 }
 
 unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
+    me(plugin).fault.on_destroy();
     drop(Box::from_raw((*plugin).plugin_data as *mut Plugin));
 }
 
 unsafe extern "C" fn activate(plugin: *const clap_plugin, sr: f64, _min: u32, _max: u32) -> bool {
     let p = me(plugin);
     p.fault.fire(crate::fault::ABORT_ACTIVATE);
+    crate::fault::pump_activate_once();
     let latency = p.get(P_LATENCY) as usize;
     p.active_latency.store(latency as u32, Ordering::Release);
     p.sample_rate = sr;
@@ -400,7 +408,19 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     p.mod_wheel = 0.0;
 }
 
-unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {}
+unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
+    crate::fault::on_main_thread();
+    if crate::fault::take_rescan() {
+        let host = me(plugin).host;
+        if let Some(get) = (*host).get_extension {
+            let ext = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+                as *const clap_sys::ext::params::clap_host_params;
+            if let Some(rescan) = ext.as_ref().and_then(|e| e.rescan) {
+                rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_INFO);
+            }
+        }
+    }
+}
 
 fn header<T>(type_: u16) -> clap_event_header {
     clap_event_header {

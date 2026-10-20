@@ -56,12 +56,29 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
             .ui
             .interact(row.full, Id::new(("hosted-missing", t)), Sense::hover());
         if r.hovered() {
-            let why = app
-                .plugins
-                .instrument_missing(t)
-                .unwrap_or("not installed on this computer");
+            let why = crate::views::plugin_notice::load_words(
+                app.plugins
+                    .instrument_missing(t)
+                    .unwrap_or("not installed on this computer"),
+            );
             let tip = tf("hosted.status_missing_tip", &[("why", &why)]);
             hint::set_text(sh.ui.ctx(), &missing, &tip, Caps::NONE);
+        }
+        // Tried and not loaded (refused, or its helper busy): it can be tried again
+        // (review isolation-4 #57).
+        if app.plugins.instrument_load_error(t).is_some()
+            && sh.led_row(
+                "isolation.slot.recover",
+                "isolation.reload",
+                false,
+                Function::Source,
+                false,
+            )
+        {
+            sh.acts.push(Act::Hosting(
+                target,
+                crate::views::plugin_notice::MenuAct::Reload,
+            ));
         }
         return;
     };
@@ -105,7 +122,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         let span = sh.ui.max_rect();
         let row = egui::Rect::from_x_y_ranges(span.x_range(), top..=sh.ui.cursor().top());
         if sh.ui.rect_contains_pointer(row) {
-            let why = crate::views::plugin_notice::reason_words(why);
+            let why = crate::views::plugin_notice::stopped_words(why);
             let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
             let heading = sh.fmt.tr("hosted.window").to_string();
             hint::set_text(sh.ui.ctx(), &heading, &tip, Caps::NONE);
@@ -155,7 +172,7 @@ fn stopped_row(sh: &mut Sheet<'_>, t: TrackId, why: &str) {
         .ui
         .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
     if r.hovered() {
-        let why = crate::views::plugin_notice::reason_words(why);
+        let why = crate::views::plugin_notice::stopped_words(why);
         let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
         hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
     }

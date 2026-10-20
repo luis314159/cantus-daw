@@ -201,6 +201,79 @@ helper is the stream's end, not a broken protocol (isolation-3 #43).
 Numbers that are not finite (a `-inf` dB minimum, a NaN value) cross the channel as the
 nearest finite ones (`proto::Finite`, #4).
 
+**Amended (review isolation-4).**
+
+- *Serving from a dialog inside a call.* The helper keeps each instance in a cell of its
+  own and holds none across a call, so its pulse serves from **any** loop nested in a
+  plug-in's code — a licence nag inside a load, a progress window inside a state — not
+  only from a window's: a call on another instance is served there; a call on the
+  instance whose call is under way waits behind it, and Cantus is told so
+  (`Message::Behind`, protocol 5) and waits for it as for any call ahead of it; the calls
+  that end or replace the looping instance stay held (`Deferred`). A request served past
+  its own limit while its helper lives — a plug-in waiting on a window of its own — makes
+  the calls queued behind it give up at once (told *behind*) or after a 2 s grace, and its
+  slot shows a card: *X is waiting on a window of its own*, with **Show it** (Cantus lets
+  the helper take the foreground, `AllowSetForegroundWindow`, before every call that may
+  open a window, and `Call::Surface` brings the dialog forward) and **Stop it** (its
+  helper ended, told as its own crash).
+- *Calls.* A call's limit runs from when the helper starts it (from posting while it waits
+  its turn). A call given up on (`HostError::Busy`, which says whether its own window held
+  it) still has its answer go where it belongs: a state becomes the last-good one, a
+  parameter list is taken and the host told again, a window asked for opens and is kept as
+  open (`Notice::EditorOpened`). A restart is waited for 100 ms when asked, then only
+  looked at, frame by frame; every wait looks whether the answer is in, or the call held,
+  before it sleeps. A load the helper serves while it lives (its own dialog up) is waited
+  for, up to `Limits::modal` (10 min); one given up on is tried again — after 2 s, doubling
+  to a minute — and *Reload* is offered for any plug-in that could not be loaded. Saving
+  answers at once with the last-good state when the plug-in's own request has run a second
+  with its helper silent: its main thread is stuck in that plug-in's code.
+- *Judging life.* Until its first frame a helper is judged by its handshake's own limit (a
+  slow start is no hang). A load, a state or an unload that runs with the helper silent is
+  judged by `Limits::heavy` (120 s), not its call's limit: a sampler reading its samples is
+  slow, not hung. A pause of Cantus restarts each instance's late-job clock as well
+  (`Sandbox::pauses`), and an offline wait whose slice took far longer than asked restarts
+  its job's clock. A job not even taken by its deadline marks its helper **stalled** (a
+  lobby word beside the processing threads' count of finished jobs): the helper's other
+  instances pass dry at once until a job of it finishes — a stalled helper costs one
+  deadline in a callback, not one per plug-in.
+- *Whose an end is.* The crash handler names the instance whose **library** the faulting
+  code is in — each instance's libraries, its own and those that came with it from its
+  folder, are learnt at its load — else the faulting thread's, else *outside*. Every
+  message the main thread retrieves, in any loop (a `WH_GETMESSAGE` hook), runs as a call
+  into the instance it belongs to: its window's (by root owner), or the one whose library
+  its window class or timer procedure comes from — so a JUCE timer, a VSTGUI thread timer,
+  or a neighbour's window painted inside another plug-in's dialog is laid on the right
+  plug-in. The handler's word stands for an instance still loaded or one **leaving** (its
+  destructor runs as a call into it, and its libraries are forgotten only after), and over
+  a hang Cantus decided while the crash was being reported. An end Cantus decides (a hang,
+  a silence, a broken protocol, a stop) is laid on exactly what the main thread was doing,
+  or on nobody — never on a request it had not started, nor on a job that happened to run.
+  The only plug-in of a helper is laid any end. An end nothing lays on one plug-in is
+  counted for none and offers none *Run individually*; a death is counted once per helper
+  by a serial that is never reused (a process id may be); a plug-in that crashed as it left
+  is counted after it left (`Sandboxes::take_departed_crashes`); a reload that fails says
+  why now and whose. The chained crash filter is guarded against entering itself again (a
+  reporter that hands back to ours), never called once its library is gone, forgotten when
+  ours is on top anyway, put back after every call (a plug-in installs its reporter in a
+  load, an editor or a restart), and a crash record it resumed is taken back; on Unix ours
+  goes back only where the default was restored, so a plug-in's own fault handlers (a JIT,
+  a VM) stay. Told to quit, a helper is given the call limit to end its plug-ins by itself.
+- *Renders.* An offline instance's state and values are waited for as long as its helper
+  lives — until Stop, or the offline limit, which ends it; a render instance that could not
+  be made — not loaded, its state refused, not settled — is one the render never had
+  (`RenderLoss::NeverLoaded`, said as such: *the file was made without it*); one begun from
+  a busy plug-in's last-saved state is said, not failed (`RenderLoss::Stale`). One bake at
+  a time.
+- *The carry* keeps what dry blocks carried **in the order it came**: values folded to
+  their last (the older removed, the newer appended, so the order of last values stands),
+  poly pressure per key, a switch (sustain and the other pedals) its last lift and press,
+  (N)RPN, data entry and channel-mode messages never folded; a reset supersedes only the
+  voices' events, never the controllers; the reset a resuming block needs first is decided
+  before anything is merged, and one that runs late leaves the carry whole; what finds no
+  room is counted.
+- *A late job's events* are taken by the audio half from its own record of the job,
+  whatever the interface saw first.
+
 ### 4. Nothing lost, nothing different
 
 - **The same bits.** The helper runs the same backends on the same block splits, with the
@@ -390,3 +463,27 @@ languages (`locales/areas/isolation.*`).
   420×600, *Run {name} individually*, a stopped plug-in's window, the reasons' details,
   and `plugin_isolation_boot.rs` — a start-up project's plug-in first loads where this
   computer says.
+- Review isolation-4 (the table in `docs/round29/isolation.md`, each fix seen failing
+  first, by the test against the code before it or by putting the fault back):
+  `bridge_faults4.rs` — a late job's events survive the interface seeing it finish first;
+  a stalled helper costs one deadline; a pause while a job is late ends nothing, and a real
+  silence after a pause still does; a save queued behind its own slow save waits from its
+  start and is the state after the change; a restart is polled, never waited for, behind a
+  dialog or a slow neighbour; a dialog inside a call never holds its neighbours (their
+  states taken from inside it, the whole save within one limit); a slow state past its
+  limit is no hang and its answer is kept; a helper slow to start is not hung; a parameter
+  list and a window given up on are taken when they come; saving while its own save hangs
+  answers at once with real limits. `bridge_blame.rs` — a crash in a destructor is the
+  leaving plug-in's; a crash and a hang in a framework's timer, and a hang in its hidden window, are its plug-in's; a
+  neighbour's window crashing inside a dialog is the neighbour's; a crash reporter that
+  hands back changes nothing; a fail-fast with two jobs running is nobody's; the last
+  plug-in's destructor runs to its end. `session_faults4.rs` — a load given up on while
+  busy is tried again; an end nothing lays on one plug-in is counted for none; a reload
+  that fails says why now and whose; a plug-in that crashes as it leaves is counted; a
+  render waits for a state that takes its time (a state only the state carries), says so
+  when it never comes, when it is refused, and when the plug-in crashes loading.
+  Unit tests: the carry (order, folding, switches, poly pressure, resets, room, a late
+  reset first), `culprits` split per finding, `must_wait`'s safety half, a long slice is a
+  pause. `cantus-ui`: two bakes never overlap; render losses, reload failures and a busy
+  window in the interface's words; *Reload* for a plug-in that never loaded; the waiting
+  card.

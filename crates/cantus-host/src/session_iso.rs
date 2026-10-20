@@ -47,6 +47,9 @@ pub(crate) struct Failed {
     /// Whose doing a helper's end was (a neighbour's crash is not this plug-in's; review
     /// #7, #40).
     pub blame: Blame,
+    /// Its helper was busy, not the plug-in failing: tried again later (review isolation-4
+    /// #57).
+    pub busy: bool,
 }
 
 impl From<String> for Failed {
@@ -55,6 +58,7 @@ impl From<String> for Failed {
             why,
             crashed: false,
             blame: Blame::Unknown,
+            busy: false,
         }
     }
 }
@@ -80,13 +84,68 @@ pub(crate) struct Missing {
     /// Where it was tried: a choice that changes tries again (review #15).
     pub isolation: PluginIsolation,
     pub crashed: bool,
+    /// Its helper was busy (its own dialog up, a long request ahead): tried again from
+    /// this moment on, and later each time (review isolation-4 #57).
+    pub retry_at: Option<(Instant, Duration)>,
+    /// The plug-in is on this computer (a load was tried): one not installed is not offered
+    /// a reload.
+    pub found: bool,
 }
 
-/// A plug-in that stopped working during an offline render (review #6, #47).
+impl Missing {
+    /// Whether it waits where it is: a load given up on while its helper was busy is tried
+    /// again once its time comes (review isolation-4 #57).
+    pub fn waits(&self, now: Instant) -> bool {
+        !self.retry_at.is_some_and(|(at, _)| now >= at)
+    }
+
+    /// When a load that failed is tried again: never, unless its helper was busy — then
+    /// after a wait doubled each time it is busy again (`before`: the last wait).
+    pub fn retry(busy: bool, before: Option<Duration>) -> Option<(Instant, Duration)> {
+        busy.then(|| {
+            let wait = before.map_or(RETRY_FIRST, |d| (d * 2).min(RETRY_MOST));
+            (Instant::now() + wait, wait)
+        })
+    }
+}
+
+/// How long a load given up on while its helper was busy waits before it is tried again;
+/// doubled each time, up to [`RETRY_MOST`].
+pub(crate) const RETRY_FIRST: Duration = Duration::from_secs(2);
+pub(crate) const RETRY_MOST: Duration = Duration::from_secs(60);
+
+/// How a plug-in failed an offline render (review isolation-4 #41).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RenderLoss {
+    /// It stopped working during the render: the result lacks it from that point on.
+    Stopped,
+    /// It could not be made for the render at all: the result lacks it throughout.
+    NeverLoaded,
+    /// Its helper was busy when the render began (its own window open): the render used
+    /// the state it had last saved — a warning, not a failure (review isolation-4 #10).
+    Stale,
+}
+
+/// A plug-in that failed an offline render (review #6, #47; isolation-4 #41).
 #[derive(Clone, Debug, PartialEq)]
 pub struct RenderFailure {
     pub name: String,
     pub reason: String,
+    pub kind: RenderLoss,
+}
+
+/// The plug-ins waiting on a window of their own: inserts and instruments, with their
+/// names ([`PluginHost::waiting`]).
+pub type Waiting = (Vec<(EffectId, String)>, Vec<(TrackId, String)>);
+
+/// For the interface's tests only: what the host is made to say (never set by the
+/// application).
+#[derive(Debug, Default)]
+pub(crate) struct TestHooks {
+    /// The next reload fails so: why, and whether it crashed.
+    pub reload_fails: Option<(String, bool)>,
+    /// Inserts said to wait on a window of their own.
+    pub waiting: Vec<EffectId>,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -223,8 +282,32 @@ impl PluginHost {
     }
 
     /// Loads `info` where `chosen` says, with `state` and the project's `values`, settled
-    /// (restarted at once if the state asked for it).
+    /// (restarted at once if the state asked for it). An offline instance that could not
+    /// be made — not loaded, its state refused, not settled — is a render that lost it
+    /// (review #6, #47; isolation-4 #10, #24, #34, #63).
     pub(crate) fn instantiate(
+        &mut self,
+        info: &PluginInfo,
+        chosen: Option<PluginIsolation>,
+        state: &PluginState,
+        values: &BTreeMap<u32, f64>,
+        setup: AudioSetup,
+        offline: bool,
+    ) -> Result<Instance, Failed> {
+        let made = self.make_instance(info, chosen, state, values, setup, offline);
+        if offline {
+            if let Err(f) = &made {
+                self.render_lost.push(RenderFailure {
+                    name: info.name.clone(),
+                    reason: f.why.clone(),
+                    kind: RenderLoss::NeverLoaded,
+                });
+            }
+        }
+        made
+    }
+
+    fn make_instance(
         &mut self,
         info: &PluginInfo,
         chosen: Option<PluginIsolation>,
@@ -241,29 +324,29 @@ impl PluginHost {
                 why,
                 crashed: true,
                 blame,
+                busy: false,
             },
             e => Failed {
                 crashed: matches!(e, HostError::Crashed(_)),
+                busy: matches!(e, HostError::Busy(_)),
                 why: e.to_string(),
                 blame: Blame::This,
             },
         });
-        let loaded = match loaded {
-            Ok(l) => l,
-            Err(f) => {
-                if offline {
-                    // A render that lost a plug-in before its first block says so (#6, #47).
-                    self.render_lost.push(RenderFailure {
-                        name: info.name.clone(),
-                        reason: f.why.clone(),
-                    });
-                }
-                return Err(f);
-            }
-        };
+        let loaded = loaded?;
         let mut main = loaded.main;
         if !state.is_empty() {
             if let Err(e) = main.load_state(state.bytes()) {
+                if offline {
+                    // A render never runs a plug-in with another state than its own
+                    // (review isolation-4 #10, #34).
+                    return Err(Failed {
+                        crashed: main.stopped().is_some(),
+                        blame: main.stopped().map_or(Blame::Unknown, |(_, b)| b),
+                        why: e.to_string(),
+                        busy: false,
+                    });
+                }
                 log::warn!("{}: {e}", info.name);
             }
         }
@@ -294,30 +377,23 @@ impl PluginHost {
     }
 
     /// A plug-in stopped working: counted this session and remembered in the database when
-    /// it was its own doing; when nothing says whose it was, counted once per helper death
-    /// (`pid`) this session, not remembered; a neighbour of the one that did is neither
-    /// (review #25, #49).
-    pub(crate) fn count_crash(&mut self, info: &PluginInfo, blame: Blame, pid: Option<u32>) {
-        // Once per helper death and plug-in, however many of its instances it took down
-        // (review #0, #20); a crash while loading (no helper of its own yet) every time.
-        // A neighbour's notice (it may come first) never uses up the death's one count.
-        let first = blame != Blame::Neighbour
-            && match pid {
-                Some(pid) => self
-                    .unknown_counted
-                    .insert((pid, info.format, info.id.clone())),
-                None => true,
-            };
-        let count = match blame {
-            Blame::This if first => {
-                self.db.remember_crash(info);
-                self.save_db();
-                true
-            }
-            Blame::Unknown => first,
-            _ => false,
+    /// it was its own doing, once per helper death (`helper`: the helper's serial, never
+    /// reused as a process id is) however many of its instances it took down (review #0,
+    /// #20; isolation-4 #35, #53, #59); a crash while loading (no helper of its own yet)
+    /// every time. An end nothing lays on anyone, and a neighbour's, are neither — so
+    /// *Run individually* is never offered for a plug-in that never crashed (review
+    /// isolation-4 #58).
+    pub(crate) fn count_crash(&mut self, info: &PluginInfo, blame: Blame, helper: Option<u64>) {
+        if blame != Blame::This {
+            return;
+        }
+        let first = match helper {
+            Some(h) => self.counted.insert((h, info.format, info.id.clone())),
+            None => true,
         };
-        if count {
+        if first {
+            self.db.remember_crash(info);
+            self.save_db();
             *self
                 .crash_counts
                 .entry((info.format, info.id.clone()))
@@ -325,11 +401,24 @@ impl PluginHost {
         }
     }
 
-    /// Whether a crashed slot's plug-in is the one its helper's end is laid on (or nothing
-    /// says otherwise): the one *Run individually* is offered for (review #49).
+    /// Plug-ins that crashed their helper while they left it (their destructor), counted
+    /// as their own crashes (review isolation-4 #45).
+    pub(crate) fn count_departed(&mut self) {
+        let Some(pool) = self.sandboxes.clone() else {
+            return;
+        };
+        for d in pool.take_departed_crashes() {
+            self.count_crash(&d.info, Blame::This, Some(d.helper));
+        }
+    }
+
+    /// Whether a crashed slot's plug-in is the one its helper's end is laid on: the one
+    /// *Run individually* is offered for — never one that merely shared its process, nor
+    /// one of several nothing chose between (review #49; isolation-4 #58). A plug-in that
+    /// crashed while it loaded is its own end.
     pub fn crash_culprit(&self, effect: EffectId) -> bool {
         match self.slots.get(&effect) {
-            Some(h) => h.blame != Some(Blame::Neighbour),
+            Some(h) => h.blame == Some(Blame::This),
             None => true,
         }
     }
@@ -337,7 +426,7 @@ impl PluginHost {
     /// [`Self::crash_culprit`] for a track's hosted instrument.
     pub fn instrument_crash_culprit(&self, track: TrackId) -> bool {
         match self.instruments.get(&track) {
-            Some(h) => h.blame != Some(Blame::Neighbour),
+            Some(h) => h.blame == Some(Blame::This),
             None => true,
         }
     }
@@ -401,6 +490,13 @@ impl PluginHost {
         engine: &mut EngineHandle,
         effect: EffectId,
     ) -> Result<(), String> {
+        if let Some((why, crashed)) = self.test_hooks.reload_fails.take() {
+            if let Some(m) = self.missing.get_mut(&effect) {
+                m.error = why.clone();
+                m.crashed = crashed;
+            }
+            return Err(why);
+        }
         let (strip, slot) = super::find_slot(project, effect).ok_or("no such slot")?;
         let plugin = slot.spec.external.as_deref().ok_or("not a hosted slot")?;
         if !self.slots.contains_key(&effect) && self.missing.remove(&effect).is_some() {
@@ -436,10 +532,13 @@ impl PluginHost {
             }
             Err(e) => {
                 // It crashed again while it loaded: counted, so a plug-in that keeps
-                // crashing is offered a process of its own (review #15).
+                // crashing is offered a process of its own (review #15). Its card says why
+                // it is off now, and whose doing this end was (review isolation-4 #64).
                 if e.crashed {
                     self.count_crash(&info, e.blame, None);
+                    old.blame = Some(e.blame);
                 }
+                old.crashed = Some(e.why.clone());
                 self.slots.insert(effect, old);
                 Err(e.why)
             }
@@ -476,6 +575,11 @@ impl PluginHost {
                         error: f.why.clone(),
                         isolation: self.effective_isolation(plugin.isolation),
                         crashed: f.crashed,
+                        retry_at: Missing::retry(f.busy, None),
+                        found: self
+                            .db
+                            .find(crate::from_project_format(plugin.format), &plugin.id)
+                            .is_some(),
                     },
                 );
                 Err(f.why)
@@ -490,6 +594,13 @@ impl PluginHost {
         engine: &mut EngineHandle,
         track: TrackId,
     ) -> Result<(), String> {
+        if let Some((why, crashed)) = self.test_hooks.reload_fails.take() {
+            if let Some(m) = self.inst_missing.get_mut(&track) {
+                m.error = why.clone();
+                m.crashed = crashed;
+            }
+            return Err(why);
+        }
         let plugin = project
             .track(track)
             .and_then(|t| t.instrument.external())
@@ -516,6 +627,11 @@ impl PluginHost {
                             error: f.why.clone(),
                             isolation: self.effective_isolation(plugin.isolation),
                             crashed: f.crashed,
+                            retry_at: Missing::retry(f.busy, None),
+                            found: self
+                                .db
+                                .find(crate::from_project_format(plugin.format), &plugin.id)
+                                .is_some(),
                         },
                     );
                     Err(f.why)
@@ -552,7 +668,9 @@ impl PluginHost {
             Err(e) => {
                 if e.crashed {
                     self.count_crash(&info, e.blame, None);
+                    old.blame = Some(e.blame);
                 }
+                old.crashed = Some(e.why.clone());
                 self.instruments.insert(track, old);
                 Err(e.why)
             }
@@ -580,6 +698,41 @@ impl PluginHost {
             }
         }
         failed
+    }
+
+    /// Whether a plug-in given up on while its helper was busy is due to be tried again:
+    /// the application syncs then, though the project did not change (review isolation-4
+    /// #57).
+    pub fn wants_sync(&self) -> bool {
+        let now = Instant::now();
+        self.missing
+            .values()
+            .chain(self.inst_missing.values())
+            .any(|m| m.retry_at.is_some() && !m.waits(now))
+    }
+
+    /// Why a slot's plug-in could not be loaded — not a crash: it was refused, or its
+    /// helper was busy — while it is missing: it can be loaded again from its menu (review
+    /// isolation-4 #57).
+    pub fn load_error(&self, effect: EffectId) -> Option<&str> {
+        if self.slots.contains_key(&effect) {
+            return None;
+        }
+        self.missing
+            .get(&effect)
+            .filter(|m| !m.crashed && m.found)
+            .map(|m| m.error.as_str())
+    }
+
+    /// [`Self::load_error`] for a track's hosted instrument.
+    pub fn instrument_load_error(&self, track: TrackId) -> Option<&str> {
+        if self.instruments.contains_key(&track) {
+            return None;
+        }
+        self.inst_missing
+            .get(&track)
+            .filter(|m| !m.crashed && m.found)
+            .map(|m| m.error.as_str())
     }
 
     /// What a slot's plug-in costs, measured over the last half second.
@@ -619,6 +772,8 @@ impl PluginHost {
             error: reason.to_string(),
             isolation: self.default_isolation,
             crashed: true,
+            retry_at: None,
+            found: true,
         };
         if let Some(e) = target.0 {
             self.slots.remove(&e);
@@ -634,25 +789,123 @@ impl PluginHost {
             .or_default() += times;
     }
 
-    /// For the interface's tests: the running render lost `name` (as a render instance
-    /// that could not be loaded does). The application never calls it.
+    /// For the interface's tests: the next reload fails with `why` (a crash when
+    /// `crashed`), as one whose plug-in crashed again, or could not be loaded, does. The
+    /// application never calls it.
     #[doc(hidden)]
-    pub fn lose_in_render_for_tests(&mut self, name: &str, reason: &str) {
+    pub fn fail_next_reload_for_tests(&mut self, why: &str, crashed: bool) {
+        self.test_hooks.reload_fails = Some((why.to_string(), crashed));
+    }
+
+    /// For the interface's tests: a hosted slot that could not be loaded — not a crash
+    /// (refused, or its helper busy). The application never calls it.
+    #[doc(hidden)]
+    pub fn mark_missing_for_tests(&mut self, effect: EffectId, why: &str) {
+        self.slots.remove(&effect);
+        self.missing.insert(
+            effect,
+            Missing {
+                key: 0,
+                error: why.to_string(),
+                isolation: self.default_isolation,
+                crashed: false,
+                retry_at: None,
+                found: true,
+            },
+        );
+    }
+
+    /// For the interface's tests: a hosted slot said to wait on a window of its own (or no
+    /// longer). The application never calls it.
+    #[doc(hidden)]
+    pub fn set_waiting_for_tests(&mut self, effect: EffectId, waiting: bool) {
+        self.test_hooks.waiting.retain(|e| *e != effect);
+        if waiting {
+            self.test_hooks.waiting.push(effect);
+        }
+    }
+
+    /// The loaded plug-ins waiting on a window of their own — a call of theirs served past
+    /// its limit while their helper lives: a dialog, perhaps behind Cantus (review
+    /// isolation-4 #54) — inserts and instruments, with their names.
+    pub fn waiting(&self) -> Waiting {
+        let mut e: Vec<(EffectId, String)> = self
+            .slots
+            .iter()
+            .filter(|(id, h)| {
+                h.crashed.is_none() && (h.main.waiting() || self.test_hooks.waiting.contains(id))
+            })
+            .map(|(id, h)| (*id, h.info.name.clone()))
+            .collect();
+        for id in &self.test_hooks.waiting {
+            if !self.slots.contains_key(id) {
+                e.push((*id, String::new()));
+            }
+        }
+        let mut t: Vec<(TrackId, String)> = self
+            .instruments
+            .iter()
+            .filter(|(_, h)| h.crashed.is_none() && h.main.waiting())
+            .map(|(id, h)| (*id, h.info.name.clone()))
+            .collect();
+        e.sort_by_key(|(id, _)| *id);
+        t.sort_by_key(|(id, _)| *id);
+        (e, t)
+    }
+
+    /// Brings the windows a waiting insert's plug-in waits on to the front.
+    pub fn surface(&mut self, effect: EffectId) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.main.surface();
+        }
+    }
+
+    /// [`Self::surface`] for a track's hosted instrument.
+    pub fn surface_instrument(&mut self, track: TrackId) {
+        if let Some(h) = self.instruments.get_mut(&track) {
+            h.main.surface();
+        }
+    }
+
+    /// Ends a waiting insert's plug-in — its helper — at the user's word: told as its own
+    /// crash, reloadable (review isolation-4 #54).
+    pub fn stop(&mut self, effect: EffectId) {
+        self.test_hooks.waiting.retain(|e| *e != effect);
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.main.stop();
+        }
+    }
+
+    /// [`Self::stop`] for a track's hosted instrument.
+    pub fn stop_instrument(&mut self, track: TrackId) {
+        if let Some(h) = self.instruments.get_mut(&track) {
+            h.main.stop();
+        }
+    }
+
+    /// For the interface's tests: the running render lost `name` as `kind` says (as a
+    /// render instance that stopped, could not be loaded, or began with a stale state
+    /// does). The application never calls it.
+    #[doc(hidden)]
+    pub fn lose_in_render_for_tests(&mut self, name: &str, reason: &str, kind: RenderLoss) {
         self.render_lost.push(RenderFailure {
             name: name.to_string(),
             reason: reason.to_string(),
+            kind,
         });
     }
 
-    /// The plug-ins of the running render (export, stems, bake) that stopped working
-    /// during it: a render that lost one must not be reported done (review #6, #47).
-    /// Asked before [`Self::finish_render`].
+    /// The plug-ins of the running render (export, stems, bake, freeze) that failed it —
+    /// stopped during it, never loaded for it, or began with a stale state: a render that
+    /// lost one must not be reported done, and one with a stale state says so (review #6,
+    /// #47; isolation-4 #10, #41). Asked before [`Self::finish_render`].
     pub fn render_failures(&self) -> Vec<RenderFailure> {
         let mut out = self.render_lost.clone();
         out.extend(self.render_mains.iter().filter_map(|m| {
             m.stopped().map(|(reason, _)| RenderFailure {
                 name: m.info().name.clone(),
                 reason,
+                kind: RenderLoss::Stopped,
             })
         }));
         out
@@ -722,6 +975,36 @@ mod tests {
         host.count_crash(&info, Blame::This, Some(7));
         host.count_crash(&info, Blame::This, Some(7));
         assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 1);
+    }
+
+    /// A helper's death is counted once for the plug-in it is laid on, by the helper's
+    /// serial (never reused, as a process id may be), and never for one nothing lays it on
+    /// (review isolation-4 #35, #53, #58, #59).
+    #[test]
+    fn deaths_are_counted_once_per_helper_and_never_for_nobody() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        let info = PluginInfo {
+            format: Format::Clap,
+            id: "com.example.glacier".into(),
+            name: "Glacier".into(),
+            vendor: "Example".into(),
+            version: String::new(),
+            path: std::path::PathBuf::new(),
+            kind: PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        };
+        host.count_crash(&info, Blame::Unknown, Some(1));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 0);
+        assert!(host.db.crash_record(Format::Clap, &info.id).is_none());
+        host.count_crash(&info, Blame::This, Some(1));
+        host.count_crash(&info, Blame::This, Some(1));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 1);
+        host.count_crash(&info, Blame::This, Some(2));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 2);
     }
 
     /// A crash recorded (or forgotten) while a background scan ran survives the scan's

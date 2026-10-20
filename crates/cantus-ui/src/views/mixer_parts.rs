@@ -335,27 +335,7 @@ pub(super) fn chain_row(
     let empty = line.is_empty();
     // Inserts whose plug-in stopped working (round 29, review #17): the line in the danger
     // colour, and their tips with the chain's.
-    let stopped: Vec<String> = app
-        .project()
-        .effects_of(sn.id)
-        .map(|fx| {
-            fx.iter()
-                .filter(|e| app.plugins.crashed(e.id).is_some())
-                .map(|e| {
-                    // One line each: its name and why (review #33).
-                    let name = super::desk::short_name(e);
-                    let why = app.plugins.crashed(e.id).unwrap_or_default();
-                    crate::i18n::tf(
-                        "isolation.reason",
-                        &[
-                            ("name", &name),
-                            ("reason", &crate::views::plugin_notice::reason_words(why)),
-                        ],
-                    )
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+    let stopped = stopped_inserts(app, sn.id);
     let inner = r.shrink2(vec2(4.0, 0.0));
     if empty {
         // An icon, not a word forty times across the desk: the hint bar says it.
@@ -384,14 +364,7 @@ pub(super) fn chain_row(
         } else {
             &v.words.chain
         };
-        let body = if stopped.is_empty() {
-            line.to_string()
-        } else {
-            let mut lines = vec![line.to_string()];
-            lines.extend(stopped.iter().cloned());
-            lines.push(crate::i18n::t("isolation.tip.reload_menu"));
-            lines.join("\n")
-        };
+        let body = chain_body(line, &stopped);
         hint::set_text(
             ui.ctx(),
             tip,
@@ -1355,4 +1328,46 @@ pub fn phase_button(ui: &mut Ui, inverted: bool) -> egui::Response {
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
     }
     resp.on_hover_text(tip)
+}
+
+/// A strip's inserts whose plug-in stopped working, one line each: its name and why, in
+/// the interface's words (round 29, review #17, #33).
+pub fn stopped_inserts(app: &CantusApp, strip: cantus_core::StripId) -> Vec<String> {
+    app.project()
+        .effects_of(strip)
+        .map(|fx| {
+            fx.iter()
+                .filter(|e| app.plugins.crashed(e.id).is_some())
+                .map(|e| {
+                    let name = super::desk::short_name(e);
+                    let why = app.plugins.crashed(e.id).unwrap_or_default();
+                    crate::i18n::tf(
+                        "isolation.reason",
+                        &[
+                            ("name", &name),
+                            ("reason", &crate::views::plugin_notice::stopped_words(why)),
+                        ],
+                    )
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// What a chain line's hint says: the chain, then each stopped insert and how to bring it
+/// back.
+pub fn chain_body(line: &str, stopped: &[String]) -> String {
+    if stopped.is_empty() {
+        return line.to_string();
+    }
+    let mut lines = vec![line.to_string()];
+    lines.extend(stopped.iter().cloned());
+    lines.push(crate::i18n::t("isolation.tip.reload_menu"));
+    lines.join("\n")
+}
+
+/// The hint of `strip`'s chain line: what a pointer over it reads (review isolation-4 #42
+/// asked for it to be seen).
+pub fn chain_hint(app: &CantusApp, strip: cantus_core::StripId, line: &str) -> String {
+    chain_body(line, &stopped_inserts(app, strip))
 }

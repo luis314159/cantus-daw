@@ -358,6 +358,16 @@ fn three_button_app() -> CantusApp {
     ));
     let id = slot.id;
     p.strip_mut(strip).expect("the strip").effects.push(slot);
+    // Its neighbour in the helper, which it took down with it (review isolation-4 #42: the
+    // card lists two, so its third button names the one to run apart).
+    let mut glacier = p.make_effect(cantus_core::EffectKind::External);
+    glacier.spec = cantus_core::EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.example.glacier",
+        "Glacier",
+    ));
+    let neighbour = glacier.id;
+    p.strip_mut(strip).expect("the strip").effects.push(glacier);
     let mut app = CantusApp::from_parts_with(
         Some(p),
         EngineHandle::dummy(),
@@ -373,6 +383,12 @@ fn three_button_app() -> CantusApp {
         "it crashed: an access violation (0xC0000005)",
         3,
     );
+    app.plugins.mark_crashed_for_tests(
+        (Some(neighbour), None),
+        (cantus_host::Format::Clap, "org.example.glacier"),
+        "it crashed: an access violation (0xC0000005)",
+        0,
+    );
     views::plugin_notice::on_notice(
         &mut app,
         cantus_host::HostNotice::PluginCrashed {
@@ -384,8 +400,8 @@ fn three_button_app() -> CantusApp {
     views::plugin_notice::on_notice(
         &mut app,
         cantus_host::HostNotice::PluginCrashed {
-            effect: id,
-            name: "Spectrasonics Omnisphere Orchestral Edition".into(),
+            effect: neighbour,
+            name: "Glacier".into(),
             reason: "it crashed: an access violation (0xC0000005)".into(),
         },
     );
@@ -439,6 +455,34 @@ fn review3_shots(dir: &std::path::Path, ppp: f32, code: &str) {
     // The three-button card, in a narrow window.
     let mut app = three_button_app();
     shot("three-buttons", egui::vec2(420.0, 600.0), &mut app);
+    // A plug-in waiting on a window of its own (review isolation-4 #54), and a window
+    // asked for while its helper is busy (#39), in a narrow window.
+    let mut app = waiting_app();
+    shot("waiting", egui::vec2(420.0, 600.0), &mut app);
+}
+
+/// Glacier waits on a window of its own; its window was asked for meanwhile.
+fn waiting_app() -> CantusApp {
+    let mut p = welcome_project();
+    let strip = p.tracks[0].strip.expect("a strip");
+    let mut slot = p.make_effect(cantus_core::EffectKind::External);
+    slot.spec = cantus_core::EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.example.glacier",
+        "Glacier",
+    ));
+    let id = slot.id;
+    p.strip_mut(strip).expect("the strip").effects.push(slot);
+    let mut app = CantusApp::from_parts_with(
+        Some(p),
+        EngineHandle::dummy(),
+        false,
+        Some(cantus_core::PluginIsolation::Together),
+    );
+    app.plugins.set_waiting_for_tests(id, true);
+    let busy = cantus_host::HostError::Busy("its own window holds it".into());
+    views::plugin_notice::window_failed(&mut app, "Glacier", &busy);
+    app
 }
 
 fn main() {

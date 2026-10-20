@@ -374,7 +374,13 @@ pub fn slot_title(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) {
             crate::kit::hint::set_text(
                 ui.ctx(),
                 &word,
-                &tf("host.missing_tip", &[("vendor", &p.vendor), ("why", &why)]),
+                &tf(
+                    "host.missing_tip",
+                    &[
+                        ("vendor", &p.vendor),
+                        ("why", &crate::views::plugin_notice::load_words(why)),
+                    ],
+                ),
                 crate::kit::hint::Caps::NONE,
             );
         }
@@ -603,7 +609,7 @@ fn body_ui(
         let stopped = app.plugins.crashed(effect).map(|why| {
             tf(
                 "isolation.tip.stopped",
-                &[("reason", &crate::views::plugin_notice::reason_words(why))],
+                &[("reason", &crate::views::plugin_notice::stopped_words(why))],
             )
         });
         let tip = match &stopped {
@@ -660,7 +666,7 @@ fn body_ui(
                                 .map(|p| p.name.clone())
                         })
                         .unwrap_or_default();
-                    let why = crate::views::plugin_notice::reason_words(&why);
+                    let why = crate::views::plugin_notice::stopped_words(&why);
                     let line = tf(
                         "isolation.editor.stopped",
                         &[("name", &name), ("reason", &why)],
@@ -698,6 +704,7 @@ fn body_ui(
                     .effect(strip, effect)
                     .and_then(|e| e.spec.external.as_deref())
                     .map_or("", |p| p.name.as_str());
+                let why = crate::views::plugin_notice::load_words(why);
                 let line = tf("host.editor.missing", &[("name", &name), ("why", &why)]);
                 controls::line(ui, s, &line, s.t.danger, w);
                 controls::line(ui, s, frame_tr("host.editor.missing_kept"), s.t.text_dim, w);
@@ -1006,7 +1013,8 @@ impl CantusApp {
             .unwrap_or_default();
         let owner = self.plugins.owner_window;
         if let Err(e) = self.plugins.open_window(effect, &title, owner) {
-            self.set_error(tf("host.editor.window_failed", &[("error", &e)]));
+            let name = crate::views::plugin_notice::effect_name(self, effect);
+            crate::views::plugin_notice::window_failed(self, &name, &e);
         }
     }
 }
@@ -1413,7 +1421,8 @@ impl CantusApp {
             let owner = self.plugins.owner_window;
             // Open already: `open_window` only brings it forward (the title is not used).
             if let Err(e) = self.plugins.open_window(effect, "", owner) {
-                self.set_error(tf("host.editor.window_failed", &[("error", &e)]));
+                let name = crate::views::plugin_notice::effect_name(self, effect);
+                crate::views::plugin_notice::window_failed(self, &name, &e);
             }
         }
     }

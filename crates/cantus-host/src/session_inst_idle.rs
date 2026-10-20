@@ -68,6 +68,14 @@ impl PluginHost {
                             notices.push(HostNotice::InstrumentWindowClosed(track));
                         }
                     }
+                    // Its window opened after all (review isolation-4 #39).
+                    Notice::EditorOpened => {
+                        if let Some(h) = self.instruments.get_mut(&track) {
+                            if h.window.is_none() {
+                                h.window = crate::window::PluginWindow::floating(&h.info.name);
+                            }
+                        }
+                    }
                 }
             }
             // Stopped without a notice reaching here (it died while loading a state, say).
@@ -126,8 +134,8 @@ impl PluginHost {
             drop(w);
         }
         let info = h.info.clone();
-        let pid = h.main.isolated_in();
-        self.count_crash(&info, blame, pid);
+        let helper = h.main.helper_id();
+        self.count_crash(&info, blame, helper);
         Some(HostNotice::InstrumentCrashed {
             track,
             name: info.name,
@@ -416,6 +424,7 @@ impl PluginHost {
             max_block: MAX_BLOCK_FRAMES,
         };
         let mut units = Vec::new();
+        let mut stale = Vec::new();
         for t in &project.tracks {
             let Some(plugin) = t.instrument.external() else {
                 continue;
@@ -426,10 +435,27 @@ impl PluginHost {
             let state = if stored {
                 plugin.state.clone()
             } else {
-                h.main
-                    .save_state()
-                    .map(PluginState::new)
-                    .unwrap_or_default()
+                // Its state as it is now; its helper busy (its own window open), what it
+                // last said — and the render says so (review isolation-4 #10).
+                match h.main.fresh_state() {
+                    Ok(s) => PluginState::new(s),
+                    Err(HostError::Busy(why)) => {
+                        stale.push(crate::session::RenderFailure {
+                            name: h.info.name.clone(),
+                            reason: format!("the plug-in is busy: {why}"),
+                            kind: crate::session::RenderLoss::Stale,
+                        });
+                        h.main
+                            .save_state()
+                            .map(PluginState::new)
+                            .unwrap_or_default()
+                    }
+                    Err(_) => h
+                        .main
+                        .save_state()
+                        .map(PluginState::new)
+                        .unwrap_or_default(),
+                }
             };
             let info = h.info.clone();
             let key = h.key;
@@ -452,6 +478,7 @@ impl PluginHost {
             units.push(NativeUnit::hosted(t.id, key, Box::new(unit)));
             self.render_mains.push(main);
         }
+        self.render_lost.extend(stale);
         units
     }
 

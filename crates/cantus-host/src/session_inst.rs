@@ -324,15 +324,17 @@ impl PluginHost {
                 self.unload_instrument(t.id);
             }
             let runs = self.effective_isolation(plugin.isolation);
-            // The same plug-in failed where it runs now: it waits (review #15).
-            if self
-                .inst_missing
-                .get(&t.id)
-                .is_some_and(|m| m.key == key && m.isolation == runs)
-            {
+            // The same plug-in failed where it runs now: it waits (review #15) — but one
+            // whose helper was busy is tried again in a while (review isolation-4 #57).
+            if self.inst_missing.get(&t.id).is_some_and(|m| {
+                m.key == key && m.isolation == runs && m.waits(std::time::Instant::now())
+            }) {
                 continue;
             }
-            self.inst_missing.remove(&t.id);
+            let waited = self
+                .inst_missing
+                .remove(&t.id)
+                .and_then(|m| m.retry_at.map(|(_, d)| d));
             // Where it runs changed: moved there (round 29).
             if self
                 .instruments
@@ -340,7 +342,7 @@ impl PluginHost {
                 .is_some_and(|h| h.isolation != runs && !h.restarting)
             {
                 if let Err(failed) = self.move_instrument(t.id, plugin, engine) {
-                    notices.push(self.instrument_failed(t.id, plugin, (key, runs), failed));
+                    notices.extend(self.instrument_failed(t.id, plugin, (key, runs, None), failed));
                     continue;
                 }
             }
@@ -350,7 +352,12 @@ impl PluginHost {
                         self.instruments.insert(t.id, h);
                     }
                     Err(failed) => {
-                        notices.push(self.instrument_failed(t.id, plugin, (key, runs), failed));
+                        notices.extend(self.instrument_failed(
+                            t.id,
+                            plugin,
+                            (key, runs, waited),
+                            failed,
+                        ));
                         continue;
                     }
                 }
@@ -401,9 +408,9 @@ impl PluginHost {
         &mut self,
         track: TrackId,
         plugin: &ExternalPlugin,
-        (key, runs): (u64, PluginIsolation),
+        (key, runs, waited): (u64, PluginIsolation, Option<std::time::Duration>),
         failed: super::iso::Failed,
-    ) -> HostNotice {
+    ) -> Option<HostNotice> {
         log::warn!("instrument {}: {}", plugin.name, failed.why);
         self.inst_missing.insert(
             track,
@@ -412,9 +419,17 @@ impl PluginHost {
                 error: failed.why.clone(),
                 isolation: runs,
                 crashed: failed.crashed,
+                retry_at: super::iso::Missing::retry(failed.busy, waited),
+                found: self
+                    .db
+                    .find(from_project_format(plugin.format), &plugin.id)
+                    .is_some(),
             },
         );
-        if failed.crashed {
+        if waited.is_some() && failed.busy {
+            return None;
+        }
+        Some(if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
                 self.count_crash(&info, failed.blame, None);
@@ -430,7 +445,7 @@ impl PluginHost {
                 name: plugin.name.clone(),
                 error: failed.why,
             }
-        }
+        })
     }
 
     /// Loads a track's instrument where it now runs (round 29), as `move_plugin` does for

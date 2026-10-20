@@ -62,6 +62,7 @@ static PARAMS_EXT: clap_plugin_params = clap_plugin_params {
 };
 
 unsafe extern "C" fn params_count(_p: *const clap_plugin) -> u32 {
+    crate::fault::params_read();
     PARAM_COUNT as u32
 }
 
@@ -210,6 +211,7 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
 unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istream) -> bool {
     let me = me(p);
     me.fault.fire(crate::fault::ABORT_LOAD);
+    crate::fault::pump_load();
     let s = &*stream;
     let Some(read) = s.read else { return false };
     let mut bytes = Vec::new();

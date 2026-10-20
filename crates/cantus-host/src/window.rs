@@ -34,6 +34,10 @@ mod other {
         ) -> Result<PluginWindow, HostError> {
             Err(HostError::Unsupported("plug-in windows on this system"))
         }
+        /// No window of ours stands for a floating one here.
+        pub fn floating(_title: &str) -> Option<PluginWindow> {
+            None
+        }
         pub fn fit(&mut self, _size: EditorSize) {}
         /// Nothing to bring forward: there is no window here (opening fails above).
         pub fn focus(&self) {}
@@ -124,12 +128,56 @@ mod win32 {
     }
 
     impl PluginWindow {
+        /// Ours for a plug-in whose editor floats a window of its own that opened later than
+        /// asked (an isolated plug-in whose helper was busy; review isolation-4 #39): hidden,
+        /// never shown — it stands for theirs, which closing ours closes.
+        pub fn floating(title: &str) -> Option<PluginWindow> {
+            let mut w = Self::create(title, None).ok()?;
+            w.floating = true;
+            Some(w)
+        }
+
         /// Create the window, embed the editor in it, size it to the editor, show it.
         pub fn open(
             title: &str,
             owner: Option<RawWindowHandle>,
             main: &mut dyn MainThread,
         ) -> Result<PluginWindow, HostError> {
+            let mut window = Self::create(title, owner)?;
+            let hwnd = window.hwnd;
+            let style = window.style;
+            // SAFETY: plain Win32 calls on our own window, on the UI thread.
+            unsafe {
+                let parent = RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
+                    NonZeroIsize::new(hwnd as isize).expect("checked non-null"),
+                ));
+                let size = main.open_editor(parent)?;
+                if main.editor_is_floating() {
+                    // The plug-in has a window of its own; ours stays hidden.
+                    window.floating = true;
+                    return Ok(window);
+                }
+                if !main.editor_can_resize() {
+                    window.style = style & !(WS_THICKFRAME | WS_MAXIMIZEBOX);
+                    SetWindowLongPtrW(hwnd, GWL_STYLE, window.style as isize);
+                    SetWindowPos(
+                        hwnd,
+                        std::ptr::null_mut(),
+                        0,
+                        0,
+                        0,
+                        0,
+                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                    );
+                }
+                window.fit(size);
+                ShowWindow(hwnd, SW_SHOW);
+                Ok(window)
+            }
+        }
+
+        /// The window, hidden, with no editor in it yet.
+        fn create(title: &str, owner: Option<RawWindowHandle>) -> Result<PluginWindow, HostError> {
             static REGISTER: Once = Once::new();
             let class = wide(CLASS);
             // SAFETY: plain Win32 calls on the UI thread with valid, NUL-terminated strings.
@@ -175,37 +223,12 @@ mod win32 {
                 }
                 let shared = Box::new(Shared::default());
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, &*shared as *const Shared as isize);
-                let mut window = PluginWindow {
+                Ok(PluginWindow {
                     hwnd,
                     shared,
                     style,
                     floating: false,
-                };
-                let parent = RawWindowHandle::Win32(raw_window_handle::Win32WindowHandle::new(
-                    NonZeroIsize::new(hwnd as isize).expect("checked non-null"),
-                ));
-                let size = main.open_editor(parent)?;
-                if main.editor_is_floating() {
-                    // The plug-in has a window of its own; ours stays hidden.
-                    window.floating = true;
-                    return Ok(window);
-                }
-                if !main.editor_can_resize() {
-                    window.style = style & !(WS_THICKFRAME | WS_MAXIMIZEBOX);
-                    SetWindowLongPtrW(hwnd, GWL_STYLE, window.style as isize);
-                    SetWindowPos(
-                        hwnd,
-                        std::ptr::null_mut(),
-                        0,
-                        0,
-                        0,
-                        0,
-                        SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED,
-                    );
-                }
-                window.fit(size);
-                ShowWindow(hwnd, SW_SHOW);
-                Ok(window)
+                })
             }
         }
 

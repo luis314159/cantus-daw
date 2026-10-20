@@ -1131,6 +1131,12 @@ one fails, the helper stops and **Cantus keeps playing**:
   audio never waits for it longer than a few milliseconds, and the window never waits at
   all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung:
   Cantus waits for you, and keeps saving and answering meanwhile;
+- a plug-in that a window of its own keeps busy longer than its calls should take gets a
+  card of its own — *"Glacier is waiting on a window of its own"* — with **Show it** (its
+  window to the front, in case it opened behind Cantus) and **Stop it** (it is ended, Cantus
+  plays on, and you can reload it). Its own window, asked for meanwhile, opens as soon as it
+  is free; a plug-in that could not be loaded because its helper was busy is tried again by
+  itself, and any plug-in that could not be loaded offers **Reload plug-in** in its menu;
 - notes and knob moves sent while a plug-in was late are not lost: it gets them as soon as
   it answers.
 

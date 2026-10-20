@@ -27,9 +27,10 @@ use cantus_host::bridge::proto::{
 use cantus_host::bridge::slot::Slot;
 use cantus_host::window::PluginWindow;
 use cantus_host::{AudioSetup, HostError, MainThread, Notice, ParamChange, ParamOut};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::io::{BufReader, BufWriter, Write};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
@@ -177,24 +178,63 @@ fn failure(e: HostError) -> Failure {
 
 struct Server {
     out: Out,
-    instances: HashMap<u32, Instance>,
+    /// Each instance in a cell of its own: a call into one leaves the others free, so a
+    /// plug-in's dialog inside a call (a licence nag in a load, a progress window in a
+    /// state) never stops the others' calls being served from its loop (review
+    /// isolation-4 #13, #43, #54).
+    instances: RefCell<HashMap<u32, Rc<RefCell<Instance>>>>,
+    /// Instances unloaded while a frame further out still held them: ended by the main
+    /// loop once nothing does.
+    leaving: RefCell<Vec<(u32, Rc<RefCell<Instance>>)>>,
     /// What the processing threads serve, their lobby's bell, their stop.
     table: Arc<Table>,
     bell: Arc<cantus_rt::ipc::LobbyBell>,
     stop: Arc<AtomicBool>,
-    threads: Vec<JoinHandle<()>>,
+    threads: RefCell<Vec<JoinHandle<()>>>,
     /// The most processing threads: as many as the plug-ins Cantus may call at once, no
-    /// more than the cores beside Cantus's own (ADR 0031 R15).
+    /// more than the cores beside Cantus's own (ADR 0031 R15) — or what Cantus asked for
+    /// (`--threads`, tests).
     max_threads: usize,
+    /// The lobby's count of finished jobs.
+    jobs_done: &'static AtomicU32,
 }
 
 impl Server {
-    fn send(&mut self, msg: &Message, blob: &[u8]) -> bool {
+    fn send(&self, msg: &Message, blob: &[u8]) -> bool {
         proto::write_frame(&mut *out_lock(&self.out), msg, blob).is_ok()
     }
 
+    fn instance(&self, n: u32) -> Option<Rc<RefCell<Instance>>> {
+        self.instances.borrow().get(&n).cloned()
+    }
+
+    /// Whether a call into `n` is under way further out on this thread (its cell is held).
+    fn busy(&self, n: u32) -> bool {
+        self.instance(n)
+            .is_some_and(|i| i.try_borrow_mut().is_err())
+    }
+
     fn load(
-        &mut self,
+        &self,
+        instance: u32,
+        info: &cantus_host::PluginInfo,
+        sample_rate: f64,
+        max_block: usize,
+        slot_name: &str,
+    ) -> Result<Answer, Failure> {
+        let before = crate::platform::blame::modules_now();
+        let result = self.load_inner(instance, info, sample_rate, max_block, slot_name);
+        // A plug-in may have put its own crash filter in place of ours, even one that
+        // failed to load: ours goes back first (review isolation-4 #61).
+        crate::platform::blame::reinstall();
+        if result.is_ok() {
+            crate::platform::blame::learn_modules(instance, &info.path, &before);
+        }
+        result
+    }
+
+    fn load_inner(
+        &self,
         instance: u32,
         info: &cantus_host::PluginInfo,
         sample_rate: f64,
@@ -227,7 +267,8 @@ impl Server {
             half: half.clone(),
         });
         self.table.change(|t| t.push(rt.clone()));
-        self.grow(self.instances.len() + 1)?;
+        let count = self.instances.borrow().len() + 1;
+        self.grow(count)?;
         let main = loaded.main;
         let ids = main.params().iter().map(|p| p.id).collect();
         let inst = Instance {
@@ -239,40 +280,63 @@ impl Server {
             ids,
         };
         let described = inst.described();
-        self.instances.insert(instance, inst);
-        // A plug-in may have put its own crash filter in place of ours: ours goes back first.
-        crate::platform::blame::reinstall();
+        self.instances
+            .borrow_mut()
+            .insert(instance, Rc::new(RefCell::new(inst)));
         Ok(Answer::Loaded(described))
     }
 
     /// Starts processing threads until there are as many as `instances` (at most
     /// `max_threads`); returns once each is waiting, so a first block finds it ready.
-    fn grow(&mut self, instances: usize) -> Result<(), Failure> {
+    fn grow(&self, instances: usize) -> Result<(), Failure> {
         let want = instances.min(self.max_threads).max(1);
-        while self.threads.len() < want {
+        let mut threads = self.threads.borrow_mut();
+        while threads.len() < want {
             let (table, bell, stop) = (self.table.clone(), self.bell.clone(), self.stop.clone());
-            let k = self.threads.len();
+            let done = self.jobs_done;
+            let k = threads.len();
             let t = std::thread::Builder::new()
                 .name(format!("cantus-sandbox-audio-{k}"))
-                .spawn(move || worker::serve(table, bell, stop))
+                .spawn(move || worker::serve(table, bell, stop, done))
                 .map_err(|e| Failure::Load(e.to_string()))?;
-            self.threads.push(t);
+            threads.push(t);
         }
         Ok(())
     }
 
-    /// An instance leaves the threads' table, then ends on this thread.
-    fn unload(&mut self, instance: u32) {
-        if let Some(i) = self.instances.remove(&instance) {
-            let rt = i.rt.clone();
-            self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
-            let _at = crate::platform::blame::calling(instance);
-            i.finish();
+    /// An instance leaves the threads' table, then ends on this thread — at once, or, when
+    /// a frame further out still holds it, as soon as none does.
+    fn unload(&self, instance: u32) {
+        let Some(i) = self.instances.borrow_mut().remove(&instance) else {
+            return;
+        };
+        let rt = i.borrow().rt.clone();
+        self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
+        match Rc::try_unwrap(i) {
+            Ok(cell) => end(instance, cell.into_inner()),
+            Err(held) => self.leaving.borrow_mut().push((instance, held)),
+        }
+    }
+
+    /// The instances unloaded while held, once nothing holds them.
+    fn end_leaving(&self) {
+        let ready: Vec<(u32, Rc<RefCell<Instance>>)> = {
+            let mut leaving = self.leaving.borrow_mut();
+            let (ready, held) = leaving
+                .drain(..)
+                .partition(|(_, i)| Rc::strong_count(i) == 1);
+            *leaving = held;
+            ready
+        };
+        for (n, i) in ready {
+            if let Ok(cell) = Rc::try_unwrap(i) {
+                end(n, cell.into_inner());
+            }
         }
     }
 
     /// One call; `None` for Quit.
-    fn handle(&mut self, req: Request, blob: Vec<u8>) -> Option<()> {
+    fn handle(&self, req: Request, blob: Vec<u8>) -> Option<()> {
         let id = req.id;
         // Its time limit runs from now (review #37).
         self.send(&Message::Started { id }, &[]);
@@ -295,6 +359,10 @@ impl Server {
                 );
                 return None;
             }
+            Call::Surface => {
+                crate::platform::surface();
+                Ok(Answer::Done)
+            }
             Call::Load {
                 instance,
                 info,
@@ -306,8 +374,8 @@ impl Server {
                 let r = self.load(instance, &info, sample_rate, max_block, &slot);
                 // Its first good state travels with the answer: a crash a moment later
                 // still leaves Cantus something to keep.
-                if let Some(i) = self.instances.get_mut(&instance) {
-                    if let Ok(state) = i.main.save_state() {
+                if let Some(i) = self.instance(instance) {
+                    if let Ok(state) = i.borrow_mut().main.save_state() {
                         reply_blob = state;
                     }
                 }
@@ -318,62 +386,83 @@ impl Server {
                 Ok(Answer::Done)
             }
             call => {
-                let instance = match &call {
-                    Call::DropAudio { instance }
-                    | Call::Restart { instance }
-                    | Call::SaveState { instance }
-                    | Call::LoadState { instance }
-                    | Call::Flush { instance, .. }
-                    | Call::ParamText { instance, .. }
-                    | Call::Params { instance }
-                    | Call::OpenEditor { instance, .. }
-                    | Call::CloseEditor { instance }
-                    | Call::FocusEditor { instance }
-                    | Call::ResizeEditor { instance, .. } => *instance,
-                    _ => 0,
-                };
+                let instance = instance_of(&call).unwrap_or(0);
                 named = Some(instance);
-                match self.instances.get_mut(&instance) {
+                let result = match self.instance(instance) {
                     None => Err(Failure::NoInstance),
-                    Some(inst) => on_instance(inst, call, &blob, &mut reply_blob),
-                }
+                    Some(inst) => match inst.try_borrow_mut() {
+                        Ok(mut i) => on_instance(&mut i, call, &blob, &mut reply_blob),
+                        // Held further out (never served so: `must_wait`).
+                        Err(_) => Err(Failure::Load("the plug-in is busy".into())),
+                    },
+                };
+                // A plug-in may have put its own crash filter in place of ours while its
+                // editor opened or it restarted (review isolation-4 #61).
+                crate::platform::blame::reinstall();
+                result
             }
         };
-        let after =
-            named.and_then(|n| self.instances.get_mut(&n).map(|i| Box::new((n, i.after()))));
+        let after = named.and_then(|n| {
+            let inst = self.instance(n)?;
+            let mut i = inst.try_borrow_mut().ok()?;
+            Some(Box::new((n, i.after())))
+        });
         self.send(&Message::Reply { id, result, after }, &reply_blob);
         Some(())
     }
 
-    /// Between calls: each instance's requests, flushed events and changed values.
-    fn tick(&mut self) {
-        let mut news = Vec::new();
-        for (n, inst) in &mut self.instances {
-            let _at = crate::platform::blame::calling(*n);
-            let mut out = ParamOut::new();
-            inst.main.flush(&[], &mut out);
-            let flushed: Vec<WireEvent> = out.events().iter().map(WireEvent::of).collect();
-            let (notices, values) = inst.news();
-            if !notices.is_empty() || !values.is_empty() || !flushed.is_empty() {
-                news.push(Message::News {
-                    instance: *n,
-                    notices,
-                    values,
-                    flushed,
-                });
+    /// Between calls: each instance's requests, flushed events and changed values — but
+    /// one a frame further out is calling into, and one unloaded meanwhile.
+    fn tick(&self) {
+        let list: Vec<(u32, Rc<RefCell<Instance>>)> = self
+            .instances
+            .borrow()
+            .iter()
+            .map(|(n, i)| (*n, i.clone()))
+            .collect();
+        for (n, inst) in list {
+            if !self.instances.borrow().contains_key(&n) {
+                continue;
             }
-        }
-        for m in news {
-            self.send(&m, &[]);
+            let Ok(mut i) = inst.try_borrow_mut() else {
+                continue;
+            };
+            let _at = crate::platform::blame::calling(n);
+            let mut out = ParamOut::new();
+            i.main.flush(&[], &mut out);
+            let flushed: Vec<WireEvent> = out.events().iter().map(WireEvent::of).collect();
+            let (notices, values) = i.news();
+            drop(i);
+            if !notices.is_empty() || !values.is_empty() || !flushed.is_empty() {
+                self.send(
+                    &Message::News {
+                        instance: n,
+                        notices,
+                        values,
+                        flushed,
+                    },
+                    &[],
+                );
+            }
         }
         cantus_host::clap::collect_garbage();
         // Snapshots the processing threads no longer hold are freed here, not there.
         self.table.collect();
     }
 
-    fn flush(&mut self) {
+    fn flush(&self) {
         let _ = out_lock(&self.out).flush();
     }
+}
+
+/// Ends instance `n` on this thread, as a call into it — a crash in its destructor is its
+/// own (review isolation-4 #2, #45, #56) — and only then forgets its libraries.
+fn end(n: u32, inst: Instance) {
+    {
+        let _at = crate::platform::blame::calling(n);
+        inst.finish();
+    }
+    crate::platform::blame::forget_instance(n);
 }
 
 /// The instance a call names (Load and Unload included).
@@ -392,7 +481,7 @@ fn instance_of(call: &Call) -> Option<u32> {
         | Call::CloseEditor { instance }
         | Call::FocusEditor { instance }
         | Call::ResizeEditor { instance, .. } => Some(*instance),
-        Call::Hello { .. } | Call::Quit => None,
+        Call::Hello { .. } | Call::Surface | Call::Quit => None,
     }
 }
 
@@ -409,61 +498,120 @@ fn waits_for_main_loop(call: &Call) -> bool {
     )
 }
 
-/// Whether a call waits for the main loop, from a loop nested in `inside`'s code (0: not
-/// known whose): Quit always; a call that ends or replaces the instance whose code runs
-/// the loop (any, when not known); and any later call on an instance that already has one
-/// waiting, in its order. Calls on the other instances are served (review #4, #17, #44).
-fn must_wait(call: &Call, inside: u32, waiting: &VecDeque<(Request, Vec<u8>)>) -> bool {
-    if matches!(call, Call::Quit) {
-        return true;
-    }
-    let named = instance_of(call);
-    if let Some(n) = named {
-        if waiting.iter().any(|(r, _)| instance_of(&r.call) == Some(n)) {
-            return true;
-        }
-    }
-    waits_for_main_loop(call) && (inside == 0 || named == Some(inside))
+/// How a call that arrives in a loop nested in a plug-in's code is served.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hold {
+    /// Now, from the loop.
+    Serve,
+    /// Held for the main loop, on purpose, and Cantus told (`Message::Deferred`): it ends
+    /// or replaces the instance whose code runs the loop, or the process.
+    Held,
+    /// Queued behind its instance's call in progress further out (a plug-in's dialog, or a
+    /// long state that pumps), and Cantus told (`Message::Behind`): it waits for it as for
+    /// any call ahead of it — from when it starts — unless that call runs past its own
+    /// limit (review isolation-4 #1, #54).
+    Behind,
 }
 
-/// The main thread's state: the server, the requests, those kept for the main loop.
+/// How a call is served from a loop nested in `inside`'s code (0: not known whose): Quit
+/// is held; a call that ends or replaces the instance whose code runs the loop (any, when
+/// not known) is held; a call on an instance a frame further out is calling into (`busy`)
+/// waits behind it; a later call on an instance that already has one waiting waits as
+/// that one does, in its order. Calls on the other instances are served (review #4, #17,
+/// #44; isolation-4 #54).
+fn must_wait(
+    call: &Call,
+    inside: u32,
+    waiting: &VecDeque<(Request, Vec<u8>, Hold)>,
+    busy: impl Fn(u32) -> bool,
+) -> Hold {
+    if matches!(call, Call::Quit) {
+        return Hold::Held;
+    }
+    let named = instance_of(call);
+    if waits_for_main_loop(call) && (inside == 0 || named == Some(inside)) {
+        return Hold::Held;
+    }
+    if let Some(n) = named {
+        if let Some((_, _, hold)) = waiting
+            .iter()
+            .rev()
+            .find(|(r, _, _)| instance_of(&r.call) == Some(n))
+        {
+            return *hold;
+        }
+        if busy(n) {
+            return Hold::Behind;
+        }
+    }
+    Hold::Serve
+}
+
+/// The main thread's state: the server, the requests, those kept for the main loop. Used
+/// through a shared reference, so a loop nested in a call (the pulse) serves too.
 struct Here {
     server: Server,
     rx: mpsc::Receiver<Option<(Request, Vec<u8>)>>,
-    deferred: VecDeque<(Request, Vec<u8>)>,
-    quit: bool,
+    deferred: RefCell<VecDeque<(Request, Vec<u8>, Hold)>>,
+    quit: Cell<bool>,
 }
 
 impl Here {
     /// Serves what waits. `nested`: from a message loop inside a plug-in's code — calls
-    /// that end or replace an instance, and every one after them, wait for the main loop.
-    fn serve(&mut self, nested: bool) {
-        if !nested {
-            while let Some((req, blob)) = self.deferred.pop_front() {
+    /// that end or replace an instance, calls on an instance in use further out, and every
+    /// one after them, wait for the main loop.
+    fn serve(&self, nested: bool) {
+        loop {
+            if self.quit.get() {
+                return;
+            }
+            let held = if nested {
+                // A call queued behind its instance's call that has ended since.
+                self.free_behind()
+            } else {
+                self.deferred
+                    .borrow_mut()
+                    .pop_front()
+                    .map(|(req, blob, _)| (req, blob))
+            };
+            if let Some((req, blob)) = held {
                 if self.server.handle(req, blob).is_none() {
-                    self.quit = true;
+                    self.quit.set(true);
                     return;
                 }
+                continue;
             }
-        }
-        loop {
             match self.rx.try_recv() {
                 Ok(Some((req, blob))) => {
-                    let inside = crate::platform::blame::current();
-                    if nested && must_wait(&req.call, inside, &self.deferred) {
-                        // Held on purpose: not late while this process lives.
-                        self.server.send(&Message::Deferred { id: req.id }, &[]);
-                        self.deferred.push_back((req, blob));
+                    let hold = if nested {
+                        let inside = crate::platform::blame::current();
+                        let deferred = self.deferred.borrow();
+                        must_wait(&req.call, inside, &deferred, |n| self.server.busy(n))
+                    } else {
+                        Hold::Serve
+                    };
+                    if hold != Hold::Serve {
+                        let id = req.id;
+                        self.server.send(
+                            &if hold == Hold::Held {
+                                // Held on purpose: not late while this process lives.
+                                Message::Deferred { id }
+                            } else {
+                                Message::Behind { id }
+                            },
+                            &[],
+                        );
+                        self.deferred.borrow_mut().push_back((req, blob, hold));
                         continue;
                     }
                     if self.server.handle(req, blob).is_none() {
-                        self.quit = true;
+                        self.quit.set(true);
                         return;
                     }
                 }
                 Ok(None) | Err(mpsc::TryRecvError::Disconnected) => {
                     // Cantus is gone.
-                    self.quit = true;
+                    self.quit.set(true);
                     return;
                 }
                 Err(mpsc::TryRecvError::Empty) => return,
@@ -472,25 +620,47 @@ impl Here {
     }
 }
 
-thread_local! {
-    static HERE: RefCell<Option<Here>> = const { RefCell::new(None) };
-}
-
-/// The pulse (`platform::start_pulse`): progress, and — when the main thread is in a
-/// message loop of a plug-in's, not inside one of the server's own calls — the calls that
-/// wait.
-fn pulse() {
-    PROGRESS.fetch_add(1, Ordering::Relaxed);
-    HERE.with(|h| {
-        if let Ok(mut h) = h.try_borrow_mut() {
-            if let Some(here) = h.as_mut() {
-                if !here.quit {
-                    here.serve(true);
-                    here.server.flush();
-                }
+impl Here {
+    /// The first call queued behind an instance that is no longer busy, and first in its
+    /// instance's order: it may be served from a nested loop.
+    fn free_behind(&self) -> Option<(Request, Vec<u8>)> {
+        let mut d = self.deferred.borrow_mut();
+        let mut seen: Vec<u32> = Vec::new();
+        for i in 0..d.len() {
+            let Some(n) = instance_of(&d[i].0.call) else {
+                continue;
+            };
+            if seen.contains(&n) {
+                continue;
+            }
+            seen.push(n);
+            if d[i].2 == Hold::Behind && !self.server.busy(n) {
+                return d.remove(i).map(|(r, b, _)| (r, b));
             }
         }
-    });
+        None
+    }
+}
+
+thread_local! {
+    static HERE: RefCell<Option<Rc<Here>>> = const { RefCell::new(None) };
+}
+
+fn here() -> Option<Rc<Here>> {
+    HERE.try_with(|h| h.borrow().clone()).ok().flatten()
+}
+
+/// The pulse (`platform::start_pulse`): progress, and — from any message loop the main
+/// thread is in inside a plug-in's code, one of the server's own calls included — the
+/// calls that may be served there.
+fn pulse() {
+    PROGRESS.fetch_add(1, Ordering::Relaxed);
+    if let Some(here) = here() {
+        if !here.quit.get() {
+            here.serve(true);
+            here.server.flush();
+        }
+    }
 }
 
 /// Says *alive* every [`ALIVE`] while the main thread makes progress.
@@ -595,7 +765,7 @@ fn on_instance(
 
 /// Serves until Cantus says Quit or its pipe closes; returns the exit code. `lobby` names
 /// the shared region (and bell) Cantus made for this helper's threads.
-pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
+pub fn run(pipes: Pipes, group: &str, lobby: &str, threads: Option<usize>) -> i32 {
     let _ = group;
     cantus_host::mark_main_thread();
     let Ok(lobby_mem) =
@@ -624,6 +794,12 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
         &*(lobby_mem
             .as_ptr()
             .add(cantus_host::bridge::sandbox::CRASH_AT) as *const AtomicU32)
+    };
+    // SAFETY: as for `main_at`; the processing threads write it, Cantus reads it.
+    let jobs_done: &'static AtomicU32 = unsafe {
+        &*(lobby_mem
+            .as_ptr()
+            .add(cantus_host::bridge::sandbox::JOBS_DONE) as *const AtomicU32)
     };
     crate::platform::blame::install(crash_at, main_at);
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
@@ -661,57 +837,140 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
     }
     let server = Server {
         out,
-        instances: HashMap::new(),
+        instances: RefCell::new(HashMap::new()),
+        leaving: RefCell::new(Vec::new()),
         table: Arc::new(Table::default()),
         bell: Arc::new(bell),
         stop: Arc::new(AtomicBool::new(false)),
-        threads: Vec::new(),
-        max_threads: cores.saturating_sub(2).clamp(1, 8),
+        threads: RefCell::new(Vec::new()),
+        max_threads: threads.unwrap_or_else(|| cores.saturating_sub(2).clamp(1, 8)),
+        jobs_done,
     };
-    HERE.with(|h| {
-        *h.borrow_mut() = Some(Here {
-            server,
-            rx,
-            deferred: VecDeque::new(),
-            quit: false,
-        })
+    let here = Rc::new(Here {
+        server,
+        rx,
+        deferred: RefCell::new(VecDeque::new()),
+        quit: Cell::new(false),
     });
+    HERE.with(|h| *h.borrow_mut() = Some(here.clone()));
     crate::platform::start_pulse(pulse);
     let mut last_tick = Instant::now();
     loop {
         wake.wait(TICK);
         PROGRESS.fetch_add(1, Ordering::Relaxed);
-        let quit = HERE.with(|h| {
-            let mut g = h.borrow_mut();
-            let Some(here) = g.as_mut() else {
-                return true;
-            };
-            here.serve(false);
-            if !here.quit && last_tick.elapsed() >= TICK {
-                last_tick = Instant::now();
-                here.server.tick();
-            }
-            here.server.flush();
-            here.quit
-        });
-        if quit {
-            if let Some(here) = HERE.with(|h| h.borrow_mut().take()) {
-                finish(here.server);
-            }
+        here.serve(false);
+        if !here.quit.get() && last_tick.elapsed() >= TICK {
+            last_tick = Instant::now();
+            here.server.tick();
+        }
+        here.server.end_leaving();
+        here.server.flush();
+        if here.quit.get() {
+            HERE.with(|h| h.borrow_mut().take());
+            finish(&here.server);
             return 0;
         }
     }
 }
 
-fn finish(mut server: Server) {
-    let ids: Vec<u32> = server.instances.keys().copied().collect();
+fn finish(server: &Server) {
+    let ids: Vec<u32> = server.instances.borrow().keys().copied().collect();
     for id in ids {
         server.unload(id);
     }
+    server.end_leaving();
     server.stop.store(true, Ordering::Release);
     server.bell.bell().ring();
-    for t in server.threads.drain(..) {
+    for t in server.threads.borrow_mut().drain(..) {
         let _ = t.join();
     }
     server.flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn held(id: u64, call: Call, hold: Hold) -> (Request, Vec<u8>, Hold) {
+        (Request { id, call }, Vec::new(), hold)
+    }
+
+    /// What a loop nested in a plug-in's code serves (review isolation-4 #31, #54): the
+    /// safety half — an instance is never ended or replaced under its own code, nor called
+    /// into while a call of its is under way further out — and the other half: everything
+    /// else is served at once.
+    #[test]
+    fn what_a_nested_loop_serves() {
+        let none = VecDeque::new();
+        let free = |_: u32| false;
+        // Quit: always held.
+        assert_eq!(must_wait(&Call::Quit, 0, &none, free), Hold::Held);
+        // Not known whose loop: every call that ends or replaces an instance is held...
+        assert_eq!(
+            must_wait(&Call::Unload { instance: 2 }, 0, &none, free),
+            Hold::Held
+        );
+        // ...the others are served.
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 0, &none, free),
+            Hold::Serve
+        );
+        // A's window's loop: A's ending calls held, B's served, A's others served.
+        assert_eq!(
+            must_wait(&Call::CloseEditor { instance: 1 }, 1, &none, free),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::Restart { instance: 1 }, 1, &none, free),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::Unload { instance: 2 }, 1, &none, free),
+            Hold::Serve
+        );
+        assert_eq!(
+            must_wait(&Call::DropAudio { instance: 2 }, 1, &none, free),
+            Hold::Serve
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 1 }, 1, &none, free),
+            Hold::Serve
+        );
+        // A call of A's under way further out (its dialog inside a load): A's calls wait
+        // behind it, B's are served.
+        let busy = |n: u32| n == 1;
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 1 }, 1, &none, busy),
+            Hold::Behind
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 1, &none, busy),
+            Hold::Serve
+        );
+        // A call waiting: later ones on its instance wait as it does, in its order.
+        let waiting = VecDeque::from([held(7, Call::CloseEditor { instance: 1 }, Hold::Held)]);
+        assert_eq!(
+            must_wait(
+                &Call::OpenEditor {
+                    instance: 1,
+                    title: String::new()
+                },
+                1,
+                &waiting,
+                free
+            ),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 1, &waiting, free),
+            Hold::Serve
+        );
+        let behind = VecDeque::from([held(8, Call::SaveState { instance: 1 }, Hold::Behind)]);
+        assert_eq!(
+            must_wait(&Call::Params { instance: 1 }, 1, &behind, free),
+            Hold::Behind
+        );
+        // Bringing a dialog forward: never held.
+        assert_eq!(must_wait(&Call::Surface, 1, &none, |_| true), Hold::Serve);
+    }
 }

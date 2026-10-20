@@ -27,6 +27,8 @@ enum Act {
     Dismiss(usize),
     UseDefault,
     Plugin(plugin_notice::Answer),
+    /// A plug-in waiting on a window of its own (round 29, review isolation-4 #54).
+    Waiting(plugin_notice::Target, plugin_notice::WaitAnswer),
     /// A render's Stop, a refused edit's Unfreeze (round 29, ADR 0064).
     Freeze(super::freeze_view::Answer),
 }
@@ -133,6 +135,28 @@ fn plugin_card(app: &CantusApp) -> Option<Card> {
     })
 }
 
+/// The card of a plug-in waiting on a window of its own, while one does.
+fn waiting_card(app: &CantusApp) -> Option<Card> {
+    let c = plugin_notice::waiting_card(app)?;
+    let target = c.target;
+    Some(Card {
+        id: ("waiting", 0),
+        name: Some(c.name),
+        title: c.title,
+        body: c.body,
+        tok: Tok::Focus,
+        art: Art::Plugin,
+        buttons: c
+            .buttons
+            .into_iter()
+            .map(|(l, a)| (l, Act::Waiting(target, a)))
+            .collect(),
+        close: Act::Waiting(target, plugin_notice::WaitAnswer::Dismiss),
+        tip: None,
+        audio: None,
+    })
+}
+
 /// The freeze card (round 29, ADR 0064), when a render runs or an edit was refused.
 fn freeze_card(app: &CantusApp) -> Option<Card> {
     let (title, body, buttons, close) = super::freeze_view::card(app)?;
@@ -158,6 +182,7 @@ fn freeze_card(app: &CantusApp) -> Option<Card> {
 /// never over it.
 fn stack(app: &CantusApp, ctx: &egui::Context, s: &Style) -> Vec<(Card, Rect)> {
     let mut cards: Vec<Card> = plugin_card(app).into_iter().collect();
+    cards.extend(waiting_card(app));
     cards.extend(freeze_card(app));
     cards.extend(audio_cards(app).into_iter().rev());
     let k = s.k;
@@ -235,6 +260,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         }
         Some(Act::Dismiss(_)) => {}
         Some(Act::Plugin(a)) => plugin_notice::answer(app, a),
+        Some(Act::Waiting(target, a)) => plugin_notice::answer_waiting(app, target, a),
         Some(Act::Freeze(a)) => super::freeze_view::answer(app, a),
         None => {}
     }
