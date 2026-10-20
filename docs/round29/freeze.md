@@ -63,7 +63,23 @@ No golden moved; `DSP_VERSION` unchanged.
 
 ## Tests and what each holds
 
-See ADR 0064 §Tests. Counts are in the runs below.
+See ADR 0064 §Tests for what each holds. The final run, after merging `r29/integration`
+at bef6f62 (warp and controllers), all `--no-fail-fast`, 0 failed:
+
+| crate | passed |
+|---|---|
+| `cantus-core` | 339 |
+| `cantus-project` | 74 |
+| `cantus-engine` | 745 |
+| `cantus-engine --features fuzz` (`CANTUS_WORKERS=3`) | 749 |
+| `cantus-host` | 73 |
+| `cantus-sandbox` (`CANTUS_TEST_PLUGINS_PREBUILT=1`) | 19 |
+| `cantus-ui` | 1 342 |
+
+`cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all -- --check`
+clean. `shoot_freeze` renders 98 PNGs to `F:\projects\daw-r29\shotsreeze\` (arrangement,
+mixer, menu, inspector of a synth and of a voice, the record popover, the cards, a render
+in progress, a narrow window; night and paper, English and Spanish, 75/100/200 %).
 
 ## Files outside my area (additive)
 
@@ -101,7 +117,12 @@ voice through Tonus with low-latency monitoring on, with real hardware.
 - **Warp** (merged here at 5c17c80): `SetClipWarp` is classified (`clip_touches`); the
   warp is in the subject (it is in `AudioRegion`); freeze and bounce renders wait for the
   warp renders (`compile_for_render`); `a_frozen_strip_with_a_warped_clip_plays_its_render_to_the_bit`.
-- **Keymap 9**: four actions appended to `NEW_IN_V9`.
+- **Controllers** (merged here at bef6f62): `InsertMapping`, `RemoveMapping`, `SetMapping`
+  are classified `vec![]` in `freeze_guard::touches` (a mapping moves no sound; the
+  parameter it moves is its own command, guarded as such); the undo fuzz keeps both
+  counters (`mappings`, `froze`).
+- **Keymap 9**: four actions appended to `NEW_IN_V9` after controllers' (`ALL` 95,
+  `NEW_IN_V9` 13).
 - **Known issues** retired: none listed; the manual §14 *Performance* line may add "or
   freeze heavy tracks (§6)".
 - `freeze::Locks::of` runs per guarded command while anything is frozen: cheap (a walk
