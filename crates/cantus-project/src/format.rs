@@ -793,13 +793,16 @@ fn migrate_31_to_32(value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schemas 34–35 belong to round 29's warp and controllers builders; until they merge
-/// they are placeholders that write nothing, replaced by theirs at the merge.
+/// Schema 34 (round 29, ADR 0061): an audio clip may carry a warp (`AudioRegion::warp`:
+/// its markers, mode, transposition and tempo). An older build must refuse such a file,
+/// not play the clip at its natural speed; no older project holds one, so the step writes
+/// nothing — a clip without a warp plays as it always did.
 fn migrate_33_to_34(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Placeholder (round 29): see [`migrate_33_to_34`].
+/// Schema 35 belongs to round 29's controllers builder; until it merges it is a
+/// placeholder that writes nothing, replaced by theirs at the merge.
 fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
@@ -1187,6 +1190,31 @@ mod tests {
             new.contains(&("Exemplar in order".to_string(), 1.0)),
             "{new:?}"
         );
+    }
+
+    /// Schema 34 (round 29, ADR 0061): the vocal's window keeps its warp — markers, mode,
+    /// transposition, what was detected — and an older file's clips have none.
+    #[test]
+    fn schema_34_keeps_the_warp() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let warp = |name: &str| {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            let vocal = p.tracks.iter().find(|t| t.name == "Vocal").unwrap().clone();
+            vocal
+                .clips
+                .iter()
+                .filter(|c| c.lane == 0)
+                .find_map(|c| c.audio.as_ref().and_then(|a| a.warp.clone()))
+        };
+        let w = warp("v34.cantus").expect("a warped window");
+        assert!(w.is_valid());
+        assert_eq!(w.mode, cantus_core::warp::WarpMode::Melodic);
+        assert_eq!(w.cents, -300);
+        assert_eq!(w.markers.len(), 2);
+        assert_eq!(w.markers[1].tick, Ticks::beats(2) + Ticks(120));
+        assert!(w.detected.is_some() && w.formants && w.follow);
+        assert!(warp("v32.cantus").is_none());
     }
 
     /// Schema 31 (round 28, review 2): the vocal's second note was set by *Correct pitch*

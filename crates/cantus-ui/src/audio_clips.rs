@@ -115,10 +115,34 @@ pub fn normalize_gain(peak: f32) -> Option<f32> {
 /// The frames a clip's window shows: from where to where in the file (the region's fine
 /// offset included, scaled from the source's rate to `rate`).
 pub fn window_frames(project: &Project, clip: &Clip, rate: u32) -> (f64, f64) {
+    // A warped clip reads its window through its warp (ADR 0061).
+    if let Some((w, s)) = warp_of(clip).zip(source_of(project, clip)) {
+        let k = rate as f64 / s.sample_rate.max(1) as f64;
+        let a = w.frame_at(clip.offset.0 as f64) * k;
+        let b = w.frame_at((clip.offset + clip.length).0 as f64) * k;
+        return (a, b);
+    }
     let slip = slip_at(project, clip, rate);
     let a = frame_at(project, clip, rate, clip.offset) + slip;
     let b = frame_at(project, clip, rate, clip.offset + clip.length) + slip;
     (a, b)
+}
+
+/// The warp a clip plays through (one that follows the tempo), if any.
+pub fn warp_of(clip: &Clip) -> Option<&cantus_core::warp::Warp> {
+    clip.audio
+        .as_ref()
+        .and_then(|a| a.warp.as_deref())
+        .filter(|w| w.follow)
+}
+
+/// The whole file's length in the clip's content ticks: through its warp when it is warped
+/// (ADR 0061), at natural speed otherwise.
+pub fn content_len(project: &Project, clip: &Clip, s: &AudioSource) -> Ticks {
+    match warp_of(clip) {
+        Some(w) => cantus_core::audio_time::warped_length(w, s.frames as f64),
+        None => source_ticks(project, clip, s),
+    }
 }
 
 /// An audio clip's fine offset (`AudioRegion::slip_frames`, in its source's frames) in
@@ -181,7 +205,7 @@ pub fn clamp_edit(project: &Project, clip: &Clip, edit: WindowEdit, delta: Ticks
     let (Some(a), Some(s)) = (clip.audio.as_ref(), source_of(project, clip)) else {
         return delta;
     };
-    let len = source_ticks(project, clip, s);
+    let len = content_len(project, clip, s);
     let (o, l) = (clip.offset, clip.length);
     let room_after = (len - o - l).max(Ticks::ZERO); // file left after the window
     let (lo, hi) = match (edit, a.reverse) {
@@ -264,7 +288,9 @@ pub fn glue(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
             && na.slip_frames == a.slip_frames
             // Round 28 (ADR 0054): one clip, one pitch edit; halves edited apart are not
             // glued (one half's corrections would be lost).
-            && na.pitch == a.pitch;
+            && na.pitch == a.pitch
+            // Round 29 (ADR 0061): one warp — the same markers read both halves alike.
+            && na.warp == a.warp;
         if !same || n.start != p.end() || n.lane != p.lane {
             return None;
         }

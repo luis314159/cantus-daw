@@ -274,6 +274,9 @@ pub struct CantusApp {
     pub pitch: crate::pitch::PitchUi,
     /// Freezing and bouncing in place (round 29, ADR 0064): the renders, their queue.
     pub freeze: crate::freeze::FreezeState,
+    /// Warping (round 29, ADR 0061): imports waiting for their analysis, the selected
+    /// marker, the quantise dialog, the warp editor, a bounce on its way.
+    pub warp: crate::warp::WarpUi,
 }
 
 impl CantusApp {
@@ -438,6 +441,11 @@ impl CantusApp {
             .samples
             .pitch()
             .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
+        // Warping's analyses (transients, tempo, grid) beside them (round 29, ADR 0061).
+        app.engine
+            .samples
+            .warp()
+            .set_disk_cache(Some(directories_fallback().join("cache").join("warp")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
@@ -598,6 +606,7 @@ impl CantusApp {
             merge_job: None,
             pitch: Default::default(),
             freeze: Default::default(),
+            warp: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -2163,6 +2172,10 @@ impl CantusApp {
     /// Apply a finished drag from the arrangement. One batch, one undo step, whatever the
     /// pointer did on the way there.
     pub fn commit_clip_drag(&mut self, anchor: ClipRef, result: ClipDragResult) {
+        // Alt-drag of an audio clip's right edge stretches it (round 29, ADR 0061).
+        if self.warp_stretch_drag(anchor, result) {
+            return;
+        }
         let sel = self.clip_selection();
         let link = self.settings.link_copies;
         let (commands, made) = self.with_ids(|project, ids| {
@@ -3165,6 +3178,10 @@ impl CantusApp {
         if self.pitch_action(action) {
             return;
         }
+        // A selected warp marker takes Del (round 29, ADR 0061).
+        if self.warp_action(action) {
+            return;
+        }
         // Round 29 (ADR 0060): markers and the tempo track.
         if self.tempo_action(action) {
             return;
@@ -3649,6 +3666,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
+        views::warp_quantise::frame(self, ctx);
         views::modulator::popup::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
@@ -3718,6 +3736,10 @@ impl CantusApp {
         self.poll_merge();
         // Freezes and bounces rendering (round 29, ADR 0064).
         crate::freeze::tick(self, ctx);
+        // Imports waiting for their analysis, a warped bounce being written (ADR 0061).
+        if self.poll_warp() {
+            ticker::wake_after(ctx, Duration::from_millis(50));
+        }
         if self.modulators.pending_bake.is_some() || self.merge_job.is_some() {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }

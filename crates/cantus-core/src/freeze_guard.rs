@@ -169,6 +169,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetClipMute { track, clip, .. }
         | SetClipAudio { track, clip, .. }
         | SetClipPitch { track, clip, .. }
+        // A warped clip's render plays in place of its source (ADR 0061).
+        | SetClipWarp { track, clip, .. }
         | SetClipLane { track, clip, .. }
         | SetClipComp { track, clip, .. }
         | InsertNotes { track, clip, .. }

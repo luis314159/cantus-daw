@@ -147,6 +147,7 @@ pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
         | Command::SetClipAudio { clip, .. }
         | Command::SetClipAutomation { clip, .. }
         | Command::SetClipPitch { clip, .. }
+        | Command::SetClipWarp { clip, .. }
         | Command::SetClipName { clip, .. }
         | Command::SetClipColor { clip, .. }
         | Command::SetClipContent { clip, .. } => *clip == id,

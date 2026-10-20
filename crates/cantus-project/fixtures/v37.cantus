@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 37,
   "app_version": "fixture",
-  "saved_at": 1792471759,
+  "saved_at": 1792477513,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -1000,6 +1000,27 @@
                   }
                 ],
                 "bypass": true
+              },
+              "warp": {
+                "rate": 48000,
+                "mode": "Melodic",
+                "bpm": 96.0,
+                "markers": [
+                  {
+                    "frame": 0.0,
+                    "tick": 0
+                  },
+                  {
+                    "frame": 60000.0,
+                    "tick": 2040
+                  }
+                ],
+                "cents": -300,
+                "detected": {
+                  "bpm": 96.0,
+                  "confidence": 0.4,
+                  "downbeat": 0.0
+                }
               }
             },
             "link": 54,
@@ -2770,5 +2791,5 @@
     ],
     "next_id": 89
   },
-  "integrity": "1f2857f0a487e0dd3223913353709611ee478c4f45c4360ad18f30e409fdb8cf"
+  "integrity": "45a6d03518933646ac5f65cee837ef32f4e77f0a0b6ac258a1b83f4c44b1f565"
 }

@@ -555,3 +555,63 @@ fn a_frozen_mix_is_the_live_one_before_compensation_too() {
     freeze_now(&mut h, &mut p, FreezeTarget::Strip(lead));
     same_bits(&raw(&mut h, &p), &live, "uncompensated");
 }
+
+#[test]
+fn a_frozen_strip_with_a_warped_clip_plays_its_render_to_the_bit() {
+    use cantus_core::warp::Warp;
+    let mut h = handle("warp");
+    let dir = folder("warp-src");
+    let path = dir.join("loop.wav");
+    let m = cantus_dsp::beat::testkit::drum_loop(48_000.0, 100.0, 2, 0.0, 0.0, 8);
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(&path, spec).unwrap();
+    for s in &m.audio {
+        w.write_sample(*s).unwrap();
+    }
+    w.finalize().unwrap();
+    let mut p = Project::new("warped");
+    p.tempo_bpm = 120.0;
+    let mut t = p.make_track("Loop");
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "loop".into(),
+        path: path.to_string_lossy().into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: m.audio.len() as u64,
+        sha256: None,
+        recorded: false,
+    });
+    let warp = Warp::identity(48_000, 100.0, 0)
+        .add_marker(Ticks::beats(4))
+        .unwrap()
+        .move_marker(1, Ticks::beats(3));
+    let mut c = p.make_audio_clip("loop", id, Ticks::ZERO, Ticks::beats(8));
+    c.audio.as_mut().unwrap().warp = Some(Box::new(warp));
+    t.clips.push(c);
+    p.tracks.push(t);
+    let s = p.tracks[0].strip.unwrap();
+    let comp = p.make_effect(EffectKind::Compressor);
+    p.strip_mut(s).unwrap().effects.push(comp);
+    let live = mix(&mut h, &p, 512);
+    let target = FreezeTarget::Strip(s);
+    let before = freeze::content_key(&p, target).unwrap();
+    freeze_now(&mut h, &mut p, target);
+    same_bits(&mix(&mut h, &p, 512), &live, "warped, frozen");
+    // The warp is in what makes the sound: moving a marker moves the key.
+    let mut q = p.clone();
+    freeze::thaw(&mut q);
+    q.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(
+        Warp::identity(48_000, 100.0, 0)
+            .add_marker(Ticks::beats(4))
+            .unwrap()
+            .move_marker(1, Ticks::beats(2)),
+    ));
+    assert_ne!(freeze::content_key(&q, target).unwrap(), before);
+}

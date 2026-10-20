@@ -67,7 +67,7 @@ fn song() -> Project {
     let tonus = p.make_effect(EffectKind::AutoTune);
     p.strip_mut(voice).unwrap().effects.push(tonus);
     let mut eq = p.make_effect(EffectKind::Eq);
-    eq.spec.set("mode", 2.0).ok();
+    let _ = eq.spec.set("mode", 2.0);
     p.strip_mut(voice).unwrap().effects.push(eq);
     for target in [
         FreezeTarget::Strip(lead),

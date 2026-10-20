@@ -56,6 +56,7 @@ pub mod theme;
 pub mod theme_family;
 pub mod verse;
 pub mod views;
+pub mod warp;
 pub mod waveform;
 pub mod widgets;
 pub mod window_icon;
