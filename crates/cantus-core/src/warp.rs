@@ -111,6 +111,26 @@ pub struct WarpMarker {
     /// A frame of the source at its own rate (fractions kept).
     pub frame: f64,
     pub tick: Ticks,
+    /// Laid by the warp itself, never by the user (schema 39, round 29's second review): a
+    /// sample of the tempo curve a first warp edit keeps the clip on
+    /// ([`Warp::natural_of`] — every tempo point and, inside a ramp, as many as keep the
+    /// curve within a quarter of a frame). Never drawn, never grabbed, never removed by
+    /// hand; a **soft** point of the render map (the stretcher bends through it); a
+    /// user's marker moved past it carries it along (its place between the user's markers
+    /// either side scaled, so the curve keeps its shape).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto: bool,
+}
+
+impl WarpMarker {
+    /// A user's marker: `frame` heard at content tick `tick`.
+    pub fn at(frame: f64, tick: Ticks) -> Self {
+        WarpMarker {
+            frame,
+            tick,
+            auto: false,
+        }
+    }
 }
 
 /// What the analysis found in the source when it was warped (kept for the inspector and
@@ -155,6 +175,9 @@ pub struct Warp {
     pub detected: Option<Detected>,
 }
 
+fn is_false(b: &bool) -> bool {
+    !*b
+}
 fn is_zero(v: &i32) -> bool {
     *v == 0
 }
@@ -199,10 +222,8 @@ impl Warp {
     /// offset `slip_frames` in a marker on content tick 0): where every warp edit starts.
     pub fn identity(rate: u32, project_bpm: f64, slip_frames: i32) -> Self {
         let mut w = Warp::new(rate, project_bpm);
-        w.markers.push(WarpMarker {
-            frame: slip_frames as f64,
-            tick: Ticks::ZERO,
-        });
+        w.markers
+            .push(WarpMarker::at(slip_frames as f64, Ticks::ZERO));
         w
     }
 
@@ -302,6 +323,26 @@ impl Warp {
     }
 }
 
+/// The tempo `project` holds throughout, when it holds one (no tempo track, or one that
+/// never changes it): under it a following warp that maps as the unwarped clip does plays
+/// its source as it is.
+pub fn held_tempo(project: &crate::Project) -> Option<f64> {
+    (project.tempo_points.len() <= 1 || project.tempo_map().is_constant())
+        .then_some(project.tempo_bpm)
+}
+
+/// Whether region `a` plays its source as it is in a project holding `held`
+/// ([`held_tempo`]): no warp, a warp that neither follows nor transposes
+/// ([`Warp::natural`]), or one that maps exactly as the unwarped clip does under the tempo
+/// held ([`Warp::is_identity`]) — nothing rendered. One rule for the snapshot and the
+/// comp seams (round 29's second review: a seam dropped its crossfade on a window that
+/// played its source).
+pub fn plays_source(a: &crate::audio::AudioRegion, held: Option<f64>) -> bool {
+    a.warp
+        .as_ref()
+        .is_none_or(|w| w.natural() || held.is_some_and(|bpm| w.is_identity(bpm, a.slip_frames)))
+}
+
 /// What a warp edit did, for the undo menu (`cmd.warp.<id>`) and for merging a drag into
 /// one step.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -375,7 +416,10 @@ impl WarpOp {
 pub fn repair(project: &mut crate::Project) -> usize {
     let mut dropped = 0;
     for t in &mut project.tracks {
-        for c in &mut t.clips {
+        // The kept windows of its alternate comps too (round 29's second review: switching
+        // to such a comp was refused for good).
+        let windows = t.comps.iter_mut().flat_map(|c| c.windows.iter_mut());
+        for c in t.clips.iter_mut().chain(windows) {
             if let Some(a) = c.audio.as_mut() {
                 if a.warp.as_ref().is_some_and(|w| !w.is_valid()) {
                     a.warp = None;

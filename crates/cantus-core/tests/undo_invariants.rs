@@ -2516,7 +2516,12 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
             }
         }
         0 => {
-            let windows: Vec<&Clip> = lane0.iter().copied().filter(|c| seam_window(c)).collect();
+            let held = cantus_core::warp::held_tempo(project);
+            let windows: Vec<&Clip> = lane0
+                .iter()
+                .copied()
+                .filter(|c| seam_window(c, held))
+                .collect();
             let pair = windows
                 .windows(2)
                 .find(|w| w[0].start < w[1].start)
@@ -3029,13 +3034,74 @@ fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 op: WarpOp::Reset,
             };
         }
-        12 => (w.reset(), WarpOp::Reset),
+        12 if rng.below(2) == 0 => (w.reset(), WarpOp::Reset),
+        12 => {
+            // The natural warp a first edit starts from (its own markers on the tempo
+            // points and inside ramps), then one of its user's markers dragged across them
+            // (round 29's second review).
+            let n = Warp::natural_of(
+                &project.tempo_map(),
+                clip.start,
+                clip.offset,
+                clip.length,
+                slip,
+                rate,
+            );
+            let users: Vec<usize> = (0..n.markers.len())
+                .filter(|&k| !n.markers[k].auto)
+                .collect();
+            let k = users[rng.below(users.len() as u64) as usize];
+            let to = n.markers[k].tick + Ticks(rng.below(4 * 960) as i64 - 1_920);
+            (n.move_marker(k, to), WarpOp::Set)
+        }
         _ => {
             // Refused: a valid warp on a clip that is not audio, or an invalid warp — set
-            // by `SetClipWarp`, or carried in by `SetClipAudio` or `InsertClip` (round 29's
-            // review: every way in refuses it).
+            // by `SetClipWarp`, or carried in by `SetClipAudio`, `InsertClip`,
+            // `InsertTrack` or a kept comp window (round 29's reviews: every way in refuses
+            // it).
             let mut bad = w.clone();
             bad.bpm = 0.0;
+            match rng.below(5) {
+                3 => {
+                    let mut t = project.make_track(format!("W{}", project.next_id));
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    t.clips.push(c);
+                    return Command::InsertTrack {
+                        index: 0,
+                        track: Box::new(t),
+                    };
+                }
+                4 => {
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.lane = 0;
+                    c.comp = true;
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    let t = project.track(track).unwrap();
+                    let mut comps = t.comps.clone();
+                    if comps.is_empty() {
+                        comps.push(cantus_core::comp::Comp {
+                            name: "A".into(),
+                            windows: Vec::new(),
+                        });
+                    }
+                    let active = t.active_comp.min(comps.len().saturating_sub(1) as u8);
+                    comps.push(cantus_core::comp::Comp {
+                        name: "W".into(),
+                        windows: vec![c],
+                    });
+                    return Command::SetTrackComps {
+                        track,
+                        comps,
+                        active,
+                    };
+                }
+                _ => {}
+            }
             match rng.below(3) {
                 0 => {
                     let mut a = clip.audio.clone().unwrap();

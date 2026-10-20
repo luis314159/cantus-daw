@@ -38,6 +38,9 @@ pub struct AutoWarp {
     /// The import's undo step: the warp lands in it while it is still the newest.
     pub key: MergeKey,
     pub since: std::time::Instant,
+    /// The project it was imported into (round 29's second review: a job outliving it
+    /// never lands on another project's clip of the same ids).
+    pub epoch: u64,
 }
 
 /// Quantise audio's choices (the dialog remembers them).
@@ -75,9 +78,19 @@ pub struct WarpUi {
     pub bounce: Option<actions::Bounce>,
     /// Where on a clip its menu was opened (*Warp from here* starts there).
     pub menu_tick: Option<Ticks>,
-    /// A modulator bake waiting for renders on their way (`bake_route`).
-    pub pending_bake: Option<(cantus_core::ModulatorId, cantus_core::AutoTarget)>,
+    /// A modulator bake waiting for renders on their way (`bake_route`), and the project's
+    /// epoch when it was asked for.
+    pub pending_bake: Option<(cantus_core::ModulatorId, cantus_core::AutoTarget, u64)>,
+    /// A drag of a clip's tempo: the clip, the warp it started from and each window's
+    /// frame at its start then (`set_warp_tempo`: laid from these, nothing drifts).
+    pub(crate) relay: Option<Relay>,
+    /// The project epoch this state belongs to: another project (opened, replaced, undone
+    /// to) lets every job, selection and gesture go.
+    pub(crate) epoch: u64,
 }
+
+/// A tempo drag's start: the clip, the warp it started from, each window's frame then.
+pub(crate) type Relay = (ClipRef, Warp, Vec<(ClipRef, f64)>);
 
 /// Whether the analysis says the file is a loop to warp at once (ADR 0061 §4): no longer
 /// than [`AUTO_MAX_S`], a whole number of bars or an `acid` tempo, and a sure tempo.
@@ -184,6 +197,7 @@ impl CantusApp {
                 rate: s.sample_rate,
                 key,
                 since: std::time::Instant::now(),
+                epoch: self.epoch,
             });
         }
     }
@@ -191,9 +205,26 @@ impl CantusApp {
     /// Every frame: the imports whose analysis landed get the import rule. Returns whether
     /// one is still waiting (the window keeps ticking).
     pub fn poll_warp(&mut self) -> bool {
+        // Another project: nothing of the last one lands on it (round 29's second review).
+        if self.warp.epoch != self.epoch {
+            self.warp.epoch = self.epoch;
+            self.warp.auto.retain(|j| j.epoch == self.epoch);
+            self.warp.selected = None;
+            self.warp.menu_tick = None;
+            self.warp.relay = None;
+            self.warp.quantise_open = None;
+            if self
+                .warp
+                .pending_bake
+                .as_ref()
+                .is_some_and(|p| p.2 != self.epoch)
+            {
+                self.warp.pending_bake = None;
+            }
+        }
         self.poll_bounce();
         if self.warp.pending_bake.is_some() && !self.engine.samples.loading() {
-            if let Some((id, target)) = self.warp.pending_bake.take() {
+            if let Some((id, target, _)) = self.warp.pending_bake.take() {
                 self.bake_route(id, &target);
             }
         }
@@ -219,16 +250,35 @@ impl CantusApp {
             }
         }
         // The import's step is closed once its last file is settled — every loop of a
-        // many-file import joins it (round 29's review: the first one sealed it).
+        // many-file import joins it (round 29's review: the first one sealed it) — and only
+        // its own step (round 29's second review: a drag going on was split).
         for key in settled {
             if !self.warp.auto.iter().any(|j| j.key == key) {
-                self.end_gesture();
+                self.bus.end_gesture_if(key);
             }
         }
         !self.warp.auto.is_empty() || self.warp.bounce.is_some()
     }
 
+    /// After an offline render's compile (an export, a bounce, a freeze, a comp merge, a
+    /// bake): when renders were late since `before` (the engine's `renders_late`), the
+    /// file holds a warped clip's quick version (or a pitch edit's source) — said, never
+    /// silently written (round 29's second review).
+    pub fn say_late(&mut self, before: u64) {
+        if self.engine.renders_late() > before {
+            self.set_error(crate::i18n::t("warp.status.late"));
+        }
+    }
+
     fn land_auto_warp(&mut self, job: &AutoWarp, a: &Arc<Analysis>) {
+        // The clip still plays the file analysed (round 29's second review).
+        if job.epoch != self.epoch
+            || self
+                .pitch_source(job.r.0, job.r.1)
+                .is_none_or(|(_, path)| path != job.path)
+        {
+            return;
+        }
         let Some(commands) = auto_warp(self.project(), job.r, a) else {
             return;
         };
@@ -274,6 +324,27 @@ pub fn write_cents(out: &mut String, cents: i32) {
     };
 }
 
+/// A folder of its own under the data folder for the audio of the `.dawproject` named
+/// `name` (`imported audio/<file name>[ n]/`: never another import's, which an open project
+/// or the engine may still hold).
+pub fn media_dir(name: &str) -> std::path::PathBuf {
+    let stem = std::path::Path::new(name)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "import".into());
+    let root = crate::app::data_dir().join("imported audio");
+    (1..)
+        .map(|n| {
+            if n == 1 {
+                root.join(&stem)
+            } else {
+                root.join(format!("{stem} {n}"))
+            }
+        })
+        .find(|d| !d.exists())
+        .unwrap_or_else(|| root.join(&stem))
+}
+
 /// The audio files an imported `.dawproject` carries, written under the data folder in a
 /// folder of their own for this import (`imported audio/<file name>[ n]/`: never over
 /// another import's, which an open project or the engine may still hold — round 29's
@@ -284,28 +355,16 @@ pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &st
     if media.is_empty() {
         return failed;
     }
-    let stem = std::path::Path::new(name)
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "import".into());
-    let root = crate::app::data_dir().join("imported audio");
-    let dir = (1..)
-        .map(|n| {
-            if n == 1 {
-                root.join(&stem)
-            } else {
-                root.join(format!("{stem} {n}"))
-            }
-        })
-        .find(|d| !d.exists())
-        .unwrap_or_else(|| root.join(&stem));
+    let dir = media_dir(name);
+    let mut taken = std::collections::HashSet::new();
     for (inner, bytes) in media {
-        let file = dir.join(
-            std::path::Path::new(inner)
-                .file_name()
-                .unwrap_or_else(|| std::ffi::OsStr::new("audio.wav")),
-        );
-        let written = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, bytes));
+        // Its folders in the archive kept (round 29's second review: two entries of one
+        // name wrote one file).
+        let file = cantus_project::dawproject::media_path(&dir, inner, &mut taken);
+        let written = file
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|_| std::fs::write(&file, bytes));
         if written.is_err() {
             failed.push(inner.clone());
             continue;

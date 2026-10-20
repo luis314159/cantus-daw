@@ -12,10 +12,7 @@ fn warp() -> Warp {
     let per = SR as f64 * 60.0 / 92.0;
     let mut w = Warp::new(SR, 92.0);
     for (k, t) in [0i64, 960, 1_900, 2_880].iter().enumerate() {
-        w.markers.push(WarpMarker {
-            frame: k as f64 * per,
-            tick: Ticks(*t),
-        });
+        w.markers.push(WarpMarker::at(k as f64 * per, Ticks(*t)));
     }
     w
 }
@@ -334,12 +331,149 @@ fn the_natural_warp_plays_as_the_clip_plays_unwarped() {
         let t = start.0 as f64 + length.0 as f64 * k as f64 / 200.0;
         let want = crate::audio_time::frame_at(&map, start, offset, slip as f64, 48_000.0, t);
         let got = w.frame_at(t - origin);
-        // Exact where the tempo holds; inside the ramp, sampled every sixteenth: within
-        // half a millisecond.
-        let bound = if map.in_ramp(t) { 24.0 } else { 0.5 };
-        assert!((got - want).abs() < bound, "tick {t}: {got} against {want}");
+        // Within half a frame everywhere (round 29s second review: inside the ramp too).
+        assert!((got - want).abs() < 0.5, "tick {t}: {got} against {want}");
     }
     let one = TempoMap::constant(120.0, TimeSignature::default());
     let w = Warp::natural_of(&one, start, offset, length, slip, 48_000);
     assert!(w.is_identity(120.0, slip));
+}
+
+// --- Round 29's second review: the natural warp's own markers -------------------------
+
+/// A map holding 120 BPM, then a ramp from `from` to `to` BPM over `beats` beats from beat
+/// 8, then holding `to`.
+fn ramp_map(from: f64, to: f64, beats: i64) -> crate::tempo::TempoMap {
+    use crate::tempo::{TempoMap, TempoPoint};
+    use crate::time::TimeSignature;
+    TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: false,
+            },
+            TempoPoint {
+                tick: Ticks::beats(8),
+                bpm: from,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(8 + beats),
+                bpm: to,
+                ramp: false,
+            },
+        ],
+        &[],
+    )
+}
+
+/// Finding 37: a ramp's curve is kept within half a frame everywhere — steep ramps over a
+/// beat and over four, a slowing one, the gentle one of the first review — and only the
+/// window's ends and its content origin are the user's markers.
+#[test]
+fn a_natural_warp_keeps_steep_ramps_within_half_a_frame() {
+    for (from, to, beats) in [
+        (90.0, 140.0, 8),
+        (60.0, 180.0, 4),
+        (60.0, 180.0, 1),
+        (120.0, 60.0, 4),
+        (180.0, 60.0, 1),
+    ] {
+        let map = ramp_map(from, to, beats);
+        let (start, offset, length, slip) = (
+            Ticks::beats(6) + Ticks(97),
+            Ticks::beats(3),
+            Ticks::beats(beats + 6),
+            -21,
+        );
+        for rate in [44_100u32, 48_000, 96_000] {
+            let w = Warp::natural_of(&map, start, offset, length, slip, rate);
+            assert!(w.is_valid() && w.follow);
+            let user: Vec<_> = w.markers.iter().filter(|m| !m.auto).collect();
+            assert_eq!(user.len(), 3, "{from}->{to}/{beats}: {user:?}");
+            let origin = (start - offset).0 as f64;
+            let mut t = start.0 as f64;
+            while t <= (start + length).0 as f64 {
+                let want =
+                    crate::audio_time::frame_at(&map, start, offset, slip as f64, rate as f64, t);
+                let got = w.frame_at(t - origin);
+                assert!(
+                    (got - want).abs() < 0.5,
+                    "{from}->{to} over {beats} at {rate}: tick {t}: {got} against {want}"
+                );
+                t += 3.7;
+            }
+        }
+    }
+}
+
+/// Finding 18 (a): a user's marker dragged inside a ramp crosses the warp's own markers —
+/// they keep their frames and their share of the distance, none is dropped.
+#[test]
+fn a_marker_dragged_in_a_ramp_crosses_the_warps_own() {
+    let map = ramp_map(90.0, 150.0, 8);
+    let (start, offset, length) = (Ticks::beats(8), Ticks::ZERO, Ticks::beats(8));
+    let w = Warp::natural_of(&map, start, offset, length, 0, SR);
+    let autos = w.markers.iter().filter(|m| m.auto).count();
+    assert!(autos > 20, "{autos}");
+    let a = w.add_marker(Ticks::beats(4) + Ticks(13)).expect("a marker");
+    let i = a.marker_at(Ticks::beats(4) + Ticks(13)).unwrap();
+    assert!(!a.markers[i].auto);
+    // Two beats on: eight sixteenths, many of the warp's own markers.
+    let target = Ticks::beats(6) + Ticks(13);
+    let b = a.move_marker(i, target);
+    assert!(b.is_valid());
+    assert_eq!(b.markers[i].tick, target);
+    assert_eq!(b.markers[i].frame, a.markers[i].frame);
+    assert_eq!(b.markers.len(), a.markers.len());
+    assert_eq!(
+        b.markers.iter().filter(|m| m.auto).count(),
+        a.markers.iter().filter(|m| m.auto).count()
+    );
+    // The window ends never move.
+    for t in [0.0, 8.0 * 960.0] {
+        assert!((b.frame_at(t) - w.frame_at(t)).abs() < 1e-6, "tick {t}");
+    }
+    // Content slid under it too, carrying the warp's own along in order.
+    let c = b.move_content(i, b.markers[i].frame + 4_000.0);
+    assert!(c.is_valid());
+    assert_eq!(c.markers[i].tick, target);
+}
+
+/// Finding 18 (b): *Quantise audio* under a ramp puts every hit on its grid line exactly —
+/// never a tick off beside a sample of the curve with the audio squeezed into that tick.
+#[test]
+fn quantise_under_a_ramp_lands_every_hit_on_its_line() {
+    let map = ramp_map(80.0, 160.0, 16);
+    let (start, offset, length) = (Ticks::beats(8), Ticks::ZERO, Ticks::beats(16));
+    let w = Warp::natural_of(&map, start, offset, length, 0, SR);
+    // A hit 70 ticks after every other sixteenth line.
+    let hits: Vec<f64> = (1..32).map(|k| w.frame_at((k * 480 + 70) as f64)).collect();
+    let line = |t: f64| (t / 240.0).round() * 240.0;
+    let q = w.quantise_to(&hits, &line, 1.0, offset, offset + length);
+    assert!(q.is_valid());
+    for (k, f) in (1..).zip(&hits) {
+        let heard = q.tick_at(*f);
+        assert!(
+            (heard - (k * 480) as f64).abs() < 1e-6,
+            "hit {k}: heard at {heard}"
+        );
+    }
+}
+
+/// The warp's own markers are written only when they are (a user's marker's file is what it
+/// was), and read back.
+#[test]
+fn the_warps_own_markers_go_to_the_file() {
+    let map = ramp_map(90.0, 150.0, 8);
+    let w = Warp::natural_of(&map, Ticks::beats(8), Ticks::ZERO, Ticks::beats(8), 0, SR);
+    let text = serde_json::to_string(&w).unwrap();
+    assert!(text.contains("\"auto\":true"));
+    let back: Warp = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, w);
+    let user = serde_json::to_string(&WarpMarker::at(1.0, Ticks(2))).unwrap();
+    assert!(!user.contains("auto"), "{user}");
 }

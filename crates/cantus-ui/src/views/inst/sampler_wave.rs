@@ -253,13 +253,13 @@ pub fn waveform(
     });
     handle_drag(app, ui, &resp, rect, view, &handles, n, track, spec, audio);
     if resp.hovered() {
-        let (dy, ctrl) = ui
-            .ctx()
-            .input(|i| (i.smooth_scroll_delta.y, i.modifiers.ctrl));
-        if ctrl && dy != 0.0 {
+        // egui hands Ctrl+wheel over as its zoom factor, never a scroll (warp, round 29's
+        // second review: read as a scroll, the zoom never came).
+        let factor = ui.ctx().input(|i| i.zoom_delta());
+        if factor != 1.0 {
             if let Some(p) = resp.hover_pos() {
                 let at = frame_at(rect, view, p.x);
-                let k = if dy > 0.0 { 0.8 } else { 1.25 };
+                let k = if factor > 1.0 { 0.8 } else { 1.25 };
                 let span = ((view.1 - view.0) * k).clamp(64.0, frames.max(64.0));
                 let f = (at - view.0) / (view.1 - view.0);
                 let lo = (at - f * span).clamp(0.0, (frames - span).max(0.0));

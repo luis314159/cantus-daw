@@ -183,6 +183,13 @@ impl CommandBus {
         }
     }
 
+    /// Whether the step on top is `key`'s gesture, still open (a drag going on).
+    pub fn merging(&self, key: MergeKey) -> bool {
+        self.undo
+            .last()
+            .is_some_and(|top| top.merge_key == Some(key))
+    }
+
     /// Seal `key`'s gesture only: a gesture that ends on its own clock (a controller's)
     /// never seals another's (a mouse drag going on). Its step is sealed wherever it is —
     /// buried under another step, an undo bringing it back to the top must not let a later

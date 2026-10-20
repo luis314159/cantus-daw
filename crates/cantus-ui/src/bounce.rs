@@ -472,7 +472,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
         return Err(tf("freeze.file_missing", &[("file", &file)]));
     }
     crate::freeze::retry_back(app, &keep);
+    let late = app.engine.renders_late();
     let compiled = app.engine.compile_for_render(&alone, 0);
+    app.say_late(late);
     let mut snap = (*compiled).clone();
     freeze::isolate(&mut snap, &keep);
     let rate = app.engine.sample_rate.round() as u32;

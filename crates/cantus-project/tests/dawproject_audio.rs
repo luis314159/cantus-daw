@@ -243,3 +243,134 @@ fn an_external_file_is_found_next_to_the_archive() {
         "take.wav is nowhere"
     );
 }
+
+/// A tempo map: 128 BPM, 96 from beat 6, a ramp to 140 from beat 20 to 28.
+fn tempo_map(p: &mut Project) {
+    p.tempo_points = vec![
+        tempo::TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 128.0,
+            ramp: false,
+        },
+        tempo::TempoPoint {
+            tick: Ticks::beats(6),
+            bpm: 96.0,
+            ramp: false,
+        },
+        tempo::TempoPoint {
+            tick: Ticks::beats(20),
+            bpm: 96.0,
+            ramp: true,
+        },
+        tempo::TempoPoint {
+            tick: Ticks::beats(28),
+            bpm: 140.0,
+            ramp: false,
+        },
+    ];
+}
+
+/// Tempo's relay (finding 49): warp points on a clip's natural line through the tempo map —
+/// its content at natural speed from its content origin, across a tempo step and a ramp —
+/// come back as a clip at its natural speed, playing the same frames; and points timed in
+/// seconds are placed through the map from the clip's origin, not at one tempo.
+#[test]
+fn warp_points_on_the_natural_line_through_the_map_come_back_natural() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut before = project(dir.path());
+    tempo_map(&mut before);
+    // The loop moved under the step and the ramp, warped to follow from its natural warp.
+    let map = before.tempo_map();
+    let c = &mut before.tracks[0].clips[0];
+    c.start = Ticks::beats(4);
+    c.length = Ticks::beats(24);
+    c.offset = Ticks::beats(2);
+    let w = Warp::natural_of(&map, c.start, c.offset, c.length, 0, 44_100);
+    c.audio.as_mut().unwrap().warp = Some(Box::new(w));
+    let out = dawproject::export_with(&before, "0.1.0", Some(dir.path()));
+    let back = dawproject::import(&out.bytes).unwrap();
+    let (a, b) = (&before.tracks[0].clips[0], &back.project.tracks[0].clips[0]);
+    assert!(
+        b.audio.as_ref().unwrap().warp.is_none(),
+        "on its natural line through the map: natural speed"
+    );
+    for k in 0..24 {
+        let t = a.start + Ticks::beats(k);
+        let d = heard(&back.project, b, t) - heard(&before, a, t);
+        assert!(d.abs() <= 1.0, "beat {k}: {d:+} frames");
+    }
+    // The same points timed in seconds of the clip's content (timeUnit="seconds"): placed
+    // through the map from its origin, the same frames again.
+    let files = dawproject::zip::read(&out.bytes).unwrap();
+    let xml = String::from_utf8(files[0].1.clone()).unwrap();
+    let doc = roxmltree::Document::parse(&xml).unwrap();
+    let origin = (a.start - a.offset).0 as f64;
+    let mut secs = xml.clone();
+    for w in doc.descendants().filter(|n| n.has_tag_name("Warp")) {
+        let t: f64 = w.attribute("time").unwrap().parse().unwrap();
+        let s = map.seconds_between_f64(origin, origin + t * PPQ as f64);
+        let old = format!("<Warp time=\"{}\"", w.attribute("time").unwrap());
+        secs = secs.replacen(&old, &format!("<Warp time=\"{s}\""), 1);
+    }
+    secs = secs.replace(
+        "<Warps contentTimeUnit=\"seconds\"",
+        "<Warps timeUnit=\"seconds\" contentTimeUnit=\"seconds\"",
+    );
+    let mut z = dawproject::zip::ZipWriter::new();
+    for (name, data) in &files {
+        let data = if name == "project.xml" {
+            secs.as_bytes().to_vec()
+        } else {
+            data.clone()
+        };
+        z.add(name, &data, name.ends_with(".xml"));
+    }
+    let back = dawproject::import(&z.finish()).unwrap();
+    let b = &back.project.tracks[0].clips[0];
+    for k in 0..24 {
+        let t = a.start + Ticks::beats(k);
+        let d = heard(&back.project, b, t) - heard(&before, a, t);
+        assert!(d.abs() <= 1.0, "seconds, beat {k}: {d:+} frames");
+    }
+}
+
+/// Finding 34: a natural-speed clip looping from its play start, under a tempo change
+/// between its content origin and its start, comes back without a false "loop dropped".
+#[test]
+fn a_natural_loop_under_a_tempo_change_is_not_said_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut before = project(dir.path());
+    tempo_map(&mut before);
+    let c = &mut before.tracks[0].clips[1];
+    c.start = Ticks::beats(10);
+    c.offset = Ticks::beats(6);
+    c.length = Ticks::beats(8);
+    c.content_length = Some(Ticks::beats(2));
+    let out = dawproject::export_with(&before, "0.1.0", Some(dir.path()));
+    let back = dawproject::import(&out.bytes).unwrap();
+    assert!(
+        !back.report.has("interop.report.d_loop"),
+        "{:?}",
+        back.report
+    );
+    let b = &back.project.tracks[0].clips[1];
+    assert!(b.content_length.is_some(), "the loop kept");
+}
+
+/// Finding 35: an instrument set up on a track of audio goes with it (the track written as
+/// audio and notes), and comes back.
+#[test]
+fn an_audio_tracks_instrument_goes_with_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut before = project(dir.path());
+    before.tracks[0].instrument = InstrumentSpec::Pulsus(PulsusParams::default());
+    let parts = dawproject::write::parts_with(&before, "0.1.0", Some(dir.path()));
+    assert!(parts.project_xml.contains("contentType=\"audio notes\""));
+    let out = dawproject::export_with(&before, "0.1.0", Some(dir.path()));
+    let back = dawproject::import(&out.bytes).unwrap();
+    assert!(
+        matches!(back.project.tracks[0].instrument, InstrumentSpec::Pulsus(_)),
+        "{:?}",
+        back.project.tracks[0].instrument
+    );
+}

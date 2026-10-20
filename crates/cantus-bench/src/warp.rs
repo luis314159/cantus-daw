@@ -222,8 +222,14 @@ fn hits() -> Material {
     }
 }
 
+/// A quality row: deterministic, so gated (round 29's second review: none could fail).
 fn metric(id: &str, unit: &str, better: Better, v: &[f64], note: &str) -> Metric {
-    Metric::new(id, unit, better, Summary::of(v))
+    Metric::new(id, unit, better, Summary::of(v)).note(note)
+}
+
+/// A time row: reported, not gated (a shared machine's spread is too wide).
+fn timing(id: &str, v: &[f64], note: &str) -> Metric {
+    Metric::new(id, "ms/s", Better::Lower, Summary::of(v))
         .ungated()
         .note(note)
 }
@@ -336,10 +342,8 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
             let _ = render(mat, mode, 1.25, -3.0);
             ms.push(t.elapsed().as_secs_f64() * 1e3 / secs);
         }
-        out.push(metric(
+        out.push(timing(
             &format!("warp.{}.cpu", mode_id(mode)),
-            "ms/s",
-            Better::Lower,
             &ms,
             "one core, stereo, x1.25 and -3 st, offline",
         ));
@@ -706,7 +710,7 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
         let n = mat.channels[0].len();
         let want = m::rms_db(&mat.channels[0][n / 4..n * 3 / 4]);
         let mut d = Vec::new();
-        for semis in [-12.0, -5.0, 7.0, 12.0] {
+        for semis in [-24.0, -12.0, -5.0, 7.0, 12.0, 24.0] {
             let y = render_map(&mat, Mode::Complex, &Map::identity(), n, semis, &[]);
             d.push((m::rms_db(&y[0][n / 4..n * 3 / 4]) - want).abs() as f64);
         }
@@ -715,7 +719,7 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
             "dB",
             Better::Lower,
             &d,
-            "a transposed render's level, -12/-5/+7/+12 st, formants not kept",
+            "a transposed render's level, -24/-12/-5/+7/+12/+24 st, formants not kept",
         ));
     }
     // Phasiness on each voice's own frequency, both channels, after the attack.
@@ -762,10 +766,8 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
     let t = Instant::now();
     let _ = render_map(&mat, Mode::Complex, &map, len, -3.0, &[]);
     let ms = t.elapsed().as_secs_f64() * 1e3 / 2.0;
-    out.push(metric(
+    out.push(timing(
         "warp.complex.cpu_window_of_long_file",
-        "ms/s",
-        Better::Lower,
         &[ms],
         "two seconds of output from a one-minute file",
     ));
@@ -813,5 +815,95 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
         Better::Lower,
         &[octave as f64],
         "played grooves answered by an octave",
+    ));
+    suite_review2(out);
+}
+
+/// The mean pitch error, cents, of `out` against `src` read through `map`.
+fn track_error(src: &[f32], out: &[f32], map: &Map) -> f64 {
+    let a = cantus_dsp::pitch::analyse(src, SR);
+    let b = cantus_dsp::pitch::analyse(out, SR);
+    let (mut sum, mut n) = (0.0, 0usize);
+    let edge = (0.25 * SR) as usize;
+    let mut t = edge;
+    while t + edge < out.len() {
+        if let (Some(fs), Some(fo)) = (a.f0_at(map.source(t as f64)), b.f0_at(t as f64)) {
+            sum += m::cents(fo, fs).abs() as f64;
+            n += 1;
+        }
+        t += 240;
+    }
+    sum / n.max(1) as f64
+}
+
+/// Round 29's second review: a moving voice's pitch through Complex (the vibrato and the
+/// legato line), the held chord's voices in 40 ms windows too, and the bridge's cost.
+fn suite_review2(out: &mut Vec<Metric>) {
+    for mat in [voice(), solo()] {
+        for ratio in [0.8, 1.25] {
+            let len_in = mat.channels[0].len();
+            let len = (len_in as f64 * ratio) as usize;
+            let map = Map::new(vec![(0.0, 0.0), (len as f64, len_in as f64)]).expect("a map");
+            let y = render_map(&mat, Mode::Complex, &map, len, 0.0, &mat.onsets);
+            let e = track_error(&mat.channels[0], &y[0], &map);
+            out.push(metric(
+                &format!("warp.complex.x{ratio}.track_{}", mat.name),
+                "cents",
+                Better::Lower,
+                &[e],
+                "the pitch track's mean error against the source where it read (vibrato, legato)",
+            ));
+        }
+    }
+    let p = pad();
+    let first = [48, 52, 55, 60];
+    for ratio in [0.8, 1.25] {
+        let y = render(&p, Mode::Complex, ratio, 0.0);
+        let mut worst = 0.0f64;
+        for (ch, detune) in [(0usize, -0.08f64), (1, 0.08)] {
+            for note in first {
+                let hz = (cantus_dsp::pitch::midi_to_hz(note as f32) as f64
+                    * (1.0 + detune / 100.0 * 12.0)) as f32;
+                let n0 = p.channels[ch].len();
+                let n = y[ch].len();
+                let from = |len: usize| (0.35 * SR as f64 * len as f64 / n0 as f64) as usize;
+                let own = m::level_wander_db_in(
+                    &p.channels[ch],
+                    SR,
+                    hz,
+                    from(n0),
+                    n0 / 4 - n0 / 32,
+                    0.04,
+                ) as f64;
+                let w = m::level_wander_db_in(&y[ch], SR, hz, from(n), n / 4 - n / 32, 0.04) as f64;
+                worst = worst.max(w - own);
+            }
+        }
+        out.push(metric(
+            &format!("warp.complex.x{ratio}.wander_voices_40ms"),
+            "dB",
+            Better::Lower,
+            &[worst],
+            "the most any voice of a held chord wanders beyond its own, 40 ms windows",
+        ));
+    }
+    // The bridge (a sketch at the clip's transposition) of a minute of stereo.
+    let d = drums();
+    let long: Vec<f32> = d.channels[0]
+        .iter()
+        .copied()
+        .cycle()
+        .take((60.0 * SR) as usize)
+        .collect();
+    let refs: [&[f32]; 2] = [&long, &long];
+    let len = (long.len() as f64 / 1.05) as usize;
+    let map = Map::new(vec![(0.0, 0.0), (len as f64, long.len() as f64)]).expect("a map");
+    let t = Instant::now();
+    let _ = stretch::sketch(&refs, SR, &map, len, 2.0, 0, &[]);
+    let ms = t.elapsed().as_secs_f64() * 1e3 / 60.0;
+    out.push(timing(
+        "warp.sketch.cpu",
+        &[ms],
+        "the bridge of a minute of stereo at +2 st, one core",
     ));
 }

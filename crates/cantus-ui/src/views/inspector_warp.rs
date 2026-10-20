@@ -246,17 +246,27 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             sh.acts.push(Act::Warp(WarpAct::Tail(r, WarpTail::ALL[i])));
         }
     }
-    // The source's tempo, over the model's whole range (½ and ×2 reach past 40–240), the
-    // detected tempo (else the project's) on a double-click.
+    // The source's tempo, over the model's whole range (½ and ×2 reach past 40–240): a
+    // following warp's own, else what the analysis found — never a warp's stale markers
+    // (round 29's second review) — and the detected tempo (else the tempo in force where
+    // the clip starts) on a double-click.
+    let in_force = app
+        .project()
+        .track(t)
+        .and_then(|tr| tr.clip(c))
+        .map_or(app.project().tempo_bpm, |cl| {
+            crate::views::bars::map(app.project()).bpm_at(cl.start.0 as f64)
+        });
     let reset = app
         .warp_analysis(r)
         .map(|a| a.bpm())
         .filter(|b| *b > 0.0)
-        .unwrap_or(app.project().tempo_bpm);
+        .unwrap_or(in_force);
+    let shown = app.clip_source_tempo(r).unwrap_or(in_force);
     sh.param_row(
         "warp.inspector.tempo",
         Id::new(("insp-warp-tempo", c)),
-        w.tempo() as f32,
+        shown as f32,
         &Range::log(
             cantus_core::warp::MIN_BPM as f32,
             cantus_core::warp::MAX_BPM as f32,

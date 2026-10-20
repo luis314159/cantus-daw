@@ -99,6 +99,9 @@ pub struct EngineHandle {
     tables_late: u64,
     /// Offline renders compiled before every pitch or warp render was in (counted).
     renders_late: u64,
+    /// How long an offline render's compile waits for each pitch or warp render pass
+    /// (five minutes; a test shortens it).
+    render_patience: Option<std::time::Duration>,
     /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
     compiles: u64,
     note_inputs: Vec<NoteInput>,
@@ -311,6 +314,7 @@ impl EngineHandle {
             pending_since: None,
             tables_late: 0,
             renders_late: 0,
+            render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: Some(capture_rx),
@@ -388,6 +392,7 @@ impl EngineHandle {
             pending_since: None,
             tables_late: 0,
             renders_late: 0,
+            render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: None,
@@ -676,6 +681,8 @@ impl EngineHandle {
         // Pitch renders are made on the pitch service's worker, never on this thread —
         // with a device or without (ADR 0054, review 1).
         self.samples.set_pitch_background(true);
+        // A render's compile never takes the playing snapshot's warp renders away.
+        self.samples.set_offline(render);
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
@@ -703,7 +710,10 @@ impl EngineHandle {
         self.samples.wait_assets();
         // And the pitch renders the first compile asked for (ADR 0054): the file holds the
         // edits, never the take as sung.
-        self.samples.wait_pitch(std::time::Duration::from_secs(300));
+        let patience = self
+            .render_patience
+            .unwrap_or(std::time::Duration::from_secs(300));
+        self.samples.wait_pitch(patience);
         let mut complete = self.samples.wait_pitch(std::time::Duration::ZERO);
         // And the warp renders (ADR 0061), asked once the pitch renders they read are in:
         // the file holds the full renders, never a bridge. A compile may ask for renders
@@ -714,7 +724,7 @@ impl EngineHandle {
             if self.samples.warp_pending() == 0 {
                 break;
             }
-            complete &= self.samples.wait_warp(std::time::Duration::from_secs(300));
+            complete &= self.samples.wait_warp(patience);
         }
         let snapshot = self.compile_as(project, revision, true);
         if !complete || self.samples.warp_pending() > 0 {
@@ -726,9 +736,16 @@ impl EngineHandle {
     }
 
     /// Offline renders ([`Self::compile_for_render`]) compiled before every pitch or warp
-    /// render was in (their patience ran out); an export compares it before and after.
+    /// render was in (their patience ran out): every caller compares it before and after
+    /// and says so (the interface's `say_late`).
     pub fn renders_late(&self) -> u64 {
         self.renders_late
+    }
+
+    /// How long an offline render's compile waits for renders (tests: a short patience).
+    #[doc(hidden)]
+    pub fn set_render_patience(&mut self, patience: std::time::Duration) {
+        self.render_patience = Some(patience);
     }
 
     /// Send a snapshot, first delivering units for any effect the engine does not have. It

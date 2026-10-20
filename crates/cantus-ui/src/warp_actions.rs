@@ -1,11 +1,14 @@
-//! The warp verbs (ADR 0061): every one a `SetClipWarp` (or a batch of them), one undo
-//! step — merged per drag where the edit is a drag (`WarpOp::merges`).
+//! The warp verbs (ADR 0061): every one a `SetClipWarp` (or a batch holding one), one undo
+//! step — merged per drag where the edit is a drag (`WarpOp::merges`). A verb that lays the
+//! warp again, or turns a clip to follow the tempo or back, keeps every window sharing the
+//! warp (the clip, its linked copies) on the audio it plays at its start (round 29's
+//! reviews, [`Keep`]).
 
 use super::{warp_from, QuantiseSettings};
 use crate::app::CantusApp;
 use crate::clips::ClipRef;
 use crate::i18n::{t, tf};
-use cantus_core::warp::{Warp, WarpMode, WarpOp, WarpTail};
+use cantus_core::warp::{Detected, Warp, WarpMode, WarpOp, WarpTail};
 use cantus_core::{Command, MergeKey, Ticks, PPQ};
 use std::path::PathBuf;
 
@@ -15,6 +18,10 @@ pub struct Bounce {
     pub r: ClipRef,
     pub name: String,
     pub(crate) rx: std::sync::mpsc::Receiver<Result<Written, String>>,
+    /// What it was made from: the project's epoch and the clip as it was (round 29's second
+    /// review — a bounce never lands on a clip edited since, or on another project's).
+    pub(crate) epoch: u64,
+    pub(crate) clip: cantus_core::Clip,
 }
 
 /// A file a bounce wrote.
@@ -31,6 +38,37 @@ pub fn merge_key(r: ClipRef, op: WarpOp) -> MergeKey {
     MergeKey::of(&("warp", r.0 .0, r.1 .0, op.label_key()))
 }
 
+/// Where a warping gesture on a clip starts (a marker, a stretch, *Quantise audio*, its
+/// tempo, *Follow*): [`CantusApp::warp_start`].
+#[derive(Clone, Debug)]
+pub struct WarpStart {
+    /// The warp it starts from, following the tempo.
+    pub warp: Warp,
+    /// Added to a content tick counted from the clip's offset now, it is counted from the
+    /// offset the clip takes with [`WarpStart::warp`] (zero unless the warp turns to follow
+    /// from markers it kept, which keeps the window's audio by its offset).
+    pub shift: Ticks,
+    /// `Some` while the clip does not follow yet: the warp its windows are kept on as the
+    /// gesture's first step turns it to follow.
+    pub base: Option<Warp>,
+}
+
+/// What a warp written keeps each window sharing it on (round 29's reviews).
+#[derive(Clone, Copy, Debug)]
+pub enum Keep<'a> {
+    /// Nothing moves but what the edit moves (a marker, the content under one, a mode).
+    No,
+    /// The clip turns to follow from [`WarpStart::base`]: each window's start kept on that
+    /// warp (on the gesture's first step; once the clip follows, nothing more).
+    Base(&'a Warp),
+    /// The warp laid again (detected, from here, its tempo, *Follow* off, reset): each
+    /// window's start kept on the new one.
+    Next,
+}
+
+/// Each window's source frame at its start, the clip's own first.
+type Frames = Vec<(ClipRef, f64)>;
+
 impl CantusApp {
     /// Clip `r`'s warp, if it has one.
     pub fn clip_warp(&self, r: ClipRef) -> Option<&Warp> {
@@ -43,50 +81,92 @@ impl CantusApp {
             .as_deref()
     }
 
-    /// The warp an edit of clip `r` starts from: its own, or — not warped — the one that
-    /// plays it exactly as it plays now ([`Warp::natural_of`], through the tempo map) **not
-    /// following the tempo**: a transposition, the formants, the mode or the slice ends
-    /// change only that, and a recording keeps the time it was played in (round 29's
-    /// review: a straight line at the song's first tempo, following, moved it). With what
-    /// the analysis found when it is in.
+    /// What the analysis found in clip `r`'s source, as a warp keeps it.
+    fn detected_of(&self, r: ClipRef) -> Option<Detected> {
+        let an = self.warp_analysis(r)?;
+        let downbeat = an.grid.first_downbeat()?;
+        Some(Detected {
+            bpm: an.bpm(),
+            confidence: an.grid.confidence,
+            downbeat,
+            bars: an.grid.bars,
+        })
+    }
+
+    /// The warp an edit of clip `r` that does not warp it starts from — a transposition,
+    /// the formants, the mode, the slice ends: its own, or — not warped — one that does not
+    /// follow the tempo and holds **no markers** (round 29's second review: markers there
+    /// play nothing and went stale with every tempo edit), at its source's tempo — what the
+    /// analysis found, else the tempo where the clip starts — with what the analysis found.
     pub fn warp_to_edit(&self, r: ClipRef) -> Option<Warp> {
-        self.starting_warp(r, false)
-    }
-
-    /// The warp a gesture that warps clip `r` starts from — a marker, a stretch, *Quantise
-    /// audio*, its tempo, *Detect tempo*, *Warp from here*, *Follow*: its own when it
-    /// follows; else markers that play it exactly as it plays now, following (its other
-    /// settings kept) — so nothing moves until a marker is dragged.
-    pub fn warp_to_warp(&self, r: ClipRef) -> Option<Warp> {
-        self.starting_warp(r, true)
-    }
-
-    fn starting_warp(&self, r: ClipRef, follow: bool) -> Option<Warp> {
         if let Some(w) = self.clip_warp(r) {
-            if w.follow || !follow {
-                return Some(w.clone());
-            }
-            let mut n = self.natural_warp(r)?;
-            n.mode = w.mode;
-            n.cents = w.cents;
-            n.formants = w.formants;
-            n.tail = w.tail;
-            n.detected = w.detected;
-            return Some(n);
+            return Some(w.clone());
         }
-        let mut w = self.natural_warp(r)?;
-        w.follow = follow;
-        if let Some(an) = self.warp_analysis(r) {
-            if let Some(d) = an.grid.first_downbeat() {
-                w.detected = Some(cantus_core::warp::Detected {
-                    bpm: an.bpm(),
-                    confidence: an.grid.confidence,
-                    downbeat: d,
-                    bars: an.grid.bars,
-                });
-            }
-        }
+        let c = self.project().track(r.0)?.clip(r.1)?;
+        let a = c.audio.as_ref()?;
+        let s = self.project().audio_source(a.source)?;
+        let detected = self.detected_of(r);
+        let bpm = detected
+            .map(|d| d.bpm)
+            .filter(|b| *b > 0.0)
+            .unwrap_or_else(|| self.project().tempo_map().bpm_at(c.start.0 as f64));
+        let mut w = Warp::new(s.sample_rate.max(1), cantus_core::time::clamp_bpm(bpm));
+        w.follow = false;
+        w.detected = detected;
         Some(w)
+    }
+
+    /// Where a gesture that warps clip `r` starts ([`WarpStart`]): its own warp when it
+    /// follows; else — not following — the markers it kept when it followed before
+    /// (*Follow* off then on keeps them, round 29's second review), or, never warped to
+    /// follow, markers that play it exactly as it plays now ([`Warp::natural_of`]) — its
+    /// other settings kept, so nothing moves until a marker is dragged.
+    pub fn warp_start(&self, r: ClipRef) -> Option<WarpStart> {
+        let own = self.clip_warp(r).cloned();
+        if let Some(w) = own.as_ref().filter(|w| w.follow) {
+            return Some(WarpStart {
+                warp: w.clone(),
+                shift: Ticks::ZERO,
+                base: None,
+            });
+        }
+        let base = match own {
+            Some(mut w) if !w.markers.is_empty() => {
+                w.follow = true;
+                w
+            }
+            Some(w) => {
+                let mut n = self.natural_warp(r)?;
+                n.mode = w.mode;
+                n.cents = w.cents;
+                n.formants = w.formants;
+                n.tail = w.tail;
+                n.detected = w.detected.or_else(|| self.detected_of(r));
+                n
+            }
+            None => {
+                let mut n = self.natural_warp(r)?;
+                n.detected = self.detected_of(r);
+                n
+            }
+        };
+        let c = self.project().track(r.0)?.clip(r.1)?;
+        let shift = self
+            .start_frames(r, true)
+            .first()
+            .map_or(Ticks::ZERO, |&(_, f)| {
+                Ticks(base.tick_at(f).round() as i64).max(Ticks::ZERO) - c.offset
+            });
+        Some(WarpStart {
+            warp: base.clone(),
+            shift,
+            base: Some(base),
+        })
+    }
+
+    /// The warp a gesture that warps clip `r` starts from ([`Self::warp_start`]).
+    pub fn warp_to_warp(&self, r: ClipRef) -> Option<Warp> {
+        self.warp_start(r).map(|s| s.warp)
     }
 
     /// The warp that plays clip `r` as it plays unwarped, following the tempo.
@@ -104,70 +184,243 @@ impl CantusApp {
         ))
     }
 
-    /// The offset that keeps clip `r`'s window on the audio it plays now once `next` is its
-    /// warp — a `SetClipOffset`, when it moves (round 29's review: a warp laid again from its
-    /// content's start slid a trimmed window's audio under it).
-    fn window_kept(&self, r: ClipRef, next: &Warp) -> Option<Command> {
-        let c = self.project().track(r.0)?.clip(r.1)?;
-        let a = c.audio.as_ref()?;
-        let frame = cantus_core::audio_time::clip_frame_at(
-            &self.project().tempo_map(),
-            c.start,
-            c.offset,
-            a,
-            next.rate.max(1) as f64,
-            c.start.0 as f64,
-        );
-        let offset = Ticks(next.tick_at(frame).round() as i64).max(Ticks::ZERO);
-        (offset != c.offset).then_some(Command::SetClipOffset {
-            track: r.0,
-            clip: r.1,
-            offset,
-        })
+    /// The source frame each window sharing clip `r`'s warp hears at its start now (the
+    /// clip's own first), or the clip's alone.
+    fn start_frames(&self, r: ClipRef, alone: bool) -> Frames {
+        let p = self.project();
+        let map = p.tempo_map();
+        let Some(c) = p.track(r.0).and_then(|t| t.clip(r.1)) else {
+            return Vec::new();
+        };
+        let mut members = vec![r];
+        if let Some(link) = c.link.filter(|_| !alone) {
+            members.extend(
+                cantus_core::links::members(p, link)
+                    .into_iter()
+                    .filter(|m| *m != r),
+            );
+        }
+        members
+            .into_iter()
+            .filter_map(|m| {
+                let mc = p.track(m.0)?.clip(m.1)?;
+                let a = mc.audio.as_ref()?;
+                let rate = p.audio_source(a.source)?.sample_rate.max(1) as f64;
+                let start = mc.start.0 as f64;
+                let f = cantus_core::audio_time::clip_frame_at(
+                    &map, mc.start, mc.offset, a, rate, start,
+                );
+                Some((m, f))
+            })
+            .collect()
     }
 
-    /// [`Self::commit_warp`] with the window kept on its audio ([`Self::window_kept`]).
-    pub fn commit_warp_keeping(&mut self, r: ClipRef, next: Warp, op: WarpOp, merge: bool) -> bool {
-        let Some(keep) = self.window_kept(r, &next) else {
-            return self.commit_warp(r, Some(next), op, merge);
-        };
-        if self.clip_warp(r) == Some(&next) {
-            return false;
+    /// The edits that put each window of `frames` back on its frame once `next` is the
+    /// warp they share and `against` maps them (`None`: at natural speed) — the offset
+    /// (whole content ticks under a warp that follows), and for a window whose region is
+    /// its own (`alone`, not shared with linked copies) the rest in its fine offset.
+    fn kept_commands(
+        &self,
+        frames: &[(ClipRef, f64)],
+        against: Option<&Warp>,
+        next: Option<&Warp>,
+        alone: bool,
+    ) -> Vec<Command> {
+        let p = self.project();
+        let map = p.tempo_map();
+        let mut out = Vec::new();
+        for &(m, frame) in frames {
+            let Some(mc) = p.track(m.0).and_then(|t| t.clip(m.1)) else {
+                continue;
+            };
+            let Some(a) = mc.audio.as_ref() else {
+                continue;
+            };
+            let rate = p
+                .audio_source(a.source)
+                .map_or(48_000.0, |s| s.sample_rate.max(1) as f64);
+            let offset = match against.filter(|w| w.follow) {
+                Some(w) => Ticks(w.tick_at(frame).round() as i64).max(Ticks::ZERO),
+                None => {
+                    let secs = (frame - a.slip_frames as f64) / rate;
+                    if mc.link.is_some() && !alone {
+                        // The fine offset is the group's: the offset alone.
+                        cantus_core::audio_time::offset_for(&map, mc.start, secs)
+                    } else {
+                        let (o, slip) = cantus_core::audio_time::anchor(
+                            &map,
+                            mc.start,
+                            secs,
+                            a.slip_frames,
+                            rate,
+                        );
+                        if slip != a.slip_frames {
+                            let mut region = a.clone();
+                            region.warp = next.cloned().map(Box::new);
+                            region.slip_frames = slip;
+                            out.push(Command::SetClipAudio {
+                                track: m.0,
+                                clip: m.1,
+                                audio: Some(region),
+                            });
+                        }
+                        o
+                    }
+                }
+            };
+            if offset != mc.offset {
+                out.push(Command::SetClipOffset {
+                    track: m.0,
+                    clip: m.1,
+                    offset,
+                });
+            }
         }
-        let cmd = Command::Batch {
-            label_key: op.label_key().into(),
-            commands: vec![
-                Command::SetClipWarp {
-                    track: r.0,
-                    clip: r.1,
-                    warp: Some(Box::new(next)),
-                    op,
-                },
-                keep,
-            ],
-        };
-        if merge {
-            self.exec_merging(cmd, merge_key(r, op))
-        } else {
-            self.exec(cmd)
-        }
+        out
     }
 
-    /// Write clip `r`'s warp: one undo step, or merged into the gesture's (`merge`).
-    pub fn commit_warp(&mut self, r: ClipRef, warp: Option<Warp>, op: WarpOp, merge: bool) -> bool {
-        if self.clip_warp(r) == warp.as_ref() {
+    /// Whether a linked copy of clip `r` would not play as it plays now from `base` (the
+    /// warp a first warping edit starts from, laid at `r`'s place) once its start is kept:
+    /// another tempo under it would change its speed (round 29's second review).
+    fn copies_differ(&self, r: ClipRef, base: &Warp) -> bool {
+        let p = self.project();
+        let map = p.tempo_map();
+        let Some(link) = p.track(r.0).and_then(|t| t.clip(r.1)).and_then(|c| c.link) else {
             return false;
+        };
+        for m in cantus_core::links::members(p, link) {
+            if m == r {
+                continue;
+            }
+            let Some(mc) = p.track(m.0).and_then(|t| t.clip(m.1)) else {
+                continue;
+            };
+            let Some(a) = mc.audio.as_ref() else {
+                continue;
+            };
+            let Some(rate) = p
+                .audio_source(a.source)
+                .map(|s| s.sample_rate.max(1) as f64)
+            else {
+                continue;
+            };
+            let slip = a.slip_frames as f64;
+            let now = |t: f64| {
+                cantus_core::audio_time::frame_at(&map, mc.start, mc.offset, slip, rate, t)
+            };
+            let start = mc.start.0 as f64;
+            let offset = base.tick_at(now(start)).round();
+            const PROBES: usize = 64;
+            for k in 0..=PROBES {
+                let dt = mc.length.0 as f64 * k as f64 / PROBES as f64;
+                if (base.frame_at(offset + dt) - now(start + dt)).abs() > 1.0 {
+                    return true;
+                }
+            }
         }
-        let cmd = Command::SetClipWarp {
+        false
+    }
+
+    /// The commands that write `next` as clip `r`'s warp, keeping windows as `keep` says
+    /// (from `frames`, each window's frame before a drag that keeps them, when given). A
+    /// linked copy whose first warping edit would change how its copies play is made unique
+    /// first (round 29's second review). `None` when nothing changes.
+    fn warp_commands(
+        &self,
+        r: ClipRef,
+        next: Option<Warp>,
+        op: WarpOp,
+        keep: Keep,
+        frames: Option<Frames>,
+    ) -> Option<Vec<Command>> {
+        let cur = self.clip_warp(r);
+        if cur == next.as_ref() {
+            return None;
+        }
+        let follows = cur.is_some_and(|w| w.follow);
+        let natural = |w: Option<&Warp>| w.is_none_or(|w| !w.follow);
+        let against: Option<Option<&Warp>> = match keep {
+            Keep::No => None,
+            Keep::Base(b) if !follows => Some(Some(b)),
+            Keep::Base(_) => None,
+            Keep::Next if natural(cur) && natural(next.as_ref()) => None,
+            Keep::Next => Some(next.as_ref()),
+        };
+        let linked = self
+            .project()
+            .track(r.0)
+            .and_then(|t| t.clip(r.1))
+            .is_some_and(|c| c.link.is_some());
+        let turning = !follows && next.as_ref().is_some_and(|w| w.follow);
+        let unlink = turning
+            && linked
+            && self
+                .warp_start(r)
+                .and_then(|s| s.base)
+                .is_some_and(|b| self.copies_differ(r, &b));
+        let mut out = Vec::new();
+        if unlink {
+            out.push(Command::SetClipLink {
+                track: r.0,
+                clip: r.1,
+                link: None,
+            });
+        }
+        out.push(Command::SetClipWarp {
             track: r.0,
             clip: r.1,
-            warp: warp.map(Box::new),
+            warp: next.clone().map(Box::new),
             op,
+        });
+        if let Some(against) = against {
+            let frames = frames.unwrap_or_else(|| self.start_frames(r, unlink));
+            let alone = unlink || !linked;
+            out.extend(self.kept_commands(&frames, against, next.as_ref(), alone));
+        }
+        Some(out)
+    }
+
+    /// One undo step (or merged into the gesture's) of `commands`.
+    fn exec_warp_step(
+        &mut self,
+        r: ClipRef,
+        op: WarpOp,
+        merge: bool,
+        mut commands: Vec<Command>,
+    ) -> bool {
+        let cmd = if commands.len() == 1 {
+            commands.pop().expect("one")
+        } else {
+            Command::Batch {
+                label_key: op.label_key().into(),
+                commands,
+            }
         };
         if merge {
             self.exec_merging(cmd, merge_key(r, op))
         } else {
             self.exec(cmd)
+        }
+    }
+
+    /// Write clip `r`'s warp, nothing else kept: one undo step, or merged into the
+    /// gesture's (`merge`).
+    pub fn commit_warp(&mut self, r: ClipRef, warp: Option<Warp>, op: WarpOp, merge: bool) -> bool {
+        self.commit_warp_keeping(r, warp, op, merge, Keep::No)
+    }
+
+    /// Write clip `r`'s warp, keeping the windows that share it as `keep` says.
+    pub fn commit_warp_keeping(
+        &mut self,
+        r: ClipRef,
+        warp: Option<Warp>,
+        op: WarpOp,
+        merge: bool,
+        keep: Keep,
+    ) -> bool {
+        match self.warp_commands(r, warp, op, keep, None) {
+            Some(commands) => self.exec_warp_step(r, op, merge, commands),
+            None => false,
         }
     }
 
@@ -208,63 +461,109 @@ impl CantusApp {
         self.edit_warp(r, WarpOp::Tail, |w| w.tail = tail)
     }
 
-    /// *Follow the project tempo*: on, the clip is warped (its markers hold it to the beat);
-    /// off, it plays at its natural speed and keeps only its transposition.
+    /// *Follow the project tempo*: on, the clip is warped — its markers hold it to the beat
+    /// (the ones it kept, else ones that play it as it plays now); off, it plays at its
+    /// natural speed and keeps only its transposition, its markers kept for the next time.
+    /// Either way every window sharing the warp keeps the audio it plays at its start
+    /// (round 29's second review).
     pub fn set_warp_follow(&mut self, r: ClipRef, on: bool) -> bool {
-        let w = if on {
-            self.warp_to_warp(r)
-        } else {
-            self.warp_to_edit(r).map(|mut w| {
-                w.follow = false;
-                w
-            })
+        if on {
+            let Some(s) = self.warp_start(r) else {
+                return false;
+            };
+            let base = s.base;
+            let keep = base.as_ref().map_or(Keep::No, Keep::Base);
+            return self.commit_warp_keeping(r, Some(s.warp), WarpOp::Follow, false, keep);
+        }
+        let Some(mut w) = self.warp_to_edit(r) else {
+            return false;
         };
-        match w {
-            Some(w) => self.commit_warp(r, Some(w), WarpOp::Follow, false),
+        w.follow = false;
+        self.commit_warp_keeping(r, Some(w), WarpOp::Follow, false, Keep::Next)
+    }
+
+    /// The tempo clip `r`'s source plays at, as the inspector shows it and *Set the project
+    /// tempo from this clip* takes it: a following warp's own; else what the analysis found
+    /// (kept with the warp, or in the cache) — never the markers of a warp that does not
+    /// follow (round 29's second review).
+    pub fn clip_source_tempo(&self, r: ClipRef) -> Option<f64> {
+        match self.clip_warp(r) {
+            Some(w) if w.follow => Some(w.tempo()),
+            w => w
+                .and_then(|w| w.detected)
+                .map(|d| d.bpm)
+                .filter(|b| *b > 0.0)
+                .or_else(|| self.warp_analysis(r).map(|a| a.bpm()).filter(|b| *b > 0.0)),
+        }
+    }
+
+    /// The source's tempo (a drag merges): the clip plays that much faster or slower, every
+    /// window sharing its warp kept on its audio at its start. A drag is laid from the warp
+    /// and the windows' frames at its start, so nothing drifts however long it runs.
+    pub fn set_warp_tempo(&mut self, r: ClipRef, bpm: f64, merge: bool) -> bool {
+        let key = merge_key(r, WarpOp::Tempo);
+        let memo = self
+            .warp
+            .relay
+            .clone()
+            .filter(|(m, _, _)| merge && *m == r && self.bus.merging(key));
+        let (w0, frames) = match memo {
+            Some((_, w0, frames)) => (w0, frames),
+            None => {
+                let Some(s) = self.warp_start(r) else {
+                    return false;
+                };
+                let alone = s.base.as_ref().is_some_and(|b| self.copies_differ(r, b));
+                let frames = self.start_frames(r, alone);
+                self.warp.relay = Some((r, s.warp.clone(), frames.clone()));
+                (s.warp, frames)
+            }
+        };
+        let next = w0.with_tempo(bpm);
+        match self.warp_commands(r, Some(next), WarpOp::Tempo, Keep::Next, Some(frames)) {
+            Some(commands) => self.exec_warp_step(r, WarpOp::Tempo, merge, commands),
             None => false,
         }
     }
 
-    /// The source's tempo (a drag merges): the clip plays that much faster or slower.
-    pub fn set_warp_tempo(&mut self, r: ClipRef, bpm: f64, merge: bool) -> bool {
-        let Some(w) = self.warp_to_warp(r) else {
-            return false;
-        };
-        let next = w.with_tempo(bpm);
-        self.commit_warp_keeping(r, next, WarpOp::Tempo, merge)
-    }
-
-    /// A marker on content tick `tick` (on the transient there, when `onset` names one).
+    /// A marker on content tick `tick` (counted from the clip's offset now; on the
+    /// transient there, when `onset` names one).
     pub fn add_warp_marker(&mut self, r: ClipRef, tick: Ticks, onset: Option<f64>) -> bool {
-        let Some(w) = self.warp_to_warp(r) else {
+        let Some(s) = self.warp_start(r) else {
             return false;
         };
+        let w = &s.warp;
         let next = match onset {
             Some(f) => w.add_marker_at_frame(f),
-            None => w.add_marker(tick),
+            None => w.add_marker(tick + s.shift),
         };
-        match next {
-            Some(n) => {
-                let i = n.markers.iter().position(|m| !w.markers.contains(m));
-                let ok = self.commit_warp(r, Some(n), WarpOp::AddMarker, false);
-                if ok {
-                    self.warp.selected = i.map(|i| (r, i));
-                }
-                ok
-            }
-            None => false,
+        let Some(n) = next else {
+            return false;
+        };
+        let i = n.markers.iter().position(|m| !w.markers.contains(m));
+        let base = s.base.clone();
+        let keep = base.as_ref().map_or(Keep::No, Keep::Base);
+        let ok = self.commit_warp_keeping(r, Some(n), WarpOp::AddMarker, false, keep);
+        if ok {
+            self.warp.selected = i.map(|i| (r, i));
         }
+        ok
     }
 
+    /// The user's marker `i` taken away (the warp's own are never offered).
     pub fn remove_warp_marker(&mut self, r: ClipRef, i: usize) -> bool {
         let Some(w) = self.clip_warp(r).cloned() else {
             return false;
         };
         self.warp.selected = None;
+        if w.markers.get(i).is_none_or(|m| m.auto) {
+            return false;
+        }
         self.commit_warp(r, Some(w.remove_marker(i)), WarpOp::RemoveMarker, false)
     }
 
-    /// *Detect tempo* / warp by the analysis: markers on every bar of the grid it found.
+    /// *Detect tempo* / warp by the analysis: markers on every bar of the grid it found,
+    /// every window sharing the warp kept on its audio at its start.
     pub fn warp_by_analysis(&mut self, r: ClipRef) -> bool {
         let Some(a) = self.warp_analysis(r) else {
             self.set_status(t("warp.status.analysing"));
@@ -283,7 +582,7 @@ impl CantusApp {
             w.formants = old.formants;
             w.tail = old.tail;
         }
-        let ok = self.commit_warp_keeping(r, w, WarpOp::Set, false);
+        let ok = self.commit_warp_keeping(r, Some(w), WarpOp::Set, false, Keep::Next);
         if ok {
             self.set_status(tf(
                 "warp.status.detected",
@@ -293,23 +592,19 @@ impl CantusApp {
         ok
     }
 
-    /// *Reset warp*: no warp at all — the clip plays its source at natural speed again.
+    /// *Reset warp*: no warp at all — the clip plays its source at natural speed again,
+    /// every window sharing the warp kept on its audio at its start.
     pub fn reset_warp(&mut self, r: ClipRef) -> bool {
         self.warp.selected = None;
-        self.commit_warp(r, None, WarpOp::Reset, false)
+        self.commit_warp_keeping(r, None, WarpOp::Reset, false, Keep::Next)
     }
 
-    /// *Set the project tempo from this clip*: the tempo the clip's source plays at.
+    /// *Set the project tempo from this clip*: the tempo its source plays at
+    /// ([`Self::clip_source_tempo`]), in force where the clip starts.
     pub fn project_tempo_from_clip(&mut self, r: ClipRef) -> bool {
-        let bpm = match self.clip_warp(r) {
-            Some(w) => w.tempo(),
-            None => match self.warp_analysis(r) {
-                Some(a) if a.bpm() > 0.0 => a.bpm(),
-                _ => {
-                    self.set_status(t("warp.status.analysing"));
-                    return false;
-                }
-            },
+        let Some(bpm) = self.clip_source_tempo(r) else {
+            self.set_status(t("warp.status.analysing"));
+            return false;
         };
         let bpm = cantus_core::time::clamp_bpm((bpm * 100.0).round() / 100.0);
         // The tempo in force where the clip starts (round 29's review: the song's first
@@ -328,10 +623,11 @@ impl CantusApp {
     /// bars (that beat kept where it is heard now); the markers before it stay. A place
     /// outside the clip is said, never taken as its start or end.
     pub fn warp_from_here(&mut self, r: ClipRef, at: Ticks) -> bool {
-        let (Some(a), Some(w)) = (self.warp_analysis(r), self.warp_to_warp(r)) else {
+        let (Some(a), Some(s)) = (self.warp_analysis(r), self.warp_start(r)) else {
             self.set_status(t("warp.status.analysing"));
             return false;
         };
+        let w = s.warp;
         let Some(c) = self.project().track(r.0).and_then(|t| t.clip(r.1)) else {
             return false;
         };
@@ -339,7 +635,7 @@ impl CantusApp {
             self.set_status(t("warp.status.outside"));
             return false;
         }
-        let content = (at - c.start + c.offset).0 as f64;
+        let content = (at - c.start + c.offset + s.shift).0 as f64;
         let here = w.frame_at(content);
         let Some(first) = a.grid.beats.iter().position(|b| *b >= here - 1.0) else {
             self.set_status(t("warp.status.no_tempo"));
@@ -355,16 +651,19 @@ impl CantusApp {
                 next = n;
             }
         }
-        self.commit_warp_keeping(r, next, WarpOp::Set, false)
+        self.commit_warp_keeping(r, Some(next), WarpOp::Set, false, Keep::Next)
     }
 
     /// Quantise audio: each clip's transients (those at least `threshold` of its
-    /// strongest) pulled to the grid by `strength` — one undo step for all of them.
+    /// strongest) pulled to the grid by `strength` — one undo step for all of them. Only
+    /// what is heard is taken (a loop's first period, round 29's second review), on the
+    /// lines where it is heard (a reversed clip's run right to left).
     pub fn quantise_audio(&mut self, clips: &[ClipRef], q: QuantiseSettings) -> usize {
         let mut commands = Vec::new();
+        let mut changed = 0;
         let mut waiting = false;
         for &r in clips {
-            let (Some(a), Some(w)) = (self.warp_analysis(r), self.warp_to_warp(r)) else {
+            let (Some(a), Some(s)) = (self.warp_analysis(r), self.warp_start(r)) else {
                 waiting |= self.warp_analysing(r);
                 continue;
             };
@@ -379,35 +678,51 @@ impl CantusApp {
                 .filter(|(_, s)| **s >= q.threshold * top)
                 .map(|(f, _)| *f)
                 .collect();
-            // The lines the user sees: counted through the metres (`views/bars.rs`).
-            let origin = c.start - c.offset;
+            let offset = c.offset + s.shift;
+            // What is heard: the window, or a loop's period (its repeats play it again).
+            let span = c
+                .content_length
+                .filter(|p| *p < c.length)
+                .unwrap_or(c.length);
+            let reverse = c.audio.as_ref().is_some_and(|a| a.reverse);
+            // The lines the user sees (counted through the metres, `views/bars.rs`), where
+            // each content tick is heard: forward from the content origin, or — reversed —
+            // back from the end of what is heard.
             let project = self.project();
             let grid = q.grid;
+            let start = c.start;
             let line = |t: f64| {
-                let at = Ticks((t + origin.0 as f64).round() as i64);
-                (crate::views::bars::snap(project, at, grid) - origin).0 as f64
+                let heard = if reverse {
+                    (start + offset + span).0 as f64 - t
+                } else {
+                    (start - offset).0 as f64 + t
+                };
+                let snapped = crate::views::bars::snap(project, Ticks(heard.round() as i64), grid);
+                if reverse {
+                    (start + offset + span - snapped).0 as f64
+                } else {
+                    (snapped - (start - offset)).0 as f64
+                }
             };
-            let next = w.quantise_to(&hits, &line, q.strength, c.offset, c.offset + c.length);
-            if self.clip_warp(r) != Some(&next) {
-                commands.push(Command::SetClipWarp {
-                    track: r.0,
-                    clip: r.1,
-                    warp: Some(Box::new(next)),
-                    op: WarpOp::Quantise,
-                });
+            let next = s
+                .warp
+                .quantise_to(&hits, &line, q.strength, offset, offset + span);
+            let keep = s.base.as_ref().map_or(Keep::No, Keep::Base);
+            if let Some(cmds) = self.warp_commands(r, Some(next), WarpOp::Quantise, keep, None) {
+                commands.extend(cmds);
+                changed += 1;
             }
         }
         if waiting {
             self.set_status(t("warp.status.analysing"));
         }
-        let n = commands.len();
-        if n > 0 {
+        if !commands.is_empty() {
             self.exec(Command::Batch {
                 label_key: "cmd.warp.quantise".into(),
                 commands,
             });
         }
-        n
+        changed
     }
 }
 
@@ -486,11 +801,14 @@ impl CantusApp {
         if c.audio.is_none() {
             return false;
         }
-        let Some(w) = self.warp_to_warp(anchor) else {
+        let Some(s) = self.warp_start(anchor) else {
             return false;
         };
         let length = (c.length + delta).max(Ticks::SIXTEENTH);
-        let next = w.stretched(c.offset, length.0 as f64 / c.length.0.max(1) as f64);
+        let next = s.warp.stretched(
+            c.offset + s.shift,
+            length.0 as f64 / c.length.0.max(1) as f64,
+        );
         if !next.is_valid() {
             return false;
         }
@@ -507,9 +825,14 @@ impl CantusApp {
         commands.push(Command::SetClipWarp {
             track: anchor.0,
             clip: anchor.1,
-            warp: Some(Box::new(next)),
+            warp: Some(Box::new(next.clone())),
             op: WarpOp::Set,
         });
+        // Turned to follow from markers it kept: its window kept on its audio first.
+        if let Some(b) = s.base.as_ref() {
+            let frames = self.start_frames(anchor, true);
+            commands.extend(self.kept_commands(&frames, Some(b), Some(&next), true));
+        }
         // A loop's period stretches with its content.
         if let Some(p) = c.content_length {
             let k = length.0 as f64 / c.length.0.max(1) as f64;

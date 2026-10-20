@@ -1331,6 +1331,9 @@ impl Command {
                     return Err(CommandError::DuplicateId(w.id.0));
                 }
                 for (i, c) in track.clips.iter().enumerate() {
+                    // Each clip as `InsertClip` takes it (round 29's second review: a warp
+                    // `SetClipWarp` refuses came in with a track).
+                    validate_clip(c)?;
                     check_joins(project, c)?;
                     // The track's own clips must agree with each other too: the project
                     // does not hold them yet, so `check_joins` cannot see them.

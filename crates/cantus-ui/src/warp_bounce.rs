@@ -120,7 +120,7 @@ impl CantusApp {
         if spawned.is_err() {
             return false;
         }
-        self.warp.bounce = Some(Bounce::new(r, c.name.clone(), rx));
+        self.warp.bounce = Some(Bounce::new(r, c.name.clone(), rx, self.epoch, c.clone()));
         self.set_status(tf("warp.bounce.working", &[("name", &c.name)]));
         true
     }
@@ -137,12 +137,16 @@ impl CantusApp {
         match result {
             Err(e) => self.set_error(tf("warp.bounce.failed", &[("error", &e)])),
             Ok(w) => {
+                // Only onto the clip it was made from, as it was (round 29's second review:
+                // an edit meanwhile, or another project with the same ids, took it).
                 let Some(c) = self
                     .project()
                     .track(b.r.0)
                     .and_then(|t| t.clip(b.r.1))
+                    .filter(|c| self.epoch == b.epoch && **c == b.clip)
                     .cloned()
                 else {
+                    self.set_status(tf("warp.bounce.stale", &[("name", &b.name)]));
                     return;
                 };
                 let Some(a) = c.audio.clone() else { return };
@@ -204,8 +208,16 @@ impl Bounce {
         r: ClipRef,
         name: String,
         rx: std::sync::mpsc::Receiver<Result<Written, String>>,
+        epoch: u64,
+        clip: cantus_core::Clip,
     ) -> Self {
-        Bounce { r, name, rx }
+        Bounce {
+            r,
+            name,
+            rx,
+            epoch,
+            clip,
+        }
     }
 
     fn try_take(&self) -> Option<Result<Written, String>> {

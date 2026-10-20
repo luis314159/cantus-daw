@@ -304,6 +304,8 @@ impl Processor {
         // old map is the old snapshot's, freed with it off this thread.
         self.transport.set_map(snapshot.tempo.clone());
         self.transport.set_loop(snapshot.loop_region.clone());
+        // A piece whose data this snapshot swapped crossfades from now (warp's renders).
+        self.transport.mark_swap();
         self.auto_install(&snapshot);
 
         // The nodes read the snapshot through the pass's frame; its old copy goes before

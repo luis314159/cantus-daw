@@ -43,6 +43,8 @@ pub struct WarpView {
     grid_off: bool,
     /// The editor's own snap grid (zero: a sixteenth).
     grid: Ticks,
+    /// Where each of the bar's items was laid last frame (the tests and the shots).
+    pub bar_rects: Vec<(BarItem, Rect)>,
 }
 
 impl WarpView {
@@ -114,21 +116,21 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     // about the pointer) and scrolled (the wheel, the bar under it).
     let len_b = (c.length.0.max(1) as f64 / PPQ as f64) as f32;
     let fit = full.width() / (len_b * 1.1);
-    let (wheel, ctrl) = ui.input(|i| (i.smooth_scroll_delta, i.modifiers.command));
+    // egui turns Ctrl+wheel (and a pinch) into its zoom factor, never a scroll (round 29's
+    // second review: read as a scroll, it never zoomed).
+    let (wheel, factor) = ui.input(|i| (i.smooth_scroll_delta, i.zoom_delta()));
     let view = &mut app.warp.view;
     let zoom0 = view.zoom.max(1.0);
-    if resp.hovered() && (wheel.x != 0.0 || wheel.y != 0.0) {
-        if ctrl {
-            let z = (zoom0 * cantus_dsp::math::exp2(wheel.y / 200.0)).clamp(1.0, 64.0);
-            // About the pointer: the beat under it stays under it.
-            if let Some(p) = resp.hover_pos() {
-                let x = p.x - full.left();
-                view.scroll += x / (fit * zoom0) - x / (fit * z);
-            }
-            view.zoom = z;
-        } else if zoom0 > 1.0 {
-            view.scroll -= (wheel.x + wheel.y) / (fit * zoom0);
+    if resp.hovered() && factor != 1.0 {
+        let z = (zoom0 * factor).clamp(1.0, 64.0);
+        // About the pointer: the beat under it stays under it.
+        if let Some(p) = resp.hover_pos() {
+            let x = p.x - full.left();
+            view.scroll += x / (fit * zoom0) - x / (fit * z);
         }
+        view.zoom = z;
+    } else if resp.hovered() && zoom0 > 1.0 && (wheel.x != 0.0 || wheel.y != 0.0) {
+        view.scroll -= (wheel.x + wheel.y) / (fit * zoom0);
     }
     let zoom = view.zoom.max(1.0);
     let span = len_b * 1.1;
@@ -321,7 +323,7 @@ fn input(app: &mut CantusApp, ui: &egui::Ui, resp: &egui::Response, r: ClipRef, 
 #[path = "warp_bar.rs"]
 mod bar_impl;
 use bar_impl::bar;
-pub use bar_impl::MODES;
+pub use bar_impl::{rows as bar_rows, Item as BarItem, MODES};
 
 /// The mode the editor's segmented field shows.
 pub fn mode_index(m: WarpMode) -> usize {

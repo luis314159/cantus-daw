@@ -101,6 +101,30 @@ pub fn handles(
     })
 }
 
+/// Where the gain's square sits along a clip whose markers are at `markers` (xs): at
+/// `centre` when no marker's line is within a square of it, else in the middle of the gap
+/// between markers nearest to it that holds a square — inside `[lo, hi]` (round 29's
+/// second review: it covered the centre bar's marker).
+pub fn gain_x(centre: f32, markers: &[f32], lo: f32, hi: f32, side: f32) -> f32 {
+    if markers.iter().all(|m| (m - centre).abs() >= side) || hi <= lo {
+        return centre;
+    }
+    let mut edges: Vec<f32> = markers
+        .iter()
+        .copied()
+        .filter(|m| *m > lo && *m < hi)
+        .collect();
+    edges.push(lo - side);
+    edges.push(hi + side);
+    edges.sort_by(f32::total_cmp);
+    edges
+        .windows(2)
+        .filter(|g| g[1] - g[0] >= 2.0 * side)
+        .map(|g| (0.5 * (g[0] + g[1])).clamp(lo, hi))
+        .min_by(|a, b| (a - centre).abs().total_cmp(&(b - centre).abs()))
+        .unwrap_or(centre)
+}
+
 /// The y of the gain line: where a full-scale peak lands at this gain (the top at 0 dB
 /// and above).
 pub fn gain_y(wave: Rect, db: f32) -> f32 {
@@ -210,15 +234,17 @@ pub fn paint(
     let shown = match app
         .arrangement
         .stretch_preview((shown.track, shown.clip.id))
-        .zip(app.warp_to_warp((shown.track, shown.clip.id)))
+        .zip(app.warp_start((shown.track, shown.clip.id)))
     {
-        Some((delta, w)) if shown.clip.length.0 > 0 => {
+        Some((delta, s)) if shown.clip.length.0 > 0 => {
             let k = (shown.clip.length + delta).0 as f64 / shown.clip.length.0 as f64;
             let mut r = shown.region.clone();
-            r.warp = Some(Box::new(w.stretched(shown.offset, k.max(1e-3))));
+            let offset = shown.offset + s.shift;
+            r.warp = Some(Box::new(s.warp.stretched(offset, k.max(1e-3))));
             stretched_region = r;
             stretched = Shown {
                 region: &stretched_region,
+                offset,
                 ..*shown
             };
             &stretched
@@ -306,6 +332,31 @@ pub fn paint(
                 .min(inner.bottom() - sq.bottom())
                 .max(0.0);
             *sq = sq.translate(vec2(0.0, dy));
+        }
+        // And the gain's square never on a marker's line (a loop's centre bar holds one —
+        // round 29's second review): moved to the nearest gap between them.
+        if let Some(w) = shown.region.warp.as_deref() {
+            let ppt = geo.px_per_beat / cantus_core::PPQ as f32;
+            let at = warp::Window {
+                offset: shown.offset,
+                length: shown.length,
+                reverse: shown.region.reverse,
+                origin: geo.x(shown.start.as_beats_f64() as f32) - shown.offset.0 as f32 * ppt,
+                ppt,
+            };
+            let xs: Vec<f32> = warp::marker_places(w, &at, inner, lanes, k)
+                .into_iter()
+                .map(|p| p.0)
+                .collect();
+            let hs = HANDLE * k;
+            let x = gain_x(
+                h.gain.center().x,
+                &xs,
+                body.left() + hs,
+                body.right() - hs,
+                hs,
+            );
+            h.gain = h.gain.translate(vec2(x - h.gain.center().x, 0.0));
         }
     }
     scratch.handles.push(((shown.track, shown.clip.id), h));
@@ -509,5 +560,24 @@ fn map_columns(
     if shown.region.reverse {
         // `wave` reverses the columns of a backward clip after reading them in order.
         out.reverse();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::gain_x;
+
+    /// Round 29's second review (finding 54): the gain's square leaves a marker's line at
+    /// the clip's centre for the nearest gap that holds it; with none near, it stays.
+    #[test]
+    fn the_gain_square_never_sits_on_a_marker() {
+        let side = 7.0;
+        // A four-bar loop 400 points wide, a marker on each bar: one at the centre.
+        let markers = [0.0, 100.0, 200.0, 300.0, 400.0];
+        let x = gain_x(200.0, &markers, 7.0, 393.0, side);
+        assert!(markers.iter().all(|m| (m - x).abs() >= side), "{x}");
+        assert!((x - 150.0).abs() < 1e-3 || (x - 250.0).abs() < 1e-3, "{x}");
+        // No marker near the centre: it stays.
+        assert_eq!(gain_x(200.0, &[0.0, 400.0], 7.0, 393.0, side), 200.0);
     }
 }

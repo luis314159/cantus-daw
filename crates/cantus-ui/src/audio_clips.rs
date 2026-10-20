@@ -264,7 +264,10 @@ pub fn reversed_edit(
             ));
         }
     } else if let (Some(a), false) = (clip.audio.as_ref(), project.tempo_points.is_empty()) {
-        if clip.link.is_none() {
+        // A warp that follows the tempo reads content ticks: the tick arithmetic is exact
+        // for it (round 29's second review), as for a split.
+        let follows = a.warp.as_ref().is_some_and(|w| w.follow);
+        if clip.link.is_none() && !follows {
             let map = crate::views::bars::map(project);
             let rate = rate_of(project, a);
             let (o, slip) = cantus_core::audio_time::reanchor_reversed(
@@ -321,6 +324,21 @@ pub fn is_reversed(clip: &Clip) -> bool {
 // `split_audio` (the fades and a reversed clip's windows at a split) is
 // `cantus_core::clipboard::split_audio`, beside the split it serves.
 
+/// Whether two windows' warps read their source alike, so the windows glue: the same warp,
+/// or two that do not follow the tempo and hold no markers (a transposition, a mode, made
+/// on each half apart) with the same settings — their tempo plays nothing (round 29's
+/// second review).
+fn warps_alike(a: Option<&cantus_core::warp::Warp>, b: Option<&cantus_core::warp::Warp>) -> bool {
+    match (a, b) {
+        (Some(a), Some(b))
+            if !a.follow && !b.follow && a.markers.is_empty() && b.markers.is_empty() =>
+        {
+            a.mode == b.mode && a.cents == b.cents && a.formants == b.formants && a.tail == b.tail
+        }
+        _ => a == b,
+    }
+}
+
 /// The source's rate (48 kHz for a source the project does not hold).
 fn rate_of(project: &Project, a: &AudioRegion) -> f64 {
     project
@@ -352,8 +370,10 @@ fn glue_with(project: Option<&Project>, track: TrackId, clips: &[&Clip]) -> Opti
     let last = *ordered.last()?;
     let a = first.audio.as_ref()?;
     // A reversed window under a tempo track, where the tick arithmetic is not the map's.
+    // (Not a warp that follows the tempo: it reads content ticks — round 29's second review.)
+    let follows = a.warp.as_ref().is_some_and(|w| w.follow);
     let mapped = project
-        .filter(|p| a.reverse && !p.tempo_points.is_empty())
+        .filter(|p| a.reverse && !follows && !p.tempo_points.is_empty())
         .map(|p| (crate::views::bars::map(p), rate_of(p, a)))
         .filter(|(m, _)| {
             !cantus_core::audio_time::held_over(m, first.start - first.offset, last.end())
@@ -369,7 +389,7 @@ fn glue_with(project: Option<&Project>, track: TrackId, clips: &[&Clip]) -> Opti
             // glued (one half's corrections would be lost).
             && na.pitch == a.pitch
             // Round 29 (ADR 0061): one warp — the same markers read both halves alike.
-            && na.warp == a.warp;
+            && warps_alike(na.warp.as_deref(), a.warp.as_deref());
         if !same || n.start != p.end() || n.lane != p.lane {
             return None;
         }

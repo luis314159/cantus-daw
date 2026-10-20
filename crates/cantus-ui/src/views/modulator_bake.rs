@@ -61,7 +61,7 @@ impl CantusApp {
         // waits for them beside the window, as an export does — it never blocks the frame
         // (round 29's review); started again once they are in.
         if self.engine.samples.loading() {
-            self.warp.pending_bake = Some((id, target.clone()));
+            self.warp.pending_bake = Some((id, target.clone(), self.epoch));
             self.set_status(crate::i18n::t("warp.status.bake_waiting"));
             return true;
         }
@@ -80,9 +80,11 @@ impl CantusApp {
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
+        let late = self.engine.renders_late();
         let snapshot = self
             .engine
             .compile_for_render(self.bus.project(), self.bus.revision());
+        self.say_late(late);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: span.0,

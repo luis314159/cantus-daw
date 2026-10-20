@@ -103,7 +103,8 @@ fn one_take(bus: &CommandBus, t: TrackId, ids: &[ClipId]) {
     }
     for p in cs.windows(2) {
         if p[0].end() == p[1].start && p[0].lane == p[1].lane {
-            assert!(!comp::is_seam(&p[0], &p[1]), "a split, not a seam");
+            let held = cantus_core::warp::held_tempo(bus.project());
+            assert!(!comp::is_seam(&p[0], &p[1], held), "a split, not a seam");
             let (x, y) = (
                 frame(&map, &p[0], p[0].end().0 as f64),
                 frame(&map, &p[1], p[1].start.0 as f64),

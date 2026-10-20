@@ -96,6 +96,8 @@ warp.bounce.working = Renderizando {name}…
 warp.bounce.done = {name} reproduce ahora su audio renderizado
 warp.bounce.failed = No se pudo escribir el render: {error}
 warp.bounce.nothing = Nada que renderizar: no se puede leer el archivo del clip
+warp.status.late = El render de un clip ajustado no estuvo a tiempo: lo escrito lleva su versión rápida
+warp.bounce.stale = No se aplicó el render de {name}: el clip cambió mientras se escribía
 
 # DAWproject (ADR 0061): los clips de audio viajan con su warp.
 interop.report.x_audio_external = Un archivo de audio que no se pudo leer queda referido donde estaba, sin incluirse: {file}
@@ -108,7 +110,8 @@ warp.status.repaired_one = El warp de un clip de este archivo estaba dañado: el
 warp.status.repaired = El warp de {n} clips de este archivo estaba dañado: suenan a su velocidad natural
 
 # DAWproject (revisión de la ronda 29): lo que un clip de audio pierde al salir, y al entrar.
-interop.report.x_takes = {n} toma(s) de {track} (solo suena la composición; DAWproject no tiene carriles de tomas)
+interop.report.x_takes = {n} tomas de {track} (solo suena la composición; DAWproject no tiene carriles de tomas)
+interop.report.x_takes_one = Una toma de {track} (solo suena la composición; DAWproject no tiene carriles de tomas)
 interop.report.x_track_input = La entrada de audio de {track} (vuelve a elegirla al abrir el archivo)
 interop.report.x_clip_gain = La ganancia del clip {clip}
 interop.report.x_fade_curve = La forma de los fundidos de {clip} (vuelven rectos)
@@ -116,11 +119,15 @@ interop.report.x_warp_tail = El final de los cortes de {clip} (Ritmo: vuelven co
 interop.report.x_warp_formants = Formantes sin conservar en {clip}
 interop.report.x_warp_markers = Los marcadores de warp de {clip} (suena a su velocidad natural, como se escribió)
 interop.report.x_audio_unread = Un archivo de audio que no se pudo leer al escribir: {file}
-interop.report.d_audio_missing = Un archivo de audio que no está ni en el archivo ni en el disco: {file}
+interop.report.d_audio_missing = Un archivo de audio que no está ni en el paquete .dawproject ni en el disco: {file}
 warp.status.outside = Ese punto está fuera del clip: haz clic derecho dentro de él, o pon ahí el cursor de reproducción
 warp.grid = Rejilla
 warp.grid.off = Libre
-interop.report.d_audio_unwritten = Un archivo de audio del archivo que no se pudo escribir en el disco: {file}
+interop.report.d_audio_unwritten = Un archivo de audio del paquete .dawproject que no se pudo escribir en el disco: {file}
 interop.status.exporting = Escribiendo {file}…
+interop.status.export_stopped = la exportación se detuvo antes de terminar
+interop.status.importing = Leyendo {file}…
+interop.status.import_busy = Ya se está leyendo un archivo DAWproject
+interop.status.import_stopped = la importación se detuvo antes de terminar
 interop.status.export_busy = Ya se está escribiendo un archivo DAWproject
-warp.status.bake_waiting = Se horneará en cuanto lleguen los renders en camino…
+warp.status.bake_waiting = Se convertirá en automatización en cuanto lleguen los renders en camino…

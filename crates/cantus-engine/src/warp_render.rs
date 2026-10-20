@@ -5,11 +5,20 @@
 //! **Layout.** The render covers the clip's window only — frame `k` is heard `k` samples
 //! after the window's start, `start` on the timeline — so the engine plays it as it plays
 //! any source (`add_clips`, one frame a sample) with the window's start as its frame 0 (the
-//! sample cache sets the clip's `slip` to `−offset_seconds`, so `Transport::clip_zero` is
-//! the window's start). Output frame `k` is song time `seconds(start) + k / rate`, which is
-//! timeline tick `T` through the tempo map, content tick `T − start + offset`, and source
-//! frame `warp.frame_at(that)`. A loop's pieces share one render wherever the tempo over
-//! them is the same (the key holds the map's `span_key` over the window, not its place).
+//! sample cache marks it `zero_at_start`). Output frame `k` is song time
+//! `seconds(start) + k / rate`, which is timeline tick `T` through the tempo map, content
+//! tick `T − start + offset`, and source frame `warp.frame_at(that)`. A loop's pieces share
+//! one render wherever the tempo over them is the same (the key holds the map's `span_key`
+//! over the window, not its place).
+//!
+//! **A warp that does not follow the tempo** (a transposition, ADR 0061) plays at natural
+//! speed: output frame `k` reads the source frame under the window's start, plus `k`. That
+//! start frame — to the whole frame, what the engine plays to anyway — and the window's
+//! length are all its render depends on, so its key holds them and not the offset, the fine
+//! offset or the tempo before the window that put the frame there (round 29's second
+//! review: a tempo edit before the window left a stale render playing, two loop pieces
+//! whose hidden parts differed shared one, and a tempo edit's re-anchoring re-rendered a
+//! window whose audio it had kept).
 
 use super::Analysis;
 use cantus_core::audio_time;
@@ -71,10 +80,29 @@ impl Plan {
         self.map.tick_after_seconds(s, k / self.rate as f64)
     }
 
+    /// The source frame (the source's own rate, to the whole frame) under the window's
+    /// start of a warp that does not follow the tempo: what the unwarped rule reads there
+    /// (`audio_time::frame_at`, from the content origin with the fine offset).
+    pub fn natural_start(&self) -> f64 {
+        audio_time::frame_at(
+            &self.map,
+            self.start,
+            self.offset,
+            self.slip_frames,
+            self.source_rate.max(1) as f64,
+            self.start.0 as f64,
+        )
+        .round()
+    }
+
     /// The input frame (at `rate`) output frame `k` reads.
     pub fn source_at(&self, k: f64) -> f64 {
-        let t = self.tick_at(k);
         let scale = self.rate as f64 / self.source_rate.max(1) as f64;
+        if !self.warp.follow {
+            // Natural speed from the window's start (see the module docs).
+            return self.natural_start() * scale + k;
+        }
+        let t = self.tick_at(k);
         // The one mapping the interface draws through too (ADR 0061 §6).
         let f = audio_time::frame_through(
             &self.map,
@@ -100,6 +128,9 @@ impl Plan {
     /// at and a transient's hold may move — round 29's review).
     pub fn time_map(&self) -> Map {
         let len = self.len();
+        if !self.warp.follow {
+            return Map::linear(self.source_at(0.0), 1.0);
+        }
         let s = self.start.0 as f64;
         let e = self.end.0 as f64;
         let held = self.map.held_at(s).is_some_and(|(_, _, to)| to >= e);
@@ -119,7 +150,9 @@ impl Plan {
             for m in &self.warp.markers {
                 let k = self.frame_of(origin + m.tick.0 as f64);
                 if k > 0.0 && k < len as f64 {
-                    ks.push((k, true));
+                    // The warp's own markers (a ramp's samples, the tempo points) are
+                    // soft, as the tempo's are (round 29's second review).
+                    ks.push((k, !m.auto));
                 }
             }
         }
@@ -298,12 +331,19 @@ pub fn key(plan: &Plan) -> u64 {
     fnv(&mut h, &w.rate.to_le_bytes());
     fnv(&mut h, w.mode.id().as_bytes());
     fnv(&mut h, w.tail.id().as_bytes());
-    fnv(&mut h, &w.bpm.to_bits().to_le_bytes());
     fnv(&mut h, &w.cents.to_le_bytes());
     fnv(&mut h, &[w.formants as u8, w.follow as u8]);
+    if !w.follow {
+        // Natural speed: the frame under the window's start and the window's length.
+        fnv(&mut h, &plan.natural_start().to_bits().to_le_bytes());
+        fnv(&mut h, &(plan.len() as u64).to_le_bytes());
+        return h;
+    }
+    fnv(&mut h, &w.bpm.to_bits().to_le_bytes());
     for m in &w.markers {
         fnv(&mut h, &m.frame.to_bits().to_le_bytes());
         fnv(&mut h, &m.tick.0.to_le_bytes());
+        fnv(&mut h, &[m.auto as u8]);
     }
     fnv(&mut h, &plan.offset.0.to_le_bytes());
     fnv(&mut h, &(plan.end.0 - plan.start.0).to_le_bytes());
@@ -311,8 +351,5 @@ pub fn key(plan: &Plan) -> u64 {
         &mut h,
         &plan.map.span_key(plan.start, plan.end).to_le_bytes(),
     );
-    if !w.follow {
-        fnv(&mut h, &plan.slip_frames.to_bits().to_le_bytes());
-    }
     h
 }

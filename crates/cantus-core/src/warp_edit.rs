@@ -11,25 +11,50 @@ impl Warp {
         self.markers.iter().position(|m| m.tick == tick)
     }
 
-    /// The ticks a marker at `i` may move between (exclusive of its neighbours).
+    /// The user's markers either side of marker `i` (the warp's own, [`WarpMarker::auto`],
+    /// lie between and are carried along).
+    fn user_neighbours(&self, i: usize) -> (Option<usize>, Option<usize>) {
+        let m = &self.markers;
+        let p = (0..i).rev().find(|&j| !m[j].auto);
+        let q = (i + 1..m.len()).find(|&j| !m[j].auto);
+        (p, q)
+    }
+
+    /// The ticks a marker at `i` may move between: its user neighbours', a tick apart from
+    /// them and from each of the warp's own markers between (round 29's second review: the
+    /// samples of a ramp never stop a drag).
     fn tick_room(&self, i: usize) -> (i64, i64) {
-        let lo = i
-            .checked_sub(1)
-            .map_or(i64::MIN / 4, |j| self.markers[j].tick.0 + MIN_GAP.0);
-        let hi = self
-            .markers
-            .get(i + 1)
-            .map_or(i64::MAX / 4, |m| m.tick.0 - MIN_GAP.0);
+        let (p, q) = self.user_neighbours(i);
+        let n = self.markers.len();
+        let before = (i - p.map_or(0, |j| j + 1)) as i64;
+        let after = (q.unwrap_or(n) - i - 1) as i64;
+        let lo = p.map_or(i64::MIN / 4, |j| {
+            self.markers[j].tick.0 + MIN_GAP.0 * (before + 1)
+        });
+        let hi = q.map_or(i64::MAX / 4, |j| {
+            self.markers[j].tick.0 - MIN_GAP.0 * (after + 1)
+        });
         (lo, hi)
     }
 
-    /// The frames a marker at `i` may hold (strictly between its neighbours').
+    /// The frames a marker at `i` may hold (strictly between its user neighbours').
     fn frame_room(&self, i: usize) -> (f64, f64) {
-        let lo = i
-            .checked_sub(1)
-            .map_or(f64::NEG_INFINITY, |j| self.markers[j].frame);
-        let hi = self.markers.get(i + 1).map_or(f64::INFINITY, |m| m.frame);
+        let (p, q) = self.user_neighbours(i);
+        let lo = p.map_or(f64::NEG_INFINITY, |j| self.markers[j].frame);
+        let hi = q.map_or(f64::INFINITY, |j| self.markers[j].frame);
         (lo, hi)
+    }
+
+    /// A user's marker put in: the warp's own markers in its way (on its tick, or out of
+    /// order with it) give way to it.
+    fn insert_user(&self, m: WarpMarker) -> Option<Warp> {
+        let mut w = self.clone();
+        w.markers.retain(|k| {
+            !k.auto
+                || ((k.tick.0 - m.tick.0).abs() >= MIN_GAP.0
+                    && (k.tick < m.tick) == (k.frame < m.frame))
+        });
+        w.insert(m)
     }
 
     /// Insert `m` in order, unless it would sit on or between a neighbour's tick or frame.
@@ -53,50 +78,137 @@ impl Warp {
     /// A marker on content tick `tick`, pinning the source frame heard there now (nothing
     /// moves until it is dragged). `None` when one is already there.
     pub fn add_marker(&self, tick: Ticks) -> Option<Warp> {
-        self.insert(WarpMarker {
-            frame: self.frame_at(tick.0 as f64),
-            tick,
-        })
+        if let Some(i) = self.marker_at(tick).filter(|&i| self.markers[i].auto) {
+            // One of the warp's own: now the user's.
+            let mut w = self.clone();
+            w.markers[i].auto = false;
+            return Some(w);
+        }
+        self.insert_user(WarpMarker::at(self.frame_at(tick.0 as f64), tick))
     }
 
     /// A marker pairing source frame `frame` with content tick `tick` exactly; `None` where
     /// it would not keep the markers in order.
     pub fn with_marker(&self, frame: f64, tick: Ticks) -> Option<Warp> {
-        self.insert(WarpMarker { frame, tick })
+        self.insert_user(WarpMarker::at(frame, tick))
     }
 
     /// A marker on source frame `frame` (a transient), at the whole tick nearest where it
     /// is heard now.
     pub fn add_marker_at_frame(&self, frame: f64) -> Option<Warp> {
-        self.insert(WarpMarker {
+        self.insert_user(WarpMarker::at(
             frame,
-            tick: Ticks(self.tick_at(frame).round() as i64),
-        })
+            Ticks(self.tick_at(frame).round() as i64),
+        ))
     }
 
-    /// Marker `i` moved to content tick `tick` (clamped between its neighbours): the audio
-    /// on either side of it stretches.
+    /// Marker `i` moved to content tick `tick` (clamped between its user neighbours): the
+    /// audio on either side of it stretches. The warp's own markers between it and those
+    /// neighbours keep their frames and their share of the distance (the tempo curve they
+    /// sample keeps its shape); none is ever dropped, so every index stays.
     pub fn move_marker(&self, i: usize, tick: Ticks) -> Warp {
         let mut w = self.clone();
-        if i < w.markers.len() {
-            let (lo, hi) = w.tick_room(i);
-            w.markers[i].tick = Ticks(tick.0.clamp(lo, hi.max(lo)));
+        let n = w.markers.len();
+        if i >= n {
+            return w;
+        }
+        w.markers[i].auto = false;
+        let (lo, hi) = w.tick_room(i);
+        let old = w.markers[i].tick.0;
+        let new = tick.0.clamp(lo, hi.max(lo));
+        if new == old {
+            return w;
+        }
+        let (p, q) = w.user_neighbours(i);
+        let scale = |t: i64, a: i64| {
+            a + ((t - a) as f64 * (new - a) as f64 / (old - a) as f64).round() as i64
+        };
+        match p {
+            Some(j) => {
+                let a = w.markers[j].tick.0;
+                for m in &mut w.markers[j + 1..i] {
+                    m.tick = Ticks(scale(m.tick.0, a));
+                }
+            }
+            None => w.markers[..i]
+                .iter_mut()
+                .for_each(|m| m.tick.0 += new - old),
+        }
+        let end = q.unwrap_or(n);
+        match q {
+            Some(j) => {
+                let b = w.markers[j].tick.0;
+                for m in &mut w.markers[i + 1..j] {
+                    m.tick = Ticks(scale(m.tick.0, b));
+                }
+            }
+            None => w.markers[i + 1..]
+                .iter_mut()
+                .for_each(|m| m.tick.0 += new - old),
+        }
+        w.markers[i].tick = Ticks(new);
+        // A tick apart on both sides (the room above holds a tick for each): each run
+        // pushed off its far end, then off the moved marker.
+        let from = p.map_or(0, |j| j + 1);
+        let ms = &mut w.markers;
+        for j in from..i {
+            if j > 0 {
+                ms[j].tick.0 = ms[j].tick.0.max(ms[j - 1].tick.0 + MIN_GAP.0);
+            }
+        }
+        for j in (from..i).rev() {
+            ms[j].tick.0 = ms[j].tick.0.min(ms[j + 1].tick.0 - MIN_GAP.0);
+        }
+        for j in (i + 1..end).rev() {
+            if j + 1 < n {
+                ms[j].tick.0 = ms[j].tick.0.min(ms[j + 1].tick.0 - MIN_GAP.0);
+            }
+        }
+        for j in i + 1..end {
+            ms[j].tick.0 = ms[j].tick.0.max(ms[j - 1].tick.0 + MIN_GAP.0);
         }
         w
     }
 
     /// The source under marker `i` changed to frame `frame` (clamped strictly between its
-    /// neighbours' frames): the content slides under a marker that stays put.
+    /// user neighbours' frames): the content slides under a marker that stays put, the
+    /// warp's own markers either side carried along in proportion.
     pub fn move_content(&self, i: usize, frame: f64) -> Warp {
         let mut w = self.clone();
-        if i < w.markers.len() && frame.is_finite() {
-            let (lo, hi) = w.frame_room(i);
-            let eps = 1e-3;
-            let f = frame.max(lo + eps).min(hi - eps);
-            if f > lo && f < hi {
-                w.markers[i].frame = f;
-            }
+        if i >= w.markers.len() || !frame.is_finite() {
+            return w;
         }
+        let (lo, hi) = w.frame_room(i);
+        let eps = 1e-3;
+        let f = frame.max(lo + eps).min(hi - eps);
+        if !(f > lo && f < hi) {
+            return w;
+        }
+        let old = w.markers[i].frame;
+        let (p, q) = w.user_neighbours(i);
+        let scale = |x: f64, a: f64| a + (x - a) * (f - a) / (old - a);
+        match p {
+            Some(j) => {
+                let a = w.markers[j].frame;
+                for m in &mut w.markers[j + 1..i] {
+                    m.frame = scale(m.frame, a);
+                }
+            }
+            None => w.markers[..i].iter_mut().for_each(|m| m.frame += f - old),
+        }
+        match q {
+            Some(j) => {
+                let b = w.markers[j].frame;
+                for m in &mut w.markers[i + 1..j] {
+                    m.frame = scale(m.frame, b);
+                }
+            }
+            None => w.markers[i + 1..]
+                .iter_mut()
+                .for_each(|m| m.frame += f - old),
+        }
+        w.markers[i].frame = f;
+        w.markers[i].auto = false;
         w
     }
 
@@ -235,9 +347,9 @@ impl Warp {
                 ends.push(from - span);
             }
             for end in ends {
-                if w.markers.iter().all(|m| m.tick != end) {
+                if w.markers.iter().all(|m| m.tick != end || m.auto) {
                     let frame = w.frame_at(end.0 as f64);
-                    if let Some(n) = w.insert(WarpMarker { frame, tick: end }) {
+                    if let Some(n) = w.insert_user(WarpMarker::at(frame, end)) {
                         w = n;
                     }
                 }
@@ -249,10 +361,7 @@ impl Warp {
             } else {
                 // Its own marker: placed where it is heard, then moved to the target.
                 let here = Ticks(w.tick_at(f).round() as i64);
-                let Some(n) = w.insert(WarpMarker {
-                    frame: f,
-                    tick: here,
-                }) else {
+                let Some(n) = w.insert_user(WarpMarker::at(f, here)) else {
                     continue;
                 };
                 let i = n.markers.iter().position(|m| m.frame == f).unwrap_or(0);
@@ -291,10 +400,7 @@ impl Warp {
             if beat % bpb != 0 {
                 continue;
             }
-            if let Some(n) = w.insert(WarpMarker {
-                frame: f,
-                tick: Ticks(base + beat * PPQ),
-            }) {
+            if let Some(n) = w.insert(WarpMarker::at(f, Ticks(base + beat * PPQ))) {
                 w = n;
             }
         }
@@ -303,10 +409,10 @@ impl Warp {
         if let Some(m0) = w.markers.first().copied().filter(|m| m.frame > 0.0) {
             let fpt = frames_per_tick(rate, bpm);
             let t0 = (m0.tick.0 as f64 - m0.frame / fpt).ceil().max(0.0) as i64;
-            if let Some(n) = w.insert(WarpMarker {
-                frame: m0.frame - (m0.tick.0 - t0) as f64 * fpt,
-                tick: Ticks(t0),
-            }) {
+            if let Some(n) = w.insert(WarpMarker::at(
+                m0.frame - (m0.tick.0 - t0) as f64 * fpt,
+                Ticks(t0),
+            )) {
                 w = n;
             }
         }
@@ -324,12 +430,14 @@ impl Warp {
 impl Warp {
     /// The warp that plays a clip exactly as it plays unwarped (ADR 0060: natural speed
     /// from its content origin `start − offset`, through the tempo map), following the
-    /// tempo: markers on the content origin, the window's two ends, every tempo point
-    /// between and, inside a ramp, every sixteenth — each on the source frame the unwarped
-    /// rule reads there (`audio_time::frame_at`). What a first warp edit starts from, so
-    /// nothing moves until a marker is dragged (round 29's review: a straight line at the
-    /// song's first tempo moved a clip that sat under another). Under one tempo it is the
-    /// identity.
+    /// tempo: the user's markers on the content origin and the window's two ends, and the
+    /// warp's own ([`WarpMarker::auto`]: never drawn or grabbed, soft for the stretcher) on
+    /// every tempo point between and, inside a ramp, as close as keeps the straight line
+    /// between two within a quarter of a frame of the curve (round 29's second review: a
+    /// marker every sixteenth missed a steep ramp by milliseconds, and drew a barcode of
+    /// handles nobody placed) — each on the source frame the unwarped rule reads there
+    /// (`audio_time::frame_at`). What a first warp edit starts from, so nothing moves until a
+    /// marker is dragged. Under one tempo it is the identity.
     pub fn natural_of(
         map: &crate::tempo::TempoMap,
         start: Ticks,
@@ -340,26 +448,38 @@ impl Warp {
     ) -> Warp {
         let origin = start - offset;
         let end = start + length;
-        let mut ticks: Vec<i64> = vec![origin.0, start.0, end.0];
-        let (lo, hi) = (origin.0.min(start.0), end.0);
+        let rate_f = rate.max(1) as f64;
+        // (tick, the warp's own)
+        let mut ticks: Vec<(i64, bool)> = vec![(origin.0, false), (start.0, false), (end.0, false)];
+        let (lo, hi) = (origin.0.min(start.0), end.0.max(origin.0));
         for p in map.points() {
             if p.tick.0 > lo && p.tick.0 < hi {
-                ticks.push(p.tick.0);
+                ticks.push((p.tick.0, true));
             }
         }
-        let step = PPQ / 4;
-        let mut t = lo - lo.rem_euclid(step) + step;
-        while t < hi && ticks.len() < super::MAX_MARKERS / 2 {
-            if map.in_ramp(t as f64) {
-                ticks.push(t);
+        let cap = super::MAX_MARKERS / 2;
+        let mut t = lo as f64;
+        while t < hi as f64 && ticks.len() < cap {
+            let next = map.next_change_after(t).unwrap_or(f64::INFINITY);
+            if !map.in_ramp(t) {
+                t = next;
+                continue;
             }
-            t += step;
+            let to = next.min(hi as f64);
+            let h = ramp_step(map, t, to, rate_f);
+            let n = (t + h).floor().max(t.floor() + 1.0);
+            if n >= to {
+                t = to;
+                continue;
+            }
+            ticks.push((n as i64, true));
+            t = n;
         }
+        // In order; on one tick the user's marker stays.
         ticks.sort_unstable();
-        ticks.dedup();
-        let rate_f = rate.max(1) as f64;
+        ticks.dedup_by_key(|x| x.0);
         let mut w = Warp::new(rate.max(1), map.bpm_at(start.0 as f64));
-        for t in ticks {
+        for (t, auto) in ticks {
             let frame = crate::audio_time::frame_at(
                 map,
                 start,
@@ -368,10 +488,39 @@ impl Warp {
                 rate_f,
                 t as f64,
             );
-            if let Some(n) = w.with_marker(frame, Ticks(t - origin.0)) {
+            let m = WarpMarker {
+                frame,
+                tick: Ticks(t - origin.0),
+                auto,
+            };
+            if let Some(n) = w.insert(m) {
                 w = n;
             }
         }
         w
     }
+}
+
+/// How many ticks a ramp's straight line may span from `t` (before `to`, where the ramp
+/// ends) and stay within a quarter of a frame of the curve: the chord of a curve `f` over
+/// `h` misses it by at most `h² · max|f''| / 8`, and the unwarped frame's `f''` inside a
+/// ramp of slope `k` (BPM a tick) is `rate · 60 · |k| / (PPQ · bpm²)` — largest where the
+/// tempo is lowest.
+fn ramp_step(map: &crate::tempo::TempoMap, t: f64, to: f64, rate: f64) -> f64 {
+    const MISS: f64 = 0.25;
+    let k = map.slope_at(t).abs();
+    if k == 0.0 {
+        return (to - t).max(1.0);
+    }
+    let bend = |bpm: f64| rate * 60.0 * k / (PPQ as f64 * bpm * bpm).max(1e-12);
+    let step = |bpm: f64| (8.0 * MISS / bend(bpm)).sqrt();
+    let mut lowest = map.bpm_at(t);
+    let mut h = step(lowest);
+    // A slowing ramp is slowest at the far end: twice, so the step's own end is counted.
+    for _ in 0..2 {
+        let far = map.bpm_at((t + h).min(to));
+        lowest = lowest.min(far);
+        h = step(lowest);
+    }
+    h.max(1.0)
 }

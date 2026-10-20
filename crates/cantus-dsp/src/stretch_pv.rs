@@ -31,15 +31,51 @@ use crate::aequalis::fft::Fft;
 use crate::math;
 use std::f32::consts::PI;
 
-/// The frame length for `rate`: ≈ 170 ms, a power of two — long enough to keep partials
-/// 30 Hz apart apart (at 85 ms a chord's low voices shared lobes, and the bins between,
-/// locked to one of them, beat: round 29's review measured a detuned pad's voice
-/// wandering 5 dB; at 170 ms, under 0.7 dB). The transients do not pay for it: they are
-/// held, and the percussive part has its own short grains.
+/// The long frame for `rate`: ≈ 170 ms, a power of two — long enough to keep partials 30 Hz
+/// apart apart (at 85 ms a chord's low voices shared lobes, and the bins between, locked to
+/// one of them, beat: round 29's review measured a detuned pad's voice wandering 5 dB; at
+/// 170 ms, under 0.7 dB). The transients do not pay for it while they are far enough apart
+/// to be held a half frame each ([`frame_for`]), and the percussive part has its own short
+/// grains. A moving voice keeps its pitch within a few cents at either length (round 29's
+/// second review measured a vibrato and a legato line).
 pub(crate) fn frame_len(rate: f32) -> usize {
     ((0.17 * rate) as usize)
         .next_power_of_two()
         .clamp(2_048, 32_768)
+}
+
+/// The short frame for `rate`: ≈ 85 ms.
+pub(crate) fn frame_len_short(rate: f32) -> usize {
+    (frame_len(rate) / 2).max(2_048)
+}
+
+/// The frame a render takes: the long one, unless its transients come closer than a long
+/// frame and the hold after a transient (`after`, frames) — the median of the gaps between
+/// them, output and source frames, whichever is shorter: then a frame after one reaches
+/// into the half frame before the next, and the hold before it cannot take its whole half
+/// either — the short one (round 29's second review: hits a sixteenth apart sped up rang
+/// 21 dB before themselves at 170 ms, 35 dB at 85; tuned hits an eighth apart, 29 dB).
+pub(crate) fn frame_for(rate: f32, map: &Map, onsets: &[f64], after: f64) -> usize {
+    let long = frame_len(rate);
+    let mut gaps: Vec<f64> = onsets
+        .windows(2)
+        .map(|w| {
+            let (a, b) = (map.output(w[0]), map.output(w[1]));
+            (b - a).min(w[1] - w[0])
+        })
+        .filter(|g| *g > 0.0)
+        .collect();
+    if gaps.len() < 2 {
+        return long;
+    }
+    gaps.sort_by(f64::total_cmp);
+    let median = gaps[gaps.len() / 2];
+    let needs = long as f64 + after;
+    if median < needs {
+        frame_len_short(rate)
+    } else {
+        long
+    }
 }
 
 pub(crate) fn princarg(x: f32) -> f32 {
@@ -60,6 +96,7 @@ pub(crate) struct Meant {
 
 /// Render the time map and transposition over one or two channels (the harmonic part),
 /// and each synthesis frame's [`Meant`].
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn render(
     channels: &[&[f32]],
     rate: f32,
@@ -68,12 +105,13 @@ pub(crate) fn render(
     len: usize,
     ratio: f64,
     formants: bool,
+    n: usize,
 ) -> (Vec<Vec<f32>>, Vec<Meant>) {
     // Pairs share a phase; a third channel (never in a clip today) starts a new pair.
     let mut out = Vec::with_capacity(channels.len());
     let mut meant: Vec<Meant> = Vec::new();
     for pair in channels.chunks(2) {
-        let (o, m) = render_pair(pair, rate, map, holds, len, ratio, formants);
+        let (o, m) = render_pair(pair, rate, map, holds, len, ratio, formants, n);
         out.extend(o);
         if meant.is_empty() {
             meant = m;
@@ -314,6 +352,7 @@ struct State {
     sum: Vec<f32>,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_pair(
     ch: &[&[f32]],
     rate: f32,
@@ -322,8 +361,8 @@ fn render_pair(
     len: usize,
     ratio: f64,
     formants: bool,
+    n: usize,
 ) -> (Vec<Vec<f32>>, Vec<Meant>) {
-    let n = frame_len(rate);
     let hs = n / 8;
     let half = n / 2;
     let bins = half + 1;
@@ -477,12 +516,12 @@ const MATCH_MOST: f64 = 1.41;
 /// [`MATCH_FRAMES`] either side, and the ratio — at most [`MATCH_MOST`] either way —
 /// applied, interpolated between frame centres. On a steady tone it is 1 (round 29's
 /// review: the level of a transposed render).
-pub(crate) fn level_match(acc: &mut [Vec<f32>], meant: &[(i64, f64)], rate: f32) {
+pub(crate) fn level_match(acc: &mut [Vec<f32>], meant: &[(i64, f64)], n: usize) {
     // `meant`: each frame's centre and the power the output should have around it.
     if meant.is_empty() || acc.is_empty() {
         return;
     }
-    let win = window(frame_len(rate));
+    let win = window(n);
     let w2: f64 = win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
     let pad = 0usize;
     let got: Vec<f64> = meant
@@ -550,20 +589,25 @@ pub(crate) fn level_match(acc: &mut [Vec<f32>], meant: &[(i64, f64)], rate: f32)
 
 /// Whether the synthesis frame centred at `cf` resets at a hold: untransposed, every
 /// frame inside one; transposed, the frame nearest its transient. `next` walks the holds
-/// (in order) as the frames do; a hold is passed only once both its end and its nearest
-/// frame are behind — a short hold may end before the frame nearest its transient.
+/// (in order) as the frames do. Untransposed, a hold is passed once it ends, and every
+/// hold that has begun is asked (round 29's second review: a flam's short first hold hid
+/// the second); transposed, only once both its end and its nearest frame are behind — a
+/// short hold may end before the frame nearest its transient.
 pub(crate) fn at_hold(holds: &[Hold], next: &mut usize, cf: f64, hs: usize, plain: bool) -> bool {
     let nearest = |h: &Hold| (h.at / hs as f64).round() * hs as f64;
+    if plain {
+        while *next < holds.len() && holds[*next].to < cf {
+            *next += 1;
+        }
+        return holds[*next..]
+            .iter()
+            .take_while(|h| h.from <= cf)
+            .any(|h| cf <= h.to);
+    }
     while *next < holds.len() && holds[*next].to < cf && nearest(&holds[*next]) < cf {
         *next += 1;
     }
-    holds.get(*next).is_some_and(|h| {
-        if plain {
-            h.from <= cf && cf <= h.to
-        } else {
-            nearest(h) == cf
-        }
-    })
+    holds.get(*next).is_some_and(|h| nearest(h) == cf)
 }
 
 impl State {
@@ -588,12 +632,15 @@ impl State {
             c.advance(n, hs, ratio, reset);
         }
         // The image: where both channels hold the same partial — their phase difference
-        // holding still over a hop, the same frequency to a twenty-fifth of a bin (half a
-        // hertz at 48 kHz) — the right one keeps the source's phase difference from the
+        // holding still over a hop, the same frequency to a twenty-fifth of a bin (a quarter
+        // of a hertz at 48 kHz, 170 ms frames) — the right one keeps the source's phase difference from the
         // left, every frame, so silence or a reset never loses it; where they differ (a
         // chorus, a detuned voice a few hertz off), each keeps its own: locked, the right
         // one was pulled to the left's frequency and beat against itself (round 29's
-        // review measured a detuned pad's voice wandering 5 dB).
+        // review measured a detuned pad's voice wandering 5 dB). Partials both channels
+        // share over noise of their own 10 dB down keep the source's phase difference to
+        // 0.04 rad (round 29's second review measured it; a tolerance widened by each
+        // bin's noise locked a detuned chorus again and kept no better image).
         if stereo {
             let tol = 2.0 * PI * 0.04 / n as f32;
             let (l, r) = self.ch.split_at_mut(1);

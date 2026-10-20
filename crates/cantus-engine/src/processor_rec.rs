@@ -250,9 +250,25 @@ pub(super) fn add_clips(
         // Unwarped (ADR 0060 §4, `cantus_core::audio_time`): natural speed from the content
         // origin through the tempo map (a tempo edit re-anchors the window, `tempo::keep`,
         // so what plays at its start never moves).
-        let zero = transport.clip_zero(c.start, c.offset, c.slip);
+        // A warp's render starts on the window's first sample, its own frame 0 (round 29's
+        // second review: never by cancelling the formula above).
+        let zero = if c.zero_at_start {
+            start
+        } else {
+            transport.clip_zero(c.start, c.offset, c.slip)
+        };
         // The file frame under the window's first sample.
         let offset = start - zero;
+        // What the piece played before this snapshot swapped its data, laid as it was: it
+        // fades out over the first samples the snapshot plays while the new fades in.
+        let swap = c.fade_from.as_ref().map(|f| {
+            let z = if f.zero_at_start {
+                start
+            } else {
+                transport.clip_zero(c.start, c.offset, f.slip)
+            };
+            (f.data.as_ref(), start - z)
+        });
         let (s_tick, e_tick) = (c.start.0 as f64, c.end.0 as f64);
         let mut fade_in = transport
             .samples_between(s_tick, s_tick + c.fade_in.0.max(0) as f64)
@@ -310,13 +326,27 @@ pub(super) fn add_clips(
             if src < 0 || src >= frames {
                 continue;
             }
-            let (a, b) = if stereo {
+            let (mut a, mut b) = if stereo {
                 let k = src as usize * 2;
                 (data.frames[k], data.frames[k + 1])
             } else {
                 let x = data.frames[src as usize];
                 (x, x)
             };
+            if let Some((old, off)) = swap {
+                if let Some(u) = transport.swap_fade(s) {
+                    let at = if c.reverse {
+                        off + (len - 1 - j)
+                    } else {
+                        off + j
+                    };
+                    let (oa, ob) = frame_of(old, at);
+                    let q = std::f32::consts::FRAC_PI_2 * u;
+                    let (gi, go) = (cantus_dsp::math::sin(q), cantus_dsp::math::cos(q));
+                    a = a * gi + oa * go;
+                    b = b * gi + ob * go;
+                }
+            }
             let mut g = gain;
             if let Some((a, n)) = xin {
                 if s < a + n {
@@ -345,6 +375,22 @@ pub(super) fn add_clips(
         }
     }
     sounded
+}
+
+/// The frame `at` of `d` as a pair (silence outside it).
+#[inline]
+fn frame_of(d: &cantus_core::SampleData, at: i64) -> (f32, f32) {
+    let frames = d.len_frames() as i64;
+    if at < 0 || at >= frames {
+        return (0.0, 0.0);
+    }
+    if d.channels >= 2 {
+        let k = at as usize * 2;
+        (d.frames[k], d.frames[k + 1])
+    } else {
+        let x = d.frames[at as usize];
+        (x, x)
+    }
 }
 
 impl Processor {

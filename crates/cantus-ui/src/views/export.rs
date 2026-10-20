@@ -341,9 +341,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         return true;
     }
     let rate = app.engine.sample_rate.round() as u32;
+    let late = app.engine.renders_late();
     let snapshot = app
         .engine
         .compile_for_render(app.bus.project(), app.bus.revision());
+    app.say_late(late);
     let mut render = RenderOptions {
         sample_rate: rate,
         tail_seconds: d.tail_seconds.max(0.0) as f64,

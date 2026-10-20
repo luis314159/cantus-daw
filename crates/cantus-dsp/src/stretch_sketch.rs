@@ -5,14 +5,17 @@
 //! the overlaps add in phase and a tone keeps the transposition's pitch, not the speed's).
 //! A grain that holds a transient or a marker (`anchors`) is not moved: it is read from the
 //! anchor outward, so the anchor lands on its own frame. The search runs on a mixdown, one
-//! sample in four, then to the sample: a few milliseconds per second of audio.
+//! sample in eight, then in two, then to the sample, each place weighed once: a few
+//! milliseconds per second of audio.
 
 use super::read::Fast;
 use super::Map;
 use crate::math;
 
-/// Correlation stride for the coarse search.
-const COARSE: usize = 4;
+/// The coarse search's step and correlation stride (then two, then one).
+const COARSE: usize = 8;
+/// Faster than this (seven semitones up), the band-limited reader.
+const FAST_ABOVE: f64 = 1.5;
 
 fn read(x: &[f32], fast: Option<&Fast>, pos: f64, ratio: f64) -> f32 {
     if let Some(f) = fast {
@@ -82,9 +85,15 @@ pub(super) fn render(
     };
     let (a, b) = (map.source(0.0), map.source(len as f64));
     let reach = g as f64 * ratio.max(1.0) + search as f64;
+    // Read faster than recorded through the band-limited reader only where folding would
+    // be heard: up to half again (seven semitones) what folds back lies above 16 kHz, and
+    // a cubic read costs a sixteenth (round 29's second review: the sketch is a bridge,
+    // made quickly).
     let fast: Vec<Option<Fast>> = channels
         .iter()
-        .map(|x| (ratio > 1.0).then(|| Fast::new(x, a.min(b) - reach, a.max(b) + reach, ratio)))
+        .map(|x| {
+            (ratio > FAST_ABOVE).then(|| Fast::new(x, a.min(b) - reach, a.max(b) + reach, ratio))
+        })
         .collect();
     let mut out: Vec<Vec<f32>> = channels.iter().map(|_| vec![0.0; len]).collect();
     // Source frames one hop of output reads.
@@ -110,21 +119,22 @@ pub(super) fn render(
                 // to where the waveform continues it best.
                 let natural = (p + hop_src).round() as i64;
                 let base = nominal.round() as i64;
-                let coarse = (-search..=search)
-                    .step_by(COARSE)
-                    .max_by(|x, y| {
-                        let sx = similarity(&mono, natural, base + x, overlap, COARSE);
-                        let sy = similarity(&mono, natural, base + y, overlap, COARSE);
-                        sx.total_cmp(&sy).then(y.abs().cmp(&x.abs()))
-                    })
-                    .unwrap_or(0);
-                let fine = (coarse - COARSE as i64..=coarse + COARSE as i64)
-                    .max_by(|x, y| {
-                        let sx = similarity(&mono, natural, base + x, overlap, 1);
-                        let sy = similarity(&mono, natural, base + y, overlap, 1);
-                        sx.total_cmp(&sy).then(y.abs().cmp(&x.abs()))
-                    })
-                    .unwrap_or(coarse);
+                // Each place weighed once, coarse to fine (round 29's second review: every
+                // comparison weighed both again, and a long take took seconds).
+                let best = |lo: i64, hi: i64, step: usize| -> i64 {
+                    let mut won = (f32::NEG_INFINITY, 0i64);
+                    for x in (lo..=hi).step_by(step) {
+                        let s = similarity(&mono, natural, base + x, overlap, step);
+                        if s > won.0 || (s == won.0 && x.abs() < won.1.abs()) {
+                            won = (s, x);
+                        }
+                    }
+                    won.1
+                };
+                let coarse = best(-search, search, COARSE);
+                let c = COARSE as i64;
+                let medium = best(coarse - c, coarse + c, 2);
+                let fine = best(medium - 2, medium + 2, 1);
                 nominal + fine as f64
             }
             (None, None) => nominal,
