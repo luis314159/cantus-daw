@@ -10,8 +10,8 @@
 //! the tap at the transport's frame *f*, and the frozen strip reports that latency as its
 //! own (`Processor::compensate`), so every frame meets its fader, its pan and their
 //! automation at the very sample it did live — the mix is the live mix to the bit, in real
-//! time as offline. A **bounce trims it** (`TapOptions::trim`): frame 0 is the range's
-//! first tick, what an audio clip with no latency of its own must hold.
+//! time as offline. A **bounce keeps it too** (review 2: trimmed, the rides and keys carried
+//! to the new track acted early by it): the new track reports it (`Track::lateness`).
 //!
 //! **Length.** The range, then its tail: the pass runs on until what it taps has been
 //! exactly zero for `quiet_seconds` (a reverb rung out; denormals are flushed, so a tail
@@ -54,14 +54,9 @@ pub struct TapOptions {
     /// The range: frame 0 is `start`; the tail follows `end`.
     pub start: Ticks,
     pub end: Ticks,
-    /// Stop the transport at `end` (a range cut out of a song: nothing that starts after it
-    /// plays, what was playing rings out). Off: the song plays on.
-    pub stop_at_end: bool,
     /// The tail ends after this much exact silence, or at `max_tail_seconds`.
     pub quiet_seconds: f64,
     pub max_tail_seconds: f64,
-    /// Drop the tap's latency from the front (a bounce); kept for a freeze.
-    pub trim: bool,
 }
 
 impl TapOptions {
@@ -73,10 +68,8 @@ impl TapOptions {
             from: Ticks::ZERO,
             start: Ticks::ZERO,
             end,
-            stop_at_end: false,
             quiet_seconds: 1.0,
             max_tail_seconds: 30.0,
-            trim: false,
         }
     }
 
@@ -92,10 +85,8 @@ impl TapOptions {
             from: Ticks::ZERO,
             start,
             end,
-            stop_at_end: false,
             quiet_seconds: 1.0,
             max_tail_seconds: 30.0,
-            trim: false,
         }
     }
 }
@@ -108,8 +99,8 @@ pub struct Tapped {
     pub raw: PathBuf,
     pub frames: usize,
     pub sample_rate: u32,
-    /// The tap's latency: dropped from the front when trimmed, else what the frozen target
-    /// reports as its own.
+    /// The tap's latency: what the frozen target (or the bounce's new track) reports as its
+    /// own.
     pub latency: usize,
     pub peak: f32,
     /// Notes that played their streamed sample's start only.
@@ -202,28 +193,23 @@ pub fn render_tapped(
     };
     let slot = slot.ok_or(RenderError::Empty)?;
     let from = opts.from.min(opts.start);
-    // The frames before the range (the transport started earlier), and the trimmed latency.
-    let pre =
+    // The frames before the range (the transport started earlier) are dropped.
+    let late =
         crate::transport::sample_at_map(&snapshot.tempo, from.0 as f64, opts.start.0 as f64, sr)
             as usize;
-    let late = pre + if opts.trim { latency } else { 0 };
-    // The range's frames, and — kept, not trimmed — the latency they arrive after.
+    // The range's frames, and the latency they arrive after (kept).
     let content = (snapshot
         .tempo
         .seconds_between(opts.start, opts.end.max(opts.start))
         * sr)
         .ceil() as usize
-        + if opts.trim { 0 } else { latency };
+        + latency;
     let quiet = (opts.quiet_seconds.max(0.0) * sr).ceil() as usize;
     let longest = content + (opts.max_tail_seconds.max(0.0) * sr).ceil() as usize;
-    let mut stop_at = opts.stop_at_end.then(|| {
-        crate::transport::sample_at_map(&snapshot.tempo, from.0 as f64, opts.end.0 as f64, sr)
-            as usize
-    });
     let mut out = BufWriter::new(std::fs::File::create(raw).map_err(io)?);
     let mut buf = vec![0f32; block * 2];
     let mut bytes = Vec::with_capacity(block * 8);
-    // Frames written (after the trim), the last one that was not zero, the peak.
+    // Frames written (from `start`), the last one that was not zero, the peak.
     let mut written = 0usize;
     let mut last: Option<usize> = None;
     let mut peak = 0f32;
@@ -245,14 +231,7 @@ pub fn render_tapped(
                 break;
             }
         }
-        if stop_at == Some(done) {
-            tx.push(EngineMessage::Stop).ok();
-            stop_at = None;
-        }
-        let mut n = block;
-        if let Some(s) = stop_at.filter(|s| *s < done + n) {
-            n = s - done;
-        }
+        let n = block;
         p.process(&mut buf[..n * 2], 2);
         let tap = p.stem_tap().expect("attached above");
         let [l, r] = match point {

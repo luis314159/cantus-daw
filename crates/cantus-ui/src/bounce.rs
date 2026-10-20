@@ -9,8 +9,10 @@
 //! inputs left out): the new track feeds a new strip that takes the old one's width, pan,
 //! fader, mute, solo, output and sends. Hosted plug-ins render through `render_units` /
 //! `render_instruments`, as an export does; the render is one offline pass at the
-//! engine's rate (`cantus_engine::freeze::render`), its tail kept until it rings out, the
-//! latency trimmed so the clip's first frame is the range's first tick.
+//! engine's rate (`cantus_engine::freeze::render`), played from tick 0 as the song plays,
+//! its tail kept until it rings out, the latency kept: the clip starts at the range's
+//! first tick and the new track reports the latency its frames arrive after
+//! (`Track::lateness`, review 2), so what drives it meets them as before.
 //!
 //! **What goes with it** (review 1): the automation and the modulators of what the bounce
 //! takes the place of — the original's level and balance (source), the old strip's fader,
@@ -21,8 +23,9 @@
 //! held across its edges (its edges move out to them: nothing is cut off mid-note).
 //!
 //! **The project it was made from.** The render is of the project as it was when it
-//! started; if anything changed meanwhile it is made again (review 1: the cut put an edit
-//! back, or an out-of-date render replaced edited clips).
+//! started; if what it renders changed meanwhile it is made again (review 1: the cut put an
+//! edit back, or an out-of-date render replaced edited clips) — an edit elsewhere does not
+//! (review 2: `freeze::region_key` of its region compared).
 
 use crate::app::CantusApp;
 use crate::freeze::Want;
@@ -409,8 +412,8 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             (a, b, None)
         }
     };
-    // The render's project: the track plays what the range takes (a time range, all of
-    // it: the transport stops at the end), the rest of the song resting, no solo (review
+    // The render's project: the track plays what the range takes (a time range: what is
+    // inside it, the song playing on), the rest of the song resting, no solo (review
     // 1: a solo elsewhere rendered silence, and the original was then muted). Frozen
     // strips the bounce hears (a key) play their renders, as in the session.
     let mut alone = project.clone();

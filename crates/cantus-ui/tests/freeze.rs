@@ -1313,15 +1313,31 @@ fn half_written_bounce_files_are_tidied() {
         .collect();
     left.sort();
     assert_eq!(left, vec!["Synth bounce.wav", "take.wav.part"]);
+    // And where the session does it: the project's `Audio` folder, when its path is taken.
+    let ctx = support::ctx();
+    let (mut app, project) = self::app("tidy-bounce-session");
+    let audio = project.join("Audio");
+    std::fs::create_dir_all(&audio).unwrap();
+    let part = audio.join("Bass bounce.wav.part");
+    std::fs::write(&part, b"x").unwrap();
+    std::fs::File::options()
+        .write(true)
+        .open(&part)
+        .unwrap()
+        .set_modified(old)
+        .unwrap();
+    cantus_ui::freeze::tick(&mut app, &ctx);
+    assert!(
+        !part.exists(),
+        "a session cut short leaves no partial bounce"
+    );
 }
 
 #[test]
-fn a_bounce_refuses_a_solo_inside_a_strip_a_live_input_and_clips_whose_notes_are_heard() {
-    let (mut app, _dir) = app("bounce-refusals");
-    let synth = app.project().tracks[0].id;
+fn a_strip_bounce_refuses_a_solo_inside_it() {
+    let (mut app, _dir) = app("bounce-refuses-solo");
     let bass = app.project().tracks[1].id;
     let bass_strip = app.project().tracks[1].strip.unwrap();
-    // A solo inside a whole strip's bounce.
     assert!(app.exec(Command::SetTrackSolo {
         id: bass,
         soloed: true
@@ -1333,8 +1349,12 @@ fn a_bounce_refuses_a_solo_inside_a_strip_a_live_input_and_clips_whose_notes_are
         app.status.text
     );
     assert!(!app.freeze.busy());
-    app.undo();
-    // A live input.
+}
+
+#[test]
+fn a_bounce_refuses_a_live_input() {
+    let (mut app, _dir) = app("bounce-refuses-input");
+    let synth = app.project().tracks[0].id;
     assert!(app.exec(Command::SetTrackArmed {
         id: synth,
         armed: true
@@ -1349,7 +1369,13 @@ fn a_bounce_refuses_a_solo_inside_a_strip_a_live_input_and_clips_whose_notes_are
         "{}",
         app.status.text
     );
-    app.undo();
+}
+
+#[test]
+fn a_range_bounce_refuses_clips_whose_notes_are_heard() {
+    let (mut app, _dir) = app("bounce-refuses-notes");
+    let synth = app.project().tracks[0].id;
+    let bass_strip = app.project().tracks[1].strip.unwrap();
     // Its clips' notes heard by an insert elsewhere: a range would mute them.
     let mut p = app.project().clone();
     let mut gate = p.make_effect(EffectKind::Gate);
@@ -1475,9 +1501,23 @@ fn an_edit_elsewhere_while_a_bounce_renders_does_not_make_it_again() {
         id: bass_strip,
         gain_db: -4.0
     }));
+    // Every frame watched: a bounce made again says so when its first render lands (and
+    // the second one's "done" would hide it after).
+    let again = cantus_ui::i18n::t("bounce.again");
+    let t0 = Instant::now();
+    let mut said = Vec::new();
+    while app.freeze.busy() && t0.elapsed() < Duration::from_secs(120) {
+        app.sync_engine();
+        cantus_ui::freeze::tick(&mut app, &ctx);
+        said.push(app.status.text.clone());
+        std::thread::sleep(Duration::from_millis(5));
+    }
     settle(&mut app, &ctx);
     assert_eq!(app.project().tracks.len(), 3);
-    assert!(!app.status.text.contains("again"), "{}", app.status.text);
+    assert!(
+        !said.iter().any(|s| *s == again),
+        "made again for an edit elsewhere"
+    );
 }
 
 #[test]
@@ -1506,7 +1546,7 @@ fn removing_an_original_whose_notes_are_heard_says_why_with_the_result() {
 }
 
 #[test]
-fn the_bounce_keys_take_a_chosen_track_whole_a_chosen_strip_and_never_the_master() {
+fn the_bounce_keys_take_a_chosen_track_whole() {
     let ctx = support::ctx();
     // A track header chosen: the whole track (its two clips).
     let (mut app, _dir) = app("key-track");
@@ -1519,7 +1559,12 @@ fn the_bounce_keys_take_a_chosen_track_whole_a_chosen_strip_and_never_the_master
     app.run_action(Action::BounceSource);
     settle(&mut app, &ctx);
     assert!(app.project().track(synth).unwrap().muted, "the whole track");
-    // A strip chosen on the desk: that strip.
+}
+
+#[test]
+fn the_bounce_keys_take_a_chosen_strip() {
+    let ctx = support::ctx();
+    // A strip chosen on the desk (after a track): that strip.
     let (mut app, _dir) = self::app("key-strip-bounce");
     let bass_strip = app.project().tracks[1].strip.unwrap();
     app.select_track(app.project().tracks[0].id);
@@ -1530,8 +1575,15 @@ fn the_bounce_keys_take_a_chosen_track_whole_a_chosen_strip_and_never_the_master
         app.project().strip(bass_strip).unwrap().muted,
         "the strip bounced"
     );
-    // The master chosen: nothing frozen or bounced.
+}
+
+#[test]
+fn the_freeze_and_bounce_keys_never_take_the_master() {
+    let ctx = support::ctx();
+    // The master chosen after a track: nothing frozen or bounced (review 2: the track
+    // chosen before was frozen).
     let (mut app, _dir) = self::app("key-master");
+    app.select_track(app.project().tracks[0].id);
     app.select_master();
     let before = app.project().clone();
     app.run_action(Action::FreezeTrack);
@@ -1551,11 +1603,13 @@ fn stop_pressed_while_its_file_is_written_commits_nothing() {
         range: Range::Track,
     });
     // The render done, its file written: then Stop, before the frame collects it.
+    let t0 = Instant::now();
     while app
         .freeze
         .job
         .as_ref()
         .is_some_and(|j| j.progress.fraction() < 1.0)
+        && t0.elapsed() < Duration::from_secs(120)
     {
         std::thread::sleep(Duration::from_millis(5));
     }
