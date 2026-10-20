@@ -215,7 +215,9 @@ pub fn render_tapped(
     let mut last: Option<usize> = None;
     let mut peak = 0f32;
     let mut done = 0usize;
-    progress.total.store((late + content) as u64, Relaxed);
+    // The tail is counted at its longest, the total cut to what was done when it ends
+    // sooner (review 1: the card sat at 100 % while a tail rang for up to 30 s).
+    progress.total.store((late + longest) as u64, Relaxed);
     progress.done.store(0, Relaxed);
     loop {
         if progress.cancel.load(Relaxed) {
@@ -272,7 +274,8 @@ pub fn render_tapped(
             &snapshot,
         )));
     }
-    progress.done.store(progress.total.load(Relaxed), Relaxed);
+    progress.total.store(done as u64, Relaxed);
+    progress.done.store(done as u64, Relaxed);
     Ok(Tapped {
         raw: raw.to_path_buf(),
         frames: last.map_or(0, |l| l + 1),
@@ -365,21 +368,30 @@ pub fn prepare(
         .to_path_buf();
     let path = dir.join(crate::freeze::file_name(&key));
     let mut alone = project.clone();
-    match target {
-        FreezeTarget::Strip(s) => {
-            if let Some(s) = alone.strip_mut(s) {
-                s.frozen = None;
-            }
-        }
-        FreezeTarget::Track(t) => {
-            if let Some(t) = alone.track_mut(t) {
-                t.frozen = None;
-            }
+    // Live: the target, and every frozen target its region is not inside of — one whose
+    // region holds the target would rest it (review 1: a nested strip's refresh came out
+    // silent). The frozen targets inside its region play their renders.
+    let region = freeze::region(project, target);
+    for s in &mut alone.strips {
+        if s.frozen.is_some()
+            && (FreezeTarget::Strip(s.id) == target || !region.strips.contains(&s.id))
+        {
+            s.frozen = None;
         }
     }
+    for t in &mut alone.tracks {
+        if t.frozen.is_some()
+            && (FreezeTarget::Track(t.id) == target || !region.tracks.contains(&t.id))
+        {
+            t.frozen = None;
+        }
+    }
+    // Made unsoloed (solo is no part of a frozen sound — review 1: a solo elsewhere
+    // rendered silence under the unsoloed key).
+    freeze::neutral(&mut alone, target);
     let compiled = engine.compile_for_render(&alone, 0);
     let mut snap = (*compiled).clone();
-    freeze::isolate(&mut snap, &freeze::region(project, target));
+    freeze::isolate(&mut snap, &region);
     let point = match target {
         FreezeTarget::Strip(s) => TapPoint::Strip(alone.strip_index(s).ok_or("gone")?),
         FreezeTarget::Track(t) => TapPoint::Track(alone.track_index(t).ok_or("gone")?),

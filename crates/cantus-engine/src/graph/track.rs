@@ -340,11 +340,7 @@ fn track_segment(
     if let Some(h) = s.frozen.clone() {
         let from = crate::freeze::frame_at(&transport);
         let playing = transport.is_playing();
-        crate::freeze::point(
-            &h,
-            &mut s.frozen_place,
-            from + if playing { m as i64 } else { 0 },
-        );
+        crate::freeze::point(&h, &mut s.frozen_place, from);
         let sounding = playing && from + (m as i64) > 0 && from < h.frames as i64;
         if sounding {
             let late = crate::freeze::read(&h, from, l, r, inter, ctx.offline);

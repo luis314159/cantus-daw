@@ -94,10 +94,21 @@ impl Processor {
                 let h = crate::freeze::handle_of(t.frozen.as_ref());
                 if !same_handle(&s.frozen, &h) {
                     s.frozen_place.block = None;
+                    if let Some(old) = s.frozen.as_ref() {
+                        crate::freeze::release(old);
+                    }
                 }
+                // Frozen or resting, the instrument is not played: on either change its
+                // voices go (review 1 — a note held when it froze sounded again, its
+                // note-off long passed, when it thawed during playback).
+                let quiet = |frozen: bool, rest: bool| frozen || rest;
+                let was = quiet(s.frozen.is_some(), s.rest);
                 s.frozen = h;
                 s.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
                 s.rest = t.rest;
+                if was != quiet(s.frozen.is_some(), s.rest) {
+                    s.reset();
+                }
             }
             if t.rest {
                 nodes.track_peak[slot].store(0, std::sync::atomic::Ordering::Relaxed);
@@ -110,6 +121,11 @@ impl Processor {
                 let native = nodes.track(i).and_then(|mut s| {
                     s.all_notes_off();
                     s.id = None;
+                    // Its render let go while the old snapshot still holds it (never the
+                    // last owner on this thread).
+                    if let Some(h) = s.frozen.take() {
+                        crate::freeze::release(&h);
+                    }
                     s.native.take()
                 });
                 if let Some(u) = native {
@@ -170,9 +186,21 @@ impl Processor {
                 let h = crate::freeze::handle_of(st.frozen.as_ref());
                 if !same_handle(&ss.frozen, &h) {
                     ss.frozen_place.block = None;
+                    if let Some(old) = ss.frozen.as_ref() {
+                        crate::freeze::release(old);
+                    }
                 }
                 ss.frozen = h;
                 ss.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
+                // A strip that starts or stops resting comes back empty: its inserts and
+                // EQ hold nothing from before (review 1).
+                if ss.rest != st.rest {
+                    for e in &mut ss.effects {
+                        e.reset();
+                    }
+                    ss.eq_l.reset();
+                    ss.eq_r.reset();
+                }
                 ss.rest = st.rest;
             }
             if st.rest {
@@ -228,6 +256,10 @@ impl Processor {
                     s.output = None;
                     s.send_count = 0;
                     s.has_pre = false;
+                    s.rest = false;
+                    if let Some(h) = s.frozen.take() {
+                        crate::freeze::release(&h);
+                    }
                     while let Some(e) = s.effects.pop() {
                         // `dispose_effect` needs `&mut self`: the unit goes through the
                         // scratch list, which never holds more than one chain.

@@ -877,12 +877,17 @@ fn a_frozen_return_or_keyed_bus_never_silences_what_also_plays_live() {
     p.strip_mut(s.group).unwrap().effects.push(voc);
     s.bus = CommandBus::new(p);
     freeze(&mut s.bus, FreezeTarget::Strip(s.group));
-    assert!(freeze::region(s.bus.project(), FreezeTarget::Strip(s.group))
-        .tracks
-        .contains(&s.lonely));
+    assert!(
+        freeze::region(s.bus.project(), FreezeTarget::Strip(s.group))
+            .tracks
+            .contains(&s.lonely)
+    );
     let d = freeze::dormant(s.bus.project(), &|_| true);
     assert!(!d.tracks.contains(&s.lonely), "the note source plays on");
-    assert!(d.tracks.contains(&s.drums), "what only the group hears rests");
+    assert!(
+        d.tracks.contains(&s.drums),
+        "what only the group hears rests"
+    );
 }
 
 #[test]
@@ -914,7 +919,10 @@ fn a_live_follower_of_a_region_strip_wakes_it_and_what_it_gathers() {
     let d = freeze::dormant(s.bus.project(), &|_| true);
     assert!(!d.strips.contains(&perc_strip), "the strip it follows runs");
     assert!(!d.tracks.contains(&perc_id), "and what that strip gathers");
-    assert!(d.tracks.contains(&s.drums), "the rest of the region still rests");
+    assert!(
+        d.tracks.contains(&s.drums),
+        "the rest of the region still rests"
+    );
 }
 
 #[test]

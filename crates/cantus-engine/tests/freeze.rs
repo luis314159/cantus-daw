@@ -615,3 +615,415 @@ fn a_frozen_strip_with_a_warped_clip_plays_its_render_to_the_bit() {
     ));
     assert_ne!(freeze::content_key(&q, target).unwrap(), before);
 }
+
+// ---- review 1 ---------------------------------------------------------------------------
+
+fn return_strip(p: &Project) -> StripId {
+    p.strips[5].id
+}
+
+#[test]
+fn a_frozen_return_keeps_the_dry_signal_that_feeds_it_to_the_bit() {
+    let mut h = handle("return");
+    let mut p = song();
+    let live = mix(&mut h, &p, 512);
+    let ret = return_strip(&p);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(ret));
+    let snap = h.compile_for_render(&p, 1);
+    assert!(!snap.tracks[0].rest, "the lead plays to the master too");
+    same_bits(&mix(&mut h, &p, 512), &live, "frozen return");
+}
+
+#[test]
+fn a_frozen_keyed_bus_and_a_note_source_leave_their_sources_playing_to_the_bit() {
+    let mut h = handle("keyed");
+    let mut p = song();
+    let lead_strip = p.tracks[0].strip.unwrap();
+    let lead = p.tracks[0].id;
+    // The bass's compressor keyed from the lead's strip, and an insert on the bass's
+    // strip that hears the lead's notes.
+    let bass_strip = p.tracks[1].strip.unwrap();
+    p.strip_mut(bass_strip).unwrap().effects[0].sidechain = Some(lead_strip);
+    let mut gate = p.make_effect(EffectKind::Gate);
+    gate.midi_from = Some(lead);
+    p.strip_mut(bass_strip).unwrap().effects.push(gate);
+    let live = mix(&mut h, &p, 512);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(bass_strip));
+    let snap = h.compile_for_render(&p, 1);
+    let li = p.strip_index(lead_strip).unwrap();
+    assert!(!snap.strips[li].rest && !snap.tracks[0].rest);
+    assert!(
+        snap.tracks[1].rest,
+        "the bass only reaches its frozen strip"
+    );
+    same_bits(&mix(&mut h, &p, 512), &live, "frozen keyed bus");
+}
+
+#[test]
+fn a_solo_when_it_froze_is_not_in_the_render() {
+    let mut h = handle("solo");
+    let mut p = song();
+    let live = mix(&mut h, &p, 512);
+    let bass = p.tracks[1].id;
+    Command::SetTrackSolo {
+        id: bass,
+        soloed: true,
+    }
+    .apply(&mut p)
+    .unwrap();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    Command::SetTrackSolo {
+        id: bass,
+        soloed: false,
+    }
+    .apply(&mut p)
+    .unwrap();
+    same_bits(
+        &mix(&mut h, &p, 512),
+        &live,
+        "frozen under a solo, unsoloed",
+    );
+}
+
+#[test]
+fn a_nested_frozen_strip_renders_its_own_sound_while_the_outer_one_plays() {
+    let mut h = handle("nested");
+    let mut p = song();
+    // The lead's strip plays into the bass's strip, a bus.
+    let lead = p.tracks[0].strip.unwrap();
+    let bus = p.tracks[1].strip.unwrap();
+    p.strip_mut(lead).unwrap().output = Some(bus);
+    // Heard only through the bus (no send elsewhere).
+    p.strip_mut(lead).unwrap().sends.clear();
+    for t in &mut p.tracks {
+        t.clips.retain(
+            |c| !matches!(&c.automation, Some(a) if matches!(a.target, AutoTarget::Send { .. })),
+        );
+    }
+    let live = mix(&mut h, &p, 512);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(lead));
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(bus));
+    // Elsewhere only the bus's render is at hand: the lead's is made again under it.
+    let mut h2 = handle("nested-2");
+    let content = p.frozen(FreezeTarget::Strip(bus)).unwrap().content.clone();
+    let from = h.frozen.path_of(&content, 48_000).unwrap();
+    let to = h2.frozen.app_dir().unwrap().join(from.file_name().unwrap());
+    std::fs::copy(&from, &to).unwrap();
+    let job = prepare(&mut h2, &p, FreezeTarget::Strip(lead)).unwrap();
+    job.run(Vec::new(), Vec::new(), &RenderProgress::default())
+        .unwrap();
+    h2.frozen.forget_missing();
+    // The bus thawed: the lead's new render plays, and it is the live sound.
+    freeze::unfreeze_command(FreezeTarget::Strip(bus))
+        .apply(&mut p)
+        .unwrap();
+    let snap = h2.compile_for_render(&p, 1);
+    let li = p.strip_index(lead).unwrap();
+    assert!(snap.strips[li].frozen.as_ref().unwrap().plays());
+    same_bits(
+        &mix(&mut h2, &p, 512),
+        &live,
+        "the lead re-rendered under the bus",
+    );
+}
+
+#[test]
+fn an_offline_render_and_live_playback_read_one_render_with_their_own_cursors() {
+    let mut h = handle("boards");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let alone = mix(&mut h, &p, 512);
+    // Live playback of the same render, at twice real time, while an export runs.
+    let live_snap = h.compile(&p, 1);
+    // One render, one stream, a board for each reader.
+    let board = |s: &Snapshot| {
+        s.strips[0]
+            .frozen
+            .as_ref()
+            .unwrap()
+            .audio
+            .as_ref()
+            .unwrap()
+            .reader
+            .0
+            .clone()
+            .downcast::<cantus_engine::freeze::FrozenHandle>()
+            .unwrap()
+    };
+    let (a, b) = (board(&live_snap), board(&h.compile_for_render(&p, 1)));
+    assert!(std::sync::Arc::ptr_eq(&a.head, &b.head));
+    assert!(!std::sync::Arc::ptr_eq(&a.board, &b.board));
+    drop((a, b));
+    let player = std::thread::spawn(move || {
+        play(
+            &live_snap,
+            Workers::SERIAL,
+            false,
+            256,
+            800,
+            std::time::Duration::from_micros(2_700),
+        )
+    });
+    let mut exported = Vec::new();
+    for _ in 0..3 {
+        exported = mix(&mut h, &p, 512);
+    }
+    let (_, stats) = player.join().unwrap();
+    same_bits(&exported, &alone, "the export, beside live playback");
+    assert_eq!(stats.stream_late, 0, "live playback kept its blocks");
+}
+
+#[test]
+fn an_offline_render_starting_just_before_a_block_boundary_reads_its_block() {
+    let mut h = handle("boundary");
+    let mut p = song();
+    // No automation: passes of a whole block (a curve splits them finer).
+    for t in &mut p.tracks {
+        t.clips.retain(|c| c.automation.is_none());
+    }
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    // Frame ≈ 20 367 at 128 BPM: past the head (16 384), 113 frames before a block's end.
+    let start = Ticks(869);
+    let frame = p.tempo_map().seconds_at(start.0 as f64) * SR;
+    let block = cantus_dsp::exemplar::stream::BLOCK as f64;
+    assert!(frame > cantus_dsp::exemplar::stream::HEAD_FRAMES as f64);
+    assert!(frame % block > block - 1024.0, "{frame}");
+    let t = std::time::Instant::now();
+    let out = render(
+        h.compile_for_render(&p, 1),
+        &RenderOptions {
+            start,
+            block_frames: 1024,
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    )
+    .expect("every block read");
+    assert!(out.samples.iter().any(|x| *x != 0.0));
+    assert!(t.elapsed() < std::time::Duration::from_secs(5), "no stall");
+}
+
+/// A processor for `snap`'s project driven by hand: snapshots swapped while it plays.
+struct Rig {
+    p: Processor,
+    tx: rtrb::Producer<EngineMessage>,
+    rx: rtrb::Consumer<EngineEvent>,
+    have: std::collections::HashSet<EffectId>,
+}
+
+impl Rig {
+    fn new(snap: &std::sync::Arc<Snapshot>) -> Rig {
+        let (tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(256);
+        let (tx_engine, rx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
+        let mut r = Rig {
+            p: Processor::without_midi(SR, rx_engine, tx_engine),
+            tx,
+            rx,
+            have: Default::default(),
+        };
+        r.p.set_offline(true);
+        r.install(snap);
+        r.tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
+        r.tx.push(EngineMessage::Play).ok();
+        r
+    }
+
+    fn install(&mut self, snap: &std::sync::Arc<Snapshot>) {
+        for slot in snap.effect_slots() {
+            if self.have.insert(slot.id) {
+                self.tx
+                    .push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
+                        slot, SR as f32,
+                    ))))
+                    .ok();
+            }
+        }
+        self.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(snap)))
+            .ok();
+        self.tx
+            .push(EngineMessage::SetSnapshotPlanned(
+                snap.clone(),
+                cantus_engine::graph::compile(snap),
+            ))
+            .ok();
+        self.p.settle();
+        self.serve();
+    }
+
+    fn serve(&mut self) {
+        while let Ok(ev) = self.rx.pop() {
+            match ev {
+                EngineEvent::PdcNeed { count, delay } => {
+                    self.tx
+                        .push(EngineMessage::PdcLines(cantus_engine::pdc::lines_for(
+                            count, delay,
+                        )))
+                        .ok();
+                    self.p.settle();
+                }
+                // A unit handed back is one the engine no longer has.
+                EngineEvent::GarbageEffect(u) => {
+                    self.have.remove(&u.id);
+                }
+                EngineEvent::EffectNeed { effect, need } => {
+                    let memory = cantus_engine::effects::EffectMemory::build(need, SR as f32);
+                    self.tx
+                        .push(EngineMessage::EffectMemory { effect, memory })
+                        .ok();
+                    self.p.settle();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// Play until the transport reaches `tick`.
+    fn play_to(&mut self, map: &TempoMap, tick: Ticks) -> Vec<f32> {
+        let until = (map.seconds_at(tick.0 as f64) * SR) as u64;
+        let mut out = Vec::new();
+        let mut buf = vec![0f32; 512];
+        while self.p.transport().samples() < until {
+            self.p.process(&mut buf, 2);
+            out.extend_from_slice(&buf);
+            self.serve();
+        }
+        out
+    }
+}
+
+#[test]
+fn thawing_while_playing_leaves_no_voice_and_no_tail_from_before() {
+    let mut h = handle("thaw");
+    let p = song();
+    let map = p.tempo_map();
+    let target = lead_strip(&p);
+    let live = h.compile_for_render(&p, 1);
+    let mut frozen_p = p.clone();
+    freeze_now(&mut h, &mut frozen_p, target);
+    let frozen = h.compile_for_render(&frozen_p, 1);
+    let mut rig = Rig::new(&live);
+    // The lead's chord sounds from beat 6 to beat 10: frozen while it is held, played
+    // on past its note-off, thawed at beat 12.
+    rig.play_to(&map, Ticks::beats(7));
+    rig.install(&frozen);
+    rig.play_to(&map, Ticks::beats(12));
+    rig.install(&live);
+    rig.play_to(&map, Ticks::beats(12) + Ticks::QUARTER);
+    assert_eq!(
+        rig.p.stats().active_voices,
+        0,
+        "no voice of the chord came back"
+    );
+    // And while frozen, a note due at a loop's start is not played into the frozen track.
+    let mut q = p.clone();
+    let bass = q.tracks[1].id;
+    let mut empty = q.make_track("Spare");
+    empty.strip = q.tracks[1].strip;
+    q.tracks.push(empty);
+    q.tracks[0].clips.clear();
+    q.loop_enabled = true;
+    q.loop_region = Some(LoopRegion {
+        start: Ticks::ZERO,
+        end: Ticks::beats(4),
+    });
+    freeze_now(&mut h, &mut q, FreezeTarget::Track(bass));
+    let looped = h.compile(&q, 2);
+    let mut rig = Rig::new(&looped);
+    let mut buf = vec![0f32; 512];
+    let mut most = 0;
+    for _ in 0..1200 {
+        rig.p.process(&mut buf, 2);
+        rig.serve();
+        most = most.max(rig.p.stats().active_voices);
+    }
+    assert_eq!(most, 0, "the frozen track's instrument is never played");
+    drop(p);
+}
+
+#[test]
+fn a_follower_of_a_frozen_strip_bakes_what_it_heard_live() {
+    let mut h = handle("bake");
+    let mut p = song();
+    let lead = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].strip.unwrap();
+    let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(lead);
+    }
+    f.routes.push(ModRoute {
+        target: AutoTarget::StripPan(bass),
+        depth: 0.5,
+    });
+    let id = f.id;
+    p.strip_mut(bass).unwrap().modulators.push(f);
+    let opts = RenderOptions::default();
+    let live = cantus_engine::modulator::trace(
+        h.compile_for_render(&p, 1),
+        &opts,
+        Vec::new(),
+        Vec::new(),
+        id,
+    );
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(lead));
+    let frozen = cantus_engine::modulator::trace(
+        h.compile_for_render(&p, 1),
+        &opts,
+        Vec::new(),
+        Vec::new(),
+        id,
+    );
+    assert_eq!(frozen, live);
+    assert!(live.iter().filter(|(_, v)| *v != 0.0).count() > 10);
+}
+
+#[test]
+fn renders_no_longer_used_are_let_go() {
+    let mut h = handle("letgo");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let _ = h.compile(&p, 1);
+    assert_eq!(h.frozen.open_count(), 1);
+    freeze::unfreeze_command(target).apply(&mut p).unwrap();
+    let _ = h.compile(&p, 2);
+    assert_eq!(h.frozen.open_count(), 0, "unfrozen, its render is let go");
+}
+
+#[test]
+fn a_damaged_render_is_missing_and_made_again() {
+    let mut h = handle("damaged");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    // Damaged past its head, before anything opened it.
+    let path = h.frozen.path_of(&content, 48_000).unwrap();
+    let mut bytes = std::fs::read(&path).unwrap();
+    let n = bytes.len();
+    // About two seconds in (8 bytes a frame): read by the mix, far past the head.
+    assert!(n > 900_000);
+    for b in &mut bytes[800_000..804_096] {
+        *b ^= 0x5a;
+    }
+    std::fs::write(&path, &bytes).unwrap();
+    let snap = h.compile_for_render(&p, 1);
+    let attached = snap.strips[0].frozen.as_ref().unwrap().plays();
+    let failed = render(
+        snap,
+        &RenderOptions {
+            tail_seconds: 0.5,
+            ..Default::default()
+        },
+    );
+    eprintln!("attached {attached}, failed {}", failed.is_err());
+    assert!(
+        !attached || failed.is_err(),
+        "the damaged blocks cannot be read"
+    );
+    // Then it is missing: the strip plays live, and the interface makes it again.
+    assert!(h.frozen.find(&content, 48_000).is_none());
+}

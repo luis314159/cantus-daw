@@ -238,8 +238,8 @@ pub fn region(project: &Project, target: FreezeTarget) -> Region {
                     if !r.whole
                         && !project
                             .strips
-                        .iter()
-                        .any(|o| o.id != s && o.feeds().any(|to| to == s)) =>
+                            .iter()
+                            .any(|o| o.id != s && o.feeds().any(|to| to == s)) =>
                 {
                     Some(t.id)
                 }
@@ -1133,9 +1133,7 @@ pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dorma
     // strip gathers nothing).
     let heard = |d: &Dormant, to: Option<StripId>| match to {
         None => true,
-        Some(s) => {
-            project.strip(s).is_none() || (!d.strips.contains(&s) && !d.roots.contains(&s))
-        }
+        Some(s) => project.strip(s).is_none() || (!d.strips.contains(&s) && !d.roots.contains(&s)),
     };
     loop {
         let mut wake_strips: Vec<StripId> = Vec::new();
