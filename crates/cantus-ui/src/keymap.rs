@@ -1413,7 +1413,9 @@ mod tests {
                 ..Default::default()
             };
             let mut fired = Vec::new();
-            let _ = ctx.run_ui(input, |ui| fired = map.pressed(ui.ctx(), false, false));
+            ctx.run_ui(input, |ui| fired = map.pressed(ui.ctx(), false, false))
+                .textures_delta
+                .clear();
             assert!(
                 fired.contains(&Action::LoopBetweenMarkers),
                 "{}: {fired:?}",

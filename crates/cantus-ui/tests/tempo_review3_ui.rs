@@ -127,10 +127,14 @@ fn a_chip_drag_moves_by_its_travel_and_says_a_freeze() {
     let mut p = song();
     p.metre_changes = vec![mc(0, 4, 4), mc(15_360, 3, 4)];
     let mut a = assembled(p);
+    // Zoomed out: the chip is wider than half a bar, so a grab at its end is a bar away.
+    a.arrangement.px_per_beat = 6.0;
     let ctx = context();
     arrangement(&mut a, &ctx, vec![]);
     arrangement(&mut a, &ctx, vec![]);
     let (_, chip) = a.arrangement.tempo.chips_drawn()[1];
+    let geo = a.arrangement.geometry().unwrap();
+    assert!(chip.width() > 0.6 * (geo.x(20.0) - geo.x(16.0)), "{chip:?}");
     // Grabbed at its right end, moved 3 px: on the grid of bars it stays.
     drag(&mut a, &ctx, pos2(chip.right() - 1.0, chip.center().y), egui::vec2(3.0, 0.0));
     assert_eq!(a.project().metre_changes[1].tick, Ticks(15_360));
