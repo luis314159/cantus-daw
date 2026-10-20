@@ -178,6 +178,9 @@ pub struct FrozenStore {
     /// Renders found damaged, by key, with their file's time then: never opened again
     /// while the file is that one (a render made again replaces it).
     damaged: HashMap<String, Option<std::time::SystemTime>>,
+    /// A render the live snapshot may still hold failed: compile again so its target
+    /// plays live meanwhile (review 2: it played silence until the render was made).
+    lost: bool,
 }
 
 /// A file's modification time.
@@ -236,15 +239,14 @@ impl FrozenStore {
         let key = render_key(content, rate);
         match self.open.get(&key) {
             // A render whose stream failed is missing: made again (review 1).
+            // Its file is never deleted here (review 2: a passing read error destroyed a
+            // good render; the reader deletes a damaged one itself).
             Some(Ok(a)) if failed(a) => {
                 log::warn!("frozen render {key}: unreadable, made again");
-                let at = self.path_of(content, rate);
-                let time = at.as_deref().and_then(mtime);
-                if let Some(p) = at {
-                    let _ = std::fs::remove_file(p);
-                }
+                let time = self.path_of(content, rate).as_deref().and_then(mtime);
                 self.damaged.insert(key.clone(), time);
                 self.open.insert(key, Err(Instant::now()));
+                self.lost = true;
                 return None;
             }
             Some(Ok(a)) => return Some(a.clone()),
@@ -275,6 +277,13 @@ impl FrozenStore {
             return false;
         }
         match project.frozen(target) {
+            // Played live while a solo silences part of what made it (review 2).
+            Some(_)
+                if cantus_core::freeze::solo_play(project, target)
+                    == cantus_core::freeze::SoloPlay::Live =>
+            {
+                false
+            }
             Some(f) => self.find(&f.content, rate).is_some(),
             None => false,
         }
@@ -338,6 +347,11 @@ impl FrozenStore {
     /// hold one free it on this thread.
     pub fn let_go_all(&mut self) {
         self.open.retain(|_, v| v.is_err());
+    }
+
+    /// Whether a render failed since the last call (the interface compiles again).
+    pub fn take_lost(&mut self) -> bool {
+        std::mem::take(&mut self.lost)
     }
 
     /// How many renders are open (tests).

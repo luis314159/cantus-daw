@@ -55,6 +55,12 @@ pub(crate) struct TrackSlot {
     pub frozen_place: crate::freeze::ReadPlace,
     /// It rests (ADR 0064): not run.
     pub rest: bool,
+    /// It rests but for its notes (ADR 0064, review 2): its events go on to what hears them;
+    /// its instrument is not played, its output is silence.
+    pub notes_only: bool,
+    /// The latency kept in its audio (`Track::lateness`, schema 38), at the engine's rate:
+    /// reported as its own.
+    pub lateness: usize,
 }
 
 impl TrackSlot {
@@ -80,6 +86,8 @@ impl TrackSlot {
             frozen: None,
             frozen_place: crate::freeze::ReadPlace::default(),
             rest: false,
+            notes_only: false,
+            lateness: 0,
         }
     }
 
@@ -203,10 +211,12 @@ impl TrackSlot {
         if let Some(h) = self.frozen.as_ref() {
             return h.latency;
         }
-        match self.instrument {
-            SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
-            SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
-        }
+        // The latency its audio carries (a bounce's, schema 38) with its instrument's.
+        self.lateness
+            + match self.instrument {
+                SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
+                SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
+            }
     }
 }
 
@@ -269,8 +279,9 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                         .saturating_sub(sub);
                     if off == 0 {
                         // Frozen (ADR 0064), the instrument is not played: its render is.
-                        // The notes still go to the inserts that hear them.
-                        if s.frozen.is_none() {
+                        // The notes still go to the inserts that hear them — and only
+                        // they, for a track resting but for its notes (review 2).
+                        if s.frozen.is_none() && !s.notes_only {
                             fire(&mut s, ev);
                         }
                         s.next_event += 1;
@@ -286,7 +297,9 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                     }
                 }
             }
-            track_segment(nodes, ctx, track, slot, &mut s, &mut out, sc, sub, end);
+            if !s.notes_only {
+                track_segment(nodes, ctx, track, slot, &mut s, &mut out, sc, sub, end);
+            }
             sub = end;
         }
     }

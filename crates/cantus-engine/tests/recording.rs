@@ -499,7 +499,7 @@ fn a_full_ring_drops_and_reports_and_never_blocks() {
         })
         .sum();
     assert_eq!(lost, 7 * 256);
-    assert_eq!(marks.first(), Some(&RecordMark::Started { tick: 0.0 }));
+    assert!(matches!(marks.first(), Some(RecordMark::Started { tick, .. }) if *tick == 0.0));
     assert_eq!(marks.last(), Some(&RecordMark::Stopped { frames: 2_560 }));
 }
 

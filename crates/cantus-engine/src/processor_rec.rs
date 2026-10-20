@@ -84,6 +84,12 @@ pub(super) struct Live {
     active: bool,
     /// Frames written since the rings were attached.
     frames: u64,
+    /// How far the heard latency moved since the pass started, not yet taken into the
+    /// file (review 2): positive, frames still to drop; negative, silence still to write.
+    /// The take is placed by the latency at its start; what is played after the backing is
+    /// heard later (or sooner) moves in the file by as much, so it lands where it was
+    /// played.
+    pub shift: i64,
     /// Frames each ring lost since the last `Overflow` mark, and whose ring it is.
     dropped: [(Option<TrackId>, u64); MAX_TRACKS],
     /// The count-in's end, in ticks (`EngineMessage::SetRecordStart`).
@@ -101,6 +107,7 @@ impl Live {
             tracks: [TrackInputSlot::default(); MAX_TRACKS],
             active: false,
             frames: 0,
+            shift: 0,
             dropped: [(None, 0); MAX_TRACKS],
             record_start: None,
             click: ClickMode::Always,
@@ -565,9 +572,36 @@ impl Processor {
         }
         if !self.live.active {
             self.live.active = true;
+            self.live.shift = 0;
             let tick = self.transport.position_f64();
-            self.mark(RecordMark::Started { tick });
+            let plugin = self.pdc.total.min(u32::MAX as usize) as u32;
+            let queue = self.stats.input_queue.round() as i64;
+            self.mark(RecordMark::Started {
+                tick,
+                plugin,
+                queue,
+            });
         }
+        // The heard latency moved while recording: later playing is moved by as much.
+        let mut skip = 0usize;
+        if self.live.shift > 0 {
+            skip = (self.live.shift as usize).min(n);
+            self.live.shift -= skip as i64;
+        } else if self.live.shift < 0 {
+            let pad = self.live.shift.unsigned_abs();
+            self.live.shift = 0;
+            if let Some(rings) = self.record_rings.as_mut() {
+                for ring in rings.tracks.iter_mut() {
+                    // The writer pads a gap with silence (the file keeps its timing).
+                    ring.pending += pad;
+                }
+            }
+            self.live.frames += pad;
+        }
+        if skip == n {
+            return;
+        }
+        let (done, n) = (done + skip, n - skip);
         let Some(rings) = self.record_rings.as_mut() else {
             return;
         };
@@ -619,6 +653,16 @@ impl Processor {
                 let _ = ring.flush_gap();
             }
         }
+    }
+
+    /// Whether a pass is being written.
+    pub(super) fn live_recording(&self) -> bool {
+        self.live.active
+    }
+
+    /// The heard latency moved by `by` frames while a pass records.
+    pub(super) fn live_shift(&mut self, by: i64) {
+        self.live.shift += by;
     }
 
     /// The loop wrapped: the pass's takes split here.

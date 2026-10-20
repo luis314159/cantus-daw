@@ -174,7 +174,11 @@ impl PluginHost {
                 };
                 match result {
                     Ok(_) => self.tweaked(cmd),
-                    Err(e) => log::warn!("instrument parameter {id}: {e}"),
+                    Err(e) => {
+                        if !self.instrument_refused_by_freeze(bus.project(), track, &e) {
+                            log::warn!("instrument parameter {id}: {e}");
+                        }
+                    }
                 }
             }
             FxParamEvent::End(id) => {
@@ -236,8 +240,38 @@ impl PluginHost {
             params,
         };
         if let Err(e) = bus.execute(cmd, Origin::User) {
-            log::warn!("instrument state: {e}");
+            if !self.instrument_refused_by_freeze(bus.project(), track, &e) {
+                log::warn!("instrument state: {e}");
+            }
         }
+    }
+
+    /// A window's change to a track's instrument a freeze refused: given back what the
+    /// project holds, and said (review 2).
+    fn instrument_refused_by_freeze(
+        &mut self,
+        project: &Project,
+        track: TrackId,
+        error: &cantus_core::CommandError,
+    ) -> bool {
+        let cantus_core::CommandError::Frozen(target) = error else {
+            return false;
+        };
+        let plugin = project.track(track).and_then(|t| t.instrument.external());
+        if let (Some(h), Some(plugin)) = (self.instruments.get_mut(&track), plugin) {
+            if !plugin.state.is_empty() {
+                if let Err(e) = h.main.load_state(plugin.state.bytes()) {
+                    log::warn!("{}: {e}", h.info.name);
+                }
+            }
+            let mut out = ParamOut::new();
+            h.main
+                .flush(&crate::session::changes(&plugin.params), &mut out);
+            h.flushed = plugin.params.clone();
+            h.synced_state = plugin.state.clone();
+        }
+        self.frozen_refusals.push(*target);
+        true
     }
 
     /// Take the plug-in's unit out of the engine (a silent unit stands in) so it can be
@@ -330,11 +364,19 @@ impl PluginHost {
     }
 
     /// Every loaded instrument's state as it is now, into `project` (for saving).
-    pub(crate) fn instruments_for_save(&mut self, project: &mut Project) {
+    pub(crate) fn instruments_for_save(
+        &mut self,
+        project: &mut Project,
+        locks: Option<&cantus_core::freeze::Locks>,
+    ) {
         for t in &mut project.tracks {
             let Some(h) = self.instruments.get_mut(&t.id) else {
                 continue;
             };
+            // In a frozen region: the state its render holds (review 2).
+            if locks.is_some_and(|l| l.source.contains(&t.id)) {
+                continue;
+            }
             let Some(plugin) = t.instrument.external_mut() else {
                 continue;
             };
@@ -350,6 +392,24 @@ impl PluginHost {
     /// `cantus_engine::render_with_instruments`. Their main halves stay here until
     /// [`Self::finish_render`].
     pub fn render_instruments(&mut self, project: &Project, sample_rate: f64) -> Vec<NativeUnit> {
+        self.render_instruments_as(project, sample_rate, false)
+    }
+
+    /// [`Self::render_instruments`] with the states `project` holds (a freeze's render).
+    pub fn render_instruments_stored(
+        &mut self,
+        project: &Project,
+        sample_rate: f64,
+    ) -> Vec<NativeUnit> {
+        self.render_instruments_as(project, sample_rate, true)
+    }
+
+    fn render_instruments_as(
+        &mut self,
+        project: &Project,
+        sample_rate: f64,
+        stored: bool,
+    ) -> Vec<NativeUnit> {
         self.fresh_render_cancel();
         let setup = AudioSetup {
             sample_rate,
@@ -363,11 +423,14 @@ impl PluginHost {
             let Some(h) = self.instruments.get_mut(&t.id) else {
                 continue;
             };
-            let state = h
-                .main
-                .save_state()
-                .map(PluginState::new)
-                .unwrap_or_default();
+            let state = if stored {
+                plugin.state.clone()
+            } else {
+                h.main
+                    .save_state()
+                    .map(PluginState::new)
+                    .unwrap_or_default()
+            };
             let info = h.info.clone();
             let key = h.key;
             // Where it runs live; isolated, every block is waited for (ADR 0063).

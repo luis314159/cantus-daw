@@ -110,6 +110,17 @@ impl Processor {
     /// keys are resolved, before unclaimed units are thrown away.
     pub(super) fn install_master(&mut self, snapshot: &Snapshot) {
         self.scratch_effects.clear();
+        // The hard bypass goes with its unit (review 2), as on a strip.
+        let mut was_off = [(cantus_core::EffectId(u64::MAX), false); MAX_EFFECTS_PER_TRACK];
+        for (i, e) in self
+            .master
+            .effects
+            .iter()
+            .enumerate()
+            .take(MAX_EFFECTS_PER_TRACK)
+        {
+            was_off[i] = (e.id, self.master.ll_off[i]);
+        }
         while let Some(e) = self.master.effects.pop() {
             self.scratch_effects.push(e);
         }
@@ -134,6 +145,7 @@ impl Processor {
                     m.mix[idx] = want.mix.clamp(0.0, 1.0);
                     m.key_id[idx] = want.sidechain;
                     m.midi_id[idx] = want.midi_from;
+                    m.ll_off[idx] = was_off.iter().any(|(id, off)| *off && *id == unit.id);
                     m.effects.push(unit);
                 }
                 // Not delivered yet (or dropped): skipped this snapshot, as on a strip.
