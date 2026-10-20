@@ -383,17 +383,24 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 &[("ports", &app.midi_port_names.join(", "))],
             )
         };
-        let tip = format!(
-            "{tip}. {}",
-            tip_with_key(app, t("ctl.topbar.lamp_tip"), Action::MidiLearnMode)
-        );
+        // With a port open the cell is Live's MIDI key: a click learns, a right-click
+        // opens the settings; with none, a click opens the settings (review 1, #29, #47).
+        let tip = if ports == 0 {
+            tip
+        } else {
+            let learn = match app.keymap.bindings_for(Action::MidiLearnMode).first() {
+                Some(b) => tf("ctl.topbar.lamp_tip_key", &[("key", &b.display())]),
+                None => t("ctl.topbar.lamp_tip"),
+            };
+            format!("{tip}. {learn}")
+        };
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         let _ = m.on_hover_text(tip);
     }
-    if m_clicked {
+    if m_clicked && ports > 0 {
         app.run_action(Action::MidiLearnMode);
     }
-    if m_settings {
+    if m_settings || (m_clicked && ports == 0) {
         app.show_settings = true;
     }
     if a.hovered() {

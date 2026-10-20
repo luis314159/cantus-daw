@@ -30,7 +30,7 @@ ctl.menu.forget = Forget these controllers
 
 # What a control is
 ctl.src.cc = CC {n}
-ctl.src.cc14 = 14-bit CC {n}
+ctl.src.cc14 = CC {n} (14-bit)
 ctl.src.note = Note {n}
 ctl.src.bend = Pitch bend
 ctl.src.program = Program {n}
@@ -77,6 +77,7 @@ ctl.status.forgot = {name} has no controller now
 ctl.status.mode_on = MIDI learn: click a control, then move a control on your MIDI controller
 ctl.status.mode_off = MIDI learn off
 ctl.status.not_a_value = Not a value for this control
+ctl.status.global_damaged = Your global controller mappings could not be read: the file is kept as controllers.json.bad
 ctl.status.save_failed = Could not save the controller mappings: {error}
 
 # The mappings pane
@@ -86,7 +87,7 @@ ctl.view.learn = Learn
 ctl.view.learn_tip = MIDI learn mode: every control that can be learnt is outlined
 ctl.view.add = Add a mapping
 ctl.view.filter = Filter
-ctl.view.new_takeover = New mappings take over
+ctl.view.new_takeover = Takeover for new mappings
 ctl.view.ports = MIDI in: {names}
 ctl.view.no_ports = No MIDI input. Plug one in, then Settings → MIDI → Rescan ports
 ctl.view.armed = Waiting for a control: move a knob, fader, button or pad for {name}. Esc cancels
@@ -110,7 +111,6 @@ ctl.col.to = To
 ctl.col.curve = Curve
 ctl.col.takeover = Takeover
 ctl.col.feedback = Feedback
-ctl.add.transport = Transport
 ctl.add.master = Master
 ctl.add.selected_track = Selected track
 ctl.add.selected_strip = Selected channel
@@ -119,3 +119,4 @@ ctl.add.device = Focused device
 # The top bar
 ctl.topbar.learn_tip = MIDI learn: click a control, then move a knob, fader, button or pad on your controller
 ctl.topbar.lamp_tip = Click: MIDI learn mode. Right-click: MIDI settings
+ctl.topbar.lamp_tip_key = Click: MIDI learn mode ({key}). Right-click: MIDI settings

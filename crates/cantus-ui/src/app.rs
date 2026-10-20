@@ -429,6 +429,7 @@ impl CantusApp {
             keymap_path,
             controllers,
             controllers_path,
+            controllers_damaged,
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
@@ -493,6 +494,9 @@ impl CantusApp {
         };
         app.controllers.global = controllers;
         app.controllers.global_path = Some(controllers_path);
+        if controllers_damaged {
+            app.set_error(t("ctl.status.global_damaged"));
+        }
         if let Some(inputs) = midi {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
@@ -3954,6 +3958,8 @@ pub struct Files {
     /// The global controller map (round 29, ADR 0062), beside the keymap.
     pub controllers: cantus_core::controller::ControllerMap,
     pub controllers_path: PathBuf,
+    /// The global controller map's file could not be read (kept beside as `.bad`).
+    pub controllers_damaged: bool,
 }
 
 impl Files {
@@ -3985,7 +3991,8 @@ impl Files {
             }
         }
         let controllers_path = crate::controllers::global_path(dir);
-        let controllers = crate::controllers::load_global(&controllers_path);
+        let (controllers, controllers_damaged) =
+            crate::controllers::load_global_checked(&controllers_path);
         Files {
             settings,
             settings_path,
@@ -3997,6 +4004,7 @@ impl Files {
             keymap_path,
             controllers,
             controllers_path,
+            controllers_damaged,
         }
     }
 }

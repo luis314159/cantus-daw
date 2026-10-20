@@ -478,6 +478,16 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
         ) {
             ui.close();
         }
+        // FL's *Link to controller* for the same parameter (round 29, review 1 of ADR
+        // 0062): the way into a hosted plug-in's own window from the mouse.
+        if views::arrangement::action_item(
+            app,
+            ui,
+            Action::LinkLastTweaked,
+            "action.link-last-tweaked",
+        ) {
+            ui.close();
+        }
     });
     if let Some(name) = tweaked {
         let _ = crate::kit::widgets::menu_list(

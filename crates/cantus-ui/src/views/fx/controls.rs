@@ -585,10 +585,64 @@ pub fn led_param(
     let on = host.spec().get(key) >= 0.5;
     let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
     let r = led(ui, s, on, label, name, width);
-    if r.clicked() {
+    let learnt = stepped_offer(ui, s, host, key, name, &r);
+    if r.clicked() && !learnt {
         host.set(key, if on { 0.0 } else { 1.0 }, None);
     }
     r
+}
+
+/// A stepped parameter's control (an LED, a segmented choice) as a parameter (round 29,
+/// review 1 of ADR 0062): its menu — automate, modulate, *Learn MIDI controller* — its
+/// mapped mark, and the learn mode's outline and click. `true` when the click learnt.
+fn stepped_offer(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+) -> bool {
+    use crate::kit::automate as a;
+    let Some(info) = host.spec().kind.param(key) else {
+        return false;
+    };
+    let v = host.spec().get(key);
+    let span = info.max - info.min;
+    let pos = if span > 0.0 {
+        ((v - info.min) / span).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let Some((m, _)) = host.modulation(key, pos, s, &mut rings) else {
+        a::probe::note_learn(name, false);
+        return false;
+    };
+    a::probe::note_learn(name, m.learn.is_some());
+    let offer = a::Offer {
+        automated: host.automated(key),
+        typing: false,
+        modulation: Some(m),
+    };
+    if let Some(l) = m.learn {
+        if l.mode {
+            if a::learn_spot(ui, resp.rect, resp.id, l) {
+                host.modulate(key, a::Choice::Learn, resp.rect);
+            }
+            return l.mode;
+        }
+        if l.mapped {
+            a::learn_mark_over(ui, resp.rect, ui.clip_rect());
+        }
+    }
+    match a::menu(ui, resp, offer) {
+        Some(a::Choice::Automate) => host.automate(key),
+        Some(a::Choice::Reset) => host.set(key, info.default, None),
+        Some(c) => host.modulate(key, c, resp.rect),
+        None => {}
+    }
+    false
 }
 
 /// A choice among a few words (the kit's `Segmented` at the device's style). Returns
@@ -621,7 +675,13 @@ pub fn segmented_param(
     let spec = host.spec();
     let now = spec.get(key).round().max(0.0) as usize;
     let name = spec.kind.param(key).map_or("", |i| tr(i.label_key));
-    let r = segmented(ui, s, now, labels, name, width);
+    let (resp, r) = crate::kit::widgets::Segmented::new(now, labels)
+        .name(name)
+        .size(width, ROW)
+        .style(*s)
+        .show(ui);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    let r = r.filter(|_| !learnt);
     if let Some(i) = r {
         host.set(key, i as f32, None);
     }

@@ -817,27 +817,75 @@ fn row_knob(
             .id_salt(salt)
             .layout(egui::Layout::left_to_right(egui::Align::Center)),
     );
-    let fmt = move |v: f32, b: &mut String| {
-        use std::fmt::Write as _;
-        let _ = match unit {
-            Unit::Db => write!(b, "{v:+.1} dB"),
-            Unit::Plain => write!(b, "{v:.0}"),
-            Unit::Pan => {
-                if v.abs() < 0.005 {
-                    write!(b, "C")
-                } else if v < 0.0 {
-                    write!(b, "L{:.0}", -v * 100.0)
-                } else {
-                    write!(b, "R{:.0}", v * 100.0)
-                }
-            }
-        };
-    };
+    let fmt = move |v: f32, b: &mut String| write_unit(unit, v, b);
     kit::widgets::Param::new(value, range, default)
         .size(KnobSize::Mini)
         .name(name)
         .format(fmt)
         .show(&mut child)
+}
+
+/// [`row_knob`] for a parameter of the track (its pan, its level): the parameter's menu —
+/// automate, modulate, *Learn MIDI controller* — its marks, and the learn mode (FL's
+/// *Link to controller* on a channel's knobs; round 29, review 1 of ADR 0062).
+#[allow(clippy::too_many_arguments)]
+fn track_knob(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    rect: Rect,
+    salt: impl std::hash::Hash + std::fmt::Debug,
+    value: &mut f32,
+    range: std::ops::RangeInclusive<f32>,
+    default: f32,
+    name: &'static str,
+    unit: Unit,
+    target: cantus_core::AutoTarget,
+) -> egui::Response {
+    let (lo, hi) = (*range.start(), *range.end());
+    let base = app
+        .base_pos(&target)
+        .unwrap_or(((*value - lo) / (hi - lo)).clamp(0.0, 1.0));
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let (m, _) = app.mod_offer(&target, base, &kit::Style::current(), &mut rings);
+    let automated = app.is_automated(&target);
+    let mut child = ui.new_child(
+        egui::UiBuilder::new()
+            .max_rect(rect)
+            .id_salt(salt)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+    );
+    let fmt = move |v: f32, b: &mut String| write_unit(unit, v, b);
+    let (resp, choice) = kit::widgets::Param::new(value, range, default)
+        .size(KnobSize::Mini)
+        .name(name)
+        .format(fmt)
+        .automation(automated)
+        .modulation(m)
+        .show_full(&mut child);
+    match choice {
+        Some(kit::automate::Choice::Automate) => app.automate(target),
+        Some(c) => app.modulation_choice(&target, c, resp.rect),
+        None => {}
+    }
+    resp
+}
+
+/// A row knob's value in words.
+fn write_unit(unit: Unit, v: f32, b: &mut String) {
+    use std::fmt::Write as _;
+    let _ = match unit {
+        Unit::Db => write!(b, "{v:+.1} dB"),
+        Unit::Plain => write!(b, "{v:.0}"),
+        Unit::Pan => {
+            if v.abs() < 0.005 {
+                write!(b, "C")
+            } else if v < 0.0 {
+                write!(b, "L{:.0}", -v * 100.0)
+            } else {
+                write!(b, "R{:.0}", v * 100.0)
+            }
+        }
+    };
 }
 
 /// What a row knob's value is in.
@@ -872,10 +920,18 @@ fn track_controls(
     if led.hovered() {
         hint::set_text(ui.ctx(), chrome::word("track.mute_tip"), "", Caps::NONE);
     }
+    // MIDI learn mode (round 29, review 1 of ADR 0062): the lamp is learnable.
+    crate::controllers::learn_spot(
+        app,
+        ui,
+        led.rect,
+        cantus_core::controller::MappingTarget::TrackMute(id),
+    );
     if led.clicked() {
         app.exec(Command::SetTrackMute { id, muted: !muted });
     }
-    let r = row_knob(
+    let r = track_knob(
+        app,
         ui,
         rr.pan,
         ("rack-pan", id.0),
@@ -884,6 +940,7 @@ fn track_controls(
         0.0,
         chrome::word("track.pan"),
         Unit::Pan,
+        cantus_core::AutoTarget::TrackPan(id),
     );
     if r.changed() {
         app.exec_merging(
@@ -894,7 +951,8 @@ fn track_controls(
     if r.drag_stopped() {
         app.end_gesture();
     }
-    let g = row_knob(
+    let g = track_knob(
+        app,
         ui,
         rr.vol,
         ("rack-vol", id.0),
@@ -903,6 +961,7 @@ fn track_controls(
         0.0,
         chrome::word("track.gain"),
         Unit::Db,
+        cantus_core::AutoTarget::TrackGain(id),
     );
     if g.changed() {
         app.exec_merging(
