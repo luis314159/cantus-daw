@@ -52,6 +52,8 @@ fn app(name: &str) -> (CantusApp, std::path::PathBuf) {
 fn settle(app: &mut CantusApp, ctx: &egui::Context) {
     let t0 = Instant::now();
     loop {
+        // What a frame does first: files loaded in the background taken in.
+        app.sync_engine();
         cantus_ui::freeze::tick(app, ctx);
         if !app.freeze.busy() || t0.elapsed() > Duration::from_secs(120) {
             break;
@@ -77,6 +79,24 @@ fn mix(app: &mut CantusApp) -> Vec<f32> {
     )
     .unwrap()
     .samples
+}
+
+/// Within −100 dB of each other: a time range's cut sums a note's tail before it and the
+/// bounce after it apart, where the instrument summed them (float order).
+fn close(a: &[f32], b: &[f32], what: &str) {
+    within(a, b, 1e-5, what);
+}
+
+/// Within `limit` of each other, sample for sample.
+fn within(a: &[f32], b: &[f32], limit: f32, what: &str) {
+    assert_eq!(a.len(), b.len(), "{what}: lengths");
+    let worst = a
+        .iter()
+        .zip(b)
+        .map(|(x, y)| (x - y).abs())
+        .fold(0f32, f32::max);
+    assert!(worst < limit, "{what}: {worst}");
+    assert!(a.iter().any(|x| *x != 0.0), "{what}: silent");
 }
 
 fn same_bits(a: &[f32], b: &[f32], what: &str) {
@@ -315,4 +335,760 @@ fn every_string_is_in_both_languages() {
     ] {
         assert!(keys(en).contains(&a.label_key()), "{}", a.label_key());
     }
+}
+
+// ---- review 1 ---------------------------------------------------------------------------
+
+/// Bounce `plan` and let it render.
+fn bounce(app: &mut CantusApp, ctx: &egui::Context, plan: Plan) {
+    app.bounce(plan);
+    settle(app, ctx);
+}
+
+#[test]
+fn a_time_range_inside_one_clip_is_cut_at_both_edges_and_sounds_the_same() {
+    let ctx = support::ctx();
+    for through in [Through::Source, Through::Inserts] {
+        let (mut app, _dir) = app(&format!("time-{through:?}"));
+        let live = mix(&mut app);
+        let synth = app.project().tracks[0].id;
+        // Beats 2 to 4: the clip runs 0 to 8, its second note sounds 2 to 4.
+        let (a, b) = (Ticks::beats(2), Ticks::beats(4));
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through,
+                range: Range::Time(a, b),
+            },
+        );
+        let p = app.project();
+        let orig = &p.tracks[0];
+        let inside: Vec<&Clip> = orig
+            .clips
+            .iter()
+            .filter(|c| c.start >= a && c.end() <= b)
+            .collect();
+        assert_eq!(inside.len(), 1, "{through:?}: one piece inside the range");
+        assert!(inside[0].muted, "the piece inside is muted");
+        assert!(
+            orig.clips
+                .iter()
+                .filter(|c| !c.muted)
+                .all(|c| c.end() <= a || c.start >= b),
+            "{through:?}: nothing of the original plays inside the range (review 1: doubled)"
+        );
+        let new = &p.tracks[1];
+        assert_eq!(new.clips[0].start, a, "the bounce starts at the range");
+        let after = mix(&mut app);
+        // Through the inserts, the chain is split at the cut too: the echoes of what played
+        // before it ring on the old strip, the bounce's after it on its own (−60 dB).
+        let limit = if through == Through::Source {
+            1e-5
+        } else {
+            1e-3
+        };
+        within(
+            &after[..live.len()],
+            &live,
+            limit,
+            &format!("{through:?}: the song"),
+        );
+    }
+}
+
+#[test]
+fn a_bounce_through_a_latent_chain_keeps_the_song_to_the_bit() {
+    let ctx = support::ctx();
+    for through in [Through::Source, Through::Inserts] {
+        let (mut app, _dir) = app(&format!("latent-{through:?}"));
+        let strip = app.project().tracks[0].strip.unwrap();
+        let mut p = app.project().clone();
+        let mut eq = p.make_effect(EffectKind::Eq);
+        eq.spec.set("mode", 2.0).unwrap();
+        p.strip_mut(strip).unwrap().effects.push(eq);
+        app.bus = CommandBus::new(p);
+        let live = mix(&mut app);
+        let synth = app.project().tracks[0].id;
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through,
+                range: Range::Track,
+            },
+        );
+        assert_eq!(app.project().tracks.len(), 3, "{through:?}: bounced");
+        let after = mix(&mut app);
+        same_bits(&after[..live.len()], &live, &format!("{through:?}: latent"));
+    }
+}
+
+#[test]
+fn a_solo_elsewhere_is_not_in_a_bounce_and_a_soloed_original_hands_its_solo_over() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("solo");
+    let live = mix(&mut app);
+    let synth = app.project().tracks[0].id;
+    let bass = app.project().tracks[1].id;
+    // The bass soloed while the synth is bounced with its inserts.
+    assert!(app.exec(Command::SetTrackSolo {
+        id: bass,
+        soloed: true
+    }));
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Inserts,
+            range: Range::Track,
+        },
+    );
+    assert!(app.exec(Command::SetTrackSolo {
+        id: bass,
+        soloed: false
+    }));
+    let after = mix(&mut app);
+    same_bits(
+        &after[..live.len()],
+        &live,
+        "bounced under a solo, unsoloed",
+    );
+    // A soloed original: its bounce takes the solo.
+    let (mut app, _dir) = self::app("solo-own");
+    let synth = app.project().tracks[0].id;
+    assert!(app.exec(Command::SetTrackSolo {
+        id: synth,
+        soloed: true
+    }));
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Track,
+        },
+    );
+    let p = app.project();
+    assert!(p.tracks[1].soloed && !p.tracks[0].soloed, "the solo moved");
+    assert!(p.track_audible(&p.tracks[1]), "the bounce is heard");
+}
+
+#[test]
+fn an_edit_made_while_a_bounce_renders_is_bounced_again() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("bounce-edited");
+    let synth = app.project().tracks[0].id;
+    app.bounce(Plan {
+        track: synth,
+        through: Through::Source,
+        range: Range::Track,
+    });
+    assert!(app.freeze.busy());
+    // A note moved while it renders.
+    let clip = app.project().tracks[0].clips[0].clone();
+    let mut notes = clip.notes.clone();
+    notes[0].pitch = 72;
+    assert!(app.exec(Command::SetNotes {
+        track: synth,
+        clip: clip.id,
+        notes: notes.clone(),
+    }));
+    settle(&mut app, &ctx);
+    let p = app.project();
+    assert_eq!(p.tracks[0].clips[0].notes[0].pitch, 72, "the edit is kept");
+    assert_eq!(p.tracks.len(), 3, "bounced once, from the edited notes");
+    // The bounce plays the edit: muted original, the mix is the edited song's.
+    let mut live = p.clone();
+    live.tracks.remove(1);
+    live.tracks[0].muted = false;
+    let edited = {
+        let (mut other, _d) = self::app("bounce-edited-live");
+        other.bus = CommandBus::new(live);
+        mix(&mut other)
+    };
+    let after = mix(&mut app);
+    same_bits(&after[..edited.len()], &edited, "the bounce is of the edit");
+}
+
+#[test]
+fn a_bounce_asked_twice_while_it_renders_is_made_once() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("twice");
+    let synth = app.project().tracks[0].id;
+    let plan = Plan {
+        track: synth,
+        through: Through::Inserts,
+        range: Range::Track,
+    };
+    app.bounce(plan.clone());
+    app.bounce(plan.clone());
+    assert!(app.freeze.job.is_some());
+    assert_eq!(app.freeze.queued(), 0, "not asked again while it renders");
+    settle(&mut app, &ctx);
+    assert_eq!(app.project().tracks.len(), 3, "one bounce");
+    // And once bounced (the original muted), it is not bounced again.
+    app.bounce(plan);
+    assert!(app.status.error);
+    settle(&mut app, &ctx);
+    assert_eq!(app.project().tracks.len(), 3);
+}
+
+#[test]
+fn a_bounce_carries_the_rides_of_what_it_replaces() {
+    let ctx = support::ctx();
+    for through in [Through::Source, Through::Inserts] {
+        let (mut app, _dir) = app(&format!("rides-{through:?}"));
+        let synth = app.project().tracks[0].id;
+        let strip = app.project().tracks[0].strip.unwrap();
+        // A level ride on the synth track and a fader ride on its strip.
+        let mut p = app.project().clone();
+        for target in [AutoTarget::TrackGain(synth), AutoTarget::StripGain(strip)] {
+            let ride = p.make_automation_clip(
+                "ride",
+                target,
+                Ticks::ZERO,
+                Ticks::beats(8),
+                vec![
+                    automation::AutoPoint::new(Ticks::ZERO, 0.9),
+                    automation::AutoPoint::new(Ticks::beats(8), 0.2),
+                ],
+            );
+            p.tracks[1].clips.push(ride);
+        }
+        app.bus = CommandBus::new(p);
+        let live = mix(&mut app);
+        settings_remove(&mut app, true);
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through,
+                range: Range::Track,
+            },
+        );
+        let p = app.project();
+        assert!(p.track(synth).is_none(), "{through:?}: removed");
+        let after = mix(&mut app);
+        same_bits(
+            &after[..live.len()],
+            &live,
+            &format!("{through:?}: the rides"),
+        );
+    }
+}
+
+/// The *Remove the original* setting.
+fn settings_remove(app: &mut CantusApp, on: bool) {
+    app.settings.bounce_removes = on;
+}
+
+#[test]
+fn a_strip_bounced_whole_hands_its_key_over() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("key");
+    let synth_strip = app.project().tracks[0].strip.unwrap();
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    // The bass's compressor keyed from the synth's strip.
+    let mut p = app.project().clone();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(synth_strip);
+    let comp_id = comp.id;
+    p.strip_mut(bass_strip).unwrap().effects.push(comp);
+    app.bus = CommandBus::new(p);
+    let live = mix(&mut app);
+    app.bounce_strip(synth_strip);
+    settle(&mut app, &ctx);
+    let p = app.project();
+    let new = p.tracks[1].strip.unwrap();
+    assert_ne!(new, synth_strip);
+    assert_eq!(
+        p.strip(bass_strip)
+            .unwrap()
+            .effects
+            .iter()
+            .find(|e| e.id == comp_id)
+            .unwrap()
+            .sidechain,
+        Some(new),
+        "the key follows the new strip"
+    );
+    let after = mix(&mut app);
+    same_bits(&after[..live.len()], &live, "keyed from the bounce");
+}
+
+#[test]
+fn a_time_range_takes_in_the_notes_held_across_its_edges() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("held");
+    let live = mix(&mut app);
+    let synth = app.project().tracks[0].id;
+    // The synth's notes sound 0–2, 2–4, 4–6: a range from beat 3 to beat 5 cuts two.
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Time(Ticks::beats(3), Ticks::beats(5)),
+        },
+    );
+    let p = app.project();
+    assert_eq!(
+        p.tracks[1].clips[0].start,
+        Ticks::beats(2),
+        "moved out to the note held across the start"
+    );
+    let after = mix(&mut app);
+    close(&after[..live.len()], &live, "no gap");
+}
+
+#[test]
+fn removing_the_original_of_a_time_range_keeps_a_muted_clip_it_never_rendered() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("muted-clip");
+    let synth = app.project().tracks[0].id;
+    let mut p = app.project().clone();
+    let mut alt = p.make_clip("alt", Ticks::beats(2), Ticks::beats(1));
+    alt.muted = true;
+    let alt_id = alt.id;
+    p.tracks[0].clips.push(alt);
+    app.bus = CommandBus::new(p);
+    settings_remove(&mut app, true);
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Time(Ticks::beats(2), Ticks::beats(4)),
+        },
+    );
+    let t = app.project().track(synth).unwrap();
+    assert!(t.clip(alt_id).is_some_and(|c| c.muted), "kept, still muted");
+}
+
+#[test]
+fn a_render_asked_in_one_project_is_never_laid_into_another() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("epoch");
+    let synth = app.project().tracks[0].id;
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.bounce(Plan {
+        track: synth,
+        through: Through::Source,
+        range: Range::Track,
+    });
+    app.freeze_target(FreezeTarget::Strip(strip));
+    // Another project opened meanwhile, with the same ids.
+    let other = song();
+    app.replace_project(other.clone());
+    settle(&mut app, &ctx);
+    assert_eq!(
+        app.project().tracks.len(),
+        other.tracks.len(),
+        "nothing bounced into it"
+    );
+    assert!(!app.project().any_frozen(), "nothing frozen in it");
+}
+
+#[test]
+fn freeze_track_leaves_the_tracks_mute_and_solo_live() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("header");
+    let synth = app.project().tracks[0].id;
+    app.select_track(synth);
+    app.run_action(Action::FreezeTrack);
+    settle(&mut app, &ctx);
+    assert!(app.freeze_holding_track(synth).is_some());
+    for cmd in [
+        Command::SetTrackMute {
+            id: synth,
+            muted: true,
+        },
+        Command::SetTrackSolo {
+            id: synth,
+            soloed: true,
+        },
+    ] {
+        assert!(app.exec(cmd), "the header's M and S work");
+    }
+}
+
+#[test]
+fn saving_a_frozen_take_into_its_folder_keeps_it_frozen_and_its_render() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("collect");
+    app.path = None;
+    // A recorded take outside any project folder, on the synth's track.
+    let take = dir.join("scratch").join("take 1.wav");
+    std::fs::create_dir_all(take.parent().unwrap()).unwrap();
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(&take, spec).unwrap();
+    for i in 0..48_000 {
+        w.write_sample(if i % 100 == 0 { 0.5f32 } else { 0.0 })
+            .unwrap();
+    }
+    w.finalize().unwrap();
+    let mut p = app.project().clone();
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "take 1".into(),
+        path: take.to_string_lossy().into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000,
+        sha256: None,
+        recorded: true,
+    });
+    let clip = p.make_audio_clip("take 1", id, Ticks::ZERO, Ticks::beats(2));
+    p.tracks[0].clips.push(clip);
+    app.bus = CommandBus::new(p);
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(target).is_some());
+    let file = dir.join("saved").join("song.cantus");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    app.collect_audio(&file);
+    let p = app.project();
+    assert_eq!(p.audio_source(id).unwrap().path, "Audio/take 1.wav");
+    assert!(file.with_file_name("Audio").join("take 1.wav").is_file());
+    let f = p.frozen(target).expect("still frozen");
+    assert_eq!(
+        Some(f.content.clone()),
+        cantus_core::freeze::content_key(p, target)
+    );
+    let render =
+        cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(&f.content, 48_000));
+    assert!(
+        file.with_file_name("Freeze").join(render).is_file(),
+        "its render is beside the project under its new key"
+    );
+}
+
+#[test]
+fn stop_stops_a_background_refresh_and_an_export_does_not_wait_for_one() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("refresh-stop");
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    let frozen = app.project().clone();
+    // Elsewhere, its render missing: a refresh starts by itself.
+    let mut other = support::app(frozen);
+    other.engine.frozen.set_app_dir(dir.join("elsewhere"));
+    cantus_ui::freeze::tick(&mut other, &ctx);
+    assert!(other.freeze.refreshing());
+    // An export does not wait for it: it gives way.
+    assert!(cantus_ui::freeze::yield_refresh(&mut other));
+    assert!(other.freeze.job.is_none());
+    // Stop: it is not made again until the user freezes or unfreezes.
+    cantus_ui::freeze::tick(&mut other, &ctx);
+    std::thread::sleep(Duration::from_millis(600));
+    cantus_ui::freeze::tick(&mut other, &ctx);
+    assert!(other.freeze.refreshing(), "asked again after the export");
+    other.cancel_freeze();
+    settle(&mut other, &ctx);
+    std::thread::sleep(Duration::from_millis(600));
+    cantus_ui::freeze::tick(&mut other, &ctx);
+    assert!(!other.freeze.busy(), "Stop stops it");
+}
+
+#[test]
+fn the_freeze_key_acts_on_what_was_chosen_last() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("key-strip");
+    let synth = app.project().tracks[0].id;
+    let bus = app.project().strips[6].id;
+    // The bass plays into a bus.
+    let mut p = app.project().clone();
+    let bass_strip = p.tracks[1].strip.unwrap();
+    p.strip_mut(bass_strip).unwrap().output = Some(bus);
+    app.bus = CommandBus::new(p);
+    app.select_track(synth);
+    // A bus chosen on the desk after the track: the key freezes the bus.
+    app.select_strip(bus);
+    app.run_action(Action::FreezeTrack);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(bus)).is_some());
+    assert!(app
+        .project()
+        .frozen(FreezeTarget::Strip(app.project().tracks[0].strip.unwrap()))
+        .is_none());
+}
+
+#[test]
+fn the_bounce_keys_take_the_time_selection_made_last_and_every_tracks_clips() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("selection");
+    let synth = app.project().tracks[0].id;
+    let bass = app.project().tracks[1].id;
+    // A clip clicked, then a range dragged in the ruler: the range is bounced.
+    let clip = app.project().tracks[0].clips[0].id;
+    app.select_clip(synth, clip);
+    app.set_time_selection(Ticks::beats(4), Ticks::beats(6));
+    app.run_action(Action::BounceSource);
+    settle(&mut app, &ctx);
+    let p = app.project();
+    assert_eq!(
+        p.tracks[1].clips[0].start,
+        Ticks::beats(4),
+        "the range, not the clip"
+    );
+    // Clips chosen on two tracks: both bounced.
+    let (mut app, _dir) = self::app("selection-two");
+    let a = app.project().tracks[0].clips[0].id;
+    let b = app.project().tracks[1].clips[0].id;
+    app.select_clip(synth, a);
+    app.toggle_clip_selection(bass, b);
+    app.run_action(Action::BounceSource);
+    settle(&mut app, &ctx);
+    let p = app.project();
+    assert_eq!(p.tracks.len(), 4, "a bounce for each track");
+    assert!(p.track(synth).unwrap().clips[0].muted && p.track(bass).unwrap().clips[0].muted);
+}
+
+#[test]
+fn a_freeze_that_cannot_land_says_why() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("say");
+    let synth = app.project().tracks[0].id;
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    // While it renders, the track is set to monitor its input always.
+    let mut input = TrackInput::mono(0);
+    input.monitor = MonitorMode::On;
+    assert!(app.exec(Command::SetTrackInput {
+        id: synth,
+        input: Some(input)
+    }));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_none());
+    assert!(
+        app.status.error && app.status.text.contains("monitors its input"),
+        "said, not dropped in silence: {}",
+        app.status.text
+    );
+}
+
+#[test]
+fn a_render_that_needs_a_plugin_not_loaded_is_refused_and_says_which() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("missing-plugin");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut e = p.make_effect(EffectKind::Delay);
+    e.spec = EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.nowhere.reverb",
+        "Nowhere Reverb",
+    ));
+    p.strip_mut(strip).unwrap().effects.push(e);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_none());
+    assert!(
+        app.status.error && app.status.text.contains("Nowhere Reverb"),
+        "{}",
+        app.status.text
+    );
+    // No render written under the true key.
+    let written = |d: &std::path::Path| {
+        std::fs::read_dir(d)
+            .map(|r| {
+                r.flatten()
+                    .any(|e| e.path().extension().is_some_and(|x| x == "cfrz"))
+            })
+            .unwrap_or(false)
+    };
+    assert!(!written(&dir.join("renders")) && !written(&dir.join("Freeze")));
+    // On a strip the render does not run (the bass's), it is not needed — nor made
+    // (review 1: every plug-in of the project was instantiated for one freeze).
+    let (mut app, _dir) = self::app("missing-elsewhere");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let bass = app.project().tracks[1].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut e = p.make_effect(EffectKind::Delay);
+    e.spec = EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.nowhere.reverb",
+        "Nowhere Reverb",
+    ));
+    p.strip_mut(bass).unwrap().effects.push(e);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
+}
+
+#[test]
+fn a_render_older_than_a_file_it_plays_is_made_again() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("older");
+    let take = dir.join("take.wav");
+    let write = |level: f32| {
+        let spec = hound::WavSpec {
+            channels: 1,
+            sample_rate: 48_000,
+            bits_per_sample: 32,
+            sample_format: hound::SampleFormat::Float,
+        };
+        let mut w = hound::WavWriter::create(&take, spec).unwrap();
+        for i in 0..48_000 {
+            w.write_sample(if i % 100 == 0 { level } else { 0.0 })
+                .unwrap();
+        }
+        w.finalize().unwrap();
+    };
+    write(0.5);
+    let mut p = app.project().clone();
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "take".into(),
+        path: take.to_string_lossy().into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000,
+        sha256: None,
+        recorded: false,
+    });
+    let clip = p.make_audio_clip("take", id, Ticks::ZERO, Ticks::beats(2));
+    p.tracks[0].clips.push(clip);
+    app.bus = CommandBus::new(p);
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    app.unfreeze_target(target);
+    // Edited elsewhere (louder), then frozen again: the render is not the file's now.
+    std::thread::sleep(Duration::from_millis(1100));
+    write(0.9);
+    app.freeze_target(target);
+    assert!(app.freeze.job.is_some(), "rendered again, not reused");
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(target).is_some());
+}
+
+#[test]
+fn the_renders_folder_follows_the_project_before_its_first_compile() {
+    let (mut app, dir) = app("follow");
+    app.path = Some(dir.join("other").join("song.cantus"));
+    app.sync_engine();
+    assert_eq!(
+        app.engine.frozen.project_dir(),
+        Some(dir.join("other").join("Freeze").as_path())
+    );
+}
+
+#[test]
+fn half_written_files_are_tidied_and_the_cache_kept_to_its_size() {
+    let dir = std::env::temp_dir()
+        .join("cantus-freeze-ui")
+        .join(format!("tidy-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let old = std::time::SystemTime::now() - Duration::from_secs(3600);
+    for (name, len) in [
+        ("a.raw.part", 10usize),
+        ("b.part1234", 10),
+        ("1.cfrz", 300),
+        ("2.cfrz", 300),
+        ("3.cfrz", 300),
+    ] {
+        let p = dir.join(name);
+        std::fs::write(&p, vec![0u8; len]).unwrap();
+        let f = std::fs::File::options().write(true).open(&p).unwrap();
+        f.set_modified(old + Duration::from_secs(len as u64 + name.len() as u64))
+            .unwrap();
+    }
+    cantus_ui::freeze::tidy(&dir);
+    assert!(!dir.join("a.raw.part").exists() && !dir.join("b.part1234").exists());
+    cantus_ui::freeze::prune(&dir, 650);
+    let left = std::fs::read_dir(&dir).unwrap().count();
+    assert_eq!(left, 2, "the oldest render went");
+}
+
+#[test]
+fn a_modulator_bake_waits_for_a_freeze_rendering() {
+    let (mut app, _dir) = app("bake");
+    let synth_strip = app.project().tracks[0].strip.unwrap();
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(synth_strip);
+    }
+    let target = AutoTarget::StripPan(bass_strip);
+    f.routes.push(ModRoute {
+        target: target.clone(),
+        depth: 0.4,
+    });
+    let id = f.id;
+    p.strip_mut(bass_strip).unwrap().modulators.push(f);
+    app.bus = CommandBus::new(p);
+    app.freeze_target(FreezeTarget::Strip(synth_strip));
+    assert!(app.freeze.job.is_some());
+    assert!(!app.bake_route(id, &target), "it waits");
+    assert!(app.status.error);
+}
+
+/// The samples of the bounce on track `index`.
+fn bounced(app: &CantusApp, index: usize) -> Vec<f32> {
+    let p = app.project();
+    let a = p.tracks[index].clips[0]
+        .audio
+        .as_ref()
+        .expect("an audio clip");
+    let s = p.audio_source(a.source).unwrap();
+    let path = cantus_ui::waveform::resolve(app.audio_base(), &s.path);
+    hound::WavReader::open(path)
+        .unwrap()
+        .samples::<f32>()
+        .map(|x| x.unwrap())
+        .collect()
+}
+
+#[test]
+fn a_track_that_shares_the_strip_for_its_notes_does_not_leak_into_a_bounce() {
+    let ctx = support::ctx();
+    let make = |name: &str, on_strip: bool| {
+        let (mut app, dir) = app(name);
+        let strip = app.project().tracks[0].strip.unwrap();
+        let mut p = app.project().clone();
+        // An insert on the synth's strip hears the bass's notes; the bass plays into the
+        // synth's strip too, or to the master.
+        let bass = p.tracks[1].id;
+        p.strip_mut(strip).unwrap().effects[0].midi_from = Some(bass);
+        p.tracks[1].strip = if on_strip { Some(strip) } else { None };
+        app.bus = CommandBus::new(p);
+        let synth = app.project().tracks[0].id;
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through: Through::Inserts,
+                range: Range::Track,
+            },
+        );
+        (bounced(&app, 1), dir)
+    };
+    let (shared, _a) = make("leak-shared", true);
+    let (apart, _b) = make("leak-apart", false);
+    same_bits(&shared, &apart, "the synth through its inserts alone");
 }

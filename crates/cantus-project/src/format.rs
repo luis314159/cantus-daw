@@ -105,6 +105,9 @@ pub struct LoadReport {
     /// Clips taken out of a link group whose other members they did not match (ADR 0037):
     /// a file edited by hand. Zero for every file Cantus wrote.
     pub links_repaired: usize,
+    /// Warps dropped because they were not valid (ADR 0061: a hand-edited or damaged
+    /// file); their clips play at their natural speed. Zero for every file Cantus wrote.
+    pub warps_repaired: usize,
 }
 
 /// Parse JSON text into a project, migrating older schemas. `verify_integrity = false`
@@ -180,11 +183,13 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if dropped > 0 {
         log::warn!("{dropped} malformed controller mapping(s) dropped");
     }
+    let warps_repaired = cantus_core::warp::repair(&mut file.project);
     Ok(LoadReport {
         file,
         migrated_from,
         integrity_verified,
         links_repaired,
+        warps_repaired,
     })
 }
 
@@ -1270,6 +1275,37 @@ mod tests {
         assert!(warp("v32.cantus").is_none());
     }
 
+    /// Round 29's review: a file whose warp is not valid (a hand edit) opens with the warp
+    /// dropped — its clip at natural speed — and says how many.
+    #[test]
+    fn a_file_with_an_invalid_warp_opens_without_it() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v34.cantus")).unwrap();
+        let mut p = parse(&text, true).unwrap().file.project;
+        let mut broken = 0;
+        for t in &mut p.tracks {
+            for c in &mut t.clips {
+                if let Some(w) = c.audio.as_mut().and_then(|a| a.warp.as_mut()) {
+                    w.markers.reverse();
+                    broken += 1;
+                }
+            }
+        }
+        assert!(broken > 0);
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, true).unwrap();
+        assert_eq!(r.warps_repaired, broken);
+        let left = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .filter(|c| c.audio.as_ref().is_some_and(|a| a.warp.is_some()))
+            .count();
+        assert_eq!(left, 0);
+    }
+
     /// Schema 31 (round 28, review 2): the vocal's second note was set by *Correct pitch*
     /// and says so; an older file's notes do not.
     #[test]
@@ -1902,6 +1938,24 @@ mod freeze_tests {
         assert!(matches!(targets[1], FreezeTarget::Track(_)));
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
+        // As written, not as repaired on load (review 1: the check above holds after any
+        // repair): each stored key is the content key — the subject did not move under
+        // the fixture, and nobody's renders are re-keyed when they open their projects.
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v37.cantus"),
+        )
+        .unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let stored: Vec<String> = ["strips", "tracks"]
+            .iter()
+            .flat_map(|k| raw["project"][k].as_array().cloned().unwrap_or_default())
+            .filter_map(|x| x["frozen"]["content"].as_str().map(str::to_string))
+            .collect();
+        let keys: Vec<String> = targets
+            .iter()
+            .map(|t| freeze::content_key(&p, *t).unwrap())
+            .collect();
+        assert_eq!(stored, keys, "the fixture's keys need no repair");
     }
 
     /// A frozen key that is not what the target holds (a hand edit) is re-keyed on load.

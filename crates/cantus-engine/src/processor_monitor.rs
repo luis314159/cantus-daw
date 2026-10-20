@@ -29,13 +29,14 @@ pub struct LowLatency {
     pub on: bool,
     /// Something is monitored (an input that could be heard).
     pub monitoring: bool,
-    /// Samples the monitored input waits inside the engine: its chain's own latency and
-    /// the master's — or the whole project's, when it reaches the master through a strip
-    /// that mixes it with backing.
+    /// Samples the monitored input waits inside the engine: its instrument's, its chain's
+    /// and the master's — and, where a strip mixes it with backing, the backing's there.
     pub monitored_samples: u64,
     /// The inserts bypassed for it (effect ids; the first `off_count`).
     pub off: [u64; MAX_LOW_LATENCY_OFF],
     pub off_count: u8,
+    /// How many are bypassed in all (the names stop at [`MAX_LOW_LATENCY_OFF`]).
+    pub off_total: u16,
 }
 
 /// What [`Processor::monitor_plan`] decided for the planner.
@@ -81,12 +82,17 @@ impl Processor {
                     continue;
                 }
                 let i = &s.input;
-                let heard = i.has
-                    && match i.monitor {
+                // An audio input that could be heard, or an armed track with none: its
+                // notes played live into its instrument (review 1).
+                let heard = if i.has {
+                    match i.monitor {
                         cantus_core::MonitorMode::On => true,
                         cantus_core::MonitorMode::Auto => i.armed,
                         cantus_core::MonitorMode::Off => false,
-                    };
+                    }
+                } else {
+                    i.armed
+                };
                 plan.track[slot] = heard;
                 any |= heard;
                 if let Some(d) = s.strip {
@@ -130,6 +136,7 @@ impl Processor {
                 stats.off[stats.off_count as usize] = id.0;
                 stats.off_count += 1;
             }
+            stats.off_total = stats.off_total.saturating_add(1);
         };
         for slot in 0..MAX_STRIPS {
             if self.strip_ids[slot].is_none() {
@@ -140,10 +147,15 @@ impl Processor {
                 let StripSlot {
                     effects, ll_off, ..
                 } = &mut *st;
-                for (i, e) in effects.iter().enumerate() {
+                for (i, e) in effects.iter_mut().enumerate() {
+                    let was = ll_off[i];
                     ll_off[i] = on_path && e.latency() > limit;
                     if ll_off[i] {
                         name(e.id, &mut stats);
+                    } else if was {
+                        // Back from a hard bypass, it holds nothing from before it
+                        // (review 1: a burst of old audio as the mode ended).
+                        e.reset();
                     }
                 }
                 for f in ll_off.iter_mut().skip(effects.len()) {
@@ -153,10 +165,13 @@ impl Processor {
         }
         // The master is on every monitored path.
         let m = &mut self.master;
-        for (i, e) in m.effects.iter().enumerate() {
+        for (i, e) in m.effects.iter_mut().enumerate() {
+            let was = m.ll_off[i];
             m.ll_off[i] = any && e.latency() > limit;
             if m.ll_off[i] {
                 name(e.id, &mut stats);
+            } else if was {
+                e.reset();
             }
         }
         for f in m.ll_off.iter_mut().skip(m.effects.len()) {
@@ -166,50 +181,79 @@ impl Processor {
         plan
     }
 
-    /// The monitored input's wait inside the engine, once the planner has the arrivals:
-    /// the slowest monitored way to the master, plus the master's chain.
-    pub(super) fn monitored_wait(
-        &mut self,
-        plan: &MonitorPlan,
-        post: &[usize; MAX_STRIPS],
-        heard: usize,
-    ) {
+    /// The monitored input's wait inside the engine, once the planner has the arrivals
+    /// (review 1: it was guessed afterwards, wrong through a bus): where it enters each
+    /// strip on its path and when it reaches the master, through the very delays planned —
+    /// a track's instrument, each chain, each edge's line — plus the master's chain.
+    pub(super) fn monitored_wait(&mut self, plan: &MonitorPlan, a: &Arrivals) {
         if !plan.on || !self.stats.low_latency.monitoring {
             self.stats.low_latency.monitored_samples = 0;
             return;
         }
         let nodes = self.nodes.clone();
-        let mut wait = 0usize;
-        let mut through_mixed = false;
+        let mut at = [None::<usize>; MAX_STRIPS];
+        let mut master: Option<usize> = None;
+        let reach = |to: &mut Option<usize>, t: usize| *to = Some(to.map_or(t, |x| x.max(t)));
         for &slot in &self.track_to_slot {
-            if !plan.track[slot] {
+            if !plan.track[slot] || a.rest_t[slot] {
                 continue;
             }
-            if let Some(s) = nodes.track(slot) {
-                match s.strip {
-                    None => wait = wait.max(s.latency()),
-                    Some(d) if !plan.pure[d] => through_mixed = true,
-                    Some(_) => {}
-                }
+            let feeds = a.feeds[slot];
+            // Not held back (into a strip of monitored input only, or the master): it
+            // leaves at its instrument's latency; else with what it is mixed with.
+            let quick = feeds.is_none_or(|d| plan.pure[d]);
+            match feeds {
+                Some(d) if a.deaf[d] => {}
+                Some(d) => reach(&mut at[d], if quick { a.leave[slot] } else { a.arrive[d] }),
+                None => reach(&mut master, if quick { a.leave[slot] } else { a.master }),
             }
         }
         for &slot in &self.strip_play_order {
-            if !plan.pure[slot] {
+            if a.rest_s[slot] {
                 continue;
             }
-            if let Some(st) = nodes.strip(slot) {
-                match st.output {
-                    None => wait = wait.max(post[slot]),
-                    Some(d) if !plan.pure[d] => through_mixed = true,
-                    Some(_) => {}
+            let Some(enter) = at[slot] else {
+                continue;
+            };
+            let Some(st) = nodes.strip(slot) else {
+                continue;
+            };
+            let pure = plan.pure[slot];
+            // Out of its chain, then its edge's line: `target - post` (as planned).
+            let out = |target: usize| enter + a.own[slot] + target.saturating_sub(a.post[slot]);
+            match st.output {
+                Some(d) if a.deaf[d] => {}
+                Some(d) if pure && plan.pure[d] => reach(&mut at[d], out(a.post[slot])),
+                Some(d) => reach(&mut at[d], out(a.arrive[d])),
+                None if pure => reach(&mut master, out(a.post[slot])),
+                None => reach(&mut master, out(a.master)),
+            }
+            for (d, _) in st.sends.iter().take(st.send_count) {
+                if a.deaf[*d] {
+                    continue;
                 }
+                let target = if pure && plan.pure[*d] {
+                    a.post[slot]
+                } else {
+                    a.arrive[*d]
+                };
+                reach(&mut at[*d], out(target));
             }
         }
-        let master = self.master.latency();
-        self.stats.low_latency.monitored_samples = if through_mixed {
-            heard as u64
-        } else {
-            (wait + master) as u64
-        };
+        self.stats.low_latency.monitored_samples =
+            (master.unwrap_or(0) + self.master.latency()) as u64;
     }
+}
+
+/// The planner's arrivals, for [`Processor::monitored_wait`].
+pub(super) struct Arrivals<'a> {
+    pub arrive: &'a [usize; MAX_STRIPS],
+    pub post: &'a [usize; MAX_STRIPS],
+    pub own: &'a [usize; MAX_STRIPS],
+    pub master: usize,
+    pub leave: &'a [usize; MAX_TRACKS],
+    pub feeds: &'a [Option<usize>; MAX_TRACKS],
+    pub deaf: &'a [bool; MAX_STRIPS],
+    pub rest_s: &'a [bool; MAX_STRIPS],
+    pub rest_t: &'a [bool; MAX_TRACKS],
 }

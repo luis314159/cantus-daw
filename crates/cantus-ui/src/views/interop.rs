@@ -21,6 +21,9 @@ pub struct Interop {
     pub midi_export: Option<MidiExportDialog>,
     pub midi_import: Option<MidiImportDialog>,
     pub report: Option<ReportWindow>,
+    /// A `.dawproject` being written on its own thread (its audio can be gigabytes): where,
+    /// and what it will say.
+    pub exporting: Option<(PathBuf, std::sync::mpsc::Receiver<std::io::Result<Report>>)>,
 }
 
 /// What "Export MIDI…" writes.
@@ -135,6 +138,7 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// Take dropped files, and show whichever dialog is open.
 pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
+    poll_export(app, ctx);
     dropped_files(app, ctx);
     midi_export_window(app, ctx);
     midi_import_window(app, ctx);
@@ -769,33 +773,79 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
 
 // ---- DAWproject ---------------------------------------------------------------------
 
+/// Write the project to `path` as a `.dawproject`, its audio clips carrying their files
+/// (round 29, ADR 0061) — on a thread of its own, the archive streamed to the file (the
+/// window never waits for gigabytes of audio); said when done. Returns whether it started.
 pub fn export_dawproject_to(app: &mut CantusApp, path: &Path) -> bool {
-    // Audio clips carry their files (round 29, ADR 0061).
-    let out = dawproject::export_with(app.project(), crate::app::APP_VERSION, app.audio_base());
-    match std::fs::write(path, &out.bytes) {
-        Ok(()) => {
-            app.set_status(tf("interop.status.exported", &[("file", &file_name(path))]));
-            if !out.report.is_lossless() {
+    if app.interop.exporting.is_some() {
+        app.set_status(t("interop.status.export_busy"));
+        return false;
+    }
+    let project = app.project().clone();
+    let base = app.audio_base().map(Path::to_path_buf);
+    let dest = path.to_path_buf();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let started = std::thread::Builder::new()
+        .name("cantus-dawproject".into())
+        .spawn(move || {
+            let r =
+                dawproject::export_to(&project, crate::app::APP_VERSION, base.as_deref(), &dest);
+            let _ = tx.send(r);
+        })
+        .is_ok();
+    if started {
+        app.interop.exporting = Some((path.to_path_buf(), rx));
+        app.set_status(tf(
+            "interop.status.exporting",
+            &[("file", &file_name(path))],
+        ));
+    }
+    started
+}
+
+/// Every frame: a `.dawproject` written on its thread is said done (or failed).
+fn poll_export(app: &mut CantusApp, ctx: &egui::Context) {
+    let Some((path, rx)) = &app.interop.exporting else {
+        return;
+    };
+    let result = match rx.try_recv() {
+        Ok(r) => r,
+        Err(std::sync::mpsc::TryRecvError::Empty) => {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            return;
+        }
+        Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+            Err(std::io::Error::other("the export stopped"))
+        }
+    };
+    let path = path.clone();
+    app.interop.exporting = None;
+    match result {
+        Ok(report) => {
+            app.set_status(tf(
+                "interop.status.exported",
+                &[("file", &file_name(&path))],
+            ));
+            if !report.is_lossless() {
                 app.interop.report = Some(ReportWindow {
-                    title: tf("interop.report.title_export", &[("file", &file_name(path))]),
-                    report: out.report,
+                    title: tf(
+                        "interop.report.title_export",
+                        &[("file", &file_name(&path))],
+                    ),
+                    report,
                 });
             }
-            true
         }
-        Err(e) => {
-            app.set_error(tf(
-                "interop.status.export_failed",
-                &[("file", &file_name(path)), ("error", &e)],
-            ));
-            false
-        }
+        Err(e) => app.set_error(tf(
+            "interop.status.export_failed",
+            &[("file", &file_name(&path)), ("error", &e)],
+        )),
     }
 }
 
 pub fn import_dawproject_from(app: &mut CantusApp, path: &Path) -> bool {
     match std::fs::read(path) {
-        Ok(bytes) => import_dawproject(app, &bytes, &file_name(path)),
+        Ok(bytes) => import_dawproject_in(app, &bytes, &file_name(path), path.parent()),
         Err(e) => {
             app.set_error(tf(
                 "interop.status.import_failed",
@@ -808,7 +858,18 @@ pub fn import_dawproject_from(app: &mut CantusApp, path: &Path) -> bool {
 
 /// Replace the project with a `.dawproject`'s, as one undo step.
 pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool {
-    let imported = match dawproject::import(bytes) {
+    import_dawproject_in(app, bytes, name, None)
+}
+
+/// [`import_dawproject`] of an archive in `folder`: the files it references outside
+/// itself are found next to it.
+pub fn import_dawproject_in(
+    app: &mut CantusApp,
+    bytes: &[u8],
+    name: &str,
+    folder: Option<&Path>,
+) -> bool {
+    let imported = match dawproject::import_from(bytes, folder) {
         Ok(i) => i,
         Err(e) => {
             app.set_error(tf(
@@ -819,8 +880,12 @@ pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool 
         }
     };
     let mut project = imported.project;
-    // The audio the archive carries, put on disk (round 29, ADR 0061).
-    crate::warp::place_media(&mut project, &imported.media, name);
+    let mut report = imported.report;
+    // The audio the archive carries, put on disk (round 29, ADR 0061); what could not be
+    // written is said.
+    for file in crate::warp::place_media(&mut project, &imported.media, name) {
+        report.dropped("interop.report.d_audio_unwritten", vec![("file", file)]);
+    }
     for track in &mut project.tracks {
         if let InstrumentSpec::Pulsus(kit) = &mut track.instrument {
             for pad in &mut kit.pads {
@@ -853,7 +918,7 @@ pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool 
     app.set_status(tf("interop.status.dawproject_imported", &[("file", &name)]));
     app.interop.report = Some(ReportWindow {
         title: tf("interop.report.title_import", &[("file", &name)]),
-        report: imported.report,
+        report,
     });
     true
 }

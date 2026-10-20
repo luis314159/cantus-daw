@@ -194,6 +194,22 @@ fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
     std::fs::remove_file(from)
 }
 
+/// Put back what [`execute`] did, when the path changes it was for are refused (round 29,
+/// review 1): the files it moved moved back, its copies removed.
+pub fn undo(plan: &Plan, out: &Outcome) {
+    for (from, to) in out.moved.iter().rev() {
+        let moved = plan
+            .ops
+            .iter()
+            .any(|o| &o.from == from && &o.to == to && o.action == FileAction::Move);
+        if moved {
+            let _ = move_file(to, from);
+        } else {
+            let _ = std::fs::remove_file(to);
+        }
+    }
+}
+
 /// Do the file work of `plan` against the pool as it is in `project`. Never overwrites a
 /// file; a failure leaves that source's path unchanged and is reported.
 pub fn execute(project: &Project, plan: &Plan) -> Outcome {

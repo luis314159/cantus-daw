@@ -368,8 +368,11 @@ impl CantusApp {
     /// The pitch editor is what the edit keys act on: the piano roll's place has the focus
     /// and shows an audio clip.
     pub fn pitch_editing(&self) -> Option<(TrackId, ClipId)> {
+        // Not while the clip editor shows *Warp*: its keys are the warp editor's (round
+        // 29's review: Q quantised a pitch edit no one could see).
         if self.focus != crate::app::EditFocus::PianoRoll
             || !self.workspace.is_visible(Pane::PianoRoll)
+            || self.warp.view.open
         {
             return None;
         }

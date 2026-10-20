@@ -125,7 +125,7 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
                 q.threshold = v;
             }
             // What it will do.
-            let note = crate::i18n::tf("warp.quantise.note", &[("n", &clips.len())]);
+            let note = crate::i18n::tf_count("warp.quantise.note", clips.len(), &[]);
             let tx = Text::new(&note, Role::Body, s.t.text_dim).align(Align2::LEFT_CENTER);
             kit::with_brush(ui.painter(), |b| {
                 let _ = text::paint(b, row(3), &tx, s.tk());
@@ -167,8 +167,14 @@ pub fn frame(app: &mut CantusApp, ctx: &Context) {
     if apply {
         let q = app.warp.quantise;
         let n = app.quantise_audio(&clips, q);
-        app.set_status(crate::i18n::tf("warp.status.quantised", &[("n", &n)]));
-        close = true;
+        // Said only when something was quantised: a clip still analysed keeps its
+        // "try again in a moment", and the dialog stays open for it (round 29's review).
+        if n > 0 {
+            app.set_status(crate::i18n::tf_count("warp.status.quantised", n, &[]));
+            close = true;
+        } else if !clips.iter().any(|r| app.warp_analysing(*r)) {
+            close = true;
+        }
     }
     if close {
         app.warp.quantise_open = None;

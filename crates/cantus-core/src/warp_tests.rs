@@ -143,9 +143,17 @@ fn quantise_pulls_transients_to_the_grid_by_its_strength() {
     let half = w.quantise(&frames, Ticks(480), 0.5, Ticks::ZERO, Ticks(4_000));
     let t = half.tick_at(frames[1]);
     assert!((t - 488.5).abs() <= 0.5, "half way: {t}");
-    // Outside the window nothing is touched.
-    w = w.quantise(&frames, Ticks(480), 1.0, Ticks(900), Ticks(1_000));
-    assert_eq!(w.markers.len(), 2);
+    // Outside the window nothing is touched: only the hit inside it moves.
+    let narrow = w.quantise(&frames, Ticks(480), 1.0, Ticks(900), Ticks(1_000));
+    assert!((narrow.tick_at(frames[2]) - 960.0).abs() < 1e-6);
+    for t in [0.0, 480.0, 899.0, 1_000.0, 1_440.0, 3_000.0] {
+        assert!(
+            (narrow.frame_at(t) - w.frame_at(t)).abs() < 1e-6,
+            "tick {t} moved"
+        );
+    }
+    w = narrow;
+    assert!(w.is_valid());
 }
 
 #[test]
@@ -265,4 +273,73 @@ fn a_stretched_warp_plays_its_window_longer() {
     let one = Warp::identity(SR, 120.0, 0).stretched(Ticks::ZERO, 1.5);
     assert!((one.bpm - 180.0).abs() < 1e-9);
     assert!((one.tick_at(48_000.0) - 2.0 * 1.5 * PPQ as f64).abs() < 1e-6);
+}
+
+/// Round 29's review: quantising moves the hits inside the range and nothing else — the
+/// range's ends are pinned first, so the audio after the last pulled hit keeps its speed.
+#[test]
+fn quantise_leaves_the_audio_beyond_the_range_alone() {
+    let w = Warp::identity(48_000, 120.0, 0);
+    let per = frames_per_tick(48_000, 120.0);
+    // Hits at ticks 960 and 1 940: the second pulled back to 1 920.
+    let hits = [960.0 * per, 1_940.0 * per];
+    let (from, to) = (Ticks::ZERO, Ticks(3_840));
+    let q = w.quantise(&hits, Ticks(240), 1.0, from, to);
+    assert!(q.is_valid());
+    assert!((q.tick_at(hits[1]) - 1_920.0).abs() < 1e-6);
+    for t in [3_840.0, 5_000.0, 9_000.0] {
+        assert!(
+            (q.frame_at(t) - w.frame_at(t)).abs() < 1e-6,
+            "tick {t}: {} against {}",
+            q.frame_at(t),
+            w.frame_at(t)
+        );
+    }
+}
+
+/// Round 29's review: the warp a first edit starts from plays the clip exactly as it plays
+/// unwarped — under a tempo track, a ramp, a window into the middle of its take — and under
+/// one tempo it is the identity.
+#[test]
+fn the_natural_warp_plays_as_the_clip_plays_unwarped() {
+    use crate::tempo::{TempoMap, TempoPoint};
+    use crate::time::TimeSignature;
+    let map = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: false,
+            },
+            TempoPoint {
+                tick: Ticks::beats(16),
+                bpm: 90.0,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(24),
+                bpm: 140.0,
+                ramp: false,
+            },
+        ],
+        &[],
+    );
+    let (start, offset, length, slip) = (Ticks::beats(12), Ticks::beats(6), Ticks::beats(20), 37);
+    let w = Warp::natural_of(&map, start, offset, length, slip, 48_000);
+    assert!(w.is_valid() && w.follow);
+    let origin = (start - offset).0 as f64;
+    for k in 0..=200 {
+        let t = start.0 as f64 + length.0 as f64 * k as f64 / 200.0;
+        let want = crate::audio_time::frame_at(&map, start, offset, slip as f64, 48_000.0, t);
+        let got = w.frame_at(t - origin);
+        // Exact where the tempo holds; inside the ramp, sampled every sixteenth: within
+        // half a millisecond.
+        let bound = if map.in_ramp(t) { 24.0 } else { 0.5 };
+        assert!((got - want).abs() < bound, "tick {t}: {got} against {want}");
+    }
+    let one = TempoMap::constant(120.0, TimeSignature::default());
+    let w = Warp::natural_of(&one, start, offset, length, slip, 48_000);
+    assert!(w.is_identity(120.0, slip));
 }

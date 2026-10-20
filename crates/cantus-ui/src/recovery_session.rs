@@ -213,6 +213,8 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
+        // A freeze or a bounce rendering: stopped, its partial files gone (review 1).
+        crate::freeze::close(self);
         // A save being written lands first (then nothing may be unsaved at all), and an
         // autosave being written shares the file with this one: let both finish. What the
         // *Save changes?* question waited to do (open another file…) is moot now.
@@ -343,7 +345,7 @@ impl CantusApp {
             }
             if !gone.is_empty() {
                 let paths: Vec<PathBuf> = gone.iter().map(|t| t.path.clone()).collect();
-                n += self.import_audio(&paths, pass.journal.record_start, None);
+                n += self.import_audio_as(&paths, pass.journal.record_start, None, true);
             }
         }
         n

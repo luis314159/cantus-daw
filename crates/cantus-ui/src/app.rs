@@ -2873,6 +2873,8 @@ impl CantusApp {
         self.seek(Ticks::ZERO);
         if loaded.links_repaired > 0 {
             self.set_error(crate::links::repaired_text(loaded.links_repaired));
+        } else if loaded.warps_repaired > 0 {
+            self.set_error(crate::warp::repaired_text(loaded.warps_repaired));
         } else if let Some(from) = loaded.migrated_from {
             self.set_status(tf("status.migrated", &[("from", &from)]));
         } else if !self.status.error {
@@ -2981,6 +2983,9 @@ impl CantusApp {
 
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
+        // The frozen renders' folder follows the project before anything is compiled for
+        // it (round 29, review 1).
+        crate::freeze::follow_path(self);
         // A snapshot held back for its zones' starts: sent once they are read (third
         // review #6) — never a wait on this thread.
         self.engine.flush_pending();

@@ -307,31 +307,42 @@ pub fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) -> bool {
     true
 }
 
-/// The keys' and the clip menu's bounce: the selected clips on their track when some are
-/// selected, else the time selection on the selected track, else the whole track.
+/// The keys' and the clip menu's bounce: the time selection on the selected track when it
+/// was the last thing selected (review 1: a clip selected before it won), else the
+/// selected clips — each track's, one bounce after the other (review 1: only the first
+/// track's were) — else the time selection, else the whole track.
 pub fn bounce_selection(app: &mut CantusApp, through: Through) {
+    let time = app.time_selection.filter(|(a, b)| b > a);
     let sel = app.clip_selection();
-    if let Some((track, _)) = sel.first() {
-        let track = *track;
-        let clips = sel
-            .iter()
-            .filter(|(t, _)| *t == track)
-            .map(|(_, c)| *c)
-            .collect();
-        app.bounce(Plan {
-            track,
-            through,
-            range: Range::Clips(clips),
-        });
+    let time_last = app.last_selection == crate::clipboard::SelKind::Time;
+    if !sel.is_empty() && !(time_last && time.is_some()) {
+        let mut tracks: Vec<cantus_core::TrackId> = Vec::new();
+        for (t, _) in &sel {
+            if !tracks.contains(t) {
+                tracks.push(*t);
+            }
+        }
+        for track in tracks {
+            let clips = sel
+                .iter()
+                .filter(|(t, _)| *t == track)
+                .map(|(_, c)| *c)
+                .collect();
+            app.bounce(Plan {
+                track,
+                through,
+                range: Range::Clips(clips),
+            });
+        }
         return;
     }
     let Some(track) = app.selected_track else {
         app.set_status(t("bounce.no_track"));
         return;
     };
-    let range = match app.time_selection {
-        Some((a, b)) if b > a => Range::Time(a, b),
-        _ => Range::Track,
+    let range = match time {
+        Some((a, b)) => Range::Time(a, b),
+        None => Range::Track,
     };
     app.bounce(Plan {
         track,
@@ -344,13 +355,15 @@ pub fn bounce_selection(app: &mut CantusApp, through: Through) {
 pub fn action(app: &mut CantusApp, action: crate::keymap::Action) -> bool {
     use crate::keymap::Action;
     match action {
-        Action::FreezeTrack => match app.selected_track {
-            Some(t) => app.toggle_freeze_track(t),
-            None => match app.selected_strip {
-                Some(s) => match app.freeze_holding_strip(s) {
-                    Some(h) => app.unfreeze_target(h),
-                    None => app.freeze_target(FreezeTarget::Strip(s)),
-                },
+        // What was chosen last (review 1: a bus chosen on the desk froze the last track
+        // chosen instead).
+        Action::FreezeTrack => match super::inspector::subject(app) {
+            super::inspector::Subject::Strip(s) => app.toggle_freeze_strip(s),
+            super::inspector::Subject::Track(t)
+            | super::inspector::Subject::Clip(t, _)
+            | super::inspector::Subject::Notes(t, _) => app.toggle_freeze_track(t),
+            super::inspector::Subject::Master => match app.selected_track {
+                Some(t) => app.toggle_freeze_track(t),
                 None => app.set_status(t("bounce.no_track")),
             },
         },

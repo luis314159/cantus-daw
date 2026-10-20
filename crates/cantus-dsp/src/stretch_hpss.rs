@@ -60,10 +60,15 @@ struct Frame {
     mag: Vec<f32>,
 }
 
-fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
-    let n = ((0.0213 * rate) as usize)
+/// The split's frame length for `rate`: ≈ 21 ms, a power of two (its hop a quarter).
+pub(super) fn frame_len(rate: f32) -> usize {
+    ((0.0213 * rate) as usize)
         .next_power_of_two()
-        .clamp(256, 4_096);
+        .clamp(256, 4_096)
+}
+
+fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
+    let n = frame_len(rate);
     let hop = n / 4;
     let half = n / 2;
     let bins = half + 1;
@@ -176,20 +181,46 @@ fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
 /// apart), each read at `ratio` (the transposition) from where the map puts its centre.
 /// Through a map that is a pure shift (`Map::held_at` around a transient) the grains read
 /// whole frames one hop apart, so the hit is the source's, moved, sample for sample.
+/// Transposed, a grain that holds a transient (`anchors`, source frames, in order) is read
+/// from the transient outward, so every grain holding it puts it on the same output frame
+/// (read from their own centres, each would put it a little elsewhere: a smeared hit).
 pub(super) fn grains(
     channels: &[&[f32]],
     rate: f32,
     map: &Map,
     len: usize,
     ratio: f64,
+    anchors: &[f64],
 ) -> Vec<Vec<f32>> {
     let g = ((0.0053 * rate) as usize)
         .next_power_of_two()
         .clamp(64, 1_024);
+    grains_of(channels, map, len, ratio, g, anchors)
+}
+
+/// [`grains`] with grains `g` frames long (a power of two).
+pub(super) fn grains_of(
+    channels: &[&[f32]],
+    map: &Map,
+    len: usize,
+    ratio: f64,
+    g: usize,
+    anchors: &[f64],
+) -> Vec<Vec<f32>> {
     let hop = g / 4;
     let win = hann(g);
     let ola: f32 = (0..4).map(|j| win[j * hop]).sum();
     let half = (g / 2) as i64;
+    // Transposed up, a grain is read faster than recorded: band-limited (no alias).
+    let reach = (g as f64) * ratio.max(1.0);
+    let (a, b) = (map.source(0.0), map.source(len as f64));
+    let fast: Vec<Option<super::read::Fast>> = channels
+        .iter()
+        .map(|x| {
+            (ratio > 1.0)
+                .then(|| super::read::Fast::new(x, a.min(b) - reach, a.max(b) + reach, ratio))
+        })
+        .collect();
     let mut out: Vec<Vec<f32>> = channels.iter().map(|_| vec![0.0; len]).collect();
     let mut j = -(half / hop as i64);
     loop {
@@ -199,17 +230,37 @@ pub(super) fn grains(
         }
         let at = map.source(c as f64);
         let start = at.round() as i64;
-        for (o, x) in out.iter_mut().zip(channels) {
+        // Transposed: the transient this grain reads, if any, and where it is heard.
+        let anchor = (ratio != 1.0)
+            .then(|| {
+                let reach = half as f64 * ratio;
+                let i = anchors.partition_point(|s| *s < at);
+                [i.checked_sub(1), Some(i)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|i| anchors.get(i).copied())
+                    .filter(|s| (s - at).abs() <= reach)
+                    .min_by(|a, b| (a - at).abs().total_cmp(&(b - at).abs()))
+            })
+            .flatten()
+            .map(|s| (s, map.output(s)));
+        for (ci, (o, x)) in out.iter_mut().zip(channels).enumerate() {
             for (k, w) in win.iter().enumerate() {
                 let t = c - half + k as i64;
                 if t < 0 || t >= len as i64 {
                     continue;
                 }
                 let d = k as i64 - half;
+                let pos = match anchor {
+                    Some((s, o)) => s + (t as f64 - o) * ratio,
+                    None => start as f64 + d as f64 * ratio,
+                };
                 let v = if ratio == 1.0 {
                     get(x, start + d)
+                } else if let Some(f) = &fast[ci] {
+                    f.read(pos, ratio)
                 } else {
-                    crate::psola::read_at(x, start as f64 + d as f64 * ratio)
+                    crate::psola::read_at(x, pos)
                 };
                 o[t as usize] += v * w / ola;
             }

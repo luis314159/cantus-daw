@@ -210,7 +210,7 @@ pub fn paint(
     let shown = match app
         .arrangement
         .stretch_preview((shown.track, shown.clip.id))
-        .zip(app.warp_to_edit((shown.track, shown.clip.id)))
+        .zip(app.warp_to_warp((shown.track, shown.clip.id)))
     {
         Some((delta, w)) if shown.clip.length.0 > 0 => {
             let k = (shown.clip.length + delta).0 as f64 / shown.clip.length.0 as f64;
@@ -292,7 +292,7 @@ pub fn paint(
     fades(b, shown, body, inner, px_per_tick, ink, scratch, s);
     let mut h = handles(body, inner, shown.region, px_per_tick, k)?;
     // The warp markers and transients (ADR 0061), over the waveform and the fades.
-    h.warp = warp::paint(b, app, geo, lanes, shown, inner, show_handles, s);
+    h.warp = warp::paint(b, app, geo, lanes, shown, inner, show_handles, false, s);
     // On a warped clip the band holds the markers' flags: the fade and gain squares sit
     // below it, so neither covers a flag (a clip not warped keeps its layout).
     if let Some(band) = h

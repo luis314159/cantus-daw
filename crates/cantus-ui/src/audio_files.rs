@@ -162,6 +162,19 @@ impl CantusApp {
     /// becomes a source (not recorded) and a clip as long as the file at the project's
     /// tempo; the whole import is one undo step. Returns how many files were imported.
     pub fn import_audio(&mut self, paths: &[PathBuf], at: Ticks, onto: Option<usize>) -> usize {
+        self.import_audio_as(paths, at, onto, false)
+    }
+
+    /// [`Self::import_audio`] of recordings (`recorded`: a recovered take whose track is
+    /// gone): their sources say so, and they are analysed, never warped by the import rule —
+    /// a recording plays as it was played (ADR 0061, round 29's review).
+    pub fn import_audio_as(
+        &mut self,
+        paths: &[PathBuf],
+        at: Ticks,
+        onto: Option<usize>,
+        recorded: bool,
+    ) -> usize {
         let mut files = Vec::new();
         for p in paths {
             match read(p) {
@@ -181,7 +194,14 @@ impl CantusApp {
         if files.is_empty() {
             return 0;
         }
-        let commands = self.import_commands(&files, at, onto);
+        let mut commands = self.import_commands(&files, at, onto);
+        if recorded {
+            for c in &mut commands.0 {
+                if let Command::InsertAudioSource { source } = c {
+                    source.recorded = true;
+                }
+            }
+        }
         let made = commands.1;
         // Its own undo step, kept open for the warp a loop gets when its analysis lands
         // (round 29, ADR 0061: the import rule, `crate::warp`).
@@ -195,7 +215,14 @@ impl CantusApp {
         ) {
             return 0;
         }
-        self.warp_after_import(&made, key);
+        if recorded {
+            self.end_gesture();
+            for f in &files {
+                self.analyse_file_soon(&f.path, f.data.rate);
+            }
+        } else {
+            self.warp_after_import(&made, key);
+        }
         for f in &files {
             self.peaks.insert_data(&f.path, f.data.clone());
         }
@@ -300,11 +327,17 @@ impl CantusApp {
                 }
             })
             .collect();
+        // Through the frozen targets whose key the paths are in (round 29, review 1: the
+        // path change was refused after the files had moved): frozen still, their renders
+        // copied under their new keys beside the project. Refused all the same, the files
+        // go back where they were.
         if !commands.is_empty() {
-            self.exec(Command::Batch {
-                label_key: "cmd.collect_audio".into(),
-                commands,
-            });
+            let renders = crate::freeze::project_dir(Some(file));
+            if !crate::freeze::exec_through(self, "cmd.collect_audio", commands, renders.as_deref())
+            {
+                cantus_project::collect::undo(&plan, &out);
+                return;
+            }
         }
         for (before, after) in follow {
             self.peaks.follow(&before, &after);
@@ -355,7 +388,14 @@ impl CantusApp {
             }
         };
         let path = stored_path(self.audio_base(), file);
-        if !self.exec(Command::SetAudioSourcePath { id, path }) {
+        // Through a freeze that plays it (round 29, review 1): frozen still, its render made
+        // again from the file found.
+        if !crate::freeze::exec_through(
+            self,
+            "cmd.set_audio_source_path",
+            vec![Command::SetAudioSourcePath { id, path }],
+            None,
+        ) {
             return false;
         }
         self.peaks.forget(&old);

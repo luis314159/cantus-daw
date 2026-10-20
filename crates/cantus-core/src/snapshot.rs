@@ -289,11 +289,14 @@ impl Snapshot {
                                     .map(|i| (i, x.effective_level(), x.tap))
                             })
                             .collect(),
-                        // A track soloed elsewhere silences what the render holds.
-                        frozen: s
-                            .frozen
-                            .as_ref()
-                            .map(|f| crate::freeze::FrozenPlay::new(f, project.any_solo())),
+                        // A solo elsewhere (or its only input's mute) silences what the
+                        // render holds.
+                        frozen: s.frozen.as_ref().map(|f| {
+                            crate::freeze::FrozenPlay::new(
+                                f,
+                                crate::freeze::silenced(project, s.id),
+                            )
+                        }),
                         rest: false,
                     })
                     .collect()
@@ -404,12 +407,15 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
-            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. (Under
-            // a tempo that changes, a warp follows it and the source does not.)
+            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. Under
+            // a tempo that changes, a warp that follows it does not play as the source; one
+            // that does not follow (and does not transpose) does, whatever the tempo map.
             warp: a
                 .warp
                 .as_ref()
-                .filter(|w| !(one_tempo && w.is_identity(project.tempo_bpm, a.slip_frames)))
+                .filter(|w| {
+                    !(w.natural() || one_tempo && w.is_identity(project.tempo_bpm, a.slip_frames))
+                })
                 .map(|w| std::sync::Arc::new((**w).clone())),
             source_rate: src.sample_rate,
         };

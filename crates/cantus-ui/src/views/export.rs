@@ -282,8 +282,9 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         return false;
     }
     // A freeze or a bounce rendering holds the hosted plug-ins' render instances (round 29,
-    // ADR 0064): one set at a time — the export waits for it.
-    if app.freeze.job.is_some() {
+    // ADR 0064): one set at a time — the export waits for it. A background refresh gives
+    // way (review 1: it blocked every export); it is made again after.
+    if !crate::freeze::yield_refresh(app) {
         app.set_error(crate::i18n::t("freeze.export_waits"));
         return false;
     }

@@ -296,7 +296,9 @@ fn gather(nodes: &Nodes, inputs: &[In], n: usize, acc_l: &mut [f32], acc_r: &mut
 
 /// A frozen strip's (or track's) input this pass: its render's frames at the transport,
 /// into the scratch pair; whether any came (playing, and inside the render). Its board
-/// points at what comes next — while stopped too, so a start finds its blocks.
+/// points at the block it reads — while stopped too, so a start finds its blocks; the
+/// cursor's blocks ahead cover what comes next (review 1: pointed past the pass, an
+/// offline render starting just before a block's end never asked for the block it read).
 pub(crate) fn frozen_input(
     nodes: &Nodes,
     ctx: &super::ctx::PassCtx,
@@ -307,7 +309,7 @@ pub(crate) fn frozen_input(
     let n = ctx.n;
     let from = crate::freeze::frame_at(&ctx.transport);
     let playing = ctx.transport.is_playing();
-    crate::freeze::point(h, place, if playing { from + n as i64 } else { from });
+    crate::freeze::point(h, place, from);
     if !playing || from + n as i64 <= 0 || from >= h.frames as i64 {
         return false;
     }

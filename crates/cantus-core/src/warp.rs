@@ -254,6 +254,12 @@ impl Warp {
         self.slope(i) / frames_per_tick(self.rate, project_bpm)
     }
 
+    /// Whether the clip plays its source as it is under any tempo: not following the tempo
+    /// and not transposed (nothing is ever rendered for it).
+    pub fn natural(&self) -> bool {
+        !self.follow && !(self.cents != 0 && self.mode.transposes())
+    }
+
     /// Whether the clip plays exactly as without a warp at `project_bpm` with fine offset
     /// `slip_frames`: untransposed, and either not following the tempo or mapping every
     /// content tick to the unwarped clip's frame.
@@ -360,4 +366,23 @@ impl WarpOp {
             WarpOp::MoveMarker | WarpOp::MoveContent | WarpOp::Transpose | WarpOp::Tempo
         )
     }
+}
+
+/// Drop every warp a project holds that is not valid ([`Warp::is_valid`]: a hand-edited or
+/// damaged file) — its clip plays at its natural speed — and return how many. Not a
+/// command: it runs on load, before the project has a history (round 29's review: the
+/// commands refuse such a warp, so a file must not bring one in).
+pub fn repair(project: &mut crate::Project) -> usize {
+    let mut dropped = 0;
+    for t in &mut project.tracks {
+        for c in &mut t.clips {
+            if let Some(a) = c.audio.as_mut() {
+                if a.warp.as_ref().is_some_and(|w| !w.is_valid()) {
+                    a.warp = None;
+                    dropped += 1;
+                }
+            }
+        }
+    }
+    dropped
 }

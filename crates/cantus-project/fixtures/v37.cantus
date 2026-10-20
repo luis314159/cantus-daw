@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 37,
   "app_version": "fixture",
-  "saved_at": 1792480989,
+  "saved_at": 1792498492,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -1571,7 +1571,7 @@
         "armed": false,
         "takes_open": false,
         "frozen": {
-          "content": "cc2750ced4f76ff74fc1246cc7fbe10033cb19eb076c095832b276ca6f1be283"
+          "content": "6cf2584233e9d1e97fcf2526c9320d954518001f5b19873f3aa4ec6b3ba24481"
         }
       }
     ],
@@ -1703,7 +1703,7 @@
           }
         ],
         "frozen": {
-          "content": "fd809a470c055ecac42fe6683979433802e17841e9a06abfaf6f466f32e081d4"
+          "content": "9bead5f23428b150e13897da6412d9e67b303c1adbc52a8668468268015d97ca"
         }
       },
       {
@@ -2920,5 +2920,5 @@
     },
     "next_id": 89
   },
-  "integrity": "508bb1ba8cc0a382756551690d6a25052833e3eec5f03f60d57cee579509af98"
+  "integrity": "2fd2e8e2c5239a1280420c5cda142e128d4acd041f929d50a238319789a0a17c"
 }

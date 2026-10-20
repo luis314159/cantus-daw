@@ -1,7 +1,7 @@
 # ADR 0061 — Warping and stretching audio: our own stretcher, warp markers, analysis at import
 
 **Status:** Accepted (round 29, *warp*; parts A and B — the stretcher and playback under
-the tempo map, after the tempo builder's merge) · **Date:** 2026-10-16 · **Round:** 29 (warp) · **Builds on:** ADR
+the tempo map, after the tempo builder's merge; amended by its review, §10) · **Date:** 2026-10-16 · **Round:** 29 (warp) · **Builds on:** ADR
 0053 (the pitch base: the tracker, the epochs, TD-PSOLA), ADR 0054 (the pitch render path: a
 worker, a disk cache, renders attached to the snapshot) · **Extends:** ADR 0004 (commands),
 ADR 0023 (analysis stored), ADR 0031 (offline = real time), ADR 0047 (licences) ·
@@ -41,21 +41,22 @@ piecewise linear; `stretch::Map`) with a transposition, in the clip's **mode**:
   clearly over the time median (a separation factor of 2 with a soft edge), so a dense
   chord or a held noise stays whole with the vocoder (with a plain Wiener mask a held
   chord fluttered by 3–5 dB through the grains; now ≤ 0.7 dB). The two parts always sum
-  back to the input. The **harmonic part** goes through a phase vocoder: 85 ms Hann frames
-  (4 096 at 44.1/48 kHz), a synthesis hop of N/8, each synthesis frame reading the source
+  back to the input. The **harmonic part** goes through a phase vocoder: 170 ms Hann frames
+  (8 192 at 44.1/48 kHz; 85 ms until the review, §10), a synthesis hop of N/8, each synthesis frame reading the source
   where the map says and a second frame one hop earlier, so every bin's instantaneous
   frequency comes from two frames exactly a hop apart whatever the local speed;
   zero-phase frames; **identity phase locking** around peaks (Laroche–Dolson), channel by
   channel, with the right channel's phase locked to the left's analysed difference
-  wherever both hold the same partial (to a quarter of a bin) — the image is the
+  wherever both hold the same partial (to a twenty-fifth of a bin, §10) — the image is the
   source's, and a chorus's partials that differ left and right each keep their own phase.
   Around a transient the map is held to a pure shift for a whole window before it and
   30 ms after (`Map::hold`: taken from the room on either side, at most 45 %, never across
-  a warp marker), and there every frame is the analysed frame itself (phases reset), so a
-  hit read through a stretch is the source's hit; transposed, the phases reset once at the
-  transient (Röbel 2003). **Transposition** maps bins (output bin m from source bin
-  m/ratio, magnitude interpolated, the nearest bin's phase advanced at ratio·ω; moving
-  whole peak regions by whole bins was measured and kept a voice's envelope a dB worse);
+  a warp marker), and there every frame resets the peaks whose energy rose (their regions take
+  the analysed phase; a sustained partial goes on), so a hit read through a stretch is the
+  source's hit; transposed, the phases reset once at the transient (Röbel 2003).
+  **Transposition** moves each peak's whole region by its true frequency times the ratio
+  less one — fractionally, the magnitudes read between bins by a windowed sinc — so a
+  partial keeps its lobe and its level (§10);
   **formants** are kept by moving each bin back under the source's **true envelope**
   (Röbel–Rodet; 16 rounds, a cepstral order of 1.25 ms, on the spectrum pooled to a
   512-point grid: the same envelope at an eighth of the work). The **percussive part** is
@@ -90,7 +91,7 @@ mode. Every render is exactly the requested length.
   not an onset); picked as the largest within ±30 ms over the mean of −100…+70 ms by 6 % of
   the function's top, 30 ms apart; kept only where the next 20 ms are 3 dB louder than the
   20 ms before (as they are, or in their first difference: a hi-hat over a kick's tail);
-  each refined to the sample — the 0.3 ms block whose level jumps most over the 10 ms
+  each refined (within a millisecond, early rather than late: never more than half a millisecond late in the tests) — the 0.3 ms block whose level jumps most over the 10 ms
   before it within the frame's reach, walked back to a tenth of what it reaches.
 - **Tempo:** the autocorrelation of the normalised onset function, combed over its first
   four multiples and weighted by a log-Gaussian an octave and a half wide around 120 BPM,
@@ -121,7 +122,7 @@ tempo, a confidence of 0.5 or more) is warped at once — markers on every bar o
 Rhythm when it holds a transient a beat or more, Complex otherwise — and its window set to
 its bars at the project's tempo, **in the import's own undo step** (`exec_merging` with the
 import's key; if the user did something else first, it is its own step). A long file plays
-at its natural speed until the user warps it. A **recording** is analysed as it lands and
+at its natural speed until the user warps it (a recovered take too: §10). A **recording** is analysed as it lands and
 never warped by itself: it plays as it was played. A **paste** keeps what it copied
 (warped or not); its analysis is asked when the editor, the inspector or *Quantise audio*
 needs it.
@@ -176,11 +177,12 @@ pitch render's key once that render is what the clip plays), the warp, the windo
 and length, the tempo map's `span_key` over the window (not its place: a clip moved along a
 held tempo keeps its render; a loop's pieces under one tempo share one) and the rates.
 **While a render is on its way** the clip plays its **bridge** — the same map read at
-varispeed by linear interpolation, made in milliseconds on its own worker — or the newest
-render it had; never its source at the wrong speed; a clip warped for the first time is
-silent until its bridge arrives (milliseconds). Kept: each clip's last three renders within
-512 MB beyond what plays, freed only where the cache is the last holder (never on the audio
-thread). `compile_for_render` waits for the pitch renders, compiles again and waits for the
+varispeed, or, transposed, a WSOLA sketch at the transposition (§10), made in milliseconds
+on its own worker — or the newest render or bridge its piece had; never its source at the
+wrong speed or pitch; a clip warped for the first time is silent until its bridge arrives
+(milliseconds). Kept: what plays, and the renders and bridges most recently played or made
+within 512 MB, whether or not their clip is in the snapshot now (§10), freed only where the
+cache is the last holder (never on the audio thread). `compile_for_render` waits for the pitch renders, compiles again and waits for the
 warp renders: an export, stems, freezing and a bounce play the full renders, never a
 bridge. Offline = real time and block-size independence hold (the render is attached data;
 tested at 1, 37, 64, 512 and mixed sizes). Nothing new runs on the audio thread.
@@ -217,34 +219,120 @@ pitch edits, a reversed clip.
 
 ## 9. Measurements (`cantus-bench --full --only warp`; `docs/round29/warp.md`)
 
+After the review (§10); one core, stereo, 48 kHz.
+
 | What | Target | Measured |
 |---|---|---|
-| Identity (every mode) | the source to the bit | to the bit (tests) |
+| Identity (every mode; also through the render path) | the source to the bit | to the bit (tests) |
 | Output length | exact | exact (every mode × 0.25–4 × transpositions) |
-| A hit's place through markers | ≤ 12 samples | Rhythm 0 (the slice is the source); Complex ≤ 5 median |
-| A marker's frame on its tick (engine; 44.1/48/96 kHz; under a ramp) | ±1 sample | ±1 |
-| Attack (10–90 %), ×0.5 … ×2 | ≤ the source + 1 ms | the source's (92 frames median) |
-| Pre-echo before a hit (Complex) | ≤ −30 dB | −36 … −39 dB median |
-| Pitch of a shifted tone (−12 … +12 st, ×0.8 … ×1.25) | ≤ 3 cents | ≤ 0.004 cents |
-| A held chord's added level wander (phasiness) | ≤ 1 dB | −0.1 dB (×0.8), 0.6 dB (×1.25) |
-| A voice +5 st, formants kept (envelope distance) | Complex ≤ 4 dB, Melodic ≤ 3 dB | 3.7 dB, 0.9 dB (not kept: 10.0, 9.2) |
+| A hit's place through markers (every mode; the source's own rise subtracted) | ≤ 12 samples | 0 (bench); ≤ 12 every mode (test) |
+| A marker's frame on its tick (engine; every mode; 44.1/48/96 kHz files at 44.1/48/96 kHz; under a ramp) | ±1 sample | ±1 |
+| Attack (10–90 %), ×0.5 … ×2; under a tempo ramp | ≤ the source + 1 ms | the source's (92 frames median); 0 added under a ramp |
+| Pre-echo before a hit (Complex): ×0.5 / 0.8 / 1.25 / 2; under a ramp | ≤ −30 dB | −31 / −35 / −36 / −35 dB median; −36 … −37 dB |
+| Pre-echo before a lone drum hit, detected onsets (the source's own −30 dB) | the source's | −29.6 dB |
+| A held tone's level before each hit (×0.8, ×1.25) | ≤ 1 dB | 0.03 dB |
+| A transposed render's level (−12/−5/+7/+12 st, tone and dense noise) | ≤ 0.5 dB | 0.03 dB, 0.02 dB |
+| Pitch of a shifted tone (−12 … +12 st, ×0.8 … ×1.25) | ≤ 3 cents | ≤ 0.002 cents |
+| A held chord's voices, each, both channels: added level wander | ≤ 1 dB | 0.44 dB (×0.8), 0.52 dB (×1.25) |
+| A voice +5 st, formants kept (envelope distance) | Complex ≤ 4 dB, Melodic ≤ 3 dB | 2.7 dB, 0.9 dB (not kept: 9.2, 9.2) |
 | A delayed stereo pair through ×0.8 / ×1.5, +4 st | ±0.05 rad | within |
-| Tempo within ±1 BPM (generated clicks and drums, 70–180 BPM) | ≥ 97 % | 100 % (69/69); 18 octave answers, all outside 70–180 by design |
-| CPU per second of audio (one core, stereo, ×1.25 −3 st) | — | Complex ≈ 0.11 s, Melodic ≈ 0.12 s, Re-pitch ≈ 5 ms, Rhythm ≈ 1 ms |
+| Aliasing reading faster (Rhythm, grains, Re-pitch; up to +24 st) | ≤ −60 dB | below (test) |
+| Tempo within ±1 BPM, metronomic (clicks, drums, swing; 70–180 BPM) | ≥ 97 % | 100 % (69/69); the 18 outside 70–180 all their octave inside it |
+| Tempo within ±1 BPM, played (jitter, drift, a pad, a pick-up, 3/4, 6/8) | ≥ 90 % | 90.6 % (87/96) in the test; every miss an octave; 92.8 % in the bench's variant |
+| CPU per second of audio (×1.25 −3 st) | — | Complex ≈ 0.11 s, Melodic ≈ 0.13 s, Re-pitch ≈ 5 ms, Rhythm ≈ 1 ms |
+| CPU per second of a 2 s window of a 1-minute file (Complex) | the window's | ≈ 0.09 s |
 
 The listening set — five materials (drums, a full mix from the startup demo, a sung phrase,
 a solo line, a chordal pad) × four modes × ratios 0.5, 0.8, 1.25, 2, the transpositions and
 the brief's case (×1.25, −3 st) — is written by `cantus-bench listen <dir>` (in
 `F:\projects\daw-r29\shots\warp\listen\` with a README) for the owner's ears.
 
+## 10. Round 29's review (`reviews/warp-1.json`, 76 findings): what it changed
+
+Every finding is fixed with a test seen failing first (`docs/round29/warp.md` lists each).
+The decisions among them:
+
+- **Soft and hard map points.** The stretcher's map carries which breakpoints pin the
+  audio (a window's ends, a warp marker: *hard*) and which only sample a smooth curve (the
+  tempo map's ramp every 256 frames, a tempo step's corner: *soft*). Rhythm cuts only at
+  hard points and transients; a transient's hold is bounded only by hard points, and the
+  soft points beside it give way (dropped over the room that takes up the hold's
+  stretch). Under a tempo change a Rhythm clip no longer chops and Complex's holds keep
+  their size. Every tempo point inside a window is a breakpoint of its render.
+- **Transposition keeps the level.** Each peak's region moves whole (its lobe intact), by
+  its true frequency, the magnitudes read between bins by a 8-tap windowed sinc; and the
+  render's level is matched, frame by frame over ±8 frames, to the source's power where it
+  read, moved by what the transposition did to the harmonic frame (a band moved beyond
+  Nyquist, the formants put back). A transposed tone or a dense noise keeps its level
+  within 0.1 dB from −24 to +24 st.
+- **Resets only where a transient is.** At a hold, only the regions whose peak rose 3.5 dB
+  over the frame a hop before take the analysed phase; a held bass goes on. DC, its lobe
+  and the Nyquist bin keep their analysed phase.
+- **The frame is 170 ms.** Measured per voice of a detuned saw chord in both channels (a
+  measure that resolves voices 30 Hz apart), 85 ms frames let two close voices share a
+  lobe and beat (5–6 dB); 170 ms holds every voice within 0.6 dB, at the same cost (the
+  hop grows with the frame). Dense hits pay about a decibel of pre-echo (still under the
+  −30 dB target). A two-band vocoder was tried and refused: the two renders' phases
+  disagree where the bands cross (−2 dB on a partial there). The image lock now needs the
+  channels' phase difference to hold still over a hop (a twenty-fifth of a bin).
+- **Reading faster without aliasing.** Above speed 1, Re-pitch, Rhythm's slices and the
+  percussive grains read through octave mip levels and a 64-tap windowed sinc whose
+  cut-off follows the local speed (seventeen kernels an octave) — no aliasing at +24 st,
+  and a speed just over 1 keeps its top octave.
+- **A window of a long file costs the window.** Complex and Melodic render only the span
+  the window reads plus the context their analyses reach, on the split's frame grid (the
+  interior is the whole file's render); the engine takes only that span out of the input;
+  Melodic's pitch analysis is made once per input and kept.
+- **The render store.** Renders and bridges are kept by recency within 512 MB whether or
+  not their clip is in the snapshot (mute, a pattern audition, a comp merge's foreign
+  compile never throw one away); each clip *piece* (a loop's repetition) remembers its
+  newest render or bridge and plays it while its own is on its way; a final is cancelled
+  only when nothing plays its key, and one still being made for such a key is not waited
+  for. A transposed clip's bridge is a WSOLA sketch at the transposition (grains placed by
+  waveform similarity, anchored on markers and transients), so an edit never drops it to
+  its source's pitch. `compile_for_render` compiles until nothing new is asked and counts
+  a render made before everything was in (`renders_late`, logged); the modulator bake
+  waits beside the window while renders are on their way.
+- **The first edit.** An unwarped clip's first warp is `Warp::natural_of` — markers on the
+  unwarped rule through the tempo map (exact where the tempo holds; inside a ramp sampled
+  every sixteenth, within half a millisecond) — not following for a transposition, the
+  formants, the slice ends or the mode, following for a marker, a stretch, *Quantise*, the
+  clip's tempo, *Detect*, *Warp from here* and *Follow*. A warp laid again keeps the
+  window's first frame (an offset written beside it). A warp that does not follow and does
+  not transpose (`Warp::natural`) is no warp under any tempo map — the snapshot drops it and
+  a comp seam keeps its crossfade.
+- **The model's integrity.** `InsertClip` and `SetClipAudio` refuse an invalid warp as
+  `SetClipWarp` does; a file's invalid warp is dropped on load and said; the undo fuzz
+  checks every warp after every command. A paste keeps a following warp's ticks (tempo's
+  relocation leaves it too). Quantise pins its range's ends (and a guard beyond), so only
+  the hits inside move. An Alt-stretch or a bounce of a linked copy makes it unique first.
+- **The import rule.** A loop's length is four beats a bar (as the analysis counts); every
+  file of one import joins its undo step; a recovered take is a recording (never warped
+  by itself). Recordings are analysed as they land (`analyse_file_soon`).
+- **The interface.** The band takes a press only on a clip that follows the tempo (and in
+  the editor); handles are offered by nearness to the pointer; a reversed clip's band is
+  read mirrored; the editor has its own snap grid, Ctrl+wheel zoom and scrolling; a
+  selected marker takes Del only while its clip is what is edited; the pitch editor's keys
+  are off in the Warp tab (Q opens *Quantise audio*); *Warp from here* starts where the
+  clip was right-clicked; *Quantise audio* takes the selection; *Set the project tempo*
+  sets the tempo in force where the clip starts; controls that do nothing in a mode are
+  drawn disabled; the detector's certainty has a row of its own.
+- **Interchange.** Only the playing lane is written (the takes said); a track of audio is
+  `contentType="audio"` (its input said, and given back on import); a clip at natural
+  speed is a bare `<Audio>` placed in seconds; a warp on its own tempo's line comes back a
+  warp under a tempo map; audio is stored (not deflated), read once per file, streamed to
+  the destination on a worker, with ZIP64 past 4 GiB (written and read); a file referenced
+  outside the archive is found next to it; an import's audio goes to a folder of its own;
+  clip gain, fade shapes, slice ends, formants off and inert markers are reported.
+
 ## Consequences
 
 - A loop dropped into a project plays in time at once and stays in time through every tempo
   change; a recording keeps the time it was played in; a project that does not warp plays
   exactly as before (no golden hash moved, `DSP_VERSION` unchanged).
-- A warped clip costs a render per window and tempo stretch (about ten times real time in
-  Complex on one core) held in memory; long windows of long files are the memory risk,
-  bounded by the kept-render budget.
+- A warped clip costs a render per window and tempo stretch (about nine times real time in
+  Complex on one core, the cost following the window, not the file) held in memory;
+  renders and bridges are kept within a 512 MB budget beyond what plays.
 - Complex's transient handling depends on the transients found: a window rendered before
   its file's analysis is in renders without holds, and is rendered again when it lands only
   if the clip changes (the analysis is fast next to the render, and asked at import).
