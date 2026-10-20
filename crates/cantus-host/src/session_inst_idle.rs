@@ -173,7 +173,12 @@ impl PluginHost {
                     bus.execute(cmd.clone(), Origin::User)
                 };
                 match result {
-                    Ok(_) => self.tweaked(cmd),
+                    Ok(_) => {
+                        if let Some(h) = self.instruments.get_mut(&track) {
+                            h.edits += 1;
+                        }
+                        self.tweaked(cmd)
+                    }
                     Err(e) => {
                         if !self.instrument_refused_by_freeze(bus.project(), track, &e) {
                             log::warn!("instrument parameter {id}: {e}");
@@ -228,6 +233,19 @@ impl PluginHost {
             return;
         };
         if same == params {
+            // A state of its own that moved no value (a sample it loaded): kept for the
+            // save — unless a freeze holds it: given back and said (review 3).
+            let probe = Command::SetInstrumentPluginParam {
+                track,
+                id: 0,
+                value: None,
+            };
+            if let Some(target) = cantus_core::freeze::refuses(bus.project(), &probe) {
+                let e = cantus_core::CommandError::Frozen(target);
+                self.instrument_refused_by_freeze(bus.project(), track, &e);
+            } else if let Some(h) = self.instruments.get_mut(&track) {
+                h.edits += 1;
+            }
             return;
         }
         if let Some(h) = self.instruments.get_mut(&track) {
@@ -239,26 +257,57 @@ impl PluginHost {
             state,
             params,
         };
-        if let Err(e) = bus.execute(cmd, Origin::User) {
-            if !self.instrument_refused_by_freeze(bus.project(), track, &e) {
-                log::warn!("instrument state: {e}");
+        match bus.execute(cmd, Origin::User) {
+            Ok(_) => {
+                if let Some(h) = self.instruments.get_mut(&track) {
+                    h.edits += 1;
+                }
+            }
+            Err(e) => {
+                if !self.instrument_refused_by_freeze(bus.project(), track, &e) {
+                    log::warn!("instrument state: {e}");
+                }
             }
         }
     }
 
     /// A window's change to a track's instrument a freeze refused: given back what the
-    /// project holds, and said (review 2).
+    /// project holds — once per frame, at the gesture's end while one is open (review 3) —
+    /// and said (review 2).
     fn instrument_refused_by_freeze(
         &mut self,
-        project: &Project,
+        _project: &Project,
         track: TrackId,
         error: &cantus_core::CommandError,
     ) -> bool {
         let cantus_core::CommandError::Frozen(target) = error else {
             return false;
         };
-        let plugin = project.track(track).and_then(|t| t.instrument.external());
-        if let (Some(h), Some(plugin)) = (self.instruments.get_mut(&track), plugin) {
+        if !self.inst_give_back.contains(&track) {
+            self.inst_give_back.push(track);
+        }
+        self.frozen_refusals.push(*target);
+        true
+    }
+
+    /// The instruments' give-backs due (`PluginHost::give_back_now`).
+    pub(crate) fn instrument_give_back_now(&mut self, project: &Project) {
+        let due: Vec<TrackId> = self
+            .inst_give_back
+            .iter()
+            .copied()
+            .filter(|t| {
+                self.instruments
+                    .get(t)
+                    .is_none_or(|h| h.gestures.is_empty())
+            })
+            .collect();
+        self.inst_give_back.retain(|t| !due.contains(t));
+        for track in due {
+            let plugin = project.track(track).and_then(|t| t.instrument.external());
+            let (Some(h), Some(plugin)) = (self.instruments.get_mut(&track), plugin) else {
+                continue;
+            };
             if !plugin.state.is_empty() {
                 if let Err(e) = h.main.load_state(plugin.state.bytes()) {
                     log::warn!("{}: {e}", h.info.name);
@@ -269,9 +318,8 @@ impl PluginHost {
                 .flush(&crate::session::changes(&plugin.params), &mut out);
             h.flushed = plugin.params.clone();
             h.synced_state = plugin.state.clone();
+            self.give_backs += 1;
         }
-        self.frozen_refusals.push(*target);
-        true
     }
 
     /// Take the plug-in's unit out of the engine (a silent unit stands in) so it can be

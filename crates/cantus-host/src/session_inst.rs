@@ -36,6 +36,8 @@ pub struct HostedInst {
     pub(super) generation: Arc<AtomicU64>,
     pub(super) restarting: bool,
     pub(super) gestures: Vec<u32>,
+    /// Edits made in its own window or browser, counted (review 3: see `Hosted::edits`).
+    pub(super) edits: u64,
     pub(super) window: Option<PluginWindow>,
     /// Where it runs, as loaded (round 29, ADR 0063).
     pub(super) isolation: PluginIsolation,
@@ -147,6 +149,7 @@ impl HostedInst {
             generation: Arc::new(AtomicU64::new(0)),
             restarting: false,
             gestures: Vec::new(),
+            edits: 0,
             window: None,
             isolation,
             crashed: None,
@@ -255,6 +258,7 @@ impl PluginHost {
         track: TrackId,
         plugin: &ExternalPlugin,
         key: u64,
+        locked: bool,
     ) -> Result<HostedInst, super::iso::Failed> {
         let format = from_project_format(plugin.format);
         let info = self
@@ -262,10 +266,13 @@ impl PluginHost {
             .find(format, &plugin.id)
             .cloned()
             .ok_or_else(|| super::iso::Failed::from("not installed on this computer"))?;
-        let state = self
-            .inst_parked
-            .remove(&(track, key))
-            .unwrap_or_else(|| plugin.state.clone());
+        // Held by a freeze: as the project holds it, what its render was made with
+        // (review 3), never a state parked since.
+        let parked = self.inst_parked.remove(&(track, key));
+        let state = match parked {
+            Some(s) if !locked => s,
+            _ => plugin.state.clone(),
+        };
         let setup = self.setup;
         let inst = self.instantiate(
             &info,
@@ -345,7 +352,8 @@ impl PluginHost {
                 }
             }
             if !self.instruments.contains_key(&t.id) {
-                match self.load_instrument(t.id, plugin, key) {
+                let locked = crate::session::instrument_locked(project, t.id);
+                match self.load_instrument(t.id, plugin, key, locked) {
                     Ok(h) => {
                         self.instruments.insert(t.id, h);
                     }

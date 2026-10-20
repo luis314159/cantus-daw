@@ -405,7 +405,8 @@ impl PluginHost {
         let plugin = slot.spec.external.as_deref().ok_or("not a hosted slot")?;
         if !self.slots.contains_key(&effect) && self.missing.remove(&effect).is_some() {
             // It never loaded (it crashed loading): loaded now, as `sync` would.
-            return self.load_missing(strip, slot, plugin, engine);
+            let locked = super::slot_locked(project, strip, effect);
+            return self.load_missing(strip, slot, plugin, engine, locked);
         }
         let mut old = self.slots.remove(&effect).ok_or("not loaded")?;
         old.close_window_now();
@@ -453,8 +454,9 @@ impl PluginHost {
         slot: &cantus_core::EffectSlot,
         plugin: &cantus_core::ExternalPlugin,
         engine: &mut EngineHandle,
+        locked: bool,
     ) -> Result<(), String> {
-        match self.load_for(strip, slot, plugin) {
+        match self.load_for(strip, slot, plugin, locked) {
             Ok(mut h) => {
                 if let Some(audio) = h.audio.take() {
                     let unit = self.make_unit(&mut h, audio, slot);
@@ -497,7 +499,8 @@ impl PluginHost {
         if !self.instruments.contains_key(&track) && self.inst_missing.remove(&track).is_some() {
             // It never loaded (it crashed loading): loaded now, as `sync` would.
             let key = cantus_engine::hosted_key(plugin);
-            return match self.load_instrument(track, plugin, key) {
+            let locked = crate::session::instrument_locked(project, track);
+            return match self.load_instrument(track, plugin, key, locked) {
                 Ok(mut h) => {
                     if let Some(audio) = h.audio.take() {
                         let rate = self.setup.sample_rate;
