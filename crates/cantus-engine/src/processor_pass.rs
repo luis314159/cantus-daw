@@ -332,7 +332,11 @@ impl Processor {
                 if self.transport.samples_until(ev.tick.0 as f64) != 0 {
                     break;
                 }
-                fire(&mut s, ev);
+                // Frozen or resting, the instrument is not played (review 1: a note due at
+                // the loop's end went into it and its note-off never came).
+                if s.frozen.is_none() && !s.rest {
+                    fire(&mut s, ev);
+                }
                 s.next_event += 1;
                 if self.listened[slot] {
                     let pushed = nodes.tracks[slot]

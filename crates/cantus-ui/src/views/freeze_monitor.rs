@@ -40,15 +40,23 @@ fn effect_name(app: &CantusApp, id: EffectId) -> Option<String> {
     })
 }
 
-/// "Aequalis, Culmen": the inserts low-latency monitoring bypasses now (empty: none).
+/// "Aequalis, Culmen": the inserts low-latency monitoring bypasses now (empty: none) —
+/// "and 3 more" past the names the engine keeps (review 1).
 pub fn bypassed(app: &CantusApp) -> String {
     let ll = app.engine.stats().low_latency;
-    ll.off
+    let names = ll
+        .off
         .iter()
         .take(ll.off_count as usize)
         .filter_map(|id| effect_name(app, EffectId(*id)))
         .collect::<Vec<_>>()
-        .join(", ")
+        .join(", ");
+    let more = (ll.off_total as usize).saturating_sub(ll.off_count as usize);
+    if more > 0 {
+        tf("freeze.ll.more", &[("names", &names), ("n", &more)])
+    } else {
+        names
+    }
 }
 
 /// The round trip of what is monitored, ms — the driver's, the input's wait and the

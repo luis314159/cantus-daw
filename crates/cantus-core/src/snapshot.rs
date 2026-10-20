@@ -289,11 +289,14 @@ impl Snapshot {
                                     .map(|i| (i, x.effective_level(), x.tap))
                             })
                             .collect(),
-                        // A track soloed elsewhere silences what the render holds.
-                        frozen: s
-                            .frozen
-                            .as_ref()
-                            .map(|f| crate::freeze::FrozenPlay::new(f, project.any_solo())),
+                        // A solo elsewhere (or its only input's mute) silences what the
+                        // render holds.
+                        frozen: s.frozen.as_ref().map(|f| {
+                            crate::freeze::FrozenPlay::new(
+                                f,
+                                crate::freeze::silenced(project, s.id),
+                            )
+                        }),
                         rest: false,
                     })
                     .collect()

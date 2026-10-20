@@ -365,6 +365,10 @@ impl Processor {
                     },
                     armed: t.armed,
                 };
+            } else if t.armed {
+                // Armed with no audio input: its notes are monitored (low latency, ADR
+                // 0064 §4).
+                self.live.tracks[slot].armed = true;
             }
         }
         // And each track slot's own copy, which its node reads on whichever thread runs it.

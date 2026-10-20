@@ -1902,6 +1902,24 @@ mod freeze_tests {
         assert!(matches!(targets[1], FreezeTarget::Track(_)));
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
+        // As written, not as repaired on load (review 1: the check above holds after any
+        // repair): each stored key is the content key — the subject did not move under
+        // the fixture, and nobody's renders are re-keyed when they open their projects.
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v37.cantus"),
+        )
+        .unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let stored: Vec<String> = ["strips", "tracks"]
+            .iter()
+            .flat_map(|k| raw["project"][k].as_array().cloned().unwrap_or_default())
+            .filter_map(|x| x["frozen"]["content"].as_str().map(str::to_string))
+            .collect();
+        let keys: Vec<String> = targets
+            .iter()
+            .map(|t| freeze::content_key(&p, *t).unwrap())
+            .collect();
+        assert_eq!(stored, keys, "the fixture's keys need no repair");
     }
 
     /// A frozen key that is not what the target holds (a hand edit) is re-keyed on load.

@@ -3016,6 +3016,9 @@ impl CantusApp {
 
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
+        // The frozen renders' folder follows the project before anything is compiled for
+        // it (round 29, review 1).
+        crate::freeze::follow_path(self);
         // A snapshot held back for its zones' starts: sent once they are read (third
         // review #6) — never a wait on this thread.
         self.engine.flush_pending();

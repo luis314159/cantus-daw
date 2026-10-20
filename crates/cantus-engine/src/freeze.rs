@@ -126,6 +126,41 @@ pub fn open(path: &Path, key: &str) -> Result<Arc<FrozenAudio>, String> {
     }))
 }
 
+/// The same render with a board of its own (review 1): an offline render reads it with its
+/// own cursors, never moving the live processor's (they share the stream and its head).
+fn with_own_board(a: &Arc<FrozenAudio>) -> Arc<FrozenAudio> {
+    let Ok(h) = a.reader.0.clone().downcast::<FrozenHandle>() else {
+        return a.clone();
+    };
+    let board = Arc::new(Board::new(2));
+    if h.stream.is_some() {
+        crate::inst::stream::hub().register_board(&board);
+    }
+    Arc::new(FrozenAudio {
+        key: a.key.clone(),
+        rate: a.rate,
+        frames: a.frames,
+        reader: StreamRef(Arc::new(FrozenHandle {
+            head: h.head.clone(),
+            stream: h.stream.clone(),
+            board,
+            frames: h.frames,
+            latency: h.latency,
+        })),
+    })
+}
+
+/// Whether an opened render can no longer be read (its file damaged or gone).
+fn failed(a: &FrozenAudio) -> bool {
+    a.reader
+        .0
+        .clone()
+        .downcast::<FrozenHandle>()
+        .ok()
+        .and_then(|h| h.stream.as_ref().map(|s| s.failed()))
+        .unwrap_or(false)
+}
+
 /// The engine's handle of a snapshot's frozen render (an `Arc` clone: allocation-free).
 pub(crate) fn handle_of(play: Option<&FrozenPlay>) -> Option<Arc<FrozenHandle>> {
     let a = play?.audio.as_ref()?;
@@ -140,6 +175,14 @@ pub struct FrozenStore {
     app_dir: Option<PathBuf>,
     /// By render key: opened, or known missing since then.
     open: HashMap<String, Result<Arc<FrozenAudio>, Instant>>,
+    /// Renders found damaged, by key, with their file's time then: never opened again
+    /// while the file is that one (a render made again replaces it).
+    damaged: HashMap<String, Option<std::time::SystemTime>>,
+}
+
+/// A file's modification time.
+fn mtime(p: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(p).and_then(|m| m.modified()).ok()
 }
 
 impl FrozenStore {
@@ -192,12 +235,26 @@ impl FrozenStore {
     pub fn find(&mut self, content: &str, rate: u32) -> Option<Arc<FrozenAudio>> {
         let key = render_key(content, rate);
         match self.open.get(&key) {
+            // A render whose stream failed is missing: made again (review 1).
+            Some(Ok(a)) if failed(a) => {
+                log::warn!("frozen render {key}: unreadable, made again");
+                let at = self.path_of(content, rate);
+                let time = at.as_deref().and_then(mtime);
+                if let Some(p) = at {
+                    let _ = std::fs::remove_file(p);
+                }
+                self.damaged.insert(key.clone(), time);
+                self.open.insert(key, Err(Instant::now()));
+                return None;
+            }
             Some(Ok(a)) => return Some(a.clone()),
             Some(Err(at)) if at.elapsed() < RECHECK => return None,
             _ => {}
         }
+        let damaged = self.damaged.get(&key).copied();
         let found = self
             .path_of(content, rate)
+            .filter(|p| damaged.is_none_or(|t| mtime(p) != t))
             .and_then(|p| match open(&p, &key) {
                 Ok(a) => Some(a),
                 Err(e) => {
@@ -235,27 +292,61 @@ impl FrozenStore {
 
     /// Attach the renders at hand to `snapshot`'s frozen strips and tracks and settle it
     /// (`cantus_core::freeze::settle`): what plays frozen loses its chain, what rests is
-    /// marked.
-    pub fn attach(&mut self, project: &Project, snapshot: &mut Snapshot, rate: u32) {
+    /// marked. A live snapshot shares the store's handles, and the renders the project no
+    /// longer uses are let go (review 1: kept for the session, their blocks wanted and
+    /// their files open); an offline one (`own_boards`) reads with boards of its own.
+    pub fn attach(
+        &mut self,
+        project: &Project,
+        snapshot: &mut Snapshot,
+        rate: u32,
+        own_boards: bool,
+    ) {
         let mut any = false;
-        for s in &mut snapshot.strips {
-            if let Some(f) = s.frozen.as_mut() {
-                f.audio = self.find(&f.content, rate);
-                any |= f.audio.is_some();
-            }
+        let mut used: Vec<String> = Vec::new();
+        let frozen = snapshot
+            .strips
+            .iter_mut()
+            .filter_map(|s| s.frozen.as_mut())
+            .chain(snapshot.tracks.iter_mut().filter_map(|t| t.frozen.as_mut()));
+        for f in frozen {
+            used.push(render_key(&f.content, rate));
+            f.audio =
+                self.find(&f.content, rate).map(
+                    |a| {
+                        if own_boards {
+                            with_own_board(&a)
+                        } else {
+                            a
+                        }
+                    },
+                );
+            any |= f.audio.is_some();
         }
-        for t in &mut snapshot.tracks {
-            if let Some(f) = t.frozen.as_mut() {
-                f.audio = self.find(&f.content, rate);
-                any |= f.audio.is_some();
-            }
+        if !own_boards {
+            // The engine still holds what it plays through its snapshot, which goes back
+            // to this thread to be freed: never the last owner on the audio thread.
+            self.open
+                .retain(|k, v| v.is_err() || used.iter().any(|u| u == k));
         }
         if any {
             cantus_core::freeze::settle(project, snapshot);
         }
     }
 
-    /// Every render file in the store's folders (for Settings' clean-up).
+    /// Let every opened render go (nothing is frozen any more); the snapshots that still
+    /// hold one free it on this thread.
+    pub fn let_go_all(&mut self) {
+        self.open.retain(|_, v| v.is_err());
+    }
+
+    /// How many renders are open (tests).
+    pub fn open_count(&self) -> usize {
+        self.open.values().filter(|v| v.is_ok()).count()
+    }
+
+    /// Every render file in the store's folders (the interface keeps the application's
+    /// folder to its size: `cantus_ui::freeze::prune`).
     pub fn files(&self) -> Vec<PathBuf> {
         let mut out = Vec::new();
         for d in [self.project_dir.as_deref(), self.app_dir.as_deref()]
@@ -331,6 +422,34 @@ pub(crate) fn point(h: &FrozenHandle, place: &mut ReadPlace, at: i64) {
     }
 }
 
+/// Point `h`'s playhead cell at frame `at` only (an offline read waiting for a block: what
+/// it waits for is what it asks for). Allocation- and lock-free.
+#[inline]
+fn point_at(h: &FrozenHandle, st: &Stream, at: usize) {
+    let block = (at / BLOCK).min(st.blocks(0).saturating_sub(1));
+    h.board.set(
+        0,
+        Cursor {
+            stream: st.id,
+            level: 0,
+            block,
+            near_up: false,
+            near_down: false,
+            ahead: AHEAD,
+        }
+        .pack(),
+    );
+}
+
+/// A render no longer read by a node (unfrozen, another render, the node gone): its
+/// cursors cleared, so the reader stops keeping its blocks (review 1). Atomic stores only:
+/// on the audio thread.
+#[inline]
+pub(crate) fn release(h: &FrozenHandle) {
+    h.board.set(0, 0);
+    h.board.set(1, 0);
+}
+
 /// Frames `from..from + l.len()` of the render into `l`/`r` (silence outside it), `inter`
 /// the interleaved scratch (two per frame). Returns the frames that were not there in time
 /// (silence in their place): in real time, blocks the reader has not read yet; `offline`,
@@ -384,11 +503,13 @@ pub(crate) fn read(
         if !offline || st.failed() {
             break;
         }
-        // Offline: wait for the reader, as a streamed voice does (ADR 0050 §6).
+        // Offline: wait for the reader, as a streamed voice does (ADR 0050 §6), asking for
+        // the very block waited for.
         let since = *waited.get_or_insert_with(Instant::now);
         if since.elapsed() > st.pool.patience() {
             break;
         }
+        point_at(h, st, at);
         st.pool.wake();
         st.pool.idle();
     }

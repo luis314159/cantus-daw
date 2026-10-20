@@ -332,6 +332,8 @@ pub fn trace(
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(64 + n_fx + instruments.len());
     let mut p = crate::processor::Processor::without_midi(sr, rx_engine, tx_engine);
     p.set_profiling(false);
+    // Frozen renders are read as a render reads them: waited for (review 1).
+    p.set_offline(true);
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
             Some(i) => units.swap_remove(i),

@@ -51,13 +51,23 @@ edit) is **re-keyed**, never unfrozen (`freeze::repair`, after the links' repair
 gathered (by output or send, enabled or not — enabling one would change the sound), the
 **strips its inserts are keyed from** (and theirs), the **tracks whose notes its inserts
 hear**, and what the **modulators driving anything in it** listen to (a follower's strip,
-an envelope's notes; a follower of the master puts the whole mix, master included, in).
+an envelope's notes; a follower of the master puts the whole mix, master included, in). A
+frozen **track**'s region grows the same way: a follower driving its instrument brings in
+the strip it follows *and everything that strip gathers* (review 1). Two flags ride with a
+region: `hears_root` — a modulator in it follows the frozen strip itself (or the track's own
+strip): then the root's fader, pan, width and mute (a track's level and balance) are part
+of the sound, in the key and locked — and `own`, a frozen strip's only input (one track, no
+other strip into it), whose **mute and solo stay live** (the strip is silenced with them,
+`freeze::silenced`).
 
-The **subject** (`freeze::subject`) is the canonical JSON of the region: the frozen strip
-without its live controls, the other strips and tracks whole but for what is never heard
+The **subject** (`freeze::subject`, `SUBJECT_VERSION` 2 after review 1) is the canonical
+JSON of the region: the frozen strip on its own key without its live controls (where it
+sits on the desk is nothing to hear), the other strips (in the desk's order: their sums are
+made in it) and tracks whole but for what is never heard
 (names, colours, heights, docks, groups, panels shown, solo, where a plug-in runs — ADR
 0063 isolation is bit-identical), the automation clips and modulators that reach it (wherever
-they sit), the audio sources its clips play (path and SHA-256 when known), the tempo
+they sit; the clips in no order of tracks — only which of two starting together wins is
+kept), the audio sources its clips play (path and SHA-256 when known, by id), the tempo
 map, and the pan law when a non-root strip's pan uses it. A clip's warp (ADR 0061) is part
 of its `AudioRegion`, so it is in the subject; a freeze's or a bounce's render compiles
 through `compile_for_render`, which waits for the warp renders. Objects are written with their
@@ -76,9 +86,15 @@ They are **regenerable**: *Collect* does not copy them; a project opened without
 another computer, at another rate, after the format changed) plays **live** while they are
 made again in the background (`freeze::scan`, one at a time), then plays them.
 
-An audio source changed on disk *outside* Cantus after freezing is not noticed (the key
-holds its path and hash): the frozen render plays what was frozen — as in the other DAWs —
-until it is unfrozen.
+An audio source changed on disk *outside* Cantus after freezing is not noticed while it
+stays frozen (the key holds its path and hash): the frozen render plays what was frozen — as
+in the other DAWs. Freezing again makes the render again when a file the region plays is
+newer than it (review 1). **Where a file lives** is in the key, so saving — which moves a
+recorded take into `Audio/` — and finding a missing file again run **through** the frozen
+targets they move (`freeze::rekeyed`): unfrozen and frozen again with the new key in the
+same undo step; saving copies each render under its new key beside the project (it is the
+same file's sound); finding a file makes the render again. A refused collection puts the
+files back (`collect::undo`).
 
 ### 3. The edit lock
 
@@ -91,8 +107,11 @@ new command does not build until it is classified (§4c's rule, enforced by the 
   mute, solo, sends, output, place), `StripInput` (a route into a strip made or taken), an
   automation or modulation `Target` (mapped to the above), or `Global`.
 - The **locks** of the frozen targets: a frozen strip locks its region's chains and the
-  mixes of every region strip but its own; its tracks' sources and mixes. A frozen track
-  locks its source only.
+  mixes of every region strip but its own (its own too when `hears_root`); its tracks'
+  sources and mixes — but its only input's mute and solo (`TrackAudibility`, review 1: the
+  header's M and S after *Freeze track*). A frozen track locks its source, and the sources
+  and mixes of what its modulators follow. **Moving a strip or a track** is applied and
+  checked like a global command (the order of a bus's sums is the desk's).
 - A touch inside a lock is refused with `CommandError::Frozen(target)` before anything is
   applied. **Global** commands (the tempo and the metre, the pan law, a track or strip
   inserted or removed, a whole project replaced, the master — in a region only through a
@@ -110,9 +129,13 @@ cannot be frozen (a render cannot hold a live input; the notice says which track
 The interface says a refusal on the status line and in the corner card with **Unfreeze**
 (`views::freeze_view::card`).
 
-**Solo.** A track soloed elsewhere silences what a frozen strip's render holds: a frozen
-strip that plays its render is muted while any track is soloed (the tracks inside it cannot
-be soloed: they are locked). Strip solo is the strips' own, as live.
+**Solo.** Solo is no part of a frozen sound: renders (and bounces) are made **unsoloed**
+(`freeze::neutral`; review 1: a solo elsewhere rendered silence under the unsoloed key, and
+a bounce under a solo muted the original for good). Live, a track soloed elsewhere silences
+what a frozen strip's render holds (`freeze::silenced`: muted while any track is soloed —
+or, for a strip with an only input, while that input is muted or another track soloed).
+Freezing a region with a track or strip **soloed inside** is refused (*unsolo it first*: its
+render holds all of it); after, those solos are locked. Strip solo is the strips' own.
 
 **Pattern mode** plays every chain live (`pattern::audition` thaws): a render is the song's.
 
@@ -125,10 +148,14 @@ snapshot (`freeze::settle`):
   polarity, swap — the render holds them) and **gathers nothing** (`graph::plan`: inputs
   into it are dropped). In `run_strip` it reads its render's frames at the transport into
   its pair; width, pan, fader and the rest follow — the same arithmetic as live.
-- **What rests** (`freeze::dormant`): every node whose sound only reaches a playing frozen
-  strip, unless something live needs it — an insert keyed from it or hearing its notes on a
-  strip that runs (or the master), or a modulator driving something live that follows it
-  or hears its notes — and then what *that* node gathers runs too. A resting node is not
+- **What rests** (`freeze::dormant`): every node of a playing frozen strip's region whose
+  sound reaches **nothing but** playing frozen strips (review 1: a key strip that also
+  plays to the master, a strip that also sends into a frozen return, a note source that
+  also plays through its own strip went silent). A node runs when its output or a send
+  reaches the master or a strip that runs and plays no render, or when something live needs
+  it — an insert keyed from it or hearing its notes on a strip that runs (or the master), or
+  a modulator driving something live that follows it or hears its notes — and what a
+  running node gathers runs too, to a fixed point. A resting node is not
   run (`TaskMap::rest`, `run_node` returns at once), delays nothing (`compensate` skips it),
   and its meters read zero. Its hosted plug-ins are **unloaded** (`PluginHost::sync` and
   the snapshot drop them; ADR 0063: an isolated one's helper ends when empty; the state is
@@ -144,9 +171,19 @@ snapshot (`freeze::settle`):
   against the music by the chain's latency: the first design did, and the null test caught
   it). Freeze frees CPU, not latency; §4c's recording mode may trade that later.
 - **Streaming** (ADR 0050): a render is a stream (its head in memory, its blocks in the
-  shared pool); a frozen node's board points the reader at the playhead with the most a
-  cursor asks (sixteen blocks, about 1.4 s at 48 kHz) and keeps the loop's start ready in a
-  second cell; stopped, it points where play will start. Allocation- and lock-free on the
+  shared pool); a frozen node's board points the reader at the block it reads with the most
+  a cursor asks ahead (sixteen blocks, about 1.4 s at 48 kHz) and keeps the loop's start
+  ready in a second cell; stopped, it points where play will start; an offline read waiting
+  for a block points at it again. An **offline render reads with a board of its own**
+  (`compile_for_render`), never moving live playback's cursors (review 1). A node that lets
+  a render go clears its board on the audio thread; the store lets go of renders the
+  project no longer uses (their last owner is always a snapshot freed on the interface's
+  thread); a render whose stream failed (a damaged file) is missing — made again, never
+  opened again while the file is that one, and said nowhere as a damaged sample. A node
+  that starts or stops resting or playing a render is **reset** (voices, inserts, EQ):
+  nothing from before sounds again when it thaws during playback; a frozen or resting
+  track's instrument is never played, not even at a loop's start. The modulator trace
+  (*Bake to automation*) reads renders offline too. Allocation- and lock-free on the
   audio thread and the workers (`rt_memory::frozen_playback_never_allocates`). In real
   time a block not there yet is silence, counted (`stream_late`); offline (export, stems,
   a freeze or bounce render: `Processor::set_offline`) the pass waits for it.
@@ -168,8 +205,19 @@ wait without a deadline, ADR 0063).
 
 **Render first, freeze after.** *Freeze* renders on a worker (the corner card shows how
 far, with **Stop**: nothing changes); when it is done the freeze is one undo step. An edit
-made while it rendered moves the key: it is rendered again for what it holds now. One
-render runs at a time, never beside an export (their hosted instances are one set).
+made while it rendered moves the key: it is rendered again for what it holds now; one that
+makes it unfreezable (a live input, a solo inside) is said. One render runs at a time,
+never beside an export or a modulator bake (their hosted instances are one set; an export
+stops a background refresh, made again after it), never while a file it plays is still
+loading. **Its plug-ins**: only those the render runs are instantiated; a render that needs
+one that is not loaded is refused, naming it — a pass-through render is never written under
+the true key (review 1). A render belongs to the project it was asked in
+(`CantusApp::epoch`): another project opened drops it. A frozen target nested in another's
+region renders with the outer one thawed. **Stop** stops background refreshes too, until
+the user freezes or unfreezes. A stored key that is not the target's any more is frozen
+again before its render is made. The progress counts the tail at its longest. Half-written
+files are tidied at start and when the folder changes, and on quitting the render is
+stopped; Cantus's cache keeps to 4 GB (the oldest renders go).
 
 ### 6. Bounce in place
 
@@ -177,15 +225,31 @@ On a **new track right under the original**, at the same place (Ableton's, FL's)
 original **muted** — or removed, the user's choice, remembered (`Settings::bounce_removes`):
 
 - *Bounce in place*: this track alone through its strip's chain up to the width (the
-  strip's other inputs resting, its keys and note sources running); the new track feeds a
-  **new strip** taking the old one's width, pan, fader, mute, output and sends (Bitwig's
-  *post-chain, pre-fader*: the fader stays a mixing control; its automation is not copied).
+  strip's other inputs resting, its keys and note sources running but routed away from the
+  tap); the new track feeds a **new strip** taking the old one's width, pan, fader, mute,
+  solo, output and sends (Bitwig's *post-chain, pre-fader*). Refused when the strip keys
+  something or a modulator follows it — unless the track is all it gathers and the whole
+  track is bounced: then they follow the new strip.
 - *Bounce in place (source only)*: before the track's level; the new track takes its level
   and balance and **feeds the same strip** — the song sounds the same, to the bit.
 - Ranges: the whole track, the **selected clips** (only those render; they are the ones
-  muted or removed), or the **time selection** (the clips it crosses cut at its edges;
-  the transport stops at its end and the tail rings out). The strip menu bounces a whole
-  strip (everything it gathers; the original strip muted).
+  muted or removed; clips on several tracks: one bounce per track), or the **time
+  selection** (its edges moved out to the notes held across them; the clips it crosses cut
+  there — at both edges, from the project at commit; the transport stops at its end and the
+  tail rings out; muted clips in it are kept). The keys take the time selection when it was
+  chosen last. The strip menu bounces a whole strip (everything it gathers; the original
+  strip muted, its keys and followers moved to the new one). **What goes with it** (review
+  1): the automation and modulators of what the bounce replaces (the track's level and
+  balance; the strip's fader, pan, width, sends) are carried; a soloed original hands its
+  solo over; removed, the original's other automation moves to the new track — and an
+  original whose notes something hears is muted, not removed. **A render made from a
+  project that changed since it started is made again** (the bus's revision). A muted track
+  or strip is refused (a bounce already replaced it), and a bounce running or waiting is
+  not asked twice. Bounced unsoloed, its source with what its modulators follow. Written
+  under a name of its own and renamed when whole. A time range cut inside a note's tail
+  sums that tail and the bounce apart (float order: within −100 dB; through the inserts,
+  the chain is split at the cut as well: within −60 dB); a whole track or strip stays exact
+  to the bit.
 - The latency is **trimmed** (frame 0 is the range's first tick: the new audio track has
   no latency of its own); the tail is kept as for a freeze; the audio clip is rounded up a
   tick so it never ends before its file. 32-bit float WAV in the project's `Audio`
@@ -205,25 +269,31 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
 (`processor_monitor.rs`):
 
 - **Monitored**: a track whose input monitors *On*, or *Auto* and armed — the rule that does
-  not change when recording starts, so nothing re-plans under a take. The **monitored path**:
-  its strip, what that strip feeds (outputs and sends), the master.
+  not change when recording starts, so nothing re-plans under a take — and an **armed track
+  with no audio input** (its notes played live into its instrument; review 1). The
+  **monitored path**: its strip, what that strip feeds (outputs and sends), the master.
 - **Hard bypass**: an insert on the path (the master's included) whose latency is above the
   limit is not run, has no latency and no dry line (`ll_off`) — unlike ADR 0022's soft
   bypass, on purpose: the point is the latency. They are named on screen (*Monitoring
-  without: Aequalis, Culmen*) from `EngineStats::low_latency`.
+  without: Aequalis, Culmen*, "and 3 more" past eight) from `EngineStats::low_latency`. One
+  coming back from a hard bypass is reset (nothing from before it sounds), and inserts
+  after one are dated without its latency.
 - **Constrained compensation** (Cubase's): a strip that carries **monitored input only**
   (the singer's own strip, a bus of monitored strips) is not held back — its output and
   sends want no delay and do not set anyone's arrival — while the backing, aligned among
   itself, sets the master's. **A bus that mixes monitored input with backing keeps the
-  backing aligned**: the monitored input waits there with it (to hear yourself soonest,
-  monitor through a strip of your own — the manual says so). The armed track's own clips
+  backing aligned**: the monitored input waits there with it — a strip of monitored input
+  only that plays into such a bus raises its arrival and waits on its line (review 1: it
+  arrived early) — so to hear yourself soonest, monitor through a strip of your own. The armed track's own clips
   go the monitored way too (heard early while monitoring, as Ableton accepts).
 - **The take is placed to the sample**: what is recorded is the raw input, placed by the
   backing's latency — **captured when the pass starts** (`RecordMark::Started`), not read
   at its finish (this amends ADR 0025 §7): a mode switched, or a bypass restored on stop,
   must not move the take. The interface places takes by `EngineHandle::pass_latency`.
 - **The audio chip** shows the monitored path's round trip while it is on: the driver's,
-  the input ring's wait and the monitored chain's (`LowLatency::monitored_samples`).
+  the input ring's wait and the monitored chain's (`LowLatency::monitored_samples`) —
+  measured through the planned delays (the instrument's, each chain's, each line's), not
+  guessed (review 1: wrong through a bus).
 
 ## Measurements (Windows, the machine shared with other builds; best of five)
 
@@ -241,33 +311,53 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
 
 ## Tests (what each holds)
 
-- `cantus-core/tests/freeze.rs` (12): the key's form and stability through the file; it
+- `cantus-core/tests/freeze.rs` (20): the key's form and stability through the file; it
   changes for what changes the sound and for nothing else (fader, pan, width, mute, solo,
   output, names, colours, others); freeze/unfreeze one undo step each, exact; a wrong key
   refused; a frozen strip refuses inside its region and names itself, allows its live
   controls and everything outside; a frozen track keeps its level live; freezing disarms
   in the same step and refuses a live input; freeze on a track picks strip or source; what
   rests and what a live insert wakes; settling a snapshot; solo; pattern mode; modulators.
+  Review 1: a frozen return or keyed bus never silences what also plays live; a live
+  follower wakes a region strip and what it gathers; a frozen track's region takes in what
+  its modulators follow; a follower of the root locks its fader; an only input keeps mute
+  and solo live; a solo inside refuses the freeze; moves keep keys or are refused; a take
+  moved by saving re-keys its freeze in the same step.
 - Undo fuzz arm 47 and the driver's invariant check after every command (all seeds).
-- `cantus-project`: `schema_37_keeps_frozen_strips_and_tracks`, a hand-edited key repaired.
-- `cantus-engine/tests/freeze.rs` (13): the frozen mix is the live mix to the bit with its
+- `cantus-project`: `schema_37_keeps_frozen_strips_and_tracks` (the fixture's stored keys, as
+  written, are the content keys), a hand-edited key repaired; `collect::undo`.
+- `cantus-engine/tests/freeze.rs` (24): the frozen mix is the live mix to the bit with its
   fader ride, pan, width, send level and mute moved after freezing; unfreezing gives the
   live chain back to the bit; block sizes 1, 37, 64, 512; a frozen track's source with its
   level and balance live; a latent insert frozen away (compensated and not); no render →
   live; the render key and streaming (only the head in memory); the tail rings out;
   cancelling writes nothing; pool = serial at W 1 and 3; real time = offline with the reader
-  ahead; the CPU freed.
-- `cantus-engine/tests/low_latency.rs` (3), `fx_tonus` (the old test kept for *off*, a new
+  ahead; the CPU freed. Review 1: a frozen return and a keyed bus (and a note source)
+  leave their sources playing, to the bit; a solo when it froze is not in the render; a
+  nested strip's render made under the outer one; an offline render and live playback each
+  with their own board; an offline start just before a block boundary; thawing while
+  playing leaves no voice; a frozen track at a loop's start is not played; the modulator
+  trace of a frozen strip; renders let go; a damaged render is missing.
+- `cantus-engine/tests/low_latency.rs` (8: review 1 adds the wait measured through a pure and a
+  mixed bus, an insert back from a hard bypass, an armed instrument track, the dating after a
+  bypassed insert, every bypass counted), `fx_tonus` (the old test kept for *off*, a new
   one for *on*), `rt_memory::{frozen_playback_never_allocates,
   low_latency_monitoring_never_allocates}` (serial and pool).
 - `cantus-sandbox/tests/freeze.rs`: a frozen chain with the hosted test gain (in process and
   isolated) renders through `render_units`, is unloaded, plays the live mix to the bit, and
   comes back thawed.
-- `cantus-ui/tests/freeze.rs` (8): Freeze renders then freezes in one step, the mix equal;
+- `cantus-ui/tests/freeze.rs` (30): Freeze renders then freezes in one step, the mix equal;
   a refused edit's card with Unfreeze; Stop changes nothing; an edit during the render is
   rendered again; reopened elsewhere it plays live and remakes its render; both bounces
   lay the audio under the original and the song is the same to the bit; selected clips;
-  low latency's key reaches the engine; both languages. `tests/freeze_boot.rs`: the boot
+  low latency's key reaches the engine; both languages. Review 1 (22 more): a time range
+  cut at both edges, notes held across its edges, muted clips kept; a latent chain; solo
+  (elsewhere, and handed over); an edit while bouncing; a bounce asked twice; rides
+  carried; a key handed over; another project; *Freeze track*'s header M/S; saving a
+  frozen take; Stop and an export against a refresh; the key on what was chosen last; the
+  time selection made last and every track's clips; a freeze that cannot land says why; a
+  missing plug-in; a render older than its files; the folder before the first compile;
+  tidy and prune; a bake waits; no leak into an Inserts bounce. `tests/freeze_boot.rs`: the boot
   path (`assemble`) sets the folder and tells the engine.
 
 ## Consequences

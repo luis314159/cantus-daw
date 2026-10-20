@@ -851,6 +851,27 @@ fn recover(entry: &Arc<Entry>, fault: &Fault) {
         return;
     }
     let path = entry.file_path();
+    // A frozen render (ADR 0064) is its own source: there is nothing to decode it from.
+    // It fails at once and quietly — no "damaged sample" said — and the interface makes it
+    // again (review 1).
+    if entry
+        .source
+        .extension()
+        .is_some_and(|x| x == crate::freeze::EXTENSION)
+    {
+        if let Fault::Damaged = fault {
+            let _ = std::fs::remove_file(&entry.source);
+        }
+        log::warn!("frozen render {}: {fault}", entry.source.display());
+        entry.stream.set_failed();
+        entry
+            .recovering
+            .store(false, std::sync::atomic::Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
+    }
     log::warn!(
         "stream {}: {fault}; decoding {} again",
         path.as_deref().unwrap_or(Path::new("")).display(),

@@ -260,12 +260,14 @@ a singer can hear themself 96 ms late. **Low-latency monitoring** (`Alt+Shift+R`
 switch in the record options, in the audio chip's popover and in the inspector's
 recording rows) changes that while it is on:
 
-- What you monitor (an armed track's input in *Auto*, or any input set to *On*) reaches
-  your ears **without waiting for the other tracks**: a voice through Tonus is heard 2.7 ms
-  late instead of 96 ms. The backing stays in time with itself.
+- What you monitor (an armed track's input in *Auto*, any input set to *On*, or an armed
+  instrument track you play) reaches your ears **without waiting for the other tracks**: a
+  voice through Tonus is heard 2.7 ms late instead of 96 ms. The backing stays in time with
+  itself.
 - An insert on the monitored path whose latency is above the **limit** (3 ms by default;
   5, 10 or 20 ms in the same rows) is **bypassed** — the list says which: *Monitoring
-  without: Aequalis, Culmen*. They come back the moment you switch it off.
+  without: Aequalis, Culmen* (and how many more, past eight). They come back the moment
+  you switch it off, with nothing left over from before.
 - The audio chip shows the round trip of what you monitor — the driver's, the input's
   wait and the monitored chain's — while it is on.
 - Your take is placed exactly where it would be with it off: what is recorded is the raw
@@ -732,11 +734,20 @@ stop using the processor — and gives it back, exactly, when you unfreeze it.
   playing and nothing changes until it is done. Then the track is frozen in one undo step:
   a **snowflake** on its header and its strip, its clips frosted.
 - A frozen track or strip is still **mixed**: its fader, pan, width, mute, solo and send
-  levels — and their automation — stay live. Anything that would change its sound (its
-  notes, its instrument, its inserts, the tempo) is refused, and the card says how to give
-  it back: **Unfreeze** (the same menu entries, the same key). Unfrozen, it plays live
-  again, to the bit.
-- Its plug-ins are unloaded while it is frozen and come back with their settings.
+  levels — and their automation — stay live, and so do the mute and solo on the header of
+  a track frozen with its own strip (its level and balance are inside the render: mix it
+  with the strip's fader). Anything that would change its sound (its notes, its
+  instrument, its inserts, the tempo, a strip moved among the ones it gathers) is refused,
+  and the card says how to give it back: **Unfreeze** (the same menu entries, the same key).
+  Unfrozen, it plays live again, to the bit.
+- What also plays somewhere else keeps playing: freezing a bus does not silence a strip
+  that keys its compressor and plays to the master, nor a return the strip that sends to
+  it. Solo stays a listening aid — a freeze is made as if nothing were soloed; with
+  something soloed **inside** what you freeze, unsolo it first. Saving a project moves a
+  frozen take into its *Audio* folder and keeps it frozen.
+- Its plug-ins are unloaded while it is frozen and come back with their settings. A
+  freeze needs the plug-ins it renders: one that is not loaded is named, and nothing is
+  frozen.
 - Renders are kept in a *Freeze* folder beside the project (or in Cantus's own cache for a
   project not saved yet), named by what they hold: freezing again what did not change is
   instant, and a project opened without them (on another computer, at another sample
@@ -749,12 +760,16 @@ at the same place:
   the new track gets a strip of its own with the old one's fader, pan, width and sends.
 - *Bounce in place (source only)*: the instrument and clips before the track's level; the
   new track plays into the same strip, through the same inserts.
-- *Bounce clips in place* (the clip menu): only the selected clips; with a time selection
-  and no clips selected, the keys bounce what plays inside it.
-- *Bounce strip in place* (the strip menu): everything the strip gathers.
+- *Bounce clips in place* (the clip menu): only the selected clips (on several tracks, one
+  bounce each); with a time selection — chosen after the clips, or with none selected —
+  the keys bounce what plays inside it, its edges moved out to the notes held across them.
+- *Bounce strip in place* (the strip menu): everything the strip gathers; what was keyed
+  from it, or followed it, follows the new strip.
 - The original is **muted** — or removed, if you tick *Remove the original after a
-  bounce* in the track menu (Cantus remembers your choice). The tail (a reverb's) is kept
-  until it rings out. One undo step.
+  bounce* in the track menu (Cantus remembers your choice; a track whose notes something
+  still hears is muted instead). Its level, fader and send rides go with the bounce, and so
+  does its solo. The tail (a reverb's) is kept until it rings out. One undo step. If you
+  edit the song while it renders, it is bounced again from your edit.
 
 ## 7. Master: the master chain, Fervor, Latitudo, Culmen
 

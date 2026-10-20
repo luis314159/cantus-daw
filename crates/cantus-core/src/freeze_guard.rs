@@ -24,6 +24,8 @@ pub enum Touch {
     TrackSource(TrackId),
     /// A track's level, balance, mute, solo and place: what its strip gathers of it.
     TrackMix(TrackId),
+    /// A track's mute or solo: live for a frozen strip's only input ([`Locks::own`]).
+    TrackAudibility(TrackId),
     /// A strip's chain: polarity, swap, inserts, EQ.
     StripChain(StripId),
     /// A strip's mix: width, pan, fader, mute, solo, sends, where it goes, its place.
@@ -86,10 +88,11 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetMasterFxEnabled { .. } => vec![Global],
         // ---- tracks ----------------------------------------------------------------------
         InsertTrack { .. } | RemoveTrack { .. } => vec![Global],
-        MoveTrack { id, .. } | SetTrackGain { id, .. } | SetTrackPan { id, .. } => {
-            vec![TrackMix(*id)]
-        }
-        SetTrackMute { id, .. } | SetTrackSolo { id, .. } => vec![TrackMix(*id)],
+        SetTrackGain { id, .. } | SetTrackPan { id, .. } => vec![TrackMix(*id)],
+        // Where a track sits orders the sums it is in (and its modulators): applied, then
+        // checked (review 1 — a key moved without a refusal).
+        MoveTrack { id, .. } => vec![TrackMix(*id), Global],
+        SetTrackMute { id, .. } | SetTrackSolo { id, .. } => vec![TrackAudibility(*id)],
         SetTrackName { .. }
         | SetTrackColor { .. }
         | SetTrackHeight { .. }
@@ -117,8 +120,8 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetStripPan { id, .. }
         | SetStripWidth { id, .. }
         | SetStripMute { id, .. }
-        | SetStripSolo { id, .. }
-        | MoveStrip { id, .. } => vec![StripMix(*id)],
+        | SetStripSolo { id, .. } => vec![StripMix(*id)],
+        MoveStrip { id, .. } => vec![StripMix(*id), Global],
         SetStripPhaseInvert { id, .. }
         | SetStripSwapChannels { id, .. }
         | SetStripFxEnabled { id, .. }
@@ -325,6 +328,9 @@ fn refused_by(project: &Project, locks: &Locks, touch: &Touch, depth: u8) -> Opt
         TrackMix(t) => locks
             .track_mix
             .contains(t)
+            .then(|| locks.owner_of_track(*t))
+            .flatten(),
+        TrackAudibility(t) => (locks.track_mix.contains(t) && !locks.own.contains(t))
             .then(|| locks.owner_of_track(*t))
             .flatten(),
         StripChain(s) | StripInput(s) => locks

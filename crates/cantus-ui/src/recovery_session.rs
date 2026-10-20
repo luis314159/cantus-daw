@@ -213,6 +213,8 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
+        // A freeze or a bounce rendering: stopped, its partial files gone (review 1).
+        crate::freeze::close(self);
         // A save being written lands first (then nothing may be unsaved at all), and an
         // autosave being written shares the file with this one: let both finish. What the
         // *Save changes?* question waited to do (open another file…) is moot now.
