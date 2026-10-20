@@ -161,22 +161,30 @@ pub fn is_seam(map: &crate::tempo::TempoMap, left: &Clip, right: &Clip) -> bool 
 
 /// Move the seam between `left` and `right` (two playing-lane windows of `track` that
 /// meet) to `at`, both sides at once; the inverse moves it back.
+///
+/// The right window's source stays where it plays: its offset is re-derived where it now
+/// starts through the tempo map (review 2, `audio_time::reanchor`) — inside one held tempo
+/// the old `offset + d` exactly. Through a tempo change that rounding is not undone by
+/// moving back, so the inverse carries the window's offset and fine offset as they were
+/// (`window`), and puts them back exactly.
 pub(crate) fn apply_seam(
     project: &mut Project,
     track: TrackId,
     left: ClipId,
     right: ClipId,
     at: Ticks,
+    window: Option<(Ticks, i32)>,
 ) -> Result<Command, CommandError> {
     let t = project
-        .track_mut(track)
+        .track(track)
         .ok_or(CommandError::TrackNotFound(track))?;
     let (l, r) = match (t.clip(left), t.clip(right)) {
         (Some(l), Some(r)) => (l.clone(), r.clone()),
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    if !is_seam(&project.tempo_map(), &l, &r) {
+    let map = project.tempo_map();
+    if !is_seam(&map, &l, &r) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
@@ -185,7 +193,26 @@ pub(crate) fn apply_seam(
         ));
     }
     let was = r.start;
-    let d = at - was;
+    let slip = r.audio.as_ref().map_or(0, |a| a.slip_frames);
+    let held = window.is_none() && crate::audio_time::held_over(&map, was, at);
+    let (offset, new_slip) = match window {
+        Some(w) => w,
+        None if held => (r.offset + (at - was), slip),
+        None => {
+            let rate = r
+                .audio
+                .as_ref()
+                .and_then(|a| project.audio_source(a.source))
+                .map_or(48_000.0, |s| s.sample_rate as f64);
+            let (o, s) = crate::audio_time::reanchor(&map, was, r.offset, slip, rate, at);
+            // A linked window's fine offset is its group's (ADR 0037): only its own
+            // offset moves.
+            (o, if r.link.is_some() { slip } else { s })
+        }
+    };
+    let t = project
+        .track_mut(track)
+        .ok_or(CommandError::TrackNotFound(track))?;
     if let Some(c) = t.clip_mut(left) {
         c.length = at - c.start;
     }
@@ -193,7 +220,10 @@ pub(crate) fn apply_seam(
         let end = c.end();
         c.start = at;
         c.length = end - at;
-        c.offset += d;
+        c.offset = offset;
+        if let Some(a) = c.audio.as_mut() {
+            a.slip_frames = new_slip;
+        }
     }
     // By start, then by id, as every clip edit keeps them.
     t.clips.sort_by_key(|c| (c.start, c.id));
@@ -202,6 +232,7 @@ pub(crate) fn apply_seam(
         left,
         right,
         at: was,
+        window: (!held).then_some((r.offset, slip)),
     })
 }
 
@@ -256,6 +287,7 @@ mod tests {
             left: l,
             right: r,
             at: Ticks::beats(3),
+            window: None,
         }
         .apply(&mut p)
         .unwrap();
@@ -283,6 +315,7 @@ mod tests {
             left: l,
             right: r,
             at: Ticks::beats(3),
+            window: None,
         }
         .apply(&mut p);
         assert!(moved.is_err());
@@ -335,6 +368,7 @@ mod tests {
             left,
             right,
             at,
+            window: None,
         };
         let take = p
             .track(t)
@@ -444,7 +478,7 @@ mod tests {
         assert!(!is_seam(&p.tempo_map(), &left, &carried));
         p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
         p.track_mut(tid).unwrap().clips.push(carried.clone());
-        assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());
+        assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5), None).is_err());
     }
 
     /// Schema 32: an alternate comp keeps comp windows only — a clip that is not one

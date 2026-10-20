@@ -187,3 +187,74 @@ fn a_time_range_cut_across_a_tempo_change_leaves_the_rest_in_place() {
     assert_eq!(after.len(), 2, "{after:?}");
     same_frames(&map, &whole, &after);
 }
+
+/// A comp seam moved across a tempo change: the right window plays on what it played
+/// (its offset re-derived where it starts), and undo and redo give back each state
+/// exactly — the inverse carries the window's offset and fine offset.
+#[test]
+fn a_seam_moved_across_a_tempo_change_keeps_the_right_windows_audio() {
+    let pts = vec![point(0, 120.0, false), point(8, 60.0, false)];
+    let (mut bus, t, c) = fixture(pts, Ticks::ZERO, false);
+    let whole = bus.project().track(t).unwrap().clip(c).unwrap().clone();
+    let sid = AudioSourceId(bus.alloc_id());
+    let mut src = bus.project().audio_pool[0].clone();
+    src.id = sid;
+    src.path = "C:/other.wav".into();
+    // The left window: another take's audio to beat 6; the right: the fixture's clip from
+    // beat 6 on.
+    let mut left = bus.new_clip("left", Ticks::ZERO, Ticks::beats(6));
+    left.audio = Some(AudioRegion::of(sid));
+    left.comp = true;
+    let lid = left.id;
+    let cmds = vec![
+        Command::InsertAudioSource { source: src },
+        Command::SetClipComp {
+            track: t,
+            clip: c,
+            comp: true,
+        },
+    ];
+    run(&mut bus, cmds);
+    let map = bus.project().tempo_map();
+    let mut ids_next = bus.project().next_id;
+    let mut ids = || {
+        ids_next += 1;
+        ids_next - 1
+    };
+    let crop = clipboard::split(bus.project(), t, &whole, Ticks::beats(6), &mut ids).unwrap();
+    run(&mut bus, crop);
+    let left_half = clips(&bus, t)
+        .into_iter()
+        .find(|x| x.id == c)
+        .unwrap();
+    run(
+        &mut bus,
+        vec![
+            Command::RemoveClip { track: t, clip: left_half.id },
+            Command::InsertClip {
+                track: t,
+                clip: Box::new(left),
+            },
+        ],
+    );
+    let right = clips(&bus, t).into_iter().find(|x| x.id != lid).unwrap();
+    let before = bus.project().clone();
+    run(
+        &mut bus,
+        vec![Command::SetCompSeam {
+            track: t,
+            left: lid,
+            right: right.id,
+            at: Ticks::beats(10),
+            window: None,
+        }],
+    );
+    let moved = clips(&bus, t).into_iter().find(|x| x.id == right.id).unwrap();
+    assert_eq!(moved.start, Ticks::beats(10));
+    same_frames(&map, &whole, &[moved]);
+    let after = bus.project().clone();
+    bus.undo().unwrap();
+    assert_eq!(*bus.project(), before);
+    bus.redo().unwrap();
+    assert_eq!(*bus.project(), after);
+}

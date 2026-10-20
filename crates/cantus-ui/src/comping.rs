@@ -392,6 +392,7 @@ pub fn move_seam(
         left,
         right,
         at,
+        window: None,
     }];
     for g in comp_group(project, tid).into_iter().filter(|g| *g != tid) {
         let Some(track) = project.track(g) else {
@@ -408,6 +409,7 @@ pub fn move_seam(
                     left: l,
                     right: r,
                     at,
+                    window: None,
                 });
             }
         }

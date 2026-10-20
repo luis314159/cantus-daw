@@ -2381,6 +2381,7 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 left: c,
                 right: c,
                 at: Ticks::beats(1),
+                window: None,
             }
         }
         0 => {
@@ -2442,6 +2443,7 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 left: l.id,
                 right: r.id,
                 at: Ticks(lo + rng.below((hi - lo) as u64) as i64),
+                window: None,
             });
             Command::Batch {
                 label_key: "cmd.set_comp_seam".into(),
