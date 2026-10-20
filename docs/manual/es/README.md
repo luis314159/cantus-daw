@@ -534,7 +534,7 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   — se ajusta a la rejilla (mantén `Ctrl` para moverlo libre) y el audio entre sus vecinos
   se estira para encajar. Mantén **`Alt`** al arrastrar para deslizar en cambio el audio
   *bajo* el marcador. Doble clic en un marcador, o clic derecho ▸ *Quitar marcador de
-  warp*, para quitarlo.
+  warp*, o un clic en él y `Supr`, para quitarlo.
 - **Estira un clip entero**: mantén `Alt` y arrastra su **borde derecho** (`Mayús` sigue
   desplazando el contenido).
 - **La pestaña Warp del editor del clip**: doble clic en el clip (o *Editar el warp*) — el

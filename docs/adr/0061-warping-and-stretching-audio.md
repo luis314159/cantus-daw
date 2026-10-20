@@ -191,7 +191,7 @@ The arrangement draws a warped clip's waveform through its warp (a run of column
 marker segment), its transients as ticks along a top band and its markers as gold flags.
 Double-click the band to add a marker (on a transient: on it), drag a marker (snapped
 through `views/bars.rs` unless Ctrl) — **Alt** slides the content under it instead — drag
-in the band to add one and move it, double-click a marker or right-click it ▸ *Remove warp marker* to
+in the band to add one and move it, double-click a marker, select it and press Del, or use its menu to
 remove it; **Alt-drag of the right edge stretches the clip** (drawn stretched while
 dragged; Alt because Shift already slips). The clip editor has two tabs, **Pitch** and
 **Warp** (ADR 0054's window; ADR 0051 §4 stands — a double-click opens the clip editor in

@@ -226,8 +226,8 @@ citations, with fetched/excerpt markers, are in the topic files:*
   oversampled work. Also a fixed internal sub-block for coefficient updates (R14).
 - **Lints** that keep the rules true: no `AtomicRefCell::borrow`, no std transcendentals in the
   DSP crates (R16).
-- **When warping lands** (ADR 0025's "later"): Rubber Band R3 is the quality reference. Cantus
-  is GPL, so it is usable. Signalsmith Stretch (MIT) is the light default. Warped clips are
+- **When warping lands** (ADR 0025's "later"): Rubber Band R3 is the quality reference to listen to; since ADR 0047 the
+  engine is MPL-2.0, so its GPL code is never used (ADR 0061 §1 — Cantus has its own). Signalsmith Stretch (MIT) is the light default. Warped clips are
   rendered into the cache, and only the edited clip stretches live (`dsp-quality.md` §2).
 - **Already state of the art, keep:**
   - the de Soras-style sampler resampler;

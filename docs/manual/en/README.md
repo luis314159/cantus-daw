@@ -491,7 +491,7 @@ The file is never changed: the clip plays a render made beside the window.
   moment of the audio to another beat — it snaps to the grid (hold `Ctrl` for free) and
   the audio between its neighbours stretches to fit. Hold **`Alt`** while dragging to
   slide the audio *under* the marker instead. Double-click a marker, or right-click it ▸
-  *Remove warp marker*, to remove it.
+  *Remove warp marker*, or click it and press `Del`, to remove it.
 - **Stretch a whole clip**: hold `Alt` and drag its **right edge** (`Shift` still slips).
 - **The clip editor's Warp tab**: double-click the clip (or *Edit warp*) — the editor has
   two tabs, **Pitch** and **Warp**, and opens in the one you used last. The Warp tab shows
