@@ -1088,5 +1088,28 @@ fn a_program_change_reaches_the_program_list_and_the_project() {
         notices.contains(&cantus_host::Notice::StateDirty),
         "{notices:?}"
     );
+    // Review 3, #3, #21, #52: the host sending the program list a value (the project, a
+    // mapped knob, automation) is that parameter's own step — no state step besides.
+    let mut out = ParamOut::new();
+    audio.process(
+        Audio {
+            left: &mut l,
+            right: &mut r,
+            key: None,
+            transport: None,
+        },
+        &[ParamChange {
+            id: program.id,
+            offset: 0,
+            value: 5.0,
+        }],
+        &[],
+        &mut out,
+    );
+    let notices = main.idle();
+    assert!(
+        !notices.contains(&cantus_host::Notice::StateDirty),
+        "{notices:?}"
+    );
     drop((main, audio));
 }

@@ -288,7 +288,14 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     } else {
         tf(
             "ctl.view.ports",
-            &[("names", &app.midi_port_names.join(", "))],
+            &[(
+                "names",
+                &app.midi_port_names
+                    .iter()
+                    .map(|n| cantus_core::controller::clean_port_name(n))
+                    .collect::<Vec<_>>()
+                    .join(", "),
+            )],
         )
     };
     let (px, py) = (tr.right() + 8.0 * k, tr.top());
@@ -417,7 +424,10 @@ fn proxy(target: &MappingTarget) -> Option<AutoTarget> {
 pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String {
     let p = app.project();
     let pct = |pos: f32| format!("{:.0} %", pos * 100.0);
-    if target.is_switch() {
+    // Two states read Off and On; a choice its name; another stepped number a whole one
+    // in its unit (review 3, #0, #2).
+    let shape = app.target_shape(target);
+    if target.is_switch() || shape.switch {
         return t(if pos >= 0.5 {
             "ctl.value.on"
         } else {
@@ -425,11 +435,30 @@ pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String 
         });
     }
     match target {
-        MappingTarget::Param(a) if a.is_plugin() => pct(pos),
+        MappingTarget::Param(a) if a.is_plugin() => {
+            let word = app.hosted_param_info(a).and_then(|i| {
+                let v = i.min + f64::from(pos) * (i.max - i.min);
+                crate::controllers_words::word_at(app, target, v.round() as f32)
+            });
+            word.unwrap_or_else(|| pct(pos))
+        }
         MappingTarget::Param(a) => match cantus_core::automation::range::range_of(p, a) {
             Some(r) => {
+                let v = r.value(pos);
+                if let Some(word) = crate::controllers_words::word_at(app, target, v) {
+                    return word;
+                }
                 let mut out = String::new();
-                crate::automation::write_value(p, a, r.value(pos), &mut out);
+                if r.stepped {
+                    use std::fmt::Write as _;
+                    let unit = crate::automation::unit_of(p, a);
+                    let _ = write!(out, "{:.0}", v.round());
+                    if !unit.is_empty() {
+                        let _ = write!(out, " {unit}");
+                    }
+                } else {
+                    crate::automation::write_value(p, a, v, &mut out);
+                }
                 out
             }
             None => pct(pos),
@@ -454,12 +483,27 @@ pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String 
 /// What was typed into a value cell, as a position of `target`'s travel.
 pub fn parse_value(app: &CantusApp, target: &MappingTarget, typed: &str) -> Option<f32> {
     let w = typed.trim().to_lowercase();
-    if target.is_switch() {
+    let shape = app.target_shape(target);
+    if target.is_switch() || shape.switch {
         let on = t("ctl.value.on").to_lowercase();
         let off = t("ctl.value.off").to_lowercase();
         return match w.as_str() {
             x if x == on || x == "1" || x == "on" => Some(1.0),
             x if x == off || x == "0" || x == "off" => Some(0.0),
+            _ => None,
+        };
+    }
+    // A choice by its name, in either language (review 3, #2).
+    if let Some(v) = crate::controllers_words::value_named(app, target, typed) {
+        return match target {
+            MappingTarget::Param(a) if a.is_plugin() => {
+                let i = app.hosted_param_info(a)?;
+                let span = i.max - i.min;
+                (span > 0.0).then(|| ((f64::from(v) - i.min) / span) as f32)
+            }
+            MappingTarget::Param(a) => {
+                Some(cantus_core::automation::range::range_of(app.project(), a)?.pos(v))
+            }
             _ => None,
         };
     }
@@ -551,6 +595,8 @@ fn glyph_at(ui: &Ui, rect: Rect, id: Id, g: Glyph, lit: bool, tip: &str) -> egui
 struct CellDone {
     /// The new position, while dragged or once typed.
     pos: Option<f32>,
+    /// It was typed (taken as typed: a drag's snaps do not apply, review 3, #41).
+    typed: bool,
     /// The drag let go, or a value was typed: the end of the undo step.
     done: bool,
 }
@@ -615,6 +661,7 @@ fn value_cell(
                 if let Some(p) = read {
                     return CellDone {
                         pos: Some(p),
+                        typed: true,
                         done: true,
                     };
                 }
@@ -623,6 +670,7 @@ fn value_cell(
         }
         return CellDone {
             pos: None,
+            typed: false,
             done: false,
         };
     }
@@ -656,12 +704,14 @@ fn value_cell(
         });
         return CellDone {
             pos: None,
+            typed: false,
             done: false,
         };
     }
     if resp.secondary_clicked() {
         return CellDone {
             pos: Some(default),
+            typed: false,
             done: true,
         };
     }
@@ -675,11 +725,13 @@ fn value_cell(
         let p = (pos + (d.x - d.y) * fine / (160.0 * s.k)).clamp(0.0, 1.0);
         return CellDone {
             pos: (p != pos).then_some(p),
+            typed: false,
             done: false,
         };
     }
     CellDone {
         pos: None,
+        typed: false,
         done: resp.drag_stopped(),
     }
 }
@@ -800,8 +852,9 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     let others: Vec<String> = [Scope::Project, Scope::Global]
         .into_iter()
         .flat_map(|sc| {
+            // A swapped-out plug-in's mapping drives nothing: it shares nothing (review 3).
             app.controller_map(sc)
-                .sharing(m)
+                .sharing_in(m, app.project())
                 .map(|o| o.target.clone())
                 .collect::<Vec<_>>()
         })
@@ -839,7 +892,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
         hint::set_text(ui.ctx(), &t("ctl.col.control"), &control, Caps::NONE);
     }
     // The target; a dormant one dimmed and marked.
-    let name = app.mapping_target_name(&m.target);
+    let name = app.mapping_name(m);
     let mut tr = c[2];
     if let Some(why) = idle {
         use crate::controllers::Idle;
@@ -848,6 +901,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             Idle::OtherPlugin => ("ctl.view.other_plugin", s.t.text_dim),
             Idle::NotLoaded => ("ctl.view.not_loaded", s.t.text_dim),
             Idle::Frozen => ("ctl.view.frozen", s.t.text_dim),
+            Idle::NotConnected => ("ctl.view.not_connected", s.t.text_dim),
         };
         let words = t(key);
         let pill_w = pill_width(ui, &words);
@@ -934,6 +988,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     let out = if m.target.is_action() {
         CellDone {
             pos: None,
+            typed: false,
             done: false,
         }
     } else {
@@ -954,7 +1009,8 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     if let Some(p) = out.pos {
         let mut n = m.clone();
         n.curve = (p * 2.0 - 1.0).clamp(-1.0, 1.0);
-        if (n.curve).abs() < 0.02 {
+        // A drag near the middle snaps straight; a typed bend is as typed.
+        if !out.typed && n.curve.abs() < 0.02 {
             n.curve = 0.0;
         }
         app.set_mapping(scope, n, (!out.done).then(|| merge("curve")));

@@ -30,13 +30,16 @@ struct Texts {
 
 impl Texts {
     /// The words for parameter `id` at the value with `bits`, asked of `ask` only when not
-    /// known for this stamp.
+    /// known for this stamp; a plug-in that has not answered yet (`None`, isolated) is
+    /// asked again next time and shows `fallback` meanwhile — never kept (round 29, review 3
+    /// of ADR 0062, #59).
     fn get(
         &mut self,
         stamp: u64,
         id: u32,
         bits: u64,
-        ask: impl FnOnce() -> String,
+        ask: impl FnOnce() -> Option<String>,
+        fallback: impl FnOnce() -> String,
     ) -> std::sync::Arc<str> {
         if self.stamp != stamp {
             self.stamp = stamp;
@@ -44,11 +47,14 @@ impl Texts {
         }
         match self.words.get(&id) {
             Some((b, s)) if *b == bits => s.clone(),
-            _ => {
-                let s: std::sync::Arc<str> = ask().into();
-                self.words.insert(id, (bits, s.clone()));
-                s
-            }
+            _ => match ask() {
+                Some(s) => {
+                    let s: std::sync::Arc<str> = s.into();
+                    self.words.insert(id, (bits, s.clone()));
+                    s
+                }
+                None => fallback().into(),
+            },
         }
     }
 }
@@ -146,10 +152,13 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
         let bits = shown_v.to_bits();
         let text = sh.ui.data_mut(|d| {
             d.get_temp_mut_or_default::<Texts>(tid)
-                .get(stamp, p.id, bits, || {
-                    h.param_text(p.id, shown_v)
-                        .unwrap_or_else(|| format!("{shown_v:.2}"))
-                })
+                .get(
+                    stamp,
+                    p.id,
+                    bits,
+                    || h.param_text(p.id, shown_v),
+                    || format!("{shown_v:.2}"),
+                )
         });
         let range = Range {
             stepped: p.stepped,
@@ -244,11 +253,28 @@ mod tests {
             asked += 1;
             w.to_string()
         };
-        assert_eq!(&*texts.get(1, 0, bits, || ask("Saw")), "Saw");
-        assert_eq!(&*texts.get(1, 0, bits, || ask("never")), "Saw");
-        assert_eq!(&*texts.get(2, 0, bits, || ask("50 %")), "50 %");
-        assert_eq!(&*texts.get(2, 0, 0.6f64.to_bits(), || ask("60 %")), "60 %");
+        let fb = || "0.50".to_string();
+        assert_eq!(&*texts.get(1, 0, bits, || Some(ask("Saw")), fb), "Saw");
+        assert_eq!(&*texts.get(1, 0, bits, || Some(ask("never")), fb), "Saw");
+        assert_eq!(&*texts.get(2, 0, bits, || Some(ask("50 %")), fb), "50 %");
+        assert_eq!(
+            &*texts.get(2, 0, 0.6f64.to_bits(), || Some(ask("60 %")), fb),
+            "60 %"
+        );
         assert_eq!(asked, 3);
+    }
+
+    /// Round 29, review 3 of ADR 0062, #59: an isolated plug-in that has not answered yet
+    /// shows the number meanwhile and is asked again — its words show once they come.
+    #[test]
+    fn an_unanswered_value_is_asked_again() {
+        let mut texts = super::Texts::default();
+        let bits = 0.42f64.to_bits();
+        assert_eq!(&*texts.get(1, 0, bits, || None, || "0.42".into()), "0.42");
+        assert_eq!(
+            &*texts.get(1, 0, bits, || Some("1.2 kHz".into()), || "0.42".into()),
+            "1.2 kHz"
+        );
     }
 
     /// Review of fix3: a continuous value moving (a drag merging every frame) leaves the

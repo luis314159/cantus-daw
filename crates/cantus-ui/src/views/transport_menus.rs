@@ -289,6 +289,23 @@ fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
 }
 
+/// The area a View menu key shows or hides (what its check says), for a controller's
+/// light (round 29, review 3 of ADR 0062, #48).
+pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
+    use crate::keymap::Action;
+    Some(match action {
+        Action::ViewArrangement => Pane::Arrangement,
+        Action::ViewChannelRack => Pane::ChannelRack,
+        Action::ViewPianoRoll => Pane::PianoRoll,
+        Action::ViewMixer => Pane::Mixer,
+        Action::ToggleBrowser => Pane::Browser,
+        Action::ViewRouting => Pane::Routing,
+        Action::ViewControllers => Pane::Controllers,
+        Action::ToggleInspector => Pane::Inspector,
+        _ => return None,
+    })
+}
+
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
     // Every area, with its key: the same toggles as the toolbar's window keys, and the

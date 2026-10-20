@@ -482,8 +482,12 @@ pub struct Editor {
     /// (effect, parameter count, filter) the groups were made for, and the groups: a title
     /// and the indices of the parameters in it.
     groups: Option<(EffectId, usize, String, Groups)>,
-    /// Parameter id → (value bits, the plug-in's text for it).
-    texts: HashMap<u32, (u64, String)>,
+    /// Parameter id → (value bits, the plug-in's text for it — `None` while an isolated
+    /// plug-in has not answered yet, asked again), for the effect in `texts_of`.
+    texts: HashMap<u32, (u64, Option<String>)>,
+    /// The effect the words are of: another effect's editor starts them again (round 29,
+    /// review 3 of ADR 0062, #59).
+    texts_of: Option<EffectId>,
     /// "CLAP · Vendor", per effect.
     badge: Option<(EffectId, String)>,
     /// Where each group's card goes, reused.
@@ -777,6 +781,10 @@ fn body_ui(
     let mut changes: Vec<Change> = Vec::new();
     let hosted = app.plugins.hosted(effect);
     let spec = app.bus.project().effect(strip, effect).map(|e| &e.spec);
+    if ed.texts_of != Some(effect) {
+        ed.texts_of = Some(effect);
+        ed.texts.clear();
+    }
     let texts = &mut ed.texts;
     let mut area_ui = ui.new_child(egui::UiBuilder::new().max_rect(area));
     egui::ScrollArea::vertical()
@@ -838,17 +846,22 @@ fn body_ui(
                                     offer.learn.is_some(),
                                 );
                             }
-                            // The plug-in's words for the value, asked once per value.
+                            // The plug-in's words for the value, asked once per value — again
+                            // while not answered (an isolated plug-in answers later).
                             let bits = value.to_bits();
-                            let entry = texts.entry(p.id).or_insert((u64::MAX, String::new()));
-                            if entry.0 != bits {
+                            let entry = texts.entry(p.id).or_insert((u64::MAX, None));
+                            if entry.0 != bits || entry.1.is_none() {
                                 entry.0 = bits;
-                                entry.1 = h
-                                    .param_text(p.id, value)
-                                    .unwrap_or_else(|| format!("{value:.2}"));
+                                entry.1 = h.param_text(p.id, value);
                             }
-                            let text = entry.1.as_str();
-                            let fmt = |_: f32, b: &mut String| b.push_str(text);
+                            let text = entry.1.clone();
+                            let fmt = |_: f32, b: &mut String| match &text {
+                                Some(t) => b.push_str(t),
+                                None => {
+                                    use std::fmt::Write as _;
+                                    let _ = write!(b, "{value:.2}");
+                                }
+                            };
                             let out = ui
                                 .add_enabled_ui(!p.read_only, |ui| {
                                     controls::Cell::new(

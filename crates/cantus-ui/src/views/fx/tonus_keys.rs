@@ -270,7 +270,11 @@ fn glyph(b: &mut Brush, s: &Style, _ink: &Ink, c: egui::Pos2, which: usize, colo
 fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect; 12]) -> bool {
     use crate::kit::automate as a;
     let mut mode = false;
-    for (pc, r) in keys.iter().enumerate() {
+    // The white keys first, the black keys over them: the last spot registered takes the
+    // click, and a black key sits across two white ones (review 3, #43).
+    const ORDER: [usize; 12] = [0, 2, 4, 5, 7, 9, 11, 1, 3, 6, 8, 10];
+    for pc in ORDER {
+        let r = &keys[pc];
         let key = NOTE_KEYS[pc];
         let pos = host.spec().get(key) / 3.0;
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];

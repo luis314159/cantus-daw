@@ -372,12 +372,8 @@ pub struct Pick {
     pub open: bool,
 }
 
-/// The card's selector as a control: ‹ steps back, › forward, the name opens the list.
-pub fn selector(ui: &Ui, id: Id, cr: &CardRects, name: &str) -> Pick {
-    selector_resp(ui, id, cr, name).0
-}
 
-/// [`selector`] over the stepped parameter `key` (an LFO's wave, a filter's type): its
+/// The card's selector over the stepped parameter `key` (an LFO's wave, a filter's type): its
 /// menu, its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44). Nothing
 /// picked while the learn mode has it.
 #[allow(clippy::too_many_arguments)]
@@ -563,6 +559,12 @@ pub fn choice_key(
         &name,
     );
     // A parameter: its menu, its mapped mark, the learn mode (review 2 of ADR 0062, #44).
+    app.controllers.inst_words.note(spec.kind, key, || {
+        labels
+            .iter()
+            .map(|l| crate::controllers_words::Word::Text(l.clone()))
+            .collect()
+    });
     let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     if let Some(i) = chosen.filter(|_| !learning) {
         if i != now {
@@ -598,6 +600,12 @@ pub fn choice_key_plain(
         .name(&name)
         .style(*s)
         .show_at(ui, rect);
+    app.controllers.inst_words.note(spec.kind, key, || {
+        labels
+            .iter()
+            .map(|l| crate::controllers_words::Word::Text(l.clone()))
+            .collect()
+    });
     let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     if c.open && !learning {
         toggle_popup(ui, id.with("menu"));
@@ -706,6 +714,9 @@ pub fn seg_param(
         .name(name)
         .style(*s)
         .show_at(ui, rect);
+    app.controllers
+        .inst_words
+        .note(spec.kind, key, || crate::controllers_words::srcs(labels));
     let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     chosen.filter(|_| !learning)
 }

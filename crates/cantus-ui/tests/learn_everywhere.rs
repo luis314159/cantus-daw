@@ -169,16 +169,17 @@ fn chordas_tuning_keys_are_not_learnt() {
     }
 }
 
-/// Review 2 of ADR 0062, #44: the stepped parameters (switches, choices, steppers, a
-/// band's lamp, a drawbar) that every native effect's and instrument's editor draws are
-/// drawn with their parameter's offer — the menu's *Learn MIDI controller* and the learn
-/// mode's outline — not with a plain control that only sets the value. Counted by key
-/// (`probe::take_offers`: every offer asked) in each editor's demo state; the keys a state
-/// shows (another band, a synced rate, a card scrolled below) are drawn by the same
-/// helpers. A stepped control converted here that goes plain again is named.
+/// Review 2 of ADR 0062, #44, and review 3, #35: every stepped parameter (a switch, a
+/// choice, a stepper, a band's lamp, a drawbar, a zone's field) that an editor draws is
+/// drawn with its parameter's offer — the menu's *Learn MIDI controller* and the learn
+/// mode's outline — never by a plain control that only sets the value. Exhaustive: each
+/// kind's every stepped key (and the selected sampler zone's) is offered, or [`not_drawn`]
+/// says why the demo state draws no control for it — a slot not in use, another band or
+/// operator than the one shown, a field shown in another state. A plain control is named.
 #[test]
 fn every_stepped_parameter_is_drawn_with_its_offer() {
     let mut offered_keys: Vec<String> = Vec::new();
+    let mut unexplained: Vec<String> = Vec::new();
     for kind in EffectKind::ALL.into_iter().filter(|k| k.has_editor()) {
         let mut a = app(cantus_ui::starter_project());
         let s0 = a.project().tracks[0].strip.unwrap();
@@ -200,13 +201,17 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
         probe::start();
         paint_editors(&mut a, egui::vec2(1800.0, 3000.0));
         let offered = probe::take_offers();
+        let spec = a.project().effect(s0, fx).unwrap().spec.clone();
         for info in kind.params().iter().filter(|i| i.stepped) {
             let target = AutoTarget::Effect {
                 effect: fx,
                 key: info.key.into(),
             };
+            let name = format!("{kind:?}.{}", info.key);
             if offered.contains(&target) {
-                offered_keys.push(format!("{kind:?}.{}", info.key));
+                offered_keys.push(name);
+            } else if not_drawn(&name, &|k| spec.get(k)).is_none() {
+                unexplained.push(name);
             }
         }
     }
@@ -225,16 +230,93 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
             });
             offered.extend(probe::take_offers());
         }
-        for info in kind.params().iter().filter(|i| i.stepped) {
+        // The Edit view's cards whole (the window scrolls them) — FM's on each of its
+        // detail pages.
+        let pages: &[Option<cantus_ui::views::inst::fm::Detail>] = if kind == InstrumentKind::Fm {
+            &[
+                Some(cantus_ui::views::inst::fm::Detail::Envelope),
+                Some(cantus_ui::views::inst::fm::Detail::Scaling),
+                Some(cantus_ui::views::inst::fm::Detail::Oscillator),
+            ]
+        } else {
+            &[None]
+        };
+        for page in pages {
+            if let Some(d) = page {
+                a.inst.fm.detail = *d;
+            }
+            probe::start();
+            paint(&ctx(), egui::vec2(1400.0, 6000.0), 3, |ui| {
+                cantus_ui::views::inst::edit_body_for_tests(&mut a, ui, track)
+            });
+            offered.extend(probe::take_offers());
+            if page.is_some() {
+                a.inst.view = View::Play;
+                probe::start();
+                paint(&ctx(), egui::vec2(1800.0, 4000.0), 3, |ui| {
+                    cantus_ui::views::inst::window_in(&mut a, ui)
+                });
+                offered.extend(probe::take_offers());
+            }
+        }
+        if kind == InstrumentKind::Fm {
+            let ks: Vec<String> = offered.iter().filter_map(|t| match t { AutoTarget::Instrument { key, .. } => Some(key.clone()), _ => None }).collect();
+            eprintln!("FMOFFERED {ks:?}");
+        }
+        let spec = a
+            .project()
+            .track(track)
+            .unwrap()
+            .instrument
+            .native()
+            .unwrap()
+            .clone();
+        let mut keys: Vec<String> = kind
+            .params()
+            .iter()
+            .filter(|i| i.stepped && kind.automatable(i.key))
+            .map(|i| i.key.to_string())
+            .collect();
+        // The sampler's selected zone: its stepped fields (loop mode and direction,
+        // reverse, crossfade curve, trigger, release follow, note-off mode).
+        if kind == InstrumentKind::Sampler {
+            if let Some(n) = a.inst.sampler.selected {
+                let (all, _) = cantus_core::inst::sampler::zone_keys(&spec, n);
+                keys.extend(all.into_iter().filter(|k| {
+                    cantus_core::automation::range::range_of(
+                        a.project(),
+                        &AutoTarget::Instrument {
+                            track,
+                            key: k.clone(),
+                        },
+                    )
+                    .is_some_and(|r| r.stepped)
+                }));
+            }
+        }
+        for key in keys {
             let target = AutoTarget::Instrument {
                 track,
-                key: info.key.into(),
+                key: key.clone(),
             };
+            let name = format!("{kind:?}.{key}");
+            let steps = cantus_core::automation::range::range_of(a.project(), &target)
+                .map_or(0.0, |r| r.max - r.min);
             if offered.contains(&target) {
-                offered_keys.push(format!("{kind:?}.{}", info.key));
+                offered_keys.push(name);
+            } else if steps < 1.0 {
+                // A constant (one choice): nothing to choose.
+            } else if steps > 64.0 {
+                // A number with its own field (a key, a frame), not a choice.
+            } else if not_drawn(&name, &|k| spec.get(k)).is_none() {
+                unexplained.push(name);
             }
         }
     }
+    assert!(
+        unexplained.is_empty(),
+        "stepped parameters drawn without their offer: {unexplained:#?}"
+    );
     let missing: Vec<&&str> = WIRED_IN_REVIEW_2
         .iter()
         .filter(|k| !offered_keys.iter().any(|o| o == **k))
@@ -243,6 +325,93 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
         missing.is_empty(),
         "stepped parameters drawn without their offer: {missing:#?}"
     );
+}
+
+/// Why an editor's demo state draws no control for the stepped key `name` (`Kind.key`),
+/// `get` reading the kind's values: `None` when it does draw one (then it must be offered).
+fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32) -> Option<&'static str> {
+    let (kind, key) = name.split_once('.')?;
+    let (head, field) = key.split_once('.').unwrap_or((key, ""));
+    // A band's, a point's, a key band's slot: `used` is its being, not a control; a slot
+    // not in use draws nothing; of the slots in use, the editor shows one at a time.
+    let digits = head.trim_start_matches(|c: char| c.is_ascii_alphabetic());
+    let prefix = &head[..head.len() - digits.len()];
+    let slotted = matches!(
+        (kind, prefix),
+        ("Eq", "b")
+            | ("Multiband", "b")
+            | ("Compressor", "sc")
+            | ("Space", "d" | "e")
+            | ("Saturator", "p")
+            | ("VolumeShaper", "p")
+    );
+    if slotted && !digits.is_empty() {
+        if field == "used" {
+            return Some("a slot's being in use, never a control");
+        }
+        if get(&format!("{head}.used")) < 0.5 {
+            return Some("a slot not in use draws nothing");
+        }
+        return match (kind, digits, field) {
+            // The band shown: its slope only for a cut, its key and direction with dynamics.
+            ("Eq", "0", "slope") => Some("a cut's only (the band shown is no cut)"),
+            ("Eq", "0", "dir" | "key") => Some("with dynamics on only"),
+            ("Eq", "0", _) => None,
+            _ => Some("another band or point than the one the editor shows"),
+        };
+    }
+    match (kind, key) {
+        // Culmen's named bands: shown when the bands are split.
+        ("Maximizer", k) if k.starts_with("lo.") || k.starts_with("mid.") || k.starts_with("hi.") => {
+            Some("a band of a split Culmen (one band in the demo)")
+        }
+        ("Maximizer", "all.on") => Some("the whole band's switch, shown when split"),
+        // A synced rate's division: shown while synced.
+        (_, "div") => Some("the rate shown in beats only while synced"),
+        ("Eq", "lp_res") => Some("linear phase only"),
+        ("Saturator", "c.sym") => Some("the curve editor's page"),
+        // Drawn by `segmented_param` / `param_with` on a page the demo does not show.
+        ("Analyzer", "sync" | "beats") => Some("the analyser's timing page"),
+        ("AutoTune", "formant" | "trans") => Some("the scale source's page"),
+        // Set by editing the engine, never a control of its own.
+        ("Compressor", "custom") => Some("set by editing the detector's engine"),
+        // A wavetable's frame is chosen with its table; a warp's source only while its
+        // warp takes one; the additive and granular engines' fields with those engines.
+        ("Wavetable", k) if k.ends_with(".frame") => Some("chosen with the table"),
+        ("Wavetable", k) if k.ends_with(".src") => Some("only while its warp takes a source"),
+        ("Wavetable", k) if k.ends_with(".partials") || k.ends_with(".gwin") => {
+            Some("the additive or granular engine's (the demo's is classic)")
+        }
+        ("Analog", "vcf.mid") => Some("the SVF model's only"),
+        ("Bass", k) if k.starts_with("syn.") => Some("the synth engine's (the demo plays another)"),
+        ("Fm", "priority") => Some("no control in the editor (presets set it)"),
+        // An envelope's stage count, sustain and loop points: set on its display (a point's
+        // menu, the add-stage button), not by a control of their own.
+        ("Fm", k) if k.starts_with("env.") && (k.ends_with(".n") || k.ends_with(".sus") || k.ends_with(".loop")) => {
+            Some("set on the envelope's display")
+        }
+        ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
+        _ => None,
+    }
+    .or_else(|| {
+        // An instrument's slot (an oscillator, an LFO, an envelope, an operator, a key
+        // scaling) other than the one its editor shows.
+        let first = matches!(digits, "" | "1");
+        match (kind, prefix) {
+            ("Wavetable", "osc" | "lfo") | ("Analog", "lfo" | "env") if !first => {
+                Some("another oscillator or LFO than the one shown")
+            }
+            _ => None,
+        }
+    })
+    .or_else(|| {
+        let op = key
+            .strip_prefix("op.")
+            .or_else(|| key.strip_prefix("env."))
+            .or_else(|| key.strip_prefix("ks."))
+            .and_then(|r| r.split('.').next());
+        (kind == "Fm" && op.is_some_and(|o| o != "a")).then_some("another operator than the one shown")
+    })
 }
 
 /// The stepped parameters each editor draws in its demo state, by kind and key — among

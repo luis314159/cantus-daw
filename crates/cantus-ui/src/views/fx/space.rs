@@ -1257,7 +1257,7 @@ fn band_card(
         Function::Space
     });
     let mut remove = false;
-    let (_, lamp) = controls::card(ui, &marked, rect, Src::Str(title), Some(on), |ui, _| {
+    let (_, lamp, lamp_resp) = controls::card_lamp(ui, &marked, rect, Src::Str(title), Some(on), |ui, _| {
         controls::column(ui, s, 120.0, |ui| {
             let (keys, name): (&[&'static str], _) = match curve {
                 Curve::Decay => (&DSHAPE_KEYS, frame::tr("fx.space.band.shape")),
@@ -1397,7 +1397,7 @@ fn band_card(
     });
     // The band's On is a parameter: its menu, its mark, the learn mode (review 2 of ADR
     // 0062, #44).
-    let learnt = controls::card_lamp_offer(ui, s, host, skey(curve, n, "on"));
+    let learnt = controls::card_lamp_offer(ui, s, host, skey(curve, n, "on"), lamp_resp.as_ref());
     if lamp && !learnt {
         host.set(skey(curve, n, "on"), if on { 0.0 } else { 1.0 }, None);
     }

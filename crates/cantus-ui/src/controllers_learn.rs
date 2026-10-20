@@ -9,7 +9,7 @@ use crate::app::CantusApp;
 use crate::controllers::{decode, source_text, Scope};
 use crate::i18n::tf;
 use cantus_core::controller::{
-    learn::detect, Control, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL,
+    learn::detect_in, Control, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL,
 };
 use cantus_engine::midi::Heard;
 use std::time::{Duration, Instant};
@@ -43,6 +43,15 @@ impl CantusApp {
             None => {
                 if !on {
                     // A release with nothing pressed (a key let go after arming).
+                    return;
+                }
+                // An NRPN or RPN (its number on CC 99/98 or 101/100, its value on 6/38):
+                // not a control Cantus maps — said, never saved as a CC 99 mapping that
+                // would not follow the knob (review 3, #6).
+                if matches!(control, Control::Cc(98..=101)) {
+                    self.controllers.learning = None;
+                    self.controllers.tap.filter().set_learning(false);
+                    self.set_error(crate::i18n::t("ctl.status.nrpn"));
                     return;
                 }
                 l.source = Some((h.port, channel));
@@ -96,7 +105,7 @@ impl CantusApp {
             return;
         };
         let (Some((port, channel)), Some((control, mode))) =
-            (l.source, detect(&l.heard, &l.target))
+            (l.source, detect_in(&l.heard, &l.target, self.target_shape(&l.target)))
         else {
             self.controllers.tap.filter().set_learning(false);
             return;
@@ -147,8 +156,9 @@ impl CantusApp {
         let others: Vec<String> = [Scope::Project, Scope::Global]
             .into_iter()
             .flat_map(|s| {
+                // Mappings of a swapped-out plug-in drive nothing: not "also" (review 3).
                 self.controller_map(s)
-                    .sharing(&m)
+                    .sharing_in(&m, self.project())
                     .map(|o| o.target.clone())
                     .collect::<Vec<_>>()
             })

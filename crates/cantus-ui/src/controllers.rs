@@ -57,13 +57,24 @@ pub struct Wide {
     pub lsb_at: Option<Instant>,
     /// When the coarse half last came: a fine half right after it completes that pair.
     pub msb_at: Option<Instant>,
-    /// The controller sends its fine half first (seen once: a coarse half right after a
-    /// fine half alone).
+    /// The controller sends its fine half first: known only from [`FINE_FIRST`] pairs in a
+    /// row that came fine half first, none the other way (review 3: one coincidence, a
+    /// fine half alone just before a coarse change, proved nothing).
     pub lsb_first: bool,
+    /// Pairs seen fine half first since the last seen coarse half first.
+    pub fine_first_seen: u8,
+    /// A fine-first controller's fine half, waiting for its coarse half (never driven with
+    /// the old coarse half, review 3, #56).
+    pub pending_lsb: Option<Instant>,
 }
 
-/// A fine half this close before a coarse one is the same pair.
+/// A half this close to its partner is the same pair; a half alone this long is read
+/// alone (a coarse half with a fine 0, as MIDI says).
 pub const PAIR_GAP: std::time::Duration = std::time::Duration::from_millis(5);
+
+/// Pairs seen fine half first, in a row, before a controller is taken as sending its fine
+/// half first.
+pub const FINE_FIRST: u8 = 3;
 
 /// Why a mapping does nothing now (the pane's flag; `None` from
 /// `CantusApp::mapping_state` when it is live, review 2, #49).
@@ -77,17 +88,29 @@ pub enum Idle {
     NotLoaded,
     /// Its sound is frozen: moves are refused until it is unfrozen.
     Frozen,
+    /// Its port is not open here (the controller unplugged, another computer's).
+    NotConnected,
 }
 
-/// The pairs whose coarse half came alone in the burst just read: each read now, its fine
-/// half 0 — (port, channel, number, value, when).
+/// The pairs whose half has waited [`PAIR_GAP`] by `now` without its partner: each read
+/// now — a coarse half with a fine 0, a fine-first controller's fine half with the coarse
+/// half as it stands — (port, channel, number, value, when). A younger one waits for the
+/// next frame (the controllers' wakes ask for it): a pair split between two frames is
+/// never driven half-made (review 3, #5, #9).
 pub(crate) fn wide_alone(
     wide: &mut HashMap<(u8, u8, u8), Wide>,
+    now: Instant,
 ) -> Vec<(u8, u8, u8, u16, Instant)> {
+    let old = |t: &Instant| now.saturating_duration_since(*t) >= PAIR_GAP;
     let mut out = Vec::new();
     for (&(port, ch, n), e) in wide.iter_mut() {
-        if let Some(at) = e.pending.take() {
+        if let Some(at) = e.pending.filter(old) {
+            e.pending = None;
             out.push((port, ch, n, u16::from(e.msb) << 7, at));
+        }
+        if let Some(at) = e.pending_lsb.filter(old) {
+            e.pending_lsb = None;
+            out.push((port, ch, n, u16::from(e.msb) << 7 | u16::from(e.lsb), at));
         }
     }
     out
@@ -129,6 +152,11 @@ pub struct ControllerUi {
     pub gesture: crate::controllers_input::Gesture,
     /// Gestures begun so far: each one's key is its own.
     pub(crate) gestures: u64,
+    /// The project these mappings' session state is about (`CantusApp::epoch`): another
+    /// project in its place starts it again (review 3, #25).
+    pub(crate) epoch: u64,
+    /// The instruments' choices as their editors drew them (the pane's words, review 3).
+    pub inst_words: crate::controllers_words::InstWords,
     /// The playhead last frame, and when a loop's wrap was last seen.
     pub(crate) prev_pos: Option<i64>,
     pub(crate) last_wrap: Option<Instant>,
@@ -205,29 +233,46 @@ pub fn load_global(path: &Path) -> ControllerMap {
     load_global_checked(path).0
 }
 
+/// What reading the global map found, beyond the map.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum GlobalLoad {
+    /// Read whole (or no file yet).
+    Whole,
+    /// Something was lost; the whole file is kept beside, at this path.
+    Kept(PathBuf),
+    /// Something was lost and the file could not be kept beside: nothing may be saved over
+    /// it (review 3, #30).
+    Unsafe,
+}
+
 /// [`load_global`], and whether anything in the file was lost: then the file is kept
 /// beside, as `controllers.json.bad` (an earlier one kept too), before anything can write
 /// over it (review 1, #31) — a file that is no JSON or no text, one that cannot be read,
 /// one written by a newer Cantus, and one with a mapping this build cannot read (review 2,
 /// #9, #29, #39).
 pub fn load_global_checked(path: &Path) -> (ControllerMap, bool) {
+    let (map, load) = load_global_report(path);
+    (map, load != GlobalLoad::Whole)
+}
+
+/// [`load_global_checked`], with where the file was kept — once: a file kept already with
+/// the same bytes is not kept again at every start (review 3, #30, #40).
+pub fn load_global_report(path: &Path) -> (ControllerMap, GlobalLoad) {
     let bytes = match std::fs::read(path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return (ControllerMap::default(), false)
+            return (ControllerMap::default(), GlobalLoad::Whole)
         }
         Err(e) => {
             log::warn!("controllers: cannot read {}: {e}", path.display());
-            keep_bad(path, false);
-            return (ControllerMap::default(), true);
+            return (ControllerMap::default(), keep_bad(path, None, false));
         }
     };
     let file: GlobalFile = match serde_json::from_slice(&bytes) {
         Ok(f) => f,
         Err(e) => {
             log::warn!("controllers: cannot read {}: {e}", path.display());
-            keep_bad(path, true);
-            return (ControllerMap::default(), true);
+            return (ControllerMap::default(), keep_bad(path, Some(&bytes), true));
         }
     };
     let mut lost = file.version > GLOBAL_VERSION;
@@ -247,16 +292,35 @@ pub fn load_global_checked(path: &Path) -> (ControllerMap, bool) {
             }
         }
     }
-    if lost {
-        // What could be read is used; the whole file stays beside for what could not.
-        keep_bad(path, false);
+    if !lost {
+        return (map, GlobalLoad::Whole);
     }
-    (map, lost)
+    // What could be read is used; the whole file stays beside for what could not.
+    let kept = keep_bad(path, Some(&bytes), false);
+    (map, kept)
 }
 
-/// Keep `path` beside as `controllers.json.bad` — renamed (`move_it`) or copied — or, when
-/// one is there already, with the time in its name, so an earlier one is never lost.
-fn keep_bad(path: &Path, move_it: bool) {
+/// Keep `path` beside as `controllers.json.bad` — renamed (`move_it`) or copied — unless a
+/// kept file already holds the same `bytes`; when one with other bytes is there, with the
+/// time in the name, so an earlier one is never lost.
+fn keep_bad(path: &Path, bytes: Option<&[u8]>, move_it: bool) -> GlobalLoad {
+    let same = |p: &Path| bytes.is_some_and(|b| std::fs::read(p).is_ok_and(|x| x == b));
+    let dir = path.parent().unwrap_or(Path::new("."));
+    let stem = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if name.starts_with(&stem) && name.ends_with(".bad") && same(&e.path()) {
+                if move_it {
+                    let _ = std::fs::remove_file(path);
+                }
+                return GlobalLoad::Kept(e.path());
+            }
+        }
+    }
     let mut bad = path.with_extension("json.bad");
     if bad.exists() {
         let secs = std::time::SystemTime::now()
@@ -269,8 +333,12 @@ fn keep_bad(path: &Path, move_it: bool) {
     } else {
         std::fs::copy(path, &bad).map(|_| ())
     };
-    if let Err(e) = kept {
-        log::warn!("controllers: cannot keep {}: {e}", bad.display());
+    match kept {
+        Ok(()) => GlobalLoad::Kept(bad),
+        Err(e) => {
+            log::warn!("controllers: cannot keep {}: {e}", bad.display());
+            GlobalLoad::Unsafe
+        }
     }
 }
 
@@ -334,10 +402,14 @@ pub fn channel_text(c: Option<u8>) -> String {
 pub fn port_text(p: &cantus_core::controller::PortRef) -> String {
     if p.is_any() {
         t("ctl.src.any_port")
-    } else if p.ordinal > 0 {
-        format!("{} ({})", p.name, u32::from(p.ordinal) + 1)
     } else {
-        p.name.clone()
+        // The device's name (a Linux port's client numbers left out, review 3, #45).
+        let name = cantus_core::controller::clean_port_name(&p.name);
+        if p.ordinal > 0 {
+            format!("{name} ({})", u32::from(p.ordinal) + 1)
+        } else {
+            name.into_owned()
+        }
     }
 }
 
@@ -387,6 +459,34 @@ pub fn source_text(s: &MidiSource) -> String {
 // ---- the verbs ----------------------------------------------------------------------------
 
 impl CantusApp {
+    /// A mapping's target in words: a hosted parameter learnt on another plug-in than the
+    /// one there now is named after the plug-in it was learnt on — never the loaded one's
+    /// parameter (review 3, #32, #44).
+    pub fn mapping_name(&self, m: &Mapping) -> String {
+        let p = self.project();
+        if let (MappingTarget::Param(a), Some(learnt)) = (&m.target, &m.plugin) {
+            if !m.fits(p) {
+                let format = cantus_host::from_project_format(learnt.format);
+                let plugin = self
+                    .plugins
+                    .db
+                    .plugins()
+                    .into_iter()
+                    .find(|i| i.format == format && i.id == learnt.id)
+                    .map_or_else(|| learnt.id.clone(), |i| i.name.clone());
+                let id = match a {
+                    AutoTarget::Plugin { id, .. } | AutoTarget::PluginInstrument { id, .. } => *id,
+                    _ => 0,
+                };
+                return format!(
+                    "{plugin} \u{b7} {}",
+                    tf("ctl.target.plugin_param", &[("n", &id)])
+                );
+            }
+        }
+        self.mapping_target_name(&m.target)
+    }
+
     /// A target in words, for the mappings view, the status line and the menus.
     pub fn mapping_target_name(&self, target: &MappingTarget) -> String {
         let p = self.project();
@@ -416,12 +516,18 @@ impl CantusApp {
             MappingTarget::StripMute(id) => two(strip(*id), t("ctl.desk.mute")),
             MappingTarget::StripSolo(id) => two(strip(*id), t("ctl.desk.solo")),
             MappingTarget::EffectBypass(id) => two(effect(*id), t("ctl.target.bypass")),
+            MappingTarget::StripFx(id) if id.is_master() => {
+                two(t("mixer.master"), t("ctl.desk.fx"))
+            }
+            MappingTarget::StripFx(id) => two(strip(*id), t("ctl.desk.fx")),
+            MappingTarget::StripArm(id) => two(strip(*id), t("ctl.desk.arm")),
             MappingTarget::EffectMix(id) => two(effect(*id), t("ctl.target.mix")),
             MappingTarget::Tempo => t("ctl.target.tempo"),
             // An action by its own group, as *Add a mapping* offers it (review 2, #43).
             MappingTarget::Action(id) => match crate::keymap::Action::from_id(id) {
                 Some(a) => two(t(a.category().label_key()), t(&a.label_key())),
-                None => two(t("ctl.target.action"), id.clone()),
+                // An action this build does not know: no group to name it by (review 3, #49).
+                None => two(t("ctl.target.unknown_action"), id.clone()),
             },
             MappingTarget::SelectedTrack(d) => two(t("ctl.target.selected_track"), desk_text(*d)),
             MappingTarget::SelectedStrip(d) => two(t("ctl.target.selected_strip"), desk_text(*d)),
@@ -454,6 +560,17 @@ impl CantusApp {
                 .map(|m| (Scope::Global, m.clone())),
         );
         out
+    }
+
+    /// Whether a controller drives a target `is` says yes to — asked without building the
+    /// target (a control drawn every frame allocates nothing, review 3, #51).
+    pub fn is_mapped_where(&self, is: impl Fn(&MappingTarget) -> bool) -> bool {
+        let p = self.project();
+        p.controllers
+            .mappings
+            .iter()
+            .any(|m| is(&m.target) && m.fits(p))
+            || self.controllers.global.mappings.iter().any(|m| is(&m.target))
     }
 
     /// Whether a controller drives `target`.
@@ -746,9 +863,12 @@ impl CantusApp {
             return Some(target.clone());
         }
         let (track, strip, device) = self.controller_focus();
+        // The master chosen on the desk is the selected strip too (review 3, #7).
+        let master = strip.is_none() && self.inspector.follows_master();
         target.resolve(&Focus {
             track,
             strip,
+            master,
             device: &device,
         })
     }
@@ -916,11 +1036,13 @@ pub fn learn_spot_in(
     target: MappingTarget,
 ) -> bool {
     let shown = rect.intersect(clip).intersect(ui.clip_rect());
-    if crate::kit::automate::probe::noting_learn() {
-        crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
-    }
     if shown.width() <= 0.0 || shown.height() <= 0.0 || !ui.is_rect_visible(shown) {
         return false;
+    }
+    // Noted where it is offered: shown, in the learn mode or wearing its mark (review 3,
+    // #36 — never a flag that is true whatever the control does).
+    if crate::kit::automate::probe::noting_learn() {
+        crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
     }
     let offer = app.learn_offer(&target);
     if !app.controllers.learn_mode {
@@ -997,10 +1119,34 @@ pub fn stepped_inst(
     key: &str,
     resp: &egui::Response,
 ) -> bool {
-    if !spec.kind.automatable(key) {
+    stepped_inst_of(app, ui, track, spec.kind, key, resp)
+}
+
+/// [`stepped_inst`] knowing only the instrument's kind.
+pub fn stepped_inst_of(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    track: cantus_core::TrackId,
+    kind: cantus_core::InstrumentKind,
+    key: &str,
+    resp: &egui::Response,
+) -> bool {
+    if !kind.automatable(key) {
         return false;
     }
-    let default = spec.kind.param(key).map(|i| i.default);
+    // Nothing of learn to show and no menu asked for: no target built (review 3, #51).
+    let idle = !app.controllers.learn_mode
+        && !resp.secondary_clicked()
+        && !egui::Popup::is_any_open(ui.ctx())
+        && !crate::kit::automate::probe::noting_learn()
+        && !app.is_mapped_where(|t| {
+            matches!(t, MappingTarget::Param(AutoTarget::Instrument { track: tr, key: k })
+                if *tr == track && k == key)
+        });
+    if idle {
+        return false;
+    }
+    let default = kind.param(key).map(|i| i.default);
     stepped_param(
         app,
         ui,
@@ -1095,6 +1241,9 @@ pub fn strip_learn_target(id: cantus_core::StripId, what: u8) -> Option<MappingT
         2 => MappingTarget::Param(A::StripWidth(id)),
         3 if !master => MappingTarget::StripMute(id),
         4 if !master => MappingTarget::StripSolo(id),
+        // The effects switch and the record arm (review 3, #46).
+        5 => MappingTarget::StripFx(id),
+        6 if !master => MappingTarget::StripArm(id),
         _ => return None,
     })
 }
@@ -1122,23 +1271,37 @@ pub(crate) fn decode(
     match ev.status & 0xF0 {
         0xB0 => {
             let first = (Control::Cc(d1), u16::from(d2), true);
+            let gap = |t: Option<Instant>| t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
             if d1 < 32 {
                 let e = wide.entry((port, ch, d1)).or_default();
                 e.msb = d2;
                 e.msb_at = Some(at);
-                if e.lsb_at
-                    .take()
-                    .is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP)
-                {
-                    // Its fine half came first, a moment ago: the pair is whole now.
-                    e.lsb_first = true;
-                    e.pending = None;
-                    let v = u16::from(d2) << 7 | u16::from(e.lsb);
-                    (ch, [first, (Control::Cc14(d1), v, true)], 2)
+                let pair = |e: &Wide| u16::from(e.msb) << 7 | u16::from(e.lsb);
+                if e.lsb_first {
+                    // A fine-first controller: its waiting fine half and this are the pair;
+                    // alone, MIDI resets the fine half.
+                    if e.pending_lsb.take().is_none() {
+                        e.lsb = 0;
+                    }
+                    (ch, [first, (Control::Cc14(d1), pair(e), true)], 2)
+                } else if gap(e.lsb_at.take()) {
+                    // A fine half came alone just before: once, a coincidence (a fine-only
+                    // update before a coarse change); many times in a row, the order this
+                    // controller sends in.
+                    e.fine_first_seen = e.fine_first_seen.saturating_add(1);
+                    if e.fine_first_seen >= FINE_FIRST {
+                        e.lsb_first = true;
+                        e.pending = None;
+                        (ch, [first, (Control::Cc14(d1), pair(e), true)], 2)
+                    } else {
+                        e.lsb = 0;
+                        e.pending = Some(at);
+                        (ch, [first, none], 1)
+                    }
                 } else if e.lsb_seen {
                     // Its fine half follows: the pair is read then, never half-made
-                    // (review 1, #9) — or, if it does not come in this burst, with a fine 0
-                    // (`wide_alone`).
+                    // (review 1, #9) — or, if it does not come within PAIR_GAP, with a fine
+                    // 0 (`wide_alone`).
                     e.lsb = 0;
                     e.pending = Some(at);
                     (ch, [first, none], 1)
@@ -1152,18 +1315,28 @@ pub(crate) fn decode(
                 let e = wide.entry((port, ch, d1 - 32)).or_default();
                 e.lsb_seen = true;
                 e.lsb = d2;
-                // The second half of a pair, or a fine half alone (its coarse half the same,
-                // or about to come: a controller that sends its fine half first).
-                let after_coarse = e.pending.take().is_some()
-                    || e.msb_at
-                        .is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
-                e.lsb_at = if after_coarse && !e.lsb_first {
-                    None
+                // Its coarse half a moment ago (never one left waiting long before).
+                let after_coarse = gap(e.pending.take()) || gap(e.msb_at);
+                if after_coarse {
+                    // The second half of a pair sent coarse half first: this controller is
+                    // not fine-first, whatever it looked like.
+                    e.lsb_first = false;
+                    e.fine_first_seen = 0;
+                    e.lsb_at = None;
+                    e.pending_lsb = None;
+                    let v = u16::from(e.msb) << 7 | u16::from(d2);
+                    (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
+                } else if e.lsb_first {
+                    // A fine-first controller's fine half: it waits for its coarse half.
+                    e.pending_lsb = Some(at);
+                    (ch, [first, none], 1)
                 } else {
-                    Some(at)
-                };
-                let v = u16::from(e.msb) << 7 | u16::from(d2);
-                (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
+                    // A fine half alone: its coarse half the same (MIDI lets a sender leave
+                    // it out), read now.
+                    e.lsb_at = Some(at);
+                    let v = u16::from(e.msb) << 7 | u16::from(d2);
+                    (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
+                }
             } else {
                 (ch, [first, none], 1)
             }

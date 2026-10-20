@@ -103,11 +103,16 @@ impl CantusApp {
 
     /// What the tap heard, in order (the tests drive this directly).
     pub fn controller_heard(&mut self, heard: &[Heard]) {
+        self.follow_project();
         self.note_playhead();
         // A gesture idle since before these messages came is sealed first: by their time,
         // not the frame's (review 1, #3).
         self.seal_idle_gesture(heard.first().map_or_else(Instant::now, |h| h.at));
         let mut pending: Vec<Pending> = Vec::new();
+        // A 14-bit half left waiting past PAIR_GAP before this burst is read alone first:
+        // the burst's halves are new pairs.
+        let first = heard.first().map_or_else(Instant::now, |h| h.at);
+        self.drive_wide_alone(first, &mut pending);
         for h in heard {
             // Feedback come back (a loopback port, an echoing device): neither a move nor
             // the control being learnt (review 2, #4).
@@ -120,25 +125,46 @@ impl CantusApp {
                 self.drive_heard(h, &mut pending);
             }
         }
-        // A 14-bit pair's coarse half alone, its fine half not in the burst: the fine half
-        // is 0 (MIDI's rule), the pair is read now (review 2, #5).
-        let alone = crate::controllers::wide_alone(&mut self.controllers.wide);
-        if self.controllers.learning.is_none() {
-            for (port, channel, n, value, at) in alone {
-                let control = cantus_core::controller::Control::Cc14(n);
-                self.drive_decoded(
-                    port,
-                    channel,
-                    &[control],
-                    &[(control, value, true)],
-                    at,
-                    &mut pending,
-                );
-            }
-        }
+        // A 14-bit pair's half alone a moment ([`crate::controllers::PAIR_GAP`]): its
+        // partner is not coming — a coarse half is read with a fine 0 (MIDI's rule), a
+        // fine-first controller's fine half with its coarse half as it stands (review 2,
+        // #5; review 3: never one frame early, when the partner is a moment away).
+        let now = heard.iter().map(|h| h.at).max().unwrap_or_else(Instant::now);
+        let now = now.max(Instant::now());
+        self.drive_wide_alone(now, &mut pending);
         self.learn_tick();
         let last = heard.iter().map(|h| h.at).max();
         self.apply_moves(pending, last);
+    }
+
+    /// Another project in this one's place (opened, new, a demo, recovered): a learn armed
+    /// for the last one lets go, and what the session kept by mapping id — takeover,
+    /// feedback sent, activity, the gesture — starts again (review 3, #25).
+    fn follow_project(&mut self) {
+        if self.controllers.epoch == self.epoch {
+            return;
+        }
+        self.controllers.epoch = self.epoch;
+        if self.controllers.learning.is_some() {
+            self.cancel_learning();
+        }
+        self.controllers.states.clear();
+        self.controllers.sent.clear();
+        self.controllers.activity.clear();
+        self.controllers.gesture = Gesture::default();
+    }
+
+    /// The 14-bit halves that have waited [`crate::controllers::PAIR_GAP`] by `now`, read
+    /// alone and driven.
+    fn drive_wide_alone(&mut self, now: Instant, pending: &mut Vec<Pending>) {
+        let alone = crate::controllers::wide_alone(&mut self.controllers.wide, now);
+        if self.controllers.learning.is_some() {
+            return;
+        }
+        for (port, channel, n, value, at) in alone {
+            let control = cantus_core::controller::Control::Cc14(n);
+            self.drive_decoded(port, channel, &[control], &[(control, value, true)], at, pending);
+        }
     }
 
     /// The playhead's wraps: a loop that came round since a message was heard puts it at
@@ -177,6 +203,14 @@ impl CantusApp {
         if let Some(l) = self.controllers.gesture.last {
             due.push(l + GESTURE_IDLE);
         }
+        // A 14-bit half waiting for its partner.
+        due.extend(
+            self.controllers
+                .wide
+                .values()
+                .filter_map(|w| w.pending.or(w.pending_lsb))
+                .map(|t| t + crate::controllers::PAIR_GAP),
+        );
         if let Some(l) = &self.controllers.learning {
             match l.first {
                 Some(f) => due.push(
@@ -216,6 +250,29 @@ impl CantusApp {
         }
     }
 
+    /// What `target`'s values are, for a controller (review 3, #0, #1): a switch (two
+    /// states: a mute, an LED, a band's On, a hosted on/off), the steps a stepped one moves
+    /// through, else a range.
+    pub fn target_shape(&self, target: &MappingTarget) -> cantus_core::controller::Steps {
+        use cantus_core::controller::Steps;
+        match target {
+            MappingTarget::Param(a) if a.is_plugin() => {
+                self.hosted_param_info(a).map_or(Steps::default(), |i| {
+                    Steps::of_range(i.stepped, i.min, i.max)
+                })
+            }
+            MappingTarget::Param(a) => cantus_core::automation::range::range_of(self.project(), a)
+                .map_or(Steps::default(), |r| {
+                    Steps::of_range(r.stepped, f64::from(r.min), f64::from(r.max))
+                }),
+            t if t.is_switch() => Steps {
+                switch: true,
+                steps: Some(1),
+            },
+            _ => Steps::default(),
+        }
+    }
+
     /// A hosted parameter's description when its plug-in is loaded. Allocates nothing:
     /// asked every frame for the filter's signature (review 2, #30).
     pub fn hosted_param_info(&self, a: &AutoTarget) -> Option<&cantus_host::ParamInfo> {
@@ -236,6 +293,17 @@ impl CantusApp {
         }
     }
 
+    /// A hosted parameter's own words for `value` (the loaded plug-in's), when it has them.
+    pub fn hosted_param_text(&self, a: &AutoTarget, id: u32, value: f64) -> Option<String> {
+        match a {
+            AutoTarget::Plugin { effect, .. } => self.plugins.hosted(*effect)?.param_text(id, value),
+            AutoTarget::PluginInstrument { track, .. } => {
+                self.plugins.hosted_instrument(*track)?.param_text(id, value)
+            }
+            _ => None,
+        }
+    }
+
     /// The frozen sound that refuses a change of `a` (a hosted parameter whose plug-in rests
     /// while its track or strip is frozen).
     fn frozen_refusal(&self, a: &AutoTarget) -> Option<cantus_core::freeze::FreezeTarget> {
@@ -250,23 +318,65 @@ impl CantusApp {
     pub fn mapping_state(&self, scope: Scope, m: &Mapping) -> Option<crate::controllers::Idle> {
         use crate::controllers::Idle;
         let p = self.project();
+        // An action this build does not know (renamed, removed, a later Cantus's).
+        if let MappingTarget::Action(id) = &m.target {
+            if crate::keymap::Action::from_id(id).is_none() {
+                return Some(Idle::Missing);
+            }
+        }
         if !m.target.exists(p) {
             return Some(Idle::Missing);
         }
         if scope == Scope::Project && !m.fits(p) {
             return Some(Idle::OtherPlugin);
         }
-        match &m.target {
-            MappingTarget::Param(a) if a.is_plugin() && self.hosted_param_info(a).is_none() => {
-                Some(if self.frozen_refusal(a).is_some() {
-                    Idle::Frozen
-                } else if self.plugins_loaded_at(a) {
-                    Idle::Missing
-                } else {
-                    Idle::NotLoaded
-                })
+        // Its port is not open here (unplugged, another machine): dim, review 3, #45.
+        if !m.source.port.is_any() && m.source.port.index_in(&self.midi_port_names).is_none() {
+            return Some(Idle::NotConnected);
+        }
+        if let MappingTarget::Param(a) = &m.target {
+            if a.is_plugin() {
+                if self.hosted_param_info(a).is_none() {
+                    return Some(if self.frozen_refusal(a).is_some() {
+                        Idle::Frozen
+                    } else if self.plugins_loaded_at(a) {
+                        Idle::Missing
+                    } else {
+                        Idle::NotLoaded
+                    });
+                }
+                // Loaded, but crashed: it plays nothing until it is reloaded (review 3, #57).
+                if self.hosted_crashed(a) {
+                    return Some(Idle::NotLoaded);
+                }
             }
-            _ => None,
+        }
+        // Any target a frozen sound refuses (review 3, #8).
+        if p.any_frozen() {
+            let target = self.resolve_target(&m.target)?;
+            let pos = self.controller_pos(&target).unwrap_or(0.0);
+            if let Some(cmd) = self.target_command(&target, pos) {
+                if cantus_core::freeze::refuses(p, &cmd).is_some() {
+                    return Some(Idle::Frozen);
+                }
+            }
+        }
+        None
+    }
+
+    /// Whether the hosted plug-in at `a`'s place crashed (it is kept, silent, until it is
+    /// reloaded).
+    fn hosted_crashed(&self, a: &AutoTarget) -> bool {
+        match a {
+            AutoTarget::Plugin { effect, .. } => self
+                .plugins
+                .hosted(*effect)
+                .is_some_and(|h| h.crashed().is_some()),
+            AutoTarget::PluginInstrument { track, .. } => self
+                .plugins
+                .hosted_instrument(*track)
+                .is_some_and(|h| h.crashed().is_some()),
+            _ => false,
         }
     }
 
@@ -354,10 +464,15 @@ impl CantusApp {
         }
     }
 
-    /// Say once per gesture that a frozen sound refused one of its targets.
+    /// Say once per gesture that a frozen sound refused one of its targets. The refusal
+    /// counts as the gesture's move: the gesture ends after [`GESTURE_IDLE`] without one,
+    /// and the next turn is said again (review 3, #20).
     fn refused_by_freeze(&mut self, t: cantus_core::freeze::FreezeTarget) {
-        if !self.controllers.gesture.refused.contains(&t) {
-            self.controllers.gesture.refused.push(t);
+        let now = Instant::now();
+        let g = &mut self.controllers.gesture;
+        g.last = Some(g.last.map_or(now, |l| l.max(now)));
+        if !g.refused.contains(&t) {
+            g.refused.push(t);
             crate::freeze::refused(self, t);
         }
     }
@@ -383,7 +498,8 @@ impl CantusApp {
             .map(|p| p.pos)
             .or_else(|| self.controller_pos(&target));
         let mut st = self.controllers.states.remove(&key).unwrap_or_default();
-        let drive = m.read(value, on, current, &mut st);
+        let shape = self.target_shape(&target);
+        let drive = m.read_in(value, on, current, &mut st, shape);
         self.controllers.states.insert(key, st);
         match drive {
             Drive::Fire => {
@@ -480,7 +596,19 @@ impl CantusApp {
             Action::ArmTrack => selected_track.is_some_and(|t| t.armed),
             Action::ToggleStripMute => selected_strip.is_some_and(|s| s.muted),
             Action::ToggleStripSolo => selected_strip.is_some_and(|s| s.soloed),
-            _ => return None,
+            // The learn mode (the top bar's MIDI lamp) and every area the View menu checks
+            // (review 3, #48).
+            Action::MidiLearnMode => self.controllers.learn_mode,
+            a => match crate::views::transport::menus::pane_of(a) {
+                Some(pane) => self.workspace.contains(pane),
+                None => match a {
+                    Action::ToggleInstrumentWindow => self
+                        .selected_track
+                        .is_some_and(|t| self.instrument_window_open(t)),
+                    Action::ShowTakes => selected_track.is_some_and(|t| t.takes_open),
+                    _ => return None,
+                },
+            },
         }))
     }
 
@@ -495,9 +623,20 @@ impl CantusApp {
     /// Whether a pass is recording `target`'s automation (a controller or the mouse moved
     /// it during the pass): it then follows what moves it, not its clip.
     pub fn latched(&self, target: &AutoTarget) -> bool {
-        self.rec.pass.is_some()
-            && self.project().recording.record_automation
-            && self.modulators.rec.points.contains_key(target)
+        self.recording_latches() && self.modulators.rec.points.contains_key(target)
+    }
+
+    /// Whether a recording pass latches what it records now: not before the pass, nor past
+    /// the punch-out, where nothing is written (review 3, #16).
+    fn recording_latches(&self) -> bool {
+        let Some(live) = self.rec.pass.as_ref() else {
+            return false;
+        };
+        let past = live
+            .plan
+            .punch
+            .is_some_and(|(_, out)| self.engine.position() > out);
+        self.project().recording.record_automation && !past
     }
 
     /// The command that puts `target` at `pos`.
@@ -721,10 +860,7 @@ impl CantusApp {
     /// holds the project's value — the controller's newest — until the pass ends and the
     /// recorded clip takes over. Nothing changes outside a recording pass.
     pub fn latch_recorded(&self, snapshot: &mut std::sync::Arc<cantus_core::Snapshot>) {
-        if self.rec.pass.is_none()
-            || !self.project().recording.record_automation
-            || self.modulators.rec.points.is_empty()
-        {
+        if !self.recording_latches() || self.modulators.rec.points.is_empty() {
             return;
         }
         let touched = |t: &AutoTarget| self.modulators.rec.points.contains_key(t);

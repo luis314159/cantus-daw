@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 38;
+pub const SCHEMA_VERSION: u32 = 39;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -235,6 +235,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_35_to_36,
     migrate_36_to_37,
     migrate_37_to_38,
+    migrate_38_to_39,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -849,6 +850,14 @@ fn migrate_37_to_38(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 39 (round 29, ADR 0062 review 3): a controller mapping may drive a strip's
+/// effects switch (`MappingTarget::StripFx`) or its record arm (`StripArm`) — the mixer's FX
+/// bulb and record dot. Nothing to write: a v38 map has neither. An older build must
+/// refuse a v39 file, or it would drop those mappings as unreadable.
+fn migrate_38_to_39(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// What schema 31 read of a clip to tell a comp window: its lane, its stretch of the
 /// timeline, what it shows and that content's origin on the timeline.
 #[derive(Copy, Clone, PartialEq)]
@@ -1042,7 +1051,8 @@ mod tests {
         let text = std::fs::read_to_string(dir.join(newest)).unwrap();
         let p = parse(&text, true).unwrap().file.project;
         let maps = &p.controllers.mappings;
-        assert_eq!(maps.len(), 7);
+        // Seven since schema 35 (later schemas add their own after them).
+        assert!(maps.len() >= 7, "{}", maps.len());
         let knob = &maps[0];
         assert_eq!(knob.source.port.name, "Keystation 49");
         assert_eq!(knob.source.control, Control::Cc(74));
@@ -1069,7 +1079,7 @@ mod tests {
         assert!(maps[6].fits(&p));
         let v35 = std::fs::read_to_string(dir.join("v35.cantus")).unwrap();
         let p35 = parse(&v35, true).unwrap().file.project;
-        assert_eq!(p35.controllers, p.controllers);
+        assert_eq!(p35.controllers.mappings[..], p.controllers.mappings[..7]);
         let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
         assert!(parse(&old, true)
             .unwrap()
@@ -1956,6 +1966,23 @@ mod freeze_tests {
         // Re-keyed on load when its subject was an older one's: what it holds now.
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
+    }
+
+    /// Schema 39 (round 29, ADR 0062 review 3): the strip's effects switch and record arm
+    /// are mapped; a v38 map has neither.
+    #[test]
+    fn schema_39_keeps_the_strip_switch_mappings() {
+        use cantus_core::controller::MappingTarget;
+        let p = fixture("v39.cantus");
+        let targets: Vec<&MappingTarget> =
+            p.controllers.mappings.iter().map(|m| &m.target).collect();
+        assert!(targets.iter().any(|t| matches!(t, MappingTarget::StripFx(_))));
+        assert!(targets.iter().any(|t| matches!(t, MappingTarget::StripArm(_))));
+        assert!(!fixture("v38.cantus")
+            .controllers
+            .mappings
+            .iter()
+            .any(|m| matches!(m.target, MappingTarget::StripFx(_) | MappingTarget::StripArm(_))));
     }
 
     /// Schema 38 (round 29, review 2): a bounced track keeps its lateness; a v37 track has

@@ -749,25 +749,36 @@ pub fn sample_card(
     let mode = (z.get(zf::MODE) as usize).min(3);
     let looping = mode >= 2;
     let modes: Vec<Src<'_>> = LOOP_MODES.iter().map(|k| Src::Key(k)).collect();
-    if let Some(i) = parts::seg(
+    // The zone's stepped fields are parameters: their menus, marks, the learn mode
+    // (round 29, review 3 of ADR 0062, #35).
+    let zkey = |f: usize| format!("z{n}.{}", model::zone_field_name(f));
+    if let Some(i) = parts::seg_key(
+        app,
         ui,
         row(0, body.left(), split),
         s,
         mode,
         &modes,
         &t("smp.loop_mode"),
+        track,
+        spec,
+        &zkey(zf::MODE),
     ) {
         set_fields(app, track, spec, n, &[(zf::MODE, i as f32)], false);
     }
     let dirs: Vec<Src<'_>> = LOOP_DIRS.iter().map(|k| Src::Key(k)).collect();
     let dir = (z.get(zf::DIR) as usize).min(2);
-    if let Some(i) = parts::seg(
+    if let Some(i) = parts::seg_key(
+        app,
         ui,
         row(1, body.left(), split),
         s,
         dir,
         &dirs,
         &t("smp.loop_dir"),
+        track,
+        spec,
+        &zkey(zf::DIR),
     ) {
         set_fields(app, track, spec, n, &[(zf::DIR, i as f32)], false);
     }
@@ -775,7 +786,9 @@ pub fn sample_card(
     let rev_w = r2.width() * 0.36;
     let rev = z.get(zf::REV) >= 0.5;
     let rr = Rect::from_min_size(r2.min, vec2(rev_w - 4.0 * k, h));
-    if parts::led(ui, rr, s, rev, Src::Key("smp.reverse"), &t("smp.reverse")).clicked() {
+    let rev_resp = parts::led(ui, rr, s, rev, Src::Key("smp.reverse"), &t("smp.reverse"));
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::REV), &rev_resp);
+    if rev_resp.clicked() && !learning {
         set_fields(
             app,
             track,
@@ -788,7 +801,18 @@ pub fn sample_card(
     let curves = [Src::Key("smp.xf_linear"), Src::Key("smp.xf_power")];
     let cr2 = Rect::from_min_max(pos2(r2.left() + rev_w, r2.top()), r2.max);
     let power = (z.get(zf::LXC) >= 0.5) as usize;
-    if let Some(i) = parts::seg(ui, cr2, s, power, &curves, &t("smp.loop_xf_curve")) {
+    if let Some(i) = parts::seg_key(
+        app,
+        ui,
+        cr2,
+        s,
+        power,
+        &curves,
+        &t("smp.loop_xf_curve"),
+        track,
+        spec,
+        &zkey(zf::LXC),
+    ) {
         set_fields(app, track, spec, n, &[(zf::LXC, i as f32)], false);
     }
     let frames = audio.frames() as f32;

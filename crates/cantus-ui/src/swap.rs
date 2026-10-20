@@ -321,6 +321,49 @@ impl CantusApp {
 
     /// The commands that point the automation of `old`'s parameters at `new`, for every
     /// parameter the new kind also has (by key).
+    /// The project's controller mappings on the old slot, pointed at the new one: its
+    /// bypass and mix (which the swap keeps), a native parameter the new kind also has, and
+    /// a hosted parameter — learnt on the old plug-in, so its row says *Other plug-in* and
+    /// its control is free until learnt again (an undo of the swap brings it back).
+    fn retarget_mappings(
+        &self,
+        old: EffectId,
+        new: EffectId,
+        kind: cantus_core::EffectKind,
+    ) -> Vec<Command> {
+        use cantus_core::controller::MappingTarget as T;
+        use cantus_core::AutoTarget as A;
+        let p = self.project();
+        let mut out = Vec::new();
+        for m in &p.controllers.mappings {
+            let target = match &m.target {
+                T::EffectBypass(e) if *e == old => T::EffectBypass(new),
+                T::EffectMix(e) if *e == old => T::EffectMix(new),
+                T::Param(A::Effect { effect, key }) if *effect == old && kind.param(key).is_some() => {
+                    T::Param(A::Effect {
+                        effect: new,
+                        key: key.clone(),
+                    })
+                }
+                T::Param(A::Plugin { effect, id }) if *effect == old => T::Param(A::Plugin {
+                    effect: new,
+                    id: *id,
+                }),
+                _ => continue,
+            };
+            let mut moved = m.clone();
+            // A hosted mapping keeps the plug-in it was learnt on.
+            if moved.plugin.is_none() {
+                moved.plugin = m.target.plugin_of(p);
+            }
+            moved.target = target;
+            out.push(Command::SetMapping {
+                mapping: Box::new(moved),
+            });
+        }
+        out
+    }
+
     fn retarget_automation(
         &self,
         old: EffectId,
@@ -403,7 +446,9 @@ impl CantusApp {
         // Automation follows the slot (ADR 0027): a lane on a parameter the new kind also
         // has is pointed at the new effect in the same undo step; one on a parameter it
         // lacks keeps its clips and goes quiet.
-        let retarget = self.retarget_automation(effect, new_id, kind);
+        let mut retarget = self.retarget_automation(effect, new_id, kind);
+        // The controllers follow the slot too (round 29, review 3 of ADR 0062, #54).
+        retarget.extend(self.retarget_mappings(effect, new_id, kind));
         let swap = |slot: &EffectSlot| {
             let mut commands = vec![Command::ReplaceEffect {
                 strip,

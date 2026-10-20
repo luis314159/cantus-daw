@@ -197,6 +197,9 @@ pub fn seg_key(
         .name(name)
         .style(*s)
         .show_at(ui, rect);
+    app.controllers
+        .inst_words
+        .note(spec.kind, key, || crate::controllers_words::srcs(labels));
     let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     chosen.filter(|_| !learning)
 }

@@ -242,6 +242,13 @@ struct TapShared {
     /// What a full ring could not take, the newest per address (review 2, #16): a stalled
     /// interface still gets a control's final value and a pad's release.
     overflow: Box<[AtomicU32]>,
+    /// Each slot's arrival: the order among them (`seq`) and the time since `epoch`, so
+    /// the table hands them over in the order and at the times they came (review 3, #11,
+    /// #22).
+    overflow_seq: Box<[AtomicU64]>,
+    overflow_at: Box<[AtomicU64]>,
+    seq: AtomicU64,
+    epoch: Instant,
     overflowed: AtomicBool,
 }
 
@@ -249,12 +256,18 @@ struct TapShared {
 const OVERFLOW_SLOTS: usize = 1024;
 
 fn overflow_slot(port: usize, ev: &MidiEvent) -> usize {
-    // Notes on and off share their address (a release replaces its press).
+    // Notes on and off share their address (a release replaces its press); the pitch
+    // wheel and channel pressure have one per channel — their first byte is their value
+    // (review 3, #10).
     let kind = match ev.status & 0xF0 {
         0x80 => 0x90,
         k => k,
     };
-    let key = (port as u32) << 16 | u32::from(kind | (ev.status & 0x0F)) << 8 | u32::from(ev.data1);
+    let number = match kind {
+        0xD0 | 0xE0 => 0,
+        _ => u32::from(ev.data1),
+    };
+    let key = (port as u32) << 16 | u32::from(kind | (ev.status & 0x0F)) << 8 | number;
     (key.wrapping_mul(0x9E37_79B1) >> 22) as usize % OVERFLOW_SLOTS
 }
 
@@ -313,6 +326,10 @@ impl MidiTap {
                 stop,
                 pending: AtomicBool::new(false),
                 overflow: (0..OVERFLOW_SLOTS).map(|_| AtomicU32::new(0)).collect(),
+                overflow_seq: (0..OVERFLOW_SLOTS).map(|_| AtomicU64::new(0)).collect(),
+                overflow_at: (0..OVERFLOW_SLOTS).map(|_| AtomicU64::new(0)).collect(),
+                seq: AtomicU64::new(0),
+                epoch: Instant::now(),
                 overflowed: AtomicBool::new(false),
             }),
         }
@@ -350,39 +367,61 @@ impl MidiTap {
         self.shared.pending.swap(false, Ordering::AcqRel)
     }
 
-    /// Keep `ev` from `port`, which a full ring could not take: the newest per address.
-    fn overflow(&self, port: usize, ev: &MidiEvent) {
+    /// Whether messages are parked: then what comes next is parked too, never handed over
+    /// before what came first (review 3, #11).
+    fn parking(&self) -> bool {
+        self.shared.overflowed.load(Ordering::Acquire)
+    }
+
+    /// Keep `ev` from `port`, which a full ring could not take: the newest per address,
+    /// with its arrival's order and time.
+    fn overflow(&self, port: usize, ev: &MidiEvent, at: Instant) {
         let packed = 1 << 31
             | (port.min(127) as u32) << 24
             | u32::from(ev.status) << 16
             | u32::from(ev.data1 & 0x7F) << 8
             | u32::from(ev.data2 & 0x7F);
-        self.shared.overflow[overflow_slot(port, ev)].store(packed, Ordering::Release);
-        self.shared.overflowed.store(true, Ordering::Release);
+        let i = overflow_slot(port, ev);
+        let sh = &self.shared;
+        let seq = sh.seq.fetch_add(1, Ordering::Relaxed);
+        let nanos = at.saturating_duration_since(sh.epoch).as_nanos() as u64;
+        sh.overflow_seq[i].store(seq, Ordering::Relaxed);
+        sh.overflow_at[i].store(nanos, Ordering::Relaxed);
+        sh.overflow[i].store(packed, Ordering::Release);
+        sh.overflowed.store(true, Ordering::Release);
     }
 
-    /// What full rings could not take since the last call, the newest per address, as
-    /// heard now (after the rings' messages). Interface thread.
+    /// What full rings could not take since the last call, the newest per address, in the
+    /// order and at the times they came (after the rings' messages, which are older).
+    /// Interface thread.
     pub fn take_overflow(&self, out: &mut Vec<Heard>) {
         if !self.shared.overflowed.swap(false, Ordering::AcqRel) {
             return;
         }
-        let at = Instant::now();
-        for slot in self.shared.overflow.iter() {
+        let sh = &self.shared;
+        let mut taken: Vec<(u64, Heard)> = Vec::new();
+        for (i, slot) in sh.overflow.iter().enumerate() {
             let v = slot.swap(0, Ordering::AcqRel);
             if v & 1 << 31 == 0 {
                 continue;
             }
-            out.push(Heard {
-                port: (v >> 24 & 0x7F) as u8,
-                event: MidiEvent {
-                    status: (v >> 16) as u8,
-                    data1: (v >> 8 & 0x7F) as u8,
-                    data2: (v & 0x7F) as u8,
+            let at = sh.epoch
+                + std::time::Duration::from_nanos(sh.overflow_at[i].load(Ordering::Relaxed));
+            taken.push((
+                sh.overflow_seq[i].load(Ordering::Relaxed),
+                Heard {
+                    port: (v >> 24 & 0x7F) as u8,
+                    event: MidiEvent {
+                        status: (v >> 16) as u8,
+                        data1: (v >> 8 & 0x7F) as u8,
+                        data2: (v & 0x7F) as u8,
+                    },
+                    at,
                 },
-                at,
-            });
+            ));
         }
+        taken.sort_by_key(|(seq, _)| *seq);
+        out.extend(taken.into_iter().map(|(_, h)| h));
     }
 }
 
@@ -393,15 +432,18 @@ impl MidiTap {
 #[derive(Clone, Debug, Default)]
 pub struct PortState {
     notes: [[u64; 2]; 16],
-    /// The sustain (64) and sostenuto (66) pedals down, per channel.
-    pedal: [[bool; 2]; 16],
+    /// The sustain (64), sostenuto (66) and soft (67) pedals anywhere but up, per channel
+    /// (a half pedal holds a continuous piano half damped).
+    pedal: [[bool; 3]; 16],
 }
 
-/// The pedal a controller number is: 0 sustain, 1 sostenuto.
+/// The pedal a controller number is: 0 sustain, 1 sostenuto, 2 soft (Chorda's una
+/// corda, review 3, #13).
 fn pedal_of(cc: u8) -> Option<usize> {
     match cc {
         64 => Some(0),
         66 => Some(1),
+        67 => Some(2),
         _ => None,
     }
 }
@@ -426,11 +468,10 @@ impl PortState {
             0x90 if ev.data2 > 0 => self.notes[ch][w] |= b,
             0x80 | 0x90 => self.notes[ch][w] &= !b,
             0xB0 => match (pedal_of(ev.data1), ev.data1) {
-                (Some(p), _) => self.pedal[ch][p] = ev.data2 >= 64,
-                // All sound off, all notes off: nothing held any more.
+                (Some(p), _) => self.pedal[ch][p] = ev.data2 > 0,
+                // All sound off, all notes off: nothing held any more. (Reset all
+                // controllers is not: the native instruments ignore it, review 3, #12.)
                 (None, 120 | 123) => self.notes[ch] = [0; 2],
-                // Reset all controllers: the pedals are up.
-                (None, 121) => self.pedal[ch] = [false; 2],
                 _ => {}
             },
             _ => {}
@@ -443,7 +484,9 @@ impl PortState {
         match ev.status & 0xF0 {
             0x80 => self.holds(ev.status & 15, ev.data1),
             0x90 if ev.data2 == 0 => self.holds(ev.status & 15, ev.data1),
-            0xB0 => pedal_of(ev.data1).is_some_and(|p| ev.data2 < 64 && self.pedal[ch][p]),
+            // Any taken message of a pedal the engine holds (fully or half down): the engine
+            // gets it fully up, once.
+            0xB0 => pedal_of(ev.data1).is_some_and(|p| self.pedal[ch][p]),
             _ => false,
         }
     }
@@ -475,16 +518,19 @@ pub fn route(
 ) -> bool {
     let consumed = tap.filter().learning() || tap.filter().takes(port, &ev);
     if consumed {
-        // A full ring (an interface stalled) keeps the newest per address aside.
-        if ui
-            .push(Heard {
-                port: port.min(u8::MAX as usize) as u8,
-                event: ev,
-                at: Instant::now(),
-            })
-            .is_err()
-        {
-            tap.overflow(port, &ev);
+        // A full ring (an interface stalled) keeps the newest per address aside; while
+        // anything is parked, what follows is parked behind it (review 3, #11).
+        let at = Instant::now();
+        let parked = tap.parking()
+            || ui
+                .push(Heard {
+                    port: port.min(u8::MAX as usize) as u8,
+                    event: ev,
+                    at,
+                })
+                .is_err();
+        if parked {
+            tap.overflow(port, &ev, at);
         }
         tap.wake();
         if state.releases(&ev) {
@@ -987,12 +1033,68 @@ mod tests {
             assert!(engine.pop().is_err(), "once");
             tap.filter().set_learning(false);
         }
+        // The native instruments ignore reset-all-controllers (review 3, #12): the pedal
+        // is still down after it, and its release, taken, still reaches the engine.
         route(ev(0xB0, 64, 127), 0, &tap, &sender, &mut ui, &mut held);
         route(ev(0xB0, 121, 0), 0, &tap, &sender, &mut ui, &mut held);
         while engine.pop().is_ok() {}
         tap.filter().set_learning(true);
         route(ev(0xB0, 64, 0), 0, &tap, &sender, &mut ui, &mut held);
-        assert!(engine.pop().is_err(), "reset let the pedal go already");
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 64, 0), "the release");
+        tap.filter().set_learning(false);
+        // A half pedal (review 3, #13): resting at 50, lifted while taken — fully up.
+        route(ev(0xB0, 64, 50), 0, &tap, &sender, &mut ui, &mut held);
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 64, 50));
+        tap.filter().set_learning(true);
+        route(ev(0xB0, 64, 30), 0, &tap, &sender, &mut ui, &mut held);
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 64, 0), "a half pedal let go");
+        tap.filter().set_learning(false);
+        // The soft pedal (Chorda's una corda) is kept too.
+        route(ev(0xB0, 67, 127), 0, &tap, &sender, &mut ui, &mut held);
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 67, 127));
+        tap.filter().set_learning(true);
+        route(ev(0xB0, 67, 0), 0, &tap, &sender, &mut ui, &mut held);
+        assert_eq!(engine.pop().unwrap(), ev(0xB0, 67, 0), "the soft pedal let go");
+    }
+
+    /// Review 3, #10, #11, #26: under a full ring, the pitch wheel and channel pressure end
+    /// at their last values (one address per channel, not one per value); what came after
+    /// the ring filled waits with what is parked, so a pad's release is never handed over
+    /// before its press; the parked messages come in the order and at the times they came.
+    #[test]
+    fn a_full_ring_keeps_order_and_the_last_bend_and_pressure() {
+        let (tap, sender, _engine) = rig();
+        let (mut ui, mut heard) = RingBuffer::<Heard>::new(2);
+        let mut held = PortState::default();
+        route(ev(0xB0, 1, 1), 0, &tap, &sender, &mut ui, &mut held);
+        route(ev(0xB0, 1, 2), 0, &tap, &sender, &mut ui, &mut held);
+        let t0 = Instant::now();
+        for v in [10u8, 90, 40, 64] {
+            route(ev(0xE0, v, v), 0, &tap, &sender, &mut ui, &mut held);
+        }
+        for v in [100u8, 30, 0] {
+            route(ev(0xD0, v, 0), 0, &tap, &sender, &mut ui, &mut held);
+        }
+        route(ev(0x90, 36, 100), 0, &tap, &sender, &mut ui, &mut held);
+        // The ring has room again (the interface popped one), but the table is not taken:
+        // what comes now waits behind it.
+        assert!(heard.pop().is_ok());
+        route(ev(0x80, 36, 0), 0, &tap, &sender, &mut ui, &mut held);
+        let mut out = Vec::new();
+        while let Ok(h) = heard.pop() {
+            out.push(h.event);
+        }
+        assert_eq!(out, vec![ev(0xB0, 1, 2)]);
+        let mut late = Vec::new();
+        tap.take_overflow(&mut late);
+        let events: Vec<MidiEvent> = late.iter().map(|h| h.event).collect();
+        assert_eq!(
+            events,
+            vec![ev(0xE0, 64, 64), ev(0xD0, 0, 0), ev(0x80, 36, 0)],
+            "the newest of each, in the order they came"
+        );
+        assert!(late.iter().all(|h| h.at >= t0), "at their own times");
+        assert!(late.windows(2).all(|w| w[0].at <= w[1].at));
     }
 
     /// Review 2, #16: a full ring keeps the newest value of each control: the drain hands

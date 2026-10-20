@@ -235,6 +235,11 @@ impl AudioHalf {
                 // and the main thread reports the plug-in's state changed — the project keeps
                 // the program as the state step it is (round 29, review 2 of ADR 0062, #52).
                 if let Some((id, norm)) = self.inst.midi_param(n.channel, status, data1, data2) {
+                    if status & 0xF0 == 0xC0 {
+                        self.inst
+                            .program_changed
+                            .store(true, std::sync::atomic::Ordering::Release);
+                    }
                     self.in_changes
                         .add(id, n.offset.min(last as u32) as i32, norm);
                     let seen = self.midi_ids[..self.midi_len].contains(&id);

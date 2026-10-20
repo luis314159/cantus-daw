@@ -32,7 +32,7 @@ pub mod drive;
 #[path = "controller_learn.rs"]
 pub mod learn;
 
-pub use drive::{Drive, DriveState, Input};
+pub use drive::{Drive, DriveState, Input, Steps};
 
 /// A mapping's identity in its map: stable across saves and edits.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -63,21 +63,30 @@ impl PortRef {
         self.name.is_empty()
     }
 
-    /// The port open at `index` among `names` (as they are open now).
+    /// The port open at `index` among `names` (as they are open now), by the device's
+    /// name ([`clean_port_name`]).
     pub fn of(names: &[String], index: usize) -> PortRef {
-        let name = names.get(index).cloned().unwrap_or_default();
+        let name = names
+            .get(index)
+            .map(|n| clean_port_name(n).into_owned())
+            .unwrap_or_default();
         PortRef {
             ordinal: ordinal_of(names, index),
             name,
         }
     }
 
-    /// Whether the port open at `index` among `names` is this one.
+    /// Whether the port open at `index` among `names` is this one: the same device's name
+    /// (a Linux port's client numbers, which change on a replug, left out — review 3,
+    /// #45), the same ordinal among the ports of that name.
     pub fn matches(&self, names: &[String], index: usize) -> bool {
         if self.is_any() {
             return index < names.len();
         }
-        names.get(index) == Some(&self.name) && ordinal_of(names, index) == self.ordinal
+        names
+            .get(index)
+            .is_some_and(|n| clean_port_name(n) == clean_port_name(&self.name))
+            && ordinal_of(names, index) == self.ordinal
     }
 
     /// The index of this port among `names`, when it is open (the first, for any).
@@ -86,13 +95,49 @@ impl PortRef {
     }
 }
 
-/// How many ports before `index` share its name.
+/// How many ports before `index` share its device's name.
 pub fn ordinal_of(names: &[String], index: usize) -> u8 {
     let Some(name) = names.get(index) else {
         return 0;
     };
-    let n = names[..index].iter().filter(|n| *n == name).count();
+    let name = clean_port_name(name);
+    let n = names[..index]
+        .iter()
+        .filter(|n| clean_port_name(n) == name)
+        .count();
     n.min(u8::MAX as usize) as u8
+}
+
+/// A port's name as its device's: what Windows and macOS give as they give it; Linux's
+/// ALSA names (`client:port C:P`) without the client and port numbers, which change on a
+/// replug or a reboot, and without the client's name when the port's repeats it (review
+/// 3, #45). Borrowed when nothing is left out.
+pub fn clean_port_name(raw: &str) -> std::borrow::Cow<'_, str> {
+    // A trailing ` C:P` (two numbers).
+    let trimmed = match raw.rsplit_once(' ') {
+        Some((head, tail))
+            if tail
+                .split_once(':')
+                .is_some_and(|(a, b)| is_digits(a) && is_digits(b)) =>
+        {
+            head
+        }
+        _ => raw,
+    };
+    if trimmed.len() == raw.len() {
+        return std::borrow::Cow::Borrowed(raw);
+    }
+    // `client:port`: the port's own name when it carries the client's.
+    let name = match trimmed.split_once(':') {
+        Some((client, port)) if !port.is_empty() && port.starts_with(client.trim()) => port,
+        Some((_, port)) if !port.is_empty() => port,
+        _ => trimmed,
+    };
+    std::borrow::Cow::Owned(name.trim().to_string())
+}
+
+fn is_digits(s: &str) -> bool {
+    !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())
 }
 
 /// Which control on the hardware: a message's address, without its value.
@@ -298,6 +343,12 @@ pub enum MappingTarget {
     StripSolo(StripId),
     /// An insert in or out (a native or a hosted one).
     EffectBypass(EffectId),
+    /// A strip's (or the master's) effects on or off: the mixer's FX switch (schema 39,
+    /// review 3, #46).
+    StripFx(StripId),
+    /// A strip's record arm: every track with an input that feeds it (the mixer's record
+    /// dot, FL's mixer arm).
+    StripArm(StripId),
     /// An insert's own dry/wet.
     EffectMix(EffectId),
     /// The tempo where the playhead is (ADR 0060 §2: the song's tempo, or the governing
@@ -319,6 +370,8 @@ pub enum MappingTarget {
 pub struct Focus<'a> {
     pub track: Option<TrackId>,
     pub strip: Option<StripId>,
+    /// The master strip is the selected one (review 3, #7).
+    pub master: bool,
     /// The focused device's first parameters, in order.
     pub device: &'a [AutoTarget],
 }
@@ -358,7 +411,9 @@ impl MappingTarget {
             | MappingTarget::TrackArm(_)
             | MappingTarget::StripMute(_)
             | MappingTarget::StripSolo(_)
-            | MappingTarget::EffectBypass(_) => true,
+            | MappingTarget::EffectBypass(_)
+            | MappingTarget::StripFx(_)
+            | MappingTarget::StripArm(_) => true,
             MappingTarget::SelectedTrack(p) | MappingTarget::SelectedStrip(p) => {
                 matches!(p, DeskParam::Mute | DeskParam::Solo | DeskParam::Arm)
             }
@@ -395,6 +450,12 @@ impl MappingTarget {
                     DeskParam::Arm => MappingTarget::TrackArm(t),
                 }
             }
+            MappingTarget::SelectedStrip(p) if focus.strip.is_none() && focus.master => match p {
+                // The master: its volume and pan; it has no mute, solo or arm.
+                DeskParam::Volume => MappingTarget::Param(AutoTarget::MasterGain),
+                DeskParam::Pan => MappingTarget::Param(AutoTarget::MasterPan),
+                _ => return None,
+            },
             MappingTarget::SelectedStrip(p) => {
                 let s = focus.strip?;
                 match p {
@@ -427,8 +488,15 @@ impl MappingTarget {
             MappingTarget::EffectBypass(e) | MappingTarget::EffectMix(e) => {
                 project.effect_host(*e).is_some()
             }
+            MappingTarget::StripFx(s) => s.is_master() || project.strip(*s).is_some(),
+            MappingTarget::StripArm(s) => project.strip(*s).is_some(),
             _ => true,
         }
+    }
+
+    /// The tracks a strip's record arm arms: those with an input that feed it.
+    fn armable(project: &Project, s: StripId) -> impl Iterator<Item = &crate::model::Track> {
+        project.tracks_on_strip(s).filter(|t| t.input.is_some())
     }
 
     /// The hosted plug-in a hosted parameter target belongs to now (`None` for any other).
@@ -479,6 +547,16 @@ impl MappingTarget {
             MappingTarget::EffectMix(e) => {
                 let h = project.effect_host(*e)?;
                 Some(project.effect(h, *e)?.mix.clamp(0.0, 1.0))
+            }
+            MappingTarget::StripFx(s) => Some(on(project.fx_enabled(*s)?)),
+            MappingTarget::StripArm(s) => {
+                let mut any = false;
+                let mut all = true;
+                for t in Self::armable(project, *s) {
+                    any = true;
+                    all &= t.armed;
+                }
+                any.then(|| on(all))
             }
             MappingTarget::Tempo => {
                 // What the command writes (ADR 0060 §2): the governing point's own tempo,
@@ -549,6 +627,31 @@ impl MappingTarget {
                 effect: *effect,
                 mix: pos,
             },
+            MappingTarget::StripFx(s) if s.is_master() => {
+                Command::SetMasterFxEnabled { enabled: on }
+            }
+            MappingTarget::StripFx(s) => {
+                project.strip(*s)?;
+                Command::SetStripFxEnabled {
+                    id: *s,
+                    enabled: on,
+                }
+            }
+            MappingTarget::StripArm(s) => {
+                let commands: Vec<Command> = Self::armable(project, *s)
+                    .map(|t| Command::SetTrackArmed {
+                        id: t.id,
+                        armed: on,
+                    })
+                    .collect();
+                if commands.is_empty() {
+                    return None;
+                }
+                Command::Batch {
+                    label_key: "cmd.set_track_armed".into(),
+                    commands,
+                }
+            }
             MappingTarget::Tempo => {
                 let (lo, hi) = TEMPO_TRAVEL;
                 crate::tempo::edit::set_tempo_at(project, at, lo + f64::from(pos) * (hi - lo))
@@ -758,6 +861,16 @@ impl ControllerMap {
         self.mappings
             .iter()
             .filter(move |o| o.id != m.id && o.source.overlaps(&m.source))
+    }
+
+    /// [`Self::sharing`] among the mappings that fit `project` (a mapping of a swapped-out
+    /// plug-in drives nothing: it shares nothing, review 3, #44).
+    pub fn sharing_in<'a>(
+        &'a self,
+        m: &'a Mapping,
+        project: &'a Project,
+    ) -> impl Iterator<Item = &'a Mapping> {
+        self.sharing(m).filter(move |o| o.fits(project))
     }
 }
 

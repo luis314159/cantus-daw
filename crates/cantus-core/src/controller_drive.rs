@@ -4,6 +4,31 @@
 
 use super::{Control, Encoding, MapMode, Mapping, Takeover};
 
+/// What the interface knows of a target's values that the mapping alone does not
+/// (review 3, #0, #1): whether it has two states (a switch: a mute, an LED, a band's On, a
+/// hosted on/off), and how many steps a stepped one moves through (a choice of nine
+/// styles has eight). `Default` is a continuous range.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Steps {
+    pub switch: bool,
+    pub steps: Option<u32>,
+}
+
+impl Steps {
+    /// A stepped range from `min` to `max` (in its own units).
+    pub fn of_range(stepped: bool, min: f64, max: f64) -> Steps {
+        if !stepped {
+            return Steps::default();
+        }
+        let n = (max - min).abs().round();
+        let steps = (n >= 1.0 && n < f64::from(u32::MAX)).then_some(n as u32);
+        Steps {
+            switch: steps == Some(1),
+            steps,
+        }
+    }
+}
+
 /// One message as a mapping reads it.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum Input {
@@ -103,6 +128,19 @@ impl Mapping {
         current: Option<f32>,
         state: &mut DriveState,
     ) -> Drive {
+        self.read_in(value, on, current, state, Steps::default())
+    }
+
+    /// [`Self::read`] for a target of the shape `shape` (a two-state parameter is a
+    /// switch; a stepped one moves a step per encoder detent).
+    pub fn read_in(
+        &self,
+        value: u16,
+        on: bool,
+        current: Option<f32>,
+        state: &mut DriveState,
+        shape: Steps,
+    ) -> Drive {
         let input = match self.mode {
             MapMode::Relative(learnt) => {
                 let v = value.min(127) as u8;
@@ -127,7 +165,7 @@ impl Mapping {
             state.held = false;
         }
         state.last_raw = Some(value);
-        let out = self.drive(input, current, state);
+        let out = self.drive_in(input, current, state, shape);
         if release_less {
             state.held = false;
         }
@@ -137,12 +175,24 @@ impl Mapping {
     /// What `input` does, the target being at `current` (0…1; `None` when unknown — a
     /// hosted plug-in not loaded, an action). Updates `state`.
     pub fn drive(&self, input: Input, current: Option<f32>, state: &mut DriveState) -> Drive {
+        self.drive_in(input, current, state, Steps::default())
+    }
+
+    /// [`Self::drive`] for a target of the shape `shape`.
+    pub fn drive_in(
+        &self,
+        input: Input,
+        current: Option<f32>,
+        state: &mut DriveState,
+        shape: Steps,
+    ) -> Drive {
+        let switch = self.target.is_switch() || shape.switch;
         let out = if self.target.is_action() {
             self.press(input, state).then_some(Drive::Fire)
         } else {
             match (self.mode, input) {
                 (MapMode::Relative(_), Input::Steps(0)) => None,
-                (MapMode::Relative(_), Input::Steps(n)) if self.target.is_switch() => {
+                (MapMode::Relative(_), Input::Steps(n)) if switch => {
                     // A switch on an encoder: a turn either way puts it that way.
                     state.rel = None;
                     Some(Drive::Set(self.shape(if n > 0 { 1.0 } else { 0.0 })))
@@ -159,13 +209,16 @@ impl Mapping {
                         Some(x) if untouched => x,
                         _ => self.unshape(current.or(state.last_out).unwrap_or(self.min)),
                     };
-                    let x = (from + n as f32 * self.sensitivity / 128.0).clamp(0.0, 1.0);
+                    // A stepped target moves a step per detent (times the sensitivity),
+                    // whatever its number of steps (review 3, #1); a range, 1/128.
+                    let per = shape.steps.map_or(128.0, |s| s.max(1) as f32);
+                    let x = (from + n as f32 * self.sensitivity / per).clamp(0.0, 1.0);
                     state.rel = Some(x);
                     Some(Drive::Set(self.shape(x)))
                 }
                 (_, Input::Abs(x)) => {
                     state.rel = None;
-                    self.absolute(x, current, state)
+                    self.absolute(x, current, state, switch)
                 }
                 (MapMode::Toggle, i) => self.press(i, state).then(|| {
                     let now = current.or(state.last_out).unwrap_or(self.min);
@@ -208,14 +261,18 @@ impl Mapping {
     }
 
     /// An absolute control at `x` under the mapping's takeover.
-    fn absolute(&self, x: f32, current: Option<f32>, state: &mut DriveState) -> Option<Drive> {
+    fn absolute(
+        &self,
+        x: f32,
+        current: Option<f32>,
+        state: &mut DriveState,
+        switch: bool,
+    ) -> Option<Drive> {
         let want = self.shape(x);
         let prev = state.last_in.replace(x);
         // A pad's velocity is where it puts the target, and a switch is on or off as the
         // control says: no takeover (review 1, #4; review 2, #2).
-        let Some(cur) =
-            current.filter(|_| !self.source.control.is_button() && !self.target.is_switch())
-        else {
+        let Some(cur) = current.filter(|_| !self.source.control.is_button() && !switch) else {
             state.picked = true;
             return Some(Drive::Set(want));
         };

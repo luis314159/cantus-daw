@@ -957,7 +957,7 @@ pub fn zone_card(
     };
     let trig = (z.get(zf::TRIG) as usize).min(TRIGGERS.len() - 1);
     let tr = slot(widths[0]);
-    let (_, c) = parts::field(
+    let (trig_resp, c) = parts::field(
         ui,
         tr,
         s,
@@ -966,6 +966,10 @@ pub fn zone_card(
         false,
         &t("smp.trigger"),
     );
+    // The zone's trigger and switches are parameters (round 29, review 3 of ADR 0062, #35).
+    let zkey = |f: usize| format!("z{n}.{}", model::zone_field_name(f));
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::TRIG), &trig_resp);
+    let c = if learning { Default::default() } else { c };
     let labels: Vec<Src<'_>> = TRIGGERS.iter().map(|k| Src::Key(k)).collect();
     let items = parts::radio_items(&labels, Some(trig));
     let id = egui::Id::new(("smp-trigger", track.0));
@@ -975,7 +979,7 @@ pub fn zone_card(
     for f in [zf::RTFOLLOW, zf::OFFMODE] {
         let on = z.get(f) >= 0.5;
         let key = ZONE_PARAMS[f].label_key;
-        if parts::led(
+        let r = parts::led(
             ui,
             slot(if f == zf::RTFOLLOW {
                 widths[1]
@@ -986,9 +990,9 @@ pub fn zone_card(
             on,
             Src::Key(key),
             &t(key),
-        )
-        .clicked()
-        {
+        );
+        let learning = crate::controllers::stepped_inst(app, ui, track, spec, &zkey(f), &r);
+        if r.clicked() && !learning {
             set_fields(
                 app,
                 track,

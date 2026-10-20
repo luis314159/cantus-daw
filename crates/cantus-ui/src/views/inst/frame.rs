@@ -49,6 +49,22 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
     }
 }
 
+/// For the tests: the Edit view's body in `ui` whole — every card drawn, none scrolled
+/// out of a window (round 29, review 3 of ADR 0062: what each card offers is counted).
+#[doc(hidden)]
+pub fn edit_body_for_tests(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId) {
+    let Some(spec) = app
+        .project()
+        .track(track)
+        .and_then(|t| t.instrument.native())
+        .cloned()
+    else {
+        return;
+    };
+    let s = Style::current().function(hue(spec.kind));
+    body(app, ui, track, &spec, &s);
+}
+
 fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     match spec.kind {
         InstrumentKind::Wavetable => wavetable::play(app, ui, track, spec, s),
