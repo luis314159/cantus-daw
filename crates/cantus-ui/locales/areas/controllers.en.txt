@@ -13,7 +13,7 @@ action.view-controllers = Show the controller mappings
 
 # A parameter's menu
 ctl.param.learn = Learn MIDI controller
-ctl.param.relearn = Learn MIDI controller again
+ctl.param.relearn = Change MIDI controller
 ctl.param.forget = Forget MIDI controller
 
 # Menus of the mixer and the track header
@@ -42,8 +42,8 @@ ctl.src.any_port = Any port
 
 # Modes and takeover
 ctl.mode.absolute = Absolute
-ctl.mode.rel_twos = Relative (2's complement)
-ctl.mode.rel_offset = Relative (binary offset)
+ctl.mode.rel_twos = Relative (2's comp.)
+ctl.mode.rel_offset = Relative (offset 64)
 ctl.mode.rel_sign = Relative (sign bit)
 ctl.mode.toggle = Toggle
 ctl.mode.momentary = Momentary

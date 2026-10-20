@@ -583,7 +583,10 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 e.push(Entry::act(Label::Key(key), Act::LearnSlot(fx, what)).check(on(m)));
             }
             if mapped {
-                e.push(Entry::act(Label::Key("ctl.menu.forget"), Act::ForgetSlot(fx)));
+                e.push(Entry::act(
+                    Label::Key("ctl.menu.forget"),
+                    Act::ForgetSlot(fx),
+                ));
             }
             e.push(
                 Entry::act(
@@ -1540,7 +1543,10 @@ fn learn_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
         e.push(Entry::act(Label::Key(key), Act::Learn(id, what)).check(on(m)));
     }
     if mapped {
-        e.push(Entry::act(Label::Key("ctl.menu.forget"), Act::ForgetStrip(id)));
+        e.push(Entry::act(
+            Label::Key("ctl.menu.forget"),
+            Act::ForgetStrip(id),
+        ));
     }
 }
 

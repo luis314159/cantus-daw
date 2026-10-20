@@ -55,7 +55,13 @@ fn source(control: Control) -> MidiSource {
 }
 
 /// A mapping of CC `n` to `target`, added to the project.
-fn map(a: &mut CantusApp, n: u8, target: MappingTarget, mode: MapMode, takeover: Takeover) -> MappingId {
+fn map(
+    a: &mut CantusApp,
+    n: u8,
+    target: MappingTarget,
+    mode: MapMode,
+    takeover: Takeover,
+) -> MappingId {
     let id = MappingId(9_000 + u64::from(n));
     let mut m = Mapping::new(id, source(Control::Cc(n)), target, mode);
     m.takeover = takeover;
@@ -82,7 +88,10 @@ fn a_parameter_menu_learns_the_next_knob_moved() {
     let steps = a.bus.history().len();
     a.modulation_choice(&AutoTarget::StripPan(s), Choice::Learn, egui::Rect::NOTHING);
     assert!(a.controllers.learning.is_some(), "armed");
-    assert!(a.controllers.tap.filter().learning(), "the tap hears everything meanwhile");
+    assert!(
+        a.controllers.tap.filter().learning(),
+        "the tap hears everything meanwhile"
+    );
     // A knob turned: a few values, never repeated.
     let turn: Vec<Heard> = (60..68).map(|v| cc(21, v)).collect();
     a.controller_heard(&turn);
@@ -106,7 +115,11 @@ fn a_parameter_menu_learns_the_next_knob_moved() {
     assert_eq!(maps.len(), 1);
     assert_eq!(maps[0].source.control, Control::Cc(22));
     // Forget takes it away (one undo step).
-    a.modulation_choice(&AutoTarget::StripPan(s), Choice::Forget, egui::Rect::NOTHING);
+    a.modulation_choice(
+        &AutoTarget::StripPan(s),
+        Choice::Forget,
+        egui::Rect::NOTHING,
+    );
     assert!(a.project().controllers.is_empty());
     a.undo();
     assert_eq!(a.project().controllers.mappings.len(), 1);
@@ -133,7 +146,9 @@ fn learning_tells_encoders_buttons_pads_and_14_bit_faders() {
     assert_eq!(pad.mode, MapMode::Toggle);
     // A 14-bit fader: its coarse controller and its fine twin.
     a.learn_target(MappingTarget::Param(AutoTarget::StripWidth(s)));
-    let fader: Vec<Heard> = (0..4u8).flat_map(|i| [cc(7, 60 + i), cc(39, 20 * i)]).collect();
+    let fader: Vec<Heard> = (0..4u8)
+        .flat_map(|i| [cc(7, 60 + i), cc(39, 20 * i)])
+        .collect();
     a.controller_heard(&fader);
     let wide = a.project().controllers.mappings.last().unwrap();
     assert_eq!(wide.source.control, Control::Cc14(7));
@@ -161,7 +176,8 @@ fn a_transport_key_learnt_goes_to_the_global_map_and_its_file() {
     assert_eq!(g.len(), 1);
     assert_eq!(g[0].target, play);
     assert_eq!(g[0].mode, MapMode::Trigger);
-    let back = cantus_ui::controllers::load_global(&cantus_ui::controllers::global_path(dir.path()));
+    let back =
+        cantus_ui::controllers::load_global(&cantus_ui::controllers::global_path(dir.path()));
     assert_eq!(back, a.controllers.global, "saved where it is read");
 }
 
@@ -228,7 +244,10 @@ fn a_knob_picks_up_and_a_gesture_is_one_undo_step() {
     assert_eq!(a.bus.history().len(), steps);
     a.controller_heard(&[cc(10, 70)]);
     let p = pan_of(&a, s);
-    assert!((p - (70.0 / 127.0 * 2.0 - 1.0)).abs() < 1e-3, "picked up: {p}");
+    assert!(
+        (p - (70.0 / 127.0 * 2.0 - 1.0)).abs() < 1e-3,
+        "picked up: {p}"
+    );
     // More turns in the same gesture: still one step.
     for v in [80, 90, 100] {
         a.controller_heard(&[cc(10, v)]);
@@ -236,7 +255,11 @@ fn a_knob_picks_up_and_a_gesture_is_one_undo_step() {
     assert_eq!(a.bus.history().len(), steps + 1);
     idle(&mut a);
     a.controller_heard(&[cc(10, 110)]);
-    assert_eq!(a.bus.history().len(), steps + 2, "a new gesture, a new step");
+    assert_eq!(
+        a.bus.history().len(),
+        steps + 2,
+        "a new gesture, a new step"
+    );
     a.undo();
     let p = pan_of(&a, s);
     assert!((p - (100.0 / 127.0 * 2.0 - 1.0)).abs() < 1e-3, "{p}");
@@ -276,7 +299,10 @@ fn two_knobs_turned_together_are_one_step_and_merge_frame_after_frame() {
         "a batch of both"
     );
     a.undo();
-    assert_eq!((pan_of(&a, s), a.project().strip(s).unwrap().width), (0.0, 1.0));
+    assert_eq!(
+        (pan_of(&a, s), a.project().strip(s).unwrap().width),
+        (0.0, 1.0)
+    );
 }
 
 #[test]
@@ -323,7 +349,11 @@ fn an_encoder_steps_and_a_button_toggles_and_fires_once() {
     a.controller_heard(&[cc(41, 127), cc(41, 127)]);
     assert_eq!(a.project().metronome, !before, "fired once");
     a.controller_heard(&[cc(41, 0), cc(41, 127)]);
-    assert_eq!(a.project().metronome, before, "released, pressed: fired again");
+    assert_eq!(
+        a.project().metronome,
+        before,
+        "released, pressed: fired again"
+    );
 }
 
 #[test]
@@ -353,7 +383,12 @@ fn the_project_comes_first_and_a_dormant_mapping_does_nothing() {
     let gone = MappingTarget::TrackSolo(TrackId(123_456));
     a.add_mapping(
         Scope::Project,
-        Mapping::new(MappingId(501), source(Control::Cc(13)), gone, MapMode::Toggle),
+        Mapping::new(
+            MappingId(501),
+            source(Control::Cc(13)),
+            gone,
+            MapMode::Toggle,
+        ),
     );
     a.publish_controller_filter();
     let ev = MidiEvent {
@@ -370,7 +405,10 @@ fn the_project_comes_first_and_a_dormant_mapping_does_nothing() {
         data1: 12,
         data2: 1,
     };
-    assert!(a.controllers.tap.filter().takes(0, &live), "a live one does");
+    assert!(
+        a.controllers.tap.filter().takes(0, &live),
+        "a live one does"
+    );
 }
 
 #[test]
@@ -426,7 +464,10 @@ fn a_mapped_knob_while_recording_leaves_one_automation_clip_in_one_step() {
     a.engine.seek(Ticks::beats(5));
     let steps = a.bus.history().len();
     a.stop_recording();
-    assert!(a.bus.history().len() <= steps + 2, "the take and the automation");
+    assert!(
+        a.bus.history().len() <= steps + 2,
+        "the take and the automation"
+    );
     let clips: Vec<&Clip> = a
         .project()
         .tracks
@@ -459,10 +500,7 @@ fn a_message_is_recorded_where_it_was_heard_through_the_tempo_map() {
     // At 60 BPM a beat is a second.
     let mut q = Project::new("q");
     q.tempo_bpm = 60.0;
-    assert_eq!(
-        tick_of_message(&q.tempo_map(), now, 1.0),
-        Ticks::beats(3).0
-    );
+    assert_eq!(tick_of_message(&q.tempo_map(), now, 1.0), Ticks::beats(3).0);
 }
 
 #[test]
@@ -505,7 +543,10 @@ fn feedback_sends_the_value_back_once_per_change() {
         feedback_bytes(Control::Cc14(7), 0, 16_383),
         vec![0xB0, 7, 127, 0xB0, 39, 127]
     );
-    assert_eq!(feedback_bytes(Control::Note(36), 9, 127), vec![0x99, 36, 127]);
+    assert_eq!(
+        feedback_bytes(Control::Note(36), 9, 127),
+        vec![0x99, 36, 127]
+    );
     assert_eq!(
         feedback_bytes(Control::PitchBend, 0, 8192),
         vec![0xE0, 0, 64]
@@ -715,14 +756,20 @@ fn the_pane_lists_both_maps_with_their_words_and_flags() {
             "{words:?} not in {text}"
         );
     }
-    assert!(text.contains("Transport"), "the global row's target: {text}");
+    assert!(
+        text.contains("Transport"),
+        "the global row's target: {text}"
+    );
     // Narrow: it scrolls, nothing panics, the rows are still there.
     let narrow = paint_pane(&mut a, egui::vec2(420.0, 300.0), Vec::new());
     assert!(narrow.contains("CC 10"));
     // The filter keeps what matches.
     a.controllers.view.filter = "transport".into();
     let text = paint_pane(&mut a, egui::vec2(1400.0, 600.0), Vec::new());
-    assert!(text.contains("Transport") && !text.contains("Missing"), "{text}");
+    assert!(
+        text.contains("Transport") && !text.contains("Missing"),
+        "{text}"
+    );
 }
 
 #[test]
@@ -760,7 +807,10 @@ fn the_panes_remove_and_feedback_keys_edit_the_map() {
     };
     let fb = at(&a, "feedback");
     paint_pane(&mut a, egui::vec2(1400.0, 600.0), click(fb));
-    assert!(a.project().controllers.get(id).unwrap().feedback, "feedback on");
+    assert!(
+        a.project().controllers.get(id).unwrap().feedback,
+        "feedback on"
+    );
     let n = a.project().controllers.mappings.len();
     let x = at(&a, "remove");
     paint_pane(&mut a, egui::vec2(1400.0, 600.0), click(x));

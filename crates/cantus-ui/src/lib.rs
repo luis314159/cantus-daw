@@ -15,6 +15,11 @@ pub mod boot;
 pub mod clipboard;
 pub mod clips;
 pub mod comping;
+/// MIDI learn and controller mapping (round 29, ADR 0062).
+pub mod controllers;
+pub mod controllers_feedback;
+pub mod controllers_input;
+pub mod controllers_learn;
 pub mod demos;
 pub mod design;
 pub mod docs;
@@ -34,11 +39,6 @@ pub mod picker_catalog;
 pub mod picker_prefs;
 pub mod picker_query;
 pub mod pitch;
-/// MIDI learn and controller mapping (round 29, ADR 0062).
-pub mod controllers;
-pub mod controllers_feedback;
-pub mod controllers_input;
-pub mod controllers_learn;
 pub mod raster;
 pub mod record_pass;
 pub mod record_session;

@@ -10,9 +10,7 @@
 //! *Remote control settings* and Ableton's mapping browser are the references.
 
 use crate::app::CantusApp;
-use crate::controllers::{
-    control_text, channel_text, mode_text, port_text, takeover_text, Scope,
-};
+use crate::controllers::{channel_text, control_text, mode_text, port_text, takeover_text, Scope};
 use crate::i18n::{t, tf};
 use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
@@ -49,7 +47,7 @@ const LIT: Duration = Duration::from_millis(300);
 /// The columns at 100 %: the dot, control, target (the rest, at least this), mode, from,
 /// to, curve, takeover, feedback, learn again, remove.
 const COLS: [f32; 11] = [
-    16.0, 210.0, 220.0, 150.0, 92.0, 92.0, 70.0, 104.0, 76.0, 28.0, 28.0,
+    16.0, 250.0, 220.0, 172.0, 92.0, 92.0, 70.0, 110.0, 76.0, 28.0, 28.0,
 ];
 /// The row's height and the gap between cells, at 100 %.
 const ROW_H: f32 = 28.0;
@@ -59,7 +57,12 @@ const HEAD_H: f32 = 34.0;
 
 /// The columns' rects in a row at `rect` (the target column takes what is left).
 fn columns(rect: Rect, k: f32) -> [Rect; 11] {
-    let fixed: f32 = COLS.iter().enumerate().filter(|(i, _)| *i != 2).map(|(_, w)| w).sum();
+    let fixed: f32 = COLS
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != 2)
+        .map(|(_, w)| w)
+        .sum();
     let gaps = GAP * (COLS.len() as f32 - 1.0);
     let target = (rect.width() / k - fixed - gaps).max(COLS[2]);
     let mut x = rect.left() + 4.0 * k;
@@ -98,15 +101,30 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     app.controllers.view.geo.clear();
     let full = ui.max_rect();
     with_brush(ui.painter(), |b| b.rect(full, Fill::Solid(s.t.ink)));
-    let head = Rect::from_min_size(full.min, Vec2::new(full.width(), HEAD_H * k));
+    // A narrow pane puts the takeover and the ports on a second row (nothing overlaps).
+    let rows = header_rows(ui, full.width() / k);
+    let head = Rect::from_min_size(
+        full.min,
+        Vec2::new(full.width(), HEAD_H * k * rows as f32),
+    );
     header(app, ui, head, &s);
     let mut top = head.bottom();
     if let Some(note) = learning_note(app) {
-        let r = Rect::from_min_size(egui::pos2(full.left(), top), Vec2::new(full.width(), 26.0 * k));
+        let r = Rect::from_min_size(
+            egui::pos2(full.left(), top),
+            Vec2::new(full.width(), 26.0 * k),
+        );
         with_brush(ui.painter(), |b| {
             b.rect(r, Fill::Solid(s.t.led.gamma_multiply(0.16)));
         });
-        cell_text(ui, r.shrink2(Vec2::new(10.0 * k, 0.0)), &s, &note, s.t.text, Role::Body);
+        cell_text(
+            ui,
+            r.shrink2(Vec2::new(10.0 * k, 0.0)),
+            &s,
+            &note,
+            s.t.text,
+            Role::Body,
+        );
         top = r.bottom();
     }
     let body = Rect::from_min_max(egui::pos2(full.left(), top), full.max);
@@ -123,12 +141,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
             ui.add_space(12.0 * k);
         });
     // The dots fade: keep drawing while one is lit.
-    if app
-        .controllers
-        .activity
-        .values()
-        .any(|t| t.elapsed() < LIT)
-    {
+    if app.controllers.activity.values().any(|t| t.elapsed() < LIT) {
         ui.ctx().request_repaint_after(Duration::from_millis(40));
     }
 }
@@ -176,23 +189,54 @@ fn pick<T: Clone + PartialEq>(
     chosen
 }
 
+/// The takeover caption's width at 100 %.
+fn caption_w(ui: &Ui) -> f32 {
+    let s = Style::current();
+    text::measure(
+        ui.ctx(),
+        &Text::new(&t("ctl.view.new_takeover"), Role::Label, s.t.text_dim),
+        s.tk(),
+    )
+    .x / s.k
+        + 4.0
+}
+
+/// The header's first row (learn, add, filter) and the takeover's group, at 100 %.
+const FIRST_ROW: f32 = 8.0 + 96.0 + 8.0 + 150.0 + 8.0 + 190.0 + 8.0;
+const TAKEOVER_W: f32 = 110.0 + 16.0;
+
+/// How many rows the header needs in a pane `width` wide (at 100 %).
+fn header_rows(ui: &Ui, width: f32) -> usize {
+    if width >= FIRST_ROW + caption_w(ui) + TAKEOVER_W {
+        1
+    } else {
+        2
+    }
+}
+
 /// The header: the learn mode, *Add*, the filter, the takeover new mappings get, the ports.
 fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let k = s.k;
+    let two = r.height() > HEAD_H * k * 1.5;
     with_brush(ui.painter(), |b| {
         b.rect(r, Fill::Solid(s.t.panel));
         b.hline(r.left(), r.right(), r.bottom() - b.px(), b.px(), s.t.edge);
     });
     let h = 22.0 * k;
-    let y = r.center().y - h * 0.5;
+    let row_y = |row: usize| r.top() + (HEAD_H * k) * (row as f32 + 0.5) - h * 0.5;
+    let mut y = row_y(0);
     let mut x = r.left() + 8.0 * k;
-    let mut at = |w: f32| {
+    let mut at = |w: f32, next_row: bool| {
+        if next_row {
+            x = r.left() + 8.0 * k;
+            y = row_y(1);
+        }
         let rect = Rect::from_min_size(egui::pos2(x, y), Vec2::new(w * k, h));
         x += (w + 8.0) * k;
         rect
     };
     // The learn mode (Ableton's MIDI Map mode).
-    let lr = at(96.0);
+    let lr = at(96.0, false);
     let learn = LedButton::new(app.controllers.learn_mode, Src::Key("ctl.view.learn"))
         .name(&t("ctl.view.learn_tip"))
         .id(Id::new("ctl-pane-learn"))
@@ -202,7 +246,7 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         app.toggle_learn_mode();
     }
     // Add: a target a global map can hold, armed to learn.
-    let ar = at(150.0);
+    let ar = at(150.0, false);
     let add_words = t("ctl.view.add");
     let (add, _) = MenuField::new(&add_words)
         .id(Id::new("ctl-pane-add"))
@@ -210,7 +254,7 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     put(app, "add", ar);
     add_menu(app, &add);
     // The filter.
-    let fr = at(190.0);
+    let fr = at(190.0, false);
     let hint_words = t("ctl.view.filter");
     let mut filter = std::mem::take(&mut app.controllers.view.filter);
     crate::kit::field::Field::new(Id::new("ctl-pane-filter"))
@@ -220,16 +264,9 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     put(app, "filter", fr);
     // The takeover new mappings get: its caption as wide as its words.
     let caption = t("ctl.view.new_takeover");
-    let cw = text::measure(
-        ui.ctx(),
-        &Text::new(&caption, Role::Label, s.t.text_dim),
-        s.tk(),
-    )
-    .x / k
-        + 4.0;
-    let tl = at(cw);
+    let tl = at(caption_w(ui), two);
     cell_text(ui, tl, s, &caption, s.t.text_dim, Role::Label);
-    let tr = at(110.0);
+    let tr = at(110.0, false);
     let current = app.settings.controller_takeover;
     let words = takeover_text(current);
     let (field, _) = MenuField::new(&words)
@@ -253,7 +290,8 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
             &[("names", &app.midi_port_names.join(", "))],
         )
     };
-    let pr = Rect::from_min_max(egui::pos2(x, y), egui::pos2(r.right() - 8.0 * k, y + h));
+    let (px, py) = (tr.right() + 8.0 * k, tr.top());
+    let pr = Rect::from_min_max(egui::pos2(px, py), egui::pos2(r.right() - 8.0 * k, py + h));
     if pr.width() > 40.0 * k {
         with_brush(ui.painter(), |b| {
             text::paint(
@@ -373,7 +411,11 @@ pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String 
     let p = app.project();
     let pct = |pos: f32| format!("{:.0} %", pos * 100.0);
     if target.is_switch() {
-        return t(if pos >= 0.5 { "ctl.value.on" } else { "ctl.value.off" });
+        return t(if pos >= 0.5 {
+            "ctl.value.on"
+        } else {
+            "ctl.value.off"
+        });
     }
     match target {
         MappingTarget::Param(a) if a.is_plugin() => pct(pos),
@@ -456,7 +498,11 @@ pub fn parse_value(app: &CantusApp, target: &MappingTarget, typed: &str) -> Opti
         other => match proxy(other) {
             Some(a) => {
                 let r = cantus_core::automation::range::range_of(p, &a)?;
-                r.pos(if a == AutoTarget::MasterPan { v / 100.0 } else { v })
+                r.pos(if a == AutoTarget::MasterPan {
+                    v / 100.0
+                } else {
+                    v
+                })
             }
             None => v / 100.0,
         },
@@ -509,7 +555,9 @@ fn value_cell(
     target: &MappingTarget,
 ) -> CellDone {
     let s = Style::current();
-    let typing = ui.ctx().data(|d| d.get_temp::<bool>(id.with("typing")).unwrap_or(false));
+    let typing = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(id.with("typing")).unwrap_or(false));
     if typing {
         let mut text = ui
             .ctx()
@@ -519,7 +567,8 @@ fn value_cell(
             .open(true)
             .centered()
             .show(ui, rect, &mut text);
-        ui.ctx().data_mut(|d| d.insert_temp(id.with("text"), text.clone()));
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(id.with("text"), text.clone()));
         if let Some(ev) = out.event {
             ui.ctx().data_mut(|d| {
                 d.remove::<bool>(id.with("typing"));
@@ -581,7 +630,11 @@ fn value_cell(
     }
     if resp.dragged() {
         let d = resp.drag_delta();
-        let fine = if ui.input(|i| i.modifiers.shift) { 0.2 } else { 1.0 };
+        let fine = if ui.input(|i| i.modifiers.shift) {
+            0.2
+        } else {
+            1.0
+        };
         let p = (pos + (d.x - d.y) * fine / (160.0 * s.k)).clamp(0.0, 1.0);
         return CellDone {
             pos: (p != pos).then_some(p),
@@ -649,7 +702,14 @@ fn section(app: &mut CantusApp, ui: &mut Ui, scope: Scope, w: f32) {
         } else {
             t("ctl.view.no_match")
         };
-        cell_text(ui, nr.shrink2(Vec2::new(10.0 * k, 0.0)), &s, &words, s.t.text_dim, Role::Body);
+        cell_text(
+            ui,
+            nr.shrink2(Vec2::new(10.0 * k, 0.0)),
+            &s,
+            &words,
+            s.t.text_dim,
+            Role::Body,
+        );
         return;
     }
     for (i, m) in rows.iter().enumerate() {
@@ -715,7 +775,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     );
     let mut cr = c[1];
     if !others.is_empty() {
-        let pill_w = 52.0 * k;
+        let pill_w = pill_width(ui, &t("ctl.view.shared"));
         let pr = Rect::from_min_max(
             egui::pos2(cr.right() - pill_w, cr.center().y - 8.0 * k),
             egui::pos2(cr.right(), cr.center().y + 8.0 * k),
@@ -742,7 +802,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     let name = app.mapping_target_name(&m.target);
     let mut tr = c[2];
     if !alive {
-        let pill_w = 64.0 * k;
+        let pill_w = pill_width(ui, &t("ctl.view.missing"));
         let pr = Rect::from_min_max(
             egui::pos2(tr.right() - pill_w, tr.center().y - 8.0 * k),
             egui::pos2(tr.right(), tr.center().y + 8.0 * k),
@@ -777,10 +837,20 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
         n.mode = md;
         app.set_mapping(scope, n, None);
     }
-    // From, to, curve.
+    // From, to, curve: an action has none.
+    if m.target.is_action() {
+        for col in [4usize, 5, 6] {
+            cell_text(ui, c[col], &s, "\u{2014}", s.t.text_dim, Role::Body);
+        }
+    }
     let merge = |what: &str| MergeKey::of(&("ctl-edit", sc, m.id.0, what.to_string()));
     let target = m.target.clone();
-    for (col, what, name_key) in [(4usize, "from", "ctl.col.from"), (5, "to", "ctl.col.to")] {
+    let ranged: &[(usize, &str, &str)] = if m.target.is_action() {
+        &[]
+    } else {
+        &[(4usize, "from", "ctl.col.from"), (5, "to", "ctl.col.to")]
+    };
+    for &(col, what, name_key) in ranged {
         let pos = if what == "from" { m.min } else { m.max };
         let words = value_words(app, &target, pos);
         let default = if what == "from" { 0.0 } else { 1.0 };
@@ -813,18 +883,25 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
         }
     }
     let curve_words = format!("{:+.0} %", m.curve * 100.0);
-    let out = value_cell(
-        app,
-        ui,
-        c[6],
-        cid("curve"),
-        &t("ctl.col.curve"),
-        &curve_words,
-        (m.curve + 1.0) * 0.5,
-        0.5,
-        // A curve is typed in percent, −100…100.
-        &MappingTarget::DeviceParam(0),
-    );
+    let out = if m.target.is_action() {
+        CellDone {
+            pos: None,
+            done: false,
+        }
+    } else {
+        value_cell(
+            app,
+            ui,
+            c[6],
+            cid("curve"),
+            &t("ctl.col.curve"),
+            &curve_words,
+            (m.curve + 1.0) * 0.5,
+            0.5,
+            // A curve is typed in percent, −100…100.
+            &MappingTarget::DeviceParam(0),
+        )
+    };
     put(app, tag("curve"), c[6]);
     if let Some(p) = out.pos {
         let mut n = m.clone();
@@ -872,7 +949,16 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     }
     // Learn again; remove.
     let lr = c[9].shrink(2.0 * k);
-    if glyph_at(ui, lr, cid("relearn"), Glyph::Controller, armed, &t("ctl.view.relearn")).clicked() {
+    if glyph_at(
+        ui,
+        lr,
+        cid("relearn"),
+        Glyph::Controller,
+        armed,
+        &t("ctl.view.relearn"),
+    )
+    .clicked()
+    {
         if armed {
             app.cancel_learning();
         } else {
@@ -881,7 +967,16 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     }
     put(app, tag("relearn"), lr);
     let xr = c[10].shrink(2.0 * k);
-    if glyph_at(ui, xr, cid("remove"), Glyph::Close, false, &t("ctl.view.remove")).clicked() {
+    if glyph_at(
+        ui,
+        xr,
+        cid("remove"),
+        Glyph::Close,
+        false,
+        &t("ctl.view.remove"),
+    )
+    .clicked()
+    {
         app.remove_mapping(scope, m.id);
     }
     put(app, tag("remove"), xr);
@@ -897,6 +992,12 @@ fn relearn(app: &mut CantusApp, scope: Scope, id: MappingId) {
         l.scope = scope;
         l.replace = Some(id);
     }
+}
+
+/// A pill's width for `words` (its caption in capitals, with room either side).
+fn pill_width(ui: &Ui, words: &str) -> f32 {
+    let s = Style::current();
+    text::measure(ui.ctx(), &Text::new(words, Role::Micro, s.t.text), s.tk()).x + 14.0 * s.k
 }
 
 /// A small word on a tinted pill.

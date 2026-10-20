@@ -908,8 +908,7 @@ impl CantusApp {
         }
         self.midi_inputs = None;
         self.controllers.reopened();
-        let inputs =
-            MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
+        let inputs = MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
         self.midi_port_names = inputs.names.clone();
         self.midi_inputs = Some(inputs);
         self.set_status(tf(

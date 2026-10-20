@@ -41,7 +41,10 @@ fn the_boot_path_reads_the_global_map_and_wires_a_waking_tap() {
     );
     assert_eq!(app.controllers.global, map);
     assert_eq!(app.controllers.global_path.as_deref(), Some(path.as_path()));
-    assert!(app.controllers.tap.wakes(), "a mapped knob wakes the window");
+    assert!(
+        app.controllers.tap.wakes(),
+        "a mapped knob wakes the window"
+    );
     // A mapping learnt now is written where the next start reads it.
     app.controllers.global.mappings.clear();
     app.store_global_map();
@@ -55,7 +58,8 @@ fn the_boot_opens_the_ports_with_the_tap_assemble_keeps() {
     let ctx = egui::Context::default();
     let tap = cantus_ui::controllers::waking_tap(&ctx);
     let (p, _c) = rtrb::RingBuffer::<cantus_engine::MidiEvent>::new(4);
-    let inputs = cantus_engine::MidiInputs::open_with(cantus_engine::MidiSender::new(p), tap.clone());
+    let inputs =
+        cantus_engine::MidiInputs::open_with(cantus_engine::MidiSender::new(p), tap.clone());
     let dir = tempfile::tempdir().unwrap();
     let files = Files::read(dir.path(), Some(cantus_ui::i18n::Locale::En));
     let app = CantusApp::assemble(

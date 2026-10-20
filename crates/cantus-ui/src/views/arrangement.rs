@@ -1195,8 +1195,18 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             }
         }
         // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
-        crate::controllers::learn_spot(app, ui, m.rect, cantus_core::controller::MappingTarget::TrackMute(id));
-        crate::controllers::learn_spot(app, ui, so.rect, cantus_core::controller::MappingTarget::TrackSolo(id));
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            m.rect,
+            cantus_core::controller::MappingTarget::TrackMute(id),
+        );
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            so.rect,
+            cantus_core::controller::MappingTarget::TrackSolo(id),
+        );
         if m.clicked() {
             app.exec(Command::SetTrackMute { id, muted: !muted });
         }

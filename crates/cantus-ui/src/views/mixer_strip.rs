@@ -890,8 +890,18 @@ fn controls(
         let m = sense(ui, pass, hit(mc), pid(Some(id), Part::Mute), Sense::click());
         let so = sense(ui, pass, hit(sc), pid(Some(id), Part::Solo), Sense::click());
         // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
-        crate::controllers::learn_spot(app, ui, hit(mc), cantus_core::controller::MappingTarget::StripMute(id));
-        crate::controllers::learn_spot(app, ui, hit(sc), cantus_core::controller::MappingTarget::StripSolo(id));
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            hit(mc),
+            cantus_core::controller::MappingTarget::StripMute(id),
+        );
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            hit(sc),
+            cantus_core::controller::MappingTarget::StripSolo(id),
+        );
         let mh = m.as_ref().is_some_and(|r| r.hovered());
         let sh = so.as_ref().is_some_and(|r| r.hovered());
         lamp(b, s, mc, !sn.muted, Tok::Led, mh);

@@ -213,9 +213,11 @@ impl CantusApp {
             mapping: mapping.is_some(),
             live: (n > 0).then_some(live.clamp(0.0, 1.0)),
             // MIDI learn (round 29, ADR 0062).
-            learn: Some(self.learn_offer(&cantus_core::controller::MappingTarget::Param(
-                target.clone(),
-            ))),
+            learn: Some(
+                self.learn_offer(&cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                )),
+            ),
         };
         (offer, n)
     }
@@ -242,7 +244,9 @@ impl CantusApp {
         // MIDI learn (round 29, ADR 0062): every parameter that offers it.
         match choice {
             Choice::Learn => {
-                self.learn_target(cantus_core::controller::MappingTarget::Param(target.clone()));
+                self.learn_target(cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                ));
                 return;
             }
             Choice::Forget => {

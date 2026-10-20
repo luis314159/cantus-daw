@@ -43,8 +43,15 @@ fn every_native_effect_editor_offers_learn_on_every_control() {
                 cantus_ui::views::inspector::show(&mut a, ui)
             });
             let drawn = probe::take_learn();
-            assert!(!drawn.is_empty(), "{kind:?}: the inspector drew no parameter");
-            bad.extend(unlearnable(drawn).into_iter().map(|n| format!("{kind:?}: {n}")));
+            assert!(
+                !drawn.is_empty(),
+                "{kind:?}: the inspector drew no parameter"
+            );
+            bad.extend(
+                unlearnable(drawn)
+                    .into_iter()
+                    .map(|n| format!("{kind:?}: {n}")),
+            );
             continue;
         }
         cantus_ui::views::fx::demo_setup(&mut a, s0, fx, kind);
@@ -56,10 +63,17 @@ fn every_native_effect_editor_offers_learn_on_every_control() {
         paint_editors(&mut a, egui::vec2(1600.0, 1000.0));
         let drawn = probe::take_learn();
         assert!(!drawn.is_empty(), "{kind:?}: its editor drew no parameter");
-        bad.extend(unlearnable(drawn).into_iter().map(|n| format!("{kind:?}: {n}")));
+        bad.extend(
+            unlearnable(drawn)
+                .into_iter()
+                .map(|n| format!("{kind:?}: {n}")),
+        );
     }
     bad.dedup();
-    assert!(bad.is_empty(), "controls without Learn MIDI controller: {bad:#?}");
+    assert!(
+        bad.is_empty(),
+        "controls without Learn MIDI controller: {bad:#?}"
+    );
 }
 
 #[test]
@@ -90,7 +104,10 @@ fn every_native_instrument_editor_offers_learn_on_every_control() {
         }
     }
     bad.dedup();
-    assert!(bad.is_empty(), "controls without Learn MIDI controller: {bad:#?}");
+    assert!(
+        bad.is_empty(),
+        "controls without Learn MIDI controller: {bad:#?}"
+    );
 }
 
 #[test]
@@ -125,7 +142,10 @@ fn sends_and_the_pinned_strip_offer_learn() {
     a.select_strip(StripId::MASTER);
     let drawn = drawn_of(&mut a);
     for key in ["kit.param.volume", "kit.param.pan", "kit.param.width"] {
-        assert!(drawn.iter().any(|(n, l)| n == key && *l), "the master's {key}");
+        assert!(
+            drawn.iter().any(|(n, l)| n == key && *l),
+            "the master's {key}"
+        );
     }
 }
 

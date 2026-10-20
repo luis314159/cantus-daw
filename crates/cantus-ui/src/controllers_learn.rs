@@ -8,7 +8,9 @@
 use crate::app::CantusApp;
 use crate::controllers::{decode, source_text, Scope};
 use crate::i18n::tf;
-use cantus_core::controller::{learn::detect, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL};
+use cantus_core::controller::{
+    learn::detect, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL,
+};
 use cantus_engine::midi::Heard;
 use std::time::{Duration, Instant};
 

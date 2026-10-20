@@ -329,7 +329,7 @@ pub fn learn_spot(ui: &Ui, rect: Rect, id: egui::Id, l: LearnOffer) -> bool {
         } else if cover.hovered() {
             (s.t.focus.gamma_multiply(0.16), s.t.focus, s.s(1.5))
         } else {
-            (s.t.focus.gamma_multiply(0.07), s.t.focus.gamma_multiply(0.7), s.s(1.0))
+            (s.t.focus.gamma_multiply(0.12), s.t.focus, s.s(1.0))
         };
         b.rrect(r, s.r(3.0), Fill::Solid(fill));
         b.rrect_stroke(r, s.r(3.0), w, line);

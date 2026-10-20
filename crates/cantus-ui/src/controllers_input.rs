@@ -324,14 +324,20 @@ impl CantusApp {
         // Dormant mappings take nothing: their messages play as if unmapped.
         let mut keep = alive.iter();
         proj.mappings.retain(|_| *keep.next().unwrap_or(&false));
-        let same = self.controllers.published.as_ref().is_some_and(|(a, b, c)| {
-            *a == proj && *b == self.controllers.global && *c == names
-        });
+        let same = self
+            .controllers
+            .published
+            .as_ref()
+            .is_some_and(|(a, b, c)| *a == proj && *b == self.controllers.global && *c == names);
         if same {
             return;
         }
         let mut set = FilterSet::default();
-        for m in proj.mappings.iter().chain(&self.controllers.global.mappings) {
+        for m in proj
+            .mappings
+            .iter()
+            .chain(&self.controllers.global.mappings)
+        {
             for i in 0..names.len() {
                 if m.source.port.matches(&names, i) {
                     set.take(i, m.source.channel, m.source.control);

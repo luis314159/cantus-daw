@@ -13,7 +13,7 @@ action.view-controllers = Mostrar las asignaciones de controladores
 
 # El menú de un parámetro
 ctl.param.learn = Aprender controlador MIDI
-ctl.param.relearn = Aprender otra vez el controlador MIDI
+ctl.param.relearn = Cambiar controlador MIDI
 ctl.param.forget = Olvidar el controlador MIDI
 
 # Menús del mezclador y de la cabecera de pista
@@ -42,9 +42,9 @@ ctl.src.any_port = Cualquier puerto
 
 # Modos y toma de control
 ctl.mode.absolute = Absoluto
-ctl.mode.rel_twos = Relativo (complemento a 2)
-ctl.mode.rel_offset = Relativo (desplazamiento binario)
-ctl.mode.rel_sign = Relativo (bit de signo)
+ctl.mode.rel_twos = Relativo (compl. a 2)
+ctl.mode.rel_offset = Relativo (centro 64)
+ctl.mode.rel_sign = Relativo (signo)
 ctl.mode.toggle = Conmutar
 ctl.mode.momentary = Momentáneo
 ctl.mode.trigger = Disparo

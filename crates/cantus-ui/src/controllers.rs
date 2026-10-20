@@ -181,8 +181,18 @@ pub fn save_global(path: &Path, map: &ControllerMap) -> std::io::Result<()> {
 /// A note's name, as the piano roll writes it (C4 is 60).
 pub fn note_name(n: u8) -> String {
     const NAMES: [&str; 12] = [
-        "C", "C\u{266f}", "D", "D\u{266f}", "E", "F", "F\u{266f}", "G", "G\u{266f}", "A",
-        "A\u{266f}", "B",
+        "C",
+        "C\u{266f}",
+        "D",
+        "D\u{266f}",
+        "E",
+        "F",
+        "F\u{266f}",
+        "G",
+        "G\u{266f}",
+        "A",
+        "A\u{266f}",
+        "B",
     ];
     format!("{}{}", NAMES[usize::from(n % 12)], i32::from(n / 12) - 1)
 }
@@ -302,10 +312,9 @@ impl CantusApp {
             },
             MappingTarget::SelectedTrack(d) => two(t("ctl.target.selected_track"), desk_text(*d)),
             MappingTarget::SelectedStrip(d) => two(t("ctl.target.selected_strip"), desk_text(*d)),
-            MappingTarget::DeviceParam(n) => tf(
-                "ctl.target.device_param",
-                &[("n", &(u32::from(*n) + 1))],
-            ),
+            MappingTarget::DeviceParam(n) => {
+                tf("ctl.target.device_param", &[("n", &(u32::from(*n) + 1))])
+            }
         }
     }
 
@@ -336,7 +345,11 @@ impl CantusApp {
 
     /// Whether a controller drives `target`.
     pub fn is_mapped(&self, target: &MappingTarget) -> bool {
-        self.project().controllers.of_target(target).next().is_some()
+        self.project()
+            .controllers
+            .of_target(target)
+            .next()
+            .is_some()
             || self.controllers.global.of_target(target).next().is_some()
     }
 
@@ -389,7 +402,11 @@ impl CantusApp {
             }
         }
         let scope = Self::scope_for(&target);
-        let replace = self.controller_map(scope).of_target(&target).next().map(|m| m.id);
+        let replace = self
+            .controller_map(scope)
+            .of_target(&target)
+            .next()
+            .map(|m| m.id);
         let name = self.mapping_target_name(&target);
         self.controllers.learning = Some(Learning {
             target,
@@ -437,7 +454,10 @@ impl CantusApp {
             self.exec(cmd);
         }
         if global > 0 {
-            self.controllers.global.mappings.retain(|m| &m.target != target);
+            self.controllers
+                .global
+                .mappings
+                .retain(|m| &m.target != target);
             self.store_global_map();
         }
         let name = self.mapping_target_name(target);
@@ -557,7 +577,13 @@ impl CantusApp {
 
     /// The selected track and strip, and the focused device's first parameters: what the
     /// relative targets name now.
-    pub fn controller_focus(&self) -> (Option<cantus_core::TrackId>, Option<cantus_core::StripId>, Vec<AutoTarget>) {
+    pub fn controller_focus(
+        &self,
+    ) -> (
+        Option<cantus_core::TrackId>,
+        Option<cantus_core::StripId>,
+        Vec<AutoTarget>,
+    ) {
         (
             self.selected_track,
             self.selected_strip,
@@ -721,7 +747,12 @@ impl CantusApp {
 /// learn mode: outlined above whatever is drawn there, and a click on it arms it. `true`
 /// when it was clicked (the caller then does nothing else with the click: the button under
 /// is covered anyway). Outside learn mode it does nothing.
-pub fn learn_spot(app: &mut CantusApp, ui: &egui::Ui, rect: egui::Rect, target: MappingTarget) -> bool {
+pub fn learn_spot(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    target: MappingTarget,
+) -> bool {
     if !app.controllers.learn_mode || !ui.is_rect_visible(rect) {
         return false;
     }
@@ -741,7 +772,12 @@ pub fn learn_action_spot(
     rect: egui::Rect,
     action: crate::keymap::Action,
 ) -> bool {
-    learn_spot(app, ui, rect, MappingTarget::Action(action.id().to_string()))
+    learn_spot(
+        app,
+        ui,
+        rect,
+        MappingTarget::Action(action.id().to_string()),
+    )
 }
 
 /// The track header's menu rows for MIDI learn (round 29, ADR 0062): the track's volume,
@@ -751,8 +787,14 @@ pub fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: cantus_core::Track
     use crate::kit::menu::{Check, Item};
     use crate::kit::text::Src;
     let targets = [
-        (MappingTarget::Param(AutoTarget::TrackGain(id)), "ctl.menu.volume"),
-        (MappingTarget::Param(AutoTarget::TrackPan(id)), "ctl.menu.pan"),
+        (
+            MappingTarget::Param(AutoTarget::TrackGain(id)),
+            "ctl.menu.volume",
+        ),
+        (
+            MappingTarget::Param(AutoTarget::TrackPan(id)),
+            "ctl.menu.pan",
+        ),
         (MappingTarget::TrackMute(id), "ctl.menu.mute"),
         (MappingTarget::TrackSolo(id), "ctl.menu.solo"),
         (MappingTarget::TrackArm(id), "ctl.menu.arm"),
@@ -833,7 +875,11 @@ pub(crate) fn decode(
                 let e = wide.entry((port, ch, d1)).or_insert((0, 0));
                 // A new coarse value starts its fine part again (MIDI's rule).
                 *e = (d2, 0);
-                (ch, [first, (Control::Cc14(d1), u16::from(d2) << 7, true)], 2)
+                (
+                    ch,
+                    [first, (Control::Cc14(d1), u16::from(d2) << 7, true)],
+                    2,
+                )
             } else if d1 < 64 {
                 let e = wide.entry((port, ch, d1 - 32)).or_insert((0, 0));
                 e.1 = d2;
@@ -845,12 +891,23 @@ pub(crate) fn decode(
         }
         0x90 if d2 > 0 => (ch, [(Control::Note(d1), u16::from(d2), true), none], 1),
         0x80 | 0x90 => (ch, [(Control::Note(d1), 0, false), none], 1),
-        0xA0 => (ch, [(Control::PolyPressure(d1), u16::from(d2), true), none], 1),
+        0xA0 => (
+            ch,
+            [(Control::PolyPressure(d1), u16::from(d2), true), none],
+            1,
+        ),
         0xC0 => (ch, [(Control::Program(d1), 127, true), none], 1),
-        0xD0 => (ch, [(Control::ChannelPressure, u16::from(d1), true), none], 1),
+        0xD0 => (
+            ch,
+            [(Control::ChannelPressure, u16::from(d1), true), none],
+            1,
+        ),
         0xE0 => (
             ch,
-            [(Control::PitchBend, u16::from(d2) << 7 | u16::from(d1), true), none],
+            [
+                (Control::PitchBend, u16::from(d2) << 7 | u16::from(d1), true),
+                none,
+            ],
             1,
         ),
         _ => (ch, [none, none], 0),
