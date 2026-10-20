@@ -676,6 +676,8 @@ impl EngineHandle {
         // Pitch renders are made on the pitch service's worker, never on this thread —
         // with a device or without (ADR 0054, review 1).
         self.samples.set_pitch_background(true);
+        // A render's compile never takes the playing snapshot's warp renders away.
+        self.samples.set_offline(render);
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());

@@ -127,6 +127,27 @@ pub struct AudioClipSnapshot {
     pub warp: Option<std::sync::Arc<crate::warp::Warp>>,
     /// The source file's own rate (the warp's frames count at it).
     pub source_rate: u32,
+    /// The data's frame 0 is the window's start (a warp's render, its bridge): the engine
+    /// lays it on the window's first sample, whatever the offset and the fine offset say —
+    /// never by cancelling `Transport::clip_zero`'s formula (round 29's second review).
+    pub zero_at_start: bool,
+    /// What this piece played before its data changed (a bridge giving way to its render,
+    /// one drag step's bridge to the next): the engine crossfades from it into the new data
+    /// over the first [`SWAP_FADE_S`] the snapshot plays — never a click (round 29's second
+    /// review).
+    pub fade_from: Option<FadeFrom>,
+}
+
+/// How long a piece's old data fades into its new one when a snapshot swaps them, seconds.
+pub const SWAP_FADE_S: f64 = 0.005;
+
+/// A piece's data before a swap, laid as it was (see [`AudioClipSnapshot::fade_from`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct FadeFrom {
+    pub data: std::sync::Arc<crate::pads::SampleData>,
+    /// Its fine offset, seconds, and whether its frame 0 is the window's start.
+    pub slip: f64,
+    pub zero_at_start: bool,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -416,6 +437,8 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
                 .filter(|_| !crate::warp::plays_source(a, held))
                 .map(|w| std::sync::Arc::new((**w).clone())),
             source_rate: src.sample_rate,
+            zero_at_start: false,
+            fade_from: None,
         };
         match c.period() {
             Some(period) if period < c.length => {

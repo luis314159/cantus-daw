@@ -222,3 +222,40 @@ fn imported_media_never_writes_over_an_earlier_import() {
     assert_eq!(std::fs::read(a).unwrap(), b"one");
     assert_eq!(std::fs::read(b).unwrap(), b"two");
 }
+
+/// Round 29's second review (finding 30): a bounce whose clip was edited while it was
+/// written is not applied (the file holds the old window) — and one made for another
+/// project never lands on this one's clip of the same ids.
+#[test]
+fn a_bounce_lands_only_on_the_clip_it_was_made_from() {
+    let dir = data_dir().join("stale");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.0).audio);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clip(&a);
+    let r = (t, c.id);
+    let mut w = Warp::identity(48_000, 100.0, 0);
+    w.cents = -300;
+    a.commit_warp(r, Some(w), WarpOp::Set, false);
+    // Edited while it is written.
+    assert!(a.bounce_warped(r));
+    a.exec(Command::SetClipOffset {
+        track: t,
+        clip: c.id,
+        offset: Ticks::beats(1),
+    });
+    settle(&mut a);
+    let now = a.project().track(t).unwrap().clip(c.id).unwrap().clone();
+    assert!(now.audio.as_ref().unwrap().warp.is_some(), "not applied");
+    assert_eq!(now.offset, Ticks::beats(1));
+    // Another project (the same, opened again) while it is written.
+    assert!(a.bounce_warped(r));
+    let again = a.project().clone();
+    a.replace_project(again);
+    settle(&mut a);
+    let now = a.project().track(t).unwrap().clip(c.id).unwrap().clone();
+    assert!(now.audio.as_ref().unwrap().warp.is_some(), "not applied");
+}

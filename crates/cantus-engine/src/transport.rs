@@ -80,6 +80,9 @@ pub struct Transport {
     /// The loop the last wrap came in — its length and its end, in ticks: what the passes
     /// older than the kept ones are counted by, whatever the loop is now (review of fix6).
     wrapped_loop: (f64, f64),
+    /// The sample count when the snapshot playing now was installed (a piece whose data it
+    /// swapped crossfades from there — warp, round 29's second review).
+    swapped: u64,
 }
 
 impl Transport {
@@ -95,9 +98,27 @@ impl Transport {
             loop_region: None,
             wraps: None,
             wrapped_loop: (0.0, 0.0),
+            swapped: 0,
         };
         t.anchor(0.0);
         t
+    }
+
+    /// A snapshot is installed now: a piece whose data it swapped fades from here.
+    pub fn mark_swap(&mut self) {
+        self.swapped = self.samples;
+    }
+
+    /// Where sample `s` lies in a swap's crossfade (`cantus_core::SWAP_FADE_S` from the
+    /// snapshot's install): `(u, n)` with `u` in [0, 1) — `None` outside it (before the
+    /// install, after a seek, or once it is done).
+    #[inline]
+    pub fn swap_fade(&self, s: i64) -> Option<f32> {
+        let n = (cantus_core::snapshot::SWAP_FADE_S * self.sample_rate)
+            .round()
+            .max(1.0) as i64;
+        let d = s - self.swapped as i64;
+        (0..n).contains(&d).then(|| (d as f32 + 0.5) / n as f32)
     }
 
     /// Count from `tick`: the origin moves there and the sample counter starts again.
@@ -344,7 +365,12 @@ impl Transport {
         // The constant arithmetic where one held stretch has the origin and the start;
         // else from the start, back by the source's seconds before it — the same sample,
         // and exactly the start's for a render that sets `slip` to cancel them (a warp).
-        match self.held.filter(|h| origin >= h.from && s < h.to) {
+        // (Both inside it: a negative offset puts the origin after the start, maybe past the
+        // held stretch — warp, round 29's second review.)
+        match self
+            .held
+            .filter(|h| origin.min(s) >= h.from && origin.max(s) < h.to)
+        {
             Some(h) => {
                 ((origin - self.origin_tick) / h.tps - slip * self.sample_rate).round() as i64
             }

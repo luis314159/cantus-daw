@@ -74,6 +74,9 @@ pub struct SampleCache {
     /// Pitch renders go to the pitch service's worker even without the source loader
     /// (`EngineHandle::compile` sets it: no render on the caller's thread, device or not).
     pitch_background: bool,
+    /// The snapshots attached now are an offline or foreign compile's, not the one that
+    /// plays: warp renders it plays are kept for the live one (round 29's second review).
+    offline: bool,
     /// Instruments' files loaded in the background (with [`Self::set_background`]).
     assets: Option<AssetLoader>,
     /// The zones' starts past their heads in the last snapshot attached, the board that
@@ -739,16 +742,26 @@ impl SampleCache {
                 }
             }
         };
-        errors.extend(
-            self.warp
-                .attach(snapshot, rate, background, &resolve, &input),
-        );
+        errors.extend(self.warp.attach(
+            snapshot,
+            rate,
+            background,
+            &resolve,
+            &input,
+            !self.offline,
+        ));
         errors
     }
 
     /// The pitch editor's service (ADR 0054): analyses and renders, off this thread.
     pub fn pitch(&self) -> &std::sync::Arc<crate::pitch::PitchService> {
         &self.pitch.service
+    }
+
+    /// The snapshots attached from now are an offline or foreign compile's (on), or the
+    /// one that plays (off, the default).
+    pub fn set_offline(&mut self, on: bool) {
+        self.offline = on;
     }
 
     /// Make pitch renders on the pitch service's worker (on), or here at once (off: a
@@ -806,7 +819,13 @@ impl SampleCache {
 
     /// Warp renders held for playing, kept, bridging, or waiting to be freed.
     pub fn warp_held(&self) -> usize {
-        self.warp.held()
+        self.warp.held_count()
+    }
+
+    /// The bytes the kept (not playing) warp renders may hold (tests: a small budget).
+    #[doc(hidden)]
+    pub fn set_warp_budget(&mut self, bytes: usize) {
+        self.warp.set_budget(bytes);
     }
 }
 
