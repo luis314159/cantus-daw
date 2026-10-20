@@ -268,3 +268,18 @@ fn an_exception_a_plugin_handled_is_no_crash_of_its() {
         Some(Blame::Neighbour)
     );
 }
+
+/// Each helper has a number of its own that no later one takes — a process id may come
+/// back — so one plug-in's deaths in two helpers are two (review isolation-4 #35, #53,
+/// #59).
+#[test]
+fn helpers_are_numbered_for_good() {
+    let _g = serial();
+    let pool = pool();
+    let first = load(&pool, GAIN_ID, "own-number-1");
+    let one = first.main.helper_id().expect("a helper");
+    drop(first);
+    let second = load(&pool, GAIN_ID, "own-number-2");
+    let two = second.main.helper_id().expect("a helper");
+    assert!(two > one, "{one} then {two}");
+}

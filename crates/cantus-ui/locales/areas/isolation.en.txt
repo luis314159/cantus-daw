@@ -110,3 +110,4 @@ isolation.waiting.title = is waiting on a window of its own
 isolation.waiting.body = A dialog of it may be open behind Cantus. Answer it there, or stop the plug-in: Cantus keeps playing without it.
 isolation.waiting.show = Show it
 isolation.waiting.stop = Stop it
+isolation.why.not_installed = it is not installed on this computer

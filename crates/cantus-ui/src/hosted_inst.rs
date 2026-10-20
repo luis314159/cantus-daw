@@ -75,7 +75,7 @@ impl CantusApp {
             return;
         }
         if let Some(why) = self.plugins.instrument_missing(track) {
-            let why = why.to_string();
+            let why = crate::views::plugin_notice::load_words(why);
             self.set_error(tf(
                 "hosted.missing_status",
                 &[("name", &plugin), ("why", &why)],

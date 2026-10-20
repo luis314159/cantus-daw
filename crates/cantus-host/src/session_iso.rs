@@ -973,6 +973,36 @@ mod tests {
         assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 1);
     }
 
+    /// A helper's death is counted once for the plug-in it is laid on, by the helper's
+    /// serial (never reused, as a process id may be), and never for one nothing lays it on
+    /// (review isolation-4 #35, #53, #58, #59).
+    #[test]
+    fn deaths_are_counted_once_per_helper_and_never_for_nobody() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        let info = PluginInfo {
+            format: Format::Clap,
+            id: "com.example.glacier".into(),
+            name: "Glacier".into(),
+            vendor: "Example".into(),
+            version: String::new(),
+            path: std::path::PathBuf::new(),
+            kind: PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        };
+        host.count_crash(&info, Blame::Unknown, Some(1));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 0);
+        assert!(host.db.crash_record(Format::Clap, &info.id).is_none());
+        host.count_crash(&info, Blame::This, Some(1));
+        host.count_crash(&info, Blame::This, Some(1));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 1);
+        host.count_crash(&info, Blame::This, Some(2));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 2);
+    }
+
     /// A crash recorded (or forgotten) while a background scan ran survives the scan's
     /// result being taken (review #18, #52).
     #[test]

@@ -667,6 +667,8 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.busy"
     } else if reason.contains("sandbox could not start") {
         "isolation.why.no_helper"
+    } else if reason.contains("not installed") {
+        "isolation.why.not_installed"
     } else if reason.contains("could not restart after its state") {
         "isolation.why.no_restart"
     } else if reason.contains("broke its protocol") {
@@ -690,6 +692,13 @@ pub fn reason_words(reason: &str) -> String {
 /// isolation-4 #25, #40).
 pub fn stopped_words(reason: &str) -> String {
     words_or(reason, "isolation.why.load_failed")
+}
+
+/// Why a plug-in could not be loaded, in the interface's words (a form the host writes, or
+/// "it could not be loaded"; the host's own text kept for the log) — never its English on
+/// the status line (review isolation-4 #40).
+pub fn load_words(error: &str) -> String {
+    words_or(error, "isolation.why.not_loaded")
 }
 
 /// [`reason_words`], with `fallback`'s words for a reason in none of the host's forms.

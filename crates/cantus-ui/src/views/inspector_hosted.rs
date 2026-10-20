@@ -56,10 +56,11 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
             .ui
             .interact(row.full, Id::new(("hosted-missing", t)), Sense::hover());
         if r.hovered() {
-            let why = app
-                .plugins
-                .instrument_missing(t)
-                .unwrap_or("not installed on this computer");
+            let why = crate::views::plugin_notice::load_words(
+                app.plugins
+                    .instrument_missing(t)
+                    .unwrap_or("not installed on this computer"),
+            );
             let tip = tf("hosted.status_missing_tip", &[("why", &why)]);
             hint::set_text(sh.ui.ctx(), &missing, &tip, Caps::NONE);
         }

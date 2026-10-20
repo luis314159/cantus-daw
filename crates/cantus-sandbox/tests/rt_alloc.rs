@@ -209,6 +209,85 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
         });
         assert_eq!(main.late_blocks(), 1, "{id}: it was late");
         assert_eq!(n, 0, "{id}: {n} allocations around a late block");
+        // Late again, never reset: the dry blocks carry controllers — folded, switches
+        // kept, in order — and note-offs, and the resuming block, whose own notes leave
+        // the carried note-offs no room, has the plug-in reset first, then takes the rest
+        // (review isolation-4 #33).
+        let carried: Vec<NoteEvent> = (0..40u8)
+            .map(|k| NoteEvent {
+                offset: u32::from(k),
+                note_id: -1,
+                channel: 0,
+                key: k,
+                kind: if k % 4 == 0 {
+                    NoteKind::Midi {
+                        status: 0xB0,
+                        data1: 64 + (k / 4) % 2,
+                        data2: k * 3,
+                    }
+                } else if k % 4 == 1 {
+                    NoteKind::Midi {
+                        status: 0xE0,
+                        data1: k,
+                        data2: 64,
+                    }
+                } else {
+                    NoteKind::Off { velocity: 0.0 }
+                },
+            })
+            .collect();
+        let crowd: Vec<NoteEvent> = (0..300u32)
+            .map(|i| NoteEvent {
+                offset: i,
+                note_id: -1,
+                channel: 0,
+                key: (i % 128) as u8,
+                kind: NoteKind::On { velocity: 0.5 },
+            })
+            .collect();
+        let n = allocations_in(|| {
+            out.clear();
+            audio.process(
+                cantus_host::Audio {
+                    left: &mut l,
+                    right: &mut r,
+                    key: None,
+                    transport: Some(&transport),
+                },
+                &fault(fault_id, SLOW_ONCE),
+                &[],
+                &mut out,
+            );
+            for _ in 0..10 {
+                out.clear();
+                audio.process(
+                    cantus_host::Audio {
+                        left: &mut l,
+                        right: &mut r,
+                        key: None,
+                        transport: Some(&transport),
+                    },
+                    &params,
+                    &carried,
+                    &mut out,
+                );
+            }
+            std::thread::sleep(Duration::from_millis(100));
+            out.clear();
+            audio.process(
+                cantus_host::Audio {
+                    left: &mut l,
+                    right: &mut r,
+                    key: None,
+                    transport: Some(&transport),
+                },
+                &params,
+                &crowd,
+                &mut out,
+            );
+        });
+        assert_eq!(main.late_blocks(), 2, "{id}: it was late again");
+        assert_eq!(n, 0, "{id}: {n} allocations carrying and delivering");
         // The helper dies — in the block counted — and the dry blocks after it.
         let n = allocations_in(|| {
             out.clear();

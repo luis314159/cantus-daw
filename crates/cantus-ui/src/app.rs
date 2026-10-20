@@ -3128,11 +3128,15 @@ impl CantusApp {
             match n {
                 HostNotice::LoadFailed { name, error, .. } => self.set_error(tf(
                     "host.load_failed",
-                    &[("name", &name), ("error", &error)],
+                    &[
+                        ("name", &name),
+                        ("error", &views::plugin_notice::load_words(&error)),
+                    ],
                 )),
-                HostNotice::RestartFailed { error, .. } => {
-                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
-                }
+                HostNotice::RestartFailed { error, .. } => self.set_error(tf(
+                    "host.restart_failed",
+                    &[("error", &views::plugin_notice::load_words(&error))],
+                )),
                 HostNotice::ScanDone(r) => {
                     // Plug-ins that were missing may be there now.
                     self.synced_revision = u64::MAX;
@@ -3150,11 +3154,15 @@ impl CantusApp {
                 // data and plays silence, and the status line says so.
                 HostNotice::InstrumentLoadFailed { name, error, .. } => self.set_error(tf(
                     "hosted.missing_status",
-                    &[("name", &name), ("why", &error)],
+                    &[
+                        ("name", &name),
+                        ("why", &views::plugin_notice::load_words(&error)),
+                    ],
                 )),
-                HostNotice::InstrumentRestartFailed { error, .. } => {
-                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
-                }
+                HostNotice::InstrumentRestartFailed { error, .. } => self.set_error(tf(
+                    "host.restart_failed",
+                    &[("error", &views::plugin_notice::load_words(&error))],
+                )),
                 // A plug-in that stopped working, and isolation without its helper (round
                 // 29, ADR 0063): the crash card and the status line.
                 HostNotice::PluginCrashed { .. }

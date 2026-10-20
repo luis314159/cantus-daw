@@ -110,3 +110,4 @@ isolation.waiting.title = espera en una ventana suya
 isolation.waiting.body = Puede que un diálogo suyo esté abierto detrás de Cantus. Respóndelo allí, o detén el plug-in: Cantus sigue sonando sin él.
 isolation.waiting.show = Mostrarlo
 isolation.waiting.stop = Detenerlo
+isolation.why.not_installed = no está instalado en este equipo

@@ -798,3 +798,33 @@ fn a_plugin_waiting_on_its_window_has_a_card() {
     plugin_notice::answer_waiting(&mut a, card.target, WaitAnswer::Stop);
     assert!(plugin_notice::waiting_card(&a).is_none(), "stopped");
 }
+
+/// A strip's chain line, hovered while an insert of it is stopped: the chain, then the
+/// stopped plug-in and why in the interface's words, and how to bring it back — what the
+/// shot cannot show (review isolation-3 #17, #33; isolation-4 #42).
+#[test]
+fn the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (p, strip, id) = hosted_project();
+    let mut a = app(p);
+    crash(&mut a, id, 1);
+    let hint = cantus_ui::views::mixer::chain_hint(&a, strip, "Glacier");
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let lines: Vec<&str> = hint.lines().collect();
+    assert_eq!(lines.len(), 3, "{hint}");
+    assert!(lines[1].starts_with("Glacier") && lines[1].contains("memoria"), "{hint}");
+    assert_eq!(lines[2], "Recárgalo desde su menú.");
+}
+
+/// A plug-in that could not be loaded is said in the interface's words on the status line,
+/// never the host's English (review isolation-4 #40: seen in its shots).
+#[test]
+fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (p, _, _) = hosted_project();
+    let a = app(p);
+    let text = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(text.contains("no está instalado"), "{text}");
+    assert!(!text.contains("not installed"), "{text}");
+}
