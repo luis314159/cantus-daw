@@ -38,8 +38,9 @@ pub struct PitchUi {
     pub lane: crate::views::pitch_lane::LaneState,
 }
 
-/// Where a clip's source frames sit on the timeline: content tick `c` reads source frame
-/// `seconds(c) · rate + slip` (ADR 0025 §7), at the project's tempo — mirrored inside the
+/// Where a clip's source frames sit on the timeline — through `cantus_core::audio_time`,
+/// the one mapping the engine plays by: an unwarped clip at natural speed from its start
+/// (ADR 0060), a warped clip through its warp markers (ADR 0061) — mirrored inside the
 /// window when the clip plays backwards, as the engine reads it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipTime {
@@ -47,8 +48,10 @@ pub struct ClipTime {
     pub offset: Ticks,
     pub slip: i32,
     pub rate: u32,
-    /// The tempo map the clip plays under (ADR 0060, `cantus_core::audio_time`).
-    pub map: std::sync::Arc<cantus_core::TempoMap>,
+    /// The project's tempo map.
+    pub map: Arc<cantus_core::tempo::TempoMap>,
+    /// The clip's warp, when it is warped.
+    pub warp: Option<Arc<cantus_core::warp::Warp>>,
     /// Played backwards over the window that ends at `end`.
     pub reverse: bool,
     pub end: Ticks,
@@ -62,16 +65,22 @@ impl ClipTime {
             slip: clip.audio.as_ref().map_or(0, |a| a.slip_frames),
             rate: source.sample_rate.max(1),
             map: crate::views::bars::map(project),
+            warp: clip
+                .audio
+                .as_ref()
+                .and_then(|a| a.warp.as_deref())
+                .map(|w| Arc::new(w.clone())),
             reverse: clip.audio.as_ref().is_some_and(|a| a.reverse),
             end: clip.end(),
         }
     }
 
     fn forward_frame(&self, t: Ticks) -> f64 {
-        cantus_core::audio_time::frame_at(
+        cantus_core::audio_time::frame_through(
             &self.map,
             self.start,
             self.offset,
+            self.warp.as_deref(),
             self.slip as f64,
             self.rate as f64,
             t.0 as f64,
@@ -79,10 +88,11 @@ impl ClipTime {
     }
 
     fn forward_tick(&self, f: f64) -> Ticks {
-        let t = cantus_core::audio_time::tick_at_frame(
+        let t = cantus_core::audio_time::tick_through(
             &self.map,
             self.start,
             self.offset,
+            self.warp.as_deref(),
             self.slip as f64,
             self.rate as f64,
             f,
@@ -574,5 +584,8 @@ impl CantusApp {
     /// [`Self::analyse_take_soon`] for a file by its path and rate (a finished take).
     pub fn analyse_file_soon(&self, path: &std::path::Path, rate: u32) {
         let _ = self.engine.samples.pitch().lookup(path, rate);
+        // And its transients and tempo (round 29, ADR 0061): a take is never warped by
+        // itself, but the warp editor and *Quantise audio* find them ready.
+        let _ = self.engine.samples.warp().lookup(path, rate);
     }
 }

@@ -27,6 +27,8 @@ use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 mod audio;
 pub use audio::edit::CURVE_KEYS;
 pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
+// The warp editor reads clips the way the arrangement does (round 29, ADR 0061).
+pub use audio::{warp as warp_api, Shown as AudioShown};
 
 /// Automation lanes and the curves in their clips (ADR 0027).
 #[path = "arrangement_auto.rs"]
@@ -356,6 +358,13 @@ impl ArrangementView {
             },
             _ => Ticks::ZERO,
         }
+    }
+
+    /// The right-edge drag of clip `r` with Alt (round 29, ADR 0061): how far, while it
+    /// stretches the clip — the painter previews the stretched waveform.
+    pub fn stretch_preview(&self, r: (TrackId, ClipId)) -> Option<Ticks> {
+        let d = self.drag.as_ref()?;
+        (d.anchor == r && d.mode == DragMode::TrimEnd && self.audio.mods.alt).then_some(d.delta)
     }
 }
 
@@ -2077,6 +2086,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // ---- interaction ------------------------------------------------------------------
     let press = press_origin;
     let mods = ui.input(|i| i.modifiers);
+    audio::warp::modifiers(app, mods);
     let track_at = |app: &CantusApp, y: f32| -> Option<TrackId> {
         view.row_at(y)
             .and_then(|i| app.project().tracks.get(i).map(|t| t.id))
@@ -2116,6 +2126,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                     app.clear_time_selection();
                 }
             } else if let Some(h) = hit {
+                // A warp marker clicked is selected (Del removes it; ADR 0061).
+                audio::warp::clicked(app, (h.track, h.clip), h.handle);
                 app.focus_arrangement();
                 if mods.command {
                     app.toggle_clip_selection(h.track, h.clip);
@@ -2263,6 +2275,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                         DragMode::Move => None,
                     };
                     match (edit, crate::clips::clip_of(app.project(), anchor)) {
+                        // Alt on the right edge stretches the clip (ADR 0061): past the file.
+                        (Some(WindowEdit::TrimEnd), Some(_)) if audio::warp::stretching(app) => {
+                            delta
+                        }
                         (Some(e), Some(c)) => clamp_edit(app.project(), c, e, delta),
                         _ => delta,
                     }
@@ -2595,6 +2611,8 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
     if is_audio {
         // The audio clip's own section: curves, normalise, gain, reverse, the file.
         audio::edit::clip_menu(app, ui, (track, clip));
+        // Warping (round 29, ADR 0061): a list of its own.
+        audio::warp::clip_menu(app, ui, (track, clip));
         let _ = menu(app, ui, &[Entry::Band("clip.color")]);
     }
     color_menu(app, ui, true);

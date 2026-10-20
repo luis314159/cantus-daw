@@ -33,6 +33,7 @@ pub mod samples;
 pub mod sched;
 pub mod stems;
 pub mod transport;
+pub mod warp;
 
 pub use automation::Runtime as AutomationRuntime;
 pub use backend::{output_devices, AudioConfig, DeviceInfo, EngineError, EngineHandle};

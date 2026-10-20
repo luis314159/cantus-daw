@@ -308,7 +308,17 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
     if !ours {
         report.info("interop.report.d_foreign", vec![]);
     }
-    Ok(Imported { project, report })
+    // The audio files the archive carries, for the caller to put on disk (round 29).
+    let media = files
+        .iter()
+        .filter(|(p, _)| project.audio_pool.iter().any(|s| s.path == *p))
+        .cloned()
+        .collect();
+    Ok(Imported {
+        project,
+        report,
+        media,
+    })
 }
 
 /// A file of the archive, by the path the XML gives.
@@ -526,6 +536,34 @@ fn build(
             clip.content_length = c.period;
             clip.muted = c.muted;
             clip.color = c.color;
+            // An audio clip (round 29, ADR 0061): its file in the pool (once), its warp.
+            if let Some(au) = &c.audio {
+                let id = match project.audio_pool.iter().find(|s| s.path == au.path) {
+                    Some(s) => s.id,
+                    None => {
+                        let id = cantus_core::AudioSourceId(project.alloc_id());
+                        let name = std::path::Path::new(&au.path)
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| c.name.clone());
+                        project.audio_pool.push(cantus_core::AudioSource {
+                            id,
+                            name,
+                            path: au.path.clone(),
+                            sample_rate: au.rate,
+                            channels: au.channels,
+                            frames: (au.seconds * au.rate as f64).round() as u64,
+                            sha256: None,
+                            recorded: false,
+                        });
+                        id
+                    }
+                };
+                let mut region = super::audio::region(id, au, project.tempo_bpm);
+                region.fade_in = c.fades.0;
+                region.fade_out = c.fades.1;
+                clip.audio = Some(region);
+            }
             for n in &c.notes {
                 let note = project.make_note(n.start, n.length, n.pitch, n.velocity);
                 clip.notes.push(note);

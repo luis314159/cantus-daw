@@ -11,6 +11,12 @@ use std::path::PathBuf;
 /// elsewhere goes here.
 const ON_THE_KIT: &[&str] = &[
     "views/comp_editor.rs",
+    // Round 29, warp (ADR 0061).
+    "views/warp.rs",
+    "views/warp_bar.rs",
+    "views/warp_quantise.rs",
+    "views/inspector_warp.rs",
+    "views/arrangement_warp.rs",
     "views/comp_editor/desk.rs",
     "views/comp_editor/history.rs",
     "views/comp_editor/key.rs",

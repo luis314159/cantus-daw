@@ -581,6 +581,64 @@ Los formantes se conservan al mover una nota (medido: dentro de 3 dB a ±3 semit
 Trabaja sobre una voz o una línea de instrumento a la vez; los acordes no se separan en
 notas.
 
+### Warp y estiramiento del audio
+
+El **warp** hace que un clip de audio suene al tiempo del proyecto: más rápido o más lento
+de lo que se grabó, sin cambiar su tono, y siguiendo cada cambio de la pista de tempo. El
+archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
+
+- **Los loops se ajustan solos.** Importa un loop (desde *Archivo ▸ Importar audio…*, soltándolo
+  desde Windows o desde el explorador) y Cantus encuentra su tempo, sus pulsos y su primer
+  tiempo fuerte; un archivo de un número entero de compases (o uno cuyo WAV lleva su
+  tempo) se ajusta al momento al tempo del proyecto, en el mismo paso de deshacer que la
+  importación. Los archivos más largos, y cada toma que grabas, suenan a su velocidad
+  natural hasta que los ajustes; una grabación suena tal como se tocó.
+- **Ajusta tú un clip**: clic derecho ▸ *Warp* ▸ **Detectar el tempo** (marcadores en cada
+  compás encontrado), o **Ajustar desde aquí** (su tempo contado desde donde hiciste clic),
+  o **Seguir el tempo** en el inspector. *Usar su tempo en el proyecto* va al revés: el
+  proyecto toma el tempo del clip.
+- Los **marcadores de warp** fijan un instante del audio a un pulso. Un clip ajustado
+  muestra sus **transitorios** (los golpes que contiene) como marcas en una banda en su
+  parte superior, y sus marcadores como banderas doradas. **Doble clic en la banda** añade
+  un marcador (sobre un transitorio, cae sobre él); arrastrar en la banda añade uno y lo
+  mueve a la vez. **Arrastra un marcador** para llevar ese instante del audio a otro pulso
+  — se ajusta a la rejilla (mantén `Ctrl` para moverlo libre) y el audio entre sus vecinos
+  se estira para encajar. Mantén **`Alt`** al arrastrar para deslizar en cambio el audio
+  *bajo* el marcador. Doble clic en un marcador, o clic derecho ▸ *Quitar marcador de
+  warp*, o un clic en él y `Supr`, para quitarlo.
+- **Estira un clip entero**: mantén `Alt` y arrastra su **borde derecho** (`Mayús` sigue
+  desplazando el contenido).
+- **La pestaña Warp del editor del clip**: doble clic en el clip (o *Editar el warp*) — el
+  editor tiene dos pestañas, **Afinación** y **Warp**, y se abre en la última que usaste.
+  La pestaña Warp muestra el clip en grande sobre una regla de compases, con los mismos
+  gestos, y una barra con el modo, la transposición, *Formantes*, *Seguir*, el tempo del
+  clip (**½**, **×2** cuando se contó a la mitad o al doble), *Detectar el tempo*,
+  *Cuantizar…* y *Restablecer warp*.
+- **Modos** (la sección *Warp* del inspector, o la barra):
+  - **Complejo** — cualquier cosa: mezclas completas, pads, acordes. Mantiene los ataques
+    nítidos y la imagen estéreo estable.
+  - **Ritmo** — baterías y loops percusivos: cada golpe suena exactamente como se grabó,
+    solo desplazado; **Final de cortes** elige qué llena el hueco tras un golpe cuando se
+    ralentiza (*Desvanecer*, *Bucle*, *Vaivén*).
+  - **Melódico** — una voz o una línea de instrumento: el más limpio para un solo, con el
+    color de la voz conservado al transponer.
+  - **Varispeed** — como un tocadiscos: la velocidad y el tono cambian juntos (sin
+    artefactos de procesado; *Transponer* queda desactivado).
+- **Transponer** desplaza el clip en semitonos y cents sin cambiar su tiempo;
+  **Formantes ▸ Conservar** mantiene el color de una voz al transponerla (sin efecto
+  "ardilla").
+- **Cuantizar audio…** (el menú del clip, con uno o varios clips seleccionados): acerca los
+  transitorios a una rejilla con una *Intensidad*, solo los más fuertes si lo eliges
+  (*Transitorios desde*) — un paso de deshacer para todos los clips.
+- **Renderizar el audio ajustado** escribe el clip tal como suena ahora en un archivo nuevo
+  junto al audio del proyecto, y el clip pasa a reproducir ese archivo, sin warp (un paso
+  de deshacer). **Restablecer warp** devuelve el clip a su velocidad natural.
+
+Mientras llega un render (una fracción de segundo para un loop, unos segundos para un
+archivo largo) oyes una vista previa rápida con el mismo tiempo; la exportación, las
+pistas separadas y la congelación siempre esperan al render completo. Los clips ajustados
+viajan en los archivos DAWproject con sus marcadores y su modo.
+
 ### Automatización
 
 Clic derecho en cualquier perilla, fader o control de un efecto ▸ **Crear clip de

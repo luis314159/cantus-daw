@@ -728,6 +728,39 @@ fn main() {
             });
         }
     }
+    // Schema 34 (round 29, warp — ADR 0061): the vocal's first playing window warped —
+    // Melodic, three semitones down, its formants kept, a marker on beat 2 moved a little
+    // late (the take slowed into it) — so a v34 file holds every warp field but the tail.
+    {
+        let tempo = p.tempo_bpm;
+        let rates: Vec<(cantus_core::AudioSourceId, u32)> =
+            p.audio_pool.iter().map(|s| (s.id, s.sample_rate)).collect();
+        let vocal = &mut p.tracks[vocal_index];
+        if let Some(a) = vocal
+            .clips
+            .iter_mut()
+            .filter(|c| c.lane == 0)
+            .find_map(|c| c.audio.as_mut())
+        {
+            let rate = rates
+                .iter()
+                .find(|(id, _)| *id == a.source)
+                .map_or(48_000, |r| r.1);
+            let mut w = cantus_core::warp::Warp::identity(rate, tempo, a.slip_frames);
+            if let Some(m) = w.add_marker(Ticks::beats(2)) {
+                w = m.move_marker(1, Ticks::beats(2) + Ticks(120));
+            }
+            w.mode = cantus_core::warp::WarpMode::Melodic;
+            w.cents = -300;
+            w.detected = Some(cantus_core::warp::Detected {
+                bpm: tempo,
+                confidence: 0.4,
+                downbeat: 0.0,
+                bars: None,
+            });
+            a.warp = Some(Box::new(w));
+        }
+    }
     // Schema 35 (round 29, controllers — ADR 0062): six controller mappings — a knob on
     // the delay's mix with a range and a bend, a 14-bit fader on strip 1 picking up with
     // feedback, a sign-bit encoder on the tempo, a pad (the second port of its name)

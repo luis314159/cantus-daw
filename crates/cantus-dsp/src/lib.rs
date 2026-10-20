@@ -25,6 +25,7 @@
 
 pub mod aequalis;
 pub mod anulus;
+pub mod beat;
 pub mod calor;
 pub mod chorda;
 pub mod click;
@@ -58,6 +59,7 @@ pub mod modmatrix;
 pub mod modulus;
 pub mod multiplex;
 pub mod nulltest;
+pub mod onset;
 pub mod organum;
 pub mod osc;
 pub mod par;
@@ -73,6 +75,7 @@ pub mod smoother;
 pub mod spatium;
 pub mod spectrum;
 pub mod speculum;
+pub mod stretch;
 pub mod terminus;
 pub mod tonsor;
 pub mod tonus;

@@ -617,6 +617,16 @@ pub enum Command {
         pitch: Option<Box<crate::pitch::PitchEdit>>,
         op: crate::pitch::PitchOp,
     },
+    /// Set or clear an audio clip's warp (ADR 0061): its markers, mode, transposition and
+    /// tempo, whole — a drag merges into one step (when `op` merges) and the inverse is the
+    /// warp as it was. Refused on a clip that is not audio, and for a warp that is not
+    /// valid (`Warp::is_valid`). Linked clips share it (it is content, ADR 0037).
+    SetClipWarp {
+        track: TrackId,
+        clip: ClipId,
+        warp: Option<Box<crate::warp::Warp>>,
+        op: crate::warp::WarpOp,
+    },
     /// Set or clear what makes a clip an automation clip (ADR 0027): its target and its
     /// curve. Every edit of a curve — a point added, moved, bent, an articulator — is this
     /// one command with the whole new curve, so a drag merges into one step and its
@@ -856,6 +866,7 @@ impl Command {
             SetClipContent { .. } => "cmd.set_clip_content",
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetClipPitch { op, .. } => op.label_key(),
+            SetClipWarp { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             InsertModulator { .. } => "cmd.insert_modulator",
             RemoveModulator { .. } => "cmd.remove_modulator",
@@ -946,6 +957,21 @@ impl Command {
                     ..
                 },
                 SetClipPitch {
+                    track: tb,
+                    clip: cb,
+                    op: ob,
+                    ..
+                },
+            ) => ta == tb && ca == cb && oa == ob && oa.merges(),
+            // A warp marker or the transposition dragged (ADR 0061): the newest.
+            (
+                SetClipWarp {
+                    track: ta,
+                    clip: ca,
+                    op: oa,
+                    ..
+                },
+                SetClipWarp {
                     track: tb,
                     clip: cb,
                     op: ob,
@@ -2352,6 +2378,29 @@ impl Command {
                     track,
                     clip,
                     pitch: old,
+                    op,
+                })
+            }
+            SetClipWarp {
+                track,
+                clip,
+                warp,
+                op,
+            } => {
+                if warp.as_ref().is_some_and(|w| !w.is_valid()) {
+                    return Err(CommandError::InvalidValue("warp".into()));
+                }
+                let old = edit_shared(project, track, clip, |c| {
+                    let a = c
+                        .audio
+                        .as_mut()
+                        .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    Ok(std::mem::replace(&mut a.warp, warp.clone()))
+                })?;
+                Ok(SetClipWarp {
+                    track,
+                    clip,
+                    warp: old,
                     op,
                 })
             }

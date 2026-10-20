@@ -53,6 +53,8 @@ mod sends;
 mod sheet;
 #[path = "inspector_track.rs"]
 mod track;
+#[path = "inspector_warp.rs"]
+pub mod warp;
 
 use crate::app::CantusApp;
 use crate::kit::color::shade;
@@ -125,6 +127,8 @@ pub enum Act {
     Link(TrackId, ClipId, track::LinkAct),
     /// The Modulators section's rows (ADR 0057).
     Mod(modulators::ModAct),
+    /// The warp section's keys (round 29, ADR 0061).
+    Warp(warp::WarpAct),
     /// A hosted plug-in's *Reload* and where it runs (round 29, ADR 0063).
     Hosting(
         crate::views::plugin_notice::Target,
@@ -448,12 +452,15 @@ impl Inspector {
                     if audio_track(app, t) {
                         if let Some(c) = crate::record_session::inspected_audio_clip(app, t) {
                             audio::show(&mut sh, app, t, c);
+                            warp::show(&mut sh, app, t, c);
                         }
                     }
                 }
                 Subject::Clip(t, c) => {
                     track::clip(&mut sh, app, t, c);
                     audio::show(&mut sh, app, t, c);
+                    // The clip's warp (round 29, ADR 0061).
+                    warp::show(&mut sh, app, t, c);
                 }
                 Subject::Notes(t, c) => track::notes(&mut sh, app, t, c),
                 _ => {}
@@ -778,6 +785,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::LoadSample(t, pad) => app.load_pad_sample(t, pad),
         Act::RemovePad(t, pad) => app.remove_pad(t, pad),
         Act::Audio(a) => audio::apply(app, a),
+        Act::Warp(w) => warp::apply(app, w),
         Act::Link(t, c, a) => track::apply_link(app, t, c, a),
         Act::Flat(id) => {
             let commands = (0..3u8)

@@ -533,6 +533,59 @@ pull it onto its note — for small fixes without opening the editor.
 Formants are kept when a note moves (measured within 3 dB at ±3 semitones). It works on
 one voice or one instrument line at a time; chords are not split into notes.
 
+### Warping and stretching audio
+
+**Warping** makes an audio clip play in the project's time: faster or slower than it was
+recorded, without changing its pitch, and following every tempo change of the tempo track.
+The file is never changed: the clip plays a render made beside the window.
+
+- **Loops warp themselves.** Import a loop (from *File ▸ Import audio…*, a drop from Windows or
+  from the browser) and Cantus finds its tempo, its beats and its first downbeat; a file
+  of a whole number of bars (or one whose WAV carries its tempo) is warped at once to the
+  project's tempo, in the same undo step as the import. Longer files, and every take you
+  record, play at their natural speed until you warp them; a recording plays as it was
+  played.
+- **Warp a clip yourself**: right-click it ▸ *Warp* ▸ **Detect tempo** (markers on every
+  bar it found), or **Warp from here** (its tempo counted from where you clicked), or
+  **Follow tempo** in the inspector. *Set the project tempo from this clip* goes the other
+  way: the project takes the clip's tempo.
+- **Warp markers** pin a moment of the audio to a beat. A warped clip shows its
+  **transients** (the hits found in it) as ticks along a band at its top, and its markers
+  as gold flags. **Double-click the band** to add a marker (on a transient, it lands on
+  it); drag in the band to add one and move it at once. **Drag a marker** to move that
+  moment of the audio to another beat — it snaps to the grid (hold `Ctrl` for free) and
+  the audio between its neighbours stretches to fit. Hold **`Alt`** while dragging to
+  slide the audio *under* the marker instead. Double-click a marker, or right-click it ▸
+  *Remove warp marker*, or click it and press `Del`, to remove it.
+- **Stretch a whole clip**: hold `Alt` and drag its **right edge** (`Shift` still slips).
+- **The clip editor's Warp tab**: double-click the clip (or *Edit warp*) — the editor has
+  two tabs, **Pitch** and **Warp**, and opens in the one you used last. The Warp tab shows
+  the clip large on a bar ruler, with the same gestures, and a bar with the mode, the
+  transposition, *Formants*, *Follow*, the clip's tempo (**½**, **×2** when it was counted
+  at half or double), *Detect tempo*, *Quantise…* and *Reset warp*.
+- **Modes** (the inspector's *Warp* section, or the bar):
+  - **Complex** — anything: full mixes, pads, chords. Keeps the attacks sharp and the
+    stereo image steady.
+  - **Rhythm** — drums and percussive loops: each hit is played exactly as recorded, only
+    moved; **Slice ends** chooses what fills the gap after a hit when it is slowed down
+    (*Fade*, *Loop*, *Ping-pong*).
+  - **Melodic** — one voice or one instrument line: the cleanest for a solo, with the
+    voice's colour kept when transposed.
+  - **Re-pitch** — like a turntable: the speed and the pitch change together (no
+    processing artefacts; *Transpose* is then off).
+- **Transpose** shifts the clip by semitones and cents without changing its time;
+  **Formants ▸ Keep** keeps a voice's colour when it is transposed (no "chipmunk").
+- **Quantise audio…** (the clip menu, with one or several clips selected): pulls the
+  transients toward a grid with a *Strength*, only the stronger ones if you choose
+  (*Transients over*) — one undo step for every clip.
+- **Bounce warped audio** writes the clip as it sounds now to a new file beside the
+  project's audio, and the clip then plays that file, unwarped (one undo step). **Reset
+  warp** puts the clip back to its natural speed.
+
+While a render is on its way (a fraction of a second for a loop, a few seconds for a long
+file) you hear a quick preview of the same timing; export, stems and freezing always wait
+for the full render. Warped clips travel in DAWproject files with their markers and mode.
+
 ### Automation
 
 Right-click any knob, fader or effect control ▸ **Create automation clip**, or move a

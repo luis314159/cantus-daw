@@ -763,7 +763,8 @@ pub fn stem_specs(project: &Project, tracks: bool, master: bool) -> Vec<StemSpec
 // ---- DAWproject ---------------------------------------------------------------------
 
 pub fn export_dawproject_to(app: &mut CantusApp, path: &Path) -> bool {
-    let out = dawproject::export(app.project(), crate::app::APP_VERSION);
+    // Audio clips carry their files (round 29, ADR 0061).
+    let out = dawproject::export_with(app.project(), crate::app::APP_VERSION, app.audio_base());
     match std::fs::write(path, &out.bytes) {
         Ok(()) => {
             app.set_status(tf("interop.status.exported", &[("file", &file_name(path))]));
@@ -811,6 +812,8 @@ pub fn import_dawproject(app: &mut CantusApp, bytes: &[u8], name: &str) -> bool 
         }
     };
     let mut project = imported.project;
+    // The audio the archive carries, put on disk (round 29, ADR 0061).
+    crate::warp::place_media(&mut project, &imported.media, name);
     for track in &mut project.tracks {
         if let InstrumentSpec::Pulsus(kit) = &mut track.instrument {
             for pad in &mut kit.pads {

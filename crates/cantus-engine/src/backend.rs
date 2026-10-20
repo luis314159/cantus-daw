@@ -682,6 +682,10 @@ impl EngineHandle {
         // And the pitch renders the first compile asked for (ADR 0054): the file holds the
         // edits, never the take as sung.
         self.samples.wait_pitch(std::time::Duration::from_secs(300));
+        // And the warp renders (ADR 0061), asked once the pitch renders they read are in:
+        // the file holds the full renders, never a bridge.
+        let _ = self.compile(project, revision);
+        self.samples.wait_warp(std::time::Duration::from_secs(300));
         self.compile(project, revision)
     }
 

@@ -20,6 +20,8 @@ use std::fmt::Write as _;
 
 #[path = "arrangement_audio_edit.rs"]
 pub(super) mod edit;
+#[path = "arrangement_warp.rs"]
+pub mod warp;
 
 /// A handle on an audio clip.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -27,6 +29,12 @@ pub enum Handle {
     FadeIn,
     FadeOut,
     Gain,
+    /// A warp marker, by its index (ADR 0061).
+    WarpMarker(u16),
+    /// A transient in the top band, by its index in the analysis.
+    WarpOnset(u32),
+    /// The top band, at a content tick (a double-click adds a marker there).
+    WarpBand(i32),
 }
 
 /// Where an audio clip's handles are, in screen points.
@@ -37,6 +45,8 @@ pub struct Handles {
     pub gain: Rect,
     /// The waveform's area (below the title bar).
     pub wave: Rect,
+    /// The warp markers and transients drawn on the clip (ADR 0061).
+    pub warp: Option<warp::Hits>,
 }
 
 impl Handles {
@@ -50,7 +60,7 @@ impl Handles {
         } else if grow(self.fade_out).contains(pos) {
             Some(Handle::FadeOut)
         } else {
-            None
+            self.warp.and_then(|w| w.at(pos))
         }
     }
 }
@@ -87,6 +97,7 @@ pub fn handles(
             gain_y.clamp(inner.top() + hs * 0.5, inner.bottom()),
         ),
         wave: inner,
+        warp: None,
     })
 }
 
@@ -100,6 +111,7 @@ pub fn gain_y(wave: Rect, db: f32) -> f32 {
 
 /// What the painter needs of a clip, as it is drawn this frame (a drag's preview moves
 /// the window).
+#[derive(Copy, Clone)]
 pub struct Shown<'a> {
     pub track: TrackId,
     pub clip: &'a Clip,
@@ -116,6 +128,8 @@ pub struct Shown<'a> {
 #[derive(Debug, Default)]
 pub struct Scratch {
     cols: [Vec<(f32, f32)>; 2],
+    /// A warped clip's run of columns (ADR 0061).
+    run: Vec<(f32, f32)>,
     pts: Vec<Pos2>,
     tops: Vec<Pos2>,
     badge: String,
@@ -155,6 +169,21 @@ fn badge_text(a: &AudioRegion, out: &mut String) {
             "pitch.badge"
         }));
     }
+    // Round 29 (ADR 0061): warped (its mode), transposed (semitones and cents).
+    if let Some(w) = a.warp.as_deref() {
+        if !out.is_empty() {
+            out.push_str("  ");
+        }
+        if w.follow {
+            out.push_str(&crate::i18n::t(&format!("warp.badge.{}", w.mode.id())));
+        }
+        if w.cents != 0 && w.mode.transposes() {
+            if w.follow {
+                out.push(' ');
+            }
+            crate::warp::write_cents(out, w.cents);
+        }
+    }
 }
 
 /// Paint an audio clip's body: the waveform, the fades, the gain line, the badges, the
@@ -175,6 +204,27 @@ pub fn paint(
     scratch: &mut Scratch,
     s: &Style,
 ) -> Option<Handles> {
+    // An Alt-drag of the right edge stretches the clip (ADR 0061): drawn stretched.
+    let stretched_region;
+    let stretched;
+    let shown = match app
+        .arrangement
+        .stretch_preview((shown.track, shown.clip.id))
+        .zip(app.warp_to_edit((shown.track, shown.clip.id)))
+    {
+        Some((delta, w)) if shown.clip.length.0 > 0 => {
+            let k = (shown.clip.length + delta).0 as f64 / shown.clip.length.0 as f64;
+            let mut r = shown.region.clone();
+            r.warp = Some(Box::new(w.stretched(shown.offset, k.max(1e-3))));
+            stretched_region = r;
+            stretched = Shown {
+                region: &stretched_region,
+                ..*shown
+            };
+            &stretched
+        }
+        _ => shown,
+    };
     let k = s.k;
     let project = app.project();
     b.register(
@@ -240,7 +290,24 @@ pub fn paint(
         parts::loading(b, lanes, inner, look, s);
     }
     fades(b, shown, body, inner, px_per_tick, ink, scratch, s);
-    let h = handles(body, inner, shown.region, px_per_tick, k)?;
+    let mut h = handles(body, inner, shown.region, px_per_tick, k)?;
+    // The warp markers and transients (ADR 0061), over the waveform and the fades.
+    h.warp = warp::paint(b, app, geo, lanes, shown, inner, show_handles, s);
+    // On a warped clip the band holds the markers' flags: the fade and gain squares sit
+    // below it, so neither covers a flag (a clip not warped keeps its layout).
+    if let Some(band) = h
+        .warp
+        .filter(|_| shown.region.warp.as_deref().is_some_and(|w| w.follow))
+        .map(|w| w.band)
+    {
+        let floor = band.bottom() + k;
+        for sq in [&mut h.fade_in, &mut h.fade_out, &mut h.gain] {
+            let dy = (floor - sq.top())
+                .min(inner.bottom() - sq.bottom())
+                .max(0.0);
+            *sq = sq.translate(vec2(0.0, dy));
+        }
+    }
     scratch.handles.push(((shown.track, shown.clip.id), h));
     if show_handles {
         let hot = dragging.or_else(|| pointer.and_then(|p| h.at(p)));
@@ -297,15 +364,33 @@ fn wave(
         } else {
             Which::Mono
         };
-        if shown.map.is_constant() {
-            peaks.columns(which, from, per, n, out);
-        } else {
-            // Through the tempo map (ADR 0060): each column's own stretch of the source,
-            // where the engine plays it.
-            map_columns(peaks, which, shown, geo, x0, col_w, n, out);
-        }
-        if reverse {
-            out.reverse();
+        match shown.region.warp.as_deref().filter(|w| w.follow) {
+            // A warped clip (ADR 0061): read through its warp, a run of columns per
+            // segment (it mirrors a reversed window itself).
+            Some(w) => warp::columns(
+                peaks,
+                which,
+                geo,
+                shown,
+                w,
+                x0,
+                x1,
+                n,
+                out,
+                &mut scratch.run,
+            ),
+            None => {
+                if shown.map.is_constant() {
+                    peaks.columns(which, from, per, n, out);
+                } else {
+                    // Through the tempo map (ADR 0060): each column's own stretch of the
+                    // source, where the engine plays it.
+                    map_columns(peaks, which, shown, geo, x0, col_w, n, out);
+                }
+                if reverse {
+                    out.reverse();
+                }
+            }
         }
     }
     let gain = cantus_core::db_to_linear(shown.region.gain_db);
@@ -356,7 +441,7 @@ pub fn fade_of(h: Handle) -> Option<Fade> {
     match h {
         Handle::FadeIn => Some(Fade::In),
         Handle::FadeOut => Some(Fade::Out),
-        Handle::Gain => None,
+        _ => None,
     }
 }
 

@@ -12,6 +12,7 @@
 //!   [`Report`], everything it held that Cantus cannot (audio clips, automation, plug-ins,
 //!   the clip launcher…). A Cantus file comes back whole.
 
+pub mod audio;
 pub mod read;
 pub mod read_timeline;
 pub mod write;
@@ -66,7 +67,17 @@ pub struct Parts {
 
 /// Write a project as a `.dawproject`.
 pub fn export(project: &Project, app_version: &str) -> Exported {
-    let parts = write::parts(project, app_version);
+    export_with(project, app_version, None)
+}
+
+/// [`export`], the audio clips' files read from `base` (the project's folder) and carried
+/// in the archive (round 29, ADR 0061).
+pub fn export_with(
+    project: &Project,
+    app_version: &str,
+    base: Option<&std::path::Path>,
+) -> Exported {
+    let parts = write::parts_with(project, app_version, base);
     let mut z = zip::ZipWriter::new();
     z.add("project.xml", parts.project_xml.as_bytes(), true);
     z.add("metadata.xml", parts.metadata_xml.as_bytes(), true);
@@ -84,6 +95,9 @@ pub fn export(project: &Project, app_version: &str) -> Exported {
 pub struct Imported {
     pub project: Project,
     pub report: Report,
+    /// The audio files the archive carries (path in the archive, bytes): the project's
+    /// sources name them by that path until the caller writes them to disk.
+    pub media: Vec<(String, Vec<u8>)>,
 }
 
 /// Read a `.dawproject` into a new project.

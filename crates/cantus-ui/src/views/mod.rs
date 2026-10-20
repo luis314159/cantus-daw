@@ -73,6 +73,8 @@ pub mod transport;
 pub mod unsaved;
 pub mod update;
 pub mod verse;
+pub mod warp;
+pub mod warp_quantise;
 pub mod workspace;
 pub mod workspace_device;
 pub mod workspace_frame;
