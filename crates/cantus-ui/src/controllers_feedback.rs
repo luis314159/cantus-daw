@@ -73,6 +73,17 @@ impl CantusApp {
     /// on the same control shadows left out (review 1, #7), dormant ones too.
     fn feedback_mappings(&self) -> Vec<(Scope, Mapping)> {
         let p = self.project();
+        // None sends feedback (the usual case): nothing gathered, nothing allocated (review
+        // 2, #30: an idle frame allocates nothing).
+        if !p
+            .controllers
+            .mappings
+            .iter()
+            .chain(&self.controllers.global.mappings)
+            .any(|m| m.feedback)
+        {
+            return Vec::new();
+        }
         let project: Vec<&Mapping> = p
             .controllers
             .mappings

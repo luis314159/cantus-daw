@@ -948,3 +948,66 @@ fn a_hovered_bus_with_many_inputs_timing() {
         bus.saturating_sub(plain)
     );
 }
+
+/// The test CLAP plug-in, built from source where the host's tests build it.
+fn test_clap() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+    let target = root.join("target").join("test-plugins");
+    let status =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+            .args(["build", "-p", "cantus-test-clap", "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .status()
+            .expect("cargo");
+    assert!(status.success());
+    target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap.dylib"
+    } else {
+        "libcantus_test_clap.so"
+    })
+}
+
+/// Round 29, review 2 of ADR 0062, #30: with a hosted plug-in loaded and a controller
+/// mapped to one of its parameters, an idle frame's controllers (the filter's check, the
+/// feedback's, the clocks) allocate nothing — a hosted parameter is looked up, not copied.
+#[test]
+fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
+    use cantus_core::controller::*;
+    let (engine, _processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    app.midi_port_names = vec!["Keys".into()];
+    cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
+    let effect = app.fx.open.map(|(_, e, _)| e).expect("the test plug-in inserted");
+    let target = MappingTarget::Param(cantus_core::AutoTarget::Plugin { effect, id: 0 });
+    let mut m = Mapping::new(
+        MappingId(1),
+        MidiSource {
+            port: PortRef {
+                name: "Keys".into(),
+                ordinal: 0,
+            },
+            channel: Some(0),
+            control: Control::Cc(20),
+        },
+        target.clone(),
+        MapMode::Absolute,
+    );
+    m.plugin = target.plugin_of(app.project());
+    assert!(app.add_mapping(cantus_ui::controllers::Scope::Project, m));
+    assert!(app.hosted_param_info(&cantus_core::AutoTarget::Plugin { effect, id: 0 }).is_some());
+    // Published once; then idle.
+    app.controller_input();
+    app.controller_input();
+    let (_, allocs, bytes) = counted(|| {
+        for _ in 0..10 {
+            app.controller_input();
+        }
+    });
+    eprintln!("an idle controller frame with a hosted mapping: {allocs} allocations, {bytes} B");
+    assert_eq!(allocs, 0, "{allocs} allocations in ten idle frames");
+}

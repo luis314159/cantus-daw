@@ -1045,3 +1045,49 @@ fn a_learn_spot_is_clipped_by_its_view() {
         Some(MappingTarget::StripMute(s))
     );
 }
+
+/// The test CLAP plug-in, built from source where the host's tests build it.
+fn test_plugin() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+    let target = root.join("target").join("test-plugins");
+    let status =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+            .args(["build", "-p", "cantus-test-clap", "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .status()
+            .expect("cargo");
+    assert!(status.success());
+    target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap.dylib"
+    } else {
+        "libcantus_test_clap.so"
+    })
+}
+
+/// #36: a hosted plug-in's generic editor offers learning on every parameter it draws.
+#[test]
+fn a_hosted_editor_offers_learn_on_its_parameters() {
+    use cantus_ui::kit::automate::probe;
+    let mut a = keys_app();
+    cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
+    let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor opened");
+    a.toggle_learn_mode();
+    probe::start();
+    paint_editors(&mut a, egui::vec2(1600.0, 1000.0));
+    let drawn = probe::take_learn();
+    let hosted: Vec<_> = drawn
+        .iter()
+        .filter(|(n, _)| n.starts_with("hosted:"))
+        .collect();
+    let want = format!("hosted:{:?}", AutoTarget::Plugin { effect, id: 0 });
+    assert!(
+        hosted.iter().any(|(n, l)| *n == want && *l),
+        "{want}: {drawn:?}"
+    );
+    assert!(hosted.iter().all(|(_, l)| *l), "{hosted:?}");
+}
