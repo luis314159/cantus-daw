@@ -32,7 +32,7 @@ fn project(clips: &[(&Path, u32, usize, Option<Warp>)], bpm: f64, beats: i64) ->
     let mut p = Project::new("warp");
     p.tempo_bpm = bpm;
     for (i, (path, rate, frames, warp)) in clips.iter().enumerate() {
-        let mut t = p.make_track(&format!("Loop {i}"));
+        let mut t = p.make_track(format!("Loop {i}"));
         t.strip = None;
         let id = AudioSourceId(p.alloc_id());
         p.audio_pool.push(AudioSource {
@@ -260,7 +260,7 @@ fn next_data(cache: &mut SampleCache, p: &Project, not: &Arc<SampleData>) -> Arc
 /// A 440 Hz tone with a click a second on top, four seconds at 48 kHz.
 fn tone_and_clicks() -> Vec<f32> {
     let mut x: Vec<f32> = (0..48_000 * 4)
-        .map(|i| 0.3 * (2.0 * std::f64::consts::PI * 440.0 * i as f64 / 48_000.0).sin() as f32)
+        .map(|i| 0.3 * cantus_dsp::math::sin(2.0 * std::f64::consts::PI * 440.0 * i as f64 / 48_000.0) as f32)
         .collect();
     for k in 1..4 {
         x[k * 48_000] += 0.9;
@@ -310,8 +310,8 @@ fn the_bridge_plays_at_the_right_place_and_pitch_until_the_render_comes() {
     );
     // At the transposition, between the clicks.
     let f = cantus_dsp::pitch::testkit::measured_f0(&mono[62_000..86_000], 48_000.0, 370.0);
-    let to = 440.0 * 2f32.powf(-3.0 / 12.0);
-    let cents = 1200.0 * (f / to).log2();
+    let to = 440.0 * cantus_dsp::math::exp2(-3.0f32 / 12.0);
+    let cents = 1200.0 * cantus_dsp::math::log2(f / to);
     assert!(
         cents.abs() < 15.0,
         "the bridge plays at {f} Hz, the clip at {to} Hz"

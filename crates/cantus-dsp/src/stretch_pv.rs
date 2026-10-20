@@ -388,7 +388,7 @@ fn render_pair(
                 let m = &c.mag;
                 let h = m.len() - 1;
                 let inner: f64 = m[1..h].iter().map(|v| (*v as f64) * (*v as f64)).sum();
-                (m[0] as f64).powi(2) + (m[h] as f64).powi(2) + 2.0 * inner
+                (m[0] as f64) * (m[0] as f64) + (m[h] as f64) * (m[h] as f64) + 2.0 * inner
             })
             .sum::<f64>()
             / (n as f64 * w2);

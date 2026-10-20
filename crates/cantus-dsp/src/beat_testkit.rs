@@ -205,8 +205,8 @@ pub fn groove(rate: f32, bpm: f64, bars: usize, lead: f64, feel: Feel, seed: u64
     for (i, &at) in times.iter().take(total).enumerate() {
         // The position in the bar, counting the pick-up back from the first downbeat.
         let k = (i as i64 - (feel.pickup * 2) as i64).rem_euclid(eighths_per_bar as i64) as usize;
-        if k % 2 == 0 && feel.metre != Metre::SixEight
-            || feel.metre == Metre::SixEight && k % 3 == 0
+        if k.is_multiple_of(2) && feel.metre != Metre::SixEight
+            || feel.metre == Metre::SixEight && k.is_multiple_of(3)
         {
             beats.push(at);
         }
@@ -229,7 +229,7 @@ pub fn groove(rate: f32, bpm: f64, bars: usize, lead: f64, feel: Feel, seed: u64
             &mut audio,
             at,
             rate,
-            if k % 2 == 0 { 0.25 } else { 0.18 },
+            if k.is_multiple_of(2) { 0.25 } else { 0.18 },
             &mut noise,
         );
         onsets.push(at as f64);
@@ -237,7 +237,7 @@ pub fn groove(rate: f32, bpm: f64, bars: usize, lead: f64, feel: Feel, seed: u64
     if let Some(db) = feel.pad_db {
         // A held A major chord with a slow tremolo, `db` under the drums' loudest.
         let top = audio.iter().fold(0.0f32, |m, v| m.max(v.abs()));
-        let amp = top * math::exp2(db / 20.0 * 3.321_928) / 3.0;
+        let amp = top * math::exp2(db / 20.0 * std::f32::consts::LOG2_10) / 3.0;
         for (i, o) in audio.iter_mut().enumerate() {
             let s = i as f64 / rate as f64;
             let trem = 1.0 + 0.2 * math::sin(2.0 * std::f64::consts::PI * 0.3 * s);
