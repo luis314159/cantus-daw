@@ -31,6 +31,7 @@ tempo.view_menu = Tempo track
 tempo.marker_name = Marker {n}
 tempo.status.at_marker = At marker {name}
 tempo.status.no_marker = No marker there
+tempo.status.recording = The tempo stays as it is while a take records: change it before or after the take
 tempo.menu.ramp = Ramp to the next point
 tempo.menu.type = Type the tempo…
 tempo.menu.remove_point = Remove the point

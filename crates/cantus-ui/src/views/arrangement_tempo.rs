@@ -77,6 +77,10 @@ struct Drag {
     index: usize,
     bpm: f64,
     y: f32,
+    /// The point's tick and the pointer's x at the press: the point moves along the lane
+    /// by the pointer's travel, never to the grid line under it (review 4).
+    tick: Ticks,
+    x: f32,
     /// The lane's tempo range at the press: the scale holds for the whole gesture (review
     /// 2: rebuilt from the point being dragged, it ran away from the pointer).
     lo: f64,
@@ -476,6 +480,8 @@ pub(super) fn input(
                     index: i,
                     bpm: pts[i].bpm,
                     y: p.y,
+                    tick: pts[i].tick,
+                    x: p.x,
                     lo: axis.lo,
                     hi: axis.hi,
                 });
@@ -488,7 +494,20 @@ pub(super) fn input(
             let fine = if mods.shift { 0.1 } else { 1.0 };
             let bpm = d.bpm - f64::from(p.y - d.y) * axis.per_px() * fine;
             let bpm = (bpm * 10.0).round() / 10.0;
-            let tick = tick_at(app, geo, p.x, mods.command);
+            // Along the lane by the travel, once it is more than a few points (a drag up
+            // or down keeps the point's place, on the grid or off it), snapped as the lane
+            // snaps.
+            let tick = if (p.x - d.x).abs() < 4.0 * s.k {
+                d.tick
+            } else {
+                let travel = beats_to_ticks(geo.beats(p.x)) - beats_to_ticks(geo.beats(d.x));
+                let t = (d.tick + travel).max(Ticks::ZERO);
+                if mods.command || !app.arrangement.snap {
+                    t
+                } else {
+                    crate::views::bars::snap(app.project(), t, app.arrangement.grid)
+                }
+            };
             let cmd = move_point(app.project(), d.index, tick, bpm);
             app.exec_merging(cmd, MergeKey::of(&("tempo-point", d.index)));
         }
@@ -862,10 +881,13 @@ pub fn add_metre_change(app: &mut CantusApp, at: Ticks) {
     }
     // The editor opens on the ruler at that bar — in view, or at the ruler's nearer end
     // (review 3: the top bar's metre may be hidden, a chip out of view).
+    // Never `clamp` (review 4: an arrangement narrower than the editor made its bounds
+    // cross, and that panics); the area keeps itself on the screen too.
     let pos = app.arrangement.geometry().map_or(pos2(0.0, 0.0), |g| {
         let x = g
             .x(ticks_to_beats(bar))
-            .clamp(g.left, g.left + g.width - 160.0);
+            .min(g.left + g.width - 160.0)
+            .max(g.left);
         pos2(x, g.loop_lane_bottom)
     });
     app.arrangement.tempo.metre_at = Some((bar, pos, u64::MAX));
@@ -883,6 +905,7 @@ fn metre_popup(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style) {
     app.arrangement.tempo.metre_at = Some((tick, pos, pass));
     let area = egui::Area::new(Id::new("metre-at-editor"))
         .order(egui::Order::Foreground)
+        .constrain(true)
         .fixed_pos(pos)
         .show(ui.ctx(), |ui| {
             crate::views::record_options::frame_for(s).show(ui, |ui| {
@@ -941,6 +964,8 @@ mod tests {
                 index: 0,
                 bpm: 120.0,
                 y: 30.0,
+                tick: Ticks::ZERO,
+                x: 0.0,
                 lo: 110.0,
                 hi: 130.0,
             }),

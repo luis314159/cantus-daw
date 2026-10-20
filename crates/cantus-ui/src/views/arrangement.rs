@@ -160,7 +160,10 @@ struct Scratch {
     label_row: f32,
     /// A clip drag's landing under a tempo track (review 4): built when the drag's result
     /// or the song changes, not every frame — the revision, the anchor, the result.
-    dropped: Option<(DropKey, std::collections::HashMap<(TrackId, ClipId), cantus_core::Clip>)>,
+    dropped: Option<(
+        DropKey,
+        std::collections::HashMap<(TrackId, ClipId), cantus_core::Clip>,
+    )>,
 }
 
 /// What a drag's landing was built for.
@@ -1742,8 +1745,12 @@ fn clips(
         {
             let key = (app.bus.revision(), anchor, result);
             if dropped.as_ref().is_none_or(|(k, _)| *k != key) {
-                let landing =
-                    crate::clips::drag_preview(app.project(), &app.clip_selection(), anchor, result);
+                let landing = crate::clips::drag_preview(
+                    app.project(),
+                    &app.clip_selection(),
+                    anchor,
+                    result,
+                );
                 dropped = Some((key, landing));
             }
         }

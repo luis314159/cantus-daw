@@ -661,6 +661,9 @@ impl CantusApp {
 
     /// Execute a command from the user. Returns `true` on success.
     pub fn exec(&mut self, cmd: Command) -> bool {
+        if self.tempo_held(&cmd) {
+            return false;
+        }
         self.note_tweak(&cmd);
         // Another project in its place (an import, a recovery): what was about the last
         // one is not about this one (review 2: the tempo lane's state).
@@ -685,6 +688,9 @@ impl CantusApp {
     }
 
     pub fn exec_merging(&mut self, cmd: Command, key: MergeKey) -> bool {
+        if self.tempo_held(&cmd) {
+            return false;
+        }
         self.note_tweak(&cmd);
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => true,
@@ -701,6 +707,17 @@ impl CantusApp {
 
     pub fn end_gesture(&mut self) {
         self.bus.end_gesture();
+    }
+
+    /// Whether `cmd` would change the tempo map while a take records — refused, and said
+    /// (review 4): the take is laid through the map it was played under, and a take not
+    /// yet in the song cannot be kept where it was played by `tempo::keep`.
+    pub(crate) fn tempo_held(&mut self, cmd: &Command) -> bool {
+        let held = self.is_recording() && cantus_core::tempo::keep::changes_tempo(cmd);
+        if held {
+            self.set_status(t("tempo.status.recording"));
+        }
+        held
     }
 
     pub fn undo(&mut self) {

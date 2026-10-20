@@ -250,7 +250,12 @@ fn chains_with(c: &crate::model::Clip) -> bool {
 /// of a chain of two or more whose tempo differs where it lands; `None` for every other
 /// clip — it moves by `delta` and is relocated on its own ([`relocate`]), MIDI and audio
 /// alike, so clips that do not belong to one take keep their bars.
-pub fn lay_chains(src: &TempoMap, dst: &TempoMap, delta: Ticks, members: &[Member]) -> Vec<Option<Laid>> {
+pub fn lay_chains(
+    src: &TempoMap,
+    dst: &TempoMap,
+    delta: Ticks,
+    members: &[Member],
+) -> Vec<Option<Laid>> {
     let n = members.len();
     let mut out = vec![None; n];
     let mut parent: Vec<usize> = (0..n).collect();
@@ -290,7 +295,10 @@ pub fn lay_chains(src: &TempoMap, dst: &TempoMap, delta: Ticks, members: &[Membe
                 }
             }
         }
-        starts.entry((row, source, reverse, m.from)).or_default().push(i);
+        starts
+            .entry((row, source, reverse, m.from))
+            .or_default()
+            .push(i);
     }
     // The frame a window plays at `tick` before the move (backwards when reversed).
     let frame = |m: &Member, tick: Ticks| {
@@ -349,7 +357,8 @@ pub fn lay_chains(src: &TempoMap, dst: &TempoMap, delta: Ticks, members: &[Membe
             let (start, end) = (at(m.from), at(m.from + m.clip.length));
             let end = end.max(start + Ticks(1));
             let fi = src.seconds_between(m.from, m.from + a.fade_in);
-            let fo = src.seconds_between(m.from + m.clip.length - a.fade_out, m.from + m.clip.length);
+            let fo =
+                src.seconds_between(m.from + m.clip.length - a.fade_out, m.from + m.clip.length);
             let (s, e) = (start.0 as f64, end.0 as f64);
             let round = |x: f64| Ticks(x.round() as i64).max(Ticks::ZERO);
             (

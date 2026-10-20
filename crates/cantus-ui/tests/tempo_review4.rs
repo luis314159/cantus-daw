@@ -30,8 +30,16 @@ fn assembled(project: Project) -> CantusApp {
     std::env::set_var("CANTUS_DATA_DIR", data.path());
     let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
     let ctx = egui::Context::default();
-    let mut app =
-        CantusApp::assemble(&ctx, files, None, EngineHandle::dummy(), None, None, None, false);
+    let mut app = CantusApp::assemble(
+        &ctx,
+        files,
+        None,
+        EngineHandle::dummy(),
+        None,
+        None,
+        None,
+        false,
+    );
     app.exec(Command::ReplaceProject {
         project: Box::new(project),
     });
@@ -95,7 +103,11 @@ fn one_take(a: &CantusApp, w: &[Clip]) {
     let map = a.project().tempo_map();
     for p in w.windows(2) {
         assert_eq!(p[0].end(), p[1].start, "they meet");
-        assert_eq!(p[0].start - p[0].offset, p[1].start - p[1].offset, "one origin");
+        assert_eq!(
+            p[0].start - p[0].offset,
+            p[1].start - p[1].offset,
+            "one origin"
+        );
         let (x, y) = (
             frame(&map, &p[0], p[0].end().0 as f64),
             frame(&map, &p[1], p[1].start.0 as f64),
@@ -123,34 +135,56 @@ fn drag(a: &mut CantusApp, sel: Vec<(TrackId, ClipId)>, delta: Ticks, copy: bool
 #[test]
 fn clips_that_are_not_one_take_keep_their_bars() {
     let pts = vec![pt(0, 120.0), pt(8, 60.0)];
-    let (mut a, ta, tm) = song(pts.clone(), &[(0, 2 * B, 0), (4 * B, 2 * B, 7 * B)], &[(4 * B, 2 * B)]);
+    let (mut a, ta, tm) = song(
+        pts.clone(),
+        &[(0, 2 * B, 0), (4 * B, 2 * B, 7 * B)],
+        &[(4 * B, 2 * B)],
+    );
     let sel = |a: &CantusApp| {
         let mut s = all(a, ta);
         s.extend(all(a, tm));
         s
     };
     let starts = |a: &CantusApp| -> Vec<Ticks> {
-        let mut v: Vec<Ticks> = clips(a, ta).iter().chain(&clips(a, tm)).map(|c| c.start).collect();
+        let mut v: Vec<Ticks> = clips(a, ta)
+            .iter()
+            .chain(&clips(a, tm))
+            .map(|c| c.start)
+            .collect();
         v.sort();
         v
     };
     let s = sel(&a);
     drag(&mut a, s, Ticks::beats(8), false);
-    assert_eq!(starts(&a), vec![Ticks::beats(8), Ticks::beats(12), Ticks::beats(12)]);
+    assert_eq!(
+        starts(&a),
+        vec![Ticks::beats(8), Ticks::beats(12), Ticks::beats(12)]
+    );
     a.undo();
     let s = sel(&a);
     drag(&mut a, s, Ticks::beats(8), true);
-    let copies: Vec<Ticks> = clips(&a, ta).iter().map(|c| c.start).filter(|s| *s >= Ticks::beats(8)).collect();
+    let copies: Vec<Ticks> = clips(&a, ta)
+        .iter()
+        .map(|c| c.start)
+        .filter(|s| *s >= Ticks::beats(8))
+        .collect();
     assert_eq!(copies, vec![Ticks::beats(8), Ticks::beats(12)]);
     a.undo();
     let s = sel(&a);
     a.set_clip_selection(s);
     a.focus_arrangement();
     a.run_action(Action::NudgeRightBar);
-    assert_eq!(starts(&a), vec![Ticks::beats(4), Ticks::beats(8), Ticks::beats(8)]);
+    assert_eq!(
+        starts(&a),
+        vec![Ticks::beats(4), Ticks::beats(8), Ticks::beats(8)]
+    );
     a.undo();
     // Copied and pasted at beat 8.
-    let (mut a, ta, tm) = song(pts, &[(0, 2 * B, 0), (4 * B, 2 * B, 7 * B)], &[(4 * B, 2 * B)]);
+    let (mut a, ta, tm) = song(
+        pts,
+        &[(0, 2 * B, 0), (4 * B, 2 * B, 7 * B)],
+        &[(4 * B, 2 * B)],
+    );
     let s = sel(&a);
     a.set_clip_selection(s);
     a.focus_arrangement();
@@ -165,7 +199,10 @@ fn clips_that_are_not_one_take_keep_their_bars() {
         .collect();
     let mut pasted = pasted;
     pasted.sort();
-    assert_eq!(pasted, vec![Ticks::beats(8), Ticks::beats(12), Ticks::beats(12)]);
+    assert_eq!(
+        pasted,
+        vec![Ticks::beats(8), Ticks::beats(12), Ticks::beats(12)]
+    );
 }
 
 /// Finding 3: a take cut in three, moved and pasted where the tempo is 100 (a ratio that
@@ -181,7 +218,10 @@ fn three_windows_at_an_uneven_ratio_still_meet() {
     a.undo();
     let s = all(&a, ta);
     drag(&mut a, s, Ticks::beats(16), true);
-    let copies: Vec<Clip> = clips(&a, ta).into_iter().filter(|c| c.start >= Ticks::beats(16)).collect();
+    let copies: Vec<Clip> = clips(&a, ta)
+        .into_iter()
+        .filter(|c| c.start >= Ticks::beats(16))
+        .collect();
     assert_eq!(copies.len(), 3);
     one_take(&a, &copies);
     let (mut a, ta, _) = song(pts, &w, &[]);
@@ -191,7 +231,10 @@ fn three_windows_at_an_uneven_ratio_still_meet() {
     a.run_action(Action::Copy);
     a.seek(Ticks::beats(16));
     a.paste_now();
-    let pasted: Vec<Clip> = clips(&a, ta).into_iter().filter(|c| c.start >= Ticks::beats(16)).collect();
+    let pasted: Vec<Clip> = clips(&a, ta)
+        .into_iter()
+        .filter(|c| c.start >= Ticks::beats(16))
+        .collect();
     assert_eq!(pasted.len(), 3);
     one_take(&a, &pasted);
 }
@@ -201,7 +244,11 @@ fn three_windows_at_an_uneven_ratio_still_meet() {
 /// original is untouched.
 #[test]
 fn a_linked_paste_of_a_trimmed_clip_with_fades_stays_in_its_group() {
-    let (mut a, ta, _) = song(vec![pt(0, 120.0), pt(8, 60.0)], &[(6 * B, 4 * B, 1001)], &[]);
+    let (mut a, ta, _) = song(
+        vec![pt(0, 120.0), pt(8, 60.0)],
+        &[(6 * B, 4 * B, 1001)],
+        &[],
+    );
     let id = clips(&a, ta)[0].id;
     let mut c = clips(&a, ta)[0].clone();
     let au = c.audio.as_mut().unwrap();
@@ -221,7 +268,10 @@ fn a_linked_paste_of_a_trimmed_clip_with_fades_stays_in_its_group() {
     a.paste_now();
     let both = clips(&a, ta);
     assert_eq!(both.len(), 2);
-    assert!(both[1].link.is_some() && both[0].link == both[1].link, "linked");
+    assert!(
+        both[1].link.is_some() && both[0].link == both[1].link,
+        "linked"
+    );
     cantus_core::links::check(a.project()).expect("the group holds");
     assert_eq!(both[0].audio, original, "the original untouched");
 }
@@ -230,7 +280,11 @@ fn a_linked_paste_of_a_trimmed_clip_with_fades_stays_in_its_group() {
 /// the clip plays the seconds it played: its frame at its start and its fades' seconds.
 #[test]
 fn a_cut_and_paste_with_link_copies_on_plays_what_it_played() {
-    let (mut a, ta, _) = song(vec![pt(0, 120.0), pt(8, 60.0)], &[(2 * B, 2 * B, 1001)], &[]);
+    let (mut a, ta, _) = song(
+        vec![pt(0, 120.0), pt(8, 60.0)],
+        &[(2 * B, 2 * B, 1001)],
+        &[],
+    );
     let id = clips(&a, ta)[0].id;
     let mut c = clips(&a, ta)[0].clone();
     c.audio.as_mut().unwrap().fade_in = Ticks(B);
@@ -251,9 +305,15 @@ fn a_cut_and_paste_with_link_copies_on_plays_what_it_played() {
     a.paste_now();
     let now = clips(&a, ta)[0].clone();
     assert!(now.link.is_none());
-    assert!((frame(&map, &now, now.start.0 as f64) - at_start).abs() <= 0.5, "its frame");
+    assert!(
+        (frame(&map, &now, now.start.0 as f64) - at_start).abs() <= 0.5,
+        "its frame"
+    );
     let fade = map.seconds_between(now.start, now.start + now.audio.as_ref().unwrap().fade_in);
-    assert!((fade - fade_s).abs() <= 0.5 * 60.0 / (60.0 * 960.0) + 1e-9, "its fade's seconds");
+    assert!(
+        (fade - fade_s).abs() <= 0.5 * 60.0 / (60.0 * 960.0) + 1e-9,
+        "its fade's seconds"
+    );
 }
 
 /// Finding 6: a reversed clip under a tempo track widened at its right edge as far as its
@@ -262,7 +322,11 @@ fn a_cut_and_paste_with_link_copies_on_plays_what_it_played() {
 #[test]
 fn a_reversed_clip_widened_keeps_what_it_showed() {
     // Hidden part at 120 (beats 0–2), the window at beats 2–4, 60 from beat 4.
-    let (mut a, ta, _) = song(vec![pt(0, 120.0), pt(4, 60.0)], &[(2 * B, 2 * B, 2 * B)], &[]);
+    let (mut a, ta, _) = song(
+        vec![pt(0, 120.0), pt(4, 60.0)],
+        &[(2 * B, 2 * B, 2 * B)],
+        &[],
+    );
     let id = clips(&a, ta)[0].id;
     let mut c = clips(&a, ta)[0].clone();
     c.audio.as_mut().unwrap().reverse = true;
@@ -288,7 +352,10 @@ fn a_reversed_clip_widened_keeps_what_it_showed() {
     );
     let now = clips(&a, ta)[0].clone();
     assert_eq!(now.end(), Ticks::beats(6), "widened");
-    assert!((reversed(&now, 3.0 * B as f64) - shown).abs() <= 0.5, "what it showed stays");
+    assert!(
+        (reversed(&now, 3.0 * B as f64) - shown).abs() <= 0.5,
+        "what it showed stays"
+    );
 }
 
 /// Findings 7, 22, 35: the drag's landing is built from the selection's unwarped audio

@@ -160,6 +160,16 @@ pub fn track_name(label: &midi::TrackLabel) -> String {
     }
 }
 
+/// Whether a song is empty enough for a MIDI file to set its tempo, metre and markers
+/// by default: no clips, and no tempo track, metre change or marker either (review 4: a
+/// click map set up first was wiped by a dropped groove).
+pub fn empty_song(p: &Project) -> bool {
+    p.content_end() == Ticks::ZERO
+        && p.tempo_points.is_empty()
+        && p.metre_changes.is_empty()
+        && p.markers.is_empty()
+}
+
 /// Where an import lands by default: the bar the playhead is in, or the start of an empty
 /// project.
 fn default_at(app: &CantusApp) -> Ticks {
@@ -183,7 +193,7 @@ pub fn open_midi_import(app: &mut CantusApp, path: &Path) {
     };
     match midi::read(&bytes, &midi::ImportOptions::default()) {
         Ok(preview) => {
-            let empty = app.project().content_end() == Ticks::ZERO;
+            let empty = empty_song(app.project());
             app.interop.midi_import = Some(MidiImportDialog {
                 path: path.to_path_buf(),
                 bytes,
@@ -1031,7 +1041,7 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
         let lower = name.to_lowercase();
         if midi::is_midi_path(Path::new(&lower)) {
             let (at, index) = drop_target(app, pos);
-            let empty = app.project().content_end() == Ticks::ZERO;
+            let empty = empty_song(app.project());
             import_midi(app, &bytes, &name, false, empty, at, index);
         } else if lower.ends_with(&format!(".{}", dawproject::EXTENSION)) {
             import_dawproject(app, &bytes, &name);

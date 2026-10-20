@@ -115,19 +115,26 @@ fn tabs(
         let at = at.max(floor);
         let room = (next - 2.0 * k - at).max(6.0 * k * run as f32);
         let mut x = at;
-        for (n, m) in markers[i..i + run].iter().enumerate() {
-            let w = text::measure(
-                ctx,
-                &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
-                s.tk(),
-            )
-            .x;
-            // Its share's end: whole names while the run fits, else an equal share each.
+        // Whole names while the whole run fits (review 4: every tab but the last was cut to
+        // an equal share even then), else an equal share each.
+        let widths: Vec<f32> = markers[i..i + run]
+            .iter()
+            .map(|m| {
+                text::measure(
+                    ctx,
+                    &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
+                    s.tk(),
+                )
+                .x
+            })
+            .collect();
+        let needs: f32 = widths.iter().map(|w| w + 10.0 * k).sum::<f32>() + k * (run as f32 - 1.0);
+        let all_fit = needs <= room;
+        for (n, (m, &w)) in markers[i..i + run].iter().zip(&widths).enumerate() {
             let share_end = at + room * (n + 1) as f32 / run as f32;
             let want = x + w + 10.0 * k;
-            let fits = at + room >= x + w + 10.0 * k && markers[i + n + 1..i + run].is_empty();
-            let right = if fits {
-                want.min(at + room)
+            let right = if all_fit {
+                want
             } else {
                 want.min(share_end).max(x + 6.0 * k)
             };

@@ -466,10 +466,14 @@ pub fn paste_clips(
             })
             .collect();
         let mut laid_audio =
-            crate::audio_time::lay_chains(&src_map, &dst_map, at - board.at, &members)
-                .into_iter();
+            crate::audio_time::lay_chains(&src_map, &dst_map, at - board.at, &members).into_iter();
         rows.iter()
-            .map(|r| r.clip.audio.as_ref().and_then(|_| laid_audio.next().flatten()))
+            .map(|r| {
+                r.clip
+                    .audio
+                    .as_ref()
+                    .and_then(|_| laid_audio.next().flatten())
+            })
             .collect()
     } else {
         vec![None; rows.len()]
