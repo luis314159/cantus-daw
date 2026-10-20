@@ -10,8 +10,7 @@ mod support;
 use cantus_host::bridge::sandbox::Limits;
 use cantus_host::bridge::Sandboxes;
 use cantus_host::{
-    Backend, Blame, HostError, Loaded, MainThread, NoteEvent, NoteKind, Notice, ParamChange,
-    ParamOut,
+    Backend, Blame, Loaded, MainThread, NoteEvent, NoteKind, Notice, ParamChange, ParamOut,
 };
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -210,7 +209,7 @@ fn a_background_state_older_than_a_loaded_one_is_dropped() {
     // Its own dialog runs the save: the load is held for after it — not waited for
     // (review isolation-4 #54) — and runs then.
     match main.load_state(&first) {
-        Ok(()) | Err(HostError::Busy(_)) => {}
+        Ok(()) | Err(cantus_host::HostError::Busy(_)) => {}
         Err(e) => panic!("{e}"),
     }
     let start = Instant::now();
