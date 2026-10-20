@@ -102,6 +102,7 @@ pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
         cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 },
     );
     cantus_rt::memory::prefault_stack();
+    crate::platform::blame::alt_stack();
     let mut params = Vec::with_capacity(MAX_PARAMS);
     let mut notes = Vec::with_capacity(MAX_NOTES);
     let mut out = Box::new(ParamOut::new());
@@ -193,8 +194,12 @@ fn run(
 mod tests {
     use super::*;
 
-    /// A replaced snapshot outlives a processing thread's hold on it, and is freed by the
-    /// main thread once nothing else holds it (review #13, #42).
+    /// The main thread's side of retirement (review #13, #42): a replaced snapshot is kept
+    /// while a holder (a processing thread's `seen`) has it, and freed by `collect` — on the
+    /// main thread — once nothing else does. What it does not hold by itself: that a
+    /// processing thread only ever lets go of a borrowed or cloned snapshot, never the last
+    /// one — which follows from `change` keeping every old snapshot in `retired` until
+    /// `collect` sees it unheld (review isolation-3 #25).
     #[test]
     fn a_retired_snapshot_is_freed_by_the_main_thread_once_no_thread_holds_it() {
         let table = Table::default();
@@ -202,11 +207,14 @@ mod tests {
         let held = table.snapshot().expect("the current snapshot");
         table.change(|_| {});
         table.collect();
-        assert_eq!(table.retired(), 1, "the held one is kept");
-        // The thread lets its hold go: the last reference is not its own.
-        assert!(Arc::strong_count(&held) > 1);
+        assert_eq!(
+            table.retired(),
+            1,
+            "the held one is kept, the unheld one freed"
+        );
         drop(held);
+        assert_eq!(table.retired(), 1, "a holder letting go frees nothing");
         table.collect();
-        assert_eq!(table.retired(), 0);
+        assert_eq!(table.retired(), 0, "the main thread frees it");
     }
 }

@@ -106,15 +106,26 @@ plug-ins' requests and changed values. **Life** (amended, review isolation-2 #0/
 main thread bumps a progress count each time round its loop and each time a **pulse** runs
 — a hidden message-only window whose 100 ms timer and wake-ups are dispatched by whatever
 message loop the thread is in, a plug-in's modal dialog or a dragged window included; a
-heartbeat thread of its own says *alive* every 200 ms while that count moves. From a loop
-nested in a plug-in's code the pulse also **serves Cantus's calls** (a save does not wait
-for a file dialog to close), except those that end or replace an instance — unload, drop
-audio, restart, close editor, quit — which, with every call after them, wait for the main
-loop. Before calling into an instance the main thread writes its number into the lobby
-(`MAIN_AT`), and each processing thread knows its job's; a crash handler (the
-unhandled-exception filter on Windows, the fatal signals on Unix) writes the faulting
-thread's instance (`CRASH_AT`) as the process dies, so a crash is **laid on the plug-in
-that did it** (#49). It moves its own
+heartbeat thread of its own says *alive* every 200 ms while that count moves; every frame
+the helper sends counts as life too. From a loop nested in a plug-in's code the pulse also
+**serves Cantus's calls** (a save does not wait for a file dialog to close). Held for the
+main loop — and said so, `Message::Deferred` — are only quit and the calls that end or
+replace **the instance whose window runs the loop** (unload, drop audio, restart, close
+editor), and the later calls on that same instance, in order; every other instance's
+calls are served (review isolation-3 #4, #17, #36, #44). The helper says when it starts
+each request (`Message::Started`), and a request's limit runs from then (#3, #37). A
+plug-in window's messages run as calls into their instance (its root window maps to it),
+so the main thread names that instance in the lobby while they run (`MAIN_AT`), as it
+does in its calls and ticks; each processing thread names its job's. A crash handler —
+the unhandled-exception filter (put back after each load, handing on to a plug-in's own),
+the C runtime's abort signal, on Windows; the fatal signals, on a stack of their own, on
+Unix — writes the faulting thread's instance (`CRASH_AT`), or *outside* for a thread
+calling into none, as the process dies; and a crash in a window's timer callback is not
+swallowed by Windows but ends the process like any other. A crash is **laid on the
+plug-in that did it**: a culprit Cantus knows (its job or call hung) alone; else the
+handler's word; else the single candidate among the main thread's instance and the
+running jobs; several, or *outside*, are nobody's (`Blame::Unknown`), never an innocent
+neighbour (#49; isolation-3 #0, #1, #19, #20, #38, #39, #45). It moves its own
 standard handles to NUL before loading anything (a plug-in that prints cannot break a
 frame), has no crash dialog (`SetErrorMode`), is started without a console window
 (`CREATE_NO_WINDOW`), and ends with Cantus: Windows puts every helper in one job object
@@ -131,21 +142,34 @@ every instance's exchange is **closed**, which wakes an audio thread waiting on 
 hang** kills the helper, and is then a crash: a real-time job unfinished for 2 s — judged
 by the exchange, so a late job that finished while nothing called again (a bypassed slot,
 a restart) is no hang (#2, #38); an offline job unfinished for 30 s (#1, #11); or a main
-thread with **no life for 5 s while no request — waited for or not, background saves and
-unloads included — is under way within its own limit** (load 30 s, state 10 s, others
-5 s; #41). A request past its limit while the heartbeat still comes is waited for, up to
-six times its limit (a modal dialog during a load). `Sandboxes::set_limits` shortens them
-for tests. Saving a plug-in Cantus knows to be in trouble (a job unfinished, no heartbeat
-for a second) answers at once with its last-good state (#51). From the crashing block on, an **effect passes its input through,
+thread with **no life for 5 s unless the request it is serving (the last it started) is
+still within its own limit** (load 30 s, state 10 s, others 5 s; #41; isolation-3 #3,
+#37). A helper that shows life is never hung, whatever waits on it (isolation-3 #36,
+#44); a held request is never judged. Cantus's interface, though, never waits past a
+call's own limit: a call not answered in it gives up with `HostError::Busy` — a save then
+answers with the last-good state, a restart is picked up on a later frame — and the
+helper is not killed for it (#4, #11). A pause of Cantus itself (a laptop asleep) longer
+than the silence limit restarts the clocks instead of killing every helper (#49).
+`Sandboxes::set_limits` shortens the limits for tests. Saving a plug-in that is itself in
+trouble (its job unfinished, its own request overdue, its helper hung) answers at once
+with its last-good state (#51); a merely busy neighbour does not make a save stale
+(isolation-3 #2, #24). A helper that ends before its handshake is a load failure, never a
+plug-in's crash, and a helper of another build answers the handshake with its own protocol
+(#40). From the crashing block on, an **effect passes its input through,
 delayed by the latency it reported** (as a bypassed slot plays, so nothing in parallel
 moves against it); an **instrument is silent**; a block that only went **late** does the
 same and is counted (`Status::late`, shown in the status bar as *Plug-ins late*, beside the
 engine's own drops: the bridge knows it before the engine could, and the engine stays
 unaware; it counts **jobs** that missed their deadline, one per late job, #35). What the
 blocks that passed without the plug-in carried is **kept** in buffers made with the half —
-the last value of each parameter, the note-offs, chokes, expressions and controllers, a
-reset — and goes in at the start of its next job, so no note rings on and no value is out of
-step (#3, #10); a note-on late by a block is dropped; a full buffer resets the plug-in. The
+the last value of each parameter, the note-offs and chokes, the last value of each
+controller and expression, a reset — and goes in at the start of its next job, so no note
+rings on and no value is out of step (#3, #10); a note-on late by a block is dropped; a
+full buffer resets the plug-in (and drops what the reset supersedes). The resuming block's
+own events come first in room, the carried note-offs next, the carried controllers last;
+a carried note-off with no room resets the plug-in first, and what still finds none is
+counted as lost (isolation-3 #8, #9, #16, #23, #41). What the late job itself reported —
+its gestures and values — reaches the host with the next block (#12, #42, #46). The
 crashing block itself is the one glitch: if the system takes longer to end the process than
 the block's deadline, it waits for the deadline — **to the microsecond**: the caller's
 sleep ends on a high-resolution waitable timer (`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`)
@@ -158,14 +182,22 @@ is told to unload it (#5).
 reported, #45); `PluginHost` marks the slot crashed and counts it by its **blame**: the
 plug-in that did it this session and in the plug-in database for good
 (`PluginDb::crashes`); a neighbour in the same helper not at all; when nothing says whose,
-once per helper death this session and not remembered (#25, #49). It tells the application
-`HostNotice::{PluginCrashed, InstrumentCrashed}` — also for a plug-in whose helper died
-while it **loaded**, which is reloadable and tried again when where it runs changes (#15).
+once per helper death this session and not remembered (#25, #49); several instances of one
+plug-in in one helper are counted once per death (isolation-3 #0, #20). It tells the
+application `HostNotice::{PluginCrashed, InstrumentCrashed}` — also for a plug-in whose
+helper died while it **loaded**, laid on whoever the helper's end is laid on, which is
+reloadable and tried again when where it runs changes (#15; isolation-3 #7); a reload that
+crashes again is counted again, its card comes back, and its reason is said in the
+interface's words (isolation-3 #15, #31).
 **Renders** (export, stems, freeze, bounce, a modulator's bake) run their isolated plug-ins
 in helpers of their own (`render-<group>`): a crash there never takes the live ones down;
 an offline wait is sliced, so a render's Stop ends it (`PluginHost::cancel_render`) and a
-hang past the offline limit ends the helper; and a render that lost a plug-in says so
-(`PluginHost::render_failures`) instead of reporting success (#6, #39, #46, #47).
+hang past the offline limit ends the helper; and a render that lost a plug-in — crashed,
+hung, or not even loaded in its render helper — says so (`PluginHost::render_failures`)
+instead of reporting success (#6, #39, #46, #47; isolation-3 #6, #47). One render at a
+time: an export, a freeze or bounce, and a modulator's bake wait for each other (they share
+the render instances; isolation-3 #5, #10, #13, #21, #48). A frame cut short by a dying
+helper is the stream's end, not a broken protocol (isolation-3 #43).
 Numbers that are not finite (a `-inf` dB minimum, a NaN value) cross the channel as the
 nearest finite ones (`proto::Finite`, #4).
 

@@ -94,6 +94,14 @@ pub enum HostError {
     /// The plug-in's process ended or stopped answering (an isolated plug-in, ADR 0063).
     #[error("the plug-in stopped working: {0}")]
     Crashed(String),
+    /// Its helper ended while it loaded, and whose doing that was (round 29, review #40):
+    /// a neighbour's crash is no crash of this plug-in's.
+    #[error("the plug-in stopped working: {why}")]
+    Ended { why: String, blame: Blame },
+    /// Its helper lives but has not answered yet (a plug-in's dialog is open, a slow call
+    /// is ahead of this one): the call is given up, not the helper (round 29, review #4).
+    #[error("the plug-in is busy: {0}")]
+    Busy(String),
 }
 
 /// How the engine will run the plug-in.

@@ -417,7 +417,7 @@ impl PluginHost {
         if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
-                self.count_crash(&info, crate::backend::Blame::This, None);
+                self.count_crash(&info, failed.blame, None);
             }
             HostNotice::InstrumentCrashed {
                 track,

@@ -260,12 +260,14 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
                 told = Some(reason);
             }
         }
-        // Once the helper is silent, saving answers at once with what it said last.
+        // Saving meanwhile answers with what it said last, never waiting past the state's
+        // own limit (its own background save may be slow, not hung: it is waited for that
+        // long — review isolation-3 #2, #24 — and the interface never longer).
         if !saved_quickly && start.elapsed() > Duration::from_millis(1600) && told.is_none() {
             let t = Instant::now();
             assert_eq!(main.save_state().unwrap(), good);
             assert!(
-                t.elapsed() < Duration::from_millis(300),
+                t.elapsed() < Duration::from_millis(3_500),
                 "{:?}",
                 t.elapsed()
             );
@@ -372,10 +374,14 @@ fn a_late_block_keeps_the_notes_and_values_of_the_blocks_that_pass_without_it() 
         call(audio, &mut l, &mut r, p, n);
         (t.elapsed(), l)
     };
-    block(audio.as_mut(), &[], &[note(NoteKind::On { velocity: 0.9 })]);
+    let mut before = block(audio.as_mut(), &[], &[note(NoteKind::On { velocity: 0.9 })]).1;
     for _ in 0..4 {
-        block(audio.as_mut(), &[], &[]);
+        before.extend(block(audio.as_mut(), &[], &[]).1);
     }
+    assert!(
+        peak(&before) > 0.0,
+        "the note sounded before the late block"
+    );
     // Slow once (50 ms): this block is late.
     block(audio.as_mut(), &fault(S_FAULT, SLOW_ONCE), &[]);
     // Dry blocks while it runs: at once, and what they carry kept.

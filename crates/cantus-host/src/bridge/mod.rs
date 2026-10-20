@@ -117,6 +117,13 @@ impl Backend for BridgedBackend {
                     "the plug-in sandbox did not load it".into(),
                 ));
             }
+            // The helper died while it loaded: whose doing that was goes with the error
+            // (review #7, #40).
+            Err(HostError::Crashed(why)) => {
+                let blame = sandbox.blame(instance);
+                sandbox.unregister(instance);
+                return Err(HostError::Ended { why, blame });
+            }
             Err(e) => {
                 sandbox.unregister(instance);
                 return Err(e);

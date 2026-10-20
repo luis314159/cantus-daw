@@ -17,6 +17,7 @@ pub struct Pipes {
 
 #[cfg(windows)]
 mod imp {
+    use super::blame;
     use super::*;
     use std::os::windows::io::FromRawHandle;
     use std::sync::atomic::{AtomicIsize, Ordering};
@@ -36,11 +37,15 @@ mod imp {
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Ole::OleInitialize;
-    use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent, INFINITE};
+    use windows_sys::Win32::System::StationsAndDesktops::SetUserObjectInformationW;
+    use windows_sys::Win32::System::Threading::{
+        CreateEventW, GetCurrentProcess, SetEvent, INFINITE,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, MsgWaitForMultipleObjects, PeekMessageW,
-        PostMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE,
-        QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetAncestor, MsgWaitForMultipleObjects,
+        PeekMessageW, PostMessageW, RegisterClassW, SetTimer, TranslateMessage, GA_ROOTOWNER,
+        HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
     };
 
     /// The pulse window (0 until made).
@@ -109,6 +114,20 @@ mod imp {
         // SAFETY: sets this process's error mode; no pointers involved.
         unsafe {
             SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
+        }
+        // A crash in a plug-in window's timer callback ends the process like any other,
+        // instead of being swallowed by the system and leaving the plug-in broken (and
+        // its crash unseen; review #1, #39).
+        let off: i32 = 0;
+        // SAFETY: this process's handle (a pseudo-handle) and a BOOL that outlives the
+        // call, with its size.
+        unsafe {
+            SetUserObjectInformationW(
+                GetCurrentProcess(),
+                UOI_TIMERPROC_EXCEPTION_SUPPRESSION as i32,
+                &off as *const i32 as *const std::ffi::c_void,
+                size_of::<i32>() as u32,
+            );
         }
     }
 
@@ -191,6 +210,14 @@ mod imp {
                     if pulse != 0 && msg.hwnd as isize == pulse {
                         continue;
                     }
+                    // A plug-in window's message runs as a call into its instance: a crash
+                    // or a modal loop in it is that instance's (review #1, #44).
+                    let owner = if msg.hwnd.is_null() {
+                        0
+                    } else {
+                        blame::window_owner(GetAncestor(msg.hwnd, GA_ROOTOWNER) as isize)
+                    };
+                    let _calling = (owner != 0).then(|| blame::calling(owner));
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
@@ -272,68 +299,188 @@ mod imp {
 
 pub use imp::*;
 
-/// Which plug-in a crash is laid on (review #49): each thread says which instance it is
-/// calling into, and a crash handler — the unhandled-exception filter on Windows, a
-/// handler for the fatal signals on Unix — writes the faulting thread's into the lobby
-/// ([`cantus_host::bridge::sandbox::CRASH_AT`]) before the process dies. An abort on
-/// Windows (a fail-fast) passes no handler; Cantus then lays it on whatever was running.
+/// Which plug-in a crash is laid on (review #49, #1, #39): each thread says which instance
+/// it is calling into — the main thread in its calls, its ticks and the plug-in windows'
+/// messages it dispatches, each processing thread in its jobs — and a crash handler (the
+/// unhandled-exception filter and the C runtime's abort signal on Windows; the fatal signals
+/// on Unix, on a stack of their own) writes the faulting thread's into the lobby
+/// ([`cantus_host::bridge::sandbox::CRASH_AT`]) as the process dies — or *outside*
+/// ([`cantus_host::bridge::sandbox::OUTSIDE`]) for a thread calling into none, so the
+/// crash is laid on nobody rather than on whoever was processing. A Windows fail-fast abort
+/// runs no handler; Cantus then judges by what was running, and blames nobody when several
+/// were.
 pub mod blame {
-    use std::cell::Cell;
+    use cantus_host::bridge::sandbox::OUTSIDE;
+    use std::cell::{Cell, RefCell};
     use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
 
     thread_local! {
         static CURRENT: Cell<u32> = const { Cell::new(0) };
+        /// The plug-in windows (their root handles) and their instances (main thread).
+        static WINDOWS: RefCell<Vec<(isize, u32)>> = const { RefCell::new(Vec::new()) };
     }
 
     static CRASH_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
+    static MAIN_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
 
-    /// This thread calls into `instance` now (0: none).
+    /// The instance this thread calls into now (0: none).
+    pub fn current() -> u32 {
+        CURRENT.try_with(|c| c.get()).unwrap_or(0)
+    }
+
+    /// This thread calls into `instance` now (0: none) — a processing thread's job.
     pub fn set_current(instance: u32) {
         let _ = CURRENT.try_with(|c| c.set(instance));
     }
 
-    /// From a crash handler, on the faulting thread: its instance into the lobby.
+    /// The main thread calls into `instance` while the value lives: the lobby's word and
+    /// the thread's own say so; the previous ones come back after (calls nest — a window's
+    /// message inside a call, a call served from a plug-in's modal loop).
+    pub struct Calling {
+        prev: u32,
+    }
+
+    pub fn calling(instance: u32) -> Calling {
+        let prev = current();
+        mark(instance);
+        Calling { prev }
+    }
+
+    impl Drop for Calling {
+        fn drop(&mut self) {
+            mark(self.prev);
+        }
+    }
+
+    fn mark(instance: u32) {
+        set_current(instance);
+        let word = MAIN_AT.load(Ordering::Acquire);
+        if !word.is_null() {
+            // SAFETY: the lobby's word, mapped for the life of the process (`install`).
+            unsafe { &*word }.store(instance, Ordering::Release);
+        }
+    }
+
+    /// A plug-in window (its root handle) belongs to `instance`.
+    pub fn own_window(hwnd: isize, instance: u32) {
+        WINDOWS.with(|w| {
+            let mut w = w.borrow_mut();
+            w.retain(|(h, _)| *h != hwnd);
+            w.push((hwnd, instance));
+        });
+    }
+
+    pub fn forget_window(hwnd: isize) {
+        WINDOWS.with(|w| w.borrow_mut().retain(|(h, _)| *h != hwnd));
+    }
+
+    /// The instance whose window this root handle is (0: none of ours).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn window_owner(root: isize) -> u32 {
+        WINDOWS
+            .try_with(|w| {
+                w.borrow()
+                    .iter()
+                    .find(|(h, _)| *h == root)
+                    .map_or(0, |(_, n)| *n)
+            })
+            .unwrap_or(0)
+    }
+
+    /// From a crash handler, on the faulting thread: its instance (or *outside*) into the
+    /// lobby. Only atomics and a thread-local made without initialisation are touched.
     fn record() {
         let word = CRASH_AT.load(Ordering::Acquire);
         if word.is_null() {
             return;
         }
-        if let Ok(n) = CURRENT.try_with(|c| c.get()) {
-            if n != 0 {
-                // SAFETY: `word` points into the lobby, mapped for the life of the process
-                // (`install`'s contract).
-                unsafe { &*word }.store(n, Ordering::Release);
-            }
-        }
+        let n = CURRENT.try_with(|c| c.get()).unwrap_or(0);
+        let n = if n == 0 { OUTSIDE } else { n };
+        // SAFETY: `word` points into the lobby, mapped for the life of the process.
+        let w = unsafe { &*word };
+        // The first fault's word stands (a second one in the dying process says nothing).
+        let _ = w.compare_exchange(0, n, Ordering::AcqRel, Ordering::Relaxed);
     }
 
-    /// Installs the crash handler, writing to `word`.
-    pub fn install(word: &'static AtomicU32) {
+    /// Installs the crash handlers, writing to `crash_at`; `main_at` is the lobby's word
+    /// naming the instance the main thread is calling into.
+    pub fn install(crash_at: &'static AtomicU32, main_at: &'static AtomicU32) {
         CRASH_AT.store(
-            word as *const AtomicU32 as *mut AtomicU32,
+            crash_at as *const AtomicU32 as *mut AtomicU32,
+            Ordering::Release,
+        );
+        MAIN_AT.store(
+            main_at as *const AtomicU32 as *mut AtomicU32,
             Ordering::Release,
         );
         imp::install();
+        alt_stack();
+    }
+
+    /// Puts our handler back in front (a plug-in may have installed its own crash reporter
+    /// over it while it loaded): ours records, then hands on to it.
+    pub fn reinstall() {
+        imp::install();
+    }
+
+    /// A stack of its own for this thread's fatal-signal handler, so a stack overflow is
+    /// recorded too (Unix; once per thread; nothing on Windows).
+    pub fn alt_stack() {
+        imp::alt_stack();
     }
 
     #[cfg(windows)]
     mod imp {
+        use std::sync::atomic::{AtomicUsize, Ordering};
         use windows_sys::Win32::System::Diagnostics::Debug::{
-            SetUnhandledExceptionFilter, EXCEPTION_POINTERS,
+            SetUnhandledExceptionFilter, EXCEPTION_POINTERS, LPTOP_LEVEL_EXCEPTION_FILTER,
         };
 
-        unsafe extern "system" fn filter(_info: *const EXCEPTION_POINTERS) -> i32 {
+        /// A filter that was in place before ours (a plug-in's crash reporter): handed on.
+        static CHAINED: AtomicUsize = AtomicUsize::new(0);
+
+        unsafe extern "system" fn filter(info: *const EXCEPTION_POINTERS) -> i32 {
             super::record();
+            let chained = CHAINED.load(Ordering::Acquire);
+            if chained != 0 {
+                // SAFETY: a filter function the process installed, called as the system
+                // would have.
+                let f: unsafe extern "system" fn(*const EXCEPTION_POINTERS) -> i32 =
+                    unsafe { std::mem::transmute(chained) };
+                return unsafe { f(info) };
+            }
             0 // EXCEPTION_CONTINUE_SEARCH: the process ends as it would have
         }
 
+        unsafe extern "C" {
+            /// The C runtime's `signal` (UCRT): its abort raises SIGABRT before it ends the
+            /// process, which the unhandled-exception filter never sees.
+            fn signal(sig: i32, handler: usize) -> usize;
+        }
+        const SIGABRT: i32 = 22;
+
+        extern "C" fn on_abort(_sig: i32) {
+            super::record();
+        }
+
         pub fn install() {
-            // SAFETY: a filter for this process's unhandled exceptions; it only stores an
-            // atomic and returns.
+            // SAFETY: a filter for this process's unhandled exceptions, which only stores
+            // an atomic and hands on; the previous one, kept to hand on to.
+            let prev: LPTOP_LEVEL_EXCEPTION_FILTER =
+                unsafe { SetUnhandledExceptionFilter(Some(filter)) };
+            if let Some(p) = prev {
+                if p as usize != filter as *const () as usize {
+                    CHAINED.store(p as usize, Ordering::Release);
+                }
+            }
+            // SAFETY: a handler for the C runtime's abort signal, which only stores an
+            // atomic; returning lets the abort end the process as it would have.
             unsafe {
-                SetUnhandledExceptionFilter(Some(filter));
+                signal(SIGABRT, on_abort as extern "C" fn(i32) as usize);
             }
         }
+
+        pub fn alt_stack() {}
     }
 
     #[cfg(unix)]
@@ -353,14 +500,29 @@ pub mod blame {
                 libc::SIGABRT,
             ] {
                 // SAFETY: a zeroed sigaction with our handler, reset to the default after
-                // it runs once; the handler only stores an atomic.
+                // it runs once, on the thread's own signal stack when it has one; the
+                // handler only stores an atomic.
                 unsafe {
                     let mut sa: libc::sigaction = std::mem::zeroed();
                     sa.sa_sigaction = on_signal as extern "C" fn(libc::c_int) as usize;
-                    sa.sa_flags = libc::SA_RESETHAND | libc::SA_NODEFER;
+                    sa.sa_flags = libc::SA_RESETHAND | libc::SA_NODEFER | libc::SA_ONSTACK;
                     libc::sigemptyset(&mut sa.sa_mask);
                     libc::sigaction(sig, &sa, std::ptr::null_mut());
                 }
+            }
+        }
+
+        pub fn alt_stack() {
+            const SIZE: usize = 64 * 1024;
+            let stack: &'static mut [u8] = Box::leak(vec![0u8; SIZE].into_boxed_slice());
+            let ss = libc::stack_t {
+                ss_sp: stack.as_mut_ptr().cast(),
+                ss_flags: 0,
+                ss_size: SIZE,
+            };
+            // SAFETY: a stack this thread keeps for the life of the process (leaked).
+            unsafe {
+                libc::sigaltstack(&ss, std::ptr::null_mut());
             }
         }
     }

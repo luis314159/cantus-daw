@@ -110,10 +110,16 @@ fn sandbox_exe() -> PathBuf {
 /// The window with a plug-in that really crashed: the card, the slot, the status bar.
 fn crash_app() -> CantusApp {
     let (engine, mut processor) = EngineHandle::manual(48_000.0);
-    let mut app = CantusApp::from_parts(Some(welcome_project()), engine, false);
+    // Where this computer says plug-ins run, before the first sync (review isolation-3
+    // #29: the shots' *Runs* reads true).
+    let mut app = CantusApp::from_parts_with(
+        Some(welcome_project()),
+        engine,
+        false,
+        Some(cantus_core::PluginIsolation::Together),
+    );
     app.plugins
         .set_sandboxes(cantus_host::bridge::Sandboxes::new(sandbox_exe()));
-    app.plugins.default_isolation = cantus_core::PluginIsolation::Together;
     views::plugins::demo_setup(&mut app, &test_gain(), false);
     let strip = app.project().tracks[0].strip.expect("a strip");
     let info = app.plugins.db.effects().first().map(|p| (*p).clone());
@@ -233,7 +239,12 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
         project.tracks[0].instrument = cantus_core::InstrumentSpec::External(plugin.clone());
         let track = project.tracks[0].id;
         let (engine, _processor) = EngineHandle::manual(48_000.0);
-        let mut app = CantusApp::from_parts(Some(project), engine, false);
+        let mut app = CantusApp::from_parts_with(
+            Some(project),
+            engine,
+            false,
+            Some(cantus_core::PluginIsolation::Together),
+        );
         app.plugins.mark_crashed_for_tests(
             (None, Some((track, cantus_engine::hosted_key(&plugin)))),
             (cantus_host::Format::Vst3, &plugin.id),
@@ -266,6 +277,170 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
     }
 }
 
+/// The interface's frames after a crash: the host's news to the card.
+fn tell(app: &mut CantusApp) {
+    for _ in 0..4 {
+        let n = app.plugins.idle(&mut app.bus, &mut app.engine);
+        for n in n {
+            views::plugin_notice::on_notice(app, n);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+/// A hosted instrument (the test synth, *Together*) that crashed while the song played,
+/// still loaded: what the inspector, the rack and the header show (review isolation-3
+/// #29).
+fn instrument_crash_app() -> CantusApp {
+    let (engine, mut processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts_with(
+        Some(welcome_project()),
+        engine,
+        false,
+        Some(cantus_core::PluginIsolation::Together),
+    );
+    app.plugins
+        .set_sandboxes(cantus_host::bridge::Sandboxes::new(sandbox_exe()));
+    app.plugins.db_path = None;
+    let folder = std::env::temp_dir().join("cantus-shoot-synth");
+    let _ = std::fs::create_dir_all(&folder);
+    let file = folder.join("Cantus Test Synth.clap");
+    let _ = std::fs::copy(test_synth(), &file);
+    let plugins = cantus_host::clap::ClapBackend
+        .scan(&file)
+        .unwrap_or_default();
+    let (modified, size) = cantus_host::db::stamp(&file).unwrap_or((0, 0));
+    let info = plugins.first().cloned();
+    app.plugins.db.put(DbEntry {
+        path: file,
+        format: cantus_host::Format::Clap,
+        modified,
+        size,
+        status: ScanStatus::Ok,
+        plugins,
+    });
+    let track = app.project().tracks[0].id;
+    if let Some(info) = info {
+        app.set_hosted_instrument(track, &info);
+    }
+    app.sync_engine();
+    app.select_track(track);
+    app.engine.play();
+    let mut buf = vec![0f32; 512];
+    for _ in 0..8 {
+        processor.process(&mut buf, 2);
+    }
+    // The synth's hidden Fault parameter (5): abort in `process`.
+    app.exec(cantus_core::Command::SetInstrumentPluginParam {
+        track,
+        id: 5,
+        value: Some(1.0),
+    });
+    app.sync_engine();
+    for _ in 0..16 {
+        processor.process(&mut buf, 2);
+    }
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    tell(&mut app);
+    app
+}
+
+/// A card that lists two plug-ins, one of them crashing for the third time with a long
+/// name: its three buttons (review isolation-3 #27).
+fn three_button_app() -> CantusApp {
+    let mut p = welcome_project();
+    let strip = p.tracks[0].strip.expect("a strip");
+    let mut slot = p.make_effect(cantus_core::EffectKind::External);
+    slot.spec = cantus_core::EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Vst3,
+        "0123456789ABCDEF0123456789ABCDEF",
+        "Spectrasonics Omnisphere Orchestral Edition",
+    ));
+    let id = slot.id;
+    p.strip_mut(strip).expect("the strip").effects.push(slot);
+    let mut app = CantusApp::from_parts_with(
+        Some(p),
+        EngineHandle::dummy(),
+        false,
+        Some(cantus_core::PluginIsolation::Together),
+    );
+    app.plugins.mark_crashed_for_tests(
+        (Some(id), None),
+        (
+            cantus_host::Format::Vst3,
+            "0123456789ABCDEF0123456789ABCDEF",
+        ),
+        "it crashed: an access violation (0xC0000005)",
+        3,
+    );
+    views::plugin_notice::on_notice(
+        &mut app,
+        cantus_host::HostNotice::PluginCrashed {
+            effect: id,
+            name: "Spectrasonics Omnisphere Orchestral Edition".into(),
+            reason: "it crashed: an access violation (0xC0000005)".into(),
+        },
+    );
+    views::plugin_notice::on_notice(
+        &mut app,
+        cantus_host::HostNotice::PluginCrashed {
+            effect: id,
+            name: "Spectrasonics Omnisphere Orchestral Edition".into(),
+            reason: "it crashed: an access violation (0xC0000005)".into(),
+        },
+    );
+    app.audio_setup
+        .notice(cantus_ui::audio_setup::Notice::Lost("Focusrite USB".into()));
+    app
+}
+
+/// The review's places a stopped plug-in shows: the Wide mixer (the chain line), the
+/// insert's menu on the desk, the selected insert (the mini inspector), a loaded
+/// instrument that crashed (inspector, rack, header), the three-button card in a narrow
+/// window.
+fn review3_shots(dir: &std::path::Path, ppp: f32, code: &str) {
+    let theme = cantus_ui::theme::cantus_night();
+    let shot = |name: &str, size: egui::Vec2, app: &mut CantusApp| {
+        let ctx = egui::Context::default();
+        cantus_ui::design::install_fonts(&ctx);
+        cantus_ui::design::install_style(&ctx);
+        cantus_ui::theme::apply(&theme, &ctx);
+        let path = dir.join(format!("isolation-{name}-night-{code}-{ppp}x.png"));
+        shoot(&ctx, size, ppp, 6, Some(&path), |root| app.frame(root));
+        println!("wrote {}", path.display());
+    };
+    let size = egui::vec2(1280.0, 760.0);
+    // The mixer, Wide: the chain line of the stopped insert in the danger colour.
+    let mut app = crash_app();
+    app.central = cantus_ui::app::CentralView::Mixer;
+    views::mixer::set_width_mode(&mut app, views::mixer::layout::WidthMode::Xl);
+    views::mixer::set_row(&mut app, views::mixer::layout::Row::Chain, true);
+    shot("mixer", egui::vec2(1280.0, 1200.0), &mut app);
+    // The insert's menu on the desk: Reload plug-in, and where it runs.
+    let strip = app.project().tracks[0].strip.expect("a strip");
+    let effect = app
+        .project()
+        .strip(strip)
+        .and_then(|s| s.effects.iter().find(|e| e.spec.external.is_some()))
+        .map(|e| e.id);
+    if let Some(e) = effect {
+        views::mixer::open_slot_menu(&mut app, strip, e, egui::pos2(420.0, 300.0));
+        shot("mixer-menu", size, &mut app);
+        // The selected insert: the inspector's tile for it.
+        app.inspector.show_insert_values(e);
+        app.central = cantus_ui::app::CentralView::PianoRoll;
+        shot("insert-selected", size, &mut app);
+    }
+    // A loaded instrument that crashed: the inspector, and the rack.
+    let mut app = instrument_crash_app();
+    shot("instrument-loaded", size, &mut app);
+    app.central = cantus_ui::app::CentralView::ChannelRack;
+    shot("rack", size, &mut app);
+    // The three-button card, in a narrow window.
+    let mut app = three_button_app();
+    shot("three-buttons", egui::vec2(420.0, 600.0), &mut app);
+}
+
 fn main() {
     let mut args = std::env::args().skip(1);
     let dir = PathBuf::from(args.next().unwrap_or_else(|| "shots".into()));
@@ -278,6 +453,7 @@ fn main() {
     cantus_ui::i18n::set_locale(locale);
     let code = locale.code();
     isolation_shots(&dir, ppp, code);
+    review3_shots(&dir, ppp, code);
     for kind in ["loaded", "missing"] {
         for (theme_name, theme) in [
             ("slate", cantus_ui::theme::slate()),

@@ -288,6 +288,13 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         app.set_error(crate::i18n::t("freeze.export_waits"));
         return false;
     }
+    // A modulator's bake renders through the same plug-in instances: one render at a time
+    // (round 29, review isolation-3 #5, #10, #13, #48).
+    if app.modulators.pending_bake.is_some() {
+        let job = crate::i18n::t("isolation.render.bake");
+        app.set_error(crate::i18n::tf("isolation.render.busy", &[("job", &job)]));
+        return false;
+    }
     let from_dialog = choices.is_none();
     let mut d = match choices.or_else(|| app.export.dialog.clone()) {
         Some(d) => d,

@@ -40,10 +40,9 @@ fn main() {
         );
         std::process::exit(2);
     };
-    if protocol != cantus_host::bridge::proto::PROTOCOL {
-        // Another build's Cantus: the handshake would refuse it anyway.
-        std::process::exit(3);
-    }
+    // Another build's Cantus: served anyway, so its handshake reads this helper's protocol
+    // and says which (review #40), instead of seeing a process that ended.
+    let _ = protocol;
     platform::quiet_crashes();
     platform::die_with_parent();
     let pipes = platform::take_pipes();
