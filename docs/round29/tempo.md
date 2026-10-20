@@ -27,7 +27,7 @@ ADR 0060.
 4. **Interface**: `views/bars.rs` (every ruler, grid, BBT, bar/beat snap, nudge, default
    window, count-in, punch, clock); the tempo track lane; metre chips; the marker lane
    (jump, rename on the letters, drag, colour, loop/select/export to the next, go to by
-   name); the top bar at the playhead; keys Alt+M, Alt+, Alt+., Alt+Shift+, (review 2: was Alt+Shift+L, taken), Alt+Shift+M,
+   name); the top bar at the playhead; keys Alt+M, Alt+, Alt+., Alt+Shift+O (review 2: was Alt+Shift+L, taken; review 3: not Alt+Shift+, , which ES/DE/FR keyboards cannot type), Alt+Shift+M,
    Alt+Shift+T (keymap 9, `NEW_IN_V9`); View ▸ *Tempo track*; the timeline menu's entries;
    *Export between markers* (`Scope::Markers`); `shoot_tempo` (PNGs in
    `F:\projects\daw-r29\shots\tempo\`).
@@ -102,7 +102,8 @@ Nothing of mine. Owner-only: listening to a ramp with synced effects and a hoste
   `projectTimeSamples`); isolation's `WireTransport` carries it, bridge protocol 3.
   `clipboard::split` and `clips::move_to` take the project; `audio_clips::glue_in` /
   `clips::glue_in` glue under the map. Unwarped audio plays from its content origin
-  (ADR 0060 §4). *Loop between markers* is Alt+Shift+, (manual §12 if it lists it).
+  (ADR 0060 §4); a tempo edit re-anchors them in its own undo step (`tempo::keep`, review
+  3). *Loop between markers* is Alt+Shift+O (review 3).
 
 ## What the shared API gives (for warp, freeze and controllers)
 
@@ -234,3 +235,87 @@ host, export, ai and plugins 2 087 passed; UI 1 366 passed; the engine with `fuz
 `cantus-plugins --no-default-features` clean; `cargo fmt --check` clean. No Command was
 added or changed (freeze's `freeze_guard::touches` untouched); no golden moved,
 `DSP_VERSION` unchanged.
+
+## Review 3 of the fix round (`tempo-3.json`, 56 confirmed) — how each was fixed
+
+Merged `r29/integration` (2e23325) first, then, before the final run, `r29/integration` again (6e74f7e: freeze's and warp's review
+fixes; one conflict, in the DAWproject reader, resolved to warp's equivalent change). Every
+test named below was seen failing before its fix — on the old code, or with the fix
+reverted in the tree (*mutation*: the fix undone, the test run, the fix put back) —
+except where the row says *coverage* (a test asked for of code that was right) or *not
+tested* (drawing only).
+
+**The central decision (findings 0, 13, 37; ADR 0060 §4 rewritten).** Two invariants: a
+tempo edit never changes which source frame plays at an unwarped clip's start, and every
+window edit (split, trims, comp, glue, loop passes, pastes, block moves) stays exact. Design
+(b) holds both: the content-origin rule stays for reading and editing windows, and **the
+command bus re-anchors on every command that changes the tempo map**
+(`CommandBus::apply_keeping_audio`, `cantus_core::tempo::keep`): before the command it notes
+each unwarped window's source second at its start (clips and alternate comps' windows; a
+warp that follows the tempo is skipped), after it emits `SetClipOffset` / `SetClipAudio`
+(slip) / `SetTrackComps` re-anchors, composed into the command and its inverse — one undo
+step, exact inverse; a refused re-anchor rolls the whole command back. A window the command
+moved itself is left alone; a linked window moves its offset alone (its slip is its
+group's), within half a tick. No new `Command`, so `freeze_guard::touches` needs no arm; the
+undo fuzz gained the invariant (every unwarped window's frame at its start kept after every
+tempo command, the count asserted non-zero). Design (a), the left edge in source frames, was
+rejected: every window edit back to seconds (review 2's problem) and a schema change.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0, 13, 37 | a tempo edit before a take (pre-roll, earlier loop passes, a count-in) slid its audio; comp windows re-cut | the bus re-anchoring above | `tempo_keep::a_take_recorded_after_play_from_bar_one_keeps_its_frame`, `loop_passes_keep_their_frames_after_an_edit_before_the_loop` (passes 1..3, agreeing), `comp_windows_of_one_take_keep_their_frames_and_their_origin`, `a_reversed_window_and_whole_track_edits_keep_their_frames` (`SetTempoTrack`, `SetTempo` without a track), `a_linked_window_moves_its_offset_alone`, `an_alternate_comps_windows_keep_their_frames`, `a_window_the_edit_moves_itself_is_left_as_it_put_it` (6 of 7 failed); `undo_invariants` (fuzz invariant); `tempo_review3::a_tempo_edit_keeps_what_a_clip_plays_at_its_start` (the top bar, one undo). A punch-in is the same window (a take whose offset is its pre-roll): the bar-17 test |
+| 1, 9 | the warp render key ignores the tempo before a non-following warp's window | **warp's file** (`warp_render::key`): relayed — hash `map.span_key(start − offset, end)` (or the bits of `offset_seconds`) when `!warp.follow` | — (relayed) |
+| 2, 8, 17 | several windows moved, nudged, drag-copied or pasted across a change tore apart | one block: the earliest clip moves by the delta, every unwarped window lands the same seconds after it (`audio_time::block_start`; `clips::transpose_selection`, `clipboard::paste_clips`) | `tempo_review3::halves_moved_together_across_a_change_still_meet` (move, glue, nudge, drag-copy; mutation: failed, 7680 vs 9600), `halves_pasted_across_a_change_still_meet` (mutation: failed) |
+| 3 | a linked paste across a change became unlinked | a linked paste keeps its window only (`relocate`'s fades and slip not applied to a linked copy) | `tempo_review3::a_linked_paste_across_a_change_stays_linked` (not seen failing: with the guard undone the paste still links, `same_origin` keeps the group; the guard keeps the group's fades and slip) |
+| 4, 42 | a reversed waveform mirrored in ticks | `arrangement_audio::reversed_frame` (the start's frame plus the seconds from the tick to the end), as the engine and the pitch editor | `tempo_review3::a_reversed_window_is_drawn_as_it_plays` (mutation: failed, 360 037 vs 372 037) |
+| 5 | a MIDI map dropped later left the song's later points when it collapsed to one tempo | `map_from` clears the tempo track then; `apply_tempo` without a map clears it too | `midi_tempo::a_one_tempo_file_dropped_later_replaces_the_songs_later_points` (failed) |
+| 6 | `relocate` ignored a looping clip's period | a looping clip (`content_length < length`) keeps its ticks | `tempo_review3::a_looping_clip_keeps_its_ticks` (mutation: failed, length 1 920) |
+| 7, 15, 48 | a metre chip drag swallowed a freeze's refusal | the drag goes through `exec_merging`, which says the refusal | `tempo_review3_ui::a_chip_drag_moves_by_its_travel_and_says_a_freeze` (written with the fix; not seen failing) |
+| 10, 50 | DAWproject seconds audio offset at the clip start's tempo | the `playStart` second at the clip's start through the map (`audio_time::anchor`: offset in ticks, the rest in slip). Warp's review made the same change for a bare file (`ClipData::slip`); at the merge mine gave way to it | `dawproject_tempo::a_seconds_audio_clip_starts_at_its_second_through_the_map` (mutation: failed, 2.5 s; passes on warp's code) |
+| 11 | comments and a test header described the old rule | `processor_rec.rs`, `audio_edits.rs` header rewritten | — |
+| 12, 23, 38 | Alt+Shift+, cannot be typed on ES/DE/FR layouts | *Loop between markers* is **Alt+Shift+O** (a letter: the same key on every layout; free in every preset — the duplicate test); manual EN/ES, ADR | `keymap::loop_between_markers_fires_on_every_layout` (every preset; failed with the comma) |
+| 14 | *Add a metre change* could open an editor out of view, later | the editor opens on the ruler where the change is drawn, in the pass it was asked (`metre_at`); a stale request is dropped; the top bar no longer opens it | `tempo_review3_ui::the_metre_editor_opens_where_it_is_seen` (written with the fix; not seen failing) |
+| 16, 28, 30 | import words: "one time signature", "Keep: Keep", "pista" | `interop.midi_import.tempo_changes` "What to keep:" / "¿Qué conservar?", `metre_changes` reworded, `tempo.es` "franja de marcadores" | the i18n test |
+| 18, 24 | the drag ghost showed what the drop did not keep | `clips::drag_preview` applies the commit's own commands (`clips::drag_commands`, shared with `commit_clip_drag`); the painter draws the landed clips | `tempo_review3::the_drag_draws_what_lands` (written with the fix; not seen failing) |
+| 19 | forward split/trim tests allowed a frame | exact: the origin and slip asserted equal | `audio_edits::*` (coverage) |
+| 20 | relocate's fades untested; the duplicate's tolerance 0.01 s | half a tick; a clip whose fades straddle the change moved and drag-copied (unlinked: a linked copy keeps its group's fades) | `tempo_edits::moved_fades_and_lengths_keep_their_seconds`, `a_duplicate_across_a_tempo_change_plays_the_same_seconds` (coverage) |
+| 21 | the loop-over-a-ramp test was true by construction | a run that crosses the loop's end with overshoot at blocks 37/512/1000, each wrap against the closed form | `tempo_review2::a_wrap_inside_a_ramp_carries_its_overshoot_through_the_map` (mutation: the overshoot carried in ticks — failed, 1920.469 vs 1920.371) |
+| 22 | the top bar's drag inside a ramp untested | coverage | `tempo_review3_ui::the_tempo_drag_inside_a_ramp_moves_its_start_by_the_travel` |
+| 25, 35 | one metre: automation points snapped from content tick 0 | the content's own grid when the song has one metre (`auto_editor`: shift 0) | `tempo_review3_ui::one_metre_automation_snaps_to_its_content_grid` (written with the fix; not seen failing) |
+| 26, 44 | same-tick tabs ran over the next marker; the rename field on a neighbour | a same-tick run shares the room before the next tick; a run too close behind another starts after it; the rename field at the drawn tab | `tempo_review3_ui::same_tick_markers_share_the_room_before_the_next` (failed: 436–442 under 439.8) |
+| 27, 46 | *Add a marker here* off the grid | `arrangement::menu_point` snaps when snap is on | `tempo_review3_ui::the_ruler_menu_point_is_on_the_grid` (mutation: failed, 31 008) |
+| 29 | the Spanish manual's menu names | "Cambiar el nombre…", "Quitar el marcador" (EN "Remove the marker") | — |
+| 31 | a touchpad moved the tempo several BPM | raw wheel events summed, fractions carried into whole notches | `tempo_review3_ui::the_tempo_wheel_counts_whole_notches_and_leaves_ctrl_alone` (written with the fix; not seen failing) |
+| 32 | a point dragged past the range stuck to the edge | `Axis::of_lane` slides lo/hi with the value, the scale held | `arrangement_tempo::tests::a_point_dragged_past_the_range_slides_it` (mutation: failed, 110–130) |
+| 33 | the manual did not say what a tempo edit does to a trimmed clip | EN/ES: a tempo change never moves what a clip plays at its start | — |
+| 34 | the first warp edit's identity at the song's first tempo | **warp's** (`warp_to_edit`): fixed by the warp builder (its review 1 merged: "a first edit starts from what plays") | — |
+| 36 | a slip did not follow the pointer under another tempo in the hidden part | `audio_time::slipped`: the source moves by the seconds the travel lasts at the window's start (`clips::slip`, the reversed slip too) | `tempo_review3::a_slip_follows_the_pointer_at_the_window` (mutation: failed, 288 037 → 264 037) |
+| 39 | a tab or chip jumped by its grab offset | both drag by the pointer's travel from the press (`grab`, `metre_drag`) | `tempo_review3_ui::a_marker_tab_moves_by_its_travel` (mutation: failed, 11 520), the chip test (mutation: failed, 19 200) |
+| 40 | the gate's history numbered bars from tick 0 | `map.bbt` | not tested (drawing only) |
+| 41 | the compressor's history counted bars from tick 0 | `bar_beat` through the map for lines, numbers and the hover | not tested (drawing only) |
+| 43, 51 | MIDI *keep the time* placed notes at one tempo in a song with a tempo track | `MidiImport::seconds_bpm`; the notes placed through the song's map from the drop | `midi_tempo::notes_kept_at_their_seconds_go_through_the_songs_map` (failed) |
+| 45 | the export dialog never found a range when markers shared a tick | `default_markers` takes the next marker on another tick | `tempo_review3_ui::the_export_dialog_finds_two_markers_that_make_a_range` (mutation: failed) |
+| 47 | Ctrl/Shift+wheel changed the tempo | modified wheels left to the view | the wheel test |
+| 49 | DAWproject `<Warps>` of unwarped audio at one tempo | **warp's file** (`dawproject/audio.rs`): relayed — see the report | — (relayed) |
+| 52 | MIDI export dropped the map past the last clip | the end chains tempo points and metres; a point at the end is written | `midi_tempo::a_map_without_clips_round_trips` (failed) |
+| 53 | a first tempo a few ticks in | within a sixteenth it is tick 0's, the song's tempo | `midi_tempo::a_first_tempo_a_few_ticks_in_is_the_songs` (failed) |
+| 54 | any first metre inside a bar moved to 0 | only within a sixteenth; odd metres reported (`interop.report.odd_metres`) | `midi_tempo::a_pickups_metre_keeps_its_place` (failed) |
+| 55 | the AI's ramp at beat 0 with no track dropped | `add_tempo_point` with no track at tick ≤ 0 and a ramp makes the track | `edit_tests::a_ramp_from_the_start_ramps` (failed), `bridge::the_agent_can_ramp_from_the_start_asked_first` |
+
+**Relayed (not my files).** *Warp render key (1, 9):* in `warp_render::key`, when the warp
+does not follow, hash `plan.map.span_key(plan.start − plan.offset, plan.end)` (or the bits
+of `audio_time::offset_seconds(map, start, offset)`) instead of `span_key(start, end)`.
+*DAWproject unwarped audio (49):* export an unwarped clip's natural line through the map —
+`<Warp>` points at the content origin, at each tempo point and every sixteenth inside a
+ramp, at `audio_time::source_seconds(map, start, offset, origin + b·PPQ) + slip`; on import
+call a clip natural when every |s − (map.seconds_between(origin, origin + b·PPQ) + slip)|·rate
+< 0.5, and place seconds-unit `<Warp>` times through the map from the clip's origin.
+
+**Verified on the merged tree (`r29/integration` 6e74f7e in):** core, dsp, project, engine,
+host, export, ai and plugins 2 185 passed; UI 1 455 passed; the engine with `fuzz`
+(`CANTUS_WORKERS=3`) 787 passed; `cargo clippy --workspace --all-targets -D warnings` and
+`cantus-plugins --no-default-features` clean; `cargo fmt --check` clean. No `Command` added
+or changed (`freeze_guard::touches` untouched); no golden moved, `DSP_VERSION` unchanged.
+One behaviour change beyond the tempo track: editing the tempo of a song *without* a tempo
+track now keeps each trimmed unwarped clip's frame at its start too (round 28 slid it);
+playback of every saved project is unchanged.
