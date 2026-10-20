@@ -65,9 +65,19 @@ pub fn mix() -> Material {
 
 /// A sung phrase: the testkit's voice, a melody with vibrato.
 pub fn voice() -> Material {
-    let notes = [(0.0, 57.0), (0.6, 59.0), (1.2, 60.0), (2.0, 64.0), (2.8, 62.0)];
+    let notes = [
+        (0.0, 57.0),
+        (0.6, 59.0),
+        (1.2, 60.0),
+        (2.0, 64.0),
+        (2.8, 62.0),
+    ];
     let f0 = move |t: f64| {
-        let n = notes.iter().rev().find(|(s, _)| t >= *s).map_or(57.0, |n| n.1);
+        let n = notes
+            .iter()
+            .rev()
+            .find(|(s, _)| t >= *s)
+            .map_or(57.0, |n| n.1);
         let vib = 30.0 * math::sin(2.0 * std::f64::consts::PI * 5.5 * t) as f32;
         cantus_dsp::pitch::midi_to_hz(n + vib / 100.0)
     };
@@ -82,19 +92,31 @@ pub fn voice() -> Material {
 
 /// A solo instrument: a flute-like line (breathy, harmonics falling off, legato).
 pub fn solo() -> Material {
-    let notes = [(0.0, 72.0), (0.5, 74.0), (1.0, 76.0), (1.5, 79.0), (2.25, 77.0), (3.0, 76.0)];
+    let notes = [
+        (0.0, 72.0),
+        (0.5, 74.0),
+        (1.0, 76.0),
+        (1.5, 79.0),
+        (2.25, 77.0),
+        (3.0, 76.0),
+    ];
     let mut noise = Noise::new(5);
     let mut phase = 0.0f64;
     let n = (3.6 * SR) as usize;
     let x: Vec<f32> = (0..n)
         .map(|i| {
             let t = i as f64 / SR as f64;
-            let m0 = notes.iter().rev().find(|(s, _)| t >= *s).map_or(72.0, |n| n.1);
+            let m0 = notes
+                .iter()
+                .rev()
+                .find(|(s, _)| t >= *s)
+                .map_or(72.0, |n| n.1);
             let f = cantus_dsp::pitch::midi_to_hz(m0) as f64
                 * (1.0 + 0.004 * math::sin(2.0 * std::f64::consts::PI * 5.0 * t));
             phase += 2.0 * std::f64::consts::PI * f / SR as f64;
             let env = (t / 0.04).min(1.0) * ((3.6 - t) / 0.1).min(1.0);
-            let tone = math::sin(phase) + 0.3 * math::sin(2.0 * phase) + 0.1 * math::sin(3.0 * phase);
+            let tone =
+                math::sin(phase) + 0.3 * math::sin(2.0 * phase) + 0.1 * math::sin(3.0 * phase);
             (0.35 * env * tone) as f32 + 0.01 * noise.next()
         })
         .collect();
@@ -108,7 +130,12 @@ pub fn solo() -> Material {
 
 /// A chordal pad: detuned saws of a I–vi–IV–V progression, a slow attack, spread wide.
 pub fn pad() -> Material {
-    let chords = [[48, 52, 55, 60], [45, 52, 57, 60], [41, 48, 53, 57], [43, 50, 55, 59]];
+    let chords = [
+        [48, 52, 55, 60],
+        [45, 52, 57, 60],
+        [41, 48, 53, 57],
+        [43, 50, 55, 59],
+    ];
     let n = (4.0 * SR) as usize;
     let mut l = vec![0.0f32; n];
     let mut r = vec![0.0f32; n];
@@ -116,7 +143,8 @@ pub fn pad() -> Material {
         let from = c * n / 4;
         for (v, &note) in chord.iter().enumerate() {
             for (d, detune) in [-0.08f64, 0.08].iter().enumerate() {
-                let f = cantus_dsp::pitch::midi_to_hz(note as f32) as f64 * (1.0 + detune / 100.0 * 12.0);
+                let f = cantus_dsp::pitch::midi_to_hz(note as f32) as f64
+                    * (1.0 + detune / 100.0 * 12.0);
                 let mut ph = (v * 7 + d * 3) as f64 * 0.37;
                 for i in from..from + n / 4 {
                     let t = (i - from) as f64 / SR as f64;
@@ -151,9 +179,7 @@ pub fn render(mat: &Material, mode: Mode, ratio: f64, semis: f64) -> Vec<Vec<f32
     let len = (len_in as f64 * ratio).round() as usize;
     let map = Map::new(vec![(0.0, 0.0), (len as f64, len_in as f64)]).expect("a map");
     let refs: Vec<&[f32]> = mat.channels.iter().map(Vec::as_slice).collect();
-    let pitch = (mode == Mode::Melodic).then(|| {
-        cantus_dsp::pitch::analyse(&refs[0][..], SR)
-    });
+    let pitch = (mode == Mode::Melodic).then(|| cantus_dsp::pitch::analyse(&refs[0][..], SR));
     stretch::render(
         &refs,
         SR,

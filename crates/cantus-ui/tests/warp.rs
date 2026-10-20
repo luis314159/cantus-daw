@@ -273,7 +273,13 @@ fn alt_dragging_the_right_edge_stretches_the_clip() {
     let w = a.clip_warp(r).expect("stretched through a warp");
     // The file's last frame is heard at the new end.
     let end = w.tick_at(m.audio.len() as f64);
-    assert!((end - after.length.0 as f64).abs() < 0.5 * PPQ as f64, "{end}");
+    assert!(
+        (end - after.length.0 as f64).abs() < 0.5 * PPQ as f64,
+        "{end}"
+    );
     a.undo();
-    assert_eq!(a.project().track(t).unwrap().clip(r.1).unwrap().length, c.length);
+    assert_eq!(
+        a.project().track(t).unwrap().clip(r.1).unwrap().length,
+        c.length
+    );
 }

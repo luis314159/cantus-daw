@@ -38,7 +38,9 @@ fn drag_value(
     let words = name;
     let tx = crate::kit::text::Text::new(words, crate::kit::text::Role::Label, s.t.text_dim)
         .align(egui::Align2::RIGHT_CENTER)
-        .policy(crate::kit::text::Policy::Elide(crate::kit::text::Elide::End));
+        .policy(crate::kit::text::Policy::Elide(
+            crate::kit::text::Elide::End,
+        ));
     kit::with_brush(ui.painter(), |b| {
         let _ = crate::kit::text::paint(b, lr, &tx, s.tk());
     });

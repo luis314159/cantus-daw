@@ -338,7 +338,12 @@ impl CantusApp {
         if !crate::views::arrangement::warp_api::stretching(self) || delta == Ticks::ZERO {
             return false;
         }
-        let Some(c) = self.project().track(anchor.0).and_then(|t| t.clip(anchor.1)).cloned() else {
+        let Some(c) = self
+            .project()
+            .track(anchor.0)
+            .and_then(|t| t.clip(anchor.1))
+            .cloned()
+        else {
             return false;
         };
         if c.audio.is_none() {

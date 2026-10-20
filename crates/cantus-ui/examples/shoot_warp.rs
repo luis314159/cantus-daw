@@ -155,40 +155,68 @@ fn main() {
                 // The warp editor on the loop.
                 app.open_warp_editor(r);
                 let out = dir.join(format!("warp-editor-{tag}.png"));
-                shoot(&context(dark), egui::vec2(1400.0, 520.0), k, 6, Some(&out), |root| {
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show(root, |ui| views::piano_roll::show(&mut app, ui));
-                });
+                shoot(
+                    &context(dark),
+                    egui::vec2(1400.0, 520.0),
+                    k,
+                    6,
+                    Some(&out),
+                    |root| {
+                        egui::CentralPanel::default()
+                            .frame(egui::Frame::NONE)
+                            .show(root, |ui| views::piano_roll::show(&mut app, ui));
+                    },
+                );
                 println!("{}", out.display());
                 // The inspector's warp section.
                 let out = dir.join(format!("warp-inspector-{tag}.png"));
-                shoot(&context(dark), egui::vec2(360.0, 1100.0), k, 6, Some(&out), |root| {
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show(root, |ui| views::inspector::show(&mut app, ui));
-                });
+                shoot(
+                    &context(dark),
+                    egui::vec2(360.0, 1100.0),
+                    k,
+                    6,
+                    Some(&out),
+                    |root| {
+                        egui::CentralPanel::default()
+                            .frame(egui::Frame::NONE)
+                            .show(root, |ui| views::inspector::show(&mut app, ui));
+                    },
+                );
                 println!("{}", out.display());
                 // The clip menu's warp entries.
                 let out = dir.join(format!("warp-menu-{tag}.png"));
-                shoot(&context(dark), egui::vec2(320.0, 420.0), k, 4, Some(&out), |root| {
-                    egui::CentralPanel::default()
-                        .frame(cantus_ui::kit::automate::frame())
-                        .show(root, |ui| {
-                            views::arrangement::warp_api::clip_menu(&mut app, ui, r)
-                        });
-                });
+                shoot(
+                    &context(dark),
+                    egui::vec2(320.0, 420.0),
+                    k,
+                    4,
+                    Some(&out),
+                    |root| {
+                        egui::CentralPanel::default()
+                            .frame(cantus_ui::kit::automate::frame())
+                            .show(root, |ui| {
+                                views::arrangement::warp_api::clip_menu(&mut app, ui, r)
+                            });
+                    },
+                );
                 println!("{}", out.display());
                 // *Quantise audio…*.
                 app.open_quantise(vec![r]);
                 let out = dir.join(format!("warp-quantise-{tag}.png"));
-                shoot(&context(dark), egui::vec2(900.0, 500.0), k, 4, Some(&out), |root| {
-                    let ctx = root.ctx().clone();
-                    egui::CentralPanel::default()
-                        .frame(egui::Frame::NONE)
-                        .show(root, |_| {});
-                    views::warp_quantise::frame(&mut app, &ctx);
-                });
+                shoot(
+                    &context(dark),
+                    egui::vec2(900.0, 500.0),
+                    k,
+                    4,
+                    Some(&out),
+                    |root| {
+                        let ctx = root.ctx().clone();
+                        egui::CentralPanel::default()
+                            .frame(egui::Frame::NONE)
+                            .show(root, |_| {});
+                        views::warp_quantise::frame(&mut app, &ctx);
+                    },
+                );
                 println!("{}", out.display());
             }
         }

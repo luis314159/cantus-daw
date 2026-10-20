@@ -257,7 +257,10 @@ fn a_stretched_warp_plays_its_window_longer() {
     for t in [960.0, 1_500.0, 2_880.0, 4_000.0] {
         let f = w.frame_at(t);
         let back = s.tick_at(f);
-        assert!((back - (960.0 + (t - 960.0) * 2.0)).abs() <= 1.0, "{t}: {back}");
+        assert!(
+            (back - (960.0 + (t - 960.0) * 2.0)).abs() <= 1.0,
+            "{t}: {back}"
+        );
     }
     let one = Warp::identity(SR, 120.0, 0).stretched(Ticks::ZERO, 1.5);
     assert!((one.bpm - 180.0).abs() < 1e-9);
