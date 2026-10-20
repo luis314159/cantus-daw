@@ -286,7 +286,8 @@ fn a_tempo_edit_that_keeps_a_transposed_window_keeps_its_render() {
         Some(transposed(48_000)),
     );
     let mut bus = CommandBus::new(p);
-    let before = render_key(&plan_of(bus.project(), 0));
+    let first = plan_of(bus.project(), 0);
+    let before = render_key(&first);
     for bpm in [97.0, 133.3, 61.0] {
         bus.execute(
             Command::SetTempoTrack {
@@ -312,8 +313,11 @@ fn a_tempo_edit_that_keeps_a_transposed_window_keeps_its_render() {
             Origin::User,
         )
         .unwrap();
-        let now = render_key(&plan_of(bus.project(), 0));
-        assert_eq!(now, before, "re-rendered at {bpm} BPM before the window");
+        let plan = plan_of(bus.project(), 0);
+        assert_eq!(render_key(&plan), before, "re-rendered at {bpm} BPM before the window");
+        // And the frame heard at its start is the one it was (to the frame).
+        let d = plan.source_at(0.0) - first.source_at(0.0);
+        assert!(d.abs() < 1.0, "{d:+} frames at {bpm} BPM");
     }
 }
 

@@ -127,11 +127,11 @@ never warped by itself: it plays as it was played. A **paste** keeps what it cop
 (warped or not); its analysis is asked when the editor, the inspector or *Quantise audio*
 needs it.
 
-## 4. The model (schema 34)
+## 4. The model (schema 34; schema 39: the warp's own markers, §11)
 
 `AudioRegion::warp: Option<Box<Warp>>` — `rate` (the source's), `mode`, `bpm` (the
 source's tempo outside the markers), `markers` (each a **source frame** with a **content
-tick**, both strictly increasing), `cents`, `formants`, `tail` (Rhythm), `follow` (*Follow
+tick**, both strictly increasing, and whether it is the warp's own — `auto`, §11), `cents`, `formants`, `tail` (Rhythm), `follow` (*Follow
 the project tempo*), `detected` (tempo, confidence, downbeat, bars: what the analysis
 said). Defaults are not written: a clip never warped saves the same bytes. The map runs
 through the markers and beyond them at the slope of the segment beside them (one marker or
@@ -324,6 +324,102 @@ The decisions among them:
   the destination on a worker, with ZIP64 past 4 GiB (written and read); a file referenced
   outside the archive is found next to it; an import's audio goes to a folder of its own;
   clip gain, fade shapes, slice ends, formants off and inert markers are reported.
+
+## 11. Round 29's second review (`reviews/warp-2.json`, 55 findings): what it changed
+
+Amends §2, §4, §6, §7, §8 and §10 where they differ.
+
+- **The warp's own markers (schema 39).** `WarpMarker::auto` marks a marker the warp laid
+  itself: a sample of the tempo curve a first warp edit keeps the clip on. `natural_of`
+  puts the user's markers on the content origin and the window's two ends only; the tempo
+  points and, inside a ramp, as many samples as keep the straight line between two within
+  a quarter of a frame of the curve (spaced by the curve's bend: the chord misses by
+  `h²·|f''|/8`, `f'' = rate·60·|k|/(PPQ·bpm²)`) are its own — never drawn, never offered
+  to the pointer, never removed by hand, **soft** points of the render map (§10's "every
+  sixteenth, within half a millisecond" missed a steep ramp by up to 10 ms and drew a
+  barcode of handles). A user's marker dragged — or quantised — between its user
+  neighbours carries the warp's own markers along (their frames kept, their share of the
+  distance kept: the curve keeps its shape), so a drag crosses them and *Quantise* lands
+  every hit on its line; none is dropped, so a drag's index stays.
+- **A warp that does not follow holds no markers.** A transposition, the formants, the
+  mode or the slice ends on an unwarped clip write a warp with no markers at the source's
+  tempo (the analysis's, else the tempo where the clip starts): markers there play
+  nothing and went stale with every tempo edit (the inspector's tempo row jumped, *Set the
+  project tempo* read the wrong tempo, glue refused halves transposed apart, the export
+  said markers were lost). The clip's tempo shown — and taken by *Set the project tempo
+  from this clip* — is a following warp's own, else what the analysis found.
+- **Follow, Reset and re-lays keep every window's audio.** *Follow* off keeps the markers
+  (on again, they are used again, never natural ones in their place); *Follow* off,
+  *Reset warp*, *Detect tempo*, *Warp from here* and the clip's tempo keep the source frame
+  heard at the start of every window sharing the warp — the clip and each linked copy, each
+  by its own offset (alone, the rest in its fine offset). A tempo drag is laid from the warp
+  and the windows' frames at its start, so it never drifts. A linked copy whose first
+  warping edit would change how a copy under another tempo plays is made unique first.
+- **Edits.** A reversed clip that follows the tempo is trimmed and glued by its ticks under
+  a tempo track; *Quantise audio* takes only what is heard (a loop's period) on the lines
+  where it is heard (a reversed clip's, mirrored); a comp seam and the snapshot share one
+  rule for a warp that plays its source (`warp::plays_source`: an identity following warp
+  under one tempo keeps its crossfade); invalid warps are refused with an inserted track
+  or a kept comp window too, and dropped on load first (before links and frozen keys are
+  checked), comp windows included.
+- **The render key.** A warp that does not follow plays at natural speed from the source
+  frame under the window's start: its render is keyed on that frame (to the whole frame)
+  and the window's length only — a tempo edit before the window renders it again, two
+  loop pieces with other hidden tempos render apart, and a tempo edit that keeps the
+  window (the bus's re-anchoring, ADR 0060 §4) keeps its render. A render is laid on the
+  window's first sample by `AudioClipSnapshot::zero_at_start`, never by cancelling
+  `Transport::clip_zero` (whose held branch now needs the origin and the start both inside
+  it: a negative offset put the origin past it).
+- **What plays meanwhile.** A piece with nothing made yet plays its input laid as unwarped
+  (never silence); a fallback is the render or bridge **asked for** most recently (a slow
+  final of an earlier drag step arriving late never comes back over a newer bridge, and a
+  clip moved back plays its newest); what the last live snapshot plays (fallbacks
+  included) is kept whatever a foreign or offline compile asks (§10's budget held only the
+  compile at hand); a piece whose data changes while it plays crossfades from the old data
+  over 5 ms (`AudioClipSnapshot::fade_from`, the transport's `mark_swap`). The sketch
+  weighs each place once, coarse to fine, and reads speeds up to ×1.5 cubically: a minute
+  of stereo in 0.2 s (was 1.4 s). An offline render compiled before its renders were in is
+  said on the status line (export, bounce, freeze, comp merge, bake).
+- **The stretcher.** Rhythm and Re-pitch read only the span they play (a window of a long
+  file renders as the whole file would, to the bit). The level match holds the vocoder's
+  output to its own frames' power plus the power the split's two parts shared, and the
+  copied hits are added after, as they are (§10's match counted a hit again at every frame
+  near it: slowed hats came out 2.6 dB louder, sped-up ones 1.3 dB quieter; now 0.0). The
+  vocoder's frame is chosen per render: 170 ms, or 85 ms where the transients come closer
+  than a long frame and the hold after one (median gap) — a frame after a hit no longer
+  reaches into the half frame before the next (tuned hits a sixteenth apart sped up rang
+  21 dB before themselves at 170 ms, 35 dB at 85); the hold before a hit may take most of
+  the room the previous hit leaves (`LONG_SHARE`). Untransposed, a flam's second hold
+  resets. The image lock's tolerance (a twenty-fifth of a bin, a quarter of a hertz at
+  48 kHz) is kept: partials both channels share over noise of their own 10 dB down keep
+  the source's phase difference to 0.04 rad; a tolerance widened by each bin's noise
+  locked a detuned chorus again and kept no better image.
+- **The interface.** Ctrl+wheel (and a pinch) zooms the warp editor through egui's zoom
+  factor (and the sampler's two views); its bar lays its keys in as many rows as the pane
+  needs, *Mode* and *Grid* labelled; the markers on a window's two ends are drawn and
+  offered; the gain's square leaves a marker's line; a marker's speed reads the tempo in
+  force where it is heard; a job (a bounce, an import's auto-warp, a pending bake) never
+  lands on another project or on a clip edited since; an import's analysis seals only its
+  own undo step.
+- **Interchange.** A `.dawproject` is read from its file on a thread of its own: the
+  archive listed from its directory, the parts read into memory (64 MiB at most each, a
+  larger one refused), each audio file copied straight from the archive to disk with its
+  checksum checked (ZIP64 too), its folders kept and never escaping the media folder; a
+  dropped file is read from its path, so a file referenced beside it is found. The export
+  streams each audio file into the archive, its checksum patched into its header after.
+  ZIP64 headers agree on the version needed; the writer's records are checked by hand
+  against APPNOTE and an archive Python's `zipfile` wrote reads. Warp points on a clip's
+  natural line through the tempo map come back natural; points timed in seconds are
+  placed through the map from the clip's content origin; a loop from the play start is
+  never reported dropped; an audio track's instrument is carried (`audio notes`).
+- **Measured** (tests that hold them): a natural warp within half a frame of the curve on
+  ramps of 60→180 BPM over a beat; Complex hits within 0.15 dB of the source (×0.5, ×2),
+  hats 0.0 dB; dense tuned hits ≤ −34 dB of pre-echo over half a long frame; a vibrato's
+  pitch within 2.5 cents and a legato line's within 1.5 at ×0.8 and ×1.25; a transposed
+  render's level within 0.1 dB from −24 to +24 st (as claimed; the test held 0.5); the
+  played corpus's beats within 35 ms and its downbeat on the bar line in 80 of 84 right
+  answers (a pick-up never taken for it). The bench's quality rows are gated (its time
+  rows reported); it measures the moving voice, 40 ms wander windows and the sketch too.
 
 ## Consequences
 
