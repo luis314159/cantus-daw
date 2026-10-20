@@ -41,6 +41,11 @@ pub const KEYS: &[&str] = &[
     "interop.report.x_sidechain",
     "interop.report.x_master_width",
     "interop.report.x_master_polarity",
+    // Audio clips (round 29, ADR 0061)
+    "interop.report.x_audio_external",
+    "interop.report.x_warp_transpose",
+    "interop.report.x_pitch_edits",
+    "interop.report.x_reverse",
     // DAWproject import
     "interop.report.d_read",
     "interop.report.d_foreign",
@@ -156,6 +161,7 @@ mod tests {
             include_str!("dawproject/read.rs"),
             include_str!("dawproject/read_timeline.rs"),
             include_str!("dawproject/write.rs"),
+            include_str!("dawproject/audio.rs"),
         ];
         let mut used = std::collections::BTreeSet::new();
         for src in sources {

@@ -71,6 +71,12 @@ struct StripPlan {
 
 /// The XML, the metadata and the device states of a project.
 pub fn parts(project: &Project, app_version: &str) -> Parts {
+    parts_with(project, app_version, None)
+}
+
+/// [`parts`], the audio clips' files read from `base` (the project's folder: a stored path
+/// is relative to it) and carried in the archive (round 29, ADR 0061).
+pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path::Path>) -> Parts {
     let mut report = Report::default();
     let mut ids = Ids(0);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
@@ -311,7 +317,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         w.open("Lanes", &[("track", a(track_id)), ("id", a(ids.next()))]);
         w.open("Clips", &[("id", a(ids.next()))]);
         for c in &t.clips {
-            muted_notes += clip(&mut w, &mut ids, c);
+            muted_notes += clip(&mut w, &mut ids, c, project, base, &mut files, &mut report);
         }
         w.close();
         w.close();
@@ -733,8 +739,21 @@ fn channel_eq(w: &mut XmlWriter, ids: &mut Ids, eq: &cantus_core::StripEq) {
 
 /// One clip with its notes. Returns how many muted notes were left out (DAWproject's
 /// notes cannot be muted).
-fn clip(w: &mut XmlWriter, ids: &mut Ids, c: &Clip) -> usize {
+#[allow(clippy::too_many_arguments)]
+fn clip(
+    w: &mut XmlWriter,
+    ids: &mut Ids,
+    c: &Clip,
+    project: &Project,
+    base: Option<&std::path::Path>,
+    files: &mut Vec<(String, Vec<u8>)>,
+    report: &mut Report,
+) -> usize {
     let period = c.period();
+    let fades = c
+        .audio
+        .as_ref()
+        .filter(|a| a.fade_in > Ticks::ZERO || a.fade_out > Ticks::ZERO);
     w.open(
         "Clip",
         &[
@@ -743,11 +762,20 @@ fn clip(w: &mut XmlWriter, ids: &mut Ids, c: &Clip) -> usize {
             ("playStart", a(beats(c.offset))),
             ("loopStart", period.map(|_| beats(c.offset))),
             ("loopEnd", period.map(|p| beats(c.offset + p))),
+            ("fadeTimeUnit", fades.map(|_| "beats".to_string())),
+            ("fadeInTime", fades.map(|a| beats(a.fade_in))),
+            ("fadeOutTime", fades.map(|a| beats(a.fade_out))),
             ("enable", c.muted.then(|| "false".to_string())),
             ("name", a(&c.name)),
             ("color", c.color.map(color)),
         ],
     );
+    // An audio clip (round 29, ADR 0061): its file and its warp.
+    if let Some(au) = &c.audio {
+        super::audio::write(w, &mut || ids.next(), project, c, au, base, files, report);
+        w.close();
+        return 0;
+    }
     w.open("Notes", &[("id", a(ids.next()))]);
     let mut muted = 0;
     let mut notes: Vec<_> = c.notes.iter().collect();

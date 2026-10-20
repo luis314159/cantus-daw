@@ -254,3 +254,31 @@ pub fn write_cents(out: &mut String, cents: i32) {
         (s, c) => write!(out, "{sign}{s} st {c} ct"),
     };
 }
+
+/// The audio files an imported `.dawproject` carries, written under the data folder
+/// (`imported audio/<file name>/`) and the project's sources pointed at them; saving the
+/// project collects them into its own folder as for any import.
+pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &str) {
+    if media.is_empty() {
+        return;
+    }
+    let stem = std::path::Path::new(name)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "import".into());
+    let dir = crate::app::data_dir().join("imported audio").join(stem);
+    for (inner, bytes) in media {
+        let file = dir.join(
+            std::path::Path::new(inner)
+                .file_name()
+                .unwrap_or_else(|| std::ffi::OsStr::new("audio.wav")),
+        );
+        let written = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, bytes));
+        if written.is_err() {
+            continue;
+        }
+        for s in project.audio_pool.iter_mut().filter(|s| s.path == *inner) {
+            s.path = file.to_string_lossy().into_owned();
+        }
+    }
+}

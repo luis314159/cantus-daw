@@ -93,3 +93,9 @@ warp.bounce.working = Bouncing {name}…
 warp.bounce.done = {name} now plays its bounced audio
 warp.bounce.failed = The bounce could not be written: {error}
 warp.bounce.nothing = Nothing to bounce: the clip's file cannot be read
+
+# DAWproject (ADR 0061): audio clips travel with their warps.
+interop.report.x_audio_external = An audio file that could not be read is referenced where it was, not carried: {file}
+interop.report.x_warp_transpose = A transposition (DAWproject has none): {clip}
+interop.report.x_pitch_edits = Pitch edits (the file carries the take as sung): {clip}
+interop.report.x_reverse = A reversed clip (it plays forwards): {clip}

@@ -93,3 +93,9 @@ warp.bounce.working = Renderizando {name}…
 warp.bounce.done = {name} reproduce ahora su audio renderizado
 warp.bounce.failed = No se pudo escribir el render: {error}
 warp.bounce.nothing = Nada que renderizar: no se puede leer el archivo del clip
+
+# DAWproject (ADR 0061): los clips de audio viajan con su warp.
+interop.report.x_audio_external = Un archivo de audio que no se pudo leer queda referido donde estaba, sin incluirse: {file}
+interop.report.x_warp_transpose = Una transposición (DAWproject no la tiene): {clip}
+interop.report.x_pitch_edits = Ediciones de afinación (el archivo lleva la toma tal como se cantó): {clip}
+interop.report.x_reverse = Un clip invertido (suena hacia delante): {clip}

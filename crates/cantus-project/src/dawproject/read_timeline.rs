@@ -31,6 +31,10 @@ pub struct ClipData {
     pub period: Option<Ticks>,
     pub muted: bool,
     pub notes: Vec<NoteData>,
+    /// An audio clip's file and warp (round 29, ADR 0061).
+    pub audio: Option<super::audio::AudioData>,
+    /// An audio clip's fades (in, out).
+    pub fades: (Ticks, Ticks),
 }
 
 /// The note clips of every track, by the track's id.
@@ -188,6 +192,8 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
                     period: None,
                     muted: false,
                     notes,
+                    audio: None,
+                    fades: (Ticks::ZERO, Ticks::ZERO),
                 });
             }
             "Points" => counts.automation += 1,
@@ -254,6 +260,7 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
     };
     let track = cx.track.clone().unwrap_or_default();
     let content = clip.children().find(|c| c.is_element());
+    let mut audio = None;
     let mut notes = Vec::new();
     match content.map(|c| (c, c.tag_name().name())) {
         Some((c, "Notes")) => notes = notes_of(c, &inner, bpm, &track, counts),
@@ -270,6 +277,10 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
                 let Some(d) = clip_of(sub, &inner, bpm, counts) else {
                     continue;
                 };
+                // Audio inside a clip of clips has nowhere to go: counted.
+                if d.audio.is_some() {
+                    counts.audio += 1;
+                }
                 for n in d.notes {
                     let at = d.start + (n.start - d.offset);
                     if at >= d.start && at < d.start + d.length {
@@ -281,7 +292,15 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
                 return None;
             }
         }
-        Some((_, "Audio" | "Warps" | "Video")) => {
+        // An audio clip (round 29, ADR 0061): its file and its warp points.
+        Some((c, "Audio" | "Warps")) => match super::audio::read(c, bpm, content_seconds) {
+            Some(d) => audio = Some(d),
+            None => {
+                counts.audio += 1;
+                return None;
+            }
+        },
+        Some((_, "Video")) => {
             counts.audio += 1;
             return None;
         }
@@ -326,5 +345,16 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
         muted: attr(clip, "enable") == Some("false"),
         notes,
         name,
+        audio,
+        fades: {
+            let secs = match attr(clip, "fadeTimeUnit") {
+                Some(u) => u == "seconds",
+                None => cx.seconds,
+            };
+            let f = |k: &str| {
+                attr_f64(clip, k).map_or(Ticks::ZERO, |v| ticks(v, secs, bpm).max(Ticks::ZERO))
+            };
+            (f("fadeInTime"), f("fadeOutTime"))
+        },
     })
 }
