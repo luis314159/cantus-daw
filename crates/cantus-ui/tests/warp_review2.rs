@@ -681,3 +681,23 @@ fn a_markers_speed_is_read_against_the_tempo_in_force() {
     let k = cantus_ui::views::arrangement::warp_api::marker_speed(&a, r, i).unwrap();
     assert!((k - 1.0).abs() < 1e-6, "×{k}");
 }
+
+/// Findings 3, 32: a mode picked or a transposition set on a clip that was not warped
+/// leaves no markers — so its export says nothing about markers lost.
+#[test]
+fn a_mode_pick_exports_without_a_markers_report() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut p = project(120.0);
+    two_tempos(&mut p);
+    let mut a = app(p);
+    a.import_audio(std::slice::from_ref(&path), Ticks::beats(8), None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    assert!(a.set_warp_mode((t, c.id), WarpMode::Rhythm));
+    assert!(a.set_warp_cents((t, c.id), 200, false));
+    let out = cantus_project::dawproject::export_with(a.project(), "test", None);
+    assert!(!out.report.has("interop.report.x_warp_markers"));
+    assert!(out.report.has("interop.report.x_warp_transpose"));
+}

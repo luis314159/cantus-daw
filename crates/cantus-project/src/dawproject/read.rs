@@ -572,7 +572,7 @@ fn build(
                         id
                     }
                 };
-                let mut region = super::audio::region(id, au, project.tempo_bpm, c.one_tempo);
+                let mut region = super::audio::region(id, au, &project.tempo_map(), c.origin);
                 region.slip_frames += c.slip;
                 region.fade_in = c.fades.0;
                 region.fade_out = c.fades.1;

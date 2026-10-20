@@ -39,8 +39,9 @@ pub struct ClipData {
     /// An audio clip at its natural speed: the fine offset (frames at its file's rate)
     /// its `playStart` seconds leave after whole ticks.
     pub slip: i32,
-    /// Whether the tempo never changes (an on-line warp comes back as no warp then).
-    pub one_tempo: bool,
+    /// The timeline tick of the clip's content origin (where its content time 0 is): its
+    /// warp points' natural line is measured from there.
+    pub origin: f64,
 }
 
 /// The note clips of every track, by the track's id.
@@ -245,7 +246,7 @@ fn walk(
                     audio: None,
                     fades: (Ticks::ZERO, Ticks::ZERO),
                     slip: 0,
-                    one_tempo: true,
+                    origin: 0.0,
                 });
             }
             "Points" => counts.automation += 1,
@@ -359,7 +360,10 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         }
         // An audio clip (round 29, ADR 0061): its file and its warp points.
         Some((c, "Audio" | "Warps")) => {
-            match super::audio::read(c, map.bpm_at(start_tl), content_seconds) {
+            // The clip's content origin on the timeline, where its content time 0 is.
+            let origin = start_tl - offset.0 as f64;
+            let to_beats = |t: f64| (map.tick_after_seconds(origin, t) - origin) / PPQ as f64;
+            match super::audio::read(c, &to_beats, content_seconds) {
                 Some(d) => audio = Some(d),
                 None => {
                     counts.audio += 1;
@@ -400,11 +404,14 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         .max(Ticks(1));
     let name = attr(clip, "name").unwrap_or("").to_string();
     let period = match (attr_f64(clip, "loopStart"), attr_f64(clip, "loopEnd")) {
-        (Some(ls), Some(le)) if le > ls => {
-            let ls = inner.at(map, ls);
-            if ls != offset {
+        (Some(ls_at), Some(le)) if le > ls_at => {
+            // A loop from elsewhere than the clip's play start, told in the file's own
+            // units (round 29's second review: told in ticks, the anchoring through the
+            // map above made a loop from the play start look dropped).
+            if (ls_at - play_start).abs() > 1e-9 {
                 counts.loops.push(name.clone());
             }
+            let ls = inner.at(map, ls_at);
             Some(inner.at(map, le) - ls)
         }
         _ => None,
@@ -439,7 +446,7 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         audio,
         fades: (fade("fadeInTime", false), fade("fadeOutTime", true)),
         slip,
-        one_tempo: map.is_constant(),
+        origin: start_tl - offset.0 as f64,
     })
 }
 

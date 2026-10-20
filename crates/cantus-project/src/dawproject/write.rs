@@ -174,7 +174,11 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
                 .filter(|c| c.lane == 0 && c.automation.is_none())
         };
         let has_audio = heard().any(|c| c.audio.is_some());
-        let has_notes = heard().any(|c| c.audio.is_none());
+        // An instrument set up on a track of audio (for its take lanes, to play live) is
+        // carried as its notes' would be (round 29's second review: it was left out
+        // unsaid).
+        let has_notes = heard().any(|c| c.audio.is_none())
+            || t.instrument != cantus_core::InstrumentSpec::default();
         let content = match (has_audio, has_notes) {
             (true, false) => "audio",
             (true, true) => "audio notes",

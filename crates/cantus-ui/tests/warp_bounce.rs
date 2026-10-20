@@ -259,3 +259,105 @@ fn a_bounce_lands_only_on_the_clip_it_was_made_from() {
     let now = a.project().track(t).unwrap().clip(c.id).unwrap().clone();
     assert!(now.audio.as_ref().unwrap().warp.is_some(), "not applied");
 }
+
+/// A file dropped from the system: its path, its bytes read from it.
+#[derive(Debug)]
+struct OnDisk(std::path::PathBuf);
+
+impl egui::DroppedFile for OnDisk {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|e| e.to_string())
+    }
+}
+
+/// Findings 26, 28, 50, 51: a `.dawproject` dropped on the window is read from its file on
+/// a thread of its own — the window goes on — and a file it references beside it, by a
+/// relative path, is found there; its own audio is written to disk as it is read.
+#[test]
+fn a_dropped_dawproject_is_read_from_its_file_and_finds_what_is_beside_it() {
+    use cantus_project::dawproject::{self, zip};
+    use cantus_ui::views::interop;
+    let dir = tempfile::tempdir_in(data_dir()).unwrap();
+    std::fs::create_dir_all(dir.path().join("sounds")).unwrap();
+    std::fs::write(dir.path().join("sounds/take.wav"), b"RIFF beside").unwrap();
+    std::fs::write(dir.path().join("loop.wav"), b"RIFF carried").unwrap();
+    std::fs::write(dir.path().join("take.wav"), b"RIFF beside").unwrap();
+    // A project with two audio clips: one carried, one referenced beside the archive.
+    let mut p = Project::new("Dropped");
+    let mut t = p.make_track("Audio");
+    for (i, name) in ["loop.wav", "take.wav"].iter().enumerate() {
+        let id = cantus_core::AudioSourceId(p.alloc_id());
+        p.audio_pool.push(cantus_core::AudioSource {
+            id,
+            name: name.to_string(),
+            path: name.to_string(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 48_000,
+            sha256: None,
+            recorded: false,
+        });
+        let c = p.make_audio_clip(*name, id, Ticks::beats(8 * i as i64), Ticks::beats(4));
+        t.clips.push(c);
+    }
+    p.tracks.push(t);
+    let bytes = dawproject::export_with(&p, "test", Some(dir.path())).bytes;
+    std::fs::remove_file(dir.path().join("take.wav")).unwrap();
+    // The take's file left out of the archive and referenced by a relative path.
+    let files = zip::read(&bytes).unwrap();
+    let take = files
+        .iter()
+        .map(|f| f.0.clone())
+        .find(|n| n.ends_with("take.wav"))
+        .unwrap();
+    let mut z = zip::ZipWriter::new();
+    for (name, data) in &files {
+        if *name == take {
+            continue;
+        }
+        if name == "project.xml" {
+            let xml = String::from_utf8(data.clone()).unwrap().replace(
+                &format!("path=\"{take}\" external=\"false\""),
+                "path=\"sounds/take.wav\" external=\"true\"",
+            );
+            z.add(name, xml.as_bytes(), true);
+        } else {
+            z.add(name, data, !name.starts_with("audio/"));
+        }
+    }
+    let file = dir.path().join("song.dawproject");
+    std::fs::write(&file, z.finish()).unwrap();
+    // Dropped.
+    let mut a = app(Project::default());
+    let ctx = egui::Context::default();
+    let input = egui::RawInput {
+        dropped_files: vec![std::sync::Arc::new(OnDisk(file.clone()))],
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| interop::frame(&mut a, ui.ctx()))
+        .textures_delta
+        .clear();
+    assert!(a.interop.importing.is_some(), "read on its own thread");
+    interop::wait_import(&mut a);
+    assert_eq!(a.project().name, "Dropped");
+    let paths: Vec<String> = a
+        .project()
+        .audio_pool
+        .iter()
+        .map(|s| s.path.clone())
+        .collect();
+    let beside = dir.path().join("sounds/take.wav");
+    assert!(
+        paths.iter().any(|s| std::path::Path::new(s) == beside),
+        "{paths:?}"
+    );
+    let carried = paths
+        .iter()
+        .find(|s| s.ends_with("loop.wav"))
+        .expect("the carried file written");
+    assert_eq!(std::fs::read(carried).unwrap(), b"RIFF carried");
+}

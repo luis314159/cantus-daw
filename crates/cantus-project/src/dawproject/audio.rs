@@ -205,14 +205,16 @@ pub struct AudioData {
 }
 
 /// The region an imported audio clip plays: its warp from the points. Points that lie on
-/// the natural line at `bpm` come back unwarped (the fine offset kept) only when `collapse`
-/// — the project has one tempo; under a tempo map they stay a warp that follows it (round
-/// 29's review). No points: natural speed (the caller places it from its `playStart`).
+/// the clip's natural line — its content at natural speed from its content origin
+/// (`origin`, a timeline tick) through the tempo map `map`, to within half a frame — come
+/// back unwarped, the fine offset kept (round 29's second review: a line at one tempo was
+/// taken for natural speed under a map that changes). No points: natural speed (the caller
+/// places it from its `playStart`).
 pub fn region(
     source: cantus_core::AudioSourceId,
     d: &AudioData,
-    bpm: f64,
-    collapse: bool,
+    map: &cantus_core::tempo::TempoMap,
+    origin: f64,
 ) -> AudioRegion {
     let mut r = AudioRegion::of(source);
     let rate = d.rate.max(1) as f64;
@@ -226,15 +228,18 @@ pub fn region(
     if pts.is_empty() {
         return r;
     }
-    // On the natural line: secs = beats · 60 / bpm + slip.
-    let slip = pts[0].1 - pts[0].0 * 60.0 / bpm;
+    // On the natural line: secs = the seconds from the origin to the content beat, through
+    // the map, + slip.
+    let natural = |b: f64| map.seconds_between_f64(origin, origin + b * PPQ as f64);
+    let slip = pts[0].1 - natural(pts[0].0);
     let on_line = pts
         .iter()
-        .all(|(b, s)| ((b * 60.0 / bpm + slip) - s).abs() * rate < 0.5);
-    if on_line && collapse {
+        .all(|(b, s)| ((natural(*b) + slip) - s).abs() * rate < 0.5);
+    if on_line {
         r.slip_frames = (slip * rate).round() as i32;
         return r;
     }
+    let bpm = map.bpm_at(origin);
     let (b0, s0) = pts[0];
     let (b1, s1) = pts[pts.len() - 1];
     let bpm_src = if s1 > s0 && b1 > b0 {
@@ -257,8 +262,15 @@ pub fn region(
 }
 
 /// Read a clip's `<Warps>` (over `<Audio>`) or bare `<Audio>` content; `None` for anything
-/// it cannot place (no file, warp points in beats of the file).
-pub fn read(n: roxmltree::Node, bpm: f64, beats_in_seconds: bool) -> Option<AudioData> {
+/// it cannot place (no file, warp points in beats of the file). `to_beats` turns a warp
+/// point's time in seconds (of the clip's content, from its start) into beats of it —
+/// through the tempo map from the clip's content origin (round 29's second review: at one
+/// tempo, it misplaced every point after a tempo change).
+pub fn read(
+    n: roxmltree::Node,
+    to_beats: &dyn Fn(f64) -> f64,
+    beats_in_seconds: bool,
+) -> Option<AudioData> {
     use super::read::{attr, attr_f64, child};
     let (audio, warps) = match n.tag_name().name() {
         "Warps" => {
@@ -274,7 +286,7 @@ pub fn read(n: roxmltree::Node, bpm: f64, beats_in_seconds: bool) -> Option<Audi
                 .children()
                 .filter(|c| c.has_tag_name("Warp"))
                 .filter_map(|c| Some((attr_f64(c, "time")?, attr_f64(c, "contentTime")?)))
-                .map(|(t, s)| (if secs_time { t * bpm / 60.0 } else { t }, s))
+                .map(|(t, s)| (if secs_time { to_beats(t) } else { t }, s))
                 .collect();
             (child(n, "Audio")?, pts)
         }

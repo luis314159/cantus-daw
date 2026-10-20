@@ -321,6 +321,27 @@ pub fn write_cents(out: &mut String, cents: i32) {
     };
 }
 
+/// A folder of its own under the data folder for the audio of the `.dawproject` named
+/// `name` (`imported audio/<file name>[ n]/`: never another import's, which an open project
+/// or the engine may still hold).
+pub fn media_dir(name: &str) -> std::path::PathBuf {
+    let stem = std::path::Path::new(name)
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "import".into());
+    let root = crate::app::data_dir().join("imported audio");
+    (1..)
+        .map(|n| {
+            if n == 1 {
+                root.join(&stem)
+            } else {
+                root.join(format!("{stem} {n}"))
+            }
+        })
+        .find(|d| !d.exists())
+        .unwrap_or_else(|| root.join(&stem))
+}
+
 /// The audio files an imported `.dawproject` carries, written under the data folder in a
 /// folder of their own for this import (`imported audio/<file name>[ n]/`: never over
 /// another import's, which an open project or the engine may still hold — round 29's
@@ -331,28 +352,16 @@ pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &st
     if media.is_empty() {
         return failed;
     }
-    let stem = std::path::Path::new(name)
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "import".into());
-    let root = crate::app::data_dir().join("imported audio");
-    let dir = (1..)
-        .map(|n| {
-            if n == 1 {
-                root.join(&stem)
-            } else {
-                root.join(format!("{stem} {n}"))
-            }
-        })
-        .find(|d| !d.exists())
-        .unwrap_or_else(|| root.join(&stem));
+    let dir = media_dir(name);
+    let mut taken = std::collections::HashSet::new();
     for (inner, bytes) in media {
-        let file = dir.join(
-            std::path::Path::new(inner)
-                .file_name()
-                .unwrap_or_else(|| std::ffi::OsStr::new("audio.wav")),
-        );
-        let written = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, bytes));
+        // Its folders in the archive kept (round 29's second review: two entries of one
+        // name wrote one file).
+        let file = cantus_project::dawproject::media_path(&dir, inner, &mut taken);
+        let written = file
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|_| std::fs::write(&file, bytes));
         if written.is_err() {
             failed.push(inner.clone());
             continue;
