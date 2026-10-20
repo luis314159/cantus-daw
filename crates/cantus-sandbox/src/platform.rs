@@ -375,6 +375,7 @@ pub mod blame {
     }
 
     /// The instance whose window this root handle is (0: none of ours).
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn window_owner(root: isize) -> u32 {
         WINDOWS
             .try_with(|w| {
