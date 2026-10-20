@@ -1514,10 +1514,7 @@ fn an_edit_elsewhere_while_a_bounce_renders_does_not_make_it_again() {
     }
     settle(&mut app, &ctx);
     assert_eq!(app.project().tracks.len(), 3);
-    assert!(
-        !said.iter().any(|s| *s == again),
-        "made again for an edit elsewhere"
-    );
+    assert!(!said.contains(&again), "made again for an edit elsewhere");
 }
 
 #[test]

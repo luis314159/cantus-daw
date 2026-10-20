@@ -59,6 +59,11 @@ See ADR 0064 §Measurements: a heavy strip frozen costs **8 %** of what it cost 
 (2.477 s → 0.203 s for 300 blocks of 512, best of five); a voice through Tonus heard
 **128 samples** late instead of 4 608 with low-latency monitoring; takes placed to the
 frame with the mode on, off, and switched mid-pass (330 samples off without the capture).
+Review 2: a take whose backing's heard latency moves mid-pass lands both its clicks where
+they were played, to the frame (the second was the EQ's latency off without the shift); a
+bounce through a linear-phase EQ with a fader ride and a key carried plays the song to the
+bit in Inserts and Strip modes (trimmed, the ride landed the EQ's latency early); a time
+range through the inserts within −120 dB (was −60 dB: the transport stopped at its end).
 No golden moved; `DSP_VERSION` unchanged.
 
 ## Tests and what each holds
@@ -239,7 +244,31 @@ otherwise. *core*, *engine*, *ll*, *ui*, *boot*, *sandbox*, *project* name
 
 ### The run after review 2
 
-RUN2_PLACEHOLDER
+Merged with `r29/integration` at 07dfd8f, all `--no-fail-fast`, 0 failed: `cantus-core`
+380, `cantus-project` 92, `cantus-engine` 791, the engine fuzz (`CANTUS_WORKERS=3`) 795,
+`cantus-host` 82, `cantus-sandbox` 55 (`CANTUS_TEST_PLUGINS_PREBUILT=1`), `cantus-ui` 1 464.
+Clippy `-D warnings` on the workspace and `fmt --check` clean. Schema 38
+(`fixtures/v38.cantus`), `SUBJECT_VERSION` 3; no golden moved, `DSP_VERSION` unchanged.
+`TapOptions::{trim, stop_at_end}` removed (no caller set them once the bounce kept its
+latency and played on). `shoot_freeze` (100 PNGs in `F:\projects\daw-r29\shots\freeze\`)
+now also freezes strip 12: the one- and two-digit numbers sit beside their snowflakes at
+75, 100 and 200 % (#48), and the Spanish track menu shows *Pasar a audio (solo la fuente)*
+whole (#34, #50).
+
+How the tests were seen failing: the core, engine and low-latency ones against the code
+before the fix (or, where the API is new, with the fix sabotaged in place: core
+`solo_play` back to *silenced*, an off send counted, a note source woken whole — each
+failing its own assertion); the interface's in three sabotage runs of their fixes, each
+test failing alone (the refusal and key tests were split for that, so no assertion hides
+behind another; the edit-elsewhere test now watches every frame, as the second render's
+*done* hid the first's *again*). `freezing_an_armed_track_…` hung, not failed, with its
+fix taken out in the batch run (a render made again forever) — it was seen failing on the
+old code before; the stop-while-writing test's wait is now bounded.
+
+A mistake to own: while stopping a sabotage run that had gone wrong mid-review, I ran
+`taskkill //F //IM cargo.exe` (and the freeze test binaries by image name), which may have
+ended another builder's cargo at that moment; later runs were stopped through their own
+tasks only.
 
 ## Left
 
