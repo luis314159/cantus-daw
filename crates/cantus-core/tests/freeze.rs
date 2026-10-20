@@ -666,12 +666,17 @@ fn what_rests_is_the_region_but_what_a_live_insert_listens_to() {
     let d = freeze::dormant(p, &|_| true);
     assert!(d.roots.contains(&s.group));
     assert!(d.tracks.contains(&s.drums) && d.tracks.contains(&s.bass));
-    assert!(d.strips.contains(&s.kick_strip) && d.tracks.contains(&s.kick));
+    // The kick strip keys the group but plays to the master too: it runs (review 1).
+    assert!(!d.strips.contains(&s.kick_strip) && !d.tracks.contains(&s.kick));
     assert!(!d.tracks.contains(&s.synth) && !d.tracks.contains(&s.lonely));
     // Nothing rests while the render is not at hand.
     assert!(freeze::dormant(p, &|_| false).is_empty());
-    // The kick also keys the synth strip's insert, which runs: the kick runs.
+    // Played into the group only, the kick is heard nowhere but in the render: it rests.
     let mut p = p.clone();
+    p.strip_mut(s.kick_strip).unwrap().output = Some(s.group);
+    let d = freeze::dormant(&p, &|_| true);
+    assert!(d.strips.contains(&s.kick_strip) && d.tracks.contains(&s.kick));
+    // It also keys the synth strip's insert, which runs: the kick runs.
     let mut gate = p.make_effect(EffectKind::Gate);
     gate.sidechain = Some(s.kick_strip);
     p.strip_mut(s.synth_strip).unwrap().effects.push(gate);
@@ -724,10 +729,12 @@ fn a_playing_frozen_strip_loses_its_chain_in_the_snapshot_and_its_region_rests()
         "another strip keeps its chain"
     );
     let ti = |t: TrackId| p.track_index(t).unwrap();
-    assert!(snap.tracks[ti(s.drums)].rest && snap.tracks[ti(s.kick)].rest);
+    assert!(snap.tracks[ti(s.drums)].rest && snap.tracks[ti(s.bass)].rest);
     assert!(!snap.tracks[ti(s.synth)].rest);
+    // The kick keys the group but plays to the master: it runs.
     let ki = p.strip_index(s.kick_strip).unwrap();
-    assert!(snap.strips[ki].rest && !snap.strips[gi].rest);
+    assert!(!snap.strips[ki].rest && !snap.tracks[ti(s.kick)].rest);
+    assert!(!snap.strips[gi].rest);
 }
 
 #[test]
@@ -827,4 +834,356 @@ fn a_modulator_driving_a_frozen_insert_is_locked_and_one_following_a_region_stri
         "the frozen strip itself plays its render"
     );
     assert!(d.tracks.contains(&s.drums), "its region still rests");
+}
+
+// ---- review 1 ---------------------------------------------------------------------------
+
+/// A follower on `host` listening to `listen`, driving `target`.
+fn follower(
+    bus: &mut CommandBus,
+    host: ModHost,
+    listen: cantus_core::modulator::Listen,
+    target: AutoTarget,
+) {
+    let mut f = Modulator::new(ModulatorId(bus.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = listen;
+    }
+    f.routes.push(ModRoute { target, depth: 0.3 });
+    bus.execute(
+        Command::InsertModulator {
+            host,
+            index: 0,
+            modulator: Box::new(f),
+        },
+        Origin::User,
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_frozen_return_or_keyed_bus_never_silences_what_also_plays_live() {
+    // A return fed by a send from a strip that plays to the master.
+    let mut s = song();
+    freeze(&mut s.bus, FreezeTarget::Strip(s.reverb));
+    let d = freeze::dormant(s.bus.project(), &|_| true);
+    assert!(d.roots.contains(&s.reverb));
+    assert!(!d.strips.contains(&s.synth_strip) && !d.tracks.contains(&s.synth));
+    // A vocoder's note source that plays to the master on its own.
+    let mut s = song();
+    let mut p = s.bus.project().clone();
+    let mut voc = p.make_effect(EffectKind::Gate);
+    voc.midi_from = Some(s.lonely);
+    p.strip_mut(s.group).unwrap().effects.push(voc);
+    s.bus = CommandBus::new(p);
+    freeze(&mut s.bus, FreezeTarget::Strip(s.group));
+    assert!(freeze::region(s.bus.project(), FreezeTarget::Strip(s.group))
+        .tracks
+        .contains(&s.lonely));
+    let d = freeze::dormant(s.bus.project(), &|_| true);
+    assert!(!d.tracks.contains(&s.lonely), "the note source plays on");
+    assert!(d.tracks.contains(&s.drums), "what only the group hears rests");
+}
+
+#[test]
+fn a_live_follower_of_a_region_strip_wakes_it_and_what_it_gathers() {
+    let mut s = song();
+    // A percussion strip into the group, with a track of its own.
+    let mut p = s.bus.project().clone();
+    let perc_strip = p.strips[4].id;
+    p.strip_mut(perc_strip).unwrap().output = Some(s.group);
+    let mut perc = p.make_track("Perc");
+    perc.strip = Some(perc_strip);
+    let perc_id = perc.id;
+    p.tracks.push(perc);
+    s.bus = CommandBus::new(p);
+    freeze(&mut s.bus, FreezeTarget::Strip(s.group));
+    let d = freeze::dormant(s.bus.project(), &|_| true);
+    assert!(d.strips.contains(&perc_strip) && d.tracks.contains(&perc_id));
+    // A follower on the synth strip (live) listens to the percussion strip.
+    let delay = s.delay;
+    follower(
+        &mut s.bus,
+        ModHost::Strip(s.synth_strip),
+        cantus_core::modulator::Listen::Strip(perc_strip),
+        AutoTarget::Effect {
+            effect: delay,
+            key: "feedback".into(),
+        },
+    );
+    let d = freeze::dormant(s.bus.project(), &|_| true);
+    assert!(!d.strips.contains(&perc_strip), "the strip it follows runs");
+    assert!(!d.tracks.contains(&perc_id), "and what that strip gathers");
+    assert!(d.tracks.contains(&s.drums), "the rest of the region still rests");
+}
+
+#[test]
+fn a_frozen_tracks_region_takes_in_the_audio_its_modulators_follow() {
+    let mut s = song();
+    let drums = s.drums;
+    follower(
+        &mut s.bus,
+        ModHost::Track(drums),
+        cantus_core::modulator::Listen::Strip(s.kick_strip),
+        AutoTarget::Instrument {
+            track: drums,
+            key: "cutoff".into(),
+        },
+    );
+    let target = FreezeTarget::Track(drums);
+    let r = freeze::region(s.bus.project(), target);
+    assert!(r.strips.contains(&s.kick_strip) && r.tracks.contains(&s.kick));
+    assert!(!r.hears_root);
+    // The kick's notes are in its sound.
+    let kick_clip = s.bus.project().track(s.kick).unwrap().clips[0].id;
+    let note = s.bus.project().track(s.kick).unwrap().clips[0].notes[0].clone();
+    let mut moved = note.clone();
+    moved.pitch = 61;
+    let edit = Command::SetNotes {
+        track: s.kick,
+        clip: kick_clip,
+        notes: vec![moved],
+    };
+    assert!(moves(&s, target, edit.clone()));
+    freeze(&mut s.bus, target);
+    assert_eq!(refused_by(&mut s.bus, edit), Some(target));
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackGain {
+                id: s.kick,
+                gain_db: -4.0
+            }
+        ),
+        Some(target)
+    );
+    // Its own level stays live.
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackGain {
+                id: drums,
+                gain_db: -4.0
+            }
+        ),
+        None
+    );
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+}
+
+#[test]
+fn a_follower_of_the_frozen_strip_itself_locks_its_fader() {
+    let mut s = song();
+    let comp = s.comp;
+    follower(
+        &mut s.bus,
+        ModHost::Strip(s.group),
+        cantus_core::modulator::Listen::Strip(s.group),
+        AutoTarget::Effect {
+            effect: comp,
+            key: "threshold".into(),
+        },
+    );
+    let target = FreezeTarget::Strip(s.group);
+    assert!(freeze::region(s.bus.project(), target).hears_root);
+    let fader = Command::SetStripGain {
+        id: s.group,
+        gain_db: -6.0,
+    };
+    assert!(moves(&s, target, fader.clone()), "the fader is heard");
+    freeze(&mut s.bus, target);
+    assert_eq!(refused_by(&mut s.bus, fader), Some(target));
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+}
+
+#[test]
+fn a_frozen_strips_only_track_keeps_its_mute_and_solo_live() {
+    let mut s = song();
+    let target = FreezeTarget::Strip(s.synth_strip);
+    assert_eq!(freeze::region(s.bus.project(), target).own, Some(s.synth));
+    assert_eq!(
+        freeze::region(s.bus.project(), FreezeTarget::Strip(s.group)).own,
+        None
+    );
+    freeze(&mut s.bus, target);
+    let key_before = key(&s.bus, target);
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackMute {
+                id: s.synth,
+                muted: true,
+            }
+        ),
+        None
+    );
+    assert_eq!(key(&s.bus, target), key_before);
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+    // Muted: the strip is silenced while it plays its render.
+    assert!(freeze::silenced(s.bus.project(), s.synth_strip));
+    s.bus.undo().unwrap();
+    assert!(!freeze::silenced(s.bus.project(), s.synth_strip));
+    // A solo elsewhere silences it; its own solo does not.
+    s.bus
+        .execute(
+            Command::SetTrackSolo {
+                id: s.lonely,
+                soloed: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert!(freeze::silenced(s.bus.project(), s.synth_strip));
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackSolo {
+                id: s.synth,
+                soloed: true,
+            }
+        ),
+        None
+    );
+    assert!(!freeze::silenced(s.bus.project(), s.synth_strip));
+    assert_eq!(key(&s.bus, target), key_before);
+    // Its level is inside the render.
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackGain {
+                id: s.synth,
+                gain_db: -3.0
+            }
+        ),
+        Some(target)
+    );
+    // The render is made unmuted and unsoloed.
+    let mut p = s.bus.project().clone();
+    p.track_mut(s.synth).unwrap().muted = true;
+    freeze::neutral(&mut p, target);
+    assert!(!p.track(s.synth).unwrap().muted && !p.any_solo());
+}
+
+#[test]
+fn freezing_a_region_with_a_solo_inside_is_refused_and_a_solo_elsewhere_is_not() {
+    let mut s = song();
+    let target = FreezeTarget::Strip(s.group);
+    s.bus
+        .execute(
+            Command::SetTrackSolo {
+                id: s.drums,
+                soloed: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        freeze::freeze_commands(s.bus.project(), target),
+        Err(CannotFreeze::SoloedTrack(s.drums))
+    );
+    s.bus.undo().unwrap();
+    s.bus
+        .execute(
+            Command::SetStripSolo {
+                id: s.kick_strip,
+                soloed: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        freeze::freeze_commands(s.bus.project(), target),
+        Err(CannotFreeze::SoloedStrip(s.kick_strip))
+    );
+    s.bus.undo().unwrap();
+    // Elsewhere, or the frozen strip itself: allowed (the render is made unsoloed).
+    for cmd in [
+        Command::SetTrackSolo {
+            id: s.lonely,
+            soloed: true,
+        },
+        Command::SetStripSolo {
+            id: s.group,
+            soloed: true,
+        },
+    ] {
+        s.bus.execute(cmd, Origin::User).unwrap();
+    }
+    assert!(freeze::freeze_commands(s.bus.project(), target).is_ok());
+}
+
+#[test]
+fn moving_strips_and_tracks_keeps_every_key_or_is_refused() {
+    let mut s = song();
+    let target = FreezeTarget::Strip(s.group);
+    freeze(&mut s.bus, target);
+    // The frozen strip itself moved on the desk: nothing to hear.
+    let before = key(&s.bus, target);
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::MoveStrip {
+                id: s.group,
+                index: 6
+            }
+        ),
+        None
+    );
+    assert_eq!(key(&s.bus, target), before);
+    // A track elsewhere moved.
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::MoveTrack {
+                id: s.lonely,
+                index: 0
+            }
+        ),
+        None
+    );
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+    // A strip of the region moved (the order of the group's sums): refused.
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::MoveStrip {
+                id: s.kick_strip,
+                index: 8
+            }
+        ),
+        Some(target)
+    );
+    // Two automation clips of one target on two tracks: their tracks' order is nothing
+    // to hear unless they start together.
+    let mut p = s.bus.project().clone();
+    let comp = s.comp;
+    let auto = |p: &mut Project, at: Ticks, v: f32| {
+        let mut c = p.make_clip("ratio", at, Ticks::beats(4));
+        c.automation = Some(Automation::new(
+            AutoTarget::Effect {
+                effect: comp,
+                key: "ratio".into(),
+            },
+            vec![AutoPoint::new(Ticks::ZERO, v)],
+        ));
+        c
+    };
+    let a = auto(&mut p, Ticks::ZERO, 0.5);
+    let b = auto(&mut p, Ticks::beats(8), 0.5);
+    p.track_mut(s.lonely).unwrap().clips.push(a);
+    p.track_mut(s.synth).unwrap().clips.push(b);
+    let swap = |p: &mut Project| {
+        let x = p.track_index(s.lonely).unwrap();
+        let y = p.track_index(s.synth).unwrap();
+        p.tracks.swap(x, y);
+    };
+    let k1 = freeze::content_key(&p, target).unwrap();
+    swap(&mut p);
+    assert_eq!(freeze::content_key(&p, target).unwrap(), k1);
+    // Starting together, the later track wins: their order is in the key.
+    let c = auto(&mut p, Ticks::ZERO, 0.9);
+    p.track_mut(s.synth).unwrap().clips.push(c);
+    let k2 = freeze::content_key(&p, target).unwrap();
+    swap(&mut p);
+    assert_ne!(freeze::content_key(&p, target).unwrap(), k2);
 }
