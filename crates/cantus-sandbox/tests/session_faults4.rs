@@ -31,6 +31,7 @@ fn frames_until(rig: &mut Rig, limit: Duration, done: impl Fn(&Rig) -> bool) {
 }
 
 fn render(rig: &mut Rig, stored: bool) -> Vec<f32> {
+    rig.prepare_render(stored);
     let (units, insts) = if stored {
         (
             rig.host.render_units_stored(rig.bus.project(), SR),
@@ -53,11 +54,11 @@ fn render(rig: &mut Rig, stored: bool) -> Vec<f32> {
         .samples
 }
 
-/// A plug-in whose load was given up on while its helper was busy (its own licence
-/// dialog) is not left missing for the session: it is tried again, and loads (review
-/// isolation-4 #57).
+/// A plug-in whose load shows its own licence dialog past the load limit is not given up
+/// on, nor thrown away and loaded again: it waits for the dialog (its card says so) and
+/// loads once it closes (review isolation-4 #57; isolation-5 rule 4).
 #[test]
-fn a_load_given_up_on_while_busy_is_tried_again() {
+fn a_load_held_by_its_own_dialog_waits_for_it_and_loads() {
     let _g = serial();
     let project = demo_project();
     let strip = strip_of(&project, 0);
@@ -76,21 +77,79 @@ fn a_load_given_up_on_while_busy_is_tried_again() {
     if let Some(pool) = host.sandboxes() {
         pool.set_limits(Limits {
             load: Duration::from_millis(500),
-            modal: Duration::from_millis(500),
             ..pool.limits()
         });
     }
     host.default_isolation = PluginIsolation::Together;
-    let mut rig2 = Rig::new(saved, host);
+    let t = Instant::now();
+    let rig2 = Rig::new(saved, host);
     std::env::remove_var("CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE");
+    assert!(dir.path().join("pumped").exists(), "its dialog ran");
+    assert!(t.elapsed() > Duration::from_millis(1_400), "{:?}", t.elapsed());
+    assert!(rig2.host.isolation(id).is_some(), "loaded after its dialog");
+    assert!(rig2.host.crashed(id).is_none() && rig2.host.load_error(id).is_none());
     assert!(
-        rig2.host.isolation(id).is_none(),
-        "given up on: its helper was busy"
+        rig2.notices.iter().all(|n| !matches!(
+            n,
+            HostNotice::LoadFailed { .. } | HostNotice::PluginCrashed { .. }
+        )),
+        "{:?}",
+        rig2.notices
     );
-    frames_until(&mut rig2, Duration::from_secs(8), |r| {
-        r.host.isolation(id).is_some()
-    });
-    assert!(rig2.host.isolation(id).is_some(), "tried again, and loaded");
+}
+
+/// A load past its limit without a dialog (a plug-in slow to start, not pumping): a failed
+/// load — not a crash, its helper and neighbours left alone — with Reload, never tried
+/// again by itself; its late answer is not taken (isolation-5 rule 4, #3, #11, #20, #31,
+/// #51, #62).
+#[test]
+fn a_load_past_its_limit_is_a_failed_load_never_retried() {
+    let _g = serial();
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
+    rig.settle();
+    let saved = rig.host.project_for_save(rig.bus.project());
+    drop(rig);
+    let dir = tempfile::tempdir().expect("a folder");
+    std::env::set_var(
+        "CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE",
+        dir.path().join("slow"),
+    );
+    let mut host = patient_host();
+    if let Some(pool) = host.sandboxes() {
+        pool.set_limits(Limits {
+            silence: Duration::from_secs(10),
+            load: Duration::from_millis(500),
+            ..pool.limits()
+        });
+    }
+    host.default_isolation = PluginIsolation::Together;
+    let mut rig = Rig::new(saved, host);
+    std::env::remove_var("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE");
+    assert!(rig.host.load_error(id).is_some(), "a failed load");
+    assert!(rig.host.crashed(id).is_none(), "not a crash");
+    let failed = |r: &Rig| {
+        r.notices
+            .iter()
+            .filter(|n| matches!(n, HostNotice::LoadFailed { .. }))
+            .count()
+    };
+    assert_eq!(failed(&rig), 1);
+    // Three seconds on (its late answer came meanwhile): still a failed load, never tried
+    // again, said once.
+    frames_until(&mut rig, Duration::from_secs(3), |_| false);
+    assert!(rig.host.load_error(id).is_some() && rig.host.isolation(id).is_none());
+    assert_eq!(failed(&rig), 1);
+    assert!(rig.host.crashed_all().0.is_empty());
+    // Reload: it loads.
+    rig.host
+        .reload(rig.bus.project(), &mut rig.engine, id)
+        .expect("asked");
+    rig.settle();
+    assert!(rig.host.isolation(id).is_some(), "loaded");
+    assert!(rig.host.load_error(id).is_none());
 }
 
 /// Two plug-ins' jobs running at a fail-fast abort: nothing says whose — neither is counted,
@@ -167,9 +226,14 @@ fn a_reload_that_fails_says_why_now_and_whose() {
     // B now crashes by itself whenever it starts (a VST3 that aborts on activation is not
     // to hand: its helper is made to fail with A's, which aborts).
     std::env::set_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE", "1");
-    let r = rig.host.reload(rig.bus.project(), &mut rig.engine, a);
+    rig.host
+        .reload(rig.bus.project(), &mut rig.engine, a)
+        .expect("asked: its load is answered later");
     std::env::remove_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE");
-    assert!(r.is_err(), "it crashed again");
+    frames_until(&mut rig, Duration::from_secs(5), |r| {
+        r.host.crashed(a).is_some()
+    });
+    assert!(rig.host.crashed(a).is_some(), "it crashed again");
     assert!(rig.host.crash_culprit(a), "its own doing this time");
     let now = rig.host.crashed(a).map(str::to_string);
     assert!(
@@ -261,8 +325,9 @@ fn a_render_waits_for_a_state_that_takes_its_time() {
     assert_eq!(differing(&reference, &waited), 0, "the same render");
 }
 
-/// The same render, its helper's state load past the offline limit: the render says it
-/// lacks the plug-in, from the start (review isolation-4 #10, #41).
+/// The same render, its instance's load (its state in a dialog, a render's instance has no
+/// card) past the load limit — the same live and offline: the render says it lacks the
+/// plug-in, from the start (review isolation-4 #10, #41; isolation-5 #6, #14, #22).
 #[test]
 fn a_render_whose_state_never_comes_says_so() {
     let _g = serial();
@@ -273,8 +338,7 @@ fn a_render_whose_state_never_comes_says_so() {
     rig.settle();
     if let Some(pool) = rig.host.sandboxes() {
         pool.set_limits(Limits {
-            state: Duration::from_millis(300),
-            offline: Duration::from_millis(800),
+            load: Duration::from_millis(800),
             ..pool.limits()
         });
     }

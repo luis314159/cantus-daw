@@ -364,11 +364,6 @@ fn paused(last_ms: u64, now_ms: u64, silence: Duration) -> bool {
 /// loop) before the plug-in's waiting card shows (round 29, review isolation-5).
 pub const WAIT_CARD_AFTER: Duration = Duration::from_secs(2);
 
-/// How long the helper's main thread may stay in a plug-in's own loop before a request
-/// queued behind it is taken as one that will not be served soon (a save then keeps what
-/// that plug-in said last, and says so).
-pub const NESTED_GRACE: Duration = Duration::from_secs(1);
-
 /// A plug-in whose crash ended its helper while it was leaving it — its destructor, often
 /// after Cantus let go of it — for the host to count (review isolation-4 #45, #46).
 #[derive(Clone, Debug)]
@@ -818,28 +813,15 @@ impl Sandbox {
         })
     }
 
+    /// Whether the helper ever said anything: one that ended before its handshake never
+    /// started (another build's, a missing library) — a failed load, nobody's crash.
+    pub(crate) fn heard(&self) -> bool {
+        self.heard.load(Ordering::Acquire)
+    }
+
     /// Whether the helper's main thread is in a loop of `instance`'s code (a dialog).
     pub(crate) fn nested_on(&self, instance: u32) -> bool {
         lock(&self.nested).is_some_and(|(n, _)| n == instance)
-    }
-
-    /// Whether request `id` will not be served soon though its helper lives: queued behind
-    /// a plug-in's own loop (a dialog) for longer than [`NESTED_GRACE`], or behind a
-    /// request served past its own limit. A save then keeps what that plug-in said last,
-    /// and says so (round 29, review isolation-5).
-    pub(crate) fn held_up(&self, id: u64) -> bool {
-        let Some(f) = lock(&self.inflight).get(&id).copied() else {
-            return false;
-        };
-        if f.started.is_some() {
-            return false;
-        }
-        if lock(&self.nested).is_some_and(|(_, since)| since.elapsed() > NESTED_GRACE) {
-            return true;
-        }
-        self.serving().is_some_and(|(sid, s)| {
-            sid != id && s.started.is_some_and(|t| t.elapsed() > s.limit)
-        })
     }
 
     /// When request `id` was started by the helper (`None`: not yet, or answered).

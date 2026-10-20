@@ -52,9 +52,14 @@ fn a_reload_that_crashes_again_is_counted() {
     assert!(rig.host.crashed(id).is_some());
     assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 1);
     std::env::set_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE", "1");
-    for _ in 0..2 {
-        let r = rig.host.reload(rig.bus.project(), &mut rig.engine, id);
-        assert!(r.is_err(), "it crashed again");
+    for k in 0..2u32 {
+        // Asked; its load is answered later, and it crashes again.
+        rig.host
+            .reload(rig.bus.project(), &mut rig.engine, id)
+            .expect("asked");
+        frames_until(&mut rig, Duration::from_secs(5), |r| {
+            r.host.crashes_this_session(Format::Clap, GAIN_ID) == 2 + k
+        });
     }
     std::env::remove_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE");
     assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 3);
@@ -77,6 +82,7 @@ fn a_render_that_cannot_load_a_plugin_says_so() {
             ..pool.limits()
         });
     }
+    rig.prepare_render(false);
     let units = rig.host.render_units(rig.bus.project(), SR);
     let insts = rig.host.render_instruments(rig.bus.project(), SR);
     let snapshot = std::sync::Arc::new(Snapshot::compile(rig.bus.project(), 1));

@@ -22,6 +22,7 @@ fn load(pool: &Arc<Sandboxes>, id: &str, group: &str) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, false)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -34,8 +35,6 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
-        heavy: Duration::from_millis(state),
-        modal: Duration::from_secs(10),
     });
     pool
 }
@@ -85,15 +84,17 @@ fn parent() -> raw_window_handle::RawWindowHandle {
     ))
 }
 
-/// A plug-in's own dialog open for 10 s (six times the call limit and more): its editor
-/// closed from Cantus meanwhile (held for after the dialog, on purpose), a neighbour saved,
-/// another moved and then removed — its unload and its audio half's served from inside the
-/// dialog. The helper lives, the neighbours are served at once, a call on the plug-in in its
-/// dialog is held (given up at once, never waited for) and runs after it, in its order
-/// (#4, #11, #14, #17, #36, #44; isolation-4 #31).
+/// A plug-in's own dialog open for 10 s (six times the call limit and more): its helper
+/// serves nothing meanwhile — a neighbour's value and save, another's unload, the plug-in's
+/// new state and its editor's close all wait for the main loop, in their order; nothing is
+/// ended or called into under the plug-in's own code — and nothing in Cantus waits for
+/// them: every call returns at once, a save asked during it waits (no limit runs for a
+/// request not started), the plug-in's waiting card shows. Nothing is killed; after the
+/// dialog every held request runs, in its order (#4, #11, #14, #17, #36, #44; isolation-4 #31; isolation-5
+/// rules 1 and 3, #1, #40, #50, #69).
 #[cfg(windows)]
 #[test]
-fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
+fn a_long_modal_loop_holds_the_helper_kills_nothing_and_freezes_nothing() {
     let _g = serial();
     let pool = limits(1_000, 1_000, 1_000);
     let Loaded {
@@ -117,15 +118,13 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
             &mut out,
         );
         arrived(c.as_mut(), P_GAIN, -9.0);
-        c.save_state().expect("a state")
+        state_now(c.as_mut())
     };
-    a.open_editor(parent()).expect("the editor opens");
+    open_window(a.as_mut(), parent()).expect("the editor opens");
     block(a_audio.as_mut(), &fault(P_FAULT, PUMP_WINDOW_LONG), &[]);
     std::thread::sleep(Duration::from_millis(300));
-    // Held for the main loop: A's window is the one in its dialog.
-    a.close_editor();
-    // The neighbours: served now.
     let t = Instant::now();
+    a.close_editor();
     let mut out = ParamOut::new();
     b.flush(
         &[ParamChange {
@@ -135,37 +134,32 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
         }],
         &mut out,
     );
-    assert!(c.save_state().is_ok());
-    assert!(
-        t.elapsed() < Duration::from_millis(800),
-        "a neighbour waited {:?}",
-        t.elapsed()
-    );
-    arrived(b.as_mut(), P_GAIN, -6.0);
-    // B leaves while A's dialog is open: its audio half and its instance are ended from
-    // inside the dialog.
+    c.ask_state_now();
+    // B leaves while A's dialog is open: its unload waits for the main loop.
     drop(b_audio);
     drop(b);
-    // The one in its dialog: held behind its window's close — given up at once.
-    let t = Instant::now();
+    assert!(a.load_state(&state).is_ok(), "sent, held for after the dialog");
     assert!(
-        matches!(a.load_state(&state), Err(HostError::Busy(_))),
-        "held for after the dialog"
-    );
-    assert!(
-        t.elapsed() < Duration::from_millis(300),
-        "{:?}",
+        t.elapsed() < Duration::from_millis(50),
+        "a call waited {:?}",
         t.elapsed()
     );
-    // Eight seconds more: nothing is killed.
+    // Eight seconds more: nothing is killed, A's waiting card shows, and the save asked of
+    // C waits — each look at once.
+    let mut waiting = false;
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(8) {
         for m in [&mut a, &mut c] {
             assert!(crashed(m.as_mut()).is_none(), "a live helper was killed");
         }
+        waiting |= a.waiting();
+        let t = Instant::now();
+        assert!(c.state_waiting(), "held for after the dialog");
+        assert!(t.elapsed() < Duration::from_millis(50));
         std::thread::sleep(Duration::from_millis(20));
     }
-    // After the dialog: the held load ran, after the window closed.
+    assert!(waiting, "A's waiting card");
+    // After the dialog: the held state ran, after the window closed; C answers as it is.
     let start = Instant::now();
     while a.param_value(P_GAIN) != Some(-9.0) {
         assert!(
@@ -175,7 +169,12 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
         assert!(crashed(a.as_mut()).is_none());
         std::thread::sleep(Duration::from_millis(20));
     }
-    assert_eq!(a.save_state().expect("A answers"), state);
+    assert_eq!(state_now(a.as_mut()), state);
+    assert!(matches!(
+        fresh_state(c.as_mut()),
+        cantus_host::StatePoll::Fresh(_)
+    ));
+    assert!(!a.waiting());
 }
 
 /// A request queued behind a slow one is not judged until the helper starts it: a 3 s
@@ -263,7 +262,7 @@ fn a_crash_in_an_editor_is_laid_on_its_plugin() {
         main: mut b,
         audio: mut b_audio,
     } = load(&pool, GAIN_ID, "together-editor-crash");
-    a.open_editor(parent()).expect("the editor opens");
+    open_window(a.as_mut(), parent()).expect("the editor opens");
     block(a_audio.as_mut(), &fault(P_FAULT, SEGV_EDITOR), &[]);
     // B keeps processing meanwhile.
     let start = Instant::now();
@@ -404,11 +403,13 @@ fn a_slow_neighbour_does_not_make_a_save_stale() {
         audio: mut slow_audio,
     } = load(&pool, GAIN_ID, "together-stale");
     let Loaded { main: mut b, .. } = load(&pool, GAIN_ID, "together-stale");
-    let before = b.save_state().unwrap();
+    let before = state_now(b.as_mut());
     block(slow_audio.as_mut(), &fault(P_FAULT, SLOW_SAVE), &[]);
     arrived(slow.as_mut(), P_FAULT, SLOW_SAVE);
-    // The neighbour's save keeps the helper busy for 3 s.
-    assert!(slow.save_state().is_ok());
+    // The neighbour's save keeps the helper busy for 3 s, without pumping (isolation-5 #0,
+    // #65: a healthy slow save is no trouble).
+    slow.ask_state_now();
+    std::thread::sleep(Duration::from_millis(100));
     let mut out = ParamOut::new();
     b.flush(
         &[ParamChange {
@@ -418,7 +419,11 @@ fn a_slow_neighbour_does_not_make_a_save_stale() {
         }],
         &mut out,
     );
-    let after = b.save_state().unwrap();
+    // A save behind it waits for it, frame by frame, and gets the state as it is now.
+    let after = match fresh_state(b.as_mut()) {
+        cantus_host::StatePoll::Fresh(s) => s,
+        other => panic!("a fresh state, not the old one: {other:?}"),
+    };
     assert_ne!(after, before, "a fresh state, not the old one");
 }
 
@@ -434,6 +439,23 @@ fn a_helper_that_cannot_start_is_a_load_failure() {
     };
     let pool = Sandboxes::new(exe);
     let info = info(GAIN_ID);
-    let r = bridged(&pool, info.format, "together", false).load(&info, setup());
-    assert!(matches!(r, Err(HostError::Load(_))), "{:?}", r.err());
+    let said = match bridged(&pool, info.format, "together", false).load(&info, setup()) {
+        Err(e) => Some(matches!(e, HostError::Load(_))),
+        Ok(mut l) => {
+            let start = Instant::now();
+            let mut said = None;
+            while said.is_none() && start.elapsed() < Duration::from_secs(10) {
+                for n in l.main.idle() {
+                    match n {
+                        Notice::LoadFailed(_) => said = Some(true),
+                        Notice::Crashed { .. } => said = Some(false),
+                        _ => {}
+                    }
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            said
+        }
+    };
+    assert_eq!(said, Some(true), "a failed load, not a crash");
 }

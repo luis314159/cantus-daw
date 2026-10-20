@@ -366,20 +366,35 @@ pub use imp::*;
 /// process dies, the faulting thread's instance; for a thread calling into none, the one
 /// instance whose library the faulting code is in; else *outside*
 /// ([`cantus_host::bridge::sandbox::OUTSIDE`]) ([`cantus_host::bridge::sandbox::CRASH_AT`]).
-/// A library several instances share names none of them. Messages a plug-in's own modal
-/// loop dispatches run under the call or window that loop is in. A Windows fail-fast abort
-/// runs no handler; Cantus then judges by what was running, and blames nobody when several
-/// were.
+/// A library several instances share names none of them. Inside a plug-in's own modal loop
+/// the main thread dispatches messages of any window (a neighbour's timer, say): a crash
+/// there is laid on the one instance whose library the faulting code is in, else on
+/// nobody — never on the plug-in whose loop it is for being there (isolation-5). A Windows
+/// fail-fast abort runs no handler; Cantus then judges by what was running, and blames
+/// nobody when several were.
 pub mod blame {
     use cantus_host::bridge::sandbox::OUTSIDE;
     use std::cell::{Cell, RefCell};
-    use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU32, AtomicUsize, Ordering};
 
     thread_local! {
         /// The instance this thread calls into now (0: none).
         static CURRENT: Cell<u32> = const { Cell::new(0) };
         /// The plug-in windows (their root handles) and their instances (main thread).
         static WINDOWS: RefCell<Vec<(isize, u32)>> = const { RefCell::new(Vec::new()) };
+    }
+
+    thread_local! {
+        /// This is the helper's main thread (set at `install`).
+        static MAIN: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// The main thread is in a loop nested in a plug-in's code (its dialog).
+    static NESTED: AtomicBool = AtomicBool::new(false);
+
+    /// The main thread entered (`true`) or left a plug-in's own loop; what it was before.
+    pub fn nest(on: bool) -> bool {
+        NESTED.swap(on, Ordering::AcqRel)
     }
 
     static CRASH_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
@@ -548,21 +563,24 @@ pub mod blame {
         }
     }
 
-    /// From a crash handler, on the faulting thread: the instance it calls into, else the
-    /// one instance whose library `addr` (the faulting code) is in, else *outside*, into the
-    /// lobby — the first fault's word stands. The instance written when this call wrote it.
-    /// Only atomics and a thread-local made without initialisation are touched.
+    /// From a crash handler, on the faulting thread: the instance it calls into — but for
+    /// the main thread inside a plug-in's own loop — else the one instance whose library
+    /// `addr` (the faulting code) is in, else *outside*, into the lobby; the first fault's
+    /// word stands. The instance written when this call wrote it. Only atomics and
+    /// thread-locals made without initialisation are touched.
     fn record(addr: usize) -> Option<u32> {
         let word = CRASH_AT.load(Ordering::Acquire);
         if word.is_null() {
             return None;
         }
+        let main = MAIN.try_with(|m| m.get()).unwrap_or(false);
+        let nested = main && NESTED.load(Ordering::Acquire);
         let n = match CURRENT.try_with(|c| c.get()).unwrap_or(0) {
-            0 => match by_module(addr) {
+            n if n != 0 && !nested => n,
+            _ => match by_module(addr) {
                 0 => OUTSIDE,
                 n => n,
             },
-            n => n,
         };
         // SAFETY: `word` points into the lobby, mapped for the life of the process.
         let w = unsafe { &*word };
@@ -585,6 +603,7 @@ pub mod blame {
     /// Installs the crash handlers, writing to `crash_at`; `main_at` is the lobby's word
     /// naming the instance the main thread is calling into.
     pub fn install(crash_at: &'static AtomicU32, main_at: &'static AtomicU32) {
+        let _ = MAIN.try_with(|m| m.set(true));
         CRASH_AT.store(
             crash_at as *const AtomicU32 as *mut AtomicU32,
             Ordering::Release,

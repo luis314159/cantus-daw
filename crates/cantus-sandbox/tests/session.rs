@@ -239,6 +239,7 @@ fn an_instrument_that_crashes_goes_silent_and_reload_brings_it_back() {
     rig.host
         .reload_instrument(rig.bus.project(), &mut rig.engine, track)
         .expect("reloads");
+    rig.until_loaded();
     // The next note (a beat is 24 000 frames) finds it back.
     let mut back = Vec::new();
     for _ in 0..120 {
@@ -288,6 +289,7 @@ fn an_offline_render_through_isolated_plugins_equals_the_in_process_one() {
     let _g = serial();
     let render = |iso: PluginIsolation| {
         let (mut rig, _, _) = gain_rig(iso);
+        rig.prepare_render(false);
         let units = rig.host.render_units(rig.bus.project(), SR);
         let insts = rig.host.render_instruments(rig.bus.project(), SR);
         assert_eq!(units.len(), 1);

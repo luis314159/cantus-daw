@@ -703,6 +703,22 @@ impl PluginHost {
             .map(|m| m.error.as_str())
     }
 
+    /// Whether a plug-in is still loading — an isolated one, whose load is answered later
+    /// (its slot passes the sound through, its track is silent, meanwhile) — or waits for
+    /// its state to move where it now runs.
+    pub fn loading(&self) -> bool {
+        let busy = |crashed: &Option<String>, main: &dyn MainThread| {
+            crashed.is_none() && !main.loaded() && main.stopped().is_none()
+        };
+        self.slots
+            .values()
+            .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+            || self
+                .instruments
+                .values()
+                .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+    }
+
     /// What a slot's plug-in costs, measured over the last half second.
     pub fn cpu(&self, effect: EffectId) -> Option<CpuFigure> {
         self.slots.get(&effect).and_then(|h| h.cpu.figure)

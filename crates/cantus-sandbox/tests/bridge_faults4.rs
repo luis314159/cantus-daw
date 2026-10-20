@@ -22,6 +22,7 @@ fn load(pool: &Arc<Sandboxes>, id: &str, group: &str) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, false)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -34,8 +35,6 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
-        heavy: Duration::from_millis(state),
-        modal: Duration::from_secs(10),
     });
     pool
 }
@@ -236,7 +235,7 @@ fn a_save_behind_a_slow_one_waits_from_its_own_start() {
         mut main,
         mut audio,
     } = load(&pool, GAIN_ID, "own-save-behind");
-    let before = main.save_state().unwrap();
+    let before = state_now(main.as_mut());
     noisy(
         audio.as_mut(),
         &[ParamChange {
@@ -253,9 +252,13 @@ fn a_save_behind_a_slow_one_waits_from_its_own_start() {
     std::thread::sleep(Duration::from_millis(500));
     noisy(audio.as_mut(), &fault(P_FAULT, PUMP_SAVE));
     std::thread::sleep(Duration::from_millis(500));
-    // A second on: saved, behind the background save (to ~3 s), then its own (to ~6 s).
+    // A second on: saved, behind the background save (to ~3 s), then its own (to ~6 s) —
+    // each within its own limit from its own start (isolation-5 rule 2).
     let t = Instant::now();
-    let saved = main.save_state().unwrap();
+    let saved = match fresh_state(main.as_mut()) {
+        cantus_host::StatePoll::Fresh(s) => s,
+        other => panic!("the state as it is now: {other:?}"),
+    };
     assert!(t.elapsed() < Duration::from_secs(8), "{:?}", t.elapsed());
     assert_ne!(saved, before, "the state after the change");
     idle_for(main.as_mut(), Duration::from_millis(200));
@@ -281,7 +284,7 @@ fn a_restart_is_polled_never_waited_for() {
         audio: mut slow_audio,
     } = load(&pool, GAIN_ID, "together-restart");
     // A's own dialog, from its window: its restart is held for after it.
-    a.open_editor(parent()).expect("the editor opens");
+    open_window(a.as_mut(), parent()).expect("the editor opens");
     noisy(a_audio.as_mut(), &fault(P_FAULT, PUMP_WINDOW));
     std::thread::sleep(Duration::from_millis(300));
     // The engine lets go of its audio half first (held for after the dialog too).
@@ -328,13 +331,15 @@ fn a_restart_is_polled_never_waited_for() {
     }
 }
 
-/// A plug-in's dialog inside a call of its own (a progress window in its save) never makes
-/// a whole project's save wait: its neighbours' states — as they are now — are taken from
-/// inside the dialog, and its own is given up within one limit: the save as a whole
-/// returns within one limit (review isolation-4 #13, #43, #54).
+/// A plug-in's dialog inside a call of its own (a progress window in its save, past its
+/// limit): its helper serves nothing until it ends — never a call under the plug-in's own
+/// code — and nothing in Cantus waits for it. A project's save asks every plug-in, looks
+/// frame by frame, and is done once the slow one has passed its own limit from when it
+/// started (said: what it said last) and the neighbours have answered after it, as they are
+/// now (review isolation-4 #13, #43, #54; isolation-5 rules 1–3).
 #[cfg(windows)]
 #[test]
-fn a_dialog_inside_a_call_never_holds_the_neighbours() {
+fn a_dialog_inside_a_call_holds_the_helper_and_freezes_nothing() {
     let _g = serial();
     let pool = limits(5_000, 1_000, 1_000);
     let Loaded {
@@ -351,9 +356,8 @@ fn a_dialog_inside_a_call_never_holds_the_neighbours() {
     } = load(&pool, GAIN_ID, "together-dialog-call");
     let firsts: Vec<Vec<u8>> = [&mut b, &mut c]
         .into_iter()
-        .map(|m| m.save_state().unwrap())
+        .map(|m| state_now(m.as_mut()))
         .collect();
-    // B and C moved since (their last-good states are the first ones).
     for (m, au) in [(&mut b, &mut b_audio), (&mut c, &mut c_audio)] {
         let gain = [ParamChange {
             offset: 0,
@@ -368,25 +372,44 @@ fn a_dialog_inside_a_call_never_holds_the_neighbours() {
     a.checkpoint();
     a.idle();
     std::thread::sleep(Duration::from_millis(300));
-    // The project saved: every plug-in's state, in turn.
+    // The project saved: every plug-in asked, then looked at each frame.
     let t = Instant::now();
-    assert!(a.save_state().is_ok());
-    let now: Vec<Vec<u8>> = [&mut b, &mut c]
-        .into_iter()
-        .map(|m| m.save_state().unwrap())
-        .collect();
-    assert!(
-        t.elapsed() < Duration::from_millis(1_500),
-        "the save took {:?}",
-        t.elapsed()
-    );
-    for (first, now) in firsts.iter().zip(&now) {
-        assert_ne!(
-            first, now,
-            "a neighbour's state as it is now, taken in the dialog"
-        );
+    let mut mains = [a, b, c];
+    let mut worst = Duration::ZERO;
+    for m in &mut mains {
+        let t = Instant::now();
+        m.ask_state_now();
+        worst = worst.max(t.elapsed());
     }
-    for m in [&mut a, &mut b, &mut c] {
+    // The slow one passes its limit (1 s from its start) while the neighbours still wait:
+    // it no longer holds the save.
+    let mut given_up_first = false;
+    loop {
+        let mut waiting = [false; 3];
+        for (k, m) in mains.iter_mut().enumerate() {
+            let t = Instant::now();
+            waiting[k] = m.state_waiting();
+            worst = worst.max(t.elapsed());
+        }
+        given_up_first |= !waiting[0] && waiting[1] && waiting[2];
+        if !waiting.iter().any(|w| *w) {
+            break;
+        }
+        assert!(t.elapsed() < Duration::from_secs(6), "the save never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(worst < Duration::from_millis(50), "a look waited {worst:?}");
+    assert!(given_up_first, "the slow one past its limit held nothing");
+    let [_, b, c] = &mut mains;
+    for (first, m) in firsts.iter().zip([b, c]) {
+        match m.poll_state() {
+            cantus_host::StatePoll::Fresh(now) => {
+                assert_ne!(first, &now, "a neighbour's state as it is now")
+            }
+            other => panic!("a neighbour answers after it: {other:?}"),
+        }
+    }
+    for m in &mut mains {
         assert!(crashed(m.as_mut()).is_none());
     }
 }
@@ -402,7 +425,6 @@ fn a_slow_state_past_its_limit_is_not_a_hang() {
     pool.set_limits(Limits {
         silence: Duration::from_millis(500),
         state: Duration::from_millis(1_000),
-        heavy: Duration::from_secs(10),
         ..Limits::default()
     });
     let Loaded {
@@ -462,10 +484,10 @@ fn a_helper_slow_to_start_is_not_taken_for_hung() {
     assert!(crashed(main.as_mut()).is_none());
 }
 
-/// A parameter list the plug-in announced while its helper was too busy to answer in time
-/// is taken when it comes, and the host told again (review isolation-4 #20).
+/// A parameter list the plug-in announces is asked for, never waited for, and the host is
+/// told once it has come (review isolation-4 #20; isolation-5).
 #[test]
-fn a_parameter_list_given_up_on_is_taken_when_it_comes() {
+fn a_parameter_list_is_said_once_it_comes() {
     let _g = serial();
     let pool = limits(5_000, 500, 5_000);
     let Loaded {
@@ -483,10 +505,7 @@ fn a_parameter_list_given_up_on_is_taken_when_it_comes() {
             .count();
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(
-        told, 2,
-        "told when it changed, and again when its list came"
-    );
+    assert_eq!(told, 1, "told once its new list came");
     assert!(!main.params().is_empty());
 }
 
@@ -501,13 +520,13 @@ fn a_window_asked_for_during_a_dialog_opens_after_it() {
         mut main,
         mut audio,
     } = load(&pool, GAIN_ID, "own-window-late");
-    main.open_editor(parent()).expect("the editor opens");
+    open_window(main.as_mut(), parent()).expect("the editor opens");
     noisy(audio.as_mut(), &fault(P_FAULT, PUMP_WINDOW));
     std::thread::sleep(Duration::from_millis(300));
     main.close_editor();
     let t = Instant::now();
     match main.open_editor(parent()) {
-        Err(cantus_host::HostError::Busy(why)) => assert!(why.contains("holds"), "{why}"),
+        Err(cantus_host::HostError::Busy(_)) => {}
         other => panic!("{other:?}"),
     }
     assert!(
@@ -561,7 +580,6 @@ fn a_pause_is_not_a_silence_but_a_real_silence_still_is() {
     pool.set_limits(Limits {
         silence: Duration::from_millis(300),
         state: Duration::from_millis(400),
-        heavy: Duration::from_millis(400),
         ..Limits::default()
     });
     let Loaded {

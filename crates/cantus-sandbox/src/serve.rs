@@ -52,9 +52,6 @@ const ALIVE: Duration = Duration::from_millis(200);
 /// The main thread's progress: bumped by its loop and by the pulse.
 static PROGRESS: AtomicU64 = AtomicU64::new(0);
 
-/// The main thread is in a loop nested in a plug-in's code, and Cantus was told.
-static NESTED: AtomicBool = AtomicBool::new(false);
-
 /// The protocol's output, shared by the main thread, the heartbeat's and the reader's.
 type Out = Arc<Mutex<BufWriter<std::fs::File>>>;
 
@@ -527,7 +524,7 @@ thread_local! {
 /// Cantus told that the main thread is in a plug-in's loop and serves nothing meanwhile.
 fn pulse() {
     PROGRESS.fetch_add(1, Ordering::Relaxed);
-    if !NESTED.swap(true, Ordering::AcqRel) {
+    if !crate::platform::blame::nest(true) {
         if let Some(out) = OUT.get() {
             write(
                 out,
@@ -739,7 +736,7 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str, threads: Option<usize>) -> i3
         wake.wait(TICK);
         PROGRESS.fetch_add(1, Ordering::Relaxed);
         // Back in the main loop after a plug-in's own loop: Cantus told.
-        if NESTED.swap(false, Ordering::AcqRel) {
+        if crate::platform::blame::nest(false) {
             write(&out, &Message::Unnested);
         }
         let quit = HERE.with(|h| {

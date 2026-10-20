@@ -86,6 +86,7 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
             mut audio,
         } = bridged(&pool, info.format, &format!("own-rt-{id}"), false)
             .load(&info, setup())
+            .map(loaded)
             .unwrap();
         if let Some(l) = latency_id {
             // With a latency (a restart brings it in), so the dry path's line is in use.
@@ -332,6 +333,7 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
             mut audio,
         } = bridged(&pool, info.format, &format!("own-rt-stop-{id}"), false)
             .load(&info, setup())
+            .map(loaded)
             .unwrap();
         out.clear();
         audio.process(

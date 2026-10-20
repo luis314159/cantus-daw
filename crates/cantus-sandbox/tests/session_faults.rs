@@ -383,6 +383,7 @@ fn fault_at_beat_two(rig: &mut Rig, effect: EffectId, value: f64) {
 }
 
 fn render(rig: &mut Rig) -> Vec<f32> {
+    rig.prepare_render(false);
     let units = rig.host.render_units(rig.bus.project(), SR);
     let insts = rig.host.render_instruments(rig.bus.project(), SR);
     let snapshot = std::sync::Arc::new(Snapshot::compile(rig.bus.project(), 1));

@@ -145,9 +145,17 @@ impl PluginHost {
         if !fresh {
             return;
         }
-        let Some((state, params)) = self.capture_instrument(track) else {
+        let Some((state, mut params)) = self.capture_instrument(track) else {
             return;
         };
+        // A value set since it was put on its track stands (it was sent to it).
+        let set = bus
+            .project()
+            .track(track)
+            .and_then(|t| t.instrument.external())
+            .map(|p| p.params.clone())
+            .unwrap_or_default();
+        params.extend(set);
         if let Some(h) = self.instruments.get_mut(&track) {
             h.synced_state = state.clone();
             h.flushed = params.clone();

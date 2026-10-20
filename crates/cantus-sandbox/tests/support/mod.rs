@@ -8,8 +8,8 @@ use cantus_engine::{EngineHandle, Processor};
 use cantus_host::bridge::{BridgedBackend, Sandboxes};
 use cantus_host::db::{stamp, DbEntry, ScanStatus};
 use cantus_host::{
-    Audio, AudioSetup, AudioThread, Format, NoteEvent, ParamChange, ParamOut, PluginHost,
-    PluginInfo,
+    Audio, AudioSetup, AudioThread, Format, HostError, Loaded, MainThread, Notice, NoteEvent,
+    ParamChange, ParamOut, PluginHost, PluginInfo, StatePoll,
 };
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
@@ -226,6 +226,91 @@ pub fn bridged(
     }
 }
 
+/// A load answered later, come in: waits (a test may) until its helper has loaded it —
+/// the audio half made then replaces the first — or says why it did not.
+pub fn ready(mut loaded: Loaded) -> Result<Loaded, String> {
+    let t0 = std::time::Instant::now();
+    loop {
+        for n in loaded.main.idle() {
+            match n {
+                Notice::Loaded => {
+                    if let Some(a) = loaded.main.take_audio() {
+                        loaded.audio = a;
+                    }
+                    return Ok(loaded);
+                }
+                Notice::LoadFailed(why) => return Err(why),
+                Notice::Crashed { reason, .. } => return Err(reason),
+                _ => {}
+            }
+        }
+        if loaded.main.isolated_in().is_none() {
+            return Ok(loaded);
+        }
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(60),
+            "it loads in time"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}
+
+/// [`ready`], which must load.
+pub fn loaded(loaded: Loaded) -> Loaded {
+    ready(loaded).expect("the plug-in loads")
+}
+
+/// Its state as it is now, asked for and waited for as a save does (its answer comes
+/// later): in, or — not to be had in time — what it said last, and why. `idle` is not
+/// called, so the notices stay for the test.
+pub fn fresh_state(main: &mut dyn MainThread) -> StatePoll {
+    main.ask_state_now();
+    let t0 = std::time::Instant::now();
+    while main.state_waiting() {
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(60),
+            "the state comes in time"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+    main.poll_state()
+}
+
+/// [`fresh_state`], which must come as it is now.
+pub fn state_now(main: &mut dyn MainThread) -> Vec<u8> {
+    match fresh_state(main) {
+        StatePoll::Fresh(s) => s,
+        other => panic!("its state as it is now, not {other:?}"),
+    }
+}
+
+/// Opens its editor as the host does, and waits for a window answered later (its helper
+/// busy): `Ok` once it is open.
+pub fn open_window(
+    main: &mut dyn MainThread,
+    parent: raw_window_handle::RawWindowHandle,
+) -> Result<(), String> {
+    match main.open_editor(parent) {
+        Ok(_) => return Ok(()),
+        Err(HostError::Busy(_)) => {}
+        Err(e) => return Err(e.to_string()),
+    }
+    let t0 = std::time::Instant::now();
+    loop {
+        for n in main.idle() {
+            match n {
+                Notice::EditorOpened => return Ok(()),
+                Notice::Crashed { reason, .. } => return Err(reason),
+                _ => {}
+            }
+        }
+        if t0.elapsed() > std::time::Duration::from_secs(30) {
+            return Err("its window never opened".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
+}
+
 pub fn setup() -> AudioSetup {
     AudioSetup {
         sample_rate: SR,
@@ -357,6 +442,7 @@ impl Rig {
             notices: Vec::new(),
         };
         rig.sync();
+        rig.until_loaded();
         rig
     }
 
@@ -398,17 +484,43 @@ impl Rig {
         self.engine.poll();
         let n = self.host.idle(&mut self.bus, &mut self.engine);
         self.notices.extend(n);
-        // A plug-in due to be tried again (its helper was busy): synced, as the app does.
-        if self.host.wants_sync() {
-            self.synced = u64::MAX;
-        }
         self.sync();
     }
 
+    /// Frames until every isolated plug-in has loaded (its load is answered later).
+    pub fn until_loaded(&mut self) {
+        let t0 = std::time::Instant::now();
+        self.frame();
+        while self.host.loading() {
+            assert!(
+                t0.elapsed() < std::time::Duration::from_secs(60),
+                "the plug-ins load in time"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            self.frame();
+        }
+    }
+
+    /// Frames until the render's plug-ins are ready (`stored`: from the project's states),
+    /// as an export waits for them.
+    pub fn prepare_render(&mut self, stored: bool) {
+        let t0 = std::time::Instant::now();
+        while !self.host.render_ready(self.bus.project(), SR, stored) {
+            assert!(
+                t0.elapsed() < std::time::Duration::from_secs(60),
+                "the render's plug-ins load in time"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            self.frame();
+        }
+    }
+
+    /// Blocks and frames, then frames until every plug-in loaded (or moved) is in.
     pub fn settle(&mut self) {
         for _ in 0..64 {
             self.block(256);
         }
+        self.until_loaded();
     }
 
     pub fn play(&mut self, frames: usize, block: usize) -> Vec<f32> {
@@ -439,11 +551,19 @@ impl Rig {
             .project()
             .strip(strip)
             .map_or(0, |s| s.effects.len());
-        self.exec(Command::InsertEffect {
-            strip,
-            index,
-            slot: Box::new(slot),
-        });
+        self.bus
+            .execute_merging(
+                Command::InsertEffect {
+                    strip,
+                    index,
+                    slot: Box::new(slot),
+                },
+                Origin::User,
+                PluginHost::load_key(effect),
+            )
+            .expect("command applies");
+        self.sync();
+        self.until_loaded();
         effect
     }
 

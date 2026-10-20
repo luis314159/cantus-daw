@@ -809,8 +809,10 @@ impl AudioThread for BridgeAudio {
     }
 
     fn stop(&mut self) {
-        // The half's last call: a late job's half is dropped by the helper anyway.
-        if !self.ready() {
+        // The half's last call: a late job's half is dropped by the helper anyway. A half
+        // replaced by a newer one over the same plug-in (once it loaded) stops nothing: the
+        // plug-in plays on through the new one.
+        if self.half != self.status.newest_half() || !self.ready() {
             return;
         }
         // SAFETY: as in `reset`.

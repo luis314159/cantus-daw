@@ -1103,9 +1103,15 @@ impl PluginHost {
         if !fresh {
             return;
         }
-        let Some((state, params)) = self.capture(effect) else {
+        let Some((state, mut params)) = self.capture(effect) else {
             return;
         };
+        // A value set since it was inserted stands (it was sent to it, after its load).
+        let set = find_slot(bus.project(), effect)
+            .and_then(|(_, s)| s.spec.external.as_deref())
+            .map(|p| p.params.clone())
+            .unwrap_or_default();
+        params.extend(set);
         if let Some(h) = self.slots.get_mut(&effect) {
             h.synced_state = state.clone();
             h.flushed = params.clone();

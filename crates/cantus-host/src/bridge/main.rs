@@ -384,9 +384,8 @@ impl BridgeMain {
         if self.gone() {
             return Some(Some(self.crash_reason()));
         }
-        if self.sandbox.held_up(g) {
-            return Some(Some("its process is held by a window of a plug-in".into()));
-        }
+        // Its own limit, from when its helper started it: a request held behind a plug-in's
+        // dialog waits with it (the card says so), never cut short (isolation-5 rule 2).
         let late = self.sandbox.started_at(g).is_some_and(|t| {
             t.elapsed() > self.sandbox.limit_of(g).unwrap_or(self.pool.limits().state)
         });
@@ -414,8 +413,9 @@ impl BridgeMain {
     }
 
     /// Its load has run past its own limit since its helper started it, and no window of
-    /// its holds the helper (a licence dialog shows the waiting card instead): a failed
-    /// load, never a retry (round 29, review isolation-5 rule 4).
+    /// its holds the helper (a licence dialog shows the waiting card instead — live; a
+    /// render's instance has no card, and its limit holds): a failed load, never a retry
+    /// (round 29, review isolation-5 rule 4).
     fn load_overdue(&self) -> Option<Duration> {
         if self.loaded || self.load_failed.is_some() || self.gone() {
             return None;
@@ -428,7 +428,7 @@ impl BridgeMain {
             .sandbox
             .started_at(self.load)
             .is_some_and(|t| t.elapsed() > limit);
-        (late && !self.sandbox.nested_on(self.instance)).then_some(limit)
+        (late && (self.offline || !self.sandbox.nested_on(self.instance))).then_some(limit)
     }
 
     /// Waits up to [`FRAME_WAIT`] for request `id`'s answer to land (it usually comes at
@@ -542,6 +542,9 @@ impl MainThread for BridgeMain {
         self.last_good = Some(data.to_vec());
         self.state_settled();
         self.current = true;
+        if self.gone() {
+            return Err(HostError::Crashed(self.crash_reason()));
+        }
         self.post(
             Call::LoadState {
                 instance: self.instance,
@@ -651,7 +654,8 @@ impl MainThread for BridgeMain {
         }
         self.take_answers();
         if let Some(limit) = self.load_overdue() {
-            self.load_failed = Some(format!("it did not load within {} s", limit.as_secs()));
+            let secs = limit.as_secs().max(1);
+            self.load_failed = Some(format!("it did not load within {secs} s"));
         }
         if self.tell_loaded {
             self.tell_loaded = false;
@@ -667,7 +671,12 @@ impl MainThread for BridgeMain {
             if !self.told_crash {
                 if let Some((reason, blame)) = self.crashed_notice() {
                     self.told_crash = true;
-                    out.push(Notice::Crashed { reason, blame });
+                    // A helper that never started: a failed load, nobody's crash (#40).
+                    out.push(if self.loaded || self.sandbox.heard() {
+                        Notice::Crashed { reason, blame }
+                    } else {
+                        Notice::LoadFailed(reason)
+                    });
                 }
             }
             return out;
@@ -898,8 +907,9 @@ impl MainThread for BridgeMain {
         self.status.late.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Loaded, and said (`idle` said [`Notice::Loaded`] as it took the answer).
     fn loaded(&self) -> bool {
-        (self.loaded || self.status.is_ready()) && self.load_failure().is_none()
+        self.loaded && self.load_failure().is_none()
     }
 
     fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
