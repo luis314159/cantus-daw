@@ -362,7 +362,7 @@ fn draw(
                         s.tk(),
                     )
                     .x;
-                    let room = (tr.width() - rest - 5.0 * k).max(24.0 * k);
+                    let room = (tr.width() - rest - 4.0 * k).max(24.0 * k);
                     let nr = Rect::from_min_size(tr.min, Vec2::new(room, tr.height()));
                     let used = text::paint(
                         b,
@@ -374,7 +374,7 @@ fn draw(
                     )
                     .map_or(0.0, |p| p.rect.width());
                     title_rect =
-                        Rect::from_min_max(Pos2::new(tr.left() + used + 5.0 * k, tr.top()), tr.max);
+                        Rect::from_min_max(Pos2::new(tr.left() + used + 3.0 * k, tr.top()), tr.max);
                 }
                 let _ = text::paint(
                     b,

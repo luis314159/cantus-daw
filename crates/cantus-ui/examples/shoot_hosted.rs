@@ -249,6 +249,8 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
             },
         );
         app.select_track(track);
+        // (The status line's word on the staged plug-in not being installed is not the shot.)
+        app.set_status(String::new());
         let path = dir.join(format!(
             "isolation-instrument-{theme_name}-{code}-{ppp}x.png"
         ));

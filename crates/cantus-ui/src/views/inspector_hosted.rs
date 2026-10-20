@@ -27,7 +27,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         stopped_row(sh, t, why);
         if sh.led_row(
             "isolation.slot.stopped_band",
-            "isolation.slot.reload",
+            "isolation.reload",
             false,
             Function::Source,
             false,
