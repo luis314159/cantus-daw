@@ -1420,7 +1420,9 @@ impl DeskMod {
     ) -> Self {
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
         let (m, n) = app.mod_offer(&target, pos, s, &mut rings);
-        crate::kit::automate::probe::note_learn(&format!("desk:{target:?}"), m.learn.is_some());
+        if crate::kit::automate::probe::noting_learn() {
+            crate::kit::automate::probe::note_learn(&format!("desk:{target:?}"), m.learn.is_some());
+        }
         DeskMod {
             target,
             offer: Some(crate::kit::automate::Offer {

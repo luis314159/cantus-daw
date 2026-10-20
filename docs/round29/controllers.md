@@ -100,19 +100,22 @@ Undo-fuzz arm 45.
 - `fx_lint` lists `views/controllers.rs`; `modulators.rs` / `shoot_modulators.rs` literals
   gained `learn: None`.
 
-## The runs (Windows, after merging `r29/integration` 5c17c80)
+## The runs (Windows, after review 1, on `r29/integration` 3c9659c merged)
 
-- `cargo clippy --workspace --all-targets -- -D warnings`: clean. `cargo fmt --all`:
-  clean.
-- `cargo test -p cantus-core -p cantus-project -p cantus-host --no-fail-fast`: 472 passed.
-- `cargo test -p cantus-engine --no-fail-fast`: 725 passed on the merged tree (before
-  the merge, `inst_stream::the_suite_leaves_no_cache_folder_behind` once failed under the
-  machine's load and passed alone — Exemplar's streaming cache, not this work).
-- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 720 passed (before the
-  merge; the merge brought warp's engine files, none of mine).
-- `cargo test -p cantus-ui --no-fail-fast`: 1 333 passed (the merged tree).
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean;
+  `cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings`:
+  clean. `cargo fmt --all`: clean.
+- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 564
+  passed.
+- `cargo test -p cantus-engine`: 755 passed.
+- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 759 passed.
+- `cargo test -p cantus-ui`: 1 394 passed. The first run of it caught five
+  `frame_budget.rs` failures (265–997 allocations a frame on the desk against 100): the
+  learn probe's name was formatted every frame for every desk knob and lamp, probe or
+  not; `probe::noting_learn()` now guards the two `format!`s and the desk is back in its
+  budget.
 - Not run here: the Linux check in WSL (`tools/wsl/check.sh`); nothing of mine is behind
-  `#[cfg(windows)]` (midir is cross-platform).
+  `#[cfg(windows)]` (midir and the waker thread are cross-platform).
 
 ## Files outside my area (additive)
 

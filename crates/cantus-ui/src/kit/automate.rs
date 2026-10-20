@@ -42,6 +42,12 @@ pub mod probe {
         LEARN.with(|s| *s.borrow_mut() = Some(Vec::new()));
     }
 
+    /// Whether learn offers are being noted: a caller that must build the name first
+    /// asks, so a frame nobody probes allocates nothing (`frame_budget.rs`).
+    pub fn noting_learn() -> bool {
+        LEARN.with(|s| s.borrow().is_some())
+    }
+
     /// A parameter control was drawn, `learnable` when its menu offered *Learn MIDI
     /// controller* (round 29, ADR 0062).
     pub fn note_learn(name: &str, learnable: bool) {

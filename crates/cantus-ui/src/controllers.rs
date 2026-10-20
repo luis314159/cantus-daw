@@ -802,7 +802,9 @@ pub fn learn_spot_in(
     target: MappingTarget,
 ) -> bool {
     let shown = rect.intersect(clip).intersect(ui.clip_rect());
-    crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
+    if crate::kit::automate::probe::noting_learn() {
+        crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
+    }
     if shown.width() <= 0.0 || shown.height() <= 0.0 || !ui.is_rect_visible(shown) {
         return false;
     }
