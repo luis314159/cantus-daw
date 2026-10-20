@@ -525,6 +525,10 @@ pub struct Track {
     /// Which of `comps` plays (its windows are lane 0's).
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub active_comp: u8,
+    /// Frozen on its own (schema 37, ADR 0064): the instrument and the clips play from a
+    /// render — the track's level, balance, mute and solo stay live. `None` plays live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen: Option<crate::freeze::Frozen>,
 }
 
 fn is_true(x: &bool) -> bool {
@@ -836,6 +840,11 @@ pub struct MixerStrip {
     /// The strip's modulators (ADR 0057, schema 28).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulators: Vec<crate::modulator::Modulator>,
+    /// Frozen (schema 37, ADR 0064): everything the strip gathers and its chain up to the
+    /// width play from a render — width, pan, fader, mute, solo and the sends stay live.
+    /// `None` plays live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen: Option<crate::freeze::Frozen>,
 }
 
 impl MixerStrip {
@@ -1442,6 +1451,7 @@ impl Project {
             modulators: Vec::new(),
             comps: Vec::new(),
             active_comp: 0,
+            frozen: None,
         }
     }
 
@@ -1465,6 +1475,7 @@ impl Project {
             dock: Dock::Middle,
             group: None,
             modulators: Vec::new(),
+            frozen: None,
         }
     }
 

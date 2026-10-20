@@ -1,0 +1,1021 @@
+//! Freezing (ADR 0064): a mixer strip — everything it gathers and its chain up to the width
+//! — or a track's own source — its instrument and clips — played from a render instead of
+//! computed, the CPU freed, and given back live, bit for bit, by unfreezing.
+//!
+//! **The boundary.** A frozen strip's render is taken **before width, pan and fader**: those,
+//! mute, solo, the sends' levels and every automation of them stay live, so a frozen strip
+//! is still mixed. A frozen track's render is taken before the track's own level and
+//! balance, which stay live with its mute and solo.
+//!
+//! **What makes the sound** of a frozen target is its *subject* ([`subject`]): the frozen
+//! strip's chain, every strip and track it gathers (by output or send, recursively), every
+//! strip a key comes from and every track whose notes an insert hears (with what they
+//! gather), the automation and the modulators that reach any of those, the audio sources
+//! their clips play, the tempo map and the pan law. Its canonical form (compact JSON, the
+//! fields that cannot change the sound left out) hashed with SHA-256 is the target's
+//! **content key** ([`content_key`]); the render on disk is found by it.
+//!
+//! **An edit that would change a frozen sound is refused** ([`guard`], in `freeze_guard.rs`):
+//! every [`Command`] is classified by what it touches — a `match` with no wildcard, so a new
+//! command does not build until it is classified (the edit lock cannot drift out of date,
+//! BACKLOG §4c) — and a touch inside a frozen region is refused with
+//! [`CommandError::Frozen`], naming the target to unfreeze. Commands whose reach is
+//! project-wide (the tempo, the pan law, a whole project replaced) are applied and checked:
+//! when a frozen target's content key moved, they are undone and refused.
+//!
+//! Which nodes then rest is [`plays`]' business: given which frozen targets have their
+//! render at hand, the snapshot marks every node whose sound only reaches a playing frozen
+//! target as resting (its CPU freed, its hosted plug-ins unloaded), except what something
+//! live still needs — a key, the notes an insert hears, the audio a modulator follows.
+
+use crate::automation::AutoTarget;
+use crate::command::{Command, CommandError};
+use crate::model::{MixerStrip, ModulatorId, Project, StripId, Track, TrackId};
+use crate::modulator::{EnvTrigger, Listen, ModHost, ModSource, Modulator, Retrigger};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
+
+#[path = "freeze_guard.rs"]
+mod guard_impl;
+pub use guard_impl::{guard, touches, Touch};
+
+/// Bumped when the subject's canonical form changes (a content key from an older build is
+/// then another key: the render is made again — never a wrong one played).
+pub const SUBJECT_VERSION: u32 = 1;
+
+/// What is frozen.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum FreezeTarget {
+    /// A mixer strip: everything it gathers and its chain up to the width.
+    Strip(StripId),
+    /// A track's own source: its instrument and clips, before its level and balance.
+    Track(TrackId),
+}
+
+/// A frozen target's state in the model (schema 37): the content key its render was made
+/// for. Its render is found on disk by that key (with the rate and the DSP version), so the
+/// project needs nothing else; a render that is not there is made again.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Frozen {
+    /// The target's content key ([`content_key`]) when it was frozen: lower-case hex
+    /// SHA-256, 64 characters.
+    pub content: String,
+}
+
+impl Frozen {
+    /// Valid: 64 lower-case hex digits.
+    pub fn is_valid(&self) -> bool {
+        self.content.len() == 64
+            && self
+                .content
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    }
+}
+
+impl Project {
+    /// A target's frozen state, `None` when it is live (or gone).
+    pub fn frozen(&self, target: FreezeTarget) -> Option<&Frozen> {
+        match target {
+            FreezeTarget::Strip(s) => self.strip(s)?.frozen.as_ref(),
+            FreezeTarget::Track(t) => self.track(t)?.frozen.as_ref(),
+        }
+    }
+
+    /// Every frozen target, strips first (in the desk's order), then tracks.
+    pub fn frozen_targets(&self) -> Vec<FreezeTarget> {
+        self.strips
+            .iter()
+            .filter(|s| s.frozen.is_some())
+            .map(|s| FreezeTarget::Strip(s.id))
+            .chain(
+                self.tracks
+                    .iter()
+                    .filter(|t| t.frozen.is_some())
+                    .map(|t| FreezeTarget::Track(t.id)),
+            )
+            .collect()
+    }
+
+    /// Whether anything is frozen.
+    pub fn any_frozen(&self) -> bool {
+        self.strips.iter().any(|s| s.frozen.is_some())
+            || self.tracks.iter().any(|t| t.frozen.is_some())
+    }
+
+    /// What *Freeze* on a track freezes: the strip it feeds when that strip is its own (no
+    /// other track feeds it) — the track and its inserts in one render — else the track's
+    /// own source.
+    pub fn freeze_target_of_track(&self, track: TrackId) -> Option<FreezeTarget> {
+        let t = self.track(track)?;
+        match t.strip {
+            Some(s)
+                if self.strip(s).is_some() && self.tracks_on_strip(s).all(|o| o.id == track) =>
+            {
+                Some(FreezeTarget::Strip(s))
+            }
+            _ => Some(FreezeTarget::Track(track)),
+        }
+    }
+}
+
+/// The nodes whose sound makes a target's: a strip's upstream (what it gathers, its keys,
+/// its inserts' note sources, what its modulators listen to — recursively), or a track
+/// alone.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Region {
+    /// The strips, the target's first when it is a strip.
+    pub strips: BTreeSet<StripId>,
+    pub tracks: BTreeSet<TrackId>,
+    /// Some modulator in it listens to the master: the whole mix is in it.
+    pub whole: bool,
+}
+
+/// A target's region. A track's is the track; a strip's grows to a fixed point over the
+/// routes into it, its inserts' keys and note sources, and the sources of the modulators
+/// that drive anything in it.
+pub fn region(project: &Project, target: FreezeTarget) -> Region {
+    let mut r = Region::default();
+    match target {
+        FreezeTarget::Track(t) => {
+            if project.track(t).is_some() {
+                r.tracks.insert(t);
+            }
+            // A track's source: its instrument's automation and modulators reach it, but
+            // nothing else's sound does — except a modulator following some audio.
+            grow_by_modulators(project, &mut r, &|tgt| source_target_of(tgt) == Some(t));
+        }
+        FreezeTarget::Strip(s) => {
+            if project.strip(s).is_none() {
+                return r;
+            }
+            let mut stack = vec![s];
+            loop {
+                while let Some(id) = stack.pop() {
+                    if !r.strips.insert(id) {
+                        continue;
+                    }
+                    let Some(st) = project.strip(id) else {
+                        continue;
+                    };
+                    for t in project.tracks_on_strip(id) {
+                        r.tracks.insert(t.id);
+                    }
+                    for o in &project.strips {
+                        if o.id != id && o.feeds().any(|to| to == id) {
+                            stack.push(o.id);
+                        }
+                    }
+                    for e in &st.effects {
+                        if let Some(k) = e.sidechain {
+                            stack.push(k);
+                        }
+                        if let Some(t) = e.midi_from {
+                            if project.track(t).is_some() {
+                                r.tracks.insert(t);
+                            }
+                        }
+                    }
+                }
+                // Modulators driving anything inside listen to (or hear the notes of)
+                // something that is then inside too.
+                let before = (r.strips.len(), r.tracks.len(), r.whole);
+                let inside = r.clone();
+                grow_by_modulators(project, &mut r, &|tgt| {
+                    target_in_strip_region(project, &inside, s, tgt)
+                });
+                if r.whole {
+                    for st in &project.strips {
+                        r.strips.insert(st.id);
+                    }
+                    for t in &project.tracks {
+                        r.tracks.insert(t.id);
+                    }
+                }
+                // The strips the modulators added still need their own upstream.
+                stack.extend(
+                    r.strips
+                        .iter()
+                        .copied()
+                        .filter(|x| !inside.strips.contains(x)),
+                );
+                for x in &stack {
+                    r.strips.remove(x);
+                }
+                if stack.is_empty() && before == (r.strips.len(), r.tracks.len(), r.whole) {
+                    break;
+                }
+            }
+        }
+    }
+    r
+}
+
+/// The track an automation target is a source parameter of (its instrument's), if any.
+fn source_target_of(target: &AutoTarget) -> Option<TrackId> {
+    match target {
+        AutoTarget::Instrument { track, .. }
+        | AutoTarget::Firmus { track, .. }
+        | AutoTarget::PluginInstrument { track, .. } => Some(*track),
+        _ => None,
+    }
+}
+
+/// Whether `target` moves the sound of a strip region whose frozen strip is `root`: any
+/// parameter of a strip or track inside it, except the root's own width, pan, fader and
+/// sends (live).
+fn target_in_strip_region(
+    project: &Project,
+    r: &Region,
+    root: StripId,
+    target: &AutoTarget,
+) -> bool {
+    match target {
+        AutoTarget::TrackGain(t) | AutoTarget::TrackPan(t) => r.tracks.contains(t),
+        AutoTarget::Instrument { track, .. }
+        | AutoTarget::Firmus { track, .. }
+        | AutoTarget::PluginInstrument { track, .. } => r.tracks.contains(track),
+        AutoTarget::StripGain(s) | AutoTarget::StripPan(s) | AutoTarget::StripWidth(s) => {
+            *s != root && r.strips.contains(s)
+        }
+        AutoTarget::Send { strip, .. } => *strip != root && r.strips.contains(strip),
+        AutoTarget::Effect { effect, .. } | AutoTarget::Plugin { effect, .. } => project
+            .effect_host(*effect)
+            .is_some_and(|h| r.strips.contains(&h)),
+        AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => false,
+        AutoTarget::ModAmount(m) => modulator_reaches(project, *m, &|t| {
+            !matches!(t, AutoTarget::ModAmount(_)) && target_in_strip_region(project, r, root, t)
+        }),
+    }
+}
+
+/// Whether modulator `m` drives a target `inside` says is inside (one level of nesting).
+fn modulator_reaches(
+    project: &Project,
+    m: ModulatorId,
+    inside: &dyn Fn(&AutoTarget) -> bool,
+) -> bool {
+    project
+        .modulator(m)
+        .is_some_and(|(_, _, m)| m.routes.iter().any(|r| inside(&r.target)))
+}
+
+/// Add to `r` what the modulators driving anything `inside` listen to and hear the notes
+/// of.
+fn grow_by_modulators(project: &Project, r: &mut Region, inside: &dyn Fn(&AutoTarget) -> bool) {
+    let drives = |m: &Modulator| {
+        !m.muted
+            && m.routes.iter().any(|route| {
+                inside(&route.target)
+                    || matches!(&route.target, AutoTarget::ModAmount(n)
+                        if modulator_reaches(project, *n, inside))
+            })
+    };
+    // A modulator whose amount another drives: the driver matters too (one level).
+    let mut reaching: Vec<(ModHost, &Modulator)> = project
+        .all_modulators()
+        .filter(|(_, m)| drives(m))
+        .collect();
+    let ids: Vec<ModulatorId> = reaching.iter().map(|(_, m)| m.id).collect();
+    reaching.extend(project.all_modulators().filter(|(_, m)| {
+        !m.muted
+            && !ids.contains(&m.id)
+            && m.routes
+                .iter()
+                .any(|r| matches!(r.target, AutoTarget::ModAmount(n) if ids.contains(&n)))
+    }));
+    for (host, m) in reaching {
+        for (listen, notes) in modulator_sources(project, host, m) {
+            match listen {
+                Some(Listen::Strip(s)) => {
+                    r.strips.insert(s);
+                }
+                Some(Listen::Master) => r.whole = true,
+                Some(Listen::Host) => match project.host_listen_strip(host) {
+                    Some(s) => {
+                        r.strips.insert(s);
+                    }
+                    None => r.whole = true,
+                },
+                None => {}
+            }
+            if let Some(t) = notes {
+                r.tracks.insert(t);
+            }
+        }
+    }
+}
+
+/// What a modulator listens to and whose notes it hears.
+fn modulator_sources(
+    project: &Project,
+    host: ModHost,
+    m: &Modulator,
+) -> Vec<(Option<Listen>, Option<TrackId>)> {
+    let host_notes = || project.host_notes_track(host);
+    match &m.source {
+        ModSource::Lfo(l) if l.retrigger == Retrigger::Note => {
+            vec![(None, l.notes.or_else(host_notes))]
+        }
+        ModSource::Envelope(e) => match e.trigger {
+            EnvTrigger::Notes { track } => vec![(None, track.or_else(host_notes))],
+            EnvTrigger::Audio { listen, .. } => vec![(Some(listen), None)],
+        },
+        ModSource::Follower(f) => vec![(Some(f.listen), None)],
+        _ => Vec::new(),
+    }
+}
+
+/// Every frozen region, and what is locked by them.
+#[derive(Clone, Debug, Default)]
+pub struct Locks {
+    /// Strips whose chain or what they gather a frozen sound depends on: every strip of a
+    /// frozen strip's region, the frozen strip included.
+    pub chain: BTreeSet<StripId>,
+    /// Strips whose mix (fader, pan, width, mute, sends, where they go) a frozen sound
+    /// depends on: the regions' strips but their frozen roots.
+    pub mix: BTreeSet<StripId>,
+    /// Tracks whose source (instrument, clips, notes, input) a frozen sound depends on.
+    pub source: BTreeSet<TrackId>,
+    /// Tracks whose level, balance, mute, solo and routing a frozen sound depends on.
+    pub track_mix: BTreeSet<TrackId>,
+    /// The frozen target each locked node belongs to (the first that holds it), for the
+    /// refusal's notice.
+    owner_strip: Vec<(StripId, FreezeTarget)>,
+    owner_track: Vec<(TrackId, FreezeTarget)>,
+}
+
+impl Locks {
+    pub fn of(project: &Project) -> Locks {
+        let mut l = Locks::default();
+        for target in project.frozen_targets() {
+            let r = region(project, target);
+            match target {
+                FreezeTarget::Strip(root) => {
+                    for s in &r.strips {
+                        l.chain.insert(*s);
+                        if *s != root {
+                            l.mix.insert(*s);
+                        }
+                        l.owner_strip.push((*s, target));
+                    }
+                    for t in &r.tracks {
+                        l.source.insert(*t);
+                        l.track_mix.insert(*t);
+                        l.owner_track.push((*t, target));
+                    }
+                }
+                FreezeTarget::Track(_) => {
+                    for t in &r.tracks {
+                        l.source.insert(*t);
+                        l.owner_track.push((*t, target));
+                    }
+                    for s in &r.strips {
+                        l.chain.insert(*s);
+                        l.mix.insert(*s);
+                        l.owner_strip.push((*s, target));
+                    }
+                }
+            }
+        }
+        // A root frozen inside another's region: its mix is locked by that one.
+        for (s, owner) in &l.owner_strip {
+            if *owner != FreezeTarget::Strip(*s) {
+                l.mix.insert(*s);
+            }
+        }
+        l
+    }
+
+    /// Whether nothing is locked.
+    pub fn is_empty(&self) -> bool {
+        self.chain.is_empty() && self.source.is_empty()
+    }
+
+    /// The frozen target holding strip `s`.
+    pub fn owner_of_strip(&self, s: StripId) -> Option<FreezeTarget> {
+        self.owner_strip
+            .iter()
+            .find(|(x, _)| *x == s)
+            .map(|(_, o)| *o)
+    }
+
+    /// The frozen target holding track `t`.
+    pub fn owner_of_track(&self, t: TrackId) -> Option<FreezeTarget> {
+        self.owner_track
+            .iter()
+            .find(|(x, _)| *x == t)
+            .map(|(_, o)| *o)
+    }
+}
+
+// ---- the subject and its key ------------------------------------------------------------
+
+/// A JSON object without the keys in `drop` (top level), and without any `isolation` at
+/// any depth (where a hosted plug-in runs never changes its sound, ADR 0063).
+fn scrub(mut v: serde_json::Value, drop: &[&str]) -> serde_json::Value {
+    if let serde_json::Value::Object(m) = &mut v {
+        for k in drop {
+            m.remove(*k);
+        }
+    }
+    strip_key(&mut v, "isolation");
+    v
+}
+
+fn strip_key(v: &mut serde_json::Value, key: &str) {
+    match v {
+        serde_json::Value::Object(m) => {
+            m.remove(key);
+            for x in m.values_mut() {
+                strip_key(x, key);
+            }
+        }
+        serde_json::Value::Array(a) => {
+            for x in a {
+                strip_key(x, key);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn value<T: Serialize>(x: &T) -> serde_json::Value {
+    // Through text, so a number is what the file writes (f32s at their shortest), as the
+    // project's own hash does.
+    serde_json::to_string(x)
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or(serde_json::Value::Null)
+}
+
+/// What never changes how anything sounds: names, colours, where things are drawn.
+const STRIP_COSMETIC: &[&str] = &[
+    "name",
+    "color",
+    "dock",
+    "group",
+    "modulators",
+    "frozen",
+    "soloed",
+];
+/// A frozen strip's own live controls (and where it goes).
+const STRIP_LIVE: &[&str] = &["gain_db", "pan", "width", "muted", "sends", "output"];
+const TRACK_COSMETIC: &[&str] = &[
+    "name",
+    "color",
+    "height",
+    "icon",
+    "takes_open",
+    "automation_open",
+    "pitch_open",
+    "modulators",
+    "frozen",
+    "soloed",
+];
+/// A frozen track's own live controls (and where it goes).
+const TRACK_LIVE: &[&str] = &["gain_db", "pan", "muted", "strip"];
+
+fn strip_part(s: &MixerStrip, root: bool) -> serde_json::Value {
+    let v = scrub(value(s), STRIP_COSMETIC);
+    if root {
+        scrub(v, STRIP_LIVE)
+    } else {
+        v
+    }
+}
+
+fn track_part(t: &Track, source_only: bool) -> serde_json::Value {
+    let mut v = scrub(value(t), TRACK_COSMETIC);
+    if source_only {
+        v = scrub(v, TRACK_LIVE);
+    }
+    // Automation clips are the targets' (below), wherever they sit; a note or audio clip's
+    // name and colour are nothing to hear.
+    if let Some(serde_json::Value::Array(clips)) = v.get_mut("clips") {
+        clips.retain(|c| c.get("automation").is_none_or(|a| a.is_null()));
+        for c in clips.iter_mut() {
+            if let serde_json::Value::Object(m) = c {
+                m.remove("name");
+                m.remove("color");
+            }
+        }
+    }
+    v
+}
+
+/// Whether automation (or modulation) of `target` moves the sound of frozen target
+/// `frozen`, whose region is `r`.
+pub(crate) fn reaches(
+    project: &Project,
+    frozen: FreezeTarget,
+    r: &Region,
+    target: &AutoTarget,
+) -> bool {
+    match frozen {
+        FreezeTarget::Strip(root) => {
+            (r.whole && !is_root_live(target, root))
+                || target_in_strip_region(project, r, root, target)
+        }
+        FreezeTarget::Track(t) => {
+            source_target_of(target) == Some(t)
+                || matches!(target, AutoTarget::ModAmount(m)
+                    if modulator_reaches(project, *m, &|x| source_target_of(x) == Some(t)))
+                || (!r.strips.is_empty()
+                    && target_in_strip_region(project, r, StripId(u64::MAX), target))
+        }
+    }
+}
+
+/// A frozen strip's own live controls as automation targets.
+fn is_root_live(target: &AutoTarget, root: StripId) -> bool {
+    match target {
+        AutoTarget::StripGain(s) | AutoTarget::StripPan(s) | AutoTarget::StripWidth(s) => {
+            *s == root
+        }
+        AutoTarget::Send { strip, .. } => *strip == root,
+        _ => false,
+    }
+}
+
+/// A target's subject: the canonical form of everything that makes its sound. `None` when
+/// the target is gone.
+pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Value> {
+    use serde_json::{json, Value};
+    let (kind, root_strip, source_track) = match target {
+        FreezeTarget::Strip(s) => {
+            project.strip(s)?;
+            ("strip", Some(s), None)
+        }
+        FreezeTarget::Track(t) => {
+            project.track(t)?;
+            ("track", None, Some(t))
+        }
+    };
+    let r = region(project, target);
+    let strips: Vec<Value> = project
+        .strips
+        .iter()
+        .filter(|s| r.strips.contains(&s.id))
+        .map(|s| strip_part(s, Some(s.id) == root_strip))
+        .collect();
+    let tracks: Vec<Value> = project
+        .tracks
+        .iter()
+        .filter(|t| r.tracks.contains(&t.id))
+        .map(|t| track_part(t, Some(t.id) == source_track))
+        .collect();
+    let automation: Vec<Value> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .filter(|c| {
+            c.automation
+                .as_ref()
+                .is_some_and(|a| reaches(project, target, &r, &a.target))
+        })
+        .map(|c| scrub(value(c), &["id", "name", "color", "link", "comp"]))
+        .collect();
+    let modulators: Vec<Value> = project
+        .all_modulators()
+        .filter(|(_, m)| {
+            m.routes
+                .iter()
+                .any(|x| reaches(project, target, &r, &x.target))
+        })
+        .map(|(host, m)| json!({ "host": value(&host), "m": scrub(value(m), &["name"]) }))
+        .collect();
+    // The sources the region's clips play (and its comps keep), in the pool's order.
+    let mut used = BTreeSet::new();
+    for t in project.tracks.iter().filter(|t| r.tracks.contains(&t.id)) {
+        for c in t.clips.iter() {
+            if let Some(a) = &c.audio {
+                used.insert(a.source);
+            }
+        }
+        for w in t.comps.iter().flat_map(|c| c.windows.iter()) {
+            if let Some(a) = &w.audio {
+                used.insert(a.source);
+            }
+        }
+    }
+    let sources: Vec<Value> = project
+        .audio_pool
+        .iter()
+        .filter(|s| used.contains(&s.id))
+        .map(|s| scrub(value(s), &["name", "recorded"]))
+        .collect();
+    let mut o = serde_json::Map::new();
+    o.insert("v".into(), json!(SUBJECT_VERSION));
+    o.insert("kind".into(), json!(kind));
+    o.insert("strips".into(), Value::Array(strips));
+    o.insert("tracks".into(), Value::Array(tracks));
+    o.insert("automation".into(), Value::Array(automation));
+    o.insert("modulators".into(), Value::Array(modulators));
+    o.insert("sources".into(), Value::Array(sources));
+    o.insert(
+        "tempo".into(),
+        json!({
+            "bpm": value(&project.tempo_bpm),
+            "metre": value(&project.time_signature),
+            "points": value(&project.tempo_points),
+            "metres": value(&project.metre_changes),
+        }),
+    );
+    // A modulator there follows the whole mix: the master shapes what it hears.
+    if r.whole {
+        o.insert(
+            "master".into(),
+            scrub(value(&project.master), &["modulators"]),
+        );
+    }
+    // A strip's pan goes through the law: any strip of the region but a frozen root.
+    if r.strips.iter().any(|s| Some(*s) != root_strip) {
+        o.insert("pan_law".into(), value(&project.pan_law));
+    }
+    Some(Value::Object(o))
+}
+
+/// A target's content key: SHA-256 of its subject's compact JSON, lower-case hex. `None`
+/// when the target is gone.
+pub fn content_key(project: &Project, target: FreezeTarget) -> Option<String> {
+    use sha2::{Digest, Sha256};
+    let bytes = serde_json::to_vec(&canonical(subject(project, target)?)).ok()?;
+    Some(hex(&Sha256::digest(bytes)))
+}
+
+/// Every object's keys in sorted order, at every depth: the subject's canonical form,
+/// whatever order its fields were written or taken out in (a removed key must not reorder
+/// the rest — the fuzz found it).
+fn canonical(v: serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::Object(m) => {
+            let sorted: std::collections::BTreeMap<String, serde_json::Value> =
+                m.into_iter().map(|(k, v)| (k, canonical(v))).collect();
+            serde_json::Value::Object(sorted.into_iter().collect())
+        }
+        serde_json::Value::Array(a) => {
+            serde_json::Value::Array(a.into_iter().map(canonical).collect())
+        }
+        v => v,
+    }
+}
+
+/// Lower-case hex.
+pub fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write;
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        let _ = write!(s, "{b:02x}");
+    }
+    s
+}
+
+/// Whether every frozen target's stored key is its content key now: what every command
+/// keeps (the guard's invariant). The first target that is not, otherwise.
+pub fn consistent(project: &Project) -> Result<(), FreezeTarget> {
+    for target in project.frozen_targets() {
+        let stored = project.frozen(target).map(|f| f.content.as_str());
+        if content_key(project, target).as_deref() != stored {
+            return Err(target);
+        }
+    }
+    Ok(())
+}
+
+/// The command that freezes `target` as the project is now (its key computed), or `None`
+/// when it is gone. [`freeze_commands`] is what the interface runs.
+pub fn freeze_command(project: &Project, target: FreezeTarget) -> Option<Command> {
+    let content = content_key(project, target)?;
+    let frozen = Some(Frozen { content });
+    Some(match target {
+        FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
+        FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
+    })
+}
+
+/// The command that unfreezes `target`.
+pub fn unfreeze_command(target: FreezeTarget) -> Command {
+    match target {
+        FreezeTarget::Strip(strip) => Command::SetStripFrozen {
+            strip,
+            frozen: None,
+        },
+        FreezeTarget::Track(track) => Command::SetTrackFrozen {
+            track,
+            frozen: None,
+        },
+    }
+}
+
+/// Why a target cannot be frozen as the project is now.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum CannotFreeze {
+    Gone,
+    /// It is frozen already.
+    Frozen,
+    /// A track of its region monitors its input always (*On*): a render cannot hold a live
+    /// input. The track to switch.
+    Monitoring(TrackId),
+}
+
+/// One undo step that freezes `target`: the armed tracks of its region disarmed first (a
+/// take could not land on a frozen track), then the freeze with the key of the project as
+/// it will be.
+pub fn freeze_commands(project: &Project, target: FreezeTarget) -> Result<Command, CannotFreeze> {
+    match target {
+        FreezeTarget::Strip(s) if project.strip(s).is_none() => return Err(CannotFreeze::Gone),
+        FreezeTarget::Track(t) if project.track(t).is_none() => return Err(CannotFreeze::Gone),
+        _ => {}
+    }
+    if project.frozen(target).is_some() {
+        return Err(CannotFreeze::Frozen);
+    }
+    let r = region(project, target);
+    let mut after = project.clone();
+    let mut commands = Vec::new();
+    for t in project.tracks.iter().filter(|t| r.tracks.contains(&t.id)) {
+        if t.input
+            .as_ref()
+            .is_some_and(|i| i.monitor == crate::audio::MonitorMode::On)
+        {
+            return Err(CannotFreeze::Monitoring(t.id));
+        }
+        if t.armed {
+            let c = Command::SetTrackArmed {
+                id: t.id,
+                armed: false,
+            };
+            let _ = c.clone().apply(&mut after);
+            commands.push(c);
+        }
+    }
+    commands.push(freeze_command(&after, target).ok_or(CannotFreeze::Gone)?);
+    Ok(if commands.len() == 1 {
+        commands.pop().expect("one")
+    } else {
+        Command::Batch {
+            label_key: "cmd.freeze".into(),
+            commands,
+        }
+    })
+}
+
+/// Whether `cmd` would be refused by a frozen target, and which (the notice's subject):
+/// for menus that grey what they cannot do.
+pub fn refused(project: &Project, cmd: &Command) -> Option<FreezeTarget> {
+    if !project.any_frozen() {
+        return None;
+    }
+    let mut p = project.clone();
+    match cmd.clone().apply(&mut p) {
+        Err(CommandError::Frozen(t)) => Some(t),
+        _ => None,
+    }
+}
+
+// ---- playing frozen ---------------------------------------------------------------------
+
+/// A frozen target's render as the engine plays it: opened for streaming from disk (ADR
+/// 0050). Opaque here — `cantus-core` does no I/O — like [`crate::SampleData`]'s stream.
+#[derive(Clone)]
+pub struct FrozenAudio {
+    /// The render key it was found by (content, rate, DSP version).
+    pub key: String,
+    /// Its rate and length.
+    pub rate: u32,
+    pub frames: u64,
+    /// The engine's reader.
+    pub reader: crate::StreamRef,
+}
+
+impl std::fmt::Debug for FrozenAudio {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FrozenAudio")
+            .field("key", &self.key)
+            .field("rate", &self.rate)
+            .field("frames", &self.frames)
+            .finish()
+    }
+}
+
+impl PartialEq for FrozenAudio {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key && self.reader == other.reader
+    }
+}
+
+/// A frozen target in a snapshot.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FrozenPlay {
+    /// Its content key.
+    pub content: String,
+    /// Its render, once the engine has attached it; `None` plays live.
+    pub audio: Option<std::sync::Arc<FrozenAudio>>,
+    /// A frozen strip while a track is soloed: everything its render holds is silenced by
+    /// that solo (the tracks inside it cannot be soloed: they are locked), so the strip is
+    /// muted while it plays its render.
+    pub silenced: bool,
+}
+
+impl FrozenPlay {
+    pub fn new(f: &Frozen, silenced: bool) -> Self {
+        FrozenPlay {
+            content: f.content.clone(),
+            audio: None,
+            silenced,
+        }
+    }
+
+    /// Whether it plays its render.
+    pub fn plays(&self) -> bool {
+        self.audio.is_some()
+    }
+}
+
+/// Every frozen state taken out: a project that plays live (pattern mode's audition, a
+/// render that must not read the render it is making).
+pub fn thaw(project: &mut Project) {
+    for s in &mut project.strips {
+        s.frozen = None;
+    }
+    for t in &mut project.tracks {
+        t.frozen = None;
+    }
+}
+
+/// What rests while frozen targets play their renders: the nodes whose sound only reaches a
+/// playing frozen strip — not run, their hosted plug-ins unloaded — and the sources of the
+/// playing frozen targets themselves (their inserts or instrument: not run either).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Dormant {
+    /// Strips that do not run at all.
+    pub strips: BTreeSet<StripId>,
+    /// Tracks that do not run at all.
+    pub tracks: BTreeSet<TrackId>,
+    /// Frozen strips playing their renders: their inserts are not run.
+    pub roots: BTreeSet<StripId>,
+    /// Frozen tracks playing their renders: their instruments are not run.
+    pub sources: BTreeSet<TrackId>,
+}
+
+impl Dormant {
+    /// Whether an insert on `strip` is not run (its hosted plug-in can be unloaded).
+    pub fn effect_rests(&self, strip: StripId) -> bool {
+        self.strips.contains(&strip) || self.roots.contains(&strip)
+    }
+
+    /// Whether `track`'s instrument is not run.
+    pub fn instrument_rests(&self, track: TrackId) -> bool {
+        self.tracks.contains(&track) || self.sources.contains(&track)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.strips.is_empty()
+            && self.tracks.is_empty()
+            && self.roots.is_empty()
+            && self.sources.is_empty()
+    }
+}
+
+/// What rests, given which frozen targets have their render at hand (`plays`). A node in a
+/// playing frozen strip's region rests unless something live needs it: an insert's key or
+/// note source on a strip (or the master) that runs, or what a modulator driving anything
+/// live listens to or hears the notes of — and then what that node gathers runs too.
+pub fn dormant(project: &Project, plays: &dyn Fn(FreezeTarget) -> bool) -> Dormant {
+    let mut d = Dormant::default();
+    if project.pattern_mode {
+        return d;
+    }
+    for target in project.frozen_targets() {
+        if !plays(target) {
+            continue;
+        }
+        match target {
+            FreezeTarget::Strip(root) => {
+                d.roots.insert(root);
+                let r = region(project, target);
+                d.strips.extend(r.strips.iter().filter(|s| **s != root));
+                d.tracks.extend(r.tracks.iter().copied());
+            }
+            FreezeTarget::Track(t) => {
+                d.sources.insert(t);
+            }
+        }
+    }
+    // A playing root inside another's region rests with it (its render is not heard).
+    if d.strips.is_empty() && d.tracks.is_empty() {
+        return d;
+    }
+    loop {
+        let mut wake_strips: Vec<StripId> = Vec::new();
+        let mut wake_tracks: Vec<TrackId> = Vec::new();
+        // Inserts that run: on a running strip that is no playing root, and the master's.
+        let running = project
+            .strips
+            .iter()
+            .filter(|s| !d.strips.contains(&s.id) && !d.roots.contains(&s.id))
+            .flat_map(|s| s.effects.iter())
+            .chain(project.master.effects.iter());
+        for e in running {
+            if let Some(k) = e.sidechain.filter(|k| d.strips.contains(k)) {
+                wake_strips.push(k);
+            }
+            if let Some(t) = e.midi_from.filter(|t| d.tracks.contains(t)) {
+                wake_tracks.push(t);
+            }
+        }
+        // Modulators driving anything that runs.
+        let runs = |target: &AutoTarget| -> bool {
+            match target {
+                AutoTarget::TrackGain(t) | AutoTarget::TrackPan(t) => !d.tracks.contains(t),
+                AutoTarget::Instrument { track, .. }
+                | AutoTarget::Firmus { track, .. }
+                | AutoTarget::PluginInstrument { track, .. } => !d.instrument_rests(*track),
+                AutoTarget::StripGain(s)
+                | AutoTarget::StripPan(s)
+                | AutoTarget::StripWidth(s)
+                | AutoTarget::Send { strip: s, .. } => !d.strips.contains(s),
+                AutoTarget::Effect { effect, .. } | AutoTarget::Plugin { effect, .. } => project
+                    .effect_host(*effect)
+                    .is_some_and(|h| !d.effect_rests(h)),
+                _ => true,
+            }
+        };
+        for (host, m) in project.all_modulators() {
+            if m.muted || !m.routes.iter().any(|r| runs(&r.target)) {
+                continue;
+            }
+            for (listen, notes) in modulator_sources(project, host, m) {
+                let s = match listen {
+                    Some(Listen::Strip(s)) => Some(s),
+                    Some(Listen::Host) => project.host_listen_strip(host),
+                    _ => None,
+                };
+                if let Some(s) = s.filter(|s| d.strips.contains(s)) {
+                    wake_strips.push(s);
+                }
+                if let Some(t) = notes.filter(|t| d.tracks.contains(t)) {
+                    wake_tracks.push(t);
+                }
+            }
+        }
+        if wake_strips.is_empty() && wake_tracks.is_empty() {
+            break;
+        }
+        for s in wake_strips {
+            let r = region(project, FreezeTarget::Strip(s));
+            for x in &r.strips {
+                d.strips.remove(x);
+            }
+            for t in &r.tracks {
+                d.tracks.remove(t);
+            }
+        }
+        for t in wake_tracks {
+            d.tracks.remove(&t);
+        }
+    }
+    d
+}
+
+/// Settle a snapshot whose frozen renders the engine has attached (`FrozenPlay::audio`):
+/// a playing frozen strip loses its chain before the width (its render holds it) and is
+/// muted while its render is silenced by a solo; the nodes that rest are marked so.
+pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
+    let playing_strip = |s: StripId| {
+        snapshot
+            .strips
+            .iter()
+            .find(|x| x.id == s)
+            .and_then(|x| x.frozen.as_ref())
+            .is_some_and(|f| f.plays())
+    };
+    let playing_track = |t: TrackId| {
+        snapshot
+            .tracks
+            .iter()
+            .find(|x| x.id == t)
+            .and_then(|x| x.frozen.as_ref())
+            .is_some_and(|f| f.plays())
+    };
+    let d = dormant(project, &|target| match target {
+        FreezeTarget::Strip(s) => playing_strip(s),
+        FreezeTarget::Track(t) => playing_track(t),
+    });
+    for s in &mut snapshot.strips {
+        s.rest = d.strips.contains(&s.id);
+        if let Some(f) = s.frozen.as_ref().filter(|f| f.plays()) {
+            let silenced = f.silenced;
+            s.effects.clear();
+            s.eq = crate::model::StripEq::default();
+            s.phase_invert = false;
+            s.swap_channels = false;
+            s.fx_enabled = true;
+            s.muted |= silenced;
+        }
+    }
+    for t in &mut snapshot.tracks {
+        t.rest = d.tracks.contains(&t.id);
+    }
+}

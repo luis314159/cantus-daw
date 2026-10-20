@@ -1739,6 +1739,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut tempoed = [0usize; 12];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
+    // Round 29, freeze (ADR 0064): a strip frozen, a track frozen, an unfreeze, and a
+    // command some frozen target refused.
+    let mut froze = [0usize; 4];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1807,7 +1810,17 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 _ => Vec::new(),
             };
             let tempo = tempo_kind(&cmd);
-            let ok = bus.execute(cmd, origin).is_ok();
+            let freezing = freeze_kind(&cmd);
+            let shown: String = format!("{cmd:?}").chars().take(600).collect();
+            let result = bus.execute(cmd, origin);
+            if matches!(result, Err(CommandError::Frozen(_))) {
+                froze[3] += 1;
+            }
+            let ok = result.is_ok();
+            // Whatever was applied or refused, every frozen sound is the one frozen.
+            cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
+                panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown}")
+            });
             // Schema 32: a split comp window's half is the comp's; a copy or a paste is not.
             if ok {
                 for (t, c, half) in &made {
@@ -1840,6 +1853,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = isolation {
                     isolated[k] += 1;
+                }
+                if let Some(k) = freezing {
+                    froze[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1906,6 +1922,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         isolated.iter().all(|n| *n > 0),
         "isolation choices never applied: {isolated:?}"
+    );
+    assert!(
+        froze.iter().all(|n| *n > 0),
+        "freeze commands never applied (or nothing refused): {froze:?}"
     );
     assert!(
         comped.iter().all(|n| *n > 0),
@@ -2785,9 +2805,66 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
-/// Round 29, freeze (ADR 0064): freezing, unfreezing and bouncing in place.
-fn round29_freeze_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, freeze (ADR 0064): freezing and unfreezing a strip or a track, now and then
+/// with a key that is not the target's (refused). Every other arm then runs against the
+/// frozen regions: the driver checks after every command that each frozen target's stored
+/// key is still its content key (the edit lock's invariant).
+fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::freeze::{self, FreezeTarget};
+    let frozen = project.frozen_targets();
+    // A frozen target stays so until this arm runs again (about 48 commands), so the
+    // other arms keep most of the project to themselves.
+    if !frozen.is_empty() {
+        return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
+    }
+    // Half the time an unfreeze of something live (a command that changes nothing).
+    let pick_track = |rng: &mut Lcg| {
+        FreezeTarget::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+    };
+    if rng.below(2) == 0 {
+        return freeze::unfreeze_command(pick_track(rng));
+    }
+    // Mostly a track's source (a small lock), a strip a quarter of the time.
+    let target = if !project.strips.is_empty() && rng.below(4) == 0 {
+        FreezeTarget::Strip(project.strips[rng.below(project.strips.len() as u64) as usize].id)
+    } else {
+        pick_track(rng)
+    };
+    if rng.below(8) == 0 {
+        // A key that is not the target's: refused.
+        let frozen = Some(Frozen {
+            content: "0".repeat(64),
+        });
+        return match target {
+            FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
+            FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
+        };
+    }
+    match freeze::freeze_commands(project, target) {
+        Ok(cmd) => cmd,
+        Err(_) => freeze::unfreeze_command(target),
+    }
+}
+
+/// Which freeze command a generated one is: 0 a strip frozen, 1 a track frozen (alone or
+/// in the batch that disarms first), 2 an unfreeze.
+fn freeze_kind(cmd: &Command) -> Option<usize> {
+    let one = |c: &Command| match c {
+        Command::SetStripFrozen {
+            frozen: Some(_), ..
+        } => Some(0),
+        Command::SetTrackFrozen {
+            frozen: Some(_), ..
+        } => Some(1),
+        Command::SetStripFrozen { frozen: None, .. }
+        | Command::SetTrackFrozen { frozen: None, .. } => Some(2),
+        _ => None,
+    };
+    match cmd {
+        Command::Batch {
+            label_key,
+            commands,
+        } if label_key == "cmd.freeze" => commands.last().and_then(one),
+        c => one(c),
     }
 }

@@ -18,6 +18,7 @@ pub mod command;
 pub mod comp;
 pub mod effect;
 pub mod external;
+pub mod freeze;
 pub mod fx;
 pub mod inst;
 pub mod instrument;
@@ -44,6 +45,7 @@ pub use effect::{
     PluginState, EQ_BANDS, EQ_BAND_FIELDS,
 };
 pub use external::PluginIsolation;
+pub use freeze::{FreezeTarget, Frozen};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,

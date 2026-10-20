@@ -70,6 +70,12 @@ pub struct TrackSnapshot {
     /// The track's input, and whether it is armed: what the engine monitors and records.
     pub input: Option<crate::audio::TrackInput>,
     pub armed: bool,
+    /// Frozen on its own (ADR 0064): its instrument and clips play from this render when
+    /// the engine has attached it (`FrozenPlay::audio`), else live.
+    pub frozen: Option<crate::freeze::FrozenPlay>,
+    /// Resting (ADR 0064): its sound only reaches a frozen strip that plays its render, and
+    /// nothing live needs it — the engine does not run it. Set by the engine's attach.
+    pub rest: bool,
 }
 
 impl TrackSnapshot {
@@ -144,6 +150,12 @@ pub struct StripSnapshot {
     /// existed — or `Pre`, after the inserts, the EQ, width and swap and before the fader
     /// and the pan law. Mute and solo (`muted`) silence both.
     pub sends: Vec<(usize, f32, crate::SendTap)>,
+    /// Frozen (ADR 0064): when the engine has attached its render (`FrozenPlay::audio`)
+    /// the strip gathers nothing and plays the render into its width, pan and fader;
+    /// otherwise it plays live.
+    pub frozen: Option<crate::freeze::FrozenPlay>,
+    /// Resting (ADR 0064): see [`TrackSnapshot::rest`].
+    pub rest: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,6 +222,11 @@ impl Snapshot {
                 audio: compile_audio(project, t),
                 input: t.input.clone(),
                 armed: t.armed,
+                frozen: t
+                    .frozen
+                    .as_ref()
+                    .map(|f| crate::freeze::FrozenPlay::new(f, false)),
+                rest: false,
             })
             .collect::<Vec<_>>();
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
@@ -265,6 +282,12 @@ impl Snapshot {
                                     .map(|i| (i, x.effective_level(), x.tap))
                             })
                             .collect(),
+                        // A track soloed elsewhere silences what the render holds.
+                        frozen: s
+                            .frozen
+                            .as_ref()
+                            .map(|f| crate::freeze::FrozenPlay::new(f, project.any_solo())),
+                        rest: false,
                     })
                     .collect()
             },
