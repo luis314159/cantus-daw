@@ -1143,3 +1143,94 @@ fn the_midi_callback_never_allocates() {
         tap.rearm();
     }
 }
+
+/// Warped playback (round 29's third review, ADR 0061 §12) on the audio thread and the
+/// pool: audio clips playing renders the sample cache laid (`zero_at`), forwards and
+/// reversed, their data swapped while they play (the crossfade armed, carried by the next
+/// install, done), a seek, a loop's wraps and a swap inside the loop, a stop. Not one
+/// allocation, not one free.
+#[test]
+fn warped_playback_never_allocates() {
+    use cantus_core::snapshot::FadeFrom;
+    let mut p = demo_project();
+    let source = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: source,
+        name: "take".into(),
+        path: "C:/nowhere/take.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000 * 8,
+        sha256: None,
+        recorded: false,
+    });
+    let mut t = p.make_track("Take");
+    for (k, reverse) in [(0i64, false), (1, true)] {
+        let mut c = p.make_audio_clip("take", source, Ticks::beats(8 * k), Ticks::beats(8));
+        c.audio.as_mut().unwrap().reverse = reverse;
+        t.clips.push(c);
+    }
+    p.tracks.push(t);
+    let tone = |sign: f32| {
+        let frames: Vec<f32> = (0..48_000 * 8)
+            .map(|i| sign * 0.3 * math::sin(i as f32 * 0.03))
+            .collect();
+        Arc::new(SampleData {
+            stream: None,
+            rate: 48_000,
+            channels: 1,
+            frames: frames.into(),
+        })
+    };
+    let (a, b) = (tone(1.0), tone(-1.0));
+    let snap = |data: &Arc<SampleData>, from: Option<(&Arc<SampleData>, u64)>, looped: bool| {
+        let mut s = Snapshot::compile(&p, 1);
+        let ti = s.tracks.len() - 1;
+        let mut swaps = Vec::new();
+        for (ci, c) in s.tracks[ti].audio.iter_mut().enumerate() {
+            c.data = Some(data.clone());
+            c.zero_at = Some((c.start, 0.0));
+            if let Some((d, id)) = from {
+                c.fade_from = Some(FadeFrom {
+                    data: d.clone(),
+                    id: id + ci as u64,
+                });
+                swaps.push((ti, ci));
+            }
+        }
+        s.swaps = swaps;
+        if looped {
+            s.loop_region = Some(LoopRegion {
+                start: Ticks::beats(8),
+                end: Ticks::beats(10),
+            });
+        }
+        Arc::new(s)
+    };
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(snap(&a, None, false));
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("render", 200);
+        rig.send(snap(&b, Some((&a, 1)), false));
+        rig.play("swap", 10);
+        rig.send(snap(&b, Some((&a, 1)), false));
+        rig.play("carried", 10);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(8))).unwrap();
+        rig.play("seek to the reversed", 100);
+        rig.send(snap(&b, None, true));
+        rig.play("loop", 200);
+        rig.send(snap(&a, Some((&b, 10)), true));
+        rig.play("swap in the loop", 200);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "warped playback allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

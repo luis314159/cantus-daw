@@ -2520,7 +2520,7 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
             let windows: Vec<&Clip> = lane0
                 .iter()
                 .copied()
-                .filter(|c| seam_window(c, held))
+                .filter(|c| seam_window(c, &held))
                 .collect();
             let pair = windows
                 .windows(2)

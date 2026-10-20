@@ -49,6 +49,21 @@ pub fn sample_at_map(map: &Arc<TempoMap>, origin: f64, tick: f64, sample_rate: f
 static DEFAULT_MAP: LazyLock<Arc<TempoMap>> =
     LazyLock::new(|| Arc::new(TempoMap::constant(120.0, TimeSignature::default())));
 
+/// How many swaps' crossfades may run at once: more pieces than this swapping their data
+/// within one `cantus_core::snapshot::SWAP_FADE_S` switch the rest at once.
+pub const SWAPS: usize = 16;
+
+/// A swap's crossfade under way (warp, round 29's third review): the swap
+/// (`FadeFrom::id`), the clock sample it began on, and the old data's frame under the
+/// playhead then, read on forwards (`dir` 1) or backwards (−1, a reversed clip).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Swap {
+    id: u64,
+    at: u64,
+    old: i64,
+    dir: i64,
+}
+
 /// A stretch of held tempo around the origin: its ticks per sample, the ticks it holds
 /// over and the tempo.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -80,9 +95,14 @@ pub struct Transport {
     /// The loop the last wrap came in — its length and its end, in ticks: what the passes
     /// older than the kept ones are counted by, whatever the loop is now (review of fix6).
     wrapped_loop: (f64, f64),
-    /// The sample count when the snapshot playing now was installed (a piece whose data it
-    /// swapped crossfades from there — warp, round 29's second review).
-    swapped: u64,
+    /// The samples played since this transport was made: never re-anchored, so a swap's
+    /// crossfade, counted on it, plays once — never again after a wrap, a seek or a tempo
+    /// edit (warp, round 29's third review).
+    clock: u64,
+    /// The swaps' crossfades under way (an empty slot has id 0).
+    swaps: [Swap; SWAPS],
+    /// The newest swap seen: one carried again (a re-install, a copy) arms nothing.
+    swaps_seen: u64,
 }
 
 impl Transport {
@@ -98,27 +118,87 @@ impl Transport {
             loop_region: None,
             wraps: None,
             wrapped_loop: (0.0, 0.0),
-            swapped: 0,
+            clock: 0,
+            swaps: [Swap::default(); SWAPS],
+            swaps_seen: 0,
         };
         t.anchor(0.0);
         t
     }
 
-    /// A snapshot is installed now: a piece whose data it swapped fades from here.
-    pub fn mark_swap(&mut self) {
-        self.swapped = self.samples;
+    /// The samples played since this transport was made (never re-anchored).
+    pub fn clock(&self) -> u64 {
+        self.clock
     }
 
-    /// Where sample `s` lies in a swap's crossfade (`cantus_core::SWAP_FADE_S` from the
-    /// snapshot's install): `(u, n)` with `u` in [0, 1) — `None` outside it (before the
-    /// install, after a seek, or once it is done).
+    /// A swap's crossfade, samples.
     #[inline]
-    pub fn swap_fade(&self, s: i64) -> Option<f32> {
-        let n = (cantus_core::snapshot::SWAP_FADE_S * self.sample_rate)
+    fn swap_len(&self) -> u64 {
+        (cantus_core::snapshot::SWAP_FADE_S * self.sample_rate)
             .round()
-            .max(1.0) as i64;
-        let d = s - self.swapped as i64;
-        (0..n).contains(&d).then(|| (d as f32 + 0.5) / n as f32)
+            .max(1.0) as u64
+    }
+
+    /// The newest swap this transport has seen ([`Self::see_swap`]).
+    pub fn swaps_seen(&self) -> u64 {
+        self.swaps_seen
+    }
+
+    /// Swap `id` has been seen: carried again, it arms nothing.
+    pub fn see_swap(&mut self, id: u64) {
+        self.swaps_seen = self.swaps_seen.max(id);
+    }
+
+    /// Begin swap `id`'s crossfade on the next sample played: the old data's frame there is
+    /// `old`, read on in direction `dir`. Only while playing (stopped, nothing was heard to
+    /// fade from); the oldest fade gives way when [`SWAPS`] run at once. Allocation-free.
+    pub fn arm_swap(&mut self, id: u64, old: i64, dir: i64) {
+        if !self.playing || id == 0 {
+            return;
+        }
+        let (clock, n) = (self.clock, self.swap_len());
+        let done = |s: &Swap| s.id == 0 || clock.saturating_sub(s.at) >= n;
+        if let Some(slot) = self
+            .swaps
+            .iter_mut()
+            .min_by_key(|s| if done(s) { 0 } else { s.at + 1 })
+        {
+            *slot = Swap {
+                id,
+                at: clock,
+                old,
+                dir,
+            };
+        }
+    }
+
+    /// Swap `id`'s crossfade, if one is under way.
+    #[inline]
+    pub fn swap(&self, id: u64) -> Option<Swap> {
+        if id == 0 {
+            return None;
+        }
+        self.swaps.iter().find(|s| s.id == id).copied()
+    }
+
+    /// Where transport sample `s` (counted as [`Self::samples`] counts) lies in swap
+    /// `w`'s crossfade: `(u, frame)` — `u` in [0, 1), and the old data's frame there —
+    /// `None` before it or once it is done.
+    #[inline]
+    pub fn swap_fade(&self, w: &Swap, s: i64) -> Option<(f32, i64)> {
+        let n = self.swap_len() as i64;
+        let d = self.clock as i64 + (s - self.samples as i64) - w.at as i64;
+        (0..n)
+            .contains(&d)
+            .then(|| ((d as f32 + 0.5) / n as f32, w.old + w.dir * d))
+    }
+
+    /// End every crossfade under way: a seek or a loop's wrap leaves the place the old data
+    /// was read at (the new data plays on from there alone).
+    fn end_swaps(&mut self) {
+        for s in &mut self.swaps {
+            *s = Swap::default();
+        }
     }
 
     /// Count from `tick`: the origin moves there and the sample counter starts again.
@@ -287,6 +367,7 @@ impl Transport {
     pub fn seek(&mut self, tick: Ticks) {
         self.anchor(tick.0 as f64);
         self.wraps = None;
+        self.end_swaps();
     }
 
     /// Move the playhead to the loop's start as a wrap (the loop's end due at a pass's first
@@ -297,6 +378,7 @@ impl Transport {
         let at = self.position_f64();
         self.anchor(start.0 as f64);
         self.count_wrap(at);
+        self.end_swaps();
     }
 
     /// A wrap now, the playhead at `at` (ticks) when it came.
@@ -472,6 +554,7 @@ impl Transport {
         }
         let before = self.samples;
         self.samples += n;
+        self.clock += n;
         if let Some(w) = self.wraps.as_mut() {
             w.since += n;
         }
@@ -495,6 +578,7 @@ impl Transport {
                 };
                 self.anchor(origin);
                 self.count_wrap(at);
+                self.end_swaps();
                 return true;
             }
         }

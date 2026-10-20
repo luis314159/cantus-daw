@@ -133,27 +133,34 @@ pub struct AudioClipSnapshot {
     pub warp: Option<std::sync::Arc<crate::warp::Warp>>,
     /// The source file's own rate (the warp's frames count at it).
     pub source_rate: u32,
-    /// The data's frame 0 is the window's start (a warp's render, its bridge): the engine
-    /// lays it on the window's first sample, whatever the offset and the fine offset say —
-    /// never by cancelling `Transport::clip_zero`'s formula (round 29's second review).
-    pub zero_at_start: bool,
-    /// What this piece played before its data changed (a bridge giving way to its render,
-    /// one drag step's bridge to the next): the engine crossfades from it into the new data
-    /// over the first [`SWAP_FADE_S`] the snapshot plays — never a click (round 29's second
-    /// review).
+    /// Where the data's frame 0 lies, when the sample cache placed it (a warp's render or
+    /// bridge): on tick `.0`, less `.1` frames at the engine's rate — the window's start
+    /// for the render made for this window, or where the content it was made for begins (a
+    /// render of the window before a trim, played while the new one is made: round 29's
+    /// third review). `None`: the unwarped rule (`Transport::clip_zero`, from the content
+    /// origin with the fine offset) — never by cancelling that formula (second review).
+    pub zero_at: Option<(Ticks, f64)>,
+    /// What this piece played before its data or its placement changed (a bridge giving way
+    /// to its render, one drag step's bridge to the next, a render laid again under an
+    /// edited tempo): the engine crossfades from it, laid as the playing snapshot laid it,
+    /// into the new over [`SWAP_FADE_S`] — once per swap, never again after a wrap or a seek
+    /// (round 29's third review).
     pub fade_from: Option<FadeFrom>,
 }
 
 /// How long a piece's old data fades into its new one when a snapshot swaps them, seconds.
 pub const SWAP_FADE_S: f64 = 0.005;
 
-/// A piece's data before a swap, laid as it was (see [`AudioClipSnapshot::fade_from`]).
+/// A piece's data before a swap (see [`AudioClipSnapshot::fade_from`]): the engine finds
+/// where it was laid in the snapshot playing when the swap arrives (the same clip holding
+/// this data), and fades it out from the frame it was playing.
 #[derive(Clone, Debug, PartialEq)]
 pub struct FadeFrom {
     pub data: std::sync::Arc<crate::pads::SampleData>,
-    /// Its fine offset, seconds, and whether its frame 0 is the window's start.
-    pub slip: f64,
-    pub zero_at_start: bool,
+    /// The swap: one id per change (the sample cache counts them up). The snapshots after
+    /// it carry the same id for a moment, so a swap whose snapshot never played (two
+    /// installs in one callback) still fades, and a re-install never starts it again.
+    pub id: u64,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -233,11 +240,15 @@ pub struct Snapshot {
     /// files: nothing plays them, but the sample cache keeps their renders, so a switch
     /// back plays the edits at once (integration review).
     pub kept_pitch: Vec<(String, std::sync::Arc<crate::pitch::PitchEdit>)>,
+    /// The audio clips (track index, clip index) whose `fade_from` the sample cache set:
+    /// what the engine looks at when it installs this snapshot, never every clip.
+    pub swaps: Vec<(usize, usize)>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
         let mut automation = crate::automation::compile::compile(project);
+        let hearing = crate::warp::held_tempo(project);
         let tracks = project
             .tracks
             .iter()
@@ -253,7 +264,7 @@ impl Snapshot {
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
                 assets: Vec::new(),
-                audio: compile_audio(project, t),
+                audio: compile_audio(project, t, &hearing),
                 input: t.input.clone(),
                 armed: t.armed,
                 // Played live while a solo silences part of what made its render (review 2).
@@ -345,6 +356,7 @@ impl Snapshot {
             automation,
             modulators,
             kept_pitch: kept_pitch(project),
+            swaps: Vec::new(),
         }
     }
 
@@ -396,9 +408,12 @@ const MAX_AUDIO_REPEATS: i64 = 4096;
 /// every piece the way it plays a plain clip. The clip's fade in belongs to its first
 /// piece and its fade out to its last (each limited to its piece); the pieces between are
 /// unfaded, so a loop sounds continuous.
-fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
+fn compile_audio(
+    project: &Project,
+    track: &Track,
+    hearing: &crate::warp::Hearing,
+) -> Vec<AudioClipSnapshot> {
     let mut out: Vec<AudioClipSnapshot> = Vec::new();
-    let held = crate::warp::held_tempo(project);
     for c in track.clips.iter().filter(|c| !c.muted && c.lane == 0) {
         let Some(a) = c.audio.as_ref() else {
             continue;
@@ -443,16 +458,16 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
-            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. Under
-            // a tempo that changes, a warp that follows it does not play as the source; one
-            // that does not follow (and does not transpose) does, whatever the tempo map.
+            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. One
+            // that does not follow (and does not transpose) does, whatever the tempo map;
+            // one that follows, where it maps as the unwarped clip over its window.
             warp: a
                 .warp
                 .as_ref()
-                .filter(|_| !crate::warp::plays_source(a, held))
+                .filter(|_| !crate::warp::plays_source(c, hearing))
                 .map(|w| std::sync::Arc::new((**w).clone())),
             source_rate: src.sample_rate,
-            zero_at_start: false,
+            zero_at: None,
             fade_from: None,
         };
         match c.period() {
@@ -467,7 +482,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             _ => out.push(piece(c.start, c.end(), true, true)),
         }
     }
-    seams(project, track, &mut out);
+    seams(project, track, hearing, &mut out);
     out.sort_by_key(|c| c.start);
     out
 }
@@ -476,9 +491,13 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
 /// exactly where another ends, the two overlap by the crossfade, centred on the seam — the
 /// left reads on past it, the right starts before it (each into its own source) — and are
 /// told the stretch they cross over. A looped or reversed window takes no seam.
-fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
-    let held = crate::warp::held_tempo(project);
-    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c, held);
+fn seams(
+    project: &Project,
+    track: &Track,
+    hearing: &crate::warp::Hearing,
+    out: &mut [AudioClipSnapshot],
+) {
+    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c, hearing);
     for right in track.clips.iter().filter(plays) {
         let x = right
             .audio
@@ -491,7 +510,7 @@ fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
             .clips
             .iter()
             .filter(plays)
-            .find(|l| crate::comp::is_seam(l, right, held))
+            .find(|l| crate::comp::is_seam(l, right, hearing))
         else {
             continue;
         };

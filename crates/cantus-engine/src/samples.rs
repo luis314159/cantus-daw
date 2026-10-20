@@ -838,6 +838,13 @@ impl SampleCache {
     pub fn set_warp_budget(&mut self, bytes: usize) {
         self.warp.set_budget(bytes);
     }
+
+    /// Another project replaces the one playing (open, new, an import, an undo of one):
+    /// no warp render of the last one is played on its clips, whose ids start again
+    /// (round 29's third review).
+    pub fn forget_project(&mut self) {
+        self.warp.forget_project();
+    }
 }
 
 /// What `load_audio` says while a source is on the loader thread.

@@ -359,7 +359,7 @@ fn a_first_transposition_plays_its_input_until_its_bridge() {
         cache.attach_audio(&mut s, 48_000);
         let c = &s.tracks[0].audio[0];
         if let Some(d) = c.data.as_ref() {
-            assert!(!c.zero_at_start, "its input, as unwarped");
+            assert!(c.zero_at.is_none(), "its input, as unwarped");
             assert_eq!(d.len_frames(), x.len(), "the source itself");
             break;
         }
@@ -374,7 +374,7 @@ fn a_first_transposition_plays_its_input_until_its_bridge() {
     }
     let mut s = Snapshot::compile(&p, 1);
     cache.attach_audio(&mut s, 48_000);
-    assert!(s.tracks[0].audio[0].zero_at_start, "its render now");
+    assert!(s.tracks[0].audio[0].zero_at.is_some(), "its render now");
 }
 
 /// Finding 23: a foreign compile (a bounce, a freeze, a comp merge) of a project without
@@ -399,7 +399,7 @@ fn a_foreign_compile_never_takes_the_playing_render() {
     let mut s = Snapshot::compile(&p, 1);
     assert!(cache.attach_audio(&mut s, 48_000).is_empty());
     let first = s.tracks[0].audio[0].data.clone().unwrap();
-    assert!(s.tracks[0].audio[0].zero_at_start, "rendered at once");
+    assert!(s.tracks[0].audio[0].zero_at.is_some(), "rendered at once");
     // A foreign project: nothing of this clip in it.
     let mut other = p.clone();
     other.tracks[0].clips.clear();
@@ -460,12 +460,11 @@ fn a_swap_of_a_playing_pieces_data_is_crossfaded() {
             })
         };
         c.data = Some(d(data));
-        c.zero_at_start = true;
-        c.fade_from = from.map(|v| cantus_core::snapshot::FadeFrom {
-            data: d(v),
-            slip: 0.0,
-            zero_at_start: true,
-        });
+        c.zero_at = Some((Ticks::ZERO, 0.0));
+        c.fade_from = from.map(|v| cantus_core::snapshot::FadeFrom { data: d(v), id: 1 });
+        if c.fade_from.is_some() {
+            s.swaps = vec![(0, 0)];
+        }
         Arc::new(s)
     };
     // The bridge, then its render: the same tone, its phase turned half a cycle.

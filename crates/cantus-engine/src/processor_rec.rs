@@ -28,6 +28,7 @@ use crate::messages::{EngineEvent, MAX_BLOCK_FRAMES, MAX_TRACKS};
 use crate::recorder::{RecordMark, MAX_INPUTS};
 use crate::transport::Transport;
 use cantus_core::{AudioClipSnapshot, ClickMode, MonitorMode, Snapshot, TrackId};
+use std::sync::Arc;
 
 /// A track's input as the audio thread reads it, by track slot.
 #[derive(Copy, Clone, Debug, Default)]
@@ -202,6 +203,39 @@ fn sample_of(tick: f64, transport: &Transport) -> i64 {
     transport.sample_of_f64(tick).round() as i64
 }
 
+/// The transport sample clip `c`'s data's frame 0 lands on: where the sample cache placed
+/// a warp's render (`zero_at`), else the unwarped rule — the window's content origin
+/// (`start − offset`, whole ticks) through the tempo map, less the region's fine offset
+/// (ADR 0060 §4, `cantus_core::audio_time`; a tempo edit re-anchors the window,
+/// `tempo::keep`, so what plays at its start never moves). One rounding keeps the halves
+/// of a split seamless, and the fine offset puts a take where it was played to the sample
+/// (ADR 0025 §7). A render is never placed by cancelling that formula (round 29's second
+/// review).
+#[inline]
+fn zero_of(c: &AudioClipSnapshot, transport: &Transport) -> i64 {
+    match c.zero_at {
+        Some((tick, frames)) => sample_of(tick.0 as f64, transport) - frames.round() as i64,
+        None => transport.clip_zero(c.start, c.offset, c.slip),
+    }
+}
+
+/// The file frame clip `c` reads at transport sample `s`, and in which direction it reads
+/// on — `None` outside its window.
+fn frame_read(c: &AudioClipSnapshot, transport: &Transport, s: i64) -> Option<(i64, i64)> {
+    let start = sample_of(c.start.0 as f64, transport);
+    let end = sample_of(c.end.0 as f64, transport);
+    if s < start || s >= end {
+        return None;
+    }
+    let offset = start - zero_of(c, transport);
+    let j = s - start;
+    Some(if c.reverse {
+        (offset + (end - start - 1 - j), -1)
+    } else {
+        (offset + j, 1)
+    })
+}
+
 /// Add every audio clip sounding in this segment into `l`/`r` (`l.len()` frames from the
 /// transport's current sample). `clear` is called once, before the first sample is
 /// added, to clear buffers that hold nothing of this track yet. Returns whether a clip
@@ -243,32 +277,17 @@ pub(super) fn add_clips(
         };
         let stereo = data.channels >= 2;
         let frames = data.len_frames() as i64;
-        // The transport sample the file's frame 0 lands on, rounded once: the window's
-        // content origin (`start − offset`, whole ticks) less the region's fine offset.
-        // One rounding keeps the halves of a split seamless, and the fine offset puts a
-        // take where it was played to the sample (ADR 0025 §7).
-        // Unwarped (ADR 0060 §4, `cantus_core::audio_time`): natural speed from the content
-        // origin through the tempo map (a tempo edit re-anchors the window, `tempo::keep`,
-        // so what plays at its start never moves).
-        // A warp's render starts on the window's first sample, its own frame 0 (round 29's
-        // second review: never by cancelling the formula above).
-        let zero = if c.zero_at_start {
-            start
-        } else {
-            transport.clip_zero(c.start, c.offset, c.slip)
-        };
+        // The transport sample the file's frame 0 lands on, rounded once.
+        let zero = zero_of(c, transport);
         // The file frame under the window's first sample.
         let offset = start - zero;
-        // What the piece played before this snapshot swapped its data, laid as it was: it
-        // fades out over the first samples the snapshot plays while the new fades in.
-        let swap = c.fade_from.as_ref().map(|f| {
-            let z = if f.zero_at_start {
-                start
-            } else {
-                transport.clip_zero(c.start, c.offset, f.slip)
-            };
-            (f.data.as_ref(), start - z)
-        });
+        // What the piece played before a swap, read on from where it was when the swap
+        // came (`Processor::arm_swaps`): it fades out over the swap's first samples while
+        // the new data fades in — once (round 29's third review).
+        let swap = c
+            .fade_from
+            .as_ref()
+            .and_then(|f| transport.swap(f.id).map(|w| (f.data.as_ref(), w)));
         let (s_tick, e_tick) = (c.start.0 as f64, c.end.0 as f64);
         let mut fade_in = transport
             .samples_between(s_tick, s_tick + c.fade_in.0.max(0) as f64)
@@ -333,18 +352,16 @@ pub(super) fn add_clips(
                 let x = data.frames[src as usize];
                 (x, x)
             };
-            if let Some((old, off)) = swap {
-                if let Some(u) = transport.swap_fade(s) {
-                    let at = if c.reverse {
-                        off + (len - 1 - j)
-                    } else {
-                        off + j
-                    };
+            if let Some((old, w)) = &swap {
+                if let Some((u, at)) = transport.swap_fade(w, s) {
                     let (oa, ob) = frame_of(old, at);
-                    let q = std::f32::consts::FRAC_PI_2 * u;
-                    let (gi, go) = (cantus_dsp::math::sin(q), cantus_dsp::math::cos(q));
-                    a = a * gi + oa * go;
-                    b = b * gi + ob * go;
+                    // Equal gain: the two are versions of the same audio (a bridge and its
+                    // render, two drag steps), correlated — an equal-power law would swell
+                    // by up to 3 dB (round 29's third review).
+                    let q = cantus_dsp::math::sin(std::f32::consts::FRAC_PI_2 * u);
+                    let gi = q * q;
+                    a = a * gi + oa * (1.0 - gi);
+                    b = b * gi + ob * (1.0 - gi);
                 }
             }
             let mut g = gain;
@@ -394,6 +411,50 @@ fn frame_of(d: &cantus_core::SampleData, at: i64) -> (f32, f32) {
 }
 
 impl Processor {
+    /// Begin the crossfade of every swap `snapshot` carries that this transport has not
+    /// seen (warp, round 29's third review): from the old data as the playing snapshot lays
+    /// it (the same clip holding that data), from the frame it plays under the playhead —
+    /// under the map playing now, so it is called before the snapshot's map is taken (a
+    /// render laid again under an edited tempo crossfades too). A swap carried again (two
+    /// installs in one callback, a copy with the previous zones) keeps the fade it began.
+    /// Only the clips the sample cache listed are looked at; allocation-free.
+    pub(super) fn arm_swaps(&mut self, snapshot: &Snapshot) {
+        let seen = self.transport.swaps_seen();
+        let s = self.transport.samples() as i64;
+        for &(t, i) in &snapshot.swaps {
+            let Some((track, c)) = snapshot
+                .tracks
+                .get(t)
+                .and_then(|t| t.audio.get(i).map(|c| (t.id, c)))
+            else {
+                continue;
+            };
+            let Some(f) = c.fade_from.as_ref().filter(|f| f.id > seen) else {
+                continue;
+            };
+            // From silence (the piece played nothing): a fade in.
+            let silence = f.data.frames.is_empty().then_some((0, 1));
+            let old = silence.or_else(|| {
+                self.snapshot
+                    .as_deref()
+                    .and_then(|o| o.tracks.iter().find(|x| x.id == track))
+                    .and_then(|o| {
+                        o.audio
+                            .iter()
+                            .filter(|o| {
+                                o.clip == c.clip
+                                    && o.data.as_ref().is_some_and(|d| Arc::ptr_eq(d, &f.data))
+                            })
+                            .find_map(|o| frame_read(o, &self.transport, s))
+                    })
+            });
+            if let Some((at, dir)) = old {
+                self.transport.arm_swap(f.id, at, dir);
+            }
+            self.transport.see_swap(f.id);
+        }
+    }
+
     /// Copy what the snapshot says about inputs and the click into the audio thread's
     /// tables. After `track_to_slot` is built; allocates nothing.
     pub(super) fn live_install(&mut self, snapshot: &Snapshot) {

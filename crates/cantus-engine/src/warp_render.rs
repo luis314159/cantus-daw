@@ -5,7 +5,7 @@
 //! **Layout.** The render covers the clip's window only — frame `k` is heard `k` samples
 //! after the window's start, `start` on the timeline — so the engine plays it as it plays
 //! any source (`add_clips`, one frame a sample) with the window's start as its frame 0 (the
-//! sample cache marks it `zero_at_start`). Output frame `k` is song time
+//! sample cache sets `zero_at` there). Output frame `k` is song time
 //! `seconds(start) + k / rate`, which is timeline tick `T` through the tempo map, content
 //! tick `T − start + offset`, and source frame `warp.frame_at(that)`. A loop's pieces share
 //! one render wherever the tempo over them is the same (the key holds the map's `span_key`
@@ -84,6 +84,11 @@ impl Plan {
     /// start of a warp that does not follow the tempo: what the unwarped rule reads there
     /// (`audio_time::frame_at`, from the content origin with the fine offset).
     pub fn natural_start(&self) -> f64 {
+        self.natural_frame().round()
+    }
+
+    /// The source frame under the window's start, unrounded (see [`Self::natural_start`]).
+    pub fn natural_frame(&self) -> f64 {
         audio_time::frame_at(
             &self.map,
             self.start,
@@ -92,7 +97,6 @@ impl Plan {
             self.source_rate.max(1) as f64,
             self.start.0 as f64,
         )
-        .round()
     }
 
     /// The input frame (at `rate`) output frame `k` reads.
@@ -322,6 +326,17 @@ fn fnv(h: &mut u64, bytes: &[u8]) {
 /// length, the tempo over the window, the rates — any change makes a new render, and two
 /// windows that would render the same (a loop's pieces under one tempo) share one.
 pub fn key(plan: &Plan) -> u64 {
+    key_with(plan, true)
+}
+
+/// A non-following warp's key without its start frame: what two renders of one window
+/// whose start frame a tempo edit's re-anchoring nudged share (`warp_attach` keeps the
+/// render it plays then — round 29's third review).
+pub fn natural_base(plan: &Plan) -> u64 {
+    key_with(plan, false)
+}
+
+fn key_with(plan: &Plan, at: bool) -> u64 {
     let w = &plan.warp;
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     fnv(&mut h, plan.path.to_string_lossy().as_bytes());
@@ -335,7 +350,9 @@ pub fn key(plan: &Plan) -> u64 {
     fnv(&mut h, &[w.formants as u8, w.follow as u8]);
     if !w.follow {
         // Natural speed: the frame under the window's start and the window's length.
-        fnv(&mut h, &plan.natural_start().to_bits().to_le_bytes());
+        if at {
+            fnv(&mut h, &plan.natural_start().to_bits().to_le_bytes());
+        }
         fnv(&mut h, &(plan.len() as u64).to_le_bytes());
         return h;
     }

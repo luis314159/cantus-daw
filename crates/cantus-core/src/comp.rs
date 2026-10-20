@@ -120,18 +120,17 @@ pub(crate) fn apply_set_comps(
 
 /// Whether a clip can be one side of a comp seam (ADR 0058): a playing-lane audio window
 /// with a length, neither reversed, looping nor warped (ADR 0061: a warped window plays a
-/// render, whose seams would need the warp map; a warp that plays the source as it is in a
-/// project holding `held` — [`crate::warp::plays_source`], the snapshot's own test — is no
+/// render, whose seams would need the warp map; a warp that plays the source as it is,
+/// heard as `held` says — [`crate::warp::plays_source`], the snapshot's own test — is no
 /// warp here) — the windows the engine crossfades. One test for the snapshot, the seam
 /// command and the arrangement, so none of them shows or moves a seam another does not
 /// play.
-pub fn seam_window(c: &Clip, held: Option<f64>) -> bool {
+pub fn seam_window(c: &Clip, held: impl AsRef<crate::warp::Hearing>) -> bool {
     c.lane == 0
         && c.length > Ticks::ZERO
         && c.period().is_none_or(|p| p >= c.length)
-        && c.audio
-            .as_ref()
-            .is_some_and(|a| !a.reverse && crate::warp::plays_source(a, held))
+        && c.audio.as_ref().is_some_and(|a| !a.reverse)
+        && crate::warp::plays_source(c, held)
 }
 
 /// Whether `left` and `right` make a comp seam (ADR 0058): two seam windows
@@ -140,7 +139,8 @@ pub fn seam_window(c: &Clip, held: Option<f64>) -> bool {
 /// the left stops), which plays as one and has nothing to cross (integration review: a
 /// split carried the window's crossfade and added a +3 dB swell at the cut). One test for
 /// the snapshot, the seam command and the arrangement.
-pub fn is_seam(left: &Clip, right: &Clip, held: Option<f64>) -> bool {
+pub fn is_seam(left: &Clip, right: &Clip, held: impl AsRef<crate::warp::Hearing>) -> bool {
+    let held = held.as_ref();
     let continues = match (&left.audio, &right.audio) {
         (Some(a), Some(b)) => a.source == b.source && right.offset == left.offset + left.length,
         _ => false,
@@ -170,7 +170,7 @@ pub(crate) fn apply_seam(
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    if !is_seam(&l, &r, held) {
+    if !is_seam(&l, &r, &held) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {

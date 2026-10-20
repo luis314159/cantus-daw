@@ -14,6 +14,27 @@ fn data(frames: usize) -> SampleData {
 
 const C: ClipId = ClipId(7);
 
+/// Key `k` was made from `a.wav` (a following warp's, content from tick 0).
+fn made(r: &mut Renders, k: u64) {
+    made_from(r, k, "a.wav");
+}
+
+fn made_from(r: &mut Renders, k: u64, path: &str) {
+    r.made.insert(
+        k,
+        Made {
+            path: PathBuf::from(path),
+            follow: true,
+            offset: Ticks::ZERO,
+            head: 0.0,
+        },
+    );
+}
+
+fn a() -> &'static Path {
+    Path::new("a.wav")
+}
+
 /// Findings 20: a final asked for at an earlier drag step arriving after the bridges of
 /// later steps is filed behind them — the piece falls back on the newest asked.
 #[test]
@@ -24,6 +45,7 @@ fn a_late_final_never_comes_back_over_a_newer_bridge() {
     for (g, k) in [(1, 1u64), (2, 2), (3, 3)] {
         r.generation = g;
         r.stamp.insert(k, g);
+        made(&mut r, k);
     }
     r.put_bridge(2, data(10));
     r.remember(p, 2);
@@ -32,7 +54,7 @@ fn a_late_final_never_comes_back_over_a_newer_bridge() {
     // K1's final lands last.
     r.put_done(1, data(10));
     r.remember(p, 1);
-    assert_eq!(r.fallback(p, 48_000).map(|x| x.0), Some(3));
+    assert_eq!(r.fallback(p, 48_000, a()).map(|x| x.0), Some(3));
     assert_eq!(r.recent[&p], vec![3, 2, 1]);
 }
 
@@ -42,17 +64,19 @@ fn a_late_final_never_comes_back_over_a_newer_bridge() {
 fn a_piece_moved_back_falls_back_on_its_clips_newest() {
     let mut r = Renders::default();
     let (s1, s2) = ((C, Ticks::ZERO), (C, Ticks::beats(8)));
+    made(&mut r, 1);
+    made(&mut r, 2);
     r.stamp.insert(1, 1);
     r.put_done(1, data(10));
     r.remember(s1, 1);
     r.stamp.insert(2, 5);
     r.put_done(2, data(10));
     r.remember(s2, 2);
-    assert_eq!(r.fallback(s1, 48_000).map(|x| x.0), Some(2));
+    assert_eq!(r.fallback(s1, 48_000, a()).map(|x| x.0), Some(2));
     // A loop's pieces asked together: each its own.
     r.stamp.insert(1, 5);
-    assert_eq!(r.fallback(s1, 48_000).map(|x| x.0), Some(1));
-    assert_eq!(r.fallback(s2, 48_000).map(|x| x.0), Some(2));
+    assert_eq!(r.fallback(s1, 48_000, a()).map(|x| x.0), Some(1));
+    assert_eq!(r.fallback(s2, 48_000, a()).map(|x| x.0), Some(2));
 }
 
 /// Findings 23, 42: past the budget the oldest asked go first; what plays (protected) is
@@ -87,4 +111,72 @@ fn the_budget_keeps_what_plays_and_the_newest() {
     drop(playing);
     r.sweep();
     assert!(r.graveyard.is_empty());
+}
+
+/// Round 29's third review (finding 10): clip ids start again in every project, so a
+/// render held for another file's clip of the same id is never a fallback — and another
+/// project forgets every piece's history.
+#[test]
+fn a_fallback_is_only_ever_made_from_the_pieces_own_file() {
+    let mut r = Renders::default();
+    let p = (C, Ticks::ZERO);
+    r.stamp.insert(1, 1);
+    made_from(&mut r, 1, "project-a/vocal.wav");
+    r.put_done(1, data(10));
+    r.remember(p, 1);
+    assert_eq!(
+        r.fallback(p, 48_000, Path::new("project-b/drums.wav")),
+        None
+    );
+    assert!(r
+        .fallback(p, 48_000, Path::new("project-a/vocal.wav"))
+        .is_some());
+    r.forget_project();
+    assert_eq!(
+        r.fallback(p, 48_000, Path::new("project-a/vocal.wav")),
+        None
+    );
+    assert!(
+        r.done.contains_key(&1),
+        "the render itself stays, by its key"
+    );
+}
+
+/// Finding 14: a fallback made for the window before a left trim is laid where the
+/// content it was made for begins — a following warp's by content ticks, a non-following
+/// one's by source frames.
+#[test]
+fn a_fallback_is_laid_where_its_content_begins() {
+    let mut r = Renders::default();
+    made(&mut r, 1);
+    let now = Made {
+        path: PathBuf::from("a.wav"),
+        follow: true,
+        offset: Ticks::beats(4),
+        head: 0.0,
+    };
+    // Trimmed by four beats: the old render's frame 0 lies four beats before the start.
+    assert_eq!(
+        r.zero_of(1, &now, Ticks::beats(12), 48_000, 48_000),
+        (Ticks::beats(8), 0.0)
+    );
+    r.made.insert(
+        2,
+        Made {
+            path: PathBuf::from("a.wav"),
+            follow: false,
+            offset: Ticks::ZERO,
+            head: 1_000.0,
+        },
+    );
+    let now = Made {
+        follow: false,
+        head: 25_000.0,
+        ..now
+    };
+    // A non-following window 24 000 source frames on (at 24 kHz), played at 48 kHz.
+    assert_eq!(
+        r.zero_of(2, &now, Ticks::beats(12), 48_000, 24_000),
+        (Ticks::beats(12), 48_000.0)
+    );
 }
