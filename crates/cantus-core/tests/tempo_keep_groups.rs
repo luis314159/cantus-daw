@@ -481,3 +481,74 @@ fn a_widened_tempo_gesture_redoes_what_it_did() {
     once.execute(both(0.3), Origin::User).unwrap();
     assert!(once.project().tracks == done.tracks, "one edit");
 }
+
+/// Review 5 (findings 0, 9, 20): a take cut in three whose middle piece is linked (a copy
+/// made with *Link copies* on) through two tempo edits, the first leaving a rest: the
+/// linked piece, moved by whole ticks, stays in its take, and every seam plays on within
+/// half a tick (and a frame).
+#[test]
+fn a_linked_piece_stays_in_its_take_through_two_edits() {
+    let w = [
+        (8 * B, 24 * B, 8 * B, 1, false),
+        (8 * B, 8 * B, 8 * B, 0, false),
+        (16 * B, 8 * B, 16 * B, 0, false),
+        (24 * B, 8 * B, 24 * B, 0, false),
+    ];
+    let (mut bus, t, ids) = song(vec![], &w);
+    bus.execute(
+        Command::SetClipLink {
+            track: t,
+            clip: ids[2],
+            link: Some(LinkId(9_999)),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let first = |bus: &CommandBus| {
+        let c = clip(bus, t, ids[1]);
+        frame(&bus.project().tempo_map(), &c, c.start.0 as f64)
+    };
+    let at = first(&bus);
+    for bpm in [121.3, 128.0] {
+        run(&mut bus, Command::SetTempo { bpm });
+        let map = bus.project().tempo_map();
+        assert!((first(&bus) - at).abs() <= 0.5, "{bpm}: the take's entry");
+        let half_tick = 0.5 * 60.0 / (bpm * 960.0) * 48_000.0;
+        for pair in [(ids[1], ids[2]), (ids[2], ids[3])] {
+            let (l, r) = (clip(&bus, t, pair.0), clip(&bus, t, pair.1));
+            let (x, y) = (
+                frame(&map, &l, l.end().0 as f64),
+                frame(&map, &r, r.start.0 as f64),
+            );
+            assert!(
+                (x - y).abs() <= half_tick + 1.0,
+                "{bpm}: the seam at {:?} plays {x} then {y}",
+                l.end()
+            );
+        }
+    }
+}
+
+/// Review 5 (finding 12): a top-bar drag over a take sliced into 2 000 windows (one
+/// track, one origin) — sixty merged frames, every window re-anchored each frame — stays
+/// within a frame's budget a frame, best of three.
+#[test]
+fn a_drag_over_two_thousand_windows_keeps_to_its_budget() {
+    let w: Vec<W> = (0..2000)
+        .map(|i| (64 * B + i * 240, 240, 64 * B + i * 240, 0, false))
+        .collect();
+    let mut best = f64::MAX;
+    for _ in 0..3 {
+        let (mut bus, _, _) = song(vec![], &w);
+        let key = MergeKey::of(&"tempo");
+        let t0 = std::time::Instant::now();
+        for i in 1..=60 {
+            let bpm = 120.0 + 0.37 * f64::from(i);
+            bus.execute_merging(Command::SetTempo { bpm }, Origin::User, key)
+                .unwrap();
+        }
+        best = best.min(t0.elapsed().as_secs_f64() / 60.0);
+    }
+    println!("a drag frame over 2 000 windows: {:.2} ms", best * 1e3);
+    assert!(best < 0.003, "{:.2} ms a frame", best * 1e3);
+}

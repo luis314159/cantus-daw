@@ -227,6 +227,12 @@ pub(super) fn input(
     lane: Rect,
     s: &Style,
 ) {
+    // A drag released with its tab out of view is never told it stopped: it ends here,
+    // its grab and its undo step with it (review 5).
+    if app.arrangement.markers.grab.is_some() && !ui.input(|i| i.pointer.primary_down()) {
+        app.arrangement.markers.grab = None;
+        app.end_gesture();
+    }
     if lane.height() <= 0.0 {
         return;
     }

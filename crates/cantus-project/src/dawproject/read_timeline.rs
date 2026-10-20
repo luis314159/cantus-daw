@@ -138,7 +138,9 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         }
         .at(&map, v)
     };
-    walk(arr, &ctx, &map, project, &mut out, &mut counts);
+    // The metre before the clips (review 5): notes straight on a lane get a clip on the
+    // file's bar lines through its metre changes, so the map the clips are read with holds
+    // them (times are placed through the tempo alone either way).
     if let Some(t) = child(arr, "TimeSignatureAutomation") {
         let secs = unit(t);
         for p in t
@@ -152,16 +154,35 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
             ) else {
                 continue;
             };
-            out.metres.push((ctx_at(secs, time), n as u8, d as u8));
+            let at = ctx_at(secs, time);
+            if at > cantus_core::tempo::HORIZON {
+                report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                continue;
+            }
+            out.metres.push((at, n as u8, d as u8));
         }
     }
+    let metres = super::read::metre_list(&out.metres, project.time_signature);
+    let map = TempoMap::new(
+        out.tempo.first().map_or(bpm, |p| p.bpm),
+        metres
+            .first()
+            .map_or(project.time_signature, |m| m.signature),
+        &out.tempo,
+        &metres,
+    );
+    walk(arr, &ctx, &map, &mut out, &mut counts);
     if let Some(m) = child(arr, "Markers") {
         let secs = unit(m);
         for k in m.children().filter(|c| c.has_tag_name("Marker")) {
             if let Some(time) = attr_f64(k, "time") {
                 let name = attr(k, "name").unwrap_or("").to_string();
-                out.markers
-                    .push((ctx_at(secs, time), name, parse_color(attr(k, "color"))));
+                let at = ctx_at(secs, time);
+                if at > cantus_core::tempo::HORIZON {
+                    report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                    continue;
+                }
+                out.markers.push((at, name, parse_color(attr(k, "color"))));
             }
         }
     }
@@ -189,14 +210,7 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     out
 }
 
-fn walk(
-    n: Node,
-    ctx: &Ctx,
-    map: &TempoMap,
-    project: &Project,
-    out: &mut Timeline,
-    counts: &mut Counts,
-) {
+fn walk(n: Node, ctx: &Ctx, map: &TempoMap, out: &mut Timeline, counts: &mut Counts) {
     for c in n.children().filter(|c| c.is_element()) {
         let mut cx = ctx.clone();
         if let Some(t) = attr(c, "track") {
@@ -207,7 +221,7 @@ fn walk(
         }
         counts.in_seconds |= cx.seconds;
         match c.tag_name().name() {
-            "Lanes" => walk(c, &cx, map, project, out, counts),
+            "Lanes" => walk(c, &cx, map, out, counts),
             "Clips" => {
                 for clip in c.children().filter(|x| x.has_tag_name("Clip")) {
                     if let Some(data) = clip_of(clip, &cx, map, counts) {
@@ -225,23 +239,16 @@ fn walk(
                 if notes.is_empty() {
                     continue;
                 }
-                let bar = project.time_signature.ticks_per_bar().max(Ticks(1));
+                let bar = map.bar_len_at(Ticks::ZERO).max(Ticks(1));
                 let first = notes.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
                 let last = notes
                     .iter()
                     .map(|n| n.start + n.length)
                     .max()
                     .unwrap_or(bar);
-                // On the file's bar lines, through its metre changes (review 4).
-                let (from, to) = if map.is_one_metre() {
-                    let from = first.snap_floor(bar);
-                    (
-                        from,
-                        Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar),
-                    )
-                } else {
-                    map.bars_around(first, last)
-                };
+                // On the file's bar lines, through its metre changes (reviews 4–5): with one
+                // metre, whole bars of it from 0, as before.
+                let (from, to) = map.bars_around(first.max(Ticks::ZERO), last);
                 out.clips.entry(t.clone()).or_default().push(ClipData {
                     name: String::new(),
                     color: None,
@@ -524,9 +531,15 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
         report.info("tempo.report.seconds_ramp", Vec::new());
     }
     let mut out: Vec<TempoPoint> = Vec::with_capacity(raw.len() + 1);
+    let mut far = 0usize;
     for (&(_, bpm, ramp), &tick) in raw.iter().zip(&ticks) {
         let tick = Ticks(tick.round() as i64);
         if tick.0 < 0 {
+            continue;
+        }
+        // Past the song's horizon: left out, and said (review 5).
+        if tick > cantus_core::tempo::HORIZON {
+            far += 1;
             continue;
         }
         if let Some(earlier) = out.pop_if(|l| l.tick == tick) {
@@ -543,6 +556,9 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
             }
         }
         out.push(TempoPoint { tick, bpm, ramp });
+    }
+    if far > 0 {
+        report.dropped("tempo.report.too_far", vec![("n", far.to_string())]);
     }
     if out.is_empty() {
         return out;

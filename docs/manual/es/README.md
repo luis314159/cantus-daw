@@ -557,10 +557,12 @@ nombre (ronda 29).
   divídelo, recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba;
   mueve o copia clips a otro lugar y cada uno cae en su propio compás con la misma parte
   de su archivo (los trozos de una misma toma movidos juntos siguen tocándose). Un cambio
-  de tempo nunca cambia dónde entra una toma, y los trozos de una toma se mueven juntos,
-  así que una división nunca salta; un cambio *dentro* de una toma deja que el resto siga
-  a su propia velocidad — aplícale warp para que siga los compases. Un clip invertido
-  conserva el instante en que termina. El tempo no cambia mientras se graba una toma.
+  de tempo nunca cambia lo que suena donde entra una toma, y los trozos de una toma se
+  mueven juntos, así que una división nunca salta; un cambio *dentro* de una toma deja
+  que el resto siga a su propia velocidad — aplícale warp para que siga los compases. Un
+  clip invertido conserva el punto de su archivo que suena en su final. Mientras se graba
+  audio el tempo no cambia — tampoco al deshacer o rehacer un cambio de tempo; grabar
+  notas lo deja libre.
 - **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
   de tempo cada semicorchea, y todos los marcadores, también los del final) y al importar —
   con *Poner el proyecto a … BPM en …* se conservan los cambios de tempo, de compás y los

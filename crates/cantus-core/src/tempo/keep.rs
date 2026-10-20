@@ -73,6 +73,9 @@ enum Where {
     Comp(usize, usize),
 }
 
+/// A track's windows re-anchored: each clip, its new offset and fine offset.
+type Anchors = Vec<(ClipId, Ticks, i32)>;
+
 /// What a tempo edit has to keep, taken before it runs.
 #[derive(Clone, Debug)]
 pub struct Kept {
@@ -170,6 +173,20 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
     }
     // One line a take: the same file, the same direction, the same line within a frame.
     let line: Vec<f64> = windows.iter().map(|w| line_of(&map, w)).collect();
+    // A linked window is re-anchored by whole ticks (its fine offset is its group's), so
+    // it sits up to half a tick off its take's line: within that of the line it is still
+    // the take's (review 5: one edit left it out, and the next tore the take at its edges).
+    let slack: Vec<f64> = windows
+        .iter()
+        .map(|w| {
+            if w.link.is_some() {
+                let e = w.entry().0 as f64;
+                0.5 * map.seconds_between_f64(e, e + 1.0) * w.rate
+            } else {
+                0.0
+            }
+        })
+        .collect();
     let mut order: Vec<usize> = (0..windows.len()).collect();
     order.sort_by(|&a, &b| {
         let (x, y) = (&windows[a], &windows[b]);
@@ -181,7 +198,9 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
     for i in order {
         let joins = lines.last().and_then(|l| l.last()).is_some_and(|&p| {
             let (x, y) = (&windows[p], &windows[i]);
-            x.source == y.source && x.reverse == y.reverse && (line[i] - line[p]).abs() <= 1.0
+            x.source == y.source
+                && x.reverse == y.reverse
+                && (line[i] - line[p]).abs() <= 1.0 + slack[i].max(slack[p])
         });
         match lines.last_mut() {
             Some(l) if joins => l.push(i),
@@ -320,29 +339,23 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
         }
     }
     let mut out = Vec::new();
-    // Alternate comps' windows: one replacement of the track's comps each.
+    // Clips: one re-anchoring of each track's windows (review 5: a command a window, each
+    // looking its clip up, was quadratic in a sliced take). Alternate comps' windows: one
+    // replacement of the track's comps each.
+    let mut anchors: Vec<(TrackId, Anchors)> = Vec::new();
     let mut comps: Vec<(TrackId, Vec<crate::comp::Comp>)> = Vec::new();
     for (i, offset, slip) in moves {
         let w = &kept.windows[i];
-        let c = now(w).expect("a live window");
         match w.at {
             Where::Clip(id) => {
-                if offset != w.offset {
-                    out.push(Command::SetClipOffset {
-                        track: w.track,
-                        clip: id,
-                        offset,
-                    });
-                }
-                if slip != w.slip {
-                    let mut a = c.audio.clone().expect("an audio window");
-                    a.slip_frames = slip;
-                    out.push(Command::SetClipAudio {
-                        track: w.track,
-                        clip: id,
-                        audio: Some(a),
-                    });
-                }
+                let at = match anchors.iter().position(|(t, _)| *t == w.track) {
+                    Some(k) => k,
+                    None => {
+                        anchors.push((w.track, Vec::new()));
+                        anchors.len() - 1
+                    }
+                };
+                anchors[at].1.push((id, offset, slip));
             }
             Where::Comp(ci, j) => {
                 let at = match comps.iter().position(|(t, _)| *t == w.track) {
@@ -360,6 +373,9 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
                 }
             }
         }
+    }
+    for (track, anchors) in anchors {
+        out.push(Command::SetClipAnchors { track, anchors });
     }
     for (track, list) in comps {
         let active = project.track(track).map_or(0, |t| t.active_comp);

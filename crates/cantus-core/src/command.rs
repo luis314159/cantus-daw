@@ -583,6 +583,15 @@ pub enum Command {
         clip: ClipId,
         offset: Ticks,
     },
+    /// Re-anchor audio windows of one track at once (ADR 0060 §4, review 5): each its
+    /// offset and fine offset (`slip_frames`) — what a tempo edit's window fix writes, in
+    /// one pass over the track (a command a window looked each clip up again: quadratic in
+    /// a sliced take). Refused for a clip that is missing or not audio, and for a fine
+    /// offset changed on a linked clip (it is its group's). The inverse puts them back.
+    SetClipAnchors {
+        track: TrackId,
+        anchors: Vec<(ClipId, Ticks, i32)>,
+    },
     /// Turn the clip's repeat on (`Some(period)`) or off (`None`).
     SetClipLoop {
         track: TrackId,
@@ -881,6 +890,7 @@ impl Command {
             SetClipBounds { .. } => "cmd.set_clip_bounds",
             SetClipName { .. } => "cmd.set_clip_name",
             SetClipOffset { .. } => "cmd.set_clip_offset",
+            SetClipAnchors { .. } => "cmd.set_clip_anchors",
             SetClipLoop { .. } => "cmd.set_clip_loop",
             SetClipMute { .. } => "cmd.set_clip_mute",
             SetClipColor { .. } => "cmd.set_clip_color",
@@ -1190,6 +1200,17 @@ impl Command {
                     track: b, clip: cb, ..
                 },
             ) => a == b && ca == cb,
+            // The same windows of one track re-anchored again.
+            (
+                SetClipAnchors {
+                    track: a,
+                    anchors: xa,
+                },
+                SetClipAnchors {
+                    track: b,
+                    anchors: xb,
+                },
+            ) => a == b && xa.len() == xb.len() && xa.iter().zip(xb).all(|(x, y)| x.0 == y.0),
             (
                 SetNotes {
                     track: a,
@@ -2322,6 +2343,42 @@ impl Command {
                     track,
                     clip,
                     offset: old,
+                })
+            }
+            SetClipAnchors { track, anchors } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let at: std::collections::HashMap<ClipId, usize> =
+                    t.clips.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+                // Every window checked before any is moved: all or nothing.
+                let mut places = Vec::with_capacity(anchors.len());
+                for &(clip, _, slip) in &anchors {
+                    let i = *at.get(&clip).ok_or(CommandError::ClipNotFound(clip))?;
+                    let c = &t.clips[i];
+                    let a = c
+                        .audio
+                        .as_ref()
+                        .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    if c.link.is_some() && a.slip_frames != slip {
+                        return Err(CommandError::InvalidValue(
+                            "a linked clip's fine offset is its group's".into(),
+                        ));
+                    }
+                    places.push(i);
+                }
+                let mut old = Vec::with_capacity(anchors.len());
+                for (&(clip, offset, slip), i) in anchors.iter().zip(places) {
+                    let c = &mut t.clips[i];
+                    let a = c.audio.as_mut().expect("checked above");
+                    old.push((clip, c.offset, a.slip_frames));
+                    c.offset = offset;
+                    a.slip_frames = slip;
+                }
+                old.reverse();
+                Ok(SetClipAnchors {
+                    track,
+                    anchors: old,
                 })
             }
             SetClipLoop {

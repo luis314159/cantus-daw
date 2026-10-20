@@ -114,10 +114,15 @@ pub(crate) fn label(ui: &mut Ui, key: &'static str, s: &Style) {
 }
 
 pub(crate) fn band_row(ui: &mut Ui, key: &'static str, s: &Style) {
+    band_row_src(ui, Src::Key(key), s);
+}
+
+/// [`band_row`] with its words given.
+pub(crate) fn band_row_src(ui: &mut Ui, title: Src<'_>, s: &Style) {
     let w = (LABEL_W + CONTROL_W + 8.0) * s.k;
     let (r, _) = ui.allocate_exact_size(vec2(w, s.s(band::BAND)), Sense::hover());
     with_brush(ui.painter(), |b| {
-        band::section(b, r, s, State::REST, Src::Key(key), None, false);
+        band::section(b, r, s, State::REST, title, None, false);
     });
 }
 

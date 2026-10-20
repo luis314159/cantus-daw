@@ -516,10 +516,11 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
   from the point of its file at its start: split it, trim it or comp it anywhere and every
   piece plays on where it was; move or copy clips elsewhere and each lands on its own bar,
   playing the same part of its file (the pieces of one take moved together still meet).
-  A tempo change never moves where a take comes in, and the pieces of one take move
-  together, so a split never jumps; a change *inside* a take lets the rest of it run on
-  at its own speed — warp it to keep it on its bars. A reversed clip keeps the moment it
-  lands on, at its end. The tempo stays as it is while a take records.
+  A tempo change never changes what a take plays where it comes in, and the pieces of one
+  take move together, so a split never jumps; a change *inside* a take lets the rest of
+  it run on at its own speed — warp it to keep it on its bars. A reversed clip keeps the
+  point of its file it lands on, at its end. While audio records the tempo stays as it
+  is — undo and redo of a tempo change too; recording notes leaves it free.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
   note, and every marker, those at the end too) and in — importing with *Set the project
   to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's

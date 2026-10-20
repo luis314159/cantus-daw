@@ -1740,7 +1740,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // The tempo track, metre and markers (ADR 0060): one count per command kind.
     let mut kept_frames = 0usize;
     let mut gestures = 0usize;
-    let mut tempoed = [0usize; 12];
+    let mut tempoed = [0usize; 13];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
     // Round 29, freeze (ADR 0064): a strip frozen, a track frozen, an unfreeze, and a
@@ -2731,15 +2731,35 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let map = project.tempo_map();
     let changes = project.metre_changes.clone();
     let markers = project.markers.clone();
+    // Review 5: the audio windows of a track, for `SetClipAnchors`.
+    // (track, [(clip, offset, slip, linked)])
+    type Windows = Vec<(ClipId, Ticks, i32, bool)>;
+    let audio: Vec<(TrackId, Windows)> = project
+        .tracks
+        .iter()
+        .map(|t| {
+            let w = t
+                .clips
+                .iter()
+                .filter_map(|c| {
+                    let a = c.audio.as_ref()?;
+                    Some((c.id, c.offset, a.slip_frames, c.link.is_some()))
+                })
+                .collect::<Vec<_>>();
+            (t.id, w)
+        })
+        .filter(|(_, w)| !w.is_empty())
+        .collect();
     // Draw among the kinds the project can take now, so each is applied often enough.
     let can = |k: u64| match k {
         1 | 3 => !pts.is_empty(),
         2 => pts.len() > 1,
         5 | 6 => changes.len() > 1,
         9 | 10 => !markers.is_empty(),
+        12 => !audio.is_empty(),
         _ => true,
     };
-    let open: Vec<u64> = (0..12).filter(|k| can(*k)).collect();
+    let open: Vec<u64> = (0..13).filter(|k| can(*k)).collect();
     match open[rng.below(open.len() as u64) as usize] {
         0 if pts.is_empty() || rng.below(4) != 0 => {
             let bpm = project.tempo_bpm;
@@ -2866,6 +2886,28 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 },
             }
         }
+        12 => {
+            // Some windows of one track re-anchored; a linked one's fine offset is kept
+            // (nine times in ten: else refused, as it must be).
+            let (track, w) = &audio[rng.below(audio.len() as u64) as usize];
+            let mut anchors = Vec::new();
+            for &(clip, offset, slip, linked) in w {
+                if rng.below(2) == 0 {
+                    continue;
+                }
+                let o = offset + Ticks(rng.below(2_000) as i64 - 1_000);
+                let s = if linked && rng.below(10) != 0 {
+                    slip
+                } else {
+                    slip + rng.below(200) as i32 - 100
+                };
+                anchors.push((clip, o, s));
+            }
+            Command::SetClipAnchors {
+                track: *track,
+                anchors,
+            }
+        }
         _ => Command::SetTimeSignature {
             time_signature: sig(rng),
         },
@@ -2913,6 +2955,7 @@ fn tempo_kind(cmd: &Command) -> Option<usize> {
         Command::RemoveMarker { .. } => 9,
         Command::SetMarker { .. } => 10,
         Command::SetTimeSignature { .. } => 11,
+        Command::SetClipAnchors { .. } => 12,
         _ => return None,
     })
 }
@@ -3537,13 +3580,25 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             0.5 + 1e-6
         }
     };
+    // A linked window sits within half a tick of its take's line (review 5): within that
+    // (and a frame) it is the take's.
+    let slack = |w: &Win| {
+        if w.linked {
+            let e = if w.reverse { w.end } else { w.start }.0 as f64;
+            0.5 * map.seconds_between_f64(e, e + 1.0) * w.rate
+        } else {
+            0.0
+        }
+    };
     let mut checked = 0;
     for (i, (b, a)) in live.iter().enumerate() {
         // Its line's head: where the line comes in, among the windows left in place.
         let head = live
             .iter()
             .filter(|(o, _)| {
-                o.source == b.source && o.reverse == b.reverse && (o.line - b.line).abs() <= 1.0
+                o.source == b.source
+                    && o.reverse == b.reverse
+                    && (o.line - b.line).abs() <= 1.0 + slack(o).max(slack(b))
             })
             .min_by_key(|(o, _)| if o.reverse { -o.end.0 } else { o.start.0 })
             .map(|(o, _)| *o)
@@ -3555,7 +3610,20 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             map.seconds_between(head.start, b.start)
         };
         let want = head.frame + run * b.rate;
-        let tolerance = reach(a) + reach(head) + if std::ptr::eq(head, *b) { 0.0 } else { 1.0 };
+        // The head and the windows that shared its origin and fine offset: exactly on its
+        // line (half a frame); the others on it within their own rounding and a frame.
+        let with_head = !b.reverse
+            && !head.reverse
+            && !b.linked
+            && !head.linked
+            && (b.origin, b.slip) == (head.origin, head.slip);
+        let tolerance = if std::ptr::eq(head, *b) {
+            reach(a)
+        } else if with_head {
+            0.5 + 1e-6
+        } else {
+            reach(a) + reach(head) + 1.0 + slack(b)
+        };
         if (a.frame - want).abs() > tolerance {
             return Err(format!(
                 "{:?}: frame {} where its take puts {want} (was {})",

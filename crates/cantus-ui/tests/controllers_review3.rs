@@ -1404,9 +1404,20 @@ fn a_black_keys_right_half_learns_the_black_key() {
 /// The coordinator's note on review 4 of the tempo: while a take records the tempo stays,
 /// a knob's included. A gesture that turned the tempo just before the take began and goes
 /// on with a pan knob during it sends no tempo command in the take — the pan moves alone.
+/// (Tempo review 5: the hold is an *audio* take's — notes are recorded in ticks — so the
+/// take here records audio: a hand-driven engine with one input, an armed audio track.)
 #[test]
 fn a_gesture_holding_the_tempo_sends_none_while_a_take_records() {
+    let dir = tempfile::tempdir().unwrap();
+    let (h, mut proc) = cantus_engine::EngineHandle::manual(48_000.0);
+    let (_ring, consumer) = rtrb::RingBuffer::<f32>::new(96_000);
+    proc.attach_input(consumer, 1);
     let mut a = keys_app();
+    a.engine = h;
+    a.rec.demo_inputs = Some(vec![0.0]);
+    a.path = Some(dir.path().join("song.cantus"));
+    a.add_audio_track();
+    a.sync_engine();
     let s = strip(&a);
     add(
         &mut a,
@@ -1429,7 +1440,7 @@ fn a_gesture_holding_the_tempo_sends_none_while_a_take_records() {
     a.controller_heard(&[cc(12, 90)]);
     let bpm = a.project().tempo_bpm;
     a.start_recording();
-    assert!(a.is_recording());
+    assert!(a.audio_take_running(), "an audio take");
     let pan = a.project().strip(s).unwrap().pan;
     a.controller_heard(&[cc(10, 20)]);
     assert_ne!(a.project().strip(s).unwrap().pan, pan, "the pan moves");

@@ -318,7 +318,15 @@ pub fn lay_chains(
         let end = m.from + m.clip.length;
         if let Some(next) = starts.get(&(row, source, reverse, end)) {
             for &j in next {
-                if (frame(m, end) - frame(&members[j], end)).abs() <= 1.0 {
+                // A linked window sits within half a tick of its take's line (review 5).
+                let linked = m.clip.link.is_some() || members[j].clip.link.is_some();
+                let e = end.0 as f64;
+                let slack = if linked {
+                    0.5 * src.seconds_between_f64(e, e + 1.0) * m.rate
+                } else {
+                    0.0
+                };
+                if (frame(m, end) - frame(&members[j], end)).abs() <= 1.0 + slack {
                     join(&mut parent, i, j);
                 }
             }
