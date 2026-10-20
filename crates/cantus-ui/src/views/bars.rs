@@ -327,6 +327,30 @@ pub fn each_bar(map: &TempoMap, first: f32, last: f32, mut f: impl FnMut(i64, f3
     }
 }
 
+/// A clip's length as bars, beats and ticks from its start (review 2): with one metre the
+/// song's metre counts it; with metre changes, whole bars from `start` through them, the
+/// rest in the metre where the last whole bar ends.
+pub fn length_bbt(project: &Project, start: Ticks, length: Ticks) -> (i64, i64, i64) {
+    let m = map(project);
+    if m.is_one_metre() {
+        return project.time_signature.bbt(length);
+    }
+    let end = start + length.max(Ticks::ZERO);
+    let mut bars = 0;
+    let mut at = start;
+    loop {
+        let next = m.add_bars(at, 1);
+        if next > end || next <= at {
+            break;
+        }
+        bars += 1;
+        at = next;
+    }
+    let beat = m.beat_len_at(at).0.max(1);
+    let rest = (end - at).0;
+    (bars + 1, rest / beat + 1, rest % beat)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2519,11 +2519,12 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     comp: true,
                 });
             }
+            let before = project.clone();
             let mut ids = || project.alloc_id();
             let at = w.start + Ticks(1 + rng.below((w.length.0 - 1) as u64) as i64);
             // Strictly inside the window: the split is always made (its half is the batch's
             // first clip inserted).
-            commands.extend(clipboard::split(track.id, &w, at, &mut ids).unwrap());
+            commands.extend(clipboard::split(&before, track.id, &w, at, &mut ids).unwrap());
             let copy = clipboard::copy_of(&w, w.start, &mut ids);
             commands.push(Command::InsertClip {
                 track: track.id,
@@ -2695,13 +2696,32 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
         }
         7 => Command::SetMetreTrack {
             signature: project.time_signature,
-            metres: if rng.below(2) == 0 {
-                Vec::new()
-            } else {
-                vec![MetreChange {
+            metres: match rng.below(3) {
+                0 => Vec::new(),
+                1 => vec![MetreChange {
                     tick: Ticks::ZERO,
                     signature: project.time_signature,
-                }]
+                }],
+                // Review 2 (finding 26): a file's list, off the bar lines — a short bar
+                // before a later change — so the edits' remainder path is fuzzed.
+                _ => {
+                    let pool = [(3, 4), (7, 8), (5, 4), (6, 8)];
+                    let mut out = vec![MetreChange {
+                        tick: Ticks::ZERO,
+                        signature: project.time_signature,
+                    }];
+                    let mut at = 0i64;
+                    for _ in 0..1 + rng.below(2) {
+                        let bar = out.last().unwrap().signature.ticks_per_bar().0;
+                        at += bar * (1 + rng.below(3) as i64) + 120 * rng.below(8) as i64;
+                        let (n, d) = pool[rng.below(4) as usize];
+                        out.push(MetreChange {
+                            tick: Ticks(at),
+                            signature: TimeSignature::new(n, d),
+                        });
+                    }
+                    out
+                }
             },
         },
         8 => Command::AddMarker {

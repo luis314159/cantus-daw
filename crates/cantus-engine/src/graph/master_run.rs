@@ -312,7 +312,13 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            e.set_position(&position.earlier_in(e.late, self.sample_rate, self.transport.map()));
+            if e.follows_song() {
+                e.set_position(&position.earlier_in(
+                    e.late,
+                    self.sample_rate,
+                    self.transport.map(),
+                ));
+            }
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {

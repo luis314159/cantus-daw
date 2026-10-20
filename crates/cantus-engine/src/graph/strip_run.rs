@@ -62,16 +62,19 @@ pub(crate) fn scope(
         tap.pending = ScopeChunk::EMPTY;
         tap.lost = 0;
     }
-    let per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
-    let late = delays.get(i).copied().unwrap_or(0) as f64;
-    // Where the audio reaching the scope is: through the tempo map when it moves (review
-    // 1: across a point the constant arithmetic misplaced late audio).
-    let first = position.playing.then(|| {
-        if map.is_constant() {
-            position.beats - late * per_frame
-        } else {
-            position.earlier_in(late as usize, sample_rate, map).beats
-        }
+    let late = delays.get(i).copied().unwrap_or(0);
+    // Where the audio reaching the scope is, and its tempo: through the tempo map when it
+    // moves (review 1: across a point the constant arithmetic misplaced late audio; review
+    // 2: its frames counted at the tempo they were played at, not the transport's). The
+    // passes are cut at the scope's late steps, so that tempo holds over this one.
+    let heard = (!map.is_constant()).then(|| position.earlier_in(late, sample_rate, map));
+    let (bpm, inc) = heard.map_or((position.tempo_bpm, position.tempo_inc), |h| {
+        (h.tempo_bpm, h.tempo_inc)
+    });
+    let per_frame = bpm / 60.0 / sample_rate.max(1.0);
+    let first = position.playing.then_some(match heard {
+        Some(h) => h.beats,
+        None => position.beats - late as f64 * per_frame,
     });
     // Does this pass carry on from the chunk being filled?
     let p = &tap.pending;
@@ -80,13 +83,8 @@ pub(crate) fn scope(
             (Some(b), Some(f)) => {
                 // Inside a ramp's step (ADR 0060) the beats bend away from the step's
                 // straight line by far less than a frame: carrying on is no jump.
-                let tol = if position.tempo_inc != 0.0 {
-                    1e-3
-                } else {
-                    1e-6
-                };
-                p.tempo_bpm == position.tempo_bpm
-                    && (b + f64::from(p.frames) * per_frame - f).abs() < tol
+                let tol = if inc != 0.0 { 1e-3 } else { 1e-6 };
+                p.tempo_bpm == bpm && (b + f64::from(p.frames) * per_frame - f).abs() < tol
             }
             (None, None) => true,
             _ => false,
@@ -101,7 +99,7 @@ pub(crate) fn scope(
         if p.frames == 0 {
             p.owner = id;
             p.beat = first.map(|b| b + k as f64 * per_frame);
-            p.tempo_bpm = position.tempo_bpm;
+            p.tempo_bpm = bpm;
         }
         let at = p.frames as usize;
         p.l[at] = l[k];
@@ -278,11 +276,13 @@ pub(crate) fn strip_chain(
             _ => (&SILENCE[..n], &SILENCE[..n]),
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
-        // call.
-        e.set_position(
-            &ctx.position
-                .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
-        );
+        // call; the others are not told (review 2: nothing to work out for them).
+        if e.follows_song() {
+            e.set_position(
+                &ctx.position
+                    .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
+            );
+        }
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {

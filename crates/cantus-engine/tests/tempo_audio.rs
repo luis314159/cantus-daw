@@ -1,6 +1,6 @@
-//! Unwarped audio clips under a tempo map (round 29, ADR 0060 §5; review 1, finding 17):
-//! the engine plays each clip at its natural speed anchored at its start, the offset read at
-//! the tempo there — sample for sample what `cantus_core::audio_time` (the interface's
+//! Unwarped audio clips under a tempo map (round 29, ADR 0060 §5; review 1, finding 17;
+//! review 2): the engine plays each clip at its natural speed from its content origin
+//! (`start − offset`) — sample for sample what `cantus_core::audio_time` (the interface's
 //! mapping) says — the same from wherever playback started, at every block size, with its
 //! fades measured through the map.
 
@@ -117,12 +117,12 @@ fn an_unwarped_clip_plays_where_audio_time_says_through_a_ramp() {
         let tick = map.tick_at_sample(k as f64, SR as f64);
         let ui = cantus_core::audio_time::frame_at(&map, start, offset, 0.0, SR as f64, tick);
         let lo = (ui.floor() as i64 - 1).max(0) as usize;
-        let f = (lo..lo + 4)
-            .filter(|f| *f < frames)
-            .find(|f| file[*f].to_bits() == out[k].to_bits() && (*f as f64 - ui).abs() <= 1.0);
+        let f = (lo..lo + 4).filter(|f| *f < frames).find(|f| {
+            file[*f].to_bits() == out[k].to_bits() && (*f as f64 - ui).abs() <= 0.5 + 1e-9
+        });
         assert!(
             f.is_some(),
-            "sample {k}: the engine plays no frame within one of {ui}"
+            "sample {k}: the engine plays no frame within half of {ui}"
         );
         checked += 1;
     }
@@ -137,27 +137,24 @@ fn a_clip_on_a_tempo_point_plays_the_same_from_wherever_playback_started() {
     let file = signal(frames, 9);
     write_mono(&path, &file);
     let (mut p, src) = project(&path, frames);
-    // At beat 8, exactly on the step to 90, a beat into its file: 2/3 s at 90 BPM.
-    let mut c = p.make_audio_clip("b", src, Ticks::beats(8), Ticks::beats(2));
+    // Its content origin exactly on the step to 90 at beat 8 (review 2: the origin rule),
+    // the clip a beat later: 2/3 s into its file at its start, played from the song's
+    // start, from the point, or from the clip.
+    let mut c = p.make_audio_clip("b", src, Ticks::beats(9), Ticks::beats(2));
     c.offset = Ticks::beats(1);
     p.tracks[0].clips.push(c);
     let want = file[32_000];
-    let from_start = render_at(&p, Ticks::ZERO, 256);
-    let at = p
-        .tempo_map()
-        .sample_at(Ticks::beats(8).0 as f64, SR as f64)
-        .round() as usize;
-    assert_eq!(
-        from_start[at].to_bits(),
-        want.to_bits(),
-        "played from the start"
-    );
-    let from_point = render_at(&p, Ticks::beats(8), 256);
-    assert_eq!(
-        from_point[0].to_bits(),
-        want.to_bits(),
-        "played from the point"
-    );
+    let map = p.tempo_map();
+    let at =
+        |from: Ticks| (map.seconds_between(from, Ticks::beats(9)) * SR as f64).round() as usize;
+    for from in [Ticks::ZERO, Ticks::beats(8), Ticks::beats(9)] {
+        let out = render_at(&p, from, 256);
+        assert_eq!(
+            out[at(from)].to_bits(),
+            want.to_bits(),
+            "played from {from:?}"
+        );
+    }
 }
 
 #[test]
@@ -204,5 +201,76 @@ fn audio_under_a_map_is_the_same_at_every_block_size_and_its_fades_are_measured_
     assert!(
         reference[k].abs() < file[k - s1].abs() || file[k - s1] == 0.0,
         "inside it"
+    );
+    // Review 2 (finding 22): the fade out begins where the map puts beat 7 — unity just
+    // before, attenuated from there (the constant tempo would put it hundreds of samples
+    // away).
+    let s7 = map.sample_at(Ticks::beats(7).0 as f64, SR as f64);
+    let first = (s7 as usize - 400..s7 as usize + 400)
+        .find(|k| reference[*k].to_bits() != file[*k - s1].to_bits())
+        .expect("a fade out");
+    assert!(
+        (first as f64 - s7).abs() <= 1.0,
+        "the fade out begins at {first}, the map's beat 7 at {s7}"
+    );
+}
+
+/// Review 2 (finding 22): a clip that starts inside the ramp — its hidden beat before it
+/// in the ramp too, its fine offset added — plays at its first sample the frame by hand
+/// (that beat's seconds through the ramp, plus 37 frames), and at every sample the frame
+/// `audio_time` says to within half a frame: played from the start and from a seek into
+/// the ramp alike.
+#[test]
+// A value by hand: std's own logarithm, apart from the code under test.
+#[allow(clippy::disallowed_methods)]
+fn a_clip_inside_the_ramp_plays_where_audio_time_says_from_anywhere() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("a.wav");
+    let frames = 600_000;
+    let file = signal(frames, 13);
+    write_mono(&path, &file);
+    let (mut p, src) = project(&path, frames);
+    let start = Ticks(3 * 960 + 480);
+    let mut c = p.make_audio_clip("r", src, start, Ticks::beats(4));
+    c.offset = Ticks::beats(1);
+    c.audio.as_mut().unwrap().slip_frames = 37;
+    p.tracks[0].clips.push(c);
+    let map = p.tempo_map();
+    let sr = SR as f64;
+    let at_start =
+        cantus_core::audio_time::frame_at(&map, start, Ticks::beats(1), 37.0, sr, start.0 as f64);
+    // By hand: from its content origin (beat 2.5) to its start (beat 3.5) through the
+    // ramp, linear in beats (120 + 5·(b − 2)): 12·ln(127.5/122.5) s, plus 37 frames.
+    let by_hand = 12.0 * (127.5f64 / 122.5).ln() * sr + 37.0;
+    assert!((at_start - by_hand).abs() < 1e-6, "{at_start} vs {by_hand}");
+    let check = |out: &[f32], from: Ticks, what: &str| {
+        let mut n = 0;
+        let end = map.seconds_between(from, start + Ticks::beats(4)) * sr;
+        let first = (map.seconds_between(from, start) * sr).max(0.0);
+        for k in (first.ceil() as usize + 1..end as usize - 1).step_by(53) {
+            let tick = map.tick_after_seconds(from.0 as f64, k as f64 / sr);
+            let ui =
+                cantus_core::audio_time::frame_at(&map, start, Ticks::beats(1), 37.0, sr, tick);
+            let lo = (ui.floor() as i64 - 1).max(0) as usize;
+            let f = (lo..lo + 4).find(|f| {
+                file[*f].to_bits() == out[k].to_bits() && (*f as f64 - ui).abs() <= 0.5 + 1e-9
+            });
+            assert!(
+                f.is_some(),
+                "{what}, sample {k}: no frame within half of {ui}"
+            );
+            n += 1;
+        }
+        assert!(n > 500, "{what}: {n}");
+    };
+    check(
+        &render_at(&p, Ticks::ZERO, 64),
+        Ticks::ZERO,
+        "from the start",
+    );
+    check(
+        &render_at(&p, Ticks::beats(4), 128),
+        Ticks::beats(4),
+        "from beat 4",
     );
 }

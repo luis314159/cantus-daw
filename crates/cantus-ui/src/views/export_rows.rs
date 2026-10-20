@@ -138,12 +138,22 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
         }
         Some(Scope::Loop) => super::workspace_settings::note(ui, &t("export_audio.no_loop"), true),
         Some(Scope::Markers { .. }) => {
-            super::workspace_settings::note(ui, &t("tempo.export.no_markers"), true)
+            // Fewer than two markers, or two that make no range (review 2).
+            let key = if app.project().markers.len() < 2 {
+                "tempo.export.no_markers"
+            } else {
+                "tempo.export.two_markers"
+            };
+            super::workspace_settings::note(ui, &t(key), true)
         }
         _ => {}
     }
     if let Scope::Markers { from, to } = d.scope {
         marker_rows(app, ui, d, from, to);
+        // A marker of the pair gone while the dialog is open: said, never the song.
+        if !super::export::available(app, d.scope) && app.export.asked.is_none() {
+            super::workspace_settings::note(ui, &t("tempo.export.two_markers"), true);
+        }
     }
     if let Some(text) = range_note(app, d.scope) {
         super::workspace_settings::note(ui, &text, false);
@@ -505,16 +515,26 @@ fn marker_rows(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings, from: u
             .find(|(i, _)| *i == id)
             .map_or_else(String::new, |(_, n)| n.clone())
     };
+    // A pair that makes no range (one marker twice, two on one tick) is not taken: the
+    // pick stays as it was and the note says why (review 2: it exported the whole song).
+    let mut choose = |app: &mut CantusApp, want: Scope| {
+        if super::export::available(app, want) {
+            d.scope = want;
+            app.export.asked = None;
+        } else {
+            app.export.asked = Some(want);
+        }
+    };
     let f = row(ui, "tempo.export.from", |ui| {
         field(ui, &name(from), "tempo.export.from")
     });
     if let Some(v) = pick(&f, &options, from) {
-        d.scope = Scope::Markers { from: v, to };
+        choose(app, Scope::Markers { from: v, to });
     }
     let f = row(ui, "tempo.export.to", |ui| {
         field(ui, &name(to), "tempo.export.to")
     });
     if let Some(v) = pick(&f, &options, to) {
-        d.scope = Scope::Markers { from, to: v };
+        choose(app, Scope::Markers { from, to: v });
     }
 }

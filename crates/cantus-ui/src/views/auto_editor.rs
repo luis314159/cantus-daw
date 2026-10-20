@@ -128,6 +128,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         bottom: canvas.bottom() - pad,
         clip_left: canvas.left(),
         clip_right: canvas.right(),
+        origin: window.start - window.offset,
     };
     paint(app, ui, &auto, window, f, canvas, ruler, axis, &s);
     let st = &mut app.automation.editor;
@@ -460,10 +461,12 @@ fn paint(
     let painter = ui.painter().with_clip_rect(canvas.union(ruler).union(axis));
     // The bars and beats through the metre changes (ADR 0060); the step chosen by the
     // metre at the window's left.
+    // Content ticks here; the bars are the timeline's where the clip lies (review 2).
     let map = crate::views::bars::map(project);
+    let shift = f.origin;
     let lo = f.tick(canvas.left()).floor() as i64;
-    let bar = map.bar_len_at(Ticks(lo)).0.max(1);
-    let beat = map.beat_len_at(Ticks(lo)).0.max(1);
+    let bar = map.bar_len_at(Ticks(lo) + shift).0.max(1);
+    let beat = map.beat_len_at(Ticks(lo) + shift).0.max(1);
     let hi = f.tick(canvas.right()).ceil() as i64;
     let pointer = ui.input(|i| i.pointer.hover_pos());
     kit::with_brush(&painter, |b| {
@@ -501,11 +504,11 @@ fn paint(
         // Through the metre changes (ADR 0060).
         crate::views::bars::lines(
             &map,
-            Ticks(lo),
-            Ticks(hi + 1),
+            Ticks(lo) + shift,
+            Ticks(hi + 1) + shift,
             step == beat,
             |tick, is_bar| {
-                let x = f.x(tick.0 as f64);
+                let x = f.x((tick - shift).0 as f64);
                 b.vline(
                     x,
                     canvas.top(),
@@ -535,10 +538,10 @@ fn paint(
         if brace.width() > 0.0 {
             b.rrect(brace, 1.5 * k, Fill::Solid(with_alpha(t.selection, 0.8)));
         }
-        let from = map.bar_start(Ticks(lo));
-        for line in map.bar_lines(from, Ticks(hi + 1)) {
+        let from = map.bar_start(Ticks(lo) + shift);
+        for line in map.bar_lines(from, Ticks(hi + 1) + shift) {
             let barn = map.bbt(line).0 - 1;
-            let x = f.x(line.0 as f64);
+            let x = f.x((line - shift).0 as f64);
             if x >= ruler.left() - 1.0 && x <= ruler.right() {
                 b.vline(x, ruler.top() + 6.0 * k, ruler.bottom(), b.px(), t.text_dim);
                 let label = Rect::from_min_size(
@@ -708,8 +711,9 @@ fn input(
     let snap = |app: &CantusApp, tick: f64, free: bool| -> Ticks {
         let t = Ticks(tick.max(0.0).round() as i64);
         if app.arrangement.snap && !free {
-            crate::views::bars::snap(
+            curve::snap_point(
                 app.project(),
+                f.origin,
                 t,
                 app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)),
             )
@@ -780,8 +784,9 @@ fn input(
                     mut painted,
                 }) => {
                     let grid = draw_grid(app);
-                    let at = crate::views::bars::snap(
+                    let at = curve::snap_point(
                         app.project(),
+                        f.origin,
                         Ticks(f.tick(pos.x).max(0.0).round() as i64),
                         grid,
                     );
@@ -925,8 +930,9 @@ fn moved(
     let raw = p0.tick.0 as f64 + ((pos.x - press.x) / f.px_per_tick) as f64;
     let mut land = Ticks(raw.max(0.0).round() as i64);
     if app.arrangement.snap && !free {
-        land = crate::views::bars::snap(
+        land = curve::snap_point(
             app.project(),
+            f.origin,
             land,
             app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)),
         );

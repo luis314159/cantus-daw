@@ -65,17 +65,66 @@ pub fn set_window(track: TrackId, clip: &Clip, start: Ticks, length: Ticks) -> V
 /// A move wants the opposite — the window and the content travel together — so it changes
 /// `start` and leaves `offset` alone. Getting this wrong makes a clip slide out from under
 /// its own notes, which is what it did until somebody dragged one and looked.
-pub fn move_to(track: TrackId, clip: &Clip, start: Ticks) -> Vec<Command> {
+///
+/// An unwarped audio clip moved where the tempo under it (or its hidden part) differs
+/// plays the same seconds of its file: offset, length, fades and fine offset re-derived
+/// through the map (`audio_time::relocate`), as a paste to the same place gives (review
+/// 2). A linked clip's fades and fine offset are its group's: only its window moves.
+pub fn move_to(project: &Project, track: TrackId, clip: &Clip, start: Ticks) -> Vec<Command> {
     let start = start.max(Ticks::ZERO);
     if start == clip.start {
         return Vec::new();
     }
-    vec![Command::SetClipBounds {
+    let mut moved = clip.clone();
+    relocate(project, clip, &mut moved, start);
+    let mut out = vec![Command::SetClipBounds {
         track,
         clip: clip.id,
         start,
-        length: clip.length,
-    }]
+        length: moved.length,
+    }];
+    if moved.offset != clip.offset {
+        out.push(Command::SetClipOffset {
+            track,
+            clip: clip.id,
+            offset: moved.offset,
+        });
+    }
+    if moved.audio != clip.audio {
+        out.push(Command::SetClipAudio {
+            track,
+            clip: clip.id,
+            audio: moved.audio,
+        });
+    }
+    out
+}
+
+/// `copy` (a copy of `clip`, or `clip` itself) laid at `start` through the project's tempo
+/// map: see [`move_to`]. Its own start is set too.
+pub fn relocate(project: &Project, clip: &Clip, copy: &mut Clip, start: Ticks) {
+    copy.start = start;
+    if project.tempo_points.is_empty() {
+        return;
+    }
+    let Some(a) = clip.audio.as_ref() else {
+        return;
+    };
+    let map = crate::views::bars::map(project);
+    let rate = project
+        .audio_source(a.source)
+        .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)));
+    if let Some(m) = cantus_core::audio_time::relocate(&map, clip.start, clip, &map, start, rate) {
+        copy.offset = m.offset;
+        copy.length = m.length;
+        if copy.link.is_none() {
+            if let Some(r) = copy.audio.as_mut() {
+                r.fade_in = m.fade_in;
+                r.fade_out = m.fade_out;
+                r.slip_frames = m.slip_frames;
+            }
+        }
+    }
 }
 
 /// Slip: move the content under a window that stays where it is.
@@ -106,7 +155,27 @@ pub use cantus_core::clipboard::split;
 /// plays a different version of it (an edited split), the version heard wins; when both
 /// play it (linked copies, ADR 0037), the later one comes in under a fresh id.
 pub fn glue(track: TrackId, clips: &[&Clip], ids: Ids) -> Option<Vec<Command>> {
-    let mut commands = glue_any(track, clips, ids)?;
+    glue_with(None, track, clips, ids)
+}
+
+/// [`glue`] under `project`'s tempo map (a reversed audio clip's windows need it:
+/// `audio_clips::glue_in`).
+pub fn glue_in(
+    project: &Project,
+    track: TrackId,
+    clips: &[&Clip],
+    ids: Ids,
+) -> Option<Vec<Command>> {
+    glue_with(Some(project), track, clips, ids)
+}
+
+fn glue_with(
+    project: Option<&Project>,
+    track: TrackId,
+    clips: &[&Clip],
+    ids: Ids,
+) -> Option<Vec<Command>> {
+    let mut commands = glue_any(project, track, clips, ids)?;
     // The glued clip has content of its own now (ADR 0037): when the glue changes what the
     // kept clip holds, it leaves its group first, so its siblings keep theirs. Halves of a
     // split glued back change nothing and stay linked.
@@ -155,13 +224,21 @@ pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
     }
 }
 
-fn glue_any(track: TrackId, clips: &[&Clip], ids: Ids) -> Option<Vec<Command>> {
+fn glue_any(
+    project: Option<&Project>,
+    track: TrackId,
+    clips: &[&Clip],
+    ids: Ids,
+) -> Option<Vec<Command>> {
     if clips.len() < 2 {
         return None;
     }
     // Audio glues only contiguous windows on one file (ADR 0025).
     if clips.iter().any(|c| c.audio.is_some()) {
-        return crate::audio_clips::glue(track, clips);
+        return match project {
+            Some(p) => crate::audio_clips::glue_in(p, track, clips),
+            None => crate::audio_clips::glue(track, clips),
+        };
     }
     // Automation glues clips of one target into one curve (ADR 0027).
     if clips.iter().any(|c| c.automation.is_some()) {
@@ -344,13 +421,14 @@ pub fn duplicate(
         let Some(clip) = clip_of(project, *r) else {
             continue;
         };
-        let copy = if link {
+        let mut copy = if link {
             let (pre, copy) = linker.copy(r.0, clip, clip.end(), ids);
             commands.extend(pre);
             copy
         } else {
             copy_of(clip, clip.end(), ids)
         };
+        relocate(project, clip, &mut copy, clip.end());
         made.push((r.0, copy.id));
         commands.push(Command::InsertClip {
             track: r.0,
@@ -451,13 +529,14 @@ pub fn transpose_selection(
         };
         let from = project.tracks[index].id;
         if copy {
-            let copy = if link {
+            let mut copy = if link {
                 let (pre, copy) = linker.copy(from, clip, clip.start + delta, ids);
                 commands.extend(pre);
                 copy
             } else {
                 copy_of(clip, clip.start + delta, ids)
             };
+            relocate(project, clip, &mut copy, clip.start + delta);
             made.push((to, copy.id));
             commands.push(Command::InsertClip {
                 track: to,
@@ -480,7 +559,7 @@ pub fn transpose_selection(
                     });
                 }
             }
-            commands.extend(move_to(to, clip, clip.start + delta));
+            commands.extend(move_to(project, to, clip, clip.start + delta));
         }
     }
     (commands, made)
@@ -582,7 +661,10 @@ mod tests {
         let before = heard(&bus);
         let clip = bus.project().track(tid).unwrap().clip(cid).unwrap().clone();
 
-        run(&mut bus, move_to(tid, &clip, clip.start + Ticks::beats(8)));
+        run(
+            &mut bus,
+            move_to(&Project::new("m"), tid, &clip, clip.start + Ticks::beats(8)),
+        );
         let after = heard(&bus);
         assert_eq!(
             after,
@@ -624,7 +706,7 @@ mod tests {
         let original = bus.project().track(tid).unwrap().clip(cid).unwrap().clone();
         let heard_before = heard(&bus);
         let mut next = 9_000u64;
-        let commands = split(tid, &original, Ticks::beats(12), &mut || {
+        let commands = split(bus.project(), tid, &original, Ticks::beats(12), &mut || {
             next += 1;
             next
         })
@@ -655,9 +737,10 @@ mod tests {
     fn a_split_at_the_edge_is_not_a_split() {
         let (bus, tid, cid) = fixture();
         let clip = bus.project().track(tid).unwrap().clip(cid).unwrap();
-        assert!(split(tid, clip, clip.start, &mut || 1).is_none());
-        assert!(split(tid, clip, clip.end(), &mut || 1).is_none());
-        assert!(split(tid, clip, Ticks::ZERO, &mut || 1).is_none());
+        let p = bus.project();
+        assert!(split(p, tid, clip, clip.start, &mut || 1).is_none());
+        assert!(split(p, tid, clip, clip.end(), &mut || 1).is_none());
+        assert!(split(p, tid, clip, Ticks::ZERO, &mut || 1).is_none());
     }
 
     #[test]

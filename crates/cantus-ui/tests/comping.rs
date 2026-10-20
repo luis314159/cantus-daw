@@ -933,7 +933,7 @@ fn edits_keep_a_comp_window_said_right() {
         next += 1;
         next
     };
-    let cmds = cantus_core::clipboard::split(t, &clip, beats(3), &mut ids).unwrap();
+    let cmds = cantus_core::clipboard::split(a.project(), t, &clip, beats(3), &mut ids).unwrap();
     a.exec(Command::Batch {
         label_key: "cmd.split".into(),
         commands: cmds,

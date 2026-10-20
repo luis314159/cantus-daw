@@ -727,6 +727,7 @@ fn swatches(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style) {
 }
 
 pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
+    app.forget_other_projects_lanes();
     // A sample from the browser lands here as an audio clip (ADR 0030).
     crate::samples::drop::publish(
         ui.ctx(),
@@ -2200,6 +2201,9 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 beats_to_ticks(view.beats(pos.x).max(0.0)),
                 track_at(app, pos.y),
             )),
+            // The ruler (review 2): its menu's *Add a marker here* acts at the bar under
+            // the pointer; no track under it.
+            (None, Some(pos)) => Some((beats_to_ticks(view.beats(pos.x).max(0.0)), None)),
             _ => None,
         };
     }
@@ -2496,6 +2500,17 @@ fn menu(app: &mut CantusApp, ui: &mut egui::Ui, entries: &[Entry<'_>]) -> Option
 fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
     use crate::keymap::Action;
     app.focus_arrangement();
+    // The tempo map's entries (round 29, ADR 0060) in the same menu (review 2: a second
+    // list drew a second menu box): where it was opened, or — the ▸ menu — the playhead.
+    let at = menu_point(app, at_pointer);
+    let (marker, metre) = if at_pointer {
+        ("tempo.menu.add_marker", "tempo.menu.add_metre")
+    } else {
+        (
+            "tempo.menu.add_marker_playhead",
+            "tempo.menu.add_metre_playhead",
+        )
+    };
     let entries = [
         Entry::Shown(Action::Paste, "menu.paste"),
         Entry::Run(Action::SelectAll, "menu.select_all"),
@@ -2505,6 +2520,10 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Entry::Separator,
         // Whether a paste, Duplicate or Alt-drag makes the same clip again (ADR 0037).
         Entry::Toggle("links.copies", app.settings.link_copies),
+        Entry::Separator,
+        Entry::Own(marker),
+        Entry::Own(metre),
+        Entry::Toggle("tempo.view_menu", app.tempo_lane_shown()),
     ];
     match menu(app, ui, &entries) {
         Some(0) => {
@@ -2522,11 +2541,32 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
             app.toggle_link_copies();
             ui.close();
         }
+        Some(8) => {
+            if let Some(id) = app.add_marker(at) {
+                let name = app.project().marker(id).map(|m| m.name.clone());
+                markers::rename_now(app, id, name);
+            }
+            ui.close();
+        }
+        Some(9) => {
+            tempo::add_metre_change(app, at);
+            ui.close();
+        }
+        Some(10) => {
+            app.toggle_tempo_lane();
+            ui.close();
+        }
         Some(_) => ui.close(),
         None => {}
     }
-    // The tempo track, markers and metre (round 29, ADR 0060): a list of their own.
-    markers::timeline_menu(app, ui);
+}
+
+/// Where the timeline menu's *Add a marker* and *Add a metre change* act: the point the
+/// menu was opened on (a right-click, `at_pointer`), else the playhead.
+pub fn menu_point(app: &CantusApp, at_pointer: bool) -> Ticks {
+    let here = app.arrangement.menu_at.filter(|_| at_pointer);
+    here.map_or(app.engine.position(), |(t, _)| t)
+        .max(Ticks::ZERO)
 }
 
 /// The empty-timeline menu's *Paste*: at the point the menu was opened on (snapped down to

@@ -330,14 +330,16 @@ pub fn pad_cmd(
     })
 }
 
-/// "3.2.1" — bar, beat, sixteenth — for a position; `length` counts from zero.
-fn bbt(app: &CantusApp, t: cantus_core::Ticks, length: bool, b: &mut String) {
-    // A position through the metre changes (ADR 0060); a length in the song's first metre.
-    let (bar, beat, tick) = if length {
-        app.project().time_signature.bbt(t)
-    } else {
-        crate::views::bars::bbt(app.project(), t)
+/// "3.2.1" — bar, beat, sixteenth — for a position; a length (`length`: the clip's start)
+/// counts from zero.
+fn bbt(app: &CantusApp, t: cantus_core::Ticks, length: Option<cantus_core::Ticks>, b: &mut String) {
+    // A position through the metre changes (ADR 0060); a length through the bars it spans
+    // from where it starts (review 2).
+    let (bar, beat, tick) = match length {
+        Some(start) => crate::views::bars::length_bbt(app.project(), start, t),
+        None => crate::views::bars::bbt(app.project(), t),
     };
+    let length = length.is_some();
     let sixteenth = tick / (cantus_core::PPQ / 4).max(1);
     let o = if length { 1 } else { 0 };
     let _ = write!(b, "{}.{}.{}", bar - o, beat - o, sixteenth + 1 - o);
@@ -355,11 +357,11 @@ pub fn clip(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     link::link_row(sh, app, t, c, clip);
     let rev = app.bus.revision();
     let start = sheet::name(sh.fmt.get(cache::key(("insp-clip-start", c)), rev, |b| {
-        bbt(app, clip.start, false, b)
+        bbt(app, clip.start, None, b)
     }));
     sh.text_row("inspector.start", &start, true, false);
     let len = sheet::name(sh.fmt.get(cache::key(("insp-clip-len", c)), rev, |b| {
-        bbt(app, clip.length, true, b)
+        bbt(app, clip.length, Some(clip.start), b)
     }));
     sh.text_row("inspector.length", &len, true, false);
     let looping = clip.content_length.is_some();

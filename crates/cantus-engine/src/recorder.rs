@@ -883,6 +883,8 @@ mod tempo_tests {
     /// seconds through the map — 4 800 frames at 48 kHz in a 60-BPM stretch are 96 ticks,
     /// in a 120-BPM one 192 — and at one tempo the arithmetic is the old one.
     #[test]
+    // A value by hand: std's own exponential, apart from the code under test.
+    #[allow(clippy::disallowed_methods)]
     fn a_take_across_a_ramp_lands_where_it_was_played() {
         use cantus_core::tempo::TempoPoint;
         use cantus_core::{TempoMap, Ticks, TimeSignature};
@@ -906,6 +908,27 @@ mod tempo_tests {
         // more at 120: 96 ticks before beat 8.
         let got = take_start(&map, 120.0, 48_000, at(8.0) + 48.0, 4_800);
         assert!((got - (at(8.0) - 96.0)).abs() < 1e-9, "{got}");
+        // Review 2 (finding 29): inside a real ramp — 120 at beat 4 to 60 at beat 8 —
+        // 0.1 s back from beat 6 (90 BPM), by hand: the seconds from beat x to 6 are
+        // 4·ln(bpm(x)/90) with bpm(x) = 120 − 15·(x − 4).
+        let ramp = TempoMap::new(
+            120.0,
+            TimeSignature::default(),
+            &[
+                pt(0, 120.0),
+                TempoPoint {
+                    tick: Ticks::beats(4),
+                    bpm: 120.0,
+                    ramp: true,
+                },
+                pt(8, 60.0),
+            ],
+            &[],
+        );
+        let bpm_x = 90.0 * (0.1f64 / 4.0).exp();
+        let x = 4.0 + (120.0 - bpm_x) / 15.0;
+        let got = take_start(&ramp, 120.0, 48_000, at(6.0), 4_800);
+        assert!((got - at(x)).abs() < 1e-6, "{got} vs {}", at(x));
         let c = TempoMap::constant(97.0, TimeSignature::default());
         let tpf: f64 = 97.0 * 960.0 / (60.0 * 48_000.0);
         assert_eq!(

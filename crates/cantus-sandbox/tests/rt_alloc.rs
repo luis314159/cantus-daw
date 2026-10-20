@@ -71,6 +71,7 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
         position_beats: 4.0,
         position_samples: 96_000,
         position_seconds: 2.0,
+        project_samples: 96_000,
         bar_start_beats: 4.0,
         bar_number: 1,
         time_sig_num: 4,

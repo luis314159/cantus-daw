@@ -658,8 +658,16 @@ impl CantusApp {
     /// Execute a command from the user. Returns `true` on success.
     pub fn exec(&mut self, cmd: Command) -> bool {
         self.note_tweak(&cmd);
+        // Another project in its place (an import, a recovery): what was about the last
+        // one is not about this one (review 2: the tempo lane's state).
+        let replaces = matches!(cmd, Command::ReplaceProject { .. });
         match self.bus.execute(cmd, Origin::User) {
-            Ok(()) => true,
+            Ok(()) => {
+                if replaces {
+                    self.epoch += 1;
+                }
+                true
+            }
             // A frozen sound refused it (ADR 0064): which, and how to give it back.
             Err(cantus_core::CommandError::Frozen(target)) => {
                 crate::freeze::refused(self, target);
@@ -1975,14 +1983,36 @@ impl CantusApp {
 
     /// One arrow-key press: clips or notes, by the grid or by the bar.
     fn nudge(&mut self, direction: i64, by_bar: bool) {
-        // A bar of the metre in force at the playhead (ADR 0060).
-        let bar = crate::views::bars::bar_len(self.project(), self.engine.position());
+        // By a bar: the bar the selection begins in, through the metre changes (review 2:
+        // the bar at the playhead put a clip off its bar lines) — the earliest item moves
+        // to the same place a bar on, the rest keep their spacing.
+        let p = self.project();
+        let bar_from = |from: Ticks| crate::views::bars::add_bars(p, from, direction) - from;
         if self.editing_clips() {
-            let step = if by_bar { bar } else { self.arrangement.grid };
-            self.nudge_clips(Ticks(step.0 * direction));
+            let step = if by_bar {
+                let first = self
+                    .clip_selection()
+                    .iter()
+                    .filter_map(|r| clips::clip_of(p, *r).map(|c| c.start))
+                    .min()
+                    .unwrap_or(self.engine.position());
+                bar_from(first)
+            } else {
+                Ticks(self.arrangement.grid.0 * direction)
+            };
+            self.nudge_clips(step);
         } else {
-            let step = if by_bar { bar } else { self.piano_roll.grid };
-            self.nudge_selection(Ticks(step.0 * direction));
+            let step = if by_bar {
+                let first = self.selected_note_values().and_then(|(t, c, sel)| {
+                    let clip = p.track(t)?.clip(c)?;
+                    let n = sel.iter().map(|n| n.start).min()?;
+                    Some(clip.start - clip.offset + n)
+                });
+                bar_from(first.unwrap_or(self.engine.position()))
+            } else {
+                Ticks(self.piano_roll.grid.0 * direction)
+            };
+            self.nudge_selection(step);
         }
     }
 
@@ -2041,7 +2071,7 @@ impl CantusApp {
                     continue;
                 };
                 select.push((*track, *id));
-                let Some(cmds) = clips::split(*track, clip, at, ids) else {
+                let Some(cmds) = clips::split(project, *track, clip, at, ids) else {
                     continue;
                 };
                 for c in &cmds {
@@ -2079,7 +2109,7 @@ impl CantusApp {
                     .iter()
                     .min_by_key(|c| (c.start, c.id.0))
                     .map(|c| c.id);
-                if let Some(cmds) = clips::glue(track, &on_track, ids) {
+                if let Some(cmds) = clips::glue_in(project, track, &on_track, ids) {
                     if let Some(k) = keep {
                         select.push((track, k));
                     }
@@ -2222,7 +2252,7 @@ impl CantusApp {
             // A reversed audio clip maps its window backwards (ADR 0025).
             if let Some((edit, delta)) = crate::audio_clips::reversed_drag(clip, result) {
                 return (
-                    crate::audio_clips::reversed_edit(anchor.0, clip, edit, delta),
+                    crate::audio_clips::reversed_edit(project, anchor.0, clip, edit, delta),
                     Vec::new(),
                 );
             }

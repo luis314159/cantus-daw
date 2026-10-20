@@ -100,38 +100,58 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let k = s.k;
     let resp = ui.interact(well, Id::new("toolbar-tempo"), Sense::click_and_drag());
-    let mut bpm = app.tempo_now();
-    let before = bpm;
-    // Only a gesture sets the tempo: the value shown is rounded, and showing it must never
-    // write it back (inside a ramp the tempo at the playhead is seldom a tenth).
-    let mut touched = false;
+    app.topbar.tempo_well = Some(well);
+    // A gesture moves the point that governs the playhead by its own amount (review 2:
+    // inside a ramp the value shown is the ramp's there, and writing it back moved the
+    // ramp's start to it); the value shown is never written back.
+    let mut by = 0.0;
+    let mut gesture = false;
     if resp.dragged() {
-        touched = true;
+        gesture = true;
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.02
         } else {
             0.25
         };
-        bpm -= (resp.drag_delta().y * fine) as f64;
+        by -= (resp.drag_delta().y * fine) as f64;
     }
     if resp.hovered() {
-        let dy = ui.input(|i| i.smooth_scroll_delta.y);
-        if dy != 0.0 {
-            bpm += dy.signum() as f64;
-            touched = true;
+        // The wheel's own notches (one is one BPM), not the smoothed scroll that spreads
+        // a notch over frames (review 2: a notch moved it by five).
+        let notches: f32 = ui.input(|i| {
+            i.raw
+                .events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::MouseWheel { unit, delta, .. } => Some(match unit {
+                        egui::MouseWheelUnit::Point => delta.y / 40.0,
+                        egui::MouseWheelUnit::Line => delta.y,
+                        egui::MouseWheelUnit::Page => delta.y * 8.0,
+                    }),
+                    _ => None,
+                })
+                .sum()
+        });
+        if notches != 0.0 {
+            by += f64::from(notches.signum() * notches.abs().round().max(1.0));
+            gesture = true;
         }
     }
     if resp.double_clicked() {
-        bpm = 120.0;
-        touched = true;
-    }
-    let bpm = ((bpm * 10.0).round() / 10.0).clamp(20.0, 999.0);
-    if touched && (bpm - before).abs() > 1e-4 {
-        app.set_tempo_now(bpm, "tempo");
+        app.topbar.tempo_rest = 0.0;
+        let by = 120.0 - app.tempo_point_now();
+        if by != 0.0 {
+            app.nudge_tempo_now(by, "tempo");
+        }
+    } else if gesture && by != 0.0 {
+        let rest = app.topbar.tempo_rest;
+        app.topbar.tempo_rest = app.nudge_tempo_now(rest + by, "tempo");
     }
     if resp.drag_stopped() {
+        app.topbar.tempo_rest = 0.0;
         app.end_gesture();
     }
+    let bpm = app.tempo_now();
     let st = State::of(&resp, false);
     if st.hovered {
         hint::set(
@@ -271,7 +291,9 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             );
         });
     });
-    let toggle = resp.clicked();
+    // A click toggles it; *Add a metre change* at bar 1 opens it (review 2).
+    let asked = std::mem::take(&mut app.topbar.open_metre) && !open;
+    let toggle = resp.clicked() || asked;
     if !open && !toggle {
         return;
     }

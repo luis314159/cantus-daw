@@ -411,8 +411,12 @@ pub struct TransportInfo {
     /// now (the synced-phase clock; see `position_seconds` for real time).
     pub position_samples: i64,
     /// Position at the block's first sample, in seconds from the song start through the
-    /// tempo map: real time (CLAP's seconds timeline, VST3's `projectTimeSamples`).
+    /// tempo map: real time (CLAP's seconds timeline).
     pub position_seconds: f64,
+    /// Position at the block's first sample, in real samples from the song start through
+    /// the tempo map, rounded once (VST3's `projectTimeSamples`; at one tempo exactly the
+    /// value every project before round 29 told — review 2).
+    pub project_samples: i64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
     /// The current bar's 0-based index, counted through every metre change.

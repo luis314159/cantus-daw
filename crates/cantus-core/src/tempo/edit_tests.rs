@@ -435,3 +435,87 @@ fn a_drag_is_one_undo_step() {
     bus.undo();
     assert_eq!(*bus.project(), before);
 }
+
+/// Review 2 (finding 26): an edit *before* an off-line change (a file's short bar) keeps
+/// that change's bar number and the short bar's length. 4/4 at 0, 7/8 at 3840, 3/4 at
+/// 8160 — bar 3 is a short bar of 960 and the 3/4 is bar 4.
+#[test]
+fn an_edit_before_a_short_bar_keeps_its_remainder_and_bar_number() {
+    let base = || {
+        let mut p = Project::empty("t");
+        Command::SetMetreTrack {
+            signature: sig(4, 4),
+            metres: vec![
+                MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: sig(4, 4),
+                },
+                MetreChange {
+                    tick: Ticks(3840),
+                    signature: sig(7, 8),
+                },
+                MetreChange {
+                    tick: Ticks(8160),
+                    signature: sig(3, 4),
+                },
+            ],
+        }
+        .apply(&mut p)
+        .unwrap();
+        assert_eq!(p.tempo_map().bbt(Ticks(8160)).0, 4);
+        p
+    };
+    let last = |p: &Project| {
+        let m = *p.metre_changes.last().unwrap();
+        assert_eq!(m.signature, sig(3, 4));
+        (m.tick, p.tempo_map().bbt(m.tick).0)
+    };
+    // The 7/8 made 5/4: bar 2 is 4800 long, the short bar 960 after it.
+    let mut p = base();
+    let q = round_trip(
+        &mut p,
+        Command::SetMetreAt {
+            tick: Ticks(3840),
+            signature: sig(5, 4),
+        },
+    );
+    assert_eq!(last(&q), (Ticks(3840 + 4800 + 960), 4));
+    // The 7/8 removed: bar 2 is 4/4.
+    let mut p = base();
+    let q = round_trip(&mut p, Command::RemoveMetreAt { tick: Ticks(3840) });
+    assert_eq!(last(&q), (Ticks(3840 + 3840 + 960), 4));
+    assert_eq!(q.metre_changes.len(), 2);
+    // The 7/8 moved to bar 3 (7680): bar 3 is the short one, from there.
+    let mut p = base();
+    let q = round_trip(
+        &mut p,
+        Command::MoveMetre {
+            from: Ticks(3840),
+            to: Ticks(7680),
+        },
+    );
+    assert_eq!(last(&q), (Ticks(7680 + 960), 4));
+}
+
+/// Review 2 (findings 8, 63): a ramp asked for at the song's start makes the first point
+/// ramp (a tempo track there), instead of being dropped.
+#[test]
+fn a_ramp_from_the_start_ramps() {
+    let mut p = Project::empty("t");
+    Command::SetTempoTrack {
+        bpm: 120.0,
+        points: vec![pt(0, 120.0, false), pt(15_360, 140.0, false)],
+    }
+    .apply(&mut p)
+    .unwrap();
+    let cmd = edit::add_tempo_point(&p, Ticks::ZERO, 90.0, true);
+    let q = round_trip(&mut p, cmd);
+    assert_eq!(q.tempo_points[0], pt(0, 90.0, true));
+    assert_eq!(q.tempo_bpm, 90.0);
+    // Without a track there is no next point to ramp to: the song's tempo, as before.
+    let p = Project::empty("t");
+    assert_eq!(
+        edit::add_tempo_point(&p, Ticks::ZERO, 90.0, true),
+        Command::SetTempo { bpm: 90.0 }
+    );
+}
