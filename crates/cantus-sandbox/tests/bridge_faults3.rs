@@ -86,9 +86,11 @@ fn parent() -> raw_window_handle::RawWindowHandle {
 }
 
 /// A plug-in's own dialog open for 10 s (six times the call limit and more): its editor
-/// closed from Cantus meanwhile (held for after the dialog, on purpose), a neighbour saved
-/// and another moved. The helper lives, the neighbours are served at once, and a call on
-/// the plug-in in its dialog comes back within its own limit (#4, #11, #14, #17, #36, #44).
+/// closed from Cantus meanwhile (held for after the dialog, on purpose), a neighbour saved,
+/// another moved and then removed — its unload and its audio half's served from inside the
+/// dialog. The helper lives, the neighbours are served at once, a call on the plug-in in its
+/// dialog is held (given up at once, never waited for) and runs after it, in its order
+/// (#4, #11, #14, #17, #36, #44; isolation-4 #31).
 #[cfg(windows)]
 #[test]
 fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
@@ -98,8 +100,25 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
         main: mut a,
         audio: mut a_audio,
     } = load(&pool, GAIN_ID, "together-modal");
-    let Loaded { main: mut b, .. } = load(&pool, GAIN_ID, "together-modal");
+    let Loaded {
+        main: mut b,
+        audio: b_audio,
+    } = load(&pool, GAIN_ID, "together-modal");
     let Loaded { main: mut c, .. } = load(&pool, GAIN_ID, "together-modal");
+    // The state A is given while its dialog is open: its gain at -9 dB.
+    let state = {
+        let mut out = ParamOut::new();
+        c.flush(
+            &[ParamChange {
+                offset: 0,
+                id: P_GAIN,
+                value: -9.0,
+            }],
+            &mut out,
+        );
+        arrived(c.as_mut(), P_GAIN, -9.0);
+        c.save_state().expect("a state")
+    };
     a.open_editor(parent()).expect("the editor opens");
     block(a_audio.as_mut(), &fault(P_FAULT, PUMP_WINDOW_LONG), &[]);
     std::thread::sleep(Duration::from_millis(300));
@@ -123,22 +142,37 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
         t.elapsed()
     );
     arrived(b.as_mut(), P_GAIN, -6.0);
-    // The one in its dialog: answered within its own limit, never a frozen interface.
+    // B leaves while A's dialog is open: its audio half and its instance are ended from
+    // inside the dialog.
+    drop(b_audio);
+    drop(b);
+    // The one in its dialog: held behind its window's close — given up at once.
     let t = Instant::now();
-    let _ = a.load_state(&[]);
     assert!(
-        t.elapsed() < Duration::from_millis(1_800),
+        matches!(a.load_state(&state), Err(HostError::Busy(_))),
+        "held for after the dialog"
+    );
+    assert!(
+        t.elapsed() < Duration::from_millis(300),
         "{:?}",
         t.elapsed()
     );
     // Eight seconds more: nothing is killed.
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(8) {
-        for m in [&mut a, &mut b, &mut c] {
+        for m in [&mut a, &mut c] {
             assert!(crashed(m.as_mut()).is_none(), "a live helper was killed");
         }
         std::thread::sleep(Duration::from_millis(20));
     }
+    // After the dialog: the held load ran, after the window closed.
+    let start = Instant::now();
+    while a.param_value(P_GAIN) != Some(-9.0) {
+        assert!(start.elapsed() < Duration::from_secs(5), "the held state ran");
+        assert!(crashed(a.as_mut()).is_none());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    assert_eq!(a.save_state().expect("A answers"), state);
 }
 
 /// A request queued behind a slow one is not judged until the helper starts it: a 3 s

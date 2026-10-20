@@ -56,6 +56,7 @@ static PARAMS_EXT: clap_plugin_params = clap_plugin_params {
 };
 
 unsafe extern "C" fn params_count(_p: *const clap_plugin) -> u32 {
+    crate::fault::params_read();
     PARAM_COUNT as u32
 }
 

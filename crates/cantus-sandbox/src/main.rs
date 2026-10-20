@@ -43,6 +43,14 @@ fn main() {
     // Another build's Cantus: served anyway, so its handshake reads this helper's protocol
     // and says which (review #40), instead of seeing a process that ended.
     let _ = protocol;
+    // Cantus's tests: a helper slow to start, as one an antivirus checks on its first run
+    // (review isolation-4 #50).
+    if let Some(ms) = std::env::var("CANTUS_SANDBOX_START_DELAY_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+    {
+        std::thread::sleep(std::time::Duration::from_millis(ms.min(60_000)));
+    }
     platform::quiet_crashes();
     platform::die_with_parent();
     let pipes = platform::take_pipes();

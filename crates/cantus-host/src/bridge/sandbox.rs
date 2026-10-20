@@ -291,6 +291,8 @@ struct Flight {
     at: Instant,
     started: Option<Instant>,
     deferred: bool,
+    /// The helper queued it behind a call of its instance's under way (`Message::Behind`).
+    behind: bool,
     limit: Duration,
     hang_after: Duration,
     instance: Option<u32>,
@@ -383,9 +385,10 @@ fn paused(last_ms: u64, now_ms: u64, silence: Duration) -> bool {
     last_ms != 0 && now_ms.saturating_sub(last_ms) > silence.as_millis() as u64
 }
 
-/// How long a call queued behind a request stalled in a plug-in's dialog waits before it
-/// gives up (the next ones give up at once while the same request stays stalled).
-const STALL_GRACE: Duration = Duration::from_millis(500);
+/// How long a call the helper neither started nor queued behind a call of its instance's
+/// waits, behind a request stalled in a plug-in's dialog, before it gives up (the helper
+/// serves the others from inside the dialog: they start well within this).
+const STALL_GRACE: Duration = Duration::from_secs(2);
 
 /// How long an instance's own request may run with its helper silent before saving takes
 /// its last-good state at once: its helper's main thread is stuck in its code (review
@@ -497,8 +500,6 @@ pub struct Sandbox {
     judged_ms: AtomicU64,
     /// Pauses of Cantus seen so far: each instance's job clock starts again after one.
     pauses: AtomicU64,
-    /// The stalled request a call already gave up behind: the next ones give up at once.
-    stall_seen: Mutex<Option<u64>>,
     /// The instances its end is laid on, once it ended; empty when nothing said which.
     blamed: Mutex<Option<HashSet<u32>>>,
     ending: Arc<Ending>,
@@ -588,7 +589,6 @@ impl Sandbox {
             inflight: Mutex::new(HashMap::new()),
             judged_ms: AtomicU64::new(0),
             pauses: AtomicU64::new(0),
-            stall_seen: Mutex::new(None),
             blamed: Mutex::new(None),
             ending: ending.clone(),
             pool: Arc::downgrade(pool),
@@ -882,9 +882,9 @@ impl Sandbox {
     }
 
     /// Whether the call `id` (not started, not held) waits behind a request the helper
-    /// serves past its own limit while it lives — a plug-in's dialog: it gives up after a
-    /// grace, and every later one at once while the same request stays stalled (review
-    /// isolation-4 #4, #13, #43, #54).
+    /// serves past its own limit while it lives — a plug-in's dialog: given up at once
+    /// when the helper said it waits behind its instance's call (the others are served
+    /// from inside the dialog), else after a grace (review isolation-4 #4, #13, #43, #54).
     fn stalled_ahead(&self, id: u64, f: &Flight, now: Instant) -> bool {
         if f.started.is_some() || f.deferred || !self.alive() {
             return false;
@@ -895,12 +895,7 @@ impl Sandbox {
         if sid == id || !s.started.is_some_and(|t| now.saturating_duration_since(t) > s.limit) {
             return false;
         }
-        let mut seen = lock(&self.stall_seen);
-        if *seen == Some(sid) || now.saturating_duration_since(f.at) > STALL_GRACE {
-            *seen = Some(sid);
-            return true;
-        }
-        false
+        f.behind || now.saturating_duration_since(f.at) > STALL_GRACE
     }
 
     fn fly(&self, id: u64, limit: Duration, instance: Option<u32>, kind: Kind) {
@@ -914,6 +909,7 @@ impl Sandbox {
                 at: Instant::now(),
                 started: None,
                 deferred: false,
+                behind: false,
                 limit,
                 hang_after,
                 instance,
@@ -959,11 +955,17 @@ impl Sandbox {
                 if let Some(f) = lock(&self.inflight).get_mut(&id) {
                     f.started = Some(Instant::now());
                     f.deferred = false;
+                    f.behind = false;
                 }
             }
             Message::Deferred { id } => {
                 if let Some(f) = lock(&self.inflight).get_mut(&id) {
                     f.deferred = true;
+                }
+            }
+            Message::Behind { id } => {
+                if let Some(f) = lock(&self.inflight).get_mut(&id) {
+                    f.behind = true;
                 }
             }
             Message::News {

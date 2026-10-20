@@ -487,28 +487,53 @@ fn waits_for_main_loop(call: &Call) -> bool {
     )
 }
 
-/// Whether a call waits for the main loop, from a loop nested in `inside`'s code (0: not
-/// known whose): Quit always; any call on an instance a frame further out is calling into
-/// (`busy`: its cell is held — a plug-in's dialog inside one of its own calls); a call that
-/// ends or replaces the instance whose code runs the loop (any, when not known); and any
-/// later call on an instance that already has one waiting, in its order. Calls on the
-/// other instances are served (review #4, #17, #44; isolation-4 #54).
+/// How a call that arrives in a loop nested in a plug-in's code is served.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hold {
+    /// Now, from the loop.
+    Serve,
+    /// Held for the main loop, on purpose, and Cantus told (`Message::Deferred`): it ends
+    /// or replaces the instance whose code runs the loop, or the process.
+    Held,
+    /// Queued behind its instance's call in progress further out (a plug-in's dialog, or a
+    /// long state that pumps), and Cantus told (`Message::Behind`): it waits for it as for
+    /// any call ahead of it — from when it starts — unless that call runs past its own
+    /// limit (review isolation-4 #1, #54).
+    Behind,
+}
+
+/// How a call is served from a loop nested in `inside`'s code (0: not known whose): Quit
+/// is held; a call that ends or replaces the instance whose code runs the loop (any, when
+/// not known) is held; a call on an instance a frame further out is calling into (`busy`)
+/// waits behind it; a later call on an instance that already has one waiting waits as
+/// that one does, in its order. Calls on the other instances are served (review #4, #17,
+/// #44; isolation-4 #54).
 fn must_wait(
     call: &Call,
     inside: u32,
-    waiting: &VecDeque<(Request, Vec<u8>)>,
+    waiting: &VecDeque<(Request, Vec<u8>, Hold)>,
     busy: impl Fn(u32) -> bool,
-) -> bool {
+) -> Hold {
     if matches!(call, Call::Quit) {
-        return true;
+        return Hold::Held;
     }
     let named = instance_of(call);
+    if waits_for_main_loop(call) && (inside == 0 || named == Some(inside)) {
+        return Hold::Held;
+    }
     if let Some(n) = named {
-        if busy(n) || waiting.iter().any(|(r, _)| instance_of(&r.call) == Some(n)) {
-            return true;
+        if let Some((_, _, hold)) = waiting
+            .iter()
+            .rev()
+            .find(|(r, _, _)| instance_of(&r.call) == Some(n))
+        {
+            return *hold;
+        }
+        if busy(n) {
+            return Hold::Behind;
         }
     }
-    waits_for_main_loop(call) && (inside == 0 || named == Some(inside))
+    Hold::Serve
 }
 
 /// The main thread's state: the server, the requests, those kept for the main loop. Used
@@ -516,7 +541,7 @@ fn must_wait(
 struct Here {
     server: Server,
     rx: mpsc::Receiver<Option<(Request, Vec<u8>)>>,
-    deferred: RefCell<VecDeque<(Request, Vec<u8>)>>,
+    deferred: RefCell<VecDeque<(Request, Vec<u8>, Hold)>>,
     quit: Cell<bool>,
 }
 
@@ -529,27 +554,43 @@ impl Here {
             if self.quit.get() {
                 return;
             }
-            if !nested {
-                let held = self.deferred.borrow_mut().pop_front();
-                if let Some((req, blob)) = held {
-                    if self.server.handle(req, blob).is_none() {
-                        self.quit.set(true);
-                        return;
-                    }
-                    continue;
+            let held = if nested {
+                // A call queued behind its instance's call that has ended since.
+                self.free_behind()
+            } else {
+                self.deferred
+                    .borrow_mut()
+                    .pop_front()
+                    .map(|(req, blob, _)| (req, blob))
+            };
+            if let Some((req, blob)) = held {
+                if self.server.handle(req, blob).is_none() {
+                    self.quit.set(true);
+                    return;
                 }
+                continue;
             }
             match self.rx.try_recv() {
                 Ok(Some((req, blob))) => {
-                    let wait = nested && {
+                    let hold = if nested {
                         let inside = crate::platform::blame::current();
                         let deferred = self.deferred.borrow();
                         must_wait(&req.call, inside, &deferred, |n| self.server.busy(n))
+                    } else {
+                        Hold::Serve
                     };
-                    if wait {
-                        // Held on purpose: not late while this process lives.
-                        self.server.send(&Message::Deferred { id: req.id }, &[]);
-                        self.deferred.borrow_mut().push_back((req, blob));
+                    if hold != Hold::Serve {
+                        let id = req.id;
+                        self.server.send(
+                            &if hold == Hold::Held {
+                                // Held on purpose: not late while this process lives.
+                                Message::Deferred { id }
+                            } else {
+                                Message::Behind { id }
+                            },
+                            &[],
+                        );
+                        self.deferred.borrow_mut().push_back((req, blob, hold));
                         continue;
                     }
                     if self.server.handle(req, blob).is_none() {
@@ -565,6 +606,28 @@ impl Here {
                 Err(mpsc::TryRecvError::Empty) => return,
             }
         }
+    }
+}
+
+impl Here {
+    /// The first call queued behind an instance that is no longer busy, and first in its
+    /// instance's order: it may be served from a nested loop.
+    fn free_behind(&self) -> Option<(Request, Vec<u8>)> {
+        let mut d = self.deferred.borrow_mut();
+        let mut seen: Vec<u32> = Vec::new();
+        for i in 0..d.len() {
+            let Some(n) = instance_of(&d[i].0.call) else {
+                continue;
+            };
+            if seen.contains(&n) {
+                continue;
+            }
+            seen.push(n);
+            if d[i].2 == Hold::Behind && !self.server.busy(n) {
+                return d.remove(i).map(|(r, b, _)| (r, b));
+            }
+        }
+        None
     }
 }
 
@@ -811,4 +874,92 @@ fn finish(server: &Server) {
         let _ = t.join();
     }
     server.flush();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn held(id: u64, call: Call, hold: Hold) -> (Request, Vec<u8>, Hold) {
+        (Request { id, call }, Vec::new(), hold)
+    }
+
+    /// What a loop nested in a plug-in's code serves (review isolation-4 #31, #54): the
+    /// safety half — an instance is never ended or replaced under its own code, nor called
+    /// into while a call of its is under way further out — and the other half: everything
+    /// else is served at once.
+    #[test]
+    fn what_a_nested_loop_serves() {
+        let none = VecDeque::new();
+        let free = |_: u32| false;
+        // Quit: always held.
+        assert_eq!(must_wait(&Call::Quit, 0, &none, free), Hold::Held);
+        // Not known whose loop: every call that ends or replaces an instance is held...
+        assert_eq!(
+            must_wait(&Call::Unload { instance: 2 }, 0, &none, free),
+            Hold::Held
+        );
+        // ...the others are served.
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 0, &none, free),
+            Hold::Serve
+        );
+        // A's window's loop: A's ending calls held, B's served, A's others served.
+        assert_eq!(
+            must_wait(&Call::CloseEditor { instance: 1 }, 1, &none, free),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::Restart { instance: 1 }, 1, &none, free),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::Unload { instance: 2 }, 1, &none, free),
+            Hold::Serve
+        );
+        assert_eq!(
+            must_wait(&Call::DropAudio { instance: 2 }, 1, &none, free),
+            Hold::Serve
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 1 }, 1, &none, free),
+            Hold::Serve
+        );
+        // A call of A's under way further out (its dialog inside a load): A's calls wait
+        // behind it, B's are served.
+        let busy = |n: u32| n == 1;
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 1 }, 1, &none, busy),
+            Hold::Behind
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 1, &none, busy),
+            Hold::Serve
+        );
+        // A call waiting: later ones on its instance wait as it does, in its order.
+        let waiting = VecDeque::from([held(7, Call::CloseEditor { instance: 1 }, Hold::Held)]);
+        assert_eq!(
+            must_wait(
+                &Call::OpenEditor {
+                    instance: 1,
+                    title: String::new()
+                },
+                1,
+                &waiting,
+                free
+            ),
+            Hold::Held
+        );
+        assert_eq!(
+            must_wait(&Call::SaveState { instance: 2 }, 1, &waiting, free),
+            Hold::Serve
+        );
+        let behind = VecDeque::from([held(8, Call::SaveState { instance: 1 }, Hold::Behind)]);
+        assert_eq!(
+            must_wait(&Call::Params { instance: 1 }, 1, &behind, free),
+            Hold::Behind
+        );
+        // Bringing a dialog forward: never held.
+        assert_eq!(must_wait(&Call::Surface, 1, &none, |_| true), Hold::Serve);
+    }
 }

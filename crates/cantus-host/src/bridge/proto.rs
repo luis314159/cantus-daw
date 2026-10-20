@@ -240,6 +240,10 @@ pub enum Message {
     /// runs, and the request ends or replaces the instance whose window it is (#36, #44).
     /// It is not late while the helper lives.
     Deferred { id: u64 },
+    /// Request `id` waits behind a call of its instance's that is under way further out in
+    /// the helper's main thread (a plug-in's dialog inside that call): served when that
+    /// call ends — Cantus waits for it as for any call ahead of it (review isolation-4 #54).
+    Behind { id: u64 },
 }
 
 /// What crosses the channel holds only finite numbers: JSON has no NaN or infinity
@@ -319,7 +323,10 @@ impl Finite for Message {
                 finite_values(values);
                 finite_events(flushed);
             }
-            Message::Alive | Message::Started { .. } | Message::Deferred { .. } => {}
+            Message::Alive
+            | Message::Started { .. }
+            | Message::Deferred { .. }
+            | Message::Behind { .. } => {}
         }
     }
 }

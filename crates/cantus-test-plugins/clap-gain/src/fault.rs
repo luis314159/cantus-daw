@@ -28,6 +28,7 @@
 //! | 19 | an access violation when the instance is destroyed (its destructor, an unload) |
 //! | 20 | an access violation in a thread timer of the main thread (no window: as a framework's) |
 //! | 21 | a thread timer of the main thread that never returns |
+//! | 22 | it asks the host to rescan its parameters, and the second list read takes 2 s |
 //!
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
@@ -59,8 +60,16 @@ pub const SLOW_SECOND: u32 = 18;
 pub const SEGV_DESTROY: u32 = 19;
 pub const SEGV_THREAD_TIMER: u32 = 20;
 pub const HANG_THREAD_TIMER: u32 = 21;
+pub const RESCAN_SLOW: u32 = 22;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 21.0;
+pub const LAST: f64 = 22.0;
+
+/// A rescan to ask for on the main thread (`RESCAN_SLOW`).
+static RESCAN: AtomicBool = AtomicBool::new(false);
+/// Reads of the parameter list until the slow one (`RESCAN_SLOW`): the second after the
+/// rescan — the host's own first read refreshes what it mirrors; the next is the one asked
+/// for (an isolated plug-in's: Cantus's).
+static SLOW_PARAMS: AtomicU32 = AtomicU32::new(0);
 
 /// What a thread timer of the main thread does when it fires (`SEGV_THREAD_TIMER`,
 /// `HANG_THREAD_TIMER`); 0 for none.
@@ -122,6 +131,10 @@ impl Fault {
                 self.0.store(0, Ordering::Release);
                 THREAD_TIMER.store(v, Ordering::Release);
             }
+            RESCAN_SLOW => {
+                self.0.store(0, Ordering::Release);
+                RESCAN.store(true, Ordering::Release);
+            }
             _ => {}
         }
     }
@@ -130,7 +143,7 @@ impl Fault {
     pub fn wants_main_thread(value: f64) -> bool {
         matches!(
             value.round() as u32,
-            SEGV_THREAD_TIMER | HANG_THREAD_TIMER
+            SEGV_THREAD_TIMER | HANG_THREAD_TIMER | RESCAN_SLOW
         )
     }
 
@@ -183,6 +196,24 @@ impl Fault {
             self.0.store(0, Ordering::Release);
             pump(std::time::Duration::from_secs(3));
         }
+    }
+}
+
+/// On the main thread: whether the host should rescan the parameters now (and the next
+/// list is slow).
+pub fn take_rescan() -> bool {
+    let r = RESCAN.swap(false, Ordering::AcqRel);
+    if r {
+        SLOW_PARAMS.store(2, Ordering::Release);
+    }
+    r
+}
+
+/// The parameter list is being read: slow once after a rescan asked for.
+pub fn params_read() {
+    let left = SLOW_PARAMS.load(Ordering::Acquire);
+    if left > 0 && SLOW_PARAMS.fetch_sub(1, Ordering::AcqRel) == 1 {
+        std::thread::sleep(std::time::Duration::from_secs(2));
     }
 }
 

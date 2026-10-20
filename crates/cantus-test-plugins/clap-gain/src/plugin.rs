@@ -205,8 +205,18 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     p.delay_r.fill(0.0);
 }
 
-unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {
+unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
     crate::fault::on_main_thread();
+    if crate::fault::take_rescan() {
+        let host = me(plugin).host;
+        if let Some(get) = (*host).get_extension {
+            let ext = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+                as *const clap_sys::ext::params::clap_host_params;
+            if let Some(rescan) = ext.as_ref().and_then(|e| e.rescan) {
+                rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_INFO);
+            }
+        }
+    }
 }
 
 fn header<T>(type_: u16) -> clap_event_header {
