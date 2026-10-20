@@ -385,3 +385,71 @@ fn the_drag_preview_is_the_audio_alone_and_what_lands() {
         );
     }
 }
+
+/// Review 5 (finding 11): a take moved, drag-copied or pasted across the change keeps its
+/// shape in seconds — its first window at its start plus the delta, every window playing
+/// the frames it played at both its edges (within the half tick an edge on whole ticks
+/// allows) — and a take with a gap keeps the gap's seconds.
+#[test]
+fn a_moved_take_keeps_its_shape_in_seconds() {
+    let pts = vec![pt(0, 120.0), pt(8, 100.0)];
+    for w in [
+        vec![(0, 1000, 0), (1000, 1000, 1000), (2000, 1000, 2000)],
+        vec![(0, 1000, 0), (3000, 1000, 3000)],
+    ] {
+        for how in 0..3 {
+            let (mut a, ta, _) = song(pts.clone(), &w, &[]);
+            let before_map = a.project().tempo_map();
+            let was = clips(&a, ta);
+            let delta = Ticks::beats(16);
+            match how {
+                0 | 1 => {
+                    let s = all(&a, ta);
+                    drag(&mut a, s, delta, how == 1);
+                }
+                _ => {
+                    let s = all(&a, ta);
+                    a.set_clip_selection(s);
+                    a.focus_arrangement();
+                    a.run_action(Action::Copy);
+                    a.seek(delta);
+                    a.paste_now();
+                }
+            }
+            let map = a.project().tempo_map();
+            let landed: Vec<Clip> = clips(&a, ta)
+                .into_iter()
+                .filter(|c| c.start >= delta)
+                .collect();
+            assert_eq!(landed.len(), was.len(), "{how}");
+            assert_eq!(
+                landed[0].start,
+                was[0].start + delta,
+                "{how}: the first by the delta"
+            );
+            for (o, n) in was.iter().zip(&landed) {
+                for (to, tn) in [(o.start, n.start), (o.end(), n.end())] {
+                    let (x, y) = (
+                        frame(&before_map, o, to.0 as f64),
+                        frame(&map, n, tn.0 as f64),
+                    );
+                    // Edges lie on whole ticks: within half a tick there (and half a frame).
+                    let half_tick = 0.5 * 60.0 / (100.0 * 960.0) * RATE;
+                    assert!(
+                        (x - y).abs() <= half_tick + 0.5,
+                        "{how}: {x} became {y} at an edge"
+                    );
+                }
+            }
+            // The seconds between the windows' starts, a gap's included.
+            for k in 1..was.len() {
+                let s0 = before_map.seconds_between(was[0].start, was[k].start);
+                let s1 = map.seconds_between(landed[0].start, landed[k].start);
+                assert!(
+                    (s0 - s1).abs() <= 0.5 * 60.0 / (100.0 * 960.0) + 1e-9,
+                    "{how}: {s0} vs {s1}"
+                );
+            }
+        }
+    }
+}

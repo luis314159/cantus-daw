@@ -336,29 +336,23 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
         }
     }
     let mut out = Vec::new();
-    // Alternate comps' windows: one replacement of the track's comps each.
+    // Clips: one re-anchoring of each track's windows (review 5: a command a window, each
+    // looking its clip up, was quadratic in a sliced take). Alternate comps' windows: one
+    // replacement of the track's comps each.
+    let mut anchors: Vec<(TrackId, Vec<(ClipId, Ticks, i32)>)> = Vec::new();
     let mut comps: Vec<(TrackId, Vec<crate::comp::Comp>)> = Vec::new();
     for (i, offset, slip) in moves {
         let w = &kept.windows[i];
-        let c = now(w).expect("a live window");
         match w.at {
             Where::Clip(id) => {
-                if offset != w.offset {
-                    out.push(Command::SetClipOffset {
-                        track: w.track,
-                        clip: id,
-                        offset,
-                    });
-                }
-                if slip != w.slip {
-                    let mut a = c.audio.clone().expect("an audio window");
-                    a.slip_frames = slip;
-                    out.push(Command::SetClipAudio {
-                        track: w.track,
-                        clip: id,
-                        audio: Some(a),
-                    });
-                }
+                let at = match anchors.iter().position(|(t, _)| *t == w.track) {
+                    Some(k) => k,
+                    None => {
+                        anchors.push((w.track, Vec::new()));
+                        anchors.len() - 1
+                    }
+                };
+                anchors[at].1.push((id, offset, slip));
             }
             Where::Comp(ci, j) => {
                 let at = match comps.iter().position(|(t, _)| *t == w.track) {
@@ -376,6 +370,9 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
                 }
             }
         }
+    }
+    for (track, anchors) in anchors {
+        out.push(Command::SetClipAnchors { track, anchors });
     }
     for (track, list) in comps {
         let active = project.track(track).map_or(0, |t| t.active_comp);

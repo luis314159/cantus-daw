@@ -389,6 +389,7 @@ clip.loop_off = Stop repeating
 clip.color = Clip colour
 clip.color_reset = Use the track colour
 cmd.set_clip_offset = slip clip
+cmd.set_clip_anchors = keep audio in place
 cmd.set_clip_loop = clip repeat change
 cmd.set_clip_mute = clip mute change
 cmd.set_clip_color = clip colour change

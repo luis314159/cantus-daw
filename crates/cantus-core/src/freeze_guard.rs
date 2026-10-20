@@ -172,6 +172,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
                 v
             }
         },
+        // Windows re-anchored (offsets and fine offsets, never shared with a group): what
+        // the track plays.
+        SetClipAnchors { track, .. } => vec![TrackSource(*track)],
         RemoveClip { track, clip }
         | SetClipBounds { track, clip, .. }
         | SetClipOffset { track, clip, .. }

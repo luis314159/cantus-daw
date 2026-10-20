@@ -528,3 +528,27 @@ fn a_linked_piece_stays_in_its_take_through_two_edits() {
         }
     }
 }
+
+/// Review 5 (finding 12): a top-bar drag over a take sliced into 2 000 windows (one
+/// track, one origin) — sixty merged frames, every window re-anchored each frame — stays
+/// within a frame's budget a frame, best of three.
+#[test]
+fn a_drag_over_two_thousand_windows_keeps_to_its_budget() {
+    let w: Vec<W> = (0..2000)
+        .map(|i| (64 * B + i * 240, 240, 64 * B + i * 240, 0, false))
+        .collect();
+    let mut best = f64::MAX;
+    for _ in 0..3 {
+        let (mut bus, _, _) = song(vec![], &w);
+        let key = MergeKey::of(&"tempo");
+        let t0 = std::time::Instant::now();
+        for i in 1..=60 {
+            let bpm = 120.0 + 0.37 * f64::from(i);
+            bus.execute_merging(Command::SetTempo { bpm }, Origin::User, key)
+                .unwrap();
+        }
+        best = best.min(t0.elapsed().as_secs_f64() / 60.0);
+    }
+    println!("a drag frame over 2 000 windows: {:.2} ms", best * 1e3);
+    assert!(best < 0.003, "{:.2} ms a frame", best * 1e3);
+}
