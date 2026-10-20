@@ -300,12 +300,14 @@ impl PluginHost {
     pub(crate) fn count_crash(&mut self, info: &PluginInfo, blame: Blame, pid: Option<u32>) {
         // Once per helper death and plug-in, however many of its instances it took down
         // (review #0, #20); a crash while loading (no helper of its own yet) every time.
-        let first = match pid {
-            Some(pid) => self
-                .unknown_counted
-                .insert((pid, info.format, info.id.clone())),
-            None => true,
-        };
+        // A neighbour's notice (it may come first) never uses up the death's one count.
+        let first = blame != Blame::Neighbour
+            && match pid {
+                Some(pid) => self
+                    .unknown_counted
+                    .insert((pid, info.format, info.id.clone())),
+                None => true,
+            };
         let count = match blame {
             Blame::This if first => {
                 self.db.remember_crash(info);
@@ -696,6 +698,31 @@ mod tests {
     use super::*;
     use crate::backend::{PluginInfo, PluginKind};
     use crate::scan::ScanReport;
+
+    /// A neighbour's notice that comes first does not use up the helper death's one count
+    /// (review isolation-3: seen on Linux, where the notices came the other way round).
+    #[test]
+    fn a_neighbours_notice_first_still_counts_the_plugin_that_did_it() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        let info = PluginInfo {
+            format: Format::Clap,
+            id: "com.example.glacier".into(),
+            name: "Glacier".into(),
+            vendor: "Example".into(),
+            version: String::new(),
+            path: std::path::PathBuf::new(),
+            kind: crate::backend::PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        };
+        host.count_crash(&info, Blame::Neighbour, Some(7));
+        host.count_crash(&info, Blame::This, Some(7));
+        host.count_crash(&info, Blame::This, Some(7));
+        assert_eq!(host.crashes_this_session(Format::Clap, &info.id), 1);
+    }
 
     /// A crash recorded (or forgotten) while a background scan ran survives the scan's
     /// result being taken (review #18, #52).

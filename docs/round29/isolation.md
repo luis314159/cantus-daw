@@ -264,6 +264,7 @@ Seen failing first: the round's new tests ran against the merged code before any
 | 33 | The chain hint stacked labels | One line per stopped insert (name: why) and one closing line | shot `isolation-mixer-*` |
 | 34 | The instrument's window row stayed on when stopped | Off, with the reason as its hint | shot |
 | 35 | Spanish bake words | *mientras se convertía el modulador … No se convirtió nada en automatización* | strings |
+| (Linux run) | A neighbour's notice that came first used up the helper death's one count, so the plug-in that crashed was not counted (seen on Linux, where the notices came the other way round) | Only a counted blame uses up the death's count | `a_neighbours_notice_first_still_counts_the_plugin_that_did_it` ✗→✓, `two_instances_of_one_plugin_count_one_crash` on Linux |
 | 43 | A frame cut short read as a broken protocol | `UnexpectedEof` after a header is the stream's end | `a_frame_cut_short_is_the_end_of_the_stream` ✗→✓ |
 | 49 | A laptop asleep killed every helper | A gap longer than the silence limit since the last judgement restarts the clocks | `a_pause_of_cantus_is_not_the_helpers_silence` |
 
