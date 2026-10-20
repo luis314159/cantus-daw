@@ -59,6 +59,9 @@ pub mod picker_thumbs;
 pub mod pitch;
 pub mod pitch_lane;
 pub mod plugin_notice;
+// Round 29 (ADR 0064): freezing and low-latency monitoring on screen.
+pub mod freeze_monitor;
+pub mod freeze_view;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;

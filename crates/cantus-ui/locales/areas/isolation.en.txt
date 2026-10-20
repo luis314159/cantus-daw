@@ -83,3 +83,4 @@ isolation.slot.stopped_band = Plug-in
 isolation.window.stopped = {name} stopped working ({reason}): reload it to open its window.
 isolation.export.stopped = {name} stopped working during the export ({reason}): the file is missing it from that point on.
 isolation.bake.stopped = {name} stopped working while the modulator was traced ({reason}): nothing was baked.
+isolation.freeze.stopped = {name} stopped working during the render ({reason}): {job} was not frozen or bounced.

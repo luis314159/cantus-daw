@@ -83,3 +83,4 @@ isolation.slot.stopped_band = Plug-in
 isolation.window.stopped = {name} dejó de funcionar ({reason}): recárgalo para abrir su ventana.
 isolation.export.stopped = {name} dejó de funcionar durante la exportación ({reason}): al archivo le falta desde ese punto.
 isolation.bake.stopped = {name} dejó de funcionar mientras se trazaba el modulador ({reason}): no se fijó nada.
+isolation.freeze.stopped = {name} dejó de funcionar durante el render ({reason}): {job} no se congeló ni se pasó a audio.

@@ -35,9 +35,25 @@ impl GraphPlan {
         self.nodes.push(NodeRef::Master);
         let count = self.nodes.len();
         let master = (count - 1) as u16;
+        // Freezing (ADR 0064): a resting node is not run, and nothing gathers from it; a
+        // strip playing its render gathers nothing at all.
+        self.rest.clear();
+        self.rest.extend(self.nodes.iter().map(|r| match *r {
+            NodeRef::Track(t) => snap.tracks[t as usize].rest,
+            NodeRef::Strip(s) => snap.strips[s as usize].rest,
+            NodeRef::Master => false,
+        }));
         let pos = &sc.pos;
-        // A strip's node, or NONE when it is not in the order (never processed).
+        let frozen = |si: usize| snap.strips[si].frozen.as_ref().is_some_and(|f| f.plays());
+        // A strip's node, or NONE when it is not in the order (never processed) or gathers
+        // nothing (frozen).
         let node_of = |si: usize| -> u16 {
+            match pos.get(si) {
+                Some(&p) if p != NONE && !frozen(si) => tracks as u16 + p,
+                _ => NONE,
+            }
+        };
+        let node_any = |si: usize| -> u16 {
             match pos.get(si) {
                 Some(&p) if p != NONE => tracks as u16 + p,
                 _ => NONE,
@@ -50,6 +66,7 @@ impl GraphPlan {
         for (ti, t) in snap.tracks.iter().take(tracks).enumerate() {
             // A strip the engine does not hold resolves to none: the master, as before.
             let d = match t.strip {
+                _ if t.rest => NONE,
                 Some(si) if si < strips => node_of(si),
                 _ => master,
             };
@@ -60,9 +77,17 @@ impl GraphPlan {
             let si = si as usize;
             let st = &snap.strips[si];
             let me = tracks as u16 + place as u16;
-            // Into a strip processed after this one, or lost.
-            let later = |d: u16| if d != NONE && d > me { d } else { NONE };
+            // Into a strip processed after this one, or lost (and nothing from a resting
+            // strip).
+            let later = |d: u16| {
+                if d != NONE && d > me && !st.rest {
+                    d
+                } else {
+                    NONE
+                }
+            };
             let out = match st.output {
+                _ if st.rest => NONE,
                 Some(o) if o < strips => later(node_of(o)),
                 _ => master,
             };
@@ -128,22 +153,29 @@ impl GraphPlan {
             for i in &self.inputs[self.input_start[n] as usize..self.input_start[n + 1] as usize] {
                 let from = match *i {
                     Input::Track(t) => t,
-                    Input::Out(s) | Input::Send(s, _) => node_of(s as usize),
+                    Input::Out(s) | Input::Send(s, _) => node_any(s as usize),
                 };
                 edge(from, &mut sc.stamp, &mut sc.edges);
             }
             let effects = match self.nodes[n] {
                 NodeRef::Track(_) => continue,
+                // A resting strip runs nothing and waits for nothing.
+                NodeRef::Strip(s) if snap.strips[s as usize].rest => continue,
                 NodeRef::Strip(s) => &snap.strips[s as usize].effects,
                 NodeRef::Master => &snap.master_effects,
             };
             for e in effects.iter().take(MAX_EFFECTS_PER_TRACK) {
-                // A key from a strip processed later is silence, not a dependency.
+                // A key from a strip processed later is silence, not a dependency; nor is
+                // one from a resting strip (it makes none).
                 if let Some(k) = e.sidechain.and_then(|id| sc.strip_ids.get(id.0)) {
-                    edge(node_of(k as usize), &mut sc.stamp, &mut sc.edges);
+                    if !snap.strips[k as usize].rest {
+                        edge(node_any(k as usize), &mut sc.stamp, &mut sc.edges);
+                    }
                 }
                 if let Some(t) = e.midi_from.and_then(|id| sc.track_ids.get(id.0)) {
-                    edge(t, &mut sc.stamp, &mut sc.edges);
+                    if !snap.tracks[t as usize].rest {
+                        edge(t, &mut sc.stamp, &mut sc.edges);
+                    }
                 }
             }
         }

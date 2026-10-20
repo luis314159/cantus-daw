@@ -79,6 +79,15 @@ pub(crate) struct StripSlot {
     /// The output's peak since the last control point, for a modulator that follows the
     /// strip (ADR 0057); the control phase reads and empties it.
     pub follow_peak: f32,
+    /// Frozen (ADR 0064): the render it plays into its width instead of what it gathers and
+    /// its chain, and where its reader is.
+    pub frozen: Option<Arc<crate::freeze::FrozenHandle>>,
+    pub frozen_place: crate::freeze::ReadPlace,
+    /// It rests (ADR 0064): not run.
+    pub rest: bool,
+    /// Per insert: bypassed hard for low-latency monitoring (ADR 0064 §4) — not run, no
+    /// latency, no dry line.
+    pub ll_off: [bool; MAX_EFFECTS_PER_TRACK],
 }
 
 impl StripSlot {
@@ -118,6 +127,10 @@ impl StripSlot {
             gain_ramp: None,
             pan_ramp: None,
             follow_peak: 0.0,
+            frozen: None,
+            frozen_place: crate::freeze::ReadPlace::default(),
+            rest: false,
+            ll_off: [false; MAX_EFFECTS_PER_TRACK],
         }
     }
 
@@ -281,6 +294,37 @@ fn gather(nodes: &Nodes, inputs: &[In], n: usize, acc_l: &mut [f32], acc_r: &mut
     !first
 }
 
+/// A frozen strip's (or track's) input this pass: its render's frames at the transport,
+/// into the scratch pair; whether any came (playing, and inside the render). Its board
+/// points at what comes next — while stopped too, so a start finds its blocks.
+pub(crate) fn frozen_input(
+    nodes: &Nodes,
+    ctx: &super::ctx::PassCtx,
+    h: &crate::freeze::FrozenHandle,
+    place: &mut crate::freeze::ReadPlace,
+    sc: &mut Scratch,
+) -> bool {
+    let n = ctx.n;
+    let from = crate::freeze::frame_at(&ctx.transport);
+    let playing = ctx.transport.is_playing();
+    crate::freeze::point(h, place, if playing { from + n as i64 } else { from });
+    if !playing || from + n as i64 <= 0 || from >= h.frames as i64 {
+        return false;
+    }
+    let late = crate::freeze::read(
+        h,
+        from,
+        &mut sc.buf_l[..n],
+        &mut sc.buf_r[..n],
+        &mut sc.inter,
+        ctx.offline,
+    );
+    if late > 0 {
+        nodes.stream_late.fetch_add(late as u64, Relaxed);
+    }
+    true
+}
+
 /// Whether a strip's outgoing delay lines still hold signal, so the strip must run this
 /// pass even though nothing new came in.
 fn lines_ringing(nodes: &Nodes, st: &StripSlot) -> bool {
@@ -305,13 +349,17 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
         st.peak_block = ctx.block;
     }
     // ---- gather, in canonical order, into the scratch pair ------------------------------
-    let any = gather(
-        nodes,
-        frame.map.inputs(node),
-        n,
-        &mut sc.buf_l,
-        &mut sc.buf_r,
-    );
+    // A frozen strip (ADR 0064) gathers nothing: its render is what its chain made of it.
+    let any = match st.frozen.clone() {
+        Some(h) => frozen_input(nodes, ctx, &h, &mut st.frozen_place, sc),
+        None => gather(
+            nodes,
+            frame.map.inputs(node),
+            n,
+            &mut sc.buf_l,
+            &mut sc.buf_r,
+        ),
+    };
     // An EQ with signal still in it has to keep running over silence, or its state
     // would freeze at a different point for every block size and the next note would
     // meet a different filter. Quiet sections are exactly zero (denormals are

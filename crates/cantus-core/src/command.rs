@@ -59,6 +59,10 @@ pub enum CommandError {
     AudioSourceNotFound(AudioSourceId),
     #[error("audio source {0} is still played by a clip")]
     AudioSourceInUse(AudioSourceId),
+    /// The edit would change the sound of a frozen strip or track (ADR 0064): unfreeze it
+    /// first. Names the frozen target.
+    #[error("{0:?} is frozen: unfreeze it to change this")]
+    Frozen(crate::freeze::FreezeTarget),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -526,6 +530,18 @@ pub enum Command {
         track: TrackId,
         isolation: Option<crate::external::PluginIsolation>,
     },
+    /// Freeze a mixer strip (round 29, ADR 0064) — `Some` with its content key now, which
+    /// is checked — or unfreeze it (`None`).
+    SetStripFrozen {
+        strip: StripId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
+    /// Freeze a track's own source (round 29, ADR 0064), or unfreeze it; the twin of
+    /// [`Command::SetStripFrozen`].
+    SetTrackFrozen {
+        track: TrackId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -821,6 +837,15 @@ impl Command {
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
             SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
+            SetStripFrozen {
+                frozen: Some(_), ..
+            }
+            | SetTrackFrozen {
+                frozen: Some(_), ..
+            } => "cmd.freeze",
+            SetStripFrozen { frozen: None, .. } | SetTrackFrozen { frozen: None, .. } => {
+                "cmd.unfreeze"
+            }
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -1179,6 +1204,12 @@ impl Command {
     /// Apply to `project`, returning the inverse command. On error the project is
     /// unchanged (batches roll back).
     pub fn apply(self, project: &mut Project) -> Result<Command, CommandError> {
+        // Frozen sounds are locked (ADR 0064): an edit that would change one is refused.
+        crate::freeze::guard(self, project, Command::apply_unguarded)
+    }
+
+    /// The command's body, without the frozen lock ([`Self::apply`] is what runs it).
+    fn apply_unguarded(self, project: &mut Project) -> Result<Command, CommandError> {
         use Command::*;
         match self {
             SetProjectName { name } => {
@@ -2194,6 +2225,20 @@ impl Command {
                     track,
                     isolation: old,
                 })
+            }
+            SetStripFrozen { strip, frozen } => {
+                let s = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let old = std::mem::replace(&mut s.frozen, frozen);
+                Ok(SetStripFrozen { strip, frozen: old })
+            }
+            SetTrackFrozen { track, frozen } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.frozen, frozen);
+                Ok(SetTrackFrozen { track, frozen: old })
             }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;

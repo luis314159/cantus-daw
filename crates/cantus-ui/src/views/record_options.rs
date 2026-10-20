@@ -229,6 +229,8 @@ fn body(app: &mut CantusApp, ui: &mut Ui) {
     if rs != before {
         app.set_record_settings(rs);
     }
+    // Low-latency monitoring (round 29, ADR 0064 §4).
+    super::freeze_monitor::popover_rows(app, ui, CONTROL_W);
     if ui.input(|i| i.pointer.any_released()) {
         app.end_gesture();
     }

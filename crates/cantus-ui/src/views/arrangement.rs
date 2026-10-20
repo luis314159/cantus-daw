@@ -1116,6 +1116,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 let heading = crate::i18n::t("isolation.stopped_card");
                 crate::kit::hint::set_text(p.ctx(), &heading, &tip, crate::kit::hint::Caps::NONE);
             }
+            // Frozen (round 29, ADR 0064).
+            super::freeze_view::paint_header_frozen(&p, hr.icon, a, track.id, s);
         }
     }
     app.arrangement.scratch = scratch;
@@ -1431,6 +1433,11 @@ fn track_menu(
         ui.close();
         return;
     }
+    // Freeze and bounce in place (round 29, ADR 0064).
+    if super::freeze_view::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
     // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
     if crate::controllers::track_menu(app, ui, id) {
         ui.close();
@@ -1691,6 +1698,8 @@ fn clips(
     let mut out = ClipHits::default();
     // Where audio plays on the timeline (ADR 0060).
     let tempo_map = crate::views::bars::map(app.project());
+    // What freezes hold (round 29, ADR 0064): their clips under a frosted veil.
+    let held = super::freeze_view::held(app);
     audio::begin_frame(&mut scratch.audio);
     scratch.refresh_words();
     // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
@@ -1881,6 +1890,10 @@ fn clips(
                         );
                     }
                 }
+            }
+            // A frozen track's clip (ADR 0064): in a render now, under a frosted veil.
+            if clip.automation.is_none() && clip.lane == 0 && held.held_tracks.contains(&track.id) {
+                super::freeze_view::veil_clip(b, body, lanes, s);
             }
             // Repeat marks: a hairline where the content starts again.
             if let Some(period) = shown.period() {
@@ -2592,6 +2605,9 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
     }
     // A group or clip chosen by name (round 26): the picker.
     entries.push(Entry::Run(Action::LinkTo, "clip.link_to"));
+    // Bounce in place (round 29, ADR 0064): the selected clips, to audio.
+    entries.push(Entry::Run(Action::BounceInPlace, "bounce.clips"));
+    entries.push(Entry::Run(Action::BounceSource, "bounce.clips_source"));
     // An audio clip plays its file once: it has no repeat (ADR 0025).
     if !is_audio {
         entries.push(Entry::Run(

@@ -68,6 +68,8 @@ pub(crate) struct Scratch {
     pub dry_r: Vec<f32>,
     pub edge_l: Vec<f32>,
     pub edge_r: Vec<f32>,
+    /// A frozen render's frames on their way out of the stream, interleaved (ADR 0064).
+    pub inter: Vec<f32>,
     /// What the slot's nodes sent out this pass (forwarded by the callback).
     pub events: Vec<Outgoing>,
     /// Where the slot's time went this block (folded into the processor's profiler).
@@ -85,6 +87,7 @@ impl Scratch {
             dry_r: buf(),
             edge_l: buf(),
             edge_r: buf(),
+            inter: vec![0.0; PASS_FRAMES * 2],
             events: Vec::with_capacity(OUTGOING),
             prof: crate::profile::SlotProfile::new(),
         }
@@ -99,6 +102,7 @@ impl Scratch {
             &mut self.dry_r,
             &mut self.edge_l,
             &mut self.edge_r,
+            &mut self.inter,
         ] {
             touch(v);
         }
@@ -431,6 +435,10 @@ impl Nodes {
     /// Run plan node `n` on slot `slot` (the scratch and the frame borrowed by the caller).
     #[inline]
     pub fn run_node(&self, frame: &Frame, n: usize, sc: &mut Scratch) {
+        // A resting node (ADR 0064): not run; nothing gathers from it.
+        if frame.map.rest.get(n).copied().unwrap_or(false) {
+            return;
+        }
         let ctx = &frame.ctx;
         let started = ctx.profiling.then(Instant::now);
         match frame.map.jobs.get(n) {

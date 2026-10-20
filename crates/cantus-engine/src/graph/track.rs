@@ -49,6 +49,12 @@ pub(crate) struct TrackSlot {
     /// Automated level and balance ramping (ADR 0027).
     pub gain_ramp: Option<Ramp>,
     pub pan_ramp: Option<Ramp>,
+    /// Frozen on its own (ADR 0064): the render it plays in place of its instrument and
+    /// clips, and where its reader is.
+    pub frozen: Option<Arc<crate::freeze::FrozenHandle>>,
+    pub frozen_place: crate::freeze::ReadPlace,
+    /// It rests (ADR 0064): not run.
+    pub rest: bool,
 }
 
 impl TrackSlot {
@@ -71,6 +77,9 @@ impl TrackSlot {
             input: rec::TrackInputSlot::default(),
             gain_ramp: None,
             pan_ramp: None,
+            frozen: None,
+            frozen_place: crate::freeze::ReadPlace::default(),
+            rest: false,
         }
     }
 
@@ -188,8 +197,12 @@ impl TrackSlot {
         }
     }
 
-    /// The instrument's latency, which the track leaves at (ADR 0028).
+    /// The instrument's latency, which the track leaves at (ADR 0028) — while it plays a
+    /// frozen render, the latency the render was made with (ADR 0064).
     pub fn latency(&self) -> usize {
+        if let Some(h) = self.frozen.as_ref() {
+            return h.latency;
+        }
         match self.instrument {
             SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
             SlotInstrument::Firmus | SlotInstrument::Pulsus => 0,
@@ -255,7 +268,11 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                     let off = (ctx.transport.samples_until(ev.tick.0 as f64) as usize)
                         .saturating_sub(sub);
                     if off == 0 {
-                        fire(&mut s, ev);
+                        // Frozen (ADR 0064), the instrument is not played: its render is.
+                        // The notes still go to the inserts that hear them.
+                        if s.frozen.is_none() {
+                            fire(&mut s, ev);
+                        }
                         s.next_event += 1;
                         if let Some(ob) = outbox.as_mut() {
                             let at = ctx.clock + (p0 + sub) as u64;
@@ -312,11 +329,33 @@ fn track_segment(
         buf_l,
         buf_r,
         events,
+        inter,
         ..
     } = sc;
     let mono = &mut mono[..m];
     let l = &mut buf_l[..m];
     let r = &mut buf_r[..m];
+    // Frozen on its own (ADR 0064): the render, in place of the instrument, the clips and
+    // the input, then the same level and balance as live.
+    if let Some(h) = s.frozen.clone() {
+        let from = crate::freeze::frame_at(&transport);
+        let playing = transport.is_playing();
+        crate::freeze::point(
+            &h,
+            &mut s.frozen_place,
+            from + if playing { m as i64 } else { 0 },
+        );
+        let sounding = playing && from + (m as i64) > 0 && from < h.frames as i64;
+        if sounding {
+            let late = crate::freeze::read(&h, from, l, r, inter, ctx.offline);
+            if late > 0 {
+                nodes.stream_late.fetch_add(late as u64, Relaxed);
+            }
+        }
+        return track_level(
+            nodes, ctx, slot, s, out, l, r, sub, end, &transport, sounding,
+        );
+    }
     // Firmus is mono and is copied into both channels; Pulsus writes stereo directly,
     // because its pads are panned inside the instrument.
     let has_signal = match s.instrument {
@@ -423,6 +462,41 @@ fn track_segment(
             ctx.recording,
         )
     };
+    track_level(
+        nodes, ctx, slot, s, out, l, r, sub, end, &transport, has_signal,
+    );
+}
+
+/// The track's segment after its source: its level and balance, its line, its output. A
+/// freeze's or a bounce's render taps the source here (ADR 0064).
+#[allow(clippy::too_many_arguments)]
+fn track_level(
+    nodes: &Nodes,
+    ctx: &PassCtx,
+    slot: usize,
+    s: &mut TrackSlot,
+    out: &mut TrackOut,
+    l: &mut [f32],
+    r: &mut [f32],
+    sub: usize,
+    end: usize,
+    transport: &crate::transport::Transport,
+    has_signal: bool,
+) {
+    let m = end - sub;
+    let done = ctx.p0 + sub;
+    if ctx.tap {
+        match nodes.tap.try_borrow_mut() {
+            Some(mut tap) => {
+                if let Some(tap) = tap.as_mut() {
+                    if has_signal {
+                        tap.track_source(slot, done, l, r);
+                    }
+                }
+            }
+            None => nodes.conflict(),
+        }
+    }
     let line = s.line;
     let line_ringing = nodes.line_ringing(line);
     if !has_signal && !line_ringing {

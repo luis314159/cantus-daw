@@ -1,1 +1,80 @@
 # freeze — ronda 29: congelar, bounce in place y monitoreo de baja latencia. Cada clave de freeze.en.txt tiene aquí su gemela.
+
+# Etiquetas de deshacer (cmd.*)
+cmd.freeze = congelar
+cmd.unfreeze = descongelar
+cmd.bounce_in_place = pasar a audio en su lugar
+
+# Acciones (el mapa de teclas)
+action.freeze-track = Congelar o descongelar la pista
+action.bounce-in-place = Pasar a audio en su lugar (con los insertos)
+action.bounce-source = Pasar a audio en su lugar (solo la fuente)
+action.toggle-low-latency = Monitoreo de baja latencia sí o no
+
+# --- congelar ---
+freeze.strip_n = Canal {n}
+freeze.done = {name} está congelado: suena su render y su CPU queda libre. El fader, el paneo, el silencio y los envíos siguen en vivo.
+freeze.unfrozen = {name} vuelve a sonar en vivo.
+freeze.already = {name} ya está congelado.
+freeze.cannot_monitoring = {name} no se puede congelar mientras {track} monitorea su entrada siempre: pon su monitoreo en Auto o en No primero.
+freeze.stopped = Detenido: {name} no cambió.
+freeze.failed = No se pudo hacer el render de {name}: {error}
+freeze.refused = {name} está congelado: {how}
+freeze.how_track = descongélalo para cambiar esto (el menú de la pista: Descongelar).
+freeze.how_strip = descongélalo para cambiar esto (el menú del canal: Descongelar).
+freeze.unfreeze = Descongelar
+freeze.row = Congelar
+freeze.freeze = Congelar
+freeze.frozen = Congelado
+
+freeze.export_waits = Se está congelando o pasando algo a audio: exporta cuando termine, o detenlo.
+
+# --- la tarjeta de la esquina ---
+freeze.card.freezing = Congelando {name}
+freeze.card.freezing_body = {pct} % hecho. La canción sigue sonando; nada cambia hasta que termine.
+freeze.card.refreshing = Preparando el render de {name}
+freeze.card.refreshing_body = {pct} % hecho. Suena en vivo hasta que su render esté listo.
+freeze.card.bouncing_body = {pct} % hecho. La canción sigue sonando; la pista de audio llega cuando termine.
+freeze.card.stop = Detener
+freeze.card.refused = {name} está congelado
+freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. El fader, el paneo y los envíos siguen en vivo.
+freeze.card.ok = Entendido
+
+# --- menús ---
+freeze.menu.band = Congelar
+freeze.menu.freeze = Congelar pista
+freeze.menu.unfreeze = Descongelar
+freeze.menu.freeze_strip = Congelar canal
+freeze.menu.unfreeze_strip = Descongelar
+bounce.menu.inserts = Pasar a audio en su lugar
+bounce.menu.source = Pasar a audio en su lugar (solo la fuente)
+bounce.menu.removes = Quitar el original al pasar a audio
+bounce.menu.strip = Pasar el canal a audio en su lugar
+bounce.clips = Pasar los clips a audio en su lugar
+bounce.clips_source = Pasar los clips a audio (solo la fuente)
+
+# --- pasar a audio ---
+bounce.job = Pasando {name} a audio
+bounce.track_name = {name} (audio)
+bounce.done = {name} pasó a audio, en la pista de abajo.
+bounce.frozen = {name} está congelado: descongélalo para pasarlo a audio.
+bounce.nothing = {name} no tiene nada que pasar a audio.
+bounce.no_track = Elige antes una pista, sus clips o un tramo de tiempo.
+bounce.unreadable = No se pudo leer el archivo del audio: {file}
+
+# --- monitoreo de baja latencia ---
+freeze.ll.band = Monitoreo de baja latencia
+freeze.ll.row = Baja latencia
+freeze.ll.on = Sí
+freeze.ll.tip = Monitoreo de baja latencia ({key}): lo que monitoreas no espera a la latencia de las otras pistas, y sus insertos por encima del límite se saltan mientras está activo.
+freeze.ll.limit = Límite
+freeze.ll.limit_tip = Los insertos de un camino monitoreado con más latencia que esto se saltan
+freeze.ll.ms = {ms} ms
+freeze.ll.now = Saltados
+freeze.ll.none_off = Nada por encima del límite
+freeze.ll.without = Monitoreo sin: {names}
+freeze.ll.heard = Te oyes a
+freeze.ll.round_trip = {ms} ms ida y vuelta
+freeze.ll.now_on = Monitoreo de baja latencia activo: lo que monitoreas se oye sin esperar a las otras pistas.
+freeze.ll.now_off = Monitoreo de baja latencia apagado: todo vuelve a estar alineado.
+freeze.chip.monitored = {ms} ms monitoreado

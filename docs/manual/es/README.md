@@ -265,6 +265,28 @@ grabación**:
 - El clic —su nivel, su sonido, su acento y cuándo suena— es del metrónomo, en la
   [barra superior](#la-barra-superior).
 
+### Monitorear con baja latencia
+
+La compensación de retardo mantiene cada pista a tiempo con la más lenta: con un EQ de fase
+lineal en alguna parte de la canción, todo —**también la entrada que monitoreas**— lo
+espera, y quien canta puede oírse 96 ms tarde. El **monitoreo de baja latencia**
+(`Alt+Shift+R`, o su interruptor en las opciones de grabación, en el menú del chip de
+audio y en las filas de grabación del inspector) lo cambia mientras está activo:
+
+- Lo que monitoreas (la entrada de una pista armada en *Auto*, o cualquier entrada en
+  *Sí*) llega a tus oídos **sin esperar a las otras pistas**: una voz por Tonus se oye
+  2,7 ms tarde en vez de 96 ms. La base sigue a tiempo consigo misma.
+- Una inserción del camino monitoreado con más latencia que el **límite** (3 ms por
+  omisión; 5, 10 o 20 ms en las mismas filas) se **salta** — la lista dice cuáles:
+  *Monitoreo sin: Aequalis, Culmen*. Vuelven en cuanto lo apagas.
+- El chip de audio muestra el viaje de ida y vuelta de lo que monitoreas —el del driver,
+  la espera de la entrada y la cadena monitoreada— mientras está activo.
+- Tu toma queda exactamente donde quedaría con él apagado: lo que se graba es la entrada
+  tal cual, colocada según la latencia que había cuando empezó la toma.
+
+Para el menor retardo, monitorea por un canal propio: un bus que mezcla tu voz con otras
+pistas grabadas las mantiene a tiempo, y tu voz las espera ahí.
+
 ### Tomas y comping
 
 Cada toma se guarda en un **carril de tomas** bajo la pista: ábrelos con el pequeño
@@ -747,6 +769,49 @@ inspector).
 
 **El solo** sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo
 que alimenta.
+
+### Congelar y pasar a audio en su lugar
+
+**Congelar** convierte una pista pesada en una grabación de sí misma, para que su
+instrumento y sus efectos dejen de usar el procesador — y la devuelve, exacta, al
+descongelarla.
+
+- **Congelar una pista**: clic derecho en su cabecera ▸ *Congelar pista*, `Alt+Shift+F`,
+  o la fila *Congelar* del inspector. Una pista con canal propio se congela con su canal:
+  su instrumento, sus clips y las inserciones y el EQ del canal. Una pista que comparte su
+  canal congela su propio instrumento y sus clips. **Congela un canal** (un bus, un
+  retorno) desde el menú del canal: se congela con todo lo que recoge.
+- Primero se hace el render (una tarjeta en la esquina dice cuánto falta, con
+  **Detener**); la canción sigue sonando y nada cambia hasta que termina. Entonces la pista
+  queda congelada en un solo paso de deshacer: un **copo de nieve** en su cabecera y en su
+  canal, sus clips escarchados.
+- Una pista o un canal congelado se sigue **mezclando**: su fader, su paneo, su anchura,
+  su silencio, su solo y el nivel de sus envíos —y su automatización— siguen en vivo. Lo
+  que cambiaría su sonido (sus notas, su instrumento, sus inserciones, el tempo) se
+  rechaza, y la tarjeta dice cómo devolverlo: **Descongelar** (las mismas entradas de
+  menú, la misma tecla). Descongelado, vuelve a sonar en vivo, idéntico.
+- Sus plug-ins se descargan mientras está congelado y vuelven con sus ajustes.
+- Los renders se guardan en una carpeta *Freeze* junto al proyecto (o en la caché de
+  Cantus si el proyecto aún no se ha guardado), con el nombre de lo que contienen: volver a
+  congelar lo que no cambió es instantáneo, y un proyecto abierto sin ellos (en otra
+  computadora, a otra frecuencia de muestreo) suena en vivo mientras se rehacen en segundo
+  plano.
+
+**Pasar a audio en su lugar** hace un render a un clip de audio, en una **pista nueva
+justo debajo de la original**, en el mismo lugar:
+
+- *Pasar a audio en su lugar* (menú de la pista, `Alt+Shift+B`): esta pista por las
+  inserciones de su canal; la pista nueva tiene un canal propio con el fader, el paneo, la
+  anchura y los envíos del anterior.
+- *Pasar a audio en su lugar (solo la fuente)*: el instrumento y los clips antes del nivel
+  de la pista; la pista nueva suena por el mismo canal, por las mismas inserciones.
+- *Pasar los clips a audio en su lugar* (el menú del clip): solo los clips elegidos; con
+  una selección de tiempo y ningún clip elegido, las teclas pasan a audio lo que suena
+  dentro de ella.
+- *Pasar el canal a audio en su lugar* (el menú del canal): todo lo que el canal recoge.
+- La original queda **en silencio** —o se quita, si marcas *Quitar el original al pasar a
+  audio* en el menú de la pista (Cantus recuerda tu elección). La cola (la de una
+  reverberación) se conserva hasta que se apaga. Un solo paso de deshacer.
 
 ## 7. Masterizar: la cadena del máster, Fervor, Latitudo, Culmen
 

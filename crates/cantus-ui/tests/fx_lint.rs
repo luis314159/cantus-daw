@@ -77,6 +77,9 @@ const ON_THE_KIT: &[&str] = &[
     "views/pitch_paint.rs",
     "views/pitch_panel.rs",
     "views/plugin_notice.rs",
+    // Round 29, freeze (ADR 0064).
+    "views/freeze_view.rs",
+    "views/freeze_monitor.rs",
     "views/plugins.rs",
     "views/audio_notice.rs",
     // Round 29, controllers (ADR 0062): the mappings pane.

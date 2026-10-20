@@ -127,6 +127,9 @@ pub enum EngineMessage {
     SetLiveEcho([Option<TrackId>; MAX_LIVE_ECHO]),
     /// While recording, live notes are reported back as [`EngineEvent::NoteInput`].
     SetRecording(bool),
+    /// Low-latency monitoring (round 29, ADR 0064 §4): on with the limit an insert's
+    /// latency may reach on a monitored path (samples), or off (`None`).
+    SetLowLatency(Option<u32>),
     /// Start, switch or stop the mix recorder. Samples go into the capture ring the
     /// processor was built with; without one this does nothing.
     SetCapture(CaptureTarget),
@@ -319,6 +322,8 @@ pub struct EngineStats {
     /// pool's other threads took from them, since the processor was built.
     pub voice_forks: u64,
     pub voice_jobs_helped: u64,
+    /// Low-latency monitoring as last planned (round 29, ADR 0064 §4).
+    pub low_latency: crate::processor::monitor::LowLatency,
 }
 
 /// A live note the engine saw while recording, stamped with the position being **heard**

@@ -287,7 +287,8 @@ impl Processor {
             // dry line, the effect still running) when it has.
             let off = m.bypass[i] || !m.fx_enabled;
             let latent = e.latency() > 0;
-            if off && !latent {
+            // Bypassed hard for low-latency monitoring (ADR 0064 §4).
+            if (off && !latent) || m.ll_off[i] {
                 if let Some(a) = ana.as_mut() {
                     analyse(a, l, r);
                 }

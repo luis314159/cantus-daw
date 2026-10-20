@@ -27,6 +27,8 @@ enum Act {
     Dismiss(usize),
     UseDefault,
     Plugin(plugin_notice::Answer),
+    /// A render's Stop, a refused edit's Unfreeze (round 29, ADR 0064).
+    Freeze(super::freeze_view::Answer),
 }
 
 /// The picture at a card's left.
@@ -35,6 +37,8 @@ enum Art {
     Interface(interfaces::Kind, bool),
     /// A plug-in that stopped working.
     Plugin,
+    /// A freeze: a render on its way, an edit it refused.
+    Frozen,
 }
 
 /// One card of the stack.
@@ -129,10 +133,32 @@ fn plugin_card(app: &CantusApp) -> Option<Card> {
     })
 }
 
+/// The freeze card (round 29, ADR 0064), when a render runs or an edit was refused.
+fn freeze_card(app: &CantusApp) -> Option<Card> {
+    let (title, body, buttons, close) = super::freeze_view::card(app)?;
+    Some(Card {
+        id: ("freeze", 0),
+        name: None,
+        title,
+        body,
+        tok: Tok::Focus,
+        art: Art::Frozen,
+        buttons: buttons
+            .into_iter()
+            .map(|(l, a)| (l, Act::Freeze(a)))
+            .collect(),
+        close: Act::Freeze(close),
+        tip: None,
+        audio: None,
+    })
+}
+
 /// The stack: the plug-in card at the bottom (it is the one that needs an answer now),
-/// the audio cards above it, newest lowest; each card above the last, never over it.
+/// the freeze card, the audio cards above them, newest lowest; each card above the last,
+/// never over it.
 fn stack(app: &CantusApp, ctx: &egui::Context, s: &Style) -> Vec<(Card, Rect)> {
     let mut cards: Vec<Card> = plugin_card(app).into_iter().collect();
+    cards.extend(freeze_card(app));
     cards.extend(audio_cards(app).into_iter().rev());
     let k = s.k;
     let screen = ctx.content_rect();
@@ -209,6 +235,7 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         }
         Some(Act::Dismiss(_)) => {}
         Some(Act::Plugin(a)) => plugin_notice::answer(app, a),
+        Some(Act::Freeze(a)) => super::freeze_view::answer(app, a),
         None => {}
     }
 }
@@ -305,6 +332,10 @@ fn draw(
                     Art::Plugin => {
                         let g = Rect::from_center_size(pic.center(), Vec2::splat(26.0 * k));
                         glyph::paint(b, g, Glyph::PluginStopped, s.t.danger);
+                    }
+                    Art::Frozen => {
+                        let g = Rect::from_center_size(pic.center(), Vec2::splat(28.0 * k));
+                        glyph::paint(b, g, Glyph::Frozen, s.t.focus);
                     }
                 }
                 led::paint(

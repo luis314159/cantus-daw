@@ -587,11 +587,19 @@ impl PluginHost {
     pub fn sync(&mut self, project: &Project, engine: &mut EngineHandle) -> Vec<HostNotice> {
         let mut notices = Vec::new();
         let mut seen = HashSet::new();
+        // Frozen (round 29, ADR 0064): the plug-ins of a chain that plays its render, or
+        // that only feeds one, are not run — unloaded (their state parked) until it thaws.
+        let dormant = engine
+            .frozen
+            .dormant(project, engine.sample_rate.round() as u32);
         // The strips' inserts and the master's (ADR 0026).
         for (host, slot) in project.all_effects() {
             let Some(plugin) = slot.spec.external.as_deref() else {
                 continue;
             };
+            if dormant.effect_rests(host) {
+                continue;
+            }
             seen.insert(slot.id);
             let runs = self.effective_isolation(plugin.isolation);
             // A plug-in that failed where it was tried waits — unless where it runs changed:

@@ -86,6 +86,9 @@ pub struct GraphPlan {
     succs: Vec<u32>,
     /// Each node's predecessor count.
     preds: Vec<u32>,
+    /// Each node rests (round 29, ADR 0064): its sound only reaches a frozen strip that
+    /// plays its render, and nothing live needs it — it is not run.
+    rest: Vec<bool>,
     scratch: Scratch,
 }
 
@@ -212,10 +215,21 @@ pub fn topology_key(snap: &Snapshot) -> u64 {
     for t in &snap.tracks {
         h.word(t.id.0);
         h.opt(t.strip.map(|s| s as u64));
+        // Freezing (ADR 0064): mixed in only when set, so a project without it keys as
+        // it always did.
+        if t.rest {
+            h.word(0xF2EE_2E01);
+        }
     }
     for st in &snap.strips {
         h.word(st.id.0);
         h.opt(st.output.map(|s| s as u64));
+        if st.rest {
+            h.word(0xF2EE_2E02);
+        }
+        if st.frozen.as_ref().is_some_and(|f| f.plays()) {
+            h.word(0xF2EE_2E03);
+        }
         h.word(st.sends.len() as u64);
         for (to, _, _) in &st.sends {
             h.word(*to as u64);
@@ -285,6 +299,11 @@ impl GraphPlan {
             succ_start: with(MAX_NODES + 1, &[0, 0]),
             succs: Vec::with_capacity(MAX_EDGES),
             preds: with(MAX_NODES, &[0]),
+            rest: {
+                let mut v = Vec::with_capacity(MAX_NODES);
+                v.push(false);
+                v
+            },
             scratch: Scratch {
                 pos: Vec::with_capacity(MAX_STRIPS),
                 dest: Vec::with_capacity(MAX_INPUTS),
@@ -359,5 +378,10 @@ impl GraphPlan {
     /// How many nodes node `n` waits for.
     pub fn predecessors(&self, n: usize) -> u32 {
         self.preds[n]
+    }
+
+    /// Whether node `n` rests: it is not run (ADR 0064).
+    pub fn rests(&self, n: usize) -> bool {
+        self.rest.get(n).copied().unwrap_or(false)
     }
 }

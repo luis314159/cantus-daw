@@ -837,6 +837,20 @@ fn main() {
             plugin.isolation = Some(cantus_core::PluginIsolation::Within);
         }
     }
+    // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
+    // gathers and its chain up to the width) and the last track's own source, each with
+    // the content key of what it holds — computed last, after every block above.
+    {
+        use cantus_core::freeze::{content_key, FreezeTarget, Frozen};
+        if let Some(s) = p.strips.first().map(|s| s.id) {
+            let content = content_key(&p, FreezeTarget::Strip(s)).expect("a strip");
+            p.strip_mut(s).unwrap().frozen = Some(Frozen { content });
+        }
+        if let Some(t) = p.tracks.last().map(|t| t.id) {
+            let content = content_key(&p, FreezeTarget::Track(t)).expect("a track");
+            p.track_mut(t).unwrap().frozen = Some(Frozen { content });
+        }
+    }
     let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")

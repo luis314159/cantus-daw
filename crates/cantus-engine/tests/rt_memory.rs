@@ -926,6 +926,143 @@ fn a_tempo_map_never_allocates() {
     }
 }
 
+impl Rig {
+    /// Send a snapshot made elsewhere (frozen renders attached by an `EngineHandle`).
+    fn send(&mut self, snap: Arc<Snapshot>) {
+        for slot in snap.effect_slots() {
+            if self.known.insert(slot.id) {
+                let unit = Box::new(EffectUnit::new(slot, 48_000.0));
+                self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
+            }
+        }
+        self.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+            .unwrap();
+        self.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    }
+}
+
+/// Frozen playback (round 29, ADR 0064) on the audio thread and the pool: a frozen strip
+/// and a frozen track streaming their renders from disk, their regions resting; a seek, a
+/// loop (its start kept ready), an unfreeze (the chain back, the render let go — never the
+/// last holder: the old snapshot still is), a freeze again, a stop. Not one allocation, not
+/// one free.
+#[test]
+fn frozen_playback_never_allocates() {
+    use cantus_core::freeze::{self, FreezeTarget};
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = demo_project();
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("feedback", 0.6).unwrap();
+    let s0 = p.tracks[0].strip.unwrap();
+    p.strip_mut(s0).unwrap().effects.push(delay);
+    let (mut h, _) = EngineHandle::manual(48_000.0);
+    h.frozen.set_app_dir(dir.path().to_path_buf());
+    let bass = p.tracks[1].id;
+    for target in [FreezeTarget::Strip(s0), FreezeTarget::Track(bass)] {
+        let job = cantus_engine::freeze::render::prepare(&mut h, &p, target).unwrap();
+        job.run(Vec::new(), Vec::new(), &RenderProgress::default())
+            .unwrap();
+        h.frozen.forget_missing();
+        freeze::freeze_commands(&p, target)
+            .unwrap()
+            .apply(&mut p)
+            .unwrap();
+    }
+    let frozen = h.compile(&p, 1);
+    assert!(frozen
+        .strips
+        .iter()
+        .any(|s| s.frozen.as_ref().is_some_and(|f| f.plays())));
+    assert!(frozen
+        .tracks
+        .iter()
+        .any(|t| t.frozen.as_ref().is_some_and(|f| f.plays())));
+    let mut live = p.clone();
+    freeze::thaw(&mut live);
+    let live = h.compile(&live, 2);
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(frozen.clone());
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("frozen", 200);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+        rig.play("seek", 40);
+        let mut looped = (*frozen).clone();
+        looped.loop_region = Some(LoopRegion {
+            start: Ticks::beats(1),
+            end: Ticks::beats(3),
+        });
+        rig.send(Arc::new(looped));
+        rig.play("loop", 200);
+        rig.send(live.clone());
+        rig.play("unfrozen", 40);
+        rig.send(frozen.clone());
+        rig.play("frozen again", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "frozen playback allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+/// Low-latency monitoring (round 29, ADR 0064 §4) on the audio thread and the pool: an
+/// armed track monitored through a strip with a latent insert while another strip and
+/// the master have theirs — the mode switched on (the path re-planned, the inserts over
+/// the limit bypassed hard, their lines given back), played, recording started and
+/// stopped, switched off and on again. Not one allocation, not one free.
+#[test]
+fn low_latency_monitoring_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let s1 = p.tracks[1].strip.unwrap();
+    let mut input = TrackInput::mono(0);
+    input.monitor = MonitorMode::Auto;
+    p.tracks[0].input = Some(input);
+    p.tracks[0].armed = true;
+    for s in [s0, s1] {
+        let eq = eq_slot(&mut p, &[("mode", 2.0), ("b0.used", 1.0), ("b0.gain", 3.0)]);
+        p.strip_mut(s).unwrap().effects.push(eq);
+    }
+    let mut lim = p.make_effect(EffectKind::Limiter);
+    lim.spec.set("look", 5.0).unwrap();
+    p.master.effects.push(lim);
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 20);
+        rig.allocations.clear();
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("low latency on", 40);
+        rig.tx.push(EngineMessage::SetRecording(true)).unwrap();
+        rig.play("recording", 40);
+        rig.tx.push(EngineMessage::SetRecording(false)).unwrap();
+        rig.tx.push(EngineMessage::SetLowLatency(None)).unwrap();
+        rig.play("off", 40);
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("on again", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "low-latency monitoring allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
 /// Round 29 (ADR 0062): what live MIDI now routes that it used to drop — channel
 /// pressure, key pressure on a held key, program changes — on a native instrument whose
 /// unit reads pressure, while it plays: not one allocation.
