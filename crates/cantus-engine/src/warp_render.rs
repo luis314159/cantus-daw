@@ -229,8 +229,10 @@ pub fn pitch_of(input: &SampleData, rate: u32) -> cantus_dsp::pitch::Analysis {
 /// sketched by long grains read at its transposition (`stretch::sketch`), so an edit never
 /// drops it back to its source's pitch while the full render is made (round 29's review);
 /// an untransposed one is read at varispeed through the same map. Only the span the
-/// window reads is taken out of the input.
-pub fn bridge(input: &SampleData, plan: &Plan) -> SampleData {
+/// window reads is taken out of the input. `onsets`: the file's transients at the render's
+/// rate, when its analysis is in (a transposed sketch puts them, and the markers, on their
+/// frames).
+pub fn bridge(input: &SampleData, plan: &Plan, onsets: &[f64]) -> SampleData {
     let map = plan.time_map();
     let len = plan.len();
     let (a, b) = (map.source(0.0), map.source(len as f64));
@@ -242,14 +244,15 @@ pub fn bridge(input: &SampleData, plan: &Plan) -> SampleData {
     let transposed = plan.warp.semitones() != 0.0 && plan.warp.mode != WarpMode::Repitch;
     let out: Vec<Vec<f32>> = if transposed {
         let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();
-        stretch::sketch(
-            &refs,
-            plan.rate as f32,
-            &map,
-            len,
-            plan.warp.semitones(),
-            lo,
-        )
+        let mut anchors: Vec<f64> = map
+            .hard_points()
+            .map(|p| p.1)
+            .chain(onsets.iter().copied())
+            .collect();
+        anchors.sort_by(f64::total_cmp);
+        anchors.dedup_by(|b, a| (*b - *a).abs() < 1.0);
+        let semis = plan.warp.semitones();
+        stretch::sketch(&refs, plan.rate as f32, &map, len, semis, lo, &anchors)
     } else {
         chs.iter()
             .map(|x| {

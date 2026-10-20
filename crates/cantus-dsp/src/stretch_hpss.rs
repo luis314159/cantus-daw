@@ -181,17 +181,21 @@ fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
 /// apart), each read at `ratio` (the transposition) from where the map puts its centre.
 /// Through a map that is a pure shift (`Map::held_at` around a transient) the grains read
 /// whole frames one hop apart, so the hit is the source's, moved, sample for sample.
+/// Transposed, a grain that holds a transient (`anchors`, source frames, in order) is read
+/// from the transient outward, so every grain holding it puts it on the same output frame
+/// (read from their own centres, each would put it a little elsewhere: a smeared hit).
 pub(super) fn grains(
     channels: &[&[f32]],
     rate: f32,
     map: &Map,
     len: usize,
     ratio: f64,
+    anchors: &[f64],
 ) -> Vec<Vec<f32>> {
     let g = ((0.0053 * rate) as usize)
         .next_power_of_two()
         .clamp(64, 1_024);
-    grains_of(channels, map, len, ratio, g)
+    grains_of(channels, map, len, ratio, g, anchors)
 }
 
 /// [`grains`] with grains `g` frames long (a power of two).
@@ -201,6 +205,7 @@ pub(super) fn grains_of(
     len: usize,
     ratio: f64,
     g: usize,
+    anchors: &[f64],
 ) -> Vec<Vec<f32>> {
     let hop = g / 4;
     let win = hann(g);
@@ -225,6 +230,20 @@ pub(super) fn grains_of(
         }
         let at = map.source(c as f64);
         let start = at.round() as i64;
+        // Transposed: the transient this grain reads, if any, and where it is heard.
+        let anchor = (ratio != 1.0)
+            .then(|| {
+                let reach = half as f64 * ratio;
+                let i = anchors.partition_point(|s| *s < at);
+                [i.checked_sub(1), Some(i)]
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|i| anchors.get(i).copied())
+                    .filter(|s| (s - at).abs() <= reach)
+                    .min_by(|a, b| (a - at).abs().total_cmp(&(b - at).abs()))
+            })
+            .flatten()
+            .map(|s| (s, map.output(s)));
         for (ci, (o, x)) in out.iter_mut().zip(channels).enumerate() {
             for (k, w) in win.iter().enumerate() {
                 let t = c - half + k as i64;
@@ -232,7 +251,10 @@ pub(super) fn grains_of(
                     continue;
                 }
                 let d = k as i64 - half;
-                let pos = start as f64 + d as f64 * ratio;
+                let pos = match anchor {
+                    Some((s, o)) => s + (t as f64 - o) * ratio,
+                    None => start as f64 + d as f64 * ratio,
+                };
                 let v = if ratio == 1.0 {
                     get(x, start + d)
                 } else if let Some(f) = &fast[ci] {

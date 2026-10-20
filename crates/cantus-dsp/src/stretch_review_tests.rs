@@ -253,7 +253,7 @@ fn reading_faster_folds_nothing_back() {
             got - src
         );
         let ratio = math::exp2(semis / 12.0);
-        let g = hpss::grains(&[&x], SR, &map, 48_000, ratio);
+        let g = hpss::grains(&[&x], SR, &map, 48_000, ratio, &[]);
         let got = rms_db(&g[0][4_000..20_000]);
         assert!(
             got < src - 60.0,

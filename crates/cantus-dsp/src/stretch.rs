@@ -37,6 +37,8 @@ mod repitch;
 mod review_tests;
 #[path = "stretch_rhythm.rs"]
 mod rhythm;
+#[path = "stretch_sketch.rs"]
+mod sketch;
 #[cfg(test)]
 #[path = "stretch_tests.rs"]
 mod tests;
@@ -212,7 +214,7 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
     let (mut out, meant) = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants);
     let p: Vec<&[f32]> = percussive.iter().map(Vec::as_slice).collect();
     let shifted = req.map.held_at(req.onsets, rate);
-    let hits = hpss::grains(&p, rate, &shifted, req.len, ratio);
+    let hits = hpss::grains(&p, rate, &shifted, req.len, ratio, req.onsets);
     // The level each frame means: the source's own where the frame read it, moved by what
     // the transposition did to the harmonic frame there (a band moved out of reach, the
     // formants put back). Not the parts' powers summed: the parts were correlated in the
@@ -315,10 +317,11 @@ fn window_of(a: &Analysis, lo: usize, hi: usize) -> Analysis {
     }
 }
 
-/// A **sketch** of a render, made in milliseconds: the source re-laid through `map` by
-/// ≈ 43 ms grains (a quarter apart) read at the transposition — the right timing and the
-/// right pitch, a grainier sound — for what plays while the full render is made (the
-/// engine's bridge). `channels` start at source frame `origin`, as in [`Request`].
+/// A **sketch** of a render, made in milliseconds (WSOLA, `stretch_sketch`): the right
+/// timing and the right pitch, a rougher sound — for what plays while the full render is
+/// made (the engine's bridge). `channels` start at source frame `origin`, as in [`Request`];
+/// `anchors` are the transients and markers (source frames, in order): a grain holding one
+/// is read from it outward, so it lands on its frame.
 pub fn sketch(
     channels: &[&[f32]],
     rate: f32,
@@ -326,6 +329,7 @@ pub fn sketch(
     len: usize,
     semitones: f64,
     origin: usize,
+    anchors: &[f64],
 ) -> Vec<Vec<f32>> {
     let semis = semitones.clamp(-MAX_SEMITONES, MAX_SEMITONES);
     let ratio = crate::math::exp2(semis / 12.0);
@@ -336,8 +340,6 @@ pub fn sketch(
     } else {
         Map::new(pts).unwrap_or_else(Map::identity)
     };
-    let g = ((0.043 * rate) as usize)
-        .next_power_of_two()
-        .clamp(256, 4_096);
-    hpss::grains_of(channels, &local, len, ratio, g)
+    let local_anchors: Vec<f64> = anchors.iter().map(|s| s - shift).collect();
+    sketch::render(channels, rate, &local, len, ratio, &local_anchors)
 }

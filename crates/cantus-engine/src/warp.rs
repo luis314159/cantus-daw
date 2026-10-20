@@ -360,7 +360,8 @@ fn work(shared: Arc<Shared>, bridges: bool) {
             }
             Work::Render(job) => {
                 let r = if bridges {
-                    Ok(bridge(&job.input, &job.plan))
+                    let onsets = ready_onsets(&shared, &job.plan);
+                    Ok(bridge(&job.input, &job.plan, &onsets))
                 } else {
                     render_on(&shared, &job)
                 };
@@ -418,6 +419,19 @@ fn analyse_on(shared: &Shared, path: &Path, rate: u32) -> Result<Arc<Analysis>, 
         },
     );
     result
+}
+
+/// The file's transients at the render's rate, if its analysis is in (a bridge never waits
+/// for one).
+fn ready_onsets(shared: &Shared, plan: &Plan) -> Vec<f64> {
+    let g = shared.lock();
+    match g.files.get(&(plan.path.clone(), plan.source_rate)) {
+        Some(Entry::Ready(a)) => {
+            let scale = plan.rate as f64 / plan.source_rate.max(1) as f64;
+            a.onsets.iter().map(|o| o * scale).collect()
+        }
+        _ => Vec::new(),
+    }
 }
 
 fn render_on(shared: &Shared, job: &Job) -> Result<SampleData, String> {
