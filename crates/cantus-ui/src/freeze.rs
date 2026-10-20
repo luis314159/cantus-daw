@@ -244,6 +244,11 @@ pub(crate) fn saved(app: &mut CantusApp) {
             })
         })
         .collect();
+    // Nothing to bring and no folder to prune: nothing to do (a project with nothing
+    // frozen gets no folder).
+    if copies.is_empty() && !dir.is_dir() {
+        return;
+    }
     let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
     app.freeze.copying = Some(done.clone());
     let spawned = std::thread::Builder::new()
@@ -279,7 +284,9 @@ fn wanted_by_jobs(app: &CantusApp) -> Vec<String> {
 /// Copy each render into the project's folder (written beside, then renamed: never a
 /// half file under a render's name) and remove every render there that is not wanted.
 fn copy_and_prune(dir: &Path, copies: &[(PathBuf, PathBuf)], wanted: &HashSet<String>) {
-    let _ = std::fs::create_dir_all(dir);
+    if !copies.is_empty() {
+        let _ = std::fs::create_dir_all(dir);
+    }
     for (from, to) in copies {
         let part = to.with_extension("copy.part");
         if std::fs::copy(from, &part).is_ok() && std::fs::rename(&part, to).is_err() {
@@ -505,8 +512,7 @@ fn scan(app: &mut CantusApp) {
             if wired_since_installed(app, &path) {
                 let _ = std::fs::remove_file(wires_file(&path));
                 let _ = std::fs::remove_file(&path);
-                app.engine.frozen.let_go_all();
-                app.engine.frozen.forget_missing();
+                app.engine.frozen.forget(&content, rate);
                 app.force_resync();
             }
         }
@@ -862,13 +868,15 @@ pub(crate) fn units_for(
             .find(|(id, _)| !insts.iter().any(|u| u.track == *id))
             .map(|(_, name)| name)
     });
-    // The bypassed ones a wire stands in for: their latency is not in the render (review
-    // 3) — it is made again once they are installed.
+    // The bypassed ones a wire stands in for because they are not installed: their latency
+    // is not in the render (review 3) — it is made again once they are. (One installed
+    // but failing to load would only be wired again.)
     let wires: Vec<(cantus_core::PluginFormat, String)> = only
         .all_effects()
         .filter(|(strip, e)| !heard(*strip, e))
         .filter_map(|(_, e)| e.spec.external.as_deref().map(|x| (e.id, x)))
         .filter(|(id, _)| !units.iter().any(|u| u.id == *id))
+        .filter(|(_, x)| !app.plugins.installed(x.format, &x.id))
         .map(|(_, x)| (x.format, x.id.clone()))
         .collect();
     match lost {

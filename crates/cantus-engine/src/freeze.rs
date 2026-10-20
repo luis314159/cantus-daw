@@ -392,6 +392,14 @@ impl FrozenStore {
         self.held = held;
     }
 
+    /// Forget the render of `content` at `rate` (its file removed to be made again): never
+    /// played again from the handle it had open (review 3).
+    pub fn forget(&mut self, content: &str, rate: u32) {
+        let key = render_key(content, rate);
+        self.open.remove(&key);
+        self.damaged.remove(&key);
+    }
+
     /// Keep the renders of `content` keys at `rate` open while they are frozen in the
     /// project, whatever a snapshot plays (pattern mode plays every chain live: leaving it
     /// found them closed — review 3).

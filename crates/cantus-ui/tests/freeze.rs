@@ -1883,3 +1883,934 @@ fn the_chip_counts_the_input_only_for_an_audio_input() {
         Some((280.0f64 + 1_024.0).max(300.0 + 280.0 + 40.0) * 1000.0 / 48_000.0)
     );
 }
+
+// ---- review 3 ---------------------------------------------------------------------
+
+/// `a` and `b` equal to the bit over the shorter's length.
+fn same_prefix(a: &[f32], b: &[f32], what: &str) {
+    let n = a.len().min(b.len());
+    same_bits(&a[..n], &b[..n], what);
+}
+
+/// The synth's strip with a linear-phase EQ after its delay: thousands of frames late.
+fn latent(app: &mut CantusApp) -> StripId {
+    let strip = app.project().tracks[0].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("mode", 2.0).unwrap();
+    p.strip_mut(strip).unwrap().effects.push(eq);
+    app.bus = CommandBus::new(p);
+    strip
+}
+
+/// Bounce the synth with its inserts, the original removed: the new track (with the delay
+/// it keeps), its strip and its audio clip.
+fn bounced_latent(app: &mut CantusApp, ctx: &egui::Context) -> (TrackId, Option<StripId>, ClipId) {
+    latent(app);
+    let synth = app.project().tracks[0].id;
+    app.settings.bounce_removes = true;
+    bounce(
+        app,
+        ctx,
+        Plan {
+            track: synth,
+            through: Through::Inserts,
+            range: Range::Track,
+        },
+    );
+    let t = app
+        .project()
+        .tracks
+        .iter()
+        .find(|t| t.lateness.is_some())
+        .expect("the bounce keeps its delay")
+        .clone();
+    let clip = t.clips.iter().find(|c| c.audio.is_some()).unwrap().id;
+    (t.id, t.strip, clip)
+}
+
+/// A plain track (no delay of its own) into `strip`, last in the list.
+fn plain_track(app: &mut CantusApp, strip: Option<StripId>) -> TrackId {
+    let mut y = app.bus.new_track("Plain".to_string());
+    y.strip = strip;
+    let id = y.id;
+    let index = app.project().tracks.len();
+    assert!(app.exec(Command::InsertTrack {
+        index,
+        track: Box::new(y),
+    }));
+    id
+}
+
+#[test]
+fn a_bounced_clip_moved_to_a_track_of_its_own_plays_on_the_grid() {
+    // Review 3: the latency was in the bounce's file and on its track: moved, the clip
+    // played it late. Now its audio is on the grid; the track keeps the delay.
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("lateness-move");
+    latent(&mut app);
+    let live = mix(&mut app);
+    let (t2, strip2, clip) = bounced_latent(&mut app, &ctx);
+    same_prefix(&mix(&mut app), &live, "the bounce plays as it did");
+    let y = plain_track(&mut app, strip2);
+    assert!(app.exec(Command::MoveClipToTrack {
+        from: t2,
+        to: y,
+        clip,
+    }));
+    same_prefix(&mix(&mut app), &live, "moved to a plain track: on the grid");
+}
+
+#[test]
+fn a_clip_put_on_a_bounced_track_plays_on_the_grid() {
+    // An imported take on the bounced track sounds where it does on a plain track: the
+    // track delays everything it holds, and reports it.
+    let ctx = support::ctx();
+    let (mut app, dir) = app("lateness-put");
+    let (t2, strip2, _) = bounced_latent(&mut app, &ctx);
+    let take = dir.join("drive").join("take.wav");
+    with_take(&mut app, &take);
+    assert_eq!(
+        app.project().tracks[0].id,
+        t2,
+        "the bounce took the original's place"
+    );
+    let a = mix(&mut app);
+    // The same take on a plain track into the same strip instead.
+    let mut p = app.project().clone();
+    let clip = p.track_mut(t2).unwrap().clips.pop().unwrap();
+    assert!(clip.audio.is_some());
+    let mut y = p.make_track("Plain");
+    y.strip = strip2;
+    y.clips.push(clip);
+    p.tracks.push(y);
+    app.bus = CommandBus::new(p);
+    let b = mix(&mut app);
+    let n = a.len().min(b.len());
+    within(&a[..n], &b[..n], 1e-6, "on the grid on the bounced track");
+}
+
+#[test]
+fn a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere() {
+    // The exchange format has no kept delay: the audio being on the grid is what makes a
+    // bounce play in time in another application (review 3: its file was late).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("lateness-dawproject");
+    latent(&mut app);
+    let (_, _, _) = bounced_latent(&mut app, &ctx);
+    let here = mix(&mut app);
+    let file = dir.join("song.dawproject");
+    let base = dir.clone();
+    cantus_project::dawproject::export_to(app.project(), "test", Some(&base), &file).unwrap();
+    let media = dir.join("media");
+    let back = cantus_project::dawproject::import_file(&file, &media).unwrap();
+    let mut other = support::app(back.project);
+    other.engine.frozen.set_app_dir(dir.join("renders2"));
+    let there = mix(&mut other);
+    let n = here.len().min(there.len());
+    within(
+        &there[..n],
+        &here[..n],
+        1e-4,
+        "the bounce in time in the round trip",
+    );
+}
+
+#[test]
+fn a_bounce_through_inserts_waits_for_a_latent_co_input_before_the_chain() {
+    // The bass's strip (a linear-phase EQ) plays into the synth's, whose delay has its mix
+    // automated: live, the synth entered that chain as late as the bass's EQ made it. The
+    // bounce renders the synth alone — planned on the whole song, it waits as long before
+    // the chain (review 3: the wait was zero without a device, and added after the chain,
+    // so the automation met it early).
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("co-input");
+    let mut p = app.project().clone();
+    let synth_strip = p.tracks[0].strip.unwrap();
+    let bass_strip = p.tracks[1].strip.unwrap();
+    let delay = p.strip(synth_strip).unwrap().effects[0].id;
+    p.strip_mut(bass_strip).unwrap().output = Some(synth_strip);
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec.set("mode", 2.0).unwrap();
+    p.strip_mut(bass_strip).unwrap().effects.push(eq);
+    let ride = p.make_automation_clip(
+        "mix",
+        AutoTarget::Effect {
+            effect: delay,
+            key: "mix".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            automation::AutoPoint::new(Ticks::ZERO, 0.1),
+            automation::AutoPoint::new(Ticks::beats(8), 0.9),
+        ],
+    );
+    p.tracks[1].clips.push(ride);
+    app.bus = CommandBus::new(p);
+    let live = mix(&mut app);
+    let synth = app.project().tracks[0].id;
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Inserts,
+            range: Range::Track,
+        },
+    );
+    assert!(app.project().tracks.len() >= 3, "{}", app.status.text);
+    let after = mix(&mut app);
+    let n = after.len().min(live.len());
+    // The chain is linear but summed in another order: within float rounding.
+    within(
+        &after[..n],
+        &live[..n],
+        1e-5,
+        "the automation meets it as it did",
+    );
+}
+
+#[test]
+fn saving_one_project_keeps_the_renders_of_another_beside_it() {
+    // Two projects in one folder, each frozen and saved: each keeps its own renders
+    // (review 3: the shared folder was pruned by whichever saved last).
+    let ctx = support::ctx();
+    let (mut a, dir) = app("two-projects");
+    let (mut b, _) = app("two-projects-b");
+    a.path = Some(dir.join("a.cantus"));
+    b.path = Some(dir.join("b.cantus"));
+    // B a little different, so its render is its own.
+    let mut p = b.project().clone();
+    p.tracks[0].gain_db = -3.0;
+    b.bus = CommandBus::new(p);
+    for app in [&mut a, &mut b] {
+        let strip = app.project().tracks[0].strip.unwrap();
+        app.freeze_target(FreezeTarget::Strip(strip));
+        settle(app, &ctx);
+        let file = app.path.clone().unwrap();
+        app.start_save(&file);
+        app.poll_save(true);
+        copies_done(app);
+    }
+    for (app, name) in [(&a, "a"), (&b, "b")] {
+        let renders = renders_in(&dir.join("Freeze").join(name));
+        assert_eq!(renders.len(), 1, "{name}: {renders:?}");
+        let target = FreezeTarget::Strip(app.project().tracks[0].strip.unwrap());
+        let content = app.project().frozen(target).unwrap().content.clone();
+        assert!(
+            app.engine.frozen.path_of(&content, 48_000).is_some(),
+            "{name}"
+        );
+    }
+}
+
+#[test]
+fn a_removed_frozen_track_saved_and_undone_finds_its_render() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("removed-frozen");
+    let bass = app.project().tracks[1].id;
+    let target = FreezeTarget::Track(bass);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    assert!(app.exec(Command::RemoveTrack { id: bass }));
+    let file = dir.join("song.cantus");
+    app.start_save(&file);
+    app.poll_save(true);
+    copies_done(&app);
+    app.undo();
+    assert!(app.project().frozen(target).is_some());
+    assert!(
+        app.engine.frozen.path_of(&content, 48_000).is_some(),
+        "the undo finds its render (review 3: the save pruned it)"
+    );
+}
+
+#[test]
+fn a_save_while_a_freeze_is_landing_keeps_its_render() {
+    // Its render written, its freeze not committed yet: a save then keeps it (review 3:
+    // the prune took it, and the freeze landed with no render).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("save-landing");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    // Its render written (renamed into place), its freeze not collected yet.
+    let t0 = Instant::now();
+    while renders_in(&renders_of(&dir)).is_empty() && t0.elapsed() < Duration::from_secs(120) {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let written = renders_in(&renders_of(&dir));
+    assert_eq!(written.len(), 1, "its render written: {written:?}");
+    let render = written[0].clone();
+    let made = std::fs::metadata(&render).unwrap().modified().unwrap();
+    let file = dir.join("song.cantus");
+    app.start_save(&file);
+    app.poll_save(true);
+    copies_done(&app);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(target).is_some());
+    assert!(render.is_file(), "kept");
+    assert_eq!(
+        std::fs::metadata(&render).unwrap().modified().unwrap(),
+        made,
+        "never made again"
+    );
+}
+
+#[test]
+fn saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame() {
+    // Frozen, edited and frozen again: the first render is the undo's. Saved elsewhere,
+    // both come along — copied on a thread of their own, the old folder looked in
+    // meanwhile (review 3: only the current one came, on the frame).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("save-as-history");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let first = app.project().frozen(target).unwrap().content.clone();
+    app.unfreeze_target(target);
+    let synth = app.project().tracks[0].id;
+    assert!(app.exec(Command::SetTrackGain {
+        id: synth,
+        gain_db: -4.0
+    }));
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let second = app.project().frozen(target).unwrap().content.clone();
+    assert_ne!(first, second);
+    let file = dir.join("moved").join("song.cantus");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    app.start_save(&file);
+    app.poll_save(true);
+    assert!(app.freeze.copying.is_some(), "copied off the frame");
+    app.sync_engine();
+    assert!(
+        app.engine.frozen.find(&second, 48_000).is_some(),
+        "found meanwhile"
+    );
+    copies_done(&app);
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    for (what, content) in [("current", &second), ("the undo's", &first)] {
+        let name =
+            cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(content, 48_000));
+        assert!(there.join(name).is_file(), "{what}");
+    }
+}
+
+#[test]
+fn a_take_on_a_lane_below_with_its_file_gone_does_not_stop_a_freeze() {
+    // Only what plays is asked for (review 3: an old take on another lane refused it).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("lane-missing");
+    let take = dir.join("drive").join("take.wav");
+    with_take(&mut app, &take);
+    let mut p = app.project().clone();
+    p.tracks[0].clips.last_mut().unwrap().lane = 1;
+    app.bus = CommandBus::new(p);
+    std::fs::remove_file(&take).unwrap();
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    assert!(
+        app.project().frozen(target).is_some(),
+        "{}",
+        app.status.text
+    );
+}
+
+#[test]
+fn a_bounce_with_a_file_there_but_unreadable_is_refused() {
+    // Its compiled render looked at too (review 3: silence was bounced and the original
+    // muted).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("unreadable");
+    let take = dir.join("drive").join("take.wav");
+    with_take(&mut app, &take);
+    std::fs::write(&take, b"not a wave file at all").unwrap();
+    let tracks = app.project().tracks.len();
+    let synth = app.project().tracks[0].id;
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Track,
+        },
+    );
+    assert_eq!(app.project().tracks.len(), tracks, "nothing laid");
+    assert!(
+        app.status.error && app.status.text.contains("take"),
+        "{}",
+        app.status.text
+    );
+}
+
+#[test]
+fn a_solo_set_while_a_strip_bounce_renders_is_refused_at_its_end() {
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("solo-late");
+    let bass = app.project().tracks[1].id;
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    let tracks = app.project().tracks.len();
+    app.bounce_strip(bass_strip);
+    assert!(app.freeze.busy());
+    assert!(app.exec(Command::SetTrackSolo {
+        id: bass,
+        soloed: true
+    }));
+    settle(&mut app, &ctx);
+    assert_eq!(app.project().tracks.len(), tracks, "not laid back");
+    assert!(app.status.error, "said: {}", app.status.text);
+}
+
+#[test]
+fn a_live_key_source_refuses_a_bounce_through_the_inserts_and_of_the_strip() {
+    let (mut app, _dir) = app("live-key");
+    let mut p = app.project().clone();
+    let synth_strip = p.tracks[0].strip.unwrap();
+    let bass_strip = p.tracks[1].strip.unwrap();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(bass_strip);
+    p.strip_mut(synth_strip).unwrap().effects.push(comp);
+    p.tracks[1].armed = true;
+    app.bus = CommandBus::new(p);
+    let synth = app.project().tracks[0].id;
+    app.bounce(Plan {
+        track: synth,
+        through: Through::Inserts,
+        range: Range::Track,
+    });
+    assert!(
+        app.status.error && app.status.text.contains("Bass"),
+        "{}",
+        app.status.text
+    );
+    assert!(!app.freeze.busy());
+    app.bounce_strip(synth_strip);
+    assert!(
+        app.status.error && app.status.text.contains("Bass"),
+        "{}",
+        app.status.text
+    );
+    assert!(!app.freeze.busy());
+}
+
+#[test]
+fn what_drives_a_carried_modulators_amount_drives_its_copy() {
+    // An LFO on the synth's strip pan, its depth ridden by a lane: the bounce's copy is
+    // ridden as well (review 3: it ran at a fixed depth).
+    let ctx = support::ctx();
+    for remove in [false, true] {
+        let (mut app, _dir) = app(&format!("amount-{remove}"));
+        let mut p = app.project().clone();
+        let strip = p.tracks[0].strip.unwrap();
+        let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+        lfo.routes.push(ModRoute {
+            target: AutoTarget::StripPan(strip),
+            depth: 0.5,
+        });
+        let lfo_id = lfo.id;
+        p.tracks[0].modulators.push(lfo);
+        let ride = p.make_automation_clip(
+            "depth",
+            AutoTarget::ModAmount(lfo_id),
+            Ticks::ZERO,
+            Ticks::beats(8),
+            vec![
+                automation::AutoPoint::new(Ticks::ZERO, 0.1),
+                automation::AutoPoint::new(Ticks::beats(8), 0.9),
+            ],
+        );
+        p.tracks[1].clips.push(ride);
+        app.bus = CommandBus::new(p);
+        let live = mix(&mut app);
+        app.settings.bounce_removes = remove;
+        let synth = app.project().tracks[0].id;
+        bounce(
+            &mut app,
+            &ctx,
+            Plan {
+                track: synth,
+                through: Through::Inserts,
+                range: Range::Track,
+            },
+        );
+        same_prefix(&mix(&mut app), &live, &format!("remove {remove}"));
+    }
+}
+
+/// A comp of two windows of one take on the synth's track, meeting at beat 2 with a
+/// crossfade: the window ids.
+fn comp_of_two(app: &mut CantusApp, dir: &std::path::Path) -> (ClipId, ClipId) {
+    let take = dir.join("drive").join("comp.wav");
+    let id = with_take(app, &take);
+    let mut p = app.project().clone();
+    p.tracks[0].clips.pop();
+    let mut left = p.make_audio_clip("left", id, Ticks::ZERO, Ticks::beats(2));
+    let mut right = p.make_audio_clip("right", id, Ticks::beats(2), Ticks::beats(2));
+    // Not the left's continuation: another stretch of the take.
+    right.offset = Ticks(Ticks::QUARTER.0 / 2);
+    left.offset = Ticks::ZERO;
+    if let Some(a) = right.audio.as_mut() {
+        a.xfade = Ticks(Ticks::QUARTER.0 / 4);
+    }
+    let ids = (left.id, right.id);
+    p.tracks[0].clips.push(left);
+    p.tracks[0].clips.push(right);
+    app.bus = CommandBus::new(p);
+    ids
+}
+
+#[test]
+fn a_bounce_never_cuts_a_comp_seams_crossfade() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("seam");
+    let (_left, right) = comp_of_two(&mut app, &dir);
+    let synth = app.project().tracks[0].id;
+    // One window chosen of the two that cross-fade: refused (review 3: a butt splice).
+    let tracks = app.project().tracks.len();
+    app.bounce(Plan {
+        track: synth,
+        through: Through::Source,
+        range: Range::Clips(vec![right]),
+    });
+    assert!(app.status.error, "{}", app.status.text);
+    assert_eq!(app.project().tracks.len(), tracks);
+    // A time range starting at the seam: its edge moved out past the crossfade, the song
+    // as it was.
+    let live = mix(&mut app);
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Time(Ticks::beats(2), Ticks::beats(4)),
+        },
+    );
+    assert!(app.project().tracks.len() > tracks, "{}", app.status.text);
+    let after = mix(&mut app);
+    let n = after.len().min(live.len());
+    within(&after[..n], &live[..n], 1e-5, "the crossfade kept whole");
+}
+
+#[test]
+fn the_clip_menus_bounce_takes_the_clip_right_clicked() {
+    // A strip chosen on the desk after the clip: the clip's menu still bounces the clip
+    // (review 3: it bounced the strip).
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("clip-menu");
+    let synth = app.project().tracks[0].id;
+    let clip = app.project().tracks[0].clips[0].id;
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    app.select_clip(synth, clip);
+    app.select_strip(bass_strip);
+    cantus_ui::views::arrangement::clip_menu_opened(&mut app, synth, clip);
+    app.run_action(Action::BounceSource);
+    settle(&mut app, &ctx);
+    assert!(
+        !app.project().strip(bass_strip).unwrap().muted,
+        "the strip left alone"
+    );
+    assert!(
+        app.project().tracks[0].clips[0].muted,
+        "the clip bounced: {}",
+        app.status.text
+    );
+}
+
+#[test]
+fn the_heard_words_name_what_is_locked_and_nothing_else() {
+    // Review 3: the words said a heard strip's sends stayed live, and a heard track got
+    // the strip's words. Each control the words call part of the sound is refused; each
+    // they call live is not.
+    let (mut app, _dir) = app("heard-words");
+    let mut p = app.project().clone();
+    let synth = p.tracks[0].id;
+    let strip = p.tracks[0].strip.unwrap();
+    let bass_strip = p.tracks[1].strip.unwrap();
+    // A follower of the synth's own strip, on its delay: the strip's mix is heard.
+    let delay = p.strip(strip).unwrap().effects[0].id;
+    let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(strip);
+    }
+    f.routes.push(ModRoute {
+        target: AutoTarget::Effect {
+            effect: delay,
+            key: "mix".into(),
+        },
+        depth: 0.3,
+    });
+    p.strip_mut(strip).unwrap().modulators.push(f);
+    app.bus = CommandBus::new(p);
+    let heard = FreezeTarget::Strip(strip);
+    let freeze_now = |app: &mut CantusApp, t: FreezeTarget| {
+        let cmd = cantus_core::freeze::freeze_commands(app.project(), t).unwrap();
+        assert!(app.exec(cmd));
+    };
+    freeze_now(&mut app, heard);
+    assert_eq!(
+        cantus_ui::views::freeze_view::live_words(app.project(), heard, "freeze.done"),
+        "freeze.done_heard"
+    );
+    let words = cantus_ui::i18n::t("freeze.done_heard");
+    for (word, cmd) in [
+        (
+            "fader",
+            Command::SetStripGain {
+                id: strip,
+                gain_db: -2.0,
+            },
+        ),
+        (
+            "pan",
+            Command::SetStripPan {
+                id: strip,
+                pan: 0.3,
+            },
+        ),
+        (
+            "width",
+            Command::SetStripWidth {
+                id: strip,
+                width: 0.5,
+            },
+        ),
+        (
+            "mute",
+            Command::SetStripMute {
+                id: strip,
+                muted: true,
+            },
+        ),
+        (
+            "solo",
+            Command::SetStripSolo {
+                id: strip,
+                soloed: true,
+            },
+        ),
+        (
+            "sends",
+            Command::InsertStripSend {
+                id: strip,
+                index: 0,
+                send: Send {
+                    to: bass_strip,
+                    level: 0.5,
+                    enabled: true,
+                    tap: SendTap::Post,
+                },
+            },
+        ),
+        (
+            "output",
+            Command::SetStripOutput {
+                id: strip,
+                output: Some(bass_strip),
+            },
+        ),
+    ] {
+        assert!(words.contains(word), "the words name its {word}: {words}");
+        assert!(
+            cantus_core::freeze::refuses(app.project(), &cmd).is_some(),
+            "its {word} is locked"
+        );
+    }
+    // A track heard by its own region: its level, balance, mute and solo, and its strip's
+    // mix, are part of it.
+    let (mut app, _dir) = self::app("heard-words-track");
+    let mut p = app.project().clone();
+    let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+    if let ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(strip);
+    }
+    f.routes.push(ModRoute {
+        target: AutoTarget::Firmus {
+            track: synth,
+            param: FirmusParam::Cutoff,
+        },
+        depth: 0.3,
+    });
+    p.tracks[0].modulators.push(f);
+    app.bus = CommandBus::new(p);
+    let target = FreezeTarget::Track(synth);
+    freeze_now(&mut app, target);
+    assert_eq!(
+        cantus_ui::views::freeze_view::live_words(app.project(), target, "freeze.done"),
+        "freeze.done_heard_track"
+    );
+    for cmd in [
+        Command::SetTrackGain {
+            id: synth,
+            gain_db: -2.0,
+        },
+        Command::SetTrackPan {
+            id: synth,
+            pan: 0.3,
+        },
+        Command::SetTrackMute {
+            id: synth,
+            muted: true,
+        },
+        Command::SetStripGain {
+            id: strip,
+            gain_db: -2.0,
+        },
+    ] {
+        assert!(
+            cantus_core::freeze::refuses(app.project(), &cmd).is_some(),
+            "{cmd:?} is locked"
+        );
+    }
+    // And a strip nobody hears: what the words call live is.
+    let (mut app, _dir) = self::app("live-words");
+    freeze_now(&mut app, FreezeTarget::Strip(strip));
+    let words = cantus_ui::i18n::t("freeze.done");
+    for (word, cmd) in [
+        (
+            "fader",
+            Command::SetStripGain {
+                id: strip,
+                gain_db: -2.0,
+            },
+        ),
+        (
+            "pan",
+            Command::SetStripPan {
+                id: strip,
+                pan: 0.3,
+            },
+        ),
+        (
+            "mute",
+            Command::SetStripMute {
+                id: strip,
+                muted: true,
+            },
+        ),
+        (
+            "solo",
+            Command::SetStripSolo {
+                id: strip,
+                soloed: true,
+            },
+        ),
+    ] {
+        assert!(words.contains(word), "{words}");
+        assert!(
+            cantus_core::freeze::refuses(app.project(), &cmd).is_none(),
+            "its {word} stays live"
+        );
+    }
+}
+
+#[test]
+fn one_render_waiting_is_said_in_good_spanish_and_english_names_the_bake() {
+    let one = std::thread::spawn(|| {
+        cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::Es);
+        cantus_ui::i18n::tf("freeze.card.more_one", &[("body", &"X")])
+    })
+    .join()
+    .unwrap();
+    assert_eq!(one, "X Espera uno más.");
+    cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
+    assert!(cantus_ui::i18n::t("freeze.card.waiting_body").contains("bake"));
+    // The card itself: one render running, one more waiting.
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("one-more");
+    let synth_strip = app.project().tracks[0].strip.unwrap();
+    let bass_strip = app.project().tracks[1].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(synth_strip));
+    app.freeze_target(FreezeTarget::Strip(bass_strip));
+    let (_, body, ..) = cantus_ui::views::freeze_view::card(&app).expect("a card");
+    assert!(body.ends_with("One more waiting."), "{body}");
+    settle(&mut app, &ctx);
+}
+
+/// The host's test gain (a CLAP), built where the host's tests build it.
+fn test_gain() -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
+    let target = root.join("target").join("test-plugins");
+    let file = target.join("debug").join(if cfg!(windows) {
+        "cantus_test_clap.dll"
+    } else if cfg!(target_os = "macos") {
+        "libcantus_test_clap.dylib"
+    } else {
+        "libcantus_test_clap.so"
+    });
+    if std::env::var_os("CANTUS_TEST_PLUGINS_PREBUILT").is_some() && file.is_file() {
+        return file;
+    }
+    let status =
+        std::process::Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
+            .args(["build", "-p", "cantus-test-clap", "--target-dir"])
+            .arg(&target)
+            .current_dir(&root)
+            .status()
+            .expect("cargo");
+    assert!(status.success());
+    file
+}
+
+/// The app's plug-in database knows the test gain, as after a scan; its info.
+fn knows_gain(app: &mut CantusApp, dir: &std::path::Path) -> cantus_host::PluginInfo {
+    use cantus_host::Backend;
+    app.plugins.db_path = None;
+    let file = dir.join("Cantus Test Gain.clap");
+    std::fs::copy(test_gain(), &file).unwrap();
+    let plugins = cantus_host::clap::ClapBackend.scan(&file).unwrap();
+    let (modified, size) = cantus_host::db::stamp(&file).unwrap();
+    let info = plugins
+        .iter()
+        .find(|p| p.id == "org.cantus.test.gain")
+        .expect("the gain")
+        .clone();
+    app.plugins.db.put(cantus_host::DbEntry {
+        path: file,
+        format: cantus_host::Format::Clap,
+        modified,
+        size,
+        status: cantus_host::ScanStatus::Ok,
+        plugins,
+    });
+    info
+}
+
+#[test]
+fn a_freeze_lands_though_a_plug_ins_state_moved_without_an_edit() {
+    // While it renders, the plug-in's state moves as automation, a modulator or its own
+    // timer would move it — no edit in its window: the freeze lands, with what it was
+    // rendered from (review 3: the bytes were compared, and it never landed).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("hosted-drift");
+    let info = knows_gain(&mut app, &dir);
+    let strip = app.project().tracks[0].strip.unwrap();
+    let slot = app
+        .plugins
+        .make_slot_isolated(&mut app.bus, strip, &info, Some(PluginIsolation::Within))
+        .expect("it loads");
+    let id = slot.id;
+    let index = app.project().strip(strip).unwrap().effects.len();
+    assert!(app.exec(Command::InsertEffect {
+        strip,
+        index,
+        slot: Box::new(slot),
+    }));
+    app.sync_engine();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    assert!(app.freeze.job.is_some(), "rendering");
+    // Its state keeps moving: the same values, a tag of its own each frame.
+    let (now, _) = app.plugins.capture(id).unwrap();
+    let base = now.bytes().to_vec();
+    let t0 = Instant::now();
+    let mut k = 0u32;
+    while app.project().frozen(target).is_none() && t0.elapsed() < Duration::from_secs(60) {
+        k += 1;
+        let mut moved = base.clone();
+        let len = moved.len();
+        moved.truncate(len - 4);
+        moved.extend_from_slice(&4u32.to_le_bytes());
+        moved.extend_from_slice(&k.to_le_bytes());
+        app.plugins.load_state_for_test(id, &moved);
+        app.sync_engine();
+        cantus_ui::freeze::tick(&mut app, &ctx);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(app.project().frozen(target).is_some(), "it landed");
+}
+
+#[test]
+fn a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_installed() {
+    // Bypassed, its plug-in not installed: frozen with a wire in its place (review 2), and
+    // said beside the render; installed later, the render is made again with its latency
+    // (review 3: the wire's render was kept, its latency missing).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("wired");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let mut p = app.project().clone();
+    let mut slot = p.make_effect(EffectKind::External);
+    let mut plugin = cantus_core::ExternalPlugin::new(
+        cantus_core::PluginFormat::Clap,
+        "org.cantus.test.gain".to_string(),
+        "Cantus Test Gain",
+    );
+    plugin.isolation = Some(PluginIsolation::Within);
+    slot.spec.external = Some(Box::new(plugin));
+    slot.bypass = true;
+    p.strip_mut(strip).unwrap().effects.push(slot);
+    app.bus = CommandBus::new(p);
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    assert!(
+        app.project().frozen(target).is_some(),
+        "{}",
+        app.status.text
+    );
+    let content = app.project().frozen(target).unwrap().content.clone();
+    let render = app.engine.frozen.path_of(&content, 48_000).unwrap();
+    let wires = render.with_extension("wires");
+    assert!(wires.is_file(), "the wire said beside it");
+    let made = std::fs::metadata(&render).unwrap().modified().unwrap();
+    std::thread::sleep(Duration::from_millis(1100));
+    knows_gain(&mut app, &dir);
+    // The next scans: made again.
+    let t0 = Instant::now();
+    loop {
+        app.sync_engine();
+        cantus_ui::freeze::tick(&mut app, &ctx);
+        let again = app
+            .engine
+            .frozen
+            .path_of(&content, 48_000)
+            .and_then(|p| std::fs::metadata(p).ok())
+            .and_then(|m| m.modified().ok())
+            .is_some_and(|t| t > made);
+        if (again && !app.freeze.busy()) || t0.elapsed() > Duration::from_secs(60) {
+            break;
+        }
+
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let now = app
+        .engine
+        .frozen
+        .path_of(&content, 48_000)
+        .expect("made again");
+    assert!(std::fs::metadata(&now).unwrap().modified().unwrap() > made);
+    assert!(
+        !now.with_extension("wires").is_file(),
+        "made with the plug-in"
+    );
+}
+
+#[test]
+fn renders_stay_open_while_pattern_mode_plays_every_chain_live() {
+    // Leaving pattern mode reopened every render cold (review 3): they are held open.
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("pattern-hold");
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    std::thread::sleep(Duration::from_millis(600));
+    cantus_ui::freeze::tick(&mut app, &ctx);
+    app.sync_engine();
+    assert!(app.engine.frozen.open_count() >= 1);
+    assert!(app.exec(Command::SetPatternMode { on: true }));
+    cantus_ui::views::transport::pattern::follow(&mut app);
+    app.sync_engine();
+    assert!(
+        app.engine.frozen.open_count() >= 1,
+        "held open while every chain plays live"
+    );
+}

@@ -1462,3 +1462,64 @@ fn a_frozen_track_that_runs_for_its_notes_only_lets_its_blocks_go() {
     }
     assert_eq!((b.get(0), b.get(1)), (0, 0), "its blocks let go");
 }
+
+#[test]
+fn a_note_source_resting_but_for_its_notes_plays_no_voice() {
+    // Only the bass plays notes; Tonus on the lead's strip hears them; the bass's strip is
+    // frozen: its instrument is never played — the CPU freed is real (review 3: the test
+    // before checked only the flag and the bits).
+    let (mut h, mut proc) = EngineHandle::manual(SR);
+    h.frozen.set_app_dir(folder("notes-voices"));
+    let mut p = song();
+    p.tracks[0].clips.retain(|c| c.automation.is_some());
+    let lead_strip = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].id;
+    let bass_strip = p.tracks[1].strip.unwrap();
+    let mut tonus = p.make_effect(EffectKind::AutoTune);
+    tonus.midi_from = Some(bass);
+    p.strip_mut(lead_strip).unwrap().effects.push(tonus);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(bass_strip));
+    let snap = h.compile(&p, 1);
+    assert!(snap.tracks[1].notes_only);
+    h.set_snapshot(snap);
+    h.play();
+    let mut buf = vec![0f32; 512];
+    let mut most = 0;
+    for _ in 0..300 {
+        proc.process(&mut buf, 2);
+        h.poll();
+        most = most.max(proc.stats().active_voices);
+    }
+    assert_eq!(most, 0, "its instrument never played");
+}
+
+#[test]
+fn an_offline_compile_waits_for_the_audio_it_asked_for_in_the_background() {
+    // A file tried again (it failed, it is back) loads in the background on a live engine:
+    // an offline render's compile waits for it, never playing its silence (review 3).
+    let dir = folder("wait-audio");
+    let path = dir.join("take.wav");
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(&path, spec).unwrap();
+    for i in 0..48_000 {
+        w.write_sample((i % 50) as f32 / 100.0).unwrap();
+    }
+    w.finalize().unwrap();
+    let mut cache = SampleCache::new();
+    cache.set_background(true);
+    let p = path.to_string_lossy().into_owned();
+    assert!(
+        cache.load_audio(&p, 48_000).is_err(),
+        "loading in the background"
+    );
+    assert!(cache.wait_audio(std::time::Duration::from_secs(30)));
+    assert!(
+        cache.load_audio(&p, 48_000).is_ok(),
+        "there once waited for"
+    );
+}

@@ -317,3 +317,62 @@ fn edits_count_what_windows_do_never_what_automation_does() {
     );
     assert_eq!(rig.host.edits_of(&[id], &[]), before + 1, "a window's is");
 }
+
+#[test]
+fn a_solo_elsewhere_toggled_never_loads_a_frozen_strips_plug_in() {
+    // The frozen strip is silenced by a solo elsewhere — its render muted, nothing of it
+    // woken: its plug-in stays unloaded however often the solo is toggled (review 3: each
+    // toggle loaded and unloaded it).
+    let _g = serial();
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Within);
+    // Keyed from the second strip: a region with a strip of its own beside the root.
+    let key = rig.bus.project().strips[1].id;
+    let mut comp = rig
+        .bus
+        .project()
+        .clone()
+        .make_effect(EffectKind::Compressor);
+    comp.id = EffectId(rig.bus.alloc_id());
+    comp.sidechain = Some(key);
+    rig.exec(Command::InsertEffect {
+        strip,
+        index: 1,
+        slot: Box::new(comp),
+    });
+    rig.settle();
+    let (state, params) = rig.host.capture(id).unwrap();
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state,
+        params,
+    });
+    let _dir = tempfile::tempdir().unwrap();
+    rig.engine.frozen.set_app_dir(_dir.path().to_path_buf());
+    let target = FreezeTarget::Strip(strip);
+    let p = rig.bus.project().clone();
+    rig.exec(freeze::freeze_commands(&p, target).unwrap());
+    let p = rig.bus.project().clone();
+    let job = prepare(&mut rig.engine, &p, target).expect("prepared");
+    let units = rig.host.render_units_stored(&p, SR);
+    job.run(units, Vec::new(), &RenderProgress::default())
+        .expect("rendered");
+    rig.host.finish_render();
+    rig.engine.frozen.forget_missing();
+    rig.resync();
+    assert!(
+        rig.host.hosted(id).is_none(),
+        "unloaded: it plays its render"
+    );
+    let other = rig.bus.project().strips[5].id;
+    for k in 0..10 {
+        rig.exec(Command::SetStripSolo {
+            id: other,
+            soloed: k % 2 == 0,
+        });
+        assert!(rig.host.hosted(id).is_none(), "toggle {k}: never loaded");
+    }
+}

@@ -476,10 +476,18 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
     }
     let (start, end, edges) = match &plan.range {
         Range::Time(a, b) => {
-            let (a, b) = held_edges(&project, plan.track, *a, *b);
-            // And out past a comp seam's crossfade straddling an edge: never cut inside
-            // one (review 3: the crossfade became a butt splice).
-            let (a, b) = seam_edges(&project, plan.track, a, b);
+            // Out to the notes held across its edges, and past a comp seam's crossfade
+            // straddling one (review 3: the crossfade became a butt splice) — to a fixed
+            // point: a seam's edge may land inside a note, and a note's inside a seam.
+            let (mut a, mut b) = (*a, *b);
+            loop {
+                let (na, nb) = held_edges(&project, plan.track, a, b);
+                let (na, nb) = seam_edges(&project, plan.track, na, nb);
+                if (na, nb) == (a, b) {
+                    break;
+                }
+                (a, b) = (na, nb);
+            }
             (a, b, Some((a, b)))
         }
         _ => {
