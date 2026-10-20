@@ -292,8 +292,8 @@ fn a_late_wait_ends_within_two_milliseconds_of_its_deadline() {
         median < deadline + Duration::from_millis(2),
         "a 5 ms deadline waited {median:?} (all: {took:?})"
     );
-    drop(caller);
-    drop(bell);
+    // The caller and the bell go before the region they point into (declared after it).
+    let _ = (&caller, &bell);
 }
 
 /// Once the other side has mapped a region, its creator removes the name (review #43): on
