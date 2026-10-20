@@ -256,6 +256,9 @@ pub struct PluginHost {
     counted: HashSet<(u64, crate::backend::Format, String)>,
     /// The running render's stop ([`Self::cancel_render`]).
     render_cancel: Arc<std::sync::atomic::AtomicBool>,
+    /// For the interface's tests: how the next reload fails, and slots said to wait on a
+    /// window of their own.
+    pub(crate) test_hooks: iso::TestHooks,
     /// Isolation was asked and the helper is missing; told once.
     isolation_missing: bool,
     told_missing: bool,
@@ -372,6 +375,7 @@ impl PluginHost {
             crash_counts: HashMap::new(),
             counted: HashSet::new(),
             render_cancel: Arc::default(),
+            test_hooks: Default::default(),
             isolation_missing: false,
             told_missing: false,
             retired: Vec::new(),
@@ -717,6 +721,10 @@ impl PluginHost {
                 isolation: runs,
                 crashed: failed.crashed,
                 retry_at: iso::Missing::retry(failed.busy, waited),
+                found: self
+                    .db
+                    .find(from_project_format(plugin.format), &plugin.id)
+                    .is_some(),
             },
         );
         if waited.is_some() && failed.busy {

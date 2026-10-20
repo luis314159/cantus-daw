@@ -349,7 +349,7 @@ pub(super) fn chain_row(
                         "isolation.reason",
                         &[
                             ("name", &name),
-                            ("reason", &crate::views::plugin_notice::reason_words(why)),
+                            ("reason", &crate::views::plugin_notice::stopped_words(why)),
                         ],
                     )
                 })

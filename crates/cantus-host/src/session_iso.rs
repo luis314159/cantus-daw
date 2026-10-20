@@ -87,6 +87,9 @@ pub(crate) struct Missing {
     /// Its helper was busy (its own dialog up, a long request ahead): tried again from
     /// this moment on, and later each time (review isolation-4 #57).
     pub retry_at: Option<(Instant, Duration)>,
+    /// The plug-in is on this computer (a load was tried): one not installed is not offered
+    /// a reload.
+    pub found: bool,
 }
 
 impl Missing {
@@ -129,6 +132,16 @@ pub struct RenderFailure {
     pub name: String,
     pub reason: String,
     pub kind: RenderLoss,
+}
+
+/// For the interface's tests only: what the host is made to say (never set by the
+/// application).
+#[derive(Debug, Default)]
+pub(crate) struct TestHooks {
+    /// The next reload fails so: why, and whether it crashed.
+    pub reload_fails: Option<(String, bool)>,
+    /// Inserts said to wait on a window of their own.
+    pub waiting: Vec<EffectId>,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -473,6 +486,13 @@ impl PluginHost {
         engine: &mut EngineHandle,
         effect: EffectId,
     ) -> Result<(), String> {
+        if let Some((why, crashed)) = self.test_hooks.reload_fails.take() {
+            if let Some(m) = self.missing.get_mut(&effect) {
+                m.error = why.clone();
+                m.crashed = crashed;
+            }
+            return Err(why);
+        }
         let (strip, slot) = super::find_slot(project, effect).ok_or("no such slot")?;
         let plugin = slot.spec.external.as_deref().ok_or("not a hosted slot")?;
         if !self.slots.contains_key(&effect) && self.missing.remove(&effect).is_some() {
@@ -552,6 +572,10 @@ impl PluginHost {
                         isolation: self.effective_isolation(plugin.isolation),
                         crashed: f.crashed,
                         retry_at: Missing::retry(f.busy, None),
+                        found: self
+                            .db
+                            .find(crate::from_project_format(plugin.format), &plugin.id)
+                            .is_some(),
                     },
                 );
                 Err(f.why)
@@ -566,6 +590,13 @@ impl PluginHost {
         engine: &mut EngineHandle,
         track: TrackId,
     ) -> Result<(), String> {
+        if let Some((why, crashed)) = self.test_hooks.reload_fails.take() {
+            if let Some(m) = self.inst_missing.get_mut(&track) {
+                m.error = why.clone();
+                m.crashed = crashed;
+            }
+            return Err(why);
+        }
         let plugin = project
             .track(track)
             .and_then(|t| t.instrument.external())
@@ -593,6 +624,10 @@ impl PluginHost {
                             isolation: self.effective_isolation(plugin.isolation),
                             crashed: f.crashed,
                             retry_at: Missing::retry(f.busy, None),
+                            found: self
+                                .db
+                                .find(crate::from_project_format(plugin.format), &plugin.id)
+                                .is_some(),
                         },
                     );
                     Err(f.why)
@@ -681,7 +716,7 @@ impl PluginHost {
         }
         self.missing
             .get(&effect)
-            .filter(|m| !m.crashed)
+            .filter(|m| !m.crashed && m.found)
             .map(|m| m.error.as_str())
     }
 
@@ -692,7 +727,7 @@ impl PluginHost {
         }
         self.inst_missing
             .get(&track)
-            .filter(|m| !m.crashed)
+            .filter(|m| !m.crashed && m.found)
             .map(|m| m.error.as_str())
     }
 
@@ -734,6 +769,7 @@ impl PluginHost {
             isolation: self.default_isolation,
             crashed: true,
             retry_at: None,
+            found: true,
         };
         if let Some(e) = target.0 {
             self.slots.remove(&e);
@@ -747,6 +783,100 @@ impl PluginHost {
             .crash_counts
             .entry((format, id.to_string()))
             .or_default() += times;
+    }
+
+    /// For the interface's tests: the next reload fails with `why` (a crash when
+    /// `crashed`), as one whose plug-in crashed again, or could not be loaded, does. The
+    /// application never calls it.
+    #[doc(hidden)]
+    pub fn fail_next_reload_for_tests(&mut self, why: &str, crashed: bool) {
+        self.test_hooks.reload_fails = Some((why.to_string(), crashed));
+    }
+
+    /// For the interface's tests: a hosted slot that could not be loaded — not a crash
+    /// (refused, or its helper busy). The application never calls it.
+    #[doc(hidden)]
+    pub fn mark_missing_for_tests(&mut self, effect: EffectId, why: &str) {
+        self.slots.remove(&effect);
+        self.missing.insert(
+            effect,
+            Missing {
+                key: 0,
+                error: why.to_string(),
+                isolation: self.default_isolation,
+                crashed: false,
+                retry_at: None,
+                found: true,
+            },
+        );
+    }
+
+    /// For the interface's tests: a hosted slot said to wait on a window of its own (or no
+    /// longer). The application never calls it.
+    #[doc(hidden)]
+    pub fn set_waiting_for_tests(&mut self, effect: EffectId, waiting: bool) {
+        self.test_hooks.waiting.retain(|e| *e != effect);
+        if waiting {
+            self.test_hooks.waiting.push(effect);
+        }
+    }
+
+    /// The loaded plug-ins waiting on a window of their own — a call of theirs served past
+    /// its limit while their helper lives: a dialog, perhaps behind Cantus (review
+    /// isolation-4 #54) — inserts and instruments, with their names.
+    pub fn waiting(&self) -> (Vec<(EffectId, String)>, Vec<(TrackId, String)>) {
+        let mut e: Vec<(EffectId, String)> = self
+            .slots
+            .iter()
+            .filter(|(id, h)| {
+                h.crashed.is_none() && (h.main.waiting() || self.test_hooks.waiting.contains(id))
+            })
+            .map(|(id, h)| (*id, h.info.name.clone()))
+            .collect();
+        for id in &self.test_hooks.waiting {
+            if !self.slots.contains_key(id) {
+                e.push((*id, String::new()));
+            }
+        }
+        let mut t: Vec<(TrackId, String)> = self
+            .instruments
+            .iter()
+            .filter(|(_, h)| h.crashed.is_none() && h.main.waiting())
+            .map(|(id, h)| (*id, h.info.name.clone()))
+            .collect();
+        e.sort_by_key(|(id, _)| *id);
+        t.sort_by_key(|(id, _)| *id);
+        (e, t)
+    }
+
+    /// Brings the windows a waiting insert's plug-in waits on to the front.
+    pub fn surface(&mut self, effect: EffectId) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.main.surface();
+        }
+    }
+
+    /// [`Self::surface`] for a track's hosted instrument.
+    pub fn surface_instrument(&mut self, track: TrackId) {
+        if let Some(h) = self.instruments.get_mut(&track) {
+            h.main.surface();
+        }
+    }
+
+    /// Ends a waiting insert's plug-in — its helper — at the user's word: told as its own
+    /// crash, reloadable (review isolation-4 #54).
+    pub fn stop(&mut self, effect: EffectId) {
+        self.test_hooks.waiting.retain(|e| *e != effect);
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.main.stop();
+        }
+    }
+
+    /// [`Self::stop`] for a track's hosted instrument.
+    pub fn stop_instrument(&mut self, track: TrackId) {
+        if let Some(h) = self.instruments.get_mut(&track) {
+            h.main.stop();
+        }
     }
 
     /// For the interface's tests: the running render lost `name` as `kind` says (as a

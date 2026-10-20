@@ -38,6 +38,68 @@ pub struct Crashed {
 #[derive(Clone, Debug, Default)]
 pub struct Crashes {
     pub waiting: Vec<Crashed>,
+    /// Plug-ins waiting on a window of their own whose card the user closed: not shown
+    /// again until they wait anew.
+    pub left_waiting: Vec<Target>,
+}
+
+/// The waiting card's buttons (review isolation-4 #54).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum WaitAnswer {
+    /// Its window to the front.
+    Show,
+    /// Its process ended: Cantus plays on without it, and it can be reloaded.
+    Stop,
+    /// The card closed.
+    Dismiss,
+}
+
+/// The card of a plug-in waiting on a window of its own (a dialog inside a call of its,
+/// perhaps behind Cantus): its name, what happens, and *Show it* / *Stop it*.
+#[derive(Clone, Debug, PartialEq)]
+pub struct WaitCard {
+    pub target: Target,
+    pub name: String,
+    pub title: String,
+    pub body: String,
+    pub buttons: Vec<(String, WaitAnswer)>,
+}
+
+/// The waiting card, while a plug-in waits on a window of its own (review isolation-4
+/// #54).
+pub fn waiting_card(app: &CantusApp) -> Option<WaitCard> {
+    let (e, tr) = app.plugins.waiting();
+    let (target, name) = e
+        .into_iter()
+        .map(|(id, n)| (Target::Insert(id), n))
+        .chain(tr.into_iter().map(|(id, n)| (Target::Instrument(id), n)))
+        .find(|(target, _)| !app.plugin_crashes.left_waiting.contains(target))?;
+    let name = if name.is_empty() {
+        name_of(app, target)
+    } else {
+        name
+    };
+    Some(WaitCard {
+        target,
+        name,
+        title: t("isolation.waiting.title"),
+        body: t("isolation.waiting.body"),
+        buttons: vec![
+            (t("isolation.waiting.show"), WaitAnswer::Show),
+            (t("isolation.waiting.stop"), WaitAnswer::Stop),
+        ],
+    })
+}
+
+/// The user answered the waiting card.
+pub fn answer_waiting(app: &mut CantusApp, target: Target, a: WaitAnswer) {
+    match (a, target) {
+        (WaitAnswer::Show, Target::Insert(e)) => app.plugins.surface(e),
+        (WaitAnswer::Show, Target::Instrument(tr)) => app.plugins.surface_instrument(tr),
+        (WaitAnswer::Stop, Target::Insert(e)) => app.plugins.stop(e),
+        (WaitAnswer::Stop, Target::Instrument(tr)) => app.plugins.stop_instrument(tr),
+        (WaitAnswer::Dismiss, _) => app.plugin_crashes.left_waiting.push(target),
+    }
 }
 
 /// The card's buttons, in order.
@@ -84,6 +146,17 @@ fn add(app: &mut CantusApp, target: Target, name: String, reason: String) {
 /// (or a project replaced) leaves the card, which never speaks of what is gone (#16, #30).
 /// Every frame, before the card is drawn.
 pub fn prune(app: &mut CantusApp) {
+    if !app.plugin_crashes.left_waiting.is_empty() {
+        let (e, tr) = app.plugins.waiting();
+        let still: Vec<Target> = e
+            .into_iter()
+            .map(|(id, _)| Target::Insert(id))
+            .chain(tr.into_iter().map(|(id, _)| Target::Instrument(id)))
+            .collect();
+        app.plugin_crashes
+            .left_waiting
+            .retain(|t| still.contains(t));
+    }
     if app.plugin_crashes.waiting.is_empty() {
         return;
     }
@@ -164,7 +237,7 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         format!(
             "{} {}",
             t("isolation.crashed.body_one"),
-            as_sentence(&reason_words(&first.reason))
+            as_sentence(&stopped_words(&first.reason))
         )
     } else {
         t("isolation.crashed.body_many")
@@ -207,7 +280,7 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         .map(|c| {
             tf(
                 "isolation.reason",
-                &[("name", &c.name), ("reason", &reason_words(&c.reason))],
+                &[("name", &c.name), ("reason", &stopped_words(&c.reason))],
             )
         })
         .collect::<Vec<_>>()
@@ -314,12 +387,13 @@ pub fn reload(app: &mut CantusApp, target: Target, name: &str) {
     match r {
         Ok(()) => app.set_status(tf("isolation.reloaded", &[("name", &name)])),
         Err(error) => {
-            // In the interface's words (review #31); and when it crashed again, its card
-            // comes back — counted, so one that keeps crashing is offered its own process
-            // (review #15).
+            // In the interface's words — a failure that is no crash too, never the host's
+            // English (review #31; isolation-4 #25, #40); and its card comes back with why
+            // it is off now — counted when it crashed, so one that keeps crashing is offered
+            // its own process (review #15; isolation-4 #64).
             app.set_error(tf(
                 "isolation.reload_failed",
-                &[("name", &name), ("error", &reason_words(&error))],
+                &[("name", &name), ("error", &stopped_words(&error))],
             ));
             if let Some(why) = stopped(app, target).map(str::to_string) {
                 add(app, target, name.to_string(), why);
@@ -379,11 +453,18 @@ pub fn menu_rows(app: &CantusApp, target: Target) -> Vec<(String, Option<bool>, 
         return Vec::new();
     };
     let mut rows = Vec::new();
-    let crashed = match target {
-        Target::Insert(e) => app.plugins.crashed(e).is_some(),
-        Target::Instrument(tr) => app.plugins.instrument_crashed(tr).is_some(),
+    // Stopped, or never loaded (refused, or its helper busy): it can be loaded again
+    // (review isolation-4 #57).
+    let reloadable = match target {
+        Target::Insert(e) => {
+            app.plugins.crashed(e).is_some() || app.plugins.load_error(e).is_some()
+        }
+        Target::Instrument(tr) => {
+            app.plugins.instrument_crashed(tr).is_some()
+                || app.plugins.instrument_load_error(tr).is_some()
+        }
     };
-    if crashed {
+    if reloadable {
         rows.push((t("isolation.slot.reload"), None, MenuAct::Reload));
     }
     let default = t(app.plugins.default_isolation.label_key());
@@ -418,6 +499,11 @@ pub fn run_menu(app: &mut CantusApp, target: Target, act: MenuAct) {
         }
         MenuAct::Run(m) => set_isolation(app, target, m),
     }
+}
+
+/// A hosted insert's plug-in's name.
+pub fn effect_name(app: &CantusApp, effect: EffectId) -> String {
+    name_of(app, Target::Insert(effect))
 }
 
 fn name_of(app: &CantusApp, target: Target) -> String {
@@ -464,7 +550,7 @@ pub fn tip(app: &CantusApp, target: Target) -> String {
     if let Some(why) = crashed {
         lines.push(tf(
             "isolation.tip.stopped",
-            &[("reason", &reason_words(why))],
+            &[("reason", &stopped_words(why))],
         ));
     } else if let Some(c) = cpu {
         lines.push(tf("isolation.tip.cpu", &[("share", &percent(c.share))]));
@@ -570,8 +656,19 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.hung_audio"
     } else if reason.contains("stopped answering") {
         "isolation.why.hung"
-    } else if reason.contains("did not answer in") {
+    } else if reason.contains("waited on a window of its own") {
+        "isolation.why.stopped_waiting"
+    } else if reason.contains("did not answer in")
+        || reason.contains("did not start in time")
+        || reason.contains("did not answer while")
+    {
         "isolation.why.timeout"
+    } else if reason.contains("is busy") || reason.contains("is not answering") {
+        "isolation.why.busy"
+    } else if reason.contains("sandbox could not start") {
+        "isolation.why.no_helper"
+    } else if reason.contains("could not restart after its state") {
+        "isolation.why.no_restart"
     } else if reason.contains("broke its protocol") {
         "isolation.why.protocol"
     } else if reason.contains("crashed") {
@@ -584,6 +681,69 @@ pub fn reason_words(reason: &str) -> String {
     match code {
         Some(c) => format!("{} ({c})", t(key)),
         None => t(key),
+    }
+}
+
+/// [`reason_words`] for a plug-in that is off, or could not be loaded again: a reason in
+/// none of the forms the host writes is a load failure — said in the interface's words
+/// ("it could not be loaded again"), the host's own text kept for the log (review
+/// isolation-4 #25, #40).
+pub fn stopped_words(reason: &str) -> String {
+    words_or(reason, "isolation.why.load_failed")
+}
+
+/// [`reason_words`], with `fallback`'s words for a reason in none of the host's forms.
+pub fn words_or(reason: &str, fallback: &str) -> String {
+    let words = reason_words(reason);
+    if words == reason {
+        log::warn!("plug-in: {reason}");
+        t(fallback)
+    } else {
+        words
+    }
+}
+
+/// What a render's failed plug-ins say (review #6, #47; isolation-4 #10, #41), in the words
+/// of `area` (`export`, `bake`, `freeze`; `job` names a freeze's or bounce's subject): the
+/// losses — one that stopped part way, one never loaded for it — which fail the render, and
+/// the warnings — one that began from the state it last saved — which do not.
+pub fn render_words(
+    lost: &[cantus_host::RenderFailure],
+    area: &str,
+    job: &str,
+) -> (Option<String>, Option<String>) {
+    use cantus_host::RenderLoss;
+    let say = |kind: &str, f: &cantus_host::RenderFailure, reason: String| {
+        tf(
+            &format!("isolation.{area}.{kind}"),
+            &[("name", &f.name), ("reason", &reason), ("job", &job)],
+        )
+    };
+    let mut losses = Vec::new();
+    let mut warnings = Vec::new();
+    for f in lost {
+        match f.kind {
+            RenderLoss::Stopped => losses.push(say("stopped", f, reason_words(&f.reason))),
+            RenderLoss::NeverLoaded => losses.push(say(
+                "never",
+                f,
+                words_or(&f.reason, "isolation.why.not_loaded"),
+            )),
+            RenderLoss::Stale => warnings.push(say("stale", f, String::new())),
+        }
+    }
+    let join = |v: Vec<String>| (!v.is_empty()).then(|| v.join(" "));
+    (join(losses), join(warnings))
+}
+
+/// A plug-in's window could not be opened: its helper busy (its own dialog open, a slow
+/// request ahead) is said as such — the window opens by itself once it is free — anything
+/// else as the failure it was (review isolation-4 #39).
+pub fn window_failed(app: &mut CantusApp, name: &str, e: &cantus_host::HostError) {
+    if matches!(e, cantus_host::HostError::Busy(_)) {
+        app.set_status(tf("isolation.busy", &[("name", &name)]));
+    } else {
+        app.set_error(tf("host.editor.window_failed", &[("error", e)]));
     }
 }
 
@@ -640,7 +800,7 @@ impl CantusApp {
         };
         self.set_error(tf(
             "isolation.window.stopped",
-            &[("name", &name), ("reason", &reason_words(&why))],
+            &[("name", &name), ("reason", &stopped_words(&why))],
         ));
         add(self, target, name, why);
         true

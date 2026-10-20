@@ -57,6 +57,14 @@ impl CantusApp {
         if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
             return self.finish_bake(id, target, span, None);
         }
+        // One bake at a time: a second one while the first traces, or waits for its
+        // samples, would throw the first away and end its render instances under it
+        // (round 29, review isolation-4 #5, #21).
+        if self.modulators.pending_bake.is_some() || self.warp.pending_bake.is_some() {
+            let job = t("isolation.render.bake");
+            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
+            return false;
+        }
         // While renders are on their way (a warp, a pitch edit, a file loading), the bake
         // waits for them beside the window, as an export does — it never blocks the frame
         // (round 29's review); started again once they are in.
@@ -137,18 +145,13 @@ impl CantusApp {
         // it, so nothing is baked (round 29, review #6).
         let lost = self.plugins.render_failures();
         self.plugins.finish_render();
-        if let Some(f) = lost.first() {
-            self.set_error(tf(
-                "isolation.bake.stopped",
-                &[
-                    ("name", &f.name),
-                    (
-                        "reason",
-                        &crate::views::plugin_notice::reason_words(&f.reason),
-                    ),
-                ],
-            ));
+        let (losses, warnings) = crate::views::plugin_notice::render_words(&lost, "bake", "");
+        if let Some(text) = losses {
+            self.set_error(text);
             return;
+        }
+        if let Some(w) = warnings {
+            self.set_error(w);
         }
         if trace.is_empty() || p.revision != self.bus.revision() {
             self.set_error(t("mods.status.bake_moved"));

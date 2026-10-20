@@ -522,29 +522,25 @@ fn finish(app: &mut CantusApp, result: Result<Done, String>) {
     let lost = app.plugins.render_failures();
     // The render is over: the plug-in instances it used go, on this thread.
     app.plugins.finish_render();
+    // One never loaded for it lacks it throughout; one begun from its last-saved state is
+    // said, not failed (review isolation-4 #10, #41).
+    let (losses, warnings) = super::plugin_notice::render_words(&lost, "export", "");
     match result {
-        Ok(_) if !lost.is_empty() => {
-            let text = lost
-                .iter()
-                .map(|f| {
-                    tf(
-                        "isolation.export.stopped",
-                        &[
-                            ("name", &f.name),
-                            ("reason", &super::plugin_notice::reason_words(&f.reason)),
-                        ],
-                    )
-                })
-                .collect::<Vec<_>>()
-                .join(" ");
+        Ok(_) if losses.is_some() => {
+            let text = losses.unwrap_or_default();
             app.export.last = Some(Err(text.clone()));
             app.set_error(text);
         }
         Ok(done) => {
-            let text = summary(&done, &j.target, &j.settings);
+            let mut text = summary(&done, &j.target, &j.settings);
+            if let Some(w) = &warnings {
+                text = format!("{text} {w}");
+            }
             app.export.last = Some(Ok(text.clone()));
             if done.unaligned {
                 app.set_error(format!("{text} {}", t("interop.stems.unaligned")));
+            } else if warnings.is_some() {
+                app.set_error(text);
             } else {
                 app.set_status(text);
             }

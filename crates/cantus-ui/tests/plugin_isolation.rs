@@ -529,7 +529,11 @@ fn every_render_that_lost_a_plugin_says_so() {
         None
     ));
     a.plugins
-        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+        .lose_in_render_for_tests(
+            "Glacier",
+            "it crashed: an access violation (0xC0000005)",
+            cantus_host::RenderLoss::Stopped,
+        );
     cantus_ui::views::export::wait(&mut a);
     assert!(a.status.error, "{}", a.status.text);
     assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
@@ -542,7 +546,11 @@ fn every_render_that_lost_a_plugin_says_so() {
     a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
     assert!(a.freeze.job.is_some());
     a.plugins
-        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+        .lose_in_render_for_tests(
+            "Glacier",
+            "it crashed: an access violation (0xC0000005)",
+            cantus_host::RenderLoss::Stopped,
+        );
     let ctx = ctx();
     let start = std::time::Instant::now();
     while a.freeze.job.is_some() && start.elapsed().as_secs() < 30 {
@@ -583,7 +591,11 @@ fn a_bake_that_lost_a_plugin_bakes_nothing() {
     let before = a.bus.history().len();
     assert!(a.bake_route(mid, &target));
     a.plugins
-        .lose_in_render_for_tests("Glacier", "it crashed: an access violation (0xC0000005)");
+        .lose_in_render_for_tests(
+            "Glacier",
+            "it crashed: an access violation (0xC0000005)",
+            cantus_host::RenderLoss::Stopped,
+        );
     let start = std::time::Instant::now();
     while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
         a.poll_bake();
@@ -592,4 +604,197 @@ fn a_bake_that_lost_a_plugin_bakes_nothing() {
     assert!(a.status.error, "{}", a.status.text);
     assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
     assert_eq!(a.bus.history().len(), before, "nothing baked");
+}
+
+/// A modulator that follows a strip's sound, routed to the second strip's pan.
+fn follower_project() -> (Project, cantus_core::ModulatorId, AutoTarget) {
+    let mut p = cantus_ui::starter_project();
+    let second = p.make_track("Second");
+    p.tracks.push(second);
+    let listen = p.tracks[0].strip.unwrap();
+    let target_strip = p.tracks[1].strip.unwrap();
+    let mut f = cantus_core::Modulator::new(
+        cantus_core::ModulatorId(p.alloc_id()),
+        cantus_core::ModKind::Follower,
+    );
+    if let cantus_core::ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(listen);
+    }
+    let target = AutoTarget::StripPan(target_strip);
+    f.routes.push(cantus_core::ModRoute {
+        target: target.clone(),
+        depth: 0.4,
+    });
+    let mid = f.id;
+    p.strip_mut(target_strip).unwrap().modulators.push(f);
+    (p, mid, target)
+}
+
+/// Two bakes in a row: the second waits for the first, which is never thrown away nor
+/// has its render ended under it (review isolation-4 #5, #21).
+#[test]
+fn two_bakes_in_a_row_never_overlap() {
+    let (p, mid, target) = follower_project();
+    let mut a = app(p);
+    let before = a.bus.history().len();
+    assert!(a.bake_route(mid, &target), "the first bake traces");
+    assert!(!a.bake_route(mid, &target), "the second waits for it");
+    assert!(a.status.error, "and says so: {}", a.status.text);
+    assert!(a.modulators.pending_bake.is_some(), "the first is kept");
+    let start = std::time::Instant::now();
+    while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
+        a.poll_bake();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(a.bus.history().len(), before + 1, "the first bake was made");
+}
+
+/// An export that never had a plug-in says so in the interface's words — the file was
+/// made without it, never "from that point on" — and one begun from a busy plug-in's last
+/// saved state is done, with a word (review isolation-4 #10, #41).
+#[test]
+fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let dir = tempfile::tempdir().unwrap();
+    let mut a = app(cantus_ui::starter_project());
+    assert!(cantus_ui::views::export::start_with(
+        &mut a,
+        &dir.path().join("mix.wav"),
+        None
+    ));
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "C:\\Plugins\\glacier.clap: init refused",
+        cantus_host::RenderLoss::NeverLoaded,
+    );
+    cantus_ui::views::export::wait(&mut a);
+    let text = a.status.text.clone();
+    assert!(a.status.error, "{text}");
+    assert!(text.contains("No se pudo cargar Glacier"), "{text}");
+    assert!(text.contains("no se pudo cargar"), "the reason in its words: {text}");
+    assert!(!text.contains("desde ese punto"), "{text}");
+    assert!(!text.contains("init refused"), "{text}");
+    assert!(matches!(a.export.last, Some(Err(_))));
+    // Begun from its last-saved state: done, and said.
+    let mut a = app(cantus_ui::starter_project());
+    assert!(cantus_ui::views::export::start_with(
+        &mut a,
+        &dir.path().join("mix2.wav"),
+        None
+    ));
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "the plug-in is busy: its own window holds it",
+        cantus_host::RenderLoss::Stale,
+    );
+    cantus_ui::views::export::wait(&mut a);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(matches!(a.export.last, Some(Ok(_))), "done");
+    assert!(
+        a.status.text.contains("estaba ocupado"),
+        "{}",
+        a.status.text
+    );
+}
+
+/// A reload that crashes again: its card comes back, and the status line says why in the
+/// interface's words (review isolation-4 #38, #64).
+#[test]
+fn a_reload_that_crashes_again_brings_its_card_back_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (p, _, id) = hosted_project();
+    let mut a = app(p);
+    crash(&mut a, id, 1);
+    a.plugins
+        .fail_next_reload_for_tests("it crashed: an abort (0x00000003)", true);
+    plugin_notice::reload(&mut a, Target::Insert(id), "Glacier");
+    let text = a.status.text.clone();
+    let card = plugin_notice::card(&a);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(a.status.error, "{text}");
+    assert!(text.contains("se abortó"), "{text}");
+    assert!(!text.contains("crashed") && !text.contains("abort ("), "{text}");
+    let card = card.expect("the card is back");
+    assert!(card.body.contains("se abortó"), "why it is off now: {}", card.body);
+}
+
+/// A reload that fails without crashing says so in the interface's words, never the host's
+/// English (review isolation-4 #25, #40).
+#[test]
+fn a_reload_that_fails_without_crashing_says_so_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (p, _, id) = hosted_project();
+    let mut a = app(p);
+    a.plugins.mark_missing_for_tests(id, "not loaded");
+    a.plugins
+        .fail_next_reload_for_tests("C:\\Plugins\\glacier.clap: init refused", false);
+    plugin_notice::reload(&mut a, Target::Insert(id), "Glacier");
+    let text = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(text.contains("no se pudo volver a cargar"), "{text}");
+    assert!(!text.contains("init refused"), "{text}");
+}
+
+/// A window asked for while its plug-in's helper is busy: said as such, in the interface's
+/// words — it opens by itself once free — never an error in the host's English with a wait
+/// that did not happen (review isolation-4 #39).
+#[test]
+fn a_busy_window_is_said_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let mut a = app(cantus_ui::starter_project());
+    let busy = cantus_host::HostError::Busy("its own window holds it".into());
+    plugin_notice::window_failed(&mut a, "Glacier", &busy);
+    let text = a.status.text.clone();
+    let error = a.status.error;
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(!error, "not an error: {text}");
+    assert!(text.contains("Glacier está ocupado"), "{text}");
+    assert!(!text.contains("busy") && !text.contains("holds"), "{text}");
+}
+
+/// A plug-in that could not be loaded — refused, or its helper busy — can be loaded again
+/// from its menu, not only one that crashed (review isolation-4 #57).
+#[test]
+fn a_plugin_that_never_loaded_can_be_reloaded_from_its_menu() {
+    let (p, _, id) = hosted_project();
+    let mut a = app(p);
+    a.plugins
+        .mark_missing_for_tests(id, "the plug-in is busy: it did not answer in 30 s");
+    let rows = plugin_notice::menu_rows(&a, Target::Insert(id));
+    assert!(
+        rows.iter().any(|(_, _, act)| *act == MenuAct::Reload),
+        "{rows:?}"
+    );
+}
+
+/// A plug-in waiting on a window of its own has a card of its own — *Show it*, *Stop it* —
+/// that a close keeps away until it waits anew, and that goes when it is stopped (review
+/// isolation-4 #54).
+#[test]
+fn a_plugin_waiting_on_its_window_has_a_card() {
+    use plugin_notice::WaitAnswer;
+    let (p, _, id) = hosted_project();
+    let mut a = app(p);
+    a.plugins.set_waiting_for_tests(id, true);
+    let card = plugin_notice::waiting_card(&a).expect("its card");
+    assert_eq!(card.name, "Glacier");
+    let answers: Vec<_> = card.buttons.iter().map(|(_, a)| *a).collect();
+    assert_eq!(answers, vec![WaitAnswer::Show, WaitAnswer::Stop]);
+    let ctx = ctx();
+    let mut layout = Vec::new();
+    paint(&ctx, egui::vec2(420.0, 600.0), 2, |ui| {
+        layout = cantus_ui::views::audio_notice::card_layout(&a, ui.ctx());
+    });
+    assert_eq!(layout.len(), 1);
+    for b in &layout[0].1 {
+        assert!(layout[0].0.contains_rect(*b), "a button off its card");
+    }
+    plugin_notice::answer_waiting(&mut a, card.target, WaitAnswer::Dismiss);
+    assert!(plugin_notice::waiting_card(&a).is_none(), "closed");
+    a.plugins.set_waiting_for_tests(id, false);
+    plugin_notice::prune(&mut a);
+    a.plugins.set_waiting_for_tests(id, true);
+    assert!(plugin_notice::waiting_card(&a).is_some(), "waiting anew");
+    plugin_notice::answer_waiting(&mut a, card.target, WaitAnswer::Stop);
+    assert!(plugin_notice::waiting_card(&a).is_none(), "stopped");
 }

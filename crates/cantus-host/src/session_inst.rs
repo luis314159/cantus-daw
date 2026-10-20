@@ -415,6 +415,10 @@ impl PluginHost {
                 isolation: runs,
                 crashed: failed.crashed,
                 retry_at: super::iso::Missing::retry(failed.busy, waited),
+                found: self
+                    .db
+                    .find(from_project_format(plugin.format), &plugin.id)
+                    .is_some(),
             },
         );
         if waited.is_some() && failed.busy {

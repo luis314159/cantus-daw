@@ -92,3 +92,21 @@ isolation.render.export = export
 isolation.render.bake = bake
 isolation.slot.recover = Recover
 isolation.tip.reload_menu = Reload it from its menu.
+
+# --- review fixes (round 29, isolation-4) ---
+isolation.why.busy = it was busy: a window of its own was open, or a slow request was ahead
+isolation.why.no_helper = its helper could not start
+isolation.why.no_restart = it could not start again after its state was loaded
+isolation.why.not_loaded = it could not be loaded
+isolation.why.stopped_waiting = it was stopped while it waited on a window of its own
+isolation.busy = {name} is busy: a window of its own is open, or a slow request is ahead. Its window opens when it is free.
+isolation.export.never = {name} could not be loaded for the export — {reason}. The file was made without it.
+isolation.export.stale = {name} was busy when the export began: the file used the state it had last saved.
+isolation.bake.never = {name} could not be loaded for the bake — {reason}. Nothing was baked.
+isolation.bake.stale = {name} was busy when the bake began: it used the state it had last saved.
+isolation.freeze.never = {name} could not be loaded for the render — {reason}. {job} was not frozen or bounced.
+isolation.freeze.stale = {name} was busy when the render began: {job} used the state it had last saved.
+isolation.waiting.title = is waiting on a window of its own
+isolation.waiting.body = A dialog of it may be open behind Cantus. Answer it there, or stop the plug-in: Cantus keeps playing without it.
+isolation.waiting.show = Show it
+isolation.waiting.stop = Stop it

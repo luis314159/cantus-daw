@@ -1159,24 +1159,20 @@ fn collect(app: &mut CantusApp) {
         }
         return;
     }
-    if let (Some(Ok(path)), Some(f)) = (&result, lost.first()) {
+    let (losses, warnings) =
+        crate::views::plugin_notice::render_words(&lost, "freeze", &job.name);
+    if let (Some(Ok(path)), Some(text)) = (&result, losses) {
         let _ = std::fs::remove_file(path);
-        let text = tf(
-            "isolation.freeze.stopped",
-            &[
-                ("name", &f.name),
-                (
-                    "reason",
-                    &crate::views::plugin_notice::reason_words(&f.reason),
-                ),
-                ("job", &job.name),
-            ],
-        );
         if !job.content.is_empty() {
             app.freeze.failed.insert(job.content.clone(), text.clone());
         }
         app.set_error(text);
         return;
+    }
+    // Begun from a plug-in's last-saved state (its helper busy): done, and said (review
+    // isolation-4 #10).
+    if let (Some(Ok(_)), Some(w)) = (&result, warnings) {
+        app.set_error(w);
     }
     match result {
         Some(Ok(path)) => match job.want.clone() {
