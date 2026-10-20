@@ -683,6 +683,29 @@ pub fn consistent(project: &Project) -> Result<(), FreezeTarget> {
     Ok(())
 }
 
+/// Re-key every frozen target whose stored key is not its content key — a file edited by
+/// hand, or written by a build whose subject was another: the target stays frozen (the
+/// user's choice), its render is made again for what it holds now. Returns how many.
+pub fn repair(project: &mut Project) -> usize {
+    let mut n = 0;
+    for target in project.frozen_targets() {
+        let Some(content) = content_key(project, target) else {
+            continue;
+        };
+        let slot = match target {
+            FreezeTarget::Strip(s) => project.strip_mut(s).and_then(|s| s.frozen.as_mut()),
+            FreezeTarget::Track(t) => project.track_mut(t).and_then(|t| t.frozen.as_mut()),
+        };
+        if let Some(f) = slot {
+            if f.content != content {
+                f.content = content;
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
 /// The command that freezes `target` as the project is now (its key computed), or `None`
 /// when it is gone. [`freeze_commands`] is what the interface runs.
 pub fn freeze_command(project: &Project, target: FreezeTarget) -> Option<Command> {
