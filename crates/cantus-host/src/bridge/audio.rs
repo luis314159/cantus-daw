@@ -835,7 +835,10 @@ mod tests {
         }
         assert_eq!(c.notes.len(), 1);
         assert_eq!(c.notes[0].kind, midi(0xE0, (1999 & 0x7F) as u8, 15).kind);
-        assert_eq!(c.notes[0].offset, 0, "carried events go at the block's start");
+        assert_eq!(
+            c.notes[0].offset, 0,
+            "carried events go at the block's start"
+        );
     }
 
     /// A sustain pedal lifted and pressed again while the plug-in was late: both reach it,
@@ -847,7 +850,10 @@ mod tests {
         c.keep(&[], &[midi(0xB0, 64, 127)]);
         let m = merged(&mut c, &[]);
         let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
-        assert_eq!(kinds, vec![midi(0xB0, 64, 0).kind, midi(0xB0, 64, 127).kind]);
+        assert_eq!(
+            kinds,
+            vec![midi(0xB0, 64, 0).kind, midi(0xB0, 64, 127).kind]
+        );
     }
 
     /// The carried events keep the order they came in: a pedal pressed before a note-off
@@ -892,10 +898,16 @@ mod tests {
     #[test]
     fn poly_pressure_is_kept_per_key() {
         let mut c = Carry::new();
-        c.keep(&[], &[midi(0xA0, 60, 10), midi(0xA0, 64, 20), midi(0xA0, 60, 30)]);
+        c.keep(
+            &[],
+            &[midi(0xA0, 60, 10), midi(0xA0, 64, 20), midi(0xA0, 60, 30)],
+        );
         let m = merged(&mut c, &[]);
         let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
-        assert_eq!(kinds, vec![midi(0xA0, 64, 20).kind, midi(0xA0, 60, 30).kind]);
+        assert_eq!(
+            kinds,
+            vec![midi(0xA0, 64, 20).kind, midi(0xA0, 60, 30).kind]
+        );
     }
 
     /// A reset asked for while the plug-in was late ends its voices, not its controllers:
@@ -906,7 +918,15 @@ mod tests {
         let mut c = Carry::new();
         c.keep(&[], &[off(60), pressure(61, 0.5), midi(0xB0, 1, 9)]);
         c.reset_now();
-        c.keep(&[], &[midi(0xE0, 0, 64), midi(0xB0, 64, 0), off(62), pressure(62, 1.0)]);
+        c.keep(
+            &[],
+            &[
+                midi(0xE0, 0, 64),
+                midi(0xB0, 64, 0),
+                off(62),
+                pressure(62, 1.0),
+            ],
+        );
         assert!(c.reset);
         let kinds: Vec<NoteKind> = c.notes.iter().map(|e| e.kind).collect();
         assert_eq!(
@@ -996,7 +1016,11 @@ mod tests {
             true
         });
         assert_eq!(resets, 1);
-        assert_eq!(lost, Some(0), "the reset superseded the note-offs: nothing lost");
+        assert_eq!(
+            lost,
+            Some(0),
+            "the reset superseded the note-offs: nothing lost"
+        );
         assert_eq!(c.merged_notes.len(), MAX_NOTES - 9);
     }
 

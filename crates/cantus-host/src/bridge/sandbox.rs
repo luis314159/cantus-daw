@@ -315,7 +315,10 @@ pub(crate) enum Wait<'a> {
     /// As long as the helper lives (an offline render's load, state and values): until
     /// `cancel` is set, or the request has run `cap`, which ends the helper — never a
     /// render that starts with the wrong state (review isolation-4 #10).
-    WhileAlive { cancel: &'a AtomicBool, cap: Duration },
+    WhileAlive {
+        cancel: &'a AtomicBool,
+        cap: Duration,
+    },
 }
 
 pub use crate::backend::Blame;
@@ -842,8 +845,7 @@ impl Sandbox {
         lock(&self.inflight).values().any(|f| {
             f.instance == Some(instance)
                 && !f.deferred
-                && f
-                    .started
+                && f.started
                     .is_some_and(|s| s.elapsed() > f.limit || (silent && s.elapsed() > OWN_SILENCE))
         })
     }
@@ -892,7 +894,11 @@ impl Sandbox {
         let Some((sid, s)) = self.serving() else {
             return false;
         };
-        if sid == id || !s.started.is_some_and(|t| now.saturating_duration_since(t) > s.limit) {
+        if sid == id
+            || !s
+                .started
+                .is_some_and(|t| now.saturating_duration_since(t) > s.limit)
+        {
             return false;
         }
         f.behind || now.saturating_duration_since(f.at) > STALL_GRACE
@@ -1794,7 +1800,10 @@ mod tests {
     /// running — but the only plug-in's (review isolation-4 #3, #30, #44, #55).
     #[test]
     fn a_hang_with_nothing_named_is_nobodys() {
-        assert_eq!(culprits(End::Decided(None), 0, 0, &[2], &[1, 2, 3]), set(&[]));
+        assert_eq!(
+            culprits(End::Decided(None), 0, 0, &[2], &[1, 2, 3]),
+            set(&[])
+        );
         assert_eq!(culprits(End::Decided(None), 0, 0, &[], &[7]), set(&[7]));
     }
 

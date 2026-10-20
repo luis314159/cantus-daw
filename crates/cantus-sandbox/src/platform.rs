@@ -45,9 +45,9 @@ mod imp {
     use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumThreadWindows,
-        IsWindowVisible, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW,
-        RegisterClassW, SetForegroundWindow, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
-        PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
+        IsWindowVisible, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, RegisterClassW,
+        SetForegroundWindow, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT,
+        WM_APP, WM_TIMER, WNDCLASSW,
     };
 
     /// The pulse window (0 until made).
@@ -872,7 +872,11 @@ pub mod blame {
             }
         }
 
-        extern "C" fn on_signal(_sig: libc::c_int, _info: *mut libc::siginfo_t, ctx: *mut libc::c_void) {
+        extern "C" fn on_signal(
+            _sig: libc::c_int,
+            _info: *mut libc::siginfo_t,
+            ctx: *mut libc::c_void,
+        ) {
             super::record(pc(ctx));
             // The handler was reset (SA_RESETHAND): returning re-raises the fault (or, for
             // SIGABRT, `abort` raises it again), and the process ends as it would have.
@@ -890,10 +894,8 @@ pub mod blame {
             unsafe {
                 let mut sa: libc::sigaction = std::mem::zeroed();
                 sa.sa_sigaction = ours();
-                sa.sa_flags = libc::SA_SIGINFO
-                    | libc::SA_RESETHAND
-                    | libc::SA_NODEFER
-                    | libc::SA_ONSTACK;
+                sa.sa_flags =
+                    libc::SA_SIGINFO | libc::SA_RESETHAND | libc::SA_NODEFER | libc::SA_ONSTACK;
                 libc::sigemptyset(&mut sa.sa_mask);
                 libc::sigaction(sig, &sa, std::ptr::null_mut());
             }

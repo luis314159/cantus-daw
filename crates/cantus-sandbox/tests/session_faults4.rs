@@ -172,7 +172,10 @@ fn a_reload_that_fails_says_why_now_and_whose() {
     assert!(r.is_err(), "it crashed again");
     assert!(rig.host.crash_culprit(a), "its own doing this time");
     let now = rig.host.crashed(a).map(str::to_string);
-    assert!(now.is_some() && now != before, "why it stopped now: {now:?}");
+    assert!(
+        now.is_some() && now != before,
+        "why it stopped now: {now:?}"
+    );
 }
 
 /// A plug-in that crashes in its destructor as it is removed is counted as its own crash,
@@ -205,7 +208,10 @@ fn a_plugin_that_crashes_as_it_leaves_is_counted() {
         r.host.crashed(a).is_some()
     });
     frames_until(&mut rig, Duration::from_millis(300), |_| false);
-    assert!(!rig.host.crash_culprit(a), "the one that stayed did nothing");
+    assert!(
+        !rig.host.crash_culprit(a),
+        "the one that stayed did nothing"
+    );
     assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 1);
     assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 0);
     assert!(rig.host.db.crash_record(Format::Clap, GAIN_ID).is_some());
@@ -322,5 +328,8 @@ fn a_render_whose_plugin_crashes_loading_says_it_never_had_it() {
     rig.host.finish_render();
     assert_eq!(failures.len(), 1, "{failures:?}");
     assert_eq!(failures[0].kind, RenderLoss::NeverLoaded);
-    assert!(rig.notices.iter().all(|n| !matches!(n, HostNotice::PluginCrashed { .. })));
+    assert!(rig
+        .notices
+        .iter()
+        .all(|n| !matches!(n, HostNotice::PluginCrashed { .. })));
 }

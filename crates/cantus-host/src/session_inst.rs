@@ -352,7 +352,12 @@ impl PluginHost {
                         self.instruments.insert(t.id, h);
                     }
                     Err(failed) => {
-                        notices.extend(self.instrument_failed(t.id, plugin, (key, runs, waited), failed));
+                        notices.extend(self.instrument_failed(
+                            t.id,
+                            plugin,
+                            (key, runs, waited),
+                            failed,
+                        ));
                         continue;
                     }
                 }

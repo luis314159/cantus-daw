@@ -1159,8 +1159,7 @@ fn collect(app: &mut CantusApp) {
         }
         return;
     }
-    let (losses, warnings) =
-        crate::views::plugin_notice::render_words(&lost, "freeze", &job.name);
+    let (losses, warnings) = crate::views::plugin_notice::render_words(&lost, "freeze", &job.name);
     if let (Some(Ok(path)), Some(text)) = (&result, losses) {
         let _ = std::fs::remove_file(path);
         if !job.content.is_empty() {

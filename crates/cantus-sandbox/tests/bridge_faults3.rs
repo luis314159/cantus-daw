@@ -168,7 +168,10 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
     // After the dialog: the held load ran, after the window closed.
     let start = Instant::now();
     while a.param_value(P_GAIN) != Some(-9.0) {
-        assert!(start.elapsed() < Duration::from_secs(5), "the held state ran");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "the held state ran"
+        );
         assert!(crashed(a.as_mut()).is_none());
         std::thread::sleep(Duration::from_millis(20));
     }

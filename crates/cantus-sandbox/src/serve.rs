@@ -29,8 +29,8 @@ use cantus_host::window::PluginWindow;
 use cantus_host::{AudioSetup, HostError, MainThread, Notice, ParamChange, ParamOut};
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
-use std::rc::Rc;
 use std::io::{BufReader, BufWriter, Write};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
@@ -210,7 +210,8 @@ impl Server {
 
     /// Whether a call into `n` is under way further out on this thread (its cell is held).
     fn busy(&self, n: u32) -> bool {
-        self.instance(n).is_some_and(|i| i.try_borrow_mut().is_err())
+        self.instance(n)
+            .is_some_and(|i| i.try_borrow_mut().is_err())
     }
 
     fn load(

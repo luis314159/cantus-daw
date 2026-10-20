@@ -181,7 +181,11 @@ fn a_pause_while_a_job_is_late_ends_nothing() {
     noisy(s.as_mut(), &fault(P_FAULT, SLOW_SECOND));
     // Cantus does not run for longer than the silence and the hang limits.
     std::thread::sleep(Duration::from_millis(700));
-    assert_eq!(crashed(m.as_mut()), None, "the pause was not taken for a hang");
+    assert_eq!(
+        crashed(m.as_mut()),
+        None,
+        "the pause was not taken for a hang"
+    );
     // The job finishes; nothing ended meanwhile.
     let start = Instant::now();
     while start.elapsed() < Duration::from_millis(600) {
@@ -298,7 +302,10 @@ fn a_restart_is_polled_never_waited_for() {
             if r.is_some() {
                 return start.elapsed();
             }
-            assert!(start.elapsed() < Duration::from_secs(10), "{what} never restarted");
+            assert!(
+                start.elapsed() < Duration::from_secs(10),
+                "{what} never restarted"
+            );
             m.idle();
             std::thread::sleep(Duration::from_millis(16));
         }
@@ -312,7 +319,10 @@ fn a_restart_is_polled_never_waited_for() {
     slow.idle();
     std::thread::sleep(Duration::from_millis(200));
     let took = polls(&mut b, "B behind a slow save");
-    assert!(took > Duration::from_millis(1_500), "it waited for the save");
+    assert!(
+        took > Duration::from_millis(1_500),
+        "it waited for the save"
+    );
     for m in [&mut a, &mut b, &mut slow] {
         assert!(crashed(m.as_mut()).is_none());
     }
@@ -371,7 +381,10 @@ fn a_dialog_inside_a_call_never_holds_the_neighbours() {
         t.elapsed()
     );
     for (first, now) in firsts.iter().zip(&now) {
-        assert_ne!(first, now, "a neighbour's state as it is now, taken in the dialog");
+        assert_ne!(
+            first, now,
+            "a neighbour's state as it is now, taken in the dialog"
+        );
     }
     for m in [&mut a, &mut b, &mut c] {
         assert!(crashed(m.as_mut()).is_none());
@@ -418,7 +431,13 @@ fn a_slow_state_past_its_limit_is_not_a_hang() {
     // Gone now: what the slow save answered is what the project keeps.
     let mut l = vec![0.0; 64];
     let mut r = l.clone();
-    call(audio.as_mut(), &mut l, &mut r, &fault(P_FAULT, ABORT_PROCESS), &[]);
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &fault(P_FAULT, ABORT_PROCESS),
+        &[],
+    );
     assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
     assert_eq!(main.save_state().unwrap(), fresh);
     drop(before);
@@ -464,7 +483,10 @@ fn a_parameter_list_given_up_on_is_taken_when_it_comes() {
             .count();
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(told, 2, "told when it changed, and again when its list came");
+    assert_eq!(
+        told, 2,
+        "told when it changed, and again when its list came"
+    );
     assert!(!main.params().is_empty());
 }
 
@@ -488,14 +510,21 @@ fn a_window_asked_for_during_a_dialog_opens_after_it() {
         Err(cantus_host::HostError::Busy(why)) => assert!(why.contains("holds"), "{why}"),
         other => panic!("{other:?}"),
     }
-    assert!(t.elapsed() < Duration::from_millis(300), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(300),
+        "{:?}",
+        t.elapsed()
+    );
     let start = Instant::now();
     let mut opened = false;
     while start.elapsed() < Duration::from_secs(6) && !opened {
         opened = main.idle().contains(&Notice::EditorOpened);
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(opened, "the window opened after the dialog, and the host was told");
+    assert!(
+        opened,
+        "the window opened after the dialog, and the host was told"
+    );
 }
 
 /// Saving while the plug-in's own save hangs answers at once with production limits, too
@@ -545,7 +574,11 @@ fn a_pause_is_not_a_silence_but_a_real_silence_still_is() {
     main.idle();
     // Cantus pauses for a second: the helper (hung in its save) is silent meanwhile.
     std::thread::sleep(Duration::from_secs(1));
-    assert_eq!(crashed(main.as_mut()), None, "not at the first look after a pause");
+    assert_eq!(
+        crashed(main.as_mut()),
+        None,
+        "not at the first look after a pause"
+    );
     assert!(
         crashed_within(main.as_mut(), Duration::from_millis(1_500)).is_some(),
         "a real hang is still ended"

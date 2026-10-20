@@ -9,7 +9,9 @@ mod support;
 
 use cantus_host::bridge::sandbox::Limits;
 use cantus_host::bridge::Sandboxes;
-use cantus_host::{AudioThread, Backend, Blame, Loaded, MainThread, NoteEvent, Notice, ParamChange};
+use cantus_host::{
+    AudioThread, Backend, Blame, Loaded, MainThread, NoteEvent, Notice, ParamChange,
+};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use support::*;
@@ -98,7 +100,10 @@ fn a_crash_in_a_framework_timer_is_its_plugins() {
     block(a_audio.as_mut(), &fault(P_FAULT, SEGV_THREAD_TIMER), &[]);
     let (blame, why) = crashed_within(a.as_mut(), Duration::from_secs(5)).expect("it ended");
     assert_eq!(blame, Blame::This, "{why}");
-    assert_eq!(crashed_within(b.as_mut(), Duration::from_secs(2)).map(|c| c.0), Some(Blame::Neighbour));
+    assert_eq!(
+        crashed_within(b.as_mut(), Duration::from_secs(2)).map(|c| c.0),
+        Some(Blame::Neighbour)
+    );
 }
 
 /// A hang in a framework's timer is laid on the plug-in whose library the timer is in —
@@ -130,7 +135,10 @@ fn a_hang_in_a_framework_timer_is_its_plugins() {
     }
     let (blame, why) = ended.expect("the hang was ended");
     assert_eq!(blame, Blame::This, "{why}");
-    assert_eq!(crashed_within(b.as_mut(), Duration::from_secs(2)).map(|c| c.0), Some(Blame::Neighbour));
+    assert_eq!(
+        crashed_within(b.as_mut(), Duration::from_secs(2)).map(|c| c.0),
+        Some(Blame::Neighbour)
+    );
 }
 
 /// A neighbour's window crashing while another plug-in's dialog runs its loop: laid on the
@@ -157,7 +165,10 @@ fn a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours() {
     block(b_audio.as_mut(), &fault(P_FAULT, SEGV_EDITOR), &[]);
     let (blame, why) = crashed_within(b.as_mut(), Duration::from_secs(5)).expect("it ended");
     assert_eq!(blame, Blame::This, "{why}");
-    assert_eq!(crashed_within(a.as_mut(), Duration::from_secs(2)).map(|c| c.0), Some(Blame::Neighbour));
+    assert_eq!(
+        crashed_within(a.as_mut(), Duration::from_secs(2)).map(|c| c.0),
+        Some(Blame::Neighbour)
+    );
 }
 
 /// A plug-in's crash reporter that hands every crash back to the filter before it (ours):
@@ -179,7 +190,10 @@ fn a_crash_reporter_that_hands_back_changes_nothing() {
     block(audio.as_mut(), &fault(P_FAULT, SEGV_PROCESS), &[]);
     let (blame, why) = crashed_within(main.as_mut(), Duration::from_secs(10)).expect("it ended");
     assert_eq!(blame, Blame::This, "{why}");
-    assert!(why.contains("0xC0000005"), "the access violation it was: {why}");
+    assert!(
+        why.contains("0xC0000005"),
+        "the access violation it was: {why}"
+    );
 }
 
 /// Two jobs running when a plug-in aborts (a fail-fast: no handler runs): nothing says
@@ -201,8 +215,12 @@ fn a_fail_fast_with_two_jobs_running_is_nobodys() {
     // A's job runs on for a second (late, still running); B aborts on the other thread.
     block(a_audio.as_mut(), &fault(P_FAULT, SLOW_SECOND), &[]);
     block(b_audio.as_mut(), &fault(P_FAULT, ABORT_PROCESS), &[]);
-    let a_blame = crashed_within(a.as_mut(), Duration::from_secs(5)).expect("ended").0;
-    let b_blame = crashed_within(b.as_mut(), Duration::from_secs(2)).expect("ended").0;
+    let a_blame = crashed_within(a.as_mut(), Duration::from_secs(5))
+        .expect("ended")
+        .0;
+    let b_blame = crashed_within(b.as_mut(), Duration::from_secs(2))
+        .expect("ended")
+        .0;
     assert_eq!((a_blame, b_blame), (Blame::Unknown, Blame::Unknown));
 }
 

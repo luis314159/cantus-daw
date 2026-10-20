@@ -528,12 +528,11 @@ fn every_render_that_lost_a_plugin_says_so() {
         &dir.path().join("mix.wav"),
         None
     ));
-    a.plugins
-        .lose_in_render_for_tests(
-            "Glacier",
-            "it crashed: an access violation (0xC0000005)",
-            cantus_host::RenderLoss::Stopped,
-        );
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "it crashed: an access violation (0xC0000005)",
+        cantus_host::RenderLoss::Stopped,
+    );
     cantus_ui::views::export::wait(&mut a);
     assert!(a.status.error, "{}", a.status.text);
     assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
@@ -545,12 +544,11 @@ fn every_render_that_lost_a_plugin_says_so() {
     let strip = a.project().tracks[0].strip.unwrap();
     a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
     assert!(a.freeze.job.is_some());
-    a.plugins
-        .lose_in_render_for_tests(
-            "Glacier",
-            "it crashed: an access violation (0xC0000005)",
-            cantus_host::RenderLoss::Stopped,
-        );
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "it crashed: an access violation (0xC0000005)",
+        cantus_host::RenderLoss::Stopped,
+    );
     let ctx = ctx();
     let start = std::time::Instant::now();
     while a.freeze.job.is_some() && start.elapsed().as_secs() < 30 {
@@ -590,12 +588,11 @@ fn a_bake_that_lost_a_plugin_bakes_nothing() {
     let mut a = app(p);
     let before = a.bus.history().len();
     assert!(a.bake_route(mid, &target));
-    a.plugins
-        .lose_in_render_for_tests(
-            "Glacier",
-            "it crashed: an access violation (0xC0000005)",
-            cantus_host::RenderLoss::Stopped,
-        );
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "it crashed: an access violation (0xC0000005)",
+        cantus_host::RenderLoss::Stopped,
+    );
     let start = std::time::Instant::now();
     while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
         a.poll_bake();
@@ -671,7 +668,10 @@ fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
     let text = a.status.text.clone();
     assert!(a.status.error, "{text}");
     assert!(text.contains("No se pudo cargar Glacier"), "{text}");
-    assert!(text.contains("no se pudo cargar"), "the reason in its words: {text}");
+    assert!(
+        text.contains("no se pudo cargar"),
+        "the reason in its words: {text}"
+    );
     assert!(!text.contains("desde ese punto"), "{text}");
     assert!(!text.contains("init refused"), "{text}");
     assert!(matches!(a.export.last, Some(Err(_))));
@@ -713,9 +713,16 @@ fn a_reload_that_crashes_again_brings_its_card_back_in_its_words() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     assert!(a.status.error, "{text}");
     assert!(text.contains("se abortó"), "{text}");
-    assert!(!text.contains("crashed") && !text.contains("abort ("), "{text}");
+    assert!(
+        !text.contains("crashed") && !text.contains("abort ("),
+        "{text}"
+    );
     let card = card.expect("the card is back");
-    assert!(card.body.contains("se abortó"), "why it is off now: {}", card.body);
+    assert!(
+        card.body.contains("se abortó"),
+        "why it is off now: {}",
+        card.body
+    );
 }
 
 /// A reload that fails without crashing says so in the interface's words, never the host's
@@ -812,7 +819,10 @@ fn the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let lines: Vec<&str> = hint.lines().collect();
     assert_eq!(lines.len(), 3, "{hint}");
-    assert!(lines[1].starts_with("Glacier") && lines[1].contains("memoria"), "{hint}");
+    assert!(
+        lines[1].starts_with("Glacier") && lines[1].contains("memoria"),
+        "{hint}"
+    );
     assert_eq!(lines[2], "Recárgalo desde su menú.");
 }
 
@@ -821,10 +831,18 @@ fn the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back() {
 #[test]
 fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
-    let (p, _, _) = hosted_project();
+    // Glacier alone: the status line is its.
+    let mut p = cantus_ui::starter_project();
+    let strip = p.tracks[0].strip.unwrap();
+    let mut slot = p.make_effect(EffectKind::External);
+    slot.spec = EffectSpec::external(ExternalPlugin::new(PluginFormat::Clap, GLACIER, "Glacier"));
+    p.strip_mut(strip).unwrap().effects.push(slot);
     let a = app(p);
     let text = a.status.text.clone();
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
-    assert!(text.contains("no está instalado"), "{text}");
+    assert!(
+        text.contains("Glacier") && text.contains("no está instalado"),
+        "{text}"
+    );
     assert!(!text.contains("not installed"), "{text}");
 }

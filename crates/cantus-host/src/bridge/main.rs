@@ -652,7 +652,10 @@ impl MainThread for BridgeMain {
     fn stop(&mut self) {
         if !self.gone() {
             self.sandbox.kill_blaming(
-                &format!("{} was stopped while it waited on a window of its own", self.info.name),
+                &format!(
+                    "{} was stopped while it waited on a window of its own",
+                    self.info.name
+                ),
                 Some(self.instance),
             );
         }

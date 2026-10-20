@@ -10,7 +10,8 @@ mod support;
 use cantus_host::bridge::sandbox::Limits;
 use cantus_host::bridge::Sandboxes;
 use cantus_host::{
-    Backend, Blame, HostError, Loaded, MainThread, NoteEvent, NoteKind, Notice, ParamChange, ParamOut,
+    Backend, Blame, HostError, Loaded, MainThread, NoteEvent, NoteKind, Notice, ParamChange,
+    ParamOut,
 };
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -217,7 +218,11 @@ fn a_background_state_older_than_a_loaded_one_is_dropped() {
         main.idle();
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(main.save_state().unwrap(), first, "the held load ran after the loop");
+    assert_eq!(
+        main.save_state().unwrap(),
+        first,
+        "the held load ran after the loop"
+    );
     arm_crash(main.as_mut(), audio.as_mut());
     assert_eq!(main.save_state().unwrap(), first);
 }
