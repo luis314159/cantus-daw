@@ -9,7 +9,7 @@ use crate::app::CantusApp;
 use crate::controllers::{decode, source_text, Scope};
 use crate::i18n::tf;
 use cantus_core::controller::{
-    learn::detect, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL,
+    learn::detect, Control, Mapping, MappingTarget, MidiSource, PortRef, TEMPO_TRAVEL,
 };
 use cantus_engine::midi::Heard;
 use std::time::{Duration, Instant};
@@ -20,13 +20,17 @@ pub const LEARN_WINDOW: Duration = Duration::from_millis(300);
 /// An armed learn that hears nothing this long lets go: the keyboard plays again (every
 /// message is the control being learnt meanwhile, review 1, #32).
 pub const LEARN_TIMEOUT: Duration = Duration::from_secs(15);
+/// A controller that sent only its top value (127) is a button being held: its release
+/// is waited for this long — a momentary button (press, release) toggles; one that never
+/// lets go is a button latching in the controller (review 2, #2).
+pub const HOLD_WINDOW: Duration = Duration::from_millis(1500);
 /// Enough messages to tell: learnt at once.
 const ENOUGH: usize = 8;
 
 impl CantusApp {
     /// A message while a target is armed.
     pub(crate) fn learn_heard(&mut self, h: &Heard) {
-        let (channel, decoded, n) = decode(&mut self.controllers.wide, h.port, &h.event);
+        let (channel, decoded, n) = decode(&mut self.controllers.wide, h.port, &h.event, h.at);
         if n == 0 {
             return;
         }
@@ -52,6 +56,11 @@ impl CantusApp {
                 if on && l.heard.len() < 64 {
                     l.heard.push((control, value));
                 }
+                // A program change after bank select: the keyboard's program button, learnt
+                // now (its program change must not reach the instrument, review 2, #6).
+                if cantus_core::controller::learn::program_after_bank(&l.heard).is_some() {
+                    self.finish_learning();
+                }
             }
             // Another port or channel while one is being learnt: not this control.
             Some(_) => {}
@@ -61,7 +70,11 @@ impl CantusApp {
     /// Learn the armed control once it has said enough.
     pub(crate) fn learn_tick(&mut self) {
         let ready = self.controllers.learning.as_ref().is_some_and(|l| {
-            l.heard.len() >= ENOUGH || l.first.is_some_and(|t| t.elapsed() >= LEARN_WINDOW)
+            let held = held_button(&l.heard);
+            let window = if held { HOLD_WINDOW } else { LEARN_WINDOW };
+            l.heard.len() >= ENOUGH
+                || released_button(&l.heard)
+                || l.first.is_some_and(|t| t.elapsed() >= window)
         });
         if ready {
             self.finish_learning();
@@ -98,10 +111,12 @@ impl CantusApp {
             .and_then(|id| self.controller_map(l.scope).get(id).cloned());
         let replacing = existing.is_some();
         let m = match existing {
-            // Learnt again: the same mapping, the new control.
+            // Learnt again: the same mapping, the new control — on the plug-in there now
+            // (review 2, #1).
             Some(old) => Mapping {
                 source,
                 mode,
+                plugin: l.target.plugin_of(self.project()),
                 ..old
             },
             None => {
@@ -154,5 +169,21 @@ impl CantusApp {
             )
         };
         self.set_status(text);
+    }
+}
+
+/// A controller heard sending only its top value, a few times at most: a button held down,
+/// whose release is still to come.
+pub(crate) fn held_button(heard: &[(Control, u16)]) -> bool {
+    matches!(heard.first(), Some((Control::Cc(_), 127)))
+        && heard.len() < 3
+        && heard.iter().all(|&(c, v)| c == heard[0].0 && v == 127)
+}
+
+/// A controller button pressed and let go (its two ends heard): nothing more to wait for.
+fn released_button(heard: &[(Control, u16)]) -> bool {
+    match heard.first() {
+        Some(&(c @ Control::Cc(_), 127)) => heard.iter().any(|&(o, v)| o == c && v == 0),
+        _ => false,
     }
 }

@@ -8,7 +8,9 @@
 //! never for a global mapping a live project mapping on the same control shadows; each
 //! channel message sent on its own (MIDI APIs take one at a time, review 1, #11); and what
 //! comes back on the input (a loopback port, an echoing device) within a moment of being
-//! sent is not taken for a move (review 1, #15).
+//! sent is not taken for a move (review 1, #15) — the moment judged by when the message
+//! arrived, not when the interface read it, and too short for a hand: a real press of the
+//! same bytes a little later is a press (review 2, #3).
 
 use crate::app::CantusApp;
 use crate::controllers::Scope;
@@ -18,8 +20,14 @@ use std::time::{Duration, Instant};
 
 /// A mapping whose control moved this recently sends nothing back.
 pub const QUIET_AFTER_MOVE: Duration = Duration::from_millis(250);
-/// What comes back on the input this soon after being sent is the feedback's echo.
-pub const ECHO_WINDOW: Duration = Duration::from_millis(150);
+/// What arrives on the input this soon after being sent is the feedback's echo: a
+/// loopback or a device answers within a millisecond or two; no hand presses again so
+/// soon.
+pub const ECHO_WINDOW: Duration = Duration::from_millis(30);
+/// How long a message sent is remembered, at most, waiting for an interface that reads its
+/// input late (a minimised window, a long frame) — and how many are remembered.
+pub const ECHO_KEEP: Duration = Duration::from_secs(2);
+pub const ECHO_MAX: usize = 256;
 
 /// The channel messages that put `control` on `channel` at `value` (its own range: 7 or 14
 /// bits), each its own message of at most three bytes; none for a program change.
@@ -105,15 +113,21 @@ impl CantusApp {
             .collect()
     }
 
-    /// Whether `h` is a message feedback sent a moment ago, come back (then forgotten).
+    /// Whether `h` is a message feedback sent a moment before it arrived, come back (then
+    /// forgotten).
     pub(crate) fn is_feedback_echo(&mut self, h: &Heard) -> bool {
-        let now = Instant::now();
         let echoes = &mut self.controllers.echoes;
-        echoes.retain(|(_, _, t)| now.saturating_duration_since(*t) < ECHO_WINDOW);
+        if echoes.is_empty() {
+            return false;
+        }
         let bytes = [h.event.status, h.event.data1, h.event.data2];
         let short = matches!(h.event.status & 0xF0, 0xC0 | 0xD0);
-        match echoes.iter().position(|(port, sent, _)| {
-            *port == h.port && sent[..2] == bytes[..2] && (short || sent[2] == bytes[2])
+        match echoes.iter().position(|(port, sent, t)| {
+            *port == h.port
+                && sent[..2] == bytes[..2]
+                && (short || sent[2] == bytes[2])
+                && h.at >= *t
+                && h.at.duration_since(*t) <= ECHO_WINDOW
         }) {
             Some(i) => {
                 echoes.remove(i);
@@ -125,6 +139,12 @@ impl CantusApp {
 
     /// Send every feedback mapping's value that changed.
     pub(crate) fn controller_feedback(&mut self) {
+        // What was sent long ago can no longer come back: the list stays short whatever
+        // the input does (review 2, #11).
+        let now = Instant::now();
+        self.controllers
+            .echoes
+            .retain(|(_, _, t)| now.saturating_duration_since(*t) < ECHO_KEEP);
         let todo = self.feedback_mappings();
         if todo.is_empty() {
             return;
@@ -170,9 +190,11 @@ impl CantusApp {
                 if ok {
                     let mut b = [0u8; 3];
                     b[..msg.len()].copy_from_slice(msg);
-                    self.controllers
-                        .echoes
-                        .push((port as u8, b, Instant::now()));
+                    let echoes = &mut self.controllers.echoes;
+                    if echoes.len() >= ECHO_MAX {
+                        echoes.remove(0);
+                    }
+                    echoes.push((port as u8, b, Instant::now()));
                 }
                 all &= ok;
             }

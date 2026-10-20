@@ -41,12 +41,56 @@ pub enum Scope {
 /// A mapping's key in the interface's state.
 pub type Key = (Scope, MappingId);
 
-/// A 14-bit pair's state on one port, channel and number: its coarse value, and whether its
-/// fine half has ever come (a controller in 7-bit mode never sends it).
+/// A 14-bit pair's state on one port, channel and number: its halves, and whether its fine
+/// half has ever come (a controller in 7-bit mode never sends it).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Wide {
     pub msb: u8,
+    pub lsb: u8,
     pub lsb_seen: bool,
+    /// A coarse half came and its fine half has not yet: read with a fine 0 at the end of
+    /// the burst if it does not come (MIDI resets the fine half on a coarse one, and a
+    /// sender may leave a 0 out, review 2, #5).
+    pub pending: Option<Instant>,
+    /// A fine half came on its own, when: a coarse half right after it is the same pair (a
+    /// controller that sends its fine half first).
+    pub lsb_at: Option<Instant>,
+    /// When the coarse half last came: a fine half right after it completes that pair.
+    pub msb_at: Option<Instant>,
+    /// The controller sends its fine half first (seen once: a coarse half right after a
+    /// fine half alone).
+    pub lsb_first: bool,
+}
+
+/// A fine half this close before a coarse one is the same pair.
+pub const PAIR_GAP: std::time::Duration = std::time::Duration::from_millis(5);
+
+/// Why a mapping does nothing now (the pane's flag; `None` from
+/// `CantusApp::mapping_state` when it is live, review 2, #49).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum Idle {
+    /// Its target is gone (a deleted track or device, a parameter the plug-in lacks).
+    Missing,
+    /// Learnt on another plug-in than the one there now (kept for an undo of the swap).
+    OtherPlugin,
+    /// Its plug-in is in the project but not loaded (not found, crashed, stopped).
+    NotLoaded,
+    /// Its sound is frozen: moves are refused until it is unfrozen.
+    Frozen,
+}
+
+/// The pairs whose coarse half came alone in the burst just read: each read now, its fine
+/// half 0 — (port, channel, number, value, when).
+pub(crate) fn wide_alone(
+    wide: &mut HashMap<(u8, u8, u8), Wide>,
+) -> Vec<(u8, u8, u8, u16, Instant)> {
+    let mut out = Vec::new();
+    for (&(port, ch, n), e) in wide.iter_mut() {
+        if let Some(at) = e.pending.take() {
+            out.push((port, ch, n, u16::from(e.msb) << 7, at));
+        }
+    }
+    out
 }
 
 /// A target armed to learn the next hardware control moved.
@@ -83,6 +127,11 @@ pub struct ControllerUi {
     pub activity: HashMap<Key, Instant>,
     /// The gesture going on: the targets it moved, its undo key, its last message.
     pub gesture: crate::controllers_input::Gesture,
+    /// Gestures begun so far: each one's key is its own.
+    pub(crate) gestures: u64,
+    /// The playhead last frame, and when a loop's wrap was last seen.
+    pub(crate) prev_pos: Option<i64>,
+    pub(crate) last_wrap: Option<Instant>,
     /// The filter last published, and what it was made from: the project's revision, the
     /// global map, the ports.
     /// The project's revision, the loaded hosted parameters' signature, the global map, the
@@ -92,7 +141,7 @@ pub struct ControllerUi {
     pub outputs: MidiOutputs,
     pub sent: HashMap<Key, u16>,
     /// Feedback just sent, by port: what comes back within a moment is its echo.
-    pub(crate) echoes: Vec<(u8, [u8; 3], Instant)>,
+    pub echoes: Vec<(u8, [u8; 3], Instant)>,
     /// Feedback written here instead of to MIDI out (the tests' sink).
     pub feedback_log: Option<Vec<(String, Vec<u8>)>>,
     /// The coarse and fine halves of 14-bit controllers, per port, channel and number.
@@ -156,31 +205,73 @@ pub fn load_global(path: &Path) -> ControllerMap {
     load_global_checked(path).0
 }
 
-/// [`load_global`], and whether the file was damaged: then it is kept beside, as
-/// `controllers.json.bad`, before anything can write over it (review 1, #31).
+/// [`load_global`], and whether anything in the file was lost: then the file is kept
+/// beside, as `controllers.json.bad` (an earlier one kept too), before anything can write
+/// over it (review 1, #31) — a file that is no JSON or no text, one that cannot be read,
+/// one written by a newer Cantus, and one with a mapping this build cannot read (review 2,
+/// #9, #29, #39).
 pub fn load_global_checked(path: &Path) -> (ControllerMap, bool) {
-    let Ok(text) = std::fs::read_to_string(path) else {
-        return (ControllerMap::default(), false);
-    };
-    let file: GlobalFile = match serde_json::from_str(&text) {
-        Ok(f) => f,
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return (ControllerMap::default(), false)
+        }
         Err(e) => {
             log::warn!("controllers: cannot read {}: {e}", path.display());
-            let _ = std::fs::rename(path, path.with_extension("json.bad"));
+            keep_bad(path, false);
             return (ControllerMap::default(), true);
         }
     };
+    let file: GlobalFile = match serde_json::from_slice(&bytes) {
+        Ok(f) => f,
+        Err(e) => {
+            log::warn!("controllers: cannot read {}: {e}", path.display());
+            keep_bad(path, true);
+            return (ControllerMap::default(), true);
+        }
+    };
+    let mut lost = file.version > GLOBAL_VERSION;
     let mut map = ControllerMap::default();
     for v in file.mappings {
         match serde_json::from_value::<Mapping>(v) {
             Ok(m) if m.is_valid() && m.target.is_portable() && map.get(m.id).is_none() => {
                 map.mappings.push(m)
             }
-            Ok(m) => log::warn!("controllers: mapping {} left out", m.id.0),
-            Err(e) => log::warn!("controllers: a mapping left out: {e}"),
+            Ok(m) => {
+                log::warn!("controllers: mapping {} left out", m.id.0);
+                lost = true;
+            }
+            Err(e) => {
+                log::warn!("controllers: a mapping left out: {e}");
+                lost = true;
+            }
         }
     }
-    (map, false)
+    if lost {
+        // What could be read is used; the whole file stays beside for what could not.
+        keep_bad(path, false);
+    }
+    (map, lost)
+}
+
+/// Keep `path` beside as `controllers.json.bad` — renamed (`move_it`) or copied — or, when
+/// one is there already, with the time in its name, so an earlier one is never lost.
+fn keep_bad(path: &Path, move_it: bool) {
+    let mut bad = path.with_extension("json.bad");
+    if bad.exists() {
+        let secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        bad = path.with_extension(format!("json.{secs}.bad"));
+    }
+    let kept = if move_it {
+        std::fs::rename(path, &bad)
+    } else {
+        std::fs::copy(path, &bad).map(|_| ())
+    };
+    if let Err(e) = kept {
+        log::warn!("controllers: cannot keep {}: {e}", bad.display());
+    }
 }
 
 /// Write the global map.
@@ -327,8 +418,9 @@ impl CantusApp {
             MappingTarget::EffectBypass(id) => two(effect(*id), t("ctl.target.bypass")),
             MappingTarget::EffectMix(id) => two(effect(*id), t("ctl.target.mix")),
             MappingTarget::Tempo => t("ctl.target.tempo"),
+            // An action by its own group, as *Add a mapping* offers it (review 2, #43).
             MappingTarget::Action(id) => match crate::keymap::Action::from_id(id) {
-                Some(a) => two(t("ctl.target.action"), t(&a.label_key())),
+                Some(a) => two(t(a.category().label_key()), t(&a.label_key())),
                 None => two(t("ctl.target.action"), id.clone()),
             },
             MappingTarget::SelectedTrack(d) => two(t("ctl.target.selected_track"), desk_text(*d)),
@@ -366,11 +458,8 @@ impl CantusApp {
 
     /// Whether a controller drives `target`.
     pub fn is_mapped(&self, target: &MappingTarget) -> bool {
-        self.project()
-            .controllers
-            .of_target(target)
-            .next()
-            .is_some()
+        let p = self.project();
+        p.controllers.of_target_in(target, p).next().is_some()
             || self.controllers.global.of_target(target).next().is_some()
     }
 
@@ -423,9 +512,12 @@ impl CantusApp {
             }
         }
         let scope = Self::scope_for(&target);
+        // Learnt again: a mapping of the plug-in there now — one learnt on a plug-in swapped
+        // out is left for an undo of the swap (review 2, #51).
+        let p = self.project();
         let replace = self
             .controller_map(scope)
-            .of_target(&target)
+            .of_target_in(&target, p)
             .next()
             .map(|m| m.id);
         let name = self.mapping_target_name(&target);
@@ -450,6 +542,26 @@ impl CantusApp {
         self.controllers.tap.filter().set_learning(false);
     }
 
+    /// A device's name as the mixer shows it (a hosted plug-in's own).
+    pub fn effect_display_name(&self, id: cantus_core::EffectId) -> String {
+        let p = self.project();
+        p.effect_host(id)
+            .and_then(|h| p.effect(h, id))
+            .map(|e| match e.spec.external.as_deref() {
+                Some(x) => x.name.clone(),
+                None => t(e.spec.kind.name_key()),
+            })
+            .unwrap_or_else(|| t("auto.target.missing"))
+    }
+
+    /// *Forget these controllers* on an insert: its bypass and mix, one step, the status
+    /// naming the insert (review 2, #46).
+    pub fn forget_slot(&mut self, id: cantus_core::EffectId) {
+        let all: Vec<_> = (0..2).map(|w| slot_learn_target(id, w)).collect();
+        let name = self.effect_display_name(id);
+        self.forget_targets(&all, &name);
+    }
+
     /// Take every mapping of `target` away (the project's: one undo step).
     pub fn forget_target(&mut self, target: &MappingTarget) {
         let name = self.mapping_target_name(target);
@@ -459,12 +571,14 @@ impl CantusApp {
     /// Take every mapping of every target in `targets` away: the project's in one undo
     /// step, the global ones saved once, one status naming `what` (review 1, #51).
     pub fn forget_targets(&mut self, targets: &[MappingTarget], what: &str) {
-        let project: Vec<MappingId> = self
-            .project()
+        // The project's mappings of the plug-ins there now: one of a plug-in swapped out
+        // stays for an undo of the swap (review 2, #51).
+        let p = self.project();
+        let project: Vec<MappingId> = p
             .controllers
             .mappings
             .iter()
-            .filter(|m| targets.contains(&m.target))
+            .filter(|m| targets.contains(&m.target) && m.fits(p))
             .map(|m| m.id)
             .collect();
         let global = self
@@ -924,6 +1038,7 @@ pub(crate) fn decode(
     wide: &mut HashMap<(u8, u8, u8), Wide>,
     port: u8,
     ev: &MidiEvent,
+    at: Instant,
 ) -> (u8, [(Control, u16, bool); 2], usize) {
     let ch = ev.status & 0x0F;
     let (d1, d2) = (ev.data1 & 0x7F, ev.data2 & 0x7F);
@@ -934,9 +1049,19 @@ pub(crate) fn decode(
             if d1 < 32 {
                 let e = wide.entry((port, ch, d1)).or_default();
                 e.msb = d2;
-                if e.lsb_seen {
+                e.msb_at = Some(at);
+                if e.lsb_at.take().is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP) {
+                    // Its fine half came first, a moment ago: the pair is whole now.
+                    e.lsb_first = true;
+                    e.pending = None;
+                    let v = u16::from(d2) << 7 | u16::from(e.lsb);
+                    (ch, [first, (Control::Cc14(d1), v, true)], 2)
+                } else if e.lsb_seen {
                     // Its fine half follows: the pair is read then, never half-made
-                    // (review 1, #9).
+                    // (review 1, #9) — or, if it does not come in this burst, with a fine 0
+                    // (`wide_alone`).
+                    e.lsb = 0;
+                    e.pending = Some(at);
                     (ch, [first, none], 1)
                 } else {
                     // A pair that never sent its fine half (7-bit mode): the coarse value
@@ -947,6 +1072,16 @@ pub(crate) fn decode(
             } else if d1 < 64 {
                 let e = wide.entry((port, ch, d1 - 32)).or_default();
                 e.lsb_seen = true;
+                e.lsb = d2;
+                // The second half of a pair, or a fine half alone (its coarse half the same,
+                // or about to come: a controller that sends its fine half first).
+                let after_coarse = e.pending.take().is_some()
+                    || e.msb_at.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
+                e.lsb_at = if after_coarse && !e.lsb_first {
+                    None
+                } else {
+                    Some(at)
+                };
                 let v = u16::from(e.msb) << 7 | u16::from(d2);
                 (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
             } else {

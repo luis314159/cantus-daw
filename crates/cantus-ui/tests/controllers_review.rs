@@ -288,14 +288,14 @@ fn a_message_before_the_wrap_lands_at_the_loops_end() {
     use cantus_ui::controllers_input::tick_in_loop;
     let (start, end) = (Ticks::beats(16).0, Ticks::beats(32).0);
     assert_eq!(
-        tick_in_loop(start - 10, start + 20, Some((start, end))),
+        tick_in_loop(start - 10, start + 20, Some((start, end)), true),
         end - 10
     );
     assert_eq!(
-        tick_in_loop(start + 5, start + 20, Some((start, end))),
+        tick_in_loop(start + 5, start + 20, Some((start, end)), true),
         start + 5
     );
-    assert_eq!(tick_in_loop(start - 10, start + 20, None), start - 10);
+    assert_eq!(tick_in_loop(start - 10, start + 20, None, true), start - 10);
 }
 
 /// #7: a 14-bit fader in the project and its coarse controller in the global map: only
@@ -326,7 +326,8 @@ fn the_project_takes_a_message_whatever_address_it_maps() {
 }
 
 /// #9: a 14-bit pair fed only its coarse half reaches its top; once its fine half has
-/// come, a coarse message alone moves nothing half-made.
+/// come, a coarse message waits for it within the burst — and alone, it is read with a fine
+/// half of 0, as MIDI says (review 2, #5).
 #[test]
 fn a_14_bit_pair_reaches_its_top_and_waits_for_its_fine_half() {
     let mut a = keys_app();
@@ -342,10 +343,9 @@ fn a_14_bit_pair_reaches_its_top_and_waits_for_its_fine_half() {
     assert_eq!(a.project().master.width, 2.0, "the top");
     a.controller_heard(&[cc(7, 64), cc(39, 0)]);
     let w = a.project().master.width;
+    assert!((w - 64.0 * 128.0 / 16_383.0 * 2.0).abs() < 1e-3, "the pair: {w}");
     a.controller_heard(&[cc(7, 0)]);
-    assert_eq!(a.project().master.width, w, "the coarse half alone waits");
-    a.controller_heard(&[cc(39, 0)]);
-    assert_eq!(a.project().master.width, 0.0);
+    assert_eq!(a.project().master.width, 0.0, "the coarse half alone, its fine half 0");
 }
 
 /// The test CLAP plug-in, built from source where the host's tests build it.
