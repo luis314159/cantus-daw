@@ -1730,7 +1730,9 @@ fn clips(
     // Under a tempo track a drag of unwarped audio re-derives the clips it moves (review
     // 3): the clips its release would leave are drawn, not tick arithmetic.
     let dropped: Vec<((TrackId, ClipId), cantus_core::Clip)> = match v.drag_result() {
-        Some((anchor, result)) if !app.project().tempo_points.is_empty() && v.stretch_preview(anchor).is_none() => {
+        Some((anchor, result))
+            if !app.project().tempo_points.is_empty() && v.stretch_preview(anchor).is_none() =>
+        {
             crate::clips::drag_preview(app.project(), &app.clip_selection(), anchor, result)
                 .into_iter()
                 .filter(|(_, c)| c.audio.is_some())
@@ -1774,7 +1776,10 @@ fn clips(
             let landed = dropped.iter().find(|(k, _)| *k == r).map(|(_, c)| c);
             let (start, length) = match landed {
                 Some(c) => (c.start, c.length.max(Ticks::SIXTEENTH)),
-                None => (clip.start + dstart, (clip.length + dlen).max(Ticks::SIXTEENTH)),
+                None => (
+                    clip.start + dstart,
+                    (clip.length + dlen).max(Ticks::SIXTEENTH),
+                ),
             };
             let x0 = geo.x(ticks_to_beats(start));
             let x1 = geo.x(ticks_to_beats(start + length));
@@ -1817,10 +1822,11 @@ fn clips(
             // An audio clip: its waveform, fades, gain and handles (ADR 0025).
             let audio_h = clip.audio.as_ref().and_then(|region| {
                 let dragging = v.audio.drag.as_ref().filter(|d| d.r == r).map(|d| d.handle);
-                let (region, offset) = match landed.and_then(|c| c.audio.as_ref().map(|a| (a, c.offset))) {
-                    Some(l) => l,
-                    None => (region, clip.offset + v.slip_preview(r, region.reverse)),
-                };
+                let (region, offset) =
+                    match landed.and_then(|c| c.audio.as_ref().map(|a| (a, c.offset))) {
+                        Some(l) => l,
+                        None => (region, clip.offset + v.slip_preview(r, region.reverse)),
+                    };
                 let shown = audio::Shown {
                     track: track.id,
                     clip,

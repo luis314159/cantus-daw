@@ -398,12 +398,9 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
     // Audio in seconds plays from its content origin through the map (ADR 0060 §4): the
     // offset that puts `playStart` seconds before the start, the rest in frames (review 3).
     let (offset, slip_frames) = match &audio {
-        Some(d) if content_seconds => audio_anchor(
-            map,
-            Ticks(start_tl.round() as i64),
-            play_start,
-            d.rate,
-        ),
+        Some(d) if content_seconds => {
+            audio_anchor(map, Ticks(start_tl.round() as i64), play_start, d.rate)
+        }
         _ => (offset, 0),
     };
     let fade_secs = match attr(clip, "fadeTimeUnit") {

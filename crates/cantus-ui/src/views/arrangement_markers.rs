@@ -125,17 +125,14 @@ fn tabs(
             // Its share's end: whole names while the run fits, else an equal share each.
             let share_end = at + room * (n + 1) as f32 / run as f32;
             let want = x + w + 10.0 * k;
-            let fits = at + room >= x + w + 10.0 * k
-                && markers[i + n + 1..i + run].is_empty();
+            let fits = at + room >= x + w + 10.0 * k && markers[i + n + 1..i + run].is_empty();
             let right = if fits {
                 want.min(at + room)
             } else {
                 want.min(share_end).max(x + 6.0 * k)
             };
-            let tab = Rect::from_min_max(
-                pos2(x, lane.top() + 1.0),
-                pos2(right, lane.bottom() - 1.0),
-            );
+            let tab =
+                Rect::from_min_max(pos2(x, lane.top() + 1.0), pos2(right, lane.bottom() - 1.0));
             let letters = Rect::from_min_max(
                 pos2(x + 4.0 * k, tab.top()),
                 pos2((x + 4.0 * k + w).min(tab.right() - 2.0 * k), tab.bottom()),

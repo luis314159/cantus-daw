@@ -378,7 +378,11 @@ fn a_wrap_inside_a_ramp_carries_its_overshoot_through_the_map() {
     let map = Arc::new(TempoMap::new(
         90.0,
         TimeSignature::default(),
-        &[pt(0, 90.0, false), pt(960, 90.0, true), pt(4_800, 140.0, false)],
+        &[
+            pt(0, 90.0, false),
+            pt(960, 90.0, true),
+            pt(4_800, 140.0, false),
+        ],
         &[],
     ));
     let (start, end) = (Ticks::beats(2), Ticks(4_000));

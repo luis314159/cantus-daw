@@ -820,9 +820,8 @@ pub fn import_commands(
     // Notes kept at their seconds go through the song's tempo map from the drop (review
     // 3): a tick counted at `seconds_bpm` is so many seconds after `at`.
     let song_map = project.tempo_map();
-    let retime = import.tempo_mode == TempoMode::Seconds
-        && !place.apply_tempo
-        && !song_map.is_constant();
+    let retime =
+        import.tempo_mode == TempoMode::Seconds && !place.apply_tempo && !song_map.is_constant();
     let to_song = |t: Ticks| -> Ticks {
         let secs = t.0 as f64 * 60.0 / (import.seconds_bpm.max(1.0) * PPQ as f64);
         let at_f = at.0 as f64;

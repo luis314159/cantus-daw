@@ -446,7 +446,11 @@ pub fn paste_clips(
     // The block's anchor (its earliest clip) and whether the tempo over the block is the
     // same function where it lands: unwarped audio is laid the same seconds after the
     // anchor, so windows that met still meet (review 3).
-    let first = rows.iter().map(|r| r.clip.start).min().unwrap_or(Ticks::ZERO);
+    let first = rows
+        .iter()
+        .map(|r| r.clip.start)
+        .min()
+        .unwrap_or(Ticks::ZERO);
     let last_end = rows.iter().map(|r| r.clip.end()).max().unwrap_or(first);
     let (from_anchor, to_anchor) = (board.at + first, at + first);
     let same_block = !mapped

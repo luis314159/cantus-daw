@@ -1403,13 +1403,15 @@ mod tests {
             };
             let input = egui::RawInput {
                 events: vec![
-                    egui::Event::ModifiersChanged(mods),egui::Event::Key {
-                    key: Key::O,
-                    physical_key: Some(Key::O),
-                    pressed: true,
-                    repeat: false,
-                    modifiers: mods,
-                }],
+                    egui::Event::ModifiersChanged(mods),
+                    egui::Event::Key {
+                        key: Key::O,
+                        physical_key: Some(Key::O),
+                        pressed: true,
+                        repeat: false,
+                        modifiers: mods,
+                    },
+                ],
                 ..Default::default()
             };
             let mut fired = Vec::new();

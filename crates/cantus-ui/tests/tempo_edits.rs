@@ -410,7 +410,11 @@ fn moved_fades_and_lengths_keep_their_seconds() {
             .find(|c| c.start == Ticks::beats(14))
             .cloned()
             .expect("at beat 14");
-        near(seconds(&moved), was, if copy { "drag-copy" } else { "move" });
+        near(
+            seconds(&moved),
+            was,
+            if copy { "drag-copy" } else { "move" },
+        );
         a.undo();
     }
 }

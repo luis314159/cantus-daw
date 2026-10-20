@@ -351,7 +351,11 @@ fn a_map_dropped_into_a_song_starts_at_its_bar() {
 #[test]
 fn a_one_tempo_file_dropped_later_replaces_the_songs_later_points() {
     let notes: Vec<_> = note(0, 480, 60).into_iter().collect();
-    let bytes = file(smf::Division::Ppq(480), vec![ev(0, Event::Tempo(500_000))], notes);
+    let bytes = file(
+        smf::Division::Ppq(480),
+        vec![ev(0, Event::Tempo(500_000))],
+        notes,
+    );
     let mut song = Project::new("Song");
     song.tempo_points = vec![pt(0, 120.0), pt(30_720, 140.0)];
     let bus = import(
@@ -363,7 +367,11 @@ fn a_one_tempo_file_dropped_later_replaces_the_songs_later_points() {
             ..Default::default()
         },
     );
-    assert!(bus.project().tempo_points.is_empty(), "{:?}", bus.project().tempo_points);
+    assert!(
+        bus.project().tempo_points.is_empty(),
+        "{:?}",
+        bus.project().tempo_points
+    );
     assert_eq!(bus.project().tempo_bpm, 120.0);
 }
 
@@ -375,7 +383,11 @@ fn notes_kept_at_their_seconds_go_through_the_songs_map() {
     let ppq = 480u64;
     // 120 BPM: 6 s is beat 12.
     let notes: Vec<_> = note(12 * ppq, ppq / 2, 60).into_iter().collect();
-    let bytes = file(smf::Division::Ppq(ppq as u16), vec![ev(0, Event::Tempo(500_000))], notes);
+    let bytes = file(
+        smf::Division::Ppq(ppq as u16),
+        vec![ev(0, Event::Tempo(500_000))],
+        notes,
+    );
     let mut song = Project::new("Song");
     song.tempo_points = vec![pt(0, 120.0), pt(7680, 60.0)];
     let opts = ImportOptions {
@@ -390,9 +402,13 @@ fn notes_kept_at_their_seconds_go_through_the_songs_map() {
             next += 1;
             next - 1
         };
-        midi::import_commands(bus.project(), &imported, &Placement::default(), &mut ids, &|l| {
-            l.english()
-        })
+        midi::import_commands(
+            bus.project(),
+            &imported,
+            &Placement::default(),
+            &mut ids,
+            &|l| l.english(),
+        )
     };
     bus.reserve_ids(next);
     bus.execute(
@@ -427,12 +443,19 @@ fn a_map_without_clips_round_trips() {
 #[test]
 fn a_first_tempo_a_few_ticks_in_is_the_songs() {
     let notes: Vec<_> = note(0, 480, 60).into_iter().collect();
-    let bytes = file(smf::Division::Ppq(480), vec![ev(5, Event::Tempo(600_000))], notes.clone());
+    let bytes = file(
+        smf::Division::Ppq(480),
+        vec![ev(5, Event::Tempo(600_000))],
+        notes.clone(),
+    );
     let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
     assert_eq!(read.tempo_bpm, 100.0);
     assert!(read.tempo_points.is_empty(), "{:?}", read.tempo_points);
     let notes: Vec<_> = note(0, 3840, 60).into_iter().collect();
-    let conductor = vec![ev(1, Event::Tempo(600_000)), ev(4 * 3840, Event::Tempo(400_000))];
+    let conductor = vec![
+        ev(1, Event::Tempo(600_000)),
+        ev(4 * 3840, Event::Tempo(400_000)),
+    ];
     let bytes = file(smf::Division::Ppq(3840), conductor, notes);
     let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
     assert_eq!(read.tempo_bpm, 100.0);
@@ -445,7 +468,10 @@ fn a_first_tempo_a_few_ticks_in_is_the_songs() {
             ..Default::default()
         },
     );
-    assert_eq!(bus.project().tempo_points, vec![pt(0, 100.0), pt(3840, 150.0)]);
+    assert_eq!(
+        bus.project().tempo_points,
+        vec![pt(0, 100.0), pt(3840, 150.0)]
+    );
 }
 
 /// Review 3 (finding 54): a pickup — 4/4 from the start, a 3/4 at beat 2 — keeps its bar
@@ -453,7 +479,11 @@ fn a_first_tempo_a_few_ticks_in_is_the_songs() {
 #[test]
 fn a_pickups_metre_keeps_its_place() {
     let notes: Vec<_> = note(0, 480, 60).into_iter().collect();
-    let bytes = file(smf::Division::Ppq(480), vec![ev(2 * 480, metre(3, 2))], notes);
+    let bytes = file(
+        smf::Division::Ppq(480),
+        vec![ev(2 * 480, metre(3, 2))],
+        notes,
+    );
     let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
     assert_eq!(read.metre_changes, vec![mc(0, 4, 4), mc(1920, 3, 4)]);
 }

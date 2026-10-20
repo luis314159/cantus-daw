@@ -32,7 +32,16 @@ fn assembled(project: Project) -> CantusApp {
     std::env::set_var("CANTUS_DATA_DIR", data.path());
     let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
     let ctx = egui::Context::default();
-    let mut app = CantusApp::assemble(&ctx, files, None, EngineHandle::dummy(), None, None, None, false);
+    let mut app = CantusApp::assemble(
+        &ctx,
+        files,
+        None,
+        EngineHandle::dummy(),
+        None,
+        None,
+        None,
+        false,
+    );
     app.exec(Command::ReplaceProject {
         project: Box::new(project),
     });
@@ -42,7 +51,8 @@ fn assembled(project: Project) -> CantusApp {
 fn song() -> Project {
     let mut p = Project::new("song");
     let mut t = p.make_track("Keys");
-    t.clips.push(p.make_clip("c", Ticks::ZERO, Ticks::beats(16)));
+    t.clips
+        .push(p.make_clip("c", Ticks::ZERO, Ticks::beats(16)));
     p.tracks.push(t);
     p
 }
@@ -55,7 +65,10 @@ fn context() -> egui::Context {
 
 fn arrangement(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) {
     let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1400.0, 600.0))),
+        screen_rect: Some(egui::Rect::from_min_size(
+            Pos2::ZERO,
+            egui::vec2(1400.0, 600.0),
+        )),
         events,
         ..Default::default()
     };
@@ -80,13 +93,21 @@ fn button(pos: Pos2, pressed: bool) -> egui::Event {
 /// Press at `from`, move by `by` in steps, release.
 fn drag(a: &mut CantusApp, ctx: &egui::Context, from: Pos2, by: egui::Vec2) {
     arrangement(a, ctx, vec![egui::Event::PointerMoved(from)]);
-    arrangement(a, ctx, vec![egui::Event::PointerMoved(from), button(from, true)]);
+    arrangement(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(from), button(from, true)],
+    );
     for i in 1..=4 {
         let p = from + by * (i as f32 / 4.0);
         arrangement(a, ctx, vec![egui::Event::PointerMoved(p)]);
     }
     let to = from + by;
-    arrangement(a, ctx, vec![egui::Event::PointerMoved(to), button(to, false)]);
+    arrangement(
+        a,
+        ctx,
+        vec![egui::Event::PointerMoved(to), button(to, false)],
+    );
     arrangement(a, ctx, vec![]);
 }
 
@@ -117,7 +138,10 @@ fn the_metre_editor_opens_where_it_is_seen() {
     // A change far out of view (bar 200): added, its editor in view.
     views::arrangement::tempo::add_metre_change(&mut a, Ticks::beats(800));
     arrangement(&mut a, &ctx, vec![]);
-    assert_eq!(a.arrangement.tempo.metre_editor_at(), Some(Ticks::beats(800)));
+    assert_eq!(
+        a.arrangement.tempo.metre_editor_at(),
+        Some(Ticks::beats(800))
+    );
 }
 
 /// Findings 7, 15, 48: a chip dragged while a sound is frozen says so; and finding 39: a
@@ -136,13 +160,24 @@ fn a_chip_drag_moves_by_its_travel_and_says_a_freeze() {
     let geo = a.arrangement.geometry().unwrap();
     assert!(chip.width() > 0.6 * (geo.x(20.0) - geo.x(16.0)), "{chip:?}");
     // Grabbed at its right end, moved 3 px: on the grid of bars it stays.
-    drag(&mut a, &ctx, pos2(chip.right() - 1.0, chip.center().y), egui::vec2(3.0, 0.0));
+    drag(
+        &mut a,
+        &ctx,
+        pos2(chip.right() - 1.0, chip.center().y),
+        egui::vec2(3.0, 0.0),
+    );
     assert_eq!(a.project().metre_changes[1].tick, Ticks(15_360));
     // Frozen: the drag is refused, and said.
-    let key = cantus_core::freeze::content_key(a.project(), cantus_core::freeze::FreezeTarget::Track(a.project().tracks[0].id)).unwrap();
+    let key = cantus_core::freeze::content_key(
+        a.project(),
+        cantus_core::freeze::FreezeTarget::Track(a.project().tracks[0].id),
+    )
+    .unwrap();
     let mut q = a.project().clone();
     q.tracks[0].frozen = Some(cantus_core::freeze::Frozen { content: key });
-    a.exec(Command::ReplaceProject { project: Box::new(q) });
+    a.exec(Command::ReplaceProject {
+        project: Box::new(q),
+    });
     arrangement(&mut a, &ctx, vec![]);
     arrangement(&mut a, &ctx, vec![]);
     let (_, chip) = a.arrangement.tempo.chips_drawn()[1];
@@ -168,7 +203,12 @@ fn a_marker_tab_moves_by_its_travel() {
     arrangement(&mut a, &ctx, vec![]);
     arrangement(&mut a, &ctx, vec![]);
     let tab = a.arrangement.markers.tabs()[0].1;
-    drag(&mut a, &ctx, pos2(tab.right() - 2.0, tab.center().y), egui::vec2(3.0, 0.0));
+    drag(
+        &mut a,
+        &ctx,
+        pos2(tab.right() - 2.0, tab.center().y),
+        egui::vec2(3.0, 0.0),
+    );
     assert_eq!(a.project().marker(id).unwrap().tick, Ticks::beats(8));
 }
 
@@ -228,7 +268,10 @@ fn one_metre_automation_snaps_to_its_content_grid() {
 /// One frame of the top bar with `events`.
 fn top_bar(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) {
     let input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(1400.0, 60.0))),
+        screen_rect: Some(egui::Rect::from_min_size(
+            Pos2::ZERO,
+            egui::vec2(1400.0, 60.0),
+        )),
         events,
         ..Default::default()
     };
@@ -241,7 +284,12 @@ fn top_bar(a: &mut CantusApp, ctx: &egui::Context, events: Vec<egui::Event>) {
     .clear();
 }
 
-fn wheel(at: Pos2, unit: egui::MouseWheelUnit, dy: f32, modifiers: egui::Modifiers) -> Vec<egui::Event> {
+fn wheel(
+    at: Pos2,
+    unit: egui::MouseWheelUnit,
+    dy: f32,
+    modifiers: egui::Modifiers,
+) -> Vec<egui::Event> {
     vec![
         egui::Event::PointerMoved(at),
         egui::Event::MouseWheel {
@@ -263,11 +311,28 @@ fn the_tempo_wheel_counts_whole_notches_and_leaves_ctrl_alone() {
     let well = a.topbar.tempo_well.unwrap().center();
     // 40 points are one notch: ten frames of 4.
     for _ in 0..10 {
-        top_bar(&mut a, &ctx, wheel(well, egui::MouseWheelUnit::Point, 4.0, egui::Modifiers::NONE));
+        top_bar(
+            &mut a,
+            &ctx,
+            wheel(
+                well,
+                egui::MouseWheelUnit::Point,
+                4.0,
+                egui::Modifiers::NONE,
+            ),
+        );
     }
     assert_eq!(a.project().tempo_bpm, 121.0);
-    for m in [egui::Modifiers::CTRL, egui::Modifiers::SHIFT, egui::Modifiers::COMMAND] {
-        top_bar(&mut a, &ctx, wheel(well, egui::MouseWheelUnit::Line, 1.0, m));
+    for m in [
+        egui::Modifiers::CTRL,
+        egui::Modifiers::SHIFT,
+        egui::Modifiers::COMMAND,
+    ] {
+        top_bar(
+            &mut a,
+            &ctx,
+            wheel(well, egui::MouseWheelUnit::Line, 1.0, m),
+        );
     }
     assert_eq!(a.project().tempo_bpm, 121.0);
 }
@@ -278,7 +343,11 @@ fn the_tempo_wheel_counts_whole_notches_and_leaves_ctrl_alone() {
 fn the_tempo_drag_inside_a_ramp_moves_its_start_by_the_travel() {
     let mut p = song();
     p.tempo_bpm = 120.0;
-    p.tempo_points = vec![pt(0, 120.0, false), pt(3840, 90.0, true), pt(11_520, 140.0, false)];
+    p.tempo_points = vec![
+        pt(0, 120.0, false),
+        pt(3840, 90.0, true),
+        pt(11_520, 140.0, false),
+    ];
     let mut a = assembled(p);
     a.seek(Ticks(7680));
     let ctx = context();
@@ -286,16 +355,33 @@ fn the_tempo_drag_inside_a_ramp_moves_its_start_by_the_travel() {
     let well = a.topbar.tempo_well.unwrap().center();
     let undo = a.bus.history().len();
     top_bar(&mut a, &ctx, vec![egui::Event::PointerMoved(well)]);
-    top_bar(&mut a, &ctx, vec![egui::Event::PointerMoved(well), button(well, true)]);
+    top_bar(
+        &mut a,
+        &ctx,
+        vec![egui::Event::PointerMoved(well), button(well, true)],
+    );
     for i in 1..=4 {
-        top_bar(&mut a, &ctx, vec![egui::Event::PointerMoved(well - egui::vec2(0.0, 10.0 * i as f32))]);
+        top_bar(
+            &mut a,
+            &ctx,
+            vec![egui::Event::PointerMoved(
+                well - egui::vec2(0.0, 10.0 * i as f32),
+            )],
+        );
     }
     let end = well - egui::vec2(0.0, 40.0);
-    top_bar(&mut a, &ctx, vec![egui::Event::PointerMoved(end), button(end, false)]);
+    top_bar(
+        &mut a,
+        &ctx,
+        vec![egui::Event::PointerMoved(end), button(end, false)],
+    );
     let pts = &a.project().tempo_points;
     // 40 points up, less the drag's own start threshold: between 9 and 10 BPM, in tenths.
     let moved = pts[1].bpm - 90.0;
-    assert!((8.0..=10.0).contains(&moved), "the ramp's start moved {moved}");
+    assert!(
+        (8.0..=10.0).contains(&moved),
+        "the ramp's start moved {moved}"
+    );
     assert_eq!((moved * 10.0).round(), moved * 10.0);
     assert_eq!(pts[2].bpm, 140.0, "its end untouched");
     assert_eq!(a.bus.history().len(), undo + 1, "one undo step");

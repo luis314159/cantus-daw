@@ -766,7 +766,11 @@ pub(super) fn metre_input(
                         .map_or(at, |o| beats_to_ticks(geo.beats(o.x).max(0.0)));
                     app.arrangement.tempo.metre_drag = Some((tick, press - tick));
                 }
-                let grab = app.arrangement.tempo.metre_drag.map_or(Ticks::ZERO, |d| d.1);
+                let grab = app
+                    .arrangement
+                    .tempo
+                    .metre_drag
+                    .map_or(Ticks::ZERO, |d| d.1);
                 let p0 = app.project();
                 let mut without = p0.metre_changes.clone();
                 without.remove(i);
@@ -859,7 +863,9 @@ pub fn add_metre_change(app: &mut CantusApp, at: Ticks) {
     // The editor opens on the ruler at that bar — in view, or at the ruler's nearer end
     // (review 3: the top bar's metre may be hidden, a chip out of view).
     let pos = app.arrangement.geometry().map_or(pos2(0.0, 0.0), |g| {
-        let x = g.x(ticks_to_beats(bar)).clamp(g.left, g.left + g.width - 160.0);
+        let x = g
+            .x(ticks_to_beats(bar))
+            .clamp(g.left, g.left + g.width - 160.0);
         pos2(x, g.loop_lane_bottom)
     });
     app.arrangement.tempo.metre_at = Some((bar, pos, u64::MAX));
@@ -918,4 +924,40 @@ pub fn clamp_move(p: &Project, i: usize, to: Ticks) -> Option<Ticks> {
     }
     let to = other.snap_bar(to).clamp(lo, hi);
     (to != tick).then_some(to)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Review 3 (finding 32): a point dragged past the press's range slides the range with
+    /// it, its scale held: the dot drawn is the tempo set, inside the lane.
+    #[test]
+    fn a_point_dragged_past_the_range_slides_it() {
+        let s = Style::new(crate::kit::Tokens::slate());
+        let rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(400.0, 54.0));
+        let st = State {
+            drag: Some(Drag {
+                index: 0,
+                bpm: 120.0,
+                y: 30.0,
+                lo: 110.0,
+                hi: 130.0,
+            }),
+            ..State::default()
+        };
+        for (bpm, lo) in [(160.0, 140.0), (95.0, 95.0), (125.0, 110.0)] {
+            let pts = [TempoPoint {
+                tick: Ticks::ZERO,
+                bpm,
+                ramp: false,
+            }];
+            let axis = Axis::of_lane(&st, &pts, rect, &s);
+            assert_eq!((axis.lo, axis.hi), (lo, lo + 20.0), "{bpm}");
+            assert!(
+                (axis.bpm(axis.y(bpm)) - bpm).abs() < 1e-6,
+                "{bpm} drawn where it is"
+            );
+        }
+    }
 }

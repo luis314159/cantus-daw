@@ -103,24 +103,65 @@ bar's start and number through the metre changes; at one tempo both are the expr
 round 28, to the bit (review 2). *Measured:* see §8.
 
 **Unwarped audio clips** (`cantus_core::audio_time`, the one mapping the engine and every
-interface site use): a clip plays at its natural speed from its **content origin**
-(`start − offset`, ADR 0025's origin), laid on the timeline once through the map; with one
-tempo this is exactly the old rule. *Review 2 changed this from "anchored at its start,
-the offset read at the tempo there"*: with that rule every window edit — a split, a trim,
-a comp's swipe and seams, glue — needed the offset re-derived in seconds, and the windows
-of one take no longer agreed with each other after a tempo edit inside the take. With the
-origin rule every window of a take shares its origin, the tick arithmetic of every edit
-is exact through any map, and a tempo edit inside a take moves all its windows together.
-The cost, accepted: a clip whose hidden part before its start crosses a tempo change
-plays a different part of its file when that tempo is edited — as the part it hides would.
-Only a move or a copy elsewhere re-derives the offset (`audio_time::relocate`: the same
-second at its start, its length and fades in seconds, the rounding in the fine offset) —
-a drag, a drag-copy, a duplicate and a paste give the same clip — and a reversed window,
-which reads back from its end, at its trims, splits and glue
-(`audio_time::reanchor_reversed`). Fades and comp-seam crossfades are measured through the
-map, where they lie (the inspector too: review 2). A recorded take is moved back by its
-latency's *seconds* through the map, so a take played across a ramp lands where it was
-played; its loop passes' fine offsets put each pass's recorded frame at its window.
+interface site use). Two invariants hold, and the owner holds us to both: **(i) a tempo
+edit never changes which source frame plays at an unwarped clip's start** — a take
+recorded from bar 17 after playing from bar 1, its loop passes, its comp windows, a
+reversed clip, a punch-in, all keep their audio where it was played when bar 1's tempo is
+changed; and **(ii) every window edit is exact** — split, trims, comp swipes and seams,
+glue, loop passes, pastes, moves of several clips — so the windows of one take keep
+agreeing with each other. The final rule (review 3) has two parts:
+
+1. *The reading rule* — a clip plays at its natural speed from its **content origin**
+   (`start − offset`, ADR 0025's origin), laid on the timeline through the map; with one
+   tempo this is exactly the old rule. Every window of one take shares its origin, so the
+   tick arithmetic of every window edit is exact through any map (invariant ii). Review 2
+   chose this over "anchored at its start, the offset read at the tempo there", with which
+   every window edit needed its offset re-derived in seconds and the windows of a take
+   stopped agreeing.
+2. *Tempo edits re-anchor* — alone, the reading rule broke invariant (i): a tempo edit
+   inside a clip's hidden part (a take's pre-roll, the passes before a loop's last, a
+   count-in) slid what it played (review 3, findings 0, 13, 37). So the command bus
+   (`CommandBus::apply_keeping_audio`, `tempo::keep`) wraps **every command that changes
+   the map** — `SetTempo`, `SetTempoTrack`, `Insert/Remove/SetTempoPoint`, or a batch
+   holding one: it notes the source second at the start of every unwarped window (clips
+   and the alternate comps' windows; warped clips that follow the tempo are the map's by
+   definition and are left alone), applies the command, and re-anchors each window whose
+   second moved (`audio_time::anchor`: the offset in whole ticks, the remainder in
+   `slip_frames`), composed into the same undo step with its exact inverse; if a
+   re-anchor were refused, the whole command is rolled back. A window the command itself
+   moved or re-cut is left as the command left it. Windows of one take are re-anchored to
+   the seconds they played, so they still meet and glue (within the sub-tick rounding a
+   slip absorbs); a linked copy cannot hold its own slip (it shares its group's region,
+   ADR 0037), so it is re-anchored by its offset alone, within half a tick. The undo fuzz
+   checks after every tempo command that each window's frame at its start is kept and
+   that undo restores the project to the bit.
+
+Design (a) — storing the left edge in source frames — was weighed and rejected: it moves
+every window edit off tick arithmetic onto seconds (the review-2 problem back) and needs a
+schema change for every clip, while (b) touches only the commands that move the map and
+keeps both invariants with one inverse. Its cost: a tempo edit is a batch that also writes
+the clips' offsets (one undo step all the same). It holds at one tempo too: the top bar's
+tempo changed in a song without a tempo track keeps each trimmed clip's frame at its start
+(round 28 slid it by the change in its offset's seconds); playback of every project as
+saved is unchanged, to the bit — only an edit of the tempo now re-anchors.
+
+Moving and copying go through the map too: **one block** — a selection moved, nudged,
+drag-copied or pasted — moves its earliest clip by the delta and lays every unwarped
+window the same *seconds* after it (`audio_time::block_start`), so windows that met keep
+meeting and a take keeps one origin; a single window lands at the same second at its new
+start with its length and fades in seconds (`audio_time::relocate`: a drag, a drag-copy, a
+duplicate and a paste give the same clip; a looping clip and a span of one tempo keep
+their ticks; a linked copy keeps its group's fades). The drag draws what it will drop
+(`clips::drag_preview` is the commit's own commands). A **slip** moves the source under
+the window's start by the seconds the pointer's travel lasts there
+(`audio_time::slipped`), not across the hidden part. A **reversed** window reads back from
+its end in seconds — its frame at tick T is its start frame plus the seconds from T to its
+end — the engine, the pitch editor and the waveform alike (`reanchor_reversed` at its
+trims, splits and glue). Fades and comp-seam crossfades are measured through the map,
+where they lie. A recorded take is moved back by its latency's *seconds* through the map;
+its loop passes' fine offsets put each pass's recorded frame at its window. A warped clip
+that keeps its natural speed (a warp that does not follow) reads its hidden part too, so
+its render key must hash the map from its origin (the warp builder's `warp_render::key`).
 
 **Modulators** read time through the map: `ModTime` carries it while it moves, an
 envelope's note gates are computed in song seconds, a retriggered LFO in Hz counts the
@@ -142,9 +183,13 @@ changes** are chips on the ruler before the bar's number: drag along the bar lin
 to edit (the top bar's metre editor), remove from the menu. **Markers** are a lane under
 the loop lane while the song has markers: a click anywhere on a tab jumps (review 2: the
 name's letters filled the tab, and a click there renamed), a double-click or the menu
-renames, drag, recolour from the track palette; markers on one tick sit side by side;
+renames, drag, recolour from the track palette; markers on one tick share the room before the next marker, and a run too close behind
+another starts after it (review 3); a tab or a metre chip drags by the pointer's travel,
+never by where it was grabbed;
 Alt+M adds one at the playhead, Alt+, and Alt+. step between them, Alt+Shift+O loops
-between the markers around the playhead (Alt+Shift+L was Select linked's in every preset);
+between the markers around the playhead — a letter, on its key on every layout (review 3:
+Alt+Shift+, cannot be typed on Spanish, German or French keyboards, where the comma's
+shifted key is another sign; Alt+Shift+L was Select linked's in every preset);
 the ruler's and the empty timeline's menu (one menu) add a marker or a metre change where
 it was opened, the toolbar's ▸ menu at the playhead; *Add a metre change* at bar 1 opens
 the song's own metre; the lane's menu lists the markers to jump by name; *Export between
@@ -152,7 +197,11 @@ markers* is a scope of the export dialog (`Scope::Markers`), the two markers pic
 — a pair that makes no range is refused with a word, never exported as the whole song.
 The tempo lane's scale holds while a point is dragged, and the top bar's wheel (a notch,
 one BPM) and drag move the governing point by their own amount, a ramp's start from its
-own value (review 2). The lanes' state belongs to one project.
+own value (review 2), the wheel counting a touchpad's fractions into whole notches and
+leaving Ctrl/Shift+wheel to the view (review 3); a point dragged past the lane's range
+slides the range with it, the scale held. The ruler's menu adds on the grid when snap is
+on; *Add a metre change* opens its editor where it is drawn, in view. The lanes' state
+belongs to one project.
 
 ### 6. Interchange (amends ADR 0021)
 
@@ -172,12 +221,20 @@ and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. N
   at the bar line nearest the drop, where the notes go too: the song keeps its own tempo
   and metre before it, a ramp into it ending where it stood (review 2). A signature Cantus
   cannot hold is dropped and counted, two at one tick keep the later, a first one written
-  a few ticks in is the song's; an SMPTE file keeps no map; markers kept are no texts
-  dropped. `Beats` and `Seconds` stay for importing into a song whose tempo stays.
+  a few ticks in (within a sixteenth) is the song's, as is a first tempo (review 3: a whole
+  bar moved a pickup's 3/4 to tick 0); a merged map left with one tempo clears the song's
+  later points; an SMPTE file keeps no map; markers kept are no texts dropped. `Beats` and
+  `Seconds` stay for importing into a song whose tempo stays; in `Seconds` (and every SMPTE
+  file) into a song with a tempo track the notes are placed through the song's map, at the
+  seconds they were counted at (review 3). The export writes the map and the metre changes
+  past the last clip, so a song's tempo map alone exports.
 - **DAWproject** writes the arrangement's `Markers` (name, colour), `TempoAutomation`
   (`RealPoint`s on the transport's tempo parameter; a ramp `linear`, a held point `hold`)
   and `TimeSignatureAutomation` (`TimeSignaturePoint`s), valid against the official schema,
-  and reads them back. Times in seconds are placed through the file's own map — its tempo
+  and reads them back; an audio clip whose content is in seconds plays its `playStart`
+  second at its start through the map (`audio_anchor`, the rule above; review 3) — the
+  unwarped audio's own `<Warps>` line is the warp builder's (`dawproject/audio.rs`).
+  Times in seconds are placed through the file's own map — its tempo
   points one after another, then every clip, note, marker and metre (review 2) — a ramp
   written in seconds becomes one linear in beats (reported); two points at one time are a
   jump (the later wins); the lane's `unit` is read (`normalized` through the transport's

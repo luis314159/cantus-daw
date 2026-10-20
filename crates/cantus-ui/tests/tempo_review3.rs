@@ -28,7 +28,16 @@ fn assembled(project: Project) -> CantusApp {
     std::env::set_var("CANTUS_DATA_DIR", data.path());
     let files = Files::read(data.path(), Some(cantus_ui::i18n::Locale::En));
     let ctx = egui::Context::default();
-    let mut app = CantusApp::assemble(&ctx, files, None, EngineHandle::dummy(), None, None, None, false);
+    let mut app = CantusApp::assemble(
+        &ctx,
+        files,
+        None,
+        EngineHandle::dummy(),
+        None,
+        None,
+        None,
+        false,
+    );
     app.exec(Command::ReplaceProject {
         project: Box::new(project),
     });
@@ -81,8 +90,17 @@ fn frame(map: &TempoMap, c: &Clip, tick: f64) -> f64 {
 fn meeting(a: &CantusApp, w: &[Clip]) {
     let map = a.project().tempo_map();
     for p in w.windows(2) {
-        assert_eq!(p[0].end(), p[1].start, "{:?} and {:?} meet", p[0].start, p[1].start);
-        let (x, y) = (frame(&map, &p[0], p[0].end().0 as f64), frame(&map, &p[1], p[1].start.0 as f64));
+        assert_eq!(
+            p[0].end(),
+            p[1].start,
+            "{:?} and {:?} meet",
+            p[0].start,
+            p[1].start
+        );
+        let (x, y) = (
+            frame(&map, &p[0], p[0].end().0 as f64),
+            frame(&map, &p[1], p[1].start.0 as f64),
+        );
         assert!((x - y).abs() <= 1.0, "the file goes on: {x} then {y}");
     }
 }
@@ -104,7 +122,11 @@ fn halves_moved_together_across_a_change_still_meet() {
         },
     );
     let moved = clips(&a, t);
-    assert_eq!(moved[0].start, Ticks::beats(8), "the block's anchor moves by the delta");
+    assert_eq!(
+        moved[0].start,
+        Ticks::beats(8),
+        "the block's anchor moves by the delta"
+    );
     meeting(&a, &moved);
     // Glue gives one clip back.
     a.set_clip_selection(moved.iter().map(|c| (t, c.id)).collect());
@@ -127,7 +149,10 @@ fn halves_moved_together_across_a_change_still_meet() {
             copy: true,
         },
     );
-    let copies: Vec<Clip> = clips(&a, t).into_iter().filter(|c| !ids.contains(&c.id)).collect();
+    let copies: Vec<Clip> = clips(&a, t)
+        .into_iter()
+        .filter(|c| !ids.contains(&c.id))
+        .collect();
     assert_eq!(copies.len(), 2);
     meeting(&a, &copies);
 }
@@ -141,7 +166,10 @@ fn halves_pasted_across_a_change_still_meet() {
     a.run_action(Action::Copy);
     a.seek(Ticks::beats(8));
     a.paste_now();
-    let pasted: Vec<Clip> = clips(&a, t).into_iter().filter(|c| !ids.contains(&c.id)).collect();
+    let pasted: Vec<Clip> = clips(&a, t)
+        .into_iter()
+        .filter(|c| !ids.contains(&c.id))
+        .collect();
     assert_eq!(pasted.len(), 2);
     assert_eq!(pasted[0].start, Ticks::beats(8));
     meeting(&a, &pasted);
@@ -159,7 +187,11 @@ fn a_linked_paste_across_a_change_stays_linked() {
     a.paste_now();
     let all = clips(&a, t);
     assert_eq!(all.len(), 2);
-    assert!(all[0].link.is_some() && all[0].link == all[1].link, "{:?}", all);
+    assert!(
+        all[0].link.is_some() && all[0].link == all[1].link,
+        "{:?}",
+        all
+    );
 }
 
 /// Finding 6: a looping audio clip moved across the change keeps its ticks.
@@ -181,7 +213,10 @@ fn a_looping_clip_keeps_its_ticks() {
         },
     );
     let c = &clips(&a, t)[0];
-    assert_eq!((c.start, c.length, c.content_length), (Ticks::beats(10), Ticks::beats(4), Some(Ticks::beats(1))));
+    assert_eq!(
+        (c.start, c.length, c.content_length),
+        (Ticks::beats(10), Ticks::beats(4), Some(Ticks::beats(1)))
+    );
 }
 
 /// Findings 18, 24: what a drag draws is what its release leaves.
@@ -199,7 +234,10 @@ fn the_drag_draws_what_lands() {
     a.commit_clip_drag(sel[0], result);
     for (r, c) in preview {
         let landed = a.project().track(r.0).unwrap().clip(r.1).unwrap();
-        assert_eq!((c.start, c.length, c.offset, &c.audio), (landed.start, landed.length, landed.offset, &landed.audio));
+        assert_eq!(
+            (c.start, c.length, c.offset, &c.audio),
+            (landed.start, landed.length, landed.offset, &landed.audio)
+        );
     }
 }
 
@@ -211,7 +249,12 @@ fn a_slip_follows_the_pointer_at_the_window() {
     let (mut a, t, ids) = song(&[(10, 10, 2)]);
     let map = a.project().tempo_map();
     let before = frame(&map, &clips(&a, t)[0], Ticks::beats(10).0 as f64);
-    a.commit_clip_drag((t, ids[0]), ClipDragResult::Slip { delta: Ticks::beats(1) });
+    a.commit_clip_drag(
+        (t, ids[0]),
+        ClipDragResult::Slip {
+            delta: Ticks::beats(1),
+        },
+    );
     let after = frame(&map, &clips(&a, t)[0], Ticks::beats(10).0 as f64);
     // Content one beat later: one second (a beat at 60) earlier in the file there.
     assert!((before - after - RATE).abs() <= 1.0, "{before} -> {after}");
@@ -246,7 +289,10 @@ fn a_reversed_window_is_drawn_as_it_plays() {
             tick,
         );
         let read = ct.frame(Ticks(tick as i64));
-        assert!((drawn - read).abs() < 1e-6, "beat {beat}: {drawn} vs {read}");
+        assert!(
+            (drawn - read).abs() < 1e-6,
+            "beat {beat}: {drawn} vs {read}"
+        );
     }
 }
 

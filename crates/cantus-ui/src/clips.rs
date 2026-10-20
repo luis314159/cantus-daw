@@ -921,7 +921,10 @@ mod tests {
     fn slipping_moves_the_music_and_leaves_the_window() {
         let (mut bus, tid, cid) = fixture();
         let clip = bus.project().track(tid).unwrap().clip(cid).unwrap().clone();
-        run(&mut bus, slip(&Project::new("s"), tid, &clip, Ticks::beats(4)));
+        run(
+            &mut bus,
+            slip(&Project::new("s"), tid, &clip, Ticks::beats(4)),
+        );
         let after = bus.project().track(tid).unwrap().clip(cid).unwrap();
         assert_eq!(after.start, clip.start, "slip moved the window");
         assert_eq!(after.length, clip.length);
