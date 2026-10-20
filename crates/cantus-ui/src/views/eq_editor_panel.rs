@@ -493,16 +493,19 @@ pub(super) fn band_card(
                     set_band(host, b, &[("place", i as f32)], None);
                 }
                 let soloed = host.spec().get("solo").round() as usize == b + 1;
-                if controls::led(
+                let r = controls::led(
                     ui,
                     &bs,
                     soloed,
                     Src::Key("eq.solo_led"),
                     frame::tr("eq.solo_tip"),
                     COLUMN,
-                )
-                .clicked()
-                {
+                );
+                // The solo is a parameter (which band, or none): its menu, its mark, the
+                // learn mode (round 29, review 3 of ADR 0062, #35).
+                let learnt =
+                    controls::stepped_offer(ui, &bs, host, "solo", frame::tr("eq.solo_tip"), &r);
+                if r.clicked() && !learnt {
                     set_solo(host, (!soloed).then_some(b));
                 }
                 if band.shape.has_gain() {

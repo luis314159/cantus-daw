@@ -3221,7 +3221,11 @@ fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
     for s in &project.strips {
         targets.push(MappingTarget::StripSolo(s.id));
         targets.push(MappingTarget::Param(AutoTarget::StripGain(s.id)));
+        // Schema 40 (review 3): the strip's effects switch and record arm.
+        targets.push(MappingTarget::StripFx(s.id));
+        targets.push(MappingTarget::StripArm(s.id));
     }
+    targets.push(MappingTarget::StripFx(cantus_core::StripId::MASTER));
     for (_, e) in project.all_effects() {
         targets.push(MappingTarget::EffectBypass(e.id));
         targets.push(MappingTarget::EffectMix(e.id));

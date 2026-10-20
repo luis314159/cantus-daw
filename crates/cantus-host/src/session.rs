@@ -990,6 +990,15 @@ impl PluginHost {
 
     /// A slot's plug-in stopped working: marked, counted as its blame says, its window
     /// gone, told once.
+    /// For the interface's tests: the loaded plug-in in `effect`'s slot crashed (kept, silent,
+    /// until it is reloaded). The application never calls it.
+    #[doc(hidden)]
+    pub fn mark_loaded_crashed_for_tests(&mut self, effect: EffectId, reason: &str) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.crashed = Some(reason.to_string());
+        }
+    }
+
     fn on_crash(&mut self, effect: EffectId, reason: String, blame: Blame) -> Option<HostNotice> {
         let h = self.slots.get_mut(&effect)?;
         if h.crashed.is_some() {

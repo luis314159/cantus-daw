@@ -594,7 +594,15 @@ fn title_controls(
     let tw = (or.left() - gap - left_edge).clamp(s.s(60.0), s.s(190.0));
     let tr = at(or.left() - gap, tw);
     let id = ui.id().with(("unda-tables-big", o));
-    let field = well_field(ui, id, tr, s, &table_name(spec, o), &t("unda.table"));
+    let (field, fresp) = well_field(ui, id, tr, s, &table_name(spec, o), &t("unda.table"));
+    // The table is a parameter: its menu, its mark, the learn mode (round 29, review 3 of
+    // ADR 0062, #35).
+    let wt = key(o, "wt");
+    let field = if crate::controllers::stepped_inst(app, ui, track, spec, &wt, &fresp) {
+        Pick::default()
+    } else {
+        field
+    };
     let now = spec.get(&key(o, "wt")).round().max(0.0) as usize;
     let n = model::TABLES.len();
     if let Some(i) = parts::step(now, n, field) {
@@ -609,20 +617,30 @@ fn title_controls(
 }
 
 /// A menu field with ‹ › that reports its clicks (the caller owns the list).
-fn well_field(ui: &egui::Ui, id: egui::Id, rect: Rect, s: &Style, value: &str, name: &str) -> Pick {
+fn well_field(
+    ui: &egui::Ui,
+    id: egui::Id,
+    rect: Rect,
+    s: &Style,
+    value: &str,
+    name: &str,
+) -> (Pick, egui::Response) {
     let open: bool = ui.data(|d| d.get_temp(id.with("menu"))).unwrap_or(false);
-    let (_, c) = crate::kit::widgets::MenuField::new(value)
+    let (resp, c) = crate::kit::widgets::MenuField::new(value)
         .steppers(true)
         .open(open)
         .id(id)
         .name(name)
         .style(*s)
         .show_at(ui, rect);
-    Pick {
-        prev: c.prev,
-        next: c.next,
-        open: c.open,
-    }
+    (
+        Pick {
+            prev: c.prev,
+            next: c.next,
+            open: c.open,
+        },
+        resp,
+    )
 }
 
 // ---- the detail card -----------------------------------------------------------------------
@@ -849,7 +867,16 @@ pub fn osc_card(
     );
     parts::power(app, ui, track, spec, &key(o, "on"), &cr);
     let id = ui.id().with(("unda-tables", o));
-    let pick = parts::selector(ui, id, &cr, &t("unda.table"));
+    let pick = parts::selector_key(
+        app,
+        ui,
+        id,
+        &cr,
+        &t("unda.table"),
+        track,
+        spec,
+        &key(o, "wt"),
+    );
     let now = spec.get(&key(o, "wt")).round().max(0.0) as usize;
     if let Some(i) = parts::step(now, model::TABLES.len(), pick) {
         pick_factory(app, track, spec, o, i);

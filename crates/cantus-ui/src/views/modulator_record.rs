@@ -69,10 +69,13 @@ impl CantusApp {
         if !self.project().recording.record_automation {
             return;
         }
-        // A loop's later passes begin at its start, which may be before the record start.
+        // The pass begins at the record start — a loop's later passes, once it came round,
+        // at its start, which may be before (review 3, #19, #34, #58: a count-in inside the
+        // loop is not the pass) — and at the punch-in when punch is on.
+        let wrapped = live.plan.loop_region.is_some() && self.controllers.last_wrap.is_some();
         let start = match live.plan.loop_region {
-            Some((a, _)) => a.min(live.plan.record_start),
-            None => live.plan.record_start,
+            Some((a, _)) if wrapped => a.min(live.pass_start),
+            _ => live.pass_start,
         };
         let (from, to) = match live.plan.punch {
             Some((a, b)) => (a.0, Some(b.0)),
@@ -100,17 +103,36 @@ impl CantusApp {
         }
     }
 
-    /// A pass starts: nothing recorded yet.
+    /// A pass starts: nothing recorded yet, no wrap seen yet.
     pub fn begin_automation_pass(&mut self) {
         self.modulators.rec.points.clear();
+        // The seek to the pass's start is no wrap.
+        self.controllers.last_wrap = None;
+        self.controllers.prev_pos = None;
     }
 
     /// The pass ended at `stop`: every parameter it moved becomes a clip, one undo step.
     pub fn commit_recorded_automation(&mut self, stop: Ticks) -> bool {
+        self.commit_recorded_automation_in(stop, Ticks(i64::MIN), None)
+    }
+
+    /// [`Self::commit_recorded_automation`] for a pass that began at `start` (the record
+    /// start or the punch-in) and, punched, ended at `end`: a clip never runs past the
+    /// punch-out (review 3, #16), and a pass stopped before its start — a false start in
+    /// the count-in or the pre-roll — writes nothing (#18).
+    pub fn commit_recorded_automation_in(
+        &mut self,
+        stop: Ticks,
+        start: Ticks,
+        end: Option<Ticks>,
+    ) -> bool {
         let recorded = std::mem::take(&mut self.modulators.rec.points);
         if recorded.is_empty() {
             return false;
         }
+        // The latched parameters go back to their clips, whether or not this pass writes
+        // one (a false start writes nothing, and changes no revision to resend them).
+        self.force_resync();
         let selected = self.selected_track;
         let mut commands = Vec::new();
         let mut opened = Vec::new();
@@ -120,9 +142,14 @@ impl CantusApp {
             let (Some(first), Some(last)) = (samples.first(), samples.last()) else {
                 continue;
             };
+            // The playhead never reached the pass: nothing was recorded in it.
+            if stop <= start && samples.iter().all(|(t, _)| *t <= start.0) {
+                continue;
+            }
             // Never before the song's start, whatever was heard (the last guard: a clip there
             // is refused, and the pass's whole commit with it).
             let from = Ticks(first.0.max(0));
+            let stop = end.map_or(stop, |e| stop.min(e));
             let to = Ticks(stop.0.max(last.0 + 1));
             let project = self.bus.project();
             let Some(track) = crate::automation::host_track(project, &target, selected) else {

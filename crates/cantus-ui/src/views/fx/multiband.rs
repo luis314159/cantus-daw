@@ -2791,7 +2791,7 @@ fn band_card(
     let marked = s.with_hue(band_ink(b, s));
     let title = st.words.band.get(b).map_or("", String::as_str);
     let mut remove = false;
-    let (_, lamp) = controls::card(
+    let (_, lamp, lamp_resp) = controls::card_lamp(
         ui,
         &marked,
         rect,
@@ -2927,7 +2927,7 @@ fn band_card(
             }
         },
     );
-    let learnt = controls::card_lamp_offer(ui, s, host, key(b, "on"));
+    let learnt = controls::card_lamp_offer(ui, s, host, key(b, "on"), lamp_resp.as_ref());
     if lamp && !learnt {
         flip(host, b, "on", band.on);
     }

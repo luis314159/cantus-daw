@@ -345,7 +345,7 @@ octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan �
 ### Controladores MIDI
 
 Cualquier perilla, fader, botón o pad de un controlador MIDI puede mover cualquier cosa
-que Cantus pueda ajustar: un parámetro de cualquier dispositivo (de Cantus o de un plugin
+que Cantus pueda ajustar: un parámetro de cualquier dispositivo (de Cantus o de un plug-in
 alojado), un fader, un panorama, una anchura, un envío, la cantidad de un modulador, un
 silencio, un solo, un armado de grabación, el puenteo o la mezcla de un inserto, el tempo y
 el transporte (reproducir, detener, grabar, bucle, el metrónomo, el tempo por pulsación,
@@ -362,9 +362,11 @@ cancela un aprendizaje (también 15 segundos sin mover nada). Sin ninguna entrad
 abierta, un clic en la casilla abre los ajustes MIDI. **Cambiar controlador MIDI** y **Olvidar el controlador MIDI** están
 en el mismo menú. Los menús de canal e inserto del mezclador y el de la cabecera de pista
 tienen filas *Aprender* para volumen, panorama, anchura, silencio, solo, armado, puenteo y
-mezcla; el menú de un envío las tiene para su nivel; las perillas y lámparas del rack de
+mezcla, y el de un canal para su interruptor de efectos y su armado de grabación (la
+bombilla FX y el punto de grabación del canal se aprenden también en el modo de
+aprendizaje); el menú de un envío las tiene para su nivel; las perillas y lámparas del rack de
 canales, y los interruptores y opciones de un dispositivo, se aprenden como cualquier
-perilla. Dentro de la ventana propia de un plugin, mueve allí el parámetro, pulsa
+perilla. Dentro de la ventana propia de un plug-in, mueve allí el parámetro, pulsa
 `Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio;
 también en el menú **Clip** de la barra superior) y mueve el equipo.
 
@@ -373,20 +375,25 @@ su controlador fino), un **codificador sin fin** (y cuál de las tres codificaci
 un botón, un pad (en un interruptor conmuta; en una perilla su velocidad fija el valor) o un
 cambio de programa (sin la selección de banco que un teclado manda antes). Pulsa un botón y
 suéltalo: pulsado y soltado, conmuta; un botón que se queda abajo por sí mismo (solo manda
-su valor máximo) pone el destino encendido o apagado según esté.
+su valor máximo) pone el destino encendido o apagado según esté. Todo parámetro de dos
+estados (el encendido de un dispositivo, una lámpara) es un interruptor: un botón lo fija
+al instante, sin toma de control. Los controles NRPN y RPN no se aprenden — Cantus lo
+dice; configura el controlador para que mande CC normales.
 
 **Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
 `Ctrl+Shift+K`), una fila por asignación:
 
 - **Modo**: *Absoluto* (donde está el control, está el destino), *Relativo* (un
-  codificador: cada paso mueve el destino), *Conmutar* (cada pulsación lo invierte),
+  codificador: cada paso mueve el destino — en una opción, una opción por paso), *Conmutar* (cada pulsación lo invierte),
   *Momentáneo* (pulsado: activo; suelto: inactivo), *Disparo* (cada pulsación lanza una
   acción).
 - **Desde / Hasta**: la parte del recorrido del destino que cubre el control, en las
-  unidades del destino (−∞ dB a +6 dB, 200 Hz a 4 kHz, 60 a 180 BPM…); *Hasta* por debajo
-  de *Desde* lo invierte. Arrastra una celda, o haz doble clic y escribe; clic derecho la
-  restablece.
-- **Curva**: una curvatura, para que la primera mitad del giro haga menos (o más).
+  unidades del destino (−∞ dB a +6 dB, 200 Hz a 4 kHz, 60 a 180 BPM…), una opción por sus
+  nombres (*Limpio* a *Opto*), un interruptor *No* y *Sí*; *Hasta* por debajo
+  de *Desde* lo invierte. Arrastra una celda, o haz doble clic y escribe — un número o el
+  nombre de una opción; clic derecho la restablece.
+- **Curva**: una curvatura, para que la primera mitad del giro haga menos (o más); se
+  escribe en porcentaje (−100 a 100) y se guarda tal cual.
 - **Toma de control**, para un control que no se mueve solo cuando el valor cambia por
   otro lado: *Recoger* (por defecto: nada se mueve hasta que la perilla pasa por el valor —
   sin saltos), *Escalar* (el valor sigue a la perilla y ambos llegan juntos al final),
@@ -402,21 +409,26 @@ Un punto encendido a la izquierda de una fila indica que acaba de llegar un mens
 **Compartido** marca un control con varios destinos (se permite: una perilla puede abrir
 dos filtros a la vez). Una fila cuyo destino ya no existe (una pista borrada) se conserva,
 marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino. El parámetro de un
-plugin se aprende con ese plugin: si el instrumento o el inserto se cambia por otro, la fila
-dice **Otro plugin** y su perilla queda libre (aprende el parámetro del nuevo; deshacer el
-cambio devuelve la vida a la fila antigua). **Sin cargar** indica que el plugin está en el
-proyecto pero no funciona aquí; **Congelado**, que su sonido está congelado: un movimiento
-se rechaza y se dice, y la perilla no llega a ningún otro instrumento.
+plug-in se aprende con ese plug-in: si el instrumento o el inserto se cambia por otro, la
+fila dice **Otro plug-in**, con el nombre del plug-in con el que se aprendió, y su perilla
+queda libre (aprende el parámetro del nuevo; deshacer el cambio devuelve la vida a la fila
+antigua). Un inserto cambiado por uno de los de Cantus conserva su puenteo y su mezcla, y
+un parámetro que el efecto nuevo también tenga. **Sin cargar** indica que el plug-in está
+en el proyecto pero no funciona aquí (o se detuvo); **Congelado**, que el sonido del
+destino está congelado: un movimiento se rechaza y se dice, y la perilla no llega a ningún
+otro instrumento; **No conectado**, que la entrada MIDI de la asignación no está abierta.
 
 **Dos mapas.** Las asignaciones de *Este proyecto* se guardan con el proyecto, y cada
 cambio es un paso de deshacer. **En todas partes** — tus asignaciones globales, guardadas
 junto a tus atajos de teclado — reúne lo que significa lo mismo en cualquier canción: el
 transporte, el tempo, el máster, **la pista seleccionada** y **el canal seleccionado**
-(volumen, panorama, silencio, solo, armado) y las ocho primeras perillas del **dispositivo
+(volumen, panorama, silencio, solo, armado — los del máster cuando está seleccionado) y las ocho primeras perillas del **dispositivo
 enfocado** (la ventana de dispositivo en la que hiciste clic por última vez). Aprender una
 tecla de transporte o el máster la lleva allí; **Añadir asignación** en el panel los ofrece
 todos, y la acción de cada atajo de teclado por su grupo (armar la pista seleccionada,
-pinchar, deshacer, guardar, las vistas…). Cuando un control está en los dos, gana la asignación del proyecto.
+pinchar, deshacer, guardar, las vistas…). Cuando un control está en los dos, gana la asignación del proyecto. Si el archivo global no
+se puede leer entero, se guarda una copia a su lado (el estado dice su nombre) y no se
+pierde nada.
 
 **Mientras tocas y grabas.** Una perilla asignada ya no llega al instrumento (no mueve
 además su filtro) y un pad asignado no toca ninguna nota. Un movimiento hecho con el ratón
@@ -424,7 +436,9 @@ o con un controlador es un paso de deshacer por gesto. Con un parámetro bajo un
 automatización, el clip lo toca — hasta que una pasada de grabación lo mueve: desde ese
 momento el parámetro sigue tu mano (el clip queda aparte el resto de la pasada), y la
 pasada escribe lo que hiciste como un clip de automatización, cada movimiento en el momento
-en que llegó su mensaje (Opciones de grabación ▸ *Grabar automatización*).
+en que llegó su mensaje, dentro de la pasada (la cuenta previa y lo que pase del final del
+pinchazo no se escriben; Opciones de grabación ▸ *Grabar automatización*). Una perilla
+asignada al tempo espera mientras se graba una toma.
 
 La presión de canal y la presión de tecla llegan ahora al instrumento (de Cantus y
 alojados), y un cambio de programa llega a un instrumento alojado.

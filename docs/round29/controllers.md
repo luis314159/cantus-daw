@@ -2,8 +2,8 @@
 
 Branch `r29/controllers` (worktree `F:\projects\daw-r29\controllers`), from
 `r29/integration` at 0933835 (tempo and isolation merged), with `r29/integration` at
-5c17c80 (warp) merged in before the final runs. Item 2 of the round. ADR 0062. Schema 35.
-Undo-fuzz arm 45.
+5c17c80 (warp) merged in before the final runs. Item 2 of the round. ADR 0062. Schema 35
+(and 39 after review 3: the strip switches as targets). Undo-fuzz arm 45.
 
 ## Done
 
@@ -100,19 +100,24 @@ Undo-fuzz arm 45.
 - `fx_lint` lists `views/controllers.rs`; `modulators.rs` / `shoot_modulators.rs` literals
   gained `learn: None`.
 
-## The runs (Windows, after review 2, on `r29/integration` 6e74f7e merged)
+## The runs (Windows, after review 3, on `r29/integration` df2cdd4 merged)
 
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean;
   `cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings`:
-  clean. `cargo fmt --all`: clean.
-- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 592
-  passed.
-- `cargo test -p cantus-engine`: 786 passed.
-- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 790 passed.
-- `cargo test -p cantus-ui`: 1 468 passed, the frame budget included (a new case: an idle
-  frame with a hosted mapping allocates nothing).
+  clean. `cargo fmt --all -- --check`: clean.
+- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 409 + 102
+  + 82 + 55 = 648 passed. (`bridge_faults3`'s `the_crash_handler_names_the_plugin_whose_thread_crashed`
+  failed once in the full run — `LoadLibraryExW failed` on its fresh temporary copy of the
+  test plug-in, with two other builds compiling — and passed when run again; nothing of
+  mine is on its path.)
+- `cargo test -p cantus-engine`: 797 passed.
+- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 801 passed.
+- `cargo test -p cantus-ui`: 1 567 passed, the frame budget included (a new case: a warm
+  Compressor and Wavetable editor frame, and one idle offer, allocate within their budget).
 - Shots: `cargo run -p cantus-ui --example shoot_controllers -- F:\projects\daw-r29\shots\controllers`
-  (90 PNGs, Night and Paper, English and Spanish, 75/100/200 %), looked at.
+  (94 PNGs: the earlier ones re-shot, the pane with names, *Off*/*On*, *Not connected* and
+  a strip's effects switch; new `controllers-learn-tonus-*`, the scale keyboard in the learn
+  mode, each key outlined where it shows), looked at.
 - Not run here: the Linux check in WSL (`tools/wsl/check.sh`); nothing of mine is behind
   `#[cfg(windows)]`.
 
@@ -289,6 +294,98 @@ Files outside my area touched by review 2's fixes:
 - Tests and examples: `learn_everywhere.rs`, `frame_budget.rs`, `controllers_review.rs`
   (round 1's loop and 14-bit tests follow the new rules), `examples/shoot_controllers.rs`.
 
+## Review 3 (`reviews/controllers-3.json`, 60 confirmed) — how each was fixed
+
+Merged `r29/integration` df2cdd4 first (a fast-forward). Every fix has a test, and each
+test was seen failing with its fix taken out again (the fixes broken on purpose, then put
+back):
+
+- core: 7 broken in one run, 7 tests caught them;
+- engine: 5 broken in three runs (the overflow's slot, its parking, the half pedal, CC 121,
+  the soft pedal), each caught — the overflow's by the full-ring test, the pedals' by the
+  pedal test;
+- host: the MIDI-only program flag broken, `a_program_change_reaches_the_program_list_and_the_project` caught it;
+- interface: 32 broken in six runs, every one caught. Two are one defence in two places
+  (a stale half resolved before a burst, and only a recent coarse half paired with a fine
+  one): each alone is covered by the other, both removed are caught
+  (`a_fine_first_controller_is_read_whole`). Two tests were made sharper when a break
+  slipped past them: the lone fine half's pair now arrives split between two frames, and
+  the recorded split pair moves the playhead between its halves;
+- the Tonus keyboard, the typed curve, the editors' idle offers (both fast paths: 209 and
+  1 646 allocations, and 7 for one offer alone) and the tempo gesture each broken alone,
+  each caught; the exhaustive stepped test named the FM operator's, Organ's, the EQ's and
+  the sampler's plain controls before they were wired.
+
+Tests live in `crates/cantus-ui/tests/controllers_review3.rs` unless named otherwise.
+Numbers are the findings' places in the file, from 0, as in the earlier tables.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0 | two-state stepped parameters were not switches: a held or latching button under pick-up, a relative detent, a pad learnt absolute, the pane's numbers | `controller::Steps` (a switch when stepped with `max − min == 1`, the steps of a choice), computed by the interface (`target_shape`) and passed to `read_in` / `drive_in` / `detect_in`; no takeover, one detent sets it, a pad toggles, the pane says *Off* / *On* | core `a_two_state_parameter_is_a_switch`, `a_pad_on_a_two_state_parameter_is_learnt_as_a_toggle`; `a_two_state_parameter_is_a_switch` |
+| 1 | an encoder on a choice moved 1/128 a detent | the step is the sensitivity over the choice's steps | core `an_encoder_moves_one_choice_per_detent`; `an_encoder_moves_one_style_per_detent` |
+| 2, 15, 23, 24, 37, 42, 53 | From/To showed a choice's raw number (a hosted one in percent); a name could not be typed | `controllers_words`: an effect's choice names from the editors' table (in the application, not the MPL core), an instrument's from the words its editor drew (noted once per kind and key), a hosted one's from the plug-in's text (64 steps at most); `value_named` reads a typed name in either language | `a_stepped_choice_reads_its_names`, `an_instruments_choice_reads_its_editors_words`, `a_hosted_stepped_parameter_reads_the_plug_ins_words` |
+| 3, 21, 52 | VST3: the host's own writes of the program parameter (the project, automation, a mapped knob) counted as program changes | an `AtomicBool` set only by a MIDI program change (0xC0) from an input; the idle swaps it | host `a_program_change_reaches_the_program_list_and_the_project` (a host-sent value makes no state step). A session test needs a VST3 with a program list; the backend test holds the rule |
+| 4, 22, 27 | one fine-only update before a coarse change made the controller "fine first" for good | fine-first only after `FINE_FIRST` (3) fine-then-coarse pairs; a coarse-then-fine pair clears it | `a_lone_fine_half_proves_nothing`, `a_fine_first_controller_is_read_whole` |
+| 5, 9, 38, 56 | a coarse half was read with a fine 0 at the end of its burst, whatever its age: a pair split between frames played and recorded a dip | a half whose partner is expected waits `PAIR_GAP` (5 ms) across frames (the wake asks for the frame), then is read alone; halves left waiting are resolved before a burst; a fine-first controller's fine half waits too | `a_pair_split_between_frames_is_never_half_made`, `a_split_pair_records_no_half_made_point`, `a_fine_first_controller_is_read_whole` |
+| 6 | NRPN / RPN learnt as a plain CC 99 | the learn refuses CC 98–101 as a first control and says so | `an_nrpn_knob_is_not_learnt` |
+| 7 | the selected strip did nothing with the master selected | `Focus::master`; the selected strip's targets are the master's then | core `the_selected_strip_can_be_the_master`; `the_selected_strip_can_be_the_master` |
+| 8, 29, 39, 47 | *Frozen* only for hosted targets | `mapping_state`: any target a frozen sound refuses (`freeze::refuses`) reads *Frozen* | `a_native_target_on_a_frozen_sound_is_frozen` |
+| 10, 26 | the overflow table keyed pitch bend and pressure by value | one slot per channel for pitch bend and channel pressure | engine `a_full_ring_keeps_order_and_the_last_bend_and_pressure` |
+| 11 | parked values were handed over after newer ring messages | while anything is parked, newer messages park too; the take sorts by arrival and keeps each message's time | engine `a_full_ring_keeps_order_and_the_last_bend_and_pressure` |
+| 12 | CC 121 let the pedals go, though native instruments ignore it | CC 121 is no release | engine `a_pedal_let_go_while_taken_reaches_the_engine_fully_up` |
+| 13 | a half pedal and the soft pedal were not tracked | sustain, sostenuto and soft tracked whenever above 0 | engine `a_pedal_let_go_while_taken_reaches_the_engine_fully_up` |
+| 14, 31, 33, 55 | feedback's echo was stamped after the send: a fast loopback's echo was taken for a press | stamped before the send, 2 ms of skew allowed | `an_echo_stamped_before_its_send_is_an_echo` (and review 2's `learning_takes_no_feedback_echo` without timing luck) |
+| 16 | a punched pass's clip ran on to the stop, latched | the commit's end is clamped to the punch-out; the latch lets go there | `a_punched_pass_ends_its_clip_at_the_punch_out` |
+| 17 | a gesture holding the tempo grew its step every frame | bounded by tempo's review 4 (`CommandBus::rebase`, gestures rebuilt from their start); held by a test | `a_tempo_gesture_stays_small` |
+| 18 | a pass stopped before its start committed a one-tick clip | a false start writes nothing | `a_false_start_writes_no_automation` |
+| 19, 34, 58 | count-in moves inside a loop were written before the record start; the punch bounds | the pass's start is the record start, the loop's start only once a wrap was seen in this pass (`last_wrap` reset at the pass's start); the punch wins | `a_count_in_inside_the_loop_lands_at_the_record_start`, `a_message_before_a_real_wrap_lands_at_the_end`, `the_punch_bounds_hold` |
+| 20, 28 | the freeze refusal was said once per session | said again after a pause (the refusal is part of the gesture's time) | `a_frozen_refusal_is_said_again_after_a_pause` |
+| 25 | a learn armed survived opening another project | the project's replacement cancels the learn and clears the controllers' states, sends and gesture (`follow_project`, an epoch) | `a_learn_lets_go_when_another_project_comes` |
+| 30, 40 | a lossy global file was copied beside at every start; a failed copy let the next edit overwrite it; the status named the wrong file | `GlobalLoad` (whole / kept, naming the copy / unsafe: the session never saves over it); an identical copy is not made twice | `a_lossy_global_file_is_kept_once` |
+| 32, 44 | an *Other plug-in* row was named after the plug-in loaded now and counted as shared | `mapping_name` names the plug-in it was learnt on (the catalogue); `sharing_in` skips mappings that do not fit | core `a_dormant_plug_in_mapping_is_not_shared`; `a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing` |
+| 35 | the stepped-offer test checked a hand-written list | exhaustive: every stepped key of every editor (FM's on each detail page, the sampler's selected zone) is offered, or `not_drawn` says why the demo draws no control for it; the plain controls found were wired (Organ's power lamps, the EQ's solo LED, the sampler zone fields, the wavetable's table selector) | `learn_everywhere.rs` `every_stepped_parameter_is_drawn_with_its_offer` |
+| 36 | the probes' "learnable" flag was always true | the learn probe notes a name only after the visibility check; the spots probe records each outline drawn, and tests click every one and check what it arms | `clicking_the_racks_controls_arms_them`, `clicking_the_mixers_controls_arms_them`, `clicking_a_hosted_editors_cells_arms_them` |
+| 41 | the curve test tested the parser; a typed bend under 2 % snapped to 0 | the snap is a drag's only (`CellDone::typed`) | `a_curve_is_typed_into_its_cell_as_typed` (typed through the pane) |
+| 43 | Tonus in the learn mode: a black key's right half learnt the next white key; white outlines crossed the black keys | each key outlined and covered only where it shows (`shown_parts`), white keys first | `a_black_keys_right_half_learns_the_black_key` (and the shot) |
+| 45 | Linux: ALSA's `client:port` numbers in a mapping's port | `clean_port_name` (the numbers and the client dropped) in `PortRef::of` and matching; a port not open reads *Not connected* | core `an_alsa_port_name_is_the_devices_name`; `a_port_not_open_is_not_connected` |
+| 46 | the strip's effects switch and record dot could not be learnt | `MappingTarget::StripFx` / `StripArm` (schema 39, a no-op migration, `fixtures/v39.cantus`, fuzz targets), learn spots on the strip and rows in its menu | core `a_strips_effects_and_record_arm_set_and_read`; project `schema_39_keeps_the_strip_switch_mappings`; `a_strips_effects_switch_and_record_arm_are_learnable`, `clicking_the_mixers_controls_arms_them` |
+| 48 | the learn mode and the show/hide toggles fed nothing back | `action_state` covers the learn mode, every pane's toggle, the instrument window and the takes | `the_learn_mode_and_the_areas_light_a_button` |
+| 49 | an unknown action read *Transport · id* | *Unknown action*, and its row *Missing* | `an_unknown_action_is_missing` |
+| 50 | Spanish *Otro plugin* | *Otro plug-in* | `the_spanish_pill_says_plug_in` |
+| 51 | the offers allocated every frame; a card stored a `Response` in egui's memory | no target built while idle (learn off, nothing mapped there, no menu: `FxHost::learn_idle`, `stepped_inst_of`); the card's lamp response is returned | `frame_budget.rs` `an_editors_idle_stepped_controls_cost_no_allocation` (Compressor 191 / Wavetable 1 494 allocations a warm frame; 209 / 1 646 with the offers building) |
+| 54 | swapping an insert left its controllers *Missing* | the swap's batch retargets them: bypass and mix, a native key the new effect has, a hosted parameter stays its plug-in's | `swapping_an_insert_keeps_its_controllers` |
+| 57 | a crashed isolated plug-in's mappings looked live | *Not loaded* | `a_crashed_plug_ins_mapping_is_not_loaded` |
+| 59 | the hosted editor and inspector kept the fallback number as a plug-in's words; the editor's words were not per effect | `ValueWords` (the editor) and `Texts` (the inspector) ask again while unanswered; the editor's are per effect | `a_hosted_values_words_are_asked_until_answered`; `modulator_hosted` `an_unanswered_value_is_asked_again` |
+
+The coordinator's note on tempo's review 4 (a tempo knob waits while a take records): the
+controllers' recording writes no tempo (it records parameters only), and a gesture that
+turned the tempo before the take is sealed when the take begins, so no tempo command is
+sent during it — `a_gesture_holding_the_tempo_sends_none_while_a_take_records`.
+
+Files outside my area touched by review 3's fixes:
+- `cantus-core`: `tests/undo_invariants.rs` (the strip switches).
+- `cantus-engine`: `midi.rs` (the overflow's order and slots; the pedals).
+- `cantus-host`: `vst3/{instance,audio_thread,main_thread}.rs` (the MIDI-only program
+  flag), `session.rs` (`mark_loaded_crashed_for_tests`), `tests/vst3_backend.rs`.
+- `cantus-project`: `format.rs` (schema 39), `examples/write_fixture.rs`,
+  `fixtures/v39.cantus` (new).
+- `cantus-ui`, app and models: `app.rs` (`GlobalLoad` at boot), `i18n.rs` (`t_in`),
+  `kit/automate.rs` (the spots probe), `record_session.rs`, `swap.rs` (retargeting),
+  `views/modulator_record.rs` (the pass's bounds), `views/modulator_hosted.rs`,
+  `views/plugins.rs` (`ValueWords`), `views/transport.rs` and `transport_menus.rs`
+  (`pane_of`), `views/inspector.rs` (`follows_master`), `views/mixer_menu.rs`,
+  `views/mixer_strip.rs`.
+- `cantus-ui`, editors: `views/fx/{controls,host,multiband,space,tonus_keys}.rs`,
+  `views/eq_editor_panel.rs`, `views/inst/{analog_parts,frame,organ,organ_parts,
+  sampler_map,sampler_parts,sampler_wave,wavetable_osc,wavetable_parts}.rs`.
+- Tests: `learn_everywhere.rs`, `frame_budget.rs`, and the earlier controllers tests where
+  the rules changed: `controllers_review.rs` and `controllers_review2.rs` (a lone coarse
+  half waits `PAIR_GAP`; fine-first is known after three pairs). `controllers.rs`
+  `a_parameter_a_pass_records_follows_its_controller_not_its_clip` caught a gap the
+  false-start fix opened: a pass that writes nothing changed no revision, so the latched
+  lane was not sent back to its clip — the commit now asks for a fresh snapshot whenever a
+  pass recorded anything.
+
 ## Left
 
 Nothing of mine. Owner-only: trying it with a real controller (a keyboard with knobs and
@@ -309,3 +406,11 @@ pair with its input — `output_for` covers the usual Windows names).
   surfaces" becomes "… control surfaces (Mackie Control / HUI)" — MIDI learn is in.
 - The top bar's MIDI cell now toggles the learn mode on a click (Settings on a
   right-click); its width is unchanged.
+- Review 3: **schema 39** (`MappingTarget::StripFx` / `StripArm`; a no-op migration
+  `migrate_38_to_39`, `fixtures/v39.cantus`, the fixture's schema-39 block). Renumber if
+  another branch took 39 (freeze took 38 before me).
+- Review 3: `Mapping::read_in` / `drive_in` / `controller::detect_in` take a `Steps` (the
+  target's shape); `read` / `drive` / `detect` remain, with `Steps::default()` (the old
+  behaviour). The interface's `CantusApp::target_shape` computes it.
+- Review 3: a gesture that turned the tempo is sealed when a take begins (tempo's review-4
+  rule, from the controllers' side).

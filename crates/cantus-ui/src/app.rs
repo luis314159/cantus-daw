@@ -429,7 +429,7 @@ impl CantusApp {
             keymap_path,
             controllers,
             controllers_path,
-            controllers_damaged,
+            controllers_load,
             project_path,
         } = files;
         views::workspace_style::install(ctx);
@@ -499,9 +499,21 @@ impl CantusApp {
             None => crate::controllers::waking_tap(ctx),
         };
         app.controllers.global = controllers;
-        app.controllers.global_path = Some(controllers_path);
-        if controllers_damaged {
-            app.set_error(t("ctl.status.global_damaged"));
+        // A global map that lost something: said, naming where it is kept; one that could
+        // not even be kept beside is never saved over (review 3, #30).
+        match controllers_load {
+            crate::controllers::GlobalLoad::Whole => {
+                app.controllers.global_path = Some(controllers_path);
+            }
+            crate::controllers::GlobalLoad::Kept(kept) => {
+                app.controllers.global_path = Some(controllers_path);
+                let file = kept.display().to_string();
+                app.set_error(tf("ctl.status.global_damaged", &[("file", &file)]));
+            }
+            crate::controllers::GlobalLoad::Unsafe => {
+                let file = controllers_path.display().to_string();
+                app.set_error(tf("ctl.status.global_unsaved", &[("file", &file)]));
+            }
         }
         if let Some(inputs) = midi {
             app.midi_port_names = inputs.names.clone();
@@ -4036,8 +4048,9 @@ pub struct Files {
     /// The global controller map (round 29, ADR 0062), beside the keymap.
     pub controllers: cantus_core::controller::ControllerMap,
     pub controllers_path: PathBuf,
-    /// The global controller map's file could not be read (kept beside as `.bad`).
-    pub controllers_damaged: bool,
+    /// What reading the global controller map's file found (kept beside as `.bad`, or not
+    /// safe to save over).
+    pub controllers_load: crate::controllers::GlobalLoad,
     /// The file the start-up project was read from, when it was one (round 29, review 2):
     /// known before the first compile, so its frozen renders are found then and the
     /// plug-ins they replace are never loaded.
@@ -4073,8 +4086,8 @@ impl Files {
             }
         }
         let controllers_path = crate::controllers::global_path(dir);
-        let (controllers, controllers_damaged) =
-            crate::controllers::load_global_checked(&controllers_path);
+        let (controllers, controllers_load) =
+            crate::controllers::load_global_report(&controllers_path);
         Files {
             settings,
             settings_path,
@@ -4086,7 +4099,7 @@ impl Files {
             keymap_path,
             controllers,
             controllers_path,
-            controllers_damaged,
+            controllers_load,
             project_path: None,
         }
     }

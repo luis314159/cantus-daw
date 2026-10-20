@@ -207,6 +207,12 @@ pub struct Instance {
     /// unit's first — and its steps (programs less one): where a MIDI program change goes,
     /// as `program / steps` (round 29, review 1 of ADR 0062).
     pub program_param: Option<(ParamID, i32)>,
+    /// A MIDI program change reached the program list since the main thread last looked
+    /// (set on the audio thread, no allocation): the plug-in's whole state changed, which
+    /// the project records as one state step. A value the host sent the list itself (the
+    /// project, automation, a mapped knob) is its own parameter step, never this (round
+    /// 29, review 3 of ADR 0062, #3, #21, #52).
+    pub program_changed: std::sync::atomic::AtomicBool,
     active: bool,
     /// Last: terminated after deactivation.
     pub parts: Parts,
@@ -240,6 +246,7 @@ impl Instance {
             layout: Layout::default(),
             midi_map: Box::new([[NO_MIDI_PARAM; MIDI_CONTROLLERS]; 16]),
             program_param: None,
+            program_changed: std::sync::atomic::AtomicBool::new(false),
             active: false,
             parts,
         };

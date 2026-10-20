@@ -907,6 +907,32 @@ fn main() {
         }
         a.warp = Some(Box::new(w));
     }
+    // Schema 40 (round 29, ADR 0062 review 3): a pad on strip 1's effects switch and one on
+    // its record arm (the mixer's FX bulb and record dot).
+    if upto >= 40 {
+        use cantus_core::controller::*;
+        let pad = |id, note, target| {
+            Mapping::new(
+                MappingId(id),
+                MidiSource {
+                    port: PortRef {
+                        name: "Keystation 49".into(),
+                        ordinal: 0,
+                    },
+                    channel: Some(9),
+                    control: Control::Note(note),
+                },
+                target,
+                MapMode::Toggle,
+            )
+        };
+        p.controllers
+            .mappings
+            .push(pad(8, 40, MappingTarget::StripFx(strip1)));
+        p.controllers
+            .mappings
+            .push(pad(9, 41, MappingTarget::StripArm(strip1)));
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

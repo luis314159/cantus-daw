@@ -642,9 +642,14 @@ impl CantusApp {
         let mut plan = live.plan;
         plan.stop_at = at;
         plan.last_pass = self.recorder.pass();
+        // The pass's own stretch: from the punch-in or the record start, to the punch-out.
+        let window = (
+            plan.punch.map_or(plan.record_start, |p| p.0),
+            plan.punch.map(|p| p.1),
+        );
         self.finish_pass(plan, takes, notes);
         // The parameters moved while it recorded, as automation clips (ADR 0057).
-        self.commit_recorded_automation(at);
+        self.commit_recorded_automation_in(at, window.0, window.1);
         if live.audio {
             self.journal_pass_finished();
         }

@@ -224,6 +224,9 @@ pub fn switch(
         .style(*s)
         .show_at(ui, rect);
     // A parameter: its menu, its mapped mark, the learn mode (review 2 of ADR 0062, #44).
+    app.controllers
+        .inst_words
+        .note(spec.kind, key, || crate::controllers_words::srcs(labels));
     let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     if let Some(i) = chosen.filter(|_| !learning) {
         app.set_inst_value(track, key, i as f32, false);

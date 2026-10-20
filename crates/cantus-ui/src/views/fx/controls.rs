@@ -606,6 +606,14 @@ pub fn stepped_offer(
     resp: &Response,
 ) -> bool {
     use crate::kit::automate as a;
+    // Nothing of learn to show and no menu asked for: no offer built (review 3, #51).
+    if host.learn_idle(key)
+        && !resp.secondary_clicked()
+        && !egui::Popup::is_any_open(ui.ctx())
+        && !a::probe::noting_learn()
+    {
+        return false;
+    }
     let Some(info) = host.spec().kind.param(key) else {
         return false;
     };
@@ -1008,23 +1016,34 @@ pub fn card<R>(
     card_with(ui, s, rect, title, on, None, body)
 }
 
-/// Where [`card_with`] leaves its lamp's response for [`card_lamp_offer`].
-const LAST_LAMP: &str = "fx-card-last-lamp";
+/// [`card`], with its lamp's response: a band's On is its parameter's control (round 29,
+/// review 2 of ADR 0062, #44; review 3, #51: handed back, never kept in egui's memory).
+pub fn card_lamp<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: Option<bool>,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
+    card_full(ui, s, rect, title, on, None, body)
+}
 
-/// The lamp of the [`card`] just drawn is the stepped parameter `key`'s control (a band's
-/// On): its menu, its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44).
-/// `true` while the learn mode has it: the caller then does not flip it.
-pub fn card_lamp_offer(ui: &mut Ui, s: &Style, host: &mut dyn FxHost, key: &str) -> bool {
-    let id = egui::Id::new(LAST_LAMP);
-    let Some(r) = ui.data_mut(|d| {
-        let r = d.get_temp::<Response>(id);
-        d.remove::<Response>(id);
-        r
-    }) else {
+/// The lamp of a [`card_lamp`] as the stepped parameter `key`'s control: its menu, its
+/// mapped mark, the learn mode. `true` while the learn mode has it: the caller then does
+/// not flip it.
+pub fn card_lamp_offer(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    lamp: Option<&Response>,
+) -> bool {
+    let Some(r) = lamp else {
         return false;
     };
     let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
-    stepped_offer(ui, s, host, key, name, &r)
+    stepped_offer(ui, s, host, key, name, r)
 }
 
 /// [`card`] with a display under the title bar, `display` points tall at 100 %.
@@ -1037,6 +1056,20 @@ pub fn card_with<R>(
     display: Option<f32>,
     body: impl FnOnce(&mut Ui, &CardRects) -> R,
 ) -> (R, bool) {
+    let (r, clicked, _) = card_full(ui, s, rect, title, on, display, body);
+    (r, clicked)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn card_full<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: Option<bool>,
+    display: Option<f32>,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
     let look = CardLook {
         title,
         switchable: on.is_some(),
@@ -1052,6 +1085,7 @@ pub fn card_with<R>(
         band::card(b, rect, s, st, &look)
     });
     let mut clicked = false;
+    let mut lamp = None;
     if let Some(led) = rects.led {
         let r = ui.interact(
             led.expand(4.0 * s.k),
@@ -1063,7 +1097,7 @@ pub fn card_with<R>(
         if r.hovered() {
             hint::set_text(ui.ctx(), tr("fx.frame.section_on"), "", Caps::NONE);
         }
-        ui.data_mut(|d| d.insert_temp(egui::Id::new(LAST_LAMP), r));
+        lamp = Some(r);
     }
     let inner = rects.body;
     let mut child = ui.new_child(
@@ -1080,7 +1114,7 @@ pub fn card_with<R>(
         child.disable();
     }
     let r = body(&mut child, &rects);
-    (r, clicked)
+    (r, clicked, lamp)
 }
 
 /// A column of switches inside a card's body: `f` adds them top to bottom.

@@ -34,6 +34,7 @@ pub mod probe {
         static LIVE: RefCell<Option<Vec<(String, &'static str)>>> = const { RefCell::new(None) };
         static LEARN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
         static OFFERS: RefCell<Option<Vec<cantus_core::AutoTarget>>> = const { RefCell::new(None) };
+        static SPOTS: RefCell<Option<Vec<egui::Rect>>> = const { RefCell::new(None) };
     }
 
     /// Start recording (what was recorded before is dropped).
@@ -42,6 +43,24 @@ pub mod probe {
         LIVE.with(|s| *s.borrow_mut() = Some(Vec::new()));
         LEARN.with(|s| *s.borrow_mut() = Some(Vec::new()));
         OFFERS.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        SPOTS.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// A learn mode spot was shown and can be clicked here (round 29, review 3 of ADR 0062,
+    /// #36): a test clicks each one and sees what it arms.
+    pub fn note_spot(rect: egui::Rect) {
+        SPOTS.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                if !v.contains(&rect) {
+                    v.push(rect);
+                }
+            }
+        });
+    }
+
+    /// The learn mode spots shown since [`start`] (and stop noting them).
+    pub fn take_spots() -> Vec<egui::Rect> {
+        SPOTS.with(|s| s.borrow_mut().take()).unwrap_or_default()
     }
 
     /// A parameter's offer was asked (`CantusApp::mod_offer`: every parameter-bound
@@ -348,6 +367,7 @@ pub fn learn_spot_clipped(ui: &Ui, rect: Rect, clip: Rect, id: egui::Id, l: Lear
     if shown.width() <= 0.0 || shown.height() <= 0.0 {
         return false;
     }
+    probe::note_spot(shown);
     let cover = ui.interact(
         shown,
         id.with("cantus-learn"),

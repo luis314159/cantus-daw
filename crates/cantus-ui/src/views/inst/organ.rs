@@ -122,7 +122,16 @@ fn power(
             hint::set_text(ui.ctx(), &t(info.label_key), "", Caps::PARAM);
         }
     }
-    if resp.clicked() {
+    // The card's lamp is its parameter's control (round 29, review 3 of ADR 0062, #35).
+    let learning = crate::controllers::stepped_inst_of(
+        app,
+        ui,
+        track,
+        cantus_core::InstrumentKind::Organ,
+        key,
+        &resp,
+    );
+    if resp.clicked() && !learning {
         let v = if on { 1.0 - lit_value } else { lit_value };
         set(app, track, key, v, false);
     }
