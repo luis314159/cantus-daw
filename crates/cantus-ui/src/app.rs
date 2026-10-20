@@ -3022,6 +3022,11 @@ impl CantusApp {
             self.inst.sampler.cut_told = true;
             self.set_status(t("smp.cut_notes"));
         }
+        // A hosted plug-in given up on while its helper was busy, due to be tried again
+        // (round 29, review isolation-4 #57).
+        if self.plugins.wants_sync() {
+            self.synced_revision = u64::MAX;
+        }
         // An effect the last snapshot holds that the engine has no unit for: a remove and
         // its undo both went out before the engine handed the removed unit back, so the
         // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.

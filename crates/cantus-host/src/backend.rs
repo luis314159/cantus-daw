@@ -284,6 +284,14 @@ pub trait MainThread: Send {
     /// Brings the windows it waits on to the front.
     fn surface(&mut self) {}
 
+    /// Its state as it is now — or, an isolated plug-in whose helper is too busy to answer
+    /// in time, `HostError::Busy` (where [`Self::save_state`] answers with what it last
+    /// said): a render that must not start from a stale state says so (review isolation-4
+    /// #10).
+    fn fresh_state(&mut self) -> Result<Vec<u8>, HostError> {
+        self.save_state()
+    }
+
     /// Ends it — its helper — at the user's word, while it waits on a window of its own
     /// that never answers. Told as a crash of its own.
     fn stop(&mut self) {}

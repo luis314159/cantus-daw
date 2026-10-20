@@ -41,7 +41,7 @@ mod inst_idle;
 mod iso;
 
 pub use inst::HostedInst;
-pub use iso::{CpuFigure, RenderFailure};
+pub use iso::{CpuFigure, RenderFailure, RenderLoss};
 
 /// Something the application should know about.
 #[derive(Clone, Debug, PartialEq)]
@@ -252,9 +252,8 @@ pub struct PluginHost {
     pub default_isolation: PluginIsolation,
     /// Crashes this session, per plug-in (format, id).
     crash_counts: HashMap<(crate::backend::Format, String), u32>,
-    /// Helper deaths nothing laid on one plug-in, counted once per plug-in: (helper's
-    /// process id, format, id).
-    unknown_counted: HashSet<(u32, crate::backend::Format, String)>,
+    /// Helper deaths already counted for a plug-in: (helper's serial, format, id).
+    counted: HashSet<(u64, crate::backend::Format, String)>,
     /// The running render's stop ([`Self::cancel_render`]).
     render_cancel: Arc<std::sync::atomic::AtomicBool>,
     /// Isolation was asked and the helper is missing; told once.
@@ -371,7 +370,7 @@ impl PluginHost {
             )),
             default_isolation: PluginIsolation::Within,
             crash_counts: HashMap::new(),
-            unknown_counted: HashSet::new(),
+            counted: HashSet::new(),
             render_cancel: Arc::default(),
             isolation_missing: false,
             told_missing: false,
@@ -612,10 +611,13 @@ impl PluginHost {
             seen.insert(slot.id);
             let runs = self.effective_isolation(plugin.isolation);
             // A plug-in that failed where it was tried waits — unless where it runs changed:
-            // then it is tried there (review #15).
+            // then it is tried there (review #15) — or its helper was busy: then it is tried
+            // again in a while (review isolation-4 #57).
+            let mut waited = None;
             match self.missing.get(&slot.id) {
-                Some(m) if m.isolation == runs => continue,
-                Some(_) => {
+                Some(m) if m.isolation == runs && m.waits(std::time::Instant::now()) => continue,
+                Some(m) => {
+                    waited = m.retry_at.map(|(_, d)| d);
                     self.missing.remove(&slot.id);
                 }
                 None => {}
@@ -626,7 +628,7 @@ impl PluginHost {
                         self.slots.insert(slot.id, h);
                     }
                     Err(failed) => {
-                        notices.push(self.load_failed(slot.id, plugin, runs, failed));
+                        notices.extend(self.load_failed(slot.id, plugin, (runs, waited), failed));
                         continue;
                     }
                 }
@@ -638,7 +640,7 @@ impl PluginHost {
                 .is_some_and(|h| h.isolation != runs && !h.restarting)
             {
                 if let Err(failed) = self.move_plugin(slot, plugin, engine) {
-                    notices.push(self.load_failed(slot.id, plugin, runs, failed));
+                    notices.extend(self.load_failed(slot.id, plugin, (runs, None), failed));
                     continue;
                 }
             }
@@ -695,15 +697,17 @@ impl PluginHost {
         notices
     }
 
-    /// A slot's plug-in could not be loaded where it runs: kept as missing; told as a
-    /// crash (counted, reloadable) when its helper died doing it, else as a failure.
+    /// A slot's plug-in could not be loaded where it runs: kept as missing (tried again in
+    /// a while when its helper was busy; `waited`: the last wait); told as a crash
+    /// (counted, reloadable) when its helper died doing it, else as a failure — once, not
+    /// at every try (review isolation-4 #57).
     fn load_failed(
         &mut self,
         effect: EffectId,
         plugin: &ExternalPlugin,
-        runs: PluginIsolation,
+        (runs, waited): (PluginIsolation, Option<std::time::Duration>),
         failed: iso::Failed,
-    ) -> HostNotice {
+    ) -> Option<HostNotice> {
         log::warn!("plug-in {}: {}", plugin.name, failed.why);
         self.missing.insert(
             effect,
@@ -712,9 +716,13 @@ impl PluginHost {
                 error: failed.why.clone(),
                 isolation: runs,
                 crashed: failed.crashed,
+                retry_at: iso::Missing::retry(failed.busy, waited),
             },
         );
-        if failed.crashed {
+        if waited.is_some() && failed.busy {
+            return None;
+        }
+        Some(if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
                 self.count_crash(&info, failed.blame, None);
@@ -730,7 +738,7 @@ impl PluginHost {
                 name: plugin.name.clone(),
                 error: failed.why,
             }
-        }
+        })
     }
 
     /// Loads a slot's plug-in where it now runs (round 29): its state taken from where it
@@ -814,6 +822,8 @@ impl PluginHost {
         crate::clap::collect_garbage();
         self.retired
             .retain(|(at, _)| at.elapsed() < std::time::Duration::from_secs(1));
+        // A plug-in that crashed its helper as it left (its destructor) is counted.
+        self.count_departed();
         let mut notices = Vec::new();
         if let Some(rx) = &self.scan_job {
             match rx.try_recv() {
@@ -986,8 +996,8 @@ impl PluginHost {
             drop(w);
         }
         let info = h.info.clone();
-        let pid = h.main.isolated_in();
-        self.count_crash(&info, blame, pid);
+        let helper = h.main.helper_id();
+        self.count_crash(&info, blame, helper);
         Some(HostNotice::PluginCrashed {
             effect,
             name: info.name,
@@ -1273,6 +1283,7 @@ impl PluginHost {
             max_block: MAX_BLOCK_FRAMES,
         };
         let mut units = Vec::new();
+        let mut stale = Vec::new();
         for (_, slot) in project.all_effects() {
             let Some(plugin) = slot.spec.external.as_deref() else {
                 continue;
@@ -1283,14 +1294,32 @@ impl PluginHost {
             let state = if stored {
                 plugin.state.clone()
             } else {
-                h.main
-                    .save_state()
-                    .map(PluginState::new)
-                    .unwrap_or_default()
+                // Its state as it is now; its helper busy (its own window open), what it
+                // last said — and the render says so (review isolation-4 #10).
+                match h.main.fresh_state() {
+                    Ok(s) => PluginState::new(s),
+                    Err(HostError::Busy(why)) => {
+                        stale.push(iso::RenderFailure {
+                            name: h.info.name.clone(),
+                            reason: format!("the plug-in is busy: {why}"),
+                            kind: iso::RenderLoss::Stale,
+                        });
+                        h.main
+                            .save_state()
+                            .map(PluginState::new)
+                            .unwrap_or_default()
+                    }
+                    Err(_) => h
+                        .main
+                        .save_state()
+                        .map(PluginState::new)
+                        .unwrap_or_default(),
+                }
             };
             let info = h.info.clone();
             // Where it runs live; an isolated one waits for every block without a deadline
-            // (ADR 0063), so the render equals the in-process one to the bit.
+            // (ADR 0063), so the render equals the in-process one to the bit. One that
+            // could not be made is in `render_lost` (review isolation-4 #24, #34, #63).
             let isolation = Some(h.isolation);
             let Ok(inst) = self.instantiate(&info, isolation, &state, &plugin.params, setup, true)
             else {
@@ -1309,6 +1338,7 @@ impl PluginHost {
             units.push(EffectUnit::from_fx(slot, Box::new(unit)));
             self.render_mains.push(main);
         }
+        self.render_lost.extend(stale);
         units
     }
 

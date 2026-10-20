@@ -373,6 +373,10 @@ impl Rig {
         self.engine.poll();
         let n = self.host.idle(&mut self.bus, &mut self.engine);
         self.notices.extend(n);
+        // A plug-in due to be tried again (its helper was busy): synced, as the app does.
+        if self.host.wants_sync() {
+            self.synced = u64::MAX;
+        }
         self.sync();
     }
 

@@ -375,6 +375,7 @@ unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
 unsafe extern "C" fn activate(plugin: *const clap_plugin, sr: f64, _min: u32, _max: u32) -> bool {
     let p = me(plugin);
     p.fault.fire(crate::fault::ABORT_ACTIVATE);
+    crate::fault::pump_activate_once();
     let latency = p.get(P_LATENCY) as usize;
     p.active_latency.store(latency as u32, Ordering::Release);
     p.sample_rate = sr;

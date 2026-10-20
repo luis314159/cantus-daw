@@ -298,6 +298,16 @@ impl MainThread for BridgeMain {
     }
 
     fn save_state(&mut self) -> Result<Vec<u8>, HostError> {
+        match self.fresh_state() {
+            // Alive but not answering in time: what it said last (review #4, #44).
+            Err(HostError::Busy(_)) if self.last_good.is_some() => {
+                Ok(self.last_good.clone().unwrap_or_default())
+            }
+            r => r,
+        }
+    }
+
+    fn fresh_state(&mut self) -> Result<Vec<u8>, HostError> {
         self.take_answered_state();
         if !self.gone() && self.last_good.is_some() && self.in_trouble() {
             // Known to be in trouble: what it said last, at once, and a fresh state asked
@@ -305,10 +315,7 @@ impl MainThread for BridgeMain {
             if !self.asked_state {
                 self.ask_state();
             }
-            return self
-                .last_good
-                .clone()
-                .ok_or_else(|| HostError::Crashed(self.crash_reason()));
+            return Err(HostError::Busy("it is not answering".into()));
         }
         if !self.gone() {
             let limit = self.pool.limits().state;
@@ -326,11 +333,12 @@ impl MainThread for BridgeMain {
                 }
                 Ok(_) => {}
                 // Alive but not answering in time (its dialog is open, a slow call is ahead):
-                // what it said last — or a fresher state answered meanwhile — never a frozen
-                // save (review #4, #44; isolation-4 #1). Its own answer, when it comes,
-                // becomes the last-good state.
-                Err(HostError::Busy(_)) if self.last_good.is_some() => {
+                // busy — `save_state` answers with what it said last, or a fresher state
+                // answered meanwhile, never a frozen save (review #4, #44; isolation-4 #1).
+                // Its own answer, when it comes, becomes the last-good state.
+                Err(HostError::Busy(why)) if self.last_good.is_some() => {
                     self.take_answered_state();
+                    return Err(HostError::Busy(why));
                 }
                 Err(e) if !self.gone() => return Err(e),
                 Err(_) => {}

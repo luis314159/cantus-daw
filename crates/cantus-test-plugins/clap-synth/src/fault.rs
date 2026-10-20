@@ -33,7 +33,9 @@
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
 //! a file there when an instance is destroyed, 300 ms on; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
-//! every `load_state` run a nested message loop that long; `CANTUS_TEST_GAIN_CHAIN_FILTER`
+//! every `load_state` run a nested message loop that long;
+//! `CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE=<file>` makes the first activation run one for
+//! 1.5 s; `CANTUS_TEST_GAIN_CHAIN_FILTER`
 //! installs, at load, a crash filter that hands on to the one before it (Windows), as a
 //! plug-in's crash reporter does.
 
@@ -260,6 +262,19 @@ fn start_thread_timer(what: u32) {
 
 #[cfg(not(windows))]
 fn start_thread_timer(_what: u32) {}
+
+/// `CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE=<file>`: the first activation (while the file is
+/// not there) runs a nested message loop for 1.5 s, as a licence dialog does, and makes
+/// the file.
+pub fn pump_activate_once() {
+    if let Some(file) = std::env::var_os("CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE") {
+        let file = std::path::PathBuf::from(file);
+        if !file.exists() {
+            let _ = std::fs::write(&file, b"pumped");
+            pump(std::time::Duration::from_millis(1_500));
+        }
+    }
+}
 
 /// `CANTUS_TEST_GAIN_PUMP_LOAD_MS`: how long a `load_state` runs a nested message loop.
 pub fn pump_load() {
