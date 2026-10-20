@@ -198,8 +198,6 @@ pub struct Offline {
     pub name: String,
     /// Set when the render is cancelled.
     pub cancel: Arc<AtomicBool>,
-    /// Its load's request id: what it waits for before its first job.
-    pub load: u64,
 }
 
 /// What blocks that passed without the plug-in carried, for its next job.
@@ -601,8 +599,8 @@ impl BridgeAudio {
         if self.status.is_dead() || self.status.has_failed() {
             return false;
         }
-        // Not loaded yet: dry live; a render waits for it (its first job has its state).
-        if !self.status.is_ready() && (self.offline.is_none() || !self.wait_loaded()) {
+        // Not loaded yet: dry (a render's units are made once its plug-ins are loaded).
+        if !self.status.is_ready() {
             return false;
         }
         // This half's late job, or a previous half's of the same instance.
@@ -663,43 +661,6 @@ impl BridgeAudio {
                 self.status.mark_dead();
                 false
             }
-        }
-    }
-
-    /// A render's instance not loaded yet: waited for in slices, as its helper's life is
-    /// judged on the way — until it is loaded (`true`), its load fails, the render is
-    /// cancelled, or the load has run past its own limit, which ends its helper (round 29,
-    /// review isolation-5). Not a real-time path.
-    fn wait_loaded(&mut self) -> bool {
-        let Some(o) = &self.offline else {
-            return false;
-        };
-        loop {
-            if self.status.is_ready() {
-                return true;
-            }
-            if self.status.is_dead() || self.status.has_failed() || o.sandbox.is_dead() {
-                return false;
-            }
-            if o.cancel.load(Ordering::Acquire) {
-                o.sandbox
-                    .kill_blaming("the render was stopped", Some(o.instance));
-                self.status.mark_dead();
-                return false;
-            }
-            o.sandbox.check_alive();
-            let late = o.sandbox.started_at(o.load).is_some_and(|t| {
-                t.elapsed() > o.sandbox.limit_of(o.load).unwrap_or(o.sandbox.limits().load)
-            });
-            if late {
-                o.sandbox.kill_blaming(
-                    &format!("{} did not load in time for the render", o.name),
-                    Some(o.instance),
-                );
-                self.status.mark_dead();
-                return false;
-            }
-            std::thread::sleep(OFFLINE_SLICE / 10);
         }
     }
 

@@ -818,6 +818,11 @@ impl Sandbox {
         })
     }
 
+    /// Whether the helper's main thread is in a loop of `instance`'s code (a dialog).
+    pub(crate) fn nested_on(&self, instance: u32) -> bool {
+        lock(&self.nested).is_some_and(|(n, _)| n == instance)
+    }
+
     /// Whether request `id` will not be served soon though its helper lives: queued behind
     /// a plug-in's own loop (a dialog) for longer than [`NESTED_GRACE`], or behind a
     /// request served past its own limit. A save then keeps what that plug-in said last,

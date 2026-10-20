@@ -16,7 +16,7 @@
 
 use crate::backend::{
     AudioSetup, AudioThread, Backend, Blame, HostError, MainThread, Notice, ParamChange,
-    ParamEvent, ParamInfo, ParamOut, PluginInfo,
+    ParamEvent, ParamInfo, ParamOut, PluginInfo, StatePoll,
 };
 use crate::db::PluginDb;
 use crate::scan::{ScanReport, Scanner};
@@ -39,6 +39,8 @@ mod inst;
 mod inst_idle;
 #[path = "session_iso.rs"]
 mod iso;
+#[path = "session_render.rs"]
+mod render;
 
 pub use inst::HostedInst;
 pub use iso::{CpuFigure, RenderFailure, RenderLoss};
@@ -120,6 +122,12 @@ pub struct Hosted {
     /// Whose doing its helper's end was, while it has stopped.
     pub(crate) blame: Option<Blame>,
     pub(crate) cpu: iso::CpuWatch,
+    /// Just inserted, its load answered later (an isolated plug-in): its values and state
+    /// go into the project when it loads, in the insert's undo step.
+    fresh: bool,
+    /// Where it runs changed: its state as it is now is asked for, and it is moved once
+    /// that is in (round 29, review isolation-5).
+    moving: bool,
 }
 
 impl Hosted {
@@ -146,6 +154,8 @@ impl Hosted {
             crashed: None,
             blame: None,
             cpu: iso::CpuWatch::default(),
+            fresh: false,
+            moving: false,
         }
     }
 
@@ -230,6 +240,11 @@ pub struct PluginHost {
     render_mains: Vec<Box<dyn MainThread>>,
     /// Plug-ins the running render could not load (review #6, #47).
     render_lost: Vec<iso::RenderFailure>,
+    /// The render being made ready ([`Self::render_ready`]).
+    render_prep: Option<render::Prep>,
+    /// The plug-ins the last [`Self::project_for_save`] took as they were last said, and
+    /// why (review isolation-5 rule 2).
+    saved_stale: Vec<(String, String)>,
     /// The application's main window: plug-in windows are owned by it.
     pub owner_window: Option<raw_window_handle::RawWindowHandle>,
     /// Hosted instruments (ADR 0028), by track.
@@ -362,6 +377,8 @@ impl PluginHost {
             scan_job: None,
             render_mains: Vec::new(),
             render_lost: Vec::new(),
+            render_prep: None,
+            saved_stale: Vec::new(),
             owner_window: None,
             instruments: HashMap::new(),
             inst_parked: HashMap::new(),
@@ -532,12 +549,21 @@ impl PluginHost {
         plugin.isolation = isolation;
         let mut slot = bus.new_effect(EffectKind::External);
         slot.spec = EffectSpec::external(plugin);
+        let fresh = !main.loaded();
         let mut h = Hosted::new(strip, info.clone(), main, loaded.audio, runs);
         h.params = params;
         h.synced_state = state;
         h.flushed = values;
+        h.fresh = fresh;
         self.slots.insert(slot.id, h);
         Ok(slot)
+    }
+
+    /// The undo key a new insert's command is run under (`execute_merging`): an isolated
+    /// plug-in's values, known once it loads, join the insert's step (round 29, review
+    /// isolation-5).
+    pub fn load_key(effect: EffectId) -> MergeKey {
+        MergeKey::of(&("plugin-load", effect.0))
     }
 
     /// Load the plug-in of a slot the host has not seen: from the database by format and
@@ -614,14 +640,12 @@ impl PluginHost {
             }
             seen.insert(slot.id);
             let runs = self.effective_isolation(plugin.isolation);
-            // A plug-in that failed where it was tried waits — unless where it runs changed:
-            // then it is tried there (review #15) — or its helper was busy: then it is tried
-            // again in a while (review isolation-4 #57).
-            let mut waited = None;
+            // A plug-in that failed where it was tried waits — until where it runs changes
+            // (then it is tried there, review #15) or it is reloaded from its menu: never
+            // tried again by itself (review isolation-5 rule 4).
             match self.missing.get(&slot.id) {
-                Some(m) if m.isolation == runs && m.waits(std::time::Instant::now()) => continue,
-                Some(m) => {
-                    waited = m.retry_at.map(|(_, d)| d);
+                Some(m) if m.isolation == runs => continue,
+                Some(_) => {
                     self.missing.remove(&slot.id);
                 }
                 None => {}
@@ -632,20 +656,17 @@ impl PluginHost {
                         self.slots.insert(slot.id, h);
                     }
                     Err(failed) => {
-                        notices.extend(self.load_failed(slot.id, plugin, (runs, waited), failed));
+                        notices.extend(self.load_failed(slot.id, plugin, runs, failed));
                         continue;
                     }
                 }
             }
-            // Where it runs changed (its choice, or the machine's default): moved there.
-            if self
-                .slots
-                .get(&slot.id)
-                .is_some_and(|h| h.isolation != runs && !h.restarting)
-            {
-                if let Err(failed) = self.move_plugin(slot, plugin, engine) {
-                    notices.extend(self.load_failed(slot.id, plugin, (runs, None), failed));
-                    continue;
+            // Where it runs changed (its choice, or the machine's default): its state as
+            // it is now is asked for, and `idle` moves it there once that is in.
+            if let Some(h) = self.slots.get_mut(&slot.id) {
+                if h.isolation != runs && !h.restarting && !h.moving {
+                    h.moving = true;
+                    h.main.ask_state_now();
                 }
             }
             let Some(mut h) = self.slots.remove(&slot.id) else {
@@ -701,15 +722,14 @@ impl PluginHost {
         notices
     }
 
-    /// A slot's plug-in could not be loaded where it runs: kept as missing (tried again in
-    /// a while when its helper was busy; `waited`: the last wait); told as a crash
-    /// (counted, reloadable) when its helper died doing it, else as a failure — once, not
-    /// at every try (review isolation-4 #57).
+    /// A slot's plug-in could not be loaded where it runs: kept as missing until it is
+    /// reloaded or where it runs changes; told as a crash (counted, reloadable) when its
+    /// helper died doing it, else as a failure.
     fn load_failed(
         &mut self,
         effect: EffectId,
         plugin: &ExternalPlugin,
-        (runs, waited): (PluginIsolation, Option<std::time::Duration>),
+        runs: PluginIsolation,
         failed: iso::Failed,
     ) -> Option<HostNotice> {
         log::warn!("plug-in {}: {}", plugin.name, failed.why);
@@ -720,16 +740,12 @@ impl PluginHost {
                 error: failed.why.clone(),
                 isolation: runs,
                 crashed: failed.crashed,
-                retry_at: iso::Missing::retry(failed.busy, waited),
                 found: self
                     .db
                     .find(from_project_format(plugin.format), &plugin.id)
                     .is_some(),
             },
         );
-        if waited.is_some() && failed.busy {
-            return None;
-        }
         Some(if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
@@ -749,21 +765,50 @@ impl PluginHost {
         })
     }
 
-    /// Loads a slot's plug-in where it now runs (round 29): its state taken from where it
-    /// ran, loaded with the project's values; the new unit replaces the old.
+    /// A slot whose plug-in now runs elsewhere, its state asked for: moved once that is in
+    /// — or, not to be had in time, from what it said last (said in the log). Polled by
+    /// `idle`, never waited for (round 29, review isolation-5).
+    fn continue_move(
+        &mut self,
+        project: &Project,
+        engine: &mut EngineHandle,
+        effect: EffectId,
+    ) -> Option<HostNotice> {
+        let (_, slot) = find_slot(project, effect)?;
+        let plugin = slot.spec.external.as_deref()?;
+        let runs = self.effective_isolation(plugin.isolation);
+        let h = self.slots.get_mut(&effect).filter(|h| h.moving)?;
+        if h.isolation == runs {
+            h.moving = false;
+            return None;
+        }
+        let state = match h.main.poll_state() {
+            StatePoll::Waiting => return None,
+            StatePoll::Fresh(s) => PluginState::new(s),
+            StatePoll::Stale(s, why) => {
+                log::warn!("{}: moved with the state it said last: {why}", h.info.name);
+                PluginState::new(s)
+            }
+            StatePoll::Failed(_) => plugin.state.clone(),
+        };
+        h.moving = false;
+        match self.move_plugin(slot, plugin, engine, state) {
+            Ok(()) => None,
+            Err(failed) => self.load_failed(effect, plugin, runs, failed),
+        }
+    }
+
+    /// Loads a slot's plug-in where it now runs (round 29) with `state` and the project's
+    /// values; the new unit replaces the old.
     fn move_plugin(
         &mut self,
         slot: &EffectSlot,
         plugin: &ExternalPlugin,
         engine: &mut EngineHandle,
+        state: PluginState,
     ) -> Result<(), iso::Failed> {
         let mut h = self.slots.remove(&slot.id).ok_or("not loaded")?;
         h.close_window_now();
-        let state = h
-            .main
-            .save_state()
-            .map(PluginState::new)
-            .unwrap_or_else(|_| plugin.state.clone());
         let setup = self.setup;
         let info = h.info.clone();
         let values = h.flushed.clone();
@@ -830,6 +875,7 @@ impl PluginHost {
         crate::clap::collect_garbage();
         self.retired
             .retain(|(at, _)| at.elapsed() < std::time::Duration::from_secs(1));
+        self.forget_render_prep();
         // A plug-in that crashed its helper as it left (its destructor) is counted.
         self.count_departed();
         let mut notices = Vec::new();
@@ -882,6 +928,10 @@ impl PluginHost {
                         self.capture_changes(bus, id);
                     }
                     Notice::StateDirty => self.capture_changes(bus, id),
+                    Notice::Loaded => self.on_loaded(bus, engine, id),
+                    Notice::LoadFailed(why) => {
+                        notices.extend(self.on_load_failed(bus.project(), engine, id, why))
+                    }
                     Notice::Crashed { reason, blame } => {
                         if let Some(n) = self.on_crash(id, reason, blame) {
                             notices.push(n);
@@ -922,6 +972,9 @@ impl PluginHost {
                 }
             }
             if let Some(n) = self.continue_restart(bus.project(), engine, id) {
+                notices.push(n);
+            }
+            if let Some(n) = self.continue_move(bus.project(), engine, id) {
                 notices.push(n);
             }
             // The user closed the window with its own close box.
@@ -1020,6 +1073,77 @@ impl PluginHost {
             name: info.name,
             reason,
         })
+    }
+
+    /// An isolated plug-in loaded (its load is answered later): its parameters read, its
+    /// unit made again with its audio half and latency — and, one just inserted, its
+    /// values and state recorded in the project in the insert's undo step, as an insert
+    /// within Cantus records them as it loads (round 29, review isolation-5).
+    fn on_loaded(&mut self, bus: &mut CommandBus, engine: &mut EngineHandle, effect: EffectId) {
+        let Some(mut h) = self.slots.remove(&effect) else {
+            return;
+        };
+        self.learn(h.main.as_ref());
+        h.params = h.main.params();
+        if let Some(audio) = h.main.take_audio() {
+            if h.audio.is_some() {
+                // Not delivered yet: this one goes instead.
+                h.audio = Some(audio);
+            } else if let Some((_, slot)) = find_slot(bus.project(), effect) {
+                let unit = self.make_unit(&mut h, audio, slot);
+                if engine.knows_effect(effect) {
+                    engine.replace_unit(unit);
+                } else {
+                    engine.add_unit(unit);
+                }
+            }
+        }
+        let (fresh, strip) = (std::mem::take(&mut h.fresh), h.strip);
+        self.slots.insert(effect, h);
+        if !fresh {
+            return;
+        }
+        let Some((state, params)) = self.capture(effect) else {
+            return;
+        };
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.synced_state = state.clone();
+            h.flushed = params.clone();
+        }
+        let cmd = Command::SetPluginState {
+            strip,
+            effect,
+            state,
+            params,
+        };
+        if let Err(e) = bus.execute_merging(cmd, Origin::User, Self::load_key(effect)) {
+            log::warn!("plug-in state: {e}");
+        }
+    }
+
+    /// An isolated plug-in's load failed, its helper alive (it refused, or did not load
+    /// within its limit): kept as a plug-in that could not be loaded, with Reload — never
+    /// tried again by itself (round 29, review isolation-5 rule 4). Its slot is a wire.
+    fn on_load_failed(
+        &mut self,
+        project: &Project,
+        engine: &mut EngineHandle,
+        effect: EffectId,
+        why: String,
+    ) -> Option<HostNotice> {
+        let mut h = self.slots.remove(&effect)?;
+        h.close_window_now();
+        // What it was given stays for its reload.
+        if let Ok(s) = h.main.save_state() {
+            self.parked.insert(effect, PluginState::new(s));
+        }
+        let (_, slot) = find_slot(project, effect)?;
+        if engine.knows_effect(effect) {
+            engine.replace_unit(EffectUnit::from_fx(slot, Box::new(Wire)));
+        }
+        let plugin = slot.spec.external.as_deref()?;
+        let failed = iso::Failed::from(why);
+        self.load_failed(effect, plugin, h.isolation, failed)
     }
 
     /// Keeps a replaced instance's main half a moment (see `retired`).
@@ -1247,10 +1371,67 @@ impl PluginHost {
 
     // ---- saving and rendering ------------------------------------------------------
 
-    /// `project` as it should be saved: every loaded plug-in's state as it is now. A slot
-    /// whose plug-in is missing keeps what the project holds, untouched.
+    /// Asks every loaded plug-in for its state as it is now — a save's first step; an
+    /// isolated plug-in answers later ([`Self::states_in`]). Never waits (round 29, review
+    /// isolation-5 rule 2).
+    pub fn ask_states(&mut self) {
+        for h in self.slots.values_mut() {
+            h.main.ask_state_now();
+        }
+        for h in self.instruments.values_mut() {
+            h.main.ask_state_now();
+        }
+    }
+
+    /// Whether the states asked for are all in — or not to be had in time, each by its own
+    /// limit from when its helper started it. A save asks each frame.
+    pub fn states_in(&mut self) -> bool {
+        let mains = self.slots.values_mut().map(|h| &mut h.main);
+        let insts = self.instruments.values_mut().map(|h| &mut h.main);
+        let mut waiting = false;
+        for m in mains.chain(insts) {
+            waiting |= m.state_waiting();
+        }
+        !waiting
+    }
+
+    /// The plug-ins the last [`Self::project_for_save`] saved as they were last said (not
+    /// to be had as they are now), and why: the save says so (never silently).
+    pub fn saved_stale(&self) -> &[(String, String)] {
+        &self.saved_stale
+    }
+
+    /// One plug-in's state for a save: as it is now, or — said in `saved_stale` — as it
+    /// was last said.
+    fn state_for_save(
+        main: &mut Box<dyn MainThread>,
+        name: &str,
+        stale: &mut Vec<(String, String)>,
+    ) -> Option<PluginState> {
+        match main.poll_state() {
+            StatePoll::Fresh(bytes) => Some(PluginState::new(bytes)),
+            StatePoll::Stale(bytes, why) => {
+                stale.push((name.to_string(), why));
+                Some(PluginState::new(bytes))
+            }
+            StatePoll::Waiting => {
+                stale.push((name.to_string(), "it was still answering".into()));
+                main.save_state().ok().map(PluginState::new)
+            }
+            StatePoll::Failed(e) => {
+                log::warn!("{name}: {e}");
+                None
+            }
+        }
+    }
+
+    /// `project` as it should be saved: every loaded plug-in's state — asked for first
+    /// ([`Self::ask_states`], [`Self::states_in`]); one not to be had as it is now is saved
+    /// as it was last said, and [`Self::saved_stale`] names it. A slot whose plug-in is
+    /// missing keeps what the project holds, untouched.
     pub fn project_for_save(&mut self, project: &Project) -> Project {
         let mut out = project.clone();
+        let mut stale = Vec::new();
         // A plug-in in a frozen region keeps the state its render holds (review 2).
         let locks = project
             .any_frozen()
@@ -1265,98 +1446,13 @@ impl PluginHost {
             let Some(plugin) = slot.spec.external.as_deref_mut() else {
                 continue;
             };
-            match h.main.save_state() {
-                Ok(bytes) => plugin.state = PluginState::new(bytes),
-                Err(e) => log::warn!("{}: {e}", h.info.name),
+            if let Some(state) = Self::state_for_save(&mut h.main, &h.info.name, &mut stale) {
+                plugin.state = state;
             }
         }
-        self.instruments_for_save(&mut out, locks.as_ref());
+        self.instruments_for_save(&mut out, locks.as_ref(), &mut stale);
+        self.saved_stale = stale;
         out
-    }
-
-    /// Fresh instances of every loaded plug-in in `project` for an offline render at
-    /// `sample_rate`, each with the live one's state: the units to hand to
-    /// `cantus_engine::render_with_units`. Their main halves stay here until
-    /// [`Self::finish_render`].
-    pub fn render_units(&mut self, project: &Project, sample_rate: f64) -> Vec<EffectUnit> {
-        self.render_units_as(project, sample_rate, false)
-    }
-
-    /// [`Self::render_units`] with the states `project` holds instead of the live ones: a
-    /// render kept under a key of what the project holds (a freeze's — review 2).
-    pub fn render_units_stored(&mut self, project: &Project, sample_rate: f64) -> Vec<EffectUnit> {
-        self.render_units_as(project, sample_rate, true)
-    }
-
-    fn render_units_as(
-        &mut self,
-        project: &Project,
-        sample_rate: f64,
-        stored: bool,
-    ) -> Vec<EffectUnit> {
-        self.fresh_render_cancel();
-        let setup = AudioSetup {
-            sample_rate,
-            max_block: MAX_BLOCK_FRAMES,
-        };
-        let mut units = Vec::new();
-        let mut stale = Vec::new();
-        for (_, slot) in project.all_effects() {
-            let Some(plugin) = slot.spec.external.as_deref() else {
-                continue;
-            };
-            let Some(h) = self.slots.get_mut(&slot.id) else {
-                continue;
-            };
-            let state = if stored {
-                plugin.state.clone()
-            } else {
-                // Its state as it is now; its helper busy (its own window open), what it
-                // last said — and the render says so (review isolation-4 #10).
-                match h.main.fresh_state() {
-                    Ok(s) => PluginState::new(s),
-                    Err(HostError::Busy(why)) => {
-                        stale.push(iso::RenderFailure {
-                            name: h.info.name.clone(),
-                            reason: format!("the plug-in is busy: {why}"),
-                            kind: iso::RenderLoss::Stale,
-                        });
-                        h.main
-                            .save_state()
-                            .map(PluginState::new)
-                            .unwrap_or_default()
-                    }
-                    Err(_) => h
-                        .main
-                        .save_state()
-                        .map(PluginState::new)
-                        .unwrap_or_default(),
-                }
-            };
-            let info = h.info.clone();
-            // Where it runs live; an isolated one waits for every block without a deadline
-            // (ADR 0063), so the render equals the in-process one to the bit. One that
-            // could not be made is in `render_lost` (review isolation-4 #24, #34, #63).
-            let isolation = Some(h.isolation);
-            let Ok(inst) = self.instantiate(&info, isolation, &state, &plugin.params, setup, true)
-            else {
-                continue;
-            };
-            let (main, audio) = (inst.main, inst.audio);
-            let params = main.params();
-            let unit = HostedUnit::new(
-                audio,
-                &params,
-                |id| main.param_value(id),
-                main.latency(),
-                sample_rate,
-                Arc::new(AtomicU64::new(0)),
-            );
-            units.push(EffectUnit::from_fx(slot, Box::new(unit)));
-            self.render_mains.push(main);
-        }
-        self.render_lost.extend(stale);
-        units
     }
 
     /// The render that [`Self::render_units`] served has finished: its instances go (ask
@@ -1364,6 +1460,7 @@ impl PluginHost {
     pub fn finish_render(&mut self) {
         self.render_mains.clear();
         self.render_lost.clear();
+        self.render_prep = None;
         self.fresh_render_cancel();
     }
 

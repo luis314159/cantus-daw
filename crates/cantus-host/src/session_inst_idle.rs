@@ -3,15 +3,14 @@
 
 use super::inst::HostedInst;
 use super::{to_fx, PluginHost};
-use crate::backend::{AudioSetup, HostError, Notice, ParamOut};
-use crate::inst_unit::{HostedInstrument, Silent};
+use crate::backend::{HostError, Notice, ParamOut, StatePoll};
+use crate::inst_unit::Silent;
 use crate::session::HostNotice;
 use crate::window::PluginWindow;
 use cantus_core::{Command, CommandBus, MergeKey, Origin, PluginState, Project, TrackId};
-use cantus_engine::{EngineHandle, FxParamEvent, NativeUnit, UnitKind, MAX_BLOCK_FRAMES};
+use cantus_engine::{EngineHandle, FxParamEvent, NativeUnit, UnitKind};
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 impl PluginHost {
     /// The instrument half of [`Self::idle`].
@@ -49,6 +48,10 @@ impl PluginHost {
                         self.capture_instrument_changes(bus, track);
                     }
                     Notice::StateDirty => self.capture_instrument_changes(bus, track),
+                    Notice::Loaded => self.on_instrument_loaded(bus, engine, track),
+                    Notice::LoadFailed(why) => {
+                        notices.extend(self.on_instrument_load_failed(bus.project(), track, why))
+                    }
                     Notice::Crashed { reason, blame } => {
                         if let Some(n) = self.on_instrument_crash(track, reason, blame) {
                             notices.push(n);
@@ -92,6 +95,9 @@ impl PluginHost {
             if let Some(n) = self.continue_instrument_restart(engine, track) {
                 notices.push(n);
             }
+            if let Some(n) = self.continue_instrument_move(bus.project(), engine, track) {
+                notices.push(n);
+            }
             let closed = self
                 .instruments
                 .get(&track)
@@ -111,6 +117,99 @@ impl PluginHost {
                 }
                 h.cpu.update(h.main.as_ref(), rate);
             }
+        }
+    }
+
+    /// An isolated instrument loaded: its parameters read, its unit made again with its
+    /// audio half and latency — and, one just put on its track, its values and state
+    /// recorded in the project in that undo step (review isolation-5).
+    fn on_instrument_loaded(&mut self, bus: &mut CommandBus, engine: &mut EngineHandle, track: TrackId) {
+        let rate = self.setup.sample_rate;
+        let Some(mut h) = self.instruments.remove(&track) else {
+            return;
+        };
+        if self.db.learn(h.main.info()) {
+            self.save_db_now();
+        }
+        h.params = h.main.params();
+        if let Some(audio) = h.main.take_audio() {
+            if h.audio.is_some() {
+                h.audio = Some(audio);
+            } else {
+                let unit = super::inst::make_unit(&mut h, track, audio, rate);
+                super::inst::deliver(engine, unit);
+            }
+        }
+        let fresh = std::mem::take(&mut h.fresh);
+        self.instruments.insert(track, h);
+        if !fresh {
+            return;
+        }
+        let Some((state, params)) = self.capture_instrument(track) else {
+            return;
+        };
+        if let Some(h) = self.instruments.get_mut(&track) {
+            h.synced_state = state.clone();
+            h.flushed = params.clone();
+        }
+        let cmd = Command::SetInstrumentPluginState {
+            track,
+            state,
+            params,
+        };
+        if let Err(e) = bus.execute_merging(cmd, Origin::User, Self::inst_load_key(track)) {
+            log::warn!("instrument state: {e}");
+        }
+    }
+
+    /// An isolated instrument's load failed, its helper alive: kept as one that could not
+    /// be loaded, with Reload — never tried again by itself (review isolation-5 rule 4).
+    /// Its track is silent.
+    fn on_instrument_load_failed(
+        &mut self,
+        project: &Project,
+        track: TrackId,
+        why: String,
+    ) -> Option<HostNotice> {
+        let mut h = self.instruments.remove(&track)?;
+        h.close_window_now();
+        if let Ok(s) = h.main.save_state() {
+            self.inst_parked.insert((track, h.key), PluginState::new(s));
+        }
+        let plugin = project.track(track)?.instrument.external()?;
+        let failed = super::iso::Failed::from(why);
+        self.instrument_failed(track, plugin, (h.key, h.isolation), failed)
+    }
+
+    /// A track's instrument that now runs elsewhere, its state asked for: moved once that
+    /// is in — or, not to be had in time, from what it said last (said in the log).
+    fn continue_instrument_move(
+        &mut self,
+        project: &Project,
+        engine: &mut EngineHandle,
+        track: TrackId,
+    ) -> Option<HostNotice> {
+        let plugin = project.track(track)?.instrument.external()?;
+        let runs = self.effective_isolation(plugin.isolation);
+        let h = self.instruments.get_mut(&track).filter(|h| h.moving)?;
+        if h.isolation == runs {
+            h.moving = false;
+            return None;
+        }
+        let state = match h.main.poll_state() {
+            StatePoll::Waiting => return None,
+            StatePoll::Fresh(s) => PluginState::new(s),
+            StatePoll::Stale(s, why) => {
+                log::warn!("{}: moved with the state it said last: {why}", h.info.name);
+                PluginState::new(s)
+            }
+            StatePoll::Failed(_) => plugin.state.clone(),
+        };
+        h.moving = false;
+        let key = h.key;
+        match self.move_instrument(track, plugin, engine, state) {
+            Ok(()) => None,
+            Err(failed) => self.instrument_failed(track, plugin, (key, runs), failed),
         }
     }
 
@@ -371,11 +470,13 @@ impl PluginHost {
         self.instruments.get(&track).is_some_and(|h| h.restarting)
     }
 
-    /// Every loaded instrument's state as it is now, into `project` (for saving).
+    /// Every loaded instrument's state, into `project` (for saving): as it is now, or —
+    /// said in `stale` — as it was last said.
     pub(crate) fn instruments_for_save(
         &mut self,
         project: &mut Project,
         locks: Option<&cantus_core::freeze::Locks>,
+        stale: &mut Vec<(String, String)>,
     ) {
         for t in &mut project.tracks {
             let Some(h) = self.instruments.get_mut(&t.id) else {
@@ -388,98 +489,10 @@ impl PluginHost {
             let Some(plugin) = t.instrument.external_mut() else {
                 continue;
             };
-            match h.main.save_state() {
-                Ok(bytes) => plugin.state = PluginState::new(bytes),
-                Err(e) => log::warn!("{}: {e}", h.info.name),
+            if let Some(state) = Self::state_for_save(&mut h.main, &h.info.name, stale) {
+                plugin.state = state;
             }
         }
-    }
-
-    /// Fresh instances of every loaded instrument in `project` for an offline render at
-    /// `sample_rate`, each with the live one's state: the units to hand to
-    /// `cantus_engine::render_with_instruments`. Their main halves stay here until
-    /// [`Self::finish_render`].
-    pub fn render_instruments(&mut self, project: &Project, sample_rate: f64) -> Vec<NativeUnit> {
-        self.render_instruments_as(project, sample_rate, false)
-    }
-
-    /// [`Self::render_instruments`] with the states `project` holds (a freeze's render).
-    pub fn render_instruments_stored(
-        &mut self,
-        project: &Project,
-        sample_rate: f64,
-    ) -> Vec<NativeUnit> {
-        self.render_instruments_as(project, sample_rate, true)
-    }
-
-    fn render_instruments_as(
-        &mut self,
-        project: &Project,
-        sample_rate: f64,
-        stored: bool,
-    ) -> Vec<NativeUnit> {
-        self.fresh_render_cancel();
-        let setup = AudioSetup {
-            sample_rate,
-            max_block: MAX_BLOCK_FRAMES,
-        };
-        let mut units = Vec::new();
-        let mut stale = Vec::new();
-        for t in &project.tracks {
-            let Some(plugin) = t.instrument.external() else {
-                continue;
-            };
-            let Some(h) = self.instruments.get_mut(&t.id) else {
-                continue;
-            };
-            let state = if stored {
-                plugin.state.clone()
-            } else {
-                // Its state as it is now; its helper busy (its own window open), what it
-                // last said — and the render says so (review isolation-4 #10).
-                match h.main.fresh_state() {
-                    Ok(s) => PluginState::new(s),
-                    Err(HostError::Busy(why)) => {
-                        stale.push(crate::session::RenderFailure {
-                            name: h.info.name.clone(),
-                            reason: format!("the plug-in is busy: {why}"),
-                            kind: crate::session::RenderLoss::Stale,
-                        });
-                        h.main
-                            .save_state()
-                            .map(PluginState::new)
-                            .unwrap_or_default()
-                    }
-                    Err(_) => h
-                        .main
-                        .save_state()
-                        .map(PluginState::new)
-                        .unwrap_or_default(),
-                }
-            };
-            let info = h.info.clone();
-            let key = h.key;
-            // Where it runs live; isolated, every block is waited for (ADR 0063).
-            let isolation = Some(h.isolation);
-            let Ok(inst) = self.instantiate(&info, isolation, &state, &plugin.params, setup, true)
-            else {
-                continue;
-            };
-            let (main, audio) = (inst.main, inst.audio);
-            let params = main.params();
-            let unit = HostedInstrument::new(
-                audio,
-                &params,
-                |id| main.param_value(id),
-                main.latency(),
-                sample_rate,
-                Arc::new(AtomicU64::new(0)),
-            );
-            units.push(NativeUnit::hosted(t.id, key, Box::new(unit)));
-            self.render_mains.push(main);
-        }
-        self.render_lost.extend(stale);
-        units
     }
 
     /// Open a track's instrument's own editor in a window of its own, owned by `owner`.

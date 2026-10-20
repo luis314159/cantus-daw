@@ -173,9 +173,12 @@ pub enum Notice {
     /// keeps it as open.
     EditorOpened,
     /// It is loaded — an isolated plug-in, whose load is answered later: its parameters
-    /// and latency are known now, and its audio half, which passed dry until now, is made
-    /// again (round 29, review isolation-5).
+    /// and latency are known now, and [`MainThread::take_audio`] has its audio half (the
+    /// first one passed dry until now). Round 29, review isolation-5.
     Loaded,
+    /// Its load failed, its helper alive (it refused, or did not load within its limit):
+    /// not a crash. The host keeps it as a plug-in that could not be loaded, with Reload.
+    LoadFailed(String),
     /// It must be deactivated and activated again (the host does it off the audio thread).
     RestartNeeded,
     /// It stopped working (round 29, ADR 0063): the process it ran in crashed, or it hung
@@ -332,6 +335,12 @@ pub trait MainThread: Send {
         }
     }
 
+    /// Whether the state asked for by [`Self::ask_state_now`] is still on its way — what
+    /// [`Self::poll_state`] says, without its bytes (a save looks each frame).
+    fn state_waiting(&mut self) -> bool {
+        false
+    }
+
     /// Whether what [`Self::save_state`] answers is its state as it is now (an isolated
     /// plug-in's last-good state may be older than its last change).
     fn state_current(&self) -> bool {
@@ -341,6 +350,12 @@ pub trait MainThread: Send {
     /// Whether it is loaded (an isolated plug-in's load is answered later, and may fail).
     fn loaded(&self) -> bool {
         true
+    }
+
+    /// Its audio half made since it loaded (after [`Notice::Loaded`]), with its latency:
+    /// what replaces the first one. `None` in process.
+    fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
+        None
     }
 
     /// Ends it — its helper — at the user's word, while it waits on a window of its own

@@ -73,6 +73,8 @@ pub struct BridgeMain {
     load_failed: Option<String>,
     /// `idle` has yet to say it loaded.
     tell_loaded: bool,
+    /// Its audio half made once it loaded, for the host to take ([`MainThread::take_audio`]).
+    fresh_audio: Option<Box<dyn AudioThread>>,
     last_good: Option<Vec<u8>>,
     /// The last-good state is the plug-in's as it is now.
     current: bool,
@@ -149,6 +151,7 @@ impl BridgeMain {
             loaded: false,
             load_failed: None,
             tell_loaded: false,
+            fresh_audio: None,
             // The state it is given is what it holds until it says otherwise: the
             // project's, kept if its helper dies before answering.
             last_good: (!state.is_empty()).then(|| state.to_vec()),
@@ -179,7 +182,6 @@ impl BridgeMain {
             instance: self.instance,
             name: self.info.name.clone(),
             cancel: self.cancel.clone(),
-            load: self.load,
         })
     }
 
@@ -235,6 +237,8 @@ impl BridgeMain {
             )
         };
         match loaded {
+            // Given up on already (past its limit): its late answer is not taken.
+            Some(Ok(_)) if self.load_failed.is_some() => {}
             Some(Ok((described, first_state))) => {
                 self.loaded = true;
                 self.tell_loaded = true;
@@ -363,6 +367,70 @@ impl BridgeMain {
         Some((self.crash_reason(), self.sandbox.blame(self.instance)))
     }
 
+    /// Where the state a save asked for stands — `None`: still on its way; `Some(None)`:
+    /// in (or nothing to ask: never loaded, or current already); `Some(Some(why))`: not to
+    /// be had in time, so what it said last stands. Asked again it answers the same (a save
+    /// polls it each frame, then takes it).
+    fn gathered(&mut self) -> Option<Option<String>> {
+        self.take_answers();
+        let Some(g) = self.gather else {
+            return Some((!self.current && self.loaded).then(|| "its state was not asked for".into()));
+        };
+        if let Some((id, why)) = &self.last_answer {
+            if *id >= g {
+                return Some(why.clone());
+            }
+        }
+        if self.gone() {
+            return Some(Some(self.crash_reason()));
+        }
+        if self.sandbox.held_up(g) {
+            return Some(Some("its process is held by a window of a plug-in".into()));
+        }
+        let late = self.sandbox.started_at(g).is_some_and(|t| {
+            t.elapsed() > self.sandbox.limit_of(g).unwrap_or(self.pool.limits().state)
+        });
+        if late {
+            return Some(Some("it did not answer in time".into()));
+        }
+        None
+    }
+
+    /// Why its load failed, if it did — asked of a render's instance too, whose answers
+    /// nobody takes: from the answer itself (an offline instance that refused its state
+    /// failed too).
+    fn load_failure(&self) -> Option<String> {
+        if let Some(why) = &self.load_failed {
+            return Some(why.clone());
+        }
+        match &self.inbox.data().loaded {
+            Some(Err(why)) => Some(why.clone()),
+            Some(Ok((d, _))) if self.offline => d
+                .refused_state
+                .as_ref()
+                .map(|w| format!("it refused its state: {w}")),
+            _ => None,
+        }
+    }
+
+    /// Its load has run past its own limit since its helper started it, and no window of
+    /// its holds the helper (a licence dialog shows the waiting card instead): a failed
+    /// load, never a retry (round 29, review isolation-5 rule 4).
+    fn load_overdue(&self) -> Option<Duration> {
+        if self.loaded || self.load_failed.is_some() || self.gone() {
+            return None;
+        }
+        let limit = self
+            .sandbox
+            .limit_of(self.load)
+            .unwrap_or(self.pool.limits().load);
+        let late = self
+            .sandbox
+            .started_at(self.load)
+            .is_some_and(|t| t.elapsed() > limit);
+        (late && !self.sandbox.nested_on(self.instance)).then_some(limit)
+    }
+
     /// Waits up to [`FRAME_WAIT`] for request `id`'s answer to land (it usually comes at
     /// once); `true` when it did.
     fn brief_wait(&self, landed: impl Fn(&Inbox) -> bool) -> bool {
@@ -450,41 +518,17 @@ impl MainThread for BridgeMain {
     }
 
     fn poll_state(&mut self) -> StatePoll {
-        self.take_answers();
-        let last = || self.last_good.clone().unwrap_or_default();
-        let Some(g) = self.gather else {
-            // Nothing asked: what it holds — current, or never loaded (the project's).
-            return if self.current || !self.loaded {
-                StatePoll::Fresh(last())
-            } else {
-                StatePoll::Stale(last(), "its state was not asked for".into())
-            };
-        };
-        if let Some((id, why)) = self.last_answer.clone() {
-            if id >= g {
-                self.gather = None;
-                return match why {
-                    None => StatePoll::Fresh(last()),
-                    Some(why) => StatePoll::Stale(last(), why),
-                };
-            }
+        let gathered = self.gathered();
+        let last = self.last_good.clone().unwrap_or_default();
+        match gathered {
+            None => StatePoll::Waiting,
+            Some(None) => StatePoll::Fresh(last),
+            Some(Some(why)) => StatePoll::Stale(last, why),
         }
-        if self.gone() {
-            self.gather = None;
-            return StatePoll::Stale(last(), self.crash_reason());
-        }
-        if self.sandbox.held_up(g) {
-            self.gather = None;
-            return StatePoll::Stale(last(), "its process is held by a window of a plug-in".into());
-        }
-        let late = self.sandbox.started_at(g).is_some_and(|t| {
-            t.elapsed() > self.sandbox.limit_of(g).unwrap_or(self.pool.limits().state)
-        });
-        if late {
-            self.gather = None;
-            return StatePoll::Stale(last(), "it did not answer in time".into());
-        }
-        StatePoll::Waiting
+    }
+
+    fn state_waiting(&mut self) -> bool {
+        self.gathered().is_none()
     }
 
     fn state_current(&self) -> bool {
@@ -606,19 +650,34 @@ impl MainThread for BridgeMain {
             }
         }
         self.take_answers();
+        if let Some(limit) = self.load_overdue() {
+            self.load_failed = Some(format!("it did not load within {} s", limit.as_secs()));
+        }
         if self.tell_loaded {
             self.tell_loaded = false;
             if self.load_failed.is_none() {
+                // Its audio half with its latency, for the host to put in the first one's
+                // place.
+                self.fresh_audio = self.audio_half().ok();
                 out.push(Notice::Loaded);
             }
         }
-        if self.gone() || self.load_failed.is_some() {
+        if self.gone() {
             self.status.mark_dead();
-            if let Some((reason, blame)) = self.stopped() {
-                if !self.told_crash {
+            if !self.told_crash {
+                if let Some((reason, blame)) = self.crashed_notice() {
                     self.told_crash = true;
                     out.push(Notice::Crashed { reason, blame });
                 }
+            }
+            return out;
+        }
+        if let Some(why) = self.load_failed.clone() {
+            // Not a crash: its helper lives, and its neighbours with it.
+            self.status.fail();
+            if !self.told_crash {
+                self.told_crash = true;
+                out.push(Notice::LoadFailed(why));
             }
             return out;
         }
@@ -840,20 +899,19 @@ impl MainThread for BridgeMain {
     }
 
     fn loaded(&self) -> bool {
-        self.loaded && self.load_failed.is_none()
+        (self.loaded || self.status.is_ready()) && self.load_failure().is_none()
     }
 
+    fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
+        self.fresh_audio.take()
+    }
+
+    /// A helper's end first (whose doing it was goes with it), else a failed load.
     fn stopped(&self) -> Option<(String, Blame)> {
-        if let Some(why) = &self.load_failed {
-            // Its helper died while it loaded: whose doing that was goes with it.
-            let blame = if self.gone() {
-                self.sandbox.blame(self.instance)
-            } else {
-                Blame::Unknown
-            };
-            return Some((why.clone(), blame));
+        if self.gone() {
+            return self.crashed_notice();
         }
-        self.crashed_notice()
+        self.load_failure().map(|why| (why, Blame::Unknown))
     }
 }
 

@@ -117,7 +117,10 @@ impl WireNotice {
             Notice::EditorResized(s) => WireNotice::EditorResized(s.width, s.height),
             Notice::EditorClosed => WireNotice::EditorClosed,
             Notice::RestartNeeded => WireNotice::RestartNeeded,
-            Notice::Crashed { .. } | Notice::EditorOpened | Notice::Loaded => return None,
+            Notice::Crashed { .. }
+            | Notice::EditorOpened
+            | Notice::Loaded
+            | Notice::LoadFailed(_) => return None,
         })
     }
 
