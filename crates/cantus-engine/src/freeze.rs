@@ -345,7 +345,8 @@ impl FrozenStore {
         self.open.values().filter(|v| v.is_ok()).count()
     }
 
-    /// Every render file in the store's folders (for Settings' clean-up).
+    /// Every render file in the store's folders (the interface keeps the application's
+    /// folder to its size: `cantus_ui::freeze::prune`).
     pub fn files(&self) -> Vec<PathBuf> {
         let mut out = Vec::new();
         for d in [self.project_dir.as_deref(), self.app_dir.as_deref()]

@@ -227,7 +227,7 @@ fn heard_after(p: &Project) -> (usize, u64) {
 fn the_monitored_wait_is_measured_through_the_buses_it_goes_by() {
     // A bus of monitored input only: not held back, the voice heard after Tonus.
     let (heard, said) = heard_after(&through_a_bus(false));
-    assert!(heard >= 100 && heard < 200, "Tonus's latency: {heard}");
+    assert!((100..200).contains(&heard), "Tonus's latency: {heard}");
     assert_eq!(said as usize, heard, "the figure is what is heard");
     // A bus that mixes it with the backing: it waits there with the backing.
     let (heard, said) = heard_after(&through_a_bus(true));

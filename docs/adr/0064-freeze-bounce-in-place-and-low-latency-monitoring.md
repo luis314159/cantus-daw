@@ -311,33 +311,53 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
 
 ## Tests (what each holds)
 
-- `cantus-core/tests/freeze.rs` (12): the key's form and stability through the file; it
+- `cantus-core/tests/freeze.rs` (20): the key's form and stability through the file; it
   changes for what changes the sound and for nothing else (fader, pan, width, mute, solo,
   output, names, colours, others); freeze/unfreeze one undo step each, exact; a wrong key
   refused; a frozen strip refuses inside its region and names itself, allows its live
   controls and everything outside; a frozen track keeps its level live; freezing disarms
   in the same step and refuses a live input; freeze on a track picks strip or source; what
   rests and what a live insert wakes; settling a snapshot; solo; pattern mode; modulators.
+  Review 1: a frozen return or keyed bus never silences what also plays live; a live
+  follower wakes a region strip and what it gathers; a frozen track's region takes in what
+  its modulators follow; a follower of the root locks its fader; an only input keeps mute
+  and solo live; a solo inside refuses the freeze; moves keep keys or are refused; a take
+  moved by saving re-keys its freeze in the same step.
 - Undo fuzz arm 47 and the driver's invariant check after every command (all seeds).
-- `cantus-project`: `schema_37_keeps_frozen_strips_and_tracks`, a hand-edited key repaired.
-- `cantus-engine/tests/freeze.rs` (13): the frozen mix is the live mix to the bit with its
+- `cantus-project`: `schema_37_keeps_frozen_strips_and_tracks` (the fixture's stored keys, as
+  written, are the content keys), a hand-edited key repaired; `collect::undo`.
+- `cantus-engine/tests/freeze.rs` (24): the frozen mix is the live mix to the bit with its
   fader ride, pan, width, send level and mute moved after freezing; unfreezing gives the
   live chain back to the bit; block sizes 1, 37, 64, 512; a frozen track's source with its
   level and balance live; a latent insert frozen away (compensated and not); no render →
   live; the render key and streaming (only the head in memory); the tail rings out;
   cancelling writes nothing; pool = serial at W 1 and 3; real time = offline with the reader
-  ahead; the CPU freed.
-- `cantus-engine/tests/low_latency.rs` (3), `fx_tonus` (the old test kept for *off*, a new
+  ahead; the CPU freed. Review 1: a frozen return and a keyed bus (and a note source)
+  leave their sources playing, to the bit; a solo when it froze is not in the render; a
+  nested strip's render made under the outer one; an offline render and live playback each
+  with their own board; an offline start just before a block boundary; thawing while
+  playing leaves no voice; a frozen track at a loop's start is not played; the modulator
+  trace of a frozen strip; renders let go; a damaged render is missing.
+- `cantus-engine/tests/low_latency.rs` (8: review 1 adds the wait measured through a pure and a
+  mixed bus, an insert back from a hard bypass, an armed instrument track, the dating after a
+  bypassed insert, every bypass counted), `fx_tonus` (the old test kept for *off*, a new
   one for *on*), `rt_memory::{frozen_playback_never_allocates,
   low_latency_monitoring_never_allocates}` (serial and pool).
 - `cantus-sandbox/tests/freeze.rs`: a frozen chain with the hosted test gain (in process and
   isolated) renders through `render_units`, is unloaded, plays the live mix to the bit, and
   comes back thawed.
-- `cantus-ui/tests/freeze.rs` (8): Freeze renders then freezes in one step, the mix equal;
+- `cantus-ui/tests/freeze.rs` (30): Freeze renders then freezes in one step, the mix equal;
   a refused edit's card with Unfreeze; Stop changes nothing; an edit during the render is
   rendered again; reopened elsewhere it plays live and remakes its render; both bounces
   lay the audio under the original and the song is the same to the bit; selected clips;
-  low latency's key reaches the engine; both languages. `tests/freeze_boot.rs`: the boot
+  low latency's key reaches the engine; both languages. Review 1 (22 more): a time range
+  cut at both edges, notes held across its edges, muted clips kept; a latent chain; solo
+  (elsewhere, and handed over); an edit while bouncing; a bounce asked twice; rides
+  carried; a key handed over; another project; *Freeze track*'s header M/S; saving a
+  frozen take; Stop and an export against a refresh; the key on what was chosen last; the
+  time selection made last and every track's clips; a freeze that cannot land says why; a
+  missing plug-in; a render older than its files; the folder before the first compile;
+  tidy and prune; a bake waits; no leak into an Inserts bounce. `tests/freeze_boot.rs`: the boot
   path (`assemble`) sets the folder and tells the engine.
 
 ## Consequences
