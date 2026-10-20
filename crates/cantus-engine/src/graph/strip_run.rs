@@ -72,7 +72,7 @@ pub(crate) fn scope(
         (h.tempo_bpm, h.tempo_inc)
     });
     let per_frame = bpm / 60.0 / sample_rate.max(1.0);
-    let first = position.playing.then(|| match heard {
+    let first = position.playing.then_some(match heard {
         Some(h) => h.beats,
         None => position.beats - late as f64 * per_frame,
     });

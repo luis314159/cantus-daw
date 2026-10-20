@@ -331,7 +331,7 @@ fn cuts(app: &mut CantusApp, track: TrackId, taken: &[ClipId], a: Ticks, b: Tick
                 })
                 .unwrap_or_default();
             for c in crossing {
-                if let Some(cmds) = cantus_core::clipboard::split(track, &c, at, ids) {
+                if let Some(cmds) = cantus_core::clipboard::split(project, track, &c, at, ids) {
                     for cmd in &cmds {
                         let _ = cmd.clone().apply(&mut scratch);
                     }

@@ -221,6 +221,8 @@ fn audio_under_a_map_is_the_same_at_every_block_size_and_its_fades_are_measured_
 /// `audio_time` says to within half a frame: played from the start and from a seek into
 /// the ramp alike.
 #[test]
+// A value by hand: std's own logarithm, apart from the code under test.
+#[allow(clippy::disallowed_methods)]
 fn a_clip_inside_the_ramp_plays_where_audio_time_says_from_anywhere() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("a.wav");

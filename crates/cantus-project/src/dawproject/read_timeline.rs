@@ -487,8 +487,7 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
         if tick.0 < 0 {
             continue;
         }
-        if out.last().is_some_and(|l| l.tick == tick) {
-            let earlier = out.pop().expect("there");
+        if let Some(earlier) = out.pop_if(|l| l.tick == tick) {
             if let Some(prev) = out.last_mut().filter(|p| p.ramp) {
                 if prev.bpm == earlier.bpm {
                     prev.ramp = false;

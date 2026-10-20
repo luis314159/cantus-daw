@@ -883,6 +883,8 @@ mod tempo_tests {
     /// seconds through the map — 4 800 frames at 48 kHz in a 60-BPM stretch are 96 ticks,
     /// in a 120-BPM one 192 — and at one tempo the arithmetic is the old one.
     #[test]
+    // A value by hand: std's own exponential, apart from the code under test.
+    #[allow(clippy::disallowed_methods)]
     fn a_take_across_a_ramp_lands_where_it_was_played() {
         use cantus_core::tempo::TempoPoint;
         use cantus_core::{TempoMap, Ticks, TimeSignature};

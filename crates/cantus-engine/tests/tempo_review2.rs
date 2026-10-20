@@ -268,6 +268,8 @@ fn a_late_speculum_stamps_its_frames_at_the_tempo_it_hears() {
 /// after every wrap is the same at every block size — and a ramp in closed form: beat 6
 /// of 90 BPM for a beat, a ramp to 140 over four, then 140, by hand.
 #[test]
+// A value by hand: std's own logarithm, apart from the code under test.
+#[allow(clippy::disallowed_methods)]
 fn the_transport_loops_over_a_ramps_end_and_meets_the_closed_form() {
     let map = Arc::new(TempoMap::new(
         90.0,
