@@ -67,8 +67,14 @@ pub struct JournalPass {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tempo_points: Vec<cantus_core::TempoPoint>,
     pub sample_rate: u32,
-    /// The round-trip latency the takes are moved earlier by, in frames.
+    /// The round-trip latency the takes are moved earlier by, in frames — the engine's own
+    /// figure once the pass has started (review 3: the callback's before it, until then).
     pub latency_frames: i64,
+    /// The wraps the engine marked so far (file frame, the heard latency's moves taken in
+    /// by then — review 3): a crashed loop pass is laid out by them, not by arithmetic
+    /// alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub marked_wraps: Vec<(u64, i64)>,
     pub takes: Vec<JournalTake>,
     /// The pass ended and its clips are in the project (not yet in a file on disk).
     pub finished: bool,

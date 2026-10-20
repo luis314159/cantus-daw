@@ -698,6 +698,45 @@ impl SampleCache {
         any
     }
 
+    /// Wait for the audio sources being loaded in the background, at most `patience`: an
+    /// offline render's compile then attaches them (review 3: a source a render asked for
+    /// was still loading, and the render played its silence). Whether all came.
+    pub fn wait_audio(&mut self, patience: std::time::Duration) -> bool {
+        let t = std::time::Instant::now();
+        loop {
+            let Some(l) = self.loader.as_mut() else {
+                return true;
+            };
+            if l.pending.is_empty() {
+                l.asked = 0;
+                return true;
+            }
+            let left = patience.saturating_sub(t.elapsed());
+            if left.is_zero() {
+                return false;
+            }
+            match l
+                .done
+                .recv_timeout(left.min(std::time::Duration::from_millis(50)))
+            {
+                Ok((key, r)) => {
+                    l.pending.remove(&key);
+                    self.arrived = true;
+                    match r {
+                        Ok(d) => {
+                            self.audio.insert(key, Arc::new(d));
+                        }
+                        Err(e) => {
+                            self.failed.insert(key.0, e);
+                        }
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return false,
+            }
+        }
+    }
+
     /// Whether any source is still being loaded in the background.
     pub fn loading(&self) -> bool {
         self.pitch.pending() > 0

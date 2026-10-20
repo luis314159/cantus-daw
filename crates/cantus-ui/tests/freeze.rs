@@ -48,6 +48,25 @@ fn app(name: &str) -> (CantusApp, std::path::PathBuf) {
     (app, dir)
 }
 
+/// The renders folder of the test project `song.cantus` in `dir` (its own: review 3).
+fn renders_of(dir: &std::path::Path) -> std::path::PathBuf {
+    cantus_ui::freeze::project_dir(Some(&dir.join("song.cantus"))).unwrap()
+}
+
+/// A save's copies and prune (on a thread of their own, review 3) done.
+fn copies_done(app: &CantusApp) {
+    let t0 = Instant::now();
+    while app
+        .freeze
+        .copying
+        .as_ref()
+        .is_some_and(|d| !d.load(std::sync::atomic::Ordering::Acquire))
+        && t0.elapsed() < Duration::from_secs(60)
+    {
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
 /// Frames until no render runs (or a while has passed).
 fn settle(app: &mut CantusApp, ctx: &egui::Context) {
     let t0 = Instant::now();
@@ -771,7 +790,10 @@ fn saving_a_frozen_take_into_its_folder_keeps_it_frozen_and_its_render() {
     let render =
         cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(&f.content, 48_000));
     assert!(
-        file.with_file_name("Freeze").join(render).is_file(),
+        cantus_ui::freeze::project_dir(Some(&file))
+            .unwrap()
+            .join(render)
+            .is_file(),
         "its render is beside the project under its new key"
     );
 }
@@ -912,7 +934,7 @@ fn a_render_that_needs_a_plugin_not_loaded_is_refused_and_says_which() {
             })
             .unwrap_or(false)
     };
-    assert!(!written(&dir.join("renders")) && !written(&dir.join("Freeze")));
+    assert!(!written(&dir.join("renders")) && !written(&renders_of(&dir)));
     // On a strip the render does not run (the bass's), it is not needed — nor made
     // (review 1: every plug-in of the project was instantiated for one freeze).
     let (mut app, _dir) = self::app("missing-elsewhere");
@@ -988,7 +1010,7 @@ fn the_renders_folder_follows_the_project_before_its_first_compile() {
     app.sync_engine();
     assert_eq!(
         app.engine.frozen.project_dir(),
-        Some(dir.join("other").join("Freeze").as_path())
+        Some(dir.join("other").join("Freeze").join("song").as_path())
     );
 }
 
@@ -1156,7 +1178,7 @@ fn a_missing_file_refuses_a_freeze_and_a_refresh_waits_for_it() {
         app.status.text
     );
     assert!(
-        renders_in(&dir.join("Freeze")).is_empty() && renders_in(&dir.join("renders")).is_empty()
+        renders_in(&renders_of(&dir)).is_empty() && renders_in(&dir.join("renders")).is_empty()
     );
     // Frozen with the file there; opened elsewhere without it: it waits, never failed.
     std::fs::rename(&kept, &take).unwrap();
@@ -1203,7 +1225,7 @@ fn freezing_an_armed_track_renders_once_under_the_key_it_keeps() {
         .unwrap()
         .content
         .clone();
-    let renders = renders_in(&dir.join("Freeze"));
+    let renders = renders_in(&renders_of(&dir));
     assert_eq!(renders.len(), 1, "{renders:?}");
     assert!(app.engine.frozen.find(&content, 48_000).is_some());
 }
@@ -1263,7 +1285,7 @@ fn saving_elsewhere_brings_the_renders_and_keeps_only_those_wanted() {
     let first = app.project().frozen(target).unwrap().content.clone();
     // A render nothing wants, beside the project.
     std::fs::write(
-        dir.join("Freeze").join(format!("{}.cfrz", "0".repeat(64))),
+        renders_of(&dir).join(format!("{}.cfrz", "0".repeat(64))),
         b"x",
     )
     .unwrap();
@@ -1271,13 +1293,15 @@ fn saving_elsewhere_brings_the_renders_and_keeps_only_those_wanted() {
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
     app.start_save(&file);
     app.poll_save(true);
-    let there = renders_in(&file.with_file_name("Freeze"));
+    copies_done(&app);
+    let there = renders_in(&cantus_ui::freeze::project_dir(Some(&file)).unwrap());
     assert_eq!(there.len(), 1, "its render came along: {there:?}");
     // Saved where it was: the stray render goes, the frozen one stays.
     let again = dir.join("song.cantus");
     app.start_save(&again);
     app.poll_save(true);
-    let kept = renders_in(&dir.join("Freeze"));
+    copies_done(&app);
+    let kept = renders_in(&renders_of(&dir));
     assert_eq!(kept.len(), 1, "{kept:?}");
     assert!(app.engine.frozen.path_of(&first, 48_000).is_some());
 }
@@ -1842,9 +1866,20 @@ fn the_chip_counts_the_input_only_for_an_audio_input() {
         Some((300.0 + 280.0 + 40.0 + 128.0) * 1000.0 / 48_000.0)
     );
     ll.audio = false;
+    ll.notes = true;
+    ll.monitored_samples = 0;
+    ll.monitored_note_samples = 128;
     assert_eq!(
         ms(&ll),
         Some((280.0 + 128.0) * 1000.0 / 48_000.0),
         "notes go out only"
+    );
+    // Both: the slower of the two ways, never the input's wait on the notes' (review 3).
+    ll.audio = true;
+    ll.monitored_samples = 0;
+    ll.monitored_note_samples = 1_024;
+    assert_eq!(
+        ms(&ll),
+        Some((280.0f64 + 1_024.0).max(300.0 + 280.0 + 40.0) * 1000.0 / 48_000.0)
     );
 }

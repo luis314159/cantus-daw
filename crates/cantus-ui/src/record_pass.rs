@@ -312,6 +312,14 @@ pub fn audio_windows(
     let mut out = Vec::with_capacity(n);
     for k in 0..n {
         let first = if k == 0 { 0 } else { wraps[k - 1] } as f64;
+        // Played against a backing heard that much later than at the pass's start (the
+        // heard latency moved — review 3): placed that much earlier.
+        let shift = if k == 0 {
+            0
+        } else {
+            take.wrap_shifts.get(k - 1).copied().unwrap_or(0)
+        };
+        let latency_frames = latency_frames + shift;
         let next = if k + 1 < n { wraps[k] } else { take.frames } as f64;
         let origin = match (k, lp) {
             (0, _) | (_, None) => take.start_tick,

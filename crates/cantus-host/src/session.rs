@@ -1031,6 +1031,29 @@ impl PluginHost {
         self.instrument_give_back_now(project);
     }
 
+    /// The latency each loaded hosted plug-in reports now — inserts by id, instruments by
+    /// track: what a plan made without instantiating them counts
+    /// (`cantus_engine::freeze::render::strip_arrival`, review 3).
+    pub fn latencies(&self) -> (Vec<(EffectId, usize)>, Vec<(cantus_core::TrackId, usize)>) {
+        let fx = self
+            .slots
+            .iter()
+            .map(|(id, h)| (*id, h.latency()))
+            .collect();
+        let inst = self
+            .instruments
+            .iter()
+            .map(|(t, h)| (*t, h.latency()))
+            .collect();
+        (fx, inst)
+    }
+
+    /// Whether the plug-in `format`/`id` is installed (scanned) on this computer — a
+    /// render made with a stand-in for it is made again once it is (review 3).
+    pub fn installed(&self, format: cantus_core::PluginFormat, id: &str) -> bool {
+        self.db.find(from_project_format(format), id).is_some()
+    }
+
     /// How many plug-ins were given back what the project holds (tests).
     pub fn give_backs(&self) -> u64 {
         self.give_backs

@@ -41,6 +41,7 @@ fn take(track: TrackId, start_tick: f64, frames: u64, wraps: Vec<u64>) -> Finish
         frames,
         start_tick,
         wraps,
+        wrap_shifts: Vec::new(),
         dropped: 0,
     }
 }

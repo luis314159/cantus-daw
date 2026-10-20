@@ -602,6 +602,49 @@ impl<'a> Sheet<'a> {
         r
     }
 
+    /// A row with a plain value and a button after it (`button_key`), `tip` on hover.
+    /// Returns a click on the button.
+    pub fn text_button_row(
+        &mut self,
+        key: &str,
+        text: &str,
+        button_key: &str,
+        f: Function,
+        tip: &str,
+    ) -> bool {
+        let row = self.row();
+        self.label(row.label, key, false);
+        let bw = self.s.s(64.0).min(row.value.width() * 0.4);
+        let gap = self.s.s(GAP);
+        let well_r = Rect::from_min_max(
+            row.value.min,
+            pos2(row.value.right() - bw - gap, row.value.bottom()),
+        );
+        let br = Rect::from_min_max(pos2(row.value.right() - bw, row.value.top()), row.value.max);
+        well::readout(self.b, well_r, &self.s, State::REST, text, true);
+        let hover = self.ui.interact(
+            row.full,
+            Id::new(("insp-text-button-tip", key)),
+            Sense::hover(),
+        );
+        if hover.hovered() {
+            hint::set_text(self.ui.ctx(), tip, "", Caps::NONE);
+        }
+        let r = self.ui.interact(
+            br,
+            Id::new(("insp-text-button", key, button_key)),
+            Sense::click(),
+        );
+        led::button(
+            self.b,
+            br,
+            &self.s.function(f),
+            State::of(&r, false),
+            Src::Key(button_key),
+        );
+        r.clicked()
+    }
+
     /// A row holding an on/off: an LED button across the value column. Returns a click.
     pub fn led_row(
         &mut self,

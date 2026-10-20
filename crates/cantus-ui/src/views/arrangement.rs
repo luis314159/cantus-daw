@@ -2692,6 +2692,10 @@ pub fn clip_menu_opened(app: &mut CantusApp, track: TrackId, clip: ClipId) {
         // keys then act on (Alt+L links the selection to it): the edited clip.
         app.edit_clip_keeping_selection((track, clip));
     }
+    // What the menu acts on is this clip, whatever was chosen before it (review 3: a strip
+    // or the master chosen on the desk took the clip menu's Bounce).
+    app.inspector
+        .follow(crate::views::inspector::Subject::Clip(track, clip));
     app.last_selection = crate::clipboard::SelKind::Clips;
     app.focus_arrangement();
 }

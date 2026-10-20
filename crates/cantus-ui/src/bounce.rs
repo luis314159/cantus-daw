@@ -88,8 +88,8 @@ pub struct Prepared {
     /// A key of what the render depends on (`freeze::region_key` of its region): an edit
     /// of it while it renders makes it again, one elsewhere does not (review 2).
     depends: String,
-    /// The latency its file keeps (frames at `rate`), set by the worker: the new track
-    /// reports it (`Track::lateness`, review 2).
+    /// The latency trimmed from its file (frames at `rate`), set by the worker: the new
+    /// track keeps it as a delay before its level (`Track::lateness`, review 2, 3).
     latency: Arc<std::sync::atomic::AtomicU64>,
 }
 
@@ -210,12 +210,19 @@ pub fn strip_plan(app: &CantusApp, strip: StripId) -> Result<Plan, String> {
             )],
         ));
     }
+    // A live input anywhere its render would hear — its sound, a key, a note source: the
+    // render cannot hold it (review 3: only the tracks whose sound reaches it were asked).
+    if let Some(t) = p
+        .tracks
+        .iter()
+        .filter(|t| r.tracks.contains(&t.id))
+        .find(|t| live_input(t))
+    {
+        return Err(tf("bounce.live_input", &[("name", &t.name)]));
+    }
     // The tracks whose sound reaches the strip (not its keys' nor its note sources').
     let upstream = audio_upstream(p, strip);
     let reaching = |t: &&Track| t.strip.is_some_and(|s| upstream.contains(&s));
-    if let Some(t) = p.tracks.iter().filter(reaching).find(|t| live_input(t)) {
-        return Err(tf("bounce.live_input", &[("name", &t.name)]));
-    }
     // Placed after the first of them that sounds.
     let track = p
         .tracks
@@ -290,13 +297,66 @@ fn notes_refusal(p: &Project, plan: &Plan) -> Option<String> {
     Some(tf("bounce.notes_heard", &[("name", &name)]))
 }
 
+/// A live input among what the render of a track's bounce hears (a key's track, a note
+/// source): it cannot hold it (review 3).
+fn live_region_refusal(p: &Project, plan: &Plan) -> Option<String> {
+    let r = region_of(p, plan)?;
+    let t = p
+        .tracks
+        .iter()
+        .filter(|t| t.id != plan.track && r.tracks.contains(&t.id))
+        .find(|t| live_input(t))?;
+    Some(tf("bounce.live_input", &[("name", &t.name)]))
+}
+
+/// The comp seams of `track` (ADR 0058): each seam's crossfade stretch (the seam ± its
+/// crossfade) and the windows on either side.
+fn seams_of(p: &Project, track: &Track) -> Vec<(Ticks, Ticks, ClipId, ClipId)> {
+    let held = cantus_core::warp::held_tempo(p);
+    let plays = |c: &&cantus_core::Clip| !c.muted && cantus_core::comp::seam_window(c, held);
+    let mut out = Vec::new();
+    for right in track.clips.iter().filter(plays) {
+        let x = right
+            .audio
+            .as_ref()
+            .map_or(Ticks::ZERO, |a| a.xfade.min(cantus_core::audio::MAX_XFADE));
+        if x <= Ticks::ZERO {
+            continue;
+        }
+        if let Some(left) = track
+            .clips
+            .iter()
+            .filter(plays)
+            .find(|l| cantus_core::comp::is_seam(l, right, held))
+        {
+            out.push((right.start - x, right.start + x, left.id, right.id));
+        }
+    }
+    out
+}
+
+/// A bounce of chosen clips that takes one window of a comp seam and not the other: its
+/// crossfade would become a cut (review 3).
+fn seam_refusal(p: &Project, plan: &Plan) -> Option<String> {
+    let Range::Clips(ids) = &plan.range else {
+        return None;
+    };
+    let t = p.track(plan.track)?;
+    seams_of(p, t)
+        .iter()
+        .any(|(_, _, l, r)| ids.contains(l) != ids.contains(r))
+        .then(|| tf("bounce.seam", &[("name", &t.name)]))
+}
+
 /// Why `plan` cannot be bounced now, if it cannot.
 fn plan_refusal(app: &CantusApp, plan: &Plan) -> Option<String> {
     match plan.through {
         Through::Strip(s) => strip_plan(app, s).err(),
         _ => refusal(app, plan.track)
             .or_else(|| key_refusal(app.project(), plan))
-            .or_else(|| notes_refusal(app.project(), plan)),
+            .or_else(|| notes_refusal(app.project(), plan))
+            .or_else(|| live_region_refusal(app.project(), plan))
+            .or_else(|| seam_refusal(app.project(), plan)),
     }
 }
 
@@ -369,6 +429,24 @@ fn held_edges(p: &Project, track: TrackId, a: Ticks, b: Ticks) -> (Ticks, Ticks)
     }
 }
 
+/// A time selection's edges moved out past the comp seams' crossfades straddling them.
+fn seam_edges(p: &Project, track: TrackId, a: Ticks, b: Ticks) -> (Ticks, Ticks) {
+    let Some(t) = p.track(track) else {
+        return (a, b);
+    };
+    let seams = seams_of(p, t);
+    let (mut a, mut b) = (a, b);
+    for (lo, hi, ..) in &seams {
+        if *lo < a && a < *hi {
+            a = *lo;
+        }
+        if *lo < b && b < *hi {
+            b = *hi;
+        }
+    }
+    (a.max(Ticks::ZERO), b)
+}
+
 /// Begin a bounce's render (on a worker).
 pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Job>, String> {
     if let Some(why) = plan_refusal(app, &plan) {
@@ -399,6 +477,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
     let (start, end, edges) = match &plan.range {
         Range::Time(a, b) => {
             let (a, b) = held_edges(&project, plan.track, *a, *b);
+            // And out past a comp seam's crossfade straddling an edge: never cut inside
+            // one (review 3: the crossfade became a butt splice).
+            let (a, b) = seam_edges(&project, plan.track, a, b);
             (a, b, Some((a, b)))
         }
         _ => {
@@ -430,6 +511,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
         }
         None => {}
     }
+    // Before its strip's other inputs are taken out of the render: how late they make
+    // what enters its chain live (review 3).
+    let planning = alone.clone();
     let (keep, point) = match (plan.through, orig.strip) {
         (Through::Strip(s), _) => (
             whole.clone().unwrap_or_default(),
@@ -467,7 +551,8 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             ),
         ),
     };
-    // A file it plays not there: no bounce of silence (review 2); one back, tried again.
+    // A file it plays not there: no bounce of silence (review 2); one back, tried again —
+    // the render's compile waits for it (review 3).
     if let Some(file) = crate::freeze::missing_file(app, &keep) {
         return Err(tf("freeze.file_missing", &[("file", &file)]));
     }
@@ -477,20 +562,30 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
     app.say_late(late);
     let mut snap = (*compiled).clone();
     freeze::isolate(&mut snap, &keep);
+    // A file there but not read (undecodable, locked): no bounce of silence either
+    // (review 3: only freezes looked at the compiled render).
+    if let Some(file) = cantus_engine::freeze::render::missing_file(&snap) {
+        return Err(tf("freeze.file_missing", &[("file", &file)]));
+    }
     let rate = app.engine.sample_rate.round() as u32;
     // Played from tick 0, as the song plays (review 2: a free LFO's phase).
-    let opts = TapOptions::bounce(rate, start, end);
-    // How late what it replaces is heard now — its strip's fader, or its track's level —
-    // which the new track keeps (review 2): its rides and keys meet the audio as before.
-    let meters = app.engine.meters();
-    let live_late = match (plan.through, orig.strip) {
-        (Through::Strip(s), _) | (Through::Inserts, Some(s)) => project
-            .strip_index(s)
-            .map_or(0, |i| meters.strip_late.get(i).copied().unwrap_or(0)),
-        _ => project
-            .track_index(plan.track)
-            .map_or(0, |i| meters.track_late.get(i).copied().unwrap_or(0)),
-    } as usize;
+    let mut opts = TapOptions::bounce(rate, start, end);
+    // Through a strip's inserts: what enters its chain waits as long as its other inputs
+    // — left out of the render — made it wait live, planned on the whole song as the
+    // session runs it (review 3: the live meters said it, zero without a device and the
+    // monitoring mode's, and the wait was added after the chain).
+    if let (Through::Inserts, Some(s)) = (plan.through, orig.strip) {
+        let planned = app.engine.compile_for_render(&planning, 0);
+        let mut whole = (*planned).clone();
+        freeze::isolate(
+            &mut whole,
+            &freeze::region(&planning, FreezeTarget::Strip(s)),
+        );
+        let (fx, inst) = app.plugins.latencies();
+        if let Some(i) = planning.strip_index(s) {
+            opts.arrive = cantus_engine::freeze::render::strip_arrival(&whole, i, rate, &fx, &inst);
+        }
+    }
 
     let dir = app.audio_record_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
@@ -498,7 +593,7 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
         Through::Strip(s) => crate::freeze::name_of(&project, FreezeTarget::Strip(s)),
         _ => orig.name.clone(),
     };
-    let (units, insts) = crate::freeze::units_for(app, &alone, &snap, keep.whole, false)?;
+    let (units, insts, _) = crate::freeze::units_for(app, &alone, &snap, keep.whole, false)?;
     let wav = unique(&dir, &label);
     // Written under a name of its own and renamed when whole: a render cut short leaves
     // no file that looks like a bounce (review 1).
@@ -517,14 +612,9 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             if tapped.frames == 0 {
                 return Err(cantus_engine::render::RenderError::Empty);
             }
-            // Its file arrives as late as what it replaces is heard live (silence in
-            // front when the live plan waits for more than the render's did).
-            let pad = live_late.saturating_sub(tapped.latency);
-            late.store(
-                (tapped.latency + pad) as u64,
-                std::sync::atomic::Ordering::Release,
-            );
-            cantus_engine::freeze::render::write_wav_padded(&tapped, &part, pad, &p)?;
+            // Its file on the grid; the latency it was heard with kept by its new track.
+            late.store(tapped.latency as u64, std::sync::atomic::Ordering::Release);
+            cantus_engine::freeze::render::write_wav(&tapped, &part, &p)?;
             std::fs::rename(&part, &out).map_err(|e| {
                 let _ = std::fs::remove_file(&part);
                 cantus_engine::render::RenderError::Wav(hound::Error::IoError(e))
@@ -738,6 +828,7 @@ fn carry(
             }
         }
     }
+    let mut copies: Vec<(ModulatorId, ModulatorId)> = Vec::new();
     for (from, m) in p.all_modulators() {
         let routes: Vec<_> = m
             .routes
@@ -753,11 +844,69 @@ fn carry(
             continue;
         }
         let id = ModulatorId(app.bus.alloc_id());
+        copies.push((m.id, id));
         out.push(Command::InsertModulator {
             host,
             index: 0,
             modulator: Box::new(carried(p, from, m, id, routes, swap.strip)),
         });
+    }
+    out.extend(amounts(app, p, &copies, onto, host, swap.strip));
+    out
+}
+
+/// What drives the amount of each modulator copied (`old` → `new`) drives the copy's too:
+/// its lanes copied onto `onto`, the modulators driving it copied onto `host` (review 3:
+/// the copies ran at a fixed depth).
+fn amounts(
+    app: &mut CantusApp,
+    p: &Project,
+    copies: &[(ModulatorId, ModulatorId)],
+    onto: TrackId,
+    host: ModHost,
+    strip: Option<(StripId, StripId)>,
+) -> Vec<Command> {
+    let mut out = Vec::new();
+    for (old, new) in copies {
+        for t in &p.tracks {
+            for c in &t.clips {
+                if c.automation
+                    .as_ref()
+                    .is_some_and(|a| a.target == AutoTarget::ModAmount(*old))
+                {
+                    let mut copy = c.clone();
+                    copy.id = ClipId(app.bus.alloc_id());
+                    copy.link = None;
+                    if let Some(a) = copy.automation.as_mut() {
+                        a.target = AutoTarget::ModAmount(*new);
+                    }
+                    out.push(Command::InsertClip {
+                        track: onto,
+                        clip: Box::new(copy),
+                    });
+                }
+            }
+        }
+        for (from, d) in p.all_modulators() {
+            let routes: Vec<_> = d
+                .routes
+                .iter()
+                .filter(|r| r.target == AutoTarget::ModAmount(*old))
+                .map(|r| cantus_core::ModRoute {
+                    target: AutoTarget::ModAmount(*new),
+                    ..r.clone()
+                })
+                .collect();
+            if routes.is_empty() {
+                continue;
+            }
+            let id = ModulatorId(app.bus.alloc_id());
+            out.push(Command::InsertModulator {
+                host,
+                index: 0,
+                modulator: Box::new(carried(p, from, d, id, routes, strip)),
+            });
+        }
     }
     out
 }
@@ -794,9 +943,19 @@ fn rescue(app: &mut CantusApp, p: &Project, orig: TrackId, onto: TrackId) -> Vec
         _ => false,
     };
     let mut out = Vec::new();
+    let mut copies: Vec<(ModulatorId, ModulatorId)> = Vec::new();
+    // What rides a rescued modulator's amount is copied to ride the copy's (`amounts`),
+    // not moved: its old target goes with the original.
+    let rides_amount = |a: &cantus_core::automation::Automation| {
+        matches!(a.target, AutoTarget::ModAmount(m)
+            if p.all_modulators().any(|(h, x)| h == ModHost::Track(orig) && x.id == m))
+    };
     if let Some(t) = p.track(orig) {
         for c in &t.clips {
-            if c.automation.as_ref().is_some_and(|a| !own(&a.target)) {
+            if c.automation
+                .as_ref()
+                .is_some_and(|a| !own(&a.target) && !rides_amount(a))
+            {
                 out.push(Command::MoveClipToTrack {
                     from: orig,
                     to: onto,
@@ -819,12 +978,14 @@ fn rescue(app: &mut CantusApp, p: &Project, orig: TrackId, onto: TrackId) -> Vec
             continue;
         }
         let id = ModulatorId(app.bus.alloc_id());
+        copies.push((m.id, id));
         out.push(Command::InsertModulator {
             host: ModHost::Track(onto),
             index: 0,
             modulator: Box::new(carried(p, from, m, id, routes, None)),
         });
     }
+    out.extend(amounts(app, p, &copies, onto, ModHost::Track(onto), None));
     out
 }
 
@@ -832,6 +993,13 @@ fn rescue(app: &mut CantusApp, p: &Project, orig: TrackId, onto: TrackId) -> Vec
 /// from; made again otherwise (review 1).
 pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
     let plan = prepared.plan.clone();
+    // What refused it at its start, asked again: a solo, a note listener, a key added while
+    // it rendered (review 3: a solo set meanwhile silenced the song).
+    if let Some(why) = plan_refusal(app, &plan) {
+        let _ = std::fs::remove_file(&wav);
+        app.set_error(why);
+        return;
+    }
     // Made again only when what it renders changed meanwhile (review 2: any edit anywhere
     // did, and a long bounce never landed while the user worked).
     if depends(app.project(), &plan).as_deref() != Some(prepared.depends.as_str()) {
@@ -910,13 +1078,15 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
     // A track's solo goes with it; a whole strip's bounce takes only the strip's own (no
     // track inside it can be soloed: refused — review 2).
     track.soloed = orig.soloed && whole.is_none();
-    // It keeps the latency what it replaces had (review 2).
+    // It keeps, as a delay before its level, the latency what it replaces was heard with
+    // (review 2, 3): its level, fader, sends and keys meet the audio as before.
     let late = prepared.latency.load(std::sync::atomic::Ordering::Acquire);
     if late > 0 {
         track.lateness = Some(cantus_core::Lateness {
             frames: late,
             rate: prepared.rate,
-        });
+        })
+        .filter(|l| l.is_valid());
     }
     let through_strip = match (plan.through, orig.strip) {
         (Through::Strip(s), _) => Some(s),

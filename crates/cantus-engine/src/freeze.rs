@@ -195,6 +195,10 @@ pub struct FrozenStore {
     /// Render keys kept open even while no snapshot plays them (the project's frozen
     /// targets, in pattern mode): going back to them reopens nothing (review 3).
     held: Vec<String>,
+    /// Folders looked in, never written to: a project's folder before a *Save as* (its
+    /// renders copied over in the background), the shared folder of an older layout
+    /// (review 3).
+    also: Vec<PathBuf>,
 }
 
 /// A file's modification time.
@@ -223,6 +227,22 @@ impl FrozenStore {
         self.app_dir.as_deref()
     }
 
+    /// Folders to look in as well, never written to (review 3).
+    pub fn set_also(&mut self, dirs: Vec<PathBuf>) {
+        if self.also != dirs {
+            self.also = dirs;
+            self.forget_missing();
+        }
+    }
+
+    /// The folders looked in, the one written to first.
+    fn dirs(&self) -> impl Iterator<Item = &Path> {
+        [self.project_dir.as_deref(), self.app_dir.as_deref()]
+            .into_iter()
+            .flatten()
+            .chain(self.also.iter().map(PathBuf::as_path))
+    }
+
     pub fn project_dir(&self) -> Option<&Path> {
         self.project_dir.as_deref()
     }
@@ -240,11 +260,7 @@ impl FrozenStore {
     /// Where the render of `content` at `rate` is, if anywhere.
     pub fn path_of(&self, content: &str, rate: u32) -> Option<PathBuf> {
         let name = file_name(&render_key(content, rate));
-        [self.project_dir.as_deref(), self.app_dir.as_deref()]
-            .into_iter()
-            .flatten()
-            .map(|d| d.join(&name))
-            .find(|p| p.is_file())
+        self.dirs().map(|d| d.join(&name)).find(|p| p.is_file())
     }
 
     /// The render of `content` at `rate`, opened (once), or `None` when it is not there
@@ -397,10 +413,7 @@ impl FrozenStore {
     /// folder to its size: `cantus_ui::freeze::prune`).
     pub fn files(&self) -> Vec<PathBuf> {
         let mut out = Vec::new();
-        for d in [self.project_dir.as_deref(), self.app_dir.as_deref()]
-            .into_iter()
-            .flatten()
-        {
+        for d in self.dirs() {
             if let Ok(rd) = std::fs::read_dir(d) {
                 out.extend(
                     rd.flatten()

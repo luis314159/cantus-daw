@@ -273,6 +273,7 @@ fn a_recovered_loop_pass_wraps_where_the_engine_would_have() {
         tempo_points: vec![],
         sample_rate: 48_000,
         latency_frames: 0,
+        marked_wraps: Vec::new(),
         takes: vec![],
         finished: false,
     };
