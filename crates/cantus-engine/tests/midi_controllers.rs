@@ -6,7 +6,7 @@
 use cantus_core::controller::Control;
 use cantus_core::*;
 use cantus_engine::inst::{self as einst, Controller, InstrumentUnit, NoteExpression, NoteOn};
-use cantus_engine::midi::{route, FilterSet, Heard, MidiTap};
+use cantus_engine::midi::{route, FilterSet, Heard, MidiTap, PortState};
 use cantus_engine::{EngineEvent, EngineMessage, MidiEvent, MidiSender, NativeUnit, Processor};
 use rtrb::RingBuffer;
 
@@ -80,6 +80,7 @@ struct Rig {
     tap: MidiTap,
     ui: rtrb::Producer<Heard>,
     heard: rtrb::Consumer<Heard>,
+    held: PortState,
     track: TrackId,
 }
 
@@ -120,6 +121,7 @@ impl Rig {
             tap: MidiTap::default(),
             ui,
             heard,
+            held: PortState::default(),
             track,
         }
     }
@@ -131,7 +133,7 @@ impl Rig {
             data1,
             data2,
         };
-        route(ev, 0, &self.tap, &self.sender, &mut self.ui);
+        route(ev, 0, &self.tap, &self.sender, &mut self.ui, &mut self.held);
     }
 
     /// Run a few blocks and tell what the instrument heard.
@@ -197,4 +199,21 @@ fn pressure_and_program_change_reach_the_live_instrument() {
     // Key pressure on a key not held names no note.
     rig.hardware(0xA0, 61, 10);
     assert_eq!(rig.ear()[3], 1.0);
+}
+
+/// Review 1, #38: a chord held when a control starts to be learnt is still released: no
+/// stuck notes.
+#[test]
+fn learning_never_leaves_a_note_stuck() {
+    let mut rig = Rig::new();
+    rig.hardware(0x90, 60, 100);
+    rig.hardware(0x90, 64, 100);
+    assert_eq!(rig.ear()[0], 2.0);
+    rig.tap.filter().set_learning(true);
+    rig.hardware(0x80, 60, 0);
+    rig.hardware(0x90, 64, 0);
+    assert_eq!(rig.ear()[0], 0.0, "both released");
+    // While learning, a new key plays nothing (it is the control being learnt).
+    rig.hardware(0x90, 67, 100);
+    assert_eq!(rig.ear()[0], 0.0);
 }

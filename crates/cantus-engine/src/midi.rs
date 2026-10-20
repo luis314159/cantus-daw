@@ -227,10 +227,24 @@ type Wake = Arc<dyn Fn() + Send + Sync>;
 
 struct TapShared {
     filter: MidiFilter,
-    /// What wakes the interface (set at boot: egui's repaint).
-    wake: Option<Wake>,
+    /// The thread that wakes the interface (set at boot: egui's repaint). The callbacks
+    /// only unpark it — egui's repaint takes the context's lock, which the interface holds
+    /// for a whole frame's tessellation, and a MIDI callback must never wait on that
+    /// (review 1, #13).
+    waker: Option<std::thread::Thread>,
+    /// Tells the waker thread to end (the tap dropped).
+    stop: Arc<AtomicBool>,
     /// A wake is on its way and the interface has not drained yet: no other is sent.
     pending: AtomicBool,
+}
+
+impl Drop for TapShared {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+        if let Some(t) = &self.waker {
+            t.unpark();
+        }
+    }
 }
 
 /// The controller tap's shared half: the filter and the interface's wake. Cloned into
@@ -244,7 +258,7 @@ pub struct MidiTap {
 impl std::fmt::Debug for MidiTap {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("MidiTap")
-            .field("wake", &self.shared.wake.is_some())
+            .field("wake", &self.shared.waker.is_some())
             .finish()
     }
 }
@@ -257,10 +271,26 @@ impl Default for MidiTap {
 
 impl MidiTap {
     pub fn new(wake: Option<Wake>) -> MidiTap {
+        let stop = Arc::new(AtomicBool::new(false));
+        let waker = wake.and_then(|w| {
+            let stop = stop.clone();
+            std::thread::Builder::new()
+                .name("cantus-midi-waker".into())
+                .spawn(move || loop {
+                    std::thread::park();
+                    if stop.load(Ordering::Acquire) {
+                        break;
+                    }
+                    w();
+                })
+                .ok()
+                .map(|h| h.thread().clone())
+        });
         MidiTap {
             shared: Arc::new(TapShared {
                 filter: MidiFilter::default(),
-                wake,
+                waker,
+                stop,
                 pending: AtomicBool::new(false),
             }),
         }
@@ -272,7 +302,7 @@ impl MidiTap {
 
     /// Whether something wakes the interface (the boot path sets it).
     pub fn wakes(&self) -> bool {
-        self.shared.wake.is_some()
+        self.shared.waker.is_some()
     }
 
     /// Whether `other` is this tap (a clone of it).
@@ -281,10 +311,11 @@ impl MidiTap {
     }
 
     /// Wake the interface, once until it drains.
+    /// Lock-free: a flag and an unpark (no lock the interface holds, no allocation).
     fn wake(&self) {
         if !self.shared.pending.swap(true, Ordering::AcqRel) {
-            if let Some(w) = &self.shared.wake {
-                w();
+            if let Some(t) = &self.shared.waker {
+                t.unpark();
             }
         }
     }
@@ -295,19 +326,70 @@ impl MidiTap {
     }
 }
 
+/// What the engine holds from one port: the keys it got a note-on for and has not been
+/// released, and whether its sustain pedal is down, per channel. Kept by the port's
+/// callback (one thread: no lock), so a release is never swallowed — learning starts, or a
+/// mapping is published, while a key or the pedal is held (review 1, #12).
+#[derive(Clone, Debug, Default)]
+pub struct PortState {
+    notes: [[u64; 2]; 16],
+    pedal: [bool; 16],
+}
+
+impl PortState {
+    fn bit(note: u8) -> (usize, u64) {
+        let n = note & 0x7F;
+        (usize::from(n / 64), 1 << (n % 64))
+    }
+
+    /// Whether the engine holds `note` on `channel`.
+    pub fn holds(&self, channel: u8, note: u8) -> bool {
+        let (w, b) = Self::bit(note);
+        self.notes[usize::from(channel & 15)][w] & b != 0
+    }
+
+    /// What the engine got: a key down or up, the pedal down or up.
+    fn sent(&mut self, ev: &MidiEvent) {
+        let ch = usize::from(ev.status & 15);
+        let (w, b) = Self::bit(ev.data1);
+        match ev.status & 0xF0 {
+            0x90 if ev.data2 > 0 => self.notes[ch][w] |= b,
+            0x80 | 0x90 => self.notes[ch][w] &= !b,
+            0xB0 if ev.data1 == 64 => self.pedal[ch] = ev.data2 >= 64,
+            // All notes off, all sound off: nothing held any more.
+            0xB0 if ev.data1 == 120 || ev.data1 == 123 => self.notes[ch] = [0; 2],
+            _ => {}
+        }
+    }
+
+    /// Whether `ev` releases something the engine holds (a key, the pedal).
+    fn releases(&self, ev: &MidiEvent) -> bool {
+        let ch = usize::from(ev.status & 15);
+        match ev.status & 0xF0 {
+            0x80 => self.holds(ev.status & 15, ev.data1),
+            0x90 if ev.data2 == 0 => self.holds(ev.status & 15, ev.data1),
+            0xB0 => ev.data1 == 64 && ev.data2 < 64 && self.pedal[ch],
+            _ => false,
+        }
+    }
+}
+
 /// One message from port `port`: teed to the interface's ring when the map takes it or a
-/// control is being learnt, and sent to the engine unless the map took it. Returns whether
+/// control is being learnt, and sent to the engine unless the map took it — but a release
+/// of a key or of the pedal the engine holds always reaches it (`state`). Returns whether
 /// the engine got it. What every port's callback runs (and what the tests drive).
+/// Lock-free and allocation-free but for the engine's own ring (the sender's mutex,
+/// contended only by the other ports' callbacks).
 pub fn route(
     ev: MidiEvent,
     port: usize,
     tap: &MidiTap,
     engine: &MidiSender,
     ui: &mut Producer<Heard>,
+    state: &mut PortState,
 ) -> bool {
     let consumed = tap.filter().learning() || tap.filter().takes(port, &ev);
     if consumed {
-        engine.count();
         // A full ring drops the message: the interface is not draining (it is closing).
         let _ = ui.push(Heard {
             port: port.min(u8::MAX as usize) as u8,
@@ -315,14 +397,20 @@ pub fn route(
             at: Instant::now(),
         });
         tap.wake();
+        if state.releases(&ev) {
+            state.sent(&ev);
+            return engine.send(ev);
+        }
+        engine.count();
         false
     } else {
+        state.sent(&ev);
         engine.send(ev)
     }
 }
 
 pub struct MidiInputs {
-    _connections: Vec<MidiInputConnection<()>>,
+    _connections: Vec<MidiInputConnection<PortState>>,
     pub names: Vec<String>,
     /// Each open port's tap ring, in the order of `names` (round 29, ADR 0062).
     taps: Vec<Consumer<Heard>>,
@@ -389,12 +477,12 @@ impl MidiInputs {
             match input.connect(
                 &port,
                 "cantus-in",
-                move |_stamp, bytes, _| {
+                move |_stamp, bytes, held: &mut PortState| {
                     if let Some(ev) = parse(bytes) {
-                        route(ev, index, &tap2, &tx, &mut ui);
+                        route(ev, index, &tap2, &tx, &mut ui, held);
                     }
                 },
-                (),
+                PortState::default(),
             ) {
                 Ok(c) => {
                     log::info!("midi: opened input {name}");
@@ -652,25 +740,115 @@ mod tests {
         let (p, mut engine) = RingBuffer::<MidiEvent>::new(16);
         let sender = MidiSender::new(p);
         let (mut ui, mut heard) = RingBuffer::<Heard>::new(16);
-        assert!(!route(ev(0xB0, 74, 3), 0, &tap, &sender, &mut ui));
-        assert!(!route(ev(0xB0, 74, 4), 0, &tap, &sender, &mut ui));
-        assert!(route(ev(0xB0, 1, 99), 0, &tap, &sender, &mut ui));
+        let mut held = PortState::default();
+        assert!(!route(
+            ev(0xB0, 74, 3),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
+        assert!(!route(
+            ev(0xB0, 74, 4),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
+        assert!(route(ev(0xB0, 1, 99), 0, &tap, &sender, &mut ui, &mut held));
         assert_eq!(engine.pop().unwrap(), ev(0xB0, 1, 99));
         assert!(engine.pop().is_err());
         assert_eq!(heard.pop().unwrap().event, ev(0xB0, 74, 3));
         assert_eq!(heard.pop().unwrap().event, ev(0xB0, 74, 4));
         assert!(heard.pop().is_err());
+        settle(&wakes, 1);
         assert_eq!(wakes.load(Ordering::Relaxed), 1, "one wake until it drains");
         assert_eq!(sender.received(), 3, "the lamp counts the mapped ones too");
         tap.rearm();
         tap.filter().set_learning(true);
-        assert!(!route(ev(0x90, 60, 100), 0, &tap, &sender, &mut ui));
+        assert!(!route(
+            ev(0x90, 60, 100),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
         assert_eq!(heard.pop().unwrap().event, ev(0x90, 60, 100));
         assert!(
             engine.pop().is_err(),
             "a learnt control does not play meanwhile"
         );
+        settle(&wakes, 2);
         assert_eq!(wakes.load(Ordering::Relaxed), 2);
+    }
+
+    /// The waker thread runs the wake: wait for it (a second at most).
+    fn settle(wakes: &AtomicU64, n: u64) {
+        let t = Instant::now();
+        while wakes.load(Ordering::Relaxed) < n && t.elapsed().as_secs() < 1 {
+            std::thread::yield_now();
+        }
+    }
+
+    /// Review 1, #12: a key or the pedal the engine holds is released in the engine even
+    /// when learning starts, or a mapping takes the key, while it is held.
+    #[test]
+    fn a_held_key_or_pedal_is_released_whatever_the_filter_says() {
+        let tap = MidiTap::default();
+        let (p, mut engine) = RingBuffer::<MidiEvent>::new(16);
+        let sender = MidiSender::new(p);
+        let (mut ui, mut heard) = RingBuffer::<Heard>::new(16);
+        let mut held = PortState::default();
+        assert!(route(
+            ev(0x90, 60, 100),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
+        assert!(route(
+            ev(0xB0, 64, 127),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
+        assert!(held.holds(0, 60));
+        tap.filter().set_learning(true);
+        assert!(route(ev(0x80, 60, 0), 0, &tap, &sender, &mut ui, &mut held));
+        assert!(route(ev(0xB0, 64, 0), 0, &tap, &sender, &mut ui, &mut held));
+        assert!(!held.holds(0, 60));
+        // A release of what the engine never got stays with the interface.
+        assert!(!route(
+            ev(0x80, 61, 0),
+            0,
+            &tap,
+            &sender,
+            &mut ui,
+            &mut held
+        ));
+        let got: Vec<MidiEvent> = std::iter::from_fn(|| engine.pop().ok()).collect();
+        assert_eq!(
+            got,
+            [
+                ev(0x90, 60, 100),
+                ev(0xB0, 64, 127),
+                ev(0x80, 60, 0),
+                ev(0xB0, 64, 0)
+            ]
+        );
+        // The interface heard the releases too.
+        assert_eq!(std::iter::from_fn(|| heard.pop().ok()).count(), 3);
+        // A note-on at velocity 0 is a release too.
+        tap.filter().set_learning(false);
+        route(ev(0x91, 50, 90), 0, &tap, &sender, &mut ui, &mut held);
+        tap.filter().set_learning(true);
+        assert!(route(ev(0x91, 50, 0), 0, &tap, &sender, &mut ui, &mut held));
     }
 
     #[test]

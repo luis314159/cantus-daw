@@ -1105,3 +1105,41 @@ fn live_pressure_and_program_changes_never_allocate() {
         rig.allocations
     );
 }
+
+/// Review 1 of ADR 0062, #13: what a MIDI port's callback runs for a mapped message — the
+/// filter, the interface's ring, the wake (a flag and an unpark: never egui's lock) — and
+/// for a release it must still hand the engine: not one allocation.
+#[test]
+fn the_midi_callback_never_allocates() {
+    use cantus_engine::midi::{route, FilterSet, Heard, MidiTap, PortState};
+    let woken = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let w = woken.clone();
+    let tap = MidiTap::new(Some(std::sync::Arc::new(move || {
+        w.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    })));
+    let mut set = FilterSet::default();
+    set.take(0, None, cantus_core::controller::Control::Cc(74));
+    tap.filter().publish(&set);
+    let (p, mut engine) = rtrb::RingBuffer::<cantus_engine::MidiEvent>::new(256);
+    let sender = cantus_engine::MidiSender::new(p);
+    let (mut ui, mut heard) = rtrb::RingBuffer::<Heard>::new(256);
+    let mut held = PortState::default();
+    let ev = |status: u8, data1: u8, data2: u8| cantus_engine::MidiEvent {
+        status,
+        data1,
+        data2,
+    };
+    for i in 0..50u8 {
+        let ((), n) = armed(|| {
+            route(ev(0xB0, 74, i), 0, &tap, &sender, &mut ui, &mut held);
+            route(ev(0x90, 60, 100), 0, &tap, &sender, &mut ui, &mut held);
+            tap.filter().set_learning(true);
+            route(ev(0x80, 60, 0), 0, &tap, &sender, &mut ui, &mut held);
+            tap.filter().set_learning(false);
+        });
+        assert_eq!(n, 0, "the callback allocated");
+        while engine.pop().is_ok() {}
+        while heard.pop().is_ok() {}
+        tap.rearm();
+    }
+}
