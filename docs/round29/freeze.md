@@ -64,7 +64,11 @@ they were played, to the frame (the second was the EQ's latency off without the 
 bounce through a linear-phase EQ with a fader ride and a key carried plays the song to the
 bit in Inserts and Strip modes (trimmed, the ride landed the EQ's latency early); a time
 range through the inserts within −120 dB (was −60 dB: the transport stopped at its end).
-No golden moved; `DSP_VERSION` unchanged.
+Review 3: with the bounce's file on the grid and the delay on the track, the song plays to
+the bit as before, and the bounced clip moved or pasted to a plain track plays the song to
+the bit too (it was the EQ's latency late); through DAWproject and back within 1e-4 of the
+song; a frozen strip's note source running for its notes only plays 0 voices over 300
+blocks. No golden moved; `DSP_VERSION` unchanged.
 
 ## Tests and what each holds
 
@@ -270,10 +274,135 @@ A mistake to own: while stopping a sabotage run that had gone wrong mid-review, 
 ended another builder's cargo at that moment; later runs were stopped through their own
 tasks only.
 
+## Review 3 — the fixes (55 confirmed: 10 high, 25 medium, 20 low)
+
+`F:\projects\daw-r29\reviews\freeze-3.json`, merged with `r29/integration` at dd71793 first
+(warp's second review, schema 39 `WarpMarker::auto`; mine stays 38). Many findings are one
+defect seen through several lenses (the lateness five times, the shared folder five, solo
+five): the row says *as #n*. Every test was seen failing with its fix taken out — the fix
+sabotaged in place, the tests run, the source restored (`sab3_*.py`, results below the
+table) — but where a row says otherwise. *core*, *engine*, *ll*, *ui*, *rec*, *recovery*,
+*sandbox*, *project* name `cantus-core/tests/freeze.rs`,
+`cantus-engine/tests/{freeze,low_latency}.rs`, `cantus-ui/tests/{freeze,rec_pass,
+recovery_flows}.rs`, `cantus-sandbox/tests/freeze.rs` and `cantus-project`'s tests.
+
+**The lateness, as the integrator directed** (#1, #8, #19, #24, #34, #40, #48): the audio
+on the grid, the delay on the track. The bounce's file is trimmed to the grid
+(`TapOptions::bounce`); `Track::lateness` (schema 38 kept, reworked in place — the field
+and the fixtures v38/v39 are unchanged, only what the engine does with it) is now a real
+delay line before the track's level (`pdc::Edge::Source`, `TrackSlot::source_line`),
+reported in the track's latency and compensated as any other, a monitored input joining
+after it. So every path agrees: the bounced clip moved, copied, pasted, linked or exported
+(DAWproject has no delay) plays on the grid; a take recorded, imported or drawn on the
+bounced track is delayed with everything the track holds, and compensated; a track stem is
+trimmed by its track's latency. The inspector shows the delay with *Clear*
+(`SetTrackLateness`, locked as the track's source).
+
+| # | Sev | Finding | Fix | Test |
+|---|---|---|---|---|
+| 0 | H | Saving pruned the renders of every project in the same folder | A folder of renders per project, `Freeze/<file name>` (`project_dir`); the old shared folder is looked in, never pruned (`shared_dir`) | ui `saving_one_project_keeps_the_renders_of_another_beside_it`, `the_renders_folder_follows_the_project_before_its_first_compile` |
+| 1 | H | `Track::lateness` on the track, the late frames in the clip's file | The file trimmed to the grid, the delay a source line before the track's level (see above) | engine `a_track_delay_plays_its_source_late_and_the_mix_on_the_grid`; ui `a_bounced_clip_moved_to_a_track_of_its_own_plays_on_the_grid`, `a_bounced_clip_copied_and_pasted_on_a_plain_track_plays_on_the_grid`, `a_clip_put_on_a_bounced_track_plays_on_the_grid`, `a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere`, `a_bounce_through_a_latent_chain_keeps_the_song_to_the_bit`, `a_bounce_through_latency_keeps_its_rides_and_keys_in_time` |
+| 2 | H | The commit compared hosted states' bytes: a freeze of an automated plug-in never landed | The host counts edits from windows and browsers (`Hosted::edits`, `HostedInst::edits`, `PluginHost::edits_of`); `commit_freeze` compares the count at start and at landing | ui `a_freeze_lands_though_a_plug_ins_state_moved_without_an_edit`; sandbox `edits_count_what_windows_do_never_what_automation_does` |
+| 3 | M | Pruning missed undo inverses, a render landing, history renders on Save As | `keys_in` reads `InsertTrack`, `InsertStrip`, `ReplaceProject`, both sides of every step; `wanted_by_jobs`; every kept key copied | core `the_keys_an_undo_wants_include_removed_frozen_tracks_strips_and_projects`; ui `a_removed_frozen_track_saved_and_undone_finds_its_render` (as opened: the freeze not in the undo), `a_save_while_a_freeze_is_landing_keeps_its_render`, `saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame` |
+| 4 | M | `solo_play` woke regions silent anyway or only lending notes | Rewritten: the root asked first — silenced (not audible, or nothing audible bringing it sound) → `Silenced`; a frozen track not heard → `Render`; `Live` only when a track or strip whose sound reaches the render is silenced | core `an_unrelated_strip_solo_silences_a_frozen_bus_without_thawing_it`, `muting_a_keyed_frozen_strips_only_input_silences_it`, `a_note_source_silenced_by_a_solo_does_not_thaw_a_frozen_strip`, `a_frozen_track_silenced_by_a_solo_plays_its_render`; sandbox `a_solo_elsewhere_toggled_never_loads_a_frozen_strips_plug_in` |
+| 5 | M | A state of its own in a locked plug-in (no value moved) neither refused nor given back | `capture_changes` / `capture_instrument_changes` probe the lock: refused, given back, said; counted as an edit where nothing locks it; `load_for` / `load_instrument` load the project's state when locked, never a parked one | sandbox `a_state_of_its_own_in_a_locked_plug_in_is_given_back_and_said`, `a_locked_instruments_own_state_is_given_back_never_saved_never_rendered`, `a_locked_plug_in_comes_back_as_the_project_holds_it_not_as_it_was_parked`, `a_locked_instrument_comes_back_as_the_project_holds_it_not_as_it_was_parked` |
+| 6 | L | `missing_file` counted lanes that do not play | Only lane-0 unmuted clips and unmuted pads; `freeze.waits_for_file` said once | ui `a_take_on_a_lane_below_with_its_file_gone_does_not_stop_a_freeze` |
+| 7 | L | A wire for a bypassed missing plug-in kept under the true key after it was installed | The render notes its wires beside it (`<render>.wires`, the uninstalled plug-ins only); a scan makes it again once one is installed (`wired_since_installed`, `FrozenStore::forget`) | ui `a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_installed` |
+| 8 | H | As #1 (engine lens) | As #1 | As #1 |
+| 9 | M | As #4 (engine lens: own track muted on a keyed strip, unrelated solos) | As #4 | As #4 |
+| 10 | M | A heard-latency shift undone at the next loop wrap | The wrap carries the moves made so far (`RecordMark::Wrapped { shift }`, `FinishedTake::wrap_shifts`); passes placed by them (`record_pass`) | ll `a_loop_pass_after_a_heard_latency_move_lands_where_it_was_played`; rec `a_loop_pass_after_a_heard_latency_move_is_placed_by_it` |
+| 11 | M | One latency for a render whose region's latency moves | The render watches the tap's latency and the unserved lines: moved → `RenderError::LatencyMoved` (`freeze.latency_moves`); `serve` answers PDC and effect needs during the render | engine `a_latency_that_moves_during_the_song_is_no_render` |
+| 12 | M | As #0 (engine lens) | As #0 | As #0 |
+| 13 | M | No engine-side missing-file check for a bounce | `missing_file(&snap)` at the bounce's render start; the compile waits for background loads (#43) | ui `a_bounce_with_a_file_there_but_unreadable_is_refused` |
+| 14 | M | Track stems trimmed by nothing | Track stems trimmed by `track_latency(i)`; Direct stems summed after the lines (`StemTap::direct`) and trimmed by `master_arrival()` | engine `track_and_direct_stems_are_on_the_grid_with_a_kept_delay` (Track and Direct each sabotaged alone) |
+| 15 | L | Back from Live to the render dropped out | A live target keeps its render attached (`FrozenPlay::live`, `plays()` false); the slots' `parked` keep its board at the playhead | core `a_target_played_live_keeps_its_render_in_the_snapshot`; engine `a_solo_that_thaws_a_frozen_strip_while_it_plays_drops_nothing_when_lifted` |
+| 16 | L | One immediate retry of a read error, then failed for the session | `FROZEN_RETRIES` 0/50/200/1 000 ms; failed by io, the next scan looks again (`take_io_failed`), never makes it again; per-path fault injection | engine `a_read_error_that_outlasts_its_first_try_keeps_the_render_playing`, `a_read_error_that_outlasts_every_try_is_looked_at_again_not_made_again` |
+| 17 | L | A notes-only frozen track kept its board pinned | Notes-only releases the board (`processor_snap`: `stops` counts `notes_only`) | engine `a_frozen_track_that_runs_for_its_notes_only_lets_its_blocks_go` |
+| 18 | M | As #10 (low-latency lens) | As #10 | As #10; recovery `a_recovered_loop_pass_is_laid_by_the_wraps_the_engine_marked` |
+| 19 | M | As #1 (low-latency lens) | As #1 | As #1 |
+| 20 | L | The shift applied a round trip too early | The device round trip reaches the engine (`EngineMessage::SetDeviceRoundTrip`, sent from `sync_devices`); moves queue until the input that carries them (`due`, `take_due`) | ll `a_heard_latency_move_moves_a_take_only_once_the_musician_hears_it` |
+| 21 | L | The recovery journal placed a pass by the stats' latency | The journal keeps the engine's marked figures (`JournalPass::marked_wraps`, the start's latency; `journal_tick` writes them as they change); recovery uses them | recovery `the_journal_keeps_the_figures_the_engine_marked_for_the_pass`, `a_recovered_loop_pass_is_laid_by_the_wraps_the_engine_marked` |
+| 22 | L | The chip added the input's wait to the notes' way | `LowLatency::monitored_note_samples`; `monitored_figure` takes the slower of the audio way and the notes' way | ll `the_monitored_figures_of_an_input_and_of_notes_are_apart`; ui `the_chip_counts_the_input_only_for_an_audio_input` |
+| 23 | L | A bounce's kept latency depended on the monitoring mode | The arrival is planned on a planning processor of its own (`strip_arrival`), never the live one: no monitoring mode in it | By construction (#25's planning); not seen failing — no code path left to sabotage |
+| 24 | H | As #1 (bounce lens) | As #1 | As #1 |
+| 25 | M | An Inserts bounce added the compensation after the chain, from live meters | The arrival planned on the whole song before the render (`freeze::render::strip_arrival`: hosted latencies from `PluginHost::latencies`, `EffectUnit::latency_stand_in`, instrument hints) and waited **before** the chain (`TapOptions::arrive`, `Processor::set_arrive_floor`); `Meters::{strip_late, track_late}` and `write_wav_padded` removed | ui `a_bounce_through_inserts_waits_for_a_latent_co_input_before_the_chain` |
+| 26 | M | As #0 and #3 (bounce lens) | As #0, #3 | As #0, #3 |
+| 27 | M | As #4 (each toggle reloading plug-ins) | As #4 | As #4 (sandbox) |
+| 28 | L | Carried and rescued modulators lost what drives their amount | `amounts`: the `ModAmount` lanes copied onto the new host, the modulators driving them copied too; rescue skips moving lanes of rescued modulators twice | ui `what_drives_a_carried_modulators_amount_drives_its_copy` |
+| 29 | L | A clips or time-range bounce of a comp window lost its seam crossfade | Clips: one window of a seam pair without the other is refused (`seam_refusal`, `bounce.seam`); a time range's edges move out past the crossfades, iterated with the held notes to a fixed point (`seam_edges`) | ui `a_bounce_never_cuts_a_comp_seams_crossfade` (both cases) |
+| 30 | L | The live-input refusal looked only at tracks reaching the strip | `live_region_refusal` (key and note sources of a track bounce) and `strip_plan`'s check over every track of the region | ui `a_live_key_source_refuses_a_bounce_through_the_inserts_and_of_the_strip` |
+| 31 | H | `solo_play` thawed a strip the solo or mute had silenced | As #4: the root asked first | As #4 |
+| 32 | M | As #15 (realtime lens; pattern mode too) | As #15; pattern mode holds the renders in use (`FrozenStore::hold`, `held` keys) | As #15; ui `renders_stay_open_while_pattern_mode_plays_every_chain_live` |
+| 33 | M | As #0 and #3; Save As copied renders on the UI thread | As #0, #3; copies and prune on `cantus-freeze-save` (`copy_and_prune`, `.copy.part` renamed; `FreezeState::copying`; the store looks in the old folder meanwhile, `set_also`); no folder made when nothing to copy | ui `saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame` |
+| 34 | M | As #1 (realtime lens) | As #1 | As #1 |
+| 35 | L | As #20 (the move a round trip early) | As #20 | As #20 |
+| 36 | L | A refused edit reloaded the whole state per value event | Give-backs deferred to the end of the frame, and while the plug-in's gesture is open to its end (`give_back`, `inst_give_back`, `give_back_now`) | sandbox `a_drag_a_freeze_refuses_gives_back_once_at_its_end` |
+| 37 | L | `rt_memory` missed the new audio-thread paths | Phases: Render → Silenced → Live (render kept) → Render twice while playing; notes-only; rest with its handle; a kept delay; the mode switched and a latent insert removed while recording into rings (`SetDeviceRoundTrip`) | `rt_memory::{frozen_playback_never_allocates, low_latency_monitoring_never_allocates}`: an allocation put on each new path (the parked board, the source line, notes-only, a move falling due) was counted in its phase (`sab3_rt.py`) |
+| 38 | H | As #0 (reach lens) | As #0 | As #0 |
+| 39 | H | As #2 (reach lens) | As #2 | As #2 |
+| 40 | M | As #1 (reach lens) | As #1 | As #1 |
+| 41 | M | As #3 (a deleted frozen track's undo) | As #3 | As #3 |
+| 42 | M | A strip bounce committed without asking its refusals again | `plan_refusal` asked again at the bounce's commit | ui `a_solo_set_while_a_strip_bounce_renders_is_refused_at_its_end` |
+| 43 | M | A bounce's compile did not wait for a background reload | `SampleCache::wait_audio(patience)` in `compile_for_render` | engine `an_offline_compile_waits_for_the_audio_it_asked_for_in_the_background`; ui as #13 |
+| 44 | M | As #4 (reach lens) | As #4 | As #4 |
+| 45 | L | The clip menu's Bounce acted on a strip or the master chosen earlier | `clip_menu_opened` makes the clip the inspector's subject always | ui `the_clip_menus_bounce_takes_the_clip_right_clicked` (a bus with no track, so the clip stays selected — the review's case) |
+| 46 | L | `Track::lateness` unbounded from the file | `Lateness::is_valid` (8–768 kHz, ≤ 10 s), `at()` 0 for an invalid one, the engine clamps to `pdc::MAX_DELAY`; `InsertTrack` and `SetTrackLateness` refuse one; `Project::repair_lateness` on load (`LoadReport::lateness_repaired`, `freeze.lateness_repaired`) | core `a_track_delay_a_bounce_could_not_have_kept_is_refused_and_repaired`; project `an_out_of_range_track_delay_is_dropped_on_load` |
+| 47 | H | As #4 (the ADR said *Silenced*) | As #4; ADR §3 rewritten to match | As #4 |
+| 48 | H | As #1 (tests lens) | As #1 | As #1 |
+| 49 | M | As #0 and #3 (tests lens) | As #0, #3 | As #0, #3 |
+| 50 | M | The padding came from live meters (zero without a device), untested | As #25 | As #25 (no device in the ui tests: the plan, not meters) |
+| 51 | L | The heard words promised live sends; a frozen track got the strip's words | `live_words`: a heard strip's words name what is locked (`freeze.done_heard` and the card's, reworded); a heard track its own (`freeze.done_heard_track`, `freeze.card.refused_body_heard_track`) | ui `the_heard_words_name_what_is_locked_and_nothing_else` (each control the words call locked is refused, each called live is not) |
+| 52 | L | The first save and Save As copied renders on the UI thread | As #33 | As #33 |
+| 53 | L | Three review-2 fixes checked by assertions that pass without them | (1) the save and the render now told by the state's bytes and a tag no value covers (`render_states_for_test`, `load_state_for_test`, the instrument hooks); (2) notes-only measured by voices | sandbox `a_change_the_host_never_heard_of_is_neither_saved_nor_rendered`, `a_render_of_a_locked_insert_is_made_with_the_state_the_project_holds`, `a_locked_instruments_own_state_is_given_back_never_saved_never_rendered`; engine `a_note_source_resting_but_for_its_notes_plays_no_voice` |
+| 54 | L | *N más esperan* with N = 1; *the conversion*; *insertos* | `freeze.card.more_one` ("One more waiting." / "Espera uno más."); English names the bake; *inserciones* | ui `one_render_waiting_is_said_in_good_spanish_and_english_names_the_bake` |
+
+### How the tests were seen failing (review 3)
+
+Each batch: the fixes taken out in place, the tests run `--no-fail-fast`, the sources
+restored from git (never the tests).
+
+- **core** (old `solo_play`, a live target's render dropped, the `keys_in` arms, the
+  lateness checks, the guard's `SetTrackLateness` arm): 9 failed — every review-3 core
+  test. Then one at a time: the commands' checks alone (`…refused_and_repaired`), the old
+  `solo_play` alone (sandbox `a_solo_elsewhere_toggled_…`), the `InsertTrack` arm alone (ui
+  `a_removed_frozen_track_…`, once the test opened the project as saved — the freeze in its
+  undo had kept the render), `repair_lateness` alone (project `an_out_of_range_…`).
+- **engine** (the source line not run, notes fired into a notes-only instrument, track stems
+  untrimmed, the latency not watched, a live render dropped, one immediate retry and io
+  failures taken for damage, notes-only keeping its board, one monitored figure, the move
+  applied at once and not carried by the wrap, no wait for audio): all 12 review-3 engine
+  and low-latency tests failed; Direct stems untrimmed alone failed the stems test; the
+  source line alone failed ui `a_clip_put_on_a_bounced_track_plays_on_the_grid`.
+- **ui** (the file untrimmed, renders not held, no arrival floor, no engine-side file check,
+  no refusal at commit, no live-region or seam refusal, no live inputs over the region, no
+  amounts, no seam edges, the shared folder, no job keys, no history keys, lanes counted,
+  bytes compared at commit, no wires noted, the clip menu not following, the track's words,
+  *more == 1*, the notes' figure, the journal's figures and wraps, the pass shift): 21 freeze
+  tests, 2 recovery and 1 pass test failed. Three passed and were made to tell: the
+  DAWproject test now compares with the song as it played before the bounce (both sides had
+  the file late), the clip-menu test uses a bus with no track (a strip with one selects the
+  track, and the menu then selected the clip anyway), and the put-take test is the source
+  line's (above). A paste test was added for the clipboard's path.
+- **host** (a parked state over the project's when locked, give-backs every frame, a state of
+  its own unheard, edits never counted, the save writing a locked plug-in's state): 6
+  sandbox tests failed — two only once they compared states' bytes and a tag (the values
+  the host gives back on load hid the gain). The render with live states alone, the
+  instrument's lock and give-back, its save skip and its stored render — each alone — failed
+  the new render and instrument tests.
+- **rt_memory** (#37): an allocation on the parked board, the source line, the notes-only
+  path and a move falling due was counted in the phases that run them.
+- The undo fuzz: its new kept-delay arm first shifted every later draw, and a rare comp case
+  (the seam batch) stopped happening in all 60 seeds; the arm now draws from a generator of
+  its own, and counts its applied and refused delays.
+
+### The run after review 3
+
+RUN_RESULTS
+
 ## Left
 
 Nothing of mine (review 1: all 62 closed; review 2: all 58 closed — #14 by decision,
-documented). Owner-only: listen to a frozen heavy track and its unfreeze, and record a
+documented; review 3: all 55 closed — #23 by construction, said in its row). Owner-only: listen to a frozen heavy track and its unfreeze, and record a
 voice through Tonus with low-latency monitoring on, with real hardware.
 
 Not testable here, said in the table: a plug-in window turned *during* a render (#7, #42),
@@ -302,6 +431,30 @@ reader board released on rest (#20).
   `cantus-project/src/{format.rs, midi/import.rs}`, `examples/write_fixture.rs`;
   `cantus-ui/src/views/mixer_strip.rs`; `cantus-engine/tests/recording.rs` (the `Started`
   match).
+- **Review 3, schema 38 reworked in place** (as directed): `Track::lateness` keeps its field
+  and its JSON; it now means a delay before the track's level, the bounce's file trimmed to
+  the grid. The fixtures v38 and v39 are unchanged (`write_fixture` rewrote v39 with only
+  its timestamp different, so it was left as it was). A bounce made by an earlier round-29
+  build (late file *and* kept delay) would now play late twice — no release had one.
+- **Files outside my area in review 3**: `cantus-core/src/{command.rs (`SetTrackLateness`,
+  the `InsertTrack` check), model.rs (`Lateness::is_valid`, `Project::repair_lateness`),
+  snapshot.rs (`FrozenPlay::of`)}`; `cantus-project/src/{format.rs, store.rs}`
+  (`lateness_repaired`); `cantus-engine/src/{pdc.rs (`Edge::Source`), graph/{track.rs,
+  strip.rs} (`source_line`, `parked`), processor.rs, processor_{snap,pass,msg,monitor,
+  rec}.rs, messages.rs (`Meters::{strip_late, track_late}` removed;
+  `EngineMessage::SetDeviceRoundTrip`), recorder.rs (`RecordMark::Wrapped { shift }`,
+  `FinishedTake::wrap_shifts`), devices.rs, effects.rs (`latency_stand_in`), render.rs
+  (`RenderError::LatencyMoved`), stems.rs, samples.rs (`wait_audio`), backend.rs,
+  inst/{stream.rs, stream_reader.rs}}`; `cantus-host/src/{session.rs, session_inst.rs,
+  session_inst_idle.rs, session_iso.rs}` (edits, give-backs, `locked` loads, `latencies`,
+  `installed`, test hooks); `cantus-ui/src/{app.rs, boot.rs, record_pass.rs, recovery.rs,
+  recovery_restore.rs, recovery_session.rs (`JournalPass::marked_wraps`),
+  views/{arrangement.rs (`clip_menu_opened`), inspector_record.rs, inspector_sheet.rs
+  (`Sheet::text_button_row`)}}`; tests `cantus-ui/tests/{rec_e2e.rs, rec_flows.rs,
+  rec_pass.rs, recovery_flows.rs, tempo_record.rs}` and `examples/shoot_recovery.rs` (the
+  new fields), `cantus-engine/tests/rt_memory.rs` (phases),
+  `cantus-core/tests/undo_invariants.rs` (the kept-delay arm). Another branch that builds
+  `FinishedTake`, `JournalPass` or `RecordMark::Wrapped` literals adds the new fields.
 - **Every new `Command`** must be classified in `freeze_guard::touches` (the build says
   so): controllers' controller-map commands are `vec![]` (they change no sound); warp's
   clip commands are `clip_touches`.

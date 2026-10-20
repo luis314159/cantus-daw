@@ -9,7 +9,7 @@
 //! strip with a pad), an empty strip 12 frozen (a two-digit number beside its snowflake), a
 //! singer armed and monitored through Tonus with a linear-phase EQ, and
 //! low-latency monitoring on: the arrangement (snowflakes, frosted clips), the mixer with
-//! the frozen strip's menu open, the inspector's *Freeze* and *Low latency* rows, the
+//! the frozen strip's menu open, the inspector's *Freeze*, *Delay* and *Low latency* rows, the
 //! track menu's entries, the corner cards (a freeze rendering with its Stop; an edit
 //! refused with its Unfreeze), the audio chip's popover with the bypassed inserts named —
 //! in Cantus Night and Paper, English and Spanish, at 75 %, 100 % and 200 %, and a narrow
@@ -54,6 +54,12 @@ fn song() -> Project {
     }
     // The pad shares the bass's strip: Freeze on the bass freezes its source alone.
     p.tracks[2].strip = p.tracks[1].strip;
+    // The pad, bounced through a linear-phase EQ: its kept delay on the inspector's *Delay*
+    // row, with *Clear* (review 3).
+    p.tracks[2].lateness = Some(Lateness {
+        frames: 4_608,
+        rate: 48_000,
+    });
     let lead = p.tracks[0].strip.unwrap();
     for kind in [EffectKind::Chorus, EffectKind::Space] {
         let e = p.make_effect(kind);
@@ -165,7 +171,7 @@ fn run() {
                 println!("{}", out.display());
                 // The inspector: the singer's channel — Low latency on, what it bypasses —
                 // and the frozen synth's Freeze row.
-                for (name, track) in [("voice", 3usize), ("synth", 0)] {
+                for (name, track) in [("voice", 3usize), ("synth", 0), ("pad", 2)] {
                     let ctx = context(dark);
                     let (mut a, _p) = app();
                     let t = a.project().tracks[track].id;
