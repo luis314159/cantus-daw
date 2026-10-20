@@ -30,6 +30,8 @@ pub enum MenuId {
     AddPad(TrackId),
     /// A linked clip's link row (round 26): select the copies, make unique, link to….
     ClipLink(TrackId, cantus_core::ClipId),
+    /// Where a track's hosted instrument runs (round 29, ADR 0063).
+    Hosting(TrackId),
 }
 
 /// What a row of a list does.
@@ -59,6 +61,8 @@ enum Choice {
     Browse,
     /// The link row's actions (round 26, ADR 0037).
     Link(super::track::LinkAct),
+    /// Where a hosted plug-in runs, and reloading one that stopped (round 29, ADR 0063).
+    Hosting(crate::views::plugin_notice::MenuAct),
 }
 
 /// One row, owning its words until the list closes.
@@ -226,6 +230,16 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 ));
             }
         }
+        MenuId::Hosting(t) => {
+            let rows = crate::views::plugin_notice::menu_rows(
+                app,
+                crate::views::plugin_notice::Target::Instrument(t),
+            );
+            for (label, on, a) in rows {
+                let check = on.map_or(Check::None, radio);
+                out.push(act(Label::Text(label), check, Choice::Hosting(a)));
+            }
+        }
         MenuId::Slot(strip, e) => {
             let Some(s) = p.effects_of(strip) else {
                 return out;
@@ -257,6 +271,18 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 Check::None,
                 Choice::Remove,
             ));
+            // A hosted plug-in: where it runs (round 29, ADR 0063).
+            let rows = crate::views::plugin_notice::menu_rows(
+                app,
+                crate::views::plugin_notice::Target::Insert(e),
+            );
+            if !rows.is_empty() {
+                out.push(band("isolation.slot.band"));
+            }
+            for (label, on, a) in rows {
+                let check = on.map_or(Check::None, radio);
+                out.push(act(Label::Text(label), check, Choice::Hosting(a)));
+            }
         }
         MenuId::Send(me, to) => {
             let on = p
@@ -475,6 +501,11 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         (MenuId::AddInsert(strip), Choice::Browse) => {
             app.open_picker(crate::picker::PickPurpose::AddEffect { strip })
         }
+        (MenuId::Hosting(t), Choice::Hosting(a)) => crate::views::plugin_notice::run_menu(
+            app,
+            crate::views::plugin_notice::Target::Instrument(t),
+            a,
+        ),
         (MenuId::Slot(strip, e), c) => {
             let i = app
                 .project()
@@ -509,6 +540,11 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                     });
                 }
                 Choice::Remove => app.remove_effect(strip, e),
+                Choice::Hosting(a) => crate::views::plugin_notice::run_menu(
+                    app,
+                    crate::views::plugin_notice::Target::Insert(e),
+                    a,
+                ),
                 _ => {}
             }
         }

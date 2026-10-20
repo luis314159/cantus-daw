@@ -33,6 +33,7 @@ on GitHub-hosted runners, from the tagged commit, and these files are signed:
 | `cantus.exe` | the launcher that starts the program built for your processor |
 | `cantus-x86-64-v3.exe`, `cantus-x86-64-v2.exe` (and `cantus-x86-64-v4.exe` when a release has it) | Cantus itself, one build per processor level |
 | `cantus-scan.exe` | the plug-in scanner Cantus starts to read third-party plug-ins safely |
+| `cantus-sandbox.exe` | the plug-in sandbox Cantus starts to run third-party plug-ins out of its own process, so one that crashes cannot take the session down |
 | `Cantus <Name>.clap`, `Cantus <Name>.vst3` | Cantus's own effects as plug-ins for other DAWs |
 | `uninstall.exe` | the uninstaller (in the install folder) |
 | `Cantus-<version>-windows-x64-setup.exe` (also published as `Cantus-windows-x64-setup.exe`) | the installer |

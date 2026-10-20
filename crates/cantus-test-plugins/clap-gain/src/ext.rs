@@ -1,6 +1,6 @@
 //! The extensions: params, state, latency, audio-ports.
 
-use crate::plugin::{me, name_bytes, PARAMS, PARAM_COUNT, P_LATENCY};
+use crate::plugin::{me, name_bytes, PARAMS, PARAM_COUNT, P_LATENCY, P_PROCESS, STATE_PARAMS};
 use clap_sys::events::{
     clap_event_param_value, clap_input_events, clap_output_events, CLAP_CORE_EVENT_SPACE_ID,
     CLAP_EVENT_PARAM_VALUE,
@@ -12,7 +12,7 @@ use clap_sys::ext::audio_ports::{
 use clap_sys::ext::latency::{clap_plugin_latency, CLAP_EXT_LATENCY};
 use clap_sys::ext::params::{
     clap_param_info, clap_plugin_params, CLAP_EXT_PARAMS, CLAP_PARAM_IS_AUTOMATABLE,
-    CLAP_PARAM_IS_HIDDEN, CLAP_PARAM_IS_STEPPED,
+    CLAP_PARAM_IS_HIDDEN, CLAP_PARAM_IS_READONLY, CLAP_PARAM_IS_STEPPED,
 };
 use clap_sys::ext::state::{clap_plugin_state, CLAP_EXT_STATE};
 use clap_sys::id::{clap_id, CLAP_INVALID_ID};
@@ -77,6 +77,9 @@ unsafe extern "C" fn params_info(
     if *hidden {
         info.flags = CLAP_PARAM_IS_HIDDEN | if *stepped { CLAP_PARAM_IS_STEPPED } else { 0 };
     }
+    if *id == P_PROCESS {
+        info.flags |= CLAP_PARAM_IS_READONLY;
+    }
     info.cookie = std::ptr::null_mut();
     name_bytes(&mut info.name, name);
     name_bytes(&mut info.module, module);
@@ -105,7 +108,7 @@ unsafe extern "C" fn params_to_text(
         0 => format!("{value:.1} dB"),
         1 => format!("{} smp", value.round()),
         2 => (if value >= 0.5 { "On" } else { "Off" }).to_string(),
-        3 => format!("{}", value.round()),
+        3..=5 => format!("{}", value.round()),
         _ => return false,
     };
     if capacity == 0 {
@@ -150,7 +153,7 @@ unsafe extern "C" fn params_flush(
             continue;
         };
         if (*h).space_id == CLAP_CORE_EVENT_SPACE_ID && (*h).type_ == CLAP_EVENT_PARAM_VALUE {
-            me.apply(&*(h as *const clap_event_param_value));
+            me.apply(&*(h as *const clap_event_param_value), false);
         }
     }
 }
@@ -166,8 +169,10 @@ static STATE_EXT: clap_plugin_state = clap_plugin_state {
 
 unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_SAVE);
     let mut bytes = MAGIC.to_vec();
-    for (id, ..) in PARAMS {
+    for (id, ..) in &PARAMS[..STATE_PARAMS] {
+        let id = *id;
         bytes.extend_from_slice(&me.get(id).to_le_bytes());
     }
     let tag = me.tag.lock().map(|t| t.clone()).unwrap_or_default();
@@ -192,6 +197,7 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
 
 unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_LOAD);
     let s = &*stream;
     let Some(read) = s.read else { return false };
     let mut bytes = Vec::new();
@@ -206,11 +212,12 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
         }
         bytes.extend_from_slice(&buf[..n as usize]);
     }
-    if bytes.len() < 4 + 8 * PARAM_COUNT + 4 || &bytes[..4] != MAGIC {
+    if bytes.len() < 4 + 8 * STATE_PARAMS + 4 || &bytes[..4] != MAGIC {
         return false;
     }
     let mut at = 4;
-    for (id, ..) in PARAMS {
+    for (id, ..) in &PARAMS[..STATE_PARAMS] {
+        let id = *id;
         let v = f64::from_le_bytes(bytes[at..at + 8].try_into().unwrap_or([0; 8]));
         me.set(id, v);
         at += 8;

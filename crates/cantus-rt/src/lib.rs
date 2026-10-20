@@ -17,6 +17,9 @@
 //!   page fault.
 //! - [`disk`]: a volume's size and free space (the sample cache's limit).
 //! - [`files`]: the open-files limit, raised at start-up (the stream cache's handle budget).
+//! - [`shm`] and [`ipc`]: named shared memory and the lock-step exchange over it — a job
+//!   handed to another process and waited for with a bounded spin and a deadline (ADR 0063,
+//!   the plug-in sandbox).
 //! - [`fpenv`] and [`denormal`]: the floating-point environment — FTZ/DAZ for a block and its
 //!   re-assert after a hosted plug-in, and the interim CRT FMA3 switch (R9).
 //!
@@ -33,8 +36,10 @@ pub mod disk;
 pub mod files;
 pub mod fork;
 pub mod fpenv;
+pub mod ipc;
 pub mod memory;
 pub mod pad;
+pub mod shm;
 pub mod thread;
 pub mod topology;
 pub mod usage;

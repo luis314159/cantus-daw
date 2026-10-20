@@ -351,6 +351,8 @@ fn insert_tile(
     }
     let hosted = slot.spec.external.as_deref();
     let missing = hosted.is_some() && app.plugins.missing(e).is_some();
+    // Stopped working (round 29, ADR 0063): drawn like a missing one, in the danger colour.
+    let stopped = hosted.is_some() && app.plugins.crashed(e).is_some();
     let open = st.open.contains(&e);
     let look = TileLook {
         name: Some(Src::Str("")),
@@ -367,12 +369,16 @@ fn insert_tile(
     let mut right = parts.name.right();
     if let Some(p) = hosted {
         let cy = rect.center().y;
-        if missing {
+        if missing || stopped {
             let w = sheet::chip(
                 sh.b,
                 pos2(right, cy),
                 &s,
-                Src::Key("host.missing"),
+                Src::Key(if missing {
+                    "host.missing"
+                } else {
+                    "isolation.stopped"
+                }),
                 Tok::Danger,
                 1.0,
             );
@@ -388,7 +394,11 @@ fn insert_tile(
         );
         right -= w + s.s(4.0);
     }
-    let ink = if missing { s.t.danger } else { s.t.text };
+    let ink = if missing || stopped {
+        s.t.danger
+    } else {
+        s.t.text
+    };
     let a = if slot.bypass || !ms.fx_enabled {
         0.6
     } else {
@@ -418,10 +428,16 @@ fn insert_tile(
             "inspector.slot_tip_plain"
         };
         let name = sh.fmt.tr(key);
+        // A hosted plug-in's tip says where it runs and what it costs (round 29).
+        let body = if hosted.is_some() && body.hovered() {
+            crate::views::plugin_notice::tip(app, crate::views::plugin_notice::Target::Insert(e))
+        } else {
+            String::new()
+        };
         hint::set_text(
             sh.ui.ctx(),
             name,
-            "",
+            &body,
             Caps {
                 menu: true,
                 ..Caps::NONE

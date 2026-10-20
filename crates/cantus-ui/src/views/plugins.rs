@@ -207,6 +207,73 @@ pub fn insert_menu(app: &mut CantusApp, ui: &mut egui::Ui, strip: StripId) {
 }
 
 /// A section band with a title, `width` wide.
+/// The manager's *Where plug-ins run* (round 29, ADR 0063): this computer's default for
+/// every third-party plug-in its project does not place, what each choice means, and the
+/// plug-ins that stopped working here before, which the database remembers.
+fn isolation_section(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, width: f32) {
+    use cantus_core::PluginIsolation as P;
+    band_title(ui, s, "isolation.manager.band", width);
+    let now = P::ALL
+        .iter()
+        .position(|m| *m == app.settings.plugin_isolation)
+        .unwrap_or(1);
+    let labels = P::ALL.map(|m| Src::Key(m.label_key()));
+    if let Some(i) = controls::segmented(
+        ui,
+        s,
+        now,
+        &labels,
+        &t("isolation.manager.band"),
+        width.min(560.0),
+    ) {
+        crate::views::plugin_notice::set_default(app, P::ALL[i]);
+    }
+    let what = t(match app.settings.plugin_isolation {
+        P::Within => "isolation.manager.within",
+        P::Together => "isolation.manager.together",
+        P::ByVendor => "isolation.manager.by_vendor",
+        P::Individually => "isolation.manager.individually",
+    });
+    controls::line(ui, s, &what, s.t.text_dim, width);
+    controls::line(ui, s, &t("isolation.manager.cost"), s.t.text_dim, width);
+    controls::line(ui, s, &t("isolation.manager.own"), s.t.text_dim, width);
+    if !app.plugins.isolation_available() {
+        controls::line(ui, s, &t("isolation.unavailable"), s.t.danger, width);
+    }
+    let crashes: Vec<cantus_host::CrashRecord> = app.plugins.db.crashes.clone();
+    if crashes.is_empty() {
+        return;
+    }
+    ui.add_space(6.0);
+    band_title(ui, s, "isolation.manager.crashed", width);
+    let mut forget = None;
+    for c in &crashes {
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 6.0;
+            controls::line(ui, s, &c.name, s.t.danger, (width * 0.4).max(140.0));
+            badge(ui, cantus_host::to_project_format(c.format).badge());
+            let times = crate::i18n::tf_count("isolation.manager.times", c.count as usize, &[]);
+            controls::line(ui, s, &times, s.t.text_dim, (width * 0.3).max(110.0));
+            if controls::key(
+                ui,
+                s,
+                Src::Key("isolation.manager.forget"),
+                &t("isolation.manager.forget_tip"),
+                100.0,
+                false,
+            )
+            .clicked()
+            {
+                forget = Some((c.format, c.id.clone()));
+            }
+        });
+    }
+    if let Some((format, id)) = forget {
+        app.plugins.db.forget_crashes(format, &id);
+        app.plugins.save_db_now();
+    }
+}
+
 fn band_title(ui: &mut egui::Ui, s: &Style, key: &str, width: f32) {
     let (rect, _) = ui.allocate_exact_size(egui::vec2(width, band::BAND), Sense::hover());
     crate::kit::with_brush(ui.painter(), |b| {
@@ -312,6 +379,63 @@ pub fn slot_title(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) {
             );
         }
     }
+}
+
+/// The generic editor's *Runs* card (round 29, ADR 0063): where the plug-in runs — as this
+/// computer says, or one of the four — and what it costs, as its slot's tip says it.
+fn isolation_card(
+    app: &mut CantusApp,
+    ui: &mut egui::Ui,
+    s: &Style,
+    rect: egui::Rect,
+    effect: EffectId,
+) {
+    use crate::views::plugin_notice::{self as notice, Target};
+    use cantus_core::PluginIsolation as P;
+    let k = s.k;
+    let target = Target::Insert(effect);
+    let Some(chosen) = notice::chosen(app, target) else {
+        return;
+    };
+    controls::card(
+        ui,
+        s,
+        rect,
+        Src::Key("isolation.slot.band"),
+        None,
+        |ui, cr| {
+            let w = cr.body.width() / k;
+            let choices: [Option<P>; 5] = [
+                None,
+                Some(P::Within),
+                Some(P::Together),
+                Some(P::ByVendor),
+                Some(P::Individually),
+            ];
+            let labels = [
+                Src::Key("isolation.short.default"),
+                Src::Key("isolation.short.within"),
+                Src::Key("isolation.short.together"),
+                Src::Key("isolation.short.by_vendor"),
+                Src::Key("isolation.short.individually"),
+            ];
+            let now = choices.iter().position(|c| *c == chosen).unwrap_or(0);
+            let seg_w = (w * 0.62).clamp(260.0, 520.0);
+            if let Some(i) =
+                controls::segmented(ui, s, now, &labels, frame_tr("isolation.slot.band"), seg_w)
+            {
+                notice::set_isolation(app, target, choices[i]);
+            }
+            // A stopped plug-in costs nothing: its last reading is not shown.
+            let cpu = app
+                .plugins
+                .cpu(effect)
+                .filter(|_| app.plugins.crashed(effect).is_none())
+                .map(|c| tf("isolation.tip.cpu", &[("share", &notice::percent(c.share))]))
+                .unwrap_or_default();
+            controls::line(ui, s, &cpu, s.t.text_dim, (w - seg_w - 8.0).max(60.0));
+        },
+    );
 }
 
 /// The inspector's picture of a hosted plug-in: how many values it holds, and its latency.
@@ -500,6 +624,55 @@ fn body_ui(
         let n = app.plugins.hosted(effect).map_or(0, |h| h.params.len());
         controls::count(ui, s, "host.editor.count", n, 116.0);
     });
+    // Where it runs and what it costs; a plug-in that stopped, and its Reload (round 29,
+    // ADR 0063).
+    if app.plugins.missing(effect).is_none() {
+        let row = g.full((band::TITLE + 8.0 + controls::ROW + 8.0) * k);
+        isolation_card(app, ui, s, row, effect);
+    }
+    if let Some(why) = app.plugins.crashed(effect).map(str::to_string) {
+        let rest = g.rest();
+        controls::card(
+            ui,
+            s,
+            rest,
+            Src::Key("isolation.stopped_card"),
+            None,
+            |ui, cr| {
+                let w = cr.body.width() / k;
+                controls::column(ui, s, w, |ui| {
+                    let name = app
+                        .plugins
+                        .hosted(effect)
+                        .map_or(String::new(), |h| h.info.name.clone());
+                    let why = crate::views::plugin_notice::reason_words(&why);
+                    let line = tf(
+                        "isolation.editor.stopped",
+                        &[("name", &name), ("reason", &why)],
+                    );
+                    controls::line(ui, s, &line, s.t.danger, w);
+                    controls::line(ui, s, frame_tr("isolation.editor.kept"), s.t.text_dim, w);
+                    if controls::key(
+                        ui,
+                        s,
+                        Src::Key("isolation.slot.reload"),
+                        frame_tr("isolation.slot.reload"),
+                        170.0,
+                        false,
+                    )
+                    .clicked()
+                    {
+                        crate::views::plugin_notice::reload(
+                            app,
+                            crate::views::plugin_notice::Target::Insert(effect),
+                            &name,
+                        );
+                    }
+                });
+            },
+        );
+        return;
+    }
     if let Some(why) = app.plugins.missing(effect) {
         let rest = g.rest();
         controls::card(ui, s, rest, Src::Key("host.missing"), None, |ui, cr| {
@@ -949,6 +1122,8 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
         };
         controls::line(ui, &s, &status, s.t.text_dim, (width - 260.0).max(120.0));
     });
+    ui.add_space(8.0);
+    isolation_section(app, ui, &s, width);
     ui.add_space(8.0);
     band_title(ui, &s, "host.manager.folders", width);
     let standard: Vec<std::path::PathBuf> = cantus_host::backends()

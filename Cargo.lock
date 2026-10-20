@@ -831,6 +831,7 @@ dependencies = [
  "cantus-core",
  "cantus-dsp",
  "cantus-engine",
+ "cantus-host",
  "cantus-project",
  "cantus-rt",
  "cantus-ui",
@@ -1002,6 +1003,25 @@ dependencies = [
  "audio_thread_priority",
  "libc",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "cantus-sandbox"
+version = "0.1.0-beta.1"
+dependencies = [
+ "cantus-core",
+ "cantus-engine",
+ "cantus-host",
+ "cantus-project",
+ "cantus-rt",
+ "cantus-test-vst3",
+ "libc",
+ "log",
+ "raw-window-handle",
+ "serde_json",
+ "tempfile",
+ "windows-sys 0.61.2",
+ "winresource",
 ]
 
 [[package]]

@@ -10,13 +10,14 @@ use vst3::Steinberg::Vst::Event_::EventTypes_::{
     kNoteExpressionValueEvent, kNoteOffEvent, kNoteOnEvent, kPolyPressureEvent,
 };
 use vst3::Steinberg::Vst::MediaTypes_::{kAudio, kEvent};
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kIsHidden, kIsReadOnly};
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
     BusDirection, BusInfo, Event, IAudioProcessor, IAudioProcessorTrait, IComponent,
     IComponentHandler, IComponentTrait, IEditController, IEditControllerTrait, IEventListTrait,
-    IProcessContextRequirements, IProcessContextRequirementsTrait, IoMode, MediaType,
-    ParameterInfo, ProcessData, ProcessSetup, RoutingInfo, SpeakerArr, SpeakerArrangement,
-    String128, TChar,
+    IParamValueQueueTrait, IParameterChangesTrait, IProcessContextRequirements,
+    IProcessContextRequirementsTrait, IoMode, MediaType, ParameterInfo, ProcessData, ProcessSetup,
+    RoutingInfo, SpeakerArr, SpeakerArrangement, String128, TChar,
 };
 use vst3::Steinberg::{
     kInvalidArgument, kResultFalse, kResultOk, kResultTrue, tresult, FIDString, FUnknown, IBStream,
@@ -28,6 +29,10 @@ use crate::{bytes, copy_wstring, not_implemented, Live};
 
 pub const NAME: &str = "Cantus Test Pulse";
 pub const CID: TUID = uid(0x43414E54, 0x55535450, 0x554C5345, 0x494E5331);
+/// Hidden: a failure on purpose (`crate::fault`, round 29).
+pub const FAULT: u32 = 0;
+/// Hidden and read-only: the id of the process this instance runs in.
+pub const PROCESS: u32 = 1;
 
 static LAST_STATE: AtomicU32 = AtomicU32::new(0);
 static LAST_VALUES: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
@@ -43,11 +48,16 @@ pub unsafe fn last_context(values: *mut f64) -> u32 {
 
 pub struct Pulse {
     _live: Live,
+    /// The Fault parameter's normalised value, as the controller side was told it.
+    fault: AtomicU64,
 }
 
 impl Pulse {
     pub fn new() -> Pulse {
-        Pulse { _live: Live::new() }
+        Pulse {
+            _live: Live::new(),
+            fault: AtomicU64::new(0),
+        }
     }
 }
 
@@ -120,11 +130,15 @@ impl IComponentTrait for Pulse {
         kResultOk
     }
 
-    unsafe fn setActive(&self, _state: TBool) -> tresult {
+    unsafe fn setActive(&self, state: TBool) -> tresult {
+        if state != 0 {
+            crate::fault::fire(crate::fault::ABORT_ACTIVATE);
+        }
         kResultOk
     }
 
     unsafe fn setState(&self, state: *mut IBStream) -> tresult {
+        crate::fault::fire(crate::fault::ABORT_LOAD);
         match bytes::read::<4>(state) {
             Some(m) if &m == b"CTPS" => kResultOk,
             _ => kResultFalse,
@@ -132,6 +146,7 @@ impl IComponentTrait for Pulse {
     }
 
     unsafe fn getState(&self, state: *mut IBStream) -> tresult {
+        crate::fault::fire(crate::fault::ABORT_SAVE);
         if bytes::write(state, b"CTPS") {
             kResultOk
         } else {
@@ -190,6 +205,23 @@ impl IAudioProcessorTrait for Pulse {
 
     unsafe fn process(&self, data: *mut ProcessData) -> tresult {
         let data = &*data;
+        // The hidden Fault parameter (round 29): a value that arrives here arms it.
+        if let Some(changes) = ComRef::from_raw(data.inputParameterChanges) {
+            for i in 0..changes.getParameterCount() {
+                let Some(q) = ComRef::from_raw(changes.getParameterData(i)) else {
+                    continue;
+                };
+                if q.getParameterId() != FAULT {
+                    continue;
+                }
+                for p in 0..q.getPointCount() {
+                    let (mut offset, mut value) = (0, 0.0);
+                    if q.getPoint(p, &mut offset, &mut value) == kResultOk {
+                        crate::fault::arm(value);
+                    }
+                }
+            }
+        }
         if let Some(c) = data.processContext.as_ref() {
             LAST_STATE.store(c.state, Ordering::SeqCst);
             let values = [
@@ -269,35 +301,74 @@ impl IEditControllerTrait for Pulse {
     }
 
     unsafe fn getParameterCount(&self) -> i32 {
-        0
+        2
     }
 
-    unsafe fn getParameterInfo(&self, _index: i32, _info: *mut ParameterInfo) -> tresult {
-        kInvalidArgument
+    unsafe fn getParameterInfo(&self, index: i32, info: *mut ParameterInfo) -> tresult {
+        let (id, title, steps, flags) = match index {
+            0 => (FAULT, "Fault", crate::fault::STEPS, kIsHidden as i32),
+            1 => (PROCESS, "Process", 0, (kIsHidden | kIsReadOnly) as i32),
+            _ => return kInvalidArgument,
+        };
+        let info = &mut *info;
+        info.id = id;
+        copy_wstring(title, &mut info.title);
+        copy_wstring(title, &mut info.shortTitle);
+        copy_wstring("", &mut info.units);
+        info.stepCount = steps;
+        info.defaultNormalizedValue = 0.0;
+        info.unitId = 0;
+        info.flags = flags;
+        kResultOk
     }
 
-    unsafe fn getParamStringByValue(&self, _id: u32, _v: f64, _s: *mut String128) -> tresult {
-        kInvalidArgument
+    unsafe fn getParamStringByValue(&self, id: u32, v: f64, s: *mut String128) -> tresult {
+        if id != FAULT && id != PROCESS {
+            return kInvalidArgument;
+        }
+        let text = format!("{}", self.normalizedParamToPlain(id, v).round());
+        copy_wstring(&text, &mut *s);
+        kResultOk
     }
 
     unsafe fn getParamValueByString(&self, _id: u32, _s: *mut TChar, _v: *mut f64) -> tresult {
         kInvalidArgument
     }
 
-    unsafe fn normalizedParamToPlain(&self, _id: u32, v: f64) -> f64 {
-        v
+    unsafe fn normalizedParamToPlain(&self, id: u32, v: f64) -> f64 {
+        match id {
+            FAULT => (v * f64::from(crate::fault::STEPS)).round(),
+            PROCESS => v * crate::fault::PROCESS_RANGE,
+            _ => v,
+        }
     }
 
-    unsafe fn plainParamToNormalized(&self, _id: u32, v: f64) -> f64 {
-        v
+    unsafe fn plainParamToNormalized(&self, id: u32, v: f64) -> f64 {
+        match id {
+            FAULT => (v / f64::from(crate::fault::STEPS)).clamp(0.0, 1.0),
+            PROCESS => (v / crate::fault::PROCESS_RANGE).clamp(0.0, 1.0),
+            _ => v,
+        }
     }
 
-    unsafe fn getParamNormalized(&self, _id: u32) -> f64 {
-        0.0
+    unsafe fn getParamNormalized(&self, id: u32) -> f64 {
+        match id {
+            FAULT => f64::from_bits(self.fault.load(Ordering::SeqCst)),
+            PROCESS => crate::fault::process_norm(),
+            _ => 0.0,
+        }
     }
 
-    unsafe fn setParamNormalized(&self, _id: u32, _v: f64) -> tresult {
-        kInvalidArgument
+    unsafe fn setParamNormalized(&self, id: u32, v: f64) -> tresult {
+        match id {
+            // Kept only: a fault arms in `process`.
+            FAULT => {
+                self.fault.store(v.to_bits(), Ordering::SeqCst);
+                kResultOk
+            }
+            PROCESS => kResultOk,
+            _ => kInvalidArgument,
+        }
     }
 
     unsafe fn setComponentHandler(&self, _handler: *mut IComponentHandler) -> tresult {

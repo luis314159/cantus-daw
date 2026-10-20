@@ -70,7 +70,9 @@ const ON_THE_KIT: &[&str] = &[
     "views/pitch_lane.rs",
     "views/pitch_paint.rs",
     "views/pitch_panel.rs",
+    "views/plugin_notice.rs",
     "views/plugins.rs",
+    "views/audio_notice.rs",
 ];
 
 /// What a file on the kit never says.

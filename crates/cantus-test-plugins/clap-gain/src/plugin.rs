@@ -19,7 +19,13 @@ pub const P_GAIN: u32 = 0;
 pub const P_LATENCY: u32 = 1;
 pub const P_KEY: u32 = 2;
 pub const P_GESTURE: u32 = 3;
-pub const PARAM_COUNT: usize = 4;
+/// Hidden: a failure on purpose (`crate::fault`, round 29).
+pub const P_FAULT: u32 = 4;
+/// Hidden and read-only: the id of the process this instance runs in (round 29).
+pub const P_PROCESS: u32 = 5;
+pub const PARAM_COUNT: usize = 6;
+/// The parameters the state carries (the ones before Fault and Process).
+pub const STATE_PARAMS: usize = 4;
 
 /// One parameter: (id, name, module, min, max, default, stepped, hidden).
 pub type ParamRow = (u32, &'static str, &'static str, f64, f64, f64, bool, bool);
@@ -31,6 +37,17 @@ pub const PARAMS: [ParamRow; PARAM_COUNT] = [
     ),
     (P_KEY, "Key", "Sidechain", 0.0, 1.0, 0.0, true, false),
     (P_GESTURE, "Gesture", "Test", 0.0, 100.0, 0.0, true, true),
+    (
+        P_FAULT,
+        "Fault",
+        "Test",
+        0.0,
+        crate::fault::LAST,
+        0.0,
+        true,
+        true,
+    ),
+    (P_PROCESS, "Process", "Test", 0.0, 4.0e9, 0.0, true, true),
 ];
 
 pub struct Plugin {
@@ -42,6 +59,8 @@ pub struct Plugin {
     /// A tag carried in the state that is not a parameter.
     pub tag: Mutex<Vec<u8>>,
     pub processing: AtomicBool,
+    /// A failure armed by the Fault parameter (round 29).
+    pub fault: crate::fault::Fault,
     /// The editor: created (`gui.create`), and its window once it has a parent.
     pub editor_created: bool,
     #[cfg_attr(not(windows), allow(dead_code))]
@@ -57,10 +76,16 @@ pub struct Plugin {
 
 impl Plugin {
     pub fn get(&self, id: u32) -> f64 {
+        if id == P_PROCESS {
+            return crate::fault::process_id();
+        }
         f64::from_bits(self.values[id as usize].load(Ordering::Acquire))
     }
 
     pub fn set(&self, id: u32, v: f64) {
+        if id == P_PROCESS {
+            return; // read-only
+        }
         if let Some((_, _, _, min, max, _, stepped, _)) = PARAMS.iter().find(|p| p.0 == id) {
             let v = v.clamp(*min, *max);
             let v = if *stepped { v.round() } else { v };
@@ -69,9 +94,13 @@ impl Plugin {
     }
 
     /// Apply a parameter event from the host; a latency change that differs from the one
-    /// in force asks for a restart.
-    pub unsafe fn apply(&mut self, e: &clap_event_param_value) {
+    /// in force asks for a restart. `processing`: it came in `process`, where a Fault value
+    /// arms its failure (a flush or a state never does).
+    pub unsafe fn apply(&mut self, e: &clap_event_param_value, processing: bool) {
         self.set(e.param_id, e.value);
+        if processing && e.param_id == P_FAULT {
+            self.fault.arm(e.value);
+        }
         if e.param_id == P_LATENCY
             && self.get(P_LATENCY) as u32 != self.active_latency.load(Ordering::Acquire)
         {
@@ -110,6 +139,7 @@ pub unsafe fn create(
         active_latency: AtomicU32::new(0),
         tag: Mutex::new(Vec::new()),
         processing: AtomicBool::new(false),
+        fault: crate::fault::Fault::default(),
         editor_created: false,
         editor: 0,
         delay_l: Vec::new(),
@@ -137,6 +167,7 @@ unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
 
 unsafe extern "C" fn activate(plugin: *const clap_plugin, _sr: f64, _min: u32, _max: u32) -> bool {
     let p = me(plugin);
+    p.fault.fire(crate::fault::ABORT_ACTIVATE);
     let latency = p.get(P_LATENCY) as usize;
     p.active_latency.store(latency as u32, Ordering::Release);
     p.delay_l = vec![0.0; latency + 1];
@@ -278,7 +309,7 @@ unsafe extern "C" fn process(
                 && (*h).space_id == CLAP_CORE_EVENT_SPACE_ID
                 && (*h).type_ == CLAP_EVENT_PARAM_VALUE
             {
-                p.apply(&*(h as *const clap_event_param_value));
+                p.apply(&*(h as *const clap_event_param_value), true);
             }
         }
     }

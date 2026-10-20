@@ -913,6 +913,48 @@ hasta que lo tocas.
 
 Páginas: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
 
+### Cuando un plug-in falla
+
+Un plug-in de terceros — un efecto o instrumento CLAP o VST3 — puede fallar o colgarse.
+Cantus ejecuta esos plug-ins **en un proceso ayudante propio** (`cantus-sandbox`), así que
+cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
+
+- un efecto detenido deja pasar el sonido intacto, a tiempo con el resto de la mezcla
+  (como si estuviera en bypass); un instrumento detenido se queda en silencio;
+- una tarjeta en la esquina inferior derecha lo dice — *"Glacier dejó de funcionar. Cantus
+  siguió sonando sin él."* — con **Recargar** y **Dejarlo apagado**. Señala el dibujo de la
+  tarjeta para leer qué pasó;
+- **Recargar** vuelve a cargar el plug-in con lo que tenías: su último estado bueno y todos
+  los valores del proyecto. Varios plug-ins que se detuvieron juntos comparten una tarjeta
+  y **Recargar todos**;
+- *Dejarlo apagado* lo deja detenido: su ranura muestra *detenido* en rojo (la pista de un
+  instrumento muestra la señal en su icono y el botón de canal con borde), y su menú ofrece
+  **Recargar plug-in** cuando quieras recuperarlo;
+- **el proyecto no pierde nada**: al guardar se conservan el último estado bueno y los
+  valores del plug-in, y el proyecto se abre con ellos la próxima vez;
+- un plug-in colgado tiene dos segundos; después su ayudante se termina; mientras está
+  colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
+  nunca.
+
+**Dónde se ejecuta un plug-in.** Ajustes ▸ Plug-ins ▸ *Dónde se ejecutan los plug-ins de
+terceros* fija el valor de este equipo: **Juntos** (un ayudante para todos; el
+predeterminado), **Por fabricante** (uno por fabricante), **Por separado** (un ayudante
+para cada uno: un fallo detiene solo ese plug-in) o **Dentro de Cantus** (sin ayudante: lo
+más rápido, y un fallo cierra Cantus). Cada plug-in puede ser distinto: clic derecho en su
+ranura (o *Se ejecuta* en la fila de un instrumento alojado del inspector) y elige. La
+elección se guarda con el proyecto; cambiarla mueve el plug-in en el acto, con su sonido.
+A un plug-in que falla tres veces en una sesión su tarjeta le ofrece **Ejecutar por
+separado**. El gestor de plug-ins lista los que alguna vez se detuvieron en este equipo
+(*Olvidar* borra uno). Los efectos e instrumentos propios de Cantus siempre se ejecutan
+dentro.
+
+**Lo que cuesta.** Un plug-in en un ayudante añade una ida y vuelta por bloque de audio:
+unos microsegundos mientras los plug-ins se suceden, unas decenas tras una pausa (la ADR
+0063 tiene las medidas). Señala una ranura alojada para ver dónde se ejecuta y su
+**CPU**; la barra de estado cuenta *Plug-ins tarde* cuando un ayudante no respondió a
+tiempo (esos bloques sonaron sin el plug-in). Las exportaciones, las pistas por separado
+y los bounces esperan cada bloque, así que siempre son exactamente lo que hace el plug-in.
+
 ## 11. Proyectos, autoguardado y ajustes
 
 - *Archivo ▸ Nuevo proyecto* (`Ctrl+N`), *Abrir…* (`Ctrl+O`), *Guardar* (`Ctrl+S`),

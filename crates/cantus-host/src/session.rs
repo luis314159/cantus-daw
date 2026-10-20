@@ -15,17 +15,17 @@
 //! - gives the project to save with every plug-in's current state in it.
 
 use crate::backend::{
-    AudioSetup, AudioThread, HostError, MainThread, Notice, ParamChange, ParamEvent, ParamInfo,
-    ParamOut, PluginInfo,
+    AudioSetup, AudioThread, Backend, HostError, MainThread, Notice, ParamChange, ParamEvent,
+    ParamInfo, ParamOut, PluginInfo,
 };
 use crate::db::PluginDb;
 use crate::scan::{ScanReport, Scanner};
 use crate::unit::HostedUnit;
 use crate::window::PluginWindow;
-use crate::{backend_for, from_project_format, to_project_format};
+use crate::{from_project_format, to_project_format};
 use cantus_core::{
     Command, CommandBus, EffectId, EffectKind, EffectSlot, EffectSpec, ExternalPlugin, MergeKey,
-    Origin, PluginState, Project, StripId,
+    Origin, PluginIsolation, PluginState, Project, StripId,
 };
 use cantus_engine::{EffectUnit, EngineHandle, FxParamEvent, Wire, MAX_BLOCK_FRAMES};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -37,8 +37,11 @@ use std::sync::{mpsc, Arc};
 mod inst;
 #[path = "session_inst_idle.rs"]
 mod inst_idle;
+#[path = "session_iso.rs"]
+mod iso;
 
 pub use inst::HostedInst;
+pub use iso::CpuFigure;
 
 /// Something the application should know about.
 #[derive(Clone, Debug, PartialEq)]
@@ -69,6 +72,24 @@ pub enum HostNotice {
     },
     /// The user closed a hosted instrument's window.
     InstrumentWindowClosed(cantus_core::TrackId),
+    /// A slot's plug-in stopped working (round 29, ADR 0063): its helper process crashed,
+    /// or it hung and was ended. The slot passes the sound through until it is reloaded
+    /// ([`PluginHost::reload`]); its last-good state is kept and saved.
+    PluginCrashed {
+        effect: EffectId,
+        name: String,
+        reason: String,
+    },
+    /// A track's hosted instrument stopped working; the track is silent until it is
+    /// reloaded ([`PluginHost::reload_instrument`]).
+    InstrumentCrashed {
+        track: cantus_core::TrackId,
+        name: String,
+        reason: String,
+    },
+    /// Plug-ins were set to run isolated, but the helper (`cantus-sandbox`) is not
+    /// installed: they run within Cantus. Said once.
+    IsolationUnavailable,
 }
 
 /// One loaded plug-in in a slot.
@@ -89,9 +110,65 @@ pub struct Hosted {
     /// Parameters the plug-in's own gesture is moving.
     gestures: Vec<u32>,
     pub(crate) window: Option<PluginWindow>,
+    /// Where it runs, as loaded (round 29, ADR 0063).
+    pub(crate) isolation: PluginIsolation,
+    /// Why it stopped working, while it has.
+    pub(crate) crashed: Option<String>,
+    pub(crate) cpu: iso::CpuWatch,
 }
 
 impl Hosted {
+    fn new(
+        strip: StripId,
+        info: PluginInfo,
+        main: Box<dyn MainThread>,
+        audio: Box<dyn AudioThread>,
+        isolation: PluginIsolation,
+    ) -> Hosted {
+        Hosted {
+            strip,
+            params: main.params(),
+            info,
+            main,
+            audio: Some(audio),
+            synced_state: PluginState::default(),
+            flushed: BTreeMap::new(),
+            generation: Arc::new(AtomicU64::new(0)),
+            restarting: false,
+            gestures: Vec::new(),
+            window: None,
+            isolation,
+            crashed: None,
+            cpu: iso::CpuWatch::default(),
+        }
+    }
+
+    /// Closes its window, if one is open, now.
+    pub(crate) fn close_window_now(&mut self) {
+        if let Some(w) = self.window.take() {
+            self.main.close_editor();
+            // The window goes after the editor closed (on Windows it destroys the native
+            // window; elsewhere it is a placeholder with nothing to drop).
+            #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
+            drop(w);
+        }
+    }
+
+    /// Why it stopped working, while it has (round 29).
+    pub fn crashed(&self) -> Option<&str> {
+        self.crashed.as_deref()
+    }
+
+    /// Where it runs (round 29).
+    pub fn isolation(&self) -> PluginIsolation {
+        self.isolation
+    }
+
+    /// What it costs, measured over the last half second (round 29).
+    pub fn cpu(&self) -> Option<CpuFigure> {
+        self.cpu.figure
+    }
+
     /// The plug-in's own text for a value.
     pub fn param_text(&self, id: u32, value: f64) -> Option<String> {
         self.main.param_text(id, value)
@@ -156,6 +233,20 @@ pub struct PluginHost {
     /// them ([`PluginHost::take_tweaks`]): what it records as automation and calls *last
     /// tweaked* (ADR 0057) — all of them, not only a frame's last (review 1).
     tweaks: Vec<Command>,
+    /// The helper processes isolated plug-ins run in (round 29, ADR 0063).
+    sandboxes: Option<Arc<crate::bridge::Sandboxes>>,
+    /// Where a hosted plug-in runs when its project does not say: the machine's choice
+    /// (Settings' plug-in manager). Within Cantus until the application says otherwise.
+    pub default_isolation: PluginIsolation,
+    /// Crashes this session, per plug-in (format, id).
+    crash_counts: HashMap<(crate::backend::Format, String), u32>,
+    /// Isolation was asked and the helper is missing; told once.
+    isolation_missing: bool,
+    told_missing: bool,
+    /// Main halves of instances just replaced (a move, a reload): kept a moment, until the
+    /// engine has surely swapped in their successors, so their helper never unloads an
+    /// instance the engine is still calling.
+    retired: Vec<(std::time::Instant, Box<dyn MainThread>)>,
 }
 
 /// The most window tweaks kept between two takes (an application that never takes them
@@ -201,6 +292,7 @@ fn settle_new(
     info: &PluginInfo,
     setup: AudioSetup,
     values: &BTreeMap<u32, f64>,
+    backend: &dyn Backend,
 ) -> Option<Box<dyn AudioThread>> {
     let wants = main
         .idle()
@@ -214,7 +306,7 @@ fn settle_new(
         Ok(Some(audio)) => Some(audio),
         _ => {
             let state = main.save_state().ok();
-            let loaded = backend_for(info.format)?.load(info, setup).ok()?;
+            let loaded = backend.load(info, setup).ok()?;
             let mut fresh = loaded.main;
             if let Some(s) = &state {
                 let _ = fresh.load_state(s);
@@ -255,6 +347,14 @@ impl PluginHost {
             inst_parked: HashMap::new(),
             inst_missing: HashMap::new(),
             tweaks: Vec::new(),
+            sandboxes: Some(crate::bridge::Sandboxes::new(
+                crate::bridge::Sandboxes::default_exe(),
+            )),
+            default_isolation: PluginIsolation::Within,
+            crash_counts: HashMap::new(),
+            isolation_missing: false,
+            told_missing: false,
+            retired: Vec::new(),
         }
     }
 
@@ -286,6 +386,11 @@ impl PluginHost {
         if self.db.learn(main.info()) {
             self.save_db();
         }
+    }
+
+    /// Writes the database now (the plug-in manager changed it).
+    pub fn save_db_now(&self) {
+        self.save_db();
     }
 
     fn save_db(&self) {
@@ -358,14 +463,28 @@ impl PluginHost {
 
     /// A new insert slot holding `info`, ready for `Command::InsertEffect`. The plug-in is
     /// loaded once, here, to read its parameters and its state as it starts; that instance
-    /// then serves the slot.
+    /// then serves the slot. It runs where the machine's default says.
     pub fn make_slot(
         &mut self,
         bus: &mut CommandBus,
         strip: StripId,
         info: &PluginInfo,
     ) -> Result<EffectSlot, HostError> {
-        let backend = backend_for(info.format).ok_or(HostError::Unsupported("format"))?;
+        self.make_slot_isolated(bus, strip, info, None)
+    }
+
+    /// [`Self::make_slot`], run where `isolation` says (`None`: the default), which the
+    /// slot's record keeps (round 29, ADR 0063).
+    pub fn make_slot_isolated(
+        &mut self,
+        bus: &mut CommandBus,
+        strip: StripId,
+        info: &PluginInfo,
+        isolation: Option<PluginIsolation>,
+    ) -> Result<EffectSlot, HostError> {
+        let (backend, runs) = self
+            .backend_for_plugin(info, isolation, false)
+            .ok_or(HostError::Unsupported("format"))?;
         let loaded = backend.load(info, self.setup)?;
         let main = loaded.main;
         self.learn(main.as_ref());
@@ -386,24 +505,14 @@ impl PluginHost {
         plugin.sidechain = info.sidechain;
         plugin.state = state.clone();
         plugin.params = values.clone();
+        plugin.isolation = isolation;
         let mut slot = bus.new_effect(EffectKind::External);
         slot.spec = EffectSpec::external(plugin);
-        self.slots.insert(
-            slot.id,
-            Hosted {
-                strip,
-                info: info.clone(),
-                params,
-                main,
-                audio: Some(loaded.audio),
-                synced_state: state,
-                flushed: values,
-                generation: Arc::new(AtomicU64::new(0)),
-                restarting: false,
-                gestures: Vec::new(),
-                window: None,
-            },
-        );
+        let mut h = Hosted::new(strip, info.clone(), main, loaded.audio, runs);
+        h.params = params;
+        h.synced_state = state;
+        h.flushed = values;
+        self.slots.insert(slot.id, h);
         Ok(slot)
     }
 
@@ -422,40 +531,33 @@ impl PluginHost {
             .find(format, &plugin.id)
             .cloned()
             .ok_or_else(|| "not installed on this computer".to_string())?;
-        let backend = backend_for(format).ok_or_else(|| "format not hosted".to_string())?;
-        let loaded = backend.load(&info, self.setup).map_err(|e| e.to_string())?;
-        let mut main = loaded.main;
         let state = self
             .parked
             .remove(&slot.id)
             .unwrap_or_else(|| plugin.state.clone());
-        if !state.is_empty() {
-            if let Err(e) = main.load_state(state.bytes()) {
-                log::warn!("{}: {e}", info.name);
-            }
-        }
-        let mut out = ParamOut::new();
-        main.flush(&changes(&plugin.params), &mut out);
-        let audio = settle_new(&mut main, loaded.audio, &info, self.setup, &plugin.params)
-            .ok_or_else(|| "it could not restart after its state was loaded".to_string())?;
-        self.learn(main.as_ref());
-        let params = main.params();
-        Ok(Hosted {
-            strip,
-            info,
-            params,
-            main,
-            audio: Some(audio),
-            synced_state: plugin.state.clone(),
-            flushed: plugin.params.clone(),
-            generation: Arc::new(AtomicU64::new(0)),
-            restarting: false,
-            gestures: Vec::new(),
-            window: None,
-        })
+        let setup = self.setup;
+        let inst = self.instantiate(
+            &info,
+            plugin.isolation,
+            &state,
+            &plugin.params,
+            setup,
+            false,
+        )?;
+        self.learn(inst.main.as_ref());
+        let mut h = Hosted::new(strip, info, inst.main, inst.audio, inst.isolation);
+        h.synced_state = plugin.state.clone();
+        h.flushed = plugin.params.clone();
+        Ok(h)
     }
 
-    fn make_unit(&self, h: &Hosted, audio: Box<dyn AudioThread>, slot: &EffectSlot) -> EffectUnit {
+    fn make_unit(
+        &self,
+        h: &mut Hosted,
+        audio: Box<dyn AudioThread>,
+        slot: &EffectSlot,
+    ) -> EffectUnit {
+        let meter = h.cpu.renew();
         let unit = HostedUnit::new(
             audio,
             &h.params,
@@ -463,7 +565,8 @@ impl PluginHost {
             h.main.latency(),
             self.setup.sample_rate,
             h.generation.clone(),
-        );
+        )
+        .metered(meter);
         EffectUnit::from_fx(slot, Box::new(unit))
     }
 
@@ -498,6 +601,24 @@ impl PluginHost {
                     }
                 }
             }
+            // Where it runs changed (its choice, or the machine's default): moved there.
+            let runs = self.effective_isolation(plugin.isolation);
+            if self
+                .slots
+                .get(&slot.id)
+                .is_some_and(|h| h.isolation != runs && !h.restarting)
+            {
+                if let Err(error) = self.move_plugin(slot, plugin, engine) {
+                    log::warn!("plug-in {}: {error}", plugin.name);
+                    self.missing.insert(slot.id, error.clone());
+                    notices.push(HostNotice::LoadFailed {
+                        effect: slot.id,
+                        name: plugin.name.clone(),
+                        error,
+                    });
+                    continue;
+                }
+            }
             let Some(mut h) = self.slots.remove(&slot.id) else {
                 continue;
             };
@@ -527,7 +648,7 @@ impl PluginHost {
                 h.flushed = plugin.params.clone();
             }
             if let Some(audio) = h.audio.take() {
-                let unit = self.make_unit(&h, audio, slot);
+                let unit = self.make_unit(&mut h, audio, slot);
                 if engine.knows_effect(slot.id) {
                     engine.replace_unit(unit);
                 } else {
@@ -547,19 +668,57 @@ impl PluginHost {
         }
         self.missing.retain(|id, _| seen.contains(id));
         self.sync_instruments(project, engine, &mut notices);
+        self.tell_unavailable(&mut notices);
         notices
+    }
+
+    /// Loads a slot's plug-in where it now runs (round 29): its state taken from where it
+    /// ran, loaded with the project's values; the new unit replaces the old.
+    fn move_plugin(
+        &mut self,
+        slot: &EffectSlot,
+        plugin: &ExternalPlugin,
+        engine: &mut EngineHandle,
+    ) -> Result<(), String> {
+        let mut h = self.slots.remove(&slot.id).ok_or("not loaded")?;
+        h.close_window_now();
+        let state = h
+            .main
+            .save_state()
+            .map(PluginState::new)
+            .unwrap_or_else(|_| plugin.state.clone());
+        let setup = self.setup;
+        let info = h.info.clone();
+        let values = h.flushed.clone();
+        // The old instance goes first: a helper it leaves empty ends.
+        h.audio = None;
+        let inst = match self.instantiate(&info, plugin.isolation, &state, &values, setup, false) {
+            Ok(i) => i,
+            Err(e) => {
+                self.parked.insert(slot.id, state);
+                return Err(e);
+            }
+        };
+        let old = std::mem::replace(&mut h.main, inst.main);
+        self.retire(old);
+        h.isolation = inst.isolation;
+        h.crashed = None;
+        h.params = h.main.params();
+        h.generation.fetch_add(1, Ordering::AcqRel);
+        let unit = self.make_unit(&mut h, inst.audio, slot);
+        if engine.knows_effect(slot.id) {
+            engine.replace_unit(unit);
+        } else {
+            engine.add_unit(unit);
+        }
+        self.slots.insert(slot.id, h);
+        Ok(())
     }
 
     /// Unload a plug-in, keeping its state for a slot that comes back.
     fn unload(&mut self, id: EffectId) {
         if let Some(mut h) = self.slots.remove(&id) {
-            if let Some(w) = h.window.take() {
-                h.main.close_editor();
-                // The window goes after the editor closed (on Windows it destroys the
-                // native window; elsewhere it is a placeholder with nothing to drop).
-                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
-                drop(w);
-            }
+            h.close_window_now();
             if let Ok(s) = h.main.save_state() {
                 self.parked.insert(id, PluginState::new(s));
             }
@@ -591,6 +750,8 @@ impl PluginHost {
     /// as commands.
     pub fn idle(&mut self, bus: &mut CommandBus, engine: &mut EngineHandle) -> Vec<HostNotice> {
         crate::clap::collect_garbage();
+        self.retired
+            .retain(|(at, _)| at.elapsed() < std::time::Duration::from_secs(1));
         let mut notices = Vec::new();
         if let Some(rx) = &self.scan_job {
             match rx.try_recv() {
@@ -638,6 +799,11 @@ impl PluginHost {
                         self.capture_changes(bus, id);
                     }
                     Notice::StateDirty => self.capture_changes(bus, id),
+                    Notice::Crashed { reason } => {
+                        if let Some(n) = self.on_crash(id, reason) {
+                            notices.push(n);
+                        }
+                    }
                     Notice::EditorResized(size) => {
                         if let Some(h) = self.slots.get_mut(&id) {
                             if let Some(w) = h.window.as_mut() {
@@ -665,6 +831,7 @@ impl PluginHost {
                 notices.push(HostNotice::WindowClosed(id));
             }
             // The user resized the window: offer the size to the editor.
+            let rate = self.setup.sample_rate;
             if let Some(h) = self.slots.get_mut(&id) {
                 if let Some(size) = h.window.as_mut().and_then(|w| w.take_resize()) {
                     if let Some(taken) = h.main.resize_editor(size) {
@@ -673,10 +840,39 @@ impl PluginHost {
                         }
                     }
                 }
+                h.cpu.update(h.main.as_ref(), rate);
             }
         }
         self.idle_instruments(bus, engine, &mut notices);
+        self.tell_unavailable(&mut notices);
         notices
+    }
+
+    /// A slot's plug-in stopped working: marked, counted, its window gone, told once.
+    fn on_crash(&mut self, effect: EffectId, reason: String) -> Option<HostNotice> {
+        let h = self.slots.get_mut(&effect)?;
+        if h.crashed.is_some() {
+            return None;
+        }
+        h.crashed = Some(reason.clone());
+        h.restarting = false;
+        // Its helper made the editor's window, and it is gone with it.
+        if let Some(w) = h.window.take() {
+            #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
+            drop(w);
+        }
+        let info = h.info.clone();
+        self.count_crash(&info);
+        Some(HostNotice::PluginCrashed {
+            effect,
+            name: info.name,
+            reason,
+        })
+    }
+
+    /// Keeps a replaced instance's main half a moment (see `retired`).
+    pub(crate) fn retire(&mut self, main: Box<dyn MainThread>) {
+        self.retired.push((std::time::Instant::now(), main));
     }
 
     /// The parameter commands plug-in windows ran since the last take, oldest first.
@@ -739,6 +935,8 @@ impl PluginHost {
                 if h.gestures.len() != was {
                     bus.end_gesture();
                 }
+                // A gesture ended: a good moment for an isolated plug-in's last-good state.
+                h.main.checkpoint();
             }
         }
     }
@@ -819,43 +1017,50 @@ impl PluginHost {
     ) -> Option<HostNotice> {
         let (_, slot) = find_slot(project, effect)?;
         let setup = self.setup;
-        let h = self.slots.get_mut(&effect)?;
+        let mut h = self.slots.remove(&effect)?;
         if !h.restarting {
+            self.slots.insert(effect, h);
             return None;
         }
         let audio = match h.main.restart() {
-            Ok(None) => return None, // its audio half is still on its way back
+            Ok(None) => {
+                // Its audio half is still on its way back.
+                self.slots.insert(effect, h);
+                return None;
+            }
             Ok(Some(audio)) => audio,
             Err(HostError::Unsupported(_)) => {
-                // The backend cannot restart in place: a new instance, with the state.
-                let state = h.main.save_state().ok();
+                // The backend cannot restart in place: a new instance where it runs, with
+                // the state.
+                let state = h
+                    .main
+                    .save_state()
+                    .map(PluginState::new)
+                    .unwrap_or_default();
                 let info = h.info.clone();
-                let loaded = backend_for(info.format)
-                    .ok_or(HostError::Unsupported("format"))
-                    .and_then(|b| b.load(&info, setup));
-                match loaded {
-                    Ok(l) => {
-                        let mut main = l.main;
-                        if let Some(s) = &state {
-                            let _ = main.load_state(s);
-                        }
-                        let mut out = ParamOut::new();
-                        main.flush(&changes(&h.flushed), &mut out);
-                        h.params = main.params();
-                        h.main = main;
-                        l.audio
+                let values = h.flushed.clone();
+                match self.instantiate(&info, Some(h.isolation), &state, &values, setup, false) {
+                    Ok(inst) => {
+                        h.main = inst.main;
+                        h.params = h.main.params();
+                        inst.audio
                     }
-                    Err(e) => {
+                    Err(error) => {
                         h.restarting = false;
-                        return Some(HostNotice::RestartFailed {
-                            effect,
-                            error: e.to_string(),
-                        });
+                        self.slots.insert(effect, h);
+                        return Some(HostNotice::RestartFailed { effect, error });
                     }
                 }
             }
+            // It stopped working: the crash is told by `idle`, its slot stays a wire.
+            Err(HostError::Crashed(_)) => {
+                h.restarting = false;
+                self.slots.insert(effect, h);
+                return None;
+            }
             Err(e) => {
                 h.restarting = false;
+                self.slots.insert(effect, h);
                 return Some(HostNotice::RestartFailed {
                     effect,
                     error: e.to_string(),
@@ -864,13 +1069,13 @@ impl PluginHost {
         };
         h.restarting = false;
         h.generation.fetch_add(1, Ordering::AcqRel);
-        let h = self.slots.get(&effect)?;
-        let unit = self.make_unit(h, audio, slot);
+        let unit = self.make_unit(&mut h, audio, slot);
         if engine.knows_effect(effect) {
             engine.replace_unit(unit);
         } else {
             engine.add_unit(unit);
         }
+        self.slots.insert(effect, h);
         None
     }
 
@@ -918,21 +1123,20 @@ impl PluginHost {
             let Some(h) = self.slots.get_mut(&slot.id) else {
                 continue;
             };
-            let state = h.main.save_state().ok();
+            let state = h
+                .main
+                .save_state()
+                .map(PluginState::new)
+                .unwrap_or_default();
             let info = h.info.clone();
-            let Some(Ok(loaded)) = backend_for(info.format).map(|b| b.load(&info, setup)) else {
-                continue;
-            };
-            let mut main = loaded.main;
-            if let Some(s) = &state {
-                let _ = main.load_state(s);
-            }
-            let mut out = ParamOut::new();
-            main.flush(&changes(&plugin.params), &mut out);
-            let Some(audio) = settle_new(&mut main, loaded.audio, &info, setup, &plugin.params)
+            // Where it runs live; an isolated one waits for every block without a deadline
+            // (ADR 0063), so the render equals the in-process one to the bit.
+            let isolation = Some(h.isolation);
+            let Ok(inst) = self.instantiate(&info, isolation, &state, &plugin.params, setup, true)
             else {
                 continue;
             };
+            let (main, audio) = (inst.main, inst.audio);
             let params = main.params();
             let unit = HostedUnit::new(
                 audio,
@@ -968,10 +1172,17 @@ impl PluginHost {
             .get_mut(&effect)
             .ok_or(HostError::Unsupported("no plug-in in this slot"))?;
         if let Some(w) = h.window.as_ref() {
-            w.focus();
+            if !h.main.focus_editor() {
+                w.focus();
+            }
             return Ok(());
         }
+        if h.crashed.is_some() {
+            return Err(HostError::Crashed(h.crashed.clone().unwrap_or_default()));
+        }
         let window = PluginWindow::open(title, owner, h.main.as_mut())?;
+        // An isolated plug-in's window is its helper's: brought to the front there.
+        h.main.focus_editor();
         h.window = Some(window);
         Ok(())
     }

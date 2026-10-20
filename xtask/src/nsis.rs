@@ -5,7 +5,8 @@
 //! - `config.nsh` — the version, the output, the icon, the licence, the signing hook;
 //! - `files.nsh` — one `File` per staged file, and the matching `Delete`s and `RMDir`s, so
 //!   the uninstaller removes exactly what the installer wrote and nothing else; and the
-//!   programs to wait for (the launcher, each level's program, the scanner);
+//!   programs to wait for (the launcher, each level's program, the scanner, the plug-in
+//!   sandbox);
 //! - `strings.nsh` — the installer's words in English and Spanish, read from the app's
 //!   own locale area (`locales/areas/update.*`, keys `update.installer.*`).
 

@@ -18,9 +18,12 @@
 //! - [`unit`]: a hosted plug-in behind the engine's `FxUnit`;
 //! - [`session`]: the plug-ins of an open project — loading, delivering to the engine,
 //!   restarts, their windows' gestures as commands, state for saving;
-//! - [`window`]: a plug-in's own editor in a native window.
+//! - [`window`]: a plug-in's own editor in a native window;
+//! - [`bridge`]: plug-ins run out of Cantus's process, in helper processes (ADR 0063), so
+//!   one that crashes or hangs cannot take the session down.
 
 pub mod backend;
+pub mod bridge;
 pub mod clap;
 pub mod db;
 pub mod inst_unit;
@@ -31,11 +34,18 @@ pub mod vst3;
 pub mod window;
 
 pub use backend::*;
-pub use db::{DbEntry, PluginDb, ScanStatus};
+pub use db::{CrashRecord, DbEntry, PluginDb, ScanStatus};
 pub use inst_unit::HostedInstrument;
 pub use scan::{ScanReport, Scanner};
 pub use session::{HostNotice, HostedInst, PluginHost};
 pub use unit::HostedUnit;
+
+/// Marks the calling thread as the main thread to the plug-ins: the one that loads them and
+/// calls their main halves (the plug-in sandbox's main thread does it first, ADR 0063).
+/// Loading a CLAP plug-in marks its thread too.
+pub fn mark_main_thread() {
+    clap::host::mark_main_thread();
+}
 
 /// The backend for a format, when this build hosts it.
 pub fn backend_for(format: Format) -> Option<Box<dyn Backend>> {

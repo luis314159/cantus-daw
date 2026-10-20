@@ -14,6 +14,10 @@
 //!   or poly pressure writes its value into the right channel. It records the last
 //!   `ProcessContext` it saw.
 //!
+//! Both carry a hidden **Fault** parameter and a hidden read-only **Process** one (round 29,
+//! `fault.rs`): failures on purpose and the id of the process they run in, for the host's
+//! isolation tests.
+//!
 //! Extra C exports (`cantus_test_*`) let the tests look inside: live objects, driving the
 //! controller as a user would, the last transport.
 
@@ -23,6 +27,7 @@
 // between them and the `int32` fields are no-ops here and needed there.
 #![allow(clippy::unnecessary_cast)]
 
+mod fault;
 mod gain;
 mod pulse;
 

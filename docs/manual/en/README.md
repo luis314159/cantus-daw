@@ -837,6 +837,47 @@ are inserted **doing nothing**, so a fresh one changes no sample until you turn 
 
 Pages: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
 
+### When a plug-in crashes
+
+A plug-in made by someone else — a CLAP or VST3 effect or instrument — can crash or hang.
+Cantus runs those plug-ins **in a helper process of their own** (`cantus-sandbox`), so when
+one fails, the helper stops and **Cantus keeps playing**:
+
+- an effect that stopped passes the sound through untouched, in time with the rest of the
+  mix (as if it were bypassed); an instrument that stopped falls silent;
+- a card in the bottom-right corner says so — *"Glacier stopped working. Cantus kept
+  playing without it."* — with **Reload** and **Keep it off**. Point at the card's picture
+  to read what happened;
+- **Reload** loads the plug-in again with what you had set: its last good state and every
+  value of the project. Several plug-ins that stopped together share one card and
+  **Reload all**;
+- *Keep it off* leaves it stopped: its slot shows *stopped* in red (an instrument's track
+  shows the sign on its icon and an outlined channel button), and its menu offers
+  **Reload plug-in** whenever you want it back;
+- **the project loses nothing**: saving keeps the plug-in's last good state and values, and
+  the project opens with them next time;
+- a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
+  audio never waits for it longer than a few milliseconds, and the window never waits at
+  all.
+
+**Where a plug-in runs.** Settings ▸ Plug-ins ▸ *Where third-party plug-ins run* sets the
+default for this computer: **Together** (one helper for all of them; the default), **By
+maker** (one per maker), **Individually** (a helper each: a crash stops only that plug-in)
+or **Within Cantus** (no helper: the fastest, and a crash closes Cantus). Each plug-in can
+differ: right-click its slot (or open *Runs* on a hosted instrument's row in the inspector)
+and choose. The choice is saved with the project; changing it moves the plug-in at once,
+with its sound. A plug-in that crashes three times in a session is offered **Run
+individually** on its card. The plug-in manager lists the plug-ins that ever stopped on
+this computer (*Forget* clears one). Cantus's own effects and instruments always run
+within.
+
+**What it costs.** A plug-in in a helper adds a round trip per audio block: a few
+microseconds while plug-ins follow one another, a few tens of microseconds after a pause
+(ADR 0063 has the measurements). Point at a hosted slot to see where it runs and its
+**CPU**; the status bar counts *Plug-ins late* when a helper did not answer in time
+(those blocks played without the plug-in). Exports, stems and bounces wait for every
+block, so they are always exactly what the plug-in makes.
+
 ## 11. Projects, autosave and settings
 
 - *File ▸ New project* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save as…*
