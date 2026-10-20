@@ -8,11 +8,13 @@
 //! 44.1/48 kHz): long enough to resolve a bass's partials; the transients are not here
 //! (the percussive part carries them, `stretch_hpss`).
 //!
-//! **Phase.** Identity phase locking (Laroche–Dolson): each spectral peak of the mid
-//! channel advances its phase by `H · ratio · ω`; the bins around it keep their analysed
-//! phase relation to it, so a partial stays one coherent lobe (no phasiness). **Both
-//! channels share that phase**: each keeps its own analysed difference from the mid, so the
-//! stereo image is the source's at any stretch.
+//! **Phase.** Identity phase locking (Laroche–Dolson), channel by channel: each spectral
+//! peak advances its phase by `H · ratio · ω`; the bins around it keep their analysed
+//! phase relation to it, so a partial stays one coherent lobe (no phasiness). Each channel
+//! follows its own partials (a chorus spreads them apart left and right: one phase for
+//! both would make each beat), and the image holds: the same partial in both channels
+//! has the same ω, so its phase difference is the source's for good, and transients reset
+//! both channels together.
 //!
 //! **Transposition** maps bins: output bin `m` takes the magnitude at source bin `m/ratio`
 //! and the phase of the nearest source bin (advanced at `ratio · ω`); with the formants
@@ -58,17 +60,96 @@ pub(crate) fn render(
     out
 }
 
-struct Bins {
+/// One channel's spectra and phase state.
+struct Chan {
     mag: Vec<f32>,
     phase: Vec<f32>,
+    phase0: Vec<f32>,
+    psi: Vec<f32>,
+    omega: Vec<f32>,
+    peaks: Vec<usize>,
+    owner: Vec<usize>,
+    y: Vec<(f32, f32)>,
 }
 
-impl Bins {
+impl Chan {
     fn new(h: usize) -> Self {
-        Bins {
+        Chan {
             mag: vec![0.0; h],
             phase: vec![0.0; h],
+            phase0: vec![0.0; h],
+            psi: vec![0.0; h],
+            omega: vec![0.0; h],
+            peaks: Vec::with_capacity(h / 2),
+            owner: vec![0; h],
+            y: vec![(0.0, 0.0); h],
         }
+    }
+
+    /// The phases advanced to this frame (or reset to the analysed ones).
+    fn advance(&mut self, n: usize, hs: usize, ratio: f32, reset: bool) {
+        let bins = self.mag.len();
+        for k in 0..bins {
+            let wk = 2.0 * PI * k as f32 / n as f32;
+            let d = self.phase[k] - self.phase0[k] - wk * hs as f32;
+            self.omega[k] = wk + princarg(d) / hs as f32;
+        }
+        find_peaks(&self.mag, &mut self.peaks, &mut self.owner);
+        let step = hs as f32 * ratio;
+        if reset {
+            self.psi.copy_from_slice(&self.phase);
+        } else if self.peaks.is_empty() {
+            for k in 0..bins {
+                self.psi[k] = princarg(self.psi[k] + step * self.omega[k]);
+            }
+        } else {
+            for &p in &self.peaks {
+                self.psi[p] = princarg(self.psi[p] + step * self.omega[p]);
+            }
+            for k in 0..bins {
+                let p = self.owner[k];
+                if p != k {
+                    self.psi[k] = princarg(self.psi[p] + self.phase[k] - self.phase[p]);
+                }
+            }
+        }
+    }
+
+    /// The output bins: output bin `m` from source bin `m / ratio` — the magnitude
+    /// interpolated (and, with `env`, moved back under the source's envelope), the phase
+    /// the nearest source bin's (on zero-phase frames, the same across a lobe). Moving
+    /// whole peak regions by whole bins (Laroche–Dolson 1999b) was measured too: it kept a
+    /// shifted voice's envelope a dB worse (a lobe a fraction of a bin off its frequency
+    /// beats from frame to frame).
+    fn synthesise(&mut self, ratio: f32, env: Option<&[f32]>) {
+        let half = self.mag.len() - 1;
+        let shift = ratio != 1.0;
+        for m in 0..=half {
+            let q = if shift { m as f32 / ratio } else { m as f32 };
+            if q > half as f32 {
+                self.y[m] = (0.0, 0.0);
+                continue;
+            }
+            let i = (q.round() as usize).min(half);
+            let lerp = |v: &[f32]| -> f32 {
+                if !shift {
+                    return v[m];
+                }
+                let f = (q.floor() as usize).min(half);
+                let t = q - f as f32;
+                let b = v[(f + 1).min(half)];
+                v[f] + (b - v[f]) * t
+            };
+            let gain = match env {
+                Some(e) => (e[m] / lerp(e).max(1e-12)).clamp(1.0 / 32.0, 32.0),
+                None => 1.0,
+            };
+            let a = lerp(&self.mag) * gain;
+            let (s, c) = math::sin_cos(self.psi[i]);
+            self.y[m] = (a * c, a * s);
+        }
+        self.y[0].1 = 0.0;
+        self.y[half].1 = 0.0;
     }
 }
 
@@ -80,18 +161,10 @@ struct State {
     win: Vec<f32>,
     re: Vec<f32>,
     im: Vec<f32>,
-    mid: Bins,
-    mid0: Vec<f32>,
-    l: Bins,
-    r: Bins,
-    psi: Vec<f32>,
-    omega: Vec<f32>,
-    peaks: Vec<usize>,
-    owner: Vec<usize>,
-    yl: Vec<(f32, f32)>,
-    yr: Vec<(f32, f32)>,
+    ch: Vec<Chan>,
     env: Option<Envelope>,
     env_src: Vec<f32>,
+    sum: Vec<f32>,
 }
 
 fn render_pair(
@@ -119,18 +192,10 @@ fn render_pair(
         win,
         re: vec![0.0; n],
         im: vec![0.0; n],
-        mid: Bins::new(bins),
-        mid0: vec![0.0; bins],
-        l: Bins::new(bins),
-        r: Bins::new(bins),
-        psi: vec![0.0; bins],
-        omega: vec![0.0; bins],
-        peaks: Vec::with_capacity(bins / 2),
-        owner: vec![0; bins],
-        yl: vec![(0.0, 0.0); bins],
-        yr: vec![(0.0, 0.0); bins],
+        ch: (0..ch.len()).map(|_| Chan::new(bins)).collect(),
         env: (formants && ratio != 1.0).then(|| Envelope::new(n, rate)),
         env_src: vec![1.0; bins],
+        sum: vec![0.0; bins],
     };
     let pad = n;
     let stereo = ch.len() == 2;
@@ -182,21 +247,13 @@ fn render_pair(
 
 impl State {
     /// One synthesis frame reading the source around frame `a`: on return, `re` (and `im`,
-    /// for a pair) hold the frame to overlap-add, unwindowed and unscaled.
-    fn frame(&mut self, ch: &[&[f32]], a: i64, ratio: f32, first: bool) {
+    /// for a pair) hold the frame to overlap-add, zero-phase and unscaled.
+    fn frame(&mut self, ch: &[&[f32]], a: i64, ratio: f32, reset: bool) {
         let (n, hs, half) = (self.n, self.hs, self.n / 2);
-        let bins = half + 1;
         let stereo = ch.len() == 2;
         // The frame and the one a synthesis hop before it.
         analyse(&self.fft, ch, &self.win, a, &mut self.re, &mut self.im);
-        unpack(
-            &self.re,
-            &self.im,
-            stereo,
-            &mut self.mid,
-            &mut self.l,
-            &mut self.r,
-        );
+        unpack(&self.re, &self.im, &mut self.ch, true);
         analyse(
             &self.fft,
             ch,
@@ -205,45 +262,47 @@ impl State {
             &mut self.re,
             &mut self.im,
         );
-        unpack_mid_phase(&self.re, &self.im, stereo, &mut self.mid0);
-        // The instantaneous frequency of every bin (radians per frame).
-        for k in 0..bins {
-            let wk = 2.0 * PI * k as f32 / n as f32;
-            let d = self.mid.phase[k] - self.mid0[k] - wk * hs as f32;
-            self.omega[k] = wk + princarg(d) / hs as f32;
+        unpack(&self.re, &self.im, &mut self.ch, false);
+        for c in &mut self.ch {
+            c.advance(n, hs, ratio, reset);
         }
-        find_peaks(&self.mid.mag, &mut self.peaks, &mut self.owner);
-        let step = hs as f32 * ratio;
-        if first {
-            self.psi.copy_from_slice(&self.mid.phase);
-        } else if self.peaks.is_empty() {
-            for k in 0..bins {
-                self.psi[k] = princarg(self.psi[k] + step * self.omega[k]);
-            }
-        } else {
-            for &p in &self.peaks {
-                self.psi[p] = princarg(self.psi[p] + step * self.omega[p]);
-            }
-            for k in 0..bins {
-                let p = self.owner[k];
-                if p != k {
-                    self.psi[k] = princarg(self.psi[p] + self.mid.phase[k] - self.mid.phase[p]);
+        // The image: where both channels hold the same partial (the same frequency to a
+        // quarter of a bin), the right one keeps the source's phase difference from the
+        // left — every frame, so silence or a reset never loses it; where they differ (a
+        // chorus), each keeps its own.
+        if stereo {
+            let tol = 2.0 * PI * 0.25 / n as f32;
+            let (l, r) = self.ch.split_at_mut(1);
+            let (l, r) = (&l[0], &mut r[0]);
+            let top = l.mag.iter().chain(&r.mag).fold(0.0f32, |m, v| m.max(*v));
+            let floor = top * 1e-4;
+            for k in 0..=half {
+                if (l.omega[k] - r.omega[k]).abs() < tol && l.mag[k] > floor && r.mag[k] > floor {
+                    r.psi[k] = princarg(l.psi[k] + (r.phase[k] - l.phase[k]));
                 }
             }
         }
-        if let Some(e) = self.env.as_mut() {
-            e.compute(&self.mid.mag, &mut self.env_src);
-        }
-        self.map_bins(stereo, ratio);
-        // DC and Nyquist are real.
-        for y in [&mut self.yl, &mut self.yr] {
-            y[0].1 = 0.0;
-            y[half].1 = 0.0;
+        // One envelope for both channels: of their summed magnitudes (no cancellation).
+        let env = match self.env.as_mut() {
+            Some(e) => {
+                for (k, s) in self.sum.iter_mut().enumerate() {
+                    *s = self.ch.iter().map(|c| c.mag[k]).sum();
+                }
+                e.compute(&self.sum, &mut self.env_src);
+                Some(self.env_src.as_slice())
+            }
+            None => None,
+        };
+        for c in &mut self.ch {
+            c.synthesise(ratio, env);
         }
         // Pack L + jR into one inverse transform.
+        let zero = vec![(0.0f32, 0.0f32); 0];
+        let yl = &self.ch[0].y;
+        let yr = if stereo { &self.ch[1].y } else { &zero };
         for k in 0..=half {
-            let (lr, li) = self.yl[k];
-            let (rr, ri) = self.yr[k];
+            let (lr, li) = yl[k];
+            let (rr, ri) = yr.get(k).copied().unwrap_or((0.0, 0.0));
             self.re[k] = lr - ri;
             self.im[k] = li + rr;
             if k > 0 && k < half {
@@ -252,55 +311,6 @@ impl State {
             }
         }
         self.fft.run(&mut self.re, &mut self.im, true);
-    }
-
-    /// Bin by bin: output bin `m` from source bin `m / ratio` — the magnitude interpolated,
-    /// the phase the nearest source bin's (on zero-phase frames, the same across a lobe).
-    /// Moving whole peak regions by whole bins (Laroche–Dolson 1999b) was measured too: it
-    /// kept a shifted voice's envelope a dB worse (a lobe a fraction of a bin off its
-    /// frequency beats from frame to frame).
-    fn map_bins(&mut self, stereo: bool, ratio: f32) {
-        let half = self.n / 2;
-        let bins = half + 1;
-        let shift = ratio != 1.0;
-        for m in 0..bins {
-            let q = if shift { m as f32 / ratio } else { m as f32 };
-            if q > half as f32 {
-                self.yl[m] = (0.0, 0.0);
-                self.yr[m] = (0.0, 0.0);
-                continue;
-            }
-            let i = (q.round() as usize).min(half);
-            let lerp = |v: &[f32]| -> f32 {
-                if !shift {
-                    return v[m];
-                }
-                let f = (q.floor() as usize).min(half);
-                let t = q - f as f32;
-                let b = v[(f + 1).min(half)];
-                v[f] + (b - v[f]) * t
-            };
-            let mut gain = 1.0f32;
-            if self.env.is_some() {
-                let den = lerp(&self.env_src);
-                gain = (self.env_src[m] / den.max(1e-12)).clamp(1.0 / 32.0, 32.0);
-            }
-            let base = self.psi[i];
-            if stereo {
-                let pl = base + (self.l.phase[i] - self.mid.phase[i]);
-                let pr = base + (self.r.phase[i] - self.mid.phase[i]);
-                let (ml, mr) = (lerp(&self.l.mag) * gain, lerp(&self.r.mag) * gain);
-                let (sl, cl) = math::sin_cos(pl);
-                let (sr, cr) = math::sin_cos(pr);
-                self.yl[m] = (ml * cl, ml * sl);
-                self.yr[m] = (mr * cr, mr * sr);
-            } else {
-                let ml = lerp(&self.mid.mag) * gain;
-                let (s, c) = math::sin_cos(base);
-                self.yl[m] = (ml * c, ml * s);
-                self.yr[m] = (0.0, 0.0);
-            }
-        }
     }
 }
 
@@ -331,45 +341,32 @@ fn analyse(fft: &Fft, ch: &[&[f32]], win: &[f32], a: i64, re: &mut [f32], im: &m
     fft.run(re, im, false);
 }
 
-/// The two channels' spectra out of one transform of `L + jR`: magnitudes and phases of
-/// the mid (`L + R`), and of each channel when `stereo`.
-fn unpack(re: &[f32], im: &[f32], stereo: bool, mid: &mut Bins, l: &mut Bins, r: &mut Bins) {
+/// The channels' spectra out of one transform of `L + jR`: magnitudes and phases (`now`),
+/// or the phases of the frame a hop before.
+fn unpack(re: &[f32], im: &[f32], ch: &mut [Chan], now: bool) {
     let n = re.len();
-    for k in 0..mid.mag.len() {
+    let stereo = ch.len() == 2;
+    let bins = ch[0].mag.len();
+    for k in 0..bins {
         let (a, b) = (re[k], im[k]);
-        if !stereo {
-            mid.mag[k] = math::hypot(a, b);
-            mid.phase[k] = math::atan2(b, a);
-            continue;
-        }
         let nk = (n - k) % n;
         let (c, d) = (re[nk], im[nk]);
-        let (lr, li) = (0.5 * (a + c), 0.5 * (b - d));
-        let (rr, ri) = (0.5 * (b + d), 0.5 * (c - a));
-        let (mr, mi) = (lr + rr, li + ri);
-        l.mag[k] = math::hypot(lr, li);
-        l.phase[k] = math::atan2(li, lr);
-        r.mag[k] = math::hypot(rr, ri);
-        r.phase[k] = math::atan2(ri, rr);
-        mid.mag[k] = math::hypot(mr, mi);
-        mid.phase[k] = math::atan2(mi, mr);
-    }
-}
-
-fn unpack_mid_phase(re: &[f32], im: &[f32], stereo: bool, phase: &mut [f32]) {
-    let n = re.len();
-    for (k, p) in phase.iter_mut().enumerate() {
-        let (a, b) = (re[k], im[k]);
-        if !stereo {
-            *p = math::atan2(b, a);
-            continue;
+        let parts = if stereo {
+            [
+                (0.5 * (a + c), 0.5 * (b - d)),
+                (0.5 * (b + d), 0.5 * (c - a)),
+            ]
+        } else {
+            [(a, b), (0.0, 0.0)]
+        };
+        for (x, (pr, pi)) in ch.iter_mut().zip(parts) {
+            if now {
+                x.mag[k] = math::hypot(pr, pi);
+                x.phase[k] = math::atan2(pi, pr);
+            } else {
+                x.phase0[k] = math::atan2(pi, pr);
+            }
         }
-        let nk = (n - k) % n;
-        let (c, d) = (re[nk], im[nk]);
-        // Mid = L + R = ((a + c) + (b + d))/2 + j((b − d) + (c − a))/2.
-        let mr = 0.5 * (a + c + b + d);
-        let mi = 0.5 * (b - d + c - a);
-        *p = math::atan2(mi, mr);
     }
 }
 

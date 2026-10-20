@@ -134,7 +134,13 @@ fn split_pair(ch: &[&[f32]], rate: f32) -> Vec<Vec<f32>> {
             }
             let p = median(&mut row);
             let (h2, p2) = (h * h, p * p);
-            mask[k] = if h2 + p2 > 0.0 { h2 / (h2 + p2) } else { 0.5 };
+            // Percussive only where it clearly is (Driedger's separation factor, 2, with
+            // a soft edge): what is neither — a dense chord, a held noise — stays with the
+            // phase vocoder, which keeps it whole; short grains would make it flutter.
+            let _ = (h2, p2);
+            let r = p / h.max(1e-12);
+            let x = (r - 1.0).clamp(0.0, 1.0);
+            mask[k] = 1.0 - x * x * (3.0 - 2.0 * x);
         }
         // The harmonic frame: the packed spectrum masked (the mask is real and the same
         // for both channels, so it may be applied to the packed transform directly, bin k
