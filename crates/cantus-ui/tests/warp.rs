@@ -228,7 +228,7 @@ fn bounce_warped_audio_leaves_the_clip_playing_a_file_of_its_own() {
     let m = click_track(48_000.0, 100.0, 4, 0.0);
     wav(&path, 48_000, &m.audio);
     let mut a = app(project(120.0));
-    a.import_audio(&[path.clone()], Ticks::ZERO, None);
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
     settle(&mut a);
     let (t, c) = audio_clips(&a).remove(0);
     let r = (t, c.id);

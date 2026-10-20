@@ -22,6 +22,7 @@ pub const MODES: [&str; 4] = [
 ];
 
 /// A value dragged on the bar: its face, and the drag's value (`None` while still).
+#[allow(clippy::too_many_arguments)]
 fn drag_value(
     ui: &mut egui::Ui,
     app: &mut CantusApp,

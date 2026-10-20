@@ -179,7 +179,7 @@ pub fn render(mat: &Material, mode: Mode, ratio: f64, semis: f64) -> Vec<Vec<f32
     let len = (len_in as f64 * ratio).round() as usize;
     let map = Map::new(vec![(0.0, 0.0), (len as f64, len_in as f64)]).expect("a map");
     let refs: Vec<&[f32]> = mat.channels.iter().map(Vec::as_slice).collect();
-    let pitch = (mode == Mode::Melodic).then(|| cantus_dsp::pitch::analyse(&refs[0][..], SR));
+    let pitch = (mode == Mode::Melodic).then(|| cantus_dsp::pitch::analyse(refs[0], SR));
     stretch::render(
         &refs,
         SR,
@@ -428,7 +428,7 @@ pub fn listen(dir: &Path) -> std::io::Result<usize> {
             (Mode::Rhythm, 5.0),
         ] {
             let y = render(&mat, mode, 1.0, semis);
-            let name = format!("{}-{}-{semis:+}st.wav", mat.name, mode_id(mode));
+            let name = format!("{}-{}-transposed{semis:+}st.wav", mat.name, mode_id(mode));
             write(&dir.join(name), &y)?;
             n += 1;
         }
@@ -447,7 +447,7 @@ Each material as it is (<material>-source.wav), then stretched by each mode:
   <material>-<mode>-x<ratio>.wav   ratio = output length / input length
   x0.5 twice as fast, x0.8 a little faster, x1.25 a little slower, x2 half speed
 and transposed at its own length:
-  <material>-<mode>-<semitones>st.wav   (Complex -3 and +7, Melodic -3, Rhythm +5)
+  <material>-<mode>-transposed<semitones>st.wav  (Complex -3 and +7, Melodic -3, Rhythm +5)
 and the brief's case, slowed 25 % and down three semitones:
   <material>-melodic-x1.25-3st.wav
 
