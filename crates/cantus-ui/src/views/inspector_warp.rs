@@ -287,23 +287,28 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
                         crate::i18n::tf_count("warp.inspector.bars", bars as usize, &[])
                     );
                 }
-                let sure = if a.acid_bpm.is_some() {
-                    1.0
-                } else {
-                    a.grid.confidence
-                };
-                let pct = format!("{:.0}", sure * 100.0);
-                let _ = write!(
-                    b,
-                    " · {}",
-                    crate::i18n::tf("warp.inspector.sure", &[("n", &pct)])
-                );
             }
             (_, true) => b.push_str(&crate::i18n::t("warp.status.analysing_short")),
             _ => b.push_str(&crate::i18n::t("warp.inspector.none")),
         },
     ));
     sh.text_row("warp.inspector.detected", &found, true, busy);
+    // How sure the detector is, on a row of its own (label and value, ADR 0024).
+    if let Some(a) = analysis.as_ref().filter(|a| a.bpm() > 0.0) {
+        let sure = if a.acid_bpm.is_some() {
+            1.0
+        } else {
+            a.grid.confidence
+        };
+        let pct = sheet::name(sh.fmt.get(
+            cache::key(("insp-warp-sure", c, (sure * 100.0).round() as i32)),
+            rev,
+            |b| {
+                let _ = write!(b, "{:.0} %", sure * 100.0);
+            },
+        ));
+        sh.text_row("warp.inspector.sure", &pct, true, false);
+    }
     let ready = analysis.is_some();
     let keys: [(&str, WarpAct, bool); 7] = [
         ("warp.menu.detect", WarpAct::Detect(r), ready),

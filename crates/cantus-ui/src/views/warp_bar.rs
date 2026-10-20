@@ -125,6 +125,23 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                         // The mode alone: it does not warp the clip.
                         app.set_warp_mode(r, WarpMode::ALL[m]);
                     }
+                    // The editor's own snap grid (the arrangement's is its own).
+                    let mut g = GRIDS
+                        .iter()
+                        .position(|x| *x == app.warp.view.snap())
+                        .unwrap_or(2);
+                    let labels = [
+                        Src::Str("1/4"),
+                        Src::Str("1/8"),
+                        Src::Str("1/16"),
+                        Src::Str("1/32"),
+                        Src::Key("warp.grid.off"),
+                    ];
+                    if kit::widgets::segmented(ui, &mut g, &labels, &t("warp.grid"), 230.0)
+                        .changed()
+                    {
+                        app.warp.view.set_snap(GRIDS[g]);
+                    }
                     // The transposition (Re-pitch has none: its pitch is its speed).
                     let mut face = String::new();
                     crate::warp::write_cents(&mut face, w.cents);
@@ -204,23 +221,6 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                     }
                     if key(ui, "warp.menu.reset", app.clip_warp(r).is_some(), 130.0) {
                         app.reset_warp(r);
-                    }
-                    // The editor's own snap grid (the arrangement's is its own).
-                    let mut g = GRIDS
-                        .iter()
-                        .position(|x| *x == app.warp.view.snap())
-                        .unwrap_or(2);
-                    let labels = [
-                        Src::Str("1/4"),
-                        Src::Str("1/8"),
-                        Src::Str("1/16"),
-                        Src::Str("1/32"),
-                        Src::Key("warp.grid.off"),
-                    ];
-                    if kit::widgets::segmented(ui, &mut g, &labels, &t("warp.grid"), 230.0)
-                        .changed()
-                    {
-                        app.warp.view.set_snap(GRIDS[g]);
                     }
                 });
             });

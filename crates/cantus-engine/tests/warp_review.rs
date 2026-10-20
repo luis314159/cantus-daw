@@ -615,3 +615,29 @@ fn parallel_equals_serial_with_warped_clips() {
     assert!(serial.iter().any(|v| v.abs() > 0.01), "it sounds");
     assert_null(&serial, &play(Workers::parallel(3)), 0.0, "three workers");
 }
+
+/// A warp that does not follow the tempo and does not transpose, under a tempo ramp: the
+/// clip plays the bits it plays with no warp at all (round 29's review).
+#[test]
+fn a_natural_warp_under_a_ramp_plays_the_unwarped_bits() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("loop.wav");
+    let m = cantus_dsp::beat::testkit::drum_loop(48_000.0, 120.0, 2, 0.0, 0.0, 9);
+    write_wav(&path, &m.audio, 48_000);
+    let mut plain = project(&[(&path, 48_000, m.audio.len(), None)], 120.0, 8);
+    ramp(&mut plain, 150.0, 8);
+    let want = bounce(&plain, 48_000);
+    let mut w = Warp::identity(48_000, 100.0, 0)
+        .add_marker(Ticks::beats(2))
+        .unwrap()
+        .move_marker(1, Ticks::beats(3));
+    w.follow = false;
+    let mut p = plain.clone();
+    p.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(w));
+    assert_null(
+        &want,
+        &bounce(&p, 48_000),
+        0.0,
+        "a natural warp under a ramp",
+    );
+}
