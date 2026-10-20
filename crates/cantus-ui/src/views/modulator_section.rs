@@ -474,6 +474,7 @@ pub fn wired_value(
     };
     let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let (m, n) = app.mod_offer(&target, base, &sh.s, &mut rings);
+    crate::kit::automate::probe::note_learn(probe, m.learn.is_some());
     let offer = crate::kit::automate::Offer {
         automated: app.is_automated(&target),
         typing: false,

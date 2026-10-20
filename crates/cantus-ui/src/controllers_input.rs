@@ -24,6 +24,15 @@ pub struct Gesture {
     pub last: Option<Instant>,
 }
 
+/// Where a message `age` seconds old was heard, the playhead being at tick `now`: through
+/// the tempo map, so a knob turned across a ramp lands where it was turned.
+pub fn tick_of_message(map: &cantus_core::TempoMap, now: f64, age: f64) -> i64 {
+    if !(age > 0.0) {
+        return now.round() as i64;
+    }
+    map.tick_at_seconds(map.seconds_at(now) - age).round() as i64
+}
+
 /// One target's newest value this frame.
 struct Pending {
     target: MappingTarget,
@@ -230,11 +239,10 @@ impl CantusApp {
         }
         let now = self.engine.position().0 as f64;
         let age = Instant::now().saturating_duration_since(at).as_secs_f64();
-        let tick = if self.engine.is_playing() && age > 0.0 {
-            let map = self.project().tempo_map();
-            map.tick_at_seconds(map.seconds_at(now) - age).round() as i64
+        let tick = if self.engine.is_playing() {
+            tick_of_message(&self.project().tempo_map(), now, age)
         } else {
-            now as i64
+            now.round() as i64
         };
         self.record_tweak_at(cmd, Some(tick));
     }

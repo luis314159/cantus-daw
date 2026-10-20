@@ -97,7 +97,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     let k = s.k;
     app.controllers.view.geo.clear();
     let full = ui.max_rect();
-    ui.painter().rect_filled(full, 0.0, s.t.ink);
+    with_brush(ui.painter(), |b| b.rect(full, Fill::Solid(s.t.ink)));
     let head = Rect::from_min_size(full.min, Vec2::new(full.width(), HEAD_H * k));
     header(app, ui, head, &s);
     let mut top = head.bottom();
@@ -218,9 +218,17 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         .show(ui, fr, &mut filter);
     app.controllers.view.filter = filter;
     put(app, "filter", fr);
-    // The takeover new mappings get.
-    let tl = at(118.0);
-    cell_text(ui, tl, s, &t("ctl.view.new_takeover"), s.t.text_dim, Role::Label);
+    // The takeover new mappings get: its caption as wide as its words.
+    let caption = t("ctl.view.new_takeover");
+    let cw = text::measure(
+        ui.ctx(),
+        &Text::new(&caption, Role::Label, s.t.text_dim),
+        s.tk(),
+    )
+    .x / k
+        + 4.0;
+    let tl = at(cw);
+    cell_text(ui, tl, s, &caption, s.t.text_dim, Role::Label);
     let tr = at(110.0);
     let current = app.settings.controller_takeover;
     let words = takeover_text(current);

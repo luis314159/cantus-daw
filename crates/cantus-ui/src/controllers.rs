@@ -73,12 +73,12 @@ pub struct ControllerUi {
     /// When each mapping last moved something: the mappings view's activity dot.
     pub activity: HashMap<Key, Instant>,
     /// The gesture going on: the targets it moved, its undo key, its last message.
-    pub(crate) gesture: crate::controllers_input::Gesture,
+    pub gesture: crate::controllers_input::Gesture,
     /// The filter last published, and what it was made from.
     pub(crate) published: Option<(ControllerMap, ControllerMap, Vec<String>)>,
     /// MIDI out for feedback, and the value last sent per mapping.
     pub outputs: MidiOutputs,
-    pub(crate) sent: HashMap<Key, u16>,
+    pub sent: HashMap<Key, u16>,
     /// The coarse and fine halves of 14-bit controllers, per port, channel and number.
     pub(crate) wide: HashMap<(u8, u8, u8), (u8, u8)>,
     /// A frame's messages (kept to reuse the allocation).
@@ -374,6 +374,19 @@ impl CantusApp {
         {
             self.cancel_learning();
             return;
+        }
+        // A key that is set, never automated (Chorda's tuning, ADR 0059): not learnt
+        // either — a controller would record automation on it.
+        if let MappingTarget::Param(AutoTarget::Instrument { track, key }) = &target {
+            let kind = self
+                .project()
+                .track(*track)
+                .and_then(|t| t.instrument.native())
+                .map(|n| n.kind);
+            if kind.is_some_and(|k| !k.automatable(key)) {
+                self.set_error(t("chorda.not_automatable"));
+                return;
+            }
         }
         let scope = Self::scope_for(&target);
         let replace = self.controller_map(scope).of_target(&target).next().map(|m| m.id);
