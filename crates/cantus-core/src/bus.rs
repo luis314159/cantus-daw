@@ -210,8 +210,8 @@ impl CommandBus {
             return self.execute_inner(command, origin, Some(to));
         }
         let label_key = command.label_key().to_string();
-        let inverse = match command.clone().apply(&mut self.project) {
-            Ok(inv) => inv,
+        let (command, inverse) = match self.apply_keeping_audio(command, &label_key) {
+            Ok(both) => both,
             Err(e) => {
                 self.audit_push(origin, label_key, AuditKind::Rejected);
                 return Err(e);
@@ -230,6 +230,40 @@ impl CommandBus {
         Ok(())
     }
 
+    /// Apply `command` and, when it changed the tempo map, the window edits that keep
+    /// every unwarped audio window's source frame at its start (`tempo::keep`, ADR 0060
+    /// §4): the command and its inverse, the edits composed into both. Undo and redo
+    /// replay the stored pair, so nothing is derived twice.
+    fn apply_keeping_audio(
+        &mut self,
+        command: Command,
+        label_key: &str,
+    ) -> Result<(Command, Command), CommandError> {
+        let kept = crate::tempo::keep::before(&self.project, &command);
+        let inverse = command.clone().apply(&mut self.project)?;
+        let fix = kept
+            .map(|k| crate::tempo::keep::after(&k, &self.project))
+            .filter(|f| !f.is_empty());
+        let Some(fix) = fix else {
+            return Ok((command, inverse));
+        };
+        let fix = Command::Batch {
+            label_key: label_key.to_string(),
+            commands: fix,
+        };
+        match fix.clone().apply(&mut self.project) {
+            Ok(fix_inverse) => Ok((
+                compose(label_key, command, fix, false),
+                compose(label_key, inverse, fix_inverse, true),
+            )),
+            Err(e) => {
+                // Never half an edit: the command is taken back.
+                let _ = inverse.apply(&mut self.project);
+                Err(e)
+            }
+        }
+    }
+
     fn execute_inner(
         &mut self,
         command: Command,
@@ -237,8 +271,8 @@ impl CommandBus {
         merge_key: Option<MergeKey>,
     ) -> Result<(), CommandError> {
         let label_key = command.label_key().to_string();
-        let inverse = match command.clone().apply(&mut self.project) {
-            Ok(inv) => inv,
+        let (command, inverse) = match self.apply_keeping_audio(command, &label_key) {
+            Ok(both) => both,
             Err(e) => {
                 self.audit_push(origin, label_key, AuditKind::Rejected);
                 return Err(e);

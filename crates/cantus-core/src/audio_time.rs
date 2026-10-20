@@ -125,10 +125,11 @@ pub fn offset_for(map: &TempoMap, start: Ticks, seconds: f64) -> Ticks {
 // recorded take's does.
 
 /// The offset and fine offset that put `seconds` of source (the fine offset `slip`
-/// aside) before a window starting at `at`: whole ticks (never negative), the rest in
+/// aside) before a window starting at `at`: whole ticks, the rest in
 /// frames at `rate`, added to `slip`.
 pub fn anchor(map: &TempoMap, at: Ticks, seconds: f64, slip: i32, rate: f64) -> (Ticks, i32) {
-    let offset = offset_for(map, at, seconds).max(Ticks::ZERO);
+    // Before the file (a window shown from before its first frame): negative, as it was.
+    let offset = offset_for(map, at, seconds);
     let rest = (seconds - offset_seconds(map, at, offset)) * rate;
     let slip = (slip as f64 + rest.round()).clamp(i32::MIN as f64, i32::MAX as f64);
     (offset, slip as i32)
