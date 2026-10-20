@@ -196,25 +196,42 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     let Some(w) = app.warp_to_edit(r) else {
         return;
     };
-    let avail = ui.available_width();
+    let pane = ui.available_width();
     let gap = ui.spacing().item_spacing.x;
-    let rows = rows(avail, gap, s.s(1.0));
+    let k = s.s(1.0);
+    // An item wider than the pane (Mode's chips, Grid's) is reached by scrolling the bar
+    // sideways — never clipped out of reach (round 29's third review).
+    let widest = Item::ALL
+        .iter()
+        .map(|it| it.width() * k + if it.labelled() { gap } else { 0.0 })
+        .fold(0.0f32, f32::max);
+    let avail = pane.max(widest);
+    let rows = rows(avail, gap, k);
     let row_h = s.s(super::BAR_H);
     app.warp.view.bar_rects.clear();
-    ui.allocate_ui(vec2(avail, row_h * rows.len() as f32), |ui| {
-        ui.vertical(|ui| {
-            for row in &rows {
-                ui.allocate_ui(vec2(avail, row_h), |ui| {
-                    ui.horizontal(|ui| {
-                        for it in row {
-                            let rect = ui.scope(|ui| item(app, ui, r, &w, *it)).response.rect;
-                            app.warp.view.bar_rects.push((*it, rect));
-                        }
+    let mut lay = |app: &mut CantusApp, ui: &mut egui::Ui| {
+        ui.allocate_ui(vec2(avail, row_h * rows.len() as f32), |ui| {
+            ui.vertical(|ui| {
+                for row in &rows {
+                    ui.allocate_ui(vec2(avail, row_h), |ui| {
+                        ui.horizontal(|ui| {
+                            for it in row {
+                                let rect = ui.scope(|ui| item(app, ui, r, &w, *it)).response.rect;
+                                app.warp.view.bar_rects.push((*it, rect));
+                            }
+                        });
                     });
-                });
-            }
+                }
+            });
         });
-    });
+    };
+    if widest > pane {
+        egui::ScrollArea::horizontal()
+            .id_salt("warp-bar")
+            .show(ui, |ui| lay(app, ui));
+    } else {
+        lay(app, ui);
+    }
 }
 
 /// One item of the bar.

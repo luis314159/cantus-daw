@@ -457,3 +457,104 @@ fn a_jobs_done_message_carries_the_late_note() {
     assert!(!a.status.error);
     assert_eq!(a.status.text, "Frozen");
 }
+
+/// Finding 44: a clip whose analysis found no steady tempo (a one-shot) is said to have
+/// none — never "still being analysed" — and the project tempo cannot be taken from it.
+#[test]
+fn a_clip_with_no_steady_tempo_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("one shot.wav");
+    let mut x = vec![0.0f32; 48_000];
+    for (i, v) in x.iter_mut().enumerate().skip(100).take(2_000) {
+        *v = 0.8 * (1.0 - (i - 100) as f32 / 2_000.0) * if i % 2 == 0 { 1.0 } else { -1.0 };
+    }
+    wav(&path, 48_000, &x);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    let r = (t, c.id);
+    analysed(&a, r);
+    assert_eq!(
+        a.warp_analysis(r).unwrap().bpm(),
+        0.0,
+        "no tempo in a one-shot"
+    );
+    assert!(!a.can_take_tempo_from(r), "offered with nothing to take");
+    assert!(!a.project_tempo_from_clip(r));
+    assert_eq!(a.status.text, cantus_ui::i18n::t("warp.status.no_tempo"));
+}
+
+/// One frame of the warp editor on clip `r`, `size` points, with `events`.
+fn editor(
+    a: &mut CantusApp,
+    ctx: &egui::Context,
+    r: (TrackId, ClipId),
+    size: egui::Vec2,
+    events: Vec<egui::Event>,
+) {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        events,
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| cantus_ui::views::warp::show(a, ui, r.0, r.1));
+    })
+    .textures_delta
+    .clear();
+}
+
+/// Finding 43: in a pane narrower than the bar's widest item (the Mode chips), the bar
+/// scrolls sideways: every chip is reached.
+#[test]
+fn the_warp_bar_scrolls_in_a_narrow_pane() {
+    use cantus_ui::views::warp::BarItem;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    let r = (t, c.id);
+    a.open_warp_editor(r);
+    let ctx = support::ctx();
+    let size = egui::vec2(300.0, 500.0);
+    for _ in 0..2 {
+        editor(&mut a, &ctx, r, size, vec![]);
+    }
+    let mode = |a: &CantusApp| {
+        a.warp
+            .view
+            .bar_rects
+            .iter()
+            .find(|(i, _)| *i == BarItem::Mode)
+            .unwrap()
+            .1
+    };
+    let before = mode(&a);
+    assert!(before.right() > size.x, "wider than the pane: {before:?}");
+    // Scrolled sideways over the bar: its far end comes into the pane.
+    for _ in 0..20 {
+        editor(
+            &mut a,
+            &ctx,
+            r,
+            size,
+            vec![
+                egui::Event::PointerMoved(egui::pos2(150.0, before.center().y)),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(-60.0, 0.0),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::NONE,
+                },
+            ],
+        );
+    }
+    let after = mode(&a);
+    assert!(after.right() <= size.x + 0.5, "never reached: {after:?}");
+}

@@ -143,3 +143,4 @@ interop.error.write = No se pudo escribir {file}: {error}
 interop.error.no_project = el paquete no tiene project.xml
 interop.error.xml = su project.xml no está bien formado: {error}
 interop.error.not_dawproject = su project.xml no es un DAWproject (su raíz es <{root}>)
+warp.inspector.no_tempo = Sin tempo estable

@@ -615,9 +615,24 @@ impl CantusApp {
 
     /// *Set the project tempo from this clip*: the tempo its source plays at
     /// ([`Self::clip_source_tempo`]), in force where the clip starts.
+    /// Whether *Set the project tempo from this clip* can do anything: a tempo the clip
+    /// has, or an analysis still on its way (it says so) — never once the analysis is in
+    /// without one (round 29's third review).
+    pub fn can_take_tempo_from(&self, r: ClipRef) -> bool {
+        self.clip_source_tempo(r).is_some()
+            || (self.warp_analysis(r).is_none()
+                && (self.clip_warp(r).is_some() || self.warp_analysing(r)))
+    }
+
     pub fn project_tempo_from_clip(&mut self, r: ClipRef) -> bool {
         let Some(bpm) = self.clip_source_tempo(r) else {
-            self.set_status(t("warp.status.analysing"));
+            // Analysed and no tempo found, or still being analysed (round 29's third
+            // review: it said "still being analysed" however long one waited).
+            self.set_status(t(if self.warp_analysis(r).is_some() {
+                "warp.status.no_tempo"
+            } else {
+                "warp.status.analysing"
+            }));
             return false;
         };
         let bpm = cantus_core::time::clamp_bpm((bpm * 100.0).round() / 100.0);

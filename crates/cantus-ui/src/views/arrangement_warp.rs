@@ -732,7 +732,7 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         (
             "warp.menu.project_tempo",
             Pick::ProjectTempo,
-            ready || w.is_some(),
+            app.can_take_tempo_from(r),
         ),
         ("warp.menu.edit", Pick::Edit, true),
         ("warp.menu.bounce", Pick::Bounce, app.can_bounce(r)),
