@@ -48,7 +48,10 @@ fn a_frozen_chain_unloads_its_hosted_plug_in_and_plays_the_live_mix() {
         rig.host.finish_render();
         rig.engine.frozen.forget_missing();
         rig.exec(freeze::freeze_commands(&p, target).unwrap());
-        assert!(rig.host.hosted(id).is_none(), "{iso:?}: unloaded while frozen");
+        assert!(
+            rig.host.hosted(id).is_none(),
+            "{iso:?}: unloaded while frozen"
+        );
         let frozen = rig.play(48_000, 256);
         assert_eq!(differing(&live, &frozen), 0, "{iso:?}: frozen = live");
         rig.exec(freeze::unfreeze_command(target));

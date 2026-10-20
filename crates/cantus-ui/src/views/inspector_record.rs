@@ -189,14 +189,17 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
             armed: !track.armed,
         }));
     }
-    // Low-latency monitoring (round 29, ADR 0064 §4): where the input is monitored.
-    if sh.led_row(
-        "freeze.ll.row",
-        "freeze.ll.on",
-        app.settings.low_latency,
-        Function::Dynamics,
-        dim,
-    ) {
+    // Low-latency monitoring (round 29, ADR 0064 §4): on a track with an input, where it
+    // is monitored (the record options and the audio chip have it for every track).
+    if !dim
+        && sh.led_row(
+            "freeze.ll.row",
+            "freeze.ll.on",
+            app.settings.low_latency,
+            Function::Dynamics,
+            false,
+        )
+    {
         sh.acts
             .push(Act::Freeze(crate::views::freeze_view::InspAct::LowLatency(
                 !app.settings.low_latency,

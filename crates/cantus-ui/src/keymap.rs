@@ -746,6 +746,14 @@ fn common() -> Vec<(Action, Binding)> {
                 ..Binding::alt(Key::B)
             },
         ),
+        // Ctrl+Alt+B bounces the source only (the same gesture, one modifier more).
+        (
+            BounceSource,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
         (
             ToggleLowLatency,
             Binding {

@@ -195,10 +195,17 @@ fn main() {
         let pad = a.project().tracks[2].id;
         a.freeze_target(FreezeTarget::Track(pad));
         let out = dir.join(format!("freeze-rendering-night-{}.png", lang.code()));
-        shoot(&ctx, egui::vec2(1200.0, 400.0), 1.0, 6, Some(&out), |root| {
-            panel(root, |_| {});
-            views::audio_setup::frame(&mut a, root.ctx());
-        });
+        shoot(
+            &ctx,
+            egui::vec2(1200.0, 400.0),
+            1.0,
+            6,
+            Some(&out),
+            |root| {
+                panel(root, |_| {});
+                views::audio_setup::frame(&mut a, root.ctx());
+            },
+        );
         a.cancel_freeze();
         println!("{}", out.display());
         let ctx = context(true);
