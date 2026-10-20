@@ -528,7 +528,10 @@ pub fn choice_resp(
     };
     let fr = well::field_rects(rect, s, true);
     let items = radio_items(labels, selected);
-    (popup(ui, id.with("menu"), fr.field, s, &items).or(out), resp)
+    (
+        popup(ui, id.with("menu"), fr.field, s, &items).or(out),
+        resp,
+    )
 }
 
 /// [`choice`] bound to a stepped number whose values are named by `labels`: one undo step

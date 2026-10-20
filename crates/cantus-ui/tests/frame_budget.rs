@@ -982,7 +982,11 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
     app.midi_port_names = vec!["Keys".into()];
     cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
-    let effect = app.fx.open.map(|(_, e, _)| e).expect("the test plug-in inserted");
+    let effect = app
+        .fx
+        .open
+        .map(|(_, e, _)| e)
+        .expect("the test plug-in inserted");
     let target = MappingTarget::Param(cantus_core::AutoTarget::Plugin { effect, id: 0 });
     let mut m = Mapping::new(
         MappingId(1),
@@ -999,7 +1003,9 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
     );
     m.plugin = target.plugin_of(app.project());
     assert!(app.add_mapping(cantus_ui::controllers::Scope::Project, m));
-    assert!(app.hosted_param_info(&cantus_core::AutoTarget::Plugin { effect, id: 0 }).is_some());
+    assert!(app
+        .hosted_param_info(&cantus_core::AutoTarget::Plugin { effect, id: 0 })
+        .is_some());
     // Published once; then idle.
     app.controller_input();
     app.controller_input();

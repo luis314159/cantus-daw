@@ -144,7 +144,10 @@ fn a_later_turn_is_its_own_step_after_an_undo() {
     a.controller_heard(&[cc(10, 20)]);
     assert_eq!(a.bus.history().len(), start + 2, "two turns, two steps");
     a.undo();
-    assert!(a.project().strip(s).unwrap().pan > 0.5, "the first turn stays");
+    assert!(
+        a.project().strip(s).unwrap().pan > 0.5,
+        "the first turn stays"
+    );
 }
 
 // ---- recording's bounds -------------------------------------------------------------------
@@ -222,7 +225,8 @@ fn the_first_entry_into_a_loop_is_no_wrap() {
     let target = AutoTarget::StripPan(s);
     a.engine.seek(Ticks::beats(16));
     a.start_recording();
-    a.engine.set_heard_for_tests(Ticks::beats(16) + Ticks(10), true);
+    a.engine
+        .set_heard_for_tests(Ticks::beats(16) + Ticks(10), true);
     a.controller_heard(&[msg_at(
         0xB0,
         10,
@@ -374,8 +378,7 @@ fn a_held_momentary_button_is_learnt_as_a_toggle() {
     // Never let go: latching.
     a.learn_target(MappingTarget::TrackSolo(t));
     a.controller_heard(&[cc(21, 127)]);
-    a.controllers.learning.as_mut().unwrap().first =
-        Some(Instant::now() - Duration::from_secs(2));
+    a.controllers.learning.as_mut().unwrap().first = Some(Instant::now() - Duration::from_secs(2));
     a.controller_heard(&[]);
     let m = a
         .project()
@@ -562,9 +565,8 @@ fn frozen_strip() -> (CantusApp, StripId, EffectId) {
     let delay = p.make_effect(EffectKind::Delay);
     let fx = delay.id;
     p.strip_mut(s).unwrap().effects.push(delay);
-    let content =
-        cantus_core::freeze::content_key(&p, cantus_core::freeze::FreezeTarget::Strip(s))
-            .expect("a key");
+    let content = cantus_core::freeze::content_key(&p, cantus_core::freeze::FreezeTarget::Strip(s))
+        .expect("a key");
     p.strip_mut(s).unwrap().frozen = Some(cantus_core::freeze::Frozen { content });
     (keys_app_with(p), s, fx)
 }
@@ -971,10 +973,7 @@ fn a_sends_menu_learns_its_level_by_name() {
         cantus_ui::views::mixer::show(&mut a, ui)
     });
     let rows = route_menu::row_labels(&c, owner);
-    assert!(
-        rows.iter().any(|r| r == "ctl.menu.send_learn"),
-        "{rows:?}"
-    );
+    assert!(rows.iter().any(|r| r == "ctl.menu.send_learn"), "{rows:?}");
 }
 
 /// #37, #46: a learn spot partly under its view's clip takes a click only inside it: below

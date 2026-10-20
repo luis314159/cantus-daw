@@ -343,9 +343,16 @@ fn a_14_bit_pair_reaches_its_top_and_waits_for_its_fine_half() {
     assert_eq!(a.project().master.width, 2.0, "the top");
     a.controller_heard(&[cc(7, 64), cc(39, 0)]);
     let w = a.project().master.width;
-    assert!((w - 64.0 * 128.0 / 16_383.0 * 2.0).abs() < 1e-3, "the pair: {w}");
+    assert!(
+        (w - 64.0 * 128.0 / 16_383.0 * 2.0).abs() < 1e-3,
+        "the pair: {w}"
+    );
     a.controller_heard(&[cc(7, 0)]);
-    assert_eq!(a.project().master.width, 0.0, "the coarse half alone, its fine half 0");
+    assert_eq!(
+        a.project().master.width,
+        0.0,
+        "the coarse half alone, its fine half 0"
+    );
 }
 
 /// The test CLAP plug-in, built from source where the host's tests build it.

@@ -437,20 +437,18 @@ impl MappingTarget {
     }
 
     /// The hosted plug-in at the target, borrowed.
-    pub fn plugin_in<'a>(&self, project: &'a Project) -> Option<&'a crate::external::ExternalPlugin> {
+    pub fn plugin_in<'a>(
+        &self,
+        project: &'a Project,
+    ) -> Option<&'a crate::external::ExternalPlugin> {
         match self {
             MappingTarget::Param(AutoTarget::Plugin { effect, .. }) => {
                 let h = project.effect_host(*effect)?;
-                project
-                    .effect(h, *effect)?
-                    .spec
-                    .external
-                    .as_deref()
+                project.effect(h, *effect)?.spec.external.as_deref()
             }
-            MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => project
-                .track(*track)?
-                .instrument
-                .external(),
+            MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => {
+                project.track(*track)?.instrument.external()
+            }
             _ => None,
         }
     }

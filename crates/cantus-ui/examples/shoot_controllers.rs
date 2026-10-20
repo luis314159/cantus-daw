@@ -10,10 +10,13 @@
 //! waiting to learn again), a parameter's menu with *Learn MIDI controller* and *Forget*,
 //! the learn mode over an effect's editor, the mixer and the arrangement, and the top
 //! bar with its MIDI cell lit — in Cantus Night and Paper, English and Spanish, at 75 %, 100 % and
-//! 200 %, and the pane in a narrow window.
+//! 200 %, and the pane in a narrow window. Review 2: the channel rack in the learn mode,
+//! the mapped marks on the mixer's faders and lamps and on an effect's switches and choices,
+//! a send's route menu with its level mapped, and the pane's rows for an action (no *Send*),
+//! a plug-in not loaded and one learnt on another plug-in.
 
 use cantus_core::controller::*;
-use cantus_core::{AutoTarget, EffectKind, TrackId};
+use cantus_core::{AutoTarget, EffectKind, InstrumentSpec, Send, TrackId};
 use cantus_engine::EngineHandle;
 use cantus_ui::controllers::Scope;
 use cantus_ui::i18n::Locale;
@@ -108,6 +111,93 @@ fn app() -> CantusApp {
     for m in [knob, fader, pan, pad, shared, gone] {
         app.add_mapping(Scope::Project, m);
     }
+    // Review 2: the rack's pan, a send's level, the compressor's style and listen, a
+    // hosted synth not loaded here and one learnt on another plug-in.
+    let strips: Vec<_> = app.project().strips.iter().map(|s| s.id).collect();
+    app.set_strip_send(
+        strips[1],
+        Send {
+            level: 0.5,
+            ..Send::new(strips[5])
+        },
+    );
+    app.add_track();
+    let synth_track = app.project().tracks.last().expect("a track").id;
+    let vital = cantus_core::ExternalPlugin::new(
+        cantus_core::external::PluginFormat::Clap,
+        "audio.vital",
+        "Vital",
+    );
+    app.set_instrument(synth_track, InstrumentSpec::External(vital.clone()));
+    let hosted = MappingTarget::Param(AutoTarget::PluginInstrument {
+        track: synth_track,
+        id: 7,
+    });
+    let mut not_loaded = Mapping::new(
+        MappingId(16),
+        src("Keystation 49", Some(0), Control::Cc(71)),
+        hosted.clone(),
+        MapMode::Absolute,
+    );
+    not_loaded.plugin = hosted.plugin_of(app.project());
+    let mut other = not_loaded.clone();
+    other.id = MappingId(17);
+    other.source = src("Keystation 49", Some(0), Control::Cc(72));
+    other.plugin = Some(PluginRef {
+        format: cantus_core::external::PluginFormat::Vst3,
+        id: "SurgeXT".into(),
+    });
+    let style = EffectKind::Compressor
+        .params()
+        .iter()
+        .find(|i| i.key == "style")
+        .map(|i| i.key)
+        .unwrap_or("style");
+    for m in [
+        Mapping::new(
+            MappingId(18),
+            src("nanoKONTROL2", Some(0), Control::Cc(17)),
+            MappingTarget::Param(AutoTarget::TrackPan(track)),
+            MapMode::Absolute,
+        ),
+        Mapping::new(
+            MappingId(19),
+            src("nanoKONTROL2", Some(0), Control::Cc(18)),
+            MappingTarget::Param(AutoTarget::Send {
+                strip: strips[1],
+                to: strips[5],
+            }),
+            MapMode::Absolute,
+        ),
+        Mapping::new(
+            MappingId(20),
+            src("nanoKONTROL2", Some(0), Control::Cc(80)),
+            MappingTarget::Param(AutoTarget::Effect {
+                effect: fx,
+                key: style.into(),
+            }),
+            MapMode::Relative(Encoding::TwosComplement),
+        ),
+        Mapping::new(
+            MappingId(21),
+            src("nanoKONTROL2", Some(0), Control::Cc(48)),
+            MappingTarget::Param(AutoTarget::Effect {
+                effect: fx,
+                key: "listen".into(),
+            }),
+            MapMode::Toggle,
+        ),
+        Mapping::new(
+            MappingId(22),
+            src("nanoKONTROL2", Some(0), Control::Cc(64)),
+            MappingTarget::StripMute(strip),
+            MapMode::Toggle,
+        ),
+        not_loaded,
+        other,
+    ] {
+        app.add_mapping(Scope::Project, m);
+    }
     for (i, (action, n)) in [
         ("play-pause", 41u8),
         ("stop", 42),
@@ -124,6 +214,13 @@ fn app() -> CantusApp {
             MapMode::Trigger,
         ));
     }
+    // An action that is no state: its row has no *Send*.
+    app.controllers.global.mappings.push(Mapping::new(
+        MappingId(104),
+        src("nanoKONTROL2", Some(0), Control::Cc(43)),
+        MappingTarget::Action("undo".into()),
+        MapMode::Trigger,
+    ));
     let mut master = Mapping::new(
         MappingId(110),
         src("nanoKONTROL2", Some(0), Control::Cc(7)),
@@ -179,7 +276,7 @@ fn main() {
                     l.replace = Some(MappingId(11));
                 }
                 let out = name(&dir, "pane", dark, lang, k);
-                shoot(&ctx, egui::vec2(1500.0, 520.0), k, 6, Some(&out), |root| {
+                shoot(&ctx, egui::vec2(1500.0, 860.0), k, 6, Some(&out), |root| {
                     panel(root, |ui| views::controllers::show(&mut a, ui));
                 });
                 println!("{}", out.display());
@@ -197,6 +294,55 @@ fn main() {
                     panel(root, |_| {});
                     views::comp_editor::window(&mut a, root.ctx());
                     views::fx::window(&mut a, root.ctx());
+                });
+                println!("{}", out.display());
+                // Review 2: the channel rack in the learn mode (its knobs and lamps).
+                let ctx = context(dark);
+                let mut a = app();
+                a.toggle_learn_mode();
+                // The rack edits the selected clip.
+                let t0 = a.project().tracks[0].id;
+                a.selected_track = Some(t0);
+                a.selected_clip = a.project().tracks[0].clips.first().map(|c| c.id);
+                let out = name(&dir, "learn-rack", dark, lang, k);
+                shoot(&ctx, egui::vec2(1100.0, 420.0), k, 6, Some(&out), |root| {
+                    panel(root, |ui| views::channel_rack::show(&mut a, ui));
+                });
+                println!("{}", out.display());
+                // The mapped marks out of the learn mode: the mixer's fader, pan, lamps.
+                let ctx = context(dark);
+                let mut a = app();
+                let out = name(&dir, "marks-mixer", dark, lang, k);
+                shoot(&ctx, egui::vec2(1300.0, 560.0), k, 6, Some(&out), |root| {
+                    panel(root, |ui| views::mixer::show(&mut a, ui));
+                });
+                println!("{}", out.display());
+                // …and an effect's style and listen switches.
+                let ctx = context(dark);
+                let mut a = app();
+                let strip = a.project().tracks[0].strip.unwrap();
+                let fx = a.project().strip(strip).unwrap().effects.last().unwrap().id;
+                a.open_effect_editor(strip, fx);
+                let out = name(&dir, "marks-editor", dark, lang, k);
+                shoot(&ctx, egui::vec2(1100.0, 640.0), k, 8, Some(&out), |root| {
+                    panel(root, |_| {});
+                    views::comp_editor::window(&mut a, root.ctx());
+                    views::fx::window(&mut a, root.ctx());
+                });
+                println!("{}", out.display());
+                // A send's route menu, its level mapped.
+                let ctx = context(dark);
+                let mut a = app();
+                let strips: Vec<_> = a.project().strips.iter().map(|s| s.id).collect();
+                views::route_menu::open(
+                    &ctx,
+                    egui::Id::new("mixer.route_menu"),
+                    cantus_core::routing::Route::send(strips[1], strips[5]),
+                    egui::pos2(420.0, 120.0),
+                );
+                let out = name(&dir, "route-menu", dark, lang, k);
+                shoot(&ctx, egui::vec2(1300.0, 560.0), k, 6, Some(&out), |root| {
+                    panel(root, |ui| views::mixer::show(&mut a, ui));
                 });
                 println!("{}", out.display());
             }

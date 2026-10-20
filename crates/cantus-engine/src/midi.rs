@@ -1056,5 +1056,4 @@ mod tests {
         assert!(tap.rearm(), "a wake was pending");
         assert!(!tap.rearm());
     }
-
 }

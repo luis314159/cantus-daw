@@ -2751,7 +2751,7 @@ fn band_led(
     }
     // The band's switch is a parameter: its menu, its mark, the learn mode (review 2 of
     // ADR 0062, #44).
-    let learnt = controls::stepped_offer(ui, s, host, &key(band, field), frame::tr(label), &r);
+    let learnt = controls::stepped_offer(ui, s, host, key(band, field), frame::tr(label), &r);
     if r.clicked() && !learnt {
         flip(host, band, field, on);
     }
@@ -2835,7 +2835,7 @@ fn band_card(
                 &mut sw,
                 s,
                 host,
-                &key(b, "place"),
+                key(b, "place"),
                 place,
                 &PLACE_LABELS,
                 &PLACE_TIPS,
@@ -2849,7 +2849,7 @@ fn band_card(
                 &mut sw,
                 s,
                 host,
-                &key(b, "key"),
+                key(b, "key"),
                 band.key_ext as usize,
                 &KEY_LABELS,
                 &KEY_TIPS,
@@ -2927,7 +2927,7 @@ fn band_card(
             }
         },
     );
-    let learnt = controls::card_lamp_offer(ui, s, host, &key(b, "on"));
+    let learnt = controls::card_lamp_offer(ui, s, host, key(b, "on"));
     if lamp && !learnt {
         flip(host, b, "on", band.on);
     }

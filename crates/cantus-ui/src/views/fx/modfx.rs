@@ -188,7 +188,11 @@ pub fn shape_keys(
         }
         // The row is the parameter's control: each button its menu and the learn mode
         // (round 29, review 2 of ADR 0062, #44).
-        let name = host.spec().kind.param("shape").map_or("", |p| frame::tr(p.label_key));
+        let name = host
+            .spec()
+            .kind
+            .param("shape")
+            .map_or("", |p| frame::tr(p.label_key));
         let learnt = controls::stepped_offer(ui, s, host, "shape", name, &resp);
         if resp.clicked() && i != now && !learnt {
             host.set("shape", i as f32, None);

@@ -502,8 +502,9 @@ fn tools(
         let names = [Src::Key("smp.rr.by_note"), Src::Key("smp.rr.in_order")];
         let tips = ["smp.rr.by_note_tip", "smp.rr.in_order_tip"];
         let hint = format!("{} \u{b7} {}", t("smp.rr_order"), t(tips[order]));
-        if let Some(i) = parts::seg_key(app, ui, rr, s, order, &names, &hint, track, spec, "rr.order")
-        {
+        if let Some(i) = parts::seg_key(
+            app, ui, rr, s, order, &names, &hint, track, spec, "rr.order",
+        ) {
             app.set_inst_value(track, "rr.order", i as f32, false);
         }
         left = rr.left();

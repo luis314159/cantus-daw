@@ -1126,7 +1126,10 @@ pub(crate) fn decode(
                 let e = wide.entry((port, ch, d1)).or_default();
                 e.msb = d2;
                 e.msb_at = Some(at);
-                if e.lsb_at.take().is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP) {
+                if e.lsb_at
+                    .take()
+                    .is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP)
+                {
                     // Its fine half came first, a moment ago: the pair is whole now.
                     e.lsb_first = true;
                     e.pending = None;
@@ -1152,7 +1155,8 @@ pub(crate) fn decode(
                 // The second half of a pair, or a fine half alone (its coarse half the same,
                 // or about to come: a controller that sends its fine half first).
                 let after_coarse = e.pending.take().is_some()
-                    || e.msb_at.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
+                    || e.msb_at
+                        .is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
                 e.lsb_at = if after_coarse && !e.lsb_first {
                     None
                 } else {

@@ -224,9 +224,16 @@ pub(super) fn head(
     if mode == Mode::LinearPhase {
         let id = ui.id().with("eq-res");
         let value = frame::tr(RES_KEYS[res.index().min(3)]);
-        if let Some(at) =
-            controls::field_key(ui, s, host, "lp_res", id, value, frame::tr("eq.res_tip"), 100.0)
-        {
+        if let Some(at) = controls::field_key(
+            ui,
+            s,
+            host,
+            "lp_res",
+            id,
+            value,
+            frame::tr("eq.res_tip"),
+            100.0,
+        ) {
             // The rows name each resolution's latency: built only while the list is open.
             let sr = host.sample_rate();
             let rows: Vec<String> = Resolution::ALL

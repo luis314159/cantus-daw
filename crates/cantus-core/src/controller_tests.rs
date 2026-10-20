@@ -953,7 +953,11 @@ fn a_program_after_bank_select_is_learnt_as_the_program() {
         Some((Control::Program(4), MapMode::Toggle))
     );
     // A real 14-bit pair is still one.
-    let pair = [(Control::Cc(0), 3), (Control::Cc(32), 5), (Control::Cc(0), 4)];
+    let pair = [
+        (Control::Cc(0), 3),
+        (Control::Cc(32), 5),
+        (Control::Cc(0), 4),
+    ];
     assert_eq!(detect(&pair, &target).map(|d| d.0), Some(Control::Cc14(0)));
 }
 

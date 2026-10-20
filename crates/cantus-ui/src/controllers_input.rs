@@ -126,7 +126,14 @@ impl CantusApp {
         if self.controllers.learning.is_none() {
             for (port, channel, n, value, at) in alone {
                 let control = cantus_core::controller::Control::Cc14(n);
-                self.drive_decoded(port, channel, &[control], &[(control, value, true)], at, &mut pending);
+                self.drive_decoded(
+                    port,
+                    channel,
+                    &[control],
+                    &[(control, value, true)],
+                    at,
+                    &mut pending,
+                );
             }
         }
         self.learn_tick();
@@ -213,9 +220,12 @@ impl CantusApp {
     /// asked every frame for the filter's signature (review 2, #30).
     pub fn hosted_param_info(&self, a: &AutoTarget) -> Option<&cantus_host::ParamInfo> {
         match a {
-            AutoTarget::Plugin { effect, id } => {
-                self.plugins.hosted(*effect)?.params.iter().find(|p| p.id == *id)
-            }
+            AutoTarget::Plugin { effect, id } => self
+                .plugins
+                .hosted(*effect)?
+                .params
+                .iter()
+                .find(|p| p.id == *id),
             AutoTarget::PluginInstrument { track, id } => self
                 .plugins
                 .hosted_instrument(*track)?
