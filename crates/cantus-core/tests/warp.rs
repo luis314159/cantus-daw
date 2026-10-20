@@ -209,3 +209,238 @@ fn a_warped_window_takes_no_comp_seam() {
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
     assert!(!comp::seam_window(&c));
 }
+
+/// Round 29's review: a warp that does not follow the tempo and does not transpose plays
+/// the source at its natural speed — under a tempo map that moves too — so the snapshot
+/// drops it (the source's own bits, no render); transposed, it stays.
+#[test]
+fn a_warp_that_does_not_follow_is_no_warp_under_any_tempo() {
+    let (mut bus, t, a, _) = setup();
+    let mut w = stretched();
+    w.follow = false;
+    bus.execute(
+        Command::SetClipWarp {
+            track: t,
+            clip: a,
+            warp: Some(Box::new(w.clone())),
+            op: WarpOp::Set,
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut p = bus.project().clone();
+    p.tempo_points = vec![
+        tempo::TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 100.0,
+            ramp: true,
+        },
+        tempo::TempoPoint {
+            tick: Ticks::beats(8),
+            bpm: 140.0,
+            ramp: false,
+        },
+    ];
+    let snap = Snapshot::compile(&p, 1);
+    assert!(snap.track(t).unwrap().audio[0].warp.is_none());
+    w.cents = -300;
+    p.track_mut(t)
+        .unwrap()
+        .clip_mut(a)
+        .unwrap()
+        .audio
+        .as_mut()
+        .unwrap()
+        .warp = Some(Box::new(w));
+    let snap = Snapshot::compile(&p, 2);
+    assert!(snap.track(t).unwrap().audio[0].warp.is_some());
+}
+
+/// The clip `out` inserts (its commands' `InsertClip`).
+fn inserted(out: &clipboard::Pasted) -> Clip {
+    out.commands
+        .iter()
+        .find_map(|c| match c {
+            Command::InsertClip { clip, .. } => Some((**clip).clone()),
+            _ => None,
+        })
+        .expect("a clip pasted")
+}
+
+/// Round 29's review: a warped clip that follows the tempo is measured in content ticks,
+/// so a paste keeps its offset, length and fades whatever the tempo where it lands —
+/// across projects at other tempos and inside one under a tempo track.
+#[test]
+fn a_pasted_warped_clip_keeps_its_ticks_at_any_tempo() {
+    let (mut bus, t, a, _) = setup();
+    bus.execute(
+        Command::SetClipWarp {
+            track: t,
+            clip: a,
+            warp: Some(Box::new(stretched())),
+            op: WarpOp::Set,
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut region = bus
+        .project()
+        .track(t)
+        .unwrap()
+        .clip(a)
+        .unwrap()
+        .audio
+        .clone()
+        .unwrap();
+    region.fade_in = Ticks(240);
+    region.fade_out = Ticks(480);
+    bus.execute(
+        Command::SetClipAudio {
+            track: t,
+            clip: a,
+            audio: Some(region),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let was = bus.project().track(t).unwrap().clip(a).unwrap().clone();
+    let source = was.audio.as_ref().unwrap().source;
+    let board = clipboard::Clipboard::new(
+        clipboard::ClipOrigin::default(),
+        bus.project(),
+        clipboard::copy_clips(bus.project(), &[(t, a)]),
+    );
+    let mut plans = std::collections::HashMap::new();
+    plans.insert(source, clipboard::SourcePlan::Reuse(source));
+    let check = |c: &Clip, how: &str| {
+        let (x, y) = (c.audio.as_ref().unwrap(), was.audio.as_ref().unwrap());
+        assert_eq!(
+            (c.offset, c.length, x.fade_in, x.fade_out),
+            (was.offset, was.length, y.fade_in, y.fade_out),
+            "{how}"
+        );
+        assert_eq!(x.warp, y.warp, "{how}");
+    };
+    // Into another project at 90 BPM.
+    let mut other = bus.project().clone();
+    other.tempo_bpm = 90.0;
+    let mut n = 10_000u64;
+    let out = clipboard::paste_clips(
+        &other,
+        &board,
+        false,
+        0,
+        Ticks::beats(16),
+        &plans,
+        false,
+        &mut || {
+            n += 1;
+            n
+        },
+    );
+    check(&inserted(&out), "across tempos");
+    // Inside one project, from a 120 section into a 60 one.
+    let mut mapped = bus.project().clone();
+    mapped.tempo_points = vec![
+        tempo::TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 120.0,
+            ramp: false,
+        },
+        tempo::TempoPoint {
+            tick: Ticks::beats(16),
+            bpm: 60.0,
+            ramp: false,
+        },
+    ];
+    let board = clipboard::Clipboard::new(
+        clipboard::ClipOrigin::default(),
+        &mapped,
+        clipboard::copy_clips(&mapped, &[(t, a)]),
+    );
+    let out = clipboard::paste_clips(
+        &mapped,
+        &board,
+        true,
+        0,
+        Ticks::beats(24),
+        &plans,
+        false,
+        &mut || {
+            n += 1;
+            n
+        },
+    );
+    check(&inserted(&out), "under a tempo track");
+}
+
+/// Round 29's review: a warp that is not valid is refused by every command that can carry
+/// one — `InsertClip` and `SetClipAudio` as well as `SetClipWarp`.
+#[test]
+fn an_invalid_warp_is_refused_on_every_way_in() {
+    let (mut bus, t, a, _) = setup();
+    let mut zero = stretched();
+    zero.rate = 0;
+    let mut backwards = stretched();
+    backwards.markers.reverse();
+    for bad in [zero, backwards] {
+        assert!(!bad.is_valid());
+        let mut region = bus
+            .project()
+            .track(t)
+            .unwrap()
+            .clip(a)
+            .unwrap()
+            .audio
+            .clone()
+            .unwrap();
+        region.warp = Some(Box::new(bad.clone()));
+        let before = bus.project().clone();
+        let r = bus.execute(
+            Command::SetClipAudio {
+                track: t,
+                clip: a,
+                audio: Some(region.clone()),
+            },
+            Origin::User,
+        );
+        assert!(r.is_err(), "SetClipAudio took {bad:?}");
+        let mut c = bus.new_clip("bad", Ticks::beats(20), Ticks::beats(4));
+        c.audio = Some(region);
+        let r = bus.execute(
+            Command::InsertClip {
+                track: t,
+                clip: Box::new(c),
+            },
+            Origin::User,
+        );
+        assert!(r.is_err(), "InsertClip took {bad:?}");
+        assert_eq!(bus.project().tracks, before.tracks);
+    }
+}
+
+/// Round 29's review: a comp window whose warp plays the source as it is (not following
+/// the tempo, not transposed) keeps its seam's crossfade — nothing is rendered there.
+#[test]
+fn a_warp_that_plays_the_source_keeps_the_comp_seam() {
+    let (mut bus, t, a, _) = setup();
+    let mut w = stretched();
+    w.follow = false;
+    w.mode = WarpMode::Complex;
+    bus.execute(
+        Command::SetClipWarp {
+            track: t,
+            clip: a,
+            warp: Some(Box::new(w.clone())),
+            op: WarpOp::Set,
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
+    assert!(comp::seam_window(&c));
+    w.cents = 200;
+    let mut c2 = c.clone();
+    c2.audio.as_mut().unwrap().warp = Some(Box::new(w));
+    assert!(!comp::seam_window(&c2), "a transposed window renders");
+}

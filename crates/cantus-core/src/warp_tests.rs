@@ -143,9 +143,17 @@ fn quantise_pulls_transients_to_the_grid_by_its_strength() {
     let half = w.quantise(&frames, Ticks(480), 0.5, Ticks::ZERO, Ticks(4_000));
     let t = half.tick_at(frames[1]);
     assert!((t - 488.5).abs() <= 0.5, "half way: {t}");
-    // Outside the window nothing is touched.
-    w = w.quantise(&frames, Ticks(480), 1.0, Ticks(900), Ticks(1_000));
-    assert_eq!(w.markers.len(), 2);
+    // Outside the window nothing is touched: only the hit inside it moves.
+    let narrow = w.quantise(&frames, Ticks(480), 1.0, Ticks(900), Ticks(1_000));
+    assert!((narrow.tick_at(frames[2]) - 960.0).abs() < 1e-6);
+    for t in [0.0, 480.0, 899.0, 1_000.0, 1_440.0, 3_000.0] {
+        assert!(
+            (narrow.frame_at(t) - w.frame_at(t)).abs() < 1e-6,
+            "tick {t} moved"
+        );
+    }
+    w = narrow;
+    assert!(w.is_valid());
 }
 
 #[test]
@@ -265,4 +273,26 @@ fn a_stretched_warp_plays_its_window_longer() {
     let one = Warp::identity(SR, 120.0, 0).stretched(Ticks::ZERO, 1.5);
     assert!((one.bpm - 180.0).abs() < 1e-9);
     assert!((one.tick_at(48_000.0) - 2.0 * 1.5 * PPQ as f64).abs() < 1e-6);
+}
+
+/// Round 29's review: quantising moves the hits inside the range and nothing else — the
+/// range's ends are pinned first, so the audio after the last pulled hit keeps its speed.
+#[test]
+fn quantise_leaves_the_audio_beyond_the_range_alone() {
+    let w = Warp::identity(48_000, 120.0, 0);
+    let per = frames_per_tick(48_000, 120.0);
+    // Hits at ticks 960 and 1 940: the second pulled back to 1 920.
+    let hits = [960.0 * per, 1_940.0 * per];
+    let (from, to) = (Ticks::ZERO, Ticks(3_840));
+    let q = w.quantise(&hits, Ticks(240), 1.0, from, to);
+    assert!(q.is_valid());
+    assert!((q.tick_at(hits[1]) - 1_920.0).abs() < 1e-6);
+    for t in [3_840.0, 5_000.0, 9_000.0] {
+        assert!(
+            (q.frame_at(t) - w.frame_at(t)).abs() < 1e-6,
+            "tick {t}: {} against {}",
+            q.frame_at(t),
+            w.frame_at(t)
+        );
+    }
 }

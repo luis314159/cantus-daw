@@ -99,3 +99,7 @@ interop.report.x_audio_external = Un archivo de audio que no se pudo leer queda 
 interop.report.x_warp_transpose = Una transposición (DAWproject no la tiene): {clip}
 interop.report.x_pitch_edits = Ediciones de afinación (el archivo lleva la toma tal como se cantó): {clip}
 interop.report.x_reverse = Un clip invertido (suena hacia delante): {clip}
+
+# Al abrir (un archivo editado a mano o dañado).
+warp.status.repaired_one = El warp de un clip de este archivo estaba dañado: el clip suena a su velocidad natural
+warp.status.repaired = El warp de {n} clips de este archivo estaba dañado: suenan a su velocidad natural

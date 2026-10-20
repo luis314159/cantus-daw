@@ -2390,6 +2390,8 @@ impl Command {
                         || a.fade_out < Ticks::ZERO
                         || a.xfade < Ticks::ZERO
                         || a.xfade > crate::audio::MAX_XFADE
+                        // A warp only as valid as `SetClipWarp` takes it (ADR 0061).
+                        || a.warp.as_ref().is_some_and(|w| !w.is_valid())
                     {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
@@ -2960,6 +2962,14 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
         .is_some_and(|a| a.xfade < Ticks::ZERO || a.xfade > crate::audio::MAX_XFADE)
     {
         return Err(CommandError::InvalidValue("seam crossfade".into()));
+    }
+    // A warp only as valid as `SetClipWarp` takes it (ADR 0061).
+    if c.audio
+        .as_ref()
+        .and_then(|a| a.warp.as_ref())
+        .is_some_and(|w| !w.is_valid())
+    {
+        return Err(CommandError::InvalidValue("clip warp".into()));
     }
     Ok(())
 }

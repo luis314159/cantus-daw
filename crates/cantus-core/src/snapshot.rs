@@ -404,12 +404,15 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
-            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. (Under
-            // a tempo that changes, a warp follows it and the source does not.)
+            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. Under
+            // a tempo that changes, a warp that follows it does not play as the source; one
+            // that does not follow (and does not transpose) does, whatever the tempo map.
             warp: a
                 .warp
                 .as_ref()
-                .filter(|w| !(one_tempo && w.is_identity(project.tempo_bpm, a.slip_frames)))
+                .filter(|w| {
+                    !(w.natural() || one_tempo && w.is_identity(project.tempo_bpm, a.slip_frames))
+                })
                 .map(|w| std::sync::Arc::new((**w).clone())),
             source_rate: src.sample_rate,
         };

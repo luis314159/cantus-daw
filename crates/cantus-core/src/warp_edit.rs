@@ -221,6 +221,28 @@ impl Warp {
                 Some((f, (t + s * (l - t)).round() as i64))
             })
             .collect();
+        // The range's ends pinned where they are heard first: only the audio between
+        // them stretches, never what follows the last pulled hit (round 29's review).
+        if !wanted.is_empty() {
+            // And a guard a span beyond each end where no marker is: the map goes on past
+            // its last marker at the slope beside it, which must stay the old one.
+            let span = Ticks((to - from).0.max(4 * crate::time::PPQ));
+            let mut ends = vec![from, to];
+            if w.markers.iter().all(|m| m.tick <= to) {
+                ends.push(to + span);
+            }
+            if w.markers.iter().all(|m| m.tick >= from) && from - span >= Ticks::ZERO {
+                ends.push(from - span);
+            }
+            for end in ends {
+                if w.markers.iter().all(|m| m.tick != end) {
+                    let frame = w.frame_at(end.0 as f64);
+                    if let Some(n) = w.insert(WarpMarker { frame, tick: end }) {
+                        w = n;
+                    }
+                }
+            }
+        }
         for (f, tick) in wanted {
             if let Some(i) = w.markers.iter().position(|m| (m.frame - f).abs() < 1.0) {
                 w = w.move_marker(i, Ticks(tick));

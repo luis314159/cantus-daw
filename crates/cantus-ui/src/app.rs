@@ -2853,6 +2853,8 @@ impl CantusApp {
         self.seek(Ticks::ZERO);
         if loaded.links_repaired > 0 {
             self.set_error(crate::links::repaired_text(loaded.links_repaired));
+        } else if loaded.warps_repaired > 0 {
+            self.set_error(crate::warp::repaired_text(loaded.warps_repaired));
         } else if let Some(from) = loaded.migrated_from {
             self.set_status(tf("status.migrated", &[("from", &from)]));
         } else if !self.status.error {

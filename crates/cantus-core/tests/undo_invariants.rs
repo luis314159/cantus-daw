@@ -1882,6 +1882,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 if let Some(k) = mapped {
                     mappings[k] += 1;
                 }
+                // Every warp stays valid through whatever any command did to its clip
+                // (split, trim, glue, loops, links, comps — round 29's review).
+                for t in &bus.project().tracks {
+                    for c in &t.clips {
+                        if let Some(w) = c.audio.as_ref().and_then(|a| a.warp.as_ref()) {
+                            assert!(w.is_valid(), "seed {seed}: an invalid warp on {:?}", c.id);
+                        }
+                    }
+                }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
                 snap.next_id = 0;
@@ -2887,7 +2896,34 @@ fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
         }
         12 => (w.reset(), WarpOp::Reset),
         _ => {
-            // Refused: a valid warp on a clip that is not audio, or an invalid warp.
+            // Refused: a valid warp on a clip that is not audio, or an invalid warp — set
+            // by `SetClipWarp`, or carried in by `SetClipAudio` or `InsertClip` (round 29's
+            // review: every way in refuses it).
+            let mut bad = w.clone();
+            bad.bpm = 0.0;
+            match rng.below(3) {
+                0 => {
+                    let mut a = clip.audio.clone().unwrap();
+                    a.warp = Some(Box::new(bad));
+                    return Command::SetClipAudio {
+                        track,
+                        clip: clip.id,
+                        audio: Some(a),
+                    };
+                }
+                1 => {
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.start += Ticks::beats(64);
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    return Command::InsertClip {
+                        track,
+                        clip: Box::new(c),
+                    };
+                }
+                _ => {}
+            }
             let other = project
                 .tracks
                 .iter()

@@ -97,6 +97,8 @@ pub struct EngineHandle {
     pending_since: Option<std::time::Instant>,
     /// Zone tables sent before their starts were read, the bound reached (counted).
     tables_late: u64,
+    /// Offline renders compiled before every pitch or warp render was in (counted).
+    renders_late: u64,
     /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
     compiles: u64,
     note_inputs: Vec<NoteInput>,
@@ -308,6 +310,7 @@ impl EngineHandle {
             pending: None,
             pending_since: None,
             tables_late: 0,
+            renders_late: 0,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: Some(capture_rx),
@@ -384,6 +387,7 @@ impl EngineHandle {
             pending: None,
             pending_since: None,
             tables_late: 0,
+            renders_late: 0,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: None,
@@ -691,11 +695,31 @@ impl EngineHandle {
         // And the pitch renders the first compile asked for (ADR 0054): the file holds the
         // edits, never the take as sung.
         self.samples.wait_pitch(std::time::Duration::from_secs(300));
+        let mut complete = self.samples.wait_pitch(std::time::Duration::ZERO);
         // And the warp renders (ADR 0061), asked once the pitch renders they read are in:
-        // the file holds the full renders, never a bridge.
-        let _ = self.compile(project, revision);
-        self.samples.wait_warp(std::time::Duration::from_secs(300));
-        self.compile(project, revision)
+        // the file holds the full renders, never a bridge. A compile may ask for renders
+        // the one before did not (a loop's last piece, a render a foreign project's
+        // compile let go of): compiled again until one asks for nothing new.
+        for _ in 0..4 {
+            let _ = self.compile(project, revision);
+            if self.samples.warp_pending() == 0 {
+                break;
+            }
+            complete &= self.samples.wait_warp(std::time::Duration::from_secs(300));
+        }
+        let snapshot = self.compile(project, revision);
+        if !complete || self.samples.warp_pending() > 0 {
+            // Counted, and said: the render would carry a bridge or a pitch edit's source.
+            self.renders_late += 1;
+            log::warn!("an offline render compiled before every pitch or warp render was in");
+        }
+        snapshot
+    }
+
+    /// Offline renders ([`Self::compile_for_render`]) compiled before every pitch or warp
+    /// render was in (their patience ran out); an export compares it before and after.
+    pub fn renders_late(&self) -> u64 {
+        self.renders_late
     }
 
     /// Send a snapshot, first delivering units for any effect the engine does not have. It

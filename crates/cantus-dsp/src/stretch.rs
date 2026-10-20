@@ -314,3 +314,30 @@ fn window_of(a: &Analysis, lo: usize, hi: usize) -> Analysis {
             .collect(),
     }
 }
+
+/// A **sketch** of a render, made in milliseconds: the source re-laid through `map` by
+/// ≈ 43 ms grains (a quarter apart) read at the transposition — the right timing and the
+/// right pitch, a grainier sound — for what plays while the full render is made (the
+/// engine's bridge). `channels` start at source frame `origin`, as in [`Request`].
+pub fn sketch(
+    channels: &[&[f32]],
+    rate: f32,
+    map: &Map,
+    len: usize,
+    semitones: f64,
+    origin: usize,
+) -> Vec<Vec<f32>> {
+    let semis = semitones.clamp(-MAX_SEMITONES, MAX_SEMITONES);
+    let ratio = crate::math::exp2(semis / 12.0);
+    let shift = origin as f64;
+    let pts: Vec<(f64, f64)> = map.points().iter().map(|p| (p.0, p.1 - shift)).collect();
+    let local = if pts.is_empty() {
+        Map::linear(-shift, 1.0)
+    } else {
+        Map::new(pts).unwrap_or_else(Map::identity)
+    };
+    let g = ((0.043 * rate) as usize)
+        .next_power_of_two()
+        .clamp(256, 4_096);
+    hpss::grains_of(channels, &local, len, ratio, g)
+}

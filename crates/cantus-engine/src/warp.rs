@@ -30,7 +30,7 @@ pub mod disk;
 #[path = "warp_render.rs"]
 pub mod render;
 
-pub use render::{bridge, key as render_key, render as render_clip, Plan};
+pub use render::{bridge, key as render_key, pitch_of, render as render_clip, Plan};
 
 /// The analyser's version: a better one analyses every file again (the disk cache keys
 /// on it).
@@ -123,6 +123,9 @@ enum Entry {
 #[derive(Clone)]
 pub(crate) struct Job {
     pub clip: ClipId,
+    /// The piece of the clip it plays (its start on the timeline: a loop's repetitions
+    /// are pieces of one clip).
+    pub piece: cantus_core::Ticks,
     pub key: u64,
     pub input: Arc<SampleData>,
     pub plan: Arc<Plan>,
@@ -133,8 +136,17 @@ enum Work {
     Render(Job),
 }
 
-/// A render the workers finished: its key, whether it is a bridge, the result.
-pub(crate) type Finished = (u64, bool, Result<SampleData, String>);
+/// A render the workers finished.
+pub(crate) struct Finished {
+    pub clip: ClipId,
+    pub piece: cantus_core::Ticks,
+    pub key: u64,
+    pub bridge: bool,
+    pub result: Result<SampleData, String>,
+}
+
+/// How many inputs' pitch analyses (Melodic renders) are kept.
+const PITCH_KEPT: usize = 8;
 
 #[derive(Default)]
 struct State {
@@ -143,6 +155,10 @@ struct State {
     queue: VecDeque<Work>,
     bridges: VecDeque<Job>,
     finished: Vec<Finished>,
+    /// The pitch base's analysis of each input a Melodic render read, newest last.
+    pitch: Vec<(u64, Arc<cantus_dsp::pitch::Analysis>)>,
+    /// Final renders held back (tests: what plays while a final is on its way).
+    hold: bool,
     worker: bool,
     bridger: bool,
     closed: bool,
@@ -240,20 +256,12 @@ impl WarpService {
         render_on(&self.shared, job)
     }
 
-    /// Queue the final render of `job.clip`, in place of any still waiting for it, and its
-    /// bridge (when `bridge`). Returns the key a waiting final had, if one was replaced.
-    pub(crate) fn queue_render(&self, job: Job, bridge: bool) -> Option<u64> {
+    /// Queue the final render of `job` and its bridge (when `bridge`). Nothing else is
+    /// cancelled here: a loop's pieces may each want their own render (round 29's review);
+    /// [`Self::retain_queued`] drops what nothing plays any more.
+    pub(crate) fn queue_render(&self, job: Job, bridge: bool) {
         let mut g = self.shared.lock();
-        let mut replaced = None;
-        g.queue.retain(|w| match w {
-            Work::Render(j) if j.clip == job.clip => {
-                replaced = Some(j.key);
-                false
-            }
-            _ => true,
-        });
-        if bridge {
-            g.bridges.retain(|j| j.clip != job.clip);
+        if bridge && !g.bridges.iter().any(|j| j.key == job.key) {
             g.bridges.push_back(job.clone());
         }
         // Renders before analyses: what plays comes first.
@@ -264,7 +272,33 @@ impl WarpService {
             .unwrap_or(g.queue.len());
         g.queue.insert(at, Work::Render(job));
         self.ensure_workers(&mut g);
-        replaced
+    }
+
+    /// Drop the waiting finals and bridges whose key is not in `used`; returns the finals'
+    /// keys dropped. A render already being made is left to finish (it is kept if it comes
+    /// back in time to be played again).
+    pub(crate) fn retain_queued(&self, used: &std::collections::HashSet<u64>) -> Vec<u64> {
+        let mut g = self.shared.lock();
+        let mut dropped = Vec::new();
+        g.queue.retain(|w| match w {
+            Work::Render(j) if !used.contains(&j.key) => {
+                dropped.push(j.key);
+                false
+            }
+            _ => true,
+        });
+        g.bridges.retain(|j| used.contains(&j.key));
+        dropped
+    }
+
+    /// Hold final renders back (on) or let them be made (off) — for tests of what plays
+    /// while a final is on its way. Bridges and analyses go on.
+    #[doc(hidden)]
+    pub fn hold_finals(&self, on: bool) {
+        let mut g = self.shared.lock();
+        g.hold = on;
+        drop(g);
+        self.shared.wake.notify_all();
     }
 
     pub(crate) fn take_finished(&self) -> Vec<Finished> {
@@ -307,7 +341,11 @@ fn work(shared: Arc<Shared>, bridges: bool) {
                 let next = if bridges {
                     g.bridges.pop_front().map(Work::Render)
                 } else {
-                    g.queue.pop_front()
+                    let hold = g.hold;
+                    g.queue
+                        .iter()
+                        .position(|w| !hold || matches!(w, Work::Analyse(..)))
+                        .and_then(|i| g.queue.remove(i))
                 };
                 if let Some(j) = next {
                     g.busy += 1;
@@ -326,7 +364,13 @@ fn work(shared: Arc<Shared>, bridges: bool) {
                 } else {
                     render_on(&shared, &job)
                 };
-                shared.lock().finished.push((job.key, bridges, r));
+                shared.lock().finished.push(Finished {
+                    clip: job.clip,
+                    piece: job.piece,
+                    key: job.key,
+                    bridge: bridges,
+                    result: r,
+                });
             }
         }
         shared.lock().busy -= 1;
@@ -384,5 +428,43 @@ fn render_on(shared: &Shared, job: &Job) -> Result<SampleData, String> {
     } else {
         analyse_on(shared, &plan.path, plan.source_rate).ok()
     };
-    Ok(render_clip(&job.input, plan, analysis.as_deref()))
+    // Melodic reads the pitch base's analysis of the whole input: made once per input and
+    // kept, never again for every window and every edit (round 29's review).
+    let pitch =
+        (plan.warp.mode == cantus_core::warp::WarpMode::Melodic).then(|| pitch_on(shared, job));
+    Ok(render_clip(
+        &job.input,
+        plan,
+        analysis.as_deref(),
+        pitch.as_deref(),
+    ))
+}
+
+/// The pitch analysis of a job's input, kept per input (its file, what it is, the rate).
+fn pitch_on(shared: &Shared, job: &Job) -> Arc<cantus_dsp::pitch::Analysis> {
+    let plan = &job.plan;
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for b in plan
+        .path
+        .to_string_lossy()
+        .as_bytes()
+        .iter()
+        .chain(&plan.input_key.to_le_bytes())
+        .chain(&plan.rate.to_le_bytes())
+        .chain(&(job.input.frames.len() as u64).to_le_bytes())
+    {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0100_0000_01b3);
+    }
+    if let Some((_, a)) = shared.lock().pitch.iter().find(|(k, _)| *k == h) {
+        return a.clone();
+    }
+    let a = Arc::new(pitch_of(&job.input, plan.rate));
+    let mut g = shared.lock();
+    g.pitch.retain(|(k, _)| *k != h);
+    g.pitch.push((h, a.clone()));
+    if g.pitch.len() > PITCH_KEPT {
+        g.pitch.remove(0);
+    }
+    a
 }

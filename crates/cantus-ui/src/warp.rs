@@ -282,3 +282,12 @@ pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &st
         }
     }
 }
+
+/// The status line after a file brought warps that were not valid, dropped on load.
+pub fn repaired_text(n: usize) -> String {
+    if n == 1 {
+        crate::i18n::t("warp.status.repaired_one")
+    } else {
+        crate::i18n::tf("warp.status.repaired", &[("n", &n)])
+    }
+}

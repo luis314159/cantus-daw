@@ -191,6 +191,17 @@ pub(super) fn grains(
     let g = ((0.0053 * rate) as usize)
         .next_power_of_two()
         .clamp(64, 1_024);
+    grains_of(channels, map, len, ratio, g)
+}
+
+/// [`grains`] with grains `g` frames long (a power of two).
+pub(super) fn grains_of(
+    channels: &[&[f32]],
+    map: &Map,
+    len: usize,
+    ratio: f64,
+    g: usize,
+) -> Vec<Vec<f32>> {
     let hop = g / 4;
     let win = hann(g);
     let ola: f32 = (0..4).map(|j| win[j * hop]).sum();
