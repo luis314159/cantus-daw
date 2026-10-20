@@ -348,7 +348,7 @@ los marcadores, PAT / SONG — todo lo que puede hacer una tecla).
 
 **Aprender en dos clics.** Clic derecho en un control ▸ **Aprender controlador MIDI** y
 mueve un control de tu equipo: listo. O haz clic en la casilla **MIDI** de la barra
-superior (o pulsa `Ctrl+Mayús+M`; con clic derecho abre los ajustes MIDI) para el **modo de
+superior (o pulsa `Ctrl+Shift+M`; con clic derecho abre los ajustes MIDI) para el **modo de
 aprendizaje**: se marcan todos los controles
 que se pueden aprender; haz clic en uno, mueve un control del equipo, haz clic en el
 siguiente. Un control asignado lleva un puntito abajo a la derecha; en el modo de
@@ -357,7 +357,7 @@ cancela un aprendizaje. **Cambiar controlador MIDI** y **Olvidar el controlador 
 en el mismo menú. Los menús de canal e inserto del mezclador y el de la cabecera de pista
 tienen filas *Aprender* para volumen, panorama, anchura, silencio, solo, armado, puenteo y
 mezcla. Dentro de la ventana propia de un plugin, mueve allí el parámetro, pulsa
-`Alt+Mayús+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio)
+`Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio)
 y mueve el equipo.
 
 Cantus distingue lo que moviste: una perilla normal, un **fader de 14 bits** (llegó también
@@ -366,7 +366,7 @@ un botón, un pad (en un interruptor conmuta; en una perilla su velocidad fija e
 cambio de programa.
 
 **Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
-`Ctrl+Mayús+K`), una fila por asignación:
+`Ctrl+Shift+K`), una fila por asignación:
 
 - **Modo**: *Absoluto* (donde está el control, está el destino), *Relativo* (un
   codificador: cada paso mueve el destino), *Conmutar* (cada pulsación lo invierte),
@@ -396,7 +396,8 @@ transporte, el tempo, el máster, **la pista seleccionada** y **el canal selecci
 (volumen, panorama, silencio, solo, armado) y las ocho primeras perillas del **dispositivo
 enfocado** (la ventana de dispositivo en la que hiciste clic por última vez). Aprender una
 tecla de transporte o el máster la lleva allí; **Añadir asignación** en el panel los ofrece
-todos. Cuando un control está en los dos, gana la asignación del proyecto.
+todos, y la acción de cada atajo de teclado por su grupo (armar la pista seleccionada,
+pinchar, deshacer, guardar, las vistas…). Cuando un control está en los dos, gana la asignación del proyecto.
 
 **Mientras tocas y grabas.** Una perilla asignada ya no llega al instrumento (no mueve
 además su filtro) y un pad asignado no toca ninguna nota. Un movimiento hecho con el ratón
@@ -1224,6 +1225,9 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll; en el arreglo, `B` o `2` es la herramienta de pintar |
 | `Shift+L` · `Z` | Bucle en la selección de tiempo · ampliarla |
 | `Alt+A` | Automatizar el último parámetro que moviste |
+| `Alt+Shift+A` | Vincular el último parámetro que moviste a un controlador MIDI |
+| `Ctrl+Shift+M` | Modo de aprendizaje MIDI |
+| `Ctrl+Shift+K` | Mostrar las asignaciones de controladores |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arreglo, rack de canales, piano roll, mezclador · explorador · inspector |
 | `Alt+F5` | Navegador de clips |
 | `F8` · `F12` | El instrumento de la pista seleccionada · cerrar los dispositivos flotantes |

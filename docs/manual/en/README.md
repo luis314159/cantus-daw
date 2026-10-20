@@ -369,7 +369,9 @@ one undo step. **Everywhere** — your global mappings, kept beside your keyboar
 — holds what means the same in every song: the transport, the tempo, the master, **the
 selected track** and **the selected channel** (volume, pan, mute, solo, arm) and **the
 focused device**'s first eight knobs (the device window you clicked last). Learning a
-transport key or the master puts it there; **Add a mapping** in the pane offers all of them.
+transport key or the master puts it there; **Add a mapping** in the pane offers all of them,
+and every keyboard shortcut's action by its group (arm the selected track, punch, undo,
+save, the views…).
 When one control is in both, the project's mapping wins.
 
 **While you play and record.** A mapped knob no longer reaches the instrument (it does
@@ -1128,6 +1130,9 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools; in the arrangement, `B` or `2` is the paint tool |
 | `Shift+L` · `Z` | Loop the time selection · zoom to it |
 | `Alt+A` | Automate the last parameter you moved |
+| `Alt+Shift+A` | Link the last parameter you moved to a MIDI controller |
+| `Ctrl+Shift+M` | MIDI learn mode |
+| `Ctrl+Shift+K` | Show the controller mappings |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arrangement, channel rack, piano roll, mixer · browser · inspector |
 | `Alt+F5` | Clip browser |
 | `F8` · `F12` | The selected track's instrument · close floating devices |

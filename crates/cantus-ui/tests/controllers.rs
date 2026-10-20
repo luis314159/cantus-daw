@@ -544,7 +544,10 @@ fn a_parameter_a_pass_records_follows_its_controller_not_its_clip() {
 #[test]
 fn feedback_sends_the_value_back_once_per_change() {
     use cantus_ui::controllers_feedback::feedback_messages;
-    assert_eq!(feedback_messages(Control::Cc(7), 2, 100), vec![vec![0xB2, 7, 100]]);
+    assert_eq!(
+        feedback_messages(Control::Cc(7), 2, 100),
+        vec![vec![0xB2, 7, 100]]
+    );
     assert_eq!(
         feedback_messages(Control::Cc14(7), 0, 16_383),
         vec![vec![0xB0, 7, 127], vec![0xB0, 39, 127]]
