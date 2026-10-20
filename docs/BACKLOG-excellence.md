@@ -257,6 +257,21 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of
     distributions and interfaces tried, kept like the Windows one.
+  - **iOS / iPadOS, after macOS (asked 2026-10-20):** iPad first — a DAW needs the screen;
+    the iPhone later as a sketchpad or a remote for the desktop (FL Studio Mobile, Logic Pro
+    for iPad and Cubasis are the references). What it takes: macOS done first (the same
+    CoreAudio, Apple silicon, signing and an Apple developer account, and a Mac with Xcode to
+    build); `aarch64-apple-ios` builds of the engine (MPL, portable) with AVAudioSession and
+    real-time workgroups; a **touch mode** for the kit (§0.2: large targets, gestures, no
+    hover, no right-click — the desktop's density does not carry over); **AUv3** in place
+    of CLAP/VST3 — hosting AUv3 instruments and effects (iOS forbids child processes, so
+    isolation becomes AUv3's own out-of-process model) and **exporting our effects and
+    instruments as AUv3**, which also puts them inside GarageBand, Cubasis and Logic for
+    iPad; files through the document picker and iCloud; background audio and the memory
+    limits of iPadOS; projects that open on the desktop unchanged. **Licence:** the App
+    Store's terms conflict with the GPL as published; the owner holds the application's
+    copyright and the CLA's grant, so an App Store exception (an additional permission in
+    the licence) is needed before any upload — a lawyer's check, like the CLA's.
 
 ## 3. Features every top DAW has
 
