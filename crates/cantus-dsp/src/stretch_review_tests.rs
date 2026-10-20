@@ -196,8 +196,9 @@ fn a_transposed_render_keeps_its_level() {
         for semis in [-24.0, -12.0, -5.0, 7.0, 12.0, 24.0] {
             let out = render(&[src], SR, &req(Mode::Complex, &map, 96_000, semis, &[]));
             let got = rms_db(&out[0][24_000..72_000]);
+            // ADR 0061 §10's claim (round 29's second review: the test held 0.5).
             assert!(
-                (got - want).abs() < 0.5,
+                (got - want).abs() < 0.1,
                 "{name} {semis:+} st: {:+.2} dB",
                 got - want
             );
@@ -434,6 +435,50 @@ fn rhythm_on_detected_onsets_keeps_the_attacks() {
     }
 }
 
+/// Round 29's second review (finding 15): the bench's Complex rows on a mix with the
+/// detector's own onsets, as a test — drum hits over a held tone: every attack as sharp
+/// as the source's, nothing ringing before it, every hit on its place. Measured on the
+/// signals twice differenced (the held tone, 63 dB down, never read as a hit's smear).
+#[test]
+fn complex_on_a_mix_with_detected_onsets_keeps_the_hits() {
+    let n = 192_000;
+    let (h, at) = hits(n, 6_000, 24_000, 37);
+    let pad = tone(n, 196.0, 0.08);
+    let x: Vec<f32> = h.iter().zip(&pad).map(|(a, b)| a + b).collect();
+    let found = crate::onset::detect(&x, SR).frames;
+    let diff2 = |v: &[f32]| -> Vec<f32> {
+        (0..v.len())
+            .map(|i| {
+                let g = |j: usize| v.get(j).copied().unwrap_or(0.0);
+                g(i) - 2.0 * if i > 0 { g(i - 1) } else { 0.0 } + if i > 1 { g(i - 2) } else { 0.0 }
+            })
+            .collect()
+    };
+    let xd = diff2(&x);
+    for stretch in [0.8, 1.25] {
+        let len = (n as f64 * stretch) as usize;
+        let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
+        let out = render(&[&x], SR, &req(Mode::Complex, &map, len, 0.0, &found));
+        let out = [diff2(&out[0])];
+        let x = &xd;
+        for &s in &at[1..at.len() - 1] {
+            let o = map.output(s) as usize;
+            let att = attack_frames(&out[0], SR, o - 240, o + 960).unwrap();
+            let att0 = attack_frames(x, SR, s as usize - 240, s as usize + 960).unwrap();
+            assert!(att <= att0 + 48, "×{stretch}: attack {att} (source {att0})");
+            let pre = pre_echo_db(&out[0], o, 1_200, 48);
+            assert!(pre < -24.0, "×{stretch}: pre-echo {pre} dB at {o}");
+            let got = rise_at(&out[0], o - 480, o + 480, 0.5).unwrap() as f64;
+            let want = rise_at(x, s as usize - 480, s as usize + 480, 0.5).unwrap() as f64;
+            let late = got - o as f64 - (want - s);
+            assert!(
+                late.abs() <= 24.0,
+                "×{stretch}: the hit {late:+} frames off"
+            );
+        }
+    }
+}
+
 /// Round 29's review: a chord's voices 30 Hz apart, each a detuned saw a channel, keep
 /// their level through a stretch — every voice in both channels, within a decibel of its
 /// own wander (100 ms windows: they resolve the voices).
@@ -487,6 +532,29 @@ fn a_chords_close_voices_do_not_wander() {
             }
         }
     }
+}
+
+/// Short tuned hits (a tom's ping and its click, 40 ms): a burst of noise and a decaying
+/// 300 Hz tone — the harmonic part holds the tone — every `every` frames from `first`.
+fn pings(n: usize, first: usize, every: usize, seed: u64) -> (Vec<f32>, Vec<f64>) {
+    let mut x = vec![0.0f32; n];
+    let mut g = Noise::new(seed);
+    let mut at = Vec::new();
+    let mut s = first;
+    while s < n {
+        at.push(s as f64);
+        for k in 0..(0.04 * SR) as usize {
+            if s + k >= n {
+                break;
+            }
+            let t = k as f32 / SR;
+            let ping = math::sin(2.0 * std::f32::consts::PI * 300.0 * t) * math::exp(-t / 0.012);
+            let click = math::exp(-t / 0.002) * g.next();
+            x[s + k] += (0.5 * ping + 0.3 * click) * (k as f32 / 8.0).min(1.0);
+        }
+        s += every;
+    }
+    (x, at)
 }
 
 /// Hats: a short noise burst every `every` frames from `first`.
@@ -552,4 +620,117 @@ fn a_complex_renders_hits_keep_their_level_slowed_and_sped_up() {
             );
         }
     }
+}
+
+/// Round 29's second review (finding 38): hits a sixteenth apart at 120 BPM stretched by
+/// Complex keep the whole frame's reach before each clean — pre-echo measured over half a
+/// vocoder frame (what a frame reaches), not 25 ms — at ×0.8 and ×1.25.
+#[test]
+fn dense_hits_keep_half_a_frame_before_each_clean() {
+    let n = 8 * 48_000;
+    let half = pv::frame_len(SR) / 2;
+    for every in [6_000usize, 12_000] {
+        let (x, at) = pings(n, 24_000, every, 41);
+        for k in [0.8f64, 1.25] {
+            let len = (n as f64 / k) as usize - 24_000;
+            let map = Map::new(vec![(0.0, 0.0), (len as f64, len as f64 * k)]).unwrap();
+            let out = render(&[&x], SR, &req(Mode::Complex, &map, len, 0.0, &at));
+            let mut worst = f32::MIN;
+            for s in at.iter().copied().filter(|s| *s > 30_000.0) {
+                let o = map.output(s).round() as usize;
+                if o + half >= len {
+                    break;
+                }
+                // Before it, back to the last hit's tail (40 ms) at most.
+                let gap = ((every as f64 / k) as usize).saturating_sub((0.045 * SR) as usize);
+                let pre = pre_echo_db(&out[0], o, half.min(gap), 48);
+                worst = worst.max(pre);
+            }
+            assert!(
+                worst < -30.0,
+                "hats every {every} at ×{k}: {worst:.1} dB of pre-echo"
+            );
+        }
+    }
+}
+
+/// A sung line: harmonics 1 to 10 (1/k) on `f0(t)` (Hz), its phase continuous.
+fn voice_on(n: usize, f0: &dyn Fn(f64) -> f64) -> Vec<f32> {
+    let mut ph = [0.0f64; 10];
+    (0..n)
+        .map(|i| {
+            let t = i as f64 / SR as f64;
+            let f = f0(t);
+            let env = (t / 0.05).min(1.0) * ((n as f64 / SR as f64 - t) / 0.05).clamp(0.0, 1.0);
+            let mut s = 0.0;
+            for (k, p) in ph.iter_mut().enumerate() {
+                *p += f * (k + 1) as f64 / SR as f64;
+                s += math::sin(2.0 * std::f64::consts::PI * *p) / (k + 1) as f64;
+            }
+            (0.15 * env * s) as f32
+        })
+        .collect()
+}
+
+/// The mean pitch error, cents, of `out` against `src` read through `map` (voiced frames
+/// of both, from `from` to `to` output frames).
+fn track_error(src: &[f32], out: &[f32], map: &Map, from: usize, to: usize) -> f64 {
+    let a = crate::pitch::analyse(src, SR);
+    let b = crate::pitch::analyse(out, SR);
+    let (mut sum, mut n) = (0.0, 0usize);
+    let mut t = from;
+    while t < to {
+        if let (Some(fs), Some(fo)) = (a.f0_at(map.source(t as f64)), b.f0_at(t as f64)) {
+            sum += cents(fo, fs).abs() as f64;
+            n += 1;
+        }
+        t += 240;
+    }
+    assert!(n > 50, "{n} voiced frames");
+    sum / n as f64
+}
+
+/// Round 29's second review (finding 16): Complex follows a line whose pitch moves — a
+/// 5.5 Hz vibrato of ±50 cents, a legato arpeggio of 150 ms notes — at ×0.8 and ×1.25:
+/// its pitch track within a few cents of the source's where it read (the vocoder frame
+/// chosen for the material: a moving voice is not smeared over 170 ms).
+#[test]
+fn complex_follows_a_moving_pitch() {
+    let n = 4 * 48_000;
+    let vibrato = voice_on(n, &|t| {
+        220.0 * math::exp2(50.0 / 1200.0 * math::sin(2.0 * std::f64::consts::PI * 5.5 * t))
+    });
+    let notes = [220.0, 277.18, 329.63, 440.0, 329.63, 277.18];
+    let legato = voice_on(n, &|t| notes[((t / 0.15) as usize) % notes.len()]);
+    for (name, x) in [("vibrato", &vibrato), ("legato", &legato)] {
+        for k in [0.8f64, 1.25] {
+            let len = (n as f64 / k) as usize;
+            let map = Map::new(vec![(0.0, 0.0), (len as f64, len as f64 * k)]).unwrap();
+            let out = render(&[x], SR, &req(Mode::Complex, &map, len, 0.0, &[]));
+            let e = track_error(x, &out[0], &map, 12_000, len - 12_000);
+            assert!(e < 4.0, "{name} at ×{k}: {e:.2} cents from the source");
+        }
+    }
+}
+
+/// Round 29's second review (finding 19): the bridge's sketch of a long take is quick —
+/// a minute of stereo at +2 st in a fraction of a second (best of three, one core): it
+/// stands in for a first transposition while the render is made.
+#[test]
+fn a_sketch_of_a_minute_is_quick() {
+    let n = 60 * 48_000;
+    let (x, _) = hits(n, 3_000, 21_000, 43);
+    let nz = band_noise(n, 47);
+    let x: Vec<f32> = x.iter().zip(&nz).map(|(a, b)| a + 0.3 * b).collect();
+    let len = (n as f64 / 1.05) as usize;
+    let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
+    let mut best = f64::MAX;
+    for _ in 0..3 {
+        let t = std::time::Instant::now();
+        let y = sketch(&[&x, &x], SR, &map, len, 2.0, 0, &[]);
+        best = best.min(t.elapsed().as_secs_f64());
+        assert_eq!(y[0].len(), len);
+    }
+    eprintln!("SKETCH {best:.3} s");
+    assert!(best < 0.6, "a minute sketched in {best:.2} s");
 }

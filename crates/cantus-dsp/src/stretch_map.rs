@@ -29,6 +29,11 @@ const HOLD_AFTER_S: f64 = 0.030;
 /// A held stretch takes at most this share of the gap to the next transient or
 /// breakpoint, so the rest can still stretch.
 const HOLD_SHARE: f64 = 0.45;
+/// The share of the room before a transient a **long** hold may take (the vocoder's half
+/// frame, [`Map::hold_long`]): what the transient before it holds after itself left out,
+/// most of the rest — a frame that reaches a hit never reads it stretched, hits a
+/// sixteenth apart included (round 29's second review).
+pub const LONG_SHARE: f64 = 0.9;
 
 impl Map {
     /// The identity: output frame `t` reads source frame `t`.
@@ -190,6 +195,17 @@ impl Map {
     /// stretch, are dropped — the curve there is followed by one straight segment — and
     /// the rest stay. Returns the map and the holds kept, in order.
     pub fn hold(&self, onsets: &[f64], before: f64, after: f64) -> (Map, Vec<Hold>) {
+        self.hold_with(onsets, before, after, HOLD_SHARE)
+    }
+
+    /// [`Map::hold`] for a long hold before each transient (the vocoder's half frame): it
+    /// may take [`LONG_SHARE`] of the room before it that the transient before it does not
+    /// hold after itself.
+    pub fn hold_long(&self, onsets: &[f64], before: f64, after: f64) -> (Map, Vec<Hold>) {
+        self.hold_with(onsets, before, after, LONG_SHARE)
+    }
+
+    fn hold_with(&self, onsets: &[f64], before: f64, after: f64, share: f64) -> (Map, Vec<Hold>) {
         let mut pts: Vec<(f64, f64)> = self.points.clone();
         let mut soft: Vec<bool> = (0..pts.len()).map(|i| self.is_soft(i)).collect();
         if pts.len() < 2 {
@@ -199,25 +215,40 @@ impl Map {
         }
         let fixed: Vec<f64> = self.hard_points().map(|p| p.0).collect();
         let places: Vec<f64> = onsets.iter().map(|&s| self.output(s)).collect();
+        // Each transient's hold after itself (its share of the room to what follows).
+        let aheads: Vec<f64> = places
+            .iter()
+            .enumerate()
+            .map(|(i, &o)| {
+                let s = self.source(o);
+                let next_fixed = fixed.iter().find(|&&f| f > o).copied();
+                [next_fixed, places.get(i + 1).copied()]
+                    .into_iter()
+                    .flatten()
+                    .map(|f| (f - o).min(self.source(f) - s) * HOLD_SHARE)
+                    .fold(after, f64::min)
+                    .max(0.0)
+            })
+            .collect();
         let mut holds: Vec<Hold> = Vec::new();
         for (i, &o) in places.iter().enumerate() {
             let prev_fixed = fixed.iter().rev().find(|&&f| f < o).copied();
-            let next_fixed = fixed.iter().find(|&&f| f > o).copied();
-            let prev_onset = i.checked_sub(1).map(|j| places[j]);
-            let next_onset = places.get(i + 1).copied();
             let s = self.source(o);
-            let back = [prev_fixed, prev_onset]
+            // The room before it: to the hard point before it, or to the end of what the
+            // transient before it holds after itself.
+            let room = |f: f64, taken: f64| ((o - f).min(s - self.source(f)) - taken).max(0.0);
+            let from_fixed = prev_fixed.map(|f| room(f, 0.0));
+            let long = share > HOLD_SHARE;
+            let from_onset = i
+                .checked_sub(1)
+                .map(|j| room(places[j], if long { aheads[j] } else { 0.0 }));
+            let back = [from_fixed, from_onset]
                 .into_iter()
                 .flatten()
-                .map(|f| (o - f).min(s - self.source(f)) * HOLD_SHARE)
+                .map(|r| r * share)
                 .fold(before, f64::min)
                 .max(0.0);
-            let ahead = [next_fixed, next_onset]
-                .into_iter()
-                .flatten()
-                .map(|f| (f - o).min(self.source(f) - s) * HOLD_SHARE)
-                .fold(after, f64::min)
-                .max(0.0);
+            let ahead = aheads[i];
             if back + ahead >= 1.0 {
                 holds.push(Hold {
                     from: o - back,
@@ -240,7 +271,7 @@ impl Map {
             .iter()
             .map(|h| {
                 let s = self.source(h.at);
-                let rb = (h.at - h.from) / HOLD_SHARE;
+                let rb = (h.at - h.from) / share;
                 let ra = (h.to - h.at) / HOLD_SHARE;
                 let lo = (h.at - rb).min(self.output(s - rb));
                 let hi = (h.at + ra).max(self.output(s + ra));

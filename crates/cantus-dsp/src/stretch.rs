@@ -203,12 +203,10 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
     let h: Vec<&[f32]> = harmonic.iter().map(Vec::as_slice).collect();
     // The harmonic part held around transients for a whole window before each (no frame
     // that reaches a transient reads it stretched) and 30 ms after.
-    let (hmap, holds) = req.map.hold(
-        req.onsets,
-        (pv::frame_len(rate) / 2) as f64,
-        0.030 * rate as f64,
-    );
-    let (mut out, meant) = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants);
+    let after = 0.030 * rate as f64;
+    let n = pv::frame_for(rate, req.map, req.onsets, after);
+    let (hmap, holds) = req.map.hold_long(req.onsets, (n / 2) as f64, after);
+    let (mut out, meant) = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants, n);
     let p: Vec<&[f32]> = percussive.iter().map(Vec::as_slice).collect();
     let shifted = req.map.held_at(req.onsets, rate);
     let hits = hpss::grains(&p, rate, &shifted, req.len, ratio, req.onsets);
@@ -219,7 +217,7 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
     // added after as they are: a hit's power is never counted again at every frame that
     // reads near it (round 29's second review: slowed hits came out louder, sped-up ones
     // quieter).
-    let win = pv::window(pv::frame_len(rate));
+    let win = pv::window(n);
     let w2: f64 = win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
     let target: Vec<(i64, f64)> = meant
         .iter()
@@ -234,7 +232,7 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
             (m.centre, m.meant + (whole - parts).max(0.0) * k)
         })
         .collect();
-    pv::level_match(&mut out, &target, rate);
+    pv::level_match(&mut out, &target, n);
     for (o, h) in out.iter_mut().zip(&hits) {
         for (a, b) in o.iter_mut().zip(h) {
             *a += *b;
