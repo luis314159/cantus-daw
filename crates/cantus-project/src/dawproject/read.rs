@@ -751,8 +751,40 @@ fn channel_eq(project: &mut Project, sid: StripId, eq: Node) -> bool {
 /// The tempo track, the metre changes and the markers from the file's arrangement (round
 /// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
 /// standing in where the automation starts later.
+/// The file's metre points as the song's metre changes: valid signatures only, two at one
+/// tick the later (review 2, finding 58), the transport's metre at tick 0 when the first is
+/// later. Empty when the file has none.
+pub(crate) fn metre_list(
+    points: &[(Ticks, u8, u8)],
+    transport: TimeSignature,
+) -> Vec<cantus_core::tempo::MetreChange> {
+    use cantus_core::tempo::{valid_signature, MetreChange};
+    let mut ms: Vec<MetreChange> = points
+        .iter()
+        .map(|(tick, n, d)| MetreChange {
+            tick: *tick,
+            signature: TimeSignature::new(*n, *d),
+        })
+        .filter(|m| m.tick.0 >= 0 && valid_signature(m.signature))
+        .collect();
+    ms.sort_by_key(|m| m.tick);
+    ms.reverse();
+    ms.dedup_by_key(|m| m.tick);
+    ms.reverse();
+    if ms.first().is_some_and(|m| m.tick != Ticks::ZERO) {
+        ms.insert(
+            0,
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: transport,
+            },
+        );
+    }
+    ms
+}
+
 fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
-    use cantus_core::tempo::{valid_signature, Marker, MarkerId, MetreChange};
+    use cantus_core::tempo::{Marker, MarkerId};
     // The tempo track as the timeline read it (its points normalised there).
     let pts = t.tempo.clone();
     if !pts.is_empty() {
@@ -765,30 +797,8 @@ fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
             project.tempo_points = pts;
         }
     }
-    let mut ms: Vec<MetreChange> = t
-        .metres
-        .iter()
-        .map(|(tick, n, d)| MetreChange {
-            tick: *tick,
-            signature: TimeSignature::new(*n, *d),
-        })
-        .filter(|m| m.tick.0 >= 0 && valid_signature(m.signature))
-        .collect();
-    // Two at one tick: the later wins, as for the tempo (review 2, finding 58).
-    ms.sort_by_key(|m| m.tick);
-    ms.reverse();
-    ms.dedup_by_key(|m| m.tick);
-    ms.reverse();
+    let ms = metre_list(&t.metres, project.time_signature);
     if !ms.is_empty() {
-        if ms[0].tick != Ticks::ZERO {
-            ms.insert(
-                0,
-                MetreChange {
-                    tick: Ticks::ZERO,
-                    signature: project.time_signature,
-                },
-            );
-        }
         project.time_signature = ms[0].signature;
         if ms.len() > 1 {
             report.info(

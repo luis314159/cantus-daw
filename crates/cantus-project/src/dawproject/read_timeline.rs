@@ -138,7 +138,9 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         }
         .at(&map, v)
     };
-    walk(arr, &ctx, &map, project, &mut out, &mut counts);
+    // The metre before the clips (review 5): notes straight on a lane get a clip on the
+    // file's bar lines through its metre changes, so the map the clips are read with holds
+    // them (times are placed through the tempo alone either way).
     if let Some(t) = child(arr, "TimeSignatureAutomation") {
         let secs = unit(t);
         for p in t
@@ -155,6 +157,14 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
             out.metres.push((ctx_at(secs, time), n as u8, d as u8));
         }
     }
+    let metres = super::read::metre_list(&out.metres, project.time_signature);
+    let map = TempoMap::new(
+        out.tempo.first().map_or(bpm, |p| p.bpm),
+        metres.first().map_or(project.time_signature, |m| m.signature),
+        &out.tempo,
+        &metres,
+    );
+    walk(arr, &ctx, &map, project, &mut out, &mut counts);
     if let Some(m) = child(arr, "Markers") {
         let secs = unit(m);
         for k in m.children().filter(|c| c.has_tag_name("Marker")) {
@@ -225,23 +235,16 @@ fn walk(
                 if notes.is_empty() {
                     continue;
                 }
-                let bar = project.time_signature.ticks_per_bar().max(Ticks(1));
+                let bar = map.bar_len_at(Ticks::ZERO).max(Ticks(1));
                 let first = notes.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
                 let last = notes
                     .iter()
                     .map(|n| n.start + n.length)
                     .max()
                     .unwrap_or(bar);
-                // On the file's bar lines, through its metre changes (review 4).
-                let (from, to) = if map.is_one_metre() {
-                    let from = first.snap_floor(bar);
-                    (
-                        from,
-                        Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar),
-                    )
-                } else {
-                    map.bars_around(first, last)
-                };
+                // On the file's bar lines, through its metre changes (reviews 4–5): with one
+                // metre, whole bars of it from 0, as before.
+                let (from, to) = map.bars_around(first.max(Ticks::ZERO), last);
                 out.clips.entry(t.clone()).or_default().push(ClipData {
                     name: String::new(),
                     color: None,

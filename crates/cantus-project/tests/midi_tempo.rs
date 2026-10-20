@@ -545,3 +545,34 @@ fn imported_clips_end_on_the_songs_bar_lines() {
     // 3 840 + 3 × 3 360: the end of the third bar of 7/8.
     assert_eq!(c.end(), Ticks(3840 + 3 * 3360));
 }
+
+/// Review 5 (finding 13): a file with no metre dropped at bar 6 of a song with a 3/4 from
+/// bar 5, the song's tempo kept: the clip ends on the song's 3/4 bar lines.
+#[test]
+fn a_clip_dropped_into_a_songs_metre_change_ends_on_its_bars() {
+    let mut song = Project::new("Waltz from bar 5");
+    song.metre_changes = vec![mc(0, 4, 4), mc(4 * 3840, 3, 4)];
+    let notes: Vec<_> = note(0, 480, 60)
+        .into_iter()
+        .chain(note(4 * 480, 240, 62))
+        .collect();
+    let bytes = file(smf::Division::Ppq(480), vec![], notes);
+    let bar6 = Ticks(4 * 3840 + 2880);
+    let bus = import(
+        song,
+        &bytes,
+        Placement {
+            at: bar6,
+            apply_tempo: false,
+            ..Default::default()
+        },
+    );
+    let p = bus.project();
+    let map = p.tempo_map();
+    let c = &p.tracks.last().unwrap().clips[0];
+    assert_eq!(c.start, bar6);
+    assert_eq!(map.bar_start(c.end()), c.end(), "on a bar line");
+    // The notes reach 4 320 ticks past bar 6 (the file's beat 4 and an eighth): into the
+    // second bar of 3/4 after it, which ends 2 × 2 880 on.
+    assert_eq!(c.end(), bar6 + Ticks(2 * 2880));
+}

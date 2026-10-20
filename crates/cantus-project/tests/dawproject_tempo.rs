@@ -250,3 +250,53 @@ fn a_looped_seconds_clip_across_a_change_reports_no_loop_moved() {
         "no loop was moved: {moved:?}"
     );
 }
+
+/// Review 5 (findings 13, 26): notes straight on a track's lane, in no clip, get one clip
+/// on the file's bar lines through its metre changes — and through a metre at bar 1 that
+/// differs from the transport's.
+#[test]
+fn notes_on_a_lane_get_a_clip_on_the_files_bar_lines() {
+    let lane_clips = r#"<Lanes track="id33" id="id70" timeUnit="seconds">
+        <Clips id="id71">
+          <Clip time="2.0" duration="2.0" contentTimeUnit="seconds">
+            <Notes id="id72">
+              <Note time="0" duration="0.1" channel="9" key="36" vel="1.0"/>
+              <Note time="0.5" duration="0.1" channel="9" key="49" vel="0.8"/>
+            </Notes>
+          </Clip>
+        </Clips>
+      </Lanes>"#;
+    let clip_of = |last_beat: f64, metres: &str| {
+        let lane = format!(
+            r#"<Lanes track="id33" id="id70" timeUnit="beats"><Notes id="id72"><Note time="0" duration="0.25" channel="9" key="36" vel="1.0"/><Note time="{}" duration="0.5" channel="9" key="49" vel="0.8"/></Notes></Lanes>"#,
+            last_beat - 0.5
+        );
+        let xml = FOREIGN
+            .replace('\r', "")
+            .replace(lane_clips, &lane)
+            .replace("</Arrangement>", &format!("{metres}</Arrangement>"));
+        assert!(xml.contains("key=\"49\" vel=\"0.8\"/></Notes></Lanes>"), "the lane");
+        let p = import(&xml).project;
+        let c = p
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .find(|c| c.notes.iter().any(|n| n.pitch == 49))
+            .expect("the lane's clip")
+            .clone();
+        (p.tempo_map(), c)
+    };
+    // 4/4, then 7/8 from beat 4: bar lines 0, 3 840, 7 200, 10 560.
+    let (map, c) = clip_of(
+        11.0,
+        r#"<TimeSignatureAutomation id="id91"><Target parameter="id1"/><TimeSignaturePoint time="0" numerator="4" denominator="4"/><TimeSignaturePoint time="4" numerator="7" denominator="8"/></TimeSignatureAutomation>"#,
+    );
+    assert_eq!((c.start, c.end()), (Ticks::ZERO, Ticks(10_560)));
+    assert_eq!(map.bar_start(c.end()), c.end());
+    // The transport's 4/4, the automation's 3/4 from bar 1: bar lines every 2 880.
+    let (_, c) = clip_of(
+        5.0,
+        r#"<TimeSignatureAutomation id="id91"><Target parameter="id1"/><TimeSignaturePoint time="0" numerator="3" denominator="4"/></TimeSignatureAutomation>"#,
+    );
+    assert_eq!((c.start, c.end()), (Ticks::ZERO, Ticks(5_760)));
+}
