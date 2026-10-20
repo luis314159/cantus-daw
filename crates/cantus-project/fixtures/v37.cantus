@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 37,
   "app_version": "fixture",
-  "saved_at": 1792498492,
+  "saved_at": 1792501200,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,
@@ -2915,10 +2915,38 @@
           "min": 0.0,
           "max": 1.0,
           "takeover": "Pickup"
+        },
+        {
+          "id": 7,
+          "source": {
+            "port": {
+              "name": "Keystation 49"
+            },
+            "channel": 0,
+            "control": {
+              "Cc": 71
+            }
+          },
+          "target": {
+            "Param": {
+              "PluginInstrument": {
+                "track": 48,
+                "id": 1
+              }
+            }
+          },
+          "mode": "Absolute",
+          "min": 0.0,
+          "max": 1.0,
+          "takeover": "Pickup",
+          "plugin": {
+            "format": "Clap",
+            "id": "org.cantus.test.synth"
+          }
         }
       ]
     },
     "next_id": 89
   },
-  "integrity": "2fd2e8e2c5239a1280420c5cda142e128d4acd041f929d50a238319789a0a17c"
+  "integrity": "0a9d4424e78ed2f3f4ba5f364f44d46d739ccbcfd82adcf0bda330fbd1c36e07"
 }

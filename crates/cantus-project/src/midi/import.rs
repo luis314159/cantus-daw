@@ -916,6 +916,7 @@ pub fn import_commands(
             comps: Vec::new(),
             active_comp: 0,
             frozen: None,
+            lateness: None,
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),

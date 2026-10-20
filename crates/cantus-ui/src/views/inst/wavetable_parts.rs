@@ -355,7 +355,10 @@ pub fn power(
     if r.hovered() {
         hint::set_text(ui.ctx(), &t("unda.power_tip"), "", Caps::NONE);
     }
-    if r.clicked() {
+    // The card's On is a parameter: its menu, its mark, the learn mode (round 29, review 2
+    // of ADR 0062, #44).
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &r);
+    if r.clicked() && !learning {
         let on = spec.get(key) >= 0.5;
         app.set_inst_value(track, key, if on { 0.0 } else { 1.0 }, false);
     }
@@ -371,8 +374,35 @@ pub struct Pick {
 
 /// The card's selector as a control: ‹ steps back, › forward, the name opens the list.
 pub fn selector(ui: &Ui, id: Id, cr: &CardRects, name: &str) -> Pick {
+    selector_resp(ui, id, cr, name).0
+}
+
+/// [`selector`] over the stepped parameter `key` (an LFO's wave, a filter's type): its
+/// menu, its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44). Nothing
+/// picked while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn selector_key(
+    app: &mut CantusApp,
+    ui: &Ui,
+    id: Id,
+    cr: &CardRects,
+    name: &str,
+    track: TrackId,
+    spec: &NativeSpec,
+    key: &str,
+) -> Pick {
+    let (p, resp) = selector_resp(ui, id, cr, name);
+    match resp {
+        Some(r) if crate::controllers::stepped_inst(app, ui, track, spec, key, &r) => {
+            Pick::default()
+        }
+        _ => p,
+    }
+}
+
+fn selector_resp(ui: &Ui, id: Id, cr: &CardRects, name: &str) -> (Pick, Option<egui::Response>) {
     let Some(r) = cr.selector else {
-        return Pick::default();
+        return (Pick::default(), None);
     };
     let resp = ui.interact(r, id, Sense::click());
     if resp.hovered() {
@@ -395,7 +425,7 @@ pub fn selector(ui: &Ui, id: Id, cr: &CardRects, name: &str) -> Pick {
             p.open = !p.prev && !p.next;
         }
     }
-    p
+    (p, Some(resp))
 }
 
 /// A step through `n` choices from `now`, wrapping: `Some(new)` when it moved.
@@ -466,8 +496,8 @@ pub fn radio_items<'a>(labels: &'a [String], selected: usize) -> Vec<Item<'a>> {
 }
 
 /// A menu field in `rect` with ‹ › steppers: the value is `labels[selected]`, the steppers
-/// walk the list (wrapping), the field opens it as a kit menu. `Some(i)` when chosen.
-pub fn choice(
+/// walk the list (wrapping), the field opens it as a kit menu. `Some(i)` when chosen; the field.
+pub fn choice_resp(
     ui: &Ui,
     id: Id,
     rect: Rect,
@@ -475,10 +505,10 @@ pub fn choice(
     labels: &[String],
     selected: usize,
     name: &str,
-) -> Option<usize> {
+) -> (Option<usize>, egui::Response) {
     let open: bool = ui.data(|d| d.get_temp(id.with("menu"))).unwrap_or(false);
     let value = labels.get(selected).map(String::as_str).unwrap_or("");
-    let (_, c) = crate::kit::widgets::MenuField::new(value)
+    let (resp, c) = crate::kit::widgets::MenuField::new(value)
         .steppers(true)
         .open(open)
         .id(id)
@@ -498,7 +528,10 @@ pub fn choice(
     };
     let fr = well::field_rects(rect, s, true);
     let items = radio_items(labels, selected);
-    popup(ui, id.with("menu"), fr.field, s, &items).or(out)
+    (
+        popup(ui, id.with("menu"), fr.field, s, &items).or(out),
+        resp,
+    )
 }
 
 /// [`choice`] bound to a stepped number whose values are named by `labels`: one undo step
@@ -520,7 +553,7 @@ pub fn choice_key(
         .param(key)
         .map(|i| t(i.label_key))
         .unwrap_or_default();
-    if let Some(i) = choice(
+    let (chosen, resp) = choice_resp(
         ui,
         ui.id().with(("choice", key)),
         rect,
@@ -528,7 +561,10 @@ pub fn choice_key(
         labels,
         now,
         &name,
-    ) {
+    );
+    // A parameter: its menu, its mapped mark, the learn mode (review 2 of ADR 0062, #44).
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    if let Some(i) = chosen.filter(|_| !learning) {
         if i != now {
             app.set_inst_value(track, key, i as f32, false);
         }
@@ -556,13 +592,14 @@ pub fn choice_key_plain(
     let id = ui.id().with(("choice", key));
     let open: bool = ui.data(|d| d.get_temp(id.with("menu"))).unwrap_or(false);
     let value = labels.get(now).map(String::as_str).unwrap_or("");
-    let (_, c) = crate::kit::widgets::MenuField::new(value)
+    let (resp, c) = crate::kit::widgets::MenuField::new(value)
         .open(open)
         .id(id)
         .name(&name)
         .style(*s)
         .show_at(ui, rect);
-    if c.open {
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    if c.open && !learning {
         toggle_popup(ui, id.with("menu"));
     }
     let items = radio_items(labels, now);
@@ -592,10 +629,11 @@ pub fn stepper_key(
     };
     let id = ui.id().with(("stepper", key));
     let resp = ui.interact(rect, id, Sense::click_and_drag());
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
     let fr = well::field_rects(rect, s, true);
     let v = spec.get(key);
     let mut nv = v;
-    if resp.clicked() {
+    if resp.clicked() && !learning {
         if let Some(p) = resp.interact_pointer_pos() {
             if fr.prev.is_some_and(|r| r.contains(p)) {
                 nv -= 1.0;
@@ -647,6 +685,31 @@ pub fn stepper_key(
 }
 
 /// A segmented switch in `rect`: `Some(i)` when segment `i` is clicked.
+/// [`seg`] over the stepped parameter `key`: its menu, its mapped mark, the learn mode
+/// (round 29, review 2 of ADR 0062, #44). No choice while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn seg_param(
+    app: &mut CantusApp,
+    ui: &Ui,
+    id: Id,
+    rect: Rect,
+    s: &Style,
+    labels: &[Src<'_>],
+    selected: usize,
+    name: &str,
+    track: TrackId,
+    spec: &NativeSpec,
+    key: &str,
+) -> Option<usize> {
+    let (resp, chosen) = crate::kit::widgets::Segmented::new(selected, labels)
+        .id(id)
+        .name(name)
+        .style(*s)
+        .show_at(ui, rect);
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    chosen.filter(|_| !learning)
+}
+
 pub fn seg(
     ui: &Ui,
     id: Id,
@@ -682,27 +745,21 @@ pub fn seg_key(
         .param(key)
         .map(|i| t(i.label_key))
         .unwrap_or_default();
-    if let Some(i) = seg(ui, ui.id().with(("seg", key)), rect, s, labels, now, &name) {
+    if let Some(i) = seg_param(
+        app,
+        ui,
+        ui.id().with(("seg", key)),
+        rect,
+        s,
+        labels,
+        now,
+        &name,
+        track,
+        spec,
+        key,
+    ) {
         app.set_inst_value(track, key, i as f32, false);
     }
-}
-
-/// An LED button in `rect`: `true` when clicked.
-pub fn led_button(
-    ui: &Ui,
-    id: Id,
-    rect: Rect,
-    s: &Style,
-    on: bool,
-    label: Src<'_>,
-    name: &str,
-) -> bool {
-    crate::kit::widgets::LedButton::new(on, label)
-        .id(id)
-        .name(name)
-        .style(*s)
-        .show_at(ui, rect)
-        .clicked()
 }
 
 /// [`led_button`] bound to a 0/1 number, labelled by the parameter.
@@ -721,15 +778,13 @@ pub fn led_key(
     };
     let on = spec.get(key) >= 0.5;
     let name = t(info.label_key);
-    if led_button(
-        ui,
-        ui.id().with(("led", key)),
-        rect,
-        s,
-        on,
-        Src::Key(info.label_key),
-        &name,
-    ) {
+    let resp = crate::kit::widgets::LedButton::new(on, Src::Key(info.label_key))
+        .id(ui.id().with(("led", key)))
+        .name(&name)
+        .style(*s)
+        .show_at(ui, rect);
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    if resp.clicked() && !learning {
         app.set_inst_value(track, key, if on { 0.0 } else { 1.0 }, false);
     }
 }

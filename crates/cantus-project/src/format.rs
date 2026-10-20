@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 38;
+pub const SCHEMA_VERSION: u32 = 39;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -237,6 +237,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_35_to_36,
     migrate_36_to_37,
     migrate_37_to_38,
+    migrate_38_to_39,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -842,12 +843,21 @@ fn migrate_36_to_37(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 38 (round 29, warp's second review — ADR 0061 §11): a warp marker may be the
-/// warp's own (`WarpMarker::auto`: a sample of the tempo curve a first warp edit keeps the
-/// clip on — never drawn or grabbed, soft for the stretcher). Nothing to write: every v37
-/// marker is the user's, as it was. An older build must refuse a v38 file, or it would show
-/// a ramp's samples as markers to drag and pin the stretcher to them.
+/// Schema 38 (round 29, ADR 0064 §6, review 2): a track may carry the latency its audio
+/// was rendered with — `Track::lateness`, set by a bounce in place, which keeps its source's
+/// or its chain's latency in its file so the level, the fader, the sends and the keys meet
+/// the audio as late as before. Nothing to write: a v37 track's audio is on time. An older
+/// build must refuse a v38 file, or it would play a bounced track early.
 fn migrate_37_to_38(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 39 (round 29, warp's second review — ADR 0061 §11): a warp marker may be the
+/// warp's own (`WarpMarker::auto`: a sample of the tempo curve a first warp edit keeps the
+/// clip on — never drawn or grabbed, soft for the stretcher). Nothing to write: every v38
+/// marker is the user's, as it was. An older build must refuse a v39 file, or it would show
+/// a ramp's samples as markers to drag and pin the stretcher to them.
+fn migrate_38_to_39(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1044,7 +1054,7 @@ mod tests {
         let text = std::fs::read_to_string(dir.join(newest)).unwrap();
         let p = parse(&text, true).unwrap().file.project;
         let maps = &p.controllers.mappings;
-        assert_eq!(maps.len(), 6);
+        assert_eq!(maps.len(), 7);
         let knob = &maps[0];
         assert_eq!(knob.source.port.name, "Keystation 49");
         assert_eq!(knob.source.control, Control::Cc(74));
@@ -1065,6 +1075,13 @@ mod tests {
         assert_eq!(maps[3].source.port.ordinal, 1);
         assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
         assert!(!maps[5].target.exists(&p), "the dormant one stays");
+        // Review 2, #42: a hosted mapping keeps the plug-in it was learnt on, and the
+        // schema-35 file itself reads the same mappings.
+        assert!(maps[6].plugin.is_some(), "{:?}", maps[6]);
+        assert!(maps[6].fits(&p));
+        let v35 = std::fs::read_to_string(dir.join("v35.cantus")).unwrap();
+        let p35 = parse(&v35, true).unwrap().file.project;
+        assert_eq!(p35.controllers, p.controllers);
         let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
         assert!(parse(&old, true)
             .unwrap()
@@ -1948,13 +1965,32 @@ mod freeze_tests {
         assert_eq!(targets.len(), 2, "{targets:?}");
         assert!(matches!(targets[0], FreezeTarget::Strip(_)));
         assert!(matches!(targets[1], FreezeTarget::Track(_)));
+        // Re-keyed on load when its subject was an older one's: what it holds now.
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
-        // As written, not as repaired on load (review 1: the check above holds after any
-        // repair): each stored key is the content key — the subject did not move under
-        // the fixture, and nobody's renders are re-keyed when they open their projects.
+    }
+
+    /// Schema 38 (round 29, review 2): a bounced track keeps its lateness; a v37 track has
+    /// none. And the current fixture's frozen keys, as written, need no repair (review 1:
+    /// a check after loading holds after any repair) — the subject did not move under it.
+    #[test]
+    fn schema_38_keeps_a_tracks_lateness_and_its_keys_as_written() {
+        let p = fixture("v38.cantus");
+        let late: Vec<_> = p.tracks.iter().filter_map(|t| t.lateness).collect();
+        assert_eq!(
+            late,
+            vec![cantus_core::Lateness {
+                frames: 4_608,
+                rate: 48_000
+            }]
+        );
+        assert!(fixture("v37.cantus")
+            .tracks
+            .iter()
+            .all(|t| t.lateness.is_none()));
+        let targets = p.frozen_targets();
         let text = std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v37.cantus"),
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v38.cantus"),
         )
         .unwrap();
         let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
@@ -2067,11 +2103,11 @@ mod freeze_tests {
             .all(|w| w.audio.as_ref().is_none_or(|a| a.warp.is_none())));
     }
 
-    /// Schema 38 (round 29, warp's second review): a warp that started from the natural
+    /// Schema 39 (round 29, warp's second review): a warp that started from the natural
     /// warp under the tempo ramp keeps its own markers (the ramp's samples) apart from the
-    /// user's; a v37 file's markers are all the user's.
+    /// user's; a v38 file's markers are all the user's.
     #[test]
-    fn schema_38_keeps_the_warps_own_markers() {
+    fn schema_39_keeps_the_warps_own_markers() {
         let markers = |name: &str| -> Vec<cantus_core::warp::WarpMarker> {
             fixture(name)
                 .tracks
@@ -2081,10 +2117,10 @@ mod freeze_tests {
                 .flat_map(|w| w.markers.clone())
                 .collect()
         };
-        let now = markers("v38.cantus");
+        let now = markers("v39.cantus");
         assert!(now.iter().any(|m| m.auto) && now.iter().filter(|m| !m.auto).count() >= 4);
-        assert!(markers("v37.cantus").iter().all(|m| !m.auto));
-        let p = fixture("v38.cantus");
+        assert!(markers("v38.cantus").iter().all(|m| !m.auto));
+        let p = fixture("v39.cantus");
         assert!(p
             .tracks
             .iter()

@@ -193,6 +193,17 @@ impl SampleCache {
         self.warp.forget(path);
     }
 
+    /// Whether a file failed and is not tried again until [`Self::retry`] (or
+    /// [`Self::retry_audio`] for an audio source's stored `path`, `audio`).
+    pub fn has_failed(&self, path: &str, audio: bool) -> bool {
+        let p = if audio {
+            self.resolve(path)
+        } else {
+            PathBuf::from(path)
+        };
+        self.failed.contains_key(&p)
+    }
+
     /// [`Self::retry`] for an audio source's stored path.
     pub fn retry_audio(&mut self, path: &str) {
         let p = self.resolve(path);

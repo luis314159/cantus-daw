@@ -36,6 +36,9 @@ pub struct DriveState {
     /// A relative control's own position (0…1 of the control's travel), unrounded: a
     /// stepped target or a switch keeps the steps it has not reached yet (review 1, #2).
     pub rel: Option<f32>,
+    /// *Scale*'s own output, unrounded: a stepped target or a switch gathers what it has not
+    /// reached yet, as an encoder's does (review 2, #8).
+    pub scaled: Option<f32>,
 }
 
 /// What a message asks.
@@ -208,10 +211,19 @@ impl Mapping {
     fn absolute(&self, x: f32, current: Option<f32>, state: &mut DriveState) -> Option<Drive> {
         let want = self.shape(x);
         let prev = state.last_in.replace(x);
-        // A pad's velocity is where it puts the target: no takeover (review 1, #4).
-        let Some(cur) = current.filter(|_| !self.source.control.is_button()) else {
+        // A pad's velocity is where it puts the target, and a switch is on or off as the
+        // control says: no takeover (review 1, #4; review 2, #2).
+        let Some(cur) =
+            current.filter(|_| !self.source.control.is_button() && !self.target.is_switch())
+        else {
             state.picked = true;
             return Some(Drive::Set(want));
+        };
+        // Where *scale* left it, unrounded, while nothing else moved the target.
+        let untouched = state.last_out.is_some_and(|o| (o - cur).abs() <= AGREE);
+        let from = match state.scaled {
+            Some(s) if untouched => s,
+            _ => cur,
         };
         // Moved by something else since this mapping last set it: take it over again.
         if state.last_out.is_some_and(|o| (o - cur).abs() > AGREE) || state.last_out.is_none() {
@@ -243,14 +255,17 @@ impl Mapping {
                 // The target covers what is left of its way in the same share of what is
                 // left of the control's.
                 let new = if x > xp && xp < 1.0 {
-                    cur + (x - xp) / (1.0 - xp) * (hi - cur)
+                    from + (x - xp) / (1.0 - xp) * (hi - from)
                 } else if x < xp && xp > 0.0 {
-                    cur - (xp - x) / xp * (cur - lo)
+                    from - (xp - x) / xp * (from - lo)
                 } else {
                     return None;
                 };
                 if (new - want).abs() <= step {
                     state.picked = true;
+                    state.scaled = None;
+                } else {
+                    state.scaled = Some(new);
                 }
                 Some(Drive::Set(new))
             }

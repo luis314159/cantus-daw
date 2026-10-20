@@ -58,10 +58,30 @@ impl CantusApp {
 
     /// A parameter at `pos` (0…1 of its travel) at `tick`, into the pass's automation (what
     /// a controller writes: its target and position, whatever its command, ADR 0062).
+    /// Only inside the pass: a move during the count-in or the pre-roll, or heard a moment
+    /// before the pass began, is where the pass begins; one after the punch-out is not
+    /// written (round 29, review 2 of ADR 0062: a point before tick 0 failed the whole
+    /// pass's commit).
     pub fn record_point_at(&mut self, target: AutoTarget, pos: f32, tick: i64) {
-        if self.rec.pass.is_none() || !self.project().recording.record_automation {
+        let Some(live) = self.rec.pass.as_ref() else {
+            return;
+        };
+        if !self.project().recording.record_automation {
             return;
         }
+        // A loop's later passes begin at its start, which may be before the record start.
+        let start = match live.plan.loop_region {
+            Some((a, _)) => a.min(live.plan.record_start),
+            None => live.plan.record_start,
+        };
+        let (from, to) = match live.plan.punch {
+            Some((a, b)) => (a.0, Some(b.0)),
+            None => (start.0, None),
+        };
+        if to.is_some_and(|to| tick > to) {
+            return;
+        }
+        let tick = tick.max(from).max(0);
         self.modulators
             .rec
             .points
@@ -100,7 +120,9 @@ impl CantusApp {
             let (Some(first), Some(last)) = (samples.first(), samples.last()) else {
                 continue;
             };
-            let from = Ticks(first.0);
+            // Never before the song's start, whatever was heard (the last guard: a clip there
+            // is refused, and the pass's whole commit with it).
+            let from = Ticks(first.0.max(0));
             let to = Ticks(stop.0.max(last.0 + 1));
             let project = self.bus.project();
             let Some(track) = crate::automation::host_track(project, &target, selected) else {

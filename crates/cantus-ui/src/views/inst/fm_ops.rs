@@ -244,15 +244,16 @@ pub(super) fn table_card(
             Pos2::new(tile.left() + s.s(7.0), tile.center().y),
             Vec2::splat(s.s(10.0)),
         );
+        // The lamp is the operator's On, a parameter: a control of its own over the tile —
+        // its menu, its mark, the learn mode (round 29, review 2 of ADR 0062, #44).
+        let lamp_hit = Rect::from_min_max(tile.min, Pos2::new(lamp.right() + s.s(2.0), tile.max.y));
+        let lresp = ui.interact(lamp_hit, ui.id().with(("fm-tile-lamp", o)), Sense::click());
+        let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.on, &lresp);
+        if lresp.clicked() && !learning {
+            app.set_inst_value(track, k.on, if on { 0.0 } else { 1.0 }, false);
+        }
         if tresp.clicked() {
-            if tresp
-                .interact_pointer_pos()
-                .is_some_and(|p| p.x < lamp.right() + s.s(2.0))
-            {
-                app.set_inst_value(track, k.on, if on { 0.0 } else { 1.0 }, false);
-            } else {
-                app.inst.fm.selected = o;
-            }
+            app.inst.fm.selected = o;
         }
         if tresp.hovered() {
             crate::kit::hint::set_text(
@@ -299,7 +300,9 @@ pub(super) fn table_card(
                 crate::kit::hint::Caps::NONE,
             );
         }
-        if wresp.clicked() {
+        // The wave's readout is its parameter's control (review 2 of ADR 0062, #44).
+        let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.wave, &wresp);
+        if wresp.clicked() && !learning {
             app.set_inst_value(track, k.wave, ((w + 1) % 4) as f32, false);
         }
         // Ratio or fixed: a segmented switch, then the number.
@@ -308,7 +311,8 @@ pub(super) fn table_card(
             Src::Key("fm.freq.ratio_short"),
             Src::Key("fm.freq.fixed_short"),
         ];
-        if let Some(i) = parts::seg(
+        if let Some(i) = parts::seg_param(
+            app,
             ui,
             ui.id().with(("fm-mode", o)),
             col(2, cy, ch),
@@ -316,6 +320,9 @@ pub(super) fn table_card(
             &modes,
             fixed as usize,
             &t("fm.op.freq_mode"),
+            track,
+            spec,
+            k.freq_mode,
         ) {
             app.set_inst_value(track, k.freq_mode, i as f32, false);
         }
@@ -616,7 +623,7 @@ pub(super) fn lfo_card(
         None,
     );
     let id = ui.id().with(("fm-lfo-wave", l));
-    let pick = parts::selector(ui, id, &cr, &t("fm.lfo.wave"));
+    let pick = parts::selector_key(app, ui, id, &cr, &t("fm.lfo.wave"), track, spec, &wave_key);
     if let Some(i) = parts::step(wi, waves.len(), pick) {
         app.set_inst_value(track, &wave_key, i as f32, false);
     }

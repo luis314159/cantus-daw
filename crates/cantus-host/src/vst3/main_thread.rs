@@ -355,8 +355,14 @@ impl MainThread for MainHalf {
         let mut notices = std::mem::take(&mut self.pending);
         self.inst.maps.collect();
         // The controller follows what the processor was told and what it reported.
+        // A program change (the program list's parameter) changes the plug-in's whole
+        // state: said as such, so the project records one state step — whether or not the
+        // plug-in asks for it itself (round 29, review 2 of ADR 0062, #52).
+        let program = self.inst.program_param.map(|(id, _)| id);
+        let mut program_changed = false;
         if let Some(ctrl) = self.inst.controller() {
             while let Ok((id, norm)) = self.from_audio.pop() {
+                program_changed |= Some(id) == program;
                 // SAFETY: main-thread call.
                 unsafe {
                     ctrl.setParamNormalized(id, norm);
@@ -379,7 +385,7 @@ impl MainThread for MainHalf {
             self.inst.maps.post(Box::new(self.inst.param_map()));
             notices.push(Notice::ParamsChanged);
         }
-        if restart & kParamValuesChanged != 0 || dirty {
+        if restart & kParamValuesChanged != 0 || dirty || program_changed {
             notices.push(Notice::StateDirty);
         }
         if restart & (kIoChanged | kReloadComponent) != 0 {

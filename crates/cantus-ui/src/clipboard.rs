@@ -40,6 +40,9 @@ pub enum SelKind {
     #[default]
     Clips,
     Time,
+    /// A track header (round 29, review 2: its bounce key bounces the whole track); a copy
+    /// takes its clips, as for `Clips`.
+    Track,
 }
 
 /// A paste from a menu, waiting for the system clipboard's answer: when it was asked.

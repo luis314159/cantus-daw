@@ -8,6 +8,11 @@ use super::{Control, Encoding, MapMode, MappingTarget};
 
 /// What a learnt control is, and how a mapping to `target` should read it.
 pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Control, MapMode)> {
+    // A keyboard's program button sends bank select (CC 0, CC 32) first: the program
+    // change is the control (review 2, #6).
+    if let Some(i) = program_after_bank(heard) {
+        return detect(&heard[i..], target);
+    }
     let (first, _) = *heard.first()?;
     let control = match first {
         // The coarse half of a 14-bit pair, when its fine half came too.
@@ -69,6 +74,18 @@ pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Contr
         }
     };
     Some((control, mode))
+}
+
+/// Where a program change comes in `heard` after nothing but bank select (CC 0 and CC 32).
+pub fn program_after_bank(heard: &[(Control, u16)]) -> Option<usize> {
+    let i = heard
+        .iter()
+        .position(|(c, _)| matches!(c, Control::Program(_)))?;
+    (i > 0
+        && heard[..i]
+            .iter()
+            .all(|(c, _)| matches!(c, Control::Cc(0) | Control::Cc(32))))
+    .then_some(i)
 }
 
 /// An endless encoder, recognised by what one sends while turned: the same small step

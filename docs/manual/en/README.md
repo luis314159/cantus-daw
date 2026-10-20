@@ -269,9 +269,12 @@ recording rows) changes that while it is on:
   without: Aequalis, Culmen* (and how many more, past eight). They come back the moment
   you switch it off, with nothing left over from before.
 - The audio chip shows the round trip of what you monitor — the driver's, the input's
-  wait and the monitored chain's — while it is on.
+  wait (for an audio input: notes you play only go out) and the monitored chain's — while
+  it is on.
 - Your take is placed exactly where it would be with it off: what is recorded is the raw
-  input, placed by the latency in force when the take started.
+  input, placed by the latency in force when the take started. If the backing's latency
+  changes during the take (you switch the mode, an automated look-ahead), what you play
+  after is placed by the new one: every part lands where you played it.
 
 For the lowest delay, monitor through a strip of your own: a bus that mixes your voice
 with other recorded tracks keeps those in time, and your voice waits there with them.
@@ -345,7 +348,10 @@ controller**, FL Studio's way — also in the top bar's **Clip** menu) and move 
 
 Cantus tells what you moved: a plain knob, a **14-bit fader** (its fine controller came
 too), an **endless encoder** (and which of the three encodings it speaks), a button, a pad
-(on a switch it toggles; on a knob its velocity sets the value) or a program change.
+(on a switch it toggles; on a knob its velocity sets the value) or a program change (the
+bank select a keyboard sends before it is passed over). Press a button and let it go:
+pressed and released it toggles; a button that stays down by itself (it sends its top
+value only) sets the target on and off as it is.
 
 **How a mapping reads its control** — in the **Controllers** pane (View menu, or
 `Ctrl+Shift+K`), one row per mapping:
@@ -362,12 +368,19 @@ too), an **endless encoder** (and which of the three encodings it speaks), a but
   *Scale* (the value moves with the knob, so both reach the end together), *Jump*. The
   header sets the takeover new mappings get.
 - **Feedback** (*Send*): the value goes back to the controller whenever it changes — for
-  motor faders and LED rings. Off by default.
+  motor faders and LED rings, and the lights of the transport's buttons and every switch
+  with a state (play, record, loop, the metronome, punch, count-in…). Off by default; an
+  action that has no state (stop, undo) has no *Send*. What a controller or a loopback port
+  sends straight back is recognised as the echo it is.
 
 A lit dot at the left of a row shows a message just came. **Shared** marks one control
 on several targets (allowed: one knob can open two filters at once). A row whose target is
 gone (a deleted track) is kept, marked **Missing**, and works again if undo brings the
-target back.
+target back. A plug-in's parameter is learnt with that plug-in: after the instrument or the
+insert is swapped for another, the row says **Other plug-in** and its knob is free (learn
+the new one's parameter; an undo of the swap brings the old row back to life). **Not
+loaded** says the plug-in is in the project but not running here; **Frozen**, that its
+sound is frozen — a move is refused and said, and the knob reaches no other instrument.
 
 **Two maps.** *This project*'s mappings are saved with the project, and every change is
 one undo step. **Everywhere** — your global mappings, kept beside your keyboard shortcuts
@@ -756,19 +769,28 @@ stop using the processor — and gives it back, exactly, when you unfreeze it.
   with the strip's fader). Anything that would change its sound (its notes, its
   instrument, its inserts, the tempo, a strip moved among the ones it gathers) is refused,
   and the card says how to give it back: **Unfreeze** (the same menu entries, the same key).
-  Unfrozen, it plays live again, to the bit.
+  A knob turned in a frozen plug-in's own window goes back where it was, with the same
+  card. Unfrozen, it plays live again, to the bit.
 - What also plays somewhere else keeps playing: freezing a bus does not silence a strip
   that keys its compressor and plays to the master, nor a return the strip that sends to
   it. Solo stays a listening aid — a freeze is made as if nothing were soloed; with
-  something soloed **inside** what you freeze, unsolo it first. Saving a project moves a
-  frozen take into its *Audio* folder and keeps it frozen.
-- Its plug-ins are unloaded while it is frozen and come back with their settings. A
-  freeze needs the plug-ins it renders: one that is not loaded is named, and nothing is
+  something soloed **inside** what you freeze, unsolo it first. A solo that silences only
+  part of what a frozen strip holds (a key, one of its inputs) plays that strip live while
+  it lasts. Saving a project moves a frozen take into its *Audio* folder and keeps it
   frozen.
+- Its plug-ins are unloaded while it is frozen and come back with their settings. A
+  freeze needs the plug-ins it renders (a bypassed one is not needed): one that is not
+  loaded is named, and nothing is frozen. So does a file it plays that is not there yet (a
+  sound pack downloading, a drive unplugged): the freeze names it, and a frozen track
+  waits for its files before its render is made again.
 - Renders are kept in a *Freeze* folder beside the project (or in Cantus's own cache for a
   project not saved yet), named by what they hold: freezing again what did not change is
   instant, and a project opened without them (on another computer, at another sample
-  rate) plays live while they are made again in the background.
+  rate) plays live while they are made again in the background. *Save as* takes them
+  along; renders no undo can bring back are removed when you save.
+- With the loop on, a frozen track plays its recording straight through: at the jump back
+  to the loop's start you hear what led into that bar, not a reverb's tail from the loop's
+  end (as in other DAWs; unfreeze it to hear the jump exactly).
 
 **Bounce in place** renders to an audio clip, on a **new track right under the original**,
 at the same place:
@@ -780,13 +802,20 @@ at the same place:
 - *Bounce clips in place* (the clip menu): only the selected clips (on several tracks, one
   bounce each); with a time selection — chosen after the clips, or with none selected —
   the keys bounce what plays inside it, its edges moved out to the notes held across them.
+  A track header chosen last makes the keys bounce the whole track, a strip chosen in the
+  mixer the whole strip; the master is never frozen nor bounced. Clips or a time range
+  cannot be bounced while something hears the track's notes (bounce the whole track).
 - *Bounce strip in place* (the strip menu): everything the strip gathers; what was keyed
-  from it, or followed it, follows the new strip.
+  from it, or followed it, follows the new strip. Unsolo what is soloed inside it first.
 - The original is **muted** — or removed, if you tick *Remove the original after a
   bounce* in the track menu (Cantus remembers your choice; a track whose notes something
-  still hears is muted instead). Its level, fader and send rides go with the bounce, and so
-  does its solo. The tail (a reverb's) is kept until it rings out. One undo step. If you
-  edit the song while it renders, it is bounced again from your edit.
+  still hears is muted instead, and the result says so). Its level, fader and send rides
+  go with the bounce, and so does its solo. Through a plug-in with latency, the new track
+  keeps that latency, so those rides and anything keyed from it stay in time. The tail (a
+  reverb's) is kept until it rings out. One undo step. If you edit what it renders while
+  it renders, it is bounced again from your edit (an edit elsewhere does not restart it);
+  **Stop** while its file is written leaves nothing. A track that monitors a live input
+  is not bounced (switch its monitoring off first).
 
 ## 7. Master: the master chain, Fervor, Latitudo, Culmen
 

@@ -25,7 +25,7 @@ use std::time::Duration;
 #[path = "stream_reader.rs"]
 mod reader;
 
-pub use reader::{level0_frames_read, set_read_delay, LOOKAHEAD};
+pub use reader::{inject_io_fault, level0_frames_read, set_read_delay, LOOKAHEAD};
 
 /// The automatic size limit's ceiling (Settings may choose another limit).
 pub const AUTO_CACHE_CAP: u64 = 16 << 30;
@@ -852,13 +852,10 @@ fn recover(entry: &Arc<Entry>, fault: &Fault) {
     }
     let path = entry.file_path();
     // A frozen render (ADR 0064) is its own source: there is nothing to decode it from.
-    // It fails at once and quietly — no "damaged sample" said — and the interface makes it
-    // again (review 1).
-    if entry
-        .source
-        .extension()
-        .is_some_and(|x| x == crate::freeze::EXTENSION)
-    {
+    // Damaged or gone, it fails at once and quietly — no "damaged sample" said — and the
+    // interface makes it again (review 1); a read error that may pass (a busy drive, an
+    // antivirus' lock) is read again first, its file kept (review 2).
+    if is_frozen_render(entry) && !matches!(fault, Fault::Io(..)) {
         if let Fault::Damaged = fault {
             let _ = std::fs::remove_file(&entry.source);
         }
@@ -929,6 +926,14 @@ pub fn recoveries() -> u64 {
     RECOVERIES.load(Ordering::Acquire)
 }
 
+/// Whether `entry` streams a frozen render (ADR 0064).
+fn is_frozen_render(entry: &Entry) -> bool {
+    entry
+        .source
+        .extension()
+        .is_some_and(|x| x == crate::freeze::EXTENSION)
+}
+
 fn recover_now(entry: &Arc<Entry>, io: Option<usize>) {
     let st = &entry.stream;
     // A read that failed for a passing reason (a busy drive): the kept file, opened again,
@@ -944,6 +949,17 @@ fn recover_now(entry: &Arc<Entry>, io: Option<usize>) {
             }
             return;
         }
+    }
+    // A frozen render whose read failed again: failed, quietly, its file kept (it is made
+    // again; review 2).
+    if is_frozen_render(entry) {
+        log::warn!("frozen render {}: unreadable", entry.source.display());
+        st.set_failed();
+        entry.recovering.store(false, Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
     }
     if io.is_some() {
         hub().note(LoadNote::Damaged(entry.source.clone()));

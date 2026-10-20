@@ -1019,11 +1019,166 @@ fn a_damaged_render_is_missing_and_made_again() {
             ..Default::default()
         },
     );
-    eprintln!("attached {attached}, failed {}", failed.is_err());
-    assert!(
-        !attached || failed.is_err(),
-        "the damaged blocks cannot be read"
-    );
+    // Past the head, the damage is not seen when it opens: attached, then not readable
+    // (review 2: the test held either way).
+    assert!(attached, "opened: its head is whole");
+    assert!(failed.is_err(), "the damaged blocks cannot be read");
     // Then it is missing: the strip plays live, and the interface makes it again.
     assert!(h.frozen.find(&content, 48_000).is_none());
+}
+
+// ---- review 2 ---------------------------------------------------------------------------
+
+#[test]
+fn a_passing_read_error_keeps_a_render_and_its_file() {
+    let mut h = handle("io");
+    let mut p = song();
+    let live = mix(&mut h, &p, 512);
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let path = h.frozen.path_of(&content, 48_000).unwrap();
+    // One read of the render fails (a busy drive, an antivirus' lock).
+    cantus_engine::inst::stream::inject_io_fault(&path);
+    same_bits(
+        &mix(&mut h, &p, 512),
+        &live,
+        "read again, played to the bit",
+    );
+    assert!(path.is_file(), "the render is kept");
+    assert!(
+        h.frozen.find(&content, 48_000).is_some(),
+        "and still at hand"
+    );
+}
+
+#[test]
+fn a_missing_file_makes_no_render() {
+    let mut h = handle("missing-file");
+    let mut p = Project::new("missing");
+    let mut t = p.make_track("Take");
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "gone".into(),
+        path: folder("missing-src")
+            .join("not there.wav")
+            .to_string_lossy()
+            .into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000,
+        sha256: None,
+        recorded: false,
+    });
+    t.clips
+        .push(p.make_audio_clip("gone", id, Ticks::ZERO, Ticks::beats(2)));
+    p.tracks.push(t);
+    let s = p.tracks[0].strip.unwrap();
+    let e = prepare(&mut h, &p, FreezeTarget::Strip(s)).expect_err("refused");
+    assert!(e.starts_with("missing:"), "{e}");
+}
+
+#[test]
+fn a_cancelled_write_leaves_no_render() {
+    let mut h = handle("cancel-write");
+    let p = song();
+    let job = prepare(&mut h, &p, lead_strip(&p)).unwrap();
+    let raw = job.path.with_extension("raw.part");
+    let t = cantus_engine::freeze::render::render_tapped(
+        job.snapshot.clone(),
+        job.point,
+        &job.opts,
+        Vec::new(),
+        Vec::new(),
+        &RenderProgress::default(),
+        &raw,
+    )
+    .unwrap();
+    let stop = RenderProgress::default();
+    stop.cancel();
+    assert!(matches!(
+        cantus_engine::freeze::render::write_render(&t, &job.path, &job.key, &stop),
+        Err(RenderError::Cancelled)
+    ));
+    assert!(!job.path.exists());
+    let wav = job.path.with_extension("wav");
+    assert!(matches!(
+        cantus_engine::freeze::render::write_wav(&t, &wav, &stop),
+        Err(RenderError::Cancelled)
+    ));
+    assert!(!wav.exists());
+}
+
+#[test]
+fn a_solo_that_silences_a_key_plays_the_frozen_bus_live() {
+    let mut h = handle("solo-key");
+    let mut p = song();
+    // The bass's strip keyed from the lead's strip, frozen; the bass's strip soloed: live,
+    // the lead (not upstream of it) is muted and keys nothing.
+    let lead_strip = p.tracks[0].strip.unwrap();
+    let bass_strip = p.tracks[1].strip.unwrap();
+    p.strip_mut(bass_strip).unwrap().effects[0].sidechain = Some(lead_strip);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(bass_strip));
+    Command::SetStripSolo {
+        id: bass_strip,
+        soloed: true,
+    }
+    .apply(&mut p)
+    .unwrap();
+    let mut thawed = p.clone();
+    freeze::thaw(&mut thawed);
+    same_bits(&mix(&mut h, &p, 512), &mix(&mut h, &thawed, 512), "soloed");
+}
+
+#[test]
+fn a_note_source_resting_but_for_its_notes_keeps_the_mix() {
+    let mut h = handle("notes-only");
+    let mut p = song();
+    // Tonus on the lead's strip hears the bass's notes; the bass's strip is frozen.
+    let lead_strip = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].id;
+    let bass_strip = p.tracks[1].strip.unwrap();
+    let mut tonus = p.make_effect(EffectKind::AutoTune);
+    tonus.midi_from = Some(bass);
+    p.strip_mut(lead_strip).unwrap().effects.push(tonus);
+    let live = mix(&mut h, &p, 512);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(bass_strip));
+    let snap = h.compile_for_render(&p, 1);
+    assert!(snap.tracks[1].notes_only && !snap.tracks[1].rest);
+    same_bits(&mix(&mut h, &p, 512), &live, "its notes still heard");
+}
+
+#[test]
+fn thawing_a_strip_while_playing_resets_its_eq_and_a_resting_strips_echoes() {
+    let mut h = handle("thaw-eq");
+    // The lead alone: its strip with a resonant EQ and a delay, into a bus.
+    let mut p = demo_project();
+    p.tracks.truncate(1);
+    let lead = p.tracks[0].strip.unwrap();
+    let bus = p.strips[6].id;
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("feedback", 0.9).unwrap();
+    delay.spec.set("mix", 1.0).unwrap();
+    p.strip_mut(lead).unwrap().effects.push(delay);
+    p.strip_mut(lead).unwrap().eq.bands[0].gain_db = 12.0;
+    p.strip_mut(lead).unwrap().output = Some(bus);
+    let map = p.tempo_map();
+    for target in [FreezeTarget::Strip(lead), FreezeTarget::Strip(bus)] {
+        let live = h.compile_for_render(&p, 1);
+        let mut frozen_p = p.clone();
+        freeze_now(&mut h, &mut frozen_p, target);
+        let frozen = h.compile_for_render(&frozen_p, 1);
+        let mut rig = Rig::new(&live);
+        // Frozen at beat 7, while the lead's chord sounds; thawed at beat 12.
+        rig.play_to(&map, Ticks::beats(7));
+        rig.install(&frozen);
+        rig.play_to(&map, Ticks::beats(12));
+        rig.install(&live);
+        let after = rig.play_to(&map, Ticks::beats(13));
+        assert!(
+            after.iter().all(|x| *x == 0.0),
+            "{target:?}: nothing from before the freeze sounds after the thaw"
+        );
+    }
 }

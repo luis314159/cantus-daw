@@ -131,7 +131,11 @@ is an impression. The order below is the integrator's recommendation; the owner 
    B, decided 2026-10-16).
 4. **Other platforms** (§2): Linux first, then macOS (the owner, 2026-10-10) — macOS is
    where most Ableton, Logic and Bitwig users are, so it is what the market notices most;
-   testing it needs a Mac (the owner's, or a CI runner and a tester).
+   testing it needs a Mac (the owner's, or a CI runner and a tester). **Decided
+   2026-10-20: round 30 is the platform round** — releases for Windows, Linux and macOS at
+   its end. Round 29 ships Windows as planned. For macOS the owner can borrow a Mac, and
+   will buy the Apple developer licence (signing, notarisation) and more GitHub Actions
+   minutes (a subscription, or making the repository public) if they are needed.
 5. **Ableton's core and live work** (§0.2): session view (clips and scenes, follow
    actions, recorded into the arrangement), Ableton Link, MIDI clock and MTC in and out,
    MPE end to end, then MIDI 2.0.
@@ -163,7 +167,7 @@ matriz de funciones contra cada líder y la comparación de rendimiento con REAP
 **(3)** los huecos diarios: modos de automatización escribir/tocar/enganchar y carriles de
 CC en el piano roll, arpegiador/acordes/escalas, crossfades entre clips y envolventes de
 ganancia, paleta de comandos, historial de deshacer, plantillas, efectos que suenan al
-insertarlos; **(4)** Linux y luego macOS; **(5)** vista de sesión (clips y escenas), Ableton
+insertarlos; **(4)** Linux y luego macOS — decidido el 2026-10-20: la ronda 30 es la de plataformas, con releases de Windows, Linux y macOS al final; **(5)** vista de sesión (clips y escenas), Ableton
 Link, reloj MIDI/MTC, MPE; **(6)** estudio profesional: ARA 2, superficies Mackie/HUI,
 hardware externo con medición de latencia, el modo de grabación (§4c paso 3), un editor de
 audio, snapshots y VCA; **(7)** el sonido de Chorda, más instrumentos y una librería de
@@ -257,6 +261,21 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of
     distributions and interfaces tried, kept like the Windows one.
+  - **iOS / iPadOS, after macOS (asked 2026-10-20):** iPad first — a DAW needs the screen;
+    the iPhone later as a sketchpad or a remote for the desktop (FL Studio Mobile, Logic Pro
+    for iPad and Cubasis are the references). What it takes: macOS done first (the same
+    CoreAudio, Apple silicon, signing and an Apple developer account, and a Mac with Xcode to
+    build); `aarch64-apple-ios` builds of the engine (MPL, portable) with AVAudioSession and
+    real-time workgroups; a **touch mode** for the kit (§0.2: large targets, gestures, no
+    hover, no right-click — the desktop's density does not carry over); **AUv3** in place
+    of CLAP/VST3 — hosting AUv3 instruments and effects (iOS forbids child processes, so
+    isolation becomes AUv3's own out-of-process model) and **exporting our effects and
+    instruments as AUv3**, which also puts them inside GarageBand, Cubasis and Logic for
+    iPad; files through the document picker and iCloud; background audio and the memory
+    limits of iPadOS; projects that open on the desktop unchanged. **Licence:** the App
+    Store's terms conflict with the GPL as published; the owner holds the application's
+    copyright and the CLA's grant, so an App Store exception (an additional permission in
+    the licence) is needed before any upload — a lawyer's check, like the CLA's.
 
 ## 3. Features every top DAW has
 

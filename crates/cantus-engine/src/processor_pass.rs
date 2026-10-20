@@ -166,12 +166,14 @@ impl Processor {
         self.meters.track_count = self.track_to_slot.len();
         for (ti, slot) in self.track_to_slot.iter().enumerate() {
             self.meters.tracks[ti] = f32::from_bits(nodes.track_peak[*slot].load(Relaxed));
+            self.meters.track_late[ti] = self.track_leave[*slot].min(u32::MAX as usize) as u32;
         }
         self.meters.strip_count = self.strip_to_slot.len();
         for (si, slot) in self.strip_to_slot.iter().enumerate() {
             self.meters.strips[si] = f32::from_bits(nodes.strip_peak[*slot].load(Relaxed));
             // The desk's reduction lane: the deepest of the strip's working compressors.
             self.meters.strip_gr[si] = f32::from_bits(nodes.strip_gr[*slot].load(Relaxed));
+            self.meters.strip_late[si] = self.strip_post[*slot].min(u32::MAX as usize) as u32;
         }
     }
 
@@ -334,7 +336,7 @@ impl Processor {
                 }
                 // Frozen or resting, the instrument is not played (review 1: a note due at
                 // the loop's end went into it and its note-off never came).
-                if s.frozen.is_none() && !s.rest {
+                if s.frozen.is_none() && !s.rest && !s.notes_only {
                     fire(&mut s, ev);
                 }
                 s.next_event += 1;

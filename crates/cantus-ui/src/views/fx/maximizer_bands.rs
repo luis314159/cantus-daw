@@ -342,9 +342,11 @@ pub fn strip_controls(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, width
             Src::Key("max.bands.2"),
             Src::Key("max.bands.3"),
         ];
-        if let Some(i) = controls::segmented(
+        if let Some(i) = controls::segmented_key(
             ui,
             s,
+            host,
+            "bands",
             ms.count - 1,
             &counts,
             frame::tr("fx.max.bands_tip"),
@@ -357,9 +359,11 @@ pub fn strip_controls(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, width
             Src::Key("max.xmode.1"),
             Src::Key("max.xmode.2"),
         ];
-        if let Some(i) = controls::segmented(
+        if let Some(i) = controls::segmented_key(
             ui,
             s,
+            host,
+            "xmode",
             ms.mode.index(),
             &modes,
             frame::tr("fx.max.xmode_tip"),
@@ -374,7 +378,16 @@ pub fn strip_controls(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, width
             Src::Str("48"),
         ];
         let now = Slope::ALL.iter().position(|x| *x == ms.slope).unwrap_or(2);
-        if let Some(i) = controls::segmented(ui, s, now, &slopes, frame::tr("fx.max.slope"), ws) {
+        if let Some(i) = controls::segmented_key(
+            ui,
+            s,
+            host,
+            "slope",
+            now,
+            &slopes,
+            frame::tr("fx.max.slope"),
+            ws,
+        ) {
             host.set("slope", Slope::ALL[i].db(), None);
         }
         let _ = Mode::Dynamic;

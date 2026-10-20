@@ -51,6 +51,7 @@ pub use messages::{
     MAX_LIVE_ECHO, MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
 pub use midi::{list_ports, Heard, MidiInputs, MidiOutputs, MidiSender, MidiTap};
+pub use processor::monitor::LowLatency;
 pub use processor::{Processor, Workers};
 pub use profile::{BlockHistogram, Culprit, Dropout};
 pub use recorder::{

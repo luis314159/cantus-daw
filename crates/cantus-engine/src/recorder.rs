@@ -132,8 +132,10 @@ pub struct RecordRings {
 /// What the processor tells the handle about a pass, in engine time.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RecordMark {
-    /// The pass's first recorded frame was rendered at this engine position (ticks, f64).
-    Started { tick: f64 },
+    /// The pass's first recorded frame was rendered at this engine position (ticks, f64),
+    /// with the plug-in delay compensation heard then and the input ring's wait (review 2:
+    /// read from the stats, they were the callback before's).
+    Started { tick: f64, plugin: u32, queue: i64 },
     /// The loop wrapped after this many recorded frames (every armed track shares it).
     Wrapped { frames: u64 },
     /// A ring was full: this many frames of this track were lost (the disk fell behind).
@@ -268,9 +270,17 @@ impl HandleRecorder {
             // off and on again in one pass) continues the same file. The latency the take
             // is placed by is the one at that start (ADR 0064): low-latency monitoring
             // switched while the pass records must not move it.
-            RecordMark::Started { tick } => {
+            RecordMark::Started {
+                tick,
+                plugin,
+                queue,
+            } => {
                 pass.started.get_or_insert(tick);
-                pass.latency.get_or_insert(now);
+                pass.latency.get_or_insert(RecordLatency {
+                    plugin,
+                    queue,
+                    ..now
+                });
             }
             RecordMark::Wrapped { frames } => pass.wraps.push(frames),
             RecordMark::Overflow { track, frames } => {

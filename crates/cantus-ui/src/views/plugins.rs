@@ -832,6 +832,12 @@ fn body_ui(
                             let mut rings = [(0.0, egui::Color32::TRANSPARENT);
                                 crate::views::modulator::MAX_RINGS];
                             let (offer, n_rings) = app.mod_offer(&target, base, s, &mut rings);
+                            if crate::kit::automate::probe::noting_learn() {
+                                crate::kit::automate::probe::note_learn(
+                                    &format!("hosted:{target:?}"),
+                                    offer.learn.is_some(),
+                                );
+                            }
                             // The plug-in's words for the value, asked once per value.
                             let bits = value.to_bits();
                             let entry = texts.entry(p.id).or_insert((u64::MAX, String::new()));

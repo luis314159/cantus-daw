@@ -281,9 +281,12 @@ impl Boot {
                     None if !self.options.stress => (Some(crate::demos::startup_project()), None),
                     None => (None, None),
                 };
+                // Its file known before the first compile (round 29, review 2).
+                let mut files = read.files;
+                files.project_path = path.clone();
                 let mut app = CantusApp::assemble(
                     ctx,
-                    read.files,
+                    files,
                     project,
                     engine,
                     midi,
