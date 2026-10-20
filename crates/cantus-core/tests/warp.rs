@@ -444,3 +444,90 @@ fn a_warp_that_plays_the_source_keeps_the_comp_seam() {
     c2.audio.as_mut().unwrap().warp = Some(Box::new(w));
     assert!(!comp::seam_window(&c2), "a transposed window renders");
 }
+
+/// The content tick a clip plays at timeline tick `t` (a reversed one reads its window
+/// backwards), and the source frame its warp hears there.
+fn heard_frame(c: &Clip, t: Ticks) -> f64 {
+    let a = c.audio.as_ref().unwrap();
+    let w = a.warp.as_ref().unwrap();
+    let content = if a.reverse {
+        c.offset.0 + (c.end().0 - t.0)
+    } else {
+        c.offset.0 + (t.0 - c.start.0)
+    };
+    w.frame_at(content as f64)
+}
+
+/// Round 29's review: a warped clip split at a tick that is no marker — forwards and
+/// reversed — gives two halves that hear what the whole did, with valid warps.
+#[test]
+fn a_split_warped_clip_plays_what_the_whole_did() {
+    for reverse in [false, true] {
+        let (mut bus, t, a, _) = setup();
+        bus.execute(
+            Command::SetClipWarp {
+                track: t,
+                clip: a,
+                warp: Some(Box::new(stretched())),
+                op: WarpOp::Set,
+            },
+            Origin::User,
+        )
+        .unwrap();
+        if reverse {
+            let mut r = bus
+                .project()
+                .track(t)
+                .unwrap()
+                .clip(a)
+                .unwrap()
+                .audio
+                .clone()
+                .unwrap();
+            r.reverse = true;
+            bus.execute(
+                Command::SetClipAudio {
+                    track: t,
+                    clip: a,
+                    audio: Some(r),
+                },
+                Origin::User,
+            )
+            .unwrap();
+        }
+        let whole = bus.project().track(t).unwrap().clip(a).unwrap().clone();
+        let at = Ticks::beats(3) + Ticks(77);
+        let mut next = bus.project().next_id + 1_000;
+        let cmds = clipboard::split(bus.project(), t, &whole, at, &mut || {
+            next += 1;
+            next
+        })
+        .unwrap();
+        bus.execute(
+            Command::Batch {
+                label_key: "cmd.split".into(),
+                commands: cmds,
+            },
+            Origin::User,
+        )
+        .unwrap();
+        let halves: Vec<Clip> = bus
+            .project()
+            .track(t)
+            .unwrap()
+            .clips
+            .iter()
+            .filter(|c| c.audio.is_some())
+            .cloned()
+            .collect();
+        assert_eq!(halves.len(), 2);
+        for h in &halves {
+            assert!(h.audio.as_ref().unwrap().warp.as_ref().unwrap().is_valid());
+            for k in 0..8 {
+                let tick = h.start + Ticks(h.length.0 * k / 8);
+                let d = heard_frame(h, tick) - heard_frame(&whole, tick);
+                assert!(d.abs() < 1e-6, "reverse {reverse}, {tick:?}: {d}");
+            }
+        }
+    }
+}

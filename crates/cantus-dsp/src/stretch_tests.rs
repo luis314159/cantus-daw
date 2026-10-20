@@ -129,13 +129,18 @@ fn a_hit_lands_where_its_marker_puts_it() {
     let outs = [1_000.0, 31_000.0, 49_000.0, 90_000.0];
     let pts: Vec<(f64, f64)> = outs.iter().copied().zip(at.iter().copied()).collect();
     let map = Map::new(pts).unwrap();
-    for mode in [Mode::Complex, Mode::Rhythm, Mode::Repitch] {
-        let out = render(&[&x], SR, &req(mode, &map, 100_000, 0.0, &at));
-        for &o in &outs {
+    let analysis = crate::pitch::analyse(&x, SR);
+    for mode in Mode::ALL {
+        let mut q = req(mode, &map, 100_000, 0.0, &at);
+        q.pitch = Some(&analysis);
+        let out = render(&[&x], SR, &q);
+        for (&o, &s) in outs.iter().zip(&at) {
             let rise = rise_at(&out[0], o as usize - 400, o as usize + 400, 0.25).unwrap();
-            let err = rise as f64 - o;
+            // Measured against the hit's own rise in the source (its attack ramp).
+            let own = rise_at(&x, s as usize - 400, s as usize + 400, 0.25).unwrap();
+            let err = (rise as f64 - o) - (own as f64 - s);
             assert!(
-                err.abs() <= if mode == Mode::Repitch { 30.0 } else { 12.0 },
+                err.abs() <= 12.0,
                 "{mode:?}: the hit at {o} rose at {rise} ({err:+})"
             );
         }

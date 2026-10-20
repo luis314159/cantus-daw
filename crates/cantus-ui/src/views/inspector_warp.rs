@@ -25,6 +25,8 @@ pub enum WarpAct {
     Follow(ClipRef, bool),
     Formants(ClipRef, bool),
     Tail(ClipRef, WarpTail),
+    /// The clip's tempo (a drag merges; its window kept on its audio).
+    Tempo(ClipRef, f64),
     Detect(ClipRef),
     Quantise(ClipRef),
     FromHere(ClipRef),
@@ -36,11 +38,12 @@ pub enum WarpAct {
 
 pub fn apply(app: &mut CantusApp, a: WarpAct) {
     match a {
+        // The mode alone: it does not warp the clip (round 29's review).
         WarpAct::Mode(r, m) => {
-            app.edit_warp(r, WarpOp::Mode, |w| {
-                w.mode = m;
-                w.follow = true;
-            });
+            app.set_warp_mode(r, m);
+        }
+        WarpAct::Tempo(r, bpm) => {
+            app.set_warp_tempo(r, bpm, true);
         }
         WarpAct::Follow(r, on) => {
             app.set_warp_follow(r, on);
@@ -54,7 +57,13 @@ pub fn apply(app: &mut CantusApp, a: WarpAct) {
         WarpAct::Detect(r) => {
             app.warp_by_analysis(r);
         }
-        WarpAct::Quantise(r) => app.open_quantise(vec![r]),
+        // Every audio clip selected with it, else it alone.
+        WarpAct::Quantise(r) => {
+            let sel = app.clip_selection();
+            let clips = if sel.contains(&r) { sel } else { vec![r] };
+            app.open_quantise(clips);
+        }
+        // From the playhead (the inspector has no place on the clip).
         WarpAct::FromHere(r) => {
             let at = app.engine.position();
             app.warp_from_here(r, at);
@@ -171,7 +180,9 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     ) {
         sh.acts.push(Act::Warp(WarpAct::Follow(r, !warped)));
     }
-    let mode = warped.then_some(super::super::warp::mode_index(w.mode));
+    // The four modes are one choice: two rows under one label (the second row goes on
+    // the first, its own label left empty — round 29's review).
+    let mode = Some(super::super::warp::mode_index(w.mode));
     let half = |i: usize| super::super::warp::MODES[i];
     if let Some(i) = choices(
         sh,
@@ -185,7 +196,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     }
     if let Some(i) = choices(
         sh,
-        "warp.inspector.mode_more",
+        "",
         "mode-b",
         &[half(2), half(3)],
         mode.filter(|m| *m >= 2).map(|m| m - 2),
@@ -235,30 +246,29 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             sh.acts.push(Act::Warp(WarpAct::Tail(r, WarpTail::ALL[i])));
         }
     }
-    // The source's tempo.
-    let wt = w.clone();
+    // The source's tempo, over the model's whole range (½ and ×2 reach past 40–240), the
+    // detected tempo (else the project's) on a double-click.
+    let reset = app
+        .warp_analysis(r)
+        .map(|a| a.bpm())
+        .filter(|b| *b > 0.0)
+        .unwrap_or(app.project().tempo_bpm);
     sh.param_row(
         "warp.inspector.tempo",
         Id::new(("insp-warp-tempo", c)),
         w.tempo() as f32,
-        &Range::lin(40.0, 240.0, w.tempo() as f32),
+        &Range::log(
+            cantus_core::warp::MIN_BPM as f32,
+            cantus_core::warp::MAX_BPM as f32,
+            reset as f32,
+        ),
         false,
         |v, b| {
             let _ = write!(b, "{v:.2} BPM");
         },
         Function::Source,
         false,
-        |v| {
-            Act::Merge(
-                Command::SetClipWarp {
-                    track: t,
-                    clip: c,
-                    warp: Some(Box::new(wt.with_tempo(v as f64))),
-                    op: WarpOp::Tempo,
-                },
-                crate::warp::merge_key(r, WarpOp::Tempo),
-            )
-        },
+        |v| Act::Warp(WarpAct::Tempo(r, v as f64)),
     );
     // What the analysis found.
     let rev = app.bus.revision();
@@ -274,7 +284,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
                     let _ = write!(
                         b,
                         " · {}",
-                        crate::i18n::tf("warp.inspector.bars", &[("n", &bars)])
+                        crate::i18n::tf_count("warp.inspector.bars", bars as usize, &[])
                     );
                 }
                 let sure = if a.acid_bpm.is_some() {
@@ -282,7 +292,12 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
                 } else {
                     a.grid.confidence
                 };
-                let _ = write!(b, " · {:.0} %", sure * 100.0);
+                let pct = format!("{:.0}", sure * 100.0);
+                let _ = write!(
+                    b,
+                    " · {}",
+                    crate::i18n::tf("warp.inspector.sure", &[("n", &pct)])
+                );
             }
             (_, true) => b.push_str(&crate::i18n::t("warp.status.analysing_short")),
             _ => b.push_str(&crate::i18n::t("warp.inspector.none")),
@@ -300,7 +315,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             ready || warp.is_some(),
         ),
         ("warp.menu.edit", WarpAct::Edit(r), true),
-        ("warp.menu.bounce", WarpAct::Bounce(r), warp.is_some()),
+        ("warp.menu.bounce", WarpAct::Bounce(r), app.can_bounce(r)),
         ("warp.menu.reset", WarpAct::Reset(r), warp.is_some()),
     ];
     for (word, act, enabled) in keys {

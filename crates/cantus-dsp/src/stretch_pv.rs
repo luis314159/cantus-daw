@@ -4,8 +4,8 @@
 //! an analysis frame centred where the map says (rounded to a frame), and a second one
 //! `H` source frames earlier — so the instantaneous frequency of every bin comes from two
 //! frames exactly `H` apart, whatever the map's speed there (Flanagan–Golden; the two-frame
-//! scheme lets the analysis hop vary freely). Hann windows, `N` ≈ 85 ms (4 096 frames at
-//! 44.1/48 kHz): long enough to resolve a bass's partials; the transients are not here
+//! scheme lets the analysis hop vary freely). Hann windows, `N` ≈ 170 ms (8 192 frames at
+//! 44.1/48 kHz): long enough to resolve a bass's partials and a chord's close voices; the transients are not here
 //! (the percussive part carries them, `stretch_hpss`).
 //!
 //! **Phase.** Identity phase locking (Laroche–Dolson), channel by channel: each spectral
@@ -31,11 +31,15 @@ use crate::aequalis::fft::Fft;
 use crate::math;
 use std::f32::consts::PI;
 
-/// The frame length for `rate`: ≈ 85 ms, a power of two.
+/// The frame length for `rate`: ≈ 170 ms, a power of two — long enough to keep partials
+/// 30 Hz apart apart (at 85 ms a chord's low voices shared lobes, and the bins between,
+/// locked to one of them, beat: round 29's review measured a detuned pad's voice
+/// wandering 5 dB; at 170 ms, under 0.7 dB). The transients do not pay for it: they are
+/// held, and the percussive part has its own short grains.
 pub(crate) fn frame_len(rate: f32) -> usize {
-    ((0.085 * rate) as usize)
+    ((0.17 * rate) as usize)
         .next_power_of_two()
-        .clamp(1_024, 16_384)
+        .clamp(2_048, 32_768)
 }
 
 pub(crate) fn princarg(x: f32) -> f32 {
@@ -583,12 +587,15 @@ impl State {
         for c in &mut self.ch {
             c.advance(n, hs, ratio, reset);
         }
-        // The image: where both channels hold the same partial (the same frequency to a
-        // quarter of a bin), the right one keeps the source's phase difference from the
-        // left — every frame, so silence or a reset never loses it; where they differ (a
-        // chorus), each keeps its own.
+        // The image: where both channels hold the same partial — their phase difference
+        // holding still over a hop, the same frequency to a twenty-fifth of a bin (half a
+        // hertz at 48 kHz) — the right one keeps the source's phase difference from the
+        // left, every frame, so silence or a reset never loses it; where they differ (a
+        // chorus, a detuned voice a few hertz off), each keeps its own: locked, the right
+        // one was pulled to the left's frequency and beat against itself (round 29's
+        // review measured a detuned pad's voice wandering 5 dB).
         if stereo {
-            let tol = 2.0 * PI * 0.25 / n as f32;
+            let tol = 2.0 * PI * 0.04 / n as f32;
             let (l, r) = self.ch.split_at_mut(1);
             let (l, r) = (&l[0], &mut r[0]);
             let top = l.mag.iter().chain(&r.mag).fold(0.0f32, |m, v| m.max(*v));

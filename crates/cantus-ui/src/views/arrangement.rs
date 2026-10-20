@@ -2159,6 +2159,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 }
             } else {
                 app.focus_arrangement();
+                // A selected warp marker is let go too (Del then acts on the selection).
+                app.warp.selected = None;
                 if !mods.command {
                     app.clear_clip_selection();
                 }
@@ -2196,6 +2198,11 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     if ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary)) && resp.hovered() {
         app.arrangement.menu_clip = hit.map(|h| (h.track, h.clip));
         app.arrangement.audio.menu = hit.and_then(|h| h.handle);
+        // Where on the clip: *Warp from here* starts there (ADR 0061).
+        app.warp.menu_tick = resp
+            .interact_pointer_pos()
+            .or(pointer)
+            .map(|p| beats_to_ticks(view.beats(p.x).max(0.0)));
         app.arrangement.menu_at = match (hit, resp.interact_pointer_pos().or(pointer)) {
             (None, Some(pos)) if pos.y >= body_top => Some((
                 beats_to_ticks(view.beats(pos.x).max(0.0)),

@@ -398,3 +398,58 @@ fn rhythm_on_detected_onsets_keeps_the_attacks() {
         }
     }
 }
+
+/// Round 29's review: a chord's voices 30 Hz apart, each a detuned saw a channel, keep
+/// their level through a stretch — every voice in both channels, within a decibel of its
+/// own wander (100 ms windows: they resolve the voices).
+#[test]
+fn a_chords_close_voices_do_not_wander() {
+    // Two detuned saws a note, one per channel (as the bench's pad).
+    let notes = [48, 52, 55, 60];
+    let n = 48_000usize;
+    let mut l = vec![0.0f32; n];
+    let mut r = vec![0.0f32; n];
+    for (v, &note) in notes.iter().enumerate() {
+        for (d, detune) in [-0.08f64, 0.08].iter().enumerate() {
+            let f = crate::pitch::midi_to_hz(note as f32) as f64 * (1.0 + detune / 100.0 * 12.0);
+            let mut ph = (v * 7 + d * 3) as f64 * 0.37;
+            for i in 0..n {
+                let t = i as f64 / SR as f64;
+                ph += f / SR as f64;
+                let saw = 2.0 * (ph - ph.floor()) - 1.0;
+                let env = (t / 0.3).min(1.0) * ((1.0 - t) / 0.05).clamp(0.0, 1.0);
+                let s = (0.05 * env * saw) as f32;
+                if d == 0 {
+                    l[i] += s
+                } else {
+                    r[i] += s
+                }
+            }
+        }
+    }
+    for stretch in [0.8, 1.25] {
+        let len = (n as f64 * stretch) as usize;
+        let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
+        let y = render(&[&l, &r], SR, &req(Mode::Complex, &map, len, 0.0, &[]));
+        for (ch, detune, src) in [(0usize, -0.08f64, &l), (1, 0.08, &r)] {
+            for note in notes {
+                let hz = (crate::pitch::midi_to_hz(note as f32) as f64
+                    * (1.0 + detune / 100.0 * 12.0)) as f32;
+                let own =
+                    level_wander_db_in(src, SR, hz, (0.35 * SR) as usize, (0.9 * SR) as usize, 0.1);
+                let w = level_wander_db_in(
+                    &y[ch],
+                    SR,
+                    hz,
+                    (0.35 * SR as f64 * stretch) as usize,
+                    (0.9 * SR as f64 * stretch) as usize,
+                    0.1,
+                );
+                assert!(
+                    w - own < 1.0,
+                    "x{stretch} ch{ch} {hz:.1} Hz: {own:.2} dB, {w:.2} dB"
+                );
+            }
+        }
+    }
+}

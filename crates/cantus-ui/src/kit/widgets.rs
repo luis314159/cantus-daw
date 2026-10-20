@@ -404,6 +404,33 @@ pub fn led_button(ui: &mut Ui, on: &mut bool, label: Src<'_>, name: &str, width:
 }
 
 /// A choice among a few words. `selected` changes on click.
+/// [`led_button`] that can be shown disabled: dimmed, and a click changes nothing (read
+/// `changed()`).
+pub fn led_button_if(
+    ui: &mut Ui,
+    on: &mut bool,
+    label: Src<'_>,
+    name: &str,
+    width: f32,
+    enabled: bool,
+) -> Response {
+    let s = Style::current();
+    let (rect, mut resp) = allocate(ui, Vec2::new(width * s.k, s.d(20.0)), Sense::click());
+    if enabled && resp.clicked() {
+        *on = !*on;
+        resp.mark_changed();
+    }
+    let st = State {
+        disabled: !enabled,
+        ..State::of(&resp, *on)
+    };
+    if st.hovered {
+        hint::set_text(ui.ctx(), name, "", Caps::PARAM);
+    }
+    with_brush(ui.painter(), |b| led::button(b, rect, &s, st, label));
+    resp
+}
+
 pub fn segmented(
     ui: &mut Ui,
     selected: &mut usize,

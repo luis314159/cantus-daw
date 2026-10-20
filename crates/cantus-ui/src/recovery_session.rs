@@ -343,7 +343,7 @@ impl CantusApp {
             }
             if !gone.is_empty() {
                 let paths: Vec<PathBuf> = gone.iter().map(|t| t.path.clone()).collect();
-                n += self.import_audio(&paths, pass.journal.record_start, None);
+                n += self.import_audio_as(&paths, pass.journal.record_start, None, true);
             }
         }
         n

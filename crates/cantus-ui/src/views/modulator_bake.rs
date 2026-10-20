@@ -57,6 +57,14 @@ impl CantusApp {
         if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
             return self.finish_bake(id, target, span, None);
         }
+        // While renders are on their way (a warp, a pitch edit, a file loading), the bake
+        // waits for them beside the window, as an export does — it never blocks the frame
+        // (round 29's review); started again once they are in.
+        if self.engine.samples.loading() {
+            self.warp.pending_bake = Some((id, target.clone()));
+            self.set_status(crate::i18n::t("warp.status.bake_waiting"));
+            return true;
+        }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
         let snapshot = self

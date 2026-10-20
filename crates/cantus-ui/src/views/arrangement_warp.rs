@@ -8,7 +8,9 @@
 //! drag a marker to move it — the audio between its neighbours stretches — snapped to the
 //! grid unless Ctrl; **Alt**-drag a marker to slide the content under it instead; drag in
 //! the band to add a marker and move it in one go; double-click a marker to remove it, or
-//! select it (a click) and press Del. A clip not yet warped is warped by its first marker.
+//! select it (a click) and press Del. The band takes a press only on a clip that follows
+//! the tempo (round 29's review: on any other, a press near its top moves it as ever); in
+//! the warp editor, where warping is what is asked, on any clip.
 //! **Alt**-drag a clip's right edge stretches the whole clip (`clips.rs`, ADR 0061 §5).
 
 use super::super::TimelineGeometry;
@@ -22,8 +24,7 @@ use cantus_core::warp::Warp;
 use cantus_core::{Ticks, PPQ};
 use egui::{pos2, Pos2, Rect};
 
-/// Markers and transients a clip can offer the pointer per frame (beyond, the nearest are
-/// kept: closer than this they are too dense to grab one by one).
+/// Markers and transients a clip offers the pointer per frame: the nearest to it.
 pub const MAX_HITS: usize = 64;
 /// The top band's height at 100 %.
 pub const BAND: f32 = 7.0;
@@ -45,6 +46,11 @@ pub struct Hits {
     origin: f32,
     px_per_tick: f32,
     reach: f32,
+    /// Whether the band and the transients take a press (a warped clip, or the editor).
+    offer: bool,
+    /// A reversed clip's window (offset, length, content ticks): its content is drawn
+    /// mirrored, so a place on it is too.
+    mirror: Option<(f32, f32)>,
 }
 
 impl Hits {
@@ -61,12 +67,24 @@ impl Hits {
             origin,
             px_per_tick,
             reach: REACH * k,
+            offer: true,
+            mirror: None,
         }
     }
 
-    /// The content tick under x.
+    /// The content tick under x (a reversed clip's mirrored, as it is drawn).
     pub fn tick_at(&self, x: f32) -> Ticks {
-        Ticks(((x - self.origin) / self.px_per_tick.max(1e-9)).round() as i64)
+        let c = (x - self.origin) / self.px_per_tick.max(1e-9);
+        let c = match self.mirror {
+            Some((off, len)) => 2.0 * off + len - c,
+            None => c,
+        };
+        Ticks(c.round() as i64)
+    }
+
+    /// The markers' xs drawn this frame (tests).
+    pub fn marker_count(&self) -> usize {
+        self.n
     }
 
     /// The marker or transient under `pos`, or the band.
@@ -86,7 +104,7 @@ impl Hits {
                 }
             }
         }
-        if self.band.expand2(egui::vec2(0.0, 1.0)).contains(pos) {
+        if self.offer && self.band.expand2(egui::vec2(0.0, 1.0)).contains(pos) {
             if let Some(i) = near(&self.onset_xs[..self.m]) {
                 return Some(Handle::WarpOnset(self.onset_ids[i]));
             }
@@ -176,6 +194,7 @@ pub fn paint(
     shown: &Shown<'_>,
     inner: Rect,
     show: bool,
+    editor: bool,
     s: &Style,
 ) -> Option<Hits> {
     let k = s.k;
@@ -190,6 +209,18 @@ pub fn paint(
     let origin = geo.x(shown.start.as_beats_f64() as f32) - shown.offset.0 as f32 * ppt;
     let mut hits = Hits::new(band, inner, origin, ppt, k);
     let warp = shown.region.warp.as_deref();
+    hits.offer = editor || warp.is_some_and(|w| w.follow);
+    if shown.region.reverse {
+        hits.mirror = Some((shown.offset.0 as f32, shown.length.0 as f32));
+    }
+    // Every handle drawn is offered by its nearness to the pointer: the nearest
+    // [`MAX_HITS`] (round 29's review: the first ones in order left the rest ungrabbable).
+    let pointer = b
+        .ctx()
+        .pointer_hover_pos()
+        .map_or(inner.center().x, |p| p.x);
+    let mut onsets_all: Vec<(f32, u32)> = Vec::new();
+    let mut markers_all: Vec<(f32, u16)> = Vec::new();
     let selected = app.warp.selected.filter(|(c, _)| *c == r).map(|(_, i)| i);
     let x_of = |content: f64| origin + content as f32 * ppt;
     let visible =
@@ -219,11 +250,7 @@ pub fn paint(
                     continue;
                 }
                 b.vline(x, band.bottom() - bh * 0.6, band.bottom(), b.px(), ink);
-                if hits.m < MAX_HITS {
-                    hits.onset_xs[hits.m] = x;
-                    hits.onset_ids[hits.m] = id as u32;
-                    hits.m += 1;
-                }
+                onsets_all.push((x, id as u32));
             }
         }
         b.hline(
@@ -270,14 +297,27 @@ pub fn paint(
                 ],
                 ink,
             );
-            if hits.n < MAX_HITS {
-                hits.xs[hits.n] = x;
-                hits.ids[hits.n] = i as u16;
-                hits.n += 1;
-            }
+            markers_all.push((x, i as u16));
         }
     }
+    for (x, id) in nearest(onsets_all, pointer) {
+        hits.onset_xs[hits.m] = x;
+        hits.onset_ids[hits.m] = id;
+        hits.m += 1;
+    }
+    for (x, id) in nearest(markers_all, pointer) {
+        hits.xs[hits.n] = x;
+        hits.ids[hits.n] = id;
+        hits.n += 1;
+    }
     Some(hits)
+}
+
+/// Of handles drawn at `(x, id)`, the [`MAX_HITS`] nearest to the pointer at `x`.
+fn nearest<T: Copy>(mut all: Vec<(f32, T)>, x: f32) -> Vec<(f32, T)> {
+    all.sort_by(|a, b| (a.0 - x).abs().total_cmp(&(b.0 - x).abs()));
+    all.truncate(MAX_HITS);
+    all
 }
 
 // ---- the gestures --------------------------------------------------------------------
@@ -289,6 +329,8 @@ pub struct MarkerDrag {
     pub warp0: Warp,
     pub marker: usize,
     pub slide: bool,
+    /// The grid it snaps to (`None`: free) — the arrangement's, or the warp editor's own.
+    pub snap: Option<Ticks>,
 }
 
 /// The arrangement's modifiers this frame (set before its input).
@@ -300,7 +342,7 @@ pub fn modifiers(app: &mut CantusApp, mods: egui::Modifiers) {
 /// transient — a marker made there to drag (nothing is written until it moves).
 pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDrag> {
     let slide = app.arrangement.audio.mods.alt;
-    let w = app.warp_to_edit(r)?;
+    let w = app.warp_to_warp(r)?;
     let (warp0, marker) = match handle {
         Handle::WarpMarker(i) => (w, i as usize),
         Handle::WarpOnset(id) => {
@@ -317,10 +359,12 @@ pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle) -> Option<MarkerDr
         _ => return None,
     };
     app.warp.selected = Some((r, marker));
+    let a = &app.arrangement;
     Some(MarkerDrag {
         warp0,
         marker,
         slide,
+        snap: a.snap.then_some(a.grid),
     })
 }
 
@@ -345,9 +389,11 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
     } else {
         let origin = c.start - c.offset;
         let mut tick = Ticks(m.tick.0 + dx);
-        let a = &app.arrangement;
-        if a.snap && !a.audio.mods.command && !reverse {
-            tick = crate::views::bars::snap(app.project(), tick + origin, a.grid) - origin;
+        if let Some(g) = d
+            .snap
+            .filter(|_| !app.arrangement.audio.mods.command && !reverse)
+        {
+            tick = crate::views::bars::snap(app.project(), tick + origin, g) - origin;
         }
         (
             d.warp0.move_marker(d.marker, tick),
@@ -461,18 +507,17 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     };
     let mut items = vec![Item::Band(Src::Key("warp.menu.band"))];
     let mut acts: Vec<Option<Pick>> = vec![None];
+    // The mode is a setting of its own: picking one does not warp the clip (round 29's
+    // review); Follow does, on any audio clip.
+    let shown = mode.unwrap_or(WarpMode::Complex);
     for m in WarpMode::ALL {
-        items.push(action(
-            mode_key(m),
-            Check::Radio(warped && mode == Some(m)),
-            true,
-        ));
+        items.push(action(mode_key(m), Check::Radio(shown == m), true));
         acts.push(Some(Pick::Mode(m)));
     }
     items.push(action(
         "warp.menu.follow",
         if warped { Check::On } else { Check::Off },
-        w.is_some(),
+        true,
     ));
     acts.push(Some(Pick::Follow));
     items.push(Item::Separator);
@@ -487,11 +532,7 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
             ready || w.is_some(),
         ),
         ("warp.menu.edit", Pick::Edit, true),
-        (
-            "warp.menu.bounce",
-            Pick::Bounce,
-            warped || w.as_ref().is_some_and(|w| w.cents != 0),
-        ),
+        ("warp.menu.bounce", Pick::Bounce, app.can_bounce(r)),
         ("warp.menu.reset", Pick::Reset, w.is_some()),
     ] {
         items.push(action(label, Check::None, enabled));
@@ -512,20 +553,23 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     };
     match pick {
         Pick::Mode(m) => {
-            app.edit_warp(r, cantus_core::warp::WarpOp::Mode, |w| {
-                w.mode = m;
-                w.follow = true;
-            });
+            app.set_warp_mode(r, m);
         }
         Pick::Follow => {
             app.set_warp_follow(r, !warped);
         }
-        Pick::Quantise => app.open_quantise(vec![r]),
+        // Every audio clip selected with it, else it alone.
+        Pick::Quantise => {
+            let sel = app.clip_selection();
+            let clips = if sel.contains(&r) { sel } else { vec![r] };
+            app.open_quantise(clips);
+        }
         Pick::Detect => {
             app.warp_by_analysis(r);
         }
+        // From where the clip was right-clicked.
         Pick::FromHere => {
-            let at = app.engine.position();
+            let at = app.warp.menu_tick.unwrap_or_else(|| app.engine.position());
             app.warp_from_here(r, at);
         }
         Pick::ProjectTempo => {
@@ -585,4 +629,52 @@ impl Hits {
 /// Whether a drag of a clip's right edge stretches it (Alt held; ADR 0061 §5).
 pub fn stretching(app: &CantusApp) -> bool {
     app.arrangement.audio.mods.alt
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn hits() -> Hits {
+        let band = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 7.0));
+        let wave = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 60.0));
+        // Content tick 0 at x 0, a tick a point.
+        Hits::new(band, wave, 0.0, 1.0, 1.0)
+    }
+
+    /// Round 29's review: on a reversed clip a place on the band is the mirrored content
+    /// tick, as the markers are drawn.
+    #[test]
+    fn a_reversed_clips_band_is_read_mirrored() {
+        let mut h = hits();
+        assert_eq!(h.tick_at(100.0), Ticks(100));
+        // Window: offset 0, length 400 content ticks.
+        h.mirror = Some((0.0, 400.0));
+        assert_eq!(h.tick_at(100.0), Ticks(300));
+    }
+
+    /// Round 29's review: of ninety markers drawn, the ones by the pointer are offered —
+    /// the last as well as the first.
+    #[test]
+    fn the_handles_offered_are_the_nearest() {
+        let all: Vec<(f32, u16)> = (0..90).map(|i| (i as f32 * 10.0, i as u16)).collect();
+        let near = nearest(all.clone(), 880.0);
+        assert_eq!(near.len(), MAX_HITS);
+        assert_eq!(near[0], (880.0, 88));
+        assert!(near.iter().any(|h| h.1 == 89));
+        assert!(nearest(all, 0.0).iter().any(|h| h.1 == 0));
+    }
+
+    /// Round 29's review: a band takes a press only where it is offered.
+    #[test]
+    fn a_band_not_offered_takes_no_press() {
+        let mut h = hits();
+        h.offer = false;
+        assert_eq!(h.at(pos2(500.0, 3.0)), None);
+        h.offer = true;
+        assert!(matches!(
+            h.at(pos2(500.0, 3.0)),
+            Some(Handle::WarpBand(500))
+        ));
+    }
 }

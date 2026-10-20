@@ -334,7 +334,10 @@ fn the_natural_warp_plays_as_the_clip_plays_unwarped() {
         let t = start.0 as f64 + length.0 as f64 * k as f64 / 200.0;
         let want = crate::audio_time::frame_at(&map, start, offset, slip as f64, 48_000.0, t);
         let got = w.frame_at(t - origin);
-        assert!((got - want).abs() < 0.5, "tick {t}: {got} against {want}");
+        // Exact where the tempo holds; inside the ramp, sampled every sixteenth: within
+        // half a millisecond.
+        let bound = if map.in_ramp(t) { 24.0 } else { 0.5 };
+        assert!((got - want).abs() < bound, "tick {t}: {got} against {want}");
     }
     let one = TempoMap::constant(120.0, TimeSignature::default());
     let w = Warp::natural_of(&one, start, offset, length, slip, 48_000);

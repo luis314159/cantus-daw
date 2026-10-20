@@ -35,6 +35,32 @@ pub struct WarpView {
     pub wave: Option<Rect>,
     /// The markers' and transients' hit geometry last frame.
     pub hits: Option<aw::Hits>,
+    /// How far in the editor is zoomed (1 or less: the clip fitted) and where it is
+    /// scrolled to (beats from the fitted start) — Ctrl+wheel zooms, the wheel scrolls.
+    pub zoom: f32,
+    pub scroll: f32,
+    /// The editor's own snap grid is off.
+    grid_off: bool,
+    /// The editor's own snap grid (zero: a sixteenth).
+    grid: Ticks,
+}
+
+impl WarpView {
+    /// The editor's snap grid (`None`: off).
+    pub fn snap(&self) -> Option<Ticks> {
+        if self.grid_off {
+            None
+        } else if self.grid > Ticks::ZERO {
+            Some(self.grid)
+        } else {
+            Some(Ticks::SIXTEENTH)
+        }
+    }
+
+    pub fn set_snap(&mut self, grid: Option<Ticks>) {
+        self.grid_off = grid.is_none();
+        self.grid = grid.unwrap_or(Ticks::ZERO);
+    }
 }
 
 impl CantusApp {
@@ -84,9 +110,31 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     let ruler = Rect::from_min_max(full.min, pos2(full.right(), full.top() + s.s(RULER_H)));
     let wave = Rect::from_min_max(pos2(full.left(), ruler.bottom()), full.max)
         .shrink2(vec2(0.0, s.s(4.0)));
-    // The clip's window fitted, a twentieth of it either side.
+    // The clip's window fitted, a twentieth of it either side — then zoomed (Ctrl+wheel,
+    // about the pointer) and scrolled (the wheel, the bar under it).
     let len_b = (c.length.0.max(1) as f64 / PPQ as f64) as f32;
-    let px_per_beat = full.width() / (len_b * 1.1);
+    let fit = full.width() / (len_b * 1.1);
+    let (wheel, ctrl) = ui.input(|i| (i.smooth_scroll_delta, i.modifiers.command));
+    let view = &mut app.warp.view;
+    let zoom0 = view.zoom.max(1.0);
+    if resp.hovered() && (wheel.x != 0.0 || wheel.y != 0.0) {
+        if ctrl {
+            let z = (zoom0 * cantus_dsp::math::exp2(wheel.y / 200.0)).clamp(1.0, 64.0);
+            // About the pointer: the beat under it stays under it.
+            if let Some(p) = resp.hover_pos() {
+                let x = p.x - full.left();
+                view.scroll += x / (fit * zoom0) - x / (fit * z);
+            }
+            view.zoom = z;
+        } else if zoom0 > 1.0 {
+            view.scroll -= (wheel.x + wheel.y) / (fit * zoom0);
+        }
+    }
+    let zoom = view.zoom.max(1.0);
+    let span = len_b * 1.1;
+    view.scroll = view.scroll.clamp(0.0, span - span / zoom);
+    let scroll = view.scroll;
+    let px_per_beat = fit * zoom;
     let geo = TimelineGeometry {
         left: full.left(),
         width: full.width(),
@@ -94,7 +142,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         loop_lane_bottom: ruler.top(),
         body_top: ruler.bottom(),
         px_per_beat,
-        scroll_beats: c.start.as_beats_f64() as f32 - len_b * 0.05,
+        scroll_beats: c.start.as_beats_f64() as f32 - len_b * 0.05 + scroll,
         rows: Vec::new(),
         punch: None,
         markers: None,
@@ -163,10 +211,26 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
             }
         }
         let inner = Rect::from_min_max(pos2(x0, wave.top()), pos2(x1, wave.bottom()));
-        let hits = aw::paint(b, app, &geo, full, &shown, inner, true, &s);
+        let hits = aw::paint(b, app, &geo, full, &shown, inner, true, true, &s);
         app.warp.view.hits = hits;
         app.warp.view.wave = Some(inner);
     });
+    // The scroll bar, while zoomed.
+    if zoom > 1.0 {
+        let bar = Rect::from_min_max(pos2(full.left(), full.bottom() - s.s(8.0)), full.max);
+        let mut start = scroll / span;
+        if kit::widgets::scrollbar(
+            ui,
+            bar,
+            egui::Id::new(("warp-scroll", clip)),
+            &mut start,
+            1.0 / zoom,
+        )
+        .dragged()
+        {
+            app.warp.view.scroll = start * span;
+        }
+    }
     input(app, ui, &resp, r, px_per_beat / PPQ as f32);
 }
 
@@ -228,7 +292,9 @@ fn input(app: &mut CantusApp, ui: &egui::Ui, resp: &egui::Response, r: ClipRef, 
             if let Some(h @ (Handle::WarpMarker(_) | Handle::WarpOnset(_) | Handle::WarpBand(_))) =
                 at(p)
             {
-                if let Some(d) = aw::begin(app, r, h) {
+                if let Some(mut d) = aw::begin(app, r, h) {
+                    // The editor's own grid, not the arrangement's.
+                    d.snap = app.warp.view.snap();
                     app.warp.view.drag = Some((r, d, p.x, px_per_tick.max(1e-6)));
                 }
             }

@@ -73,6 +73,10 @@ pub struct WarpUi {
     pub view: crate::views::warp::WarpView,
     /// A bounce of a warped clip on its way (a thread writing the file).
     pub bounce: Option<actions::Bounce>,
+    /// Where on a clip its menu was opened (*Warp from here* starts there).
+    pub menu_tick: Option<Ticks>,
+    /// A modulator bake waiting for renders on their way (`bake_route`).
+    pub pending_bake: Option<(cantus_core::ModulatorId, cantus_core::AutoTarget)>,
 }
 
 /// Whether the analysis says the file is a loop to warp at once (ADR 0061 §4): no longer
@@ -130,13 +134,19 @@ pub fn warp_from(a: &Analysis, beats_per_bar: u32, mode: WarpMode) -> Option<War
 pub fn auto_warp(project: &Project, r: ClipRef, a: &Analysis) -> Option<Vec<Command>> {
     let clip: &Clip = project.track(r.0)?.clip(r.1)?;
     let region = clip.audio.as_ref()?;
-    if region.warp.is_some() || clip.offset != Ticks::ZERO || !is_auto_loop(a) {
+    // A recording is never warped by itself: it plays as it was played.
+    let recorded = project
+        .audio_source(region.source)
+        .is_some_and(|s| s.recorded);
+    if region.warp.is_some() || recorded || clip.offset != Ticks::ZERO || !is_auto_loop(a) {
         return None;
     }
     let w = warp_from(a, 4, mode_for(a))?;
     let end = cantus_core::audio_time::warped_length(&w, a.frames as f64);
+    // The analysis counts bars of four beats (its markers are laid so), whatever the
+    // project's metre (round 29's review: a 3/4 song cut a 4/4 loop's last beats).
     let length = match a.grid.bars {
-        Some(bars) => project.time_signature.ticks_per_bar() * bars as i64,
+        Some(bars) => Ticks::beats(4 * bars as i64),
         None => end,
     }
     .max(Ticks(1));
@@ -178,30 +188,41 @@ impl CantusApp {
         }
     }
 
-    /// A recording's take: analysed for its transients and tempo (the editor and *Quantise
-    /// audio* use them), never warped by itself — it plays as it was played.
-    pub fn analyse_take_for_warp(&mut self, r: ClipRef) {
-        if let Some((s, path)) = self.pitch_source(r.0, r.1) {
-            let _ = self.engine.samples.warp().lookup(&path, s.sample_rate);
-        }
-    }
-
     /// Every frame: the imports whose analysis landed get the import rule. Returns whether
     /// one is still waiting (the window keeps ticking).
     pub fn poll_warp(&mut self) -> bool {
         self.poll_bounce();
+        if self.warp.pending_bake.is_some() && !self.engine.samples.loading() {
+            if let Some((id, target)) = self.warp.pending_bake.take() {
+                self.bake_route(id, &target);
+            }
+        }
+        if self.warp.pending_bake.is_some() {
+            return true;
+        }
         if self.warp.auto.is_empty() {
             return self.warp.bounce.is_some();
         }
         let svc = self.engine.samples.warp().clone();
         let waiting = std::mem::take(&mut self.warp.auto);
+        let mut settled: Vec<MergeKey> = Vec::new();
         for job in waiting {
             match svc.lookup(&job.path, job.rate) {
                 Lookup::Pending if job.since.elapsed().as_secs_f64() < AUTO_PATIENCE_S => {
                     self.warp.auto.push(job);
                 }
-                Lookup::Ready(a) => self.land_auto_warp(&job, &a),
-                _ => {}
+                Lookup::Ready(a) => {
+                    self.land_auto_warp(&job, &a);
+                    settled.push(job.key);
+                }
+                _ => settled.push(job.key),
+            }
+        }
+        // The import's step is closed once its last file is settled — every loop of a
+        // many-file import joins it (round 29's review: the first one sealed it).
+        for key in settled {
+            if !self.warp.auto.iter().any(|j| j.key == key) {
+                self.end_gesture();
             }
         }
         !self.warp.auto.is_empty() || self.warp.bounce.is_some()
@@ -216,9 +237,7 @@ impl CantusApp {
             label_key: "cmd.warp.auto".into(),
             commands,
         };
-        if self.exec_merging(cmd, job.key) {
-            self.end_gesture();
-        }
+        self.exec_merging(cmd, job.key);
     }
 
     /// The analysis of clip `r`'s file, asked of the warp service (queued the first time).
@@ -255,18 +274,31 @@ pub fn write_cents(out: &mut String, cents: i32) {
     };
 }
 
-/// The audio files an imported `.dawproject` carries, written under the data folder
-/// (`imported audio/<file name>/`) and the project's sources pointed at them; saving the
-/// project collects them into its own folder as for any import.
-pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &str) {
+/// The audio files an imported `.dawproject` carries, written under the data folder in a
+/// folder of their own for this import (`imported audio/<file name>[ n]/`: never over
+/// another import's, which an open project or the engine may still hold — round 29's
+/// review) and the project's sources pointed at them; saving the project collects them
+/// into its own folder as for any import. Returns the files that could not be written.
+pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &str) -> Vec<String> {
+    let mut failed = Vec::new();
     if media.is_empty() {
-        return;
+        return failed;
     }
     let stem = std::path::Path::new(name)
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "import".into());
-    let dir = crate::app::data_dir().join("imported audio").join(stem);
+    let root = crate::app::data_dir().join("imported audio");
+    let dir = (1..)
+        .map(|n| {
+            if n == 1 {
+                root.join(&stem)
+            } else {
+                root.join(format!("{stem} {n}"))
+            }
+        })
+        .find(|d| !d.exists())
+        .unwrap_or_else(|| root.join(&stem));
     for (inner, bytes) in media {
         let file = dir.join(
             std::path::Path::new(inner)
@@ -275,12 +307,14 @@ pub fn place_media(project: &mut Project, media: &[(String, Vec<u8>)], name: &st
         );
         let written = std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(&file, bytes));
         if written.is_err() {
+            failed.push(inner.clone());
             continue;
         }
         for s in project.audio_pool.iter_mut().filter(|s| s.path == *inner) {
             s.path = file.to_string_lossy().into_owned();
         }
     }
+    failed
 }
 
 /// The status line after a file brought warps that were not valid, dropped on load.

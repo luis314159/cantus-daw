@@ -162,6 +162,19 @@ impl CantusApp {
     /// becomes a source (not recorded) and a clip as long as the file at the project's
     /// tempo; the whole import is one undo step. Returns how many files were imported.
     pub fn import_audio(&mut self, paths: &[PathBuf], at: Ticks, onto: Option<usize>) -> usize {
+        self.import_audio_as(paths, at, onto, false)
+    }
+
+    /// [`Self::import_audio`] of recordings (`recorded`: a recovered take whose track is
+    /// gone): their sources say so, and they are analysed, never warped by the import rule —
+    /// a recording plays as it was played (ADR 0061, round 29's review).
+    pub fn import_audio_as(
+        &mut self,
+        paths: &[PathBuf],
+        at: Ticks,
+        onto: Option<usize>,
+        recorded: bool,
+    ) -> usize {
         let mut files = Vec::new();
         for p in paths {
             match read(p) {
@@ -181,7 +194,14 @@ impl CantusApp {
         if files.is_empty() {
             return 0;
         }
-        let commands = self.import_commands(&files, at, onto);
+        let mut commands = self.import_commands(&files, at, onto);
+        if recorded {
+            for c in &mut commands.0 {
+                if let Command::InsertAudioSource { source } = c {
+                    source.recorded = true;
+                }
+            }
+        }
         let made = commands.1;
         // Its own undo step, kept open for the warp a loop gets when its analysis lands
         // (round 29, ADR 0061: the import rule, `crate::warp`).
@@ -195,7 +215,14 @@ impl CantusApp {
         ) {
             return 0;
         }
-        self.warp_after_import(&made, key);
+        if recorded {
+            self.end_gesture();
+            for f in &files {
+                self.analyse_file_soon(&f.path, f.data.rate);
+            }
+        } else {
+            self.warp_after_import(&made, key);
+        }
         for f in &files {
             self.peaks.insert_data(&f.path, f.data.clone());
         }

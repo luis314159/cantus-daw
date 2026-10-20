@@ -740,3 +740,38 @@ fn a_comp_switched_away_and_back_plays_its_edits_at_once() {
     assert!(Arc::ptr_eq(&back, &edited), "the kept window's render");
     assert_eq!(cache.pitch_pending(), 0, "nothing rendered again");
 }
+
+/// Round 29 (ADR 0061): a take with pitch edits and a warp plays — and exports — the warp
+/// of the pitch render (source → pitch → warp), never the warp of the take as sung.
+#[test]
+fn a_pitch_edit_and_a_warp_chain_into_the_export() {
+    use cantus_core::warp::Warp;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("voice.wav");
+    let (x, a) = take();
+    write_f32(&path, &x);
+    let e = corrected(&a);
+    let mut w = Warp::identity(SR, 120.0, 0)
+        .add_marker(Ticks::beats(2))
+        .unwrap();
+    w = w.move_marker(1, Ticks::beats(3));
+    w.cents = -200;
+    let mut p = with_edit(&path, &x, e);
+    p.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(w.clone()));
+    let mut engine = EngineHandle::dummy();
+    let rate = engine.sample_rate.round() as u32;
+    let snap = engine.compile_for_render(&p, 1);
+    let got = snap.tracks[0].audio[0].data.clone().unwrap();
+    // A cache that renders at once: the pitch render, then the warp over it.
+    let mut sync = Snapshot::compile(&p, 1);
+    assert!(SampleCache::new().attach_audio(&mut sync, rate).is_empty());
+    let want = sync.tracks[0].audio[0].data.clone().unwrap();
+    assert_eq!(&got.frames[..], &want.frames[..], "the export is the chain");
+    // And not the warp of the take as sung.
+    let mut plain = project_with(&path, &x, None);
+    plain.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(w));
+    let mut s = Snapshot::compile(&plain, 1);
+    SampleCache::new().attach_audio(&mut s, rate);
+    let sung = s.tracks[0].audio[0].data.clone().unwrap();
+    assert!(sung.frames[..] != want.frames[..]);
+}

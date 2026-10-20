@@ -2838,10 +2838,11 @@ fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let n = w.markers.len().max(1) as u64;
     let i = rng.below(n) as usize;
     let (next, op) = match rng.below(14) {
-        0 => (
-            w.add_marker(Ticks(rng.below(16 * 960) as i64)).unwrap_or(w),
-            WarpOp::AddMarker,
-        ),
+        // A marker that could not be added (one is there) is no add: counted as a set.
+        0 => match w.add_marker(Ticks(rng.below(16 * 960) as i64)) {
+            Some(n) => (n, WarpOp::AddMarker),
+            None => (w, WarpOp::Set),
+        },
         1 => (
             w.move_marker(i, Ticks(rng.below(16 * 960) as i64 - 960)),
             WarpOp::MoveMarker,

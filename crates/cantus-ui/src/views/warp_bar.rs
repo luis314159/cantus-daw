@@ -1,7 +1,8 @@
 //! The warp editor's bar: the mode, the transposition (drag, semitones; Shift for cents),
 //! the formants, *Follow the project tempo*, the source's tempo (drag; ½ and ×2), *Detect
-//! tempo*, *Quantise audio…*, *Reset warp*. What is not set yet (a clip never warped)
-//! shows the value it would start from; the first edit warps the clip.
+//! tempo*, *Quantise audio…*, *Reset warp*, and the editor's own snap grid. What is not set
+//! yet (a clip never warped) shows the value it would start from. What does nothing in
+//! the clip's mode is drawn disabled, as the inspector draws it (round 29's review).
 
 use super::mode_index;
 use crate::app::CantusApp;
@@ -10,7 +11,7 @@ use crate::i18n::t;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::Src;
 use crate::kit::{self, well, State, Style};
-use cantus_core::warp::{WarpMode, WarpOp};
+use cantus_core::warp::WarpMode;
 use egui::{vec2, Sense};
 
 /// The modes' words, in `WarpMode::ALL`'s order.
@@ -32,6 +33,7 @@ fn drag_value(
     now: f64,
     per_px: f64,
     width: f32,
+    enabled: bool,
 ) -> (Option<f64>, bool) {
     let s = Style::current();
     // Its name before it: label and value (ADR 0024).
@@ -45,9 +47,18 @@ fn drag_value(
     kit::with_brush(ui.painter(), |b| {
         let _ = crate::kit::text::paint(b, lr, &tx, s.tk());
     });
-    let (rect, resp) = ui.allocate_exact_size(vec2(s.s(width), s.d(24.0)), Sense::click_and_drag());
+    let sense = if enabled {
+        Sense::click_and_drag()
+    } else {
+        Sense::hover()
+    };
+    let (rect, resp) = ui.allocate_exact_size(vec2(s.s(width), s.d(24.0)), sense);
+    let st = State {
+        disabled: !enabled,
+        ..State::of(&resp, false)
+    };
     kit::with_brush(ui.painter(), |b| {
-        well::readout(b, rect, &s, State::of(&resp, false), face, true);
+        well::readout(b, rect, &s, st, face, true);
     });
     if resp.hovered() || resp.dragged() {
         hint::set_text(ui.ctx(), name, face, Caps::PARAM);
@@ -73,12 +84,21 @@ fn drag_value(
     (out, ended)
 }
 
-/// A push key on the bar; whether it was clicked.
+/// A push key on the bar, drawn disabled when it would do nothing; whether it was clicked.
 fn key(ui: &mut egui::Ui, label: &'static str, enabled: bool, width: f32) -> bool {
     let mut on = false;
-    let r = kit::widgets::led_button(ui, &mut on, Src::Key(label), &t(label), width);
-    r.clicked() && enabled
+    let r = kit::widgets::led_button_if(ui, &mut on, Src::Key(label), &t(label), width, enabled);
+    r.changed()
 }
+
+/// The editor's snap grids: a quarter, an eighth, a sixteenth, a thirty-second, none.
+const GRIDS: [Option<cantus_core::Ticks>; 5] = [
+    Some(cantus_core::Ticks(cantus_core::PPQ)),
+    Some(cantus_core::Ticks(cantus_core::PPQ / 2)),
+    Some(cantus_core::Ticks(cantus_core::PPQ / 4)),
+    Some(cantus_core::Ticks(cantus_core::PPQ / 8)),
+    None,
+];
 
 pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
     let s = Style::current();
@@ -102,11 +122,8 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                     )
                     .changed()
                     {
-                        let mode = WarpMode::ALL[m];
-                        app.edit_warp(r, WarpOp::Mode, |w| {
-                            w.mode = mode;
-                            w.follow = true;
-                        });
+                        // The mode alone: it does not warp the clip.
+                        app.set_warp_mode(r, WarpMode::ALL[m]);
                     }
                     // The transposition (Re-pitch has none: its pitch is its speed).
                     let mut face = String::new();
@@ -120,23 +137,24 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                         w.cents as f64,
                         5.0,
                         90.0,
+                        w.mode.transposes(),
                     );
-                    if let Some(c) = v.filter(|_| w.mode.transposes()) {
+                    if let Some(c) = v {
                         app.set_warp_cents(r, c.round() as i32, true);
                     }
                     if ended {
                         app.end_gesture();
                     }
                     let mut formants = w.formants;
-                    if kit::widgets::led_button(
+                    if kit::widgets::led_button_if(
                         ui,
                         &mut formants,
                         Src::Key("warp.inspector.formants"),
                         &t("warp.inspector.formants"),
                         90.0,
+                        w.mode.keeps_formants() && w.cents != 0,
                     )
-                    .clicked()
-                        && w.mode.keeps_formants()
+                    .changed()
                     {
                         app.set_warp_formants(r, formants);
                     }
@@ -164,6 +182,7 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                         bpm,
                         0.1,
                         96.0,
+                        true,
                     );
                     if let Some(b) = v {
                         app.set_warp_tempo(r, b.clamp(20.0, 999.0), true);
@@ -185,6 +204,23 @@ pub fn bar(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
                     }
                     if key(ui, "warp.menu.reset", app.clip_warp(r).is_some(), 130.0) {
                         app.reset_warp(r);
+                    }
+                    // The editor's own snap grid (the arrangement's is its own).
+                    let mut g = GRIDS
+                        .iter()
+                        .position(|x| *x == app.warp.view.snap())
+                        .unwrap_or(2);
+                    let labels = [
+                        Src::Str("1/4"),
+                        Src::Str("1/8"),
+                        Src::Str("1/16"),
+                        Src::Str("1/32"),
+                        Src::Key("warp.grid.off"),
+                    ];
+                    if kit::widgets::segmented(ui, &mut g, &labels, &t("warp.grid"), 230.0)
+                        .changed()
+                    {
+                        app.warp.view.set_snap(GRIDS[g]);
                     }
                 });
             });

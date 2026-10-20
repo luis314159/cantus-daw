@@ -11,14 +11,26 @@ use cantus_core::{AudioRegion, AudioSource, AudioSourceId, Command, Snapshot, Ti
 use std::path::{Path, PathBuf};
 
 /// Render clip `id` of `snapshot` (its first window) through a cache of its own and write
-/// it to `file` (32-bit float WAV at `rate`).
+/// it to `file` (32-bit float WAV at `rate`). Only that clip is attached — no other file
+/// decoded, no other render made (round 29's review) — and always through the warp render,
+/// even where the snapshot found its warp to play as the source: the file is the window,
+/// as the clip's offset of zero afterwards says.
 fn write(
     mut snapshot: Snapshot,
     dir: Option<PathBuf>,
     id: cantus_core::ClipId,
+    warp: Option<std::sync::Arc<cantus_core::warp::Warp>>,
     rate: u32,
     file: &Path,
 ) -> Result<Written, String> {
+    for t in &mut snapshot.tracks {
+        t.audio.retain(|c| c.clip == id);
+        if let Some(c) = t.audio.first_mut() {
+            if c.warp.is_none() {
+                c.warp = warp.clone();
+            }
+        }
+    }
     let mut cache = cantus_engine::SampleCache::new();
     cache.set_project_dir(dir);
     let errors = cache.attach_audio(&mut snapshot, rate);
@@ -86,9 +98,9 @@ impl CantusApp {
         let Some(c) = self.project().track(r.0).and_then(|t| t.clip(r.1)).cloned() else {
             return false;
         };
-        if self.clip_warp(r).is_none() {
+        let Some(warp) = self.clip_warp(r).cloned() else {
             return false;
-        }
+        };
         let dir = match self.audio_base() {
             Some(b) => b.join("Audio"),
             None => crate::app::data_dir().join("bounces"),
@@ -102,7 +114,8 @@ impl CantusApp {
         let spawned = std::thread::Builder::new()
             .name("cantus-warp-bounce".into())
             .spawn(move || {
-                let _ = tx.send(write(snapshot, base, id, rate, &file));
+                let warp = Some(std::sync::Arc::new(warp));
+                let _ = tx.send(write(snapshot, base, id, warp, rate, &file));
             });
         if spawned.is_err() {
             return false;
@@ -152,7 +165,17 @@ impl CantusApp {
                     warp: None,
                     ..a
                 };
-                let commands = vec![
+                // A linked copy is made unique first: its copies keep their own audio
+                // (round 29's review).
+                let mut commands = Vec::new();
+                if c.link.is_some() {
+                    commands.push(Command::SetClipLink {
+                        track: b.r.0,
+                        clip: b.r.1,
+                        link: None,
+                    });
+                }
+                commands.extend([
                     Command::InsertAudioSource { source },
                     Command::SetClipAudio {
                         track: b.r.0,
@@ -164,7 +187,7 @@ impl CantusApp {
                         clip: b.r.1,
                         offset: Ticks::ZERO,
                     },
-                ];
+                ]);
                 if self.exec(Command::Batch {
                     label_key: "cmd.warp.bounce".into(),
                     commands,
