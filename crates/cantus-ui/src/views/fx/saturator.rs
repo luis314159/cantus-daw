@@ -422,7 +422,10 @@ fn model_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, s
                 .policy(Policy::Elide(Elide::End));
                 let _ = ktext::paint(b, words, &t, s.tk());
             });
-            if resp.clicked() && i != now {
+            // Each model's button is the parameter's control (review 2 of ADR 0062, #44).
+            let name = host.spec().kind.param("model").map_or("", |p| frame::tr(p.label_key));
+            let learnt = controls::stepped_offer(ui, s, host, "model", name, &resp);
+            if resp.clicked() && i != now && !learnt {
                 host.set("model", i as f32, None);
             }
             if resp.hovered() {

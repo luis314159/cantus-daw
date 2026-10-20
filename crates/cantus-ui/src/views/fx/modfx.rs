@@ -186,7 +186,11 @@ pub fn shape_keys(
                 shape_glyph(b, r.shrink2(vec2(5.0 * s.k, 5.0 * s.k)), shape, ink, s.k);
             });
         }
-        if resp.clicked() && i != now {
+        // The row is the parameter's control: each button its menu and the learn mode
+        // (round 29, review 2 of ADR 0062, #44).
+        let name = host.spec().kind.param("shape").map_or("", |p| frame::tr(p.label_key));
+        let learnt = controls::stepped_offer(ui, s, host, "shape", name, &resp);
+        if resp.clicked() && i != now && !learnt {
             host.set("shape", i as f32, None);
         }
         if resp.hovered() {
@@ -448,7 +452,8 @@ pub fn mode_card(
                 .policy(Policy::Elide(Elide::End));
                 let _ = ktext::paint(b, at, &t, s.tk());
             });
-            if resp.clicked() && i != now {
+            let learnt = controls::stepped_offer(ui, s, host, key, frame::tr(name), &resp);
+            if resp.clicked() && i != now && !learnt {
                 host.set(key, i as f32, None);
             }
             if resp.hovered() {

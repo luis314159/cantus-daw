@@ -2863,8 +2863,10 @@ fn style_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = STYLE_KEYS.map(Src::Key);
-            let r = ui
-                .scope(|ui| controls::segmented(ui, s, idx, &labels, frame::tr("fx.lim.style"), w));
+            let r = ui.scope(|ui| {
+                let name = frame::tr("fx.lim.style");
+                controls::segmented_key(ui, s, host, "style", idx, &labels, name, w)
+            });
             if let Some(i) = r.inner {
                 host.set("style", i as f32, None);
             }
@@ -3000,7 +3002,8 @@ fn output_card(
                 // Dither: off, or a word length.
                 let id = ui.id().with("lim-dither");
                 let r = ui.scope(|ui| {
-                    controls::field(ui, s, id, &st.words.dither, frame::tr("fx.lim.dither"), dw)
+                    let name = frame::tr("fx.lim.dither");
+                    controls::field_key(ui, s, host, "dither", id, &st.words.dither, name, dw)
                 });
                 if let Some(at) = r.inner {
                     let names: Vec<String> = (0..DITHER_BITS.len()).map(bits).collect();
@@ -3023,7 +3026,8 @@ fn output_card(
                 ui.add_enabled_ui(ls.dither > 0, |ui| {
                     let id = ui.id().with("lim-shape");
                     let r = ui.scope(|ui| {
-                        controls::field(ui, s, id, &st.words.shape, frame::tr("fx.lim.shape"), sw)
+                        let name = frame::tr("fx.lim.shape");
+                        controls::field_key(ui, s, host, "shape", id, &st.words.shape, name, sw)
                     });
                     if let Some(at) = r.inner {
                         let items: [_; 3] = std::array::from_fn(|i| {

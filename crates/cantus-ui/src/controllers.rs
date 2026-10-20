@@ -937,6 +937,82 @@ pub fn learn_spot_in(
     clicked
 }
 
+/// A stepped parameter drawn by a control that only sets its value — a segmented choice, an
+/// LED, a menu field, a stepper (round 29, review 2 of ADR 0062, #44): its parameter's menu
+/// (automate, modulate, *Learn MIDI controller*, reset to `default`), its mapped mark, and
+/// the learn mode's outline and click. `true` while the learn mode has it: the caller then
+/// takes no value from the control's own click.
+pub fn stepped_param(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    target: AutoTarget,
+    resp: &egui::Response,
+    default: Option<f32>,
+) -> bool {
+    use crate::kit::automate as a;
+    let s = crate::kit::Style::current();
+    let pos = app
+        .project_pos(&MappingTarget::Param(target.clone()))
+        .unwrap_or(0.0);
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let (m, _) = app.mod_offer(&target, pos, &s, &mut rings);
+    if a::probe::noting_learn() {
+        a::probe::note_learn(&format!("stepped:{target:?}"), m.learn.is_some());
+    }
+    if let Some(l) = m.learn {
+        if l.mode {
+            if a::learn_spot(ui, resp.rect, resp.id, l) {
+                app.learn_target(MappingTarget::Param(target));
+            }
+            return true;
+        }
+        if l.mapped {
+            a::learn_mark_over(ui, resp.rect, ui.clip_rect());
+        }
+    }
+    let offer = a::Offer {
+        automated: app.is_automated(&target),
+        typing: false,
+        modulation: Some(m),
+    };
+    match a::menu(ui, resp, offer) {
+        Some(a::Choice::Automate) => app.automate(target),
+        Some(a::Choice::Reset) => {
+            if let Some(cmd) = default.and_then(|d| target.command(app.project(), f64::from(d))) {
+                app.exec(cmd);
+            }
+        }
+        Some(c) => app.modulation_choice(&target, c, resp.rect),
+        None => {}
+    }
+    false
+}
+
+/// [`stepped_param`] for an instrument's key.
+pub fn stepped_inst(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    track: cantus_core::TrackId,
+    spec: &cantus_core::NativeSpec,
+    key: &str,
+    resp: &egui::Response,
+) -> bool {
+    if !spec.kind.automatable(key) {
+        return false;
+    }
+    let default = spec.kind.param(key).map(|i| i.default);
+    stepped_param(
+        app,
+        ui,
+        AutoTarget::Instrument {
+            track,
+            key: key.to_string(),
+        },
+        resp,
+        default,
+    )
+}
+
 /// [`learn_spot`] for a key that runs a keymap action (the top bar's transport).
 pub fn learn_action_spot(
     app: &mut CantusApp,

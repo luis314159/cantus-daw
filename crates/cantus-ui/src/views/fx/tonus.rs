@@ -390,9 +390,16 @@ fn correction_card(
                     Src::Key("fx.tonus.src.2"),
                 ];
                 let now = ss.source as usize;
-                if let Some(i) =
-                    controls::segmented(ui, s, now, &labels, frame::tr("tonus.src_tip"), w)
-                {
+                if let Some(i) = controls::segmented_key(
+                    ui,
+                    s,
+                    host,
+                    "src",
+                    now,
+                    &labels,
+                    frame::tr("tonus.src_tip"),
+                    w,
+                ) {
                     host.set("src", i as f32, None);
                 }
                 if ss.source == Source::Scale {
@@ -428,9 +435,11 @@ fn key_and_scale(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, ss: &Tonus
         ui.spacing_mut().item_spacing.x = s.d(4.0);
         let key = ss.key as usize % 12;
         let id = ui.id().with("tonus-key");
-        let at = controls::field(
+        let at = controls::field_key(
             ui,
             s,
+            host,
+            "key",
             id,
             frame::tr(KEY_NAMES[key]),
             frame::tr("tonus.key_tip"),
@@ -446,9 +455,11 @@ fn key_and_scale(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, ss: &Tonus
         }
         let scale = (ss.scale as usize).min(12);
         let id = ui.id().with("tonus-scale");
-        let at = controls::field(
+        let at = controls::field_key(
             ui,
             s,
+            host,
+            "scale",
             id,
             frame::tr(SCALE_NAMES[scale]),
             frame::tr("tonus.scale_tip"),

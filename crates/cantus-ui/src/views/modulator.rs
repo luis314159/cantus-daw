@@ -175,6 +175,7 @@ impl CantusApp {
         s: &Style,
         rings: &mut [(f32, egui::Color32); MAX_RINGS],
     ) -> (ModOffer, usize) {
+        crate::kit::automate::probe::note_offer(target);
         let routes = self.mod_routes();
         let list = routes.get(target);
         let mut n = 0;

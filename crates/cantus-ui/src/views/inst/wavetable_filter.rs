@@ -99,7 +99,16 @@ pub fn filter_card(
     );
     parts::power(app, ui, track, spec, &k("on"), &cr);
     let id = ui.id().with(("unda-flt-type", f));
-    let pick = parts::selector(ui, id, &cr, &t("unda.flt_type"));
+    let pick = parts::selector_key(
+        app,
+        ui,
+        id,
+        &cr,
+        &t("unda.flt_type"),
+        track,
+        spec,
+        &k("type"),
+    );
     if let Some(i) = parts::step(ti, types.len(), pick) {
         app.set_inst_value(track, &k("type"), i as f32, false);
     }

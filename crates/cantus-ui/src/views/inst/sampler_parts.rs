@@ -16,6 +16,9 @@ use crate::kit::widgets::{FieldClicks, Param};
 use crate::kit::{cell, well, with_brush, State, Style};
 use crate::widgets::knob::{pos_of, value_at, Taper};
 use egui::{Align2, Color32, Pos2, Rect, Response, Sense, Ui, UiBuilder, Vec2};
+// The keyed controls (round 29, review 2 of ADR 0062).
+use crate::app::CantusApp;
+use cantus_core::{NativeSpec, TrackId};
 
 /// A row control's height (LED button, segmented, menu field, readout) at 100 %.
 pub const ROW: f32 = 22.0;
@@ -97,8 +100,37 @@ pub fn card(ui: &Ui, rect: Rect, s: &Style, look: &CardLook<'_>, on: bool) -> Ca
 
 /// Clicks on a card's type selector (‹ name ›): -1 for ‹, +1 for ›, 0 otherwise.
 pub fn selector_step(ui: &mut Ui, rects: &CardRects, s: &Style, name: &str) -> i32 {
+    selector_step_resp(ui, rects, s, name).0
+}
+
+/// [`selector_step`] over the stepped parameter `key`: its menu, its mapped mark, the
+/// learn mode (round 29, review 2 of ADR 0062, #44). No step while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn selector_step_key(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    rects: &CardRects,
+    s: &Style,
+    name: &str,
+    track: TrackId,
+    spec: &NativeSpec,
+    key: &str,
+) -> i32 {
+    let (step, resp) = selector_step_resp(ui, rects, s, name);
+    match resp {
+        Some(r) if crate::controllers::stepped_inst(app, ui, track, spec, key, &r) => 0,
+        _ => step,
+    }
+}
+
+fn selector_step_resp(
+    ui: &mut Ui,
+    rects: &CardRects,
+    s: &Style,
+    name: &str,
+) -> (i32, Option<Response>) {
     let Some(sr) = rects.selector else {
-        return 0;
+        return (0, None);
     };
     let resp = ui.allocate_rect(sr, Sense::click());
     if resp.hovered() {
@@ -112,12 +144,61 @@ pub fn selector_step(ui: &mut Ui, rects: &CardRects, s: &Style, name: &str) -> i
         });
     }
     if !resp.clicked() {
-        return 0;
+        return (0, Some(resp));
     }
-    match resp.interact_pointer_pos() {
+    let step = match resp.interact_pointer_pos() {
         Some(p) if p.x < sr.center().x => -1,
         _ => 1,
+    };
+    (step, Some(resp))
+}
+
+/// [`card_led`] that is the stepped parameter `key`'s control (a group's mute): its menu,
+/// its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44). Not clicked
+/// while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn card_led_key(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    rects: &CardRects,
+    name: &str,
+    track: TrackId,
+    spec: &NativeSpec,
+    key: &str,
+) -> bool {
+    let Some(r) = rects.led else {
+        return false;
+    };
+    let resp = ui.allocate_rect(r.expand(3.0), Sense::click());
+    if resp.hovered() {
+        hint::set_text(ui.ctx(), name, "", Caps::PARAM);
     }
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    resp.clicked() && !learning
+}
+
+/// [`seg`] over the stepped parameter `key`: its menu, its mapped mark, the learn mode
+/// (review 2, #44). No choice while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn seg_key(
+    app: &mut CantusApp,
+    ui: &mut Ui,
+    rect: Rect,
+    s: &Style,
+    selected: usize,
+    labels: &[Src<'_>],
+    name: &str,
+    track: TrackId,
+    spec: &NativeSpec,
+    key: &str,
+) -> Option<usize> {
+    ui.expand_to_include_rect(rect);
+    let (resp, chosen) = crate::kit::widgets::Segmented::new(selected, labels)
+        .name(name)
+        .style(*s)
+        .show_at(ui, rect);
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    chosen.filter(|_| !learning)
 }
 
 /// A card's LED (when it is switchable): whether it was clicked.

@@ -578,7 +578,7 @@ pub fn led_param(
     ui: &mut Ui,
     s: &Style,
     host: &mut dyn FxHost,
-    key: &'static str,
+    key: &str,
     label: Src<'_>,
     width: f32,
 ) -> Response {
@@ -595,7 +595,9 @@ pub fn led_param(
 /// A stepped parameter's control (an LED, a segmented choice) as a parameter (round 29,
 /// review 1 of ADR 0062): its menu — automate, modulate, *Learn MIDI controller* — its
 /// mapped mark, and the learn mode's outline and click. `true` when the click learnt.
-fn stepped_offer(
+/// Every control that sets a stepped parameter by itself calls it with its response
+/// (review 2, #44): a row of value buttons, each.
+pub fn stepped_offer(
     ui: &mut Ui,
     s: &Style,
     host: &mut dyn FxHost,
@@ -643,6 +645,52 @@ fn stepped_offer(
         None => {}
     }
     false
+}
+
+/// [`segmented`] that is the stepped parameter `key`'s control, the caller setting the
+/// value the segment means (a slope of 12, 24 or 48 dB): its menu, its mapped mark, the
+/// learn mode (round 29, review 2 of ADR 0062, #44). No choice while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn segmented_key(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    selected: usize,
+    labels: &[Src<'_>],
+    name: &str,
+    width: f32,
+) -> Option<usize> {
+    let (resp, r) = crate::kit::widgets::Segmented::new(selected, labels)
+        .name(name)
+        .size(width, ROW)
+        .style(*s)
+        .show(ui);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    r.filter(|_| !learnt)
+}
+
+/// [`field`] that is the stepped parameter `key`'s control (its list built by the
+/// caller): its menu, its mapped mark, the learn mode (review 2, #44). Never open while the
+/// learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn field_key(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    id: egui::Id,
+    value: &str,
+    name: &str,
+    width: f32,
+) -> Option<Anchor> {
+    let (at, resp) = field_resp(ui, s, id, value, name, width);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    if learnt {
+        ui.data_mut(|d| d.insert_temp(id.with("open"), false));
+        return None;
+    }
+    at
 }
 
 /// A choice among a few words (the kit's `Segmented` at the device's style). Returns
@@ -698,6 +746,18 @@ pub fn field(
     name: &str,
     width: f32,
 ) -> Option<Anchor> {
+    field_resp(ui, s, id, value, name, width).0
+}
+
+/// [`field`], with the field's response.
+fn field_resp(
+    ui: &mut Ui,
+    s: &Style,
+    id: egui::Id,
+    value: &str,
+    name: &str,
+    width: f32,
+) -> (Option<Anchor>, Response) {
     // The kit's field at the device's style; the open state is kept here, by `id`.
     let open_id = id.with("open");
     let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
@@ -712,10 +772,13 @@ pub fn field(
         ui.data_mut(|d| d.insert_temp(open_id, open));
     }
     let rect = resp.rect;
-    open.then(|| Anchor {
-        at: rect.left_bottom(),
-        field: rect,
-    })
+    (
+        open.then(|| Anchor {
+            at: rect.left_bottom(),
+            field: rect,
+        }),
+        resp,
+    )
 }
 
 /// Where an open field's list goes: under the field, a click on which closes it.
@@ -945,6 +1008,25 @@ pub fn card<R>(
     card_with(ui, s, rect, title, on, None, body)
 }
 
+/// Where [`card_with`] leaves its lamp's response for [`card_lamp_offer`].
+const LAST_LAMP: &str = "fx-card-last-lamp";
+
+/// The lamp of the [`card`] just drawn is the stepped parameter `key`'s control (a band's
+/// On): its menu, its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44).
+/// `true` while the learn mode has it: the caller then does not flip it.
+pub fn card_lamp_offer(ui: &mut Ui, s: &Style, host: &mut dyn FxHost, key: &str) -> bool {
+    let id = egui::Id::new(LAST_LAMP);
+    let Some(r) = ui.data_mut(|d| {
+        let r = d.get_temp::<Response>(id);
+        d.remove::<Response>(id);
+        r
+    }) else {
+        return false;
+    };
+    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    stepped_offer(ui, s, host, key, name, &r)
+}
+
 /// [`card`] with a display under the title bar, `display` points tall at 100 %.
 pub fn card_with<R>(
     ui: &mut Ui,
@@ -981,6 +1063,7 @@ pub fn card_with<R>(
         if r.hovered() {
             hint::set_text(ui.ctx(), tr("fx.frame.section_on"), "", Caps::NONE);
         }
+        ui.data_mut(|d| d.insert_temp(egui::Id::new(LAST_LAMP), r));
     }
     let inner = rects.body;
     let mut child = ui.new_child(

@@ -196,7 +196,8 @@ pub(super) fn detail_card(
                 let fh = s.s(20.0);
                 let modes = [Src::Key("fm.env.time_mode"), Src::Key("fm.env.dx_mode")];
                 let mr = Rect::from_min_size(col.min, Vec2::new(col.width(), fh));
-                if let Some(i) = parts::seg(
+                if let Some(i) = parts::seg_param(
+                    app,
                     ui,
                     ui.id().with(("fm-env-mode", o)),
                     mr,
@@ -204,6 +205,9 @@ pub(super) fn detail_card(
                     &modes,
                     dx as usize,
                     &t("fm.env.mode_tip"),
+                    track,
+                    spec,
+                    k.env_mode,
                 ) {
                     app.set_inst_value(track, k.env_mode, i as f32, false);
                 }

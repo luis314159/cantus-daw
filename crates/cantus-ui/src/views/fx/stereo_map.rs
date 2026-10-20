@@ -302,9 +302,11 @@ pub fn show(
         crate::kit::text::Src::Key("st.slope.1"),
     ];
     let now = host.spec().get("tone_slope").round().clamp(0.0, 1.0) as usize;
-    if let Some(i) = controls::segmented(
+    if let Some(i) = controls::segmented_key(
         &mut child,
         tone_s,
+        host,
+        "tone_slope",
         now,
         &labels,
         frame::tr("st.tone_slope_tip"),
