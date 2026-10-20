@@ -103,7 +103,73 @@ product side.
 **Done when** the scorecard, re-run on a release, shows Cantus first or tied-first in every
 dimension against every leader — and anyone can re-run it and get the same answer.
 
+### 0.4 The order after round 29 (requested 2026-10-20)
+
+*The owner asked where Cantus stands against the market once round 29 lands, and what it
+needs next, in order. The answer, in short: at the level of FL Studio Producer / Ableton
+Standard in what people use every day (recording and comping, the arrangement, the piano
+roll and channel rack, an FL-class mixer, automation and modulators, warp and a tempo map,
+MIDI learn, freeze, isolated plug-ins), ahead in openness, price and a few built-in tools
+(the pitch editor and Tonus, our effects exported as plug-ins, published exactness tests),
+and behind in platforms, Ableton's session workflow, professional studio integration,
+content and maturity. Nothing of that is measured yet: until the scorecard (§0.1) runs it
+is an impression. The order below is the integrator's recommendation; the owner decides.*
+
+1. **The public beta** (`docs/BETA.md`, `docs/beta-checklist.md`): the owner's hardware
+   tests (UMC in duplex, ≥ 3 interfaces), complete songs, code signing, the public
+   repository, the tag. Real users find the gaps no review can — nothing replaces it.
+2. **Know where we stand, measured** (§0.1, §4b, §4e): the feature matrix against every
+   leader (have / better / missing, from their current manuals), and the first measured
+   runs on the owner's machine — a DAWbench-style comparison with REAPER and FL Studio,
+   load and start-up times, a long soak. The performance work of §4b follows what it shows.
+3. **The daily gaps an FL or Ableton user hits first** (one round): automation write /
+   touch / latch and the piano roll's CC, pitch-bend, velocity and release lanes (§3
+   *Automation*); arpeggiator, chord and scale tools as note effects, scale highlighting
+   and snap, groove templates (§3 *MIDI*, §3e item 2); crossfades between overlapping clips
+   and clip gain envelopes (§3 *Editing*); a command palette, an undo history panel,
+   project and track templates (§3 *Workflow*); effects that sound on insert (§3b, option
+   B, decided 2026-10-16).
+4. **Other platforms** (§2): Linux first, then macOS (the owner, 2026-10-10) — macOS is
+   where most Ableton, Logic and Bitwig users are, so it is what the market notices most;
+   testing it needs a Mac (the owner's, or a CI runner and a tester).
+5. **Ableton's core and live work** (§0.2): session view (clips and scenes, follow
+   actions, recorded into the arrangement), Ableton Link, MIDI clock and MTC in and out,
+   MPE end to end, then MIDI 2.0.
+6. **The professional studio** (§1, §0.2, §3, §3c, §4c): ARA 2 hosting (Melodyne and
+   others inside Cantus), Mackie Control / HUI surfaces, external instruments and effects
+   with an automatic latency ping, the recording mode (§4c step 3), an audio editor
+   (Edison-class: destructive edits, spectral view, noise reduction), mixer snapshots and
+   VCA faders.
+7. **Content and instruments** (§3e, §5): Chorda's sound by ear first (decided 2026-10-16),
+   then §3e's order (the slicer, Pulsus's per-pad outputs and chains, spectral and granular
+   Exemplar, physical modelling…), a larger free sound library and presets — the leaders'
+   biggest visible advantage after platforms.
+8. **Extensibility and safety of work** (§0.2): a sandboxed scripting API with a package
+   manager, project versions and snapshots, bundled export, then collaboration.
+9. **Assistive intelligence** (§7): the MCP server (phase B, with the demo builder's
+   wishlist), stem separation, a mastering assistant, players that follow chords.
+10. **The wider professional field** (§0.2): video, notation, surround and Atmos,
+    AAF/OMF and loudness reports, microtonal tuning, a touch mode, a modular environment.
+
 ## Resumen (español)
+
+**El orden después de la ronda 29 (§0.4, pedido el 2026-10-20).** Tras la ronda 29 Cantus
+queda al nivel de FL Producer / Ableton Standard en lo diario, por delante en apertura,
+precio y algunas herramientas integradas, y por detrás en plataformas, el flujo de sesión
+de Ableton, integración de estudio profesional, contenido y madurez — sin medir aún. Lo que
+falta, en orden recomendado (tú decides): **(1)** la beta pública (tus pruebas de hardware,
+canciones completas, firma, repositorio público); **(2)** saber dónde estamos, medido: la
+matriz de funciones contra cada líder y la comparación de rendimiento con REAPER y FL;
+**(3)** los huecos diarios: modos de automatización escribir/tocar/enganchar y carriles de
+CC en el piano roll, arpegiador/acordes/escalas, crossfades entre clips y envolventes de
+ganancia, paleta de comandos, historial de deshacer, plantillas, efectos que suenan al
+insertarlos; **(4)** Linux y luego macOS; **(5)** vista de sesión (clips y escenas), Ableton
+Link, reloj MIDI/MTC, MPE; **(6)** estudio profesional: ARA 2, superficies Mackie/HUI,
+hardware externo con medición de latencia, el modo de grabación (§4c paso 3), un editor de
+audio, snapshots y VCA; **(7)** el sonido de Chorda, más instrumentos y una librería de
+sonidos mayor; **(8)** scripting, versiones del proyecto, colaboración; **(9)** IA: servidor
+MCP, separación de stems, asistente de masterización; **(10)** video, partitura, surround y
+Atmos, AAF/OMF, microtonalidad, modo táctil, entorno modular.
 
 **La meta final (§0)**: ser, sin discusión, el mejor DAW del mundo —entre los gratuitos y
 los comerciales— en lo objetivo: una tabla de puntaje pública y reproducible contra FL,
