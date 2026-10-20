@@ -214,3 +214,55 @@ once per change; the keymap's actions and a v8 file; learn mode on a kit knob (a
 learns, a drag moves nothing); the pane's words, flags, filter and keys; learn offered on
 every control of every native editor, the inspector's rows and sends; Chorda's tuning keys
 refused; the boot path.
+
+## Amended after review 1 (round 29)
+
+An adversarial review confirmed 57 findings; the decisions above stand, with these changes
+(the fixes, one per finding, are tabled in `docs/round29/controllers.md`):
+
+- **Waking without a lock.** The MIDI callback no longer calls egui's `request_repaint`
+  (which takes a lock): each tap owns a parked *waker* thread; the callback sets an atomic
+  flag and unparks it, and the thread wakes the window. The tap's drop stops the thread.
+- **Releases always reach the engine.** Each port keeps a `PortState` (notes held per
+  channel, the sustain pedal): a note-off or pedal-up for something the engine holds goes to
+  the engine even while learning or when a new mapping now takes that control — no stuck
+  notes.
+- **Reading a message is the mapping's job** (`Mapping::read` over `DriveState`): a button
+  without a release (a program change, a CC that only sends 127) is a new press every
+  time; an encoder whose value is a jump in the learnt encoding is read in the encoding
+  that makes it a step; a relative control keeps its unrounded position, so an encoder
+  walks a stepped target and flips a switch; a button control (a pad) has no takeover.
+  Learning a CC button that sent one value (no release) makes it absolute, not a toggle.
+- **The tempo target** reads and writes the governing point (`tempo::edit::point_at`), not
+  the ramp's interpolated tempo; a gesture's target is the target *and* that point.
+- **A gesture** keeps each target's last command and re-sends only what moved this frame;
+  it is sealed by the messages' own time (`CommandBus::end_gesture_if` — only its own
+  step), and the window is woken at its end (`workspace_ticker::wake_after`), also for the
+  learn window, a 15-second learn timeout and feedback's quiet. A target joining a running
+  gesture widens the same step (`CommandBus::widen_merging`); `SetTrackArmed` and the new
+  `SetModulatorAmount` supersede per target.
+- **`Command::SetModulatorAmount`** replaces the modulator's amount alone (exact inverse,
+  fuzz arm 45, `freeze_guard` → the modulator's routes); a modulator amount is read back
+  like every other target, so it records. A controller records its own target and position
+  at the message's tick (`record_point_at`), the loop's wrap respected.
+- **A hosted mapping remembers its plug-in** (`Mapping::plugin`: format and id, schema 35
+  field, skipped when empty): under another plug-in, or while its parameter is not loaded,
+  it is dormant (`Mapping::alive`, `mapping_alive`) — it takes no MIDI and looks missing.
+- **VST3 program change** goes to the parameter flagged `kIsProgramChange` (the root
+  unit's first), not to IMidiMapping controller 130; the change is reported as the
+  plug-in's own parameter change, so the project keeps it.
+- **14-bit pairs**: the coarse half alone is scaled to the full range until a fine half is
+  seen; then the pair moves on its fine half only (no half-made values).
+- **Feedback** is one channel message per send (a 14-bit pair is two), recorded as sent only
+  when every send went; quiet while the control moves; feedback heard back on the input
+  within 150 ms (a loopback) is dropped; a global mapping shadowed by the project sends
+  nothing; transport actions feed back their state (playing, recording, loop, metronome,
+  pattern mode) and actions without a state offer no *Send*.
+- **Files**: a project's map is repaired on read (`ControllerMap::repair`: invalid or
+  duplicate ids dropped, the limit kept); the global file is written through a file beside
+  it, synced and renamed; a damaged one is kept as `.json.bad` and said in the status bar.
+- **The interface**: learn spots outline and take clicks only inside their view's clip;
+  every control the review found unlearnable (the channel rack's knobs and lamp, the route
+  menu's send level, stepped device controls, desk modules) offers learn and shows the
+  mapped mark; the clip menu has *Link to controller*; *Add a mapping* offers every keymap
+  action by its group; forgetting several controllers is one step.
