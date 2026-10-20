@@ -229,3 +229,5 @@ or, where the old code waited forever or lacked the API, by its absence. Tests:
 Faults added to the test plug-ins: 7–9 hang in save, load, editor; 10 a 3 s modal loop in
 save; 11 one 50 ms block; 12 a 3 s modal loop in the editor's window (CLAP); 13 a refused
 save (CLAP); 14 an access violation in `process` (CLAP).
+
+Runs after the fix round (Windows, the machine shared with two builds): `cantus-rt`, `cantus-host`, `cantus-sandbox` 170 passed (2 ignored: the full model, as before); `cantus-ui` 1 348 passed; `cargo clippy --workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL, `tools/wsl/check.sh r29/isolation clippy`) clean, and `cantus-rt`/`cantus-sandbox`/`cantus-host` 158 passed there (the Windows-only modal-loop and editor tests do not build on Linux). Shots: `F:\projects\daw-r29\shots\isolation\` (`isolation-instrument-*` new: a stopped hosted instrument with a long name — the card, the inspector, the header sign).
