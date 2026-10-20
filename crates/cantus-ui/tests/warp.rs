@@ -210,13 +210,18 @@ fn the_arrangement_draws_warp_markers_to_grab() {
     let hits = h
         .warp
         .unwrap_or_else(|| panic!("no warp handles; wave {:?}", h.wave));
-    // The marker on the clip's first frame sits on its edge; the moved one inside.
-    assert!(!hits.marker_xs().is_empty(), "the moved marker is drawn");
-    let x = *hits.marker_xs().last().unwrap();
+    // The marker on the clip's first frame sits on its edge, the moved one inside: both
+    // drawn and offered (round 29's second review: the edge one was culled).
     let y = hits.band.center().y;
-    assert_eq!(
-        hits.at(egui::pos2(x, y)),
-        Some(cantus_ui::views::arrangement::AudioHandle::WarpMarker(1))
+    let found: Vec<_> = hits
+        .marker_xs()
+        .iter()
+        .filter_map(|x| hits.at(egui::pos2(*x, y)))
+        .collect();
+    use cantus_ui::views::arrangement::AudioHandle::WarpMarker;
+    assert!(
+        found.contains(&WarpMarker(0)) && found.contains(&WarpMarker(1)),
+        "{found:?}"
     );
     // The fade and gain squares sit below the band: no flag is covered, and the band
     // under the clip's centre is the band's, not the gain's.
