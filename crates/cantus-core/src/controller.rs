@@ -111,7 +111,8 @@ pub fn ordinal_of(names: &[String], index: usize) -> u8 {
 /// A port's name as its device's: what Windows and macOS give as they give it; Linux's
 /// ALSA names (`client:port C:P`) without the client and port numbers, which change on a
 /// replug or a reboot, and without the client's name when the port's repeats it (review
-/// 3, #45). Borrowed when nothing is left out.
+/// 3, #45) — kept when it does not, so two devices' generic "out" ports stay two (review
+/// 4, #5). Borrowed when nothing is left out.
 pub fn clean_port_name(raw: &str) -> std::borrow::Cow<'_, str> {
     // A trailing ` C:P` (two numbers).
     let trimmed = match raw.rsplit_once(' ') {
@@ -130,7 +131,7 @@ pub fn clean_port_name(raw: &str) -> std::borrow::Cow<'_, str> {
     // `client:port`: the port's own name when it carries the client's.
     let name = match trimmed.split_once(':') {
         Some((client, port)) if !port.is_empty() && port.starts_with(client.trim()) => port,
-        Some((_, port)) if !port.is_empty() => port,
+        // A port's generic name ("out") is told apart by its client (review 4, #5).
         _ => trimmed,
     };
     std::borrow::Cow::Owned(name.trim().to_string())
@@ -489,7 +490,11 @@ impl MappingTarget {
                 project.effect_host(*e).is_some()
             }
             MappingTarget::StripFx(s) => s.is_master() || project.strip(*s).is_some(),
-            MappingTarget::StripArm(s) => project.strip(*s).is_some(),
+            // A record arm with no track to arm (none with an input feeds the strip) is
+            // nothing to drive: dormant, its control free (review 4, #6).
+            MappingTarget::StripArm(s) => {
+                project.strip(*s).is_some() && Self::armable(project, *s).next().is_some()
+            }
             _ => true,
         }
     }
@@ -692,18 +697,55 @@ pub struct Mapping {
     pub plugin: Option<PluginRef>,
 }
 
-/// A hosted plug-in's identity: its standard and its id (a CLAP id, a VST3 class id).
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// A hosted plug-in's identity: its standard and its id (a CLAP id, a VST3 class id) —
+/// what it is equal by — and, for the words only, the names it had when the mapping was
+/// learnt (schema 41, review 4 of ADR 0062, #47): a row whose plug-in was swapped out, or
+/// is not scanned on this machine, is named by them, never by a class id or a parameter's
+/// hashed id.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PluginRef {
     pub format: crate::external::PluginFormat,
     pub id: String,
+    /// The plug-in's name.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    /// The parameter's name.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub param: String,
+}
+
+impl PartialEq for PluginRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.format == other.format && self.id == other.id
+    }
+}
+
+impl Eq for PluginRef {}
+
+impl std::hash::Hash for PluginRef {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.format.hash(state);
+        self.id.hash(state);
+    }
 }
 
 impl PluginRef {
+    /// A plug-in known by its identity alone (no names).
+    pub fn new(format: crate::external::PluginFormat, id: impl Into<String>) -> PluginRef {
+        PluginRef {
+            format,
+            id: id.into(),
+            name: String::new(),
+            param: String::new(),
+        }
+    }
+
     pub fn of(p: &crate::external::ExternalPlugin) -> PluginRef {
         PluginRef {
             format: p.format,
             id: p.id.clone(),
+            name: p.name.clone(),
+            param: String::new(),
         }
     }
 }

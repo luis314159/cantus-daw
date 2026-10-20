@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 40;
+pub const SCHEMA_VERSION: u32 = 41;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -246,6 +246,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_37_to_38,
     migrate_38_to_39,
     migrate_39_to_40,
+    migrate_40_to_41,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -875,6 +876,14 @@ fn migrate_38_to_39(_value: &mut Value) -> Result<(), String> {
 /// refuse a v40 file, or it would drop those mappings as unreadable. (Numbered 39 on the
 /// controllers branch; renumbered at the merge after warp's 39.)
 fn migrate_39_to_40(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 41 (round 29, ADR 0062 review 4, #47): a hosted mapping's plug-in carries the
+/// names it had when learnt (`PluginRef::name`, `param`), so a row whose plug-in was
+/// swapped out or is not scanned here reads as the plug-in and parameter it drove. Nothing
+/// to write: a v40 mapping has none, and its row is named as before (by the catalogue).
+fn migrate_40_to_41(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1986,6 +1995,30 @@ mod freeze_tests {
         // Re-keyed on load when its subject was an older one's: what it holds now.
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
+    }
+
+    /// Schema 41 (round 29, ADR 0062 review 4): a hosted mapping keeps the plug-in's and
+    /// the parameter's names it was learnt with; a v40 mapping has none.
+    #[test]
+    fn schema_41_keeps_a_hosted_mappings_names() {
+        let p = fixture("v41.cantus");
+        let named = p
+            .controllers
+            .mappings
+            .iter()
+            .filter_map(|m| m.plugin.as_ref())
+            .find(|r| !r.param.is_empty())
+            .expect("a hosted mapping with its names");
+        assert_eq!(
+            (named.name.as_str(), named.param.as_str()),
+            ("Cantus Test Synth", "Cutoff")
+        );
+        assert!(fixture("v40.cantus")
+            .controllers
+            .mappings
+            .iter()
+            .filter_map(|m| m.plugin.as_ref())
+            .all(|r| r.name.is_empty() && r.param.is_empty()));
     }
 
     /// Schema 40 (round 29, ADR 0062 review 3): the strip's effects switch and record arm

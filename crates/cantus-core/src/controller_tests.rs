@@ -994,10 +994,7 @@ fn the_map_finds_only_the_mappings_of_the_plug_in_loaded() {
 fn a_mappings_plug_in_survives_serde() {
     use crate::external::PluginFormat;
     let mut m = knob(MapMode::Absolute);
-    m.plugin = Some(PluginRef {
-        format: PluginFormat::Clap,
-        id: "org.test.synth".into(),
-    });
+    m.plugin = Some(PluginRef::new(PluginFormat::Clap, "org.test.synth"));
     let text = serde_json::to_string(&m).unwrap();
     assert!(text.contains("org.test.synth"), "{text}");
     let back: Mapping = serde_json::from_str(&text).unwrap();
@@ -1125,10 +1122,7 @@ fn a_dormant_plug_in_mapping_is_not_shared() {
         target.clone(),
         MapMode::Absolute,
     );
-    old.plugin = Some(PluginRef {
-        format: PluginFormat::Clap,
-        id: "org.surge".into(),
-    });
+    old.plugin = Some(PluginRef::new(PluginFormat::Clap, "org.surge"));
     let mut new = old.clone();
     new.id = MappingId(2);
     new.plugin = target.plugin_of(&p);
@@ -1186,4 +1180,117 @@ fn a_strips_effects_and_record_arm_set_and_read() {
             assert_eq!(target.current_pos(&p, Ticks::ZERO), Some(pos), "{target:?}");
         }
     }
+}
+
+/// Review 4, #2, #23, #54: an encoder on a choice whose From and To are narrowed (Style
+/// from its second to its fourth of nine) still moves one choice per detent, bent or not,
+/// and stops at the range's ends.
+#[test]
+fn an_encoder_moves_one_choice_per_detent_inside_a_narrowed_range() {
+    let shape = Steps {
+        switch: false,
+        steps: Some(8),
+    };
+    for curve in [0.0f32, 0.6] {
+        let mut m = knob(MapMode::Relative(Encoding::TwosComplement));
+        m.min = 1.0 / 8.0;
+        m.max = 3.0 / 8.0;
+        m.curve = curve;
+        let mut st = DriveState::default();
+        let mut now = 1.0 / 8.0;
+        for want in [2.0f32, 3.0, 3.0] {
+            if let Drive::Set(p) = m.read_in(1, true, Some(now), &mut st, shape) {
+                now = (p * 8.0).round() / 8.0;
+                st.last_out = Some(now);
+            }
+            assert!((now - want / 8.0).abs() < 1e-6, "{curve}: {want}: {now}");
+        }
+        // Inverted (To below From): a clockwise detent moves toward To.
+        let mut inv = m.clone();
+        inv.min = 3.0 / 8.0;
+        inv.max = 1.0 / 8.0;
+        let mut st = DriveState::default();
+        let Drive::Set(p) = inv.read_in(1, true, Some(3.0 / 8.0), &mut st, shape) else {
+            panic!("a step");
+        };
+        assert!((p - 2.0 / 8.0).abs() < 1e-5, "{curve}: inverted {p}");
+    }
+}
+
+/// Review 4, #3, #40: a stepped number with more steps than an encoder should count (a
+/// seed of 0…999, a plug-in's 2 000 ms) crosses its travel in 128 detents, as a range does.
+#[test]
+fn a_big_stepped_number_crosses_in_128_detents() {
+    let m = knob(MapMode::Relative(Encoding::TwosComplement));
+    let shape = Steps {
+        switch: false,
+        steps: Some(2000),
+    };
+    let mut st = DriveState::default();
+    let mut now = 0.0f32;
+    for _ in 0..128 {
+        if let Drive::Set(p) = m.read_in(1, true, Some(now), &mut st, shape) {
+            now = p;
+            st.last_out = Some(now);
+        }
+    }
+    assert!((now - 1.0).abs() < 1e-4, "{now}");
+}
+
+/// Review 4, #5: two devices whose ALSA ports have the same generic name stay two.
+#[test]
+fn generic_alsa_port_names_keep_their_clients() {
+    let a = clean_port_name("VMPK Output:out 128:0");
+    let b = clean_port_name("Other App:out 130:0");
+    assert_eq!(a, "VMPK Output:out");
+    assert_ne!(a, b);
+    // The port that repeats its client's name still drops it.
+    assert_eq!(
+        clean_port_name("nanoKONTROL2:nanoKONTROL2 _ CTRL 24:0"),
+        "nanoKONTROL2 _ CTRL"
+    );
+    let names = vec!["Other App:out 130:0".to_string()];
+    let vmpk = PortRef::of(&["VMPK Output:out 128:0".to_string()], 0);
+    assert_eq!(vmpk.index_in(&names), None, "another device's port");
+}
+
+/// Review 4, #6: a strip's record arm with no track to arm is dormant (its control free);
+/// a track with an input feeding the strip brings it back.
+#[test]
+fn a_record_arm_with_nothing_to_arm_is_dormant() {
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let s = p.tracks[0].strip.unwrap();
+    let m = Mapping::new(
+        MappingId(1),
+        src(Control::Note(41)),
+        MappingTarget::StripArm(s),
+        MapMode::Toggle,
+    );
+    assert!(!m.alive(&p), "no input feeds the strip");
+    p.track_mut(t).unwrap().input = Some(crate::audio::TrackInput {
+        first: 0,
+        stereo: false,
+        monitor: Default::default(),
+        trim_db: 0.0,
+    });
+    assert!(m.alive(&p));
+}
+
+/// Review 4, #47: a plug-in is equal by its identity; the names it had when learnt travel
+/// with the mapping (and are not written while empty).
+#[test]
+fn a_plug_ins_names_ride_along_and_compare_by_identity() {
+    use crate::external::{ExternalPlugin, PluginFormat};
+    let vital = ExternalPlugin::new(PluginFormat::Vst3, "56535456", "Vital");
+    let mut r = PluginRef::of(&vital);
+    assert_eq!(r.name, "Vital");
+    r.param = "Filter 1 Cutoff".into();
+    assert_eq!(r, PluginRef::new(PluginFormat::Vst3, "56535456"));
+    let json = serde_json::to_string(&r).unwrap();
+    assert!(json.contains("Filter 1 Cutoff"), "{json}");
+    let back: PluginRef = serde_json::from_str(&json).unwrap();
+    assert_eq!((back.name.as_str(), back.param.as_str()), ("Vital", "Filter 1 Cutoff"));
+    let bare = serde_json::to_string(&PluginRef::new(PluginFormat::Clap, "x")).unwrap();
+    assert!(!bare.contains("name") && !bare.contains("param"), "{bare}");
 }

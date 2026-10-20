@@ -144,8 +144,9 @@ fn app() -> CantusApp {
     other.id = MappingId(17);
     other.source = src("Keystation 49", Some(0), Control::Cc(72));
     other.plugin = Some(PluginRef {
-        format: cantus_core::external::PluginFormat::Vst3,
-        id: "SurgeXT".into(),
+        name: "Surge XT".into(),
+        param: "Filter 1 Cutoff".into(),
+        ..PluginRef::new(cantus_core::external::PluginFormat::Vst3, "SurgeXT")
     });
     let style = EffectKind::Compressor
         .params()

@@ -85,6 +85,10 @@ pub const JUMP: i32 = 40;
 /// control over the whole travel.
 pub const AGREE: f32 = 1.5 / 127.0;
 
+/// An encoder moves a stepped target one step per detent while its range holds at most
+/// this many steps; beyond, 1/128 of the travel per detent, as for a range (review 4, #3).
+pub const MAX_DETENT_STEPS: f32 = 128.0;
+
 impl Mapping {
     /// The message `value` of the mapping's control (`on`: a note-on with velocity, or any
     /// other message; `false` for a note-off) as this mapping reads it.
@@ -209,10 +213,22 @@ impl Mapping {
                         Some(x) if untouched => x,
                         _ => self.unshape(current.or(state.last_out).unwrap_or(self.min)),
                     };
-                    // A stepped target moves a step per detent (times the sensitivity),
-                    // whatever its number of steps (review 3, #1); a range, 1/128.
-                    let per = shape.steps.map_or(128.0, |s| s.max(1) as f32);
-                    let x = (from + n as f32 * self.sensitivity / per).clamp(0.0, 1.0);
+                    let d = n as f32 * self.sensitivity;
+                    // A stepped target with up to MAX_DETENT_STEPS steps inside the
+                    // mapping's range moves a step per detent (times the sensitivity),
+                    // counted in the target's own steps whatever From, To and the bend
+                    // (review 3, #1; review 4, #2, #23, #54); a range, or a stepped number
+                    // with more steps than that, 1/128 of the travel (review 4, #3, #40).
+                    let x = match shape.steps.map(|s| s.max(1) as f32) {
+                        Some(s) if s * (self.max - self.min).abs() <= MAX_DETENT_STEPS => {
+                            let (lo, hi) = (self.min.min(self.max), self.min.max(self.max));
+                            let dir = if self.max >= self.min { 1.0 } else { -1.0 };
+                            let at = self.shape(from) * s;
+                            let to = (at + dir * d).clamp(lo * s, hi * s);
+                            self.unshape(to / s)
+                        }
+                        _ => (from + d / 128.0).clamp(0.0, 1.0),
+                    };
                     state.rel = Some(x);
                     Some(Drive::Set(self.shape(x)))
                 }
