@@ -257,6 +257,39 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
     Intel**, AU hosting (listed in `idea.md`), window handling, a **signed and notarised**
     build (an Apple developer account, a yearly fee) and a `.dmg`; it needs Apple hardware to
     test on, so it waits for the first Linux release and a machine.
+    **Prepared without a Mac, so the borrowed one only verifies (asked 2026-10-20; round
+    30).** Everything below compiles and tests on GitHub's macOS runners (`macos.yml`
+    exists and runs the suite by hand; minutes cost 10× while the repository is private):
+    - *The app as a Mac app:* an `.app` bundle (Info.plist, `.icns` icon,
+      `NSMicrophoneUsageDescription` or input is silently refused), a universal binary
+      (aarch64 + x86_64 through `lipo`), `cantus-scan` and `cantus-sandbox` inside the
+      bundle, a `.dmg` built in CI, data under `~/Library/Application Support/Cantus`.
+    - *Signing in CI:* hardened runtime with the entitlements a DAW needs (audio input,
+      `disable-library-validation` so third-party plug-ins load), `codesign` and
+      `notarytool` steps with the secrets as placeholders, the auto-updater's macOS path.
+      The Apple Developer account and its certificate can be set up before the Mac arrives
+      (the certificate request can be made without one).
+    - *Audio and real time:* CoreAudio through cpal (buffer size and rate, the device page
+      without ASIO, aggregate devices listed), the pool workers joined to the device's
+      **audio workgroup** and Mach time-constraint threads in `cantus-rt`.
+    - *Isolation on macOS:* `cantus-rt`'s exchange uses a Linux futex — macOS needs its
+      own wait (`os_sync_wait_on_address` on 14.4+, a Mach or named semaphore before),
+      POSIX shared-memory names within 31 characters, the helper dying with Cantus (a
+      kqueue `NOTE_EXIT` or a pipe), crash blame through signals and Mach exceptions.
+    - *Plug-ins:* scanning `/Library/Audio/Plug-Ins/{CLAP,VST3}` and the user's, `.clap`
+      and `.vst3` bundles, and **editor windows in Cocoa** (`window.rs` is Windows-only
+      today: an `NSWindow` owning the plug-in's `NSView`, created by the helper when
+      isolated); AU hosting and our effects as AU (through a CLAP-to-AU wrapper) — many
+      Logic users' plug-ins are AU-first.
+    - *The interface:* a macOS keymap preset (⌘ for Ctrl, ⌥ for Alt, the standard
+      shortcuts), the global menu bar, trackpad pinch and two-finger scroll, Retina
+      scaling checked in the shots, the system's fallback fonts for CJK, Finder drops.
+    - *Proof:* the whole suite and the fuzz green on the macOS runner, and the golden
+      hashes **identical** to Windows and Linux.
+    - *Left for the Mac in hand (a checklist for that session):* an interface in duplex
+      for 10 minutes, a real plug-in's editor, the microphone permission prompt, the
+      `.dmg` installed and opened past Gatekeeper, the update from an older build,
+      trackpad feel and Retina look, CPU measured on Apple silicon.
   - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of
