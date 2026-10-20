@@ -349,6 +349,11 @@ fn a_hang_never_blocks_the_interfaces_frames_and_is_ended() {
         after[after.len() / 2] < Duration::from_millis(1),
         "blocks after the late one: {after:?}"
     );
+    // None waits out a deadline again (#25): 256 frames at 48 kHz is a 5.3 ms deadline.
+    assert!(
+        after.iter().all(|t| *t < Duration::from_millis(4)),
+        "a block waited again: {after:?}"
+    );
     assert_eq!(rig.host.late_blocks(), 1, "one job late");
 }
 

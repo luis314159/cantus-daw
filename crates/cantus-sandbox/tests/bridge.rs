@@ -240,8 +240,13 @@ fn an_isolated_gain_hears_its_sidechain_as_in_process() {
             }
             outs.push((l, r));
         }
-        let gained: Vec<f32> = l0.iter().map(|x| x * 10f32.powf(-9.0 / 20.0)).collect();
-        assert_ne!(differing(&outs[0].0, &gained), 0, "the key was heard");
+        // The key heard: the output differs from the input by far more than a rounding.
+        let heard = outs[0]
+            .0
+            .iter()
+            .zip(&l0)
+            .any(|(o, x)| (o - x * 10f32.powf(-9.0 / 20.0)).abs() > 0.1);
+        assert!(heard, "the key was heard");
         assert_eq!(differing(&outs[0].0, &outs[1].0), 0, "left at {block}");
         assert_eq!(differing(&outs[0].1, &outs[1].1), 0, "right at {block}");
     }
@@ -358,9 +363,24 @@ fn a_crash_with_latency_plays_the_input_delayed_by_the_latency() {
     let mut audio = audio.expect("restarted with its latency");
     assert_eq!(main.latency(), 32);
     let n = 256;
+    // At −6 dB, so the plug-in's own output differs from the dry, delayed input (#22).
     let (la, ra) = (noise(n, 70), noise(n, 71));
     let (mut l, mut r) = (la.clone(), ra.clone());
-    call(audio.as_mut(), &mut l, &mut r, &[], &[]);
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &[ParamChange {
+            offset: 0,
+            id: P_GAIN,
+            value: -6.0,
+        }],
+        &[],
+    );
+    let unity: Vec<f32> = std::iter::repeat_n(0.0, 32)
+        .chain(la[..n - 32].iter().copied())
+        .collect();
+    assert_ne!(differing(&l, &unity), 0, "processed at −6 dB");
     let (lb, rb) = (noise(n, 72), noise(n, 73));
     let (mut l, mut r) = (lb.clone(), rb.clone());
     call(
@@ -380,6 +400,10 @@ fn a_crash_with_latency_plays_the_input_delayed_by_the_latency() {
     call(audio.as_mut(), &mut l, &mut r, &[], &[]);
     assert_eq!(differing(&l, &delayed(&lb, &lc)), 0, "and the block after");
     assert_eq!(differing(&r, &delayed(&rb, &rc)), 0);
+    assert!(
+        crashed_within(main.as_mut(), Duration::from_secs(5)).is_some(),
+        "it did crash"
+    );
 }
 
 #[test]

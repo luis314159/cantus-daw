@@ -375,3 +375,136 @@ fn the_strings_of_isolation_exist_in_both_languages() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// A plug-in whose name has parentheses keeps them in its name: they are no system code
+/// (review #26); the detail a system gives is said in the interface's words, in both
+/// languages (#32).
+#[test]
+fn a_reasons_detail_is_a_system_code_only() {
+    let w = plugin_notice::reason_words;
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert_eq!(
+        w("Kontakt 7 (16 out) stopped responding while it processed audio"),
+        cantus_ui::i18n::t("isolation.why.hung_audio")
+    );
+    assert_eq!(w("it crashed (exit status: 1)"), "it crashed (exit code 1)");
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let es = [
+        w("it crashed (signal 11)"),
+        w("it crashed (exit status: 1)"),
+        w("Serum (x64) stopped responding while it rendered"),
+    ];
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(es[0].contains("señal 11"), "{}", es[0]);
+    assert!(es[1].contains("código de salida 1"), "{}", es[1]);
+    assert!(!es[2].contains("x64"), "{}", es[2]);
+    for s in &es {
+        assert!(!s.contains("signal") && !s.contains("exit"), "{s}");
+    }
+}
+
+/// The Run button of a card that lists several plug-ins names the one that keeps
+/// crashing, shortened in its middle, its verb whole; in Spanish at 420 × 600 every
+/// button stays on its card (review #27).
+#[test]
+fn a_long_name_never_cuts_the_run_buttons_words() {
+    let mut p = cantus_ui::starter_project();
+    let strip = p.tracks[0].strip.unwrap();
+    let mut slot = p.make_effect(EffectKind::External);
+    slot.spec = EffectSpec::external(ExternalPlugin::new(
+        PluginFormat::Clap,
+        GLACIER,
+        "Spectrasonics Omnisphere Orchestral Edition",
+    ));
+    let id = slot.id;
+    p.strip_mut(strip).unwrap().effects.push(slot);
+    p.tracks[0].instrument = InstrumentSpec::External(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.example.odin",
+        "Odin 2",
+    ));
+    let mut a = app(p);
+    a.plugins
+        .mark_crashed_for_tests((Some(id), None), (Format::Clap, GLACIER), REASON, 3);
+    plugin_notice::on_notice(
+        &mut a,
+        HostNotice::PluginCrashed {
+            effect: id,
+            name: "Spectrasonics Omnisphere Orchestral Edition".into(),
+            reason: REASON.into(),
+        },
+    );
+    crash_instrument(&mut a);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let card = plugin_notice::card(&a).unwrap();
+    let run = card.buttons[2].0.clone();
+    let ctx = ctx();
+    let mut layout = Vec::new();
+    paint(&ctx, egui::vec2(420.0, 600.0), 2, |ui| {
+        layout = cantus_ui::views::audio_notice::card_layout(&a, ui.ctx());
+    });
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(run.starts_with("Ejecutar ") && run.ends_with(" por separado"), "{run}");
+    assert!(run.contains('\u{2026}'), "the name shortened: {run}");
+    let (r, buttons) = &layout[0];
+    assert_eq!(buttons.len(), 3);
+    for b in buttons {
+        assert!(r.contains_rect(*b), "a button off its card");
+    }
+    // A button no wider than its card's room shows its words whole (≤ the measured room).
+    let room = r.width() - 96.0;
+    let k = ctx.pixels_per_point();
+    let w = cantus_ui::kit::text::measure(
+        &ctx,
+        &cantus_ui::kit::text::Text::new(&run, cantus_ui::kit::text::Role::Control, egui::Color32::WHITE),
+        k,
+    )
+    .x;
+    assert!(w + 24.0 <= room, "{run}: {w} in {room}");
+}
+
+/// One render at a time: a modulator bake waits for an export, and an export for a bake
+/// — they share the plug-ins' render instances (review #5, #10, #13, #21, #48).
+#[test]
+fn a_bake_and_an_export_never_render_at_once() {
+    let mut p = cantus_ui::starter_project();
+    let second = p.make_track("Second");
+    p.tracks.push(second);
+    let listen = p.tracks[0].strip.unwrap();
+    let target_strip = p.tracks[1].strip.unwrap();
+    let mut f = cantus_core::Modulator::new(
+        cantus_core::ModulatorId(p.alloc_id()),
+        cantus_core::ModKind::Follower,
+    );
+    if let cantus_core::ModSource::Follower(src) = &mut f.source {
+        src.listen = cantus_core::modulator::Listen::Strip(listen);
+    }
+    let target = AutoTarget::StripPan(target_strip);
+    f.routes.push(cantus_core::ModRoute {
+        target: target.clone(),
+        depth: 0.4,
+    });
+    let mid = f.id;
+    p.strip_mut(target_strip).unwrap().modulators.push(f);
+    let mut a = app(p);
+    let dir = tempfile::tempdir().unwrap();
+    assert!(cantus_ui::views::export::start_with(
+        &mut a,
+        &dir.path().join("mix.wav"),
+        None
+    ));
+    assert!(!a.bake_route(mid, &target), "the bake waits for the export");
+    assert!(a.status.error);
+    cantus_ui::views::export::wait(&mut a);
+    assert!(a.bake_route(mid, &target), "then it runs");
+    assert!(
+        !cantus_ui::views::export::start_with(&mut a, &dir.path().join("b.wav"), None),
+        "the export waits for the bake"
+    );
+    assert!(a.status.error);
+    let start = std::time::Instant::now();
+    while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
+        a.poll_bake();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+}
