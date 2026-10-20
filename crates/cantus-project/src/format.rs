@@ -1032,7 +1032,7 @@ mod tests {
         let text = std::fs::read_to_string(dir.join(newest)).unwrap();
         let p = parse(&text, true).unwrap().file.project;
         let maps = &p.controllers.mappings;
-        assert_eq!(maps.len(), 6);
+        assert_eq!(maps.len(), 7);
         let knob = &maps[0];
         assert_eq!(knob.source.port.name, "Keystation 49");
         assert_eq!(knob.source.control, Control::Cc(74));
@@ -1053,6 +1053,13 @@ mod tests {
         assert_eq!(maps[3].source.port.ordinal, 1);
         assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
         assert!(!maps[5].target.exists(&p), "the dormant one stays");
+        // Review 2, #42: a hosted mapping keeps the plug-in it was learnt on, and the
+        // schema-35 file itself reads the same mappings.
+        assert!(maps[6].plugin.is_some(), "{:?}", maps[6]);
+        assert!(maps[6].fits(&p));
+        let v35 = std::fs::read_to_string(dir.join("v35.cantus")).unwrap();
+        let p35 = parse(&v35, true).unwrap().file.project;
+        assert_eq!(p35.controllers, p.controllers);
         let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
         assert!(parse(&old, true)
             .unwrap()
