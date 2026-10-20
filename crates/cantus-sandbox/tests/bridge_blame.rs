@@ -7,7 +7,6 @@
 
 mod support;
 
-use cantus_host::bridge::sandbox::Limits;
 use cantus_host::bridge::Sandboxes;
 use cantus_host::{
     AudioThread, Backend, Blame, Loaded, MainThread, NoteEvent, Notice, ParamChange,
@@ -112,6 +111,7 @@ fn a_crash_in_a_framework_timer_is_its_plugins() {
 #[test]
 fn a_hang_in_a_framework_timer_is_its_plugins() {
     let _g = serial();
+    use cantus_host::bridge::sandbox::Limits;
     let pool = pool();
     pool.set_limits(Limits {
         silence: Duration::from_millis(600),
@@ -300,4 +300,34 @@ fn helpers_are_numbered_for_good() {
     let second = load(&pool, GAIN_ID, "own-number-2");
     let two = second.main.helper_id().expect("a helper");
     assert!(two > one, "{one} then {two}");
+}
+
+/// A hang in a hidden window of a plug-in's own — a framework's message window, its class
+/// registered from the plug-in's library — is laid on that plug-in (review isolation-4
+/// #55).
+#[cfg(windows)]
+#[test]
+fn a_hang_in_a_frameworks_hidden_window_is_its_plugins() {
+    use cantus_host::bridge::sandbox::Limits;
+    let _g = serial();
+    let pool = pool();
+    pool.set_limits(Limits {
+        silence: Duration::from_millis(600),
+        ..Limits::default()
+    });
+    let Loaded {
+        main: mut a,
+        audio: mut a_audio,
+    } = load(&pool, GAIN_ID, "together-hidden-hang");
+    let Loaded {
+        main: mut b,
+        audio: _b_audio,
+    } = load(&pool, SYNTH_ID, "together-hidden-hang");
+    block(a_audio.as_mut(), &fault(P_FAULT, HANG_HIDDEN_WINDOW), &[]);
+    let (blame, why) = crashed_within(a.as_mut(), Duration::from_secs(5)).expect("ended");
+    assert_eq!(blame, Blame::This, "{why}");
+    assert_eq!(
+        crashed_within(b.as_mut(), Duration::from_secs(2)).map(|c| c.0),
+        Some(Blame::Neighbour)
+    );
 }

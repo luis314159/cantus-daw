@@ -305,7 +305,7 @@ helper's own), `rt_alloc.rs` (a carry and its delivery), and `cantus-ui`
 | 2, 45, 56 | A crash in a departing plug-in's destructor was laid on the plug-in that stayed | The handler's word stands for an instance leaving (its destructor runs as a call into it; its libraries forgotten after); `main_at` of a leaving instance too; its plug-in kept on record until its unload is answered and counted (`Sandboxes::take_departed_crashes`, `PluginHost::count_departed`) | `a_plugin_crashing_as_it_leaves_is_laid_its_own_end` ✗→✓ (unit), `a_crash_in_a_destructor_is_the_leaving_plugins` ✗→✓ (fault 19), `a_plugin_that_crashes_as_it_leaves_is_counted` ✗→✓ |
 | 3, 30, 44, 55 | A hang outside any call was laid on the waiting caller or a bystander's running job | An end Cantus decides (`End::Decided`) is laid on what the main thread was doing (`hung_on`) or on nobody — never `p.instance` for a request not started, never the running jobs; the reader's protocol end too | `a_hang_with_nothing_named_is_nobodys` ✗→✓ (unit), `a_hang_in_a_framework_timer_is_its_plugins` ✗→✓ (fault 21, B's jobs running) |
 | 6, 18, 29, 49 | *Outside* overrode the only-instance rule: an *Individually* plug-in's thread crash was nobody's | The only instance of a helper is laid any end | `the_only_plugin_is_laid_its_end_from_any_thread` ✗→✓ |
-| 37, 48, 55 | Messages dispatched by a plug-in's own loop ran under the loop's owner; framework timers (JUCE's hidden window, VSTGUI's thread timers) were nobody's | A `WH_GETMESSAGE` hook attributes every retrieved message (root owner, else the library of its window class or timer procedure); the crash handler names the instance whose library the faulting code is in (libraries learnt at load: the plug-in's and those from its folder) | `a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours` ✗→✓ (hook removed), `a_crash_in_a_framework_timer_is_its_plugins` ✗→✓ (fault 20; module lookup removed) |
+| 37, 48, 55 | Messages dispatched by a plug-in's own loop ran under the loop's owner; framework timers (JUCE's hidden window, VSTGUI's thread timers) were nobody's | A `WH_GETMESSAGE` hook attributes every retrieved message (root owner, else the library of its window class or timer procedure); the crash handler names the instance whose library the faulting code is in (libraries learnt at load: the plug-in's and those from its folder) | `a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours` ✗→✓ (hook removed), `a_crash_in_a_framework_timer_is_its_plugins` ✗→✓ (fault 20; module lookup removed), `a_hang_in_a_frameworks_hidden_window_is_its_plugins` ✗→✓ (fault 24; the window class's library not looked at) |
 | 7, 16, 19, 28, 47, 61 | The chained crash filter could recurse for ever, call into an unloaded library, keep a resumed record, lose to a decided hang; reinstalled only after loads | A re-entry guard; a filter called only while its library is loaded; a resumed (`CONTINUE_EXECUTION`) record taken back; the handler's word over a decided culprit; ours put back after every call | `a_crash_reporter_that_hands_back_changes_nothing` ✗→✓ (guard removed: a stack overflow), `an_exception_a_plugin_handled_is_no_crash_of_its` ✗→✓ (fault 23), `a_recorded_crash_stands_over_a_decided_hang` ✗→✓, `a_filter_in_no_library_is_never_called` |
 | 17, 52, 19 | On Linux every load replaced a plug-in's own fault handlers | Ours goes back only where the default was restored; a plug-in's handler stays on top | (Linux: clippy and the Linux run; the rule is four lines) |
 | 58 | Unknown deaths were counted for every plug-in and *Run individually* offered for an arbitrary one | Only `This` is counted and offered | `an_end_nothing_lays_on_one_plugin_is_counted_for_none` ✗→✓, `deaths_are_counted_once_per_helper_and_never_for_nobody` |
@@ -326,7 +326,8 @@ helper's own), `rt_alloc.rs` (a carry and its delivery), and `cantus-ui`
 
 Faults added (CLAP gain and synth): 18 a one-second `process`; 19 an access violation in the
 destructor; 20 and 21 an access violation and a hang in a thread timer (no window); 22 a
-rescan whose second list read takes 2 s; 23 an exception its own filter resumes. Window
+rescan whose second list read takes 2 s; 23 an exception its own filter resumes; 24 a hang in
+a hidden window of its own (its class from its library, as a framework's). Window
 faults are per instance now (the timer's id is its instance). From the environment:
 `CANTUS_TEST_GAIN_DESTROY_MARKER`, `…_PUMP_LOAD_MS`, `…_PUMP_ACTIVATE_ONCE`,
 `…_CHAIN_FILTER`; the gain doubles its output when its state's tag says `x2`; the helper
@@ -341,5 +342,6 @@ instrument_load_error, waiting, surface, surface_instrument, stop, stop_instrume
 test seams `fail_next_reload_for_tests`, `mark_missing_for_tests`,
 `set_waiting_for_tests`; the app syncs when `wants_sync` says. `windows-sys` features
 added: `Win32_System_ProcessStatus`, `Win32_UI_Input_KeyboardAndMouse` (cantus-sandbox),
-`Win32_System_Diagnostics_Debug`, `Win32_System_Kernel` (the CLAP test plug-ins). No
+`Win32_Graphics_Gdi`, `Win32_System_Diagnostics_Debug`, `Win32_System_Kernel` (the CLAP
+test plug-ins). No
 schema change, no new command.

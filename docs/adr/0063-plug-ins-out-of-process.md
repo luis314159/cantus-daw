@@ -474,7 +474,7 @@ languages (`locales/areas/isolation.*`).
   limit is no hang and its answer is kept; a helper slow to start is not hung; a parameter
   list and a window given up on are taken when they come; saving while its own save hangs
   answers at once with real limits. `bridge_blame.rs` — a crash in a destructor is the
-  leaving plug-in's; a crash and a hang in a framework's timer are its plug-in's; a
+  leaving plug-in's; a crash and a hang in a framework's timer, and a hang in its hidden window, are its plug-in's; a
   neighbour's window crashing inside a dialog is the neighbour's; a crash reporter that
   hands back changes nothing; a fail-fast with two jobs running is nobody's; the last
   plug-in's destructor runs to its end. `session_faults4.rs` — a load given up on while

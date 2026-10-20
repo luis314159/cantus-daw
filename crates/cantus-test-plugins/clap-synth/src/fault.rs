@@ -30,6 +30,7 @@
 //! | 21 | a thread timer of the main thread that never returns |
 //! | 22 | it asks the host to rescan its parameters, and the second list read takes 2 s |
 //! | 23 | this `process` raises an exception its own crash filter handles (it goes on) |
+//! | 24 | a hidden window of its own (a message-only one, as JUCE's) never returns from a message |
 //!
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
@@ -65,11 +66,13 @@ pub const SEGV_THREAD_TIMER: u32 = 20;
 pub const HANG_THREAD_TIMER: u32 = 21;
 pub const RESCAN_SLOW: u32 = 22;
 pub const RAISE_HANDLED: u32 = 23;
+pub const HANG_HIDDEN_WINDOW: u32 = 24;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 23.0;
+pub const LAST: f64 = 24.0;
 
 /// The exception `RAISE_HANDLED` raises, which the plug-in's own crash filter
 /// (`CANTUS_TEST_GAIN_CHAIN_FILTER`) resumes, as a licence check's trick does.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub const HANDLED_CODE: u32 = 0xE000_0CA7;
 
 /// A rescan to ask for on the main thread (`RESCAN_SLOW`).
@@ -118,7 +121,7 @@ impl Fault {
                 self.0.store(0, Ordering::Release);
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
-            SEGV_THREAD_TIMER | HANG_THREAD_TIMER => {
+            SEGV_THREAD_TIMER | HANG_THREAD_TIMER | HANG_HIDDEN_WINDOW => {
                 self.0.store(0, Ordering::Release);
                 THREAD_TIMER.store(v, Ordering::Release);
             }
@@ -138,7 +141,7 @@ impl Fault {
     pub fn wants_main_thread(value: f64) -> bool {
         matches!(
             value.round() as u32,
-            SEGV_THREAD_TIMER | HANG_THREAD_TIMER | RESCAN_SLOW
+            SEGV_THREAD_TIMER | HANG_THREAD_TIMER | RESCAN_SLOW | HANG_HIDDEN_WINDOW
         )
     }
 
@@ -256,8 +259,71 @@ unsafe extern "system" fn thread_timer(
     }
 }
 
+/// A hidden window of the plug-in's own — its class registered from its library, as a
+/// framework's message window is — sent a message that never returns (`HANG_HIDDEN_WINDOW`).
+#[cfg(windows)]
+fn hang_in_hidden_window() {
+    use windows_sys::Win32::System::LibraryLoader::{
+        GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, PostMessageW, RegisterClassW, HWND_MESSAGE, WM_APP,
+        WNDCLASSW,
+    };
+    unsafe extern "system" fn proc_(
+        hwnd: windows_sys::Win32::Foundation::HWND,
+        msg: u32,
+        w: windows_sys::Win32::Foundation::WPARAM,
+        l: windows_sys::Win32::Foundation::LPARAM,
+    ) -> windows_sys::Win32::Foundation::LRESULT {
+        if msg == WM_APP + 7 {
+            hang();
+        }
+        // SAFETY: the default handling of a message for our own window.
+        unsafe { DefWindowProcW(hwnd, msg, w, l) }
+    }
+    let class: Vec<u16> = "CantusTestHidden\0".encode_utf16().collect();
+    // SAFETY: this library's own handle, from an address in it; a class of ours registered
+    // once (a second time fails harmlessly); a message-only window of it; a posted message.
+    unsafe {
+        let mut module = std::ptr::null_mut();
+        GetModuleHandleExW(
+            GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            proc_ as *const () as *const u16,
+            &mut module,
+        );
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(proc_),
+            hInstance: module,
+            lpszClassName: class.as_ptr(),
+            ..std::mem::zeroed()
+        };
+        RegisterClassW(&wc);
+        let hwnd = CreateWindowExW(
+            0,
+            class.as_ptr(),
+            class.as_ptr(),
+            0,
+            0,
+            0,
+            0,
+            0,
+            HWND_MESSAGE,
+            std::ptr::null_mut(),
+            module,
+            std::ptr::null(),
+        );
+        PostMessageW(hwnd, WM_APP + 7, 0, 0);
+    }
+}
+
 #[cfg(windows)]
 fn start_thread_timer(what: u32) {
+    if what == HANG_HIDDEN_WINDOW {
+        hang_in_hidden_window();
+        return;
+    }
     TIMER_DOES.store(what, Ordering::Release);
     // SAFETY: a thread timer (no window) on this, the main, thread, with our procedure.
     unsafe {
