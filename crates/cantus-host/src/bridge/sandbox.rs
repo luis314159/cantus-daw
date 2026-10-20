@@ -1208,11 +1208,14 @@ impl Sandbox {
             }
             let flight = lock(&self.inflight).get(&p.id).copied();
             let now = Instant::now();
+            // When the wait ends by itself, if it does: a slice never sleeps past it.
+            let mut ends: Option<Instant> = None;
             let give_up = match (wait, flight) {
                 (Wait::Poll, _) => true,
                 // Answered: on its way.
                 (_, None) => false,
                 (Wait::For(d), Some(f)) => {
+                    ends = Some(began + d);
                     f.deferred || self.stalled_ahead(p.id, &f, now) || now >= began + d
                 }
                 (Wait::Limit, Some(f)) => {
@@ -1224,6 +1227,9 @@ impl Sandbox {
                         && !f.deferred
                         && self.alive()
                         && now.saturating_duration_since(since) < self.limits().modal;
+                    if !load_served {
+                        ends = Some(since + f.limit);
+                    }
                     f.deferred
                         || self.stalled_ahead(p.id, &f, now)
                         || (now >= since + f.limit && !load_served)
@@ -1244,7 +1250,12 @@ impl Sandbox {
             if give_up {
                 return Waited::Pending;
             }
-            match p.rx.recv_timeout(slice) {
+            let nap = ends.map_or(slice, |e| {
+                slice
+                    .min(e.saturating_duration_since(now))
+                    .max(Duration::from_millis(1))
+            });
+            match p.rx.recv_timeout(nap) {
                 Ok(a) => return Self::answered(a),
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     lock(&self.inflight).remove(&p.id);
