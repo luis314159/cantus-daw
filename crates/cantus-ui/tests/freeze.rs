@@ -2132,6 +2132,8 @@ fn a_removed_frozen_track_saved_and_undone_finds_its_render() {
     app.freeze_target(target);
     settle(&mut app, &ctx);
     let content = app.project().frozen(target).unwrap().content.clone();
+    // As opened: the freeze is not in its undo — only the removal's undo wants the render.
+    app.bus = CommandBus::new(app.project().clone());
     assert!(app.exec(Command::RemoveTrack { id: bass }));
     let file = dir.join("song.cantus");
     app.start_save(&file);
