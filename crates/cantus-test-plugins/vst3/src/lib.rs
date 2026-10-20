@@ -389,6 +389,12 @@ pub unsafe extern "C" fn cantus_test_last_context(values: *mut f64) -> u32 {
     pulse::last_context(values)
 }
 
+/// The pulse's program list's last value its processor received (NaN: none; round 29).
+#[no_mangle]
+pub extern "C" fn cantus_test_last_program() -> f64 {
+    pulse::last_program()
+}
+
 pub(crate) fn not_implemented() -> tresult {
     kResultFalse
 }

@@ -10,7 +10,9 @@ use vst3::Steinberg::Vst::Event_::EventTypes_::{
     kNoteExpressionValueEvent, kNoteOffEvent, kNoteOnEvent, kPolyPressureEvent,
 };
 use vst3::Steinberg::Vst::MediaTypes_::{kAudio, kEvent};
-use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kIsHidden, kIsReadOnly};
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{
+    kIsHidden, kIsProgramChange, kIsReadOnly,
+};
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
     BusDirection, BusInfo, Event, IAudioProcessor, IAudioProcessorTrait, IComponent,
@@ -33,6 +35,18 @@ pub const CID: TUID = uid(0x43414E54, 0x55535450, 0x554C5345, 0x494E5331);
 pub const FAULT: u32 = 0;
 /// Hidden and read-only: the id of the process this instance runs in.
 pub const PROCESS: u32 = 1;
+/// Hidden: a program list of eight (`kIsProgramChange`), what a host sends a MIDI program
+/// change to (round 29, review 1 of ADR 0062).
+pub const PROGRAM: u32 = 2;
+/// The program list's steps (programs less one).
+pub const PROGRAM_STEPS: i32 = 7;
+
+/// The program list's last normalised value the processor received (NaN: none).
+static LAST_PROGRAM: AtomicU64 = AtomicU64::new(0x7FF8_0000_0000_0000);
+
+pub fn last_program() -> f64 {
+    f64::from_bits(LAST_PROGRAM.load(Ordering::SeqCst))
+}
 
 static LAST_STATE: AtomicU32 = AtomicU32::new(0);
 static LAST_VALUES: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
@@ -211,13 +225,18 @@ impl IAudioProcessorTrait for Pulse {
                 let Some(q) = ComRef::from_raw(changes.getParameterData(i)) else {
                     continue;
                 };
-                if q.getParameterId() != FAULT {
+                let id = q.getParameterId();
+                if id != FAULT && id != PROGRAM {
                     continue;
                 }
                 for p in 0..q.getPointCount() {
                     let (mut offset, mut value) = (0, 0.0);
                     if q.getPoint(p, &mut offset, &mut value) == kResultOk {
-                        crate::fault::arm(value);
+                        if id == PROGRAM {
+                            LAST_PROGRAM.store(value.to_bits(), Ordering::SeqCst);
+                        } else {
+                            crate::fault::arm(value);
+                        }
                     }
                 }
             }
@@ -301,13 +320,19 @@ impl IEditControllerTrait for Pulse {
     }
 
     unsafe fn getParameterCount(&self) -> i32 {
-        2
+        3
     }
 
     unsafe fn getParameterInfo(&self, index: i32, info: *mut ParameterInfo) -> tresult {
         let (id, title, steps, flags) = match index {
             0 => (FAULT, "Fault", crate::fault::STEPS, kIsHidden as i32),
             1 => (PROCESS, "Process", 0, (kIsHidden | kIsReadOnly) as i32),
+            2 => (
+                PROGRAM,
+                "Program",
+                PROGRAM_STEPS,
+                (kIsHidden | kIsProgramChange) as i32,
+            ),
             _ => return kInvalidArgument,
         };
         let info = &mut *info;
@@ -323,7 +348,7 @@ impl IEditControllerTrait for Pulse {
     }
 
     unsafe fn getParamStringByValue(&self, id: u32, v: f64, s: *mut String128) -> tresult {
-        if id != FAULT && id != PROCESS {
+        if id != FAULT && id != PROCESS && id != PROGRAM {
             return kInvalidArgument;
         }
         let text = format!("{}", self.normalizedParamToPlain(id, v).round());
@@ -339,6 +364,7 @@ impl IEditControllerTrait for Pulse {
         match id {
             FAULT => (v * f64::from(crate::fault::STEPS)).round(),
             PROCESS => v * crate::fault::PROCESS_RANGE,
+            PROGRAM => (v * f64::from(PROGRAM_STEPS)).round(),
             _ => v,
         }
     }
@@ -347,6 +373,7 @@ impl IEditControllerTrait for Pulse {
         match id {
             FAULT => (v / f64::from(crate::fault::STEPS)).clamp(0.0, 1.0),
             PROCESS => (v / crate::fault::PROCESS_RANGE).clamp(0.0, 1.0),
+            PROGRAM => (v / f64::from(PROGRAM_STEPS)).clamp(0.0, 1.0),
             _ => v,
         }
     }
@@ -366,7 +393,7 @@ impl IEditControllerTrait for Pulse {
                 self.fault.store(v.to_bits(), Ordering::SeqCst);
                 kResultOk
             }
-            PROCESS => kResultOk,
+            PROCESS | PROGRAM => kResultOk,
             _ => kInvalidArgument,
         }
     }
