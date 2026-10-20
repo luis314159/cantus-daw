@@ -1214,6 +1214,13 @@ cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
   colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
   nunca. Un plug-in que muestra un diálogo propio (un archivo que abrir, una licencia) no
   está colgado: Cantus te espera, y mientras tanto sigue guardando y respondiendo;
+- un plug-in al que una ventana suya tiene ocupado más de lo que deberían tardar sus
+  llamadas tiene una tarjeta propia — *"Glacier espera en una ventana suya"* — con
+  **Mostrarlo** (su ventana al frente, por si se abrió detrás de Cantus) y **Detenerlo** (se
+  termina, Cantus sigue sonando y puedes recargarlo). Su propia ventana, pedida entretanto,
+  se abre en cuanto queda libre; un plug-in que no se pudo cargar porque su ayudante estaba
+  ocupado se vuelve a intentar solo, y cualquier plug-in que no se pudo cargar ofrece
+  **Recargar plug-in** en su menú;
 - las notas y los movimientos de mandos enviados mientras un plug-in iba tarde no se
   pierden: le llegan en cuanto responde.
 
