@@ -57,6 +57,12 @@ impl CantusApp {
         if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
             return self.finish_bake(id, target, span, None);
         }
+        // A freeze or a bounce rendering holds the hosted plug-ins' render instances: one
+        // set at a time (round 29, review 1 — whichever ended first let the other's go).
+        if !crate::freeze::yield_refresh(self) {
+            self.set_error(t("freeze.bake_waits"));
+            return false;
+        }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
         let snapshot = self

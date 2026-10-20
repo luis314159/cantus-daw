@@ -300,11 +300,17 @@ impl CantusApp {
                 }
             })
             .collect();
+        // Through the frozen targets whose key the paths are in (round 29, review 1: the
+        // path change was refused after the files had moved): frozen still, their renders
+        // copied under their new keys beside the project. Refused all the same, the files
+        // go back where they were.
         if !commands.is_empty() {
-            self.exec(Command::Batch {
-                label_key: "cmd.collect_audio".into(),
-                commands,
-            });
+            let renders = crate::freeze::project_dir(Some(file));
+            if !crate::freeze::exec_through(self, "cmd.collect_audio", commands, renders.as_deref())
+            {
+                cantus_project::collect::undo(&plan, &out);
+                return;
+            }
         }
         for (before, after) in follow {
             self.peaks.follow(&before, &after);
@@ -355,7 +361,14 @@ impl CantusApp {
             }
         };
         let path = stored_path(self.audio_base(), file);
-        if !self.exec(Command::SetAudioSourcePath { id, path }) {
+        // Through a freeze that plays it (round 29, review 1): frozen still, its render made
+        // again from the file found.
+        if !crate::freeze::exec_through(
+            self,
+            "cmd.set_audio_source_path",
+            vec![Command::SetAudioSourcePath { id, path }],
+            None,
+        ) {
             return false;
         }
         self.peaks.forget(&old);

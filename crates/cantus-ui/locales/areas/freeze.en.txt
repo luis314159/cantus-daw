@@ -13,10 +13,15 @@ action.toggle-low-latency = Low-latency monitoring on or off
 
 # --- freezing ---
 freeze.strip_n = Strip {n}
-freeze.done = {name} is frozen: it plays its render, its CPU is free. Fader, pan, mute and sends stay live.
+freeze.done = {name} is frozen: it plays its render, its CPU is free. Its mix stays live: fader, pan, mute, solo and sends.
 freeze.unfrozen = {name} plays live again.
 freeze.already = {name} is frozen already.
 freeze.cannot_monitoring = {name} cannot be frozen while {track} monitors its input always: set its monitoring to Auto or Off first.
+freeze.cannot_solo = {name} cannot be frozen while {what} is soloed inside it: its render holds all of it. Unsolo {what} first.
+freeze.gone = What was to be frozen is not there any more.
+freeze.no_folder = There is no folder to keep frozen renders in.
+freeze.plugin_missing = {plugin} is not loaded, and the render needs it: load it first (or unfreeze what uses it).
+freeze.bake_waits = A freeze or a bounce is rendering: bake when it is done, or stop it.
 freeze.stopped = Stopped: {name} was not changed.
 freeze.failed = {name} could not be rendered: {error}
 freeze.refused = {name} is frozen: {how}
@@ -37,7 +42,7 @@ freeze.card.refreshing_body = {pct} % rendered. It plays live until its render i
 freeze.card.bouncing_body = {pct} % rendered. The song plays on; the audio track comes when it is done.
 freeze.card.stop = Stop
 freeze.card.refused = {name} is frozen
-freeze.card.refused_body = Its sound is a render: unfreeze it to change it. Fader, pan and sends stay live.
+freeze.card.refused_body = Its sound is a render: unfreeze it to change it. Its fader, pan, mute, solo and sends stay live.
 freeze.card.ok = OK
 
 # --- menus ---
@@ -61,6 +66,11 @@ bounce.frozen = {name} is frozen: unfreeze it to bounce it.
 bounce.nothing = {name} has nothing to bounce.
 bounce.no_track = Select a track, its clips or a time range first.
 bounce.unreadable = The bounce's file could not be read: {file}
+bounce.gone = The track to bounce is not there any more.
+bounce.muted = {name} is muted: unmute it to bounce it.
+bounce.key = {name} keys another insert or a modulator follows it: bounce the source only, or the whole strip.
+bounce.again = The song changed while it was bouncing: bouncing it again.
+bounce.kept_for_notes = {name} is muted, not removed: something still hears its notes.
 
 # --- low-latency monitoring ---
 freeze.ll.band = Low-latency monitoring
@@ -73,6 +83,7 @@ freeze.ll.ms = {ms} ms
 freeze.ll.now = Bypassed
 freeze.ll.none_off = Nothing over the limit
 freeze.ll.without = Monitoring without: {names}
+freeze.ll.more = {names} and {n} more
 freeze.ll.heard = You hear
 freeze.ll.round_trip = {ms} ms round trip
 freeze.ll.now_on = Low-latency monitoring on: what you monitor is heard without waiting for other tracks.

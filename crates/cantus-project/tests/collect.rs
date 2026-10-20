@@ -158,3 +158,30 @@ fn a_missing_file_is_left_alone_and_kept_findable() {
         first.path().join("Audio/Gone.wav")
     );
 }
+
+/// Round 29, review 1: when the path changes are refused, the files go back.
+#[test]
+fn a_collection_undone_puts_the_files_back() {
+    let scratch = tempfile::tempdir().unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let folder = tempfile::tempdir().unwrap();
+    let take = scratch.path().join("Vocal take 1.wav");
+    let loop_ = elsewhere.path().join("Loop.wav");
+    std::fs::write(&take, b"take").unwrap();
+    std::fs::write(&loop_, b"loop").unwrap();
+    let mut p = Project::empty("Song");
+    source(&mut p, "Vocal take 1", &take, true);
+    source(&mut p, "Loop", &loop_, false);
+    let file = folder.path().join("Song.cantus");
+    let plan = collect::plan(&p, None, &file);
+    let out = collect::execute(&p, &plan);
+    assert!(!take.exists());
+    collect::undo(&plan, &out);
+    assert_eq!(std::fs::read(&take).unwrap(), b"take", "moved back");
+    assert!(loop_.exists());
+    assert!(
+        !folder.path().join("Audio/Loop.wav").exists(),
+        "the copy is gone"
+    );
+    assert!(!folder.path().join("Audio/Vocal take 1.wav").exists());
+}

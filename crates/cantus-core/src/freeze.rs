@@ -943,6 +943,53 @@ pub fn freeze_commands(project: &Project, target: FreezeTarget) -> Result<Comman
     })
 }
 
+/// A frozen target whose key `commands` move: its old key and its new one.
+pub type Rekeyed = (FreezeTarget, String, String);
+
+/// `commands` (one undo step, `label_key`) run through the frozen targets whose key they
+/// move — where a file lives, which saving changes (review 1: *Collect* moved a frozen
+/// take's file, then its path change was refused): each such target unfrozen before them
+/// and frozen again after with its new key. With those targets and their keys, so the
+/// renders can follow (the sound is the same file's).
+pub fn rekeyed(
+    project: &Project,
+    label_key: &str,
+    commands: Vec<Command>,
+) -> (Command, Vec<Rekeyed>) {
+    let mut after = project.clone();
+    thaw(&mut after);
+    for c in &commands {
+        let _ = c.clone().apply(&mut after);
+    }
+    let moved: Vec<Rekeyed> = project
+        .frozen_targets()
+        .into_iter()
+        .filter_map(|t| {
+            let old = project.frozen(t)?.content.clone();
+            let new = content_key(&after, t)?;
+            (new != old).then_some((t, old, new))
+        })
+        .collect();
+    let mut all: Vec<Command> = moved.iter().map(|(t, ..)| unfreeze_command(*t)).collect();
+    all.extend(commands);
+    for (t, _, new) in &moved {
+        let frozen = Some(Frozen {
+            content: new.clone(),
+        });
+        all.push(match *t {
+            FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
+            FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
+        });
+    }
+    (
+        Command::Batch {
+            label_key: label_key.into(),
+            commands: all,
+        },
+        moved,
+    )
+}
+
 /// Whether `cmd` would be refused by a frozen target, and which (the notice's subject):
 /// for menus that grey what they cannot do.
 pub fn refused(project: &Project, cmd: &Command) -> Option<FreezeTarget> {

@@ -1,4 +1,4 @@
-# freeze — ronda 29: congelar, bounce in place y monitoreo de baja latencia. Cada clave de freeze.en.txt tiene aquí su gemela.
+# freeze — ronda 29: congelar, pasar a audio en su lugar y escucha con baja latencia. Cada clave de freeze.en.txt tiene aquí su gemela.
 
 # Etiquetas de deshacer (cmd.*)
 cmd.freeze = congelar
@@ -9,14 +9,19 @@ cmd.bounce_in_place = pasar a audio en su lugar
 action.freeze-track = Congelar o descongelar la pista
 action.bounce-in-place = Pasar a audio en su lugar (con los insertos)
 action.bounce-source = Pasar a audio en su lugar (solo la fuente)
-action.toggle-low-latency = Monitoreo de baja latencia sí o no
+action.toggle-low-latency = Escucha con baja latencia sí o no
 
 # --- congelar ---
 freeze.strip_n = Canal {n}
-freeze.done = {name} está congelado: suena su render y su CPU queda libre. El fader, el paneo, el silencio y los envíos siguen en vivo.
+freeze.done = {name} está congelado: suena su render y su CPU queda libre. Su mezcla sigue en vivo: fader, paneo, silencio, solo y envíos.
 freeze.unfrozen = {name} vuelve a sonar en vivo.
 freeze.already = {name} ya está congelado.
-freeze.cannot_monitoring = {name} no se puede congelar mientras {track} monitorea su entrada siempre: pon su monitoreo en Auto o en No primero.
+freeze.cannot_monitoring = {name} no se puede congelar mientras {track} escucha su entrada siempre: pon su Escucha en Auto o en No primero.
+freeze.cannot_solo = {name} no se puede congelar mientras {what} está en solo dentro de él: su render lo guarda todo. Quita antes el solo de {what}.
+freeze.gone = Lo que se iba a congelar ya no está.
+freeze.no_folder = No hay carpeta donde guardar los renders congelados.
+freeze.plugin_missing = {plugin} no está cargado y el render lo necesita: cárgalo primero (o descongela lo que lo usa).
+freeze.bake_waits = Se está congelando o pasando algo a audio: convierte cuando termine, o detenlo.
 freeze.stopped = Detenido: {name} no cambió.
 freeze.failed = No se pudo hacer el render de {name}: {error}
 freeze.refused = {name} está congelado: {how}
@@ -37,7 +42,7 @@ freeze.card.refreshing_body = {pct} % hecho. Suena en vivo hasta que su render e
 freeze.card.bouncing_body = {pct} % hecho. La canción sigue sonando; la pista de audio llega cuando termine.
 freeze.card.stop = Detener
 freeze.card.refused = {name} está congelado
-freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. El fader, el paneo y los envíos siguen en vivo.
+freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. Su fader, paneo, silencio, solo y envíos siguen en vivo.
 freeze.card.ok = Entendido
 
 # --- menús ---
@@ -61,20 +66,26 @@ bounce.frozen = {name} está congelado: descongélalo para pasarlo a audio.
 bounce.nothing = {name} no tiene nada que pasar a audio.
 bounce.no_track = Elige antes una pista, sus clips o un tramo de tiempo.
 bounce.unreadable = No se pudo leer el archivo del audio: {file}
+bounce.gone = La pista que se iba a pasar a audio ya no está.
+bounce.muted = {name} está silenciado: quítale el silencio para pasarlo a audio.
+bounce.key = {name} es la clave de otro inserto o lo sigue un modulador: pasa a audio solo la fuente, o el canal entero.
+bounce.again = La canción cambió mientras se pasaba a audio: se pasa otra vez.
+bounce.kept_for_notes = {name} queda silenciado, no se quita: algo sigue oyendo sus notas.
 
-# --- monitoreo de baja latencia ---
-freeze.ll.band = Monitoreo de baja latencia
+# --- escucha con baja latencia ---
+freeze.ll.band = Escucha con baja latencia
 freeze.ll.row = Baja latencia
 freeze.ll.on = Sí
-freeze.ll.tip = Monitoreo de baja latencia ({key}): lo que monitoreas no espera a la latencia de las otras pistas, y sus insertos por encima del límite se saltan mientras está activo.
+freeze.ll.tip = Escucha con baja latencia ({key}): lo que escuchas no espera a la latencia de las otras pistas, y sus insertos por encima del límite se saltan mientras está activa.
 freeze.ll.limit = Límite
-freeze.ll.limit_tip = Los insertos de un camino monitoreado con más latencia que esto se saltan
+freeze.ll.limit_tip = Los insertos de un camino escuchado con más latencia que esto se saltan
 freeze.ll.ms = {ms} ms
 freeze.ll.now = Saltados
 freeze.ll.none_off = Nada por encima del límite
-freeze.ll.without = Monitoreo sin: {names}
+freeze.ll.without = Escucha sin: {names}
+freeze.ll.more = {names} y {n} más
 freeze.ll.heard = Te oyes a
 freeze.ll.round_trip = {ms} ms ida y vuelta
-freeze.ll.now_on = Monitoreo de baja latencia activo: lo que monitoreas se oye sin esperar a las otras pistas.
-freeze.ll.now_off = Monitoreo de baja latencia apagado: todo vuelve a estar alineado.
-freeze.chip.monitored = {ms} ms monitoreado
+freeze.ll.now_on = Escucha con baja latencia activa: lo que escuchas se oye sin esperar a las otras pistas.
+freeze.ll.now_off = Escucha con baja latencia apagada: todo vuelve a estar alineado.
+freeze.chip.monitored = {ms} ms de escucha

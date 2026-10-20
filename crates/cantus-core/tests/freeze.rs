@@ -1195,3 +1195,50 @@ fn moving_strips_and_tracks_keeps_every_key_or_is_refused() {
     swap(&mut p);
     assert_ne!(freeze::content_key(&p, target).unwrap(), k2);
 }
+
+#[test]
+fn a_frozen_takes_file_moved_by_saving_rekeys_its_freeze_in_the_same_step() {
+    let mut s = song();
+    let mut p = s.bus.project().clone();
+    let id = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id,
+        name: "take".into(),
+        path: "C:/scratch/take 1.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000,
+        sha256: None,
+        recorded: true,
+    });
+    let clip = p.make_audio_clip("take", id, Ticks::ZERO, Ticks::beats(4));
+    p.track_mut(s.synth).unwrap().clips.push(clip);
+    s.bus = CommandBus::new(p);
+    let target = FreezeTarget::Strip(s.synth_strip);
+    freeze(&mut s.bus, target);
+    let path = Command::SetAudioSourcePath {
+        id,
+        path: "Audio/take 1.wav".into(),
+    };
+    // On its own the move is refused: the path is in the key.
+    assert_eq!(refused_by(&mut s.bus, path.clone()), Some(target));
+    let old = key(&s.bus, target);
+    let (batch, moved) = freeze::rekeyed(s.bus.project(), "cmd.collect_audio", vec![path]);
+    assert_eq!(moved.len(), 1);
+    assert_eq!((moved[0].0, moved[0].1.as_str()), (target, old.as_str()));
+    s.bus.execute(batch, Origin::User).unwrap();
+    assert_eq!(
+        s.bus.project().audio_source(id).unwrap().path,
+        "Audio/take 1.wav"
+    );
+    assert_eq!(
+        s.bus.project().frozen(target).unwrap().content,
+        moved[0].2,
+        "frozen still, with its new key"
+    );
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+    // One undo step back to where it was.
+    s.bus.undo().unwrap();
+    assert_eq!(s.bus.project().frozen(target).unwrap().content, old);
+    assert!(freeze::consistent(s.bus.project()).is_ok());
+}
