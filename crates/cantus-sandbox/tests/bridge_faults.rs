@@ -159,6 +159,11 @@ fn a_plugin_that_hangs_opening_its_editor_is_an_error_within_the_limit() {
 fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
     let _g = serial();
     let pool = quick_pool();
+    // A state may take 3 s: the hung background save is not overdue when Cantus saves.
+    pool.set_limits(Limits {
+        state: Duration::from_secs(3),
+        ..pool.limits()
+    });
     let Loaded {
         mut main,
         mut audio,
@@ -187,7 +192,7 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(told.is_some(), "the hung helper was ended");
-    assert!(start.elapsed() < Duration::from_secs(6), "{:?}", start.elapsed());
+    assert!(start.elapsed() < Duration::from_secs(7), "{:?}", start.elapsed());
 }
 
 /// A plug-in that runs a message loop of its own for 3 s (a modal dialog) is alive: with
@@ -407,6 +412,8 @@ fn a_block_after_its_instance_left_passes_at_once() {
     let (mut l, mut r) = (vec![0.0; 256], vec![0.0; 256]);
     call(audio.as_mut(), &mut l, &mut r, &[], &[]);
     drop(main);
+    // The helper has taken the instance out (and ended: it was its last).
+    std::thread::sleep(Duration::from_millis(300));
     let l0 = noise(256, 3);
     let (mut l, mut r) = (l0.clone(), l0.clone());
     let t = Instant::now();
