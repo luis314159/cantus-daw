@@ -103,10 +103,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
     with_brush(ui.painter(), |b| b.rect(full, Fill::Solid(s.t.ink)));
     // A narrow pane puts the takeover and the ports on a second row (nothing overlaps).
     let rows = header_rows(ui, full.width() / k);
-    let head = Rect::from_min_size(
-        full.min,
-        Vec2::new(full.width(), HEAD_H * k * rows as f32),
-    );
+    let head = Rect::from_min_size(full.min, Vec2::new(full.width(), HEAD_H * k * rows as f32));
     header(app, ui, head, &s);
     let mut top = head.bottom();
     if let Some(note) = learning_note(app) {

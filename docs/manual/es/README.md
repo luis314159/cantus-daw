@@ -315,6 +315,77 @@ seleccionada. ¿Sin teclado?
 octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan — usa
 `Espacio` o la tecla de grabar.
 
+### Controladores MIDI
+
+Cualquier perilla, fader, botón o pad de un controlador MIDI puede mover cualquier cosa
+que Cantus pueda ajustar: un parámetro de cualquier dispositivo (de Cantus o de un plugin
+alojado), un fader, un panorama, una anchura, un envío, la cantidad de un modulador, un
+silencio, un solo, un armado de grabación, el puenteo o la mezcla de un inserto, el tempo y
+el transporte (reproducir, detener, grabar, bucle, el metrónomo, el tempo por pulsación,
+los marcadores, PAT / SONG — todo lo que puede hacer una tecla).
+
+**Aprender en dos clics.** Clic derecho en un control ▸ **Aprender controlador MIDI** y
+mueve un control de tu equipo: listo. O pulsa la **tecla de controlador** de la barra
+superior (o `Ctrl+Mayús+M`) para el **modo de aprendizaje**: se marcan todos los controles
+que se pueden aprender; haz clic en uno, mueve un control del equipo, haz clic en el
+siguiente. Un control asignado lleva un puntito abajo a la derecha; en el modo de
+aprendizaje se marca con el color de resalte, y el que espera a tu equipo se enciende. `Esc`
+cancela un aprendizaje. **Cambiar controlador MIDI** y **Olvidar el controlador MIDI** están
+en el mismo menú. Los menús de canal e inserto del mezclador y el de la cabecera de pista
+tienen filas *Aprender* para volumen, panorama, anchura, silencio, solo, armado, puenteo y
+mezcla. Dentro de la ventana propia de un plugin, mueve allí el parámetro, pulsa
+`Alt+Mayús+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio)
+y mueve el equipo.
+
+Cantus distingue lo que moviste: una perilla normal, un **fader de 14 bits** (llegó también
+su controlador fino), un **codificador sin fin** (y cuál de las tres codificaciones usa),
+un botón, un pad (en un interruptor conmuta; en una perilla su velocidad fija el valor) o un
+cambio de programa.
+
+**Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
+`Ctrl+Mayús+K`), una fila por asignación:
+
+- **Modo**: *Absoluto* (donde está el control, está el destino), *Relativo* (un
+  codificador: cada paso mueve el destino), *Conmutar* (cada pulsación lo invierte),
+  *Momentáneo* (pulsado: activo; suelto: inactivo), *Disparo* (cada pulsación lanza una
+  acción).
+- **Desde / Hasta**: la parte del recorrido del destino que cubre el control, en las
+  unidades del destino (−∞ dB a +6 dB, 200 Hz a 4 kHz, 60 a 180 BPM…); *Hasta* por debajo
+  de *Desde* lo invierte. Arrastra una celda, o haz doble clic y escribe; clic derecho la
+  restablece.
+- **Curva**: una curvatura, para que la primera mitad del giro haga menos (o más).
+- **Toma de control**, para un control que no se mueve solo cuando el valor cambia por
+  otro lado: *Recoger* (por defecto: nada se mueve hasta que la perilla pasa por el valor —
+  sin saltos), *Escalar* (el valor sigue a la perilla y ambos llegan juntos al final),
+  *Saltar*. La cabecera fija la toma de control de las asignaciones nuevas.
+- **Retorno** (*Enviar*): el valor vuelve al controlador cada vez que cambia — para faders
+  motorizados y anillos de LED. Desactivado por defecto.
+
+Un punto encendido a la izquierda de una fila indica que acaba de llegar un mensaje.
+**Compartido** marca un control con varios destinos (se permite: una perilla puede abrir
+dos filtros a la vez). Una fila cuyo destino ya no existe (una pista borrada) se conserva,
+marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino.
+
+**Dos mapas.** Las asignaciones de *Este proyecto* se guardan con el proyecto, y cada
+cambio es un paso de deshacer. **En todas partes** — tus asignaciones globales, guardadas
+junto a tus atajos de teclado — reúne lo que significa lo mismo en cualquier canción: el
+transporte, el tempo, el máster, **la pista seleccionada** y **el canal seleccionado**
+(volumen, panorama, silencio, solo, armado) y las ocho primeras perillas del **dispositivo
+enfocado** (la ventana de dispositivo en la que hiciste clic por última vez). Aprender una
+tecla de transporte o el máster la lleva allí; **Añadir asignación** en el panel los ofrece
+todos. Cuando un control está en los dos, gana la asignación del proyecto.
+
+**Mientras tocas y grabas.** Una perilla asignada ya no llega al instrumento (no mueve
+además su filtro) y un pad asignado no toca ninguna nota. Un movimiento hecho con el ratón
+o con un controlador es un paso de deshacer por gesto. Con un parámetro bajo un clip de
+automatización, el clip lo toca — hasta que una pasada de grabación lo mueve: desde ese
+momento el parámetro sigue tu mano (el clip queda aparte el resto de la pasada), y la
+pasada escribe lo que hiciste como un clip de automatización, cada movimiento en el momento
+en que llegó su mensaje (Opciones de grabación ▸ *Grabar automatización*).
+
+La presión de canal y la presión de tecla llegan ahora al instrumento (de Cantus y
+alojados), y un cambio de programa llega a un instrumento alojado.
+
 ## 5. Editar: clips, piano roll, automatización
 
 ### Gestos rápidos

@@ -296,6 +296,71 @@ With nothing armed, `R` records into the selected track. No keyboard? `Ctrl+T` t
 **typing keyboard** on: `A`–`L` play notes, `Z`/`X` change octave. While it is on, letter
 shortcuts (including `R`) are off — use `Space` or the record key.
 
+### MIDI controllers
+
+Any knob, fader, button or pad of a MIDI controller can drive anything Cantus can set: a
+parameter of any device (Cantus's own or a hosted plug-in's), a fader, a pan, a width, a
+send, a modulator's amount, a mute, a solo, a record arm, an insert's bypass or mix, the
+tempo, and the transport (play, stop, record, loop, the metronome, tap tempo, the markers,
+PAT / SONG — anything a key can do).
+
+**Learn in two clicks.** Right-click a control ▸ **Learn MIDI controller**, then move a
+control on your hardware: done. Or press the top bar's **controller key** (or
+`Ctrl+Shift+M`) for the **learn mode**: every control that can be learnt is outlined; click
+one, move a hardware control, click the next. A mapped control wears a small dot at its
+lower right; in the learn mode it is outlined in the highlight's colour, and the one
+waiting for your hardware is lit. `Esc` lets go of a learn. **Change MIDI controller** and
+**Forget MIDI controller** are in the same menu. The mixer's strip and insert menus and the
+track header's menu have *Learn* rows for the volume, pan, width, mute, solo, arm, bypass
+and mix. Inside a plug-in's own window, move the parameter there, then press `Alt+Shift+A`
+(**Link the last tweaked parameter to a controller**, FL Studio's way) and move the
+hardware.
+
+Cantus tells what you moved: a plain knob, a **14-bit fader** (its fine controller came
+too), an **endless encoder** (and which of the three encodings it speaks), a button, a pad
+(on a switch it toggles; on a knob its velocity sets the value) or a program change.
+
+**How a mapping reads its control** — in the **Controllers** pane (View menu, or
+`Ctrl+Shift+K`), one row per mapping:
+
+- **Mode**: *Absolute* (where the control is, the target is), *Relative* (an encoder: each
+  step moves the target), *Toggle* (each press flips it), *Momentary* (held: on; let go:
+  off), *Trigger* (each press fires an action).
+- **From / To**: the part of the target's travel the control covers, in the target's own
+  units (−∞ dB to +6 dB, 200 Hz to 4 kHz, 60 to 180 BPM…); *To* below *From* turns it
+  round. Drag a cell, or double-click it and type; right-click resets it.
+- **Curve**: a bend, so the first half of the turn does less (or more).
+- **Takeover**, for a control that does not move itself when the value changes elsewhere:
+  *Pick up* (the default: nothing moves until the knob passes the value — no jumps),
+  *Scale* (the value moves with the knob, so both reach the end together), *Jump*. The
+  header sets the takeover new mappings get.
+- **Feedback** (*Send*): the value goes back to the controller whenever it changes — for
+  motor faders and LED rings. Off by default.
+
+A lit dot at the left of a row shows a message just came. **Shared** marks one control
+on several targets (allowed: one knob can open two filters at once). A row whose target is
+gone (a deleted track) is kept, marked **Missing**, and works again if undo brings the
+target back.
+
+**Two maps.** *This project*'s mappings are saved with the project, and every change is
+one undo step. **Everywhere** — your global mappings, kept beside your keyboard shortcuts
+— holds what means the same in every song: the transport, the tempo, the master, **the
+selected track** and **the selected channel** (volume, pan, mute, solo, arm) and **the
+focused device**'s first eight knobs (the device window you clicked last). Learning a
+transport key or the master puts it there; **Add a mapping** in the pane offers all of them.
+When one control is in both, the project's mapping wins.
+
+**While you play and record.** A mapped knob no longer reaches the instrument (it does
+not also bend its filter), and a mapped pad plays no note. A move made with the mouse or a
+controller is one undo step per gesture. With a parameter under an automation clip, the
+clip plays it — until a recording pass moves it: from that moment the parameter follows
+your hand (the clip is set aside for the rest of the pass), and the pass writes what you
+did as an automation clip, each move at the moment its message arrived (Record options ▸
+*Record automation*).
+
+Channel pressure and key pressure now reach the instrument (Cantus's and hosted ones), and
+a program change reaches a hosted instrument.
+
 ## 5. Edit: clips, piano roll, automation
 
 ### Quick gestures

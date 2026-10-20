@@ -942,7 +942,9 @@ fn live_pressure_and_program_changes_never_allocate() {
         rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
     }
     rig.snapshot(&p);
-    rig.tx.push(EngineMessage::SetLiveTrack(Some(track))).unwrap();
+    rig.tx
+        .push(EngineMessage::SetLiveTrack(Some(track)))
+        .unwrap();
     rig.play("warm", 4);
     rig.allocations.clear();
     let ev = |status: u8, data1: u8, data2: u8| {
