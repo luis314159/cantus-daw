@@ -735,7 +735,7 @@ pub fn transpose_selection(
             .filter_map(|(index, clip)| {
                 let a = clip.audio.as_ref()?;
                 Some(cantus_core::audio_time::Member {
-                    clip: *clip,
+                    clip,
                     row: *index as u64,
                     from: clip.start,
                     rate: project

@@ -160,14 +160,14 @@ struct Scratch {
     label_row: f32,
     /// A clip drag's landing under a tempo track (review 4): built when the drag's result
     /// or the song changes, not every frame — the revision, the anchor, the result.
-    dropped: Option<(
-        DropKey,
-        std::collections::HashMap<(TrackId, ClipId), cantus_core::Clip>,
-    )>,
+    dropped: Option<(DropKey, Landing)>,
 }
 
 /// What a drag's landing was built for.
 type DropKey = (u64, (TrackId, ClipId), ClipDragResult);
+
+/// The clips a drag's release would leave, by clip.
+type Landing = std::collections::HashMap<(TrackId, ClipId), cantus_core::Clip>;
 
 impl Scratch {
     fn refresh_words(&mut self) {

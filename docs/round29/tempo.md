@@ -319,3 +319,69 @@ or changed (`freeze_guard::touches` untouched); no golden moved, `DSP_VERSION` u
 One behaviour change beyond the tempo track: editing the tempo of a song *without* a tempo
 track now keeps each trimmed unwarped clip's frame at its start too (round 28 slid it);
 playback of every saved project is unchanged.
+
+## Review 4 (`tempo-4.json`, 53 confirmed) — how each was fixed
+
+Merged `r29/integration` (b68a07f, controllers' second fix round) first: a fast-forward.
+Every test named below was seen failing before its fix — on the old code, or with the fix
+undone in the tree (*mutation*) — except where the row says otherwise.
+
+**The design, as the integrator directed (ADR 0060 §4 rewritten).**
+
+1. *Re-anchor by take, not by window* (`tempo::keep`). Before a command that changes the
+   map, the unwarped windows (clips and alternate comps' windows) are grouped into
+   **takes**: one file, one direction, one *line* — the same source second at every tick
+   within a frame (its frame at its entry less, or reversed plus, the song's frames to
+   it). Each take keeps the frame where it comes in (forwards: its earliest window's
+   start; reversed: its latest window's end — the frame a reversed sound lands on) and
+   runs on from there through the new map; the windows that shared an origin and fine
+   offset get one shift (one offset delta, one fine offset), so a split stays a split,
+   `comp::is_seam` stays false and glue still glues. A change inside a take moves its later
+   windows against the bars, never against each other. Left alone: looping windows (their
+   period is in ticks, as moves keep it), windows whose file is gone (never refusing the
+   edit), warps that follow the tempo. Clips are found by id once per edit and the
+   sources' rates once (no lookup quadratic in a track's clips).
+2. *A gesture is measured from where it began* (`CommandBus::rebase`). A merging command
+   that changes the tempo — or merges into a step that did — applies the step's inverse
+   (exact: the song before the gesture), runs the gesture's own commands again (the
+   latest when it supersedes, else all; a widened controller gesture's from scratch) and
+   lets `keep` measure once. A hundred frames equal one edit to the last value, a drag
+   back to its start leaves every window as it was to the bit, the step holds one fix
+   (no growth per frame), and redo after a widen is what the gesture did. A step keeps its
+   gesture's own commands while it merges (`HistoryEntry::gesture`, dropped when sealed).
+3. *Moves keep every clip's bars.* `audio_time::lay_chains`: only the windows of one take
+   moved together (one row, one file, one direction; sharing origin and fine offset, or
+   meeting end to start and playing on there) keep their shape in seconds — first window
+   by the delta, the others the same seconds after it, *both edges* mapped, the shared
+   origin kept exactly; every other clip lands its delta later and is relocated on its
+   own. Used by `clips::transpose_selection` (drag, drag-copy, nudge) and
+   `clipboard::paste_clips`.
+
+No new `Command` (`freeze_guard::touches` untouched); no schema change; no golden moved.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 12, 15, 39, 46 | each window re-anchored alone: splits and comp seams of one take tore apart (repeat/skip, a seam, glue refused), even after a top-bar change | the take rule (1) | `tempo_keep_groups::a_take_cut_in_three_stays_whole_through_edits_before_and_inside_it` (lane take + three comp windows; an edit in the count-in and a ramp inside the take; failed: one origin), `the_songs_tempo_keeps_a_split_take_whole` (no tempo track, SetTempo; failed) |
+| 11, 29 | a reversed window kept the wrong frame; its test measured the forward frame with no point inside | a reversed take keeps the frame it lands on (its end — the musical choice, ADR §4 (i) says so) and its windows stay on one reversed line | `tempo_keep_groups::a_reversed_take_keeps_the_frame_it_lands_on_and_its_split` (a point inside the right half; failed: 336 037 then 346 680); `tempo_keep`'s comment corrected |
+| 10 | a looping window re-anchored through its first repetition | looping windows are left alone | `tempo_keep_groups::a_looping_window_keeps_its_ticks` (failed: offset 432) |
+| 30 | a window whose file is gone made every tempo edit fail | such windows are left alone; the fuzz re-runs a refused tempo edit without the bus and asserts it is refused for itself | `tempo_keep_groups::a_window_without_its_file_never_refuses_a_tempo_edit` (failed: AudioSourceNotFound) |
+| 27 | the comp test never checked the fine offset; the fuzz skipped comps; the linked reach was 160 frames | a comp window with a rest left; the fuzz checks every window (comps too) against the take rule, linked within half a tick at the song's slowest tempo | `tempo_keep_groups::an_alternate_comps_window_keeps_its_frame_with_its_fine_offset` (coverage: passed at once); `undo_invariants` (mutation: the old `keep.rs` fails seed 19) |
+| 1, 8, 16, 23, 33, 41, 47 | merged gestures re-anchored frame by frame: rounding added up, slow drags lost the change, a drag back left the audio moved | the rebase (2) | `tempo_keep_groups::a_hundred_frame_drag_is_one_edit` (failed), `a_drag_back_to_the_start_leaves_everything_as_it_was` (fast up, slow back; top bar and lane; mutation: fails without the rebase); `undo_invariants`' gesture arm (a tempo command in four merged over 1–6 jittered frames, widened half the time, must equal its last frame as one edit; mutation: fails seed 9) |
+| 2, 14, 19, 26, 48 | the step grew by a whole fix every frame; quadratic lookups | one fix per step (the rebase); clips by id, rates once | `a_hundred_frame_drag_is_one_edit` asserts the step holds ≤ 1 + 2 × windows commands (failed). A slip-only command was not added (the fix no longer accumulates; one `SetClipAudio` per moved window per frame remains) |
+| 0, 9, 17, 24, 32, 44 | a widened controller gesture dropped the earlier re-anchors from redo | the widened step is rebuilt from the gesture's start | `tempo_keep_groups::a_widened_tempo_gesture_redoes_what_it_did` (undo, redo == do, == the last frame as one edit; failed); the fuzz's widen |
+| 3 | three windows at an uneven ratio left 1-tick gaps | both edges of every chained window mapped; the shared origin kept | `tempo_review4::three_windows_at_an_uneven_ratio_still_meet` (move, drag-copy, paste at 120 → 100; failed on the old code) |
+| 18, 25, 31, 40 | every unwarped clip of a selection laid by seconds from the earliest: separate clips off their bars | moves clip by clip, takes kept (3) | `tempo_review4::clips_that_are_not_one_take_keep_their_bars` (audio + MIDI + a separate audio clip: drag, drag-copy, nudge, paste; failed on the old code) |
+| 5 | a cut and paste with *Link copies* on kept the old fades and dropped the fine offset | the group is found first; a copy that joins none takes the relocated fades and fine offset | `tempo_review4::a_cut_and_paste_with_link_copies_on_plays_what_it_played` (failed on the old code) |
+| 28 | the linked-paste test could not fail | a trimmed clip (offset 1 001) with fades across the change; linked, `links::check`, the original untouched | `tempo_review4::a_linked_paste_of_a_trimmed_clip_with_fades_stays_in_its_group` (mutation: with the region given to a copy joining a group, the paste fails) |
+| 6 | a reversed window's offset clamped at 0 after `anchor` stopped clamping | the clamp removed | `tempo_review4::a_reversed_clip_widened_keeps_what_it_showed` (failed) |
+| 7, 22, 35 | the drag preview rebuilt and cloned the whole selection every frame, quadratically | built from the selection's unwarped audio alone (the move's clamps over all), by id, cached in the painter's scratch per (revision, anchor, result) | `tempo_review4::the_drag_preview_is_the_audio_alone_and_what_lands` (not run against the old code: it returned every clip, so it would fail by construction) |
+| 4, 13, 20, 42 | a tempo edit during a take misplaced it | refused while a take records — `exec`, `exec_merging` (top bar, lane, tap, wheel) and a controller knob on the tempo (the other knobs of the gesture still move) — with `tempo.status.recording` (EN/ES) | `tempo_review4_ui::the_tempo_stays_while_a_take_records` (failed). The AI bridge is not wired into the application; its bus gets no such check |
+| 43 | a tempo point dragged straight up jumped to the grid | the point moves along the lane by the pointer's travel (from the press), once past 4 points; snapped as the lane snaps | `tempo_review4_ui::a_tempo_point_dragged_straight_up_keeps_its_place` (failed: 7 680 vs 8 680) |
+| 21, 34, 45 | *Add a metre change* panicked under 160 points | `min`/`max` (never `clamp`); the area keeps itself on screen | `tempo_review4_ui::a_metre_change_in_a_narrow_arrangement_opens_its_editor` (300 and 120 points; failed: the panic) |
+| 36 | a same-tick run cut every name but the last even when all fit | the run is measured first; whole names while it fits | `tempo_review4_ui::a_run_of_markers_that_fits_keeps_every_name_whole` (failed on the old code: 68 of 150) |
+| 37 | the round's visuals never rendered | `shoot_tempo` renders the ruler's metre editor (bar 1, the right edge, 420 points, 200 %), a run of markers before a close one, a take cut in three dragged with a MIDI clip across the change, a reversed take — night and paper, EN and ES (`tempo-r4-*`); looked at | — |
+| 38 | the Spanish manual's sentence | rewritten (EN too) with the take rule, a reversed clip, the tempo held while recording | — |
+| 49 | a MIDI file on a song with only a tempo track wiped it | `interop::empty_song`: a tempo track, metre changes or markers are content (the dialog's default and a drop, one rule) | `tempo_review4_ui::a_midi_file_on_a_tempo_track_alone_leaves_it_alone` (failed) |
+| 50 | a file with no metre at bar 1 wiped the song's metre changes | only a file that states a metre replaces them | `midi_tempo::a_file_without_a_metre_leaves_the_songs_metre_changes` (failed) |
+| 51 | imported clips sized in bars of the first metre | `TempoMap::bars_around` through the map the import leaves (the old arithmetic in one metre, to the bit); DAWproject notes on a lane through the file's map | `midi_tempo::imported_clips_end_on_the_songs_bar_lines` (failed: 10 560); the DAWproject lane-notes path is **not tested** |
+| 52 | a DAWproject seconds loop reported moved | compared with `playStart` in the content's own unit (half a frame, half a tick) | `dawproject_tempo::a_looped_seconds_clip_across_a_change_reports_no_loop_moved` (failed on the old code: "Loop" reported) |
