@@ -25,6 +25,7 @@ use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 
 #[path = "arrangement_audio.rs"]
 mod audio;
+pub use self::audio::reversed_frame;
 pub use audio::edit::CURVE_KEYS;
 pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
 // The warp editor reads clips the way the arrangement does (round 29, ADR 0061).

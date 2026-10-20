@@ -485,7 +485,7 @@ pub fn summary(app: &CantusApp, d: &ExportSettings) -> String {
 /// The markers around the playhead as an export range: the one at or before it (the first
 /// otherwise) and the next on a later tick — past markers sharing a tick, which make no
 /// range (review 3); before the end, the last two that do.
-fn default_markers(app: &CantusApp) -> Scope {
+pub fn default_markers(app: &CantusApp) -> Scope {
     let p = app.project();
     let at = app.engine.position();
     let ms = &p.markers;

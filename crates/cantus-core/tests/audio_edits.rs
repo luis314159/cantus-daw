@@ -124,6 +124,13 @@ fn split_case(points: Vec<TempoPoint>, offset: Ticks, reverse: bool, at: Ticks) 
     let after = clips(&bus, t);
     assert_eq!(after.len(), 2);
     same_frames(&map, &whole, &after);
+    if !reverse {
+        // Forward: the content origin and the fine offset exactly (review 3, finding 19).
+        for c in &after {
+            assert_eq!(c.start - c.offset, whole.start - whole.offset, "one origin");
+            assert_eq!(c.audio.as_ref().unwrap().slip_frames, 37);
+        }
+    }
     // One undo gives the clip back exactly.
     bus.undo().unwrap();
     assert_eq!(clips(&bus, t), vec![whole]);
@@ -194,6 +201,10 @@ fn a_time_range_cut_across_a_tempo_change_leaves_the_rest_in_place() {
     let after = clips(&bus, t);
     assert_eq!(after.len(), 2, "{after:?}");
     same_frames(&map, &whole, &after);
+    for c in &after {
+        assert_eq!(c.start - c.offset, whole.start - whole.offset, "one origin");
+        assert_eq!(c.audio.as_ref().unwrap().slip_frames, 37);
+    }
 }
 
 /// A comp seam moved across a tempo change: the right window plays on what it played

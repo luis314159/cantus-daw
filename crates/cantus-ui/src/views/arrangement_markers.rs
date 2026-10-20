@@ -95,6 +95,9 @@ fn tabs(
     let markers = &app.project().markers;
     let mut out: Vec<(MarkerId, Rect, Rect)> = Vec::with_capacity(markers.len());
     let mut i = 0;
+    // Where the last tab drawn ended: a run too close behind a narrow one starts after it,
+    // its line still at its tick (review 3: no tab under another, each one clickable).
+    let mut floor = f32::NEG_INFINITY;
     while i < markers.len() {
         // A run of markers on one tick shares the room before the next marker on another
         // tick, side by side, each name elided to its share (reviews 2 and 3: a run's tabs
@@ -109,6 +112,7 @@ fn tabs(
             i += run;
             continue;
         }
+        let at = at.max(floor);
         let room = (next - 2.0 * k - at).max(6.0 * k * run as f32);
         let mut x = at;
         for (n, m) in markers[i..i + run].iter().enumerate() {
@@ -138,6 +142,7 @@ fn tabs(
             );
             out.push((m.id, tab, letters));
             x = right + 1.0 * k;
+            floor = x;
         }
         i += run;
     }
