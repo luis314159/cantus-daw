@@ -797,6 +797,14 @@ fn with(project: &Project, commands: &[Command]) -> Project {
     p
 }
 
+/// A render's instances: its inserts, its instruments, and the plug-ins it plays a wire
+/// for (not installed: noted beside the render, review 3).
+pub(crate) type Units = (
+    Vec<cantus_engine::EffectUnit>,
+    Vec<cantus_engine::inst::NativeUnit>,
+    Vec<(cantus_core::PluginFormat, String)>,
+);
+
 /// The render instances for `snap`: only the hosted plug-ins it runs — not those of the
 /// nodes resting nor of chains a frozen render replaces, nor the master's unless the render
 /// hears the master (`master`) — review 1: every plug-in of the project was instantiated
@@ -808,14 +816,7 @@ pub(crate) fn units_for(
     snap: &Snapshot,
     master: bool,
     stored: bool,
-) -> Result<
-    (
-        Vec<cantus_engine::EffectUnit>,
-        Vec<cantus_engine::inst::NativeUnit>,
-        Vec<(cantus_core::PluginFormat, String)>,
-    ),
-    String,
-> {
+) -> Result<Units, String> {
     let mut only = project.clone();
     for s in &mut only.strips {
         let runs = snap.strips.iter().find(|x| x.id == s.id && !x.rest);

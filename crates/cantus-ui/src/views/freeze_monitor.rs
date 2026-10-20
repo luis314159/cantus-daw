@@ -89,7 +89,7 @@ pub fn monitored_figure(
         .then(|| device.round_trip() as f64 + input_queue.max(0.0) + ll.monitored_samples as f64);
     let notes = ll
         .notes
-        .then(|| device.output as f64 + ll.monitored_note_samples as f64);
+        .then_some(device.output as f64 + ll.monitored_note_samples as f64);
     let way = match (audio, notes) {
         (Some(a), Some(n)) => a.max(n),
         (Some(a), None) => a,

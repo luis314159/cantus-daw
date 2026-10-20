@@ -348,7 +348,10 @@ fn settle_new(
     }
 }
 
-/// The project's slot for an effect id, with its strip.
+/// The latency each loaded hosted plug-in reports: inserts by id, instruments by track
+/// (`PluginHost::latencies`).
+pub type Latencies = (Vec<(EffectId, usize)>, Vec<(cantus_core::TrackId, usize)>);
+
 /// Whether a freeze holds the plug-in of insert `effect` on `strip`: an edit of it would be
 /// refused (review 3).
 pub(crate) fn slot_locked(project: &Project, strip: StripId, effect: EffectId) -> bool {
@@ -377,6 +380,7 @@ pub(crate) fn instrument_locked(project: &Project, track: cantus_core::TrackId) 
     .is_some()
 }
 
+/// The project's slot for an effect id, with its strip.
 fn find_slot(project: &Project, effect: EffectId) -> Option<(StripId, &EffectSlot)> {
     // The strips' inserts and the master's (ADR 0026).
     project.all_effects().find(|(_, e)| e.id == effect)
@@ -1034,7 +1038,7 @@ impl PluginHost {
     /// The latency each loaded hosted plug-in reports now — inserts by id, instruments by
     /// track: what a plan made without instantiating them counts
     /// (`cantus_engine::freeze::render::strip_arrival`, review 3).
-    pub fn latencies(&self) -> (Vec<(EffectId, usize)>, Vec<(cantus_core::TrackId, usize)>) {
+    pub fn latencies(&self) -> Latencies {
         let fx = self
             .slots
             .iter()
