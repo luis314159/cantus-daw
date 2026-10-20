@@ -112,8 +112,7 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     // — every block one or the other, the block that carried the fault already dry (#22).
     let n = 40 * 256 * 2;
     assert_eq!(differing(&out[..n], &with_gain[..n]), 0, "before the crash");
-    let blocks: Vec<std::ops::Range<usize>> =
-        (0..188).map(|k| k * 512..(k + 1) * 512).collect();
+    let blocks: Vec<std::ops::Range<usize>> = (0..188).map(|k| k * 512..(k + 1) * 512).collect();
     let first_dry = blocks
         .iter()
         .position(|b| differing(&out[b.clone()], &with_gain[b.clone()]) != 0)

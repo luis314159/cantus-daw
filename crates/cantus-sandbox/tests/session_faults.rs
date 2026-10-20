@@ -29,7 +29,12 @@ fn four_tracks() -> Project {
         let mut t = p.make_track(format!("T{k}"));
         let mut clip = p.make_clip("Riff", Ticks::ZERO, Ticks::beats(8));
         for i in 0..8 {
-            let n = p.make_note(Ticks::QUARTER * i, Ticks::QUARTER - Ticks(40), base + i as u8, 90);
+            let n = p.make_note(
+                Ticks::QUARTER * i,
+                Ticks::QUARTER - Ticks(40),
+                base + i as u8,
+                90,
+            );
             clip.notes.push(n);
         }
         t.clips.push(clip);
@@ -130,7 +135,12 @@ fn an_isolated_instrument_plays_the_project_to_the_bit_of_in_process() {
         let mut clip = p.make_clip("Run", Ticks::ZERO, Ticks::beats(4));
         for i in 0..16 {
             // Sixteenths, so notes land inside blocks of every size.
-            let n = p.make_note(Ticks::QUARTER / 4 * i, Ticks::QUARTER / 4, 60 + i as u8, 100);
+            let n = p.make_note(
+                Ticks::QUARTER / 4 * i,
+                Ticks::QUARTER / 4,
+                60 + i as u8,
+                100,
+            );
             clip.notes.push(n);
         }
         keys.clips.push(clip);
@@ -184,11 +194,18 @@ fn a_crash_in_a_shared_helper_is_counted_once_and_only_for_the_plugin_that_did_i
         rig.engine.stop();
         assert_eq!(crash_notices(&rig), 2, "both told: {:?}", rig.notices);
         assert!(rig.host.crash_culprit(a), "{fault_value}: the gain did it");
-        assert!(!rig.host.crash_culprit(b), "{fault_value}: its neighbour did not");
+        assert!(
+            !rig.host.crash_culprit(b),
+            "{fault_value}: its neighbour did not"
+        );
         assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 1);
         assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 0);
         assert!(rig.host.db.crash_record(Format::Clap, GAIN_ID).is_some());
-        assert!(rig.host.db.crash_record(Format::Vst3, VST3_GAIN_ID).is_none());
+        assert!(rig
+            .host
+            .db
+            .crash_record(Format::Vst3, VST3_GAIN_ID)
+            .is_none());
         // Reload all: both back, their values with them.
         rig.exec(Command::SetPluginParam {
             strip,
@@ -196,7 +213,9 @@ fn a_crash_in_a_shared_helper_is_counted_once_and_only_for_the_plugin_that_did_i
             id: P_FAULT,
             value: Some(0.0),
         });
-        let failed = rig.host.reload_all_crashed(rig.bus.project(), &mut rig.engine);
+        let failed = rig
+            .host
+            .reload_all_crashed(rig.bus.project(), &mut rig.engine);
         assert!(failed.is_empty(), "{failed:?}");
         rig.settle();
         let back = rig.play(24_000, 256);
@@ -307,12 +326,14 @@ fn a_plugin_that_crashes_while_loading_can_be_reloaded_or_moved() {
         r.host.crashed(moved).is_some() && r.host.crashed(armed).is_some()
     });
     assert!(rig.host.crashed(moved).is_some(), "{:?}", rig.notices);
-    assert!(rig.notices.iter().any(
-        |n| matches!(n, HostNotice::PluginCrashed { effect, .. } if *effect == moved)
-    ));
-    assert!(!rig.notices.iter().any(
-        |n| matches!(n, HostNotice::LoadFailed { effect, .. } if *effect == moved)
-    ));
+    assert!(rig
+        .notices
+        .iter()
+        .any(|n| matches!(n, HostNotice::PluginCrashed { effect, .. } if *effect == moved)));
+    assert!(!rig
+        .notices
+        .iter()
+        .any(|n| matches!(n, HostNotice::LoadFailed { effect, .. } if *effect == moved)));
     assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 1);
     // Run on its own: tried again there, and it loads.
     rig.exec(Command::SetPluginIsolation {
@@ -349,7 +370,10 @@ fn fault_at_beat_two(rig: &mut Rig, effect: EffectId, value: f64) {
     pts[0].shape = Shape::Hold;
     let mut clip = rig.bus.new_clip("fault", Ticks::beats(2), Ticks::beats(2));
     clip.automation = Some(Automation::new(
-        AutoTarget::Plugin { effect, id: P_FAULT },
+        AutoTarget::Plugin {
+            effect,
+            id: P_FAULT,
+        },
         pts,
     ));
     rig.exec(Command::InsertClip {
@@ -394,7 +418,11 @@ fn a_render_that_loses_a_plugin_says_so() {
         rig.settle();
         let t = Instant::now();
         let _ = render(&mut rig);
-        assert!(t.elapsed() < Duration::from_secs(20), "{what}: {:?}", t.elapsed());
+        assert!(
+            t.elapsed() < Duration::from_secs(20),
+            "{what}: {:?}",
+            t.elapsed()
+        );
         let failures = rig.host.render_failures();
         rig.host.finish_render();
         assert_eq!(failures.len(), 1, "{what}: {failures:?}");
@@ -403,6 +431,9 @@ fn a_render_that_loses_a_plugin_says_so() {
         for _ in 0..10 {
             rig.frame();
         }
-        assert!(rig.host.crashed(id).is_none(), "{what}: the live one plays on");
+        assert!(
+            rig.host.crashed(id).is_none(),
+            "{what}: the live one plays on"
+        );
     }
 }
