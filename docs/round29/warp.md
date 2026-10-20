@@ -107,6 +107,20 @@ After the review (§10); one core, stereo, 48 kHz.
 | CPU per second of audio (×1.25 −3 st) | — | Complex ≈ 0.11 s, Melodic ≈ 0.13 s, Re-pitch ≈ 5 ms, Rhythm ≈ 1 ms |
 | CPU per second of a 2 s window of a 1-minute file (Complex) | the window's | ≈ 0.09 s |
 
+**After the second review** (the same command; the quality rows now gated, the time rows
+reported): Complex pre-echo ×0.5 / 0.8 / 1.25 / 2 −30.6 / −35.2 / −36.2 / −34.7 dB
+median, under ramps −37.1 / −35.9; drums from detected onsets −29.2 (the source's own
+−30.1); a held tone under hits 0.04 dB; a transposed render's level 0.03 dB (tone) and
+0.06 dB (dense noise) from −24 to +24 st; a held chord's voices 0.44 / 0.52 dB (100 ms
+windows), 1.33 / 0.72 dB (40 ms windows); a sung line's pitch track 4.5 / 3.5 cents, a
+flute line's 2.3 / 1.7 cents (×0.8 / ×1.25); the played corpus 92.75 %; Complex ≈ 0.12
+s and Melodic ≈ 0.14 s of CPU per second, a window of a long file ≈ 0.08 s, the bridge's
+sketch ≈ 2 ms per second of audio (was ≈ 24). In the tests: Complex hits within 0.15 dB
+of the source's level at ×0.5 and ×2 (hats 0.0, were +2.6 / −1.25), dense tuned hits
+−35 dB of pre-echo over half a long frame (were −29 / −24), a stereo image over its own
+noise within 0.04 rad of the source's, a natural warp within half a frame of the tempo
+curve on ramps of 60→180 BPM over a beat.
+
 No golden hash moved; `DSP_VERSION` unchanged (nothing plays differently unless a clip is
 warped). The A/B listening set is in `F:\projects\daw-r29\shots\warp\listen\` (111 WAVs and
 `README.txt`); the screenshots (arrangement, editor, inspector, quantise dialog, both
