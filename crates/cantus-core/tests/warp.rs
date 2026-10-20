@@ -195,7 +195,8 @@ fn the_snapshot_carries_a_warp_unless_it_plays_as_the_source() {
 fn a_warped_window_takes_no_comp_seam() {
     let (mut bus, t, a, _) = setup();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
-    assert!(comp::seam_window(&c));
+    let held = warp::held_tempo(bus.project());
+    assert!(comp::seam_window(&c, held));
     bus.execute(
         Command::SetClipWarp {
             track: t,
@@ -207,7 +208,7 @@ fn a_warped_window_takes_no_comp_seam() {
     )
     .unwrap();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
-    assert!(!comp::seam_window(&c));
+    assert!(!comp::seam_window(&c, held));
 }
 
 /// Round 29's review: a warp that does not follow the tempo and does not transpose plays
@@ -438,11 +439,12 @@ fn a_warp_that_plays_the_source_keeps_the_comp_seam() {
     )
     .unwrap();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
-    assert!(comp::seam_window(&c));
+    let held = warp::held_tempo(bus.project());
+    assert!(comp::seam_window(&c, held));
     w.cents = 200;
     let mut c2 = c.clone();
     c2.audio.as_mut().unwrap().warp = Some(Box::new(w));
-    assert!(!comp::seam_window(&c2), "a transposed window renders");
+    assert!(!comp::seam_window(&c2, held), "a transposed window renders");
 }
 
 /// The content tick a clip plays at timeline tick `t` (a reversed one reads its window
@@ -530,4 +532,90 @@ fn a_split_warped_clip_plays_what_the_whole_did() {
             }
         }
     }
+}
+
+/// Round 29's second review (finding 8): a following warp that maps exactly as the unwarped
+/// window under the one tempo held plays the source (the snapshot drops it), so its seam
+/// keeps the crossfade — one rule for both; under a tempo that changes it renders, and
+/// takes none.
+#[test]
+fn an_identity_following_warp_keeps_the_comp_seam_under_one_tempo() {
+    let (mut bus, t, a, _) = setup();
+    let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
+    let w = Warp::natural_of(
+        &bus.project().tempo_map(),
+        c.start,
+        c.offset,
+        c.length,
+        0,
+        44_100,
+    );
+    assert!(w.follow && w.is_identity(bus.project().tempo_bpm, 0));
+    bus.execute(
+        Command::SetClipWarp {
+            track: t,
+            clip: a,
+            warp: Some(Box::new(w)),
+            op: WarpOp::Set,
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let p = bus.project();
+    let c = p.track(t).unwrap().clip(a).unwrap().clone();
+    let held = warp::held_tempo(p);
+    assert!(held.is_some());
+    let snap = Snapshot::compile(p, 2);
+    assert!(
+        snap.track(t).unwrap().audio[0].warp.is_none(),
+        "it plays the source"
+    );
+    assert!(comp::seam_window(&c, held), "so it takes its seam");
+    // Under a tempo that changes, the same warp renders and takes none.
+    assert!(!comp::seam_window(&c, None));
+}
+
+/// Round 29's second review (finding 40): a track inserted with a clip whose warp
+/// `SetClipWarp` refuses is refused, and so is a kept comp window holding one.
+#[test]
+fn an_invalid_warp_never_comes_in_with_a_track_or_a_comp() {
+    let (mut bus, t, a, _) = setup();
+    let mut bad = stretched();
+    bad.rate = 0;
+    let mut clip = bus.project().track(t).unwrap().clip(a).unwrap().clone();
+    clip.audio.as_mut().unwrap().warp = Some(Box::new(bad.clone()));
+    let mut track = bus.new_track("more");
+    clip.id = ClipId(bus.project().next_id + 500);
+    track.clips.push(clip.clone());
+    let before = bus.project().clone();
+    let r = bus.execute(
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(track),
+        },
+        Origin::User,
+    );
+    assert!(r.is_err(), "InsertTrack took a bad warp");
+    let mut kept = clip;
+    kept.comp = true;
+    kept.id = ClipId(bus.project().next_id + 600);
+    let r = bus.execute(
+        Command::SetTrackComps {
+            track: t,
+            comps: vec![
+                comp::Comp {
+                    name: "A".into(),
+                    windows: Vec::new(),
+                },
+                comp::Comp {
+                    name: "B".into(),
+                    windows: vec![kept],
+                },
+            ],
+            active: 0,
+        },
+        Origin::User,
+    );
+    assert!(r.is_err(), "SetTrackComps took a bad warp");
+    assert_eq!(bus.project().tracks, before.tracks);
 }

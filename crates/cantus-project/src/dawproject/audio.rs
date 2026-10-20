@@ -245,10 +245,7 @@ pub fn region(
     let mut w = Warp::new(d.rate.max(1), bpm_src);
     w.mode = mode_of(d.algorithm.as_deref());
     for (b, s) in pts {
-        let m = WarpMarker {
-            frame: s * rate,
-            tick: Ticks((b * PPQ as f64).round() as i64),
-        };
+        let m = WarpMarker::at(s * rate, Ticks((b * PPQ as f64).round() as i64));
         if let Some(n) = w.with_marker(m.frame, m.tick) {
             w = n;
         }

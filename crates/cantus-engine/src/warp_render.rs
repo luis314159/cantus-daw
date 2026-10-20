@@ -119,7 +119,9 @@ impl Plan {
             for m in &self.warp.markers {
                 let k = self.frame_of(origin + m.tick.0 as f64);
                 if k > 0.0 && k < len as f64 {
-                    ks.push((k, true));
+                    // The warp's own markers (a ramp's samples, the tempo points) are
+                    // soft, as the tempo's are (round 29's second review).
+                    ks.push((k, !m.auto));
                 }
             }
         }

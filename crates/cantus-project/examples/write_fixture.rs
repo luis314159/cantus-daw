@@ -837,6 +837,41 @@ fn main() {
             plugin.isolation = Some(cantus_core::PluginIsolation::Within);
         }
     }
+    // Schema 38 (round 29, warp's second review — ADR 0061 §11): an audio window under the
+    // tempo ramp warped to follow from the natural warp — the warp's own markers on the
+    // ramp and the tempo points — with a user's marker dragged across them.
+    {
+        let map = p.tempo_map();
+        let rates: Vec<(cantus_core::AudioSourceId, u32)> =
+            p.audio_pool.iter().map(|s| (s.id, s.sample_rate)).collect();
+        let clip = p
+            .tracks
+            .iter_mut()
+            .flat_map(|t| t.clips.iter_mut())
+            .filter(|c| c.lane == 0 && c.link.is_none())
+            .find(|c| c.audio.as_ref().is_some_and(|a| a.warp.is_none()))
+            .expect("an unwarped audio window");
+        // (The vocal at bar 3: under the ramp.)
+        let a = clip.audio.as_mut().unwrap();
+        let rate = rates
+            .iter()
+            .find(|(id, _)| *id == a.source)
+            .map_or(48_000, |r| r.1);
+        let mut w = cantus_core::warp::Warp::natural_of(
+            &map,
+            clip.start,
+            clip.offset,
+            clip.length,
+            a.slip_frames,
+            rate,
+        );
+        assert!(w.markers.iter().any(|m| m.auto), "the ramp's own markers");
+        if let Some(n) = w.add_marker(Ticks::beats(1)) {
+            let i = n.marker_at(Ticks::beats(1)).unwrap();
+            w = n.move_marker(i, Ticks::beats(2));
+        }
+        a.warp = Some(Box::new(w));
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

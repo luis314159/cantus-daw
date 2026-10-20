@@ -362,7 +362,7 @@ const MAX_AUDIO_REPEATS: i64 = 4096;
 /// unfaded, so a loop sounds continuous.
 fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
     let mut out: Vec<AudioClipSnapshot> = Vec::new();
-    let one_tempo = project.tempo_points.len() <= 1 || project.tempo_map().is_constant();
+    let held = crate::warp::held_tempo(project);
     for c in track.clips.iter().filter(|c| !c.muted && c.lane == 0) {
         let Some(a) = c.audio.as_ref() else {
             continue;
@@ -413,9 +413,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             warp: a
                 .warp
                 .as_ref()
-                .filter(|w| {
-                    !(w.natural() || one_tempo && w.is_identity(project.tempo_bpm, a.slip_frames))
-                })
+                .filter(|_| !crate::warp::plays_source(a, held))
                 .map(|w| std::sync::Arc::new((**w).clone())),
             source_rate: src.sample_rate,
         };
@@ -441,7 +439,8 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
 /// left reads on past it, the right starts before it (each into its own source) — and are
 /// told the stretch they cross over. A looped or reversed window takes no seam.
 fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
-    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c);
+    let held = crate::warp::held_tempo(project);
+    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c, held);
     for right in track.clips.iter().filter(plays) {
         let x = right
             .audio
@@ -454,7 +453,7 @@ fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
             .clips
             .iter()
             .filter(plays)
-            .find(|l| crate::comp::is_seam(l, right))
+            .find(|l| crate::comp::is_seam(l, right, held))
         else {
             continue;
         };

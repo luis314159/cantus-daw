@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 37;
+pub const SCHEMA_VERSION: u32 = 38;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -173,6 +173,9 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     }
 
     let mut file: ProjectFile = serde_json::from_value(value)?;
+    // Warps a command would refuse (a hand edit) go first (round 29's second review): the
+    // links and the frozen keys below are checked against what each clip then holds.
+    let warps_repaired = cantus_core::warp::repair(&mut file.project);
     let links_repaired = cantus_core::links::repair(&mut file.project);
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
     // made again (ADR 0064). After the links' repair, which may change what one holds.
@@ -183,7 +186,6 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     if dropped > 0 {
         log::warn!("{dropped} malformed controller mapping(s) dropped");
     }
-    let warps_repaired = cantus_core::warp::repair(&mut file.project);
     Ok(LoadReport {
         file,
         migrated_from,
@@ -234,6 +236,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_34_to_35,
     migrate_35_to_36,
     migrate_36_to_37,
+    migrate_37_to_38,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -836,6 +839,15 @@ fn migrate_35_to_36(_value: &mut Value) -> Result<(), String> {
 /// older build must refuse a v37 file, or it would play a frozen strip's chain live and let
 /// edits through that the render no longer matches.
 fn migrate_36_to_37(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 38 (round 29, warp's second review — ADR 0061 §11): a warp marker may be the
+/// warp's own (`WarpMarker::auto`: a sample of the tempo curve a first warp edit keeps the
+/// clip on — never drawn or grabbed, soft for the stretcher). Nothing to write: every v37
+/// marker is the user's, as it was. An older build must refuse a v38 file, or it would show
+/// a ramp's samples as markers to drag and pin the stretcher to them.
+fn migrate_37_to_38(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1970,5 +1982,114 @@ mod freeze_tests {
         let back = parse(&text, false).unwrap().file.project;
         assert!(freeze::consistent(&back).is_ok());
         assert!(back.strip(s).unwrap().frozen.is_some(), "still frozen");
+    }
+
+    /// Round 29's second review (finding 33): a warp dropped on load goes before the links
+    /// and the frozen keys are checked — a frozen target holding it keeps a key that is
+    /// what it holds, and a linked copy whose warp alone was bad stays linked. Kept comp
+    /// windows are repaired too (finding 40).
+    #[test]
+    fn an_invalid_warp_is_dropped_before_links_and_frozen_keys_are_checked() {
+        use cantus_core::comp::Comp;
+        let mut p = fixture("v37.cantus");
+        let mut bad = cantus_core::warp::Warp::new(48_000, 120.0);
+        bad.rate = 0;
+        let mut broken = 0;
+        for t in &mut p.tracks {
+            for c in t.clips.iter_mut().filter(|c| c.link.is_none()) {
+                if let Some(a) = c.audio.as_mut() {
+                    a.warp = Some(Box::new(bad.clone()));
+                    broken += 1;
+                }
+            }
+        }
+        // A linked pair whose second copy alone carries the bad warp.
+        let (ti, first) = p
+            .tracks
+            .iter()
+            .enumerate()
+            .find_map(|(i, t)| {
+                t.clips
+                    .iter()
+                    .find(|c| c.audio.is_some() && c.lane == 0)
+                    .map(|c| (i, c.clone()))
+            })
+            .expect("an audio clip");
+        let link = cantus_core::LinkId(p.next_id + 900);
+        let mut a = first.clone();
+        a.id = cantus_core::ClipId(p.next_id + 901);
+        a.start = first.start + cantus_core::Ticks::beats(400);
+        a.link = Some(link);
+        a.audio.as_mut().unwrap().warp = None;
+        let mut b = a.clone();
+        b.id = cantus_core::ClipId(p.next_id + 902);
+        b.start = a.start + cantus_core::Ticks::beats(40);
+        b.audio.as_mut().unwrap().warp = Some(Box::new(bad.clone()));
+        broken += 1;
+        // A kept window of a second comp with one too.
+        let mut kept = a.clone();
+        kept.id = cantus_core::ClipId(p.next_id + 903);
+        kept.link = None;
+        kept.comp = true;
+        kept.audio.as_mut().unwrap().warp = Some(Box::new(bad.clone()));
+        broken += 1;
+        p.next_id += 1_000;
+        let t = &mut p.tracks[ti];
+        t.clips.push(a.clone());
+        t.clips.push(b.clone());
+        t.clips.sort_by_key(|c| (c.start, c.id));
+        if t.comps.is_empty() {
+            t.comps.push(Comp {
+                name: "A".into(),
+                windows: Vec::new(),
+            });
+            t.active_comp = 0;
+        }
+        t.comps.push(Comp {
+            name: "B".into(),
+            windows: vec![kept],
+        });
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, false).unwrap();
+        assert_eq!(r.warps_repaired, broken);
+        let back = r.file.project;
+        assert!(
+            freeze::consistent(&back).is_ok(),
+            "each frozen key is what it holds"
+        );
+        let t = &back.tracks[ti];
+        assert_eq!(t.clip(a.id).unwrap().link, Some(link));
+        assert_eq!(t.clip(b.id).unwrap().link, Some(link), "still linked");
+        assert!(t
+            .comps
+            .iter()
+            .flat_map(|c| &c.windows)
+            .all(|w| w.audio.as_ref().is_none_or(|a| a.warp.is_none())));
+    }
+
+    /// Schema 38 (round 29, warp's second review): a warp that started from the natural
+    /// warp under the tempo ramp keeps its own markers (the ramp's samples) apart from the
+    /// user's; a v37 file's markers are all the user's.
+    #[test]
+    fn schema_38_keeps_the_warps_own_markers() {
+        let markers = |name: &str| -> Vec<cantus_core::warp::WarpMarker> {
+            fixture(name)
+                .tracks
+                .iter()
+                .flat_map(|t| &t.clips)
+                .filter_map(|c| c.audio.as_ref()?.warp.as_ref())
+                .flat_map(|w| w.markers.clone())
+                .collect()
+        };
+        let now = markers("v38.cantus");
+        assert!(now.iter().any(|m| m.auto) && now.iter().filter(|m| !m.auto).count() >= 4);
+        assert!(markers("v37.cantus").iter().all(|m| !m.auto));
+        let p = fixture("v38.cantus");
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .filter_map(|c| c.audio.as_ref()?.warp.as_ref())
+            .all(|w| w.is_valid()));
     }
 }
