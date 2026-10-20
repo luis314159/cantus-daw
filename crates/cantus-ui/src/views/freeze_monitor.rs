@@ -71,8 +71,10 @@ pub fn monitored_ms(app: &CantusApp) -> Option<f64> {
     )
 }
 
-/// The figure [`monitored_ms`] shows: an audio input waits on the driver's input and the
-/// input ring; notes played into an armed instrument go out only (review 2).
+/// The figure [`monitored_ms`] shows: the slowest of what is monitored — an audio input
+/// waits on the driver's input, the input ring and its own way; notes played into an armed
+/// instrument go out only, on theirs (review 2, 3: one way for both put the input's wait on
+/// a note's path).
 pub fn monitored_figure(
     device: cantus_engine::DeviceLatency,
     input_queue: f64,
@@ -82,12 +84,19 @@ pub fn monitored_figure(
     if !ll.on || !ll.monitoring || rate <= 0.0 {
         return None;
     }
-    let way = if ll.audio {
-        device.round_trip() as f64 + input_queue.max(0.0)
-    } else {
-        device.output as f64
+    let audio = ll
+        .audio
+        .then(|| device.round_trip() as f64 + input_queue.max(0.0) + ll.monitored_samples as f64);
+    let notes = ll
+        .notes
+        .then_some(device.output as f64 + ll.monitored_note_samples as f64);
+    let way = match (audio, notes) {
+        (Some(a), Some(n)) => a.max(n),
+        (Some(a), None) => a,
+        (None, Some(n)) => n,
+        (None, None) => device.output as f64,
     };
-    Some((way + ll.monitored_samples as f64) * 1000.0 / rate)
+    Some(way * 1000.0 / rate)
 }
 
 /// The rows of the record button's popover and of the audio chip's: the switch, the limit,

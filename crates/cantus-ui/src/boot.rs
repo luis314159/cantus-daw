@@ -79,6 +79,7 @@ struct Read {
     /// It opened, with this many clips taken out of link groups they did not match.
     links_repaired: usize,
     warps_repaired: usize,
+    lateness_repaired: usize,
     plugins: cantus_host::PluginDb,
 }
 
@@ -185,6 +186,7 @@ impl Boot {
                     let mut integrity_warning = false;
                     let mut links_repaired = 0;
                     let mut warps_repaired = 0;
+                    let mut lateness_repaired = 0;
                     let project = path.and_then(|p| {
                         let first = cantus_project::load(&p, true);
                         // As *Open* does: a hash that does not match opens with a warning.
@@ -201,6 +203,7 @@ impl Boot {
                             Ok(l) => {
                                 links_repaired = l.links_repaired;
                                 warps_repaired = l.warps_repaired;
+                                lateness_repaired = l.lateness_repaired;
                                 Some((l.project, p))
                             }
                             Err(e) => {
@@ -219,6 +222,7 @@ impl Boot {
                         integrity_warning,
                         links_repaired,
                         warps_repaired,
+                        lateness_repaired,
                         plugins,
                     });
                     ctx2.request_repaint();
@@ -305,6 +309,11 @@ impl Boot {
                     app.set_error(crate::links::repaired_text(read.links_repaired));
                 } else if read.warps_repaired > 0 {
                     app.set_error(crate::warp::repaired_text(read.warps_repaired));
+                } else if read.lateness_repaired > 0 {
+                    app.set_error(crate::i18n::tf(
+                        "freeze.lateness_repaired",
+                        &[("n", &read.lateness_repaired)],
+                    ));
                 }
                 // The journal of this session, after reading what gone ones left (round 22).
                 app.start_session(&app::data_dir());

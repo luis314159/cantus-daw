@@ -1411,7 +1411,13 @@ fn a_solo_that_silences_part_of_a_region_plays_it_live() {
     );
     let snap = Snapshot::compile(s.bus.project(), 1);
     let gi = s.bus.project().strip_index(s.group).unwrap();
-    assert!(snap.strips[gi].frozen.is_none(), "played live");
+    assert!(
+        snap.strips[gi]
+            .frozen
+            .as_ref()
+            .is_some_and(|f| f.live && !f.plays()),
+        "played live"
+    );
     s.bus.undo().unwrap();
     // The synth strip's only track soloed: nothing else in its region: its render.
     solo(
@@ -1450,4 +1456,244 @@ fn a_send_that_carries_nothing_and_a_note_source_do_not_wake_a_region() {
     assert!(d.strips.contains(&perc_strip), "an off send is no way out");
     assert!(d.notes.contains(&s.bass), "the bass's notes run");
     assert!(!d.tracks.contains(&s.bass) && d.instrument_rests(s.bass));
+}
+
+// ---- review 3 ---------------------------------------------------------------------
+
+fn solo_track(bus: &mut CommandBus, id: TrackId) {
+    bus.execute(Command::SetTrackSolo { id, soloed: true }, Origin::User)
+        .unwrap();
+}
+
+#[test]
+fn an_unrelated_strip_solo_silences_a_frozen_bus_without_thawing_it() {
+    // The group (keyed from the kick strip) frozen; the synth's strip soloed on the desk:
+    // the group is not heard at all — its render muted, nothing of it woken.
+    let mut s = song();
+    let group = FreezeTarget::Strip(s.group);
+    freeze(&mut s.bus, group);
+    s.bus
+        .execute(
+            Command::SetStripSolo {
+                id: s.synth_strip,
+                soloed: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        freeze::solo_play(s.bus.project(), group),
+        freeze::SoloPlay::Silenced
+    );
+}
+
+#[test]
+fn muting_a_keyed_frozen_strips_only_input_silences_it() {
+    // The synth's strip keyed from the kick strip, frozen; its only input muted (live).
+    let mut s = song();
+    let mut p = s.bus.project().clone();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(s.kick_strip);
+    p.strip_mut(s.synth_strip).unwrap().effects.push(comp);
+    s.bus = CommandBus::new(p);
+    let target = FreezeTarget::Strip(s.synth_strip);
+    freeze(&mut s.bus, target);
+    s.bus
+        .execute(
+            Command::SetTrackMute {
+                id: s.synth,
+                muted: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        freeze::solo_play(s.bus.project(), target),
+        freeze::SoloPlay::Silenced,
+        "its chain would only process silence"
+    );
+}
+
+#[test]
+fn a_frozen_track_silenced_by_a_solo_plays_its_render() {
+    // The drums frozen as a source, with a follower of the kick strip on its instrument:
+    // its region holds the kick. Another track soloed: the drums are not heard anyway.
+    let mut s = song();
+    follower(
+        &mut s.bus,
+        ModHost::Track(s.drums),
+        cantus_core::modulator::Listen::Strip(s.kick_strip),
+        AutoTarget::Instrument {
+            track: s.drums,
+            key: "cutoff".into(),
+        },
+    );
+    let target = FreezeTarget::Track(s.drums);
+    freeze(&mut s.bus, target);
+    solo_track(&mut s.bus, s.lonely);
+    assert_eq!(
+        freeze::solo_play(s.bus.project(), target),
+        freeze::SoloPlay::Render,
+        "its own level silences it"
+    );
+}
+
+#[test]
+fn a_note_source_silenced_by_a_solo_does_not_thaw_a_frozen_strip() {
+    // The synth's strip hears the lonely track's notes through a gate; frozen. Its own
+    // track soloed (live): the lonely track is silenced, but its notes still reach the gate.
+    let mut s = song();
+    let mut p = s.bus.project().clone();
+    let mut gate = p.make_effect(EffectKind::Gate);
+    gate.midi_from = Some(s.lonely);
+    p.strip_mut(s.synth_strip).unwrap().effects.push(gate);
+    s.bus = CommandBus::new(p);
+    let target = FreezeTarget::Strip(s.synth_strip);
+    freeze(&mut s.bus, target);
+    solo_track(&mut s.bus, s.synth);
+    assert_eq!(
+        freeze::solo_play(s.bus.project(), target),
+        freeze::SoloPlay::Render
+    );
+}
+
+#[test]
+fn a_target_played_live_keeps_its_render_in_the_snapshot() {
+    // The group soloed on the desk: its key goes silent, so it plays live — but its render
+    // stays in the snapshot (marked live), so going back to it finds its blocks.
+    let mut s = song();
+    let group = FreezeTarget::Strip(s.group);
+    freeze(&mut s.bus, group);
+    s.bus
+        .execute(
+            Command::SetStripSolo {
+                id: s.group,
+                soloed: true,
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        freeze::solo_play(s.bus.project(), group),
+        freeze::SoloPlay::Live
+    );
+    let snap = Snapshot::compile(s.bus.project(), 1);
+    let gi = s.bus.project().strip_index(s.group).unwrap();
+    let f = snap.strips[gi].frozen.as_ref().expect("kept");
+    assert!(f.live && !f.plays());
+}
+
+#[test]
+fn the_keys_an_undo_wants_include_removed_frozen_tracks_strips_and_projects() {
+    let mut s = song();
+    let track = FreezeTarget::Track(s.lonely);
+    freeze(&mut s.bus, track);
+    let k_track = key(&s.bus, track);
+    let strip = FreezeTarget::Strip(s.reverb);
+    freeze(&mut s.bus, strip);
+    let k_strip = key(&s.bus, strip);
+    let keys = |c: &Command| {
+        let mut out = std::collections::BTreeSet::new();
+        freeze::keys_in(c, &mut out);
+        out
+    };
+    let p = s.bus.project().clone();
+    let t = p.track(s.lonely).unwrap().clone();
+    let st = p.strip(s.reverb).unwrap().clone();
+    // A removed frozen track's undo is an InsertTrack holding it frozen.
+    assert!(keys(&Command::InsertTrack {
+        index: 0,
+        track: Box::new(t)
+    })
+    .contains(&k_track));
+    assert!(keys(&Command::InsertStrip {
+        index: 0,
+        strip: Box::new(st)
+    })
+    .contains(&k_strip));
+    let all = keys(&Command::ReplaceProject {
+        project: Box::new(p),
+    });
+    assert!(all.contains(&k_track) && all.contains(&k_strip));
+}
+
+#[test]
+fn a_track_delay_a_bounce_could_not_have_kept_is_refused_and_repaired() {
+    let bad = Lateness {
+        frames: 1_000_000_000_000_000,
+        rate: 1,
+    };
+    let good = Lateness {
+        frames: 4_608,
+        rate: 48_000,
+    };
+    assert!(!bad.is_valid() && good.is_valid());
+    assert_eq!(bad.at(48_000.0), 0, "never into the plan");
+    assert_eq!(good.at(96_000.0), 9_216);
+    let mut s = song();
+    // Set and cleared, each the other's exact inverse; a bad one refused.
+    s.bus
+        .execute(
+            Command::SetTrackLateness {
+                id: s.lonely,
+                lateness: Some(good),
+            },
+            Origin::User,
+        )
+        .unwrap();
+    assert_eq!(
+        s.bus.project().track(s.lonely).unwrap().lateness,
+        Some(good)
+    );
+    s.bus.undo().unwrap();
+    assert_eq!(s.bus.project().track(s.lonely).unwrap().lateness, None);
+    assert!(s
+        .bus
+        .execute(
+            Command::SetTrackLateness {
+                id: s.lonely,
+                lateness: Some(bad),
+            },
+            Origin::User,
+        )
+        .is_err());
+    let mut t = s.bus.project().track(s.lonely).unwrap().clone();
+    t.id = TrackId(s.bus.alloc_id());
+    t.lateness = Some(bad);
+    assert!(s
+        .bus
+        .execute(
+            Command::InsertTrack {
+                index: 0,
+                track: Box::new(t),
+            },
+            Origin::User,
+        )
+        .is_err());
+    // A file holding one: dropped on load.
+    let mut p = s.bus.project().clone();
+    p.tracks[0].lateness = Some(bad);
+    p.tracks[1].lateness = Some(good);
+    assert_eq!(p.repair_lateness(), 1);
+    assert_eq!(p.tracks[0].lateness, None);
+    assert_eq!(p.tracks[1].lateness, Some(good));
+}
+
+#[test]
+fn a_track_delay_is_locked_inside_a_frozen_region() {
+    let mut s = song();
+    freeze(&mut s.bus, FreezeTarget::Strip(s.group));
+    assert_eq!(
+        refused_by(
+            &mut s.bus,
+            Command::SetTrackLateness {
+                id: s.drums,
+                lateness: Some(Lateness {
+                    frames: 100,
+                    rate: 48_000
+                }),
+            }
+        ),
+        Some(FreezeTarget::Strip(s.group))
+    );
 }

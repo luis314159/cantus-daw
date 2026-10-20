@@ -41,6 +41,7 @@ fn take(track: TrackId, start_tick: f64, frames: u64, wraps: Vec<u64>) -> Finish
         frames,
         start_tick,
         wraps,
+        wrap_shifts: Vec::new(),
         dropped: 0,
     }
 }
@@ -647,5 +648,29 @@ fn a_pass_recorded_away_from_the_takes_plays_under_every_comp() {
         at(&looped).contains(&(0, true)),
         "the loop's last pass is the comp's: {:?}",
         at(&looped)
+    );
+}
+
+/// Round 29, freeze's third review: the heard latency moved during a loop pass (silence
+/// written into the file, the take placed by its start's latency): every later pass is
+/// placed by the move too — its window starts that much further into the file.
+#[test]
+fn a_loop_pass_after_a_heard_latency_move_is_placed_by_it() {
+    let (p, t) = project();
+    let mut plan = plan(t, Ticks::ZERO);
+    plan.loop_region = Some((Ticks::ZERO, beats(4)));
+    let pass = 4 * BEAT_FRAMES;
+    let mut tk = take(t, 0.0, 2 * pass + 60_000, vec![pass, 2 * pass]);
+    // 2 400 frames (96 ticks) of silence written in pass 1: passes 2 and 3 start that much
+    // earlier in the file (the last one, stopped, plays that much longer).
+    tk.wrap_shifts = vec![-2_400, -2_400];
+    let bus = run(p, &plan, &[tk], &[], 0);
+    assert_eq!(
+        layout(bus.project(), t),
+        vec![
+            (0, 2400 + 96, 7680 - 96, 0),
+            (0, 3840, 0, 1),
+            (0, 3840, 3840 - 96, 2),
+        ]
     );
 }

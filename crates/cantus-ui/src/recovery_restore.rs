@@ -64,6 +64,31 @@ fn referenced(project: &Project, base: Option<&Path>) -> HashSet<String> {
 /// what the engine would have marked (the takes then fall onto their lanes as a finished
 /// pass's do).
 pub fn wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
+    // The engine's own marks first (file frames, moves included — review 3); past the
+    // last, the loop's arithmetic, moved by the last move.
+    let computed = computed_wraps(pass, frames);
+    if pass.marked_wraps.is_empty() {
+        return computed;
+    }
+    let (last_f, last_s) = pass.marked_wraps.last().copied().unwrap_or((0, 0));
+    let mut out: Vec<u64> = pass
+        .marked_wraps
+        .iter()
+        .map(|(f, _)| *f)
+        .filter(|f| *f > 0 && *f < frames)
+        .collect();
+    let marked = pass.marked_wraps.len();
+    for w in computed.into_iter().skip(marked) {
+        let f = (w as i64 - last_s).max(last_f as i64 + 1) as u64;
+        if f < frames {
+            out.push(f);
+        }
+    }
+    out
+}
+
+/// The frames where the loop wrapped, from the loop's arithmetic alone.
+fn computed_wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
     let Some((a, b)) = pass.loop_region else {
         return Vec::new();
     };
@@ -130,8 +155,21 @@ pub fn finished_take(
             spec.sample_rate,
         ),
         wraps: wraps(pass, frames),
+        wrap_shifts: wrap_shifts(pass, frames),
         dropped: 0,
     })
+}
+
+/// The heard latency's moves at each wrap of `wraps(pass, frames)`: the engine's marks,
+/// and past the last one the last move (review 3). Empty when it never moved.
+fn wrap_shifts(pass: &JournalPass, frames: u64) -> Vec<i64> {
+    if pass.marked_wraps.iter().all(|(_, s)| *s == 0) {
+        return Vec::new();
+    }
+    let last = pass.marked_wraps.last().map_or(0, |(_, s)| *s);
+    (0..wraps(pass, frames).len())
+        .map(|k| pass.marked_wraps.get(k).map_or(last, |(_, s)| *s))
+        .collect()
 }
 
 /// What a gone session left to offer: its autosave when it had unsaved changes, and the

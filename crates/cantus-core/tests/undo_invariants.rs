@@ -1746,6 +1746,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // Round 29, freeze (ADR 0064): a strip frozen, a track frozen, an unfreeze, and a
     // command some frozen target refused.
     let mut froze = [0usize; 4];
+    // A track's kept delay set (or cleared) and refused (review 3).
+    let mut delayed = [0usize; 2];
     // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
     let mut mappings = [0usize; 4];
     for seed in 1..=60u64 {
@@ -1835,6 +1837,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             };
             let tempo = tempo_kind(&cmd);
             let freezing = freeze_kind(&cmd);
+            let delay = matches!(cmd, Command::SetTrackLateness { .. });
             let shown: String = format!("{cmd:?}").chars().take(600).collect();
             // Reviews 3-4: a tempo edit keeps every take where it comes in, its windows on
             // one line, the windows that shared an origin sharing it still.
@@ -1917,6 +1920,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             }
             if matches!(result, Err(CommandError::Frozen(_))) {
                 froze[3] += 1;
+            }
+            if delay {
+                delayed[usize::from(result.is_err())] += 1;
             }
             let ok = result.is_ok();
             // Whatever was applied or refused, every frozen sound is the one frozen.
@@ -2043,6 +2049,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         froze.iter().all(|n| *n > 0),
         "freeze commands never applied (or nothing refused): {froze:?}"
+    );
+    assert!(
+        delayed.iter().all(|n| *n > 0),
+        "kept delays never applied (or none refused): {delayed:?}"
     );
     assert!(
         comped.iter().all(|n| *n > 0),
@@ -3416,13 +3426,42 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
 /// frozen regions: the driver checks after every command that each frozen target's stored
 /// key is still its content key (the edit lock's invariant).
 fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
-    use cantus_core::freeze::{self, FreezeTarget};
+    use cantus_core::freeze;
     let frozen = project.frozen_targets();
     // A frozen target stays so until this arm runs again (about 48 commands), so the
     // other arms keep most of the project to themselves.
     if !frozen.is_empty() {
         return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
     }
+    let normal = round29_freeze_pick(rng, project);
+    // A track's kept delay (a bounce's, review 3) set, changed or cleared now and then in
+    // its place, with nothing frozen — drawn from a generator of its own, so every other
+    // arm's draws stay as they were (the comp arms' rare cases need them); the lock is held
+    // by freeze.rs's `a_track_delay_is_locked_inside_a_frozen_region`.
+    let mut side = Lcg(rng.0 ^ 0x9E37_79B9_7F4A_7C15);
+    if side.below(6) == 0 {
+        let id = project.tracks[side.below(project.tracks.len() as u64) as usize].id;
+        let lateness = match side.below(3) {
+            0 => None,
+            1 => Some(cantus_core::Lateness {
+                frames: side.below(9_000),
+                rate: 48_000,
+            }),
+            // Not one a bounce could keep: refused.
+            _ => Some(cantus_core::Lateness {
+                frames: u64::MAX / 2,
+                rate: 1,
+            }),
+        };
+        return Command::SetTrackLateness { id, lateness };
+    }
+    normal
+}
+
+/// The freeze arm's own pick with nothing frozen: an unfreeze of something live, a freeze,
+/// or one refused.
+fn round29_freeze_pick(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::freeze::{self, FreezeTarget};
     // Half the time an unfreeze of something live (a command that changes nothing).
     let pick_track = |rng: &mut Lcg| {
         FreezeTarget::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)

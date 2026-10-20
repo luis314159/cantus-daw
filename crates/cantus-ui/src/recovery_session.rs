@@ -91,10 +91,22 @@ impl CantusApp {
         self.journal_sync(true);
     }
 
-    /// Once a frame: bring the journal up to date with the project. Nothing is written
-    /// (or even formatted) unless the dirty flag, the file or the name changed.
+    /// Once a frame: bring the journal up to date with the project — and with the pass
+    /// recording (the latency its start was placed by, its wraps; review 3). Nothing is
+    /// written (or even formatted) unless something changed.
     pub fn journal_tick(&mut self) {
-        self.journal_sync(false);
+        let pass = self.engine.current_pass();
+        let mut moved = false;
+        if let (Some((latency, wraps)), Some(s)) = (pass, self.session.as_mut()) {
+            if let Some(p) = s.journal.passes.iter_mut().rev().find(|p| !p.finished) {
+                if p.latency_frames != latency.total() || p.marked_wraps != wraps {
+                    p.latency_frames = latency.total();
+                    p.marked_wraps = wraps;
+                    moved = true;
+                }
+            }
+        }
+        self.journal_sync(moved);
     }
 
     fn journal_sync(&mut self, force: bool) {
@@ -184,7 +196,10 @@ impl CantusApp {
             tempo_bpm: self.project().tempo_bpm,
             tempo_points: self.project().tempo_points.clone(),
             sample_rate: self.engine.sample_rate.round().max(1.0) as u32,
+            // The callback's figure for now: the engine's own replaces it once the pass
+            // has started (`journal_tick`, review 3).
             latency_frames: self.engine.record_latency().total(),
+            marked_wraps: Vec::new(),
             takes: match_takes(&tracks, &new),
             finished: false,
         };

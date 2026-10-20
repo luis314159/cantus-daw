@@ -509,28 +509,43 @@ impl Reader {
 /// review 2: a frozen render's passing read error). Off, one relaxed load per read.
 #[doc(hidden)]
 pub fn inject_io_fault(path: &std::path::Path) {
-    if let Ok(mut p) = INJECT_PATH.lock() {
-        *p = Some(path.to_path_buf());
-        INJECT.store(true, Ordering::Release);
+    inject_io_faults(path, 1);
+}
+
+/// `n` read errors in a row on `path`, the reads that try it again included (review 3: a
+/// lock that outlasts the first try).
+#[doc(hidden)]
+pub fn inject_io_faults(path: &std::path::Path, n: u32) {
+    if let Ok(mut v) = INJECT_PATHS.lock() {
+        v.retain(|(p, _)| p != path);
+        if n > 0 {
+            v.push((path.to_path_buf(), n));
+        }
+        INJECT.store(!v.is_empty(), Ordering::Release);
     }
 }
 
 static INJECT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-static INJECT_PATH: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+/// Per file, so tests running side by side never take each other's.
+static INJECT_PATHS: std::sync::Mutex<Vec<(std::path::PathBuf, u32)>> =
+    std::sync::Mutex::new(Vec::new());
 
-fn injected_io(path: &std::path::Path) -> bool {
+pub(super) fn injected_io(path: &std::path::Path) -> bool {
     if !INJECT.load(Ordering::Relaxed) {
         return false;
     }
-    let Ok(mut p) = INJECT_PATH.lock() else {
+    let Ok(mut v) = INJECT_PATHS.lock() else {
         return false;
     };
-    if p.as_deref() == Some(path) {
-        *p = None;
-        INJECT.store(false, Ordering::Release);
-        return true;
+    let Some(i) = v.iter().position(|(p, _)| p == path) else {
+        return false;
+    };
+    v[i].1 -= 1;
+    if v[i].1 == 0 {
+        v.swap_remove(i);
     }
-    false
+    INJECT.store(!v.is_empty(), Ordering::Release);
+    true
 }
 
 /// A file error as the reader's fault: a file that is not there any more, or another.

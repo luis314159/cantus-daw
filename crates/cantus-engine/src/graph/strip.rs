@@ -82,6 +82,9 @@ pub(crate) struct StripSlot {
     /// Frozen (ADR 0064): the render it plays into its width instead of what it gathers and
     /// its chain, and where its reader is.
     pub frozen: Option<Arc<crate::freeze::FrozenHandle>>,
+    /// Frozen but played live for the moment (a solo, review 3): its render, whose board it
+    /// keeps at the playhead without reading it.
+    pub parked: Option<Arc<crate::freeze::FrozenHandle>>,
     pub frozen_place: crate::freeze::ReadPlace,
     /// It rests (ADR 0064): not run.
     pub rest: bool,
@@ -128,6 +131,7 @@ impl StripSlot {
             pan_ramp: None,
             follow_peak: 0.0,
             frozen: None,
+            parked: None,
             frozen_place: crate::freeze::ReadPlace::default(),
             rest: false,
             ll_off: [false; MAX_EFFECTS_PER_TRACK],
@@ -354,13 +358,20 @@ pub(crate) fn run_strip(nodes: &Nodes, frame: &Frame, node: usize, slot: usize, 
     // A frozen strip (ADR 0064) gathers nothing: its render is what its chain made of it.
     let any = match st.frozen.clone() {
         Some(h) => frozen_input(nodes, ctx, &h, &mut st.frozen_place, sc),
-        None => gather(
-            nodes,
-            frame.map.inputs(node),
-            n,
-            &mut sc.buf_l,
-            &mut sc.buf_r,
-        ),
+        None => {
+            // Played live while frozen (review 3): its render's blocks kept at the playhead.
+            if let Some(h) = st.parked.clone() {
+                let at = crate::freeze::frame_at(&ctx.transport);
+                crate::freeze::point(&h, &mut st.frozen_place, at);
+            }
+            gather(
+                nodes,
+                frame.map.inputs(node),
+                n,
+                &mut sc.buf_l,
+                &mut sc.buf_r,
+            )
+        }
     };
     // An EQ with signal still in it has to keep running over silence, or its state
     // would freeze at a different point for every block size and the next note would

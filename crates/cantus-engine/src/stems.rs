@@ -9,9 +9,11 @@
 //! **Alignment.** Delay compensation (ADR 0018) makes every path reach the master at the
 //! same moment, the total latency `L` after the timeline; a strip's fader output is earlier
 //! than that by what is still ahead of it. So each stem is trimmed by its own lateness — a
-//! track by nothing, a strip by the latency of everything up to and including its inserts
-//! (`Processor::strip_latency`), the master by `L` — and sample 0 of every file is the
-//! song's first tick. Then, with the master at unity, the stems of the strips that feed
+//! track by its own (its instrument's, a frozen render's, the delay a bounce keeps:
+//! `Processor::track_latency`, round 29's third review — it was trimmed by nothing), the
+//! tracks into the master by their arrival there (taken after their lines), a strip by the
+//! latency of everything up to and including its inserts (`Processor::strip_latency`), the
+//! master by `L` — and sample 0 of every file is the song's first tick. Then, with the master at unity, the stems of the strips that feed
 //! the master, plus the tracks that go to it directly, add up to the master exactly.
 
 use crate::effects::EffectUnit;
@@ -184,16 +186,7 @@ impl StemTap {
     /// A track's contribution, `at` frames into the block: the same products the
     /// processor adds to the strip or the master.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn track(
-        &mut self,
-        slot: usize,
-        to_master: bool,
-        at: usize,
-        l: &[f32],
-        r: &[f32],
-        gl: f32,
-        gr: f32,
-    ) {
+    pub(crate) fn track(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32], gl: f32, gr: f32) {
         let n = l.len().min(self.frames.saturating_sub(at));
         let [tl, tr] = &mut self.tracks[slot];
         for ((t, s), g) in [(tl, l), (tr, r)].into_iter().zip([gl, gr]) {
@@ -201,12 +194,17 @@ impl StemTap {
                 *o = x * g;
             }
         }
-        if to_master {
-            let [dl, dr] = &mut self.direct;
-            for ((d, s), g) in [(dl, l), (dr, r)].into_iter().zip([gl, gr]) {
-                for (o, x) in d[at..at + n].iter_mut().zip(s) {
-                    *o += x * g;
-                }
+    }
+
+    /// What a track adds into the master, `at` frames into the block — after its line, so
+    /// every such track is as late as the master's arrival (review 3: summed before their
+    /// lines, tracks of different latencies smeared).
+    pub(crate) fn direct(&mut self, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        let [dl, dr] = &mut self.direct;
+        for (d, s) in [(dl, l), (dr, r)] {
+            for (o, x) in d[at..at + n].iter_mut().zip(s) {
+                *o += x;
             }
         }
     }
@@ -633,9 +631,9 @@ fn run(
         // A source the engine does not hold (past its limits) is silence, not an error.
         let (tapped, late, silent) = match spec.source {
             StemSource::Master => (None, latency, false),
-            StemSource::Direct => (Some(Tapped::Direct), 0, false),
+            StemSource::Direct => (Some(Tapped::Direct), p.master_arrival(), false),
             StemSource::Track(i) => match p.track_slot(i) {
-                Some(slot) => (Some(Tapped::Track(slot)), 0, false),
+                Some(slot) => (Some(Tapped::Track(slot)), p.track_latency(i), false),
                 None => (None, 0, true),
             },
             StemSource::Strip(i) => match p.strip_slot(i) {

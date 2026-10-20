@@ -85,8 +85,11 @@ The **render key** (`cantus_engine::freeze::render_key`) adds the rate, `DSP_VER
 the file format: the same sound at the same rate from the same build is the same file,
 for any project. Files are `<render key>.cfrz` — ADR 0050's cache-file layout (every block
 checksummed; a damaged block is never played), labelled with the key and the latency the
-frames arrive after — in the **project's `Freeze` folder** (beside its file, as `Audio`)
-when it has one, else **Cantus's cache** (`<data>/cache/freeze`), and looked up in both.
+frames arrive after — in the **project's own folder of renders** (`Freeze/<file name>`
+beside its file; review 3: one `Freeze` folder served every project in a directory, and
+saving one pruned the others' renders — a project's renders in that older shared folder
+are still found, never pruned) when it has one, else **Cantus's cache**
+(`<data>/cache/freeze`), and looked up in both.
 They are **regenerable**: *Collect* does not copy them; a project opened without them (on
 another computer, at another rate, after the format changed) plays **live** while they are
 made again in the background (`freeze::scan`, one at a time), then plays them.
@@ -106,12 +109,22 @@ rendered as silence under the true key (review 2): *Freeze* is refused naming th
 background refresh waits until every file of the region is there (it is not marked failed);
 the engine's `prepare` refuses a missing file of its own (`missing_file`); a file back on
 disk is read again (`SampleCache::has_failed` is asked, the cache's failure forgotten).
+Only a file that plays counts (review 3): a take on a comp lane below, a muted clip or a
+muted pad refuses nothing; the waiting is said once (`freeze.waits_for_file`).
 
-**Saving** (review 2): the project's `Freeze` folder gets the renders its frozen targets
-play — saved somewhere else (*Save as*), they come along, copied, instead of being made
-again — and keeps no other `.cfrz` but those an undo or a redo would want
-(`freeze::keys_in` over `CommandBus::history` and `redo_history`, at the usual rates and the
-session's): before, every freeze, edit and freeze again left a whole render there. A
+**Saving** (reviews 2 and 3): the project's folder of renders gets the renders its frozen
+targets play — saved somewhere else (*Save as*), they come along, copied, instead of being
+made again — and keeps no other `.cfrz` but those an undo or a redo would want
+(`freeze::keys_in` over both sides of every step of `CommandBus::history` and
+`redo_history`, at the usual rates and the session's — review 3: the undo of a removed
+frozen track or strip, and a replaced project's frozen targets, were missed) and those a
+freeze running or waiting to land will want (`wanted_by_jobs`, review 3: a save while a
+freeze was landing pruned its render): before, every freeze, edit and freeze again left a
+whole render there. The copies and the prune run on a thread of their own
+(`cantus-freeze-save`; each copy written as `.copy.part` and renamed when whole;
+`FreezeState::copying`), never on the frame (review 3: a first save copied gigabytes
+there); meanwhile the store looks in the old folder too (`FrozenStore::set_also`), and no
+folder is made when there is nothing to copy. A
 project opened at start (the boot path) has its path and its folders set before the first
 compile (`Files::project_path`, `CantusApp::from_parts_at`): its renders are found at once,
 no frozen plug-in loaded meanwhile.
@@ -158,23 +171,40 @@ and said as a refused command is (`HostNotice::Frozen` → the card with **Unfre
 render is made from the states the project stores (`render_units_stored`,
 `render_instruments_stored`), never from what a window holds, and a save never writes a
 window's state over a frozen region's (`project_for_save`, `instruments_for_save`).
+Review 3: **a state of its own** that moves no value (a sample its browser loads:
+`StateDirty`, the values unchanged) is refused, given back and said the same way, and
+counted as an edit where nothing locks it; the give-back is made **once per frame, and at
+the end of the plug-in's own gesture** while one is open (`give_back_now`: a drag reloaded
+the whole state for every value); and a locked plug-in that loads again (it rested, its
+render is gone) loads **the state the project holds**, never one parked when it was
+unloaded (`load_for` / `load_instrument` with `locked`).
 
 **Solo.** Solo is no part of a frozen sound: renders (and bounces) are made **unsoloed**
 (`freeze::neutral`; review 1: a solo elsewhere rendered silence under the unsoloed key, and
 a bounce under a solo muted the original for good). Live, a solo plays a frozen target as
-live would (`freeze::solo_play`, review 2 — it replaces `silenced`): **`Render`** with no
-solo that touches its region; **`Silenced`** when the solo silences all of what it holds
-(a solo elsewhere; a frozen strip's only input muted or another track soloed) — the render
-muted, what live would give but for its own tail; **`Live`** when it silences only part of
-it (a key, a note source, what a modulator follows, one input of several): the render
-cannot follow that, so the region plays live until the solo is lifted (`Snapshot::compile`
-and `FrozenStore::plays` take it as thawed; nothing changes in the project). Freezing a
+live would (`freeze::solo_play`, review 2 — it replaces `silenced` — and asked of the root
+first since review 3): **`Silenced`** when the solo or a mute silences the root — a frozen
+strip not audible on the desk, or with no audible track or strip bringing it sound (a solo
+elsewhere; its only input muted or another track soloed): the render muted, what live
+would give but for its own tail, **nothing woken** (review 3: any solo elsewhere woke every
+frozen bus with a key or a sub-strip, and each toggle loaded and unloaded its plug-ins); a
+frozen track that is not heard plays its render all the same (its mute and solo are live
+controls after it). **`Live`** only when the solo silences part of what is heard — a track
+or strip inside whose sound reaches the render (a key or a note source silenced changes
+nothing heard: `Render`): the render cannot follow that, so the region plays live until the
+solo is lifted (`Snapshot::compile` and `FrozenStore::plays` take it as thawed; nothing
+changes in the project). **`Render`** otherwise. While a target plays live its render
+stays attached, its reader's board kept at the playhead (`FrozenPlay::live`, the slots'
+`parked`), so going back to the render drops nothing (review 3: it was closed and opened
+again at the playhead). Freezing a
 region with a track or strip **soloed inside** is refused (*unsolo it first*: its render
 holds all of it), and so is freezing a soloed track whose own sound a modulator of its
 region hears (`hears_root`: its solo would be part of what is heard); after, those solos
 are locked. Strip solo is the strips' own.
 
-**Pattern mode** plays every chain live (`pattern::audition` thaws): a render is the song's.
+**Pattern mode** plays every chain live (`pattern::audition` thaws): a render is the song's;
+the renders in use are held open meanwhile (`FrozenStore::hold`, review 3), so leaving
+pattern mode drops nothing.
 
 ### 4. Playing a render
 
@@ -196,7 +226,8 @@ snapshot (`freeze::settle`):
   running node gathers runs too, to a fixed point. A track needed **only for its notes**
   (an insert or a modulator that runs hears them; its sound reaches nothing live) runs for
   its notes only (`Dormant::notes`, `TrackSnapshot::notes_only`, review 2): its events reach
-  their listeners, its instrument is not played and it has no output. A resting node is not
+  their listeners, its instrument is not played (no voice: review 3 counts them), it has no
+  output, and it lets its reader board go (review 3: 32 blocks stayed pinned). A resting node is not
   run (`TaskMap::rest`, `run_node` returns at once), delays nothing (`compensate` skips it),
   and its meters read zero; a frozen node that starts resting releases its reader board.
   Its hosted plug-ins are **unloaded** (`PluginHost::sync` and the snapshot drop them; ADR 0063: an isolated one's helper ends when empty; the state is
@@ -210,7 +241,11 @@ snapshot (`freeze::settle`):
   pan and their automation at the sample it did live, so the mix is the live mix **to the
   bit, before compensation too** (trimming it would have moved the fader's automation
   against the music by the chain's latency: the first design did, and the null test caught
-  it). Freeze frees CPU, not latency; §4c's recording mode may trade that later.
+  it). Freeze frees CPU, not latency; §4c's recording mode may trade that later. One render
+  holds one latency: a region whose latency **moves during the song** (an automated
+  look-ahead, a plug-in reporting a new figure, a delay line the plan could not serve)
+  fails its render (`RenderError::LatencyMoved`, said: `freeze.latency_moves`) — review 3:
+  it kept the first figure, and played off after the move.
 - **Streaming** (ADR 0050): a render is a stream (its head in memory, its blocks in the
   shared pool); a frozen node's board points the reader at the block it reads with the most
   a cursor asks ahead (sixteen blocks, about 1.4 s at 48 kHz) and keeps the loop's start
@@ -222,7 +257,9 @@ snapshot (`freeze::settle`):
   thread); a render whose stream failed (a damaged file) is missing — made again, never
   opened again while the file is that one, and said nowhere as a damaged sample. A
   **passing read error** (`Io`: a network drive's hiccup, a file held by a scanner) is read
-  again before the render is given up, and the file is kept: only a damaged or vanished file
+  again — four tries, waiting 0, 50, 200 and 1 000 ms (review 3: one immediate try) —
+  before the render is given up; given up, the next scan looks at it again as a file that
+  may come back, never making it again; and the file is kept: only a damaged or vanished file
   fails it, the store never deletes a file it finds, and a render that fails asks for a new
   snapshot at once (`FrozenStore::take_lost`) so its target plays live meanwhile (review 2:
   one hiccup failed a render for good and deleted it). A node
@@ -234,7 +271,9 @@ snapshot (`freeze::settle`):
   time a block not there yet is silence, counted (`stream_late`); offline (export, stems,
   a freeze or bounce render: `Processor::set_offline`) the pass waits for it.
 - Stems: a strip or track inside a frozen strip has no stem of its own while it is frozen —
-  its sound is in the frozen strip's.
+  its sound is in the frozen strip's. A track's stem is trimmed by its track's latency (a
+  bounce's kept delay, §6) and a *Direct* stem by the master's arrival: both on the grid
+  (review 3: a bounced track's stem came out late).
 - **A loop's wrap is not carried** (by decision, review 2): a render is one straight pass,
   so after a wrap the frozen target plays what led into the loop's start in that pass (the
   bars before it, their tail, the chain's latency), not the loop end's tail and delayed
@@ -258,10 +297,16 @@ wait without a deadline, ADR 0063).
 far, with **Stop**: nothing changes); when it is done the freeze is one undo step. An edit
 made while it rendered moves the key: it is rendered again for what it holds now; one that
 makes it unfreezable (a live input, a solo inside) is said. A plug-in turned in its own
-window while it rendered is read again when the render lands (`commit_freeze`): changed, it
-is rendered again. An armed track is keyed and rendered as it will be frozen — disarmed
+window or browser while it rendered is rendered again when the render lands: the host
+counts those edits (`PluginHost::edits_of`: values, presets, a state of its own) and
+`commit_freeze` compares the count, never the states' bytes, which automation and
+modulators move (review 3: a freeze of a plug-in so driven never landed, each try leaving a
+render behind). An armed track is keyed and rendered as it will be frozen — disarmed
 (`as_frozen`, review 2: it rendered twice). A bypassed insert, or one on a strip whose
-inserts are off, is not heard: its plug-in is not required. A target resting inside
+inserts are off, is not heard: its plug-in is not required — the render keeps a wire in its
+place, and notes it beside the render (`<render>.wires`, the plug-ins not installed then):
+once one is installed, the render is made again (review 3: live and frozen differed by its
+latency). A target resting inside
 another's playing render is not refreshed until it wakes. A render waiting (behind an
 export, a bake, files loading) shows its card, with **Stop** and how many more wait; Stop
 pressed while its file is written commits nothing (the writers look within a block); and
@@ -295,40 +340,68 @@ original **muted** — or removed, the user's choice, remembered (`Settings::bou
   and balance and **feeds the same strip** — the song sounds the same, to the bit.
 - Ranges: the whole track, the **selected clips** (only those render; they are the ones
   muted or removed; clips on several tracks: one bounce per track), or the **time
-  selection** (its edges moved out to the notes held across them; the clips it crosses cut
+  selection** (its edges moved out to the notes held across them and past a comp seam's
+  crossfade, to a fixed point — review 3; the clips it crosses cut
   there — at both edges, from the project at commit; the render plays the track cut at the
   edges and the song **plays on** while the tail rings out, its lanes moving as they do —
   review 2: the transport stopped at the end and the tail met still lanes; muted clips in it
   are kept). A clips or time range is refused while something hears the track's notes (its
-  muted clips would send none: `bounce.notes_heard`; the whole track can be). The keys take
+  muted clips would send none: `bounce.notes_heard`; the whole track can be), and chosen
+  clips that take one window of a comp seam and not the other (`bounce.seam`: its crossfade
+  would become a cut — review 3). The keys take
   the time selection when it was chosen last, a track header chosen last takes the **whole
   track** (`SelKind::Track`, review 2: its first clip only), and a strip chosen on the desk
-  takes the strip whole; the master is never frozen nor bounced (`freeze.master`). The
+  takes the strip whole; a clip's own menu bounces that clip, whatever was chosen on the desk
+  since (review 3); the master is never frozen nor bounced (`freeze.master`). The
   strip menu bounces a whole strip (everything it gathers, the new track placed after the
   first track whose sound reaches it; the original strip muted, its keys and followers
   moved to the new one); it is refused while a track or strip inside is soloed, and the new
   track takes only the strip's own solo. **What goes with it** (review
   1): the automation and modulators of what the bounce replaces (the track's level and
   balance; the strip's fader, pan, width, sends) are carried; a soloed original hands its
-  solo over; removed, the original's other automation moves to the new track — and an
+  solo over; what drives a carried or rescued modulator's amount comes with it (its
+  `ModAmount` lanes and routes, review 3); removed, the original's other automation moves to
+  the new track — and an
   original whose notes something hears is muted, not removed, and the result says why
   (`bounce.done_kept`). **A render whose sound changed since it started is made again**
   (`freeze::region_key` of what it renders, compared when it lands — review 2: any edit
   anywhere made it again). A muted track or strip is refused (a bounce already replaced
-  it), so is a track that monitors a live input (`bounce.live_input`: the render cannot
-  hold it), and a bounce running or waiting is not asked twice. Bounced unsoloed, its
+  it), so is a live input anywhere in what the render plays — the track's, a key's track, a
+  note source (`bounce.live_input`: the render cannot hold it; review 3: only the tracks
+  whose sound reached the strip were asked) — and a bounce running or waiting is not asked
+  twice. Its refusals are **asked again when it lands** (review 3: a solo set while a strip
+  rendered silenced the song). A file the render plays that is there but unreadable is
+  refused by the engine too (`missing_file` at the render's start), and an offline compile
+  waits for the files it asked to load in the background (`SampleCache::wait_audio`) —
+  review 3: such a file was bounced as silence. Bounced unsoloed, its
   source with what its modulators follow, **played from tick 0** with the frames before the
   range dropped (`TapOptions::from`, review 2: a free LFO started in another phase). Written
   under a name of its own and renamed when whole. A time range cut inside a note's tail
   sums that tail and the bounce apart (float order: within −120 dB, from the source and
   through the inserts); a whole track or strip stays exact to the bit.
-- **The latency is kept** (review 2; the first design trimmed it, and the rides and keys
-  carried over then acted early by the path's latency): the file keeps the frames as late
-  as the tap had them, padded at the front to what the live plan waits for the replaced
-  node (`Meters::{strip_late, track_late}`), and the new track reports that lateness as
-  its own (`Track::lateness { frames, rate }`, **schema 38**: `migrate_37_to_38` writes
-  nothing; scaled to the session's rate) — so its level, the new strip's fader, pan and
-  sends and the keys it drives meet each frame at the sample they did before, to the bit.
+- **The audio on the grid, the delay on the track** (review 3; the first design trimmed
+  the file and kept nothing, so the rides and keys carried over acted early by the path's
+  latency; review 2 kept the frames late in the file, so the clip played late wherever it
+  went — moved, copied, pasted, exported — and the track's other clips early): the file is
+  **trimmed to the grid** (`TapOptions::bounce`), and the new track keeps the path's delay
+  as **a real delay before its level** (`Track::lateness { frames, rate }`, **schema 38**:
+  `migrate_37_to_38` writes nothing; scaled to the session's rate; in the engine a source
+  delay line, `pdc::Edge::Source` / `TrackSlot::source_line`, reported as the track's
+  latency and compensated as any; a monitored input joins after it). So its level, the new
+  strip's fader, pan and sends and the keys it drives meet each frame at the sample they did
+  before, to the bit; every clip on that track — the bounce's, a take put there — is
+  delayed alike, and a clip taken elsewhere (moved, copied, pasted) or exported (DAWproject
+  has no such delay) plays on the grid. The wait is **planned on the whole song** before the
+  render (`freeze::render::strip_arrival`: the loaded hosted plug-ins' reported latencies,
+  `EffectUnit::latency_stand_in` for the rest, an instrument's hint as its track's delay)
+  and kept **before the chain** (`TapOptions::arrive`, `Processor::set_arrive_floor`) —
+  review 3: it came from live meters, zero without a device, and was added after the
+  chain, so the strip's automation met the bounce early; it does not depend on whether
+  low-latency monitoring is on (the plan is made without it). The inspector shows the
+  delay (*Delay*, with *Clear*: `Command::SetTrackLateness`, locked like the track's source
+  in a frozen region). A delay no bounce could keep (a rate outside 8–768 kHz, more than
+  10 s) is refused by the commands and dropped on load (`Project::repair_lateness`, said:
+  `freeze.lateness_repaired`).
   The tail is kept as for a freeze; the audio clip is rounded up a tick so it never ends
   before its file. 32-bit float WAV in the project's `Audio` folder. One undo step. A
   track a freeze holds is refused (the notice says to unfreeze it first).
@@ -376,11 +449,19 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   previous callback's), and a heard latency that moves **during** the pass (the mode
   switched, an automated look-ahead on the backing) moves what follows in the file with it
   — frames dropped, or silence written (`Live::shift`) — so every part of the take sits on
-  the backing it was played to. The interface places takes by `EngineHandle::pass_latency`.
+  the backing it was played to. Review 3: the move is applied **a round trip later**, when
+  the musician hears it (`EngineMessage::SetDeviceRoundTrip`, sent as the devices are
+  synced; a queue of moves due), never at the re-plan block; **a loop's wrap carries it**:
+  each later pass is placed by the moves made before it (`RecordMark::Wrapped { shift }`,
+  `FinishedTake::wrap_shifts`); and the recovery journal keeps the figures the engine
+  marked for the pass — its start's latency and its wraps (`JournalPass::marked_wraps`) —
+  not ones read later. The interface places takes by `EngineHandle::pass_latency`.
 - **The audio chip** shows the monitored path's round trip while it is on: the driver's
   output, the monitored chain's (`LowLatency::monitored_samples`) and — for an audio input
   only (`LowLatency::audio`; review 2: notes played in come in no ring) — the driver's
-  input and the input ring's wait; measured through the planned delays (the instrument's,
+  input and the input ring's wait; with both an audio input and notes monitored, the slower
+  of the two ways (`LowLatency::monitored_note_samples`, review 3: the input's wait was
+  added to the notes' way); measured through the planned delays (the instrument's,
   each chain's, each line's), not guessed (review 1: wrong through a bus).
 
 ## Measurements (Windows, the machine shared with other builds; best of five)
@@ -399,13 +480,17 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   were played, to the frame (without the shift the second was the EQ's latency off).
 - **Bounce through latency** (review 2): Inserts and Strip bounces of a track through a
   linear-phase EQ, with a fader ride and a key carried, play the song to the bit (trimmed,
-  the ride landed the EQ's latency early).
+  the ride landed the EQ's latency early). Review 3: with the file on the grid and the delay
+  on the track, the same song to the bit, and the bounced clip moved or pasted to a plain
+  track the song to the bit too (it was the EQ's latency late); through DAWproject and
+  back, within 1e-4 of the song; a frozen strip's note source running for its notes only
+  plays **0 voices** (300 blocks).
 - Real-time streaming at twice real time: no late block; the output equals the offline
   render.
 
 ## Tests (what each holds)
 
-- `cantus-core/tests/freeze.rs` (26): the key's form and stability through the file; it
+- `cantus-core/tests/freeze.rs` (34): the key's form and stability through the file; it
   changes for what changes the sound and for nothing else (fader, pan, width, mute, solo,
   output, names, colours, others); freeze/unfreeze one undo step each, exact; a wrong key
   refused; a frozen strip refuses inside its region and names itself, allows its live
@@ -420,12 +505,20 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   frozen strip plays into locks its fader; a frozen strip's only track moves among the
   others; a solo that silences part of a region plays it live; a soloed track its own
   follower hears cannot be frozen; the pan law in a heard root's key; an off send and a
-  note source wake nothing.
-- Undo fuzz arm 47 and the driver's invariant check after every command (all seeds).
+  note source wake nothing. Review 3: a solo on an unrelated strip silences a keyed frozen
+  bus without waking it; muting a keyed frozen strip's only input silences it; a frozen
+  track not heard plays its render; a note source silenced wakes nothing; a target played
+  live keeps its render in the snapshot; `keys_in` sees removed tracks, strips and replaced
+  projects; a delay no bounce could keep is refused and repaired; a track's delay is locked
+  inside a frozen region.
+- Undo fuzz arm 47 and the driver's invariant check after every command (all seeds); since
+  review 3 it also sets, clears and tries impossible track delays (`SetTrackLateness`,
+  applied and refused counted), drawn from a generator of its own.
 - `cantus-project`: `schema_37_keeps_frozen_strips_and_tracks` (the fixture's stored keys, as
   written, are the content keys), a hand-edited key repaired; `collect::undo`;
-  `schema_38_keeps_a_tracks_lateness_and_its_keys_as_written` (fixture v38).
-- `cantus-engine/tests/freeze.rs` (30): the frozen mix is the live mix to the bit with its
+  `schema_38_keeps_a_tracks_lateness_and_its_keys_as_written` (fixture v38);
+  `an_out_of_range_track_delay_is_dropped_on_load` (review 3).
+- `cantus-engine/tests/freeze.rs` (39): the frozen mix is the live mix to the bit with its
   fader ride, pan, width, send level and mute moved after freezing; unfreezing gives the
   live chain back to the bit; block sizes 1, 37, 64, 512; a frozen track's source with its
   level and balance live; a latent insert frozen away (compensated and not); no render →
@@ -441,8 +534,15 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   its file (`inject_io_fault`); thawing while playing resets the EQ, and a resting strip's
   echoes; a note source resting but for its notes keeps the mix; a missing file makes no
   render; a cancelled write leaves none; a damaged render is opened, fails and is made
-  again.
-- `cantus-engine/tests/low_latency.rs` (11: review 2 adds an insert after a hard-bypassed
+  again. Review 3: a track's delay plays its source late and the mix on the grid; track
+  and Direct stems on the grid with a kept delay; a latency that moves during the song is
+  no render; a solo that thaws a frozen strip while it plays drops nothing when lifted; a
+  read error that outlasts its first try keeps the render playing, and one that outlasts
+  every try is looked at again, not made again; a notes-only track lets its blocks go and
+  plays no voice; an offline compile waits for audio loading in the background.
+- `cantus-engine/tests/low_latency.rs` (14: review 3 adds a loop pass after a heard
+  latency move landing where it was played, a move felt only a round trip later, the
+  input's and the notes' monitored figures apart; review 2 adds an insert after a hard-bypassed
   one keeping its tail through a chain edit, a voice two pure buses down, a take that
   follows the backing when the heard latency moves mid-pass; review 1 adds the wait measured through a pure and a
   mixed bus, an insert back from a hard bypass, an armed instrument track, the dating after a
@@ -451,8 +551,15 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   low_latency_monitoring_never_allocates}` (serial and pool).
 - `cantus-sandbox/tests/freeze.rs`: a frozen chain with the hosted test gain (in process and
   isolated) renders through `render_units`, is unloaded, plays the live mix to the bit, and
-  comes back thawed; a change in a locked plug-in's window is given back and said.
-- `cantus-ui/tests/freeze.rs` (53): Freeze renders then freezes in one step, the mix equal;
+  comes back thawed; a change in a locked plug-in's window is given back and said. Review 3
+  (10 more): a change the host never heard of is neither saved nor rendered (the state's
+  bytes); a render's instances hold the project's states (`render_states_for_test`); a
+  state of its own in a locked insert or instrument is given back and said, never saved nor
+  rendered; a locked insert or instrument comes back with the project's state, not a parked
+  one (a tag no value covers tells); a drag a freeze refuses gives back once, at its end;
+  edits count what windows do, never what automation does; a solo elsewhere toggled never
+  loads a frozen strip's plug-in.
+- `cantus-ui/tests/freeze.rs` (74): Freeze renders then freezes in one step, the mix equal;
   a refused edit's card with Unfreeze; Stop changes nothing; an edit during the render is
   rendered again; reopened elsewhere it plays live and remakes its render; both bounces
   lay the audio under the original and the song is the same to the bit; selected clips;
@@ -471,7 +578,20 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   edit elsewhere does not make a bounce again; *kept* said with the result; the keys take a
   chosen track or strip whole and never the master; Stop while writing; closing; a
   bypassed missing plug-in; a waiting card; the words of what stays live; the original's
-  own rides and modulators; a damaged render made again; the chip for MIDI.
+  own rides and modulators; a damaged render made again; the chip for MIDI. Review 3 (21
+  more): a bounced clip moved to a plain track, copied and pasted there, a take put on the
+  bounced track, the bounced track through DAWproject — each on the grid (to the bit, or
+  within 1e-6 / 1e-4 through the exchange); an Inserts bounce waits for a latent co-input
+  before the chain; saving one project keeps another's renders beside it; a removed frozen
+  track saved and undone finds its render; a save while a freeze lands keeps its render;
+  Save As brings what an undo wants, off the frame; a take on a lane below with its file
+  gone stops no freeze; a file there but unreadable refuses a bounce; a solo set while a
+  strip bounce renders is refused when it lands; a live key source refuses a bounce; what
+  drives a carried modulator's amount drives its copy; a comp seam's crossfade never cut;
+  the clip menu's bounce takes its clip; the heard words name what is locked; one render
+  waiting said in good Spanish, English naming the bake; a freeze lands though a plug-in's
+  state moved without an edit; a render made with a wire is made again once the plug-in is
+  installed; renders stay open while pattern mode plays.
   `tests/freeze_boot.rs` (2): the boot path (`assemble`) sets the folder and tells the
   engine; a frozen project opened at start finds its renders at once.
 
@@ -480,8 +600,9 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
 - Every new `Command` must say what it touches (`freeze_guard::touches`) — the build fails
   otherwise. Round 29's controllers builder's commands get theirs at the merge.
 - `cantus-core` depends on `sha2` and `serde_json`.
-- Schema 38 (`Track::lateness`): a bounce made through latency is a track that reports it;
-  an older build refuses the file.
+- Schema 38 (`Track::lateness`): a bounce made through latency is a track whose source is
+  delayed by it (review 3: the audio on the grid, the delay on the track — the same field,
+  a new meaning before any release); an older build refuses the file.
 - A loop's wrap through a frozen target plays the straight pass (§4); a solo that silences
   part of a region thaws it while it lasts (§3) — the CPU comes back when the solo goes.
 - §4b's automatic background freeze can reuse the key, the store and the render as they

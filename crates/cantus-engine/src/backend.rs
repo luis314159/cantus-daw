@@ -708,6 +708,14 @@ impl EngineHandle {
     pub fn compile_for_render(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
         let _ = self.compile_as(project, revision, true);
         self.samples.wait_assets();
+        // And the audio sources the compile asked for in the background (review 3: a file
+        // tried again, or opened a moment ago, played as silence in a freeze or a bounce).
+        let patience_audio = self
+            .render_patience
+            .unwrap_or(std::time::Duration::from_secs(300));
+        if !self.samples.wait_audio(patience_audio) {
+            self.renders_late += 1;
+        }
         // And the pitch renders the first compile asked for (ADR 0054): the file holds the
         // edits, never the take as sung.
         let patience = self

@@ -51,6 +51,9 @@ pub fn lines_for(count: usize, delay: usize) -> Vec<DelayLine> {
 pub enum Edge {
     /// A track slot into its strip (or the master).
     Track(usize),
+    /// A track slot's source before its level: the delay it keeps (`Track::lateness`, a
+    /// bounce's — ADR 0064, review 3).
+    Source(usize),
     /// A strip slot into its output.
     Out(usize),
     /// A strip slot's `k`-th send.

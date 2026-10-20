@@ -220,7 +220,11 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         // What waits after it.
         let more = app.freeze.queued();
         let body = if more > 0 {
-            tf("freeze.card.more", &[("body", &body), ("n", &more)])
+            if more == 1 {
+                tf("freeze.card.more_one", &[("body", &body)])
+            } else {
+                tf("freeze.card.more", &[("body", &body), ("n", &more)])
+            }
         } else {
             body
         };
@@ -262,6 +266,10 @@ pub fn live_words(
 ) -> &'static str {
     let heard = cantus_core::freeze::region(project, target).hears_root;
     match (target, heard, base) {
+        // A track heard by its own region: its level, balance, mute and solo and its
+        // strip's mix are locked (review 3: the strip's words said its sends stayed live).
+        (FreezeTarget::Track(_), true, "freeze.done") => "freeze.done_heard_track",
+        (FreezeTarget::Track(_), true, _) => "freeze.card.refused_body_heard_track",
         (_, true, "freeze.done") => "freeze.done_heard",
         (_, true, _) => "freeze.card.refused_body_heard",
         (FreezeTarget::Track(_), false, "freeze.done") => "freeze.done_track",

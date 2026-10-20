@@ -218,6 +218,8 @@ pub struct Loaded {
     pub links_repaired: usize,
     /// Warps dropped on load because they were not valid (ADR 0061).
     pub warps_repaired: usize,
+    /// Track delays dropped on load because they were out of range (ADR 0064, review 3).
+    pub lateness_repaired: usize,
 }
 
 pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
@@ -230,6 +232,7 @@ pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
         app_version: r.file.app_version,
         links_repaired: r.links_repaired,
         warps_repaired: r.warps_repaired,
+        lateness_repaired: r.lateness_repaired,
     })
 }
 

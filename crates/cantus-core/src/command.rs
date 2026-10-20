@@ -549,6 +549,13 @@ pub enum Command {
         track: TrackId,
         frozen: Option<crate::freeze::Frozen>,
     },
+    /// Set or clear the delay a track keeps before its level ([`Track::lateness`], a
+    /// bounce's — round 29's third review): `None` plays its source on time. Refused for
+    /// one that is not valid.
+    SetTrackLateness {
+        id: TrackId,
+        lateness: Option<crate::model::Lateness>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -863,6 +870,7 @@ impl Command {
             SetStripFrozen { frozen: None, .. } | SetTrackFrozen { frozen: None, .. } => {
                 "cmd.unfreeze"
             }
+            SetTrackLateness { .. } => "cmd.set_track_lateness",
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -1338,6 +1346,10 @@ impl Command {
                 }
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
+                }
+                // A delay a bounce could not have kept (review 3).
+                if track.lateness.is_some_and(|l| !l.is_valid()) {
+                    return Err(CommandError::InvalidValue("lateness".into()));
                 }
                 crate::modulator::check_new(project, &track.modulators)?;
                 // Its alternate comps (ADR 0058): no kept window may share an id with
@@ -2273,6 +2285,16 @@ impl Command {
                     .ok_or(CommandError::TrackNotFound(track))?;
                 let old = std::mem::replace(&mut t.frozen, frozen);
                 Ok(SetTrackFrozen { track, frozen: old })
+            }
+            SetTrackLateness { id, lateness } => {
+                if lateness.is_some_and(|l| !l.is_valid()) {
+                    return Err(CommandError::InvalidValue("lateness".into()));
+                }
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.lateness, lateness);
+                Ok(SetTrackLateness { id, lateness: old })
             }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;

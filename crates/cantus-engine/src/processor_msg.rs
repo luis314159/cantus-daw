@@ -116,6 +116,9 @@ impl Processor {
                         let _ = self.tx.push(EngineEvent::GarbageRecorder(old));
                     }
                 }
+                EngineMessage::SetDeviceRoundTrip(frames) => {
+                    self.live.round_trip = frames;
+                }
                 EngineMessage::SetRecordStart(at) => {
                     let was = self.click_on();
                     self.live.record_start = at.map(|t| t.0 as f64);

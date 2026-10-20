@@ -52,15 +52,21 @@ pub(crate) struct TrackSlot {
     /// Frozen on its own (ADR 0064): the render it plays in place of its instrument and
     /// clips, and where its reader is.
     pub frozen: Option<Arc<crate::freeze::FrozenHandle>>,
+    /// Frozen but played live for the moment (a solo, review 3): its render, whose board it
+    /// keeps at the playhead without reading it.
+    pub parked: Option<Arc<crate::freeze::FrozenHandle>>,
     pub frozen_place: crate::freeze::ReadPlace,
     /// It rests (ADR 0064): not run.
     pub rest: bool,
     /// It rests but for its notes (ADR 0064, review 2): its events go on to what hears them;
     /// its instrument is not played, its output is silence.
     pub notes_only: bool,
-    /// The latency kept in its audio (`Track::lateness`, schema 38), at the engine's rate:
-    /// reported as its own.
+    /// The delay it keeps before its level (`Track::lateness`, schema 38), at the engine's
+    /// rate: its source goes through its line ([`Self::source_line`]) and it is reported as
+    /// its own (review 3: the audio itself stays on the grid).
     pub lateness: usize,
+    /// The line that delays its source by `lateness` (`Edge::Source`).
+    pub source_line: Option<usize>,
 }
 
 impl TrackSlot {
@@ -84,10 +90,12 @@ impl TrackSlot {
             gain_ramp: None,
             pan_ramp: None,
             frozen: None,
+            parked: None,
             frozen_place: crate::freeze::ReadPlace::default(),
             rest: false,
             notes_only: false,
             lateness: 0,
+            source_line: None,
         }
     }
 
@@ -211,7 +219,7 @@ impl TrackSlot {
         if let Some(h) = self.frozen.as_ref() {
             return h.latency;
         }
-        // The latency its audio carries (a bounce's, schema 38) with its instrument's.
+        // The delay it keeps (a bounce's, schema 38) and its instrument's.
         self.lateness
             + match self.instrument {
                 SlotInstrument::Native => self.native.as_ref().map_or(0, |n| n.unit.latency()),
@@ -348,6 +356,12 @@ fn track_segment(
     let mono = &mut mono[..m];
     let l = &mut buf_l[..m];
     let r = &mut buf_r[..m];
+    // Played live while frozen (review 3): its render's blocks kept at the playhead.
+    if s.frozen.is_none() {
+        if let Some(h) = s.parked.clone() {
+            crate::freeze::point(&h, &mut s.frozen_place, crate::freeze::frame_at(&transport));
+        }
+    }
     // Frozen on its own (ADR 0064): the render, in place of the instrument, the clips and
     // the input, then the same level and balance as live.
     if let Some(h) = s.frozen.clone() {
@@ -447,8 +461,33 @@ fn track_segment(
             }
         }
     };
-    // Audio clips and the monitored input join the instrument's output, before the
-    // channel's level (ADR 0025 §3, §4).
+    // Audio clips join the instrument's output, before the channel's level (ADR 0025 §3).
+    let mut has_signal = rec::add_track_audio(
+        None,
+        &s.input,
+        Some(track),
+        has_signal,
+        done,
+        l,
+        r,
+        &transport,
+        ctx.recording,
+    );
+    // The delay the track keeps (a bounce's, review 3): everything its source plays goes
+    // through its line; what it monitors does not (heard as soon as it can be).
+    if let Some(li) = s.source_line {
+        if has_signal || nodes.line_ringing(Some(li)) {
+            if !has_signal {
+                l.iter_mut().for_each(|x| *x = 0.0);
+                r.iter_mut().for_each(|x| *x = 0.0);
+            }
+            if let Some(mut line) = nodes.line(li) {
+                line.run(l, r);
+            }
+            has_signal = true;
+        }
+    }
+    // The monitored input joins it, before the channel's level (ADR 0025 §4).
     let has_signal = {
         let input = if s.input.has {
             let b = nodes.input.try_borrow();
@@ -462,7 +501,7 @@ fn track_segment(
         rec::add_track_audio(
             input.as_deref(),
             &s.input,
-            Some(track),
+            None,
             has_signal,
             done,
             l,
@@ -543,7 +582,7 @@ fn track_level(
         match nodes.tap.try_borrow_mut() {
             Some(mut tap) => {
                 if let Some(tap) = tap.as_mut() {
-                    tap.track(slot, s.strip.is_none(), done, l, r, gl, gr);
+                    tap.track(slot, done, l, r, gl, gr);
                 }
             }
             None => nodes.conflict(),
@@ -572,4 +611,15 @@ fn track_level(
         or[i] = sr;
     }
     s.peak = peak;
+    // Into the master: the stems' Direct sum, as the master takes it (review 3).
+    if ctx.tap && s.strip.is_none() {
+        match nodes.tap.try_borrow_mut() {
+            Some(mut tap) => {
+                if let Some(tap) = tap.as_mut() {
+                    tap.direct(done, ol, or);
+                }
+            }
+            None => nodes.conflict(),
+        }
+    }
 }

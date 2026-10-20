@@ -24,6 +24,10 @@ pub enum RenderError {
     /// short where it could not, so there is none.
     #[error("a sample could not be read: {0}")]
     Unreadable(String),
+    /// A frozen or bounced sound's latency moved during the song (an automated look-ahead
+    /// or mode): one render cannot hold it (round 29, review 3); it stays live.
+    #[error("its latency changes during the song")]
+    LatencyMoved,
 }
 
 /// A render's progress, for a dialog that shows it and may stop it

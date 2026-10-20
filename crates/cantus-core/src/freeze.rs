@@ -925,7 +925,9 @@ pub fn freeze_command(project: &Project, target: FreezeTarget) -> Option<Command
 }
 
 /// Every content key a command freezes with (a batch's included): what an undo or a redo
-/// would want a render of.
+/// would want a render of — a frozen track or strip it puts back (the undo of a removal),
+/// and every frozen target of a whole project it replaces (review 3: those renders were
+/// pruned on save, and the undo found none).
 pub fn keys_in(cmd: &Command, out: &mut BTreeSet<String>) {
     match cmd {
         Command::SetStripFrozen {
@@ -935,6 +937,17 @@ pub fn keys_in(cmd: &Command, out: &mut BTreeSet<String>) {
             frozen: Some(f), ..
         } => {
             out.insert(f.content.clone());
+        }
+        Command::InsertTrack { track, .. } => {
+            out.extend(track.frozen.as_ref().map(|f| f.content.clone()));
+        }
+        Command::InsertStrip { strip, .. } => {
+            out.extend(strip.frozen.as_ref().map(|f| f.content.clone()));
+        }
+        Command::ReplaceProject { project } => {
+            for t in project.frozen_targets() {
+                out.extend(project.frozen(t).map(|f| f.content.clone()));
+            }
         }
         Command::Batch { commands, .. } => {
             for c in commands {
@@ -1131,6 +1144,10 @@ pub struct FrozenPlay {
     /// that solo (the tracks inside it cannot be soloed: they are locked), so the strip is
     /// muted while it plays its render.
     pub silenced: bool,
+    /// Played live for the moment (`SoloPlay::Live`: a solo silences part of what made
+    /// it), its render still attached: the engine keeps its blocks at the playhead, so
+    /// going back to it finds them (review 3: the render was dropped and reopened cold).
+    pub live: bool,
 }
 
 impl FrozenPlay {
@@ -1139,12 +1156,23 @@ impl FrozenPlay {
             content: f.content.clone(),
             audio: None,
             silenced,
+            live: false,
+        }
+    }
+
+    /// The play of a target `SoloPlay` says how to play.
+    pub fn of(f: &Frozen, how: SoloPlay) -> Self {
+        FrozenPlay {
+            content: f.content.clone(),
+            audio: None,
+            silenced: how == SoloPlay::Silenced,
+            live: how == SoloPlay::Live,
         }
     }
 
     /// Whether it plays its render.
     pub fn plays(&self) -> bool {
-        self.audio.is_some()
+        self.audio.is_some() && !self.live
     }
 }
 
@@ -1186,21 +1214,28 @@ pub fn unsolo(project: &mut Project) {
 /// How a frozen target plays under the mutes and solos of the moment (review 2).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SoloPlay {
-    /// Its render: everything in its region sounds as it was rendered.
+    /// Its render: everything in its region sounds as it was rendered — or the target is
+    /// not heard at all and its own live controls already silence it (a frozen track's
+    /// level under a solo elsewhere).
     Render,
-    /// Its render, muted: nothing in its region is heard (a solo elsewhere, its only
-    /// input's mute) — what playing live would give, minus its own tail.
+    /// Its render, muted: the frozen strip is not heard live (a strip solo elsewhere, its
+    /// own mute) or nothing reaches its input (a solo elsewhere, its only input's mute) —
+    /// what playing live would give, minus its own tail.
     Silenced,
-    /// Live: a solo silences part of its region (a key, a note source, what a modulator
-    /// follows, one input of several), which its render cannot follow.
+    /// Live: the target is heard, and a solo or a mute silences part of what made its
+    /// sound (a key, what a modulator follows, one input of several), which its render
+    /// cannot follow.
     Live,
 }
 
 /// How frozen `target` plays now. Solo is no part of a render (it is made unsoloed), so
 /// a solo that silences some of what made the sound, and not all of it, plays the region
-/// live until it is lifted; one that silences all of it mutes the render. A track's or
-/// strip's own mute is part of its sound, but for a frozen strip's only input and the
-/// frozen target's own controls, which are live.
+/// live until it is lifted; one that silences all of it, or the target itself, mutes the
+/// render (review 3: those thawed it, loading every plug-in of the region for a sound
+/// nobody heard). A track's or strip's own mute is part of its sound, but for a frozen
+/// strip's only input and the frozen target's own controls, which are live. Notes are
+/// never silenced by a mute or a solo (it scales a track's level, not its events): a
+/// track in a region only for its notes changes nothing.
 pub fn solo_play(project: &Project, target: FreezeTarget) -> SoloPlay {
     let r = region(project, target);
     let own_muted = r
@@ -1210,35 +1245,79 @@ pub fn solo_play(project: &Project, target: FreezeTarget) -> SoloPlay {
     if !project.any_solo() && !project.any_strip_solo() && !own_muted {
         return SoloPlay::Render;
     }
-    let audible = project.strip_audibility();
+    let strip_heard = project.strip_audibility();
+    let index = |s: StripId| project.strip_index(s);
+    let strip_on =
+        |s: StripId| index(s).is_none_or(|i| strip_heard.get(i).copied().unwrap_or(true));
+    // What each strip's output carries live: it is heard, and a track on it is, or a strip
+    // feeding it carries something (outputs and sends, in processing order).
+    let mut carries = vec![false; project.strips.len()];
+    for &i in &project.strip_order() {
+        let Some(st) = project.strips.get(i) else {
+            continue;
+        };
+        let fed = project
+            .tracks_on_strip(st.id)
+            .any(|t| project.track_audible(t))
+            || project.strips.iter().enumerate().any(|(j, o)| {
+                o.id != st.id
+                    && carries.get(j).copied().unwrap_or(false)
+                    && o.feeds().any(|f| f == st.id)
+            });
+        carries[i] = strip_heard.get(i).copied().unwrap_or(true) && fed;
+    }
+    match target {
+        FreezeTarget::Strip(root) => {
+            // Not heard, or nothing comes in: its render muted gives what live would.
+            let input = project
+                .tracks_on_strip(root)
+                .any(|t| project.track_audible(t))
+                || project.strips.iter().enumerate().any(|(j, o)| {
+                    o.id != root
+                        && carries.get(j).copied().unwrap_or(false)
+                        && o.feeds().any(|f| f == root)
+                });
+            if !strip_on(root) || !input {
+                return SoloPlay::Silenced;
+            }
+        }
+        FreezeTarget::Track(t) => {
+            // Its own level (or its strip) silences it: the render under it is as quiet.
+            let heard = project.track(t).is_some_and(|x| project.track_audible(x))
+                && project.track(t).and_then(|x| x.strip).is_none_or(strip_on);
+            if !heard {
+                return SoloPlay::Render;
+            }
+        }
+    }
     let (root_strip, root_track) = match target {
         FreezeTarget::Strip(s) => (Some(s), None),
         FreezeTarget::Track(t) => (None, Some(t)),
     };
+    // A track whose sound is in the region (it plays into one of its strips, or into the
+    // master the region hears), not one there only for its notes.
+    let sounds_in = |t: &Track| match t.strip {
+        Some(x) => r.strips.contains(&x),
+        None => r.whole,
+    };
     let mut changed = false;
-    let mut any_heard = false;
     for t in project.tracks.iter().filter(|t| r.tracks.contains(&t.id)) {
-        if Some(t.id) == root_track && !r.hears_root {
+        if Some(t.id) == root_track || !sounds_in(t) {
             continue;
         }
         let rendered = !t.muted || Some(t.id) == r.own;
-        let live = project.track_audible(t);
-        changed |= rendered && !live;
-        any_heard |= live;
+        changed |= rendered && !project.track_audible(t);
     }
     for (i, s) in project.strips.iter().enumerate() {
         if !r.strips.contains(&s.id) || Some(s.id) == root_strip {
             continue;
         }
-        // A strip's own audibility changes what is heard; whether anything is heard at all
-        // is the tracks' (a strip with no track heard carries nothing).
-        let live = audible.get(i).copied().unwrap_or(true);
-        changed |= !s.muted && !live;
+        changed |= !s.muted && !strip_heard.get(i).copied().unwrap_or(true);
     }
-    match (changed, any_heard, root_strip) {
-        (false, _, _) => SoloPlay::Render,
-        (true, false, Some(_)) => SoloPlay::Silenced,
-        _ => SoloPlay::Live,
+    if changed {
+        SoloPlay::Live
+    } else {
+        SoloPlay::Render
     }
 }
 

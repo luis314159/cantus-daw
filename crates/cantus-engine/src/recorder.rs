@@ -136,8 +136,11 @@ pub enum RecordMark {
     /// with the plug-in delay compensation heard then and the input ring's wait (review 2:
     /// read from the stats, they were the callback before's).
     Started { tick: f64, plugin: u32, queue: i64 },
-    /// The loop wrapped after this many recorded frames (every armed track shares it).
-    Wrapped { frames: u64 },
+    /// The loop wrapped after this many recorded frames (every armed track shares it),
+    /// with the heard latency's moves taken into the file so far (frames dropped less
+    /// silence written, review 3): the next pass was played against a backing heard that
+    /// much later than the pass's start.
+    Wrapped { frames: u64, shift: i64 },
     /// A ring was full: this many frames of this track were lost (the disk fell behind).
     Overflow { track: TrackId, frames: u64 },
     /// The pass ended after this many frames.
@@ -207,6 +210,10 @@ pub struct FinishedTake {
     /// Frame offsets in the file where the loop wrapped: pass `k` is
     /// `wraps[k-1]..wraps[k]` (`0` and `frames` at the ends).
     pub wraps: Vec<u64>,
+    /// At each wrap, how far the heard latency had moved since the pass started (frames
+    /// dropped less silence written; review 3): pass `k` is placed that much earlier. Empty
+    /// when it never moved.
+    pub wrap_shifts: Vec<i64>,
     /// Frames lost to a full ring (0 when nothing was lost).
     pub dropped: u64,
 }
@@ -228,6 +235,8 @@ pub struct HandleRecorder {
     /// The latency the last finished pass was placed by: what it was when that pass
     /// started (round 29, ADR 0064).
     last_pass: Option<RecordLatency>,
+    /// The devices' round trip last told the engine (`EngineMessage::SetDeviceRoundTrip`).
+    pub(crate) round_trip_sent: Option<u32>,
 }
 
 impl HandleRecorder {
@@ -282,7 +291,7 @@ impl HandleRecorder {
                     ..now
                 });
             }
-            RecordMark::Wrapped { frames } => pass.wraps.push(frames),
+            RecordMark::Wrapped { frames, shift } => pass.wraps.push((frames, shift)),
             RecordMark::Overflow { track, frames } => {
                 match pass.dropped.iter_mut().find(|(t, _)| *t == track) {
                     Some((_, n)) => *n += frames,
@@ -330,6 +339,14 @@ impl EngineHandle {
     /// that pass started recording (ADR 0064) — or, before any, the latency now.
     pub fn pass_latency(&self) -> RecordLatency {
         self.rec.last_pass.unwrap_or(self.rec.latency)
+    }
+
+    /// The pass recording now, as far as the engine has marked it (review 3: a crash
+    /// journal placed it by the latency of the callback before its start): the latency it
+    /// is placed by once it started, and its wraps with the latency's moves at each.
+    pub fn current_pass(&self) -> Option<(RecordLatency, Vec<(u64, i64)>)> {
+        let p = self.rec.pass.as_ref()?;
+        Some((p.latency?, p.wraps.clone()))
     }
 
     /// The user's latency correction, in frames (from the settings or a loopback test).
@@ -561,9 +578,18 @@ impl EngineHandle {
                 wraps: pass
                     .wraps
                     .iter()
-                    .copied()
+                    .map(|(w, _)| *w)
                     .filter(|w| *w > 0 && *w < frames)
                     .collect(),
+                wrap_shifts: if pass.wraps.iter().all(|(_, s)| *s == 0) {
+                    Vec::new()
+                } else {
+                    pass.wraps
+                        .iter()
+                        .filter(|(w, _)| *w > 0 && *w < frames)
+                        .map(|(_, s)| *s)
+                        .collect()
+                },
                 dropped: pass
                     .dropped
                     .iter()
@@ -623,7 +649,8 @@ struct Pass {
     started: Option<f64>,
     /// The latency when it started (ADR 0064): what its takes are placed by.
     latency: Option<RecordLatency>,
-    wraps: Vec<u64>,
+    /// The wraps, with the latency's moves at each (review 3).
+    wraps: Vec<(u64, i64)>,
     dropped: Vec<(TrackId, u64)>,
     stopped: Option<u64>,
     /// The engine holds the rings (they have not come back yet).

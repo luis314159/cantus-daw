@@ -394,6 +394,7 @@ fn a_finished_pass_is_one_undo_step_and_reports_dropped_frames() {
         frames: 96_000,
         start_tick: 0.0,
         wraps: vec![],
+        wrap_shifts: Vec::new(),
         dropped: 480,
     };
     let steps = a.bus.history().len();

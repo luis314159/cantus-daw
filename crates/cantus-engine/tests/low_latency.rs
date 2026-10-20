@@ -440,3 +440,157 @@ fn a_take_follows_the_backing_when_its_heard_latency_moves_mid_pass() {
         "each where it was played"
     );
 }
+
+// ---- review 3 ---------------------------------------------------------------------------
+
+#[test]
+fn the_monitored_figures_of_an_input_and_of_notes_are_apart() {
+    // A singer (her EQ bypassed: nothing on her way) and an armed synth through Tonus
+    // (128 samples, under the limit): one figure each, never the singer's input on the
+    // synth's way.
+    let mut p = project(false);
+    let mut synth = p.make_track("Synth");
+    synth.armed = true;
+    let s = synth.strip.unwrap();
+    p.tracks.push(synth);
+    let tonus = p.make_effect(EffectKind::AutoTune);
+    p.strip_mut(s).unwrap().effects.push(tonus);
+    let (_, stats) = monitor(&p, Some(144), &vec![0.0; 4096]);
+    let ll = stats.low_latency;
+    assert!(ll.audio && ll.notes);
+    assert_eq!(ll.monitored_samples, 0, "the voice: nothing on its way");
+    assert!(
+        (100..200).contains(&ll.monitored_note_samples),
+        "the synth: Tonus's {}",
+        ll.monitored_note_samples
+    );
+}
+
+/// Record `x` (mono, played into the voice) from tick 0 over a loop of the first `bars`
+/// beats, the backing's EQ taken out after `switch` frames; the take and the figures it
+/// was placed by: (frames, wraps, wrap shifts, start latency).
+fn loop_take(
+    p: &Project,
+    x: &[f32],
+    switch: usize,
+    beats: i64,
+    trip: u32,
+) -> (Vec<f32>, Vec<u64>, Vec<i64>, f64, i64) {
+    let block = 256;
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = p.clone();
+    p.loop_enabled = true;
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::ZERO,
+        end: Ticks::beats(beats),
+    });
+    let (mut h, mut proc, mut ring) = rig(&p);
+    // The devices' round trip, as the backend tells it, and the take placed by it too.
+    h.send(EngineMessage::SetDeviceRoundTrip(trip));
+    h.set_record_offset(trip as i64);
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 20], block);
+    h.begin_recording(dir.path()).unwrap();
+    h.set_recording(true);
+    h.play();
+    let (a, b) = x.split_at(switch);
+    drive(&mut h, &mut proc, &mut ring, a, block);
+    let mut q = p.clone();
+    let back = q.tracks[1].strip.unwrap();
+    q.strip_mut(back).unwrap().effects.clear();
+    let snap = h.compile(&q, 2);
+    h.set_snapshot(snap);
+    drive(&mut h, &mut proc, &mut ring, b, block);
+    h.stop();
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 4], block);
+    let take = h.finish_recording().remove(0);
+    let latency = h.pass_latency().total();
+    let file = read_wav(&take.path);
+    let tpf = 120.0 * PPQ as f64 / (60.0 * SR as f64);
+    (
+        file,
+        take.wraps,
+        take.wrap_shifts,
+        take.start_tick / tpf,
+        latency,
+    )
+}
+
+/// Where file frame `f` of a looped take lands, as the interface places it
+/// (`record_pass::audio_windows`): pass 0 from the take's start, pass k at the loop's start
+/// less its wrap frame, the start's latency and the moves taken by then.
+fn placed(f: usize, wraps: &[u64], shifts: &[i64], start: f64, latency: i64) -> f64 {
+    match wraps.iter().rposition(|w| (*w as usize) <= f) {
+        None => start + f as f64,
+        Some(k) => {
+            let shift = shifts.get(k).copied().unwrap_or(0);
+            -((wraps[k] as i64 + latency + shift) as f64) + f as f64
+        }
+    }
+}
+
+#[test]
+fn a_loop_pass_after_a_heard_latency_move_lands_where_it_was_played() {
+    // The backing heard h0 late, then (its EQ taken out in pass 1) h1: a click on beat 1
+    // of each pass, played as heard, lands on beat 1 every pass.
+    let p = project(false);
+    let mut voice_free = p.clone();
+    let voice = voice_free.tracks[0].strip.unwrap();
+    voice_free.strip_mut(voice).unwrap().effects.clear();
+    let h0 = {
+        let (mut h, mut proc, mut ring) = rig(&voice_free);
+        drive(&mut h, &mut proc, &mut ring, &vec![0.0; 256 * 20], 256);
+        proc.stats().latency_samples as usize
+    };
+    assert!(h0 > 1000);
+    let pass = 4 * 24_000; // four beats at 120 bpm
+    let beat = 24_000usize;
+    let mut x = vec![0f32; pass * 3];
+    // Pass 1 (old backing), pass 2 and 3 (backing heard at once).
+    x[beat + h0] = 1.0;
+    x[pass + beat] = 1.0;
+    x[2 * pass + beat] = 1.0;
+    let (file, wraps, shifts, start, latency) = loop_take(&voice_free, &x, 60_000, 4, 0);
+    assert_eq!(wraps.len(), 2, "two wraps");
+    assert_eq!(shifts.len(), 2, "the move carried by each wrap");
+    let at: Vec<f64> = file
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| **v == 1.0)
+        .map(|(f, _)| placed(f, &wraps, &shifts, start, latency))
+        .collect();
+    assert_eq!(at, vec![beat as f64; 3], "beat 1 in every pass");
+}
+
+#[test]
+fn a_heard_latency_move_moves_a_take_only_once_the_musician_hears_it() {
+    // A round trip of 2 400 frames: what arrives within it after the move was played
+    // against the backing as it was, and stays where it was played.
+    let p = project(false);
+    let mut voice_free = p.clone();
+    let voice = voice_free.tracks[0].strip.unwrap();
+    voice_free.strip_mut(voice).unwrap().effects.clear();
+    let h0 = {
+        let (mut h, mut proc, mut ring) = rig(&voice_free);
+        drive(&mut h, &mut proc, &mut ring, &vec![0.0; 256 * 20], 256);
+        proc.stats().latency_samples as usize
+    };
+    let trip = 2_400usize;
+    let switch = 60_160; // a block boundary: the move is planned there
+    let mut x = vec![0f32; 90_000];
+    // Rendered just before the move, heard and answered within the round trip after it.
+    let b0 = switch - h0 - 1_000;
+    x[b0 + h0 + trip] = 1.0;
+    // Rendered well after it: heard without the EQ.
+    let b1 = 80_000;
+    x[b1 + trip] = 1.0;
+    let (file, wraps, shifts, start, latency) =
+        loop_take(&voice_free, &x, switch, 1_000, trip as u32);
+    assert!(wraps.is_empty());
+    let at: Vec<f64> = file
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| **v == 1.0)
+        .map(|(f, _)| placed(f, &wraps, &shifts, start, latency))
+        .collect();
+    assert_eq!(at, vec![b0 as f64, b1 as f64], "each where it was played");
+}

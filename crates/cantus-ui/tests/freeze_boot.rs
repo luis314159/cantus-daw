@@ -77,7 +77,9 @@ fn a_frozen_project_opened_at_start_finds_its_renders_at_once() {
     assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
     app.start_save(&file);
     app.poll_save(true);
-    assert!(folder.path().join("Freeze").is_dir());
+    assert!(cantus_ui::freeze::project_dir(Some(&file))
+        .unwrap()
+        .is_dir());
     // Opened at start.
     let project = cantus_project::load(&file, true).unwrap().project;
     let mut files = Files::read(data(), Some(cantus_ui::i18n::Locale::En));

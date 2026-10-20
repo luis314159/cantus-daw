@@ -176,6 +176,10 @@ pub struct EffectUnit {
     /// its strip's compensation and the latency of the inserts before it. It hears the
     /// song position that much earlier (`Processor::scope_delays`; integration review).
     pub late: usize,
+    /// A latency it reports in place of its own: a stand-in for a hosted plug-in that is
+    /// not instantiated, in a plan made only to know when audio arrives
+    /// (`freeze::render::strip_arrival`, review 3). Never processed.
+    hint: Option<usize>,
 }
 
 impl EffectUnit {
@@ -200,6 +204,7 @@ impl EffectUnit {
             asked: None,
             automation: crate::modulator::AutoQueue::default(),
             late: 0,
+            hint: None,
         };
         unit.configure(&slot.spec);
         if let Some(need) = unit.memory_need() {
@@ -297,7 +302,16 @@ impl EffectUnit {
             asked: None,
             automation: crate::modulator::AutoQueue::with_capacity(crate::modulator::HOSTED_QUEUE),
             late: 0,
+            hint: None,
         }
+    }
+
+    /// A stand-in reporting `latency` (a hosted plug-in's, known from the session) for a
+    /// plan that is never processed (review 3).
+    pub fn latency_stand_in(slot: &EffectSlot, sample_rate: f32, latency: usize) -> Self {
+        let mut unit = EffectUnit::new(slot, sample_rate);
+        unit.hint = Some(latency);
+        unit
     }
 
     /// Where the song is, for a unit that follows it (a hosted plug-in).
@@ -338,6 +352,9 @@ impl EffectUnit {
 
     /// Samples of delay this unit adds, for delay compensation.
     pub fn latency(&self) -> usize {
+        if let Some(h) = self.hint {
+            return h;
+        }
         match &self.dsp {
             Dsp::Eq(e) => e.latency(),
             Dsp::Comp(c) => c.latency(),

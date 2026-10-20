@@ -112,6 +112,10 @@ pub struct Hosted {
     restarting: bool,
     /// Parameters the plug-in's own gesture is moving.
     gestures: Vec<u32>,
+    /// Edits made in its own window or its own browser (values, presets, a state of its
+    /// own), counted: a freeze rendering its region compares them, never its state's
+    /// bytes, which automation and modulators move (review 3).
+    pub(crate) edits: u64,
     pub(crate) window: Option<PluginWindow>,
     /// Where it runs, as loaded (round 29, ADR 0063).
     pub(crate) isolation: PluginIsolation,
@@ -141,6 +145,7 @@ impl Hosted {
             generation: Arc::new(AtomicU64::new(0)),
             restarting: false,
             gestures: Vec::new(),
+            edits: 0,
             window: None,
             isolation,
             crashed: None,
@@ -245,6 +250,13 @@ pub struct PluginHost {
     tweaks: Vec<Command>,
     /// Edits from plug-ins' windows a freeze refused since the last `idle` (review 2).
     pub(crate) frozen_refusals: Vec<cantus_core::freeze::FreezeTarget>,
+    /// Plug-ins a freeze refused an edit of, to be given back what the project holds once
+    /// per frame — at the gesture's end while one is open (review 3: a drag reloaded the
+    /// whole state for every value) — and the instruments the same way.
+    pub(crate) give_back: Vec<EffectId>,
+    pub(crate) inst_give_back: Vec<cantus_core::TrackId>,
+    /// How many give-backs were made (tests).
+    pub(crate) give_backs: u64,
     /// The helper processes isolated plug-ins run in (round 29, ADR 0063).
     sandboxes: Option<Arc<crate::bridge::Sandboxes>>,
     /// Where a hosted plug-in runs when its project does not say: the machine's choice
@@ -338,6 +350,38 @@ fn settle_new(
     }
 }
 
+/// The latency each loaded hosted plug-in reports: inserts by id, instruments by track
+/// (`PluginHost::latencies`).
+pub type Latencies = (Vec<(EffectId, usize)>, Vec<(cantus_core::TrackId, usize)>);
+
+/// Whether a freeze holds the plug-in of insert `effect` on `strip`: an edit of it would be
+/// refused (review 3).
+pub(crate) fn slot_locked(project: &Project, strip: StripId, effect: EffectId) -> bool {
+    cantus_core::freeze::refuses(
+        project,
+        &Command::SetPluginParam {
+            strip,
+            effect,
+            id: 0,
+            value: None,
+        },
+    )
+    .is_some()
+}
+
+/// Whether a freeze holds `track`'s hosted instrument (review 3).
+pub(crate) fn instrument_locked(project: &Project, track: cantus_core::TrackId) -> bool {
+    cantus_core::freeze::refuses(
+        project,
+        &Command::SetInstrumentPluginParam {
+            track,
+            id: 0,
+            value: None,
+        },
+    )
+    .is_some()
+}
+
 /// The project's slot for an effect id, with its strip.
 fn find_slot(project: &Project, effect: EffectId) -> Option<(StripId, &EffectSlot)> {
     // The strips' inserts and the master's (ADR 0026).
@@ -368,6 +412,9 @@ impl PluginHost {
             inst_missing: HashMap::new(),
             tweaks: Vec::new(),
             frozen_refusals: Vec::new(),
+            give_back: Vec::new(),
+            inst_give_back: Vec::new(),
+            give_backs: 0,
             sandboxes: Some(crate::bridge::Sandboxes::new(
                 crate::bridge::Sandboxes::default_exe(),
             )),
@@ -548,6 +595,7 @@ impl PluginHost {
         strip: StripId,
         slot: &EffectSlot,
         plugin: &ExternalPlugin,
+        locked: bool,
     ) -> Result<Hosted, iso::Failed> {
         let format = from_project_format(plugin.format);
         let info = self
@@ -555,10 +603,13 @@ impl PluginHost {
             .find(format, &plugin.id)
             .cloned()
             .ok_or_else(|| iso::Failed::from("not installed on this computer"))?;
-        let state = self
-            .parked
-            .remove(&slot.id)
-            .unwrap_or_else(|| plugin.state.clone());
+        // A slot a freeze holds comes back as the project holds it — what its render was
+        // made with — never with a state parked since (review 3).
+        let parked = self.parked.remove(&slot.id);
+        let state = match parked {
+            Some(s) if !locked => s,
+            _ => plugin.state.clone(),
+        };
         let setup = self.setup;
         let inst = self.instantiate(
             &info,
@@ -627,7 +678,8 @@ impl PluginHost {
                 None => {}
             }
             if !self.slots.contains_key(&slot.id) {
-                match self.load_for(host, slot, plugin) {
+                let locked = slot_locked(project, host, slot.id);
+                match self.load_for(host, slot, plugin, locked) {
                     Ok(h) => {
                         self.slots.insert(slot.id, h);
                     }
@@ -947,6 +999,7 @@ impl PluginHost {
             }
         }
         self.idle_instruments(bus, engine, &mut notices);
+        self.give_back_now(bus.project());
         self.tell_unavailable(&mut notices);
         for t in std::mem::take(&mut self.frozen_refusals) {
             if !notices.contains(&HostNotice::Frozen(t)) {
@@ -957,35 +1010,130 @@ impl PluginHost {
     }
 
     /// A window's change a freeze refused: the plug-in is given back what the project
-    /// holds (its state, then its values), and the refusal is said (review 2: the plug-in
-    /// kept the new value, a refresh rendered it under the old key, a save wrote it).
+    /// holds (its state, then its values) — at the end of the frame, or of the gesture
+    /// while one is open (review 3) — and the refusal is said (review 2: the plug-in kept
+    /// the new value, a refresh rendered it under the old key, a save wrote it).
     pub(crate) fn refused_by_freeze(
         &mut self,
-        project: &Project,
+        _project: &Project,
         effect: EffectId,
         error: &cantus_core::CommandError,
     ) -> bool {
         let cantus_core::CommandError::Frozen(target) = error else {
             return false;
         };
-        if let (Some(h), Some((_, slot))) =
-            (self.slots.get_mut(&effect), find_slot(project, effect))
-        {
-            if let Some(plugin) = slot.spec.external.as_deref() {
-                if !plugin.state.is_empty() {
-                    if let Err(e) = h.main.load_state(plugin.state.bytes()) {
-                        log::warn!("{}: {e}", h.info.name);
-                    }
-                }
-                let mut out = ParamOut::new();
-                h.main.flush(&changes(&plugin.params), &mut out);
-                h.flushed = plugin.params.clone();
-                h.synced_state = plugin.state.clone();
-                h.generation.fetch_add(1, Ordering::AcqRel);
-            }
+        if !self.give_back.contains(&effect) {
+            self.give_back.push(effect);
         }
         self.frozen_refusals.push(*target);
         true
+    }
+
+    /// The give-backs due: each refused plug-in once, its gesture over (review 3).
+    fn give_back_now(&mut self, project: &Project) {
+        let due: Vec<EffectId> = self
+            .give_back
+            .iter()
+            .copied()
+            .filter(|id| self.slots.get(id).is_none_or(|h| h.gestures.is_empty()))
+            .collect();
+        self.give_back.retain(|id| !due.contains(id));
+        for effect in due {
+            let (Some(h), Some((_, slot))) =
+                (self.slots.get_mut(&effect), find_slot(project, effect))
+            else {
+                continue;
+            };
+            let Some(plugin) = slot.spec.external.as_deref() else {
+                continue;
+            };
+            if !plugin.state.is_empty() {
+                if let Err(e) = h.main.load_state(plugin.state.bytes()) {
+                    log::warn!("{}: {e}", h.info.name);
+                }
+            }
+            let mut out = ParamOut::new();
+            h.main.flush(&changes(&plugin.params), &mut out);
+            h.flushed = plugin.params.clone();
+            h.synced_state = plugin.state.clone();
+            h.generation.fetch_add(1, Ordering::AcqRel);
+            self.give_backs += 1;
+        }
+        self.instrument_give_back_now(project);
+    }
+
+    /// The latency each loaded hosted plug-in reports now — inserts by id, instruments by
+    /// track: what a plan made without instantiating them counts
+    /// (`cantus_engine::freeze::render::strip_arrival`, review 3).
+    pub fn latencies(&self) -> Latencies {
+        let fx = self
+            .slots
+            .iter()
+            .map(|(id, h)| (*id, h.latency()))
+            .collect();
+        let inst = self
+            .instruments
+            .iter()
+            .map(|(t, h)| (*t, h.latency()))
+            .collect();
+        (fx, inst)
+    }
+
+    /// Whether the plug-in `format`/`id` is installed (scanned) on this computer — a
+    /// render made with a stand-in for it is made again once it is (review 3).
+    pub fn installed(&self, format: cantus_core::PluginFormat, id: &str) -> bool {
+        self.db.find(from_project_format(format), id).is_some()
+    }
+
+    /// How many plug-ins were given back what the project holds (tests).
+    pub fn give_backs(&self) -> u64 {
+        self.give_backs
+    }
+
+    /// Edits made in the windows or browsers of the plug-ins of `effects` and the
+    /// instruments of `tracks` — values, presets, states of their own (review 3: a freeze
+    /// compares them, not the states' bytes automation and modulators move).
+    pub fn edits_of(&self, effects: &[EffectId], tracks: &[cantus_core::TrackId]) -> u64 {
+        let fx: u64 = effects
+            .iter()
+            .filter_map(|id| self.slots.get(id))
+            .map(|h| h.edits)
+            .sum();
+        let inst: u64 = tracks
+            .iter()
+            .filter_map(|t| self.instruments.get(t))
+            .map(|h| h.edits)
+            .sum();
+        fx + inst
+    }
+
+    /// A state loaded into a plug-in without telling the host — a change the host hears of
+    /// only through its state, if at all (tests: a preset from its own browser).
+    #[doc(hidden)]
+    pub fn load_state_for_test(&mut self, effect: EffectId, state: &[u8]) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            let _ = h.main.load_state(state);
+        }
+    }
+
+    /// A state loaded into a plug-in by itself (its own browser), then its `StateDirty`
+    /// (tests).
+    #[doc(hidden)]
+    pub fn state_dirty_for_test(&mut self, bus: &mut CommandBus, effect: EffectId, state: &[u8]) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            let _ = h.main.load_state(state);
+        }
+        self.capture_changes(bus, effect);
+    }
+
+    /// The states the instances served to the last render hold now, in order (tests: a
+    /// freeze's render is made with what the project holds, never the live instance's).
+    #[doc(hidden)]
+    pub fn render_states_for_test(&mut self) -> Vec<Vec<u8>> {
+        self.render_mains
+            .iter_mut()
+            .filter_map(|m| m.save_state().ok())
+            .collect()
     }
 
     /// A slot's plug-in stopped working: marked, counted as its blame says, its window
@@ -1077,7 +1225,12 @@ impl PluginHost {
                     bus.execute(cmd.clone(), Origin::User)
                 };
                 match result {
-                    Ok(_) => self.tweaked(cmd),
+                    Ok(_) => {
+                        if let Some(h) = self.slots.get_mut(&effect) {
+                            h.edits += 1;
+                        }
+                        self.tweaked(cmd)
+                    }
                     Err(e) => {
                         if !self.refused_by_freeze(bus.project(), effect, &e) {
                             log::warn!("plug-in parameter {id}: {e}");
@@ -1128,6 +1281,21 @@ impl PluginHost {
             return;
         };
         if same.as_ref() == Some(&params) {
+            // A state of its own that moved no value (a sample it loaded): kept for the
+            // save — unless a freeze holds it: then given back and said, as an edit of a
+            // value is (review 3: the change went unheard, and an unload kept it).
+            let probe = Command::SetPluginParam {
+                strip,
+                effect,
+                id: 0,
+                value: None,
+            };
+            if let Some(target) = cantus_core::freeze::refuses(bus.project(), &probe) {
+                let e = cantus_core::CommandError::Frozen(target);
+                self.refused_by_freeze(bus.project(), effect, &e);
+            } else if let Some(h) = self.slots.get_mut(&effect) {
+                h.edits += 1;
+            }
             return;
         }
         if let Some(h) = self.slots.get_mut(&effect) {
@@ -1140,9 +1308,16 @@ impl PluginHost {
             state,
             params,
         };
-        if let Err(e) = bus.execute(cmd, Origin::User) {
-            if !self.refused_by_freeze(bus.project(), effect, &e) {
-                log::warn!("plug-in state: {e}");
+        match bus.execute(cmd, Origin::User) {
+            Ok(_) => {
+                if let Some(h) = self.slots.get_mut(&effect) {
+                    h.edits += 1;
+                }
+            }
+            Err(e) => {
+                if !self.refused_by_freeze(bus.project(), effect, &e) {
+                    log::warn!("plug-in state: {e}");
+                }
             }
         }
     }

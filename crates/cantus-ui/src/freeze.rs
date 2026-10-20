@@ -50,6 +50,13 @@ pub struct Job {
     content: String,
     /// The commands that go first in the freeze's undo step (hosted states).
     before: Vec<Command>,
+    /// The edits made in its region's plug-ins' windows when it started
+    /// (`PluginHost::edits_of`): another by its end renders it again (review 3: the states'
+    /// bytes were compared, which automation moves, and it never landed).
+    edits: u64,
+    /// The bypassed plug-ins it was rendered without (not installed: a wire stood in),
+    /// said beside its render so it is made again once they are (review 3).
+    wires: Vec<(cantus_core::PluginFormat, String)>,
     worker: Option<JoinHandle<Result<PathBuf, RenderError>>>,
     /// A bounce's plan, filled in with its file when done.
     bounce: Option<crate::bounce::Prepared>,
@@ -84,6 +91,13 @@ pub struct FreezeState {
     epoch: Option<u64>,
     /// The session is closing: nothing starts any more (review 2).
     closed: bool,
+    /// Refreshes said to wait for a file (once each).
+    said_waiting: HashSet<String>,
+    /// A save's copies and prune, done when set (review 3: off the frame).
+    pub copying: Option<Arc<std::sync::atomic::AtomicBool>>,
+    /// Project folders this session saved away from: looked in still (their renders are
+    /// copied over in the background, review 3).
+    left: Vec<PathBuf>,
 }
 
 impl FreezeState {
@@ -123,8 +137,18 @@ pub fn app_dir() -> PathBuf {
     crate::app::data_dir().join("cache").join("freeze")
 }
 
-/// The project's own folder for renders: `Freeze` beside its file, as `Audio` is.
+/// The project's own folder for renders: `Freeze/<its file's name>` beside it — one per
+/// project, so a save prunes only its own (review 3: projects side by side shared one
+/// folder, and saving one deleted the other's renders).
 pub fn project_dir(path: Option<&Path>) -> Option<PathBuf> {
+    let p = path?;
+    let stem = p.file_stem()?.to_string_lossy().into_owned();
+    Some(p.with_file_name("Freeze").join(stem))
+}
+
+/// The folder an older layout kept every project's renders in, side by side: looked in,
+/// never pruned.
+fn shared_dir(path: Option<&Path>) -> Option<PathBuf> {
     path.map(|p| p.with_file_name("Freeze"))
 }
 
@@ -172,10 +196,14 @@ pub fn wire(app: &mut CantusApp) {
 /// at another).
 const RATES: [u32; 6] = [44_100, 48_000, 88_200, 96_000, 176_400, 192_000];
 
-/// A project was saved (`poll_save`): its folder gets the renders its frozen targets play
-/// — saved as elsewhere, they come along (review 2: the reopened project rendered them all
-/// again) — and keeps no other but those an undo or a redo would want (review 2: every
-/// freeze, edit and refreeze left a full render there).
+/// A project was saved (`poll_save`): its own folder gets the renders its frozen targets
+/// play and those an undo or a redo would want — saved as elsewhere, they come along
+/// (review 2: the reopened project rendered them all again) — and keeps no other (review
+/// 2: every freeze, edit and refreeze left a full render there). Its folder is its own
+/// (review 3: a shared one lost other projects' renders); the renders a freeze running or
+/// waiting will want are kept too, and the copies and the prune are made on a thread of
+/// their own (review 3: a first save copied gigabytes on the frame), the store looking in
+/// the old folder meanwhile.
 pub(crate) fn saved(app: &mut CantusApp) {
     let Some(dir) = project_dir(app.path.as_deref()) else {
         return;
@@ -187,21 +215,27 @@ pub(crate) fn saved(app: &mut CantusApp) {
         .into_iter()
         .filter_map(|t| app.project().frozen(t).map(|f| f.content.clone()))
         .collect();
-    for content in keep.clone() {
-        let name =
-            cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(&content, rate));
-        if dir.join(&name).is_file() {
-            continue;
-        }
-        if let Some(from) = app.engine.frozen.path_of(&content, rate) {
-            let _ = std::fs::create_dir_all(&dir);
-            let _ = std::fs::copy(&from, dir.join(&name));
-        }
-    }
     for e in app.bus.history().iter().chain(app.bus.redo_history()) {
         freeze::keys_in(&e.command, &mut keep);
         freeze::keys_in(&e.inverse, &mut keep);
     }
+    keep.extend(wanted_by_jobs(app));
+    // Where each wanted render is now, if not in its folder yet.
+    let copies: Vec<(PathBuf, PathBuf)> = keep
+        .iter()
+        .filter_map(|content| {
+            let name =
+                cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(content, rate));
+            let to = dir.join(&name);
+            if to.is_file() {
+                return None;
+            }
+            app.engine
+                .frozen
+                .path_of(content, rate)
+                .map(|from| (from, to))
+        })
+        .collect();
     let wanted: HashSet<String> = keep
         .iter()
         .flat_map(|c| {
@@ -210,7 +244,56 @@ pub(crate) fn saved(app: &mut CantusApp) {
             })
         })
         .collect();
-    let Ok(rd) = std::fs::read_dir(&dir) else {
+    // Nothing to bring and no folder to prune: nothing to do (a project with nothing
+    // frozen gets no folder).
+    if copies.is_empty() && !dir.is_dir() {
+        return;
+    }
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    app.freeze.copying = Some(done.clone());
+    let spawned = std::thread::Builder::new()
+        .name("cantus-freeze-save".into())
+        .spawn(move || {
+            copy_and_prune(&dir, &copies, &wanted);
+            done.store(true, std::sync::atomic::Ordering::Release);
+        });
+    if spawned.is_err() {
+        app.freeze.copying = None;
+    }
+    app.engine.frozen.forget_missing();
+}
+
+/// The renders the running and the waiting freezes will want (a save must not prune them:
+/// review 3).
+fn wanted_by_jobs(app: &CantusApp) -> Vec<String> {
+    let mut out: Vec<String> = app
+        .freeze
+        .job
+        .iter()
+        .map(|j| j.content.clone())
+        .filter(|c| !c.is_empty())
+        .collect();
+    for w in &app.freeze.queue {
+        if let Want::Freeze(t) | Want::Refresh(t) = w {
+            out.extend(freeze::content_key(app.project(), *t));
+        }
+    }
+    out
+}
+
+/// Copy each render into the project's folder (written beside, then renamed: never a
+/// half file under a render's name) and remove every render there that is not wanted.
+fn copy_and_prune(dir: &Path, copies: &[(PathBuf, PathBuf)], wanted: &HashSet<String>) {
+    if !copies.is_empty() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    for (from, to) in copies {
+        let part = to.with_extension("copy.part");
+        if std::fs::copy(from, &part).is_ok() && std::fs::rename(&part, to).is_err() {
+            let _ = std::fs::remove_file(&part);
+        }
+    }
+    let Ok(rd) = std::fs::read_dir(dir) else {
         return;
     };
     for e in rd.flatten() {
@@ -223,7 +306,6 @@ pub(crate) fn saved(app: &mut CantusApp) {
             let _ = std::fs::remove_file(e.path());
         }
     }
-    app.engine.frozen.forget_missing();
 }
 
 /// A bounce's half-written files left in an audio folder by a session cut short (review 2:
@@ -306,6 +388,14 @@ pub fn prune(dir: &Path, limit: u64) {
 pub(crate) fn follow_path(app: &mut CantusApp) {
     // Compared as it is: nothing is allocated while the path stays.
     if app.freeze.dir_for.as_ref() != Some(&app.path) {
+        // The folder left (a *Save as*): looked in still while its renders are copied.
+        if let Some(Some(old)) = app.freeze.dir_for.as_ref() {
+            if let Some(d) = project_dir(Some(old)) {
+                if !app.freeze.left.contains(&d) {
+                    app.freeze.left.push(d);
+                }
+            }
+        }
         let dir = project_dir(app.path.as_deref());
         if let Some(d) = &dir {
             tidy(d);
@@ -313,6 +403,9 @@ pub(crate) fn follow_path(app: &mut CantusApp) {
         if let Some(audio) = app.path.as_deref().map(|p| p.with_file_name("Audio")) {
             tidy_bounces(&audio);
         }
+        let mut also = app.freeze.left.clone();
+        also.extend(shared_dir(app.path.as_deref()));
+        app.engine.frozen.set_also(also);
         app.engine.frozen.set_project_dir(dir);
         app.freeze.dir_for = Some(app.path.clone());
         app.force_resync();
@@ -377,10 +470,19 @@ pub fn tick(app: &mut CantusApp, ctx: &egui::Context) {
 
 /// Queue a refresh for every frozen target whose render is not at hand (once each).
 fn scan(app: &mut CantusApp) {
+    let rate = app.engine.sample_rate.round() as u32;
+    // The project's renders kept open whatever plays (pattern mode plays every chain
+    // live: leaving it found them closed — review 3).
+    let contents: Vec<String> = app
+        .project()
+        .frozen_targets()
+        .into_iter()
+        .filter_map(|t| app.project().frozen(t).map(|f| f.content.clone()))
+        .collect();
+    app.engine.frozen.hold(&contents, rate);
     if app.project().pattern_mode {
         return;
     }
-    let rate = app.engine.sample_rate.round() as u32;
     // A render that failed while the live snapshot held it: compile again, so its target
     // plays live while it is made again (review 2: it played silence meanwhile).
     if app.engine.frozen.take_lost() {
@@ -404,6 +506,16 @@ fn scan(app: &mut CantusApp) {
         let Some(content) = project.frozen(target).map(|f| f.content.clone()) else {
             continue;
         };
+        // Made with a wire for a bypassed plug-in installed since: its latency is
+        // missing from it — made again (review 3).
+        if let Some(path) = app.engine.frozen.path_of(&content, rate) {
+            if wired_since_installed(app, &path) {
+                let _ = std::fs::remove_file(wires_file(&path));
+                let _ = std::fs::remove_file(&path);
+                app.engine.frozen.forget(&content, rate);
+                app.force_resync();
+            }
+        }
         if app.freeze.failed.contains_key(&content)
             || app.freeze.stopped.contains(&content)
             || app.engine.frozen.find(&content, rate).is_some()
@@ -416,6 +528,11 @@ fn scan(app: &mut CantusApp) {
         if !queued {
             app.freeze.queue.push_back(want);
         }
+    }
+    // A render the finds above gave up on (its stream failed): compile again now, not a
+    // scan later (review 3).
+    if app.engine.frozen.take_lost() {
+        app.force_resync();
     }
 }
 
@@ -680,6 +797,14 @@ fn with(project: &Project, commands: &[Command]) -> Project {
     p
 }
 
+/// A render's instances: its inserts, its instruments, and the plug-ins it plays a wire
+/// for (not installed: noted beside the render, review 3).
+pub(crate) type Units = (
+    Vec<cantus_engine::EffectUnit>,
+    Vec<cantus_engine::inst::NativeUnit>,
+    Vec<(cantus_core::PluginFormat, String)>,
+);
+
 /// The render instances for `snap`: only the hosted plug-ins it runs — not those of the
 /// nodes resting nor of chains a frozen render replaces, nor the master's unless the render
 /// hears the master (`master`) — review 1: every plug-in of the project was instantiated
@@ -691,13 +816,7 @@ pub(crate) fn units_for(
     snap: &Snapshot,
     master: bool,
     stored: bool,
-) -> Result<
-    (
-        Vec<cantus_engine::EffectUnit>,
-        Vec<cantus_engine::inst::NativeUnit>,
-    ),
-    String,
-> {
+) -> Result<Units, String> {
     let mut only = project.clone();
     for s in &mut only.strips {
         let runs = snap.strips.iter().find(|x| x.id == s.id && !x.rest);
@@ -750,14 +869,44 @@ pub(crate) fn units_for(
             .find(|(id, _)| !insts.iter().any(|u| u.track == *id))
             .map(|(_, name)| name)
     });
+    // The bypassed ones a wire stands in for because they are not installed: their latency
+    // is not in the render (review 3) — it is made again once they are. (One installed
+    // but failing to load would only be wired again.)
+    let wires: Vec<(cantus_core::PluginFormat, String)> = only
+        .all_effects()
+        .filter(|(strip, e)| !heard(*strip, e))
+        .filter_map(|(_, e)| e.spec.external.as_deref().map(|x| (e.id, x)))
+        .filter(|(id, _)| !units.iter().any(|u| u.id == *id))
+        .filter(|(_, x)| !app.plugins.installed(x.format, &x.id))
+        .map(|(_, x)| (x.format, x.id.clone()))
+        .collect();
     match lost {
         Some(name) => {
             drop((units, insts));
             app.plugins.finish_render();
             Err(tf("freeze.plugin_missing", &[("plugin", &name)]))
         }
-        None => Ok((units, insts)),
+        None => Ok((units, insts, wires)),
     }
+}
+
+/// Beside a render made with wires in place of bypassed plug-ins not installed: which ones.
+fn wires_file(render: &Path) -> PathBuf {
+    render.with_extension("wires")
+}
+
+/// Whether a render was made with a wire for a plug-in installed now (its latency missing
+/// from it): made again (review 3).
+fn wired_since_installed(app: &CantusApp, render: &Path) -> bool {
+    let Ok(text) = std::fs::read_to_string(wires_file(render)) else {
+        return false;
+    };
+    let Ok(wires) = serde_json::from_str::<Vec<(cantus_core::PluginFormat, String)>>(&text) else {
+        return false;
+    };
+    wires
+        .iter()
+        .any(|(format, id)| app.plugins.installed(*format, id))
 }
 
 /// Start the next render waiting, if nothing runs and no export or modulator bake does
@@ -831,6 +980,7 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                 return Ok(None);
             }
             let before = hosted_states(app, target);
+            let edits = edits_in(app, app.project(), target);
             // Keyed as it will be frozen: disarmed (review 2: an armed track rendered twice).
             let (after, content) = match as_frozen(app.project(), &before, target) {
                 Ok(x) => x,
@@ -852,11 +1002,11 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                     let _ = std::fs::remove_file(&path);
                     app.engine.frozen.forget_missing();
                 } else if app.engine.frozen.find(&content, rate).is_some() {
-                    commit_freeze(app, target, before, &content);
+                    commit_freeze(app, target, before, &content, edits);
                     return Ok(None);
                 }
             }
-            render_job(app, want, target, &after, content, before).map(Some)
+            render_job(app, want, target, &after, content, before, edits).map(Some)
         }
         Want::Refresh(target) => {
             let Some(stored) = app.project().frozen(target).map(|f| f.content.clone()) else {
@@ -884,14 +1034,23 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
             if app.engine.frozen.find(&content, rate).is_some() {
                 return Ok(None);
             }
-            // A file it plays is not there yet: made when it is (it plays live meanwhile).
+            // A file it plays is not there yet: made when it is (it plays live meanwhile),
+            // and said once (review 3: it waited without a word).
             let region = freeze::region(app.project(), target);
-            if missing_file(app, &region).is_some() {
+            if let Some(file) = missing_file(app, &region) {
+                if app.freeze.said_waiting.insert(content.clone()) {
+                    let name = name_of(app.project(), target);
+                    app.set_status(tf(
+                        "freeze.waits_for_file",
+                        &[("name", &name), ("file", &file)],
+                    ));
+                }
                 return Ok(None);
             }
             retry_back(app, &region);
             let project = app.project().clone();
-            match render_job(app, want, target, &project, content, Vec::new()) {
+            let edits = edits_in(app, &project, target);
+            match render_job(app, want, target, &project, content, Vec::new(), edits) {
                 Ok(job) => Ok(Some(job)),
                 // Postponed, never marked failed: the file may come back.
                 Err(e) if e == MISSING => Ok(None),
@@ -945,14 +1104,23 @@ pub(crate) fn missing_file(app: &CantusApp, r: &freeze::Region) -> Option<String
             return;
         }
         let inside = match &owner {
-            Owner::Zone { track, .. } | Owner::Pad { track, .. } | Owner::Layer { track, .. } => {
+            Owner::Zone { track, .. } => r.tracks.contains(track),
+            // A muted pad does not sound (review 3: one stopped a freeze).
+            Owner::Pad { track, pad } | Owner::Layer { track, pad, .. } => {
                 r.tracks.contains(track)
+                    && project
+                        .track(*track)
+                        .and_then(|t| t.instrument.pulsus())
+                        .and_then(|k| k.pads.iter().find(|p| p.id == *pad))
+                        .is_some_and(|p| !p.muted)
             }
+            // Only the clips that play: unmuted, on the first lane (review 3: an old take
+            // on a lane below stopped a freeze, and postponed a refresh for good).
             Owner::Source { id } => r.tracks.iter().any(|t| {
                 project.track(*t).is_some_and(|t| {
-                    t.clips
-                        .iter()
-                        .any(|c| !c.muted && c.audio.as_ref().is_some_and(|a| a.source == *id))
+                    t.clips.iter().any(|c| {
+                        !c.muted && c.lane == 0 && c.audio.as_ref().is_some_and(|a| a.source == *id)
+                    })
                 })
             }),
         };
@@ -1010,6 +1178,7 @@ fn render_job(
     project: &Project,
     content: String,
     before: Vec<Command>,
+    edits: u64,
 ) -> Result<Job, String> {
     let late = app.engine.renders_late();
     let job = match cantus_engine::freeze::render::prepare(&mut app.engine, project, target) {
@@ -1025,7 +1194,7 @@ fn render_job(
     };
     app.say_late(late);
     let whole = freeze::region(project, target).whole;
-    let (units, insts) = match units_for(app, project, &job.snapshot, whole, true) {
+    let (units, insts, wires) = match units_for(app, project, &job.snapshot, whole, true) {
         Ok(u) => u,
         Err(why) => {
             app.freeze.failed.insert(content.clone(), why.clone());
@@ -1044,10 +1213,32 @@ fn render_job(
         progress,
         content,
         before,
+        edits,
+        wires,
         worker: Some(worker),
         bounce: None,
         epoch: app.epoch,
     })
+}
+
+/// The edits made so far in the windows of `target`'s region's plug-ins (review 3).
+fn edits_in(app: &CantusApp, project: &Project, target: FreezeTarget) -> u64 {
+    let r = freeze::region(project, target);
+    let effects: Vec<cantus_core::EffectId> = project
+        .all_effects()
+        .filter(|(s, _)| r.strips.contains(s))
+        .map(|(_, e)| e.id)
+        .chain(
+            project
+                .master
+                .effects
+                .iter()
+                .map(|e| e.id)
+                .filter(|_| r.whole),
+        )
+        .collect();
+    let tracks: Vec<cantus_core::TrackId> = r.tracks.iter().copied().collect();
+    app.plugins.edits_of(&effects, &tracks)
 }
 
 /// A bounce's job (`crate::bounce::start` builds it).
@@ -1065,6 +1256,8 @@ pub(crate) fn bounce_job(
         progress,
         content: String::new(),
         before: Vec::new(),
+        edits: 0,
+        wires: Vec::new(),
         worker: Some(worker),
         bounce: Some(prepared),
         epoch: app.epoch,
@@ -1073,10 +1266,18 @@ pub(crate) fn bounce_job(
 
 /// Freeze `target` now (its render is on disk): the hosted states and the freeze, one
 /// undo step — when what it holds is still `content`.
-fn commit_freeze(app: &mut CantusApp, target: FreezeTarget, before: Vec<Command>, content: &str) {
-    // A plug-in of its region turned while it rendered (its window): rendered again with
-    // what it holds now, never set back (review 2).
-    if hosted_states(app, target) != before {
+fn commit_freeze(
+    app: &mut CantusApp,
+    target: FreezeTarget,
+    before: Vec<Command>,
+    content: &str,
+    edits: u64,
+) {
+    // A plug-in of its region turned while it rendered (its window, its own browser):
+    // rendered again with what it holds now, never set back (review 2) — counted as edits,
+    // never as its state's bytes, which automation and modulators move (review 3: it
+    // never landed).
+    if edits_in(app, app.project(), target) != edits {
         app.freeze.queue.push_front(Want::Freeze(target));
         return;
     }
@@ -1115,6 +1316,16 @@ fn commit_freeze(app: &mut CantusApp, target: FreezeTarget, before: Vec<Command>
         app.set_status(tf(key, &[("name", &name)]));
     }
     app.force_resync();
+}
+
+/// Write (or clear) beside a render the plug-ins a wire stood in for (review 3).
+fn note_wires(render: &Path, wires: &[(cantus_core::PluginFormat, String)]) {
+    let file = wires_file(render);
+    if wires.is_empty() {
+        let _ = std::fs::remove_file(file);
+    } else if let Ok(text) = serde_json::to_string(wires) {
+        let _ = std::fs::write(file, text);
+    }
 }
 
 /// The running render, when its worker is done: committed, or why not said.
@@ -1177,8 +1388,11 @@ fn collect(app: &mut CantusApp) {
     }
     match result {
         Some(Ok(path)) => match job.want.clone() {
-            Want::Freeze(target) => commit_freeze(app, target, job.before, &job.content),
-            Want::Refresh(_) => {}
+            Want::Freeze(target) => {
+                note_wires(&path, &job.wires);
+                commit_freeze(app, target, job.before, &job.content, job.edits)
+            }
+            Want::Refresh(_) => note_wires(&path, &job.wires),
             Want::Bounce(_) => {
                 if let Some(prepared) = job.bounce.take() {
                     crate::bounce::commit(app, prepared, path);
@@ -1187,6 +1401,14 @@ fn collect(app: &mut CantusApp) {
         },
         Some(Err(RenderError::Cancelled)) => {
             app.set_status(tf("freeze.stopped", &[("name", &job.name)]));
+        }
+        // Its latency moves during the song: it stays live, said (review 3).
+        Some(Err(RenderError::LatencyMoved)) => {
+            let text = tf("freeze.latency_moves", &[("name", &job.name)]);
+            if !job.content.is_empty() {
+                app.freeze.failed.insert(job.content.clone(), text.clone());
+            }
+            app.set_error(text);
         }
         Some(Err(e)) => {
             if !job.content.is_empty() {

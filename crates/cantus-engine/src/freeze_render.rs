@@ -10,8 +10,16 @@
 //! the tap at the transport's frame *f*, and the frozen strip reports that latency as its
 //! own (`Processor::compensate`), so every frame meets its fader, its pan and their
 //! automation at the very sample it did live — the mix is the live mix to the bit, in real
-//! time as offline. A **bounce keeps it too** (review 2: trimmed, the rides and keys carried
-//! to the new track acted early by it): the new track reports it (`Track::lateness`).
+//! time as offline. A **bounce trims it** — its audio is on the grid, so it moves, pastes
+//! and exports as any clip — and the new track keeps it as a delay before its level
+//! (`Track::lateness`, review 3), so the rides and keys carried to it meet the audio as
+//! late as before (review 2: they acted early by it). Through a strip's inserts, the
+//! bounced track enters the chain as late as it did live (`TapOptions::arrive`, review 3:
+//! its strip's other inputs, left out of the render, set that).
+//!
+//! **A latency that moves during the song** (an automated look-ahead, a mode) cannot be
+//! one render's: the render fails ([`RenderError::LatencyMoved`]) and the target stays
+//! live (review 3).
 //!
 //! **Length.** The range, then its tail: the pass runs on until what it taps has been
 //! exactly zero for `quiet_seconds` (a reverb rung out; denormals are flushed, so a tail
@@ -57,6 +65,12 @@ pub struct TapOptions {
     /// The tail ends after this much exact silence, or at `max_tail_seconds`.
     pub quiet_seconds: f64,
     pub max_tail_seconds: f64,
+    /// Drop the tap's latency from the front: frame 0 is `start` on the grid (a bounce's,
+    /// review 3); kept for a freeze.
+    pub trim: bool,
+    /// The tapped strip's arrival at least this (frames): a strip bounce's inputs left out
+    /// of the render still delay what enters its chain live (review 3, [`strip_arrival`]).
+    pub arrive: usize,
 }
 
 impl TapOptions {
@@ -70,14 +84,15 @@ impl TapOptions {
             end,
             quiet_seconds: 1.0,
             max_tail_seconds: 30.0,
+            trim: false,
+            arrive: 0,
         }
     }
 
     /// A bounce's: played from tick 0 as the song plays (the range's material alone in
     /// it), the frames from `start`, its tail up to 30 s, the song playing on through it
-    /// (review 2: stopped at the end, the tail met still lanes). Its latency is **kept**
-    /// (review 2): the new track reports it (`Track::lateness`), so its level, fader, sends
-    /// and keys meet the audio as late as before.
+    /// (review 2: stopped at the end, the tail met still lanes). Its latency is trimmed:
+    /// the new track keeps it as a delay (`Track::lateness`, review 3).
     pub fn bounce(sample_rate: u32, start: Ticks, end: Ticks) -> Self {
         TapOptions {
             sample_rate,
@@ -87,6 +102,8 @@ impl TapOptions {
             end,
             quiet_seconds: 1.0,
             max_tail_seconds: 30.0,
+            trim: true,
+            arrive: 0,
         }
     }
 }
@@ -99,8 +116,8 @@ pub struct Tapped {
     pub raw: PathBuf,
     pub frames: usize,
     pub sample_rate: u32,
-    /// The tap's latency: what the frozen target (or the bounce's new track) reports as its
-    /// own.
+    /// The tap's latency: what the frozen target reports as its own (kept in its frames),
+    /// or what a bounce's new track keeps as its delay (trimmed from them).
     pub latency: usize,
     pub peak: f32,
     /// Notes that played their streamed sample's start only.
@@ -151,6 +168,9 @@ pub fn render_tapped(
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     p.set_profiling(false);
     p.set_offline(true);
+    if let (TapPoint::Strip(i), true) = (point, opts.arrive > 0) {
+        p.set_arrive_floor(Some((i, opts.arrive)));
+    }
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
             Some(i) => units.swap_remove(i),
@@ -169,41 +189,35 @@ pub fn render_tapped(
     tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan))
         .ok();
     p.settle();
-    while let Ok(ev) = rx.pop() {
-        match ev {
-            EngineEvent::PdcNeed { count, delay } => {
-                tx.push(EngineMessage::PdcLines(crate::pdc::lines_for(count, delay)))
-                    .ok();
-                p.settle();
-            }
-            EngineEvent::EffectNeed { effect, need } => {
-                let memory = crate::effects::EffectMemory::build(need, sr as f32);
-                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
-                p.settle();
-            }
-            _ => {}
-        }
-    }
+    serve(&mut p, &mut tx, &mut rx, sr);
     p.attach_stem_tap(Box::new(StemTap::with_pre(block)));
     tx.push(EngineMessage::Seek(opts.from.min(opts.start))).ok();
     tx.push(EngineMessage::Play).ok();
-    let (slot, latency) = match point {
-        TapPoint::Strip(i) => (p.strip_slot(i), p.strip_latency(i)),
-        TapPoint::Track(i) => (p.track_slot(i), p.track_latency(i)),
+    let tap_latency = |p: &Processor| match point {
+        TapPoint::Strip(i) => p.strip_latency(i),
+        TapPoint::Track(i) => p.track_latency(i),
     };
+    let slot = match point {
+        TapPoint::Strip(i) => p.strip_slot(i),
+        TapPoint::Track(i) => p.track_slot(i),
+    };
+    let latency = tap_latency(&p);
+    let unserved = p.stats().pdc_unserved;
     let slot = slot.ok_or(RenderError::Empty)?;
     let from = opts.from.min(opts.start);
-    // The frames before the range (the transport started earlier) are dropped.
+    // The frames before the range (the transport started earlier) are dropped — and its
+    // latency too when trimmed (a bounce, on the grid).
     let late =
         crate::transport::sample_at_map(&snapshot.tempo, from.0 as f64, opts.start.0 as f64, sr)
-            as usize;
-    // The range's frames, and the latency they arrive after (kept).
+            as usize
+            + if opts.trim { latency } else { 0 };
+    // The range's frames, and the latency they arrive after when it is kept.
     let content = (snapshot
         .tempo
         .seconds_between(opts.start, opts.end.max(opts.start))
         * sr)
         .ceil() as usize
-        + latency;
+        + if opts.trim { 0 } else { latency };
     let quiet = (opts.quiet_seconds.max(0.0) * sr).ceil() as usize;
     let longest = content + (opts.max_tail_seconds.max(0.0) * sr).ceil() as usize;
     let mut out = BufWriter::new(std::fs::File::create(raw).map_err(io)?);
@@ -256,7 +270,15 @@ pub fn render_tapped(
         out.write_all(&bytes).map_err(io)?;
         done += n;
         progress.done.store(done as u64, Relaxed);
-        while rx.pop().is_ok() {}
+        serve(&mut p, &mut tx, &mut rx, sr);
+        // A latency that moved during the song (an automated look-ahead, a mode — ADR
+        // 0056's re-plan): one render cannot hold it, its frames after the move would be
+        // planned with the old one (review 3). So would a line it could not get.
+        if tap_latency(&p) != latency || p.stats().pdc_unserved > unserved {
+            drop(out);
+            let _ = std::fs::remove_file(raw);
+            return Err(RenderError::LatencyMoved);
+        }
     }
     out.flush().map_err(io)?;
     drop(out);
@@ -276,6 +298,85 @@ pub fn render_tapped(
         peak,
         cut_notes: p.stats().stream_cut,
     })
+}
+
+/// Answer what the processor asked for (longer delay lines, an insert's memory), as an
+/// offline render does: off the audio thread, taken at its next block.
+fn serve(
+    p: &mut Processor,
+    tx: &mut rtrb::Producer<EngineMessage>,
+    rx: &mut rtrb::Consumer<EngineEvent>,
+    sr: f64,
+) {
+    while let Ok(ev) = rx.pop() {
+        match ev {
+            EngineEvent::PdcNeed { count, delay } => {
+                tx.push(EngineMessage::PdcLines(crate::pdc::lines_for(count, delay)))
+                    .ok();
+                p.settle();
+            }
+            EngineEvent::EffectNeed { effect, need } => {
+                let memory = crate::effects::EffectMemory::build(need, sr as f32);
+                tx.push(EngineMessage::EffectMemory { effect, memory }).ok();
+                p.settle();
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The arrival into snapshot strip `strip` as the session plans it — every input running,
+/// no low-latency monitoring: how late what enters its chain is (ADR 0018's `A`). A bounce
+/// through its inserts renders one input alone and waits that long before the chain
+/// (`TapOptions::arrive`, review 3: it was the live meters', zero without a device, and
+/// the monitoring mode's). `snapshot` as the render's (compiled for a render, solo off);
+/// `effects` and `instruments`, the latencies of the hosted plug-ins the session runs (they
+/// are not instantiated here: stand-ins report them). Nothing is processed.
+pub fn strip_arrival(
+    snapshot: &Snapshot,
+    strip: usize,
+    sample_rate: u32,
+    effects: &[(cantus_core::EffectId, usize)],
+    instruments: &[(cantus_core::TrackId, usize)],
+) -> usize {
+    let sr = sample_rate as f64;
+    let mut snap = snapshot.clone();
+    snap.loop_region = None;
+    snap.metronome = false;
+    // A hosted instrument's latency, as a delay its track keeps: the same arithmetic.
+    for t in &mut snap.tracks {
+        if let Some((_, l)) = instruments.iter().find(|(id, _)| *id == t.id) {
+            let kept = t.lateness.map_or(0, |x| x.at(sr)) as u64;
+            t.lateness = Some(cantus_core::Lateness {
+                frames: kept + *l as u64,
+                rate: sample_rate,
+            });
+        }
+    }
+    let snap = Arc::new(snap);
+    let effect_count: usize = snap.effect_slots().count();
+    let natives = crate::inst::units_for(&snap, sr as f32, |_, _| false);
+    let (mut tx, rx_engine) = RingBuffer::<EngineMessage>::new(16 + effect_count + natives.len());
+    let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count);
+    let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
+    p.set_profiling(false);
+    p.set_offline(true);
+    for slot in snap.effect_slots() {
+        let unit = match effects.iter().find(|(id, _)| *id == slot.id) {
+            Some((_, l)) => EffectUnit::latency_stand_in(slot, sr as f32, *l),
+            None => EffectUnit::new(slot, sr as f32),
+        };
+        tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
+    }
+    for unit in natives {
+        tx.push(EngineMessage::AddInstrument(unit)).ok();
+    }
+    let plan = crate::graph::compile(&snap);
+    tx.push(EngineMessage::SetSnapshotPlanned(snap.clone(), plan))
+        .ok();
+    p.settle();
+    serve(&mut p, &mut tx, &mut rx, sr);
+    p.strip_arrival(strip)
 }
 
 /// Read a tapped render's frames in order, `dst.len() / 2` at a time — failing as soon as
@@ -323,17 +424,6 @@ pub fn write_render(
 
 /// A 32-bit float stereo WAV of `t` at `path` (a bounce in place's audio file).
 pub fn write_wav(t: &Tapped, path: &Path, progress: &RenderProgress) -> Result<(), RenderError> {
-    write_wav_padded(t, path, 0, progress)
-}
-
-/// [`write_wav`] with `pad` frames of silence in front (a bounce that keeps a latency
-/// longer than its render's: review 2).
-pub fn write_wav_padded(
-    t: &Tapped,
-    path: &Path,
-    pad: usize,
-    progress: &RenderProgress,
-) -> Result<(), RenderError> {
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: t.sample_rate,
@@ -342,9 +432,6 @@ pub fn write_wav_padded(
     };
     let written = (|| -> Result<(), RenderError> {
         let mut w = hound::WavWriter::create(path, spec)?;
-        for _ in 0..pad * 2 {
-            w.write_sample(0f32)?;
-        }
         let mut fill = frames_of(t, progress).map_err(io)?;
         let mut chunk = vec![0f32; 8192 * 2];
         let mut left = t.frames;

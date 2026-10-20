@@ -41,6 +41,7 @@ fn loop_passes_under_a_ramp_play_what_was_recorded_there() {
         frames: first + 3 * loop_frames,
         start_tick,
         wraps: vec![first + loop_frames, first + 2 * loop_frames],
+        wrap_shifts: Vec::new(),
         dropped: 0,
     };
     let mut plan = PassPlan::new(a);

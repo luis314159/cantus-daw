@@ -222,6 +222,23 @@ pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: 
         _ => None,
     };
     let p = app.project();
+    // The delay a bounced track keeps (`Track::lateness`, review 3): shown, and cleared.
+    if let Some((id, l)) = track.and_then(|t| p.track(t).and_then(|x| x.lateness.map(|l| (t, l)))) {
+        let ms = l.frames as f64 * 1000.0 / l.rate.max(1) as f64;
+        let ms = format!("{ms:.1}");
+        let value = crate::i18n::tf("freeze.lateness.value", &[("ms", &ms)]);
+        let tip = crate::i18n::tf("freeze.lateness.tip", &[("ms", &ms)]);
+        if sh.text_button_row(
+            "freeze.lateness.row",
+            &value,
+            "freeze.lateness.clear",
+            Function::Source,
+            &tip,
+        ) {
+            sh.acts
+                .push(Act::Exec(Command::SetTrackLateness { id, lateness: None }));
+        }
+    }
     let target = match (track, strip) {
         (Some(t), _) => p.freeze_target_of_track(t),
         (None, Some(s)) => Some(cantus_core::FreezeTarget::Strip(s)),

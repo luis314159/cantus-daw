@@ -90,6 +90,17 @@ pub(super) struct Live {
     /// heard later (or sooner) moves in the file by as much, so it lands where it was
     /// played.
     pub shift: i64,
+    /// Moves not due yet (review 3): the input of the next round trip was played against
+    /// the backing as it was. (Input frame it is due at, by how much), oldest first.
+    due: [(u64, i64); DUE],
+    due_n: usize,
+    /// Input frames the pass has taken, written or dropped.
+    taken: u64,
+    /// The moves taken into the file so far (frames dropped less silence written): a
+    /// wrap carries it (review 3: later loop passes were placed by the start's latency).
+    applied: i64,
+    /// The devices' round trip, in frames (`EngineMessage::SetDeviceRoundTrip`).
+    pub round_trip: u32,
     /// Frames each ring lost since the last `Overflow` mark, and whose ring it is.
     dropped: [(Option<TrackId>, u64); MAX_TRACKS],
     /// The count-in's end, in ticks (`EngineMessage::SetRecordStart`).
@@ -108,6 +119,11 @@ impl Live {
             active: false,
             frames: 0,
             shift: 0,
+            due: [(0, 0); DUE],
+            due_n: 0,
+            taken: 0,
+            applied: 0,
+            round_trip: 0,
             dropped: [(None, 0); MAX_TRACKS],
             record_start: None,
             click: ClickMode::Always,
@@ -119,6 +135,41 @@ impl Live {
         self.frames = 0;
         self.active = false;
         self.dropped = [(None, 0); MAX_TRACKS];
+    }
+}
+
+/// Heard-latency moves a pass keeps waiting at once; more are folded into the last.
+const DUE: usize = 8;
+
+impl Live {
+    /// The heard latency moved by `by` frames: due once the input the musician played
+    /// after hearing it arrives — `wait` frames from now.
+    fn schedule(&mut self, by: i64, wait: u64) {
+        let at = self.taken + wait;
+        if self.due_n < DUE {
+            self.due[self.due_n] = (at, by);
+            self.due_n += 1;
+        } else {
+            self.due[DUE - 1].1 += by;
+        }
+    }
+
+    /// Take the moves due by input frame `self.taken` into `shift`.
+    fn take_due(&mut self) {
+        while self.due_n > 0 && self.due[0].0 <= self.taken {
+            self.shift += self.due[0].1;
+            self.due.copy_within(1..self.due_n, 0);
+            self.due_n -= 1;
+        }
+    }
+
+    /// Input frames from now to the next move that is not due yet (`room` at most).
+    fn until_due(&self, room: u64) -> u64 {
+        if self.due_n > 0 {
+            self.due[0].0.saturating_sub(self.taken).min(room)
+        } else {
+            room
+        }
     }
 }
 
@@ -611,7 +662,9 @@ impl Processor {
         }
     }
 
-    /// Write the segment `[done, done + n)` of every armed track's input into its ring.
+    /// Write the segment `[done, done + n)` of every armed track's input into its ring —
+    /// moved, where the heard latency moved, by as much (review 2), from the frame played
+    /// once the move was heard (review 3).
     pub(super) fn record_segment(&mut self, done: usize, n: usize) {
         if !self.should_record() {
             return;
@@ -619,6 +672,9 @@ impl Processor {
         if !self.live.active {
             self.live.active = true;
             self.live.shift = 0;
+            self.live.due_n = 0;
+            self.live.taken = 0;
+            self.live.applied = 0;
             let tick = self.transport.position_f64();
             let plugin = self.pdc.total.min(u32::MAX as usize) as u32;
             let queue = self.stats.input_queue.round() as i64;
@@ -628,26 +684,43 @@ impl Processor {
                 queue,
             });
         }
-        // The heard latency moved while recording: later playing is moved by as much.
-        let mut skip = 0usize;
-        if self.live.shift > 0 {
-            skip = (self.live.shift as usize).min(n);
-            self.live.shift -= skip as i64;
-        } else if self.live.shift < 0 {
-            let pad = self.live.shift.unsigned_abs();
-            self.live.shift = 0;
-            if let Some(rings) = self.record_rings.as_mut() {
-                for ring in rings.tracks.iter_mut() {
-                    // The writer pads a gap with silence (the file keeps its timing).
-                    ring.pending += pad;
+        let mut a = 0usize;
+        while a < n {
+            // The heard latency moved while recording: playing from now on is moved by as
+            // much — dropped, or silence written before it.
+            self.live.take_due();
+            if self.live.shift < 0 {
+                let pad = self.live.shift.unsigned_abs();
+                self.live.shift = 0;
+                if let Some(rings) = self.record_rings.as_mut() {
+                    for ring in rings.tracks.iter_mut() {
+                        // The writer pads a gap with silence (the file keeps its timing).
+                        ring.pending += pad;
+                    }
                 }
+                self.live.frames += pad;
+                self.live.applied -= pad as i64;
             }
-            self.live.frames += pad;
+            let until = self.live.until_due((n - a) as u64) as usize;
+            let skip = if self.live.shift > 0 {
+                (self.live.shift as usize).min(until)
+            } else {
+                0
+            };
+            self.live.shift -= skip as i64;
+            self.live.applied += skip as i64;
+            self.live.taken += skip as u64;
+            let w = until - skip;
+            if w > 0 {
+                self.record_input(done + a + skip, w);
+                self.live.taken += w as u64;
+            }
+            a += until;
         }
-        if skip == n {
-            return;
-        }
-        let (done, n) = (done + skip, n - skip);
+    }
+
+    /// Write `[done, done + n)` of every armed track's input into its ring.
+    fn record_input(&mut self, done: usize, n: usize) {
         let Some(rings) = self.record_rings.as_mut() else {
             return;
         };
@@ -706,16 +779,20 @@ impl Processor {
         self.live.active
     }
 
-    /// The heard latency moved by `by` frames while a pass records.
+    /// The heard latency moved by `by` frames while a pass records: due a round trip
+    /// later — the devices' and the input ring's wait (review 3: applied at once, it cut or
+    /// misplaced the playing in flight).
     pub(super) fn live_shift(&mut self, by: i64) {
-        self.live.shift += by;
+        let wait = self.live.round_trip as u64 + self.stats.input_queue.max(0.0).round() as u64;
+        self.live.schedule(by, wait);
     }
 
-    /// The loop wrapped: the pass's takes split here.
+    /// The loop wrapped: the pass's takes split here, with the moves taken so far.
     pub(super) fn record_wrapped(&mut self) {
         if self.live.active {
             let frames = self.live.frames;
-            self.mark(RecordMark::Wrapped { frames });
+            let shift = self.live.applied;
+            self.mark(RecordMark::Wrapped { frames, shift });
         }
     }
 }

@@ -4,10 +4,11 @@
 cmd.freeze = congelar
 cmd.unfreeze = descongelar
 cmd.bounce_in_place = pasar a audio en su lugar
+cmd.set_track_lateness = fijar el retardo de la pista
 
 # Acciones (el mapa de teclas)
 action.freeze-track = Congelar o descongelar la pista
-action.bounce-in-place = Pasar a audio en su lugar (con los insertos)
+action.bounce-in-place = Pasar a audio en su lugar (con las inserciones)
 action.bounce-source = Pasar a audio en su lugar (solo la fuente)
 action.toggle-low-latency = Escucha con baja latencia sí o no
 
@@ -25,7 +26,15 @@ freeze.bake_waits = Se está congelando o pasando algo a audio: convierte cuando
 freeze.file_missing = {file} no está: congélalo cuando esté (un paquete de sonidos que aún se descarga, un disco sin conectar).
 freeze.file_missing_any = Un archivo que reproduce no está: congélalo cuando esté.
 freeze.master = El máster no se congela ni se pasa a audio: elige una pista o un canal.
-freeze.done_heard = {name} está congelado: suena su render y su CPU queda libre. Un modulador dentro escucha su mezcla, así que su fader, su paneo y su silencio son parte de su sonido; sus envíos siguen en vivo.
+freeze.done_heard = {name} está congelado: suena su render y su CPU queda libre. Un modulador dentro escucha su mezcla, así que su fader, su paneo, su anchura, su silencio, su solo, sus envíos y su salida son parte de su sonido: descongélalo para cambiarlos.
+freeze.done_heard_track = {name} está congelado: su instrumento suena desde un render y su CPU queda libre. Un modulador dentro escucha lo que toca, así que su nivel, su balance, su silencio y su solo, y la mezcla de su canal, son parte de su sonido: descongélalo para cambiarlos.
+freeze.waits_for_file = {name} suena en vivo: {file} no está; su render se hace cuando esté.
+freeze.latency_moves = {name} sigue en vivo: su latencia cambia durante la canción (una anticipación o un modo automatizados), y un render no puede guardarla.
+freeze.lateness_repaired = Se quitaron del archivo retardos de pista fuera de rango: {n}.
+freeze.lateness.row = Retardo
+freeze.lateness.value = {ms} ms
+freeze.lateness.clear = Quitar
+freeze.lateness.tip = Esta pista toca todo lo que tiene {ms} ms más tarde, como se oía aquello de lo que se pasó a audio, para que su automatización y sus claves lo encuentren como antes. Quítalo para que suene a tiempo.
 freeze.done_track = {name} está congelado: su instrumento suena desde un render y su CPU queda libre. Su nivel, su balance, su silencio y su solo siguen en vivo.
 freeze.stopped = Detenido: {name} no cambió.
 freeze.failed = No se pudo hacer el render de {name}: {error}
@@ -48,11 +57,13 @@ freeze.card.bouncing_body = {pct} % hecho. La canción sigue sonando; la pista d
 freeze.card.stop = Detener
 freeze.card.refused = {name} está congelado
 freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. Su fader, paneo, silencio, solo y envíos siguen en vivo.
-freeze.card.refused_body_heard = Su sonido es un render, y un modulador dentro escucha su mezcla: su fader, su paneo y su silencio son parte de él. Descongélalo para cambiarlos.
+freeze.card.refused_body_heard = Su sonido es un render, y un modulador dentro escucha su mezcla: su fader, paneo, anchura, silencio, solo, envíos y salida son parte de él. Descongélalo para cambiarlos.
+freeze.card.refused_body_heard_track = Su sonido es un render, y un modulador dentro escucha lo que toca: su nivel, balance, silencio y solo, y la mezcla de su canal, son parte de él. Descongélalo para cambiarlos.
 freeze.card.refused_body_track = Su sonido es un render: descongélalo para cambiarlo. Su nivel, balance, silencio y solo siguen en vivo.
 freeze.card.waiting = {name} espera
 freeze.card.waiting_body = Empieza cuando terminen la exportación, la conversión o la carga de archivos.
 freeze.card.more = {body} {n} más esperan.
+freeze.card.more_one = {body} Espera uno más.
 freeze.card.ok = Entendido
 
 # --- menús ---
@@ -86,14 +97,15 @@ bounce.live_input = {name} toca una entrada en vivo (armada, o con la Escucha si
 bounce.soloed = {what} está en solo dentro: su audio lo guarda todo. Quita antes el solo de {what}.
 bounce.notes_heard = Algo oye las notas de {name}: silenciar sus clips lo callaría. Pasa a audio la pista entera.
 bounce.strip_source = Un canal pasa a audio con sus inserciones: Pasar el canal a audio en su lugar.
+bounce.seam = Los clips elegidos de {name} hacen un fundido con una toma que dejan fuera: elige las dos, un tramo de tiempo o la pista entera.
 
 # --- escucha con baja latencia ---
 freeze.ll.band = Escucha con baja latencia
 freeze.ll.row = Baja latencia
 freeze.ll.on = Sí
-freeze.ll.tip = Escucha con baja latencia ({key}): lo que escuchas no espera a la latencia de las otras pistas, y sus insertos por encima del límite se saltan mientras está activa.
+freeze.ll.tip = Escucha con baja latencia ({key}): lo que escuchas no espera a la latencia de las otras pistas, y sus inserciones por encima del límite se saltan mientras está activa.
 freeze.ll.limit = Límite
-freeze.ll.limit_tip = Los insertos de un camino escuchado con más latencia que esto se saltan
+freeze.ll.limit_tip = Las inserciones de un camino escuchado con más latencia que esto se saltan
 freeze.ll.ms = {ms} ms
 freeze.ll.now = Saltados
 freeze.ll.none_off = Nada por encima del límite

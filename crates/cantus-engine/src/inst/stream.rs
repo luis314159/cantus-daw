@@ -25,7 +25,9 @@ use std::time::Duration;
 #[path = "stream_reader.rs"]
 mod reader;
 
-pub use reader::{inject_io_fault, level0_frames_read, set_read_delay, LOOKAHEAD};
+pub use reader::{
+    inject_io_fault, inject_io_faults, level0_frames_read, set_read_delay, LOOKAHEAD,
+};
 
 /// The automatic size limit's ceiling (Settings may choose another limit).
 pub const AUTO_CACHE_CAP: u64 = 16 << 30;
@@ -934,8 +936,61 @@ fn is_frozen_render(entry: &Entry) -> bool {
         .is_some_and(|x| x == crate::freeze::EXTENSION)
 }
 
+/// Frozen renders whose reads failed for a passing reason (the disk, a lock) and failed
+/// again after waiting: not damaged — their store looks at them again later (review 3).
+static IO_FAILED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// Whether the frozen render at `path` failed only for passing read errors (taken: asked
+/// once per failure).
+pub fn take_io_failed(path: &std::path::Path) -> bool {
+    let Ok(mut v) = IO_FAILED.lock() else {
+        return false;
+    };
+    match v.iter().position(|p| p == path) {
+        Some(i) => {
+            v.swap_remove(i);
+            true
+        }
+        None => false,
+    }
+}
+
+/// How long a frozen render's passing read error is waited out, try after try (review 3:
+/// one immediate retry, once per stream, failed a good render for the session).
+const FROZEN_RETRIES: [u64; 4] = [0, 50, 200, 1_000];
+
 fn recover_now(entry: &Arc<Entry>, io: Option<usize>) {
     let st = &entry.stream;
+    // A frozen render's passing read error: read again, waiting longer each time; read, it
+    // plays on and the next error gets its tries again. Still failing: failed for now, its
+    // file kept and looked at again later — only a damaged or vanished render is made
+    // again (review 3).
+    if let (Some(block), true) = (io, is_frozen_render(entry)) {
+        for wait in FROZEN_RETRIES {
+            std::thread::sleep(std::time::Duration::from_millis(wait));
+            if reopen(entry, block) {
+                entry.reopened.store(false, Ordering::Release);
+                entry.recovering.store(false, Ordering::Release);
+                if let Some(t) = hub().reader.get() {
+                    t.unpark();
+                }
+                return;
+            }
+        }
+        log::warn!(
+            "frozen render {}: read errors, looked at again later",
+            entry.source.display()
+        );
+        if let Ok(mut v) = IO_FAILED.lock() {
+            v.push(entry.source.clone());
+        }
+        st.set_failed();
+        entry.recovering.store(false, Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
+    }
     // A read that failed for a passing reason (a busy drive): the kept file, opened again,
     // is read again — the very block that failed — before anything is decoded (third
     // review #4); once per stream: an error that comes back is the disk's, and the source
@@ -1014,6 +1069,9 @@ fn reopen(entry: &Arc<Entry>, block: usize) -> bool {
     let Some(mut fresh) = Open::new(o.c.clone()) else {
         return false;
     };
+    if reader::injected_io(&fresh.c.path) {
+        return false;
+    }
     let ch = fresh.c.channels;
     let mut buf = vec![0.0f32; BLOCK * ch];
     let read = fresh.with_file(|c, f| c.read_blocks(f, block, 1, &mut buf).is_ok());
