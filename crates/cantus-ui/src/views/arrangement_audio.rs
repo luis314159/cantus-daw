@@ -293,6 +293,21 @@ pub fn paint(
     let mut h = handles(body, inner, shown.region, px_per_tick, k)?;
     // The warp markers and transients (ADR 0061), over the waveform and the fades.
     h.warp = warp::paint(b, app, geo, lanes, shown, inner, show_handles, s);
+    // On a warped clip the band holds the markers' flags: the fade and gain squares sit
+    // below it, so neither covers a flag (a clip not warped keeps its layout).
+    if let Some(band) = h
+        .warp
+        .filter(|_| shown.region.warp.as_deref().is_some_and(|w| w.follow))
+        .map(|w| w.band)
+    {
+        let floor = band.bottom() + k;
+        for sq in [&mut h.fade_in, &mut h.fade_out, &mut h.gain] {
+            let dy = (floor - sq.top())
+                .min(inner.bottom() - sq.bottom())
+                .max(0.0);
+            *sq = sq.translate(vec2(0.0, dy));
+        }
+    }
     scratch.handles.push(((shown.track, shown.clip.id), h));
     if show_handles {
         let hot = dragging.or_else(|| pointer.and_then(|p| h.at(p)));

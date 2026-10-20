@@ -218,6 +218,20 @@ fn the_arrangement_draws_warp_markers_to_grab() {
         hits.at(egui::pos2(x, y)),
         Some(cantus_ui::views::arrangement::AudioHandle::WarpMarker(1))
     );
+    // The fade and gain squares sit below the band: no flag is covered, and the band
+    // under the clip's centre is the band's, not the gain's.
+    for sq in [h.fade_in, h.fade_out, h.gain] {
+        assert!(
+            sq.top() >= hits.band.bottom(),
+            "{sq:?} over {:?}",
+            hits.band
+        );
+    }
+    let centre = egui::pos2(h.gain.center().x, hits.band.top() + 1.0);
+    assert_ne!(
+        h.at(centre),
+        Some(cantus_ui::views::arrangement::AudioHandle::Gain)
+    );
 }
 
 #[test]
