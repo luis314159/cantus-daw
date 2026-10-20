@@ -77,7 +77,7 @@ at bef6f62 (warp and controllers), all `--no-fail-fast`, 0 failed:
 | `cantus-ui` | 1 342 |
 
 `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo fmt --all -- --check`
-clean. `shoot_freeze` renders 98 PNGs to `F:\projects\daw-r29\shotsreeze\` (arrangement,
+clean. `shoot_freeze` renders 98 PNGs to `F:\projects\daw-r29\shots\freeze\` (arrangement,
 mixer, menu, inspector of a synth and of a voice, the record popover, the cards, a render
 in progress, a narrow window; night and paper, English and Spanish, 75/100/200 %).
 
