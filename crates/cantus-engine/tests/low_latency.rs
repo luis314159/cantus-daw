@@ -321,3 +321,115 @@ fn every_bypass_is_counted_past_the_names_kept() {
     assert_eq!(ll.off_count as usize, ll.off.len());
     assert!(ll.off_total as usize > ll.off.len(), "{}", ll.off_total);
 }
+
+// ---- review 2 ---------------------------------------------------------------------------
+
+#[test]
+fn an_insert_after_a_hard_bypassed_one_keeps_its_tail_when_the_chain_is_edited() {
+    // The voice's strip: [compressor, linear-phase EQ (bypassed hard), delay].
+    let mut p = project(false);
+    let voice = p.tracks[0].strip.unwrap();
+    let comp = p.make_effect(EffectKind::Compressor);
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("time_ms", 50.0).unwrap();
+    delay.spec.set("feedback", 0.9).unwrap();
+    delay.spec.set("mix", 1.0).unwrap();
+    let s = p.strip_mut(voice).unwrap();
+    s.effects.insert(0, comp);
+    s.effects.push(delay);
+    let block = 256;
+    let (mut h, mut proc, mut ring) = rig(&p);
+    h.send(EngineMessage::SetLowLatency(Some(144)));
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 4], block);
+    let mut x = vec![0f32; block * 8];
+    x[10] = 1.0;
+    drive(&mut h, &mut proc, &mut ring, &x, block);
+    // The compressor taken out while the delay rings.
+    let mut q = p.clone();
+    q.strip_mut(voice).unwrap().effects.remove(0);
+    let snap = h.compile(&q, 2);
+    h.set_snapshot(snap);
+    let mut out = vec![0f32; block * 2];
+    let mut heard = 0.0f32;
+    for _ in 0..16 {
+        for _ in 0..block {
+            ring.push(0.0).unwrap();
+        }
+        proc.process(&mut out, 2);
+        h.poll();
+        heard = out.iter().fold(heard, |m, v| m.max(v.abs()));
+    }
+    assert!(heard > 0.01, "the echoes go on: {heard}");
+}
+
+/// The voice through Tonus into a bus of its own, into a group that mixes it with the
+/// backing (a linear-phase EQ): two hops of monitored input only, then a mixed bus.
+fn two_hops() -> Project {
+    let mut p = through_a_bus(true);
+    let vox = p.strips[6].id;
+    let group = p.strips[7].id;
+    let back = p.tracks[1].strip.unwrap();
+    p.strip_mut(vox).unwrap().output = Some(group);
+    p.strip_mut(back).unwrap().output = Some(group);
+    p
+}
+
+#[test]
+fn a_voice_two_buses_down_waits_with_the_backing_it_is_mixed_with() {
+    let p = two_hops();
+    let mut x = vec![0f32; 24_000];
+    x[2_000] = 1.0;
+    let (out, stats) = monitor(&p, Some(144), &x);
+    let at = out.iter().position(|v| v.abs() > 1e-4).expect("heard") - 2_000;
+    assert_eq!(
+        at as u64, stats.latency_samples,
+        "it reaches the master with the backing"
+    );
+    assert_eq!(stats.low_latency.monitored_samples as usize, at, "the figure");
+}
+
+#[test]
+fn a_take_follows_the_backing_when_its_heard_latency_moves_mid_pass() {
+    // The backing through a linear-phase EQ, the voice armed with nothing on its way.
+    let mut p = project(false);
+    let voice = p.tracks[0].strip.unwrap();
+    p.strip_mut(voice).unwrap().effects.clear();
+    let back = p.tracks[1].strip.unwrap();
+    let block = 256;
+    let dir = tempfile::tempdir().unwrap();
+    let (mut h, mut proc, mut ring) = rig(&p);
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 20], block);
+    let h0 = proc.stats().latency_samples as usize;
+    assert!(h0 > 1000);
+    h.begin_recording(dir.path()).unwrap();
+    h.set_recording(true);
+    h.play();
+    // Played on beat 2 as heard: h0 late; the EQ then goes, and beat 4 is played as heard
+    // without it.
+    let (beat2, beat4) = (48_000usize, 96_000usize);
+    let mut x = vec![0f32; 70_000];
+    x[beat2 + h0] = 1.0;
+    drive(&mut h, &mut proc, &mut ring, &x, block);
+    let mut q = p.clone();
+    q.strip_mut(back).unwrap().effects.clear();
+    let snap = h.compile(&q, 2);
+    h.set_snapshot(snap);
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block], block);
+    let h1 = proc.stats().latency_samples as usize;
+    let played = 70_000 + block;
+    let mut y = vec![0f32; 60_000];
+    y[beat4 + h1 - played] = 1.0;
+    drive(&mut h, &mut proc, &mut ring, &y, block);
+    h.stop();
+    drive(&mut h, &mut proc, &mut ring, &vec![0.0; block * 4], block);
+    let take = h.finish_recording().remove(0);
+    let file = read_wav(&take.path);
+    let tpf = 120.0 * PPQ as f64 / (60.0 * SR as f64);
+    let at: Vec<f64> = file
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| **v == 1.0)
+        .map(|(i, _)| take.start_tick / tpf + i as f64)
+        .collect();
+    assert_eq!(at, vec![beat2 as f64, beat4 as f64], "each where it was played");
+}
