@@ -37,7 +37,7 @@ use std::collections::BTreeSet;
 
 #[path = "freeze_guard.rs"]
 mod guard_impl;
-pub use guard_impl::{guard, touches, Touch};
+pub use guard_impl::{guard, refuses, touches, Touch};
 
 /// Bumped when the subject's canonical form changes (a content key from an older build is
 /// then another key: the render is made again — never a wrong one played).

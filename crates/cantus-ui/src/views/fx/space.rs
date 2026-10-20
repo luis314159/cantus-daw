@@ -33,7 +33,7 @@ use super::canvas::{self, Ink};
 use super::controls::{self, Size};
 use super::frame;
 use super::host::{DawHost, FxHost, KeySource, KeyTarget};
-use super::multiband::{choice, with_fmt};
+use super::multiband::{choice, choice_key, with_fmt};
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::design::space;
@@ -758,9 +758,11 @@ fn style_card(
         let w = cr.body.width() / k;
         controls::column(ui, s, w, |ui| {
             let now = view.s.style.index();
-            if let Some(i) = choice(
+            if let Some(i) = choice_key(
                 ui,
                 s,
+                host,
+                "style",
                 now,
                 &STYLE_LABELS,
                 &STYLE_TIPS,
@@ -896,9 +898,11 @@ fn predelay_card(
         }
         controls::column(ui, s, 100.0, |ui| {
             let id = ui.id().with("space-sync");
-            let at = controls::field(
+            let at = controls::field_key(
                 ui,
                 s,
+                host,
+                "sync",
                 id,
                 frame::tr(SYNC_KEYS[sync]),
                 frame::tr("fx.space.sync"),
@@ -1261,7 +1265,8 @@ fn band_card(
             };
             let id = ui.id().with(("space-shape", curve == Curve::Post, n));
             let value = frame::tr(keys[shape.min(keys.len() - 1)]);
-            if let Some(at) = controls::field(ui, s, id, value, name, 120.0) {
+            let shape_key = skey(curve, n, "shape");
+            if let Some(at) = controls::field_key(ui, s, host, shape_key, id, value, name, 120.0) {
                 let items: Vec<crate::kit::menu::Item<'_>> = keys
                     .iter()
                     .enumerate()
@@ -1276,9 +1281,11 @@ fn band_card(
                     let place =
                         (host.spec().get(skey(curve, n, "place")).round().max(0.0) as usize).min(4);
                     let id = ui.id().with(("space-place", n));
-                    if let Some(at) = controls::field(
+                    if let Some(at) = controls::field_key(
                         ui,
                         s,
+                        host,
+                        skey(curve, n, "place"),
                         id,
                         frame::tr(PLACE_KEYS[place]),
                         frame::tr("fx.space.band.place"),
@@ -1388,7 +1395,10 @@ fn band_card(
             tip(ui, &r, frame::tr("fx.space.band.q"), "space.band.q_tip");
         }
     });
-    if lamp {
+    // The band's On is a parameter: its menu, its mark, the learn mode (review 2 of ADR
+    // 0062, #44).
+    let learnt = controls::card_lamp_offer(ui, s, host, skey(curve, n, "on"));
+    if lamp && !learnt {
         host.set(skey(curve, n, "on"), if on { 0.0 } else { 1.0 }, None);
     }
     if remove {

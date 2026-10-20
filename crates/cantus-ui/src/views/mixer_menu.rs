@@ -1337,13 +1337,8 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             .0;
             app.forget_targets(&all, &name);
         }
-        Act::ForgetSlot(fx) => {
-            let all: Vec<_> = (0..2)
-                .map(|w| crate::controllers::slot_learn_target(fx, w))
-                .collect();
-            let name = app.mapping_target_name(&all[0]);
-            app.forget_targets(&all, &name);
-        }
+        // The status names the insert, not one of its controls (review 2, #46).
+        Act::ForgetSlot(fx) => app.forget_slot(fx),
         Act::Automate(id, what) => app.automate(strip_target(id, what)),
         Act::Modulate(id, what) => {
             // Beside the pointer, where the menu was.

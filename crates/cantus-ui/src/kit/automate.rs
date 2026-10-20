@@ -33,6 +33,7 @@ pub mod probe {
         static SEEN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
         static LIVE: RefCell<Option<Vec<(String, &'static str)>>> = const { RefCell::new(None) };
         static LEARN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
+        static OFFERS: RefCell<Option<Vec<cantus_core::AutoTarget>>> = const { RefCell::new(None) };
     }
 
     /// Start recording (what was recorded before is dropped).
@@ -40,6 +41,23 @@ pub mod probe {
         SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
         LIVE.with(|s| *s.borrow_mut() = Some(Vec::new()));
         LEARN.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        OFFERS.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// A parameter's offer was asked (`CantusApp::mod_offer`: every parameter-bound
+    /// control asks it) — so a test can name each parameter key an editor draws with its
+    /// menu, and find the ones drawn without (round 29, review 2 of ADR 0062, #44).
+    pub fn note_offer(target: &cantus_core::AutoTarget) {
+        OFFERS.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push(target.clone());
+            }
+        });
+    }
+
+    /// The parameters whose offer was asked since [`start`] (and stop noting them).
+    pub fn take_offers() -> Vec<cantus_core::AutoTarget> {
+        OFFERS.with(|s| s.borrow_mut().take()).unwrap_or_default()
     }
 
     /// Whether learn offers are being noted: a caller that must build the name first

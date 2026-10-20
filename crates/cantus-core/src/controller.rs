@@ -433,21 +433,22 @@ impl MappingTarget {
 
     /// The hosted plug-in a hosted parameter target belongs to now (`None` for any other).
     pub fn plugin_of(&self, project: &Project) -> Option<PluginRef> {
+        self.plugin_in(project).map(PluginRef::of)
+    }
+
+    /// The hosted plug-in at the target, borrowed.
+    pub fn plugin_in<'a>(
+        &self,
+        project: &'a Project,
+    ) -> Option<&'a crate::external::ExternalPlugin> {
         match self {
             MappingTarget::Param(AutoTarget::Plugin { effect, .. }) => {
                 let h = project.effect_host(*effect)?;
-                project
-                    .effect(h, *effect)?
-                    .spec
-                    .external
-                    .as_deref()
-                    .map(PluginRef::of)
+                project.effect(h, *effect)?.spec.external.as_deref()
             }
-            MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => project
-                .track(*track)?
-                .instrument
-                .external()
-                .map(PluginRef::of),
+            MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => {
+                project.track(*track)?.instrument.external()
+            }
             _ => None,
         }
     }
@@ -644,12 +645,20 @@ impl Mapping {
     /// Whether the mapping can drive its target in `project`: the target exists and, for a
     /// hosted parameter, it is still the plug-in it was learnt on. A mapping that cannot is
     /// dormant: shown, consuming nothing, alive again when undo brings its target back.
+    /// Whether the mapping was learnt on the plug-in `project` has at its target now (or
+    /// on no plug-in). Allocates nothing: asked for every control drawn.
+    pub fn fits(&self, project: &Project) -> bool {
+        match &self.plugin {
+            None => true,
+            Some(p) => self
+                .target
+                .plugin_in(project)
+                .is_some_and(|x| x.format == p.format && x.id == p.id),
+        }
+    }
+
     pub fn alive(&self, project: &Project) -> bool {
-        self.target.exists(project)
-            && match &self.plugin {
-                None => true,
-                Some(p) => self.target.plugin_of(project).as_ref() == Some(p),
-            }
+        self.target.exists(project) && self.fits(project)
     }
 
     /// What a command accepts: a well formed source and target, a range within the
@@ -729,6 +738,18 @@ impl ControllerMap {
     /// The mappings that drive `target`.
     pub fn of_target<'a>(&'a self, target: &'a MappingTarget) -> impl Iterator<Item = &'a Mapping> {
         self.mappings.iter().filter(move |m| &m.target == target)
+    }
+
+    /// The mappings of `target` that fit the plug-in `project` has there now
+    /// ([`Mapping::fits`]): what learning again, the mapped mark and *Forget* act on — a
+    /// dormant mapping of a swapped-out plug-in is left for an undo of the swap (review 2,
+    /// #51).
+    pub fn of_target_in<'a>(
+        &'a self,
+        target: &'a MappingTarget,
+        project: &'a Project,
+    ) -> impl Iterator<Item = &'a Mapping> {
+        self.of_target(target).filter(move |m| m.fits(project))
     }
 
     /// The mappings whose source overlaps `m`'s, other than `m` itself: one control on

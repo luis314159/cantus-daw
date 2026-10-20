@@ -613,17 +613,18 @@ fn route_rows(app: &CantusApp, r: Route, e: &mut Vec<Row>) {
                     to: r.to,
                 });
             let mapped = app.is_mapped(&level);
+            // Named for the level: the menu has several controls (review 2, #47).
             e.push(Row::pick(
                 Label::Key(if mapped {
-                    "ctl.param.relearn"
+                    "ctl.menu.send_relearn"
                 } else {
-                    "ctl.param.learn"
+                    "ctl.menu.send_learn"
                 }),
                 Pick::LearnLevel(r.from, r.to),
             ));
             if mapped {
                 e.push(Row::pick(
-                    Label::Key("ctl.param.forget"),
+                    Label::Key("ctl.menu.send_forget"),
                     Pick::ForgetLevel(r.from, r.to),
                 ));
             }

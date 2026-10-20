@@ -245,7 +245,7 @@ fn choice_field(
         .map_or("", |i| frame::tr(i.label_key));
     let id = ui.id().with(("max-field", param));
     let value = words(now);
-    if let Some(at) = controls::field(ui, s, id, &value, name, width) {
+    if let Some(at) = controls::field_key(ui, s, host, param, id, &value, name, width) {
         let labels: Vec<String> = (0..count).map(words).collect();
         let items: Vec<Item<'_>> = labels
             .iter()

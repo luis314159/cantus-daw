@@ -84,7 +84,11 @@ pub(super) fn show(
     let keys = layout(kb);
     let editable = ss.source == Source::Scale;
     let resp = ui.interact(kb, ui.id().with("tonus-keys"), Sense::click());
-    if editable {
+    // Each note of the scale is a parameter: in the learn mode each key is outlined and a
+    // click learns it; a mapped one wears the mark — the right-click stays the note's own
+    // cycle (round 29, review 2 of ADR 0062, #44).
+    let learning = learn_keys(host, ui, s, &keys);
+    if editable && !learning {
         let right = resp.secondary_clicked();
         if resp.clicked() || right {
             if let Some(pc) = resp.interact_pointer_pos().and_then(|p| hit(&keys, p)) {
@@ -260,4 +264,30 @@ fn glyph(b: &mut Brush, s: &Style, _ink: &Ink, c: egui::Pos2, which: usize, colo
         }
         _ => b.circle_stroke(c, 3.5 * k, 1.5 * k, color),
     }
+}
+
+/// The keys as their notes' parameters for MIDI learn: `true` while the learn mode is on.
+fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect; 12]) -> bool {
+    use crate::kit::automate as a;
+    let mut mode = false;
+    for (pc, r) in keys.iter().enumerate() {
+        let key = NOTE_KEYS[pc];
+        let pos = host.spec().get(key) / 3.0;
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let Some((m, _)) = host.modulation(key, pos, s, &mut rings) else {
+            continue;
+        };
+        let Some(l) = m.learn else {
+            continue;
+        };
+        if l.mode {
+            mode = true;
+            if a::learn_spot(ui, *r, ui.id().with(("tonus-learn", pc)), l) {
+                host.modulate(key, a::Choice::Learn, *r);
+            }
+        } else if l.mapped {
+            a::learn_mark_over(ui, *r, ui.clip_rect());
+        }
+    }
+    mode
 }

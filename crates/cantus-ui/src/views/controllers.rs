@@ -555,6 +555,24 @@ struct CellDone {
     done: bool,
 }
 
+/// What a value cell's typed words are read as.
+#[derive(Copy, Clone)]
+enum Typed<'a> {
+    /// A position of the target, in its own units.
+    Target(&'a MappingTarget),
+    /// A curve's bend in percent (−100…100).
+    Curve,
+}
+
+/// A curve's bend typed in percent: "+50", "-35 %", "12,5" — −1…1 (review 2, #35: the
+/// curve cell reads its words through this).
+pub fn parse_curve(typed: &str) -> Option<f32> {
+    let t = typed.trim().trim_end_matches('%').trim().replace(',', ".");
+    let t = t.replace('\u{2212}', "-");
+    let v: f32 = t.trim_start_matches('+').parse().ok()?;
+    v.is_finite().then(|| (v / 100.0).clamp(-1.0, 1.0))
+}
+
 /// A value cell: the words in a well, a bar for where it is; drag (Shift fine) to change,
 /// double-click to type, right-click resets to `default`.
 #[allow(clippy::too_many_arguments)]
@@ -567,7 +585,7 @@ fn value_cell(
     words: &str,
     pos: f32,
     default: f32,
-    target: &MappingTarget,
+    typed: Typed<'_>,
 ) -> CellDone {
     let s = Style::current();
     let typing = ui
@@ -590,7 +608,11 @@ fn value_cell(
                 d.remove::<String>(id.with("text"));
             });
             if ev == crate::kit::field::Event::Commit && out.edited {
-                if let Some(p) = parse_value(app, target, &text) {
+                let read = match typed {
+                    Typed::Target(target) => parse_value(app, target, &text),
+                    Typed::Curve => parse_curve(&text).map(|c| (c + 1.0) * 0.5),
+                };
+                if let Some(p) = read {
                     return CellDone {
                         pos: Some(p),
                         done: true,
@@ -749,6 +771,9 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     let c = columns(rr, k);
     let key = (scope, m.id);
     let alive = app.mapping_alive(scope, m);
+    // Why it does nothing, when it does nothing: gone, another plug-in, not loaded, frozen
+    // (review 2, #49) — only a target that is gone is the danger colour.
+    let idle = app.mapping_state(scope, m);
     let lit = app
         .controllers
         .activity
@@ -816,14 +841,22 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     // The target; a dormant one dimmed and marked.
     let name = app.mapping_target_name(&m.target);
     let mut tr = c[2];
-    if !alive {
-        let pill_w = pill_width(ui, &t("ctl.view.missing"));
+    if let Some(why) = idle {
+        use crate::controllers::Idle;
+        let (key, colour) = match why {
+            Idle::Missing => ("ctl.view.missing", s.t.danger),
+            Idle::OtherPlugin => ("ctl.view.other_plugin", s.t.text_dim),
+            Idle::NotLoaded => ("ctl.view.not_loaded", s.t.text_dim),
+            Idle::Frozen => ("ctl.view.frozen", s.t.text_dim),
+        };
+        let words = t(key);
+        let pill_w = pill_width(ui, &words);
         let pr = Rect::from_min_max(
             egui::pos2(tr.right() - pill_w, tr.center().y - 8.0 * k),
             egui::pos2(tr.right(), tr.center().y + 8.0 * k),
         );
         tr.max.x = pr.left() - 4.0 * k;
-        pill(ui, pr, &t("ctl.view.missing"), s.t.danger);
+        pill(ui, pr, &words, colour);
         put(app, tag("missing"), pr);
     }
     cell_text(
@@ -878,7 +911,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             &words,
             pos,
             default,
-            &target,
+            Typed::Target(&target),
         );
         put(app, tag(what), c[col]);
         if let Some(p) = out.pos {
@@ -913,8 +946,8 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             &curve_words,
             (m.curve + 1.0) * 0.5,
             0.5,
-            // A curve is typed in percent, -100 to 100: a pan's words (review 1, #42).
-            &MappingTarget::Param(AutoTarget::MasterPan),
+            // A curve is typed in percent, -100 to 100 (review 1, #42).
+            Typed::Curve,
         )
     };
     put(app, tag("curve"), c[6]);

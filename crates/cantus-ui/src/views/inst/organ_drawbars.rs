@@ -134,8 +134,11 @@ pub fn drawbars(
         let id = egui::Id::new(("organ-drawbar", track.0, *key));
         let resp = ui.interact(slot, id, Sense::click_and_drag());
         app.inst.organ.bars.insert(*key, slot);
+        // Each drawbar is a parameter: its menu, its mapped mark, the learn mode (round 29,
+        // review 2 of ADR 0062, #44).
+        let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
         let mut v = spec.get(key);
-        if let Some(p) = resp.interact_pointer_pos() {
+        if let Some(p) = resp.interact_pointer_pos().filter(|_| !learning) {
             if resp.dragged() || resp.clicked() {
                 let n = ((p.y - slot.top() - g.handle_h * 0.5) / g.step)
                     .round()

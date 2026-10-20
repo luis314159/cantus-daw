@@ -77,7 +77,7 @@ ctl.status.forgot = {name} has no controller now
 ctl.status.mode_on = MIDI learn: click a control, then move a control on your MIDI controller
 ctl.status.mode_off = MIDI learn off
 ctl.status.not_a_value = Not a value for this control
-ctl.status.global_damaged = Your global controller mappings could not be read: the file is kept as controllers.json.bad
+ctl.status.global_damaged = Some of your global controller mappings could not be read: the file is kept as controllers.json.bad
 ctl.status.save_failed = Could not save the controller mappings: {error}
 
 # The mappings pane
@@ -99,6 +99,12 @@ ctl.view.no_match = No mapping matches the filter
 ctl.view.shared = Shared
 ctl.view.shared_tip = This control also drives
 ctl.view.missing = Missing
+ctl.view.other_plugin = Other plug-in
+ctl.view.not_loaded = Not loaded
+ctl.view.frozen = Frozen
+ctl.menu.send_learn = Learn the send's level
+ctl.menu.send_relearn = Change the send level's controller
+ctl.menu.send_forget = Forget the send level's controller
 ctl.view.send = Send
 ctl.view.send_tip = Feedback: send the value back to the controller (motor faders, LED rings)
 ctl.view.relearn = Learn this control again

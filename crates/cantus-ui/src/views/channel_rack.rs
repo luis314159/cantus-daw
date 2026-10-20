@@ -847,6 +847,9 @@ fn track_knob(
         .unwrap_or(((*value - lo) / (hi - lo)).clamp(0.0, 1.0));
     let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let (m, _) = app.mod_offer(&target, base, &kit::Style::current(), &mut rings);
+    if kit::automate::probe::noting_learn() {
+        kit::automate::probe::note_learn(&format!("rack:{target:?}"), m.learn.is_some());
+    }
     let automated = app.is_automated(&target);
     let mut child = ui.new_child(
         egui::UiBuilder::new()

@@ -1381,9 +1381,13 @@ fn style_card(
                 });
                 // A custom engine lights no style: clicking its base goes back to it.
                 let selected = if custom { labels.len() } else { idx };
-                pick = controls::segmented(
+                // The style is a parameter: its menu, its mark, the learn mode (round 29,
+                // review 2 of ADR 0062, #44).
+                pick = controls::segmented_key(
                     ui,
                     s,
+                    host,
+                    "style",
                     selected,
                     &labels,
                     frame::tr("fx.comp.style"),
@@ -1828,9 +1832,11 @@ fn output_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, 
                         .position(|(v, _)| *v == now)
                         .unwrap_or(0);
                     let labels = LISTEN_ORDER.map(|(_, k)| Src::Key(k));
-                    if let Some(i) = controls::segmented(
+                    if let Some(i) = controls::segmented_key(
                         ui,
                         s,
+                        host,
+                        "listen",
                         sel,
                         &labels,
                         frame::tr("fx.comp.listen"),

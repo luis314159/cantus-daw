@@ -1030,12 +1030,18 @@ fn a_vst3_instrument_plays_through_the_instrument_adapter() {
 
 /// Review 1 of ADR 0062, #53: a MIDI program change reaches the program list (the
 /// parameter flagged `kIsProgramChange`; the pulse has no `IMidiMapping` at all), as
-/// `program / steps`, and goes out as the plug-in's own change so the project keeps it.
+/// `program / steps`. Review 2, #52: the project keeps it as the state change it is — the
+/// next idle says the state changed (one *state* step, its inverse the state before),
+/// never as a separate parameter step besides it.
 #[test]
 fn a_program_change_reaches_the_program_list_and_the_project() {
     let _g = serial();
     let probe = Probe::new();
-    let Loaded { main, mut audio } = load(PULSE_ID);
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(PULSE_ID);
+    let _ = main.idle();
     let program = main
         .params()
         .into_iter()
@@ -1071,10 +1077,16 @@ fn a_program_change_reaches_the_program_list_and_the_project() {
         probe.last_program()
     );
     assert!(
+        !out.events()
+            .iter()
+            .any(|e| matches!(e, cantus_host::ParamEvent::Value(id, _) if *id == program.id)),
+        "no parameter step besides the state's: {:?}",
         out.events()
-            .contains(&cantus_host::ParamEvent::Value(program.id, 3.0)),
-        "{:?}",
-        out.events()
+    );
+    let notices = main.idle();
+    assert!(
+        notices.contains(&cantus_host::Notice::StateDirty),
+        "{notices:?}"
     );
     drop((main, audio));
 }

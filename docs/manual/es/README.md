@@ -368,7 +368,9 @@ también en el menú **Clip** de la barra superior) y mueve el equipo.
 Cantus distingue lo que moviste: una perilla normal, un **fader de 14 bits** (llegó también
 su controlador fino), un **codificador sin fin** (y cuál de las tres codificaciones usa),
 un botón, un pad (en un interruptor conmuta; en una perilla su velocidad fija el valor) o un
-cambio de programa.
+cambio de programa (sin la selección de banco que un teclado manda antes). Pulsa un botón y
+suéltalo: pulsado y soltado, conmuta; un botón que se queda abajo por sí mismo (solo manda
+su valor máximo) pone el destino encendido o apagado según esté.
 
 **Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
 `Ctrl+Shift+K`), una fila por asignación:
@@ -387,12 +389,21 @@ cambio de programa.
   sin saltos), *Escalar* (el valor sigue a la perilla y ambos llegan juntos al final),
   *Saltar*. La cabecera fija la toma de control de las asignaciones nuevas.
 - **Retorno** (*Enviar*): el valor vuelve al controlador cada vez que cambia — para faders
-  motorizados y anillos de LED. Desactivado por defecto.
+  motorizados y anillos de LED, y las luces de los botones del transporte y de cada
+  interruptor con estado (reproducir, grabar, bucle, metrónomo, pinchazo, cuenta previa…).
+  Desactivado por defecto; una acción sin estado (detener, deshacer) no tiene *Enviar*. Lo
+  que un controlador o un puerto de bucle devuelve al instante se reconoce como el eco que
+  es.
 
 Un punto encendido a la izquierda de una fila indica que acaba de llegar un mensaje.
 **Compartido** marca un control con varios destinos (se permite: una perilla puede abrir
 dos filtros a la vez). Una fila cuyo destino ya no existe (una pista borrada) se conserva,
-marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino.
+marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino. El parámetro de un
+plugin se aprende con ese plugin: si el instrumento o el inserto se cambia por otro, la fila
+dice **Otro plugin** y su perilla queda libre (aprende el parámetro del nuevo; deshacer el
+cambio devuelve la vida a la fila antigua). **Sin cargar** indica que el plugin está en el
+proyecto pero no funciona aquí; **Congelado**, que su sonido está congelado: un movimiento
+se rechaza y se dice, y la perilla no llega a ningún otro instrumento.
 
 **Dos mapas.** Las asignaciones de *Este proyecto* se guardan con el proyecto, y cada
 cambio es un paso de deshacer. **En todas partes** — tus asignaciones globales, guardadas

@@ -452,6 +452,21 @@ pub fn guard(
     Ok(inverse)
 }
 
+/// Whether `cmd` (a plain edit: a value, a switch) would be refused because it changes a
+/// frozen sound, and by which target — read off the project without applying anything (a
+/// controller asks for each target it moves, so one frozen target in a gesture leaves the
+/// others moving, round 29, review 2 of ADR 0062). The edits the full guard checks after
+/// applying (structure) are not judged here; the guard still refuses them.
+pub fn refuses(project: &Project, cmd: &Command) -> Option<FreezeTarget> {
+    if !project.any_frozen() {
+        return None;
+    }
+    let locks = Locks::of(project);
+    touches(cmd, project)
+        .iter()
+        .find_map(|t| refused_by(project, &locks, t, 0))
+}
+
 /// A track or strip inserted with a frozen state of its own (an undo of its removal).
 fn inserts_frozen(cmd: &Command) -> bool {
     match cmd {

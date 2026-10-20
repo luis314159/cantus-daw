@@ -444,8 +444,16 @@ fn mono_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect) {
                 Src::Str("48"),
             ];
             let now = host.spec().get("mono_slope").round().clamp(0.0, 3.0) as usize;
-            if let Some(i) = controls::segmented(ui, s, now, &labels, frame::tr("st.slope_tip"), w)
-            {
+            if let Some(i) = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "mono_slope",
+                now,
+                &labels,
+                frame::tr("st.slope_tip"),
+                w,
+            ) {
                 host.set("mono_slope", i as f32, None);
             }
             controls::caption(ui, s, Src::Key("fx.st.mono_slope"), w);
@@ -476,7 +484,16 @@ fn haas_card(
             ];
             let now = ss.haas_mode.index();
             let tips = ["st.haas.right_tip", "st.haas.left_tip", "st.haas.safe_tip"];
-            if let Some(i) = controls::segmented(ui, s, now, &labels, frame::tr(tips[now]), w) {
+            if let Some(i) = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "haas_mode",
+                now,
+                &labels,
+                frame::tr(tips[now]),
+                w,
+            ) {
                 host.set("haas_mode", i as f32, None);
             }
             let ink = Ink::of(s);

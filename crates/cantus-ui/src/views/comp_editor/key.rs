@@ -155,7 +155,16 @@ pub(super) fn key_eq_card(
                 Caps::NONE,
             );
         }
-        if r.clicked() {
+        // The key EQ's On is a parameter (round 29, review 2 of ADR 0062, #44).
+        let learnt = crate::views::fx::controls::stepped_offer(
+            ui,
+            s,
+            host,
+            "key_eq",
+            frame::tr("comp.key_eq"),
+            &r,
+        );
+        if r.clicked() && !learnt {
             host.set("key_eq", if cs.key_eq { 0.0 } else { 1.0 }, None);
         }
     }

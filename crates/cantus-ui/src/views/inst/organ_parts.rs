@@ -223,7 +223,9 @@ pub fn switch(
         .caps(Caps::PARAM)
         .style(*s)
         .show_at(ui, rect);
-    if let Some(i) = chosen {
+    // A parameter: its menu, its mapped mark, the learn mode (review 2 of ADR 0062, #44).
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    if let Some(i) = chosen.filter(|_| !learning) {
         app.set_inst_value(track, key, i as f32, false);
     }
     resp
@@ -253,7 +255,8 @@ pub fn lamp(
         .name(&name)
         .style(*s)
         .show_at(ui, rect);
-    if resp.clicked() {
+    let learning = crate::controllers::stepped_inst(app, ui, track, spec, key, &resp);
+    if resp.clicked() && !learning {
         app.set_inst_value(track, key, if on { 0.0 } else { 1.0 }, false);
     }
     resp

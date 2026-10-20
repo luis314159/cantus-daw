@@ -782,7 +782,16 @@ fn style_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = STYLE_KEYS.map(Src::Key);
-            let r = controls::segmented(ui, s, idx, &labels, frame::tr("fx.gate.style"), w);
+            let r = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "style",
+                idx,
+                &labels,
+                frame::tr("fx.gate.style"),
+                w,
+            );
             if let Some(i) = r {
                 host.set("style", i as f32, None);
             }
@@ -814,9 +823,11 @@ fn trigger_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = [Src::Key("gate.trig.0"), Src::Key("gate.trig.1")];
-            if let Some(i) = controls::segmented(
+            if let Some(i) = controls::segmented_key(
                 ui,
                 s,
+                host,
+                "trig",
                 gs.midi as usize,
                 &labels,
                 frame::tr("fx.gate.trig"),
@@ -1988,9 +1999,16 @@ fn key_card(
                 .iter()
                 .position(|v| (gs.key_slope - v).abs() < 0.5)
                 .unwrap_or(1);
-            if let Some(i) =
-                controls::segmented(ui, s, now, &slopes, frame::tr("gate.slope_tip"), w)
-            {
+            if let Some(i) = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "key_slope",
+                now,
+                &slopes,
+                frame::tr("gate.slope_tip"),
+                w,
+            ) {
                 host.set("key_slope", [12.0, 24.0, 48.0][i], None);
             }
         });

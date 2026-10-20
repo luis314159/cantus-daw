@@ -266,3 +266,63 @@ An adversarial review confirmed 57 findings; the decisions above stand, with the
   menu's send level, stepped device controls, desk modules) offers learn and shows the
   mapped mark; the clip menu has *Link to controller*; *Add a mapping* offers every keymap
   action by its group; forgetting several controllers is one step.
+
+## Amended after review 2 (round 29)
+
+A second review confirmed 55 findings (the fixes are tabled in `docs/round29/controllers.md`).
+What changed in the decisions:
+
+- **A gesture follows the history, and its key is its own.** A gesture remembers the
+  project's revision after its own step; when anything else changed the history under it
+  (an undo, a redo, a mouse edit, a load), its step is sealed and only what moves next is
+  sent — a target's stored command never overwrites what was done since. Each gesture's
+  undo key carries a serial, and `CommandBus::end_gesture_if` seals the key's step wherever
+  it is in the history (buried under another step, an undo bringing it back to the top
+  never merges a later turn into it).
+- **Recording stays inside the pass.** A point is written between the pass's start (the
+  record start, the loop's start for later passes, the punch-in) and the punch-out: a move
+  during the count-in or a moment before tick 0 is where the pass begins, never before the
+  song (a point there failed the whole pass's commit). A message heard before the loop's
+  start lands at its end only when a wrap was seen since it came.
+- **Learning** waits for a held controller button's release (`HOLD_WINDOW`, 1.5 s): pressed
+  and released it is a toggle, never released a latching button (absolute). A program
+  change after bank select is learnt as the program change, at once. Feedback's echo is
+  never learnt. Learning again a hosted parameter makes the mapping the plug-in's there
+  now; a mapping learnt on a swapped-out plug-in is left for an undo of the swap and is not
+  what the mark, learning or *Forget* act on (`ControllerMap::of_target_in`,
+  `Mapping::fits`, allocation-free).
+- **Feedback's echo** is judged by the message's own arrival time, within 30 ms of the
+  send — a loopback answers in a millisecond, no hand presses again so soon; the list of
+  what was sent is pruned and bounded. Every toggle the Add menu offers that has a state
+  feeds it back (punch, count-in, low latency, the tempo track, the typing keyboard, the
+  meters' wave, the selected track's arm, the selected strip's mute and solo).
+- **14-bit pairs**: a coarse half alone, after the fine half has been heard, is read with a
+  fine 0 at the end of the burst (MIDI's rule); a controller that sends its fine half first
+  is recognised and read whole.
+- **Scale** takeover keeps its own unrounded position (as an encoder does), so it moves a
+  stepped target; a switch target takes no takeover.
+- **Frozen sounds.** A target a frozen sound refuses (`freeze::refuses`, read off the
+  project without applying) is left out of the gesture — the gesture's other targets keep
+  moving — and the refusal is said once, in words. A hosted mapping whose plug-in rests
+  because its sound is frozen stays the map's (its control reaches no other instrument).
+  The pane tells why a row does nothing: *Missing* (the target is gone, the danger colour),
+  *Other plug-in*, *Not loaded*, *Frozen* (dim).
+- **The tap** (engine): the rearm is a swap; learning is published with release/acquire;
+  a pedal released while its messages are taken reaches the engine fully up, sostenuto
+  is kept like the sustain and reset-all-controllers lets both go; a full ring keeps the
+  newest value of each address aside (a stalled interface still gets a fader's last value
+  and a pad's release).
+- **VST3 program change** is the state change it is: no parameter step besides it — the
+  next idle says the plug-in's state changed, and the project records one state step.
+- **The global file** is kept beside (`.json.bad`, an earlier one kept with the time in its
+  name) whenever anything in it is lost: not text, unreadable, from a newer Cantus, a
+  mapping this build cannot read.
+- **Learn everywhere**: every stepped parameter drawn by a plain control — a segmented
+  choice, an LED, a menu field, a stepper, a card's lamp or selector, a row of value
+  buttons, a drawbar, the scale keyboard — goes through its parameter's offer (menu, mark,
+  learn mode): `controllers::stepped_param` / `stepped_inst` for instruments,
+  `fx::controls::stepped_offer` and its keyed variants for effects; a test pins every
+  stepped key the editors draw. A modulator's amount moved with the mouse sends
+  `SetModulatorAmount`, so it records and is *last tweaked* as the controller's does.
+- **An idle frame allocates nothing** with hosted mappings (a hosted parameter is looked
+  up, not copied) and with no feedback mapping.
