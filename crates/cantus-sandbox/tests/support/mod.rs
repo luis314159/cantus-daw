@@ -57,6 +57,7 @@ pub const FAIL_SAVE_ONCE: f64 = 13.0;
 pub const SEGV_PROCESS: f64 = 14.0;
 pub const PUMP_WINDOW_LONG: f64 = 15.0;
 pub const SEGV_EDITOR: f64 = 16.0;
+pub const SLOW_SAVE: f64 = 17.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

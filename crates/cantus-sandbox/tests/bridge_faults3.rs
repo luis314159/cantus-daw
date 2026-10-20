@@ -142,11 +142,11 @@ fn a_request_queued_behind_a_slow_one_is_not_late() {
     let Loaded {
         main: mut slow,
         audio: mut slow_audio,
-    } = load(&pool, VST3_GAIN_ID, "together-queue");
+    } = load(&pool, GAIN_ID, "together-queue");
     let Loaded { main: mut b, .. } = load(&pool, GAIN_ID, "together-queue");
-    // VST3's fault 10 blocks its thread for 3 s in the next save, without pumping.
-    block(slow_audio.as_mut(), &fault(V_FAULT, PUMP_SAVE), &[]);
-    arrived(slow.as_mut(), V_FAULT, PUMP_SAVE);
+    // Fault 17 blocks its thread for 3 s in the next save, without pumping.
+    block(slow_audio.as_mut(), &fault(P_FAULT, SLOW_SAVE), &[]);
+    arrived(slow.as_mut(), P_FAULT, SLOW_SAVE);
     slow.checkpoint();
     let start = Instant::now();
     let mut asked = false;
@@ -348,11 +348,11 @@ fn a_slow_neighbour_does_not_make_a_save_stale() {
     let Loaded {
         main: mut slow,
         audio: mut slow_audio,
-    } = load(&pool, VST3_GAIN_ID, "together-stale");
+    } = load(&pool, GAIN_ID, "together-stale");
     let Loaded { main: mut b, .. } = load(&pool, GAIN_ID, "together-stale");
     let before = b.save_state().unwrap();
-    block(slow_audio.as_mut(), &fault(V_FAULT, PUMP_SAVE), &[]);
-    arrived(slow.as_mut(), V_FAULT, PUMP_SAVE);
+    block(slow_audio.as_mut(), &fault(P_FAULT, SLOW_SAVE), &[]);
+    arrived(slow.as_mut(), P_FAULT, SLOW_SAVE);
     // The neighbour's save keeps the helper busy for 3 s.
     assert!(slow.save_state().is_ok());
     let mut out = ParamOut::new();

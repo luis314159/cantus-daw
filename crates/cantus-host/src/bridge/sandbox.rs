@@ -662,11 +662,12 @@ impl Sandbox {
     }
 
     fn route(&self, msg: Message, blob: Vec<u8>) {
+        // Every frame comes from the helper's main thread: each one shows it lives (a
+        // reply after a slow call is not followed by silence until the next heartbeat).
+        let ms = self.started.elapsed().as_millis() as u64;
+        self.alive_ms.store(ms, Ordering::Release);
         match msg {
-            Message::Alive => {
-                let ms = self.started.elapsed().as_millis() as u64;
-                self.alive_ms.store(ms, Ordering::Release);
-            }
+            Message::Alive => {}
             Message::Started { id } => {
                 if let Some(f) = lock(&self.inflight).get_mut(&id) {
                     f.started = Some(Instant::now());

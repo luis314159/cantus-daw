@@ -23,6 +23,7 @@
 //! | 14 | an access violation in this `process` (a crash a handler sees, unlike an abort) |
 //! | 15 | its editor's window runs a nested message loop for 10 s |
 //! | 16 | an access violation in its editor's window (its timer), on the main thread |
+//! | 17 | the next `save_state` takes 3 s, without pumping messages (slow, not hung) |
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -42,8 +43,9 @@ pub const FAIL_SAVE_ONCE: u32 = 13;
 pub const SEGV_PROCESS: u32 = 14;
 pub const PUMP_WINDOW_LONG: u32 = 15;
 pub const SEGV_EDITOR: u32 = 16;
+pub const SLOW_SAVE: u32 = 17;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 16.0;
+pub const LAST: f64 = 17.0;
 
 /// A nested loop the editor's window runs at its next timer, in seconds (`PUMP_WINDOW`,
 /// `PUMP_WINDOW_LONG`); 0 for none.
@@ -119,6 +121,10 @@ impl Fault {
         }
         if armed == hang_at {
             hang();
+        }
+        if site == ABORT_SAVE && armed == SLOW_SAVE {
+            self.0.store(0, Ordering::Release);
+            std::thread::sleep(std::time::Duration::from_secs(3));
         }
         if site == ABORT_SAVE && armed == PUMP_SAVE {
             self.0.store(0, Ordering::Release);
