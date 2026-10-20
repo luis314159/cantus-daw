@@ -179,7 +179,7 @@ failures, plus the learn offer and the latch from round one).
 | 27 | the channel rack's knobs and lamp could not be learnt | `track_knob` (the parameter's menu, marks, learn mode); the lamp a learn spot | (the probe and shots) |
 | 28 | the route menu had no learn row for a send level | *Learn / Change / Forget MIDI controller* rows | (the menu's rows; shots) |
 | 29, 47 | the MIDI cell's words contradicted its click | without a port a click opens the settings and the tip says so; with ports the learn half carries the shortcut | `without_ports_the_midi_cell_opens_the_settings` |
-| 30 | *Link to controller* only from the keyboard | the clip menu's last-tweaked block has it | (menu) |
+| 30 | *Link to controller* only from the keyboard | the top bar's **Clip** menu has it beside *Automate the last tweaked* | (menu) |
 | 31 | the global file written non-atomically; a damaged one lost | written through a file beside, synced, renamed; a damaged one kept as `.bad` and said | `a_damaged_global_file_is_kept_and_the_map_written_whole` |
 | 32 | an armed learn never timed out | `LEARN_TIMEOUT` 15 s, woken for | `an_armed_learn_times_out` |
 | 34 | the "every target" test only counted | `kind()` — an exhaustive match, no wildcard | `every_target_has_the_command_that_sets_it` |

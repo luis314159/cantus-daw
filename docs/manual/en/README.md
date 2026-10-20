@@ -331,12 +331,15 @@ control on your hardware: done. Or click the top bar's **MIDI** cell (or press
 `Ctrl+Shift+M`; a right-click on it opens the MIDI settings) for the **learn mode**: every control that can be learnt is outlined; click
 one, move a hardware control, click the next. A mapped control wears a small dot at its
 lower right; in the learn mode it is outlined in the highlight's colour, and the one
-waiting for your hardware is lit. `Esc` lets go of a learn. **Change MIDI controller** and
+waiting for your hardware is lit. `Esc` lets go of a learn (so do 15 seconds without a
+move). With no MIDI input open, a click on the cell opens the MIDI settings instead.
+**Change MIDI controller** and
 **Forget MIDI controller** are in the same menu. The mixer's strip and insert menus and the
 track header's menu have *Learn* rows for the volume, pan, width, mute, solo, arm, bypass
-and mix. Inside a plug-in's own window, move the parameter there, then press `Alt+Shift+A`
-(**Link the last tweaked parameter to a controller**, FL Studio's way) and move the
-hardware.
+and mix; a send's menu has them for its level; the channel rack's knobs and lamps, and a
+device's switches and choices, learn like any knob. Inside a plug-in's own window, move
+the parameter there, then press `Alt+Shift+A` (**Link the last tweaked parameter to a
+controller**, FL Studio's way — also in the top bar's **Clip** menu) and move the hardware.
 
 Cantus tells what you moved: a plain knob, a **14-bit fader** (its fine controller came
 too), an **endless encoder** (and which of the three encodings it speaks), a button, a pad

@@ -353,12 +353,15 @@ aprendizaje**: se marcan todos los controles
 que se pueden aprender; haz clic en uno, mueve un control del equipo, haz clic en el
 siguiente. Un control asignado lleva un puntito abajo a la derecha; en el modo de
 aprendizaje se marca con el color de resalte, y el que espera a tu equipo se enciende. `Esc`
-cancela un aprendizaje. **Cambiar controlador MIDI** y **Olvidar el controlador MIDI** están
+cancela un aprendizaje (también 15 segundos sin mover nada). Sin ninguna entrada MIDI
+abierta, un clic en la casilla abre los ajustes MIDI. **Cambiar controlador MIDI** y **Olvidar el controlador MIDI** están
 en el mismo menú. Los menús de canal e inserto del mezclador y el de la cabecera de pista
 tienen filas *Aprender* para volumen, panorama, anchura, silencio, solo, armado, puenteo y
-mezcla. Dentro de la ventana propia de un plugin, mueve allí el parámetro, pulsa
-`Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio)
-y mueve el equipo.
+mezcla; el menú de un envío las tiene para su nivel; las perillas y lámparas del rack de
+canales, y los interruptores y opciones de un dispositivo, se aprenden como cualquier
+perilla. Dentro de la ventana propia de un plugin, mueve allí el parámetro, pulsa
+`Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio;
+también en el menú **Clip** de la barra superior) y mueve el equipo.
 
 Cantus distingue lo que moviste: una perilla normal, un **fader de 14 bits** (llegó también
 su controlador fino), un **codificador sin fin** (y cuál de las tres codificaciones usa),
