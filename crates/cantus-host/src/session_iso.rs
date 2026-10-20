@@ -134,6 +134,10 @@ pub struct RenderFailure {
     pub kind: RenderLoss,
 }
 
+/// The plug-ins waiting on a window of their own: inserts and instruments, with their
+/// names ([`PluginHost::waiting`]).
+pub type Waiting = (Vec<(EffectId, String)>, Vec<(TrackId, String)>);
+
 /// For the interface's tests only: what the host is made to say (never set by the
 /// application).
 #[derive(Debug, Default)]
@@ -824,7 +828,7 @@ impl PluginHost {
     /// The loaded plug-ins waiting on a window of their own — a call of theirs served past
     /// its limit while their helper lives: a dialog, perhaps behind Cantus (review
     /// isolation-4 #54) — inserts and instruments, with their names.
-    pub fn waiting(&self) -> (Vec<(EffectId, String)>, Vec<(TrackId, String)>) {
+    pub fn waiting(&self) -> Waiting {
         let mut e: Vec<(EffectId, String)> = self
             .slots
             .iter()
