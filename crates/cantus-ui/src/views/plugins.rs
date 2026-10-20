@@ -426,9 +426,11 @@ fn isolation_card(
             {
                 notice::set_isolation(app, target, choices[i]);
             }
+            // A stopped plug-in costs nothing: its last reading is not shown.
             let cpu = app
                 .plugins
                 .cpu(effect)
+                .filter(|_| app.plugins.crashed(effect).is_none())
                 .map(|c| tf("isolation.tip.cpu", &[("share", &notice::percent(c.share))]))
                 .unwrap_or_default();
             controls::line(ui, s, &cpu, s.t.text_dim, (w - seg_w - 8.0).max(60.0));

@@ -99,6 +99,19 @@ in the ADR, with why the default is *Together* anyway.
 - `xtask` package tests — the helper staged, zipped, installed, removed and waited for.
 - The existing `cantus-host` VST3 tests updated for the two hidden parameters.
 
+## The runs
+
+- Windows: `cargo test --no-fail-fast` of `cantus-rt`, `cantus-core`, `cantus-project`,
+  `cantus-host`, `cantus-sandbox`, `cantus-bench`, `xtask` — 514 passed; `cantus-ui` — 1 296
+  passed (after the card test was taught the translated reason). `cargo clippy --workspace
+  --all-targets -- -D warnings` clean; `cargo fmt --all` applied.
+- Linux (WSL, `tools/wsl/check.sh r29/isolation clippy`): clippy on the workspace and on
+  `cantus-plugins --no-default-features` clean under `-D warnings`; the tests of
+  `cantus-rt`, `cantus-host` and `cantus-sandbox` on Linux — 130 passed, the IPC model, the
+  real-process exchange (shm + futex), the bridge and the session tests included (the
+  editor test is Windows-only).
+- The engine is untouched, so its fuzz was not rerun.
+
 ## Files outside my area (additive)
 
 - `crates/cantus-ui/src/app.rs` — the `plugin_crashes` field and its default; the three
