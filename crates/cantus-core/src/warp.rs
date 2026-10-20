@@ -111,7 +111,7 @@ pub struct WarpMarker {
     /// A frame of the source at its own rate (fractions kept).
     pub frame: f64,
     pub tick: Ticks,
-    /// Laid by the warp itself, never by the user (schema 38, round 29's second review): a
+    /// Laid by the warp itself, never by the user (schema 39, round 29's second review): a
     /// sample of the tempo curve a first warp edit keeps the clip on
     /// ([`Warp::natural_of`] — every tempo point and, inside a ramp, as many as keep the
     /// curve within a quarter of a frame). Never drawn, never grabbed, never removed by

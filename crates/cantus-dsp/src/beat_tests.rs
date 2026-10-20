@@ -102,6 +102,15 @@ fn the_corpus_is_within_one_bpm() {
         /// Misses inside 70–180 that are an octave of the truth.
         inside_octave: usize,
         misses: Vec<(f64, usize, f64)>,
+        /// Right answers whose beats were checked, and those whose every beat was tracked
+        /// within 35 ms (round 29's second review).
+        beats_checked: usize,
+        beats_ok: usize,
+        /// Right answers whose downbeat (in the file's own metre) was checked, and those
+        /// that put it on the first bar line after the pick-up.
+        downbeats_checked: usize,
+        downbeats_ok: usize,
+        wrong_downbeats: Vec<(f64, usize)>,
     }
     let near = |a: f64, b: f64| (a - b).abs() <= 1.0;
     let feel = |metre, jitter_ms, pickup| Feel {
@@ -112,6 +121,8 @@ fn the_corpus_is_within_one_bpm() {
         pickup,
     };
     let (mut metro, mut played) = (Tally::default(), Tally::default());
+    // (beats checked, all tracked, downbeats checked, on the bar line, the wrong ones)
+    let mut played_beats: (usize, usize, usize, usize, Vec<(f64, usize)>) = Default::default();
     let mut bpm = 60.0;
     while bpm <= 200.0 {
         for kind in 0..7 {
@@ -147,6 +158,35 @@ fn the_corpus_is_within_one_bpm() {
             } else {
                 vec![bpm]
             };
+            // The beats and the downbeat of a right answer, in the file's own metre (6/8
+            // at its dotted quarters — the beats it holds — when that is its answer).
+            let (pickup, bpb, at_beats) = match (kind, metre) {
+                (4, _) => (1usize, 4u32, true),
+                (_, Metre::ThreeFour) => (0, 3, true),
+                (_, Metre::SixEight) => (0, 2, (got - bpm * 2.0 / 3.0).abs() <= 1.0),
+                _ => (0, 4, true),
+            };
+            if kind >= 3 && at_beats && truths.iter().any(|b| near(got, *b)) {
+                let g = analyse(&detect(&m.audio, m.rate), m.rate, m.audio.len(), bpb);
+                let t = &mut played_beats;
+                t.0 += 1;
+                let tol = 0.035 * m.rate as f64;
+                let tracked = m.beats.iter().all(|b| {
+                    g.beats
+                        .iter()
+                        .map(|x| (x - b).abs())
+                        .fold(f64::MAX, f64::min)
+                        <= tol
+                });
+                t.1 += usize::from(tracked);
+                t.2 += 1;
+                let first = m.beats[pickup];
+                let on = g.first_downbeat().is_some_and(|d| (d - first).abs() <= tol);
+                t.3 += usize::from(on);
+                if !on {
+                    t.4.push((bpm, kind));
+                }
+            }
             let t = if kind < 3 { &mut metro } else { &mut played };
             t.files += 1;
             let in_range = truths.iter().any(|b| (PREFER.0..=PREFER.1).contains(b));
@@ -181,6 +221,20 @@ fn the_corpus_is_within_one_bpm() {
         }
         bpm += 5.0;
     }
+    played.beats_checked = played_beats.0;
+    played.beats_ok = played_beats.1;
+    played.downbeats_checked = played_beats.2;
+    played.downbeats_ok = played_beats.3;
+    played.wrong_downbeats = played_beats.4;
+    eprintln!(
+        "corpus played: beats tracked within 35 ms in {}/{} right answers; the downbeat on \
+         the bar line after the pick-up in {}/{} (wrong: {:?})",
+        played.beats_ok,
+        played.beats_checked,
+        played.downbeats_ok,
+        played.downbeats_checked,
+        played.wrong_downbeats
+    );
     for (name, t) in [("metronomic", &metro), ("played", &played)] {
         eprintln!(
             "corpus {name}: {} files; {}/{} within ±1 BPM in 70–180 ({} of the misses an \
@@ -211,6 +265,26 @@ fn the_corpus_is_within_one_bpm() {
         assert_eq!(t.inside_ok + t.inside_octave, t.inside, "{:?}", t.misses);
         assert_eq!(t.metric, 0, "{:?}", t.misses);
     }
+    // The beats and the bar of the right answers (round 29's second review: only the BPM
+    // was asserted): nine in ten at least, every pick-up's downbeat after its pick-up.
+    assert!(
+        played.beats_ok * 100 >= played.beats_checked * 90,
+        "beats tracked in {}/{}",
+        played.beats_ok,
+        played.beats_checked
+    );
+    assert!(
+        played.downbeats_ok * 100 >= played.downbeats_checked * 90,
+        "downbeats {}/{}: {:?}",
+        played.downbeats_ok,
+        played.downbeats_checked,
+        played.wrong_downbeats
+    );
+    assert!(
+        played.wrong_downbeats.iter().all(|w| w.1 != 4),
+        "a pick-up taken for the downbeat: {:?}",
+        played.wrong_downbeats
+    );
     assert_eq!(metro.outside_octave, metro.outside, "{:?}", metro.misses);
     assert_eq!(played.outside_octave, played.outside, "{:?}", played.misses);
 }
