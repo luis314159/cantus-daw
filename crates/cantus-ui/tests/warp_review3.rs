@@ -308,3 +308,106 @@ fn quantise_hears_a_reversed_clip_across_a_tempo_step() {
     }
     assert!(checked >= 4, "{checked}");
 }
+
+/// A `.dawproject` of a one-track project named `name`, carrying a small audio file.
+fn package(dir: &Path, name: &str) -> std::path::PathBuf {
+    let mut p = Project::new(name);
+    let mut t = p.make_track("Audio");
+    let take = dir.join(format!("{name} take.wav"));
+    wav(&take, 48_000, &click_track(48_000.0, 120.0, 2, 0.1).audio);
+    let id = cantus_core::AudioSourceId(p.alloc_id());
+    p.audio_pool.push(cantus_core::AudioSource {
+        id,
+        name: "take".into(),
+        path: take.to_string_lossy().into_owned(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000 * 4,
+        sha256: None,
+        recorded: false,
+    });
+    t.clips
+        .push(p.make_audio_clip("take", id, Ticks::ZERO, Ticks::beats(4)));
+    p.tracks.push(t);
+    let file = dir.join(format!("{name}.dawproject"));
+    cantus_project::dawproject::export_to(&p, "test", None, &file).unwrap();
+    file
+}
+
+/// Poll an import until its reading is done (it may still wait to land).
+fn read_through(a: &mut CantusApp, before: &str) {
+    let t = Instant::now();
+    while t.elapsed() < Duration::from_secs(5) && a.project().name == before {
+        cantus_ui::views::interop::poll_import(a, None);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// Finding 22: a `.dawproject` read in the background lands only when it is safe — never
+/// during a pass (the take stays in the project it was recorded into), never over a
+/// project opened since (said, its audio let go), and a quit stops it, its audio let go.
+#[test]
+fn a_background_import_lands_only_when_it_is_safe() {
+    let dir = tempfile::tempdir().unwrap();
+    // During a pass: it waits for the pass to end.
+    let file = package(dir.path(), "Imported one");
+    let landed = cantus_ui::warp::media_dir("Imported one.dawproject");
+    let mut a = app(cantus_ui::starter_project());
+    let first = a.project().name.clone();
+    a.start_recording();
+    assert!(cantus_ui::views::interop::import_dawproject_from(
+        &mut a, &file
+    ));
+    read_through(&mut a, &first);
+    assert_eq!(a.project().name, first, "replaced mid-recording");
+    assert!(a.is_recording());
+    a.stop_recording();
+    read_through(&mut a, &first);
+    assert_eq!(
+        a.project().name,
+        "Imported one",
+        "landed once the pass ended"
+    );
+    // Another project opened since: never replaced, said.
+    let file = package(dir.path(), "Imported two");
+    let mut a = app(cantus_ui::starter_project());
+    let media = cantus_ui::warp::media_dir("Imported two.dawproject");
+    assert!(cantus_ui::views::interop::import_dawproject_from(
+        &mut a, &file
+    ));
+    a.replace_project(Project::new("Opened since"));
+    let t = Instant::now();
+    while a.interop.importing.is_some() && t.elapsed() < Duration::from_secs(5) {
+        cantus_ui::views::interop::poll_import(&mut a, None);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(a.project().name, "Opened since");
+    assert!(a.status.error, "said");
+    assert!(!media.exists(), "its copied audio let go");
+    // A quit: stopped, its audio let go.
+    let file = package(dir.path(), "Imported three");
+    let mut a = app(cantus_ui::starter_project());
+    let media = cantus_ui::warp::media_dir("Imported three.dawproject");
+    assert!(cantus_ui::views::interop::import_dawproject_from(
+        &mut a, &file
+    ));
+    cantus_ui::views::interop::stop_import(&mut a);
+    assert!(a.interop.importing.is_none());
+    assert!(!media.exists(), "its copied audio let go");
+    let _ = std::fs::remove_dir_all(landed);
+}
+
+/// Finding 45: an import's own errors reach the interface in its language; a damaged ZIP64
+/// record is "damaged", never "not supported".
+#[test]
+fn an_import_error_is_said_in_the_interfaces_language() {
+    use cantus_project::dawproject::{zip::ZipError, DawProjectError};
+    cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::Es);
+    let said = cantus_ui::views::interop::import_error(&DawProjectError::Zip(ZipError::TooLarge(
+        "project.xml".into(),
+    )));
+    assert_eq!(said, "project.xml es demasiado grande para leerlo");
+    let said = cantus_ui::views::interop::import_error(&DawProjectError::Zip(ZipError::Damaged));
+    assert_eq!(said, "el archivo está dañado o incompleto");
+    cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
+}

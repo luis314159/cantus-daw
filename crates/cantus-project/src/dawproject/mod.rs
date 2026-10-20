@@ -47,6 +47,9 @@ pub enum DawProjectError {
     NotDawProject(String),
     #[error("{0}")]
     Io(String),
+    /// Stopped by the caller before it was done (a quit — round 29's third review).
+    #[error("stopped before it was done")]
+    Stopped,
 }
 
 impl From<std::io::Error> for DawProjectError {
@@ -275,6 +278,16 @@ pub fn import_file(
     import_file_within(path, media, PART_LIMIT)
 }
 
+/// [`import_file`] that stops (`DawProjectError::Stopped`) once `stop` is set, between two
+/// files it copies — a quit never leaves it writing (round 29's third review).
+pub fn import_file_until(
+    path: &std::path::Path,
+    media: &std::path::Path,
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<ImportedFile, DawProjectError> {
+    import_file_inner(path, media, PART_LIMIT, Some(stop))
+}
+
 /// [`import_file`] with parts of at most `limit` bytes (tests: a small one).
 #[doc(hidden)]
 pub fn import_file_within(
@@ -282,6 +295,16 @@ pub fn import_file_within(
     media: &std::path::Path,
     limit: u64,
 ) -> Result<ImportedFile, DawProjectError> {
+    import_file_inner(path, media, limit, None)
+}
+
+fn import_file_inner(
+    path: &std::path::Path,
+    media: &std::path::Path,
+    limit: u64,
+    stop: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<ImportedFile, DawProjectError> {
+    let stopped = || stop.is_some_and(|s| s.load(std::sync::atomic::Ordering::Relaxed));
     let mut r = std::io::BufReader::new(std::fs::File::open(path)?);
     let entries = zip::directory(&mut r)?;
     let named = |want: &str| {
@@ -322,6 +345,9 @@ pub fn import_file_within(
     let mut taken = std::collections::HashSet::new();
     let mut unwritten = Vec::new();
     for inner in &carried {
+        if stopped() {
+            return Err(DawProjectError::Stopped);
+        }
         let Some(e) = entries
             .iter()
             .find(|e| e.name.trim_start_matches("./") == inner)

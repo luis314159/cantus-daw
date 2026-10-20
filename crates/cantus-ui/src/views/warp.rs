@@ -48,6 +48,11 @@ pub struct WarpView {
 }
 
 impl WarpView {
+    /// Let go of a marker's drag (another project replaces the clip's).
+    pub(crate) fn let_go(&mut self) {
+        self.drag = None;
+    }
+
     /// The editor's snap grid (`None`: off).
     pub fn snap(&self) -> Option<Ticks> {
         if self.grid_off {

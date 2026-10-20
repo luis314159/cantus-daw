@@ -280,6 +280,13 @@ pub struct HeaderHit {
 }
 
 impl ArrangementView {
+    /// Let go of every clip drag and audio handle's drag (another project replaces the one
+    /// they were begun on — round 29's third review).
+    pub(crate) fn let_go(&mut self) {
+        self.drag = None;
+        self.audio.drag = None;
+    }
+
     /// Start renaming a track in place (a click on its name's letters does).
     pub fn begin_rename_track(&mut self, id: TrackId, name: String) {
         self.rename = Some((id, name));
