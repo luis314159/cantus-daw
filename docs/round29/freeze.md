@@ -72,8 +72,10 @@ blocks. No golden moved; `DSP_VERSION` unchanged.
 
 ## Tests and what each holds
 
-See ADR 0064 §Tests for what each holds. The final run, after merging `r29/integration`
-at bef6f62 (warp and controllers), all `--no-fail-fast`, 0 failed:
+See ADR 0064 §Tests for what each holds. The first run, after merging `r29/integration`
+at bef6f62 (warp and controllers), all `--no-fail-fast`, 0 failed (the runs after each
+review are in their sections; the last, after review 3: core 416, project 112, engine 819,
+fuzz 823, host 82, sandbox 64, ui 1 573):
 
 | crate | passed |
 |---|---|
@@ -278,8 +280,7 @@ tasks only.
 
 `F:\projects\daw-r29\reviews\freeze-3.json`, merged with `r29/integration` at dd71793 first
 (warp's second review, schema 39 `WarpMarker::auto`; mine stays 38). Many findings are one
-defect seen through several lenses (the lateness five times, the shared folder five, solo
-five): the row says *as #n*. Every test was seen failing with its fix taken out — the fix
+defect seen through several lenses (the lateness seven times, the shared folder six, solo six): the row says *as #n*. Every test was seen failing with its fix taken out — the fix
 sabotaged in place, the tests run, the source restored (`sab3_*.py`, results below the
 table) — but where a row says otherwise. *core*, *engine*, *ll*, *ui*, *rec*, *recovery*,
 *sandbox*, *project* name `cantus-core/tests/freeze.rs`,
@@ -293,7 +294,8 @@ and the fixtures v38/v39 are unchanged, only what the engine does with it) is no
 delay line before the track's level (`pdc::Edge::Source`, `TrackSlot::source_line`),
 reported in the track's latency and compensated as any other, a monitored input joining
 after it. So every path agrees: the bounced clip moved, copied, pasted, linked or exported
-(DAWproject has no delay) plays on the grid; a take recorded, imported or drawn on the
+(DAWproject has no delay) plays on the grid (tested: moved, copied and pasted, through
+DAWproject; a linked copy is the same audio); a take recorded, imported or drawn on the
 bounced track is delayed with everything the track holds, and compensated; a track stem is
 trimmed by its track's latency. The inspector shows the delay with *Clear*
 (`SetTrackLateness`, locked as the track's source).
@@ -397,15 +399,30 @@ restored from git (never the tests).
 
 ### The run after review 3
 
-RUN_RESULTS
+Merged with `r29/integration` at dd71793, all `--no-fail-fast`, 0 failed: `cantus-core`
+416, `cantus-project` 112, `cantus-engine` 819, the engine fuzz (`CANTUS_WORKERS=3`) 823,
+`cantus-host` 82, `cantus-sandbox` 64 (`CANTUS_TEST_PLUGINS_PREBUILT=1`), `cantus-ui` 1 573.
+(One run of the engine suite had `pool::a_parked_pool_is_woken_once_per_worker_…` fail on
+a 28 µs wake while two other builds compiled — a timing test of the pool, not touched
+here; it passed alone and in the full run after.) Clippy `-D warnings` on the workspace and
+`fmt --check` clean (after it: two type aliases and a `then_some`, and the *Delay* row's
+value shortened to its figure — the freeze and sandbox tests run again). Schema 38 as it
+was (the fixtures untouched), `SUBJECT_VERSION` 3; no golden moved, `DSP_VERSION`
+unchanged. `shoot_freeze` (112 PNGs in `F:\projects\daw-r29\shots\freeze\`) now also
+shows a bounced pad's inspector with its *Delay* row and *Clear*, and the inspector shots
+are tall enough for the *Freeze* row (they stopped at *Recording*). The test folders of
+earlier runs are swept at a run's first test (`cantus-freeze-ui`), and the last run's
+removed.
 
 ## Left
 
 Nothing of mine (review 1: all 62 closed; review 2: all 58 closed — #14 by decision,
-documented; review 3: all 55 closed — #23 by construction, said in its row). Owner-only: listen to a frozen heavy track and its unfreeze, and record a
-voice through Tonus with low-latency monitoring on, with real hardware.
+documented; review 3: all 55 closed — #23 by construction, said in its row). Owner-only:
+listen to a frozen heavy track and its unfreeze, and record a voice through Tonus with
+low-latency monitoring on, with real hardware.
 
-Not testable here, said in the table: a plug-in window turned *during* a render (#7, #42),
+Not testable here, said in review 2's table (its numbers): a plug-in window turned *during*
+a render (#7, #42 — review 3's edit count is tested by the host instead),
 a native latent instrument for the Source-bounce and pure-strip cases (#19, #26), the
 reader board released on rest (#20).
 
