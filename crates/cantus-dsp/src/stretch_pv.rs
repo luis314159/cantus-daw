@@ -632,12 +632,15 @@ impl State {
             c.advance(n, hs, ratio, reset);
         }
         // The image: where both channels hold the same partial — their phase difference
-        // holding still over a hop, the same frequency to a twenty-fifth of a bin (half a
-        // hertz at 48 kHz) — the right one keeps the source's phase difference from the
+        // holding still over a hop, the same frequency to a twenty-fifth of a bin (a quarter
+        // of a hertz at 48 kHz, 170 ms frames) — the right one keeps the source's phase difference from the
         // left, every frame, so silence or a reset never loses it; where they differ (a
         // chorus, a detuned voice a few hertz off), each keeps its own: locked, the right
         // one was pulled to the left's frequency and beat against itself (round 29's
-        // review measured a detuned pad's voice wandering 5 dB).
+        // review measured a detuned pad's voice wandering 5 dB). Partials both channels
+        // share over noise of their own 10 dB down keep the source's phase difference to
+        // 0.04 rad (round 29's second review measured it; a tolerance widened by each
+        // bin's noise locked a detuned chorus again and kept no better image).
         if stereo {
             let tol = 2.0 * PI * 0.04 / n as f32;
             let (l, r) = self.ch.split_at_mut(1);

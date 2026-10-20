@@ -734,3 +734,58 @@ fn a_sketch_of_a_minute_is_quick() {
     eprintln!("SKETCH {best:.3} s");
     assert!(best < 0.6, "a minute sketched in {best:.2} s");
 }
+
+/// Round 29's second review (finding 14): partials both channels hold (the same notes,
+/// each its own place in the image), over noise of each channel's own only 10 dB down (a
+/// room, a reverb), keep their phase difference through a stretch — measured in windows
+/// along the output, each partial within 0.1 rad of what the source holds where it read
+/// (never a phase random-walking away from it).
+#[test]
+fn a_stereo_image_over_independent_noise_is_kept() {
+    let n = 4 * 48_000;
+    let parts = [
+        (220.0f64, 0.7f64),
+        (330.0, -0.4),
+        (440.0, 1.1),
+        (660.0, 0.3),
+    ];
+    let mut l = vec![0.0f32; n];
+    let mut r = vec![0.0f32; n];
+    for &(hz, d) in &parts {
+        let w = 2.0 * std::f64::consts::PI * hz / SR as f64;
+        for i in 0..n {
+            l[i] += (0.1 * math::sin(w * i as f64)) as f32;
+            r[i] += (0.1 * math::sin(w * i as f64 - d)) as f32;
+        }
+    }
+    let (nl, nr) = (band_noise(n, 51), band_noise(n, 53));
+    let level = |x: &[f32]| rms_db(x);
+    let k = math::db_to_gain(level(&l) - 10.0 - level(&nl));
+    for i in 0..n {
+        l[i] += k * nl[i];
+        r[i] += k * nr[i];
+    }
+    for stretch in [0.8f64, 1.25] {
+        let len = (n as f64 * stretch) as usize;
+        let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
+        let out = render(&[&l, &r], SR, &req(Mode::Complex, &map, len, 0.0, &[]));
+        let win = 9_600;
+        for &(hz, d) in &parts {
+            let mut at = len / 8;
+            while at + win < len - len / 8 {
+                let got =
+                    channel_phase(&out[0][at..at + win], &out[1][at..at + win], SR, hz as f32);
+                let s0 = (at as f64 / stretch) as usize;
+                let own = channel_phase(&l[s0..s0 + win], &r[s0..s0 + win], SR, hz as f32) as f64;
+                let off = got as f64 - own;
+                let off =
+                    off - 2.0 * std::f64::consts::PI * (off / (2.0 * std::f64::consts::PI)).round();
+                assert!(
+                    off.abs() < 0.1,
+                    "×{stretch} {hz} Hz at {at}: {got:.3} rad, the source's {own:.3} ({d})"
+                );
+                at += win;
+            }
+        }
+    }
+}
