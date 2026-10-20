@@ -294,3 +294,41 @@ fn the_transport_loops_over_a_ramps_end_and_meets_the_closed_form() {
         assert_eq!(run(block), reference, "block {block}");
     }
 }
+
+/// ADR 0060 §8, review 2 (finding 10): the passes a ramp costs with latent inserts — the
+/// demo over a 90→140 ramp, each strip behind a look-ahead limiter (its own lateness),
+/// then a synced tremolo on one strip only. Counted live, 512-sample blocks, ten seconds
+/// (run with `--ignored --nocapture`).
+#[test]
+#[ignore = "a measurement"]
+fn measure_the_passes_of_latent_inserts_in_a_ramp() {
+    let song = |ramp: bool, latent: bool, follower: bool| {
+        let mut p = demo_project();
+        p.loop_enabled = false;
+        if ramp {
+            p.tempo_points = vec![pt(0, 90.0, false), pt(960, 90.0, true), pt(30_720, 140.0, false)];
+        }
+        if latent {
+            for i in 0..p.tracks.len() {
+                let Some(strip) = p.tracks[i].strip else { continue };
+                let mut lim = p.make_effect(EffectKind::Limiter);
+                lim.spec.set("look", 1.0 + i as f32).unwrap();
+                let mut eq = p.make_effect(EffectKind::Eq);
+                eq.spec.set("b0.used", 1.0).unwrap();
+                let s = p.strip_mut(strip).unwrap();
+                s.effects.insert(0, lim);
+                s.effects.push(eq);
+            }
+        }
+        if follower {
+            let fx = add_effect(&mut p, EffectKind::Tremolo);
+            set_all(&mut p, fx, &[("depth", 0.5), ("div", 8.0)]);
+        }
+        live(&p, 480_000, 512).1
+    };
+    let flat = song(false, true, true);
+    eprintln!("one tempo, latent inserts and a tremolo: {flat} passes");
+    eprintln!("ramp, nothing latent: {} passes", song(true, false, false));
+    eprintln!("ramp, latent inserts, no follower: {} passes", song(true, true, false));
+    eprintln!("ramp, latent inserts, a tremolo: {} passes", song(true, true, true));
+}

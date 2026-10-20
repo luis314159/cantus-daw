@@ -738,33 +738,10 @@ fn channel_eq(project: &mut Project, sid: StripId, eq: Node) -> bool {
 /// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
 /// standing in where the automation starts later.
 fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
-    use cantus_core::tempo::{valid_signature, Marker, MarkerId, MetreChange, TempoPoint};
-    let mut pts: Vec<TempoPoint> = t
-        .tempo
-        .iter()
-        .filter(|(tick, _, _)| tick.0 >= 0)
-        .map(|(tick, bpm, ramp)| TempoPoint {
-            tick: *tick,
-            bpm: cantus_core::time::clamp_bpm(*bpm),
-            ramp: *ramp,
-        })
-        .collect();
-    pts.sort_by_key(|p| p.tick);
-    pts.dedup_by_key(|p| p.tick);
+    use cantus_core::tempo::{valid_signature, Marker, MarkerId, MetreChange};
+    // The tempo track as the timeline read it (its points normalised there).
+    let pts = t.tempo.clone();
     if !pts.is_empty() {
-        if pts[0].tick != Ticks::ZERO {
-            pts.insert(
-                0,
-                TempoPoint {
-                    tick: Ticks::ZERO,
-                    bpm: project.tempo_bpm,
-                    ramp: false,
-                },
-            );
-        }
-        if let Some(last) = pts.last_mut() {
-            last.ramp = false;
-        }
         project.tempo_bpm = pts[0].bpm;
         if pts.len() > 1 {
             report.info(
@@ -783,8 +760,11 @@ fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
         })
         .filter(|m| m.tick.0 >= 0 && valid_signature(m.signature))
         .collect();
+    // Two at one tick: the later wins, as for the tempo (review 2, finding 58).
     ms.sort_by_key(|m| m.tick);
+    ms.reverse();
     ms.dedup_by_key(|m| m.tick);
+    ms.reverse();
     if !ms.is_empty() {
         if ms[0].tick != Ticks::ZERO {
             ms.insert(

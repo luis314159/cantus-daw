@@ -464,8 +464,20 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
     assert!(!r.has("interop.report.d_markers") && !r.has("interop.report.d_tempo_automation"));
     let names: Vec<&str> = p.markers.iter().map(|m| m.name.as_str()).collect();
     assert_eq!(names, ["Intro", "Verse"]);
-    assert_eq!(p.tempo_points.len(), 2);
-    assert!(r.has("interop.report.d_seconds"));
+    // Where they land (review 2): 149 from the start, 120 from beat 32; the markers at
+    // beats 0 and 16; the seconds lane read through that map.
+    let pts: Vec<(Ticks, f64, bool)> = p
+        .tempo_points
+        .iter()
+        .map(|t| (t.tick, t.bpm, t.ramp))
+        .collect();
+    assert_eq!(
+        pts,
+        [(Ticks::ZERO, 149.0, false), (Ticks::beats(32), 120.0, false)]
+    );
+    let at: Vec<Ticks> = p.markers.iter().map(|m| m.tick).collect();
+    assert_eq!(at, [Ticks::ZERO, Ticks::beats(16)]);
+    assert!(r.has("tempo.report.seconds_map"));
     assert!(
         !r.has("interop.report.d_pre_sends"),
         "a pre-fader send is no loss now"

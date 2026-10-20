@@ -252,8 +252,10 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         Division::Smpte { .. } => Ticks::ZERO,
     };
     let keep_map = clock.mode == TempoMode::Map;
+    // The file's map in Cantus ticks — none for an SMPTE file, whose times are seconds
+    // (review 2, finding 64: every event there was "at tick 0").
     let mut tempo_points: Vec<cantus_core::TempoPoint> = Vec::new();
-    for p in &clock.map {
+    for p in clock.map.iter().filter(|_| !smpte) {
         let bpm = cantus_core::time::clamp_bpm(round_bpm(60_000_000.0 / p.us as f64));
         let tick = beats_tick(p.tick);
         if tempo_points.last().is_some_and(|l| l.bpm == bpm) {
@@ -271,14 +273,35 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
     if tempo_points.len() < 2 {
         tempo_points.clear();
     }
-    let mut metre_list: Vec<cantus_core::MetreChange> = metres
-        .iter()
-        .map(|(t, (n, d))| cantus_core::MetreChange {
-            tick: beats_tick(*t),
-            signature: TimeSignature::new(*n, *d),
-        })
-        .collect();
-    metre_list.dedup_by(|b, a| a.signature == b.signature);
+    // The metre changes (review 2, findings 60 and 61): a signature Cantus cannot hold is
+    // dropped (counted), two at one Cantus tick keep the later, a first one before the first
+    // bar line is the song's own (a sequencer writes it after its setup events), else 4/4
+    // stands before it; then a change to the metre already in force is none.
+    let mut odd_metres = 0usize;
+    let mut metre_list: Vec<cantus_core::MetreChange> = Vec::new();
+    for (t, (n, d)) in metres.iter().filter(|_| !smpte) {
+        let signature = TimeSignature::new(*n, *d);
+        if !cantus_core::tempo::valid_signature(signature) {
+            odd_metres += 1;
+            continue;
+        }
+        let tick = beats_tick(*t);
+        if metre_list.last().is_some_and(|l| l.tick == tick) {
+            metre_list.pop();
+        }
+        metre_list.push(cantus_core::MetreChange { tick, signature });
+    }
+    let first_bar = TimeSignature::default().ticks_per_bar();
+    let mut time_signature = metres
+        .get(&0)
+        .map(|(n, d)| TimeSignature::new(*n, *d))
+        .filter(|s| cantus_core::tempo::valid_signature(*s));
+    if let Some(first) = metre_list.first_mut() {
+        if first.tick > Ticks::ZERO && first.tick < first_bar {
+            first.tick = Ticks::ZERO;
+            time_signature = Some(first.signature);
+        }
+    }
     if metre_list.first().is_some_and(|m| m.tick != Ticks::ZERO) {
         metre_list.insert(
             0,
@@ -288,11 +311,15 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             },
         );
     }
+    metre_list.dedup_by(|b, a| a.signature == b.signature);
     if metre_list.len() < 2 {
         metre_list.clear();
     }
-    let markers: Vec<(Ticks, String)> =
-        marks.into_iter().map(|(t, s)| (beats_tick(t), s)).collect();
+    let markers: Vec<(Ticks, String)> = if smpte {
+        Vec::new()
+    } else {
+        marks.into_iter().map(|(t, s)| (beats_tick(t), s)).collect()
+    };
     if keep_map && changes > 0 {
         report.info("tempo.report.tempo_kept", vec![("n", changes.to_string())]);
     } else if changes > 0 {
@@ -308,12 +335,9 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             );
         }
     }
-    let time_signature = metres.get(&0).map(|(n, d)| TimeSignature::new(*n, *d));
-    let metre_changes = metres
-        .iter()
-        .filter(|(t, _)| **t > 0)
-        .filter(|(_, m)| Some(TimeSignature::new(m.0, m.1)) != time_signature)
-        .count();
+    // The changes after the first, as the list above has them (a signature Cantus cannot
+    // hold counted among them, never kept).
+    let metre_changes = metre_list.len().saturating_sub(1);
     if keep_map {
         if metre_changes > 0 {
             report.info(
@@ -328,11 +352,24 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             );
         }
     } else {
-        report.count_dropped("interop.report.metre_changes", metre_changes);
+        // Not kept: every change the file makes after its start, as counted before.
+        let first = metres.get(&0).map(|(n, d)| TimeSignature::new(*n, *d));
+        let raw = metres
+            .iter()
+            .filter(|(t, m)| **t > 0 && Some(TimeSignature::new(m.0, m.1)) != first)
+            .count();
+        report.count_dropped("interop.report.metre_changes", raw);
+    }
+    if keep_map {
+        report.count_dropped("interop.report.metre_changes", odd_metres);
     }
     let tempo_mode = clock.mode;
 
-    let mut counts = Dropped::default();
+    // Markers kept are no texts dropped (review 2, finding 59).
+    let mut counts = Dropped {
+        markers_kept: keep_map,
+        ..Dropped::default()
+    };
     let mut tracks = Vec::new();
     let mut name = None;
     let mut end = Ticks::ZERO;
@@ -512,6 +549,8 @@ struct Dropped {
     keys: usize,
     unterminated: usize,
     zero_length: usize,
+    /// The map is kept: a marker (text meta event 6) is not dropped.
+    markers_kept: bool,
 }
 
 impl Dropped {
@@ -522,6 +561,7 @@ impl Dropped {
             Event::PolyPressure { .. } | Event::ChannelPressure { .. } => self.pressure += 1,
             Event::Program { .. } => self.programs += 1,
             Event::SysEx(_) => self.sysex += 1,
+            Event::Text { kind: 0x06, text } if self.markers_kept && !text.trim().is_empty() => {}
             Event::Text { .. } => self.texts += 1,
             Event::KeySignature { .. } => self.keys += 1,
             _ => {}
@@ -607,59 +647,80 @@ pub fn import_commands(
     let mut report = Report::default();
     let mut commands = Vec::new();
     let mut ts = project.time_signature;
-    // The file's whole tempo map (ADR 0060): set with the tempo, from where the file goes.
+    // The file's whole tempo map (ADR 0060). Dropped at the song's start it is the song's;
+    // dropped later (review 2, findings 27 and 62) it starts at the bar line nearest the
+    // drop — the song keeps its own tempo and metre before it, the file's replace the
+    // song's from there — and the notes go there with it, so its bars are the song's.
     let keep_map = place.apply_tempo && import.tempo_mode == TempoMode::Map;
-    if keep_map {
-        let at = place.at.max(Ticks::ZERO);
+    let mut at = place.at.max(Ticks::ZERO);
+    if keep_map && at > Ticks::ZERO {
+        at = project.tempo_map().snap_bar(at);
+    }
+    if keep_map && at > Ticks::ZERO {
+        commands.extend(map_from(project, import, at));
+        let bar = project.tempo_map().bbt(at).0;
+        report.info("tempo.report.map_at", vec![("bar", bar.to_string())]);
+    } else if keep_map {
+        let mut tempo_set = false;
         if !import.tempo_points.is_empty() {
             let bpm = cantus_core::time::clamp_bpm(import.tempo_bpm);
-            let mut points = vec![cantus_core::TempoPoint {
+            let mut points = import.tempo_points.clone();
+            points[0] = cantus_core::TempoPoint {
                 tick: Ticks::ZERO,
                 bpm,
-                ramp: false,
-            }];
-            points.extend(
-                import
-                    .tempo_points
-                    .iter()
-                    .skip(1)
-                    .map(|p| cantus_core::TempoPoint {
-                        tick: p.tick + at,
-                        ..*p
-                    }),
-            );
+                ramp: points[0].ramp,
+            };
             commands.push(Command::SetTempoTrack { bpm, points });
+            tempo_set = true;
+        } else if !project.tempo_points.is_empty() {
+            // The file holds one tempo: the song's tempo track gives way to it.
+            let bpm = cantus_core::time::clamp_bpm(import.tempo_bpm);
+            commands.push(Command::SetTempoTrack {
+                bpm,
+                points: Vec::new(),
+            });
+            tempo_set = true;
         }
         if !import.metre_changes.is_empty() {
             let signature = import.metre_changes[0].signature;
-            let mut metres = vec![cantus_core::MetreChange {
-                tick: Ticks::ZERO,
-                signature,
-            }];
-            metres.extend(
-                import
-                    .metre_changes
-                    .iter()
-                    .skip(1)
-                    .map(|m| cantus_core::MetreChange {
-                        tick: m.tick + at,
-                        ..*m
-                    }),
-            );
+            let mut metres = import.metre_changes.clone();
+            metres[0].tick = Ticks::ZERO;
             commands.push(Command::SetMetreTrack { signature, metres });
+            ts = signature;
+        } else if !project.metre_changes.is_empty() {
+            let signature = import.time_signature.unwrap_or(project.time_signature);
+            commands.push(Command::SetMetreTrack {
+                signature,
+                metres: Vec::new(),
+            });
+            ts = signature;
         }
-        for (tick, name) in &import.markers {
-            commands.push(Command::AddMarker {
-                marker: cantus_core::Marker {
-                    id: cantus_core::MarkerId(ids()),
-                    tick: *tick + at,
-                    name: name.clone(),
-                    color: None,
-                },
+        if !tempo_set && (import.tempo_bpm - project.tempo_bpm).abs() > 1e-9 {
+            commands.push(Command::SetTempo {
+                bpm: cantus_core::time::clamp_bpm(import.tempo_bpm),
             });
         }
-    }
-    if place.apply_tempo {
+        if import.metre_changes.is_empty() && project.metre_changes.is_empty() {
+            if let Some(sig) = import.time_signature {
+                ts = sig;
+                if sig != project.time_signature {
+                    commands.push(Command::SetTimeSignature {
+                        time_signature: sig,
+                    });
+                }
+            }
+        }
+        report.info(
+            "interop.report.tempo_set",
+            vec![
+                (
+                    "bpm",
+                    format!("{}", cantus_core::time::clamp_bpm(import.tempo_bpm)),
+                ),
+                ("sig", ts.to_string()),
+            ],
+        );
+    } else if place.apply_tempo {
         if (import.tempo_bpm - project.tempo_bpm).abs() > 1e-9 {
             commands.push(Command::SetTempo {
                 bpm: cantus_core::time::clamp_bpm(import.tempo_bpm),
@@ -692,6 +753,18 @@ pub fn import_commands(
             ],
         );
     }
+    if keep_map {
+        for (tick, name) in &import.markers {
+            commands.push(Command::AddMarker {
+                marker: cantus_core::Marker {
+                    id: cantus_core::MarkerId(ids()),
+                    tick: *tick + at,
+                    name: name.clone(),
+                    color: None,
+                },
+            });
+        }
+    }
 
     let room = place.max_tracks.saturating_sub(project.tracks.len());
     if import.tracks.len() > room {
@@ -704,7 +777,6 @@ pub fn import_commands(
         );
     }
     let bar = ts.ticks_per_bar().max(Ticks(1));
-    let at = place.at.max(Ticks::ZERO);
     let base = place
         .index
         .unwrap_or(project.tracks.len())
@@ -854,4 +926,115 @@ impl FreeStrips {
     fn take(&mut self) -> Option<StripId> {
         self.free.pop()
     }
+}
+
+/// The commands that put the file's tempo and metre into the song from bar line `at` on
+/// (`at` > 0): the song's own before it — its ramp into `at` ending where it stood a tick
+/// before — the file's from it, shifted. A change to what is already in force is none.
+fn map_from(project: &Project, import: &MidiImport, at: Ticks) -> Vec<Command> {
+    use cantus_core::{MetreChange, TempoPoint};
+    let mut out = Vec::new();
+    let map = project.tempo_map();
+    // The tempo.
+    let mut points: Vec<TempoPoint> = if project.tempo_points.is_empty() {
+        vec![TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: project.tempo_bpm,
+            ramp: false,
+        }]
+    } else {
+        project
+            .tempo_points
+            .iter()
+            .copied()
+            .filter(|p| p.tick < at)
+            .collect()
+    };
+    if let Some(last) = points.last_mut().filter(|p| p.ramp) {
+        let before = at - Ticks(1);
+        if before > last.tick {
+            let bpm = map.bpm_at(before.0 as f64);
+            points.push(TempoPoint {
+                tick: before,
+                bpm,
+                ramp: false,
+            });
+        } else {
+            last.ramp = false;
+        }
+    }
+    let file: Vec<TempoPoint> = if import.tempo_points.is_empty() {
+        vec![TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: cantus_core::time::clamp_bpm(import.tempo_bpm),
+            ramp: false,
+        }]
+    } else {
+        import.tempo_points.clone()
+    };
+    for p in file {
+        let q = TempoPoint {
+            tick: p.tick + at,
+            ..p
+        };
+        if points.last().is_some_and(|l| !l.ramp && l.bpm == q.bpm) {
+            points.last_mut().expect("there").ramp = q.ramp;
+            continue;
+        }
+        points.push(q);
+    }
+    if let Some(last) = points.last_mut() {
+        last.ramp = false;
+    }
+    if points.len() > 1 && points != project.tempo_points {
+        out.push(Command::SetTempoTrack {
+            bpm: points[0].bpm,
+            points,
+        });
+    }
+    // The metre.
+    let file_first = import
+        .metre_changes
+        .first()
+        .map(|m| m.signature)
+        .or(import.time_signature);
+    let mut metres: Vec<MetreChange> = if project.metre_changes.is_empty() {
+        vec![MetreChange {
+            tick: Ticks::ZERO,
+            signature: project.time_signature,
+        }]
+    } else {
+        project
+            .metre_changes
+            .iter()
+            .copied()
+            .filter(|m| m.tick < at)
+            .collect()
+    };
+    if let Some(sig) = file_first {
+        metres.push(MetreChange {
+            tick: at,
+            signature: sig,
+        });
+        metres.extend(import.metre_changes.iter().skip(1).map(|m| MetreChange {
+            tick: m.tick + at,
+            ..*m
+        }));
+    } else {
+        // The file says nothing: the song's metre goes on.
+        metres.extend(project.metre_changes.iter().copied().filter(|m| m.tick >= at));
+    }
+    metres.dedup_by(|b, a| a.signature == b.signature);
+    if metres.len() > 1 && metres != project.metre_changes {
+        out.push(Command::SetMetreTrack {
+            signature: project.time_signature,
+            metres,
+        });
+    } else if metres.len() <= 1 && !project.metre_changes.is_empty() {
+        out.push(Command::SetMetreTrack {
+            signature: project.time_signature,
+            metres: Vec::new(),
+        });
+    }
+    out
 }

@@ -533,7 +533,11 @@ fn an_import_is_one_step_of_the_undo_history() {
     )
     .unwrap();
     assert_eq!(bus.project().tracks.len(), 2);
-    assert_eq!(bus.project().tempo_bpm, 100.0);
+    // Dropped at bar 3 keeping the file's map (review 2, finding 62): the song's start
+    // keeps its tempo, the file's 100 BPM plays from the bar the file starts at.
+    assert_eq!(bus.project().tempo_bpm, 120.0);
+    let map = bus.project().tempo_map();
+    assert_eq!(map.bpm_at(Ticks::beats(8).0 as f64), 100.0);
     assert_eq!(bus.project().tracks[0].clips[0].start, Ticks::beats(8));
     bus.undo();
     let mut after = bus.project().clone();
