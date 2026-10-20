@@ -30,7 +30,7 @@ use crate::backend::{AudioSetup, Backend, Format, HostError, Loaded, PluginInfo}
 use cantus_core::PluginIsolation;
 use proto::{Answer, Call};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// The helper group a plug-in runs in, or `None` for *Within Cantus*.
@@ -61,6 +61,8 @@ pub struct BridgedBackend {
     pub pool: Arc<Sandboxes>,
     /// For an offline render: blocks are waited for without a deadline.
     pub offline: bool,
+    /// An offline render's stop: set, its instances stop waiting (and their helper ends).
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 impl Backend for BridgedBackend {
@@ -106,10 +108,14 @@ impl Backend for BridgedBackend {
                 slot: slot.name().to_string(),
             },
             &[],
-            sandbox::LOAD_TIMEOUT,
+            self.pool.limits().load,
         );
         let (described, first_state): (proto::Described, Vec<u8>) = match answer {
-            Ok((Answer::Loaded(d), state)) => (d, state),
+            Ok((Answer::Loaded(d), state)) => {
+                // The helper has mapped the slot: its name is no longer needed (review #43).
+                slot.unlink_name();
+                (d, state)
+            }
             Ok(_) => {
                 sandbox.unregister(instance);
                 return Err(HostError::Load(
@@ -130,7 +136,7 @@ impl Backend for BridgedBackend {
             slot.clone(),
             status,
             inbox,
-            self.offline,
+            (self.offline, self.cancel.clone().unwrap_or_default()),
             setup.sample_rate,
             described,
             first_state,
@@ -143,7 +149,7 @@ impl Backend for BridgedBackend {
                 caller,
                 main.status.clone(),
                 (
-                    self.offline,
+                    main.offline_parts(),
                     setup.sample_rate,
                     self.pool.deadline_floor(),
                     latency,

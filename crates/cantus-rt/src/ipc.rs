@@ -81,6 +81,11 @@ impl Exchange {
         (self.job.load(Acquire), self.done.load(Acquire))
     }
 
+    /// Whether a worker took a job and has not finished it (a job runs now).
+    pub fn running(&self) -> bool {
+        self.taken.load(SeqCst) != self.done.load(SeqCst)
+    }
+
     /// Whether a job waits to be taken (a worker's scan).
     pub fn pending(&self) -> bool {
         self.job.load(SeqCst) != self.taken.load(SeqCst)

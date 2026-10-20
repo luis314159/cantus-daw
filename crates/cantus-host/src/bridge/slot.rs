@@ -354,6 +354,11 @@ impl Slot {
         })
     }
 
+    /// The helper has mapped it: its name is removed (Unix; review #43).
+    pub fn unlink_name(&self) {
+        self.mem.unlink_name();
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }

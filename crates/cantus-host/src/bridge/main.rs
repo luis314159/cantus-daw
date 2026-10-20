@@ -20,14 +20,15 @@
 //!   window): `editor_is_floating` is true, and bringing it forward and closing it are
 //!   proxied.
 
-use super::audio::{BridgeAudio, Status};
+use super::audio::{BridgeAudio, Offline, Status};
 use super::proto::{Answer, Call, Described, WireNotice};
-use super::sandbox::{Inbox, Sandbox, Sandboxes, CALL_TIMEOUT, STATE_TIMEOUT};
+use super::sandbox::{Inbox, Sandbox, Sandboxes};
 use super::slot::Slot;
 use crate::backend::{
-    AudioThread, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo, ParamOut,
-    PluginInfo,
+    AudioThread, Blame, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo,
+    ParamOut, PluginInfo,
 };
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -36,6 +37,11 @@ const REFRESH_AFTER: Duration = Duration::from_millis(500);
 /// How often the state is refreshed while only values move (automation, a knob the plug-in
 /// did not report as a gesture).
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
+/// How long after a failed background state it is asked for again.
+const RETRY_AFTER: Duration = Duration::from_secs(5);
+/// A helper whose heartbeat is older than this is in trouble (hung, or about to be found
+/// so): saving answers with the last-good state at once instead of waiting (review #51).
+const TROUBLE: Duration = Duration::from_secs(1);
 
 /// The main half.
 pub struct BridgeMain {
@@ -46,6 +52,8 @@ pub struct BridgeMain {
     pub(crate) status: Arc<Status>,
     pub(crate) inbox: Arc<Inbox>,
     pub(crate) offline: bool,
+    /// Set to stop an offline instance's render.
+    pub(crate) cancel: Arc<AtomicBool>,
     pub(crate) sample_rate: f64,
     info: PluginInfo,
     params: Vec<ParamInfo>,
@@ -55,6 +63,9 @@ pub struct BridgeMain {
     /// Something changed since the last-good state was taken, and when it first did.
     dirty_since: Option<Instant>,
     asked_state: bool,
+    /// Background states answered to a request before this id are older than the last
+    /// state loaded or saved, and dropped (review #7, #50).
+    state_after: u64,
     last_refresh: Instant,
     told_crash: bool,
 }
@@ -78,7 +89,7 @@ impl BridgeMain {
         slot: Arc<Slot>,
         status: Arc<Status>,
         inbox: Arc<Inbox>,
-        offline: bool,
+        (offline, cancel): (bool, Arc<AtomicBool>),
         sample_rate: f64,
         described: Described,
         first_state: Vec<u8>,
@@ -91,6 +102,7 @@ impl BridgeMain {
             status,
             inbox,
             offline,
+            cancel,
             sample_rate,
             info: described.info,
             params: described.params,
@@ -100,9 +112,20 @@ impl BridgeMain {
             last_good: (!first_state.is_empty()).then_some(first_state),
             dirty_since: None,
             asked_state: false,
+            state_after: 0,
             last_refresh: Instant::now(),
             told_crash: false,
         }
+    }
+
+    /// What an offline audio half needs to end a hung or cancelled render.
+    pub(crate) fn offline_parts(&self) -> Option<Offline> {
+        self.offline.then(|| Offline {
+            sandbox: self.sandbox.clone(),
+            instance: self.instance,
+            name: self.info.name.clone(),
+            cancel: self.cancel.clone(),
+        })
     }
 
     /// The process id of the helper it runs in.
@@ -122,11 +145,39 @@ impl BridgeMain {
         }
     }
 
+    /// A background state, once answered: kept unless a state was loaded or saved since it
+    /// was asked for; a failure asks again a little later (review #8, #50).
     fn take_answered_state(&mut self) {
-        if let Some(state) = self.inbox.data().state.take() {
-            self.last_good = Some(state);
-            self.asked_state = false;
+        let Some((id, state)) = self.inbox.data().state.take() else {
+            return;
+        };
+        self.asked_state = false;
+        if id < self.state_after {
+            return;
         }
+        match state {
+            Ok(s) => self.last_good = Some(s),
+            Err(_) => {
+                self.dirty_since
+                    .get_or_insert(Instant::now() + RETRY_AFTER - REFRESH_AFTER);
+            }
+        }
+    }
+
+    /// A state was just loaded or saved: background answers asked before are older.
+    fn state_settled(&mut self) {
+        self.state_after = self.sandbox.next_request();
+        self.dirty_since = None;
+        self.asked_state = false;
+        self.inbox.data().state = None;
+    }
+
+    /// Whether Cantus already knows the helper is in trouble: a job unfinished, or no
+    /// heartbeat for a while.
+    fn in_trouble(&self) -> bool {
+        // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
+        let x = unsafe { &*self.slot.exchange() };
+        self.status.unfinished_for(x).is_some() || self.sandbox.silent_for() > TROUBLE
     }
 
     fn call(
@@ -154,13 +205,24 @@ impl BridgeMain {
             caller,
             self.status.clone(),
             (
-                self.offline,
+                self.offline_parts(),
                 self.sample_rate,
                 self.pool.deadline_floor(),
                 self.latency,
             ),
             Box::new(move || sandbox.tell(Call::DropAudio { instance }, &[])),
         )))
+    }
+
+    fn crashed_notice(&self) -> Option<(String, Blame)> {
+        if !self.gone() {
+            return None;
+        }
+        // Its pipe closed first; the watchdog names how it ended a moment later.
+        if self.sandbox.why().is_none() && self.sandbox.dead_for() < Duration::from_millis(200) {
+            return None;
+        }
+        Some((self.crash_reason(), self.sandbox.blame(self.instance)))
     }
 }
 
@@ -206,17 +268,29 @@ impl MainThread for BridgeMain {
 
     fn save_state(&mut self) -> Result<Vec<u8>, HostError> {
         self.take_answered_state();
+        if !self.gone() && self.last_good.is_some() && self.in_trouble() {
+            // Known to be in trouble: what it said last, at once, and a fresh state asked
+            // for in the background (review #51).
+            if !self.asked_state {
+                self.ask_state();
+            }
+            return self
+                .last_good
+                .clone()
+                .ok_or_else(|| HostError::Crashed(self.crash_reason()));
+        }
         if !self.gone() {
+            let limit = self.pool.limits().state;
             match self.call(
                 Call::SaveState {
                     instance: self.instance,
                 },
                 &[],
-                STATE_TIMEOUT,
+                limit,
             ) {
                 Ok((Answer::State, blob)) => {
                     self.last_good = Some(blob.clone());
-                    self.dirty_since = None;
+                    self.state_settled();
                     return Ok(blob);
                 }
                 Ok(_) => {}
@@ -230,21 +304,21 @@ impl MainThread for BridgeMain {
             .ok_or_else(|| HostError::Crashed(self.crash_reason()))
     }
 
+    /// The state asked for becomes the last-good one before the call: if the helper dies
+    /// meanwhile, or is gone already, it is what saving and reloading use — the project's
+    /// state, not the one before it (review #9, #40, #44).
     fn load_state(&mut self, data: &[u8]) -> Result<(), HostError> {
-        match self.call(
+        self.last_good = Some(data.to_vec());
+        self.state_settled();
+        let limit = self.pool.limits().state;
+        self.call(
             Call::LoadState {
                 instance: self.instance,
             },
             data,
-            STATE_TIMEOUT,
-        ) {
-            Ok(_) => {
-                self.last_good = Some(data.to_vec());
-                self.dirty_since = None;
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+            limit,
+        )
+        .map(|_| ())
     }
 
     fn latency(&self) -> usize {
@@ -260,13 +334,14 @@ impl MainThread for BridgeMain {
         _parent: raw_window_handle::RawWindowHandle,
     ) -> Result<EditorSize, HostError> {
         let title = self.info.name.clone();
+        let limit = self.pool.limits().call;
         match self.call(
             Call::OpenEditor {
                 instance: self.instance,
                 title,
             },
             &[],
-            CALL_TIMEOUT,
+            limit,
         )? {
             (Answer::Editor { width, height }, _) => Ok(EditorSize { width, height }),
             _ => Err(HostError::Editor(
@@ -288,27 +363,27 @@ impl MainThread for BridgeMain {
         let mut out = Vec::new();
         self.sandbox.check_alive();
         if !self.gone() {
-            if let Some(t) = self.status.unfinished_for() {
+            // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
+            let x = unsafe { &*self.slot.exchange() };
+            if let Some(t) = self.status.unfinished_for(x) {
                 if t > self.pool.hang_limit() {
-                    self.sandbox.kill(&format!(
-                        "{} stopped responding while it processed audio",
-                        self.info.name
-                    ));
+                    self.sandbox.kill_blaming(
+                        &format!(
+                            "{} stopped responding while it processed audio",
+                            self.info.name
+                        ),
+                        Some(self.instance),
+                    );
                 }
             }
         }
         if self.gone() {
             self.status.mark_dead();
-            // Its pipe closed first; the watchdog names how it ended a moment later.
-            if self.sandbox.why().is_none() && self.sandbox.dead_for() < Duration::from_millis(200)
-            {
-                return out;
-            }
-            if !self.told_crash {
-                self.told_crash = true;
-                out.push(Notice::Crashed {
-                    reason: self.crash_reason(),
-                });
+            if let Some((reason, blame)) = self.crashed_notice() {
+                if !self.told_crash {
+                    self.told_crash = true;
+                    out.push(Notice::Crashed { reason, blame });
+                }
             }
             return out;
         }
@@ -330,12 +405,13 @@ impl MainThread for BridgeMain {
         for n in notices {
             match n {
                 WireNotice::ParamsChanged => {
+                    let limit = self.pool.limits().call;
                     if let Ok((Answer::Params(p), _)) = self.call(
                         Call::Params {
                             instance: self.instance,
                         },
                         &[],
-                        CALL_TIMEOUT,
+                        limit,
                     ) {
                         self.params = p;
                     }
@@ -359,12 +435,13 @@ impl MainThread for BridgeMain {
     }
 
     fn restart(&mut self) -> Result<Option<Box<dyn AudioThread>>, HostError> {
+        let limit = self.pool.limits().call;
         match self.call(
             Call::Restart {
                 instance: self.instance,
             },
             &[],
-            CALL_TIMEOUT,
+            limit,
         )? {
             (Answer::Restarted(None), _) => Ok(None),
             (Answer::Restarted(Some(d)), _) => {
@@ -387,13 +464,14 @@ impl MainThread for BridgeMain {
             return false;
         }
         let wire = params.iter().map(|p| (p.offset, p.id, p.value)).collect();
+        let limit = self.pool.limits().call;
         match self.call(
             Call::Flush {
                 instance: self.instance,
                 params: wire,
             },
             &[],
-            CALL_TIMEOUT,
+            limit,
         ) {
             Ok((
                 Answer::Flushed {
@@ -446,6 +524,10 @@ impl MainThread for BridgeMain {
 
     fn late_blocks(&self) -> u64 {
         self.status.late.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    fn stopped(&self) -> Option<(String, Blame)> {
+        self.crashed_notice()
     }
 }
 

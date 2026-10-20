@@ -9,20 +9,28 @@
 //! When the deadline passes, the block goes on **without** the plug-in — the effect's input
 //! passes through, delayed by the latency the plug-in reported, as a bypassed slot does (so
 //! nothing that runs in parallel moves against it), and an instrument stays silent (the
-//! caller zeroed its buffers) — and the late job is never waited for again: the next blocks pass dry
-//! until it has finished, counted in [`Status::late`]. When the helper is gone, every block
-//! passes dry from then on. An **offline** instance (a render, an export) has no deadline:
-//! it waits for every block as long as it takes, while its helper lives, so the render
-//! equals the in-process one to the bit.
+//! caller zeroed its buffers) — and the late job is never waited for again: the next blocks
+//! pass dry until it has finished. Only the job that missed its deadline counts in
+//! [`Status::late`]. What those dry blocks carried is **not lost**: the last value of each
+//! parameter, the note-offs, chokes, expressions and MIDI controllers, and a reset, are kept
+//! (in buffers made here, never grown) and go to the plug-in at the start of its next job —
+//! so no note is left ringing and no value out of step with the project (review #3, #10).
+//! When the helper is gone, every block passes dry from then on.
+//!
+//! An **offline** instance (a render, an export) waits for every block as long as it takes
+//! while its helper lives, so the render equals the in-process one to the bit — in slices,
+//! so a render that is cancelled stops, and a job unfinished past the offline hang limit
+//! ends its helper and the render goes on dry (review #1, #11, #39, #46).
 //!
 //! This amends ADR 0005 rule 3 for this one case (ADR 0063): the wait is the plug-in's own
 //! processing time, moved to another process; it is bounded by the deadline, and the ring
 //! that wakes a parked helper is a non-blocking system call.
 
-use super::slot::{op, status, Slot};
-use crate::backend::{Audio, AudioThread, NoteEvent, ParamChange, ParamOut};
-use cantus_rt::ipc::{Caller, Outcome};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use super::sandbox::Sandbox;
+use super::slot::{op, status, Slot, MAX_NOTES, MAX_PARAMS};
+use crate::backend::{Audio, AudioThread, NoteEvent, NoteKind, ParamChange, ParamOut};
+use cantus_rt::ipc::{Caller, Exchange, Outcome};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -34,6 +42,9 @@ pub const SPIN: Duration = Duration::from_micros(200);
 /// machine that compare bits in real time).
 pub const DEADLINE_FLOOR: Duration = Duration::from_millis(5);
 
+/// How often an offline wait looks whether its render was cancelled or its job hung.
+const OFFLINE_SLICE: Duration = Duration::from_millis(100);
+
 /// The deadline of a block of `frames` at `sample_rate`: twice the block's own duration,
 /// at least `floor` ([`DEADLINE_FLOOR`]). A plug-in that takes longer was going to make the
 /// device drop out in process too; out of process, the block is cut there instead of
@@ -43,14 +54,17 @@ pub fn deadline(frames: usize, sample_rate: f64, floor: Duration) -> Duration {
     (block * 2).max(floor)
 }
 
-/// What Cantus knows of one isolated instance across its halves.
+/// What Cantus knows of one isolated instance across its halves — a restarted audio half
+/// shares it, so it never hands the slot a job while the old half's late one still runs.
 #[derive(Debug)]
 pub struct Status {
     dead: AtomicBool,
-    /// Blocks that passed without the plug-in (late, or waiting for a late one).
+    /// Jobs that missed their deadline (one per late job, not one per block it kept dry).
     pub late: AtomicU64,
     /// Milliseconds since `epoch` when the unfinished job was published; 0 for none.
     since_ms: AtomicU64,
+    /// The unfinished job's number (valid while `since_ms` is not 0).
+    job: AtomicU32,
     epoch: Instant,
 }
 
@@ -60,6 +74,7 @@ impl Default for Status {
             dead: AtomicBool::new(false),
             late: AtomicU64::new(0),
             since_ms: AtomicU64::new(0),
+            job: AtomicU32::new(0),
             epoch: Instant::now(),
         }
     }
@@ -74,17 +89,125 @@ impl Status {
         self.dead.store(true, Ordering::Release);
     }
 
-    /// How long the unfinished job has been out, if one is.
-    pub fn unfinished_for(&self) -> Option<Duration> {
-        let since = self.since_ms.load(Ordering::Acquire);
-        (since != 0).then(|| {
-            let now = self.epoch.elapsed().as_millis() as u64;
-            Duration::from_millis(now.saturating_sub(since))
-        })
-    }
-
     fn now_ms(&self) -> u64 {
         (self.epoch.elapsed().as_millis() as u64).max(1)
+    }
+
+    /// Job `n` missed its deadline and runs on.
+    fn set_outstanding(&self, n: u32) {
+        self.job.store(n, Ordering::Release);
+        self.since_ms.store(self.now_ms(), Ordering::Release);
+    }
+
+    /// The job that missed its deadline and has not been seen finished, if any.
+    fn outstanding(&self) -> Option<u32> {
+        (self.since_ms.load(Ordering::Acquire) != 0).then(|| self.job.load(Ordering::Acquire))
+    }
+
+    fn clear(&self) {
+        self.since_ms.store(0, Ordering::Release);
+    }
+
+    /// How long the late job has been out — judged by the exchange, not by whether an
+    /// audio half calls again: a job that has finished is cleared here, so a slot bypassed
+    /// or restarted after one late block is never taken for hung (review #2, #38).
+    pub fn unfinished_for(&self, x: &Exchange) -> Option<Duration> {
+        let since = self.since_ms.load(Ordering::Acquire);
+        if since == 0 {
+            return None;
+        }
+        let n = self.job.load(Ordering::Acquire);
+        if x.numbers().1 == n {
+            let _ = self
+                .since_ms
+                .compare_exchange(since, 0, Ordering::AcqRel, Ordering::Relaxed);
+            return None;
+        }
+        let now = self.epoch.elapsed().as_millis() as u64;
+        Some(Duration::from_millis(now.saturating_sub(since)))
+    }
+}
+
+/// What an offline half needs to end a hung render, or a cancelled one.
+pub struct Offline {
+    pub sandbox: Arc<Sandbox>,
+    pub instance: u32,
+    pub name: String,
+    /// Set when the render is cancelled.
+    pub cancel: Arc<AtomicBool>,
+}
+
+/// What blocks that passed without the plug-in carried, for its next job.
+struct Carry {
+    /// The last value of each parameter changed meanwhile, at offset 0.
+    params: Vec<ParamChange>,
+    /// Note-offs, chokes, expressions and controllers, at offset 0 (note-ons are dropped:
+    /// a note late by a block or more is not played).
+    notes: Vec<NoteEvent>,
+    /// A reset asked for meanwhile (or forced, when the carry overflowed).
+    reset: bool,
+    /// This block's own changes and notes after the carried ones (made once).
+    merged_params: Vec<ParamChange>,
+    merged_notes: Vec<NoteEvent>,
+}
+
+impl Carry {
+    fn new() -> Carry {
+        Carry {
+            params: Vec::with_capacity(MAX_PARAMS),
+            notes: Vec::with_capacity(MAX_NOTES),
+            reset: false,
+            merged_params: Vec::with_capacity(MAX_PARAMS),
+            merged_notes: Vec::with_capacity(MAX_NOTES),
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.params.is_empty() && self.notes.is_empty()
+    }
+
+    /// Keeps a dry block's changes and notes. Never grows a buffer: when one is full the
+    /// plug-in is reset instead (no voice can stay stuck).
+    fn keep(&mut self, params: &[ParamChange], notes: &[NoteEvent]) {
+        for p in params {
+            if let Some(k) = self.params.iter_mut().find(|k| k.id == p.id) {
+                k.value = p.value;
+            } else if self.params.len() < self.params.capacity() {
+                self.params.push(ParamChange {
+                    offset: 0,
+                    id: p.id,
+                    value: p.value,
+                });
+            }
+        }
+        for n in notes {
+            if matches!(n.kind, NoteKind::On { .. }) {
+                continue;
+            }
+            if self.notes.len() < self.notes.capacity() {
+                self.notes.push(NoteEvent { offset: 0, ..*n });
+            } else {
+                self.reset = true;
+            }
+        }
+    }
+
+    /// The carried changes and notes, then this block's: what the next job takes.
+    fn merge(&mut self, params: &[ParamChange], notes: &[NoteEvent]) {
+        self.merged_params.clear();
+        self.merged_notes.clear();
+        for p in self.params.iter().chain(params) {
+            if self.merged_params.len() < self.merged_params.capacity() {
+                self.merged_params.push(*p);
+            }
+        }
+        for n in self.notes.iter().chain(notes) {
+            if self.merged_notes.len() < self.merged_notes.capacity() {
+                self.merged_notes.push(*n);
+            }
+        }
+        self.params.clear();
+        self.notes.clear();
     }
 }
 
@@ -95,9 +218,8 @@ pub struct BridgeAudio {
     _lobby: Arc<super::sandbox::LobbyMem>,
     caller: Caller,
     status: Arc<Status>,
-    /// A job that went past its deadline and has not finished.
-    outstanding: Option<u32>,
-    offline: bool,
+    /// `Some` for an offline instance (a render): no deadline.
+    offline: Option<Offline>,
     sample_rate: f64,
     floor: Duration,
     /// The input of the last `latency` frames, per channel: what a block that passes
@@ -106,6 +228,7 @@ pub struct BridgeAudio {
     at: usize,
     /// This block's delayed input, per channel (the largest block's length).
     scratch: [Box<[f32]>; 2],
+    carry: Carry,
     /// Told when this half is dropped (on the main thread), so the helper drops its own.
     on_drop: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -114,7 +237,7 @@ impl std::fmt::Debug for BridgeAudio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BridgeAudio")
             .field("slot", &self.slot.name())
-            .field("offline", &self.offline)
+            .field("offline", &self.offline.is_some())
             .finish()
     }
 }
@@ -124,7 +247,7 @@ impl BridgeAudio {
         (slot, lobby): (Arc<Slot>, Arc<super::sandbox::LobbyMem>),
         caller: Caller,
         status: Arc<Status>,
-        (offline, sample_rate, floor, latency): (bool, f64, Duration, usize),
+        (offline, sample_rate, floor, latency): (Option<Offline>, f64, Duration, usize),
         on_drop: Box<dyn FnOnce() + Send>,
     ) -> BridgeAudio {
         let longest = if latency > 0 { slot.max_block() } else { 0 };
@@ -133,7 +256,6 @@ impl BridgeAudio {
             _lobby: lobby,
             caller,
             status,
-            outstanding: None,
             offline,
             sample_rate,
             floor,
@@ -142,12 +264,11 @@ impl BridgeAudio {
                 vec![0.0; latency].into_boxed_slice(),
             ],
             at: 0,
-            scratch: {
-                [
-                    vec![0.0; longest].into_boxed_slice(),
-                    vec![0.0; longest].into_boxed_slice(),
-                ]
-            },
+            scratch: [
+                vec![0.0; longest].into_boxed_slice(),
+                vec![0.0; longest].into_boxed_slice(),
+            ],
+            carry: Carry::new(),
             on_drop: Some(on_drop),
         }
     }
@@ -189,18 +310,29 @@ impl BridgeAudio {
         right.copy_from_slice(&self.scratch[1][..n]);
     }
 
-    /// Whether the plug-in may be given a job now: alive, and no late job unfinished.
+    /// Whether the plug-in may be given a job now: alive, no late job unfinished (this
+    /// half's or a previous half's of the same instance), and a reset carried over from
+    /// dry blocks delivered.
     fn ready(&mut self) -> bool {
         if self.status.is_dead() {
             return false;
         }
-        if let Some(n) = self.outstanding {
+        if let Some(n) = self.status.outstanding() {
             if !self.caller.finished(n) {
-                self.status.late.fetch_add(1, Ordering::Relaxed);
                 return false;
             }
-            self.outstanding = None;
-            self.status.since_ms.store(0, Ordering::Release);
+            self.status.clear();
+        }
+        if self.carry.reset {
+            self.carry.reset = false;
+            // SAFETY: no job is in flight (just checked), so the slot's job area is ours.
+            unsafe {
+                self.slot
+                    .put_job(op::RESET, &[], &[], None, None, &[], &[], false);
+            }
+            if !self.run(0) {
+                return false;
+            }
         }
         true
     }
@@ -208,15 +340,14 @@ impl BridgeAudio {
     /// Publishes the job written in the slot and waits for it. `true` when it finished.
     fn run(&mut self, frames: usize) -> bool {
         let n = self.caller.submit();
-        let deadline = (!self.offline)
-            .then(|| Instant::now() + deadline(frames, self.sample_rate, self.floor));
-        match self.caller.wait(n, SPIN, deadline) {
+        if self.offline.is_some() {
+            return self.run_offline(n);
+        }
+        let deadline = Instant::now() + deadline(frames, self.sample_rate, self.floor);
+        match self.caller.wait(n, SPIN, Some(deadline)) {
             Outcome::Done => true,
             Outcome::Late => {
-                self.outstanding = Some(n);
-                self.status
-                    .since_ms
-                    .store(self.status.now_ms(), Ordering::Release);
+                self.status.set_outstanding(n);
                 self.status.late.fetch_add(1, Ordering::Relaxed);
                 false
             }
@@ -227,16 +358,40 @@ impl BridgeAudio {
         }
     }
 
-    /// A job with no audio (a reset, a stop).
-    fn control(&mut self, op: u32) {
-        if !self.ready() {
-            return;
+    /// An offline job: waited for while it runs, in slices — until the render is
+    /// cancelled, or the job has run past the offline hang limit, which ends its helper.
+    fn run_offline(&mut self, n: u32) -> bool {
+        let started = Instant::now();
+        loop {
+            match self
+                .caller
+                .wait(n, SPIN, Some(Instant::now() + OFFLINE_SLICE))
+            {
+                Outcome::Done => return true,
+                Outcome::Closed => {
+                    self.status.mark_dead();
+                    return false;
+                }
+                Outcome::Late => {
+                    let Some(o) = &self.offline else { return false };
+                    if o.cancel.load(Ordering::Acquire) {
+                        // The render stops; its own helper with it.
+                        o.sandbox
+                            .kill_blaming("the render was stopped", Some(o.instance));
+                        self.status.mark_dead();
+                        return false;
+                    }
+                    if started.elapsed() > o.sandbox.limits().offline {
+                        o.sandbox.kill_blaming(
+                            &format!("{} stopped responding while it rendered", o.name),
+                            Some(o.instance),
+                        );
+                        self.status.mark_dead();
+                        return false;
+                    }
+                }
+            }
         }
-        // SAFETY: no job is in flight (`ready`), so the slot's job area is ours.
-        unsafe {
-            self.slot.put_job(op, &[], &[], None, None, &[], &[], false);
-        }
-        self.run(0);
     }
 }
 
@@ -258,11 +413,23 @@ impl AudioThread for BridgeAudio {
         self.advance(left, right);
         if !self.ready() {
             // Dry, where the plug-in's output would be, for an effect; silent for an
-            // instrument (its buffers came zeroed).
+            // instrument (its buffers came zeroed). What the block carried is kept.
+            if !self.status.is_dead() {
+                self.carry.keep(params, notes);
+            }
             self.play_dry(left, right);
             return;
         }
         let flush = cantus_rt::denormal::flushing();
+        let carried = !self.carry.is_empty();
+        if carried {
+            self.carry.merge(params, notes);
+        }
+        let (params, notes): (&[ParamChange], &[NoteEvent]) = if carried {
+            (&self.carry.merged_params, &self.carry.merged_notes)
+        } else {
+            (params, notes)
+        };
         // SAFETY: no job is in flight (`ready`): the slot's job area is ours; the lengths
         // are within the slot's largest block.
         let lost = unsafe {
@@ -289,11 +456,32 @@ impl AudioThread for BridgeAudio {
     }
 
     fn reset(&mut self) {
-        self.control(op::RESET);
+        if !self.ready() {
+            // Delivered before the next job (review #3).
+            if !self.status.is_dead() {
+                self.carry.reset = true;
+            }
+            return;
+        }
+        // SAFETY: no job is in flight (`ready`), so the slot's job area is ours.
+        unsafe {
+            self.slot
+                .put_job(op::RESET, &[], &[], None, None, &[], &[], false);
+        }
+        self.run(0);
     }
 
     fn stop(&mut self) {
-        self.control(op::STOP);
+        // The half's last call: a late job's half is dropped by the helper anyway.
+        if !self.ready() {
+            return;
+        }
+        // SAFETY: as in `reset`.
+        unsafe {
+            self.slot
+                .put_job(op::STOP, &[], &[], None, None, &[], &[], false);
+        }
+        self.run(0);
     }
 }
 

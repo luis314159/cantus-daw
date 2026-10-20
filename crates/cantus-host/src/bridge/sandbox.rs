@@ -35,16 +35,59 @@ pub const EXE: &str = if cfg!(windows) {
 /// Points tests (and developers) at another helper.
 pub const EXE_ENV: &str = "CANTUS_SANDBOX_EXE";
 
-/// How long the helper's main thread may stay silent (no heartbeat) while no call is under
-/// way before it is taken for hung.
+/// How long the helper's main thread may show no life (no heartbeat) before it is taken
+/// for hung — unless a request is under way within its own time limit. The heartbeat comes
+/// from a thread of its own, sent while the main thread makes progress, which it also does
+/// inside a plug-in's modal loop (a file dialog, a window dragged): only a main thread
+/// stuck in code that never returns to a message loop falls silent (review #0, #48).
 pub const SILENCE_LIMIT: Duration = Duration::from_secs(5);
 
 /// How long a job may stay unfinished before the helper is taken for hung (its audio
 /// passes dry meanwhile, never waited for).
 pub const HANG_LIMIT: Duration = Duration::from_secs(2);
 
+/// How long an offline job (a render) may stay unfinished before its helper is taken for
+/// hung: far beyond real time, for a plug-in that is merely slow.
+pub const OFFLINE_HANG_LIMIT: Duration = Duration::from_secs(30);
+
+/// A request whose helper is alive (its heartbeat comes) but that is not answered within
+/// this many times its own limit is given up, the helper ended.
+pub const ALIVE_STRETCH: u32 = 6;
+
 /// The size of a helper's lobby region (the words its processing threads share).
 pub const LOBBY_BYTES: usize = 4096;
+
+/// Where in the lobby region the helper's main thread writes the instance it is calling
+/// into (0 between calls): what names the plug-in that crashed it (review #49).
+pub const MAIN_AT: usize = 2048;
+
+/// The time limits of a pool's helpers (tests shorten them).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Limits {
+    /// A main thread with no heartbeat and no request under way: hung.
+    pub silence: Duration,
+    pub load: Duration,
+    pub state: Duration,
+    /// Every other main-thread request.
+    pub call: Duration,
+    /// A real-time job unfinished this long: hung.
+    pub hang: Duration,
+    /// An offline job unfinished this long: hung.
+    pub offline: Duration,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Limits {
+            silence: SILENCE_LIMIT,
+            load: LOAD_TIMEOUT,
+            state: STATE_TIMEOUT,
+            call: CALL_TIMEOUT,
+            hang: HANG_LIMIT,
+            offline: OFFLINE_HANG_LIMIT,
+        }
+    }
+}
 
 /// A helper's lobby: the region its processing threads share, and the bell Cantus rings
 /// when none of them is scanning (`cantus_rt::ipc`). Made here, before the helper starts;
@@ -76,6 +119,14 @@ impl LobbyMem {
     pub fn lobby(&self) -> *const cantus_rt::ipc::Lobby {
         self.mem.as_ptr() as *const cantus_rt::ipc::Lobby
     }
+
+    /// The instance the helper's main thread is calling into now, 0 for none ([`MAIN_AT`]).
+    pub fn main_at(&self) -> u32 {
+        // SAFETY: an aligned u32 inside the region, which `self` keeps mapped; the helper
+        // writes it as an atomic.
+        let word = unsafe { &*(self.mem.as_ptr().add(MAIN_AT) as *const AtomicU32) };
+        word.load(Ordering::Acquire)
+    }
 }
 
 /// Time limits of the main-thread calls.
@@ -103,8 +154,9 @@ pub(crate) struct InboxData {
     pub latency: Option<usize>,
     pub texts: HashMap<(u32, u64), Option<String>>,
     pub asked_texts: HashSet<(u32, u64)>,
-    /// A state asked for in the background, once it arrives.
-    pub state: Option<Vec<u8>>,
+    /// A state asked for in the background, once it is answered: the request's id, and
+    /// the state or why there is none.
+    pub state: Option<(u64, Result<Vec<u8>, String>)>,
 }
 
 impl Inbox {
@@ -142,10 +194,20 @@ enum Background {
 
 struct Registered {
     inbox: Arc<Inbox>,
-    /// Kept so the closer's mapping outlives it.
-    _slot: Arc<Slot>,
+    /// Kept so the closer's mapping outlives it; its exchange says whether a job runs.
+    slot: Arc<Slot>,
     closer: Closer,
 }
+
+/// A request under way: when it went, its time limit, the instance it names.
+#[derive(Clone, Copy, Debug)]
+struct Flight {
+    at: Instant,
+    limit: Duration,
+    instance: Option<u32>,
+}
+
+pub use crate::backend::Blame;
 
 /// One helper process.
 pub struct Sandbox {
@@ -167,8 +229,10 @@ pub struct Sandbox {
     started: Instant,
     /// Milliseconds since `started` of the last heartbeat.
     alive_ms: AtomicU64,
-    /// Calls waiting for an answer now.
-    busy: AtomicU32,
+    /// Requests under way (waited for or not), by id.
+    inflight: Mutex<HashMap<u64, Flight>>,
+    /// The instances its end is laid on, once it ended; empty when nothing said which.
+    blamed: Mutex<Option<HashSet<u32>>>,
     pool: Weak<Sandboxes>,
 }
 
@@ -238,7 +302,8 @@ impl Sandbox {
             kill: Arc::new(AtomicBool::new(false)),
             started: Instant::now(),
             alive_ms: AtomicU64::new(0),
-            busy: AtomicU32::new(0),
+            inflight: Mutex::new(HashMap::new()),
+            blamed: Mutex::new(None),
             pool: Arc::downgrade(pool),
         });
         // The writer.
@@ -292,9 +357,13 @@ impl Sandbox {
                 protocol: proto::PROTOCOL,
             },
             &[],
-            LOAD_TIMEOUT,
+            pool.limits().load,
         ) {
-            Ok((Answer::Hello { protocol, .. }, _)) if protocol == proto::PROTOCOL => Ok(sandbox),
+            Ok((Answer::Hello { protocol, .. }, _)) if protocol == proto::PROTOCOL => {
+                // The helper has mapped its lobby: the name is no longer needed (review #43).
+                sandbox.lobby.mem.unlink_name();
+                Ok(sandbox)
+            }
             Ok((Answer::Hello { protocol, .. }, _)) => {
                 sandbox.request_kill();
                 Err(HostError::Load(format!(
@@ -334,10 +403,23 @@ impl Sandbox {
     /// before; `None` (its pipe closed) leaves it to the watchdog, which knows how the
     /// process ended.
     pub(crate) fn mark_dead(&self, why: Option<&str>) {
+        self.mark_dead_blaming(why, None);
+    }
+
+    /// [`Self::mark_dead`], laying the end on `culprit` when the caller knows it (a job of
+    /// its that never finished, a call of its that was never answered); otherwise on the
+    /// instance the helper's main thread was calling into, or whose job was running.
+    fn mark_dead_blaming(&self, why: Option<&str>, culprit: Option<u32>) {
         if let Some(why) = why {
             let mut w = lock(&self.why);
             if w.is_none() {
                 *w = Some(why.to_string());
+            }
+        }
+        {
+            let mut b = lock(&self.blamed);
+            if b.is_none() {
+                *b = Some(self.find_culprits(culprit));
             }
         }
         if self.dead.swap(true, Ordering::AcqRel) {
@@ -354,14 +436,114 @@ impl Sandbox {
         *lock(&self.to_child) = None;
     }
 
+    fn find_culprits(&self, culprit: Option<u32>) -> HashSet<u32> {
+        let mut out = HashSet::new();
+        out.extend(culprit);
+        let at = self.lobby.main_at();
+        let instances = lock(&self.instances);
+        if at != 0 && instances.contains_key(&at) {
+            out.insert(at);
+        }
+        for (n, r) in instances.iter() {
+            // SAFETY: the exchange is in the slot's mapping, which `r` keeps alive.
+            if unsafe { &*r.slot.exchange() }.running() {
+                out.insert(*n);
+            }
+        }
+        // One plug-in in it: its own end, whatever it was.
+        if out.is_empty() && instances.len() == 1 {
+            out.extend(instances.keys().copied());
+        }
+        out
+    }
+
+    /// Who this helper's end is laid on, from `instance`'s side.
+    pub fn blame(&self, instance: u32) -> Blame {
+        match lock(&self.blamed).as_ref() {
+            Some(set) if set.contains(&instance) => Blame::This,
+            Some(set) if !set.is_empty() => Blame::Neighbour,
+            _ => Blame::Unknown,
+        }
+    }
+
     fn request_kill(&self) {
         self.kill.store(true, Ordering::Release);
     }
 
     /// Ends the helper (it hung): marks it gone now, kills it in the watchdog.
     pub fn kill(&self, why: &str) {
-        self.mark_dead(Some(why));
+        self.kill_blaming(why, None);
+    }
+
+    /// [`Self::kill`], laying it on `culprit` (the instance whose job or call hung).
+    pub fn kill_blaming(&self, why: &str, culprit: Option<u32>) {
+        self.mark_dead_blaming(Some(why), culprit);
         self.request_kill();
+    }
+
+    /// How long since its main thread last showed life (its heartbeat).
+    pub fn silent_for(&self) -> Duration {
+        let now = self.started.elapsed().as_millis() as u64;
+        let last = self.alive_ms.load(Ordering::Acquire);
+        Duration::from_millis(now.saturating_sub(last))
+    }
+
+    pub(crate) fn limits(&self) -> Limits {
+        self.pool.upgrade().map(|p| p.limits()).unwrap_or_default()
+    }
+
+    /// Whether the helper is hung, and why: its main thread shows no life past the silence
+    /// limit while no request is under way within its own limit — or a request has gone
+    /// unanswered far past its limit even though the helper lives (review #0, #41, #48).
+    fn hung(&self) -> Option<String> {
+        let limits = self.limits();
+        let silent = self.silent_for() > limits.silence;
+        let flights = lock(&self.inflight);
+        let mut oldest_over: Option<Flight> = None;
+        for f in flights.values() {
+            let took = f.at.elapsed();
+            if took > f.limit * ALIVE_STRETCH {
+                return Some(format!(
+                    "the plug-in sandbox did not answer in {} s",
+                    took.as_secs()
+                ));
+            }
+            if took > f.limit && oldest_over.is_none_or(|o| f.at < o.at) {
+                oldest_over = Some(*f);
+            }
+        }
+        if !silent {
+            return None;
+        }
+        if flights.is_empty() {
+            return Some("the plug-in sandbox stopped answering".into());
+        }
+        oldest_over.map(|f| {
+            format!(
+                "the plug-in sandbox did not answer in {} s",
+                f.limit.as_secs().max(1)
+            )
+        })
+    }
+
+    /// The instance the oldest overdue request named (what a hang is laid on).
+    fn hung_on(&self) -> Option<u32> {
+        lock(&self.inflight)
+            .values()
+            .filter(|f| f.at.elapsed() > f.limit)
+            .min_by_key(|f| f.at)
+            .and_then(|f| f.instance)
+    }
+
+    fn fly(&self, id: u64, limit: Duration, instance: Option<u32>) {
+        lock(&self.inflight).insert(
+            id,
+            Flight {
+                at: Instant::now(),
+                limit,
+                instance,
+            },
+        );
     }
 
     fn route(&self, msg: Message, blob: Vec<u8>) {
@@ -384,6 +566,7 @@ impl Sandbox {
                 }
             }
             Message::Reply { id, result, after } => {
+                lock(&self.inflight).remove(&id);
                 if let Some((instance, after)) = after.map(|b| *b) {
                     if let Some(inbox) = self.inbox(instance) {
                         inbox.absorb(after);
@@ -415,9 +598,15 @@ impl Sandbox {
                     d.texts.insert((pid, bits), text);
                 }
             }
-            (Background::State(instance), Ok(Answer::State)) => {
+            (Background::State(instance), result) => {
+                // A failure is delivered too, so the instance asks again later (review #8).
+                let state = match result {
+                    Ok(Answer::State) => Ok(blob),
+                    Ok(_) => Err("no state in the answer".to_string()),
+                    Err(f) => Err(failure(f).to_string()),
+                };
                 if let Some(inbox) = self.inbox(instance) {
-                    inbox.data().state = Some(blob);
+                    inbox.data().state = Some((id, state));
                 }
             }
             _ => {}
@@ -468,33 +657,38 @@ impl Sandbox {
         blob: &[u8],
         timeout: Duration,
     ) -> Result<(Answer, Vec<u8>), HostError> {
-        let _ = instance;
         if self.is_dead() {
             return Err(self.gone());
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
         lock(&self.waiters).insert(id, tx);
-        self.busy.fetch_add(1, Ordering::AcqRel);
-        let sent = self.post(Self::frame(id, &call, blob));
-        let got = if sent {
-            rx.recv_timeout(timeout)
-        } else {
-            Err(mpsc::RecvTimeoutError::Disconnected)
-        };
-        self.busy.fetch_sub(1, Ordering::AcqRel);
-        match got {
-            Ok((Ok(answer), blob)) => Ok((answer, blob)),
-            Ok((Err(f), _)) => Err(failure(f)),
-            Err(mpsc::RecvTimeoutError::Timeout) => {
-                lock(&self.waiters).remove(&id);
-                self.kill(&format!(
-                    "the plug-in sandbox did not answer in {} s",
-                    timeout.as_secs()
-                ));
-                Err(self.gone())
+        self.fly(id, timeout, instance);
+        if !self.post(Self::frame(id, &call, blob)) {
+            lock(&self.inflight).remove(&id);
+            return Err(self.gone());
+        }
+        // Waited for in slices: a helper that lives (its heartbeat comes, as it does inside
+        // a plug-in's modal loop) is given longer than the limit; one silent past it is hung.
+        let slice = Duration::from_millis(50);
+        loop {
+            match rx.recv_timeout(slice) {
+                Ok((Ok(answer), blob)) => return Ok((answer, blob)),
+                Ok((Err(f), _)) => return Err(failure(f)),
+                Err(mpsc::RecvTimeoutError::Disconnected) => {
+                    lock(&self.inflight).remove(&id);
+                    return Err(self.gone());
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {
+                    if let Some(why) = self.hung() {
+                        lock(&self.waiters).remove(&id);
+                        let culprit = self.hung_on().or(instance);
+                        lock(&self.inflight).remove(&id);
+                        self.kill_blaming(&why, culprit);
+                        return Err(self.gone());
+                    }
+                }
             }
-            Err(mpsc::RecvTimeoutError::Disconnected) => Err(self.gone()),
         }
     }
 
@@ -505,6 +699,17 @@ impl Sandbox {
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         lock(&self.background).insert(id, Background::Ignore);
+        // Under way like a call (review #41): an unload that takes long is not silence.
+        let instance = match &call {
+            Call::Unload { instance }
+            | Call::DropAudio { instance }
+            | Call::CloseEditor { instance }
+            | Call::FocusEditor { instance } => Some(*instance),
+            _ => None,
+        };
+        if !matches!(call, Call::Quit) {
+            self.fly(id, self.limits().call, instance);
+        }
         self.post(Self::frame(id, &call, blob));
     }
 
@@ -515,6 +720,7 @@ impl Sandbox {
         }
         let rid = self.next_id.fetch_add(1, Ordering::Relaxed);
         lock(&self.background).insert(rid, Background::Text(instance, id, value.to_bits()));
+        self.fly(rid, self.limits().call, Some(instance));
         self.post(Self::frame(
             rid,
             &Call::ParamText {
@@ -526,14 +732,22 @@ impl Sandbox {
         ));
     }
 
-    /// A state asked for in the background; it lands in the instance's inbox.
-    pub(crate) fn ask_state(&self, instance: u32) {
+    /// A state asked for in the background; it lands in the instance's inbox, tagged with
+    /// the request's id (returned; 0 when the helper is gone).
+    pub(crate) fn ask_state(&self, instance: u32) -> u64 {
         if self.is_dead() {
-            return;
+            return 0;
         }
         let rid = self.next_id.fetch_add(1, Ordering::Relaxed);
         lock(&self.background).insert(rid, Background::State(instance));
+        self.fly(rid, self.limits().state, Some(instance));
         self.post(Self::frame(rid, &Call::SaveState { instance }, &[]));
+        rid
+    }
+
+    /// The id the next request will have: answers to requests before it are older.
+    pub(crate) fn next_request(&self) -> u64 {
+        self.next_id.load(Ordering::Relaxed)
     }
 
     pub(crate) fn new_instance(&self) -> u32 {
@@ -551,7 +765,7 @@ impl Sandbox {
             instance,
             Registered {
                 inbox,
-                _slot: slot,
+                slot,
                 closer,
             },
         );
@@ -562,14 +776,20 @@ impl Sandbox {
         }
     }
 
-    /// An instance left: tell the helper, and end the helper when it was the last.
+    /// An instance left: its exchange closed first — a block the engine still sends it
+    /// passes dry at once instead of waiting out its deadline for a job nobody will take
+    /// (review #5) — then the helper told, and ended when it was the last.
     pub(crate) fn unregister(&self, instance: u32) {
-        self.tell(Call::Unload { instance }, &[]);
-        let empty = {
+        let (gone, empty) = {
             let mut m = lock(&self.instances);
-            m.remove(&instance);
-            m.is_empty()
+            let gone = m.remove(&instance);
+            (gone, m.is_empty())
         };
+        if let Some(r) = &gone {
+            r.closer.close();
+        }
+        self.tell(Call::Unload { instance }, &[]);
+        drop(gone);
         if empty {
             self.tell(Call::Quit, &[]);
             if let Some(pool) = self.pool.upgrade() {
@@ -578,16 +798,15 @@ impl Sandbox {
         }
     }
 
-    /// The heartbeat: a helper whose main thread has been silent too long, while no call
-    /// is under way (a call has its own time limit), is taken for hung.
+    /// The heartbeat: a helper whose main thread shows no life past the silence limit,
+    /// with no request under way within its own limit, is taken for hung ([`Self::hung`]).
     pub(crate) fn check_alive(&self) {
-        if self.is_dead() || self.busy.load(Ordering::Acquire) > 0 {
+        if self.is_dead() {
             return;
         }
-        let now = self.started.elapsed().as_millis() as u64;
-        let last = self.alive_ms.load(Ordering::Acquire);
-        if now.saturating_sub(last) > SILENCE_LIMIT.as_millis() as u64 {
-            self.kill("the plug-in sandbox stopped answering");
+        if let Some(why) = self.hung() {
+            let culprit = self.hung_on();
+            self.kill_blaming(&why, culprit);
         }
     }
 
@@ -692,8 +911,7 @@ fn watch(mut child: Child, kill: Arc<AtomicBool>, me: Weak<Sandbox>) {
 pub struct Sandboxes {
     pub exe: PathBuf,
     groups: Mutex<HashMap<String, Arc<Sandbox>>>,
-    /// How long a job may stay unfinished before its helper is taken for hung.
-    hang_limit_ms: AtomicU64,
+    limits: Mutex<Limits>,
     /// The shortest real-time deadline, in microseconds.
     deadline_floor_us: AtomicU64,
     #[cfg(windows)]
@@ -714,7 +932,7 @@ impl Sandboxes {
         Arc::new(Sandboxes {
             exe,
             groups: Mutex::new(HashMap::new()),
-            hang_limit_ms: AtomicU64::new(HANG_LIMIT.as_millis() as u64),
+            limits: Mutex::new(Limits::default()),
             deadline_floor_us: AtomicU64::new(super::audio::DEADLINE_FLOOR.as_micros() as u64),
             #[cfg(windows)]
             job: job::Job::new(),
@@ -738,13 +956,20 @@ impl Sandboxes {
         self.exe.is_file()
     }
 
+    pub fn limits(&self) -> Limits {
+        *lock(&self.limits)
+    }
+
+    pub fn set_limits(&self, limits: Limits) {
+        *lock(&self.limits) = limits;
+    }
+
     pub fn hang_limit(&self) -> Duration {
-        Duration::from_millis(self.hang_limit_ms.load(Ordering::Relaxed))
+        self.limits().hang
     }
 
     pub fn set_hang_limit(&self, limit: Duration) {
-        self.hang_limit_ms
-            .store(limit.as_millis() as u64, Ordering::Relaxed);
+        lock(&self.limits).hang = limit;
     }
 
     /// The shortest deadline a real-time block waits for its plug-in (instances loaded

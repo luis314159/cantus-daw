@@ -1,6 +1,10 @@
 //! What the helper needs from its operating system: quiet crashes, the protocol's pipes
-//! taken off the standard handles, COM for VST3 editors, the parent-death signal, and a
-//! main-thread wait that also wakes for the plug-ins' windows.
+//! taken off the standard handles, COM for VST3 editors, the parent-death signal, a
+//! main-thread wait that also wakes for the plug-ins' windows — and, on Windows, a
+//! **pulse**: a hidden message-only window whose timer and wake-ups run inside any message
+//! loop the main thread is in, a plug-in's modal one included (a file dialog, a window
+//! being dragged), so the helper shows life and serves Cantus's calls from there too
+//! (review #0, #48).
 
 use std::fs::File;
 use std::time::Duration;
@@ -15,9 +19,12 @@ pub struct Pipes {
 mod imp {
     use super::*;
     use std::os::windows::io::FromRawHandle;
+    use std::sync::atomic::{AtomicIsize, Ordering};
+    use std::sync::OnceLock;
     use windows_sys::Win32::Foundation::{
         GENERIC_READ, GENERIC_WRITE, HANDLE, INVALID_HANDLE_VALUE,
     };
+    use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
     use windows_sys::Win32::Storage::FileSystem::{
         CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
     };
@@ -27,12 +34,76 @@ mod imp {
     use windows_sys::Win32::System::Diagnostics::Debug::{
         SetErrorMode, SEM_FAILCRITICALERRORS, SEM_NOGPFAULTERRORBOX, SEM_NOOPENFILEERRORBOX,
     };
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Ole::OleInitialize;
     use windows_sys::Win32::System::Threading::{CreateEventW, SetEvent, INFINITE};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, MsgWaitForMultipleObjects, PeekMessageW, TranslateMessage, MSG,
-        PM_REMOVE, QS_ALLINPUT,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, MsgWaitForMultipleObjects, PeekMessageW,
+        PostMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE,
+        QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
     };
+
+    /// The pulse window (0 until made).
+    static PULSE: AtomicIsize = AtomicIsize::new(0);
+    /// What a pulse runs (set once, by `start_pulse`).
+    static ON_PULSE: OnceLock<fn()> = OnceLock::new();
+    /// How often the pulse's timer fires.
+    const PULSE_MS: u32 = 100;
+    const WM_PULSE: u32 = WM_APP + 1;
+
+    unsafe extern "system" fn pulse_proc(
+        hwnd: HWND,
+        msg: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if msg == WM_TIMER || msg == WM_PULSE {
+            if let Some(f) = ON_PULSE.get() {
+                f();
+            }
+            return 0;
+        }
+        // SAFETY: the default handling of a message for our own window.
+        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+    }
+
+    /// Makes the pulse window on this (the main) thread: `on_pulse` runs every 100 ms and
+    /// whenever a request arrives, from whichever message loop the thread is in.
+    pub fn start_pulse(on_pulse: fn()) {
+        let _ = ON_PULSE.set(on_pulse);
+        let class: Vec<u16> = "CantusSandboxPulse\0".encode_utf16().collect();
+        // SAFETY: a window class with our own procedure, registered once; a message-only
+        // window of it, made and kept on this thread for the process's life; its timer.
+        unsafe {
+            let module = GetModuleHandleW(std::ptr::null());
+            let wc = WNDCLASSW {
+                lpfnWndProc: Some(pulse_proc),
+                hInstance: module,
+                lpszClassName: class.as_ptr(),
+                ..std::mem::zeroed()
+            };
+            RegisterClassW(&wc);
+            let hwnd = CreateWindowExW(
+                0,
+                class.as_ptr(),
+                class.as_ptr(),
+                0,
+                0,
+                0,
+                0,
+                0,
+                HWND_MESSAGE,
+                std::ptr::null_mut(),
+                module,
+                std::ptr::null(),
+            );
+            if hwnd.is_null() {
+                return;
+            }
+            SetTimer(hwnd, 1, PULSE_MS, None);
+            PULSE.store(hwnd as isize, Ordering::Release);
+        }
+    }
 
     pub fn quiet_crashes() {
         // SAFETY: sets this process's error mode; no pointers involved.
@@ -94,20 +165,32 @@ mod imp {
         }
 
         pub fn ring(self) {
-            // SAFETY: the event made in `new`, alive for the process's life.
-            unsafe { SetEvent(self.0 as HANDLE) };
+            // SAFETY: the event made in `new`, alive for the process's life; the pulse
+            // window, when made, lives as long (posting never blocks).
+            unsafe {
+                SetEvent(self.0 as HANDLE);
+                let pulse = PULSE.load(Ordering::Acquire);
+                if pulse != 0 {
+                    PostMessageW(pulse as HWND, WM_PULSE, 0, 0);
+                }
+            }
         }
 
         /// Waits until a request arrives, a window message is queued, or `timeout`; then
-        /// dispatches every queued window message.
+        /// dispatches every queued window message — but the pulse's own, which the main
+        /// loop does itself right after (the pulse serves only from loops nested in it).
         pub fn wait(self, timeout: Duration) {
             let ms = timeout.as_millis().min(u128::from(INFINITE - 1)) as u32;
             let h = self.0 as HANDLE;
+            let pulse = PULSE.load(Ordering::Acquire);
             // SAFETY: one live event handle; MSG is plain data filled by PeekMessageW.
             unsafe {
                 MsgWaitForMultipleObjects(1, &h, 0, ms, QS_ALLINPUT);
                 let mut msg: MSG = std::mem::zeroed();
                 while PeekMessageW(&mut msg, std::ptr::null_mut(), 0, 0, PM_REMOVE) != 0 {
+                    if pulse != 0 && msg.hwnd as isize == pulse {
+                        continue;
+                    }
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
@@ -154,6 +237,9 @@ mod imp {
     }
 
     pub fn init_com() {}
+
+    /// No plug-in windows here, so no nested message loops: the main loop is the pulse.
+    pub fn start_pulse(_on_pulse: fn()) {}
 
     /// Wakes the main thread's wait from another thread (a request arrived).
     #[derive(Clone, Copy)]

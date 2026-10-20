@@ -63,7 +63,7 @@ fn crashed_within(main: &mut dyn MainThread, limit: Duration) -> Option<String> 
     let start = Instant::now();
     while start.elapsed() < limit {
         for n in main.idle() {
-            if let Notice::Crashed { reason } = n {
+            if let Notice::Crashed { reason, .. } = n {
                 return Some(reason);
             }
         }

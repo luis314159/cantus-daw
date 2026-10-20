@@ -18,8 +18,9 @@
 //! | 9 | never returns when its editor is next created |
 //! | 10 | the next `save_state` runs a nested message loop for 3 s, as a modal dialog does |
 //! | 11 | this `process` takes 50 ms, once (late, not hung) |
+//! | 12 | its editor's window runs a nested message loop for 3 s, as a file dialog does |
 
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 pub const ABORT_PROCESS: u32 = 1;
 pub const HANG_PROCESS: u32 = 2;
@@ -32,8 +33,18 @@ pub const HANG_LOAD: u32 = 8;
 pub const HANG_EDITOR: u32 = 9;
 pub const PUMP_SAVE: u32 = 10;
 pub const SLOW_ONCE: u32 = 11;
+pub const PUMP_WINDOW: u32 = 12;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 11.0;
+pub const LAST: f64 = 12.0;
+
+/// A nested loop the editor's window runs at its next timer (`PUMP_WINDOW`).
+static WINDOW_PUMP: AtomicBool = AtomicBool::new(false);
+
+/// Whether the editor's window should run its nested loop now (once).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn take_window_pump() -> bool {
+    WINDOW_PUMP.swap(false, Ordering::AcqRel)
+}
 
 /// The fault armed in this instance, 0 for none.
 #[derive(Debug, Default)]
@@ -50,6 +61,10 @@ impl Fault {
             SLOW_ONCE => {
                 self.0.store(0, Ordering::Release);
                 std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+            PUMP_WINDOW => {
+                self.0.store(0, Ordering::Release);
+                WINDOW_PUMP.store(true, Ordering::Release);
             }
             _ => {}
         }
@@ -86,7 +101,7 @@ fn hang() -> ! {
 
 /// What a modal dialog does to its thread: a message loop of its own, for `long`.
 #[cfg(windows)]
-fn pump(long: std::time::Duration) {
+pub fn pump(long: std::time::Duration) {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         DispatchMessageW, PeekMessageW, TranslateMessage, MSG, PM_REMOVE,
     };

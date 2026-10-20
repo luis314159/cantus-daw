@@ -14,7 +14,9 @@
 //!
 //! **No allocation** in a job: each thread's parameter and note lists are refilled in place
 //! and the plug-in's report goes into a `ParamOut` made once. The instance table is a
-//! snapshot each thread refreshes when the main thread changes it (a load, an unload).
+//! snapshot each thread refreshes when the main thread changes it (a load, an unload); a
+//! snapshot replaced is kept by the main thread until no thread holds it, and freed there —
+//! a processing thread never frees memory nor unmaps a slot (review #13, #42).
 
 use cantus_host::bridge::slot::{op, status, Slot, MAX_NOTES, MAX_PARAMS};
 use cantus_host::{Audio, AudioThread, ParamOut};
@@ -41,21 +43,48 @@ pub struct Rt {
     pub half: Half,
 }
 
+/// One version of the table.
+type Snapshot = Arc<Vec<Arc<Rt>>>;
+
 /// The instances, as the threads read them: a snapshot swapped whole by the main thread.
 #[derive(Default)]
 pub struct Table {
-    now: Mutex<Arc<Vec<Arc<Rt>>>>,
+    now: Mutex<Snapshot>,
     generation: AtomicU64,
+    /// Snapshots replaced, kept until no processing thread holds one ([`Table::collect`]).
+    retired: Mutex<Vec<Snapshot>>,
 }
 
 impl Table {
-    /// The main thread's change: `f` edits a copy, which becomes the table.
+    /// The main thread's change: `f` edits a copy, which becomes the table; the old one is
+    /// retired, not dropped.
     pub fn change(&self, f: impl FnOnce(&mut Vec<Arc<Rt>>)) {
         let mut guard = self.now.lock().unwrap_or_else(|e| e.into_inner());
         let mut next: Vec<Arc<Rt>> = (**guard).clone();
         f(&mut next);
-        *guard = Arc::new(next);
+        let old = std::mem::replace(&mut *guard, Arc::new(next));
         self.generation.fetch_add(1, Ordering::Release);
+        drop(guard);
+        self.retired
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(old);
+    }
+
+    /// The main thread frees the retired snapshots no processing thread holds any more
+    /// (none can take one again: only the current is handed out). The instances they held
+    /// are freed with them, on this thread.
+    pub fn collect(&self) {
+        self.retired
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|s| Arc::strong_count(s) > 1);
+    }
+
+    /// Snapshots retired and not yet freed (tests).
+    #[cfg(test)]
+    fn retired(&self) -> usize {
+        self.retired.lock().map_or(0, |r| r.len())
     }
 
     fn snapshot(&self) -> Option<Arc<Vec<Arc<Rt>>>> {
@@ -103,8 +132,9 @@ pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
                 .any(|rt| rt.completer.exchange().pending())
         },
         |i, n| {
-            let rt = seen.borrow().1[i].clone();
-            run(&rt, n, &mut params, &mut notes, &mut out);
+            // Borrowed, never cloned: this thread's reference is never the last.
+            let s = seen.borrow();
+            run(&s.1[i], n, &mut params, &mut notes, &mut out);
         },
     );
 }
@@ -153,4 +183,26 @@ fn run(
     unsafe { rt.slot.put_result(out, st) };
     rt.slot.account(started.elapsed().as_nanos() as u64, frames);
     rt.completer.complete(n);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A replaced snapshot outlives a processing thread's hold on it, and is freed by the
+    /// main thread once nothing else holds it (review #13, #42).
+    #[test]
+    fn a_retired_snapshot_is_freed_by_the_main_thread_once_no_thread_holds_it() {
+        let table = Table::default();
+        table.change(|_| {});
+        let held = table.snapshot().expect("the current snapshot");
+        table.change(|_| {});
+        table.collect();
+        assert_eq!(table.retired(), 1, "the held one is kept");
+        // The thread lets its hold go: the last reference is not its own.
+        assert!(Arc::strong_count(&held) > 1);
+        drop(held);
+        table.collect();
+        assert_eq!(table.retired(), 0);
+    }
 }
