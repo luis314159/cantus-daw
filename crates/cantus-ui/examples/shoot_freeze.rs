@@ -171,13 +171,18 @@ fn run() {
                 println!("{}", out.display());
                 // The inspector: the singer's channel — Low latency on, what it bypasses —
                 // and the frozen synth's Freeze row.
-                for (name, track) in [("voice", 3usize), ("synth", 0), ("pad", 2)] {
+                // Tall enough for the Freeze and Delay rows under the recording ones.
+                for (name, track, h) in [
+                    ("voice", 3usize, 1100.0),
+                    ("synth", 0, 1700.0),
+                    ("pad", 2, 1700.0),
+                ] {
                     let ctx = context(dark);
                     let (mut a, _p) = app();
                     let t = a.project().tracks[track].id;
                     a.select_track(t);
                     let out = dir.join(format!("freeze-inspector-{name}-{tag}.png"));
-                    shoot(&ctx, egui::vec2(340.0, 1100.0), k, 6, Some(&out), |root| {
+                    shoot(&ctx, egui::vec2(340.0, h), k, 6, Some(&out), |root| {
                         panel(root, |ui| views::inspector::show(&mut a, ui));
                     });
                     println!("{}", out.display());
