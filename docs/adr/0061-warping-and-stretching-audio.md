@@ -1,7 +1,7 @@
 # ADR 0061 — Warping and stretching audio: our own stretcher, warp markers, analysis at import
 
-**Status:** Accepted (round 29, *warp*; part A — part B, playback under the tempo map, follows
-the tempo builder's merge) · **Date:** 2026-10-16 · **Round:** 29 (warp) · **Builds on:** ADR
+**Status:** Accepted (round 29, *warp*; parts A and B — the stretcher and playback under
+the tempo map, after the tempo builder's merge) · **Date:** 2026-10-16 · **Round:** 29 (warp) · **Builds on:** ADR
 0053 (the pitch base: the tracker, the epochs, TD-PSOLA), ADR 0054 (the pitch render path: a
 worker, a disk cache, renders attached to the snapshot) · **Extends:** ADR 0004 (commands),
 ADR 0023 (analysis stored), ADR 0031 (offline = real time), ADR 0047 (licences) ·
