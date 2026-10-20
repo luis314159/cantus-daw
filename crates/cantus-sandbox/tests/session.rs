@@ -108,15 +108,26 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     rig.engine.stop();
     assert_eq!(crashes(&rig), 1, "told once: {:?}", rig.notices);
     assert!(rig.host.crashed(id).is_some());
-    // Before the crash: the gain; from the crashing block on: the dry song, still playing.
+    // Before the crash: the gain; from the crashing block on: the dry song, still playing
+    // — every block one or the other, the block that carried the fault already dry (#22).
     let n = 40 * 256 * 2;
     assert_eq!(differing(&out[..n], &with_gain[..n]), 0, "before the crash");
-    assert_eq!(
-        differing(&out[n + 512..], &dry[n + 512..out.len()]),
-        0,
-        "after the crash the song plays on without it"
-    );
-    assert!(peak(&out[n + 512..]) > 0.01, "audio kept flowing");
+    let blocks: Vec<std::ops::Range<usize>> =
+        (0..188).map(|k| k * 512..(k + 1) * 512).collect();
+    let first_dry = blocks
+        .iter()
+        .position(|b| differing(&out[b.clone()], &with_gain[b.clone()]) != 0)
+        .expect("a block without the gain");
+    assert_eq!(first_dry, 40, "the block that carried the fault");
+    for b in &blocks[first_dry..] {
+        assert_eq!(
+            differing(&out[b.clone()], &dry[b.clone()]),
+            0,
+            "block {} plays on without it",
+            b.start / 512
+        );
+    }
+    assert!(peak(&out[n..]) > 0.01, "audio kept flowing");
     // Reload: a new process, the values the user set, the song as before the crash.
     rig.host
         .reload(rig.bus.project(), &mut rig.engine, id)
@@ -224,7 +235,8 @@ fn an_instrument_that_crashes_goes_silent_and_reload_brings_it_back() {
     }
     assert_eq!(crashes(&rig), 1, "{:?}", rig.notices);
     assert!(rig.host.instrument_crashed(track).is_some());
-    assert_eq!(peak(&after[2048..]), 0.0, "silent, and the engine went on");
+    // Silent from the block that carried the fault (#22).
+    assert_eq!(peak(&after), 0.0, "silent, and the engine went on");
     rig.host
         .reload_instrument(rig.bus.project(), &mut rig.engine, track)
         .expect("reloads");
@@ -313,8 +325,11 @@ fn a_hang_never_blocks_the_interfaces_frames_and_is_ended() {
     rig.set_param(strip, id, P_FAULT, HANG_PROCESS);
     let start = Instant::now();
     let mut worst = Duration::ZERO;
+    let mut blocks = Vec::new();
     while crashes(&rig) == 0 && start.elapsed() < Duration::from_secs(10) {
+        let t = Instant::now();
         rig.processor.process(&mut vec![0f32; 512], 2);
+        blocks.push(t.elapsed());
         let t = Instant::now();
         rig.frame();
         worst = worst.max(t.elapsed());
@@ -322,6 +337,20 @@ fn a_hang_never_blocks_the_interfaces_frames_and_is_ended() {
     rig.engine.stop();
     assert_eq!(crashes(&rig), 1, "the hang was ended and told");
     assert!(worst < Duration::from_millis(100), "a frame took {worst:?}");
+    // The engine's blocks: one waits out the deadline; every one after it passes at once
+    // (#20).
+    let late = blocks
+        .iter()
+        .position(|t| *t > Duration::from_millis(4))
+        .expect("the block that went late");
+    let mut after: Vec<Duration> = blocks[late + 1..].to_vec();
+    after.sort();
+    assert!(!after.is_empty());
+    assert!(
+        after[after.len() / 2] < Duration::from_millis(1),
+        "blocks after the late one: {after:?}"
+    );
+    assert_eq!(rig.host.late_blocks(), 1, "one job late");
 }
 
 #[test]
