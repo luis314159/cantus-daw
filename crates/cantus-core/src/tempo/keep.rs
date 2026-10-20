@@ -73,6 +73,9 @@ enum Where {
     Comp(usize, usize),
 }
 
+/// A track's windows re-anchored: each clip, its new offset and fine offset.
+type Anchors = Vec<(ClipId, Ticks, i32)>;
+
 /// What a tempo edit has to keep, taken before it runs.
 #[derive(Clone, Debug)]
 pub struct Kept {
@@ -339,7 +342,7 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
     // Clips: one re-anchoring of each track's windows (review 5: a command a window, each
     // looking its clip up, was quadratic in a sliced take). Alternate comps' windows: one
     // replacement of the track's comps each.
-    let mut anchors: Vec<(TrackId, Vec<(ClipId, Ticks, i32)>)> = Vec::new();
+    let mut anchors: Vec<(TrackId, Anchors)> = Vec::new();
     let mut comps: Vec<(TrackId, Vec<crate::comp::Comp>)> = Vec::new();
     for (i, offset, slip) in moves {
         let w = &kept.windows[i];

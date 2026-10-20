@@ -526,7 +526,7 @@ mod tests {
     #[test]
     fn a_far_point_is_refused_and_an_unsaid_ramp_is_kept() {
         let mut bus = CommandBus::default();
-        let mut call = |bus: &mut CommandBus, input: serde_json::Value| {
+        let call = |bus: &mut CommandBus, input: serde_json::Value| {
             let call = ToolCall {
                 name: "set_tempo_point".into(),
                 input,

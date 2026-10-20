@@ -2719,7 +2719,9 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let changes = project.metre_changes.clone();
     let markers = project.markers.clone();
     // Review 5: the audio windows of a track, for `SetClipAnchors`.
-    let audio: Vec<(TrackId, Vec<(ClipId, Ticks, i32, bool)>)> = project
+    // (track, [(clip, offset, slip, linked)])
+    type Windows = Vec<(ClipId, Ticks, i32, bool)>;
+    let audio: Vec<(TrackId, Windows)> = project
         .tracks
         .iter()
         .map(|t| {

@@ -418,3 +418,15 @@ the fix undone in the tree (*mutation*) — except where the row says otherwise.
 | 24 | the *Bar* grid stepped four quarters | nudges (clips and notes) step a bar of the metre; a duplicate of notes the fewest whole bars that hold it; a drawn or painted note and a resize's minimum `bars::grid_len` | `tempo_review5_ui::the_bar_grid_steps_a_bar_of_the_metre` (3/4: nudge and duplicate; failed: 6 720). The piano roll's drawn length is not tested |
 | 25 | the warp marker hint's speed at the song's first tempo | **warp's file** (`arrangement_warp.rs`): relayed | — (relayed) |
 | 28 | far tempo points hung a MIDI export; the AI's unsaid ramp cleared one | `tempo::HORIZON` (a million beats): the AI's `set_tempo_point` refuses past it and keeps a point's own ramp when unsaid; a DAWproject's points, metres and markers past it are left out (`tempo.report.too_far`, EN/ES); a ramp exports in at most 4 096 runs of sixteenths, each its run's average tempo | `bridge::a_far_point_is_refused_and_an_unsaid_ramp_is_kept` (failed), `dawproject_tempo::points_past_the_horizon_are_left_out_and_said` (failed), `midi_tempo::a_very_long_ramp_exports_in_bounded_steps` (mutation: 50 001 events) |
+
+The controllers builder's `controllers_review3::a_gesture_holding_the_tempo_sends_none_while_a_take_records`
+assumed the review-4 hold (any pass); it now records audio (a hand-driven engine with one
+input), as the review-5 hold asks, and passes.
+
+**Verified on the merged tree (`r29/integration` d448d50 in: controllers' review 3,
+schema 40):** core, dsp, project, engine, host, export, ai and plugins 2 295 passed (and
+core, project and ai again, 540, after clippy's last words); UI 1 607 passed, 1 failed —
+`controllers_review3::a_hosted_stepped_parameter_reads_the_plug_ins_words` ("4" for "3"),
+not in this branch's files (they match `r29/integration` there); the engine with `fuzz`
+(`CANTUS_WORKERS=3`) 812 passed; `cargo clippy --workspace --all-targets -D warnings` and
+`cantus-plugins --no-default-features` clean; `cargo fmt --check` clean.

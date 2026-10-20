@@ -171,7 +171,7 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         &out.tempo,
         &metres,
     );
-    walk(arr, &ctx, &map, project, &mut out, &mut counts);
+    walk(arr, &ctx, &map, &mut out, &mut counts);
     if let Some(m) = child(arr, "Markers") {
         let secs = unit(m);
         for k in m.children().filter(|c| c.has_tag_name("Marker")) {
@@ -210,14 +210,7 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     out
 }
 
-fn walk(
-    n: Node,
-    ctx: &Ctx,
-    map: &TempoMap,
-    project: &Project,
-    out: &mut Timeline,
-    counts: &mut Counts,
-) {
+fn walk(n: Node, ctx: &Ctx, map: &TempoMap, out: &mut Timeline, counts: &mut Counts) {
     for c in n.children().filter(|c| c.is_element()) {
         let mut cx = ctx.clone();
         if let Some(t) = attr(c, "track") {
@@ -228,7 +221,7 @@ fn walk(
         }
         counts.in_seconds |= cx.seconds;
         match c.tag_name().name() {
-            "Lanes" => walk(c, &cx, map, project, out, counts),
+            "Lanes" => walk(c, &cx, map, out, counts),
             "Clips" => {
                 for clip in c.children().filter(|x| x.has_tag_name("Clip")) {
                     if let Some(data) = clip_of(clip, &cx, map, counts) {
