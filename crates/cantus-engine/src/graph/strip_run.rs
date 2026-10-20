@@ -347,6 +347,18 @@ pub(crate) fn strip_chain(
         st.eq_l.process(l);
         st.eq_r.process(r);
     }
+    // A freeze's or a bounce's render is taken here, before the width (ADR 0064): what
+    // follows stays live on a frozen strip.
+    if ctx.tap {
+        match nodes.tap.try_borrow_mut() {
+            Some(mut tap) => {
+                if let Some(tap) = tap.as_mut() {
+                    tap.strip_before_width(slot, ctx.p0, l, r);
+                }
+            }
+            None => nodes.conflict(),
+        }
+    }
     // Width, then pan: narrowing a stereo reverb has to happen before the channel is
     // placed, or the placement is what gets narrowed.
     apply_width(l, r, st.width);

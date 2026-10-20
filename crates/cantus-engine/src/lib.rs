@@ -12,6 +12,7 @@ pub mod automation;
 pub mod backend;
 pub mod devices;
 pub mod effects;
+pub mod freeze;
 pub mod fx;
 pub mod graph;
 pub mod hotplug;

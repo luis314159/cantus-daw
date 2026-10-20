@@ -661,6 +661,12 @@ fn canonical(v: serde_json::Value) -> serde_json::Value {
     }
 }
 
+/// SHA-256 of `bytes`, lower-case hex (the engine's render keys use it too).
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    hex(&Sha256::digest(bytes))
+}
+
 /// Lower-case hex.
 pub fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write;
@@ -1041,4 +1047,60 @@ pub fn settle(project: &Project, snapshot: &mut crate::Snapshot) {
     for t in &mut snapshot.tracks {
         t.rest = d.tracks.contains(&t.id);
     }
+}
+
+/// Mark every node of `snapshot` outside `keep` as resting: a freeze's render (or a
+/// bounce's) computes only what makes its sound.
+pub fn isolate(snapshot: &mut crate::Snapshot, keep: &Region) {
+    if keep.whole {
+        return;
+    }
+    for s in &mut snapshot.strips {
+        if !keep.strips.contains(&s.id) {
+            s.rest = true;
+        }
+    }
+    for t in &mut snapshot.tracks {
+        if !keep.tracks.contains(&t.id) {
+            t.rest = true;
+        }
+    }
+}
+
+/// What makes the sound of one track through strip `strip`'s chain (a bounce in place
+/// with the inserts, ADR 0064): the track, the strip, and what the strip's inserts and the
+/// modulators driving them listen to — not the strip's other inputs.
+pub fn region_through(project: &Project, track: TrackId, strip: StripId) -> Region {
+    let mut r = Region::default();
+    if project.track(track).is_some() {
+        r.tracks.insert(track);
+    }
+    let Some(st) = project.strip(strip) else {
+        return r;
+    };
+    r.strips.insert(strip);
+    for e in &st.effects {
+        if let Some(k) = e.sidechain {
+            let kr = region(project, FreezeTarget::Strip(k));
+            r.strips.extend(kr.strips);
+            r.tracks.extend(kr.tracks);
+            r.whole |= kr.whole;
+        }
+        if let Some(t) = e.midi_from {
+            r.tracks.insert(t);
+        }
+    }
+    let inside = r.clone();
+    grow_by_modulators(project, &mut r, &|tgt| {
+        target_in_strip_region(project, &inside, strip, tgt)
+    });
+    for s in r.strips.clone() {
+        if !inside.strips.contains(&s) {
+            let sr = region(project, FreezeTarget::Strip(s));
+            r.strips.extend(sr.strips);
+            r.tracks.extend(sr.tracks);
+            r.whole |= sr.whole;
+        }
+    }
+    r
 }

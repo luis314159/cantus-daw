@@ -93,6 +93,11 @@ pub struct StemTap {
     strips: Vec<[Vec<f32>; 2]>,
     tracks: Vec<[Vec<f32>; 2]>,
     direct: [Vec<f32>; 2],
+    /// A freeze's or a bounce's taps (round 29, ADR 0064), when asked for
+    /// ([`StemTap::with_pre`]): each strip's pair before its width, each track's source
+    /// before its level. Empty otherwise (the calls then do nothing).
+    pre_strips: Vec<[Vec<f32>; 2]>,
+    pre_tracks: Vec<[Vec<f32>; 2]>,
 }
 
 impl StemTap {
@@ -103,6 +108,53 @@ impl StemTap {
             strips: (0..MAX_STRIPS).map(|_| pair()).collect(),
             tracks: (0..MAX_TRACKS).map(|_| pair()).collect(),
             direct: pair(),
+            pre_strips: Vec::new(),
+            pre_tracks: Vec::new(),
+        }
+    }
+
+    /// A tap that also keeps every strip's pair before its width and every track's source
+    /// before its level (a freeze's or a bounce's render, ADR 0064).
+    pub fn with_pre(block_frames: usize) -> Self {
+        let pair = || [vec![0.0; block_frames], vec![0.0; block_frames]];
+        StemTap {
+            pre_strips: (0..MAX_STRIPS).map(|_| pair()).collect(),
+            pre_tracks: (0..MAX_TRACKS).map(|_| pair()).collect(),
+            ..StemTap::new(block_frames)
+        }
+    }
+
+    /// A strip's pair before its width, `at` frames into the block.
+    pub(crate) fn strip_before_width(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        if let Some([pl, pr]) = self.pre_strips.get_mut(slot) {
+            pl[at..at + n].copy_from_slice(&l[..n]);
+            pr[at..at + n].copy_from_slice(&r[..n]);
+        }
+    }
+
+    /// A track's source before its level and balance, `at` frames into the block.
+    pub(crate) fn track_source(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        if let Some([pl, pr]) = self.pre_tracks.get_mut(slot) {
+            pl[at..at + n].copy_from_slice(&l[..n]);
+            pr[at..at + n].copy_from_slice(&r[..n]);
+        }
+    }
+
+    /// Strip slot `slot`'s pair before its width this block (empty without [`Self::with_pre`]).
+    pub fn strip_pre(&self, slot: usize) -> [&[f32]; 2] {
+        match self.pre_strips.get(slot) {
+            Some([l, r]) => [&l[..self.frames], &r[..self.frames]],
+            None => [&[], &[]],
+        }
+    }
+
+    /// Track slot `slot`'s source this block (empty without [`Self::with_pre`]).
+    pub fn track_pre(&self, slot: usize) -> [&[f32]; 2] {
+        match self.pre_tracks.get(slot) {
+            Some([l, r]) => [&l[..self.frames], &r[..self.frames]],
+            None => [&[], &[]],
         }
     }
 
@@ -117,7 +169,13 @@ impl StemTap {
     pub(crate) fn begin(&mut self, frames: usize) {
         let n = frames.min(self.direct[0].len());
         self.frames = n;
-        for p in self.strips.iter_mut().chain(self.tracks.iter_mut()) {
+        for p in self
+            .strips
+            .iter_mut()
+            .chain(self.tracks.iter_mut())
+            .chain(self.pre_strips.iter_mut())
+            .chain(self.pre_tracks.iter_mut())
+        {
             Self::clear(p, n);
         }
         Self::clear(&mut self.direct, n);
@@ -540,6 +598,8 @@ fn run(
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
+    // A frozen render's reader waits for its blocks (ADR 0064).
+    p.set_offline(true);
     for slot in snap.effect_slots() {
         let unit = make_unit(slot, sr as f32);
         tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
