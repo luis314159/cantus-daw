@@ -36,9 +36,19 @@ fn song() -> Project {
 }
 
 fn app(name: &str) -> (CantusApp, std::path::PathBuf) {
-    let dir = std::env::temp_dir()
-        .join("cantus-freeze-ui")
-        .join(format!("{name}-{}", std::process::id()));
+    let root = std::env::temp_dir().join("cantus-freeze-ui");
+    // Earlier runs' folders go (each run's own, by its process id): a run leaves its renders
+    // for a look after a failure, never for ever (review 3: gigabytes piled up).
+    static SWEEP: std::sync::Once = std::sync::Once::new();
+    SWEEP.call_once(|| {
+        let me = format!("-{}", std::process::id());
+        for e in std::fs::read_dir(&root).into_iter().flatten().flatten() {
+            if !e.file_name().to_string_lossy().ends_with(&me) {
+                let _ = std::fs::remove_dir_all(e.path());
+            }
+        }
+    });
+    let dir = root.join(format!("{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let mut app = support::app(song());
@@ -1906,7 +1916,6 @@ fn latent(app: &mut CantusApp) -> StripId {
 /// Bounce the synth with its inserts, the original removed: the new track (with the delay
 /// it keeps), its strip and its audio clip.
 fn bounced_latent(app: &mut CantusApp, ctx: &egui::Context) -> (TrackId, Option<StripId>, ClipId) {
-    latent(app);
     let synth = app.project().tracks[0].id;
     app.settings.bounce_removes = true;
     bounce(
@@ -1967,6 +1976,7 @@ fn a_clip_put_on_a_bounced_track_plays_on_the_grid() {
     // track delays everything it holds, and reports it.
     let ctx = support::ctx();
     let (mut app, dir) = app("lateness-put");
+    latent(&mut app);
     let (t2, strip2, _) = bounced_latent(&mut app, &ctx);
     let take = dir.join("drive").join("take.wav");
     with_take(&mut app, &take);
@@ -1997,6 +2007,8 @@ fn a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere() {
     let ctx = support::ctx();
     let (mut app, dir) = app("lateness-dawproject");
     latent(&mut app);
+    // What played live, before the bounce: the song on the grid.
+    let live = mix(&mut app);
     let (_, _, _) = bounced_latent(&mut app, &ctx);
     let here = mix(&mut app);
     let file = dir.join("song.dawproject");
@@ -2007,12 +2019,18 @@ fn a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere() {
     let mut other = support::app(back.project);
     other.engine.frozen.set_app_dir(dir.join("renders2"));
     let there = mix(&mut other);
-    let n = here.len().min(there.len());
+    let n = here.len().min(there.len()).min(live.len());
     within(
         &there[..n],
         &here[..n],
         1e-4,
         "the bounce in time in the round trip",
+    );
+    within(
+        &there[..n],
+        &live[..n],
+        1e-4,
+        "elsewhere as it played live",
     );
 }
 
@@ -2407,16 +2425,21 @@ fn the_clip_menus_bounce_takes_the_clip_right_clicked() {
     let (mut app, _dir) = app("clip-menu");
     let synth = app.project().tracks[0].id;
     let clip = app.project().tracks[0].clips[0].id;
-    let bass_strip = app.project().tracks[1].strip.unwrap();
+    // A bus no track plays into: choosing it on the desk leaves the clip selected (a strip
+    // with a track would select the track, and the menu would select the clip again).
+    let p = app.project();
+    let bus = p
+        .strips
+        .iter()
+        .find(|s| p.tracks_on_strip(s.id).next().is_none())
+        .expect("a bus with no track")
+        .id;
     app.select_clip(synth, clip);
-    app.select_strip(bass_strip);
+    app.select_strip(bus);
     cantus_ui::views::arrangement::clip_menu_opened(&mut app, synth, clip);
-    app.run_action(Action::BounceSource);
+    app.run_action(Action::BounceInPlace);
     settle(&mut app, &ctx);
-    assert!(
-        !app.project().strip(bass_strip).unwrap().muted,
-        "the strip left alone"
-    );
+    assert!(!app.project().strip(bus).unwrap().muted, "the bus left alone");
     assert!(
         app.project().tracks[0].clips[0].muted,
         "the clip bounced: {}",
