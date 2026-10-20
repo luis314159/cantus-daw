@@ -835,6 +835,31 @@ impl PluginHost {
         (e, t)
     }
 
+    /// How many other loaded plug-ins share the process of a slot's (`Some(effect)`) or a
+    /// track's plug-in: stopping it stops them too (review isolation-5 #44).
+    pub fn neighbours(&self, effect: Option<EffectId>, track: Option<TrackId>) -> usize {
+        let helper = effect
+            .and_then(|e| self.slots.get(&e))
+            .map(|h| h.main.helper_id())
+            .or_else(|| {
+                track
+                    .and_then(|t| self.instruments.get(&t))
+                    .map(|h| h.main.helper_id())
+            })
+            .flatten();
+        let Some(helper) = helper else {
+            return 0;
+        };
+        let same = |m: &dyn MainThread| m.helper_id() == Some(helper);
+        let n = self.slots.values().filter(|h| same(h.main.as_ref())).count()
+            + self
+                .instruments
+                .values()
+                .filter(|h| same(h.main.as_ref()))
+                .count();
+        n.saturating_sub(1)
+    }
+
     /// Brings the windows a waiting insert's plug-in waits on to the front.
     pub fn surface(&mut self, effect: EffectId) {
         if let Some(h) = self.slots.get_mut(&effect) {

@@ -73,6 +73,17 @@ impl CantusApp {
             self.set_status(crate::i18n::t("warp.status.bake_waiting"));
             return true;
         }
+        // Its hosted plug-ins' render instances, loading (an isolated one in a helper of
+        // its own): waited for the same way, frame by frame (round 29, review isolation-5).
+        let rate = self.engine.sample_rate.round() as u32;
+        if !self
+            .plugins
+            .render_ready(self.bus.project(), f64::from(rate), false)
+        {
+            self.warp.pending_bake = Some((id, target.clone(), self.epoch));
+            self.set_status(t("isolation.render.loading"));
+            return true;
+        }
         // A freeze or a bounce rendering holds the hosted plug-ins' render instances: one
         // set at a time (round 29, review 1 — whichever ended first let the other's go).
         if !crate::freeze::yield_refresh(self) {
@@ -87,7 +98,6 @@ impl CantusApp {
             return false;
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
-        let rate = self.engine.sample_rate.round() as u32;
         let late = self.engine.renders_late();
         let snapshot = self
             .engine
@@ -152,14 +162,18 @@ impl CantusApp {
             self.set_error(text);
             return;
         }
-        if let Some(w) = warnings {
-            self.set_error(w);
-        }
         if trace.is_empty() || p.revision != self.bus.revision() {
             self.set_error(t("mods.status.bake_moved"));
             return;
         }
-        self.finish_bake(p.id, &p.target, p.span, Some(&trace));
+        // Baked from a plug-in's state as it was last said: done, and said with it — never
+        // written over by the bake's own word (review isolation-5 #46).
+        if self.finish_bake(p.id, &p.target, p.span, Some(&trace)) {
+            if let Some(w) = warnings {
+                let done = self.status.text.clone();
+                self.set_error(format!("{done} {w}"));
+            }
+        }
     }
 
     /// The bake itself: the curve, the clips it plays over, the route gone — one step.

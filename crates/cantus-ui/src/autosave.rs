@@ -34,13 +34,27 @@ impl CantusApp {
     /// are unsaved changes.
     pub fn maybe_autosave(&mut self) {
         self.poll_autosave(false);
-        if self.autosave_job.is_some() || self.last_autosave.elapsed() < self.autosave_interval() {
+        if self.autosave_job.is_some() {
             return;
         }
-        self.last_autosave = Instant::now();
-        if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
+        if !self.autosave_gathering {
+            if self.last_autosave.elapsed() < self.autosave_interval() {
+                return;
+            }
+            self.last_autosave = Instant::now();
+            if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
+                return;
+            }
+            // Hosted plug-ins are asked for their state as it is now; written once they
+            // have answered, frame by frame — never waited for here (round 29, review
+            // isolation-5).
+            self.plugins.ask_states();
+            self.autosave_gathering = true;
+        }
+        if !self.plugins.states_in() {
             return;
         }
+        self.autosave_gathering = false;
         let persisted = self.journal_finished_passes();
         let project = self.autosave_copy();
         let (tx, rx) = mpsc::channel();

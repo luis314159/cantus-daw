@@ -719,6 +719,12 @@ pub(crate) fn units_for(
         }
     }
     let rate = app.engine.sample_rate;
+    // Its plug-ins' render instances loaded first (an isolated one in a helper of its own),
+    // frame by frame: the render waits in the queue meanwhile (round 29, review
+    // isolation-5).
+    if !app.plugins.render_ready(&only, rate, stored) {
+        return Err(PLUGINS_LOADING.to_string());
+    }
     // A keyed render (a freeze's) from the states the project holds — what its key says
     // (review 2: a window's change rendered under the old key); a bounce from the live ones.
     let (units, insts) = if stored {
@@ -773,17 +779,30 @@ fn start_next(app: &mut CantusApp) {
     if s.loading() || s.pitch_pending() > 0 || s.warp_pending() > 0 {
         return;
     }
+    // The render's plug-ins still loading: it starts once they are in.
+    if app.plugins.render_loading() {
+        return;
+    }
     while let Some(want) = app.freeze.queue.pop_front() {
-        match start(app, want) {
+        match start(app, want.clone()) {
             Ok(Some(job)) => {
                 app.freeze.job = Some(job);
                 return;
             }
             Ok(None) => {}
+            // Its plug-ins are loading: first in the queue again, said once.
+            Err(e) if e == PLUGINS_LOADING => {
+                app.freeze.queue.push_front(want);
+                app.set_status(t("isolation.render.loading"));
+                return;
+            }
             Err(e) => app.set_error(e),
         }
     }
 }
+
+/// A render's plug-ins are loading (`units_for`): the render waits, never fails.
+pub(crate) const PLUGINS_LOADING: &str = "\u{0}plugins-loading";
 
 /// Whether a render on disk is older than a file the target's region plays (edited since,
 /// review 1: freezing again reused the render of the file as it was).
@@ -1027,6 +1046,7 @@ fn render_job(
     let whole = freeze::region(project, target).whole;
     let (units, insts) = match units_for(app, project, &job.snapshot, whole, true) {
         Ok(u) => u,
+        Err(why) if why == PLUGINS_LOADING => return Err(why),
         Err(why) => {
             app.freeze.failed.insert(content.clone(), why.clone());
             return Err(why);
@@ -1170,11 +1190,9 @@ fn collect(app: &mut CantusApp) {
         app.set_error(text);
         return;
     }
-    // Begun from a plug-in's last-saved state (its helper busy): done, and said (review
-    // isolation-4 #10).
-    if let (Some(Ok(_)), Some(w)) = (&result, warnings) {
-        app.set_error(w);
-    }
+    // Begun from a plug-in's state as it was last said: done, and said after what the
+    // commit says — never written over by it (review isolation-4 #10; isolation-5 #46).
+    let warned = matches!(result, Some(Ok(_))).then_some(warnings).flatten();
     match result {
         Some(Ok(path)) => match job.want.clone() {
             Want::Freeze(target) => commit_freeze(app, target, job.before, &job.content),
@@ -1198,6 +1216,10 @@ fn collect(app: &mut CantusApp) {
             ));
         }
         None => {}
+    }
+    if let Some(w) = warned {
+        let done = app.status.text.clone();
+        app.set_error(format!("{done} {w}"));
     }
 }
 

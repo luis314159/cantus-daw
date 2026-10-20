@@ -463,11 +463,13 @@ impl CantusApp {
                 commands,
             }
         };
-        let replaced = self.exec(swap(&slot)) || {
+        // An isolated plug-in's values, known once it loads, join this step.
+        let load = cantus_host::PluginHost::load_key(new_id);
+        let replaced = self.exec_merging(swap(&slot), load) || {
             // The key would now close a loop (the routes moved since): swap without it.
             slot.sidechain = None;
             slot.midi_from = None;
-            self.exec(swap(&slot))
+            self.exec_merging(swap(&slot), load)
         };
         if !replaced {
             return false;

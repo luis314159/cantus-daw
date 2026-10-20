@@ -40,6 +40,8 @@ pub struct ExportUi {
 
 struct Waiting {
     target: PathBuf,
+    /// What it waits for: the render's plug-ins (`true`), or samples.
+    plugins: bool,
     /// The choices it was asked with (the dialog's, or `export_to`'s): the export starts
     /// with them, the dialog left as it is — open or not (second review #14).
     settings: ExportSettings,
@@ -72,6 +74,9 @@ impl ExportUi {
     /// phase reports it, the render included; `None` is kept for a phase that cannot).
     pub fn progress(&self) -> Option<(&'static str, Option<f32>)> {
         if let Some(w) = &self.waiting {
+            if w.plugins {
+                return Some(("isolation.render.loading", None));
+            }
             let (done, total) = w.progress;
             // Nothing counted (yet): a bar without a fraction, never "0 %".
             return Some((
@@ -333,6 +338,7 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         let progress = app.engine.samples.progress().unwrap_or((0, 0));
         app.export.waiting = Some(Waiting {
             target: target.to_path_buf(),
+            plugins: false,
             settings: d,
             progress,
             shown: None,
@@ -341,6 +347,23 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         return true;
     }
     let rate = app.engine.sample_rate.round() as u32;
+    // The render's plug-ins loading (an isolated one in a helper of its own): the export
+    // waits for them the same way, the window free (round 29, review isolation-5).
+    if !app
+        .plugins
+        .render_ready(app.bus.project(), f64::from(rate), false)
+    {
+        app.export.waiting = Some(Waiting {
+            target: target.to_path_buf(),
+            plugins: true,
+            settings: d,
+            progress: (0, 0),
+            shown: None,
+        });
+        app.export.last = None;
+        app.set_status(t("isolation.render.loading"));
+        return true;
+    }
     let late = app.engine.renders_late();
     let snapshot = app
         .engine
@@ -435,7 +458,11 @@ fn error_text(e: cantus_export::ExportError) -> String {
 
 /// Ask the running export to stop.
 pub fn stop(app: &mut CantusApp) {
-    if app.export.waiting.take().is_some() {
+    if let Some(w) = app.export.waiting.take() {
+        if w.plugins {
+            // The render's plug-ins it waited for go.
+            app.plugins.finish_render();
+        }
         app.export.last = Some(Err(t("export_audio.stopped")));
         app.set_status(t("export_audio.stopped"));
     }
@@ -456,6 +483,9 @@ fn poll_waiting(app: &mut CantusApp) {
     let Some(w) = app.export.waiting.as_mut() else {
         return;
     };
+    if w.plugins && app.plugins.render_loading() {
+        return;
+    }
     if app.engine.samples.loading() {
         let now = app.engine.samples.progress().unwrap_or(w.progress);
         w.progress = now;
