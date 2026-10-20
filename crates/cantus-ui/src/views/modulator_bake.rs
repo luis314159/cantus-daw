@@ -80,9 +80,11 @@ impl CantusApp {
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
+        let late = self.engine.renders_late();
         let snapshot = self
             .engine
             .compile_for_render(self.bus.project(), self.bus.revision());
+        self.say_late(late);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: span.0,

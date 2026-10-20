@@ -257,6 +257,16 @@ impl CantusApp {
         !self.warp.auto.is_empty() || self.warp.bounce.is_some()
     }
 
+    /// After an offline render's compile (an export, a bounce, a freeze, a comp merge, a
+    /// bake): when renders were late since `before` (the engine's `renders_late`), the
+    /// file holds a warped clip's quick version (or a pitch edit's source) — said, never
+    /// silently written (round 29's second review).
+    pub fn say_late(&mut self, before: u64) {
+        if self.engine.renders_late() > before {
+            self.set_error(crate::i18n::t("warp.status.late"));
+        }
+    }
+
     fn land_auto_warp(&mut self, job: &AutoWarp, a: &Arc<Analysis>) {
         // The clip still plays the file analysed (round 29's second review).
         if job.epoch != self.epoch

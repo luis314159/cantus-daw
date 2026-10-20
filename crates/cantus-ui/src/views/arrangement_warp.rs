@@ -222,7 +222,6 @@ pub fn paint(
     let mut onsets_all: Vec<(f32, u32)> = Vec::new();
     let mut markers_all: Vec<(f32, u16)> = Vec::new();
     let selected = app.warp.selected.filter(|(c, _)| *c == r).map(|(_, i)| i);
-    let x_of = |content: f64| origin + content as f32 * ppt;
     let visible =
         |x: f32| x >= inner.left().max(lanes.left()) && x <= inner.right().min(lanes.right());
     // The transients, when the analysis is in.
@@ -261,24 +260,18 @@ pub fn paint(
             with_alpha(s.t.text_dim, 0.25),
         );
     }
-    // The markers.
+    // The markers: the user's (the warp's own are never drawn — round 29's second review),
+    // the window's two ends among them.
     if let Some(w) = warp.filter(|w| w.follow) {
-        let off = shown.offset.0 as f64;
-        let len = shown.length.0 as f64;
-        for (i, m) in w.markers.iter().enumerate() {
-            let c = m.tick.0 as f64;
-            if c < off || c > off + len {
-                continue;
-            }
-            let c = if shown.region.reverse {
-                2.0 * off + len - c
-            } else {
-                c
-            };
-            let x = x_of(c);
-            if !visible(x) {
-                continue;
-            }
+        let at = Window {
+            offset: shown.offset,
+            length: shown.length,
+            reverse: shown.region.reverse,
+            origin,
+            ppt,
+        };
+        for (x, i) in marker_places(w, &at, inner, lanes, k) {
+            let i = i as usize;
             let on = selected == Some(i);
             let ink = if on { s.t.highlight } else { s.t.brand_bright };
             b.vline(
@@ -288,11 +281,13 @@ pub fn paint(
                 b.px() * if on { 2.0 } else { 1.0 },
                 with_alpha(ink, if on { 0.95 } else { 0.7 }),
             );
+            // The flag inside the band (a marker on the window's edge too).
             let hw = bh * 0.6;
+            let fx = x.clamp(band.left() + hw, (band.right() - hw).max(band.left() + hw));
             b.polygon(
                 &[
-                    pos2(x - hw, band.top()),
-                    pos2(x + hw, band.top()),
+                    pos2(fx - hw, band.top()),
+                    pos2(fx + hw, band.top()),
                     pos2(x, band.bottom()),
                 ],
                 ink,
@@ -311,6 +306,56 @@ pub fn paint(
         hits.n += 1;
     }
     Some(hits)
+}
+
+/// Where a clip's window lies, for its markers' places.
+#[derive(Copy, Clone, Debug)]
+pub struct Window {
+    pub offset: Ticks,
+    pub length: Ticks,
+    pub reverse: bool,
+    /// The x of content tick 0, and points a tick.
+    pub origin: f32,
+    pub ppt: f32,
+}
+
+/// The user's markers of `w` drawn over a clip's waveform area `inner` (inside `lanes`):
+/// `(x, index)` — the warp's own never (round 29's second review), a marker on the window's
+/// start or end always: tested in content ticks, and its x against the clip's body (`inner`
+/// is the body inset by two points), never culled by a float's rounding.
+pub fn marker_places(w: &Warp, at: &Window, inner: Rect, lanes: Rect, k: f32) -> Vec<(f32, u16)> {
+    let off = at.offset.0 as f64;
+    let len = at.length.0 as f64;
+    let edge = 2.0 * k + 0.5;
+    let (lo, hi) = (
+        (inner.left() - edge).max(lanes.left()),
+        (inner.right() + edge).min(lanes.right()),
+    );
+    let mut out = Vec::new();
+    for (i, m) in w.markers.iter().enumerate() {
+        let c = m.tick.0 as f64;
+        if m.auto || c < off || c > off + len {
+            continue;
+        }
+        let c = if at.reverse { 2.0 * off + len - c } else { c };
+        let x = at.origin + c as f32 * at.ppt;
+        if x >= lo && x <= hi {
+            out.push((x.clamp(lo, hi), i.min(u16::MAX as usize) as u16));
+        }
+    }
+    out
+}
+
+/// How fast the source plays just after marker `i` of clip `r` (1: as recorded), against
+/// the tempo in force where the marker is heard (round 29's second review: the song's
+/// first tempo read wrong under a later one).
+pub fn marker_speed(app: &CantusApp, r: ClipRef, i: usize) -> Option<f64> {
+    let w = app.clip_warp(r)?;
+    let c = app.project().track(r.0)?.clip(r.1)?;
+    let m = w.markers.get(i)?;
+    let at = (c.start - c.offset + m.tick).0 as f64;
+    let bpm = crate::views::bars::map(app.project()).bpm_at(at);
+    Some(w.speed_at(m.tick.0 as f64 + 0.5, bpm))
 }
 
 /// Of handles drawn at `(x, id)`, the [`MAX_HITS`] nearest to the pointer at `x`.
@@ -457,11 +502,7 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
     use std::fmt::Write as _;
     match handle {
         Handle::WarpMarker(i) => {
-            let w = app.clip_warp(r);
-            let speed = w.and_then(|w| {
-                let m = w.markers.get(i as usize)?;
-                Some(w.speed_at(m.tick.0 as f64 + 0.5, app.project().tempo_bpm))
-            });
+            let speed = marker_speed(app, r, i as usize);
             let caps = Caps {
                 menu: true,
                 ..Caps::NONE
@@ -664,6 +705,41 @@ mod tests {
         let wave = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 60.0));
         // Content tick 0 at x 0, a tick a point.
         Hits::new(band, wave, 0.0, 1.0, 1.0)
+    }
+
+    /// Round 29's second review (findings 46, 49): the markers on a window's start and end
+    /// are drawn and offered (the body's edges, outside the inset waveform area); the
+    /// warp's own never are.
+    #[test]
+    fn the_windows_end_markers_are_offered_and_the_warps_own_never() {
+        let mut w = Warp::new(48_000, 120.0);
+        for (t, auto) in [
+            (960i64, false),
+            (1_200, true),
+            (1_920, false),
+            (2_880, false),
+        ] {
+            w.markers.push(cantus_core::warp::WarpMarker {
+                frame: t as f64 * 25.0,
+                tick: Ticks(t),
+                auto,
+            });
+        }
+        // The window: content 960 to 2880, its body from x 100 to 292 (a tick a tenth of a
+        // point); the waveform area inset two points.
+        let at = Window {
+            offset: Ticks(960),
+            length: Ticks(1_920),
+            reverse: false,
+            origin: 100.0 - 96.0,
+            ppt: 0.1,
+        };
+        let inner = Rect::from_min_max(pos2(102.0, 10.0), pos2(290.0, 60.0));
+        let lanes = Rect::from_min_max(pos2(0.0, 0.0), pos2(1000.0, 100.0));
+        let places = marker_places(&w, &at, inner, lanes, 1.0);
+        let ids: Vec<u16> = places.iter().map(|p| p.1).collect();
+        assert_eq!(ids, vec![0, 2, 3], "both ends, never the warp's own");
+        assert!((places[0].0 - 100.0).abs() < 1e-3 && (places[2].0 - 292.0).abs() < 1e-3);
     }
 
     /// Round 29's review: on a reversed clip a place on the band is the mirrored content

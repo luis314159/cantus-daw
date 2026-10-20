@@ -541,3 +541,143 @@ fn a_warp_start_takes_kept_markers_or_natural_ones() {
     assert!(s.warp.follow && s.warp.markers.len() >= 2);
     assert_eq!(s.shift, Ticks::ZERO);
 }
+
+/// One frame of the warp editor on clip `r`, `size` points, with `events`.
+fn editor(
+    a: &mut CantusApp,
+    ctx: &egui::Context,
+    r: (TrackId, ClipId),
+    size: egui::Vec2,
+    events: Vec<egui::Event>,
+    _modifiers: egui::Modifiers,
+) {
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        events,
+        ..Default::default()
+    };
+    ctx.run_ui(input, |ui| {
+        egui::CentralPanel::default()
+            .frame(egui::Frame::NONE)
+            .show(ui, |ui| cantus_ui::views::warp::show(a, ui, r.0, r.1));
+    })
+    .textures_delta
+    .clear();
+}
+
+/// A clip in the warp editor.
+fn in_editor(dir: &Path) -> (CantusApp, (TrackId, ClipId)) {
+    let path = dir.join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    let r = (t, c.id);
+    a.open_warp_editor(r);
+    (a, r)
+}
+
+/// Finding 44: Ctrl+wheel over the editor zooms it (egui hands it over as a zoom factor,
+/// never a scroll), about the pointer.
+#[test]
+fn ctrl_and_the_wheel_zoom_the_warp_editor() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut a, r) = in_editor(dir.path());
+    let ctx = support::ctx();
+    let size = egui::vec2(1200.0, 500.0);
+    editor(&mut a, &ctx, r, size, vec![], egui::Modifiers::NONE);
+    let wave = a.warp.view.wave.expect("the waveform drawn");
+    let at = wave.center();
+    for _ in 0..3 {
+        editor(
+            &mut a,
+            &ctx,
+            r,
+            size,
+            vec![
+                egui::Event::PointerMoved(at),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Line,
+                    delta: egui::vec2(0.0, 1.0),
+                    phase: egui::TouchPhase::Move,
+                    modifiers: egui::Modifiers::COMMAND,
+                },
+            ],
+            egui::Modifiers::COMMAND,
+        );
+    }
+    assert!(a.warp.view.zoom > 1.01, "zoom {}", a.warp.view.zoom);
+}
+
+/// Finding 47: every key of the editor's bar is laid inside the pane — at an ordinary
+/// width and at a narrow one (it takes a second row, never pushes *Reset* off screen).
+#[test]
+fn the_warp_bar_fits_its_pane() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut a, r) = in_editor(dir.path());
+    for width in [1400.0f32, 1000.0, 720.0] {
+        let ctx = support::ctx();
+        let size = egui::vec2(width, 500.0);
+        for _ in 0..2 {
+            editor(&mut a, &ctx, r, size, vec![], egui::Modifiers::NONE);
+        }
+        let rects = &a.warp.view.bar_rects;
+        assert_eq!(rects.len(), 11, "{rects:?}");
+        for (item, rect) in rects {
+            assert!(
+                rect.left() >= -0.5 && rect.right() <= width + 0.5,
+                "{item:?} at {rect:?} in a {width} point pane"
+            );
+        }
+        let reset = rects
+            .iter()
+            .find(|(i, _)| *i == cantus_ui::views::warp::BarItem::Reset)
+            .unwrap();
+        assert!(reset.1.right() <= width);
+    }
+}
+
+/// Findings 25, 29: an offline render compiled before a warped clip's render was in says
+/// so — the file holds its quick version, never silently.
+#[test]
+fn a_render_compiled_before_its_warp_renders_says_so() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut a = app(project(120.0));
+    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    a.engine.samples.warp().hold_finals(true);
+    a.engine.set_render_patience(Duration::from_millis(20));
+    assert!(a.set_warp_cents((t, c.id), 300, false));
+    let late = a.engine.renders_late();
+    let p = a.project().clone();
+    let _ = a.engine.compile_for_render(&p, 1);
+    a.say_late(late);
+    a.engine.samples.warp().hold_finals(false);
+    assert!(a.status.error, "said as a warning");
+    assert_eq!(a.status.text, cantus_ui::i18n::t("warp.status.late"));
+}
+
+/// Finding 53: a marker's speed is read against the tempo in force where it is heard — a
+/// clip under a later, slower tempo that follows it as it played reads ×1.
+#[test]
+fn a_markers_speed_is_read_against_the_tempo_in_force() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut p = project(120.0);
+    two_tempos(&mut p);
+    let mut a = app(p);
+    a.import_audio(std::slice::from_ref(&path), Ticks::beats(20), None);
+    settle(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    let r = (t, c.id);
+    assert!(a.set_warp_follow(r, true));
+    let w = a.clip_warp(r).unwrap().clone();
+    let i = w.markers.iter().position(|m| !m.auto).unwrap();
+    let k = cantus_ui::views::arrangement::warp_api::marker_speed(&a, r, i).unwrap();
+    assert!((k - 1.0).abs() < 1e-6, "×{k}");
+}

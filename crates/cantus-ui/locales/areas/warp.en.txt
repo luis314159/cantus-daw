@@ -96,6 +96,7 @@ warp.bounce.working = Bouncing {name}…
 warp.bounce.done = {name} now plays its bounced audio
 warp.bounce.failed = The bounce could not be written: {error}
 warp.bounce.nothing = Nothing to bounce: the clip's file cannot be read
+warp.status.late = A warped clip's render was not ready in time: what was written holds its quick version
 warp.bounce.stale = The bounce of {name} was not applied: the clip changed while it was written
 
 # DAWproject (ADR 0061): audio clips travel with their warps.

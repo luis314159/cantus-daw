@@ -1167,7 +1167,9 @@ impl CantusApp {
         lone.clips = windows.clone();
         alone.tracks.push(lone);
         let rate = self.engine.sample_rate.round() as u32;
+        let late = self.engine.renders_late();
         let snapshot = self.engine.compile_for_render(&alone, 1);
+        self.say_late(late);
         if self.engine.samples.loading() {
             // What it plays started loading just now: wait for it.
             return false;

@@ -96,6 +96,7 @@ warp.bounce.working = Renderizando {name}…
 warp.bounce.done = {name} reproduce ahora su audio renderizado
 warp.bounce.failed = No se pudo escribir el render: {error}
 warp.bounce.nothing = Nada que renderizar: no se puede leer el archivo del clip
+warp.status.late = El render de un clip ajustado no estuvo a tiempo: lo escrito lleva su versión rápida
 warp.bounce.stale = No se aplicó el render de {name}: el clip cambió mientras se escribía
 
 # DAWproject (ADR 0061): los clips de audio viajan con su warp.

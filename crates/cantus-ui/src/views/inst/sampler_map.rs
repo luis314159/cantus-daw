@@ -627,12 +627,11 @@ pub fn map(
     }
     // Ctrl + wheel zooms the keys around the pointer.
     if zoomed && resp.hovered() {
-        let (zoom, ctrl) = ui
-            .ctx()
-            .input(|i| (i.smooth_scroll_delta.y, i.modifiers.ctrl));
-        if ctrl && zoom != 0.0 {
+        // (egui hands Ctrl+wheel over as its zoom factor — warp, round 29's second review.)
+        let zoom = ui.ctx().input(|i| i.zoom_delta());
+        if zoom != 1.0 {
             if let Some(k) = resp.hover_pos().and_then(|p| geo.key_at(p)) {
-                let span = (k1 - k0) as f32 * if zoom > 0.0 { 0.85 } else { 1.18 };
+                let span = (k1 - k0) as f32 * if zoom > 1.0 { 0.85 } else { 1.18 };
                 let span = span.clamp(12.0, 127.0);
                 let f = (k as f32 - k0 as f32) / (k1 - k0).max(1) as f32;
                 let lo = (k as f32 - f * span).clamp(0.0, 127.0 - span);

@@ -757,8 +757,10 @@ fn render_job(
     content: String,
     before: Vec<Command>,
 ) -> Result<Job, String> {
+    let late = app.engine.renders_late();
     let job = cantus_engine::freeze::render::prepare(&mut app.engine, project, target)
         .map_err(prepare_error)?;
+    app.say_late(late);
     let whole = freeze::region(project, target).whole;
     let (units, insts) = match units_for(app, project, &job.snapshot, whole) {
         Ok(u) => u,
