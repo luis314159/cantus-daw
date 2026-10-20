@@ -128,13 +128,17 @@ stays a seam and glue still glues. The final rule (reviews 3–4) has three part
    comps' windows) into **takes**: windows reading one *line* of one file — the same
    source, the same direction, and the same source second at every tick within a frame
    (for a forward window, its frame at its start less the song's frames to it; reversed,
-   plus). After it runs, each take keeps the frame where it comes in — a forward take at
+   plus) — within half a tick more for a linked window, which a re-anchor moves by whole
+   ticks (review 5: after one edit it fell out of its take, and the next edit tore the take
+   at its edges; moves chain linked windows with the same reach). After it runs, each take keeps the frame where it comes in — a forward take at
    its earliest window's start, a reversed one at its latest window's end — and runs on
    from there at natural speed through the new map; every window is re-anchored onto that
    line (`audio_time::anchor`: whole ticks, the rest in `slip_frames`), and **the windows
    that shared their origin and fine offset get one shift** (one offset delta, one fine
-   offset), so they share them still, exactly. The re-anchors are composed into the same
-   undo step with their exact inverse; if one were refused the whole command is rolled
+   offset), so they share them still, exactly. The re-anchors are one `SetClipAnchors` a
+   track (offsets and fine offsets in one pass: review 5, a sliced take of 2 000 windows
+   went from 5.5 ms to 0.8 ms a drag frame) and a comps replacement, composed into the
+   same undo step with their exact inverse; if one were refused the whole command is rolled
    back. A window the command itself moved or re-cut is the command's. A linked window's
    fine offset is its group's (ADR 0037), so it moves by its offset alone, within half a
    tick. Left alone: a warp that follows the tempo (content ticks), a looping window (its
@@ -163,10 +167,14 @@ keeps both invariants with one inverse. Its cost: a tempo edit is a batch that a
 the clips' offsets (one undo step all the same). It holds at one tempo too: the top bar's
 tempo changed in a song without a tempo track keeps each take where it comes in (round 28
 slid trimmed clips by the change in their offset's seconds); playback of every project as
-saved is unchanged, to the bit — only an edit of the tempo re-anchors. **While a take
-records, the tempo stays** (the top bar, the lane, tap, a controller knob, any command
-that changes the map: refused with a word, review 4): the take is laid through the map
-it was played under, and a take not yet in the song cannot be kept by `keep`.
+saved is unchanged, to the bit — only an edit of the tempo re-anchors. **While audio
+records, the tempo stays** (the top bar, the lane, tap, a controller knob — sent the tempo
+back — any command that changes the map, and undo or redo of a step that would, or that
+puts another song in place: refused with a word, reviews 4–5): an audio take is laid
+through the map it was played under, and a take not yet in the song cannot be kept by
+`keep`. A DAWproject imported during a take stops it first (it lands in the song it was
+recorded into); a MIDI file opened then does not set the tempo. A notes-only pass leaves
+the tempo free: notes are recorded in ticks (review 5).
 
 Moving and copying go through the map too, **clip by clip**: every clip of a selection
 moved, nudged, drag-copied or pasted lands its delta later — on the bars it had, beside the
@@ -230,8 +238,13 @@ one BPM) and drag move the governing point by their own amount, a ramp's start f
 own value (review 2), the wheel counting a touchpad's fractions into whole notches and
 leaving Ctrl/Shift+wheel to the view (review 3); a point dragged past the lane's range
 slides the range with it, the scale held, and moves along the lane by the pointer's
-travel, never to the grid line under it (review 4). The ruler's menu adds on the grid when snap is
-on; *Add a metre change* opens its editor where it is drawn, in view. The lanes' state
+travel, never to the grid line under it (review 4), held by its place in the song, so a
+zoom or a scroll mid-drag keeps it under the pointer (review 5). The ruler's menu adds on the grid when snap is
+on; *Add a metre change* opens its editor under the ruler and the tempo lane, in view,
+its title naming its bar (review 5: out of view it opened elsewhere unnamed, and over the
+chips). A tab or a chip released out of view ends its drag. The grid menu's *Bar* is the
+bar of the metre in force for the arrow keys, a duplicate of notes and a drawn note too
+(review 5). The lanes' state
 belongs to one project.
 
 ### 6. Interchange (amends ADR 0021)
@@ -262,14 +275,19 @@ and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. N
   the song's metre changes, at bar 1 as at a later bar; its clips are sized on the song's
   bar lines through every metre change (`TempoMap::bars_around`, DAWproject lane notes too);
   a song with a tempo track, metre changes or markers and no clip is not "empty": a file
-  opened or dropped on it does not set its tempo by default (review 4).
+  opened or dropped on it does not set its tempo by default (review 4). A ramp longer
+  than 4 096 sixteenths is written in as many runs of sixteenths, each its run's average
+  tempo, so the export stays exact and bounded (review 5).
 - **DAWproject** writes the arrangement's `Markers` (name, colour), `TempoAutomation`
   (`RealPoint`s on the transport's tempo parameter; a ramp `linear`, a held point `hold`)
   and `TimeSignatureAutomation` (`TimeSignaturePoint`s), valid against the official schema,
   and reads them back; an audio clip whose content is in seconds plays its `playStart`
   second at its start through the map (`audio_anchor`, the rule above; review 3) — the
   unwarped audio's own `<Warps>` line is the warp builder's (`dawproject/audio.rs`). A loop is
-  compared with where the clip plays in the content's own unit (review 4).
+  compared with where the clip plays in the content's own unit (review 4). The metre is read
+  before the clips, so notes straight on a lane get a clip on the file's bar lines through
+  its changes (review 5). Tempo points, metres and markers past the song's horizon
+  (`tempo::HORIZON`, a million beats) are left out and said (review 5).
   Times in seconds are placed through the file's own map — its tempo
   points one after another, then every clip, note, marker and metre (review 2) — a ramp
   written in seconds becomes one linear in beats (reported); two points at one time are a
@@ -278,7 +296,8 @@ and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. N
   counted as dropped (nowhere to go). **MIDI export** keeps the markers at and after the
   music's end.
 - **The AI bridge** sees every tempo point, metre change and marker in its context and has
-  a `set_tempo_point` tool (an ordinary, undoable command).
+  a `set_tempo_point` tool (an ordinary, undoable command): refused past the horizon, a
+  point's own ramp kept when the call says nothing of it (review 5).
 
 ### 7. Licences
 
