@@ -271,3 +271,5 @@ Seen failing first: the round's new tests ran against the merged code before any
 Faults added: 15 a 10 s modal loop in the editor's window, 16 an access violation in the
 editor's timer, 17 a 3 s save without pumping; and the gain aborts on activate when
 `CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE` is set (a plug-in that crashes on every load).
+
+Runs after the second fix round (Windows, the machine shared with two builds): `cantus-rt`, `cantus-host`, `cantus-sandbox` 187 passed (2 ignored, as before); `cantus-ui` 1 420 passed and one other area's test failed once under load (`font_fallback_live`: a system font not in time; it passes alone, twice). `cargo clippy --workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL): `tools/wsl/check.sh r29/isolation clippy` clean, and `cantus-rt`/`cantus-sandbox`/`cantus-host` 144 passed there. New shots in `F:\projects\daw-r29\shots\isolation\`: `isolation-{mixer,mixer-menu,insert-selected,instrument-loaded,rack,three-buttons}-night-{en,es}-1x.png`.
