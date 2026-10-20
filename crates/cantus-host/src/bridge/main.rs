@@ -22,7 +22,7 @@
 
 use super::audio::{BridgeAudio, Offline, Status};
 use super::proto::{Answer, Call, Described, WireNotice};
-use super::sandbox::{Inbox, Sandbox, Sandboxes};
+use super::sandbox::{Inbox, Pending, Sandbox, Sandboxes, Waited};
 use super::slot::Slot;
 use crate::backend::{
     AudioThread, Blame, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo,
@@ -39,9 +39,6 @@ const REFRESH_AFTER: Duration = Duration::from_millis(500);
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
 /// How long after a failed background state it is asked for again.
 const RETRY_AFTER: Duration = Duration::from_secs(2);
-/// A helper whose heartbeat is older than this is in trouble (hung, or about to be found
-/// so): saving answers with the last-good state at once instead of waiting (review #51).
-const TROUBLE: Duration = Duration::from_secs(1);
 
 /// The main half.
 pub struct BridgeMain {
@@ -63,6 +60,8 @@ pub struct BridgeMain {
     /// Something changed since the last-good state was taken, and when it first did.
     dirty_since: Option<Instant>,
     asked_state: bool,
+    /// A restart asked for and not answered yet.
+    restart_pending: Option<Pending>,
     /// Background states answered to a request before this id are older than the last
     /// state loaded or saved, and dropped (review #7, #50).
     state_after: u64,
@@ -112,6 +111,7 @@ impl BridgeMain {
             last_good: (!first_state.is_empty()).then_some(first_state),
             dirty_since: None,
             asked_state: false,
+            restart_pending: None,
             state_after: 0,
             last_refresh: Instant::now(),
             told_crash: false,
@@ -174,10 +174,13 @@ impl BridgeMain {
 
     /// Whether Cantus already knows the helper is in trouble: a job unfinished, or no
     /// heartbeat for a while.
+    /// Whether this instance is in trouble — its own job unfinished, its own request
+    /// overdue, or its helper hung — not merely a neighbour busy ahead of it (review #2,
+    /// #24).
     fn in_trouble(&self) -> bool {
         // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
         let x = unsafe { &*self.slot.exchange() };
-        self.status.unfinished_for(x).is_some() || self.sandbox.silent_for() > TROUBLE
+        self.status.unfinished_for(x).is_some() || self.sandbox.troubled(self.instance)
     }
 
     fn call(
@@ -294,6 +297,9 @@ impl MainThread for BridgeMain {
                     return Ok(blob);
                 }
                 Ok(_) => {}
+                // Alive but not answering in time (its dialog is open, a slow call is ahead):
+                // what it said last, never a frozen save (review #4, #44).
+                Err(HostError::Busy(_)) if self.last_good.is_some() => {}
                 Err(e) if !self.gone() => return Err(e),
                 Err(_) => {}
             }
@@ -434,15 +440,31 @@ impl MainThread for BridgeMain {
         out
     }
 
+    /// A restart the helper holds for its main loop, or that takes longer than its limit,
+    /// is not waited for: `Ok(None)` ("not yet"), and the next call picks its answer up —
+    /// one request, never a second, and never a frozen interface (review #11).
     fn restart(&mut self) -> Result<Option<Box<dyn AudioThread>>, HostError> {
         let limit = self.pool.limits().call;
-        match self.call(
-            Call::Restart {
-                instance: self.instance,
-            },
-            &[],
-            limit,
-        )? {
+        let pending = match self.restart_pending.take() {
+            Some(p) => p,
+            None => self.sandbox.post_call(
+                Some(self.instance),
+                Call::Restart {
+                    instance: self.instance,
+                },
+                &[],
+                limit,
+            )?,
+        };
+        let until = Instant::now() + limit;
+        let answered = match self.sandbox.wait_call(&pending, until) {
+            Waited::Answered(r) => r?,
+            Waited::Pending => {
+                self.restart_pending = Some(pending);
+                return Ok(None);
+            }
+        };
+        match answered {
             (Answer::Restarted(None), _) => Ok(None),
             (Answer::Restarted(Some(d)), _) => {
                 self.params = d.params;

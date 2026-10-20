@@ -50,10 +50,6 @@ pub const HANG_LIMIT: Duration = Duration::from_secs(2);
 /// hung: far beyond real time, for a plug-in that is merely slow.
 pub const OFFLINE_HANG_LIMIT: Duration = Duration::from_secs(30);
 
-/// A request whose helper is alive (its heartbeat comes) but that is not answered within
-/// this many times its own limit is given up, the helper ended.
-pub const ALIVE_STRETCH: u32 = 6;
-
 /// The size of a helper's lobby region (the words its processing threads share).
 pub const LOBBY_BYTES: usize = 4096;
 
@@ -212,15 +208,78 @@ struct Registered {
     closer: Closer,
 }
 
-/// A request under way: when it went, its time limit, the instance it names.
+/// A request under way: when it went, when the helper started it (`Message::Started`),
+/// whether the helper holds it for its main loop (`Message::Deferred`), its time limit,
+/// the instance it names.
 #[derive(Clone, Copy, Debug)]
 struct Flight {
     at: Instant,
+    started: Option<Instant>,
+    deferred: bool,
     limit: Duration,
     instance: Option<u32>,
 }
 
 pub use crate::backend::Blame;
+
+/// What the helper's crash handler writes when the faulting thread was calling into no
+/// instance (a plug-in's own thread, the main loop between calls): nobody to blame.
+pub const OUTSIDE: u32 = u32::MAX;
+
+/// Who a helper's end is laid on (review #38, #45, #19, #20): a culprit Cantus already
+/// knows (a job or a call of its that hung) alone; else the instance the crash handler
+/// named; else — no handler ran, as for a fail-fast abort on Windows — the one candidate
+/// among the instance the main thread was calling into and those whose job was running,
+/// or the only instance; more than one candidate, or the handler's *outside*, is nobody's
+/// (`Blame::Unknown`): never an innocent neighbour remembered as a crasher.
+pub(crate) fn culprits(
+    known: Option<u32>,
+    crash_at: u32,
+    main_at: u32,
+    running: &[u32],
+    instances: &[u32],
+) -> HashSet<u32> {
+    if let Some(c) = known {
+        return HashSet::from([c]);
+    }
+    if crash_at == OUTSIDE {
+        return HashSet::new();
+    }
+    if crash_at != 0 && instances.contains(&crash_at) {
+        return HashSet::from([crash_at]);
+    }
+    let mut candidates: HashSet<u32> = running.iter().copied().collect();
+    if main_at != 0 && main_at != OUTSIDE && instances.contains(&main_at) {
+        candidates.insert(main_at);
+    }
+    if candidates.len() == 1 {
+        return candidates;
+    }
+    if candidates.is_empty() && instances.len() == 1 {
+        return instances.iter().copied().collect();
+    }
+    HashSet::new()
+}
+
+/// Whether the gap since the last judgement (milliseconds) is longer than the silence
+/// limit: Cantus itself was not running (review #49).
+fn paused(last_ms: u64, now_ms: u64, silence: Duration) -> bool {
+    last_ms != 0 && now_ms.saturating_sub(last_ms) > silence.as_millis() as u64
+}
+
+/// A call posted and not yet answered ([`Sandbox::post_call`]).
+pub(crate) struct Pending {
+    id: u64,
+    instance: Option<u32>,
+    rx: mpsc::Receiver<Answered>,
+}
+
+/// How a wait for a [`Pending`] call ended.
+pub(crate) enum Waited {
+    Answered(Result<(Answer, Vec<u8>), HostError>),
+    /// Not yet: the helper lives (held for its main loop, or busy ahead of it).
+    Pending,
+}
 
 /// One helper process.
 pub struct Sandbox {
@@ -244,6 +303,8 @@ pub struct Sandbox {
     alive_ms: AtomicU64,
     /// Requests under way (waited for or not), by id.
     inflight: Mutex<HashMap<u64, Flight>>,
+    /// Milliseconds since `started` of the last judgement of its life (a pause guard).
+    judged_ms: AtomicU64,
     /// The instances its end is laid on, once it ended; empty when nothing said which.
     blamed: Mutex<Option<HashSet<u32>>>,
     pool: Weak<Sandboxes>,
@@ -316,6 +377,7 @@ impl Sandbox {
             started: Instant::now(),
             alive_ms: AtomicU64::new(0),
             inflight: Mutex::new(HashMap::new()),
+            judged_ms: AtomicU64::new(0),
             blamed: Mutex::new(None),
             pool: Arc::downgrade(pool),
         });
@@ -388,7 +450,19 @@ impl Sandbox {
                 sandbox.request_kill();
                 Err(HostError::Load("the plug-in sandbox did not greet".into()))
             }
-            Err(e) => Err(e),
+            // Ended (or never answered) before its handshake: it could not start — another
+            // build's helper, a missing library. A load failure, never a plug-in's crash
+            // (review #40).
+            Err(e) => {
+                sandbox.request_kill();
+                let why = match e {
+                    HostError::Crashed(w) | HostError::Busy(w) => w,
+                    e => e.to_string(),
+                };
+                Err(HostError::Load(format!(
+                    "the plug-in sandbox could not start: {why}"
+                )))
+            }
         }
     }
 
@@ -450,30 +524,21 @@ impl Sandbox {
     }
 
     fn find_culprits(&self, culprit: Option<u32>) -> HashSet<u32> {
-        let mut out = HashSet::new();
-        out.extend(culprit);
         let instances = lock(&self.instances);
-        // The crash handler named the faulting thread's plug-in: that one alone.
-        let crashed = self.lobby.crash_at();
-        if culprit.is_none() && crashed != 0 && instances.contains_key(&crashed) {
-            out.insert(crashed);
-            return out;
-        }
-        let at = self.lobby.main_at();
-        if at != 0 && instances.contains_key(&at) {
-            out.insert(at);
-        }
-        for (n, r) in instances.iter() {
+        let running: Vec<u32> = instances
+            .iter()
             // SAFETY: the exchange is in the slot's mapping, which `r` keeps alive.
-            if unsafe { &*r.slot.exchange() }.running() {
-                out.insert(*n);
-            }
-        }
-        // One plug-in in it: its own end, whatever it was.
-        if out.is_empty() && instances.len() == 1 {
-            out.extend(instances.keys().copied());
-        }
-        out
+            .filter(|(_, r)| unsafe { &*r.slot.exchange() }.running())
+            .map(|(n, _)| *n)
+            .collect();
+        let all: Vec<u32> = instances.keys().copied().collect();
+        culprits(
+            culprit,
+            self.lobby.crash_at(),
+            self.lobby.main_at(),
+            &running,
+            &all,
+        )
     }
 
     /// Who this helper's end is laid on, from `instance`'s side.
@@ -511,47 +576,58 @@ impl Sandbox {
         self.pool.upgrade().map(|p| p.limits()).unwrap_or_default()
     }
 
-    /// Whether the helper is hung, and why: its main thread shows no life past the silence
-    /// limit while no request is under way within its own limit — or a request has gone
-    /// unanswered far past its limit even though the helper lives (review #0, #41, #48).
+    /// Whether the helper is hung, and why. A helper that shows life is never hung —
+    /// whatever waits on it, a plug-in's dialog or a call held for its main loop (review
+    /// #36, #44). A silent one is hung unless the request it is serving now (the last it
+    /// started) is still within its own limit — a request queued behind it is not judged
+    /// until the helper starts it (#3, #37).
     fn hung(&self) -> Option<String> {
         let limits = self.limits();
-        let silent = self.silent_for() > limits.silence;
-        let flights = lock(&self.inflight);
-        let mut oldest_over: Option<Flight> = None;
-        for f in flights.values() {
-            let took = f.at.elapsed();
-            if took > f.limit * ALIVE_STRETCH {
-                return Some(format!(
-                    "the plug-in sandbox did not answer in {} s",
-                    took.as_secs()
-                ));
-            }
-            if took > f.limit && oldest_over.is_none_or(|o| f.at < o.at) {
-                oldest_over = Some(*f);
-            }
-        }
-        if !silent {
+        if self.silent_for() <= limits.silence {
             return None;
         }
-        if flights.is_empty() {
-            return Some("the plug-in sandbox stopped answering".into());
+        match self.serving() {
+            Some(f) => {
+                let took = f.started.map_or(Duration::ZERO, |s| s.elapsed());
+                (took > f.limit).then(|| {
+                    format!(
+                        "the plug-in sandbox did not answer in {} s",
+                        f.limit.as_secs().max(1)
+                    )
+                })
+            }
+            None => Some("the plug-in sandbox stopped answering".into()),
         }
-        oldest_over.map(|f| {
-            format!(
-                "the plug-in sandbox did not answer in {} s",
-                f.limit.as_secs().max(1)
-            )
-        })
     }
 
-    /// The instance the oldest overdue request named (what a hang is laid on).
-    fn hung_on(&self) -> Option<u32> {
+    /// Whether `instance` itself is in trouble here: the helper is hung, or a request of
+    /// this instance's has run past its limit since the helper started it. A neighbour
+    /// that is merely slow is not this one's trouble (review #2, #24).
+    pub(crate) fn troubled(&self, instance: u32) -> bool {
+        self.hung().is_some()
+            || lock(&self.inflight).values().any(|f| {
+                f.instance == Some(instance) && f.started.is_some_and(|s| s.elapsed() > f.limit)
+            })
+    }
+
+    /// The request the helper is serving now: the last one it started and has not
+    /// answered (a held one is not being served).
+    fn serving(&self) -> Option<Flight> {
         lock(&self.inflight)
             .values()
-            .filter(|f| f.at.elapsed() > f.limit)
-            .min_by_key(|f| f.at)
-            .and_then(|f| f.instance)
+            .filter(|f| f.started.is_some() && !f.deferred)
+            .max_by_key(|f| f.started)
+            .copied()
+    }
+
+    /// What a hang of the main thread is laid on: the instance it is calling into, else
+    /// the one whose request it is serving.
+    fn hung_on(&self) -> Option<u32> {
+        let at = self.lobby.main_at();
+        if at != 0 && at != OUTSIDE {
+            return Some(at);
+        }
+        self.serving().and_then(|f| f.instance)
     }
 
     fn fly(&self, id: u64, limit: Duration, instance: Option<u32>) {
@@ -559,10 +635,30 @@ impl Sandbox {
             id,
             Flight {
                 at: Instant::now(),
+                started: None,
+                deferred: false,
                 limit,
                 instance,
             },
         );
+    }
+
+    /// Cantus (or the whole system) was paused — a debugger, a laptop asleep — for longer
+    /// than the silence limit since the last judgement: the clocks start again from now,
+    /// instead of every helper being taken for hung at once (review #49). `true` when so.
+    fn rebased_after_a_pause(&self) -> bool {
+        let now = (self.started.elapsed().as_millis() as u64).max(1);
+        let last = self.judged_ms.swap(now, Ordering::AcqRel);
+        if !paused(last, now, self.limits().silence) {
+            return false;
+        }
+        self.alive_ms.store(now, Ordering::Release);
+        let t = Instant::now();
+        for f in lock(&self.inflight).values_mut() {
+            f.at = t;
+            f.started = f.started.map(|_| t);
+        }
+        true
     }
 
     fn route(&self, msg: Message, blob: Vec<u8>) {
@@ -570,6 +666,17 @@ impl Sandbox {
             Message::Alive => {
                 let ms = self.started.elapsed().as_millis() as u64;
                 self.alive_ms.store(ms, Ordering::Release);
+            }
+            Message::Started { id } => {
+                if let Some(f) = lock(&self.inflight).get_mut(&id) {
+                    f.started = Some(Instant::now());
+                    f.deferred = false;
+                }
+            }
+            Message::Deferred { id } => {
+                if let Some(f) = lock(&self.inflight).get_mut(&id) {
+                    f.deferred = true;
+                }
             }
             Message::News {
                 instance,
@@ -666,9 +773,12 @@ impl Sandbox {
         )
     }
 
-    /// A call that waits for its answer, at most `timeout`. A helper that does not answer
-    /// in time is taken for hung and killed. `instance` names the instance whose news the
-    /// answer carries.
+    /// A call that waits for its answer, at most `timeout` from now. A helper that is hung
+    /// is killed; one that lives but has not answered — a plug-in's dialog holds the call
+    /// for its main loop, a slow call is ahead of it — is not: the call gives up with
+    /// `HostError::Busy` (its late answer is dropped), and Cantus's interface never waits
+    /// past the call's own limit (review #4, #36, #44). `instance` names the instance whose
+    /// news the answer carries.
     pub(crate) fn call(
         &self,
         instance: Option<u32>,
@@ -676,39 +786,81 @@ impl Sandbox {
         blob: &[u8],
         timeout: Duration,
     ) -> Result<(Answer, Vec<u8>), HostError> {
+        let pending = self.post_call(instance, call, blob, timeout)?;
+        match self.wait_call(&pending, Instant::now() + timeout) {
+            Waited::Answered(r) => r,
+            Waited::Pending => {
+                self.drop_call(pending);
+                Err(HostError::Busy(format!(
+                    "it did not answer in {} s",
+                    timeout.as_secs().max(1)
+                )))
+            }
+        }
+    }
+
+    /// Posts a call whose answer is waited for with [`Self::wait_call`].
+    pub(crate) fn post_call(
+        &self,
+        instance: Option<u32>,
+        call: Call,
+        blob: &[u8],
+        limit: Duration,
+    ) -> Result<Pending, HostError> {
         if self.is_dead() {
             return Err(self.gone());
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (tx, rx) = mpsc::channel();
         lock(&self.waiters).insert(id, tx);
-        self.fly(id, timeout, instance);
+        self.fly(id, limit, instance);
         if !self.post(Self::frame(id, &call, blob)) {
+            lock(&self.waiters).remove(&id);
             lock(&self.inflight).remove(&id);
             return Err(self.gone());
         }
-        // Waited for in slices: a helper that lives (its heartbeat comes, as it does inside
-        // a plug-in's modal loop) is given longer than the limit; one silent past it is hung.
+        Ok(Pending { id, instance, rx })
+    }
+
+    /// Waits for a posted call until `until` (in slices: a hung helper is killed on the
+    /// way). A call the helper holds for its main loop is not waited for.
+    pub(crate) fn wait_call(&self, p: &Pending, until: Instant) -> Waited {
         let slice = Duration::from_millis(50);
         loop {
-            match rx.recv_timeout(slice) {
-                Ok((Ok(answer), blob)) => return Ok((answer, blob)),
-                Ok((Err(f), _)) => return Err(failure(f)),
+            let left = until.saturating_duration_since(Instant::now());
+            match p.rx.recv_timeout(left.min(slice)) {
+                Ok((Ok(answer), blob)) => return Waited::Answered(Ok((answer, blob))),
+                Ok((Err(f), _)) => return Waited::Answered(Err(failure(f))),
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    lock(&self.inflight).remove(&id);
-                    return Err(self.gone());
+                    lock(&self.inflight).remove(&p.id);
+                    return Waited::Answered(Err(self.gone()));
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
-                    if let Some(why) = self.hung() {
-                        lock(&self.waiters).remove(&id);
-                        let culprit = self.hung_on().or(instance);
-                        lock(&self.inflight).remove(&id);
-                        self.kill_blaming(&why, culprit);
-                        return Err(self.gone());
+                    if !self.rebased_after_a_pause() {
+                        if let Some(why) = self.hung() {
+                            lock(&self.waiters).remove(&p.id);
+                            let culprit = self.hung_on().or(p.instance);
+                            lock(&self.inflight).remove(&p.id);
+                            self.kill_blaming(&why, culprit);
+                            return Waited::Answered(Err(self.gone()));
+                        }
+                    }
+                    let held = lock(&self.inflight)
+                        .get(&p.id)
+                        .is_some_and(|f| f.deferred);
+                    if held || Instant::now() >= until {
+                        return Waited::Pending;
                     }
                 }
             }
         }
+    }
+
+    /// A posted call no longer waited for: its answer, when it comes, is dropped (the
+    /// request stays under way: the helper still serves it).
+    pub(crate) fn drop_call(&self, p: Pending) {
+        lock(&self.waiters).remove(&p.id);
+        lock(&self.background).insert(p.id, Background::Ignore);
     }
 
     /// A call whose answer is not waited for.
@@ -820,7 +972,7 @@ impl Sandbox {
     /// The heartbeat: a helper whose main thread shows no life past the silence limit,
     /// with no request under way within its own limit, is taken for hung ([`Self::hung`]).
     pub(crate) fn check_alive(&self) {
-        if self.is_dead() {
+        if self.is_dead() || self.rebased_after_a_pause() {
             return;
         }
         if let Some(why) = self.hung() {
@@ -1108,5 +1260,43 @@ mod job {
             // SAFETY: our own handle, closed once; closing it ends the helpers.
             unsafe { CloseHandle(self.0) };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn set(v: &[u32]) -> HashSet<u32> {
+        v.iter().copied().collect()
+    }
+
+    /// Who an end is laid on (review #0, #38, #45, #20, #39).
+    #[test]
+    fn an_end_is_laid_on_one_plugin_or_on_nobody() {
+        let all = [1, 2, 3];
+        // A known culprit (its job or call hung) alone, whoever else was busy.
+        assert_eq!(culprits(Some(1), 0, 3, &[2], &all), set(&[1]));
+        // The crash handler's word alone.
+        assert_eq!(culprits(None, 2, 3, &[1], &all), set(&[2]));
+        // The handler ran on a thread of no instance: nobody.
+        assert_eq!(culprits(None, OUTSIDE, 3, &[1], &all), set(&[]));
+        // No handler: the one candidate...
+        assert_eq!(culprits(None, 0, 0, &[2], &all), set(&[2]));
+        assert_eq!(culprits(None, 0, 3, &[], &all), set(&[3]));
+        // ...or nobody when several were busy (a fail-fast abort under the pool).
+        assert_eq!(culprits(None, 0, 0, &[1, 2], &all), set(&[]));
+        assert_eq!(culprits(None, 0, 3, &[1], &all), set(&[]));
+        // One plug-in in it: its own end.
+        assert_eq!(culprits(None, 0, 0, &[], &[7]), set(&[7]));
+    }
+
+    /// A gap longer than the silence limit since the last judgement is Cantus's own pause.
+    #[test]
+    fn a_pause_of_cantus_is_not_the_helpers_silence() {
+        let s = Duration::from_secs(5);
+        assert!(!paused(0, 60_000, s), "the first judgement");
+        assert!(!paused(10_000, 14_000, s));
+        assert!(paused(10_000, 70_000, s));
     }
 }

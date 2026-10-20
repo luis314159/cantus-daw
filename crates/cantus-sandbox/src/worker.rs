@@ -102,6 +102,7 @@ pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
         cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 },
     );
     cantus_rt::memory::prefault_stack();
+    crate::platform::blame::alt_stack();
     let mut params = Vec::with_capacity(MAX_PARAMS);
     let mut notes = Vec::with_capacity(MAX_NOTES);
     let mut out = Box::new(ParamOut::new());

@@ -141,14 +141,50 @@ pub struct Offline {
 struct Carry {
     /// The last value of each parameter changed meanwhile, at offset 0.
     params: Vec<ParamChange>,
-    /// Note-offs, chokes, expressions and controllers, at offset 0 (note-ons are dropped:
-    /// a note late by a block or more is not played).
+    /// Note-offs and chokes, and the last value of each controller and expression, at
+    /// offset 0 (note-ons are dropped: a note late by a block or more is not played).
     notes: Vec<NoteEvent>,
     /// A reset asked for meanwhile (or forced, when the carry overflowed).
     reset: bool,
+    /// Changes that found no room (more distinct parameters than the slot carries).
+    lost: u64,
     /// This block's own changes and notes after the carried ones (made once).
     merged_params: Vec<ParamChange>,
     merged_notes: Vec<NoteEvent>,
+}
+
+/// What a carried event stands for: a controller or an expression is replaced by a later
+/// one of the same kind, never piled up (review #9, #16).
+fn same_kind(a: &NoteEvent, b: &NoteEvent) -> bool {
+    match (a.kind, b.kind) {
+        (
+            NoteKind::Midi {
+                status: sa,
+                data1: da,
+                ..
+            },
+            NoteKind::Midi {
+                status: sb,
+                data1: db,
+                ..
+            },
+        ) => {
+            a.channel == b.channel
+                && sa & 0xF0 == sb & 0xF0
+                // A controller is one per number; pitch bend and pressure one per channel.
+                && (sa & 0xF0 != 0xB0 || da == db)
+        }
+        (
+            NoteKind::Expression { expression: ea, .. },
+            NoteKind::Expression { expression: eb, .. },
+        ) => ea == eb && a.note_id == b.note_id && a.key == b.key && a.channel == b.channel,
+        _ => false,
+    }
+}
+
+/// A note-off or a choke: what must never be lost (a voice would ring on).
+fn ends_a_note(e: &NoteEvent) -> bool {
+    matches!(e.kind, NoteKind::Off { .. } | NoteKind::Choke)
 }
 
 impl Carry {
@@ -157,17 +193,19 @@ impl Carry {
             params: Vec::with_capacity(MAX_PARAMS),
             notes: Vec::with_capacity(MAX_NOTES),
             reset: false,
+            lost: 0,
             merged_params: Vec::with_capacity(MAX_PARAMS),
             merged_notes: Vec::with_capacity(MAX_NOTES),
         }
     }
 
     fn is_empty(&self) -> bool {
-        self.params.is_empty() && self.notes.is_empty()
+        self.params.is_empty() && self.notes.is_empty() && self.lost == 0
     }
 
-    /// Keeps a dry block's changes and notes. Never grows a buffer: when one is full the
-    /// plug-in is reset instead (no voice can stay stuck).
+    /// Keeps a dry block's changes and notes. Never grows a buffer: when the notes do not
+    /// fit, the plug-in is reset instead (no voice can stay stuck) and the carried notes,
+    /// which a reset supersedes, go.
     fn keep(&mut self, params: &[ParamChange], notes: &[NoteEvent]) {
         for p in params {
             if let Some(k) = self.params.iter_mut().find(|k| k.id == p.id) {
@@ -178,36 +216,62 @@ impl Carry {
                     id: p.id,
                     value: p.value,
                 });
+            } else {
+                self.lost += 1;
             }
         }
         for n in notes {
-            if matches!(n.kind, NoteKind::On { .. }) {
+            if matches!(n.kind, NoteKind::On { .. }) || self.reset {
                 continue;
             }
-            if self.notes.len() < self.notes.capacity() {
-                self.notes.push(NoteEvent { offset: 0, ..*n });
+            let e = NoteEvent { offset: 0, ..*n };
+            if let Some(k) = self.notes.iter_mut().find(|k| same_kind(k, &e)) {
+                *k = e;
+            } else if self.notes.len() < self.notes.capacity() {
+                self.notes.push(e);
             } else {
                 self.reset = true;
+                self.notes.clear();
             }
         }
     }
 
-    /// The carried changes and notes, then this block's: what the next job takes.
-    fn merge(&mut self, params: &[ParamChange], notes: &[NoteEvent]) {
+    /// The carried changes and notes, then this block's: what the next job takes. This
+    /// block's own events come first in priority — the carried note-offs and chokes next,
+    /// the carried controllers and expressions in what room is left (review #8, #9, #23,
+    /// #41). Returns what found no room (counted as lost), and whether a carried note-off
+    /// had none (the plug-in is then reset first).
+    fn merge(&mut self, params: &[ParamChange], notes: &[NoteEvent]) -> (u64, bool) {
         self.merged_params.clear();
         self.merged_notes.clear();
+        let mut lost = std::mem::take(&mut self.lost);
         for p in self.params.iter().chain(params) {
             if self.merged_params.len() < self.merged_params.capacity() {
                 self.merged_params.push(*p);
+            } else {
+                lost += 1;
             }
         }
-        for n in self.notes.iter().chain(notes) {
-            if self.merged_notes.len() < self.merged_notes.capacity() {
-                self.merged_notes.push(*n);
+        let cap = self.merged_notes.capacity();
+        let own = notes.len().min(cap);
+        lost += (notes.len() - own) as u64;
+        let mut room = cap - own;
+        let mut reset = false;
+        // Carried events first in time (offset 0): the note-offs, then the rest.
+        for pass in [true, false] {
+            for n in self.notes.iter().filter(|n| ends_a_note(n) == pass) {
+                if room > 0 {
+                    self.merged_notes.push(*n);
+                    room -= 1;
+                } else if pass {
+                    reset = true;
+                }
             }
         }
+        self.merged_notes.extend_from_slice(&notes[..own]);
         self.params.clear();
         self.notes.clear();
+        (lost, reset)
     }
 }
 
@@ -229,6 +293,9 @@ pub struct BridgeAudio {
     /// This block's delayed input, per channel (the largest block's length).
     scratch: [Box<[f32]>; 2],
     carry: Carry,
+    /// What a late job reported (its gestures and values), once it finished: handed to the
+    /// next block's caller (made once; review #12, #42, #46).
+    late_out: Box<ParamOut>,
     /// Told when this half is dropped (on the main thread), so the helper drops its own.
     on_drop: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -269,6 +336,7 @@ impl BridgeAudio {
                 vec![0.0; longest].into_boxed_slice(),
             ],
             carry: Carry::new(),
+            late_out: Box::new(ParamOut::new()),
             on_drop: Some(on_drop),
         }
     }
@@ -321,6 +389,9 @@ impl BridgeAudio {
             if !self.caller.finished(n) {
                 return false;
             }
+            // Its audio is too late to play; what the plug-in reported in it is not.
+            // SAFETY: the late job finished and no other is in flight: the area is ours.
+            unsafe { self.slot.take_events(&mut self.late_out) };
             self.status.clear();
         }
         if self.carry.reset {
@@ -420,10 +491,31 @@ impl AudioThread for BridgeAudio {
             self.play_dry(left, right);
             return;
         }
+        // A late job's own report first, in its order.
+        for e in self.late_out.events() {
+            out.push(*e);
+        }
+        out.dropped += std::mem::take(&mut self.late_out.dropped);
+        out.lost_in += std::mem::take(&mut self.late_out.lost_in);
+        self.late_out.clear();
         let flush = cantus_rt::denormal::flushing();
         let carried = !self.carry.is_empty();
         if carried {
-            self.carry.merge(params, notes);
+            let (lost, reset_first) = self.carry.merge(params, notes);
+            out.lost_in += lost;
+            if reset_first {
+                // A note-off the buffer had no room for: the plug-in is reset first, so no
+                // voice rings on.
+                // SAFETY: no job is in flight (`ready`): the slot's job area is ours.
+                unsafe {
+                    self.slot
+                        .put_job(op::RESET, &[], &[], None, None, &[], &[], false);
+                }
+                if !self.run(0) {
+                    self.play_dry(left, right);
+                    return;
+                }
+            }
         }
         let (params, notes): (&[ParamChange], &[NoteEvent]) = if carried {
             (&self.carry.merged_params, &self.carry.merged_notes)

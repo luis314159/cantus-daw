@@ -50,23 +50,6 @@ fn out_lock(out: &Out) -> MutexGuard<'_, BufWriter<std::fs::File>> {
     out.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Says, while it lives, which instance the main thread is calling into.
-struct At(&'static AtomicU32);
-
-impl At {
-    fn enter(word: &'static AtomicU32, instance: u32) -> At {
-        word.store(instance, Ordering::Release);
-        crate::platform::blame::set_current(instance);
-        At(word)
-    }
-}
-
-impl Drop for At {
-    fn drop(&mut self) {
-        self.0.store(0, Ordering::Release);
-        crate::platform::blame::set_current(0);
-    }
-}
 
 struct Instance {
     main: Box<dyn MainThread>,
@@ -84,6 +67,9 @@ impl Instance {
     /// main half. It left the threads' table before.
     fn finish(mut self) {
         if let Some(w) = self.window.take() {
+            if let Some(h) = w.handle() {
+                crate::platform::blame::forget_window(h);
+            }
             self.main.close_editor();
             #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
             drop(w);
@@ -157,6 +143,9 @@ impl Instance {
 
     fn close_window(&mut self) {
         if let Some(w) = self.window.take() {
+            if let Some(h) = w.handle() {
+                crate::platform::blame::forget_window(h);
+            }
             self.main.close_editor();
             #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
             drop(w);
@@ -182,14 +171,13 @@ fn failure(e: HostError) -> Failure {
         HostError::Unsupported(s) => Failure::Unsupported(s.to_string()),
         HostError::State(s) => Failure::State(s),
         HostError::Editor(s) => Failure::Editor(s),
-        HostError::Crashed(s) => Failure::Load(s),
+        HostError::Crashed(s) | HostError::Busy(s) => Failure::Load(s),
+        HostError::Ended { why, .. } => Failure::Load(why),
     }
 }
 
 struct Server {
     out: Out,
-    /// The lobby's word naming the instance the main thread is calling into.
-    main_at: &'static AtomicU32,
     instances: HashMap<u32, Instance>,
     /// What the processing threads serve, their lobby's bell, their stop.
     table: Arc<Table>,
@@ -253,6 +241,8 @@ impl Server {
         };
         let described = inst.described();
         self.instances.insert(instance, inst);
+        // A plug-in may have put its own crash filter in place of ours: ours goes back first.
+        crate::platform::blame::reinstall();
         Ok(Answer::Loaded(described))
     }
 
@@ -277,7 +267,7 @@ impl Server {
         if let Some(i) = self.instances.remove(&instance) {
             let rt = i.rt.clone();
             self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
-            let _at = At::enter(self.main_at, instance);
+            let _at = crate::platform::blame::calling(instance);
             i.finish();
         }
     }
@@ -285,7 +275,9 @@ impl Server {
     /// One call; `None` for Quit.
     fn handle(&mut self, req: Request, blob: Vec<u8>) -> Option<()> {
         let id = req.id;
-        let _at = instance_of(&req.call).map(|n| At::enter(self.main_at, n));
+        // Its time limit runs from now (review #37).
+        self.send(&Message::Started { id }, &[]);
+        let _at = instance_of(&req.call).map(crate::platform::blame::calling);
         let mut reply_blob = Vec::new();
         let mut named = None;
         let result = match req.call {
@@ -358,7 +350,7 @@ impl Server {
     fn tick(&mut self) {
         let mut news = Vec::new();
         for (n, inst) in &mut self.instances {
-            let _at = At::enter(self.main_at, *n);
+            let _at = crate::platform::blame::calling(*n);
             let mut out = ParamOut::new();
             inst.main.flush(&[], &mut out);
             let flushed: Vec<WireEvent> = out.events().iter().map(WireEvent::of).collect();
@@ -406,7 +398,7 @@ fn instance_of(call: &Call) -> Option<u32> {
 }
 
 /// Calls that end or replace an instance (or the process): never served from a loop
-/// nested inside a plug-in's own code, which may be that instance's.
+/// nested inside a plug-in's own code, when that may be the instance's.
 fn waits_for_main_loop(call: &Call) -> bool {
     matches!(
         call,
@@ -416,6 +408,23 @@ fn waits_for_main_loop(call: &Call) -> bool {
             | Call::CloseEditor { .. }
             | Call::Quit
     )
+}
+
+/// Whether a call waits for the main loop, from a loop nested in `inside`'s code (0: not
+/// known whose): Quit always; a call that ends or replaces the instance whose code runs
+/// the loop (any, when not known); and any later call on an instance that already has one
+/// waiting, in its order. Calls on the other instances are served (review #4, #17, #44).
+fn must_wait(call: &Call, inside: u32, waiting: &VecDeque<(Request, Vec<u8>)>) -> bool {
+    if matches!(call, Call::Quit) {
+        return true;
+    }
+    let named = instance_of(call);
+    if let Some(n) = named {
+        if waiting.iter().any(|(r, _)| instance_of(&r.call) == Some(n)) {
+            return true;
+        }
+    }
+    waits_for_main_loop(call) && (inside == 0 || named == Some(inside))
 }
 
 /// The main thread's state: the server, the requests, those kept for the main loop.
@@ -441,7 +450,10 @@ impl Here {
         loop {
             match self.rx.try_recv() {
                 Ok(Some((req, blob))) => {
-                    if nested && (!self.deferred.is_empty() || waits_for_main_loop(&req.call)) {
+                    let inside = crate::platform::blame::current();
+                    if nested && must_wait(&req.call, inside, &self.deferred) {
+                        // Held on purpose: not late while this process lives.
+                        self.server.send(&Message::Deferred { id: req.id }, &[]);
                         self.deferred.push_back((req, blob));
                         continue;
                     }
@@ -546,7 +558,7 @@ fn on_instance(
             inst.ids = params.iter().map(|p| p.id).collect();
             Ok(Answer::Params(params))
         }
-        Call::OpenEditor { title, .. } => {
+        Call::OpenEditor { title, instance } => {
             if let Some(w) = inst.window.as_ref() {
                 w.focus();
                 return Ok(Answer::Editor {
@@ -556,6 +568,11 @@ fn on_instance(
             }
             let w = PluginWindow::open(&title, None, inst.main.as_mut()).map_err(failure)?;
             w.focus();
+            // Its messages are this instance's: a crash or a modal loop in them is laid on
+            // it (review #1, #44).
+            if let Some(h) = w.handle() {
+                crate::platform::blame::own_window(h, instance);
+            }
             inst.window = Some(w);
             Ok(Answer::Editor {
                 width: 0,
@@ -609,7 +626,7 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
             .as_ptr()
             .add(cantus_host::bridge::sandbox::CRASH_AT) as *const AtomicU32)
     };
-    crate::platform::blame::install(crash_at);
+    crate::platform::blame::install(crash_at, main_at);
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
     let wake = Wake::new();
     let (tx, rx) = mpsc::channel::<Option<(Request, Vec<u8>)>>();
@@ -645,7 +662,6 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
     }
     let server = Server {
         out,
-        main_at,
         instances: HashMap::new(),
         table: Arc::new(Table::default()),
         bell: Arc::new(bell),

@@ -225,6 +225,8 @@ pub struct PluginHost {
     scan_job: Option<mpsc::Receiver<(PluginDb, ScanReport)>>,
     /// Instances loaded for an offline render, kept until it has finished.
     render_mains: Vec<Box<dyn MainThread>>,
+    /// Plug-ins the running render could not load (review #6, #47).
+    render_lost: Vec<iso::RenderFailure>,
     /// The application's main window: plug-in windows are owned by it.
     pub owner_window: Option<raw_window_handle::RawWindowHandle>,
     /// Hosted instruments (ADR 0028), by track.
@@ -352,6 +354,7 @@ impl PluginHost {
             missing: HashMap::new(),
             scan_job: None,
             render_mains: Vec::new(),
+            render_lost: Vec::new(),
             owner_window: None,
             instruments: HashMap::new(),
             inst_parked: HashMap::new(),
@@ -708,7 +711,7 @@ impl PluginHost {
         if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
-                self.count_crash(&info, Blame::This, None);
+                self.count_crash(&info, failed.blame, None);
             }
             HostNotice::PluginCrashed {
                 effect,
@@ -1230,6 +1233,7 @@ impl PluginHost {
     /// [`Self::render_failures`] first).
     pub fn finish_render(&mut self) {
         self.render_mains.clear();
+        self.render_lost.clear();
         self.fresh_render_cancel();
     }
 

@@ -21,6 +21,8 @@
 //! | 12 | its editor's window runs a nested message loop for 3 s, as a file dialog does |
 //! | 13 | the next `save_state` fails (once) |
 //! | 14 | an access violation in this `process` (a crash a handler sees, unlike an abort) |
+//! | 15 | its editor's window runs a nested message loop for 10 s |
+//! | 16 | an access violation in its editor's window (its timer), on the main thread |
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -38,16 +40,28 @@ pub const SLOW_ONCE: u32 = 11;
 pub const PUMP_WINDOW: u32 = 12;
 pub const FAIL_SAVE_ONCE: u32 = 13;
 pub const SEGV_PROCESS: u32 = 14;
+pub const PUMP_WINDOW_LONG: u32 = 15;
+pub const SEGV_EDITOR: u32 = 16;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 14.0;
+pub const LAST: f64 = 16.0;
 
-/// A nested loop the editor's window runs at its next timer (`PUMP_WINDOW`).
-static WINDOW_PUMP: AtomicBool = AtomicBool::new(false);
+/// A nested loop the editor's window runs at its next timer, in seconds (`PUMP_WINDOW`,
+/// `PUMP_WINDOW_LONG`); 0 for none.
+static WINDOW_PUMP: AtomicU32 = AtomicU32::new(0);
+
+/// An access violation the editor's window makes at its next timer (`SEGV_EDITOR`).
+static WINDOW_SEGV: AtomicBool = AtomicBool::new(false);
+
+/// Whether the editor's window should crash now (once).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn take_window_segv() -> bool {
+    WINDOW_SEGV.swap(false, Ordering::AcqRel)
+}
 
 /// Whether the editor's window should run its nested loop now (once).
 #[cfg_attr(not(windows), allow(dead_code))]
-pub fn take_window_pump() -> bool {
-    WINDOW_PUMP.swap(false, Ordering::AcqRel)
+pub fn take_window_pump() -> u32 {
+    WINDOW_PUMP.swap(0, Ordering::AcqRel)
 }
 
 /// The fault armed in this instance, 0 for none.
@@ -66,9 +80,14 @@ impl Fault {
                 self.0.store(0, Ordering::Release);
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }
-            PUMP_WINDOW => {
+            PUMP_WINDOW | PUMP_WINDOW_LONG => {
                 self.0.store(0, Ordering::Release);
-                WINDOW_PUMP.store(true, Ordering::Release);
+                let secs = if v == PUMP_WINDOW { 3 } else { 10 };
+                WINDOW_PUMP.store(secs, Ordering::Release);
+            }
+            SEGV_EDITOR => {
+                self.0.store(0, Ordering::Release);
+                WINDOW_SEGV.store(true, Ordering::Release);
             }
             SEGV_PROCESS => {
                 // SAFETY: none — a write to an address no process maps, on purpose.

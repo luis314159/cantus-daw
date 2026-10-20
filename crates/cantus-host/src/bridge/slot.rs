@@ -494,6 +494,27 @@ impl Slot {
         }
     }
 
+    /// The events a finished job reported, without its audio (a late job's: its audio is
+    /// too late to play, its gestures and values are not).
+    ///
+    /// # Safety
+    /// As [`Self::take_result`].
+    pub unsafe fn take_events(&self, out: &mut ParamOut) {
+        // SAFETY: the caller's contract: the job finished, the area is ours.
+        unsafe {
+            let h = &*self.header();
+            if h.status != status::OK {
+                return;
+            }
+            let ev = self.area::<WireEvent>(self.at.out);
+            for i in 0..(h.out as usize).min(MAX_OUT) {
+                out.push((*ev.add(i)).event());
+            }
+            out.dropped += h.out_dropped as usize;
+            out.lost_in += h.out_lost_in;
+        }
+    }
+
     /// The helper's side: the job as the plug-in's audio half takes it. `params` and
     /// `notes` are refilled in place (their capacity is kept: no allocation).
     ///

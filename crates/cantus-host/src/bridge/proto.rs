@@ -16,7 +16,7 @@ use std::io::{self, Read, Write};
 
 /// Bumped whenever a message or the slot layout changes: a helper from another build is
 /// refused at the handshake.
-pub const PROTOCOL: u32 = 3;
+pub const PROTOCOL: u32 = 4;
 
 /// The largest frame accepted (a plug-in state of 256 MB is already absurd).
 pub const MAX_FRAME: usize = 256 << 20;
@@ -230,6 +230,13 @@ pub enum Message {
     },
     /// The helper's main thread is alive (every 200 ms).
     Alive,
+    /// The helper starts serving request `id` now: its time limit runs from here, not from
+    /// when it was sent (a request queued behind a slow one is not late, review #37).
+    Started { id: u64 },
+    /// Request `id` waits, on purpose, for the helper's main loop: a plug-in's modal loop
+    /// runs, and the request ends or replaces the instance whose window it is (#36, #44).
+    /// It is not late while the helper lives.
+    Deferred { id: u64 },
 }
 
 /// What crosses the channel holds only finite numbers: JSON has no NaN or infinity
@@ -309,7 +316,7 @@ impl Finite for Message {
                 finite_values(values);
                 finite_events(flushed);
             }
-            Message::Alive => {}
+            Message::Alive | Message::Started { .. } | Message::Deferred { .. } => {}
         }
     }
 }
@@ -350,10 +357,23 @@ pub fn read_frame<T: for<'de> Deserialize<'de>>(
             "frame too large",
         ));
     }
+    // A writer that died in the middle of a frame ended the stream: the end, not a broken
+    // protocol (how it died is the watchdog's to say, review #43).
+    let ended = |e: io::Error| {
+        if e.kind() == io::ErrorKind::UnexpectedEof {
+            Ok(None)
+        } else {
+            Err(e)
+        }
+    };
     let mut json = vec![0u8; json_len];
-    r.read_exact(&mut json)?;
+    if let Err(e) = r.read_exact(&mut json) {
+        return ended(e);
+    }
     let mut blob = vec![0u8; blob_len];
-    r.read_exact(&mut blob)?;
+    if let Err(e) = r.read_exact(&mut blob) {
+        return ended(e);
+    }
     let msg = serde_json::from_slice(&json).map_err(io::Error::other)?;
     Ok(Some((msg, blob)))
 }
@@ -380,6 +400,16 @@ mod tests {
         assert_eq!(alive, Message::Alive);
         assert!(b.is_empty());
         assert!(read_frame::<Message>(&mut r).unwrap().is_none());
+    }
+
+    /// A frame cut short (its writer died mid-frame) is the stream's end, not an error.
+    #[test]
+    fn a_frame_cut_short_is_the_end_of_the_stream() {
+        let mut buf = Vec::new();
+        write_frame(&mut buf, &Message::Alive, &[1, 2, 3, 4]).unwrap();
+        buf.truncate(buf.len() - 2);
+        let r = read_frame::<Message>(&mut &buf[..]);
+        assert!(matches!(r, Ok(None)), "{r:?}");
     }
 
     /// JSON has no NaN or infinity (review #4): a plug-in's `-inf` minimum or NaN value
