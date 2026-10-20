@@ -3370,8 +3370,16 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
 /// key is still its content key (the edit lock's invariant).
 fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
     use cantus_core::freeze::{self, FreezeTarget};
-    // A track's kept delay (a bounce's, review 3) set, changed or cleared — refused inside
-    // a frozen region, as any change of its source.
+    let frozen = project.frozen_targets();
+    // A frozen target stays so until this arm runs again (about 48 commands), so the
+    // other arms keep most of the project to themselves.
+    if !frozen.is_empty() {
+        return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
+    }
+    // A track's kept delay (a bounce's, review 3) set, changed or cleared, with nothing
+    // frozen: a frozen target's lifetime is left as it was (the comp arms need the project
+    // to themselves); the lock is held by freeze.rs's
+    // `a_track_delay_is_locked_inside_a_frozen_region`.
     if rng.below(6) == 0 {
         let id = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
         let lateness = match rng.below(3) {
@@ -3387,12 +3395,6 @@ fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
             }),
         };
         return Command::SetTrackLateness { id, lateness };
-    }
-    let frozen = project.frozen_targets();
-    // A frozen target stays so until this arm runs again (about 48 commands), so the
-    // other arms keep most of the project to themselves.
-    if !frozen.is_empty() {
-        return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
     }
     // Half the time an unfreeze of something live (a command that changes nothing).
     let pick_track = |rng: &mut Lcg| {
