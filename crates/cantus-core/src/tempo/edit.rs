@@ -435,6 +435,18 @@ pub fn add_tempo_point(project: &Project, tick: Ticks, bpm: f64, ramp: bool) -> 
     let point = TempoPoint { tick, bpm, ramp };
     let pts = &project.tempo_points;
     if tick.0 <= 0 {
+        // The first point (review 2): with a tempo track, its ramp as asked; without
+        // one there is no next point to ramp to, so the song's tempo.
+        if !pts.is_empty() {
+            return Command::SetTempoPoint {
+                index: 0,
+                point: TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm,
+                    ramp,
+                },
+            };
+        }
         return set_tempo_at(project, Ticks::ZERO, bpm);
     }
     if pts.is_empty() {

@@ -89,6 +89,126 @@ pub fn offset_for(map: &TempoMap, start: Ticks, seconds: f64) -> Ticks {
     Ticks::from_seconds(seconds, map.bpm_at(start.0 as f64))
 }
 
+// --- Editing an unwarped window (review 2: findings 0, 3, 43) --------------------------
+//
+// An edit that moves a window's start — a split's right half, a left-edge trim, a move —
+// keeps the source second under it: the new offset is that second in whole ticks at the
+// tempo where the window now starts, and what the whole ticks cannot say goes into the
+// fine offset (`slip_frames`), as a recorded take's does. Where one tempo holds over the
+// whole edit this is the old tick arithmetic exactly (ADR 0025), slip untouched.
+
+/// Whether one held tempo covers `[a, b]` (either order), both ends included: where a
+/// window's tick arithmetic is the map's exactly.
+pub fn held_over(map: &TempoMap, a: Ticks, b: Ticks) -> bool {
+    let (lo, hi) = (a.0.min(b.0) as f64, a.0.max(b.0) as f64);
+    match map.held_at(lo) {
+        Some((bpm, _, to)) => hi < to || (hi == to && map.bpm_at(hi) == bpm),
+        None => false,
+    }
+}
+
+/// The offset and fine offset that put `seconds` of source (the fine offset `slip`
+/// aside) under a window starting at `at`: whole ticks at the tempo there (never
+/// negative), the rest in frames at `rate`, added to `slip`.
+pub fn anchor(map: &TempoMap, at: Ticks, seconds: f64, slip: i32, rate: f64) -> (Ticks, i32) {
+    let offset = offset_for(map, at, seconds).max(Ticks::ZERO);
+    let rest = (seconds - offset_seconds(map, at, offset)) * rate;
+    let slip = (slip as f64 + rest.round()).clamp(i32::MIN as f64, i32::MAX as f64);
+    (offset, slip as i32)
+}
+
+/// A window's start moved from `start` to `to` while its source stays where it plays (a
+/// split's right half, a left-edge trim): its new `(offset, slip_frames)`.
+pub fn reanchor(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    slip: i32,
+    rate: f64,
+    to: Ticks,
+) -> (Ticks, i32) {
+    if held_over(map, start, to) {
+        return (offset + (to - start), slip);
+    }
+    anchor(map, to, source_seconds(map, start, offset, to.0 as f64), slip, rate)
+}
+
+/// A **reversed** window (it plays its source backwards from its end) whose start moves
+/// to `to` and whose end moves to `end`, playing what it played at the ticks it keeps:
+/// its new `(offset, slip_frames)`. The source frame under its start is the one its last
+/// sample reads, so it moves by the seconds the end moves (a split's left half, a
+/// right-edge trim) and stays when only the start moves (a left-edge trim).
+#[allow(clippy::too_many_arguments)]
+pub fn reanchor_reversed(
+    map: &TempoMap,
+    start: Ticks,
+    old_end: Ticks,
+    offset: Ticks,
+    slip: i32,
+    rate: f64,
+    to: Ticks,
+    end: Ticks,
+) -> (Ticks, i32) {
+    let (lo, hi) = (start.min(to), old_end.max(end));
+    if held_over(map, lo, hi) {
+        return (offset + (old_end - end), slip);
+    }
+    let seconds =
+        offset_seconds(map, start, offset) + map.seconds_between_f64(end.0 as f64, old_end.0 as f64);
+    anchor(map, to, seconds, slip, rate)
+}
+
+/// What [`relocate`] gives a moved audio window: its offset, length, fades and fine
+/// offset where it lands.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Relocated {
+    pub offset: Ticks,
+    pub length: Ticks,
+    pub fade_in: Ticks,
+    pub fade_out: Ticks,
+    pub slip_frames: i32,
+}
+
+/// An unwarped audio window moved from `from` (under `src`) to `to` (under `dst`) — a
+/// move, a drag-copy, a paste — playing the same seconds of its source: the same second
+/// under its start, the same length and fades in seconds, the rounding in `slip_frames`.
+/// `None` when nothing changes: the tempo under the window is the same function at both
+/// places (the ticks are kept exactly), or the clip follows the tempo through a warp
+/// (content ticks), or it has no audio.
+pub fn relocate(
+    src: &TempoMap,
+    from: Ticks,
+    clip: &crate::model::Clip,
+    dst: &TempoMap,
+    to: Ticks,
+    rate: f64,
+) -> Option<Relocated> {
+    let a = clip.audio.as_ref()?;
+    if a.warp.as_ref().is_some_and(|w| w.follow) {
+        return None;
+    }
+    let length = clip.length;
+    if src.span_key(from, from + length) == dst.span_key(to, to + length) {
+        return None;
+    }
+    let secs = |x: Ticks, y: Ticks| src.seconds_between(x, y);
+    let start_s = offset_seconds(src, from, clip.offset);
+    let len_s = secs(from, from + length);
+    let fi_s = secs(from, from + a.fade_in);
+    let fo_s = secs(from + length - a.fade_out, from + length);
+    let t = to.0 as f64;
+    let end = dst.tick_after_seconds(t, len_s);
+    let round = |x: f64| Ticks(x.round() as i64);
+    let (offset, slip_frames) = anchor(dst, to, start_s, a.slip_frames, rate);
+    Some(Relocated {
+        offset,
+        length: round(end - t).max(Ticks(1)),
+        fade_in: round(dst.tick_after_seconds(t, fi_s) - t).max(Ticks::ZERO),
+        fade_out: round(end - dst.tick_after_seconds(end, -fo_s)).max(Ticks::ZERO),
+        slip_frames,
+    })
+}
+
 // --- Warped clips (round 29, warp — ADR 0061) ---------------------------------------
 //
 // A warped clip that follows the tempo hears, at timeline tick `T`, its content tick

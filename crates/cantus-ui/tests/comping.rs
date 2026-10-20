@@ -97,7 +97,7 @@ fn a_swipe_makes_seams_that_crossfade_by_the_projects_default() {
     // A crossfade set by hand is kept by the next swipe.
     a_.set_seam_xfade(t, None, Ticks(40));
     a_.comp_swipe(t, 2, beats(5), beats(6));
-    let seams: Vec<i64> = comping::seams(a_.project().track(t).unwrap())
+    let seams: Vec<i64> = comping::seams(a_.project(), a_.project().track(t).unwrap())
         .iter()
         .map(|s| s.3 .0)
         .collect();
@@ -150,7 +150,7 @@ fn a_seam_moves_as_a_unit_from_its_handle_and_from_a_windows_edge() {
     let mut a = app(p);
     a.comp_swipe(t, 1, beats(2), beats(4));
     let before = a.project().clone();
-    let (l, r, at, _) = comping::seams(a.project().track(t).unwrap())[0];
+    let (l, r, at, _) = comping::seams(a.project(), a.project().track(t).unwrap())[0];
     assert_eq!(at, beats(2));
     let steps = a.bus.history().len();
     for k in 1..=10 {
@@ -496,7 +496,7 @@ fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
             .any(|w| w.2 == a_src && w.0 >= 1900 && w.0 <= 1940),
         "{windows:?}"
     );
-    let (_, _, at, _) = comping::seams(a.project().track(t).unwrap())[0];
+    let (_, _, at, _) = comping::seams(a.project(), a.project().track(t).unwrap())[0];
     let x = geo.x(at.0 as f32 / PPQ as f32);
     let foot = row.top + row.height - 6.0;
     drag(
@@ -505,7 +505,7 @@ fn the_arrangement_swipes_and_moves_a_seam_by_hand() {
         egui::pos2(x, foot),
         egui::pos2(x + geo.px_per_beat, foot),
     );
-    let (_, _, moved, _) = comping::seams(a.project().track(t).unwrap())[0];
+    let (_, _, moved, _) = comping::seams(a.project(), a.project().track(t).unwrap())[0];
     assert!(moved > at + Ticks(PPQ / 2), "{at:?} → {moved:?}");
 }
 
@@ -609,14 +609,14 @@ fn a_group_moves_its_seams_and_switches_its_comps_together() {
     let mut a = app(p);
     a.comp_swipe(kick, 1, beats(2), beats(4));
     let seam = |a: &CantusApp, t: TrackId| {
-        comping::seams(a.project().track(t).unwrap())
+        comping::seams(a.project(), a.project().track(t).unwrap())
             .into_iter()
             .map(|s| (s.2, s.3))
             .collect::<Vec<_>>()
     };
     assert_eq!(seam(&a, kick), seam(&a, snare));
     // The kick's seam at beat 2 dragged to 2.5: the snare's goes with it, one step.
-    let (l, r, _, _) = comping::seams(a.project().track(kick).unwrap())[0];
+    let (l, r, _, _) = comping::seams(a.project(), a.project().track(kick).unwrap())[0];
     let steps = a.bus.history().len();
     let to = beats(2) + Ticks(PPQ / 2);
     assert!(a.move_comp_seam(kick, l, r, to, false));
@@ -624,7 +624,7 @@ fn a_group_moves_its_seams_and_switches_its_comps_together() {
     assert_eq!(seam(&a, kick)[0].0, to);
     assert_eq!(seam(&a, snare), seam(&a, kick));
     // Its crossfade: both.
-    let r = comping::seams(a.project().track(kick).unwrap())[0].1;
+    let r = comping::seams(a.project(), a.project().track(kick).unwrap())[0].1;
     a.set_seam_xfade(kick, Some(r), Ticks(40));
     assert_eq!(seam(&a, snare), seam(&a, kick));
     // A new comp and a switch: both tracks.
@@ -933,7 +933,7 @@ fn edits_keep_a_comp_window_said_right() {
         next += 1;
         next
     };
-    let cmds = cantus_core::clipboard::split(t, &clip, beats(3), &mut ids).unwrap();
+    let cmds = cantus_core::clipboard::split(a.project(), t, &clip, beats(3), &mut ids).unwrap();
     a.exec(Command::Batch {
         label_key: "cmd.split".into(),
         commands: cmds,

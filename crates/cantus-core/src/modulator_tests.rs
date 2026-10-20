@@ -642,7 +642,7 @@ fn modulators_read_time_through_a_moving_tempo_map() {
         attack_ms: 400.0,
         decay_ms: 300.0,
         sustain: 0.5,
-        release_ms: 500.0,
+        release_ms: 2000.0,
         trigger: EnvTrigger::Notes { track: None },
     };
     let gates = Gates {
@@ -663,6 +663,31 @@ fn modulators_read_time_through_a_moving_tempo_map() {
     );
     let ppq = crate::PPQ as f64;
     let compiled = gates.with_levels_in(&env, &map);
+    // Review 2 (finding 25): the release (2 s) outlasts the gap between the gates (beats
+    // 5 to 6, ~0.93 s through the ramp), so the second gate starts from the first's
+    // release level — computed here by hand in the map's seconds, not read from the code.
+    let s = |beat: f64| map.seconds_at(beat * ppq);
+    let first = Gate {
+        on: 0.0,
+        off: s(5.0) - s(1.0),
+    };
+    let by_hand = super::eval::gate_level(&env, 0.0, first, s(6.0) - s(1.0));
+    let levels = compiled.levels.as_ref().unwrap();
+    assert_eq!(levels.from[0], 0.0);
+    assert!(by_hand > 0.05, "the release is still sounding: {by_hand}");
+    assert!(
+        (levels.from[1] - by_hand).abs() < 1e-6,
+        "the second gate starts from {} (by hand {by_hand})",
+        levels.from[1]
+    );
+    // At one tempo's seconds (0.5 s a beat) it would start elsewhere.
+    let constant = super::eval::gate_level(
+        &env,
+        0.0,
+        Gate { on: 0.0, off: 2.0 },
+        2.5,
+    );
+    assert!((constant - by_hand).abs() > 1e-3);
     for beat in [1.2, 2.5, 4.0, 5.5, 6.3, 6.9, 7.4] {
         let t = ModTime::at_beats_in(beat, 0.0, &map);
         // By hand: the gate in seconds, from the map.

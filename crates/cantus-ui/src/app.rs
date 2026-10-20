@@ -1988,7 +1988,7 @@ impl CantusApp {
                     continue;
                 };
                 select.push((*track, *id));
-                let Some(cmds) = clips::split(*track, clip, at, ids) else {
+                let Some(cmds) = clips::split(project, *track, clip, at, ids) else {
                     continue;
                 };
                 for c in &cmds {

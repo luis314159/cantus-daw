@@ -132,10 +132,24 @@ pub fn seam_window(c: &Clip) -> bool {
 /// one file cut in two (a split window: the same source, the right going on from where
 /// the left stops), which plays as one and has nothing to cross (integration review: a
 /// split carried the window's crossfade and added a +3 dB swell at the cut). One test for
-/// the snapshot, the seam command and the arrangement.
-pub fn is_seam(left: &Clip, right: &Clip) -> bool {
+/// the snapshot, the seam command and the arrangement. "Goes on" is through the tempo
+/// map (review 2): a split's right half re-derives its offset where it starts
+/// (`audio_time::reanchor`), and inside one held tempo that is `offset + length`.
+pub fn is_seam(map: &crate::tempo::TempoMap, left: &Clip, right: &Clip) -> bool {
     let continues = match (&left.audio, &right.audio) {
-        (Some(a), Some(b)) => a.source == b.source && right.offset == left.offset + left.length,
+        (Some(a), Some(b)) => {
+            a.source == b.source
+                && right.offset
+                    == crate::audio_time::reanchor(
+                        map,
+                        left.start,
+                        left.offset,
+                        0,
+                        1.0,
+                        left.end(),
+                    )
+                    .0
+        }
         _ => false,
     };
     left.id != right.id
@@ -162,7 +176,7 @@ pub(crate) fn apply_seam(
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    if !is_seam(&l, &r) {
+    if !is_seam(&project.tempo_map(), &l, &r) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
@@ -413,7 +427,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(tid, &right, Ticks::beats(6), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, tid, &right, Ticks::beats(6), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {
@@ -427,7 +441,7 @@ mod tests {
         carried.audio.as_mut().unwrap().xfade = Ticks(20);
         let mut left = right.clone();
         left.length = Ticks::beats(2);
-        assert!(!is_seam(&left, &carried));
+        assert!(!is_seam(&p.tempo_map(), &left, &carried));
         p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
         p.track_mut(tid).unwrap().clips.push(carried.clone());
         assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());
@@ -473,7 +487,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(t, &w, Ticks::beats(2), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, t, &w, Ticks::beats(2), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {

@@ -413,6 +413,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
 /// told the stretch they cross over. A looped or reversed window takes no seam.
 fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
     let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c);
+    let mut map = None;
     for right in track.clips.iter().filter(plays) {
         let x = right
             .audio
@@ -425,7 +426,10 @@ fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
             .clips
             .iter()
             .filter(plays)
-            .find(|l| crate::comp::is_seam(l, right))
+            .find(|l| {
+                let m = map.get_or_insert_with(|| project.tempo_map());
+                crate::comp::is_seam(m, l, right)
+            })
         else {
             continue;
         };
