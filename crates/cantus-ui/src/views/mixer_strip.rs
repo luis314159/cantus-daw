@@ -576,6 +576,8 @@ fn head(
         &Text::new(&v.buf, Role::Label, on_fill(fill)),
         s.tk(),
     );
+    // Frozen, or held by a frozen strip (round 29, ADR 0064).
+    crate::views::freeze_view::paint_strip_mark(b, cr, app, sn.id, s);
     let renaming = matches!(v.rename, Some((Renaming::Strip(r), _)) if r == sn.id);
     if renaming {
         v.rename_at = Some(cell);

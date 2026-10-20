@@ -189,6 +189,61 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
             armed: !track.armed,
         }));
     }
+    // Low-latency monitoring (round 29, ADR 0064 §4): where the input is monitored.
+    if sh.led_row(
+        "freeze.ll.row",
+        "freeze.ll.on",
+        app.settings.low_latency,
+        Function::Dynamics,
+        dim,
+    ) {
+        sh.acts.push(Act::Freeze(
+            crate::views::freeze_view::InspAct::LowLatency(!app.settings.low_latency),
+        ));
+    }
+    if app.settings.low_latency && !dim {
+        let off = crate::views::freeze_monitor::bypassed(app);
+        if !off.is_empty() {
+            let text = crate::i18n::tf("freeze.ll.without", &[("names", &off)]);
+            sh.text_row("freeze.ll.now", &text, false, false);
+        }
+    }
+}
+
+/// The channel sheet's *Freeze* row (round 29, ADR 0064): under the recording rows, for a
+/// track or a strip.
+pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option<StripId>) {
+    let track = match subject {
+        Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => Some(t),
+        _ => None,
+    };
+    let p = app.project();
+    let target = match (track, strip) {
+        (Some(t), _) => p.freeze_target_of_track(t),
+        (None, Some(s)) => Some(cantus_core::FreezeTarget::Strip(s)),
+        _ => None,
+    };
+    let Some(target) = target else {
+        return;
+    };
+    // What holds it: its own freeze, or a frozen strip it feeds — the row says so and a
+    // click gives that one back.
+    let holder = match (track, target) {
+        (Some(t), _) => app.freeze_holding_track(t),
+        (None, cantus_core::FreezeTarget::Strip(s)) => app.freeze_holding_strip(s),
+        _ => None,
+    };
+    let key = if holder.is_some() {
+        "freeze.frozen"
+    } else {
+        "freeze.freeze"
+    };
+    if sh.led_row("freeze.row", key, holder.is_some(), Function::Source, false) {
+        sh.acts.push(Act::Freeze(match holder {
+            Some(h) => crate::views::freeze_view::InspAct::Unfreeze(h),
+            None => crate::views::freeze_view::InspAct::Freeze(target),
+        }));
+    }
 }
 
 /// The input list: *No input*, then each input of the open device; with none open, it

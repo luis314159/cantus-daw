@@ -114,6 +114,9 @@ pub enum Glyph {
     /// A plug pulled apart, a gap between its two halves: a hosted plug-in that stopped
     /// working (the crash card, a slot that stopped).
     PluginStopped,
+    // --- freeze (round 29, ADR 0064) ---
+    /// A snowflake: six arms, each with a pair of twigs — a frozen track or strip.
+    Frozen,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -483,6 +486,35 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
                 color,
             );
             b.segment(p(0.0, 2.2), p(0.0, 5.4), w, color, true);
+        }
+        Glyph::Frozen => {
+            // Six arms at 60° (cos/sin of 30° and 60° written out: 0.866, 0.5), each with
+            // two twigs a little out from the middle.
+            const ARMS: [(f32, f32); 6] = [
+                (0.0, -1.0),
+                (0.866, -0.5),
+                (0.866, 0.5),
+                (0.0, 1.0),
+                (-0.866, 0.5),
+                (-0.866, -0.5),
+            ];
+            let r = 5.2;
+            for (i, (x, y)) in ARMS.iter().enumerate() {
+                b.segment(p(0.0, 0.0), p(x * r, y * r), w, color, true);
+                // The twigs: from 60 % along the arm, out at the neighbours' directions.
+                let (bx, by) = (x * r * 0.6, y * r * 0.6);
+                for j in [(i + 1) % 6, (i + 5) % 6] {
+                    let (nx, ny) = ARMS[j];
+                    let t = 1.8;
+                    b.segment(
+                        p(bx, by),
+                        p(bx + (x + nx) * 0.5 * t, by + (y + ny) * 0.5 * t),
+                        w * 0.8,
+                        color,
+                        true,
+                    );
+                }
+            }
         }
         Glyph::Filter => {
             // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.

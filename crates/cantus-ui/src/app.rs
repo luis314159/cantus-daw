@@ -3169,10 +3169,16 @@ impl CantusApp {
         if self.tempo_action(action) {
             return;
         }
+        // Round 29 (ADR 0064): freezing, bouncing in place, low-latency monitoring.
+        if views::freeze_view::action(self, action) {
+            return;
+        }
         match action {
             // Handled by `tempo_action` above.
             AddMarker | PreviousMarker | NextMarker | LoopBetweenMarkers | SelectBetweenMarkers
             | ToggleTempoTrack => {}
+            // Handled by `freeze_view::action` above.
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => {}
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => {

@@ -67,6 +67,8 @@ pub struct FreezeState {
     dir_for: Option<Option<PathBuf>>,
     /// The low-latency monitoring the engine was last told (limit in samples, or off).
     told: Option<Option<u32>>,
+    /// The last edit a freeze refused, and when (the corner card's).
+    pub refusal: Option<(FreezeTarget, Instant)>,
 }
 
 impl FreezeState {
@@ -308,6 +310,7 @@ impl CantusApp {
 /// An edit a frozen target refused (`CantusApp::exec`): the status line says which, and
 /// how to give it back.
 pub fn refused(app: &mut CantusApp, target: FreezeTarget) {
+    app.freeze.refusal = Some((target, Instant::now()));
     let name = name_of(app.project(), target);
     let how = match target {
         FreezeTarget::Track(_) => t("freeze.how_track"),

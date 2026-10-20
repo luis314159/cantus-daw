@@ -56,6 +56,16 @@ pub enum Action {
     SelectBetweenMarkers,
     /// The arrangement's tempo track shown or hidden.
     ToggleTempoTrack,
+    /// Freeze the selected track (its own strip, or its source), or unfreeze what holds it
+    /// (round 29, ADR 0064).
+    FreezeTrack,
+    /// Bounce in place with the strip's inserts: the selected clips, the time selection or
+    /// the whole selected track.
+    BounceInPlace,
+    /// Bounce in place, the source only (before the track's level).
+    BounceSource,
+    /// Low-latency monitoring on or off.
+    ToggleLowLatency,
     // File
     NewProject,
     Open,
@@ -207,7 +217,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 88] = [
+    pub const ALL: [Action; 92] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -296,6 +306,11 @@ impl Action {
         Action::ShowTakes,
         Action::AutomateLastTweaked,
         Action::ToggleInstrumentWindow,
+        // Round 29 (ADR 0064).
+        Action::FreezeTrack,
+        Action::BounceInPlace,
+        Action::BounceSource,
+        Action::ToggleLowLatency,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -315,6 +330,10 @@ impl Action {
             Action::LoopBetweenMarkers => "loop-between-markers",
             Action::SelectBetweenMarkers => "select-between-markers",
             Action::ToggleTempoTrack => "toggle-tempo-track",
+            Action::FreezeTrack => "freeze-track",
+            Action::BounceInPlace => "bounce-in-place",
+            Action::BounceSource => "bounce-source",
+            Action::ToggleLowLatency => "toggle-low-latency",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
             Action::DemoSongs => "demo-songs",
@@ -409,6 +428,9 @@ impl Action {
             | LoopBetweenMarkers => Category::Transport,
             SelectBetweenMarkers => Category::Arrangement,
             ToggleTempoTrack => Category::View,
+            // Freezing and bouncing are the track's; low-latency monitoring the recording's
+            // (round 29, ADR 0064).
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
@@ -705,6 +727,30 @@ fn common() -> Vec<(Action, Binding)> {
             Binding {
                 shift: true,
                 ..Binding::alt(Key::T)
+            },
+        ),
+        // Freeze (round 29, ADR 0064): Alt+Shift+F freezes the selected track or thaws it,
+        // Alt+Shift+B bounces it in place; Alt+Shift+R switches low-latency monitoring (R
+        // as recording: Alt+R arms).
+        (
+            FreezeTrack,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::F)
+            },
+        ),
+        (
+            BounceInPlace,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
+        (
+            ToggleLowLatency,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::R)
             },
         ),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
@@ -1154,13 +1200,18 @@ pub const FILE_VERSION: u32 = 9;
 
 /// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
 /// 0060); the other round-29 builders append theirs here.
-const NEW_IN_V9: [Action; 6] = [
+const NEW_IN_V9: [Action; 10] = [
     Action::AddMarker,
     Action::PreviousMarker,
     Action::NextMarker,
     Action::LoopBetweenMarkers,
     Action::SelectBetweenMarkers,
     Action::ToggleTempoTrack,
+    // Freeze (round 29, ADR 0064).
+    Action::FreezeTrack,
+    Action::BounceInPlace,
+    Action::BounceSource,
+    Action::ToggleLowLatency,
 ];
 
 /// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round

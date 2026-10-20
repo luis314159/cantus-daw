@@ -130,6 +130,8 @@ pub enum Act {
         crate::views::plugin_notice::Target,
         crate::views::plugin_notice::MenuAct,
     ),
+    /// Freeze, unfreeze, low-latency monitoring (round 29, ADR 0064).
+    Freeze(crate::views::freeze_view::InspAct),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -769,6 +771,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::OpenInstrument(t) => app.open_inst_editor(t),
         Act::CloseInstrument(t) => app.close_instrument_window(t),
         Act::Hosting(target, a) => crate::views::plugin_notice::run_menu(app, target, a),
+        Act::Freeze(a) => crate::views::freeze_view::apply_insp(app, a),
         Act::Pick(purpose) => app.open_picker(purpose),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);
