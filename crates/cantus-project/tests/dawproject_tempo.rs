@@ -207,3 +207,46 @@ fn a_seconds_audio_clip_starts_at_its_second_through_the_map() {
     let at = cantus_core::audio_time::offset_seconds(&map, c.start, c.offset) + slip;
     assert!((at - 3.0).abs() < 1.0 / 48_000.0, "{at} s at its start");
 }
+
+/// Review 4 (finding 52): a looped audio clip in seconds whose loop starts where it plays
+/// (its hidden part across the tempo change) reports no loop moved.
+#[test]
+fn a_looped_seconds_clip_across_a_change_reports_no_loop_moved() {
+    let old = r#"<Clip time="0.0" duration="8.0" playStart="0.0" name="Drumfunk3 170bpm">
+            <Clips id="id26">
+              <Clip time="0.0" duration="8.0" contentTimeUnit="beats" playStart="0.0">
+                <Warps contentTimeUnit="seconds" timeUnit="beats" id="id28">
+                  <Audio algorithm="stretch" channels="2" duration="2.823541666666667" sampleRate="48000" id="id27">
+                    <File path="audio/Drumfunk3 170bpm.wav"/>
+                  </Audio>
+                  <Warp time="0.0" contentTime="0.0"/>
+                  <Warp time="8.0" contentTime="2.823541666666667"/>
+                </Warps>
+              </Clip>
+            </Clips>
+          </Clip>"#;
+    let new = r#"<Clip time="10.0" duration="4.0" contentTimeUnit="seconds" playStart="3" loopStart="3" loopEnd="5" name="Loop">
+            <Audio algorithm="raw" channels="2" duration="20" sampleRate="48000" id="id27">
+              <File path="audio/Drumfunk3 170bpm.wav"/>
+            </Audio>
+          </Clip>"#;
+    let tempo = r#"<TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="120"/><RealPoint time="8" value="60"/></TempoAutomation>"#;
+    let xml = FOREIGN.replace('\r', "").replace(TEMPO, tempo);
+    let with_loop = xml.replace(old, new);
+    assert_ne!(with_loop, xml, "the fixture has the clip");
+    let imported = import(&with_loop);
+    let moved: Vec<&String> = imported
+        .report
+        .dropped_items()
+        .filter(|i| i.key == "interop.report.d_loop")
+        .flat_map(|i| i.args.iter().map(|(_, v)| v))
+        .collect();
+    assert!(
+        moved.iter().any(|n| *n == "Loopy"),
+        "the fixture's own is still said"
+    );
+    assert!(
+        !moved.iter().any(|n| *n == "Loop"),
+        "no loop was moved: {moved:?}"
+    );
+}

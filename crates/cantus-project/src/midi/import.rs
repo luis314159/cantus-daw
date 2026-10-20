@@ -713,8 +713,11 @@ pub fn import_commands(
             metres[0].tick = Ticks::ZERO;
             commands.push(Command::SetMetreTrack { signature, metres });
             ts = signature;
-        } else if !project.metre_changes.is_empty() {
-            let signature = import.time_signature.unwrap_or(project.time_signature);
+        } else if let (false, Some(signature)) =
+            (project.metre_changes.is_empty(), import.time_signature)
+        {
+            // The file states one metre: the song's changes give way to it. A file that
+            // states none leaves them (review 4), as it does dropped at a later bar.
             commands.push(Command::SetMetreTrack {
                 signature,
                 metres: Vec::new(),
@@ -810,6 +813,29 @@ pub fn import_commands(
         );
     }
     let bar = ts.ticks_per_bar().max(Ticks(1));
+    // The bars the song will have once the import's tempo and metre are in: a clip ends on
+    // its bar lines through every metre change (review 4: whole bars of the first metre
+    // missed them).
+    let bars = {
+        let mut q = Project::new("");
+        q.tempo_bpm = project.tempo_bpm;
+        q.time_signature = project.time_signature;
+        q.tempo_points = project.tempo_points.clone();
+        q.metre_changes = project.metre_changes.clone();
+        for c in &commands {
+            if matches!(
+                c,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::SetTimeSignature { .. }
+                    | Command::SetMetreTrack { .. }
+                    | Command::SetMetreAt { .. }
+            ) {
+                let _ = c.clone().apply(&mut q);
+            }
+        }
+        q.tempo_map()
+    };
     let base = place
         .index
         .unwrap_or(project.tracks.len())
@@ -856,8 +882,16 @@ pub fn import_commands(
             .map(|n| n.start + n.length)
             .max()
             .unwrap_or(bar);
-        let clip_from = first.snap_floor(bar).max(Ticks::ZERO);
-        let clip_to = Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(clip_from + bar);
+        let (clip_from, clip_to) = if bars.is_one_metre() {
+            let from = first.snap_floor(bar).max(Ticks::ZERO);
+            (
+                from,
+                Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar),
+            )
+        } else {
+            let (from, to) = bars.bars_around(at + first, at + last);
+            (from.max(Ticks::ZERO) - at, to - at)
+        };
         let track_name = name(&it.label);
         let notes: Vec<Note> = it
             .notes

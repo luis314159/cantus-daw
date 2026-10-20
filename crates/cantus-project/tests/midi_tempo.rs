@@ -487,3 +487,61 @@ fn a_pickups_metre_keeps_its_place() {
     let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
     assert_eq!(read.metre_changes, vec![mc(0, 4, 4), mc(1920, 3, 4)]);
 }
+
+/// Review 4 (finding 50): a file with no time signature, imported at bar 1 with the song's
+/// tempo set from it, leaves the song's metre changes as they are (as at a later bar).
+#[test]
+fn a_file_without_a_metre_leaves_the_songs_metre_changes() {
+    let mut song = Project::new("Bridge");
+    song.metre_changes = vec![mc(0, 4, 4), mc(16 * 3840, 3, 4)];
+    let notes: Vec<_> = note(0, 480, 60).into_iter().collect();
+    let bytes = file(
+        smf::Division::Ppq(480),
+        vec![ev(0, Event::Tempo(500_000))],
+        notes,
+    );
+    for at in [Ticks::ZERO, Ticks(3840)] {
+        let bus = import(
+            song.clone(),
+            &bytes,
+            Placement {
+                at,
+                apply_tempo: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(bus.project().metre_changes, song.metre_changes, "at {at:?}");
+    }
+}
+
+/// Review 4 (finding 51): a file in 4/4 with a 7/8 from bar 2 gives clips on the song's bar
+/// lines through the 7/8, not in whole bars of 4/4.
+#[test]
+fn imported_clips_end_on_the_songs_bar_lines() {
+    let ppq = 480u64;
+    let mut notes: Vec<smf::TimedEvent> = Vec::new();
+    // Bar 1 (4/4: 1 920 file ticks), then bars of 7/8 (1 680 file ticks): the last note
+    // ends inside the third bar of 7/8.
+    notes.extend(note(0, ppq, 60));
+    notes.extend(note(1920 + 2 * 1680 + 100, 200, 62));
+    let bytes = file(
+        smf::Division::Ppq(ppq as u16),
+        vec![ev(0, metre(4, 2)), ev(1920, metre(7, 3))],
+        notes,
+    );
+    let bus = import(
+        Project::new("Odd"),
+        &bytes,
+        Placement {
+            apply_tempo: true,
+            ..Default::default()
+        },
+    );
+    let p = bus.project();
+    let map = p.tempo_map();
+    let c = &p.tracks.last().unwrap().clips[0];
+    assert_eq!(map.bar_start(c.start), c.start, "starts on a bar line");
+    assert_eq!(map.bar_start(c.end()), c.end(), "ends on a bar line");
+    // 3 840 + 3 × 3 360: the end of the third bar of 7/8.
+    assert_eq!(c.end(), Ticks(3840 + 3 * 3360));
+}

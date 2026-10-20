@@ -50,6 +50,19 @@ impl TempoMap {
         Ticks(self.bar_seg_end(i).map_or(next, |e| next.min(e)))
     }
 
+    /// The bar lines around `[first, last]`: the start of the bar holding `first`, and
+    /// `last` when it is a bar line, else the next — at least one bar (a clip sized around
+    /// notes, through every metre change).
+    pub fn bars_around(&self, first: Ticks, last: Ticks) -> (Ticks, Ticks) {
+        let from = self.bar_start(first);
+        let to = if self.bar_start(last) == last {
+            last
+        } else {
+            self.bar_end(last)
+        };
+        (from, to.max(self.bar_end(from)))
+    }
+
     /// Bar/beat/tick, 1-based, counted through every metre change.
     pub fn bbt(&self, tick: Ticks) -> (i64, i64, i64) {
         let b = &self.bars[self.bar_seg(tick.0)];

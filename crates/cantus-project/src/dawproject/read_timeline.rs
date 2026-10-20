@@ -231,8 +231,16 @@ fn walk(
                     .map(|n| n.start + n.length)
                     .max()
                     .unwrap_or(bar);
-                let from = first.snap_floor(bar);
-                let to = Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar);
+                // On the file's bar lines, through its metre changes (review 4).
+                let (from, to) = if map.is_one_metre() {
+                    let from = first.snap_floor(bar);
+                    (
+                        from,
+                        Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar),
+                    )
+                } else {
+                    map.bars_around(first, last)
+                };
                 out.clips.entry(t.clone()).or_default().push(ClipData {
                     name: String::new(),
                     color: None,
@@ -401,11 +409,20 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
     let name = attr(clip, "name").unwrap_or("").to_string();
     let period = match (attr_f64(clip, "loopStart"), attr_f64(clip, "loopEnd")) {
         (Some(ls), Some(le)) if le > ls => {
-            let ls = inner.at(map, ls);
-            if ls != offset {
+            // Compared where both are given, in the content's own unit (review 4: an
+            // audio clip's offset is re-derived through the map above, the loop's start
+            // was not, and a loop that starts where the clip plays was reported moved).
+            let half = if content_seconds {
+                0.5 / audio
+                    .as_ref()
+                    .map_or(48_000.0, |d| f64::from(d.rate.max(1)))
+            } else {
+                0.5 / PPQ as f64
+            };
+            if (ls - play_start).abs() > half {
                 counts.loops.push(name.clone());
             }
-            Some(inner.at(map, le) - ls)
+            Some(inner.at(map, le) - inner.at(map, ls))
         }
         _ => None,
     };
