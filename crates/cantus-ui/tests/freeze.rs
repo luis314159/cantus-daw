@@ -1971,6 +1971,35 @@ fn a_bounced_clip_moved_to_a_track_of_its_own_plays_on_the_grid() {
 }
 
 #[test]
+fn a_bounced_clip_copied_and_pasted_on_a_plain_track_plays_on_the_grid() {
+    // Every path agrees (review 3): the clipboard's copy of the bounced clip, pasted on a
+    // plain track at the same place, the original gone, sounds where the bounce did.
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("lateness-paste");
+    latent(&mut app);
+    let live = mix(&mut app);
+    let (t2, strip2, clip) = bounced_latent(&mut app, &ctx);
+    let y = plain_track(&mut app, strip2);
+    app.focus_arrangement();
+    app.select_clip(t2, clip);
+    app.run_action(Action::Copy);
+    assert!(app.exec(Command::RemoveClip { track: t2, clip }));
+    app.select_track(y);
+    app.seek(Ticks::ZERO);
+    app.run_action(Action::Paste);
+    assert!(
+        app.project()
+            .track(y)
+            .unwrap()
+            .clips
+            .iter()
+            .any(|c| c.audio.is_some()),
+        "pasted"
+    );
+    same_prefix(&mix(&mut app), &live, "pasted on a plain track: on the grid");
+}
+
+#[test]
 fn a_clip_put_on_a_bounced_track_plays_on_the_grid() {
     // An imported take on the bounced track sounds where it does on a plain track: the
     // track delays everything it holds, and reports it.
