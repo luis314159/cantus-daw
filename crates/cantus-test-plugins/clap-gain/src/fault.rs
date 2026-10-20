@@ -32,7 +32,7 @@
 //!
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
-//! a file there when an instance is destroyed; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
+//! a file there when an instance is destroyed, 300 ms on; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
 //! every `load_state` run a nested message loop that long; `CANTUS_TEST_GAIN_CHAIN_FILTER`
 //! installs, at load, a crash filter that hands on to the one before it (Windows), as a
 //! plug-in's crash reporter does.
@@ -75,28 +75,11 @@ static SLOW_PARAMS: AtomicU32 = AtomicU32::new(0);
 /// `HANG_THREAD_TIMER`); 0 for none.
 static THREAD_TIMER: AtomicU32 = AtomicU32::new(0);
 
-/// A nested loop the editor's window runs at its next timer, in seconds (`PUMP_WINDOW`,
-/// `PUMP_WINDOW_LONG`); 0 for none.
-static WINDOW_PUMP: AtomicU32 = AtomicU32::new(0);
-
-/// An access violation the editor's window makes at its next timer (`SEGV_EDITOR`).
-static WINDOW_SEGV: AtomicBool = AtomicBool::new(false);
-
-/// Whether the editor's window should crash now (once).
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn take_window_segv() -> bool {
-    WINDOW_SEGV.swap(false, Ordering::AcqRel)
-}
-
-/// Whether the editor's window should run its nested loop now (once).
-#[cfg_attr(not(windows), allow(dead_code))]
-pub fn take_window_pump() -> u32 {
-    WINDOW_PUMP.swap(0, Ordering::AcqRel)
-}
-
-/// The fault armed in this instance, 0 for none.
+/// The fault armed in this instance, 0 for none; a nested loop its editor's window runs at
+/// its next timer, in seconds (`PUMP_WINDOW`, `PUMP_WINDOW_LONG`; 0 for none); an access
+/// violation its window makes at its next timer (`SEGV_EDITOR`). Each instance its own.
 #[derive(Debug, Default)]
-pub struct Fault(AtomicU32);
+pub struct Fault(AtomicU32, AtomicU32, AtomicBool);
 
 impl Fault {
     /// A value set while processing: arm it, and fire the ones that belong to `process`.
@@ -113,11 +96,11 @@ impl Fault {
             PUMP_WINDOW | PUMP_WINDOW_LONG => {
                 self.0.store(0, Ordering::Release);
                 let secs = if v == PUMP_WINDOW { 3 } else { 10 };
-                WINDOW_PUMP.store(secs, Ordering::Release);
+                self.1.store(secs, Ordering::Release);
             }
             SEGV_EDITOR => {
                 self.0.store(0, Ordering::Release);
-                WINDOW_SEGV.store(true, Ordering::Release);
+                self.2.store(true, Ordering::Release);
             }
             SEGV_PROCESS => {
                 // SAFETY: none — a write to an address no process maps, on purpose.
@@ -151,6 +134,8 @@ impl Fault {
     /// (environment) is written.
     pub fn on_destroy(&self) {
         if let Some(dir) = std::env::var_os("CANTUS_TEST_GAIN_DESTROY_MARKER") {
+            // A destructor that takes its time (preferences written, a licence released).
+            std::thread::sleep(std::time::Duration::from_millis(300));
             let at = std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .map_or(0, |d| d.as_nanos());
@@ -163,6 +148,18 @@ impl Fault {
             // SAFETY: none — a write to an address no process maps, on purpose.
             unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
         }
+    }
+
+    /// Whether the editor's window should run its nested loop now (once), and how long.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn take_window_pump(&self) -> u32 {
+        self.1.swap(0, Ordering::AcqRel)
+    }
+
+    /// Whether the editor's window should crash now (once).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn take_window_segv(&self) -> bool {
+        self.2.swap(false, Ordering::AcqRel)
     }
 
     /// Whether the save asked for now fails (`FAIL_SAVE_ONCE`, then disarmed).

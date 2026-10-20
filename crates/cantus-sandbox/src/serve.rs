@@ -185,7 +185,7 @@ struct Server {
     instances: RefCell<HashMap<u32, Rc<RefCell<Instance>>>>,
     /// Instances unloaded while a frame further out still held them: ended by the main
     /// loop once nothing does.
-    leaving: RefCell<Vec<Rc<RefCell<Instance>>>>,
+    leaving: RefCell<Vec<(u32, Rc<RefCell<Instance>>)>>,
     /// What the processing threads serve, their lobby's bell, their stop.
     table: Arc<Table>,
     bell: Arc<cantus_rt::ipc::LobbyBell>,
@@ -311,25 +311,25 @@ impl Server {
         };
         let rt = i.borrow().rt.clone();
         self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
-        crate::platform::blame::forget_instance(instance);
-        let _at = crate::platform::blame::calling(instance);
         match Rc::try_unwrap(i) {
-            Ok(cell) => cell.into_inner().finish(),
-            Err(held) => self.leaving.borrow_mut().push(held),
+            Ok(cell) => end(instance, cell.into_inner()),
+            Err(held) => self.leaving.borrow_mut().push((instance, held)),
         }
     }
 
     /// The instances unloaded while held, once nothing holds them.
     fn end_leaving(&self) {
-        let ready: Vec<Rc<RefCell<Instance>>> = {
+        let ready: Vec<(u32, Rc<RefCell<Instance>>)> = {
             let mut leaving = self.leaving.borrow_mut();
-            let (ready, held) = leaving.drain(..).partition(|i| Rc::strong_count(i) == 1);
+            let (ready, held) = leaving
+                .drain(..)
+                .partition(|(_, i)| Rc::strong_count(i) == 1);
             *leaving = held;
             ready
         };
-        for i in ready {
+        for (n, i) in ready {
             if let Ok(cell) = Rc::try_unwrap(i) {
-                cell.into_inner().finish();
+                end(n, cell.into_inner());
             }
         }
     }
@@ -452,6 +452,16 @@ impl Server {
     fn flush(&self) {
         let _ = out_lock(&self.out).flush();
     }
+}
+
+/// Ends instance `n` on this thread, as a call into it — a crash in its destructor is its
+/// own (review isolation-4 #2, #45, #56) — and only then forgets its libraries.
+fn end(n: u32, inst: Instance) {
+    {
+        let _at = crate::platform::blame::calling(n);
+        inst.finish();
+    }
+    crate::platform::blame::forget_instance(n);
 }
 
 /// The instance a call names (Load and Unload included).

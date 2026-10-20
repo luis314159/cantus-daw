@@ -76,12 +76,14 @@ mod win {
 
     /// The editor's timer: runs the nested loop the Fault parameter asked for (12), from
     /// inside the window's own message — as a plug-in's file dialog does.
-    unsafe extern "system" fn on_timer(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
-        let secs = crate::fault::take_window_pump();
+    unsafe extern "system" fn on_timer(_hwnd: HWND, _msg: u32, id: usize, _time: u32) {
+        // The timer's id is its instance (its window, and so the timer, goes before it).
+        let fault = &(*(id as *const crate::plugin::Plugin)).fault;
+        let secs = fault.take_window_pump();
         if secs > 0 {
             crate::fault::pump(std::time::Duration::from_secs(u64::from(secs)));
         }
-        if crate::fault::take_window_segv() {
+        if fault.take_window_segv() {
             // SAFETY: none — a write to an address no process maps, on purpose.
             unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
         }
@@ -123,7 +125,12 @@ mod win {
             return false;
         }
         ShowWindow(me.editor as HWND, SW_SHOW);
-        SetTimer(me.editor as HWND, 7, 20, Some(on_timer));
+        SetTimer(
+            me.editor as HWND,
+            me as *const crate::plugin::Plugin as usize,
+            20,
+            Some(on_timer),
+        );
         true
     }
 

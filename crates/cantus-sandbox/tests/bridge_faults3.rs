@@ -215,6 +215,9 @@ fn a_request_queued_behind_a_slow_one_is_not_late() {
 fn the_crash_handler_names_the_plugin_whose_thread_crashed() {
     let _g = serial();
     let pool = pool();
+    // Two processing threads on any machine, so both jobs really run at once (review
+    // isolation-4 #32).
+    pool.set_threads(Some(2));
     let Loaded {
         main: mut a,
         audio: mut a_audio,
