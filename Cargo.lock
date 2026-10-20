@@ -836,6 +836,7 @@ dependencies = [
  "cantus-ui",
  "eframe",
  "egui",
+ "hound",
  "rtrb",
  "serde",
  "serde_json",
