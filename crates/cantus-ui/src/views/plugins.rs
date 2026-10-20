@@ -481,6 +481,39 @@ fn shown_value(
 /// The parameters' groups: a title and the indices of the parameters in it.
 type Groups = Vec<(String, Vec<usize>)>;
 
+/// A hosted editor's words for each value shown, by parameter, for one effect: asked when
+/// the value moved, and again while the plug-in has not answered (an isolated one answers
+/// later) — the number shows meanwhile and is never kept as its words; another effect's
+/// editor starts them again (round 29, review 3 of ADR 0062, #59).
+#[derive(Debug, Default)]
+pub struct ValueWords {
+    of: Option<EffectId>,
+    words: HashMap<u32, (u64, Option<String>)>,
+}
+
+impl ValueWords {
+    /// The words of `effect`'s parameter `id` at the value with `bits`, asked of `ask`
+    /// when not known.
+    pub fn get(
+        &mut self,
+        effect: EffectId,
+        id: u32,
+        bits: u64,
+        ask: impl FnOnce() -> Option<String>,
+    ) -> Option<&str> {
+        if self.of != Some(effect) {
+            self.of = Some(effect);
+            self.words.clear();
+        }
+        let e = self.words.entry(id).or_insert((u64::MAX, None));
+        if e.0 != bits || e.1.is_none() {
+            e.0 = bits;
+            e.1 = ask();
+        }
+        e.1.as_deref()
+    }
+}
+
 /// What the editor keeps between frames: the groups as laid out for the filter, and each
 /// parameter's text in the plug-in's own words for the value it was asked about.
 #[derive(Debug, Default)]
@@ -488,8 +521,8 @@ pub struct Editor {
     /// (effect, parameter count, filter) the groups were made for, and the groups: a title
     /// and the indices of the parameters in it.
     groups: Option<(EffectId, usize, String, Groups)>,
-    /// Parameter id → (value bits, the plug-in's text for it).
-    texts: HashMap<u32, (u64, String)>,
+    /// The plug-in's words for the values shown.
+    texts: ValueWords,
     /// "CLAP · Vendor", per effect.
     badge: Option<(EffectId, String)>,
     /// Where each group's card goes, reused.
@@ -845,17 +878,17 @@ fn body_ui(
                                     offer.learn.is_some(),
                                 );
                             }
-                            // The plug-in's words for the value, asked once per value.
-                            let bits = value.to_bits();
-                            let entry = texts.entry(p.id).or_insert((u64::MAX, String::new()));
-                            if entry.0 != bits {
-                                entry.0 = bits;
-                                entry.1 = h
-                                    .param_text(p.id, value)
-                                    .unwrap_or_else(|| format!("{value:.2}"));
-                            }
-                            let text = entry.1.as_str();
-                            let fmt = |_: f32, b: &mut String| b.push_str(text);
+                            // The plug-in's words for the value, asked once per value — again
+                            // while not answered (an isolated plug-in answers later).
+                            let text = texts
+                                .get(effect, p.id, value.to_bits(), || h.param_text(p.id, value));
+                            let fmt = |_: f32, b: &mut String| match text {
+                                Some(t) => b.push_str(t),
+                                None => {
+                                    use std::fmt::Write as _;
+                                    let _ = write!(b, "{value:.2}");
+                                }
+                            };
                             let out = ui
                                 .add_enabled_ui(!p.read_only, |ui| {
                                     controls::Cell::new(

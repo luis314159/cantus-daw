@@ -293,6 +293,17 @@ pub fn t(key: &str) -> String {
     key.to_string()
 }
 
+/// A key's text in `locale` (English when that language lacks it, else the key).
+pub fn t_in(locale: Locale, key: &str) -> String {
+    let tables = tables();
+    tables
+        .get(&locale)
+        .and_then(|t| t.get(key))
+        .or_else(|| tables.get(&Locale::En).and_then(|t| t.get(key)))
+        .cloned()
+        .unwrap_or_else(|| key.to_string())
+}
+
 /// Look up a key and substitute `{name}` placeholders.
 pub fn tf(key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
     let mut s = t(key);

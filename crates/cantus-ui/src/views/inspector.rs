@@ -206,6 +206,11 @@ impl Inspector {
     /// Say what was clicked last. The selection calls (`select_strip`, `select_track`,
     /// `select_clip`) report here, so the inspector knows a strip click from a track
     /// click even when both leave the same things selected.
+    /// Whether the master was chosen last (the desk's master strip).
+    pub fn follows_master(&self) -> bool {
+        matches!(self.follow, Some(Subject::Master))
+    }
+
     pub fn follow(&mut self, s: Subject) {
         self.follow = Some(s);
     }

@@ -326,3 +326,81 @@ What changed in the decisions:
   `SetModulatorAmount`, so it records and is *last tweaked* as the controller's does.
 - **An idle frame allocates nothing** with hosted mappings (a hosted parameter is looked
   up, not copied) and with no feedback mapping.
+
+## Amended after review 3 (round 29)
+
+A third review confirmed 60 findings (tabled in `docs/round29/controllers.md`). What
+changed in the decisions:
+
+- **A target's steps are part of driving it.** The interface computes each target's shape
+  (`controller::Steps`: a switch when it is stepped with two states — `max − min == 1` —
+  and its number of steps when it is a choice) and passes it to `Mapping::read_in`,
+  `drive_in` and `controller::detect_in`. A two-state parameter is a switch everywhere a
+  switch target is: no takeover for a held or latching button, one relative detent sets
+  it, a pad learnt on it toggles, the pane reads and types it *Off* / *On*. A relative
+  encoder on a choice moves one choice per detent (the sensitivity divided by the steps,
+  not by 128).
+- **Choices are shown and typed by name.** The From and To cells of a choice say its
+  names, the words its editor draws: an effect's from the same table the editor uses
+  (`controllers_words`, in the application — never in the MPL core), an instrument's from
+  what its editor drew (noted once per kind and key, cleared on a language change), a
+  hosted plug-in's from its own text for each step (64 steps at most); a name typed is
+  read back to its step.
+- **14-bit halves wait for each other, a moment.** A half whose partner is expected is
+  held, never driven: a coarse half after a fine half has been heard waits up to
+  `PAIR_GAP` (5 ms), across frames (the controllers' wake asks for the frame), and only
+  then is read alone with a fine 0; a fine-first controller's fine half waits the same
+  way. Fine-first is recognised only after `FINE_FIRST` (3) fine-then-coarse pairs in a
+  row, and a coarse-then-fine pair clears it. Halves left waiting are resolved before a
+  burst's own messages, so a burst's halves are new pairs.
+- **The tap's overflow keeps order and one slot per address**: pitch bend and channel
+  pressure have one slot per channel (not one per value); while anything is parked, newer
+  messages park too, and the take hands them over by arrival with their own times.
+- **Pedals**: sustain, sostenuto and soft are tracked whenever above 0 (a half-pedal too)
+  and their release is never swallowed; reset-all-controllers (CC 121) no longer counts as
+  a release (the native instruments ignore it).
+- **Feedback's echo** is stamped before the send, with 2 ms of skew allowed, so a loopback
+  answering before `send` returns is still the echo.
+- **VST3 program change**: the state change is said only for a MIDI program change heard
+  from an input, not for the host's own writes of the program parameter (automation, an
+  LFO, a mapped knob).
+- **Recording's bounds**: the pass is bounded by its record start, the loop's start only
+  once a wrap was seen in this pass, and the punch; the clip ends at the punch-out and the
+  latch lets go there; a pass stopped before its start writes nothing. A tempo knob turned
+  during a take waits (ADR 0060 §4), and a gesture that turned the tempo before the take
+  sends no tempo command in it.
+- **A new project starts the controllers again**: an armed learn is cancelled and the
+  controllers' states, sends and gesture are cleared when the project is replaced.
+- **The global file** is read as whole, kept (the copy beside named in the status), or
+  unsafe (no copy could be made: the session does not save over it); an identical copy is
+  never made twice.
+- **Ports** are named without ALSA's `client:port` numbers, so a mapping matches after a
+  replug; a mapping whose port is not open reads *Not connected*.
+- **NRPN and RPN** are not learnt: the learn says so instead of mapping a plain CC 99.
+- **The selected strip** may be the master; **a strip's effects switch and record arm**
+  are targets (`MappingTarget::StripFx`, `StripArm`; schema 39), learnable on the strip
+  and from its menu.
+- **The pane** says *Frozen* for any target a frozen sound refuses (native ones too) and
+  says the refusal again after a pause; *Other plug-in* rows are named after the plug-in
+  they were learnt on and are not counted as shared; an unknown action is *Missing*; a
+  crashed plug-in's mappings are *Not loaded*. The learn mode, the panes' show/hide, the
+  instrument window and the takes feed their state back.
+- **An insert swapped** for another keeps its controllers: bypass and mix follow the new
+  slot, a native parameter with the same key follows, a hosted one stays its plug-in's.
+- **Offers cost nothing idle**: with the learn mode off, nothing mapped and no menu open a
+  stepped control's offer builds no target, and a card's lamp hands its response back
+  instead of keeping it in egui's memory (`frame_budget.rs` holds a Compressor and a
+  Wavetable editor's warm frame).
+- The Tonus keyboard outlines and covers each key only where it shows; a typed curve is
+  kept as typed; a hosted value's words are asked again until the plug-in answers, per
+  effect.
+
+The tests of review 3: core `controller_tests.rs` (switches, a pad on two states, a detent
+per choice, port names, sharing, the master as the selected strip, the strip switches),
+`undo_invariants` (the strip switches as targets); project
+`schema_39_keeps_the_strip_switch_mappings`; engine
+`a_full_ring_keeps_order_and_the_last_bend_and_pressure` and
+`a_pedal_let_go_while_taken_reaches_the_engine_fully_up`; host
+`a_program_change_reaches_the_program_list_and_the_project`; interface
+`controllers_review3.rs`, `learn_everywhere.rs` (every stepped key of every editor, offered
+or said why not drawn), `frame_budget.rs` (`an_editors_idle_stepped_controls_cost_no_allocation`).

@@ -110,6 +110,12 @@ pub trait FxHost {
     /// What `key`'s control did of its modulation (ADR 0057): *Modulate…*, a depth, a
     /// handle dropped; `rect` is the control.
     fn modulate(&mut self, _key: &str, _choice: crate::kit::automate::Choice, _rect: egui::Rect) {}
+    /// Whether a stepped control of `key` has nothing to show of MIDI learn this frame —
+    /// the learn mode off, no controller on it — so its offer is not built (no allocation
+    /// while a frame is idle, round 29, review 3 of ADR 0062, #51). `false` where unsure.
+    fn learn_idle(&self, _key: &str) -> bool {
+        false
+    }
     /// Notes into a MIDI clip on a new drum track — something only a DAW can do. `notes`
     /// are (tick, velocity) at `pitch`. `None` when the host cannot; `Some(written)`.
     fn notes_to_clip(&mut self, _notes: &[(i64, u8)], _pitch: u8) -> Option<bool> {
@@ -379,6 +385,16 @@ impl<'a> DawHost<'a> {
 impl FxHost for DawHost<'_> {
     fn spec(&self) -> &EffectSpec {
         &self.spec
+    }
+
+    fn learn_idle(&self, key: &str) -> bool {
+        let effect = self.effect;
+        !self.app.controllers.learn_mode
+            && !self.app.is_mapped_where(|t| {
+                matches!(t, cantus_core::controller::MappingTarget::Param(
+                    cantus_core::AutoTarget::Effect { effect: e, key: k }
+                ) if *e == effect && k == key)
+            })
     }
 
     fn can_automate(&self) -> bool {

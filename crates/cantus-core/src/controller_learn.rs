@@ -4,14 +4,24 @@
 //! does not make it clear, the plain reading wins (absolute), and the mappings view lets
 //! the user say otherwise.
 
-use super::{Control, Encoding, MapMode, MappingTarget};
+use super::{Control, Encoding, MapMode, MappingTarget, Steps};
 
 /// What a learnt control is, and how a mapping to `target` should read it.
 pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Control, MapMode)> {
+    detect_in(heard, target, Steps::default())
+}
+
+/// [`detect`] for a target of the shape `shape`: a two-state parameter (an LED, a band's
+/// On) is learnt as a switch is (review 3, #0).
+pub fn detect_in(
+    heard: &[(Control, u16)],
+    target: &MappingTarget,
+    shape: Steps,
+) -> Option<(Control, MapMode)> {
     // A keyboard's program button sends bank select (CC 0, CC 32) first: the program
     // change is the control (review 2, #6).
     if let Some(i) = program_after_bank(heard) {
-        return detect(&heard[i..], target);
+        return detect_in(&heard[i..], target, shape);
     }
     let (first, _) = *heard.first()?;
     let control = match first {
@@ -32,7 +42,7 @@ pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Contr
         .filter(|(c, _)| *c == first)
         .map(|(_, v)| *v)
         .collect();
-    let switchy = target.is_switch() || target.is_action();
+    let switchy = target.is_switch() || shape.switch || target.is_action();
     let mode = match control {
         Control::Note(_) | Control::Program(_) => {
             if target.is_action() {

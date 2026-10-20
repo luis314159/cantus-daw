@@ -24,6 +24,9 @@ pub const QUIET_AFTER_MOVE: Duration = Duration::from_millis(250);
 /// loopback or a device answers within a millisecond or two; no hand presses again so
 /// soon.
 pub const ECHO_WINDOW: Duration = Duration::from_millis(30);
+/// The two threads' clocks read a moment apart: an echo stamped this much before its
+/// send is still its echo.
+pub const ECHO_SKEW: Duration = Duration::from_millis(2);
 /// How long a message sent is remembered, at most, waiting for an interface that reads its
 /// input late (a minimised window, a long frame) — and how many are remembered.
 pub const ECHO_KEEP: Duration = Duration::from_secs(2);
@@ -137,8 +140,8 @@ impl CantusApp {
             *port == h.port
                 && sent[..2] == bytes[..2]
                 && (short || sent[2] == bytes[2])
-                && h.at >= *t
-                && h.at.duration_since(*t) <= ECHO_WINDOW
+                && h.at + ECHO_SKEW >= *t
+                && h.at.saturating_duration_since(*t) <= ECHO_WINDOW
         }) {
             Some(i) => {
                 echoes.remove(i);
@@ -191,6 +194,9 @@ impl CantusApp {
             }
             let mut all = true;
             for msg in &messages {
+                // Stamped before it goes: a loopback's echo can arrive (and be stamped)
+                // before the send returns (review 3, #14).
+                let sent_at = Instant::now();
                 let ok = match self.controllers.feedback_log.as_mut() {
                     Some(log) => {
                         log.push((names[port].clone(), msg.clone()));
@@ -205,7 +211,7 @@ impl CantusApp {
                     if echoes.len() >= ECHO_MAX {
                         echoes.remove(0);
                     }
-                    echoes.push((port as u8, b, Instant::now()));
+                    echoes.push((port as u8, b, sent_at));
                 }
                 all &= ok;
             }

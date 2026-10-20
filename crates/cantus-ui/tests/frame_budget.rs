@@ -1017,3 +1017,106 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
     eprintln!("an idle controller frame with a hosted mapping: {allocs} allocations, {bytes} B");
     assert_eq!(allocs, 0, "{allocs} allocations in ten idle frames");
 }
+
+/// Round 29, review 3 of ADR 0062, #51: an editor's stepped controls (its switches,
+/// choices, lamps) offer MIDI learn, and with the learn mode off, nothing mapped and no
+/// menu open the offer builds nothing. A warm frame of the Compressor's editor and of the
+/// Wavetable's Edit view, nothing mapped, stays inside the allocations measured with the
+/// offers idle; and the offers alone, called over a drawn control, allocate nothing.
+#[test]
+fn an_editors_idle_stepped_controls_cost_no_allocation() {
+    use cantus_core::{EffectKind, InstrumentKind, InstrumentSpec, NativeSpec};
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let size = egui::vec2(1600.0, 1000.0);
+    let mut frame = 0u64;
+    let mut measure = |app: &mut CantusApp, show: &mut dyn FnMut(&mut CantusApp, &mut egui::Ui)| {
+        let mut counts = Vec::new();
+        for i in 0..30 {
+            frame += 1;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+                time: Some(frame as f64 / 60.0),
+                predicted_dt: 1.0 / 60.0,
+                ..Default::default()
+            };
+            let (out, allocs, _) = counted(|| ctx.run_ui(input, |ui| show(app, ui)));
+            let mut out = out;
+            out.textures_delta.clear();
+            if i >= 20 {
+                counts.push(allocs);
+            }
+        }
+        median(counts)
+    };
+    // The Compressor's editor.
+    let (engine, _p) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let s0 = app.project().tracks[0].strip.unwrap();
+    app.add_effect(s0, EffectKind::Compressor);
+    let fx = app.project().strip(s0).unwrap().effects.last().unwrap().id;
+    cantus_ui::views::fx::demo_setup(&mut app, s0, fx, EffectKind::Compressor);
+    app.open_effect_editor(s0, fx);
+    let comp = measure(&mut app, &mut |a, ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::comp_editor::window(a, &ctx);
+        cantus_ui::views::fx::window(a, &ctx);
+    });
+    // The Wavetable's Edit view.
+    let (engine, _p) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let track = app.project().tracks[0].id;
+    app.set_instrument(
+        track,
+        InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Wavetable)),
+    );
+    cantus_ui::views::inst::demo_setup(&mut app, track, InstrumentKind::Wavetable);
+    app.open_inst_editor(track);
+    app.inst.view = cantus_ui::views::inst::View::Edit;
+    let wt = measure(&mut app, &mut |a, ui| {
+        cantus_ui::views::inst::window_in(a, ui)
+    });
+    eprintln!("a warm editor frame, nothing mapped: Compressor {comp}, Wavetable {wt} allocations");
+    assert!(
+        comp <= COMP_EDITOR_ALLOCS,
+        "Compressor: {comp} allocations a frame"
+    );
+    assert!(
+        wt <= WAVETABLE_EDITOR_ALLOCS,
+        "Wavetable: {wt} allocations a frame"
+    );
+    // The offer alone over a drawn switch: nothing.
+    let input = egui::RawInput {
+        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+        ..Default::default()
+    };
+    let mut alone = u64::MAX;
+    let _ = ctx.run_ui(input, |ui| {
+        let resp = ui.interact(
+            egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(40.0, 20.0)),
+            egui::Id::new("budget-switch"),
+            egui::Sense::click(),
+        );
+        let (_, n, _) = counted(|| {
+            cantus_ui::controllers::stepped_inst_of(
+                &mut app,
+                ui,
+                track,
+                InstrumentKind::Wavetable,
+                "osc1.on",
+                &resp,
+            )
+        });
+        alone = n;
+    });
+    assert_eq!(alone, 0, "an idle stepped offer allocated {alone} times");
+}
+
+/// A warm frame of the Compressor's editor, nothing mapped: 191 measured with the stepped
+/// offers idle, 209 with them building their targets (round 29, review 3 of ADR 0062, #51).
+const COMP_EDITOR_ALLOCS: u64 = 200;
+/// The Wavetable's Edit view: 1 494 measured idle, 1 646 with the offers building.
+const WAVETABLE_EDITOR_ALLOCS: u64 = 1_560;

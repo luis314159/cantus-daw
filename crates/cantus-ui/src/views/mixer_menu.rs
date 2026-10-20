@@ -1327,7 +1327,7 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         // One undo step, one status for the whole strip or insert (review 1, #51).
         Act::ForgetStrip(id) => {
-            let all: Vec<_> = (0..5)
+            let all: Vec<_> = (0..7)
                 .filter_map(|w| crate::controllers::strip_learn_target(id, w))
                 .collect();
             let name = crate::automation::target_parts(
@@ -1594,10 +1594,16 @@ fn learn_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
         (2, "ctl.menu.width"),
         (3, "ctl.menu.mute"),
         (4, "ctl.menu.solo"),
+        (5, "ctl.menu.fx"),
+        (6, "ctl.menu.arm"),
     ] {
         let Some(t) = crate::controllers::strip_learn_target(id, what) else {
             continue;
         };
+        // The record arm: a strip with tracks that record into it.
+        if what == 6 && !rec_state(app, id).0 {
+            continue;
+        }
         let m = app.is_mapped(&t);
         mapped |= m;
         e.push(Entry::act(Label::Key(key), Act::Learn(id, what)).check(on(m)));

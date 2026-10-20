@@ -25,7 +25,7 @@ mod keys;
 #[path = "transport_layout.rs"]
 pub mod layout;
 #[path = "transport_menus.rs"]
-mod menus;
+pub(crate) mod menus;
 #[path = "transport_meter.rs"]
 mod meter;
 #[path = "transport_metro.rs"]

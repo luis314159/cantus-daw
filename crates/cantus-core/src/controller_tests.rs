@@ -398,6 +398,7 @@ fn relative_targets_resolve_through_the_focus() {
     let focus = Focus {
         track: Some(t),
         strip: Some(s),
+        master: false,
         device: &dev,
     };
     assert_eq!(
@@ -1001,4 +1002,188 @@ fn a_mappings_plug_in_survives_serde() {
     assert!(text.contains("org.test.synth"), "{text}");
     let back: Mapping = serde_json::from_str(&text).unwrap();
     assert_eq!(back, m);
+}
+
+// ---- review 3 ------------------------------------------------------------------------
+
+/// A target's shape as the interface tells it: two states, or `n` steps.
+fn two_state() -> Steps {
+    Steps {
+        switch: true,
+        steps: Some(1),
+    }
+}
+
+/// Review 3, #0: a two-state parameter (an LED, a band's On) is a switch: a latching
+/// button's first press sets it under pick-up; one encoder detent sets it either way.
+#[test]
+fn a_two_state_parameter_is_a_switch() {
+    let m = Mapping {
+        takeover: Takeover::Pickup,
+        ..knob(MapMode::Absolute)
+    };
+    let mut st = DriveState::default();
+    assert_eq!(
+        m.read_in(127, true, Some(0.0), &mut st, two_state()),
+        Drive::Set(1.0),
+        "the first press"
+    );
+    assert_eq!(
+        m.read_in(0, true, Some(1.0), &mut st, two_state()),
+        Drive::Set(0.0)
+    );
+    let enc = knob(MapMode::Relative(Encoding::TwosComplement));
+    let mut st = DriveState::default();
+    assert_eq!(
+        enc.read_in(1, true, Some(0.0), &mut st, two_state()),
+        Drive::Set(1.0),
+        "one detent"
+    );
+    assert_eq!(
+        enc.read_in(127, true, Some(1.0), &mut st, two_state()),
+        Drive::Set(0.0)
+    );
+}
+
+/// Review 3, #0: a pad learnt on a two-state parameter toggles it.
+#[test]
+fn a_pad_on_a_two_state_parameter_is_learnt_as_a_toggle() {
+    let target = MappingTarget::Param(AutoTarget::MasterPan);
+    let heard = [(Control::Note(36), 100)];
+    assert_eq!(
+        learn::detect_in(&heard, &target, two_state()),
+        Some((Control::Note(36), MapMode::Toggle))
+    );
+    assert_eq!(
+        learn::detect_in(&heard, &target, Steps::default()),
+        Some((Control::Note(36), MapMode::Absolute))
+    );
+}
+
+/// Review 3, #1: an encoder on a stepped choice moves one choice per detent.
+#[test]
+fn an_encoder_moves_one_choice_per_detent() {
+    let m = knob(MapMode::Relative(Encoding::TwosComplement));
+    let shape = Steps {
+        switch: false,
+        steps: Some(8),
+    };
+    let q = |p: f32| (p * 8.0).round() / 8.0;
+    let mut st = DriveState::default();
+    let mut now = 0.0;
+    for want in 1..=3 {
+        if let Drive::Set(p) = m.read_in(1, true, Some(now), &mut st, shape) {
+            now = q(p);
+            st.last_out = Some(now);
+        }
+        assert!((now - want as f32 / 8.0).abs() < 1e-6, "{want}: {now}");
+    }
+}
+
+/// Review 3, #45: a port's name as Linux's ALSA gives it ("client:port C:P") is the
+/// device's name; a mapping saved under one client number matches the port under another.
+#[test]
+fn an_alsa_port_name_is_the_devices_name() {
+    assert_eq!(
+        clean_port_name("nanoKONTROL2:nanoKONTROL2 _ CTRL 24:0"),
+        "nanoKONTROL2 _ CTRL"
+    );
+    assert_eq!(clean_port_name("Keystation 49"), "Keystation 49");
+    assert_eq!(clean_port_name("MIDIIN2 (X-Touch)"), "MIDIIN2 (X-Touch)");
+    assert_eq!(
+        clean_port_name("Midi Through:Midi Through Port-0 14:0"),
+        "Midi Through Port-0"
+    );
+    let then = vec!["nanoKONTROL2:nanoKONTROL2 _ CTRL 24:0".to_string()];
+    let now = vec![
+        "Midi Through:Midi Through Port-0 14:0".to_string(),
+        "nanoKONTROL2:nanoKONTROL2 _ CTRL 28:0".to_string(),
+    ];
+    let p = PortRef::of(&then, 0);
+    assert_eq!(p.name, "nanoKONTROL2 _ CTRL");
+    assert_eq!(p.index_in(&now), Some(1));
+    // A mapping saved with the raw name still matches.
+    let raw = PortRef {
+        name: then[0].clone(),
+        ordinal: 0,
+    };
+    assert_eq!(raw.index_in(&now), Some(1));
+}
+
+/// Review 3, #44: a mapping of a swapped-out plug-in shares nothing with the live one.
+#[test]
+fn a_dormant_plug_in_mapping_is_not_shared() {
+    use crate::external::{ExternalPlugin, PluginFormat};
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let vital = ExternalPlugin::new(PluginFormat::Clap, "audio.vital", "Vital");
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(vital);
+    let target = MappingTarget::Param(crate::AutoTarget::PluginInstrument { track: t, id: 7 });
+    let mut old = Mapping::new(
+        MappingId(1),
+        src(Control::Cc(71)),
+        target.clone(),
+        MapMode::Absolute,
+    );
+    old.plugin = Some(PluginRef {
+        format: PluginFormat::Clap,
+        id: "org.surge".into(),
+    });
+    let mut new = old.clone();
+    new.id = MappingId(2);
+    new.plugin = target.plugin_of(&p);
+    let map = ControllerMap {
+        mappings: vec![old, new.clone()],
+    };
+    assert_eq!(map.sharing(&new).count(), 1);
+    assert_eq!(map.sharing_in(&new, &p).count(), 0);
+}
+
+/// Review 3, #7: "the selected strip" with the master selected is the master's volume and
+/// pan (it has no mute or solo).
+#[test]
+fn the_selected_strip_can_be_the_master() {
+    let focus = Focus {
+        master: true,
+        ..Focus::default()
+    };
+    assert_eq!(
+        MappingTarget::SelectedStrip(DeskParam::Volume).resolve(&focus),
+        Some(MappingTarget::Param(AutoTarget::MasterGain))
+    );
+    assert_eq!(
+        MappingTarget::SelectedStrip(DeskParam::Pan).resolve(&focus),
+        Some(MappingTarget::Param(AutoTarget::MasterPan))
+    );
+    assert_eq!(
+        MappingTarget::SelectedStrip(DeskParam::Mute).resolve(&focus),
+        None
+    );
+}
+
+/// Review 3, #46: a strip's effects switch and its record arm are switch targets that set
+/// and read back (the master's effects too).
+#[test]
+fn a_strips_effects_and_record_arm_set_and_read() {
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let s = p.tracks[0].strip.unwrap();
+    p.track_mut(t).unwrap().input = Some(crate::audio::TrackInput {
+        first: 0,
+        stereo: false,
+        monitor: Default::default(),
+        trim_db: 0.0,
+    });
+    for target in [
+        MappingTarget::StripFx(s),
+        MappingTarget::StripFx(StripId::MASTER),
+        MappingTarget::StripArm(s),
+    ] {
+        assert!(target.is_switch() && target.exists(&p), "{target:?}");
+        for pos in [0.0f32, 1.0] {
+            let cmd = target.command(&p, pos, Ticks::ZERO).expect("a command");
+            cmd.apply(&mut p).unwrap();
+            assert_eq!(target.current_pos(&p, Ticks::ZERO), Some(pos), "{target:?}");
+        }
+    }
 }
