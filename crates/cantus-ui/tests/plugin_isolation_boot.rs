@@ -14,7 +14,9 @@ use std::path::PathBuf;
 /// The CLAP test gain, built once into `target/test-plugins` (its own target folder, so
 /// this test's cargo does not wait on the one running it).
 fn test_gain() -> PathBuf {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("..");
     let target = root.join("target").join("test-plugins");
     let file = target.join("debug").join(if cfg!(windows) {
         "cantus_test_clap.dll"

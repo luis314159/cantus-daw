@@ -249,7 +249,9 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
             },
         );
         app.select_track(track);
-        let path = dir.join(format!("isolation-instrument-{theme_name}-{code}-{ppp}x.png"));
+        let path = dir.join(format!(
+            "isolation-instrument-{theme_name}-{code}-{ppp}x.png"
+        ));
         shoot(
             &ctx,
             egui::vec2(1280.0, 760.0),

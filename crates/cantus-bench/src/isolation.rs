@@ -110,6 +110,7 @@ fn load(pool: &Arc<Sandboxes>, info: &PluginInfo, mode: PluginIsolation, frames:
             group,
             pool: pool.clone(),
             offline: false,
+            cancel: None,
         }
         .load(info, setup)
         .expect("loads in the helper"),
