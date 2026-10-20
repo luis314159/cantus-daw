@@ -63,20 +63,31 @@ pub fn bypassed(app: &CantusApp) -> String {
 /// monitored chain's — while the mode is on and something is monitored.
 pub fn monitored_ms(app: &CantusApp) -> Option<f64> {
     let stats = app.engine.stats();
-    let ll = stats.low_latency;
-    if !ll.on || !ll.monitoring || app.engine.sample_rate <= 0.0 {
+    monitored_figure(
+        app.engine.device_latency(),
+        stats.input_queue,
+        &stats.low_latency,
+        app.engine.sample_rate,
+    )
+}
+
+/// The figure [`monitored_ms`] shows: an audio input waits on the driver's input and the
+/// input ring; notes played into an armed instrument go out only (review 2).
+pub fn monitored_figure(
+    device: cantus_engine::DeviceLatency,
+    input_queue: f64,
+    ll: &cantus_engine::LowLatency,
+    rate: f64,
+) -> Option<f64> {
+    if !ll.on || !ll.monitoring || rate <= 0.0 {
         return None;
     }
-    // An audio input waits on the driver's input and the input ring; notes played into an
-    // armed instrument go out only (review 2).
-    let device = app.engine.device_latency();
     let way = if ll.audio {
-        device.round_trip() as f64 + stats.input_queue.max(0.0)
+        device.round_trip() as f64 + input_queue.max(0.0)
     } else {
         device.output as f64
     };
-    let samples = way + ll.monitored_samples as f64;
-    Some(samples * 1000.0 / app.engine.sample_rate)
+    Some((way + ll.monitored_samples as f64) * 1000.0 / rate)
 }
 
 /// The rows of the record button's popover and of the audio chip's: the switch, the limit,

@@ -464,6 +464,11 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             ),
         ),
     };
+    // A file it plays not there: no bounce of silence (review 2); one back, tried again.
+    if let Some(file) = crate::freeze::missing_file(app, &keep) {
+        return Err(tf("freeze.file_missing", &[("file", &file)]));
+    }
+    crate::freeze::retry_back(app, &keep);
     let compiled = app.engine.compile_for_render(&alone, 0);
     let mut snap = (*compiled).clone();
     freeze::isolate(&mut snap, &keep);
@@ -481,9 +486,7 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<Option<crate::freeze::Jo
             .track_index(plan.track)
             .map_or(0, |i| meters.track_late.get(i).copied().unwrap_or(0)),
     } as usize;
-    if let Some(file) = crate::freeze::missing_file(app, &keep) {
-        return Err(tf("freeze.file_missing", &[("file", &file)]));
-    }
+
     let dir = app.audio_record_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let label = match plan.through {

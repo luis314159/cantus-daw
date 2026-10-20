@@ -822,6 +822,8 @@ fn older_than_its_files(app: &CantusApp, target: FreezeTarget, render: &Path) ->
 /// Begin `want`'s render on a worker; `None` when there is nothing to render (frozen at
 /// once from a render at hand, or no longer wanted).
 fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
+    // The project's folder as it is now (a save as in this very frame).
+    follow_path(app);
     let rate = app.engine.sample_rate.round() as u32;
     match want.clone() {
         Want::Freeze(target) => {
@@ -842,6 +844,7 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
             if let Some(file) = missing_file(app, &freeze::region(&after, target)) {
                 return Err(tf("freeze.file_missing", &[("file", &file)]));
             }
+            retry_back(app, &freeze::region(&after, target));
             // A render for this very sound is at hand: frozen at once — unless a file it
             // plays was edited since it was made.
             if let Some(path) = app.engine.frozen.path_of(&content, rate) {
@@ -882,9 +885,11 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                 return Ok(None);
             }
             // A file it plays is not there yet: made when it is (it plays live meanwhile).
-            if missing_file(app, &freeze::region(app.project(), target)).is_some() {
+            let region = freeze::region(app.project(), target);
+            if missing_file(app, &region).is_some() {
                 return Ok(None);
             }
+            retry_back(app, &region);
             let project = app.project().clone();
             match render_job(app, want, target, &project, content, Vec::new()) {
                 Ok(job) => Ok(Some(job)),
@@ -956,6 +961,46 @@ pub(crate) fn missing_file(app: &CantusApp, r: &freeze::Region) -> Option<String
         }
     });
     out
+}
+
+/// The files `r`'s tracks play that are back on disk after failing: tried again before a
+/// render (the sample cache remembers a failure until told).
+pub(crate) fn retry_back(app: &mut CantusApp, r: &freeze::Region) {
+    let mut back: Vec<(String, bool)> = Vec::new();
+    {
+        let project = app.project();
+        let base = app.audio_base();
+        crate::views::samples_content::missing::each_path(project, &mut |owner, path, _| {
+            use crate::views::samples_content::missing::Owner;
+            let (inside, audio) = match &owner {
+                Owner::Zone { track, .. }
+                | Owner::Pad { track, .. }
+                | Owner::Layer { track, .. } => (r.tracks.contains(track), false),
+                Owner::Source { id } => (
+                    r.tracks.iter().any(|t| {
+                        project.track(*t).is_some_and(|t| {
+                            t.clips
+                                .iter()
+                                .any(|c| c.audio.as_ref().is_some_and(|a| a.source == *id))
+                        })
+                    }),
+                    true,
+                ),
+            };
+            if inside && crate::waveform::resolve(base, path).is_file() {
+                back.push((path.to_string(), audio));
+            }
+        });
+    }
+    for (path, audio) in back {
+        if app.engine.samples.has_failed(&path, audio) {
+            if audio {
+                app.engine.samples.retry_audio(&path);
+            } else {
+                app.engine.samples.retry(std::path::Path::new(&path));
+            }
+        }
+    }
 }
 
 fn render_job(
