@@ -236,6 +236,20 @@ mod imp {
     /// #26, #35, #47, #57, #68: never the bottom-most). Cantus let this process take the
     /// foreground first. Safe from any thread.
     pub fn surface(thread: u32) {
+        let w = waiting_window(thread);
+        if !w.is_null() {
+            // SAFETY: plain calls on a window handle (one that went meanwhile fails them).
+            unsafe {
+                BringWindowToTop(w);
+                SetForegroundWindow(w);
+            }
+        }
+    }
+
+    /// The window [`surface`] brings forward: the topmost visible, enabled window of
+    /// `thread` whose owner is disabled (a modal dialog), else its topmost visible, enabled
+    /// one; null when it has none.
+    pub(crate) fn waiting_window(thread: u32) -> HWND {
         struct Found {
             modal: HWND,
             any: HWND,
@@ -265,14 +279,69 @@ mod imp {
         // SAFETY: walks that thread's top-level windows with our callback.
         unsafe {
             EnumThreadWindows(thread, Some(each), &mut found as *mut Found as LPARAM);
-            let w = if found.modal.is_null() {
-                found.any
-            } else {
-                found.modal
-            };
-            if !w.is_null() {
-                BringWindowToTop(w);
-                SetForegroundWindow(w);
+        }
+        if found.modal.is_null() {
+            found.any
+        } else {
+            found.modal
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DestroyWindow, WS_OVERLAPPEDWINDOW, WS_POPUP, WS_VISIBLE,
+        };
+
+        fn window(style: u32, owner: HWND) -> HWND {
+            let class: Vec<u16> = "STATIC\0".encode_utf16().collect();
+            // SAFETY: a plain window of a system class on this thread, destroyed below.
+            unsafe {
+                CreateWindowExW(
+                    0,
+                    class.as_ptr(),
+                    std::ptr::null(),
+                    style,
+                    0,
+                    0,
+                    80,
+                    60,
+                    owner,
+                    std::ptr::null_mut(),
+                    std::ptr::null_mut(),
+                    std::ptr::null(),
+                )
+            }
+        }
+
+        /// *Show it* brings forward the dialog a plug-in waits on — the window whose owner
+        /// it disabled — not the last window listed, nor another visible one on top
+        /// (review isolation-5 #5, #17, #26, #35, #47, #57, #68).
+        #[test]
+        fn show_it_picks_the_dialog_its_owner_waits_on() {
+            let thread = current_thread();
+            // Under everything: the last one listed, which is never the answer.
+            let low = window(WS_OVERLAPPEDWINDOW | WS_VISIBLE, std::ptr::null_mut());
+            let editor = window(WS_OVERLAPPEDWINDOW | WS_VISIBLE, std::ptr::null_mut());
+            let dialog = window(WS_POPUP | WS_VISIBLE, editor);
+            let other = window(WS_OVERLAPPEDWINDOW | WS_VISIBLE, std::ptr::null_mut());
+            assert!(!low.is_null() && !editor.is_null() && !dialog.is_null() && !other.is_null());
+            // SAFETY: windows of this thread.
+            unsafe { EnableWindow(editor, 0) };
+            assert_eq!(waiting_window(thread), dialog, "the modal dialog");
+            // SAFETY: as above.
+            unsafe {
+                EnableWindow(editor, 1);
+                DestroyWindow(dialog);
+            }
+            assert_eq!(waiting_window(thread), other, "the topmost visible, enabled one");
+            // SAFETY: as above.
+            unsafe {
+                DestroyWindow(other);
+                DestroyWindow(editor);
+                DestroyWindow(low);
             }
         }
     }
@@ -575,18 +644,28 @@ pub mod blame {
         }
         let main = MAIN.try_with(|m| m.get()).unwrap_or(false);
         let nested = main && NESTED.load(Ordering::Acquire);
-        let n = match CURRENT.try_with(|c| c.get()).unwrap_or(0) {
-            n if n != 0 && !nested => n,
-            _ => match by_module(addr) {
-                0 => OUTSIDE,
-                n => n,
-            },
-        };
+        let current = CURRENT.try_with(|c| c.get()).unwrap_or(0);
+        let n = whose(current, nested, || by_module(addr));
         // SAFETY: `word` points into the lobby, mapped for the life of the process.
         let w = unsafe { &*word };
         w.compare_exchange(0, n, Ordering::AcqRel, Ordering::Relaxed)
             .ok()
             .map(|_| n)
+    }
+
+    /// Whose a fault is: the instance the faulting thread calls into (`current`) — but for
+    /// the main thread inside a plug-in's own loop (`nested`), where any window's message
+    /// may run — else the one instance whose library the faulting code is in
+    /// (`by_module`, 0 for none or several), else *outside* (review isolation-5 #7, #32,
+    /// #55: never a library's first owner over the thread's own call).
+    fn whose(current: u32, nested: bool, by_module: impl FnOnce() -> u32) -> u32 {
+        if current != 0 && !nested {
+            return current;
+        }
+        match by_module() {
+            0 => OUTSIDE,
+            n => n,
+        }
     }
 
     /// The fault was handled after all (a plug-in's own filter resumed it): its word is
@@ -831,6 +910,37 @@ pub mod blame {
             let here = a_filter_in_no_library_is_never_called as *const () as usize;
             assert!(super::imp::loaded(here));
             assert!(!super::imp::loaded(0x10));
+        }
+    }
+
+    #[cfg(test)]
+    mod rules {
+        use super::*;
+
+        /// The thread's own call first: a crash in a library another plug-in loaded first
+        /// is the calling plug-in's; inside a plug-in's own loop, the faulting library's one
+        /// instance, else nobody (review isolation-5 #7, #32, #55).
+        #[test]
+        fn a_fault_is_the_calling_plugins_and_in_a_loop_its_librarys() {
+            assert_eq!(whose(5, false, || 9), 5, "its own call, whatever library");
+            assert_eq!(whose(5, true, || 9), 9, "in a loop: the library's one instance");
+            assert_eq!(whose(5, true, || 0), OUTSIDE, "in a loop, no single one: nobody");
+            assert_eq!(whose(0, false, || 9), 9, "no call: the library's");
+            assert_eq!(whose(0, false, || 0), OUTSIDE);
+        }
+
+        /// A library several instances share names none of them; one instance's names it.
+        #[test]
+        fn a_library_two_instances_share_names_neither() {
+            let (start, end) = (0x1000_0000usize, 0x1000_8000usize);
+            remember_module(start, end, 4_000_001);
+            assert_eq!(by_module(start + 16), 4_000_001);
+            remember_module(start, end, 4_000_002);
+            assert_eq!(by_module(start + 16), 0, "shared: nobody");
+            forget_instance(4_000_001);
+            assert_eq!(by_module(start + 16), 4_000_002, "its only one left");
+            forget_instance(4_000_002);
+            assert_eq!(by_module(start + 16), 0);
         }
     }
 

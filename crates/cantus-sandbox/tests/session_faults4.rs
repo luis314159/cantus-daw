@@ -197,7 +197,7 @@ fn an_end_nothing_lays_on_one_plugin_is_counted_for_none() {
 
 /// A reload that crashes again says why it stopped now, and whose doing that was: a
 /// plug-in that stopped as a neighbour and now crashes by itself is offered a process of
-/// its own (review isolation-4 #64).
+/// its own (review isolation-4 #64; isolation-5 #36: the neighbour turned culprit).
 #[test]
 fn a_reload_that_fails_says_why_now_and_whose() {
     let _g = serial();
@@ -209,7 +209,7 @@ fn a_reload_that_fails_says_why_now_and_whose() {
     let (s0, s1) = (strip_of(&p, 0), strip_of(&p, 1));
     let mut rig = Rig::new(p, patient_host());
     let a = rig.insert(s0, GAIN_ID, PluginIsolation::Together);
-    let b = rig.insert(s1, VST3_GAIN_ID, PluginIsolation::Together);
+    let b = rig.insert(s1, GAIN_ID, PluginIsolation::Together);
     rig.settle();
     rig.engine.seek(Ticks::ZERO);
     rig.engine.play();
@@ -221,24 +221,29 @@ fn a_reload_that_fails_says_why_now_and_whose() {
         r.host.crashed(a).is_some() && r.host.crashed(b).is_some()
     });
     rig.engine.stop();
+    assert!(rig.host.crash_culprit(a), "A did it");
     assert!(!rig.host.crash_culprit(b), "B was a neighbour");
     let before = rig.host.crashed(b).map(str::to_string);
-    // B now crashes by itself whenever it starts (a VST3 that aborts on activation is not
-    // to hand: its helper is made to fail with A's, which aborts).
+    // B, reloaded, now crashes by itself as it starts.
     std::env::set_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE", "1");
     rig.host
-        .reload(rig.bus.project(), &mut rig.engine, a)
+        .reload(rig.bus.project(), &mut rig.engine, b)
         .expect("asked: its load is answered later");
     std::env::remove_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE");
     frames_until(&mut rig, Duration::from_secs(5), |r| {
-        r.host.crashed(a).is_some()
+        r.host.crash_culprit(b)
     });
-    assert!(rig.host.crashed(a).is_some(), "it crashed again");
-    assert!(rig.host.crash_culprit(a), "its own doing this time");
-    let now = rig.host.crashed(a).map(str::to_string);
+    assert!(rig.host.crashed(b).is_some(), "it crashed again");
+    assert!(rig.host.crash_culprit(b), "its own doing this time");
+    let now = rig.host.crashed(b).map(str::to_string);
     assert!(
         now.is_some() && now != before,
-        "why it stopped now: {now:?}"
+        "why it stopped now: {now:?} (before: {before:?})"
+    );
+    assert_eq!(
+        rig.host.crashes_this_session(Format::Clap, GAIN_ID),
+        2,
+        "A's crash and B's own, each counted once"
     );
 }
 
@@ -383,7 +388,7 @@ fn a_render_whose_plugin_crashes_loading_says_it_never_had_it() {
     let project = demo_project();
     let strip = strip_of(&project, 0);
     let mut rig = Rig::new(project, patient_host());
-    let _id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     rig.settle();
     std::env::set_var("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE", "1");
     let _ = render(&mut rig, false);
@@ -392,8 +397,13 @@ fn a_render_whose_plugin_crashes_loading_says_it_never_had_it() {
     rig.host.finish_render();
     assert_eq!(failures.len(), 1, "{failures:?}");
     assert_eq!(failures[0].kind, RenderLoss::NeverLoaded);
+    // The render instance's crash is the render's loss, never the live plug-in's: not
+    // told, not counted, the live one untouched (isolation-5 #41: frames ran meanwhile).
+    frames_until(&mut rig, Duration::from_millis(300), |_| false);
     assert!(rig
         .notices
         .iter()
         .all(|n| !matches!(n, HostNotice::PluginCrashed { .. })));
+    assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 0);
+    assert!(rig.host.crashed(id).is_none());
 }

@@ -1239,20 +1239,29 @@ cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
   mezclador — ofrece **Recargar plug-in** cuando quieras recuperarlo. Pedir su ventana
   vuelve a mostrar su tarjeta;
 - un plug-in que falla mientras se carga se avisa igual: recárgalo, o elige dónde se
-  ejecuta, y Cantus lo intenta de nuevo;
-- **el proyecto no pierde nada**: al guardar se conservan el último estado bueno y los
-  valores del plug-in, y el proyecto se abre con ellos la próxima vez;
+  ejecuta, y Cantus lo intenta de nuevo. Uno que se niega a cargarse, o no se carga a
+  tiempo, se dice *sin cargar* — nunca como uno que haya que instalar — y ofrece **Recargar
+  plug-in** en su menú; Cantus nunca vuelve a intentarlo solo;
+- **Cantus nunca espera a un plug-in.** Cargarlo, su ventana, su estado, moverlo: cada cosa
+  se le pide a su ayudante, y la ventana sigue mientras tanto. Una ranura cuyo plug-in aún
+  se carga deja pasar el sonido, y una pista cuyo instrumento se carga calla, el momento que
+  tarde;
+- **el proyecto no pierde nada, y guardar nunca finge**: al guardar se pide a cada plug-in
+  su estado tal como está y el archivo se escribe cuando han respondido. Uno que no puede
+  responder a tiempo se guarda con el último estado que dio, y la línea de estado lo
+  nombra. Las exportaciones, los bounces y las congelaciones esperan a sus plug-ins igual,
+  y lo dicen cuando uno no pudo dar su estado tal como estaba;
 - un plug-in colgado tiene dos segundos; después su ayudante se termina; mientras está
   colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
   nunca. Un plug-in que muestra un diálogo propio (un archivo que abrir, una licencia) no
-  está colgado: Cantus te espera, y mientras tanto sigue guardando y respondiendo;
-- un plug-in al que una ventana suya tiene ocupado más de lo que deberían tardar sus
-  llamadas tiene una tarjeta propia — *"Glacier espera en una ventana suya"* — con
-  **Mostrarlo** (su ventana al frente, por si se abrió detrás de Cantus) y **Detenerlo** (se
-  termina, Cantus sigue sonando y puedes recargarlo). Su propia ventana, pedida entretanto,
-  se abre en cuanto queda libre; un plug-in que no se pudo cargar porque su ayudante estaba
-  ocupado se vuelve a intentar solo, y cualquier plug-in que no se pudo cargar ofrece
-  **Recargar plug-in** en su menú;
+  está colgado: Cantus te espera;
+- un plug-in que hace esperar a su ayudante — un diálogo suyo, quizá detrás de Cantus —
+  tiene una tarjeta propia — *"Glacier te espera"*, su nombre entero en la pista de la
+  tarjeta — con **Mostrarlo** (su diálogo al frente) y **Detenerlo** (su ayudante se
+  termina, Cantus sigue sonando y puedes recargarlo; la tarjeta avisa cuando otros
+  plug-ins comparten ese ayudante y se detendrían con él). Lo que pidas a ese ayudante
+  entretanto — la ventana de otro plug-in, un guardado — se hace en cuanto el diálogo se
+  cierra;
 - las notas y los movimientos de mandos enviados mientras un plug-in iba tarde no se
   pierden: le llegan en cuanto responde.
 

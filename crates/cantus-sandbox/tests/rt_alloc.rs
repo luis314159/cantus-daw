@@ -237,7 +237,9 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
                 },
             })
             .collect();
-        let crowd: Vec<NoteEvent> = (0..300u32)
+        // 400 of its own: the 200 carried note-offs find no room beside them, so the
+        // plug-in is reset first (`Carry::needs_reset_first`; review isolation-5 #39).
+        let crowd: Vec<NoteEvent> = (0..400u32)
             .map(|i| NoteEvent {
                 offset: i,
                 note_id: -1,

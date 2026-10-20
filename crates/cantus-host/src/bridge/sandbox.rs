@@ -163,7 +163,7 @@ impl LobbyMem {
     /// clear the mark when they finish a job. Real-time safe.
     pub fn stalled(&self) -> bool {
         let s = self.atom(STALLED).load(Ordering::Acquire);
-        s != 0 && self.atom(JOBS_DONE).load(Ordering::Acquire).wrapping_add(1) == s
+        s != 0 && mark_of(self.atom(JOBS_DONE).load(Ordering::Acquire)) == s
     }
 
     /// The count of finished jobs, read before a late job is looked at.
@@ -176,9 +176,14 @@ impl LobbyMem {
     /// job that finished in between moves the count past the mark (review isolation-5 #8).
     /// Real-time safe.
     pub fn mark_stalled(&self, done: u32) {
-        self.atom(STALLED)
-            .store(done.wrapping_add(1), Ordering::Release);
+        self.atom(STALLED).store(mark_of(done), Ordering::Release);
     }
+}
+
+/// The stalled mark for a count of finished jobs: never 0 (no mark), whatever the count —
+/// it wraps at 2^31 (a mark is cleared by the next finished job long before then).
+fn mark_of(done: u32) -> u32 {
+    (done & 0x7FFF_FFFF) + 1
 }
 
 /// Time limits of the main-thread requests, from when the helper starts each one: past it,
@@ -1529,6 +1534,30 @@ mod job {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The stalled mark never outlives a finished job: one that finished between the look
+    /// and the mark leaves the helper unmarked, and one finished after it clears it — the
+    /// mark is a count, never a flag left set (review isolation-5 #8, #71).
+    #[test]
+    fn a_stalled_mark_never_outlives_a_finished_job() {
+        let lobby = LobbyMem::create().expect("a lobby");
+        let before = lobby.jobs_done();
+        // A job finished after the count was read, before the mark (the race, #8).
+        lobby.atom(JOBS_DONE).fetch_add(1, Ordering::AcqRel);
+        lobby.mark_stalled(before);
+        assert!(!lobby.stalled(), "a job finished since: not stalled");
+        let now = lobby.jobs_done();
+        lobby.mark_stalled(now);
+        assert!(lobby.stalled(), "none finished since: stalled");
+        lobby.atom(JOBS_DONE).fetch_add(1, Ordering::AcqRel);
+        assert!(!lobby.stalled(), "one finished: free again");
+        // Across the count's wrap, a mark made then means the same.
+        lobby.atom(JOBS_DONE).store(u32::MAX, Ordering::Release);
+        lobby.mark_stalled(lobby.jobs_done());
+        assert!(lobby.stalled());
+        lobby.atom(JOBS_DONE).fetch_add(1, Ordering::AcqRel);
+        assert!(!lobby.stalled());
+    }
 
     fn set(v: &[u32]) -> HashSet<u32> {
         v.iter().copied().collect()
