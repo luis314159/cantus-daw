@@ -192,6 +192,7 @@ pub fn render(mat: &Material, mode: Mode, ratio: f64, semis: f64) -> Vec<Vec<f32
             onsets: &mat.onsets,
             pitch: pitch.as_ref(),
             tail: Tail::Fade,
+            origin: 0,
         },
     )
 }

@@ -42,7 +42,20 @@ pub(crate) fn princarg(x: f32) -> f32 {
     x - 2.0 * PI * (x / (2.0 * PI)).round()
 }
 
-/// Render the time map and transposition over one or two channels (the harmonic part).
+/// One synthesis frame's account, for [`level_match`]: its centre (output frames), the
+/// source frame it read, and the power it means to give against the power it analysed
+/// (their ratio is what the transposition does to the level: a band moved out, the
+/// formants put back).
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct Meant {
+    pub centre: i64,
+    pub read: i64,
+    pub meant: f64,
+    pub analysed: f64,
+}
+
+/// Render the time map and transposition over one or two channels (the harmonic part),
+/// and each synthesis frame's [`Meant`].
 pub(crate) fn render(
     channels: &[&[f32]],
     rate: f32,
@@ -51,18 +64,30 @@ pub(crate) fn render(
     len: usize,
     ratio: f64,
     formants: bool,
-) -> Vec<Vec<f32>> {
+) -> (Vec<Vec<f32>>, Vec<Meant>) {
     // Pairs share a phase; a third channel (never in a clip today) starts a new pair.
     let mut out = Vec::with_capacity(channels.len());
+    let mut meant: Vec<Meant> = Vec::new();
     for pair in channels.chunks(2) {
-        out.extend(render_pair(pair, rate, map, holds, len, ratio, formants));
+        let (o, m) = render_pair(pair, rate, map, holds, len, ratio, formants);
+        out.extend(o);
+        if meant.is_empty() {
+            meant = m;
+        } else {
+            for (a, b) in meant.iter_mut().zip(m) {
+                a.meant += b.meant;
+                a.analysed += b.analysed;
+            }
+        }
     }
-    out
+    (out, meant)
 }
 
 /// One channel's spectra and phase state.
 struct Chan {
     mag: Vec<f32>,
+    /// The magnitudes of the frame a synthesis hop before (a transient is where they rise).
+    mag0: Vec<f32>,
     phase: Vec<f32>,
     phase0: Vec<f32>,
     psi: Vec<f32>,
@@ -72,10 +97,30 @@ struct Chan {
     y: Vec<(f32, f32)>,
 }
 
+/// How a frame's phases start.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Reset {
+    /// Advanced from the last frame (locked around peaks).
+    None,
+    /// Every bin the analysed phase (the first frame).
+    All,
+    /// At a transient: the regions whose peak rose against the frame a hop before take the
+    /// analysed phase; the rest (a held bass, a pad) go on advancing, so a sustained partial
+    /// never jumps between two phase versions under a hit (Röbel 2003's transient bins).
+    Rising,
+}
+
+/// A peak whose magnitude grew by this factor over a hop is a transient's.
+const RISE: f32 = 1.5;
+/// The bins at the bottom (DC and its Hann lobe) and the Nyquist bin keep their analysed
+/// phase: a DC offset stays a constant, never a slow oscillation.
+const DC_BINS: usize = 2;
+
 impl Chan {
     fn new(h: usize) -> Self {
         Chan {
             mag: vec![0.0; h],
+            mag0: vec![0.0; h],
             phase: vec![0.0; h],
             phase0: vec![0.0; h],
             psi: vec![0.0; h],
@@ -87,7 +132,7 @@ impl Chan {
     }
 
     /// The phases advanced to this frame (or reset to the analysed ones).
-    fn advance(&mut self, n: usize, hs: usize, ratio: f32, reset: bool) {
+    fn advance(&mut self, n: usize, hs: usize, ratio: f32, reset: Reset) {
         let bins = self.mag.len();
         for k in 0..bins {
             let wk = 2.0 * PI * k as f32 / n as f32;
@@ -96,15 +141,23 @@ impl Chan {
         }
         find_peaks(&self.mag, &mut self.peaks, &mut self.owner);
         let step = hs as f32 * ratio;
-        if reset {
+        if reset == Reset::All {
             self.psi.copy_from_slice(&self.phase);
         } else if self.peaks.is_empty() {
             for k in 0..bins {
-                self.psi[k] = princarg(self.psi[k] + step * self.omega[k]);
+                self.psi[k] = if reset == Reset::Rising && self.mag[k] > RISE * self.mag0[k] {
+                    self.phase[k]
+                } else {
+                    princarg(self.psi[k] + step * self.omega[k])
+                };
             }
         } else {
             for &p in &self.peaks {
-                self.psi[p] = princarg(self.psi[p] + step * self.omega[p]);
+                self.psi[p] = if reset == Reset::Rising && self.mag[p] > RISE * self.mag0[p] {
+                    self.phase[p]
+                } else {
+                    princarg(self.psi[p] + step * self.omega[p])
+                };
             }
             for k in 0..bins {
                 let p = self.owner[k];
@@ -113,44 +166,134 @@ impl Chan {
                 }
             }
         }
+        for k in (0..DC_BINS.min(bins)).chain([bins - 1]) {
+            self.psi[k] = self.phase[k];
+        }
     }
 
-    /// The output bins: output bin `m` from source bin `m / ratio` — the magnitude
-    /// interpolated (and, with `env`, moved back under the source's envelope), the phase
-    /// the nearest source bin's (on zero-phase frames, the same across a lobe). Moving
-    /// whole peak regions by whole bins (Laroche–Dolson 1999b) was measured too: it kept a
-    /// shifted voice's envelope a dB worse (a lobe a fraction of a bin off its frequency
-    /// beats from frame to frame).
-    fn synthesise(&mut self, ratio: f32, env: Option<&[f32]>) {
+    /// The output bins. Untransposed, each bin as it is (its magnitude, its phase).
+    /// Transposed, **each peak's region is moved whole** (Laroche–Dolson): the region of a
+    /// partial at bin `p` (its true frequency, from ω) is moved by `p·(ratio − 1)` bins —
+    /// fractionally, its magnitudes interpolated — so the partial's lobe keeps its shape
+    /// and its level, centred on its new frequency (mapping bin `m` from `m / ratio`
+    /// instead stretched a lobe by the ratio: +1.8 dB an octave up, −4 dB down). Regions
+    /// moved apart leave gaps, moved together add up — so noise keeps its power as a
+    /// resampled signal would. With `env`, each bin's magnitude is moved back under the
+    /// source's envelope at its new place (the formants kept). DC and its lobe stay put.
+    fn synthesise(&mut self, ratio: f32, env: Option<&[f32]>, n: usize) {
         let half = self.mag.len() - 1;
-        let shift = ratio != 1.0;
-        for m in 0..=half {
-            let q = if shift { m as f32 / ratio } else { m as f32 };
-            if q > half as f32 {
-                self.y[m] = (0.0, 0.0);
-                continue;
+        if ratio == 1.0 {
+            for m in 0..=half {
+                let (s, c) = math::sin_cos(self.psi[m]);
+                self.y[m] = (self.mag[m] * c, self.mag[m] * s);
             }
-            let i = (q.round() as usize).min(half);
-            let lerp = |v: &[f32]| -> f32 {
-                if !shift {
-                    return v[m];
-                }
-                let f = (q.floor() as usize).min(half);
-                let t = q - f as f32;
+        } else {
+            for v in self.y.iter_mut() {
+                *v = (0.0, 0.0);
+            }
+            let lerp = |v: &[f32], q: f32| -> f32 {
+                let f = (q.floor().max(0.0) as usize).min(half);
+                let t = (q - f as f32).clamp(0.0, 1.0);
                 let b = v[(f + 1).min(half)];
                 v[f] + (b - v[f]) * t
             };
-            let gain = match env {
-                Some(e) => (e[m] / lerp(e).max(1e-12)).clamp(1.0 / 32.0, 32.0),
-                None => 1.0,
-            };
-            let a = lerp(&self.mag) * gain;
-            let (s, c) = math::sin_cos(self.psi[i]);
-            self.y[m] = (a * c, a * s);
+            let bins = |q: f32| -> f32 { between(&self.mag, q) };
+            let to_bin = n as f32 / (2.0 * PI);
+            for k in 0..DC_BINS.min(half) {
+                let (s, c) = math::sin_cos(self.psi[k]);
+                self.y[k] = (self.mag[k] * c, self.mag[k] * s);
+            }
+            // The regions: runs of bins with one owner, above the DC bins.
+            let mut lo = DC_BINS;
+            while lo < half {
+                let p = self.owner[lo];
+                let mut hi = lo + 1;
+                while hi < half && self.owner[hi] == p {
+                    hi += 1;
+                }
+                let pf = p as f32;
+                let true_bin = (self.omega[p] * to_bin).clamp(pf - 0.5, pf + 0.5);
+                let d = true_bin * (ratio - 1.0);
+                let first = ((lo as f32 + d).ceil().max(DC_BINS as f32)) as usize;
+                let last = ((hi as f32 + d).ceil().max(0.0) as usize).min(half);
+                for m in first..last {
+                    let q = m as f32 - d;
+                    if q < 0.0 || q > half as f32 {
+                        continue;
+                    }
+                    let gain = match env {
+                        Some(e) => (e[m] / lerp(e, q).max(1e-12)).clamp(1.0 / 32.0, 32.0),
+                        None => 1.0,
+                    };
+                    let a = bins(q) * gain;
+                    let i = (q.round() as usize).clamp(lo, hi - 1);
+                    let (s, c) = math::sin_cos(self.psi[i]);
+                    self.y[m].0 += a * c;
+                    self.y[m].1 += a * s;
+                }
+                lo = hi;
+            }
         }
         self.y[0].1 = 0.0;
         self.y[half].1 = 0.0;
     }
+}
+
+/// Taps either side of a fractional bin in [`between`].
+const SPAN: i64 = 4;
+/// Fractional positions per table.
+const STEPS: usize = 64;
+
+/// The interpolation weights: for `STEPS + 1` fractions `f` of a bin, `2·SPAN` taps at
+/// `k − f`, `k` from `1 − SPAN` to `SPAN` — a Hann-windowed sinc, each row summing to 1.
+fn weights() -> &'static Vec<[f32; 8]> {
+    static W: std::sync::OnceLock<Vec<[f32; 8]>> = std::sync::OnceLock::new();
+    W.get_or_init(|| {
+        (0..=STEPS)
+            .map(|i| {
+                let f = i as f64 / STEPS as f64;
+                let mut row = [0.0f64; 8];
+                for (j, w) in row.iter_mut().enumerate() {
+                    let x = (j as i64 + 1 - SPAN) as f64 - f;
+                    let sinc = if x.abs() < 1e-12 {
+                        1.0
+                    } else {
+                        let a = std::f64::consts::PI * x;
+                        math::sin(a) / a
+                    };
+                    let win = 0.5 + 0.5 * math::cos(std::f64::consts::PI * x / (SPAN as f64 + 1.0));
+                    *w = sinc * win;
+                }
+                let sum: f64 = row.iter().sum();
+                let mut out = [0.0f32; 8];
+                for (o, w) in out.iter_mut().zip(row) {
+                    *o = (w / sum) as f32;
+                }
+                out
+            })
+            .collect()
+    })
+}
+
+/// The magnitude spectrum `v` (bins `0..=half`) between its bins, at `q`: a windowed-sinc
+/// interpolation, mirrored at DC and Nyquist (a real signal's spectrum). Unlike a straight
+/// line between two bins it keeps a lobe's height and a noise's power at any fraction (a
+/// line loses up to 3 dB of noise half-way between bins).
+fn between(v: &[f32], q: f32) -> f32 {
+    let half = (v.len() - 1) as i64;
+    let i = q.floor() as i64;
+    let f = q - i as f32;
+    let row = &weights()[((f * STEPS as f32).round() as usize).min(STEPS)];
+    let at = |k: i64| -> f32 {
+        let k = k.abs();
+        let k = if k > half { 2 * half - k } else { k };
+        v[k.clamp(0, half) as usize]
+    };
+    let mut acc = 0.0f32;
+    for (j, w) in row.iter().enumerate() {
+        acc += w * at(i + j as i64 + 1 - SPAN);
+    }
+    acc.max(0.0)
 }
 
 /// The working state of one pair's render.
@@ -175,7 +318,7 @@ fn render_pair(
     len: usize,
     ratio: f64,
     formants: bool,
-) -> Vec<Vec<f32>> {
+) -> (Vec<Vec<f32>>, Vec<Meant>) {
     let n = frame_len(rate);
     let hs = n / 8;
     let half = n / 2;
@@ -202,6 +345,10 @@ fn render_pair(
     let mut acc: Vec<Vec<f32>> = (0..ch.len()).map(|_| vec![0.0f32; len + 2 * pad]).collect();
     let mut first = true;
     let mut next_hold = 0usize;
+    // Each frame's centre and the power it means to give (its own content, as if every
+    // overlapping frame agreed with it).
+    let w2: f64 = st.win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
+    let mut meant: Vec<Meant> = Vec::new();
     let mut j = -((half / hs) as i64);
     loop {
         let c = j * hs as i64;
@@ -209,22 +356,44 @@ fn render_pair(
             break;
         }
         let a = map.source(c as f64).round() as i64;
-        // Around a transient the map is a pure shift: untransposed, every frame there is
-        // the analysed frame itself (its phases reset), so the attack is the source's;
-        // transposed, the phases reset once, on the frame nearest the transient (Röbel).
-        let cf = c as f64;
-        while next_hold < holds.len() && holds[next_hold].to < cf {
-            next_hold += 1;
-        }
-        let reset = holds.get(next_hold).is_some_and(|h| {
-            if ratio == 1.0 {
-                h.from <= cf
-            } else {
-                (h.at / hs as f64).round() * hs as f64 == cf
-            }
-        });
-        st.frame(ch, a, ratio as f32, first || reset);
+        // Around a transient the map is a pure shift: untransposed, every frame there resets
+        // the bins the transient raised to their analysed phase, so the attack is the
+        // source's; transposed, once, on the frame nearest the transient (Röbel). A hold is
+        // passed only once both its end and that frame are behind (a short hold may end
+        // before its nearest frame).
+        let at_hold = at_hold(holds, &mut next_hold, c as f64, hs, ratio == 1.0);
+        let reset = if first {
+            Reset::All
+        } else if at_hold {
+            Reset::Rising
+        } else {
+            Reset::None
+        };
+        st.frame(ch, a, ratio as f32, reset);
         first = false;
+        let e: f64 = (0..n)
+            .map(|i| {
+                let (r, m) = (st.re[i] as f64, st.im[i] as f64);
+                r * r + if stereo { m * m } else { 0.0 }
+            })
+            .sum();
+        let analysed: f64 = st
+            .ch
+            .iter()
+            .map(|c| {
+                let m = &c.mag;
+                let h = m.len() - 1;
+                let inner: f64 = m[1..h].iter().map(|v| (*v as f64) * (*v as f64)).sum();
+                (m[0] as f64).powi(2) + (m[h] as f64).powi(2) + 2.0 * inner
+            })
+            .sum::<f64>()
+            / (n as f64 * w2);
+        meant.push(Meant {
+            centre: c,
+            read: a,
+            meant: e / ((n * n) as f64 * w2),
+            analysed,
+        });
         let base = c - half as i64 + pad as i64;
         for i in 0..n {
             let at = base + i as i64;
@@ -240,15 +409,163 @@ fn render_pair(
         }
         j += 1;
     }
-    acc.into_iter()
+    let out = acc
+        .into_iter()
         .map(|v| v[pad..pad + len].to_vec())
+        .collect();
+    (out, meant)
+}
+
+/// The Hann window of `n`.
+pub(crate) fn window(n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|i| (0.5 - 0.5 * math::cos(2.0 * std::f64::consts::PI * i as f64 / n as f64)) as f32)
         .collect()
+}
+
+/// The power of `x` (all channels summed) around output frame `c`, weighted by the
+/// window's square (as a synthesis frame centred there sees it).
+pub(crate) fn power_at(x: &[Vec<f32>], c: i64, win: &[f32], w2: f64) -> f64 {
+    let n = win.len() as i64;
+    let mut e = 0.0f64;
+    for i in 0..n {
+        let at = c - n / 2 + i;
+        if at < 0 || at as usize >= x[0].len() {
+            continue;
+        }
+        let w = win[i as usize] as f64;
+        for ch in x {
+            let v = ch[at as usize] as f64;
+            e += v * v * w * w;
+        }
+    }
+    e / w2
+}
+
+/// The power of the source `x` (all channels summed) around source frame `a`, weighted
+/// by the window's square.
+pub(crate) fn power_of(x: &[&[f32]], a: i64, win: &[f32], w2: f64) -> f64 {
+    let n = win.len() as i64;
+    let mut e = 0.0f64;
+    for i in 0..n {
+        let at = a - n / 2 + i;
+        let w = win[i as usize] as f64;
+        for ch in x {
+            if at >= 0 && (at as usize) < ch.len() {
+                let v = ch[at as usize] as f64;
+                e += v * v * w * w;
+            }
+        }
+    }
+    e / w2
+}
+
+/// Frames either side over which the level is matched (≈ 170 ms at 48 kHz).
+const MATCH_FRAMES: usize = 8;
+/// The most the level match may raise or lower, as a gain.
+const MATCH_MOST: f64 = 1.41;
+
+/// Hold the output's level to what its frames mean to give. A phase vocoder's frames agree
+/// exactly on a steady partial, but on noise and dense mixtures the peaks move from frame
+/// to frame, overlapping frames add with partly random phases and the level sinks (about
+/// 1 dB on dense noise): the power each frame means (`meant`, from its own content) is
+/// compared with the power the overlap-add gave around its centre, both summed over
+/// [`MATCH_FRAMES`] either side, and the ratio — at most [`MATCH_MOST`] either way —
+/// applied, interpolated between frame centres. On a steady tone it is 1 (round 29's
+/// review: the level of a transposed render).
+pub(crate) fn level_match(acc: &mut [Vec<f32>], meant: &[(i64, f64)], rate: f32) {
+    // `meant`: each frame's centre and the power the output should have around it.
+    if meant.is_empty() || acc.is_empty() {
+        return;
+    }
+    let win = window(frame_len(rate));
+    let w2: f64 = win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
+    let pad = 0usize;
+    let got: Vec<f64> = meant
+        .iter()
+        .map(|&(c, _)| power_at(acc, c, &win, w2))
+        .collect();
+    // Only frames wholly inside the output are measured (one cut by its start or end sees
+    // part of what it meant); the others take their nearest measured neighbour's gain.
+    let n = win.len() as i64;
+    let len = acc[0].len() as i64;
+    let whole: Vec<bool> = meant
+        .iter()
+        .map(|&(c, _)| c - n / 2 >= 0 && c + n / 2 <= len)
+        .collect();
+    let m = meant.len();
+    let mut gains: Vec<Option<f64>> = (0..m)
+        .map(|j| {
+            if !whole[j] {
+                return None;
+            }
+            let lo = j.saturating_sub(MATCH_FRAMES);
+            let hi = (j + MATCH_FRAMES + 1).min(m);
+            let (mut want, mut have) = (0.0f64, 0.0f64);
+            for i in (lo..hi).filter(|i| whole[*i]) {
+                want += meant[i].1;
+                have += got[i];
+            }
+            Some(if want <= 1e-20 || have <= 1e-20 {
+                1.0
+            } else {
+                (want / have).sqrt().clamp(1.0 / MATCH_MOST, MATCH_MOST)
+            })
+        })
+        .collect();
+    let Some(first) = gains.iter().position(Option::is_some) else {
+        return;
+    };
+    for j in 0..m {
+        if gains[j].is_none() {
+            let back = (0..j).rev().find_map(|i| gains[i]);
+            gains[j] = Some(back.unwrap_or_else(|| gains[first].unwrap_or(1.0)));
+        }
+    }
+    let gains: Vec<f64> = gains.into_iter().map(|g| g.unwrap_or(1.0)).collect();
+    if gains.iter().all(|g| (*g - 1.0).abs() < 1e-9) {
+        return;
+    }
+    for t in 0..len {
+        let c = t - pad as i64;
+        let j = meant.partition_point(|x| x.0 <= c);
+        let g = match j {
+            0 => gains[0],
+            j if j >= m => gains[m - 1],
+            j => {
+                let (a, b) = (meant[j - 1].0, meant[j].0);
+                let f = (c - a) as f64 / (b - a).max(1) as f64;
+                gains[j - 1] + (gains[j] - gains[j - 1]) * f
+            }
+        };
+        for ch in acc.iter_mut() {
+            ch[t as usize] *= g as f32;
+        }
+    }
+}
+
+/// Whether the synthesis frame centred at `cf` resets at a hold: untransposed, every
+/// frame inside one; transposed, the frame nearest its transient. `next` walks the holds
+/// (in order) as the frames do; a hold is passed only once both its end and its nearest
+/// frame are behind — a short hold may end before the frame nearest its transient.
+pub(crate) fn at_hold(holds: &[Hold], next: &mut usize, cf: f64, hs: usize, plain: bool) -> bool {
+    let nearest = |h: &Hold| (h.at / hs as f64).round() * hs as f64;
+    while *next < holds.len() && holds[*next].to < cf && nearest(&holds[*next]) < cf {
+        *next += 1;
+    }
+    holds.get(*next).is_some_and(|h| {
+        if plain {
+            h.from <= cf && cf <= h.to
+        } else {
+            nearest(h) == cf
+        }
+    })
 }
 
 impl State {
     /// One synthesis frame reading the source around frame `a`: on return, `re` (and `im`,
     /// for a pair) hold the frame to overlap-add, zero-phase and unscaled.
-    fn frame(&mut self, ch: &[&[f32]], a: i64, ratio: f32, reset: bool) {
+    fn frame(&mut self, ch: &[&[f32]], a: i64, ratio: f32, reset: Reset) {
         let (n, hs, half) = (self.n, self.hs, self.n / 2);
         let stereo = ch.len() == 2;
         // The frame and the one a synthesis hop before it.
@@ -294,7 +611,7 @@ impl State {
             None => None,
         };
         for c in &mut self.ch {
-            c.synthesise(ratio, env);
+            c.synthesise(ratio, env, n);
         }
         // Pack L + jR into one inverse transform.
         let zero = vec![(0.0f32, 0.0f32); 0];
@@ -364,6 +681,7 @@ fn unpack(re: &[f32], im: &[f32], ch: &mut [Chan], now: bool) {
                 x.mag[k] = math::hypot(pr, pi);
                 x.phase[k] = math::atan2(pi, pr);
             } else {
+                x.mag0[k] = math::hypot(pr, pi);
                 x.phase0[k] = math::atan2(pi, pr);
             }
         }

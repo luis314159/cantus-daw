@@ -53,6 +53,7 @@ fn req<'a>(mode: Mode, map: &'a Map, len: usize, semis: f64, onsets: &'a [f64]) 
         onsets,
         pitch: None,
         tail: Tail::Fade,
+        origin: 0,
     }
 }
 

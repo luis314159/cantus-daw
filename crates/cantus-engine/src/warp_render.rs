@@ -188,6 +188,7 @@ pub fn render(input: &SampleData, plan: &Plan, analysis: Option<&Analysis>) -> S
             onsets: &onsets,
             pitch: pitch.as_ref(),
             tail: tail_of(plan.warp.tail),
+            origin: 0,
         },
     );
     interleave(&out, plan.rate)
