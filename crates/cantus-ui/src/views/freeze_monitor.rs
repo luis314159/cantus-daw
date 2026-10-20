@@ -67,9 +67,15 @@ pub fn monitored_ms(app: &CantusApp) -> Option<f64> {
     if !ll.on || !ll.monitoring || app.engine.sample_rate <= 0.0 {
         return None;
     }
-    let samples = app.engine.device_latency().round_trip() as f64
-        + stats.input_queue.max(0.0)
-        + ll.monitored_samples as f64;
+    // An audio input waits on the driver's input and the input ring; notes played into an
+    // armed instrument go out only (review 2).
+    let device = app.engine.device_latency();
+    let way = if ll.audio {
+        device.round_trip() as f64 + stats.input_queue.max(0.0)
+    } else {
+        device.output as f64
+    };
+    let samples = way + ll.monitored_samples as f64;
     Some(samples * 1000.0 / app.engine.sample_rate)
 }
 

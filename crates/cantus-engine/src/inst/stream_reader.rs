@@ -466,6 +466,9 @@ impl Reader {
             }
             o.used = self.tick;
             let (b0, b1) = (lo / BLOCK, hi.div_ceil(BLOCK));
+            if injected_io(&o.c.path) {
+                return Err(Fault::Io("an injected read error (a test)".into(), b0));
+            }
             let mut buf = vec![0.0f32; (b1 - b0) * BLOCK * ch];
             let f = o.f.as_mut().expect("opened above");
             if let Err(err) = o.c.read_blocks(f, b0, b1 - b0, &mut buf) {
@@ -500,6 +503,34 @@ impl Reader {
         halve_span(&src, slo as i64, below as i64, ch, lo, &mut out);
         Ok(out)
     }
+}
+
+/// A read error a test asks for, once, on the next block read from `path` (round 29,
+/// review 2: a frozen render's passing read error). Off, one relaxed load per read.
+#[doc(hidden)]
+pub fn inject_io_fault(path: &std::path::Path) {
+    if let Ok(mut p) = INJECT_PATH.lock() {
+        *p = Some(path.to_path_buf());
+        INJECT.store(true, Ordering::Release);
+    }
+}
+
+static INJECT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static INJECT_PATH: std::sync::Mutex<Option<std::path::PathBuf>> = std::sync::Mutex::new(None);
+
+fn injected_io(path: &std::path::Path) -> bool {
+    if !INJECT.load(Ordering::Relaxed) {
+        return false;
+    }
+    let Ok(mut p) = INJECT_PATH.lock() else {
+        return false;
+    };
+    if p.as_deref() == Some(path) {
+        *p = None;
+        INJECT.store(false, Ordering::Release);
+        return true;
+    }
+    false
 }
 
 /// A file error as the reader's fault: a file that is not there any more, or another.

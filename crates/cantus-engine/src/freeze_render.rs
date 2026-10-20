@@ -48,6 +48,9 @@ pub enum TapPoint {
 pub struct TapOptions {
     pub sample_rate: u32,
     pub block_frames: usize,
+    /// Where the transport starts (review 2: tick 0, as an export plays — a free-running
+    /// LFO's phase, what rang into the range); the frames before `start` are dropped.
+    pub from: Ticks,
     /// The range: frame 0 is `start`; the tail follows `end`.
     pub start: Ticks,
     pub end: Ticks,
@@ -67,6 +70,7 @@ impl TapOptions {
         TapOptions {
             sample_rate,
             block_frames: 1024,
+            from: Ticks::ZERO,
             start: Ticks::ZERO,
             end,
             stop_at_end: false,
@@ -76,18 +80,22 @@ impl TapOptions {
         }
     }
 
-    /// A bounce's: the range, stopped at its end when it is cut out of the song, its tail
-    /// up to 30 s, the latency trimmed.
-    pub fn bounce(sample_rate: u32, start: Ticks, end: Ticks, stop_at_end: bool) -> Self {
+    /// A bounce's: played from tick 0 as the song plays (the range's material alone in
+    /// it), the frames from `start`, its tail up to 30 s, the song playing on through it
+    /// (review 2: stopped at the end, the tail met still lanes). Its latency is **kept**
+    /// (review 2): the new track reports it (`Track::lateness`), so its level, fader, sends
+    /// and keys meet the audio as late as before.
+    pub fn bounce(sample_rate: u32, start: Ticks, end: Ticks) -> Self {
         TapOptions {
             sample_rate,
             block_frames: 1024,
+            from: Ticks::ZERO,
             start,
             end,
-            stop_at_end,
+            stop_at_end: false,
             quiet_seconds: 1.0,
             max_tail_seconds: 30.0,
-            trim: true,
+            trim: false,
         }
     }
 }
@@ -186,25 +194,30 @@ pub fn render_tapped(
         }
     }
     p.attach_stem_tap(Box::new(StemTap::with_pre(block)));
-    tx.push(EngineMessage::Seek(opts.start)).ok();
+    tx.push(EngineMessage::Seek(opts.from.min(opts.start))).ok();
     tx.push(EngineMessage::Play).ok();
     let (slot, latency) = match point {
         TapPoint::Strip(i) => (p.strip_slot(i), p.strip_latency(i)),
         TapPoint::Track(i) => (p.track_slot(i), p.track_latency(i)),
     };
     let slot = slot.ok_or(RenderError::Empty)?;
-    let late = if opts.trim { latency } else { 0 };
+    let from = opts.from.min(opts.start);
+    // The frames before the range (the transport started earlier), and the trimmed latency.
+    let pre =
+        crate::transport::sample_at_map(&snapshot.tempo, from.0 as f64, opts.start.0 as f64, sr)
+            as usize;
+    let late = pre + if opts.trim { latency } else { 0 };
     // The range's frames, and — kept, not trimmed — the latency they arrive after.
     let content = (snapshot
         .tempo
         .seconds_between(opts.start, opts.end.max(opts.start))
         * sr)
         .ceil() as usize
-        + (latency - late);
+        + if opts.trim { 0 } else { latency };
     let quiet = (opts.quiet_seconds.max(0.0) * sr).ceil() as usize;
     let longest = content + (opts.max_tail_seconds.max(0.0) * sr).ceil() as usize;
     let mut stop_at = opts.stop_at_end.then(|| {
-        crate::transport::sample_at_map(&snapshot.tempo, opts.start.0 as f64, opts.end.0 as f64, sr)
+        crate::transport::sample_at_map(&snapshot.tempo, from.0 as f64, opts.end.0 as f64, sr)
             as usize
     });
     let mut out = BufWriter::new(std::fs::File::create(raw).map_err(io)?);
@@ -286,11 +299,18 @@ pub fn render_tapped(
     })
 }
 
-/// Read a tapped render's frames in order, `dst.len() / 2` at a time.
-fn frames_of(t: &Tapped) -> std::io::Result<impl FnMut(&mut [f32]) -> std::io::Result<()>> {
+/// Read a tapped render's frames in order, `dst.len() / 2` at a time — failing as soon as
+/// `progress` is cancelled (review 2: Stop while the file was written was ignored).
+fn frames_of<'a>(
+    t: &Tapped,
+    progress: &'a RenderProgress,
+) -> std::io::Result<impl FnMut(&mut [f32]) -> std::io::Result<()> + 'a> {
     let mut f = std::io::BufReader::new(std::fs::File::open(&t.raw)?);
     let mut bytes = Vec::new();
     Ok(move |dst: &mut [f32]| {
+        if progress.cancel.load(Relaxed) {
+            return Err(std::io::Error::other("cancelled"));
+        }
         bytes.resize(dst.len() * 4, 0);
         f.read_exact(&mut bytes)?;
         for (d, b) in dst.iter_mut().zip(bytes.chunks_exact(4)) {
@@ -302,36 +322,58 @@ fn frames_of(t: &Tapped) -> std::io::Result<impl FnMut(&mut [f32]) -> std::io::R
 
 /// The frozen render file of `t` at `path`, labelled with its render key (checked when it
 /// is opened) and its latency (`crate::freeze::label`).
-pub fn write_render(t: &Tapped, path: &Path, key: &str) -> Result<(), RenderError> {
-    let fill = frames_of(t).map_err(io)?;
+pub fn write_render(
+    t: &Tapped,
+    path: &Path,
+    key: &str,
+    progress: &RenderProgress,
+) -> Result<(), RenderError> {
+    let fill = frames_of(t, progress).map_err(io)?;
     let label = crate::freeze::label(key, t.latency);
-    crate::inst::stream_cache::write_at(path, &label, 2, t.sample_rate, t.frames, fill)
-        .map_err(io)?;
+    let written =
+        crate::inst::stream_cache::write_at(path, &label, 2, t.sample_rate, t.frames, fill);
+    if progress.cancel.load(Relaxed) {
+        if written.is_ok() {
+            let _ = std::fs::remove_file(path);
+        }
+        return Err(RenderError::Cancelled);
+    }
+    written.map_err(io)?;
     Ok(())
 }
 
 /// A 32-bit float stereo WAV of `t` at `path` (a bounce in place's audio file).
-pub fn write_wav(t: &Tapped, path: &Path) -> Result<(), RenderError> {
+pub fn write_wav(t: &Tapped, path: &Path, progress: &RenderProgress) -> Result<(), RenderError> {
     let spec = hound::WavSpec {
         channels: 2,
         sample_rate: t.sample_rate,
         bits_per_sample: 32,
         sample_format: hound::SampleFormat::Float,
     };
-    let mut w = hound::WavWriter::create(path, spec)?;
-    let mut fill = frames_of(t).map_err(io)?;
-    let mut chunk = vec![0f32; 8192 * 2];
-    let mut left = t.frames;
-    while left > 0 {
-        let n = left.min(8192);
-        fill(&mut chunk[..n * 2]).map_err(io)?;
-        for s in &chunk[..n * 2] {
-            w.write_sample(*s)?;
+    let written = (|| -> Result<(), RenderError> {
+        let mut w = hound::WavWriter::create(path, spec)?;
+        let mut fill = frames_of(t, progress).map_err(io)?;
+        let mut chunk = vec![0f32; 8192 * 2];
+        let mut left = t.frames;
+        while left > 0 {
+            let n = left.min(8192);
+            fill(&mut chunk[..n * 2]).map_err(io)?;
+            for s in &chunk[..n * 2] {
+                w.write_sample(*s)?;
+            }
+            left -= n;
         }
-        left -= n;
+        w.finalize()?;
+        Ok(())
+    })();
+    // A file cut short is never left behind.
+    if written.is_err() || progress.cancel.load(Relaxed) {
+        let _ = std::fs::remove_file(path);
     }
-    w.finalize()?;
-    Ok(())
+    if progress.cancel.load(Relaxed) {
+        return Err(RenderError::Cancelled);
+    }
+    written
 }
 
 /// A freeze's render, prepared on the interface's thread (the snapshot compiled and every
@@ -347,6 +389,32 @@ pub struct FreezeJob {
     pub snapshot: Arc<Snapshot>,
     pub point: TapPoint,
     pub opts: TapOptions,
+}
+
+/// The first file a snapshot's running tracks play that is not there (an audio clip's
+/// source, a native instrument's asset, a kit pad's sample), as the project names it.
+pub fn missing_file(snap: &Snapshot) -> Option<String> {
+    for t in snap.tracks.iter().filter(|t| !t.rest && !t.notes_only) {
+        if t.frozen.as_ref().is_some_and(|f| f.plays()) {
+            continue;
+        }
+        if let Some(a) = t.audio.iter().find(|a| a.data.is_none()) {
+            return Some(a.path.clone());
+        }
+        if let Some((k, _)) = t.assets.iter().find(|(_, d)| d.is_none()) {
+            return Some(k.clone());
+        }
+        if let Some(kit) = t.instrument.pulsus() {
+            if t.samples.len() == kit.pads.len() {
+                for (pad, data) in kit.pads.iter().zip(&t.samples) {
+                    if let (Some(path), None) = (&pad.sample, data) {
+                        return Some(path.clone());
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Prepare the render of `target` as `project` holds it now, at the engine's rate, into
@@ -392,6 +460,11 @@ pub fn prepare(
     let compiled = engine.compile_for_render(&alone, 0);
     let mut snap = (*compiled).clone();
     freeze::isolate(&mut snap, &region);
+    // A file the region plays that could not be read would be silence under the true key
+    // (review 2): no render then.
+    if let Some(path) = missing_file(&snap) {
+        return Err(format!("missing: {path}"));
+    }
     let point = match target {
         FreezeTarget::Strip(s) => TapPoint::Strip(alone.strip_index(s).ok_or("gone")?),
         FreezeTarget::Track(t) => TapPoint::Track(alone.track_index(t).ok_or("gone")?),
@@ -434,7 +507,7 @@ impl FreezeJob {
             progress,
             &raw,
         )?;
-        write_render(&t, &self.path, &self.key)?;
+        write_render(&t, &self.path, &self.key, progress)?;
         Ok(self.path.clone())
     }
 }

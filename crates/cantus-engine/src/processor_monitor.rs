@@ -29,6 +29,9 @@ pub struct LowLatency {
     pub on: bool,
     /// Something is monitored (an input that could be heard).
     pub monitoring: bool,
+    /// An audio input is among it (the driver's input latency and the input ring's wait
+    /// are on its way; an armed instrument track's notes never pass them — review 2).
+    pub audio: bool,
     /// Samples the monitored input waits inside the engine: its instrument's, its chain's
     /// and the master's — and, where a strip mixes it with backing, the backing's there.
     pub monitored_samples: u64,
@@ -73,6 +76,7 @@ impl Processor {
         // Whether a strip gathers something that is not monitored input.
         let mut mixed = [false; MAX_STRIPS];
         let mut any = false;
+        let mut any_audio = false;
         if plan.on {
             for &slot in &self.track_to_slot {
                 let Some(s) = nodes.track(slot) else {
@@ -95,6 +99,7 @@ impl Processor {
                 };
                 plan.track[slot] = heard;
                 any |= heard;
+                any_audio |= heard && i.has;
                 if let Some(d) = s.strip {
                     if heard {
                         plan.path[d] = true;
@@ -129,6 +134,7 @@ impl Processor {
         let mut stats = LowLatency {
             on: plan.on,
             monitoring: any,
+            audio: any_audio,
             ..LowLatency::default()
         };
         let name = |id: EffectId, stats: &mut LowLatency| {
