@@ -108,9 +108,6 @@ pub struct AudioHalf {
     /// Parameters a MIDI controller drove this block (through `IMidiMapping`), so the
     /// controller hears them as it hears the host's changes.
     midi_ids: [ParamID; MIDI_IDS],
-    /// A live program change this block (round 29): the program list's id and value, told
-    /// to the host as the plug-in's own change, so the project keeps the program.
-    program_out: Option<(ParamID, f64)>,
     midi_len: usize,
 }
 
@@ -146,7 +143,6 @@ impl AudioHalf {
             max_block,
             has_event_input,
             midi_ids: [0; MIDI_IDS],
-            program_out: None,
             midi_len: 0,
             inst,
         }
@@ -227,7 +223,6 @@ impl AudioHalf {
         self.in_events.clear();
         self.out_events.clear();
         self.midi_len = 0;
-        self.program_out = None;
         for n in notes {
             if let NoteKind::Midi {
                 status,
@@ -236,10 +231,10 @@ impl AudioHalf {
             } = n.kind
             {
                 // A controller travels as the parameter the controller maps it to.
+                // A program change reaches the program list; the controller hears it (below),
+                // and the main thread reports the plug-in's state changed — the project keeps
+                // the program as the state step it is (round 29, review 2 of ADR 0062, #52).
                 if let Some((id, norm)) = self.inst.midi_param(n.channel, status, data1, data2) {
-                    if status & 0xF0 == 0xC0 {
-                        self.program_out = Some((id, norm));
-                    }
                     self.in_changes
                         .add(id, n.offset.min(last as u32) as i32, norm);
                     let seen = self.midi_ids[..self.midi_len].contains(&id);
@@ -269,10 +264,6 @@ impl AudioHalf {
                     let _ = self.to_ui.push((q.id(), v));
                 }
             }
-        }
-        // A program change from the keyboard: the project keeps the program it chose.
-        if let Some((id, v)) = self.program_out.take() {
-            out.push(ParamEvent::Value(id, self.map.to_plain(id, v)));
         }
         for q in self.out_changes.queues() {
             for &(_, v) in q.points() {
