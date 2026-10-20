@@ -1095,6 +1095,16 @@ impl PluginHost {
         self.capture_changes(bus, effect);
     }
 
+    /// The states the instances served to the last render hold now, in order (tests: a
+    /// freeze's render is made with what the project holds, never the live instance's).
+    #[doc(hidden)]
+    pub fn render_states_for_test(&mut self) -> Vec<Vec<u8>> {
+        self.render_mains
+            .iter_mut()
+            .filter_map(|m| m.save_state().ok())
+            .collect()
+    }
+
     /// A slot's plug-in stopped working: marked, counted as its blame says, its window
     /// gone, told once.
     fn on_crash(&mut self, effect: EffectId, reason: String, blame: Blame) -> Option<HostNotice> {

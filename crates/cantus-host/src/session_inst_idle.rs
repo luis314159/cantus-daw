@@ -218,6 +218,27 @@ impl PluginHost {
         Some((state, params))
     }
 
+    /// A state loaded into a track's instrument without telling the host (tests).
+    #[doc(hidden)]
+    pub fn load_instrument_state_for_test(&mut self, track: TrackId, state: &[u8]) {
+        if let Some(h) = self.instruments.get_mut(&track) {
+            let _ = h.main.load_state(state);
+        }
+    }
+
+    /// A state loaded into a track's instrument by itself (its own browser), then its
+    /// `StateDirty` (tests).
+    #[doc(hidden)]
+    pub fn instrument_state_dirty_for_test(
+        &mut self,
+        bus: &mut CommandBus,
+        track: TrackId,
+        state: &[u8],
+    ) {
+        self.load_instrument_state_for_test(track, state);
+        self.capture_instrument_changes(bus, track);
+    }
+
     /// The plug-in changed its values by itself (its own preset browser): its state and
     /// values become one step.
     fn capture_instrument_changes(&mut self, bus: &mut CommandBus, track: TrackId) {

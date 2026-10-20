@@ -135,6 +135,24 @@ fn with_gain(state: &[u8], db: f64) -> Vec<u8> {
     s
 }
 
+/// `state` (its tag empty) with the tag `tag`: a part of its state no value carries.
+fn with_tag(state: &[u8], tag: &[u8]) -> Vec<u8> {
+    let mut s = state.to_vec();
+    s.truncate(s.len() - 4);
+    s.extend_from_slice(&(tag.len() as u32).to_le_bytes());
+    s.extend_from_slice(tag);
+    s
+}
+
+/// The state `project` holds for the plug-in of insert `id`.
+fn held_state(project: &cantus_core::Project, id: EffectId) -> Vec<u8> {
+    project
+        .all_effects()
+        .find(|(_, e)| e.id == id)
+        .and_then(|(_, e)| e.spec.external.as_ref().map(|x| x.state.bytes().to_vec()))
+        .expect("a hosted insert")
+}
+
 /// A rig with the test gain on the first strip at −6 dB, its strip frozen without its
 /// render at hand (it plays live, loaded, locked).
 fn locked_rig() -> (Rig, EffectId, FreezeTarget, tempfile::TempDir) {
@@ -177,13 +195,10 @@ fn a_change_the_host_never_heard_of_is_neither_saved_nor_rendered() {
     let (_, live) = rig.host.capture(id).unwrap();
     assert_eq!(live.get(&P_GAIN), Some(&-18.0), "the instance holds −18");
     let saved = rig.host.project_for_save(&p);
+    // The state's bytes: its values in the project are never written by a save.
     assert_eq!(
-        saved
-            .all_effects()
-            .find(|(_, e)| e.id == id)
-            .and_then(|(_, e)| e.spec.external.as_ref().map(|x| x.params.clone()))
-            .and_then(|m| m.get(&P_GAIN).copied()),
-        Some(-6.0),
+        held_state(&saved, id),
+        stored.bytes(),
         "the save keeps the project's"
     );
     let job = prepare(&mut rig.engine, &p, target).expect("prepared");
@@ -237,8 +252,10 @@ fn a_locked_plug_in_comes_back_as_the_project_holds_it_not_as_it_was_parked() {
     let (mut rig, id, target, _dir) = locked_rig();
     let p = rig.bus.project().clone();
     let (stored, _) = rig.host.capture(id).unwrap();
+    // −18 dB and a tag: the project's values given back on load cover the gain, never the
+    // tag — the state it comes back with tells.
     rig.host
-        .load_state_for_test(id, &with_gain(stored.bytes(), -18.0));
+        .load_state_for_test(id, &with_tag(&with_gain(stored.bytes(), -18.0), b"kick"));
     let job = prepare(&mut rig.engine, &p, target).expect("prepared");
     let units = rig.host.render_units_stored(&p, SR);
     job.run(units, Vec::new(), &RenderProgress::default())
@@ -252,8 +269,13 @@ fn a_locked_plug_in_comes_back_as_the_project_holds_it_not_as_it_was_parked() {
     rig.engine.frozen.forget_missing();
     rig.resync();
     assert!(rig.host.hosted(id).is_some(), "back: it plays live");
-    let (_, live) = rig.host.capture(id).unwrap();
+    let (now, live) = rig.host.capture(id).unwrap();
     assert_eq!(live.get(&P_GAIN), Some(&-6.0));
+    assert_eq!(
+        now.bytes(),
+        stored.bytes(),
+        "the project's state, not the parked one"
+    );
 }
 
 #[test]
@@ -375,4 +397,156 @@ fn a_solo_elsewhere_toggled_never_loads_a_frozen_strips_plug_in() {
         });
         assert!(rig.host.hosted(id).is_none(), "toggle {k}: never loaded");
     }
+}
+
+/// A rig with the test synth on the riff's track, its state in the project, the track
+/// frozen without its render at hand (it plays live, loaded, locked).
+fn locked_synth_rig() -> (Rig, TrackId, FreezeTarget, PluginState, tempfile::TempDir) {
+    let project = demo_project();
+    let track = project.tracks[0].id;
+    let mut rig = Rig::new(project, patient_host());
+    let spec = rig
+        .host
+        .make_instrument_isolated(track, &info(SYNTH_ID), Some(PluginIsolation::Within))
+        .expect("the synth loads");
+    rig.exec(Command::SetInstrument {
+        track,
+        spec: Box::new(spec),
+    });
+    rig.settle();
+    let (state, params) = rig.host.capture_instrument(track).unwrap();
+    rig.exec(Command::SetInstrumentPluginState {
+        track,
+        state: state.clone(),
+        params,
+    });
+    let dir = tempfile::tempdir().unwrap();
+    rig.engine.frozen.set_app_dir(dir.path().to_path_buf());
+    let target = FreezeTarget::Track(track);
+    let p = rig.bus.project().clone();
+    rig.exec(freeze::freeze_commands(&p, target).unwrap());
+    assert!(
+        rig.host.hosted_instrument(track).is_some(),
+        "loaded: it plays live"
+    );
+    (rig, track, target, state, dir)
+}
+
+/// Whether an instrument's state carries the tag `tag`. The synth's state also carries
+/// what its last block heard (its tempo), which an instance that has played no block yet
+/// leaves at zero: its tag tells which state it was given.
+fn tagged(state: &[u8], tag: &[u8]) -> bool {
+    state.ends_with(tag)
+}
+
+/// The state `project` holds for `track`'s hosted instrument.
+fn held_instrument_state(project: &cantus_core::Project, track: TrackId) -> Vec<u8> {
+    project
+        .track(track)
+        .and_then(|t| t.instrument.external())
+        .map(|x| x.state.bytes().to_vec())
+        .expect("a hosted instrument")
+}
+
+#[test]
+fn a_render_of_a_locked_insert_is_made_with_the_state_the_project_holds() {
+    // Turned behind the host's back (a tag no value carries, so values given back on load
+    // cannot cover it): the instance a freeze renders with holds the project's state
+    // (review 3: nothing tested `render_units_stored`).
+    let _g = serial();
+    let (mut rig, id, _, _dir) = locked_rig();
+    let p = rig.bus.project().clone();
+    let stored = held_state(&p, id);
+    rig.host
+        .load_state_for_test(id, &with_tag(&with_gain(&stored, -18.0), b"kick"));
+    let units = rig.host.render_units_stored(&p, SR);
+    assert_eq!(units.len(), 1);
+    assert_eq!(
+        rig.host.render_states_for_test(),
+        vec![stored],
+        "the render's instance holds the project's state"
+    );
+    rig.host.finish_render();
+}
+
+#[test]
+fn a_locked_instruments_own_state_is_given_back_never_saved_never_rendered() {
+    // The instrument's half of review 3's state-only changes: its own browser's state
+    // (no value moved) is refused, given back and said; one loaded behind the host's back
+    // is neither saved nor rendered.
+    let _g = serial();
+    let (mut rig, track, target, stored, _dir) = locked_synth_rig();
+    let other = with_tag(stored.bytes(), b"bell");
+    rig.notices.clear();
+    rig.host
+        .instrument_state_dirty_for_test(&mut rig.bus, track, &other);
+    rig.frame();
+    let (now, _) = rig.host.capture_instrument(track).unwrap();
+    assert!(
+        !tagged(now.bytes(), b"bell"),
+        "given back what the project holds"
+    );
+    assert!(
+        rig.notices
+            .contains(&cantus_host::HostNotice::Frozen(target)),
+        "said: {:?}",
+        rig.notices
+    );
+    assert_eq!(
+        held_instrument_state(rig.bus.project(), track),
+        stored.bytes()
+    );
+    rig.host.load_instrument_state_for_test(track, &other);
+    let p = rig.bus.project().clone();
+    let saved = rig.host.project_for_save(&p);
+    assert_eq!(
+        held_instrument_state(&saved, track),
+        stored.bytes(),
+        "the save keeps the project's"
+    );
+    let insts = rig.host.render_instruments_stored(&p, SR);
+    assert_eq!(insts.len(), 1);
+    let states = rig.host.render_states_for_test();
+    assert_eq!(states.len(), 1);
+    assert!(
+        !tagged(&states[0], b"bell"),
+        "the render's instance holds the project's state"
+    );
+    rig.host.finish_render();
+}
+
+#[test]
+fn a_locked_instrument_comes_back_as_the_project_holds_it_not_as_it_was_parked() {
+    // Its state changed behind the host's back, then unloaded (its render at hand: it
+    // rests, its state parked), then loaded again while the freeze still holds it (the
+    // render gone): it comes back with the project's state (review 3).
+    let _g = serial();
+    let (mut rig, track, target, stored, _dir) = locked_synth_rig();
+    rig.host
+        .load_instrument_state_for_test(track, &with_tag(stored.bytes(), b"bell"));
+    let p = rig.bus.project().clone();
+    let job = prepare(&mut rig.engine, &p, target).expect("prepared");
+    let insts = rig.host.render_instruments_stored(&p, SR);
+    job.run(Vec::new(), insts, &RenderProgress::default())
+        .expect("rendered");
+    rig.host.finish_render();
+    rig.engine.frozen.forget_missing();
+    rig.resync();
+    assert!(
+        rig.host.hosted_instrument(track).is_none(),
+        "unloaded while it rests"
+    );
+    std::fs::remove_file(&job.path).unwrap();
+    rig.engine.frozen.let_go_all();
+    rig.engine.frozen.forget_missing();
+    rig.resync();
+    assert!(
+        rig.host.hosted_instrument(track).is_some(),
+        "back: it plays live"
+    );
+    let (now, _) = rig.host.capture_instrument(track).unwrap();
+    assert!(
+        !tagged(now.bytes(), b"bell"),
+        "the project's state, not the parked one"
+    );
 }
