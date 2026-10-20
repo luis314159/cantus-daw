@@ -164,6 +164,17 @@ impl MainThread for ClapMain {
                 automatable: p.flags & CLAP_PARAM_IS_AUTOMATABLE != 0,
                 hidden: p.flags & CLAP_PARAM_IS_HIDDEN != 0,
                 read_only: p.flags & CLAP_PARAM_IS_READONLY != 0,
+                // A stepped CLAP parameter's steps are its whole units.
+                steps: if p.flags & CLAP_PARAM_IS_STEPPED != 0 {
+                    let n = (p.max_value - p.min_value).abs().round();
+                    if n.is_finite() && n < f64::from(u32::MAX) {
+                        n as u32
+                    } else {
+                        0
+                    }
+                } else {
+                    0
+                },
             })
             .collect()
     }

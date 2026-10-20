@@ -34,7 +34,9 @@ struct Known {
     id: u32,
     min: f64,
     max: f64,
-    stepped: bool,
+    /// A stepped parameter's steps from `min` to `max` (0: continuous): values land on
+    /// them, counted in the plug-in's own steps (review 4 of ADR 0062, #1, #58).
+    steps: u32,
     /// What the plug-in holds, as far as the host knows; NaN when unknown.
     value: f64,
     /// The plug-in's own gesture on it is under way.
@@ -137,7 +139,7 @@ impl ParamSync {
                 id: p.id,
                 min: p.min.min(p.max),
                 max: p.max.max(p.min),
-                stepped: p.stepped,
+                steps: p.step_count().unwrap_or(0),
                 value: values(p.id).unwrap_or(f64::NAN),
                 gesture: false,
                 settle: None,
@@ -205,7 +207,7 @@ impl ParamSync {
                 continue;
             }
             let value = v.clamp(k.min, k.max);
-            k.wanted = if k.stepped { value.round() } else { value };
+            k.wanted = crate::backend::snap_to_steps(value, k.min, k.max, k.steps);
             if k.settle
                 .is_some_and(|t| !k.gesture && t.to_bits() == k.wanted.to_bits())
             {
@@ -245,10 +247,7 @@ impl ParamSync {
             };
             base.and_then(|b| {
                 let norm = (b + f64::from(v.modulation)).clamp(0.0, 1.0);
-                let mut plain = k.min + norm * span;
-                if k.stepped {
-                    plain = plain.round();
-                }
+                let plain = crate::backend::snap_to_steps(k.min + norm * span, k.min, k.max, k.steps);
                 k.auto = Some(plain);
                 (plain.to_bits() != k.value.to_bits()).then(|| {
                     k.value = plain;
@@ -620,6 +619,7 @@ mod tests {
             automatable: true,
             hidden: false,
             read_only: false,
+            steps: 0,
         }
     }
 
@@ -664,6 +664,37 @@ mod tests {
         let sent = sync.merged.iter().map(|c| c.value).collect();
         sync.after_process(64);
         sent
+    }
+
+    /// Review 4 of ADR 0062, #1, #58: a four-way choice whose plain values run 0…1 (a JUCE
+    /// VST3's) lands on its thirds, automated or set by the project — never on 0 or 1 only
+    /// (whole plain units); one of 0, 10…40 on its tens.
+    #[test]
+    fn a_stepped_parameter_lands_on_its_own_steps() {
+        let mut p = info(3);
+        (p.min, p.max, p.stepped, p.steps) = (0.0, 1.0, true, 3);
+        let mut sync = ParamSync::new(&[p], |_| Some(0.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::new());
+        sync.automate(
+            0,
+            3,
+            HostedValue {
+                pos: 0.4,
+                modulation: 0.0,
+            },
+        );
+        sync.merge();
+        let sent: Vec<f64> = sync.merged.iter().map(|c| c.value).collect();
+        assert_eq!(sent.len(), 1, "{sent:?}");
+        assert!((sent[0] - 1.0 / 3.0).abs() < 1e-12, "{sent:?}");
+        sync.after_process(64);
+        let mut p = info(4);
+        (p.min, p.max, p.stepped, p.steps) = (0.0, 40.0, true, 4);
+        let mut sync = ParamSync::new(&[p], |_| Some(0.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::from([(4, 13.0)]));
+        sync.merge();
+        let sent: Vec<f64> = sync.merged.iter().map(|c| c.value).collect();
+        assert_eq!(sent, vec![10.0], "the project's value on its step");
     }
 
     #[test]

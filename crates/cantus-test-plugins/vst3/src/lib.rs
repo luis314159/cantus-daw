@@ -395,6 +395,12 @@ pub extern "C" fn cantus_test_last_program() -> f64 {
     pulse::last_program()
 }
 
+/// The pulse's next `process` sleeps `ms` first (round 29, review 4 of ADR 0062).
+#[no_mangle]
+pub extern "C" fn cantus_test_slow_next_process(ms: u32) {
+    pulse::slow_next_process(ms)
+}
+
 pub(crate) fn not_implemented() -> tresult {
     kResultFalse
 }

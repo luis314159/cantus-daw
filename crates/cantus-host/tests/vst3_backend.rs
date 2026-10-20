@@ -219,6 +219,12 @@ impl Probe {
         unsafe { f() }
     }
 
+    fn slow_next_process(&self, ms: u32) {
+        let f = self.call::<unsafe extern "C" fn(u32)>(b"cantus_test_slow_next_process\0");
+        // SAFETY: as above.
+        unsafe { f(ms) }
+    }
+
     /// (state flags, [tempo, music, bar, cycle start, cycle end, num, den, samples]).
     fn last_context(&self) -> (u32, [f64; 8]) {
         let f = self.call::<unsafe extern "C" fn(*mut f64) -> u32>(b"cantus_test_last_context\0");
@@ -1112,4 +1118,60 @@ fn a_program_change_reaches_the_program_list_and_the_project() {
         "{notices:?}"
     );
     drop((main, audio));
+}
+
+/// Review 4 of ADR 0062, #10, #57: an idle that runs while the audio thread is still inside
+/// the block of a MIDI program change says nothing yet (the program's value has not reached
+/// the controller); the idle after the block says the state changed, so a capture reads the
+/// new program.
+#[test]
+fn a_program_change_is_said_only_once_its_value_is_on_its_way() {
+    let _g = serial();
+    let probe = Probe::new();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(PULSE_ID);
+    let _ = main.idle();
+    probe.slow_next_process(400);
+    let worker = std::thread::spawn(move || {
+        let (mut l, mut r) = (vec![0.0f32; 16], vec![0.0f32; 16]);
+        let mut out = ParamOut::new();
+        let change = NoteEvent {
+            offset: 0,
+            note_id: -1,
+            channel: 2,
+            key: 0,
+            kind: NoteKind::Midi {
+                status: 0xC2,
+                data1: 4,
+                data2: 0,
+            },
+        };
+        audio.process(
+            Audio {
+                left: &mut l,
+                right: &mut r,
+                key: None,
+                transport: None,
+            },
+            &[],
+            &[change],
+            &mut out,
+        );
+        audio
+    });
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let during = main.idle();
+    assert!(
+        !during.contains(&cantus_host::Notice::StateDirty),
+        "said before the value was on its way: {during:?}"
+    );
+    let _audio = worker.join().expect("the block");
+    let after = main.idle();
+    assert!(
+        after.contains(&cantus_host::Notice::StateDirty),
+        "{after:?}"
+    );
+    assert!((probe.last_program() - 4.0 / 7.0).abs() < 1e-9);
 }

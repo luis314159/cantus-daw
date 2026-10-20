@@ -292,6 +292,7 @@ mod tests {
             automatable: true,
             hidden: false,
             read_only: false,
+            steps: 0,
         };
         let params = [info(0, false), info(1, true)];
         let mut spec = cantus_core::ExternalPlugin::new(
