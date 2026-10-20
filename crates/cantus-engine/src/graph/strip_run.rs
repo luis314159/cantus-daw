@@ -210,6 +210,7 @@ pub(crate) fn strip_chain(
         key_before,
         listener,
         dry_line,
+        ll_off,
         ..
     } = st;
     for (i, e) in effects.iter_mut().enumerate() {
@@ -247,7 +248,8 @@ pub(crate) fn strip_chain(
         // line — the input delayed by exactly its latency.
         let off = bypass[i] || !*fx_enabled;
         let latent = e.latency() > 0;
-        if off && !latent {
+        // Bypassed hard for low-latency monitoring (ADR 0064 §4): a wire, its latency gone.
+        if (off && !latent) || ll_off[i] {
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }

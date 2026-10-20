@@ -355,3 +355,177 @@ fn a_cancelled_freeze_writes_nothing() {
         .next()
         .is_none());
 }
+
+/// A processor playing `snap` from tick 0 as the application drives it, in blocks of
+/// `block`, `blocks` of them; `pace` between blocks (a real-time stand-in).
+fn play(
+    snap: &std::sync::Arc<Snapshot>,
+    workers: Workers,
+    offline: bool,
+    block: usize,
+    blocks: usize,
+    pace: std::time::Duration,
+) -> (Vec<f32>, EngineStats) {
+    let effects = snap.effect_slots().count();
+    let instruments = cantus_engine::inst::units_for(snap, SR as f32, |_, _| false);
+    let (mut tx, rx_engine) =
+        rtrb::RingBuffer::<EngineMessage>::new(64 + effects + instruments.len());
+    let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(8192);
+    let mut p = Processor::without_midi(SR, rx_engine, tx_engine);
+    p.set_workers(workers);
+    p.set_offline(offline);
+    for slot in snap.effect_slots() {
+        tx.push(EngineMessage::AddEffect(Box::new(EffectUnit::new(
+            slot, SR as f32,
+        ))))
+        .ok();
+    }
+    for unit in instruments {
+        tx.push(EngineMessage::AddInstrument(unit)).ok();
+    }
+    tx.push(EngineMessage::Automation(AutomationRuntime::build(snap)))
+        .ok();
+    tx.push(EngineMessage::SetSnapshotPlanned(
+        snap.clone(),
+        cantus_engine::graph::compile(snap),
+    ))
+    .ok();
+    p.settle();
+    while let Ok(ev) = rx.pop() {
+        if let EngineEvent::PdcNeed { count, delay } = ev {
+            tx.push(EngineMessage::PdcLines(cantus_engine::pdc::lines_for(
+                count, delay,
+            )))
+            .ok();
+            p.settle();
+        }
+    }
+    tx.push(EngineMessage::Seek(Ticks::ZERO)).ok();
+    // Stopped a moment first, as a musician does before pressing play: the reader reads
+    // where the playhead waits.
+    let mut buf = vec![0f32; block * 2];
+    p.process(&mut buf, 2);
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    tx.push(EngineMessage::Play).ok();
+    let mut out = Vec::with_capacity(block * blocks * 2);
+    for _ in 0..blocks {
+        p.process(&mut buf, 2);
+        out.extend_from_slice(&buf);
+        while rx.pop().is_ok() {}
+        if !pace.is_zero() {
+            std::thread::sleep(pace);
+        }
+    }
+    (out, p.stats().clone())
+}
+
+#[test]
+fn frozen_playback_on_the_pool_is_the_serial_engines() {
+    let mut h = handle("pool");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let bass = p.tracks[1].id;
+    freeze_now(&mut h, &mut p, FreezeTarget::Track(bass));
+    let snap = h.compile_for_render(&p, 1);
+    let (serial, _) = play(&snap, Workers::SERIAL, true, 256, 700, Default::default());
+    for w in [1, 3] {
+        let (pool, stats) = play(
+            &snap,
+            Workers::parallel(w),
+            true,
+            256,
+            700,
+            Default::default(),
+        );
+        same_bits(&pool, &serial, &format!("W = {w}"));
+        assert_eq!(stats.schedule_conflicts, 0);
+    }
+}
+
+#[test]
+fn in_real_time_the_reader_keeps_ahead_of_the_playhead() {
+    let mut h = handle("realtime");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let snap = h.compile_for_render(&p, 1);
+    // Twice real time: 256 frames (5.3 ms) every 2.7 ms.
+    let (rt, stats) = play(
+        &snap,
+        Workers::SERIAL,
+        false,
+        256,
+        800,
+        std::time::Duration::from_micros(2_700),
+    );
+    assert_eq!(stats.stream_late, 0, "no block came late");
+    let (offline, _) = play(&snap, Workers::SERIAL, true, 256, 800, Default::default());
+    same_bits(&rt, &offline, "real time = offline");
+}
+
+#[test]
+fn what_only_reaches_a_frozen_strip_is_not_run() {
+    // A heavy instrument on the lead: thirty-two voices of a sampler-sized synth.
+    let mut h = handle("cpu");
+    let mut p = song();
+    let mut rng = support::heavy::Rng::new(7);
+    let spec = support::heavy::random_instrument(InstrumentKind::Wavetable, 1.0, &mut rng);
+    p.tracks[0].instrument = InstrumentSpec::Native(spec);
+    let mut chord = p.make_clip("chord", Ticks::ZERO, Ticks::beats(8));
+    for k in 0..32u8 {
+        chord
+            .notes
+            .push(p.make_note(Ticks::ZERO, Ticks::beats(8), 36 + k * 2, 100));
+    }
+    p.tracks[0].clips.push(chord);
+    let cost = |h: &mut EngineHandle, p: &Project| {
+        let snap = h.compile_for_render(p, 1);
+        (0..5)
+            .map(|_| {
+                let t = std::time::Instant::now();
+                let _ = play(&snap, Workers::SERIAL, true, 512, 300, Default::default());
+                t.elapsed().as_secs_f64()
+            })
+            .fold(f64::MAX, f64::min)
+    };
+    let live = cost(&mut h, &p);
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let frozen = cost(&mut h, &p);
+    eprintln!(
+        "live {live:.3} s, frozen {frozen:.3} s ({:.0} %)",
+        100.0 * frozen / live
+    );
+    assert!(
+        frozen < live * 0.6,
+        "freezing the heavy strip frees its CPU: live {live:.3} s, frozen {frozen:.3} s"
+    );
+    // Its instrument plays no voice while frozen.
+    let snap = h.compile_for_render(&p, 1);
+    assert!(snap.tracks[0].rest);
+}
+
+#[test]
+fn a_frozen_mix_is_the_live_one_before_compensation_too() {
+    let mut h = handle("raw");
+    let mut p = song();
+    let lead = p.tracks[0].strip.unwrap();
+    let mut eq = p.make_effect(EffectKind::Eq);
+    eq.spec = support::heavy::heavy(EffectKind::Eq);
+    p.strip_mut(lead).unwrap().effects.push(eq);
+    let raw = |h: &mut EngineHandle, p: &Project| {
+        render(
+            h.compile_for_render(p, 1),
+            &RenderOptions {
+                tail_seconds: 1.5,
+                ..Default::default()
+            },
+        )
+        .unwrap()
+        .samples
+    };
+    let live = raw(&mut h, &p);
+    freeze_now(&mut h, &mut p, FreezeTarget::Strip(lead));
+    same_bits(&raw(&mut h, &p), &live, "uncompensated");
+}

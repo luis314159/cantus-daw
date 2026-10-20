@@ -64,6 +64,7 @@ impl Processor {
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
                 EngineMessage::SetRecording(on) => self.recording = on,
+                EngineMessage::SetLowLatency(limit) => self.set_low_latency(limit),
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
                 EngineMessage::WatchScopes(ids) => {
                     // A ring whose watch changed (released, or given to another — or the

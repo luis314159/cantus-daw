@@ -667,7 +667,8 @@ impl CantusApp {
         takes: Vec<FinishedTake>,
         notes: Vec<RecordedNote>,
     ) -> bool {
-        let latency = self.engine.record_latency().total();
+        // The latency when the pass started (ADR 0064), not now.
+        let latency = self.engine.pass_latency().total();
         self.finish_pass_at(plan, takes, notes, latency)
     }
 

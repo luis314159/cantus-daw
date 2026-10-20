@@ -85,6 +85,9 @@ pub(crate) struct StripSlot {
     pub frozen_place: crate::freeze::ReadPlace,
     /// It rests (ADR 0064): not run.
     pub rest: bool,
+    /// Per insert: bypassed hard for low-latency monitoring (ADR 0064 §4) — not run, no
+    /// latency, no dry line.
+    pub ll_off: [bool; MAX_EFFECTS_PER_TRACK],
 }
 
 impl StripSlot {
@@ -127,6 +130,7 @@ impl StripSlot {
             frozen: None,
             frozen_place: crate::freeze::ReadPlace::default(),
             rest: false,
+            ll_off: [false; MAX_EFFECTS_PER_TRACK],
         }
     }
 

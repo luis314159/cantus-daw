@@ -65,6 +65,9 @@ mod master;
 #[path = "graph/master_run.rs"]
 mod master_run;
 /// Messages, MIDI and live notes.
+#[path = "processor_monitor.rs"]
+pub(crate) mod monitor;
+
 #[path = "processor_msg.rs"]
 mod msg;
 /// The block: passes, the pool, and what is folded back after each.
@@ -184,6 +187,8 @@ pub struct Processor {
     split_voices: bool,
     /// An offline render: frozen renders' readers wait for their blocks (ADR 0064).
     offline: bool,
+    /// Low-latency monitoring (ADR 0064 §4): the insert limit in samples, when on.
+    low_latency: Option<usize>,
     click: Click,
     /// The browser's audition voice, mixed after the master strip like the click.
     preview: crate::preview::Preview,
@@ -309,6 +314,7 @@ impl Processor {
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
             offline: false,
+            low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
