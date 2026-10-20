@@ -304,6 +304,15 @@ pub fn t_in(locale: Locale, key: &str) -> String {
         .unwrap_or_else(|| key.to_string())
 }
 
+/// [`tf`] in `locale`.
+pub fn tf_in(locale: Locale, key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    let mut s = t_in(locale, key);
+    for (name, value) in args {
+        s = s.replace(&format!("{{{name}}}"), &value.to_string());
+    }
+    s
+}
+
 /// Look up a key and substitute `{name}` placeholders.
 pub fn tf(key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
     let mut s = t(key);

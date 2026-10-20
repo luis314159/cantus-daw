@@ -420,14 +420,35 @@ fn proxy(target: &MappingTarget) -> Option<AutoTarget> {
     }
 }
 
+/// Whether `target` is two states without names: a mute, an LED, an on/off of 0…1 — what
+/// reads and is typed as Off and On (a two-step number, 1…2 oct, keeps its number).
+fn wordless_switch(app: &CantusApp, target: &MappingTarget) -> bool {
+    match target {
+        MappingTarget::Param(a) if a.is_plugin() => app
+            .hosted_param_info(a)
+            .is_some_and(|i| i.step_count() == Some(1)),
+        MappingTarget::Param(a) => cantus_core::automation::range::range_of(app.project(), a)
+            .is_some_and(|r| {
+                r.stepped
+                    && r.min == 0.0
+                    && r.max == 1.0
+                    && crate::automation::unit_of(app.project(), a).is_empty()
+            }),
+        t => t.is_switch(),
+    }
+}
+
 /// A position of `target`'s travel in its own words: "−6.0 dB", "1.20 kHz", "On", "96 BPM".
 pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String {
     let p = app.project();
     let pct = |pos: f32| format!("{:.0} %", pos * 100.0);
-    // Two states read Off and On; a choice its name; another stepped number a whole one
-    // in its unit (review 3, #0, #2).
-    let shape = app.target_shape(target);
-    if target.is_switch() || shape.switch {
+    // A choice by its name, whatever its number of steps — two named choices too (review
+    // 4, #0, #44, #59); then two states without names read Off and On; another stepped
+    // number a whole one in its unit (review 3, #0, #2).
+    if let Some(word) = crate::controllers_words::word_at_pos(app, target, pos) {
+        return word;
+    }
+    if wordless_switch(app, target) {
         return t(if pos >= 0.5 {
             "ctl.value.on"
         } else {
@@ -435,19 +456,10 @@ pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String 
         });
     }
     match target {
-        MappingTarget::Param(a) if a.is_plugin() => {
-            let word = app.hosted_param_info(a).and_then(|i| {
-                let v = i.min + f64::from(pos) * (i.max - i.min);
-                crate::controllers_words::word_at(app, target, v.round() as f32)
-            });
-            word.unwrap_or_else(|| pct(pos))
-        }
+        MappingTarget::Param(a) if a.is_plugin() => pct(pos),
         MappingTarget::Param(a) => match cantus_core::automation::range::range_of(p, a) {
             Some(r) => {
                 let v = r.value(pos);
-                if let Some(word) = crate::controllers_words::word_at(app, target, v) {
-                    return word;
-                }
                 let mut out = String::new();
                 if r.stepped {
                     use std::fmt::Write as _;
@@ -483,27 +495,17 @@ pub fn value_words(app: &CantusApp, target: &MappingTarget, pos: f32) -> String 
 /// What was typed into a value cell, as a position of `target`'s travel.
 pub fn parse_value(app: &CantusApp, target: &MappingTarget, typed: &str) -> Option<f32> {
     let w = typed.trim().to_lowercase();
-    let shape = app.target_shape(target);
-    if target.is_switch() || shape.switch {
+    // A choice by its name, in either language (review 3, #2) — two named choices too
+    // (review 4, #0, #44, #59).
+    if let Some(pos) = crate::controllers_words::pos_named(app, target, typed) {
+        return Some(pos);
+    }
+    if wordless_switch(app, target) {
         let on = t("ctl.value.on").to_lowercase();
         let off = t("ctl.value.off").to_lowercase();
         return match w.as_str() {
             x if x == on || x == "1" || x == "on" => Some(1.0),
             x if x == off || x == "0" || x == "off" => Some(0.0),
-            _ => None,
-        };
-    }
-    // A choice by its name, in either language (review 3, #2).
-    if let Some(v) = crate::controllers_words::value_named(app, target, typed) {
-        return match target {
-            MappingTarget::Param(a) if a.is_plugin() => {
-                let i = app.hosted_param_info(a)?;
-                let span = i.max - i.min;
-                (span > 0.0).then(|| ((f64::from(v) - i.min) / span) as f32)
-            }
-            MappingTarget::Param(a) => {
-                Some(cantus_core::automation::range::range_of(app.project(), a)?.pos(v))
-            }
             _ => None,
         };
     }
@@ -608,6 +610,9 @@ enum Typed<'a> {
     Target(&'a MappingTarget),
     /// A curve's bend in percent (−100…100).
     Curve,
+    /// A position in percent (0…100): a row whose plug-in was swapped out, whose words are
+    /// not the loaded plug-in's (review 4, #60).
+    Percent,
 }
 
 /// A curve's bend typed in percent: "+50", "-35 %", "12,5" — −1…1 (review 2, #35: the
@@ -657,6 +662,7 @@ fn value_cell(
                 let read = match typed {
                     Typed::Target(target) => parse_value(app, target, &text),
                     Typed::Curve => parse_curve(&text).map(|c| (c + 1.0) * 0.5),
+                    Typed::Percent => parse_curve(&text).map(|c| c.clamp(0.0, 1.0)),
                 };
                 if let Some(p) = read {
                     return CellDone {
@@ -778,10 +784,8 @@ fn section(app: &mut CantusApp, ui: &mut Ui, scope: Scope, w: f32) {
                 || crate::controllers::source_text(&m.source)
                     .to_lowercase()
                     .contains(&filter)
-                || app
-                    .mapping_target_name(&m.target)
-                    .to_lowercase()
-                    .contains(&filter)
+                // The name the row shows (an Other plug-in row's learnt one; review 4, #48).
+                || app.mapping_name(m).to_lowercase().contains(&filter)
         })
         .collect();
     if rows.is_empty() {
@@ -848,9 +852,13 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     });
     put(app, tag("row"), rr);
     put(app, tag("dot"), c[0]);
+    // A project mapping whose plug-in was swapped out drives nothing: its cells are no
+    // plug-in's words, and it shares nothing (review 4, #60).
+    let fits = scope == Scope::Global || m.fits(app.project());
     // The control, and *Shared* when another mapping takes it too.
     let others: Vec<String> = [Scope::Project, Scope::Global]
         .into_iter()
+        .filter(|_| fits)
         .flat_map(|sc| {
             // A swapped-out plug-in's mapping drives nothing: it shares nothing (review 3).
             app.controller_map(sc)
@@ -902,6 +910,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             Idle::NotLoaded => ("ctl.view.not_loaded", s.t.text_dim),
             Idle::Frozen => ("ctl.view.frozen", s.t.text_dim),
             Idle::NotConnected => ("ctl.view.not_connected", s.t.text_dim),
+            Idle::NoInput => ("ctl.view.no_input", s.t.text_dim),
         };
         let words = t(key);
         let pill_w = pill_width(ui, &words);
@@ -918,7 +927,12 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
         tr,
         &s,
         &name,
-        if alive { s.t.text } else { s.t.text_dim },
+        // Every idle row dimmed alike (review 4, #50).
+        if alive && idle.is_none() {
+            s.t.text
+        } else {
+            s.t.text_dim
+        },
         Role::Body,
     );
     let hover = ui.interact(tr, cid("target"), Sense::hover());
@@ -954,7 +968,11 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     };
     for &(col, what, name_key) in ranged {
         let pos = if what == "from" { m.min } else { m.max };
-        let words = value_words(app, &target, pos);
+        let words = if fits {
+            value_words(app, &target, pos)
+        } else {
+            format!("{:.0} %", pos * 100.0)
+        };
         let default = if what == "from" { 0.0 } else { 1.0 };
         let out = value_cell(
             app,
@@ -965,7 +983,11 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             &words,
             pos,
             default,
-            Typed::Target(&target),
+            if fits {
+                Typed::Target(&target)
+            } else {
+                Typed::Percent
+            },
         );
         put(app, tag(what), c[col]);
         if let Some(p) = out.pos {
@@ -1021,9 +1043,11 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             app.store_global_map();
         }
     }
-    // Takeover: an absolute control's only.
+    // Takeover: an absolute control's only, and none for a switch (it takes none, review
+    // 4, #52).
     let kr = c[7].shrink2(Vec2::new(0.0, 3.0 * k));
-    if m.mode == MapMode::Absolute {
+    let switch = m.target.is_switch() || (fits && app.target_shape(&m.target).switch);
+    if m.mode == MapMode::Absolute && !switch {
         let words = takeover_text(m.takeover);
         let (field, _) = MenuField::new(&words).id(cid("takeover")).show_at(ui, kr);
         put(app, tag("takeover"), kr);

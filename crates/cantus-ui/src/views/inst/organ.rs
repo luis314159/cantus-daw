@@ -123,6 +123,7 @@ fn power(
         }
     }
     // The card's lamp is its parameter's control (round 29, review 3 of ADR 0062, #35).
+    let before = app.learn_armed_at();
     let learning = crate::controllers::stepped_inst_of(
         app,
         ui,
@@ -131,6 +132,18 @@ fn power(
         key,
         &resp,
     );
+    // A lamp lit at 0 (the rotary's, lit while its output is not taken off) is learnt
+    // the lamp's way: *On* lights it, as feedback does (review 4, #53).
+    let now = app.learn_armed_at();
+    if lit_value < 0.5 && now.is_some() && now != before {
+        let target = cantus_core::controller::MappingTarget::Param(
+            cantus_core::AutoTarget::Instrument {
+                track,
+                key: key.to_string(),
+            },
+        );
+        app.set_learn_range(&target, 1.0, 0.0);
+    }
     if resp.clicked() && !learning {
         let v = if on { 1.0 - lit_value } else { lit_value };
         set(app, track, key, v, false);

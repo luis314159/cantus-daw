@@ -22,6 +22,7 @@ pub mod controllers_feedback;
 pub mod controllers_input;
 pub mod controllers_learn;
 pub mod controllers_words;
+pub mod inst_choices;
 pub mod demos;
 pub mod design;
 pub mod docs;

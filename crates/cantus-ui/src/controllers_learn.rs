@@ -45,12 +45,12 @@ impl CantusApp {
                     // A release with nothing pressed (a key let go after arming).
                     return;
                 }
-                // An NRPN or RPN (its number on CC 99/98 or 101/100, its value on 6/38):
-                // not a control Cantus maps — said, never saved as a CC 99 mapping that
-                // would not follow the knob (review 3, #6).
-                if matches!(control, Control::Cc(98..=101)) {
-                    self.controllers.learning = None;
-                    self.controllers.tap.filter().set_learning(false);
+                // An NRPN or RPN — its number on CC 99/98 or 101/100, its value by data
+                // entry on CC 6/38 or 96/97, which many controllers send alone while the
+                // knob turns: not a control Cantus maps (review 3, #6; review 4, #8). Said,
+                // and passed over: the learn stays armed (the burst still swallowed) for the
+                // next control moved (review 4, #24).
+                if matches!(control, Control::Cc(6 | 38 | 96 | 97 | 98..=101)) {
                     self.set_error(crate::i18n::t("ctl.status.nrpn"));
                     return;
                 }
@@ -99,15 +99,32 @@ impl CantusApp {
         }
     }
 
+    /// The hosted plug-in a learnt mapping of `target` belongs to, with its name and the
+    /// parameter's (review 4, #47).
+    fn learnt_plugin(&self, target: &MappingTarget) -> Option<cantus_core::controller::PluginRef> {
+        let mut r = target.plugin_of(self.project())?;
+        if let MappingTarget::Param(a) = target {
+            if let Some(info) = self.hosted_param_info(a) {
+                r.param = info.name.clone();
+            }
+        }
+        Some(r)
+    }
+
     /// Make the mapping the armed control asks for.
     pub(crate) fn finish_learning(&mut self) {
         let Some(l) = self.controllers.learning.take() else {
             return;
         };
-        let (Some((port, channel)), Some((control, mode))) = (
-            l.source,
-            detect_in(&l.heard, &l.target, self.target_shape(&l.target)),
-        ) else {
+        // Armed from a control that stands for two values: read as two states (a pad
+        // toggles between them).
+        let mut shape = self.target_shape(&l.target);
+        if l.range.is_some() {
+            shape.switch = true;
+        }
+        let (Some((port, channel)), Some((control, mode))) =
+            (l.source, detect_in(&l.heard, &l.target, shape))
+        else {
             self.controllers.tap.filter().set_learning(false);
             return;
         };
@@ -123,18 +140,28 @@ impl CantusApp {
         let m = match existing {
             // Learnt again: the same mapping, the new control — on the plug-in there now
             // (review 2, #1).
-            Some(old) => Mapping {
-                source,
-                mode,
-                plugin: l.target.plugin_of(self.project()),
-                ..old
-            },
+            Some(old) => {
+                let mut m = Mapping {
+                    source,
+                    mode,
+                    plugin: self.learnt_plugin(&l.target),
+                    ..old
+                };
+                if let Some((from, to)) = l.range {
+                    (m.min, m.max) = (from, to);
+                }
+                m
+            }
             None => {
                 let id = self.new_mapping_id();
                 let mut m = Mapping::new(id, source, l.target.clone(), mode);
                 m.takeover = self.settings.controller_takeover;
-                // A hosted parameter's id means something only in its plug-in.
-                m.plugin = l.target.plugin_of(self.project());
+                // A hosted parameter's id means something only in its plug-in; its names
+                // name the row if the plug-in goes (review 4, #47).
+                m.plugin = self.learnt_plugin(&l.target);
+                if let Some((from, to)) = l.range {
+                    (m.min, m.max) = (from, to);
+                }
                 if l.target == MappingTarget::Tempo {
                     // A knob covers 60…180 BPM to start with (the range narrows or widens it).
                     let (lo, hi) = TEMPO_TRAVEL;

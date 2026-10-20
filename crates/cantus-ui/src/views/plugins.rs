@@ -482,9 +482,10 @@ fn shown_value(
 type Groups = Vec<(String, Vec<usize>)>;
 
 /// A hosted editor's words for each value shown, by parameter, for one effect: asked when
-/// the value moved, and again while the plug-in has not answered (an isolated one answers
-/// later) — the number shows meanwhile and is never kept as its words; another effect's
-/// editor starts them again (round 29, review 3 of ADR 0062, #59).
+/// the value moved, and again while an isolated plug-in has not answered (it answers
+/// later) — the number shows meanwhile and is never kept as its words; an in-process
+/// plug-in's "none" is its answer, never asked again every frame (review 4, #63); another
+/// effect's editor starts them again (round 29, review 3 of ADR 0062, #59).
 #[derive(Debug, Default)]
 pub struct ValueWords {
     of: Option<EffectId>,
@@ -499,6 +500,7 @@ impl ValueWords {
         effect: EffectId,
         id: u32,
         bits: u64,
+        later: bool,
         ask: impl FnOnce() -> Option<String>,
     ) -> Option<&str> {
         if self.of != Some(effect) {
@@ -506,7 +508,7 @@ impl ValueWords {
             self.words.clear();
         }
         let e = self.words.entry(id).or_insert((u64::MAX, None));
-        if e.0 != bits || e.1.is_none() {
+        if e.0 != bits || (later && e.1.is_none()) {
             e.0 = bits;
             e.1 = ask();
         }
@@ -880,8 +882,11 @@ fn body_ui(
                             }
                             // The plug-in's words for the value, asked once per value — again
                             // while not answered (an isolated plug-in answers later).
-                            let text = texts
-                                .get(effect, p.id, value.to_bits(), || h.param_text(p.id, value));
+                            let later =
+                                h.isolation() != cantus_core::PluginIsolation::Within;
+                            let text = texts.get(effect, p.id, value.to_bits(), later, || {
+                                h.param_text(p.id, value)
+                            });
                             let fmt = |_: f32, b: &mut String| match text {
                                 Some(t) => b.push_str(t),
                                 None => {

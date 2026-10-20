@@ -513,6 +513,7 @@ impl CantusApp {
             crate::controllers::GlobalLoad::Unsafe => {
                 let file = controllers_path.display().to_string();
                 app.set_error(tf("ctl.status.global_unsaved", &[("file", &file)]));
+                app.controllers.global_unsaved = Some(controllers_path);
             }
         }
         if let Some(inputs) = midi {
@@ -3789,6 +3790,8 @@ impl CantusApp {
         }
         let frame_start = Instant::now();
         self.engine.poll();
+        // The playhead's wrap, before anything this frame is recorded (review 4, #17).
+        self.note_playhead();
         self.poll_samples(ctx);
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.

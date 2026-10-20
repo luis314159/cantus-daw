@@ -503,8 +503,17 @@ pub(super) fn band_card(
                 );
                 // The solo is a parameter (which band, or none): its menu, its mark, the
                 // learn mode (round 29, review 3 of ADR 0062, #35).
-                let learnt =
-                    controls::stepped_offer(ui, &bs, host, "solo", frame::tr("eq.solo_tip"), &r);
+                // The band's own value of the solo choice (none ↔ this band, review 4, #46).
+                let learnt = controls::stepped_offer_one(
+                    ui,
+                    &bs,
+                    host,
+                    "solo",
+                    frame::tr("eq.solo_tip"),
+                    &r,
+                    0.0,
+                    (b + 1) as f32,
+                );
                 if r.clicked() && !learnt {
                     set_solo(host, (!soloed).then_some(b));
                 }

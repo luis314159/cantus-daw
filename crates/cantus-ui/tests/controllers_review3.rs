@@ -1115,18 +1115,18 @@ fn a_hosted_values_words_are_asked_until_answered() {
     let mut w = ValueWords::default();
     let (a, b) = (EffectId(1), EffectId(2));
     let bits = 0.42f64.to_bits();
-    assert_eq!(w.get(a, 0, bits, || None), None, "not answered yet");
+    assert_eq!(w.get(a, 0, bits, true, || None), None, "not answered yet");
     assert_eq!(
-        w.get(a, 0, bits, || Some("1.2 kHz".into())),
+        w.get(a, 0, bits, true, || Some("1.2 kHz".into())),
         Some("1.2 kHz"),
         "asked again"
     );
     assert_eq!(
-        w.get(a, 0, bits, || panic!("asked again once answered")),
+        w.get(a, 0, bits, true, || panic!("asked again once answered")),
         Some("1.2 kHz")
     );
     assert_eq!(
-        w.get(b, 0, bits, || Some("3 dB".into())),
+        w.get(b, 0, bits, true, || Some("3 dB".into())),
         Some("3 dB"),
         "another effect's own words"
     );

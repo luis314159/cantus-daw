@@ -105,13 +105,19 @@ impl CantusApp {
     pub fn controller_heard(&mut self, heard: &[Heard]) {
         self.follow_project();
         self.note_playhead();
+        // The burst's earliest message (it comes port by port, not in time order, review
+        // 4, #12).
+        let first = heard
+            .iter()
+            .map(|h| h.at)
+            .min()
+            .unwrap_or_else(Instant::now);
         // A gesture idle since before these messages came is sealed first: by their time,
         // not the frame's (review 1, #3).
-        self.seal_idle_gesture(heard.first().map_or_else(Instant::now, |h| h.at));
+        self.seal_idle_gesture(first);
         let mut pending: Vec<Pending> = Vec::new();
         // A 14-bit half left waiting past PAIR_GAP before this burst is read alone first:
         // the burst's halves are new pairs.
-        let first = heard.first().map_or_else(Instant::now, |h| h.at);
         self.drive_wide_alone(first, &mut pending);
         for h in heard {
             // Feedback come back (a loopback port, an echoing device): neither a move nor
@@ -149,8 +155,10 @@ impl CantusApp {
             return;
         }
         self.controllers.epoch = self.epoch;
-        if self.controllers.learning.is_some() {
-            self.cancel_learning();
+        // Let go silently: the open's own words (links or warps repaired, migrated) stay
+        // in the status (review 4, #29).
+        if self.controllers.learning.take().is_some() {
+            self.controllers.tap.filter().set_learning(false);
         }
         self.controllers.states.clear();
         self.controllers.sent.clear();
@@ -180,13 +188,40 @@ impl CantusApp {
 
     /// The playhead's wraps: a loop that came round since a message was heard puts it at
     /// the end of the pass before.
-    fn note_playhead(&mut self) {
-        let pos = self.engine.position().0;
-        let looping = self.project().loop_enabled && self.project().loop_region.is_some();
-        if looping && self.controllers.prev_pos.is_some_and(|prev| pos < prev) {
-            self.controllers.last_wrap = Some(Instant::now());
+    pub(crate) fn note_playhead(&mut self) {
+        let pos = self.engine.position();
+        let playing = self.engine.is_playing();
+        let looped = self
+            .project()
+            .loop_region
+            .as_ref()
+            .filter(|_| self.project().loop_enabled)
+            .map(|r| (r.start, r.end));
+        // A wrap is the playhead back by more than half the loop, inside it, playing — the
+        // recorder's own rule: a stale report from before a count-in's seek (stopped) or a
+        // step back is none (review 4, #17, #38). Seen once a frame, before anything heard
+        // in it is recorded: the pass starts at the loop's start from here on.
+        if let (Some((a, b)), Some(prev), true) = (looped, self.controllers.prev_pos, playing) {
+            if pos.0 < prev && prev - pos.0 > (b - a).0 / 2 && pos >= a && pos < b {
+                self.controllers.last_wrap = Some(Instant::now());
+                if let Some(live) = self.rec.pass.as_mut() {
+                    if live.plan.loop_region.is_some() {
+                        live.pass_start = a;
+                    }
+                }
+            }
         }
-        self.controllers.prev_pos = Some(pos);
+        if playing {
+            self.controllers.prev_pos = Some(pos.0);
+        }
+        // The latch on or off since the last snapshot (the pass begun, the punch-out passed,
+        // a loop back inside the punch): the engine is sent the lanes again (review 4, #16,
+        // #25, #31).
+        let latching = self.recording_latches();
+        if latching != self.controllers.latching {
+            self.controllers.latching = latching;
+            self.force_resync();
+        }
     }
 
     /// Seal the gesture when `at` is [`GESTURE_IDLE`] past its last message — its own step
@@ -250,6 +285,13 @@ impl CantusApp {
         if scope == Scope::Project && !m.alive(self.project()) {
             return false;
         }
+        // An action this build does not know takes nothing (its control plays as unmapped
+        // and shadows no other mapping), in either map (review 4, #14).
+        if let MappingTarget::Action(id) = &m.target {
+            if crate::keymap::Action::from_id(id).is_none() {
+                return false;
+            }
+        }
         match &m.target {
             // Unloaded because its sound is frozen: alive — its control is still the map's
             // (it must not reach another instrument), and a move is refused and said
@@ -267,11 +309,15 @@ impl CantusApp {
     pub fn target_shape(&self, target: &MappingTarget) -> cantus_core::controller::Steps {
         use cantus_core::controller::Steps;
         match target {
-            MappingTarget::Param(a) if a.is_plugin() => {
-                self.hosted_param_info(a).map_or(Steps::default(), |i| {
-                    Steps::of_range(i.stepped, i.min, i.max)
-                })
-            }
+            // A hosted parameter by the plug-in's own step count, never by its plain values
+            // (a JUCE VST3's four choices are 0…1: no switch; review 4, #1, #58).
+            MappingTarget::Param(a) if a.is_plugin() => self
+                .hosted_param_info(a)
+                .and_then(|i| i.step_count())
+                .map_or(Steps::default(), |n| Steps {
+                    switch: n == 1,
+                    steps: Some(n),
+                }),
             MappingTarget::Param(a) => cantus_core::automation::range::range_of(self.project(), a)
                 .map_or(Steps::default(), |r| {
                     Steps::of_range(r.stepped, f64::from(r.min), f64::from(r.max))
@@ -337,6 +383,19 @@ impl CantusApp {
             if crate::keymap::Action::from_id(id).is_none() {
                 return Some(Idle::Missing);
             }
+        }
+        // A record arm whose strip has nothing to arm (review 4, #6): dim, its control free.
+        if let MappingTarget::StripArm(s) = &m.target {
+            if p.strip(*s).is_some() && !p.tracks_on_strip(*s).any(|t| t.input.is_some()) {
+                return Some(Idle::NoInput);
+            }
+        }
+        // A hosted mapping whose place holds another device now — another plug-in, or one
+        // of Cantus's own — is the swapped-out plug-in's, not a deleted target (review 4,
+        // #49, #61).
+        if scope == Scope::Project && m.plugin.is_some() && !m.fits(p) && place_exists(p, &m.target)
+        {
+            return Some(Idle::OtherPlugin);
         }
         if !m.target.exists(p) {
             return Some(Idle::Missing);
@@ -540,20 +599,37 @@ impl CantusApp {
                     return;
                 }
                 self.record_controller(&target, pos, at);
-                match pending.iter_mut().find(|p| p.target == id) {
-                    Some(p) => {
-                        p.pos = pos;
-                        p.cmd = cmd;
-                        if !p.keys.contains(&key) {
-                            p.keys.push(key);
+                // A strip's record arm is its tracks' arms, each its own in the gesture: a
+                // track's arm pressed after it (or before) is the same target, the newest
+                // press wins (review 4, #18).
+                let parts: Vec<(GestureTarget, Command)> = match (&target, cmd) {
+                    (MappingTarget::StripArm(_), Command::Batch { commands, .. }) => commands
+                        .into_iter()
+                        .filter_map(|c| match &c {
+                            Command::SetTrackArmed { id, .. } => {
+                                Some(((MappingTarget::TrackArm(*id), 0), c))
+                            }
+                            _ => None,
+                        })
+                        .collect(),
+                    (_, cmd) => vec![(id, cmd)],
+                };
+                for (id, cmd) in parts {
+                    match pending.iter_mut().find(|p| p.target == id) {
+                        Some(p) => {
+                            p.pos = pos;
+                            p.cmd = cmd;
+                            if !p.keys.contains(&key) {
+                                p.keys.push(key);
+                            }
                         }
+                        None => pending.push(Pending {
+                            target: id,
+                            pos,
+                            cmd,
+                            keys: vec![key],
+                        }),
                     }
-                    None => pending.push(Pending {
-                        target: id,
-                        pos,
-                        cmd,
-                        keys: vec![key],
-                    }),
                 }
             }
             Drive::Nothing => {}
@@ -620,6 +696,10 @@ impl CantusApp {
                         .selected_track
                         .is_some_and(|t| self.instrument_window_open(t)),
                     Action::ShowTakes => selected_track.is_some_and(|t| t.takes_open),
+                    // The open instrument editor's keyboard card (review 4, #26).
+                    Action::ToggleDeviceKeyboard => {
+                        self.inst.open.is_some() && crate::views::inst::keyboard_shown(self)
+                    }
                     _ => return None,
                 },
             },
@@ -640,17 +720,21 @@ impl CantusApp {
         self.recording_latches() && self.modulators.rec.points.contains_key(target)
     }
 
-    /// Whether a recording pass latches what it records now: not before the pass, nor past
-    /// the punch-out, where nothing is written (review 3, #16).
+    /// Whether a recording pass latches what it records now: not before the pass (a
+    /// count-in, a pre-roll, before the punch-in), nor past the punch-out, where nothing is
+    /// written (review 3, #16; review 4, #16).
     fn recording_latches(&self) -> bool {
         let Some(live) = self.rec.pass.as_ref() else {
             return false;
         };
-        let past = live
-            .plan
-            .punch
-            .is_some_and(|(_, out)| self.engine.position() > out);
-        self.project().recording.record_automation && !past
+        let pos = self.engine.position();
+        let (from, to) = match live.plan.punch {
+            Some((a, b)) => (a, Some(b)),
+            None => (live.pass_start, None),
+        };
+        self.project().recording.record_automation
+            && pos >= from
+            && !to.is_some_and(|out| pos > out)
     }
 
     /// The command that puts `target` at `pos`.
@@ -658,10 +742,8 @@ impl CantusApp {
         match target {
             MappingTarget::Param(a) if a.is_plugin() => {
                 let info = self.hosted_param_info(a)?;
-                let mut v = info.min + f64::from(pos) * (info.max - info.min);
-                if info.stepped {
-                    v = v.round();
-                }
+                // On the plug-in's own steps, not whole plain units (review 4, #1, #58).
+                let v = info.snap(info.min + f64::from(pos) * (info.max - info.min));
                 a.command(self.project(), v)
             }
             _ => target.command(self.project(), pos, self.engine.position()),
@@ -910,5 +992,17 @@ impl CantusApp {
         for lane in s.automation.iter_mut().filter(|l| touched(&l.target)) {
             lane.segs.clear();
         }
+    }
+}
+
+/// Whether the place a hosted target names is still there: the insert's slot, or the
+/// track — whatever device it holds now.
+fn place_exists(p: &cantus_core::Project, target: &MappingTarget) -> bool {
+    match target {
+        MappingTarget::Param(AutoTarget::Plugin { effect, .. }) => p.effect_host(*effect).is_some(),
+        MappingTarget::Param(AutoTarget::PluginInstrument { track, .. }) => {
+            p.track(*track).is_some()
+        }
+        _ => false,
     }
 }

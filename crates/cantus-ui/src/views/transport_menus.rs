@@ -302,6 +302,8 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
         Action::ViewRouting => Pane::Routing,
         Action::ViewControllers => Pane::Controllers,
         Action::ToggleInspector => Pane::Inspector,
+        // The clips list, which the View menu checks too (review 4, #26).
+        Action::ToggleClips => Pane::Clips,
         _ => return None,
     })
 }
