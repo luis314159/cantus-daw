@@ -170,7 +170,9 @@ map: a `SetParam` fast path was weighed and not needed).
 - Keymap 9 (`NEW_IN_V9`): **`MidiLearnMode`** `Ctrl+Shift+M` (Live's Cmd+M is our
   metronome), **`LinkLastTweaked`** `Alt+Shift+A` (beside `Alt+A`'s automation clip — the
   way into a hosted plug-in's own window), **`ViewControllers`** `Ctrl+Shift+K`. The top
-  bar's *Inputs* group has a learn key.
+  bar's *MIDI* cell is Live's *MIDI* key: a click turns the learn mode on and off (the cell
+  lit while on), a right-click opens the MIDI settings — no extra width (the default bar
+  still shows every group at 1920 px in Spanish, `topbar_layout`).
 - **`Pane::Controllers`** (lower zone, View menu): the header (learn, *Add a mapping* — every
   portable target, armed on a click —, filter, the takeover new mappings get, the ports),
   two sections (*Everywhere*, *This project*), a row per mapping: activity dot, control,

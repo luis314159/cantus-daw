@@ -305,8 +305,8 @@ tempo, and the transport (play, stop, record, loop, the metronome, tap tempo, th
 PAT / SONG — anything a key can do).
 
 **Learn in two clicks.** Right-click a control ▸ **Learn MIDI controller**, then move a
-control on your hardware: done. Or press the top bar's **controller key** (or
-`Ctrl+Shift+M`) for the **learn mode**: every control that can be learnt is outlined; click
+control on your hardware: done. Or click the top bar's **MIDI** cell (or press
+`Ctrl+Shift+M`; a right-click on it opens the MIDI settings) for the **learn mode**: every control that can be learnt is outlined; click
 one, move a hardware control, click the next. A mapped control wears a small dot at its
 lower right; in the learn mode it is outlined in the highlight's colour, and the one
 waiting for your hardware is lit. `Esc` lets go of a learn. **Change MIDI controller** and

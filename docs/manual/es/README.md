@@ -325,8 +325,9 @@ el transporte (reproducir, detener, grabar, bucle, el metrónomo, el tempo por p
 los marcadores, PAT / SONG — todo lo que puede hacer una tecla).
 
 **Aprender en dos clics.** Clic derecho en un control ▸ **Aprender controlador MIDI** y
-mueve un control de tu equipo: listo. O pulsa la **tecla de controlador** de la barra
-superior (o `Ctrl+Mayús+M`) para el **modo de aprendizaje**: se marcan todos los controles
+mueve un control de tu equipo: listo. O haz clic en la casilla **MIDI** de la barra
+superior (o pulsa `Ctrl+Mayús+M`; con clic derecho abre los ajustes MIDI) para el **modo de
+aprendizaje**: se marcan todos los controles
 que se pueden aprender; haz clic en uno, mueve un control del equipo, haz clic en el
 siguiente. Un control asignado lleva un puntito abajo a la derecha; en el modo de
 aprendizaje se marca con el color de resalte, y el que espera a tu equipo se enciende. `Esc`

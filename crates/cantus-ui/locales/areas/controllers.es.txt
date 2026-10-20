@@ -88,12 +88,12 @@ ctl.view.add = Añadir asignación
 ctl.view.filter = Filtrar
 ctl.view.new_takeover = Las nuevas toman el control
 ctl.view.ports = Entrada MIDI: {names}
-ctl.view.no_ports = Sin entrada MIDI. Conecta una y luego Ajustes ▸ MIDI ▸ Volver a buscar puertos
+ctl.view.no_ports = Sin entrada MIDI. Conecta una y luego Ajustes → MIDI → Volver a buscar puertos
 ctl.view.armed = Esperando un control: mueve una perilla, un fader, un botón o un pad para {name}. Esc cancela
 ctl.view.global = En todas partes (tus asignaciones globales)
 ctl.view.global_empty = Aún no hay nada: añade una asignación para el transporte, el máster, la pista seleccionada o el dispositivo enfocado
 ctl.view.project = Este proyecto
-ctl.view.project_empty = Aún no hay nada: clic derecho en cualquier perilla ▸ Aprender controlador MIDI, o activa Aprender y haz clic en un control
+ctl.view.project_empty = Aún no hay nada: clic derecho en cualquier perilla → Aprender controlador MIDI, o activa Aprender y haz clic en un control
 ctl.view.no_match = Ninguna asignación coincide con el filtro
 ctl.view.shared = Compartido
 ctl.view.shared_tip = Este control también mueve
@@ -118,3 +118,4 @@ ctl.add.device = Dispositivo enfocado
 
 # La barra superior
 ctl.topbar.learn_tip = Aprendizaje MIDI: haz clic en un control y mueve una perilla, un fader, un botón o un pad de tu controlador
+ctl.topbar.lamp_tip = Clic: modo de aprendizaje MIDI. Clic derecho: ajustes MIDI

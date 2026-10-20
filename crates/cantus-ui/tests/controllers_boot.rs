@@ -2,7 +2,8 @@
 //! `boot::Boot` → `CantusApp::assemble`, never `CantusApp::new`. The global controller map
 //! is read in the Files stage (from beside the keymap) and kept by `assemble` with its
 //! file; the MIDI tap that wakes the window is the one the boot opened the ports with (or,
-//! without ports, one `assemble` makes) and the one rescans reopen them with.
+//! without ports, one `assemble` makes) and the one rescans reopen them with. Its own test
+//! binary, one test: it points `CANTUS_DATA_DIR` at a temporary folder.
 
 use cantus_core::controller::*;
 use cantus_engine::EngineHandle;
@@ -11,6 +12,13 @@ use cantus_ui::CantusApp;
 
 #[test]
 fn the_boot_path_reads_the_global_map_and_wires_a_waking_tap() {
+    let data = tempfile::tempdir().unwrap();
+    std::env::set_var("CANTUS_DATA_DIR", data.path());
+    reads_the_global_map();
+    opens_the_ports_with_the_tap_assemble_keeps();
+}
+
+fn reads_the_global_map() {
     let dir = tempfile::tempdir().unwrap();
     let path = cantus_ui::controllers::global_path(dir.path());
     let mut map = ControllerMap::default();
@@ -51,8 +59,7 @@ fn the_boot_path_reads_the_global_map_and_wires_a_waking_tap() {
     assert!(cantus_ui::controllers::load_global(&path).is_empty());
 }
 
-#[test]
-fn the_boot_opens_the_ports_with_the_tap_assemble_keeps() {
+fn opens_the_ports_with_the_tap_assemble_keeps() {
     // The boot's Stage::Audio opens the ports with a waking tap (`boot.rs`); `assemble`
     // keeps that same tap, so the filter it publishes is the one the callbacks read.
     let ctx = egui::Context::default();

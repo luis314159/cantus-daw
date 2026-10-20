@@ -88,12 +88,12 @@ ctl.view.add = Add a mapping
 ctl.view.filter = Filter
 ctl.view.new_takeover = New mappings take over
 ctl.view.ports = MIDI in: {names}
-ctl.view.no_ports = No MIDI input. Plug one in, then Settings ▸ MIDI ▸ Rescan ports
+ctl.view.no_ports = No MIDI input. Plug one in, then Settings → MIDI → Rescan ports
 ctl.view.armed = Waiting for a control: move a knob, fader, button or pad for {name}. Esc cancels
 ctl.view.global = Everywhere (your global mappings)
 ctl.view.global_empty = Nothing here yet: Add a mapping for the transport, the master, the selected track or the focused device
 ctl.view.project = This project
-ctl.view.project_empty = Nothing here yet: right-click any knob ▸ Learn MIDI controller, or turn Learn on and click a control
+ctl.view.project_empty = Nothing here yet: right-click any knob → Learn MIDI controller, or turn Learn on and click a control
 ctl.view.no_match = No mapping matches the filter
 ctl.view.shared = Shared
 ctl.view.shared_tip = This control also drives
@@ -118,3 +118,4 @@ ctl.add.device = Focused device
 
 # The top bar
 ctl.topbar.learn_tip = MIDI learn: click a control, then move a knob, fader, button or pad on your controller
+ctl.topbar.lamp_tip = Click: MIDI learn mode. Right-click: MIDI settings

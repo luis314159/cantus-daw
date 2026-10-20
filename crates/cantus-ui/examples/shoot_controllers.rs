@@ -9,7 +9,7 @@
 //! one control on two targets, a mapping whose track is gone; a row lit by a message, one
 //! waiting to learn again), a parameter's menu with *Learn MIDI controller* and *Forget*,
 //! the learn mode over an effect's editor, the mixer and the arrangement, and the top
-//! bar's learn key — in Cantus Night and Paper, English and Spanish, at 75 %, 100 % and
+//! bar with its MIDI cell lit — in Cantus Night and Paper, English and Spanish, at 75 %, 100 % and
 //! 200 %, and the pane in a narrow window.
 
 use cantus_core::controller::*;
@@ -204,7 +204,7 @@ fn main() {
             for (what, size) in [
                 ("learn-mixer", egui::vec2(1300.0, 560.0)),
                 ("learn-arrangement", egui::vec2(1300.0, 420.0)),
-                ("topbar", egui::vec2(1600.0, 70.0)),
+                ("topbar", egui::vec2(1920.0, 70.0)),
             ] {
                 cantus_ui::i18n::set_locale(lang);
                 let ctx = context(dark);

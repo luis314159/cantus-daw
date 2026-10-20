@@ -32,8 +32,8 @@ Undo-fuzz arm 45.
    `schema_35_keeps_the_controller_mappings`.
 3. **The interface** (`cantus-ui/src/controllers*.rs`, `views/controllers.rs`): learn in
    every parameter's menu (`Choice::Learn` / `Forget`, through `mod_offer`), the mapped
-   mark, the **learn mode** (`Ctrl+Shift+M`, the top bar's controller key, the pane's
-   *Learn*): every learnable control outlined above its painting, a click arms it, the
+   mark, the **learn mode** (`Ctrl+Shift+M`, a click on the top bar's MIDI cell —
+   Live's *MIDI* key; a right-click there opens the MIDI settings —, the pane's *Learn*): every learnable control outlined above its painting, a click arms it, the
    value does not move; mute/solo/arm lamps, the top bar's transport keys, PAT/SONG,
    metronome, tap and the tempo well learnable too; mixer strip/master/insert menus and the
    track header menu *Learn* rows; *Link the last tweaked parameter* (`Alt+Shift+A`);
@@ -136,7 +136,8 @@ Undo-fuzz arm 45.
   `views/inspector_pinned.rs` (probe), `views/fx/controls.rs`, `views/inst/frame.rs`,
   `views/mixer_menu.rs` (typed `Act`s appended), `views/mixer_strip.rs` (lamps),
   `views/arrangement.rs` (lamps, the chained track menu), `views/arrangement_rec.rs`
-  (arm lamp), `views/transport_keys.rs` (learn key, spots; *Inputs* one key wider),
+  (arm lamp), `views/transport_keys.rs` (the MIDI cell toggles learn mode, right-click
+  opens settings; learn spots),
   `views/transport_metro.rs`, `views/transport_tempo.rs`, `views/transport_menus.rs`
   (View menu), `views/workspace.rs`, `views/workspace_frame.rs` (the pane);
   tests `fx_lint.rs`, `modulators.rs`; example `shoot_modulators.rs`.
@@ -159,4 +160,5 @@ pair with its input — `output_for` covers the usual Windows names).
   through `inst_unit.rs` like the other MIDI.
 - Release notes / manual §14: the known issue "Not in this beta: … MIDI learn and control
   surfaces" becomes "… control surfaces (Mackie Control / HUI)" — MIDI learn is in.
-- The top bar's *Inputs* group is one key wider (`inputs_width`).
+- The top bar's MIDI cell now toggles the learn mode on a click (Settings on a
+  right-click); its width is unchanged.

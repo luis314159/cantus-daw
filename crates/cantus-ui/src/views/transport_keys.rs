@@ -12,7 +12,7 @@ use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::tokens::Tok;
-use crate::kit::{led, light, with_brush, State};
+use crate::kit::{led, light, with_brush, Fill, State};
 use crate::views;
 use crate::views::workspace::Pane;
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
@@ -248,8 +248,7 @@ fn lamp_w(ctx: &egui::Context, s: &Style, i: usize) -> f32 {
 }
 
 pub fn inputs_width(ctx: &egui::Context, s: &Style) -> f32 {
-    // The typing keyboard, the two lamps and the MIDI learn key (round 29, ADR 0062).
-    2.0 * ROW_KEY * s.k + 3.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
+    ROW_KEY * s.k + 2.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
 }
 
 /// A lamp, a word and a number in a well, one row: the MIDI input, the armed tracks.
@@ -348,6 +347,10 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let m = ui.interact(mr, Id::new("toolbar-midi"), Sense::click());
     let a = ui.interact(ar, Id::new("toolbar-armed"), Sense::click());
     let (m_clicked, a_clicked) = (m.clicked(), a.clicked());
+    // The MIDI cell is also Live's *MIDI* key (round 29, ADR 0062): a click turns the
+    // learn mode on and off, a right-click opens the MIDI settings.
+    let m_settings = m.secondary_clicked();
+    let learning = app.controllers.learn_mode;
     WORDS.with(|words| {
         let mut words = words.borrow_mut();
         let (mv, av) = &mut *words;
@@ -358,6 +361,16 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         let (word0, _) = lamp_parts(ui.ctx(), s, 0);
         let (word1, _) = lamp_parts(ui.ctx(), s, 1);
         lamp_cell(ui, mr, s, midi_lit, Tok::Led, LAMP_WORDS[0], mv, word0);
+        if learning {
+            with_brush(ui.painter(), |b| {
+                b.rrect(
+                    mr.shrink(b.px()),
+                    s.r(3.0),
+                    Fill::Solid(s.t.highlight.gamma_multiply(0.2)),
+                );
+                b.rrect_stroke(mr.shrink(b.px()), s.r(3.0), s.s(1.5), s.t.highlight);
+            });
+        }
         lamp_cell(ui, ar, s, armed > 0, Tok::Danger, LAMP_WORDS[1], av, word1);
     });
     if m.hovered() {
@@ -370,10 +383,17 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 &[("ports", &app.midi_port_names.join(", "))],
             )
         };
+        let tip = format!(
+            "{tip}. {}",
+            tip_with_key(app, t("ctl.topbar.lamp_tip"), Action::MidiLearnMode)
+        );
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         let _ = m.on_hover_text(tip);
     }
     if m_clicked {
+        app.run_action(Action::MidiLearnMode);
+    }
+    if m_settings {
         app.show_settings = true;
     }
     if a.hovered() {
@@ -384,22 +404,6 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     if a_clicked {
         app.run_action(Action::ArmTrack);
-    }
-    // The MIDI learn mode (round 29, ADR 0062), Ableton's MIDI Map key: lit while on.
-    let lk = key_rect(r, ar.right() + STEP * k, s);
-    let learning = app.controllers.learn_mode;
-    if key_in(
-        ui,
-        lk,
-        s,
-        KeyFace::Glyph(Glyph::Controller),
-        learning,
-        "midi-learn",
-        || tip(app, "ctl.topbar.learn_tip", Some(Action::MidiLearnMode)),
-    )
-    .clicked()
-    {
-        app.run_action(Action::MidiLearnMode);
     }
 }
 

@@ -182,18 +182,7 @@ pub fn save_global(path: &Path, map: &ControllerMap) -> std::io::Result<()> {
 /// A note's name, as the piano roll writes it (C4 is 60).
 pub fn note_name(n: u8) -> String {
     const NAMES: [&str; 12] = [
-        "C",
-        "C\u{266f}",
-        "D",
-        "D\u{266f}",
-        "E",
-        "F",
-        "F\u{266f}",
-        "G",
-        "G\u{266f}",
-        "A",
-        "A\u{266f}",
-        "B",
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
     ];
     format!("{}{}", NAMES[usize::from(n % 12)], i32::from(n / 12) - 1)
 }
