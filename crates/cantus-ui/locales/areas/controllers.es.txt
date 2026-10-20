@@ -25,7 +25,6 @@ ctl.menu.mute = Aprender silencio
 ctl.menu.solo = Aprender solo
 ctl.menu.fx = Aprender efectos activos
 ctl.menu.arm = Aprender armado de grabación
-ctl.menu.arm = Aprender armado de grabación
 ctl.menu.bypass = Aprender puenteo
 ctl.menu.mix = Aprender mezcla
 ctl.menu.forget = Olvidar estos controladores

@@ -236,6 +236,55 @@ fn a_pair_split_between_frames_is_never_half_made() {
     assert!((a.project().master.width - width_of(20 << 7)).abs() < 1e-4);
 }
 
+/// #9 (its third case), #56: a 14-bit fader moved while a pass records, each pair split
+/// between two frames: every recorded point is a whole pair, never a coarse half with a
+/// fine 0.
+#[test]
+fn a_split_pair_records_no_half_made_point() {
+    let mut a = keys_app();
+    let s = strip(&a);
+    add(
+        &mut a,
+        Scope::Project,
+        1,
+        Control::Cc14(7),
+        MappingTarget::Param(AutoTarget::StripPan(s)),
+        MapMode::Absolute,
+        Takeover::Jump,
+    );
+    a.controller_heard(&[cc(7, 30), cc(39, 3)]);
+    a.engine.seek(bar(1));
+    a.start_recording();
+    let mut t = Instant::now() + Duration::from_millis(50);
+    for (i, coarse) in (31..41u8).enumerate() {
+        a.engine.set_heard_for_tests(Ticks::beats(4 + i as i64), true);
+        a.controller_heard(&[msg_at(0xB0, 7, coarse, t)]);
+        a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(600))]);
+        t += Duration::from_millis(30);
+    }
+    a.engine.set_heard_for_tests(bar(4), false);
+    a.stop_recording();
+    let clips: Vec<Clip> = a
+        .project()
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .filter(|c| {
+            c.automation
+                .as_ref()
+                .is_some_and(|x| x.target == AutoTarget::StripPan(s))
+        })
+        .cloned()
+        .collect();
+    assert_eq!(clips.len(), 1, "one pass, one clip");
+    let points = &clips[0].automation.as_ref().unwrap().points;
+    assert!(points.len() >= 2, "{points:?}");
+    for p in points {
+        let v = (p.value * 16_383.0).round() as u16;
+        assert_eq!(v & 0x7F, 3, "a half-made point: {} ({v})", p.value);
+    }
+}
+
 /// #4, #9, #22, #27: a controller that sends a fine half alone (its coarse half the same)
 /// and then a normal pair coarse half first never becomes "fine half first".
 #[test]
@@ -421,6 +470,12 @@ fn a_punched_pass_ends_its_clip_at_the_punch_out() {
     a.controller_heard(&[cc(10, 100)]);
     a.engine.set_heard_for_tests(bar(6), true);
     a.controller_heard(&[cc(10, 20)]);
+    assert!(a.latched(&AutoTarget::StripPan(s)), "latched inside the punch");
+    a.engine.set_heard_for_tests(bar(9), true);
+    assert!(
+        !a.latched(&AutoTarget::StripPan(s)),
+        "the latch lets go past the punch-out"
+    );
     a.engine.set_heard_for_tests(bar(11), false);
     a.stop_recording();
     let clips = pan_clips(&a, s);
@@ -647,6 +702,14 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
     assert_eq!(shared, 0);
 }
 
+/// #50: the Spanish pill keeps the locale's word, *plug-in*.
+#[test]
+fn the_spanish_pill_says_plug_in() {
+    use cantus_ui::i18n::{t_in, Locale};
+    let es = t_in(Locale::Es, "ctl.view.other_plugin");
+    assert!(es.contains("plug-in"), "{es}");
+}
+
 /// #49: an action this build does not know is no transport word, and its row is missing.
 #[test]
 fn an_unknown_action_is_missing() {
@@ -769,6 +832,24 @@ fn a_strips_effects_switch_and_record_arm_are_learnable() {
     assert_ne!(a.project().strip(s).unwrap().fx_enabled, fx);
     a.controller_heard(&[msg_at(0x90, 41, 100, Instant::now())]);
     assert!(a.project().track(t).unwrap().armed);
+    // The strip's menu offers both rows (the arm with a track recording into it); the
+    // master's the effects switch only.
+    use cantus_ui::controllers::strip_learn_target;
+    assert_eq!(strip_learn_target(s, 5), Some(MappingTarget::StripFx(s)));
+    assert_eq!(strip_learn_target(s, 6), Some(MappingTarget::StripArm(s)));
+    assert_eq!(
+        strip_learn_target(StripId::MASTER, 5),
+        Some(MappingTarget::StripFx(StripId::MASTER))
+    );
+    assert_eq!(strip_learn_target(StripId::MASTER, 6), None);
+    cantus_ui::views::mixer::open_menu(&mut a, Some(s), egui::pos2(200.0, 200.0));
+    let text = paint(&ctx(), egui::vec2(1400.0, 800.0), 3, |ui| {
+        cantus_ui::views::mixer::show(&mut a, ui)
+    });
+    for key in ["ctl.menu.fx", "ctl.menu.arm"] {
+        let row = cantus_ui::i18n::t(key);
+        assert!(text.contains(&row), "{row:?} in the strip's menu: {text}");
+    }
 }
 
 /// #48: the learn mode and the View menu's areas light a button.
@@ -985,6 +1066,48 @@ fn clicking_a_hosted_editors_cells_arms_them() {
     );
 }
 
+/// #59: a hosted editor's words for a value are asked again while the plug-in has not
+/// answered (its number shows meanwhile, never kept as its words), kept once answered, and
+/// another effect's editor never shows the first one's words.
+#[test]
+fn a_hosted_values_words_are_asked_until_answered() {
+    use cantus_ui::views::plugins::ValueWords;
+    let mut w = ValueWords::default();
+    let (a, b) = (EffectId(1), EffectId(2));
+    let bits = 0.42f64.to_bits();
+    assert_eq!(w.get(a, 0, bits, || None), None, "not answered yet");
+    assert_eq!(
+        w.get(a, 0, bits, || Some("1.2 kHz".into())),
+        Some("1.2 kHz"),
+        "asked again"
+    );
+    assert_eq!(
+        w.get(a, 0, bits, || panic!("asked again once answered")),
+        Some("1.2 kHz")
+    );
+    assert_eq!(
+        w.get(b, 0, bits, || Some("3 dB".into())),
+        Some("3 dB"),
+        "another effect's own words"
+    );
+}
+
+/// #53: a hosted plug-in's stepped parameter reads the plug-in's own words for its steps,
+/// never a percentage: its two-state key switch *Off* and *On*, its fault selector the
+/// plug-in's number for each step.
+#[test]
+fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
+    use cantus_ui::views::controllers::value_words;
+    let mut a = keys_app();
+    cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
+    let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
+    let key = MappingTarget::Param(AutoTarget::Plugin { effect, id: 2 });
+    assert_eq!(value_words(&a, &key, 0.0), "Off");
+    assert_eq!(value_words(&a, &key, 1.0), "On");
+    let fault = MappingTarget::Param(AutoTarget::Plugin { effect, id: 4 });
+    assert_eq!(value_words(&a, &fault, 3.0 / 17.0), "3");
+}
+
 /// #57: a loaded plug-in that crashed: its mappings read *Not loaded* (they stay the map's).
 #[test]
 fn a_crashed_plug_ins_mapping_is_not_loaded() {
@@ -1045,4 +1168,231 @@ fn a_tempo_gesture_stays_small() {
         a.project().strip(s).unwrap().gain_db,
         before.strip(s).unwrap().gain_db
     );
+}
+
+// ---- typing into the pane, clicking the Tonus keyboard ---------------------------------------
+
+/// Frames of `show` on one context, the clock moving as a hand's would.
+struct Frames {
+    ctx: egui::Context,
+    t: f64,
+    size: egui::Vec2,
+}
+
+impl Frames {
+    fn new(size: egui::Vec2) -> Frames {
+        Frames {
+            ctx: ctx(),
+            t: 0.0,
+            size,
+        }
+    }
+
+    fn run(
+        &mut self,
+        a: &mut CantusApp,
+        events: Vec<egui::Event>,
+        show: &mut dyn FnMut(&mut CantusApp, &mut egui::Ui),
+    ) {
+        self.t += 0.05;
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, self.size)),
+            time: Some(self.t),
+            events,
+            ..Default::default()
+        };
+        let mut out = self.ctx.run_ui(input, |ui| show(a, ui));
+        out.textures_delta.clear();
+    }
+
+    fn click(
+        &mut self,
+        a: &mut CantusApp,
+        at: egui::Pos2,
+        show: &mut dyn FnMut(&mut CantusApp, &mut egui::Ui),
+    ) {
+        self.run(a, vec![egui::Event::PointerMoved(at)], show);
+        for pressed in [true, false] {
+            self.run(
+                a,
+                vec![egui::Event::PointerButton {
+                    pos: at,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers: Default::default(),
+                }],
+                show,
+            );
+        }
+    }
+}
+
+/// #41: the curve is typed into its cell in the pane, read in percent, and kept as typed —
+/// a bend under 2 % is not snapped straight the way a drag near the middle is.
+#[test]
+fn a_curve_is_typed_into_its_cell_as_typed() {
+    let mut a = keys_app();
+    let s = strip(&a);
+    let id = MappingId(1);
+    add(
+        &mut a,
+        Scope::Project,
+        1,
+        Control::Cc(20),
+        MappingTarget::Param(AutoTarget::StripGain(s)),
+        MapMode::Absolute,
+        Takeover::Jump,
+    );
+    let mut show = |a: &mut CantusApp, ui: &mut egui::Ui| cantus_ui::views::controllers::show(a, ui);
+    let mut f = Frames::new(egui::vec2(1400.0, 600.0));
+    let curve = |a: &CantusApp| a.project().controllers.get(id).unwrap().curve;
+    for (typed, want) in [("1", 0.01f32), ("-35 %", -0.35), ("+50", 0.5)] {
+        for _ in 0..3 {
+            f.run(&mut a, Vec::new(), &mut show);
+        }
+        let name = format!("1#{}#curve", id.0);
+        let cell = a
+            .controllers
+            .view
+            .geo
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, r)| *r)
+            .expect("the curve cell");
+        // A double-click opens the field (well after any earlier click).
+        for _ in 0..10 {
+            f.run(&mut a, Vec::new(), &mut show);
+        }
+        f.click(&mut a, cell.center(), &mut show);
+        f.click(&mut a, cell.center(), &mut show);
+        f.run(&mut a, Vec::new(), &mut show);
+        // Select what is there, type over it, Enter.
+        f.run(
+            &mut a,
+            vec![egui::Event::Key {
+                key: egui::Key::A,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::COMMAND,
+            }],
+            &mut show,
+        );
+        f.run(&mut a, vec![egui::Event::Text(typed.into())], &mut show);
+        f.run(
+            &mut a,
+            vec![egui::Event::Key {
+                key: egui::Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+            &mut show,
+        );
+        f.run(&mut a, Vec::new(), &mut show);
+        assert!(
+            (curve(&a) - want).abs() < 1e-4,
+            "{typed:?} typed: the curve is {}, not {want}",
+            curve(&a)
+        );
+    }
+}
+
+/// #43: in the learn mode a click at three quarters of a black key's width learns that
+/// black key — never the white key beside it — and a white key is learnt from its part
+/// between the black keys too.
+#[test]
+fn a_black_keys_right_half_learns_the_black_key() {
+    use cantus_core::fx::tonus::NOTE_KEYS;
+    let mut a = keys_app();
+    let s = strip(&a);
+    a.add_effect(s, EffectKind::AutoTune);
+    let fx = a
+        .project()
+        .strip(s)
+        .unwrap()
+        .effects
+        .iter()
+        .find(|e| e.spec.kind == EffectKind::AutoTune)
+        .unwrap()
+        .id;
+    a.open_effect_editor(s, fx);
+    a.toggle_learn_mode();
+    let mut show = |a: &mut CantusApp, ui: &mut egui::Ui| {
+        let ctx = ui.ctx().clone();
+        cantus_ui::views::fx::window(a, &ctx);
+    };
+    let mut f = Frames::new(egui::vec2(1400.0, 900.0));
+    for _ in 0..3 {
+        f.run(&mut a, Vec::new(), &mut show);
+    }
+    let keys = a.fx.tonus.geometry.expect("the keyboard drawn").keys;
+    let mut armed_at = |a: &mut CantusApp, at: egui::Pos2| {
+        a.cancel_learning();
+        for _ in 0..10 {
+            f.run(a, Vec::new(), &mut show);
+        }
+        f.click(a, at, &mut show);
+        let got = a.controllers.learning.as_ref().map(|l| l.target.clone());
+        a.cancel_learning();
+        got
+    };
+    for pc in [1usize, 3, 6, 8, 10] {
+        let r = keys[pc];
+        let at = egui::pos2(r.left() + r.width() * 0.75, r.center().y);
+        assert_eq!(
+            armed_at(&mut a, at),
+            Some(effect(fx, NOTE_KEYS[pc])),
+            "the black key {pc} clicked right of its middle"
+        );
+    }
+    // D between C# and D#, above the black keys' bottom.
+    let at = egui::pos2(keys[2].center().x, keys[1].center().y);
+    assert_eq!(armed_at(&mut a, at), Some(effect(fx, NOTE_KEYS[2])));
+    // E below the black keys.
+    let at = egui::pos2(keys[4].center().x, keys[4].bottom() - 4.0);
+    assert_eq!(armed_at(&mut a, at), Some(effect(fx, NOTE_KEYS[4])));
+}
+
+/// The coordinator's note on review 4 of the tempo: while a take records the tempo stays,
+/// a knob's included. A gesture that turned the tempo just before the take began and goes
+/// on with a pan knob during it sends no tempo command in the take — the pan moves alone.
+#[test]
+fn a_gesture_holding_the_tempo_sends_none_while_a_take_records() {
+    let mut a = keys_app();
+    let s = strip(&a);
+    add(
+        &mut a,
+        Scope::Project,
+        1,
+        Control::Cc(12),
+        MappingTarget::Tempo,
+        MapMode::Absolute,
+        Takeover::Jump,
+    );
+    add(
+        &mut a,
+        Scope::Project,
+        2,
+        Control::Cc(10),
+        MappingTarget::Param(AutoTarget::StripPan(s)),
+        MapMode::Absolute,
+        Takeover::Jump,
+    );
+    a.controller_heard(&[cc(12, 90)]);
+    let bpm = a.project().tempo_bpm;
+    a.start_recording();
+    assert!(a.is_recording());
+    let pan = a.project().strip(s).unwrap().pan;
+    a.controller_heard(&[cc(10, 20)]);
+    assert_ne!(a.project().strip(s).unwrap().pan, pan, "the pan moves");
+    assert_eq!(a.project().tempo_bpm, bpm);
+    let last = a.bus.history().last().unwrap();
+    assert!(
+        !cantus_core::tempo::keep::changes_tempo(&last.command),
+        "a tempo command sent during the take: {:?}",
+        last.command
+    );
+    a.stop_recording();
 }

@@ -25,7 +25,6 @@ ctl.menu.mute = Learn mute
 ctl.menu.solo = Learn solo
 ctl.menu.fx = Learn effects on
 ctl.menu.arm = Learn record arm
-ctl.menu.arm = Learn record arm
 ctl.menu.bypass = Learn bypass
 ctl.menu.mix = Learn mix
 ctl.menu.forget = Forget these controllers

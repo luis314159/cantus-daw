@@ -542,13 +542,20 @@ fn a_14_bit_pair_reads_a_coarse_half_alone_and_a_fine_half_first() {
     let mut a = wide_fader();
     a.controller_heard(&[cc(7, 1), cc(39, 3)]);
     assert!((a.project().master.width - width_of(131)).abs() < 1e-3);
-    a.controller_heard(&[cc(7, 0)]);
+    // A coarse half alone waits its fine half's moment (review 3: PAIR_GAP), then is read
+    // with a fine 0.
+    let old = Instant::now() - Duration::from_millis(20);
+    a.controller_heard(&[msg_at(0xB0, 7, 0, old)]);
     assert_eq!(a.project().master.width, 0.0, "to the bottom");
     a.controller_heard(&[cc(7, 64), cc(39, 5)]);
     assert!((a.project().master.width - width_of(64 << 7 | 5)).abs() < 1e-3);
-    // Fine half first (a moment after the pairs above).
-    let t = Instant::now() + Duration::from_millis(50);
-    a.controller_heard(&[msg_at(0xB0, 39, 9, t), msg_at(0xB0, 7, 100, t)]);
+    // Fine half first (a moment after the pairs above), pair after pair: known as such
+    // after cantus_ui::controllers::FINE_FIRST of them (review 3), then read whole.
+    let mut t = Instant::now() + Duration::from_millis(50);
+    for coarse in 97..=100u8 {
+        a.controller_heard(&[msg_at(0xB0, 39, 9, t), msg_at(0xB0, 7, coarse, t)]);
+        t += Duration::from_millis(20);
+    }
     assert!(
         (a.project().master.width - width_of(100 << 7 | 9)).abs() < 1e-3,
         "{}",

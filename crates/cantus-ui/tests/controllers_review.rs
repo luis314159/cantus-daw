@@ -347,7 +347,10 @@ fn a_14_bit_pair_reaches_its_top_and_waits_for_its_fine_half() {
         (w - 64.0 * 128.0 / 16_383.0 * 2.0).abs() < 1e-3,
         "the pair: {w}"
     );
-    a.controller_heard(&[cc(7, 0)]);
+    // The coarse half alone: read with a fine 0 once its fine half has had its moment
+    // (review 3 of ADR 0062: a half waits PAIR_GAP for its partner).
+    let old = Instant::now() - Duration::from_millis(20);
+    a.controller_heard(&[msg_at(0xB0, 7, 0, old)]);
     assert_eq!(
         a.project().master.width,
         0.0,

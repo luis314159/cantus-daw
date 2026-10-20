@@ -700,6 +700,23 @@ impl CantusApp {
             if pending.len() < before {
                 self.set_status(crate::i18n::t("tempo.status.recording"));
             }
+            // A gesture that turned the tempo before the take began is sealed: its tempo
+            // command is never sent again during the take (round 29, review 3 of ADR 0062).
+            let g = &self.controllers.gesture;
+            if g
+                .moves
+                .iter()
+                .any(|(_, c)| cantus_core::tempo::keep::changes_tempo(c))
+            {
+                if let Some(key) = g.key {
+                    self.bus.end_gesture_if(key);
+                }
+                let refused = std::mem::take(&mut self.controllers.gesture.refused);
+                self.controllers.gesture = Gesture {
+                    refused,
+                    ..Gesture::default()
+                };
+            }
         }
         if pending.is_empty() {
             return;

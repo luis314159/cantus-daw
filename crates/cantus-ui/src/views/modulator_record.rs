@@ -130,6 +130,9 @@ impl CantusApp {
         if recorded.is_empty() {
             return false;
         }
+        // The latched parameters go back to their clips, whether or not this pass writes
+        // one (a false start writes nothing, and changes no revision to resend them).
+        self.force_resync();
         let selected = self.selected_track;
         let mut commands = Vec::new();
         let mut opened = Vec::new();

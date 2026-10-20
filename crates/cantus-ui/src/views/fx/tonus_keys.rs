@@ -266,12 +266,37 @@ fn glyph(b: &mut Brush, s: &Style, _ink: &Ink, c: egui::Pos2, which: usize, colo
     }
 }
 
+/// The parts of key `pc` that show: a black key whole; a white key below the black keys,
+/// and above them between its black neighbours (round 29, review 3 of ADR 0062, #43).
+fn shown_parts(keys: &[Rect; 12], pc: usize) -> [Rect; 2] {
+    let r = keys[pc];
+    if BLACKS.iter().any(|b| b.0 == pc) {
+        return [r, Rect::NOTHING];
+    }
+    let black_bottom = keys[BLACKS[0].0].bottom();
+    let lower = Rect::from_min_max(pos2(r.left(), black_bottom), r.max);
+    let mut left = r.left();
+    let mut right = r.right();
+    for (b, _) in BLACKS {
+        let k = keys[b];
+        if k.right() > r.left() && k.left() < r.right() {
+            if k.center().x < r.center().x {
+                left = left.max(k.right());
+            } else {
+                right = right.min(k.left());
+            }
+        }
+    }
+    [lower, Rect::from_min_max(pos2(left, r.top()), pos2(right, black_bottom))]
+}
+
 /// The keys as their notes' parameters for MIDI learn: `true` while the learn mode is on.
 fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect; 12]) -> bool {
     use crate::kit::automate as a;
     let mut mode = false;
-    // The white keys first, the black keys over them: the last spot registered takes the
-    // click, and a black key sits across two white ones (review 3, #43).
+    // The white keys first, the black keys over them. Each key is outlined and covered
+    // only where it shows, so a black key's right half is its own, never the next white
+    // key's, and no white key's outline crosses a black one (review 3, #43).
     const ORDER: [usize; 12] = [0, 2, 4, 5, 7, 9, 11, 1, 3, 6, 8, 10];
     for pc in ORDER {
         let r = &keys[pc];
@@ -286,7 +311,14 @@ fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect;
         };
         if l.mode {
             mode = true;
-            if a::learn_spot(ui, *r, ui.id().with(("tonus-learn", pc)), l) {
+            let mut clicked = false;
+            for (i, part) in shown_parts(keys, pc).into_iter().enumerate() {
+                if part.is_positive() {
+                    let id = ui.id().with(("tonus-learn", pc, i));
+                    clicked |= a::learn_spot_clipped(ui, *r, part, id, l);
+                }
+            }
+            if clicked {
                 host.modulate(key, a::Choice::Learn, *r);
             }
         } else if l.mapped {

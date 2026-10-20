@@ -210,7 +210,7 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
             let name = format!("{kind:?}.{}", info.key);
             if offered.contains(&target) {
                 offered_keys.push(name);
-            } else if not_drawn(&name, &|k| spec.get(k)).is_none() {
+            } else if not_drawn(&name, &|k| spec.get(k), "").is_none() {
                 unexplained.push(name);
             }
         }
@@ -259,10 +259,6 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
                 offered.extend(probe::take_offers());
             }
         }
-        if kind == InstrumentKind::Fm {
-            let ks: Vec<String> = offered.iter().filter_map(|t| match t { AutoTarget::Instrument { key, .. } => Some(key.clone()), _ => None }).collect();
-            eprintln!("FMOFFERED {ks:?}");
-        }
         let spec = a
             .project()
             .track(track)
@@ -294,6 +290,8 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
                 }));
             }
         }
+        // FM's detail card shows the selected operator's pages.
+        let shown = ["a", "b", "c", "d", "e", "f", "g", "h"][a.inst.fm.selected.min(7)];
         for key in keys {
             let target = AutoTarget::Instrument {
                 track,
@@ -308,7 +306,7 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
                 // A constant (one choice): nothing to choose.
             } else if steps > 64.0 {
                 // A number with its own field (a key, a frame), not a choice.
-            } else if not_drawn(&name, &|k| spec.get(k)).is_none() {
+            } else if not_drawn(&name, &|k| spec.get(k), shown).is_none() {
                 unexplained.push(name);
             }
         }
@@ -328,8 +326,9 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
 }
 
 /// Why an editor's demo state draws no control for the stepped key `name` (`Kind.key`),
-/// `get` reading the kind's values: `None` when it does draw one (then it must be offered).
-fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32) -> Option<&'static str> {
+/// `get` reading the kind's values, `shown` the operator FM's detail card shows: `None` when
+/// it does draw one (then it must be offered).
+fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'static str> {
     let (kind, key) = name.split_once('.')?;
     let (head, field) = key.split_once('.').unwrap_or((key, ""));
     // A band's, a point's, a key band's slot: `used` is its being, not a control; a slot
@@ -410,7 +409,7 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32) -> Option<&'static str> {
             .or_else(|| key.strip_prefix("env."))
             .or_else(|| key.strip_prefix("ks."))
             .and_then(|r| r.split('.').next());
-        (kind == "Fm" && op.is_some_and(|o| o != "a")).then_some("another operator than the one shown")
+        (kind == "Fm" && op.is_some_and(|o| o != shown)).then_some("another operator than the one shown")
     })
 }
 
