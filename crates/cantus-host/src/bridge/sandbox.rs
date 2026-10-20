@@ -846,9 +846,7 @@ impl Sandbox {
                             return Waited::Answered(Err(self.gone()));
                         }
                     }
-                    let held = lock(&self.inflight)
-                        .get(&p.id)
-                        .is_some_and(|f| f.deferred);
+                    let held = lock(&self.inflight).get(&p.id).is_some_and(|f| f.deferred);
                     if held || Instant::now() >= until {
                         return Waited::Pending;
                     }

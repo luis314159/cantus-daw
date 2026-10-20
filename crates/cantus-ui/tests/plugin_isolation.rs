@@ -444,7 +444,10 @@ fn a_long_name_never_cuts_the_run_buttons_words() {
         layout = cantus_ui::views::audio_notice::card_layout(&a, ui.ctx());
     });
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
-    assert!(run.starts_with("Ejecutar ") && run.ends_with(" por separado"), "{run}");
+    assert!(
+        run.starts_with("Ejecutar ") && run.ends_with(" por separado"),
+        "{run}"
+    );
     assert!(run.contains('\u{2026}'), "the name shortened: {run}");
     let (r, buttons) = &layout[0];
     assert_eq!(buttons.len(), 3);
@@ -456,7 +459,11 @@ fn a_long_name_never_cuts_the_run_buttons_words() {
     let k = ctx.pixels_per_point();
     let w = cantus_ui::kit::text::measure(
         &ctx,
-        &cantus_ui::kit::text::Text::new(&run, cantus_ui::kit::text::Role::Control, egui::Color32::WHITE),
+        &cantus_ui::kit::text::Text::new(
+            &run,
+            cantus_ui::kit::text::Role::Control,
+            egui::Color32::WHITE,
+        ),
         k,
     )
     .x;

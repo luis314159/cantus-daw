@@ -231,3 +231,42 @@ save; 11 one 50 ms block; 12 a 3 s modal loop in the editor's window (CLAP); 13 
 save (CLAP); 14 an access violation in `process` (CLAP).
 
 Runs after the fix round (Windows, the machine shared with two builds): `cantus-rt`, `cantus-host`, `cantus-sandbox` 170 passed (2 ignored: the full model, as before); `cantus-ui` 1 348 passed; `cargo clippy --workspace --all-targets -D warnings` and `cargo fmt --all --check` clean. Linux (WSL, `tools/wsl/check.sh r29/isolation clippy`) clean, and `cantus-rt`/`cantus-sandbox`/`cantus-host` 158 passed there (the Windows-only modal-loop and editor tests do not build on Linux). Shots: `F:\projects\daw-r29\shots\isolation\` (`isolation-instrument-*` new: a stopped hosted instrument with a long name — the card, the inspector, the header sign).
+
+## The second fix round (review isolation-3: 50 findings, all closed)
+
+Merged `r29/integration` first (8286139: tempo's `project_samples` and PROTOCOL 3, freeze's
+renders, controllers' `SetModulatorAmount`). PROTOCOL is now 4 (`Started`, `Deferred`).
+Seen failing first: the round's new tests ran against the merged code before any fix (6 of
+8 in `bridge_faults3.rs` failed), and every other one with its fix taken out again
+(*✗→✓*). Duplicates share a row.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 36, 44, 11, 14, 17, 4 (high) | Calls held for a plug-in's modal loop aged into a kill after 6× their limit; synchronous calls froze the interface meanwhile; every call after one held was held | Held only: quit, and the calls ending or replacing the instance whose window runs the loop (and its later calls), each said with `Message::Deferred`; a held request is never judged; a live helper is never killed; Cantus waits a call's own limit at most (`HostError::Busy`: a save answers with the last-good state, a restart is picked up later) | `a_long_modal_loop_kills_nothing_and_freezes_nothing` ✗→✓ (fault 15: a 10 s dialog) |
+| 37, 3 (high) | Requests timed from posting: one queued behind a slow one was killed and blamed | `Message::Started`: only the request being served is judged, from when it started; every helper frame counts as life | `a_request_queued_behind_a_slow_one_is_not_late` ✗→✓ (fault 17: a 3 s save) |
+| 0, 38, 45, 20 | A known culprit's neighbours, the main thread's instance and every running job were blamed too; two instances of one plug-in counted twice | `culprits()`: a known culprit alone; else the handler's word; else one candidate or nobody (`Unknown`); `This` counted once per helper death and plug-in | `an_end_is_laid_on_one_plugin_or_on_nobody` (unit) ✗→✓, `under_the_pool_a_crash_is_laid_on_the_plugin_that_did_it` |
+| 19 | The crash handler was never held by a test | Two plug-ins processing at once, one crashes: only it is blamed | `the_crash_handler_names_the_plugin_whose_thread_crashed` ✗→✓ (handler removed) |
+| 1, 18, 39 | A crash in an editor (window messages, outside a call) was laid on whoever was processing; a plug-in's own thread the same; Windows swallowed crashes in timer callbacks; a plug-in's crash reporter replaced the filter; no signal stack on Linux | Window messages run as calls into their instance (root window → instance); the handler writes *outside* for a thread of no instance; `UOI_TIMERPROC_EXCEPTION_SUPPRESSION` off; the filter put back after each load and handing on; the CRT abort signal handled; `SA_ONSTACK` with a stack per thread | `a_crash_in_an_editor_is_laid_on_its_plugin` ✗→✓ (fault 16) |
+| 2, 24 | A slow neighbour made every other save answer with an old state | Only this instance's own trouble takes the shortcut (its job, its overdue request, a hung helper) | `a_slow_neighbour_does_not_make_a_save_stale` ✗→✓ |
+| 5, 10, 13, 21, 48 | A bake beside an export (or freeze) cleared the other's render instances; one Stop killed both | One render at a time: a bake waits for an export, an export for a bake (freeze already waited for both) | `a_bake_and_an_export_never_render_at_once`; the consumers: `every_render_that_lost_a_plugin_says_so`, `a_bake_that_lost_a_plugin_bakes_nothing` |
+| 6, 47 | A render instance that could not be loaded was skipped silently | `render_lost`: reported by `render_failures`, cleared by `finish_render` | `a_render_that_cannot_load_a_plugin_says_so` ✗→✓ |
+| 7, 40 | A helper that never started, or a neighbour's crash during a load, counted as this plug-in's crash | A handshake failure is `HostError::Load` ("could not start"); a helper of another build answers the handshake; a load that died carries the sandbox's blame (`HostError::Ended`) | `a_helper_that_cannot_start_is_a_load_failure` ✗→✓ |
+| 8, 9, 16, 23, 41 | Carried controllers crowded out the resuming block's note-off | Controllers and expressions folded to their last value; the block's own events first, carried note-offs next; a note-off with no room resets first; the rest counted lost; an overflow's reset drops what it supersedes | `a_controller_flood_while_late_never_drops_the_resuming_note_off` ✗→✓ |
+| 12, 42, 46 | A late job's own events (gestures, values) were thrown away | `Slot::take_events` when it finishes; delivered with the next block | `a_late_jobs_events_reach_the_host` ✗→✓ |
+| 15, 31 | A reload that crashed again was neither counted nor carded, and said in English | Counted by its blame; the card comes back; the reason in the interface's words | `a_reload_that_crashes_again_is_counted` ✗→✓ (the gain aborts on activate when told) |
+| 22 | The latency crash test could not tell dry from processed | −6 dB first; the crash asserted | `a_crash_with_latency_plays_the_input_delayed_by_the_latency` |
+| 25 | Weaker assertions than claimed | Every post-late block under the deadline; the note sounded first; the key heard by far more than a rounding; the worker test says what it does not hold | the four tests |
+| 26, 32 | A plug-in name's parentheses read as a system code; English system words in Spanish; nested parentheses | Only a code closing the text counts (`0x…`, `signal N`, `exit code`, `exit status`), said through `isolation.why.signal/exit`; the four "stopped" messages use a dash | `a_reasons_detail_is_a_system_code_only` |
+| 27 | A long name cut the Run button's verb | The name shortened in its middle (16 letters) | `a_long_name_never_cuts_the_run_buttons_words` |
+| 28 | Two rows labelled *Plug-in* | Reload under *Recover* / *Recuperar* | shot `isolation-instrument-loaded-*` |
+| 29 | No shot of the mixer, its menu, the selected insert, the rack, a loaded instrument that crashed, the three-button card | `review3_shots` in `shoot_hosted` (XL mixer's chain line, the desk's insert menu, the open insert tile, the instrument inspector and rack, the card at 420×600); the shots' apps start *Together* | the shots |
+| 30 | The tip still said blocks | *Times it was late* / *Veces que llegó tarde*; `CpuFigure::late` documented as jobs | strings test |
+| 33 | The chain hint stacked labels | One line per stopped insert (name: why) and one closing line | shot `isolation-mixer-*` |
+| 34 | The instrument's window row stayed on when stopped | Off, with the reason as its hint | shot |
+| 35 | Spanish bake words | *mientras se convertía el modulador … No se convirtió nada en automatización* | strings |
+| 43 | A frame cut short read as a broken protocol | `UnexpectedEof` after a header is the stream's end | `a_frame_cut_short_is_the_end_of_the_stream` ✗→✓ |
+| 49 | A laptop asleep killed every helper | A gap longer than the silence limit since the last judgement restarts the clocks | `a_pause_of_cantus_is_not_the_helpers_silence` |
+
+Faults added: 15 a 10 s modal loop in the editor's window, 16 an access violation in the
+editor's timer, 17 a 3 s save without pumping; and the gain aborts on activate when
+`CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE` is set (a plug-in that crashes on every load).

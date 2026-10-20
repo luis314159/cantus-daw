@@ -207,7 +207,11 @@ mod tests {
         let held = table.snapshot().expect("the current snapshot");
         table.change(|_| {});
         table.collect();
-        assert_eq!(table.retired(), 1, "the held one is kept, the unheld one freed");
+        assert_eq!(
+            table.retired(),
+            1,
+            "the held one is kept, the unheld one freed"
+        );
         drop(held);
         assert_eq!(table.retired(), 1, "a holder letting go frees nothing");
         table.collect();

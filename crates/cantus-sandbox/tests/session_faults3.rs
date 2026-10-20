@@ -137,5 +137,9 @@ fn under_the_pool_a_crash_is_laid_on_the_plugin_that_did_it() {
     assert!(!rig.host.crash_culprit(b), "its neighbour did not do it");
     assert_eq!(rig.host.crashes_this_session(Format::Clap, GAIN_ID), 1);
     assert_eq!(rig.host.crashes_this_session(Format::Vst3, VST3_GAIN_ID), 0);
-    assert!(rig.host.db.crash_record(Format::Vst3, VST3_GAIN_ID).is_none());
+    assert!(rig
+        .host
+        .db
+        .crash_record(Format::Vst3, VST3_GAIN_ID)
+        .is_none());
 }

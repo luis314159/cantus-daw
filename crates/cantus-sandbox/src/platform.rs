@@ -37,18 +37,15 @@ mod imp {
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::System::Ole::OleInitialize;
-    use windows_sys::Win32::System::StationsAndDesktops::{
-        SetUserObjectInformationW,
-    };
-    use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
+    use windows_sys::Win32::System::StationsAndDesktops::SetUserObjectInformationW;
     use windows_sys::Win32::System::Threading::{
         CreateEventW, GetCurrentProcess, SetEvent, INFINITE,
     };
+    use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetAncestor, MsgWaitForMultipleObjects,
-        PeekMessageW, GA_ROOTOWNER,
-        PostMessageW, RegisterClassW, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE,
-        QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
+        PeekMessageW, PostMessageW, RegisterClassW, SetTimer, TranslateMessage, GA_ROOTOWNER,
+        HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
     };
 
     /// The pulse window (0 until made).
@@ -302,7 +299,6 @@ mod imp {
 
 pub use imp::*;
 
-
 /// Which plug-in a crash is laid on (review #49, #1, #39): each thread says which instance
 /// it is calling into — the main thread in its calls, its ticks and the plug-in windows'
 /// messages it dispatches, each processing thread in its jobs — and a crash handler (the
@@ -469,7 +465,8 @@ pub mod blame {
         pub fn install() {
             // SAFETY: a filter for this process's unhandled exceptions, which only stores
             // an atomic and hands on; the previous one, kept to hand on to.
-            let prev: LPTOP_LEVEL_EXCEPTION_FILTER = unsafe { SetUnhandledExceptionFilter(Some(filter)) };
+            let prev: LPTOP_LEVEL_EXCEPTION_FILTER =
+                unsafe { SetUnhandledExceptionFilter(Some(filter)) };
             if let Some(p) = prev {
                 if p as usize != filter as *const () as usize {
                     CHAINED.store(p as usize, Ordering::Release);

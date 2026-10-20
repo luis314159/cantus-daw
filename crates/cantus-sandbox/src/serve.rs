@@ -50,7 +50,6 @@ fn out_lock(out: &Out) -> MutexGuard<'_, BufWriter<std::fs::File>> {
     out.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-
 struct Instance {
     main: Box<dyn MainThread>,
     half: Half,

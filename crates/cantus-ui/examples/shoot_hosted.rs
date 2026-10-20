@@ -366,7 +366,10 @@ fn three_button_app() -> CantusApp {
     );
     app.plugins.mark_crashed_for_tests(
         (Some(id), None),
-        (cantus_host::Format::Vst3, "0123456789ABCDEF0123456789ABCDEF"),
+        (
+            cantus_host::Format::Vst3,
+            "0123456789ABCDEF0123456789ABCDEF",
+        ),
         "it crashed: an access violation (0xC0000005)",
         3,
     );

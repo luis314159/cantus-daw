@@ -378,7 +378,10 @@ fn a_late_block_keeps_the_notes_and_values_of_the_blocks_that_pass_without_it() 
     for _ in 0..4 {
         before.extend(block(audio.as_mut(), &[], &[]).1);
     }
-    assert!(peak(&before) > 0.0, "the note sounded before the late block");
+    assert!(
+        peak(&before) > 0.0,
+        "the note sounded before the late block"
+    );
     // Slow once (50 ms): this block is late.
     block(audio.as_mut(), &fault(S_FAULT, SLOW_ONCE), &[]);
     // Dry blocks while it runs: at once, and what they carry kept.

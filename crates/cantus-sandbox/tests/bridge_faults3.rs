@@ -41,7 +41,10 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
 fn arrived(main: &mut dyn MainThread, id: u32, value: f64) {
     let start = Instant::now();
     while main.param_value(id) != Some(value) {
-        assert!(start.elapsed() < Duration::from_secs(5), "{id} never arrived");
+        assert!(
+            start.elapsed() < Duration::from_secs(5),
+            "{id} never arrived"
+        );
         main.idle();
         std::thread::sleep(Duration::from_millis(2));
     }
@@ -121,7 +124,11 @@ fn a_long_modal_loop_kills_nothing_and_freezes_nothing() {
     // The one in its dialog: answered within its own limit, never a frozen interface.
     let t = Instant::now();
     let _ = a.load_state(&[]);
-    assert!(t.elapsed() < Duration::from_millis(1_800), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() < Duration::from_millis(1_800),
+        "{:?}",
+        t.elapsed()
+    );
     // Eight seconds more: nothing is killed.
     let start = Instant::now();
     while start.elapsed() < Duration::from_secs(8) {
@@ -156,7 +163,10 @@ fn a_request_queued_behind_a_slow_one_is_not_late() {
             let _ = b.param_text(P_GAIN, -3.0);
             asked = true;
         }
-        assert!(crashed(slow.as_mut()).is_none(), "killed while within its limit");
+        assert!(
+            crashed(slow.as_mut()).is_none(),
+            "killed while within its limit"
+        );
         assert!(crashed(b.as_mut()).is_none());
         std::thread::sleep(Duration::from_millis(10));
     }
