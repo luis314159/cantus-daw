@@ -1105,8 +1105,17 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 super::device_chrome::chip_plate(b, hr.icon, over, tint.on_large, s.k)
             });
             icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
-            // A hosted instrument that stopped working (round 29, ADR 0063).
+            // A hosted instrument that stopped working (round 29, ADR 0063): its sign, and
+            // why as the icon's tip (review #34).
             super::plugin_notice::paint_header_stopped(&p, hr.icon, a, track.id, s);
+            if over && a.plugins.instrument_crashed(track.id).is_some() {
+                let tip = super::plugin_notice::tip(
+                    a,
+                    super::plugin_notice::Target::Instrument(track.id),
+                );
+                let heading = crate::i18n::t("isolation.stopped_card");
+                crate::kit::hint::set_text(p.ctx(), &heading, &tip, crate::kit::hint::Caps::NONE);
+            }
         }
     }
     app.arrangement.scratch = scratch;

@@ -60,8 +60,8 @@ isolation.cpu = CPU
 
 # --- la barra de estado ---
 isolation.status.late = Plug-ins tarde: {n}
-isolation.status.late_tip = {n} bloques sonaron sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
-isolation.status.late_tip_one = Un bloque sonó sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
+isolation.status.late_tip = {n} veces un plug-in aislado no respondió a tiempo, y el sonido siguió sin él un momento. Lo explica un plug-in pesado o un equipo ocupado; un búfer mayor le da más tiempo.
+isolation.status.late_tip_one = Una vez un plug-in aislado no respondió a tiempo, y el sonido siguió sin él un momento. Lo explica un plug-in pesado o un equipo ocupado; un búfer mayor le da más tiempo.
 
 # --- por qué se detuvo un plug-in ---
 isolation.why.access = falló: tocó memoria que no era suya
@@ -75,3 +75,11 @@ isolation.why.hung = su ayudante dejó de responder
 isolation.why.timeout = no respondió a tiempo
 isolation.why.protocol = su ayudante envió algo que Cantus no pudo leer
 isolation.why.ended = su ayudante terminó
+
+# --- review fixes (round 29, isolation-2) ---
+isolation.crashed.suffix = dejó de funcionar
+isolation.run_name_individually = Ejecutar {name} por separado
+isolation.slot.stopped_band = Plug-in
+isolation.window.stopped = {name} dejó de funcionar ({reason}): recárgalo para abrir su ventana.
+isolation.export.stopped = {name} dejó de funcionar durante la exportación ({reason}): al archivo le falta desde ese punto.
+isolation.bake.stopped = {name} dejó de funcionar mientras se trazaba el modulador ({reason}): no se fijó nada.

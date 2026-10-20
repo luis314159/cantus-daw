@@ -437,7 +437,11 @@ impl CantusApp {
         // Chorda's strings for this sample rate, designed beside the window (round 28,
         // ADR 0059): ready before anybody loads the piano.
         cantus_engine::inst::chorda::warm(engine.sample_rate as f32);
-        let mut app = Self::from_parts(project, engine, stress);
+        // This computer's choice of where third-party plug-ins run goes in before the
+        // first sync: a start-up project's plug-ins load there at once, never within Cantus
+        // first (review #14).
+        let mut app =
+            Self::from_parts_with(project, engine, stress, Some(settings.plugin_isolation));
         app.peaks.set_disk_cache(Some(peak_cache));
         // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
         app.engine
@@ -496,14 +500,28 @@ impl CantusApp {
     /// Build the application around an existing engine handle (headless tests use
     /// `EngineHandle::dummy()`).
     pub fn from_parts(project: Option<Project>, engine: EngineHandle, stress: bool) -> Self {
+        Self::from_parts_with(project, engine, stress, None)
+    }
+
+    /// [`Self::from_parts`], with where hosted plug-ins run unless their project says
+    /// (`None`: within Cantus), set before the project's plug-ins are first loaded.
+    pub fn from_parts_with(
+        project: Option<Project>,
+        engine: EngineHandle,
+        stress: bool,
+        isolation: Option<cantus_core::PluginIsolation>,
+    ) -> Self {
         let audio_error = if engine.is_live() {
             None
         } else {
             Some("no device".to_string())
         };
         let autosave_dir = directories_fallback().join("autosave");
-        let plugins =
+        let mut plugins =
             cantus_host::PluginHost::new(Some(data_dir().join("plugins.json")), engine.sample_rate);
+        if let Some(mode) = isolation {
+            plugins.default_isolation = mode;
+        }
         let project = project.unwrap_or_else(|| {
             if stress {
                 stress_project()
@@ -2643,6 +2661,8 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(project);
+        // A crash card speaks of the project that was open (review #16).
+        self.plugin_crashes = Default::default();
         self.epoch += 1;
         self.path = None;
         self.sync_audio_base();
@@ -2827,6 +2847,7 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(loaded.project);
+        self.plugin_crashes = Default::default();
         self.epoch += 1;
         self.path = Some(path.to_path_buf());
         self.sync_audio_base();

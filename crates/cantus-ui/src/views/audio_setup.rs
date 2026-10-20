@@ -15,6 +15,8 @@ pub fn frame(app: &mut CantusApp, ctx: &egui::Context) {
     }
     app.audio_setup.focused = focused;
     super::audio_routing::show(app, ctx);
+    // The crash card keeps only plug-ins still stopped (review #16, #30).
+    super::plugin_notice::prune(app);
     super::audio_notice::show(app, ctx);
     super::audio_popover::show(app, ctx);
     super::audio_firstrun::show(app, ctx);

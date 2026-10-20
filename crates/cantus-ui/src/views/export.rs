@@ -405,6 +405,8 @@ pub fn stop(app: &mut CantusApp) {
     }
     if let Some(j) = &app.export.job {
         j.ctl.cancel();
+        // An isolated plug-in hung in the render is not waited for (review #1).
+        app.plugins.cancel_render();
     }
 }
 
@@ -481,9 +483,29 @@ fn finish(app: &mut CantusApp, result: Result<Done, String>) {
     let Some(j) = app.export.job.take() else {
         return;
     };
+    // A plug-in that stopped working during the render (round 29, review #6, #47): the
+    // file lacks it from that point, so the export is not reported done.
+    let lost = app.plugins.render_failures();
     // The render is over: the plug-in instances it used go, on this thread.
     app.plugins.finish_render();
     match result {
+        Ok(_) if !lost.is_empty() => {
+            let text = lost
+                .iter()
+                .map(|f| {
+                    tf(
+                        "isolation.export.stopped",
+                        &[
+                            ("name", &f.name),
+                            ("reason", &super::plugin_notice::reason_words(&f.reason)),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            app.export.last = Some(Err(text.clone()));
+            app.set_error(text);
+        }
         Ok(done) => {
             let text = summary(&done, &j.target, &j.settings);
             app.export.last = Some(Ok(text.clone()));

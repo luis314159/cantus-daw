@@ -117,6 +117,8 @@ enum Act {
     BrowseEffects(StripId),
     SwapEffect(StripId, EffectId),
     OpenEffect(StripId, EffectId),
+    /// A hosted insert's *Reload plug-in* and where it runs (round 29, review #17).
+    Hosting(EffectId, crate::views::plugin_notice::MenuAct),
     Bypass(StripId, EffectId, bool),
     MoveEffect(StripId, EffectId, usize),
     RemoveEffect(StripId, EffectId),
@@ -604,9 +606,37 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Label::Key("effect.remove"),
                 Act::RemoveEffect(id, fx),
             ));
+            // A hosted plug-in: *Reload plug-in* while it is stopped, and where it runs
+            // (round 29, review #17, #33), as the inspector's menu has them.
+            hosting_entries(app, fx, &mut e);
         }
     }
     e
+}
+
+/// A hosted insert's rows: *Reload plug-in* (under its own band) while it is stopped,
+/// then *Runs*.
+fn hosting_entries(app: &CantusApp, fx: EffectId, e: &mut Vec<Entry>) {
+    use crate::views::plugin_notice::{menu_rows, MenuAct, Target};
+    let rows = menu_rows(app, Target::Insert(fx));
+    if rows.is_empty() {
+        return;
+    }
+    e.push(Entry::separator());
+    let mut banded = false;
+    for (label, on, a) in rows {
+        if a == MenuAct::Reload {
+            e.push(Entry::band("isolation.slot.stopped_band"));
+        } else if !banded {
+            banded = true;
+            e.push(Entry::band("isolation.slot.band"));
+        }
+        let entry = Entry::act(Label::Own(label), Act::Hosting(fx, a));
+        e.push(match on {
+            Some(b) => entry.check(radio(b)),
+            None => entry,
+        });
+    }
 }
 
 /// The rows of a submenu (and of the menus made of them).
@@ -1310,6 +1340,11 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             app.open_picker(crate::picker::PickPurpose::ReplaceEffect { strip, effect });
         }
         Act::OpenEffect(id, fx) => app.open_effect_editor(id, fx),
+        Act::Hosting(fx, a) => crate::views::plugin_notice::run_menu(
+            app,
+            crate::views::plugin_notice::Target::Insert(fx),
+            a,
+        ),
         Act::Bypass(strip, effect, bypass) => {
             app.exec(Command::SetEffectBypass {
                 strip,

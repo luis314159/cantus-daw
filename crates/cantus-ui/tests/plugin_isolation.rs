@@ -1,38 +1,76 @@
 //! Where plug-ins run and what the user sees when one stops working (round 29, ADR 0063):
 //! the machine's default reaches the host on the boot path; a crash becomes one card in the
-//! corner stack it shares with the audio notices, never over another card; its answers
-//! work; an insert's menu offers where it runs and *Reload*, as one undo step.
+//! corner stack it shares with the audio notices, never over another card, never about a
+//! plug-in that is gone; its answers work; an insert's menu offers where it runs and
+//! *Reload*, as one undo step.
 
 mod support;
 
 use cantus_core::*;
 use cantus_engine::EngineHandle;
-use cantus_host::HostNotice;
+use cantus_host::{Format, HostNotice};
 use cantus_ui::app::Files;
 use cantus_ui::views::plugin_notice::{self, Answer, MenuAct, Target};
 use cantus_ui::CantusApp;
 use support::*;
 
+const GLACIER: &str = "org.example.glacier";
+const REASON: &str = "it crashed: an access violation (0xC0000005)";
+
+/// The starter project with a hosted insert (Glacier) on the first strip, and a hosted
+/// instrument (Odin 2) on the first track.
 fn hosted_project() -> (Project, StripId, EffectId) {
     let mut p = cantus_ui::starter_project();
     let strip = p.tracks[0].strip.unwrap();
     let mut slot = p.make_effect(EffectKind::External);
-    slot.spec = EffectSpec::external(ExternalPlugin::new(
-        PluginFormat::Clap,
-        "org.example.glacier",
-        "Glacier",
-    ));
+    slot.spec = EffectSpec::external(ExternalPlugin::new(PluginFormat::Clap, GLACIER, "Glacier"));
     let id = slot.id;
     p.strip_mut(strip).unwrap().effects.push(slot);
+    p.tracks[0].instrument = InstrumentSpec::External(ExternalPlugin::new(
+        PluginFormat::Clap,
+        "org.example.odin",
+        "Odin 2",
+    ));
     (p, strip, id)
 }
 
-fn crashed(effect: EffectId, name: &str) -> HostNotice {
-    HostNotice::PluginCrashed {
-        effect,
-        name: name.into(),
-        reason: "it crashed: an access violation (0xC0000005)".into(),
-    }
+/// The host marks Glacier stopped (`times` crashes this session), and says so.
+fn crash(a: &mut CantusApp, id: EffectId, times: u32) {
+    a.plugins
+        .mark_crashed_for_tests((Some(id), None), (Format::Clap, GLACIER), REASON, times);
+    plugin_notice::on_notice(
+        a,
+        HostNotice::PluginCrashed {
+            effect: id,
+            name: "Glacier".into(),
+            reason: REASON.into(),
+        },
+    );
+}
+
+/// The same for the first track's Odin 2.
+fn crash_instrument(a: &mut CantusApp) -> TrackId {
+    let track = a.project().tracks[0].id;
+    let key = a.project().tracks[0]
+        .instrument
+        .external()
+        .map(cantus_engine::hosted_key)
+        .unwrap();
+    a.plugins.mark_crashed_for_tests(
+        (None, Some((track, key))),
+        (Format::Clap, "org.example.odin"),
+        "it stopped answering",
+        1,
+    );
+    plugin_notice::on_notice(
+        a,
+        HostNotice::InstrumentCrashed {
+            track,
+            name: "Odin 2".into(),
+            reason: "the plug-in sandbox stopped answering".into(),
+        },
+    );
+    track
 }
 
 #[test]
@@ -68,33 +106,29 @@ fn the_boot_path_gives_the_host_this_computers_default() {
 fn a_crash_is_one_card_with_reload_and_keep_it_off() {
     let (p, _, id) = hosted_project();
     let mut a = app(p);
-    plugin_notice::on_notice(&mut a, crashed(id, "Glacier"));
-    let (title, body, buttons, reasons) = plugin_notice::card(&a).expect("a card");
-    assert_eq!(title, "Glacier stopped working");
-    assert!(body.contains("kept playing"), "{body}");
-    let labels: Vec<&str> = buttons.iter().map(|(l, _)| l.as_str()).collect();
+    crash(&mut a, id, 1);
+    let card = plugin_notice::card(&a).expect("a card");
+    assert_eq!(card.sentence(), "Glacier stopped working");
+    assert_eq!(card.name.as_deref(), Some("Glacier"));
+    assert!(card.body.contains("kept playing"), "{}", card.body);
+    // Why, in the body too (#36).
+    assert!(card.body.contains("touched memory"), "{}", card.body);
+    let labels: Vec<&str> = card.buttons.iter().map(|(l, _)| l.as_str()).collect();
     assert_eq!(labels, ["Reload", "Keep it off"]);
     // The host's account, in the interface's words, its code kept.
     assert!(
-        reasons
+        card.reasons
             .contains("Glacier: it crashed: it touched memory that was not its own (0xC0000005)"),
-        "{reasons}"
+        "{}",
+        card.reasons
     );
     // The same plug-in told twice is still one entry; another makes the card plural.
-    plugin_notice::on_notice(&mut a, crashed(id, "Glacier"));
+    crash(&mut a, id, 0);
     assert_eq!(a.plugin_crashes.waiting.len(), 1);
-    let track = a.project().tracks[0].id;
-    plugin_notice::on_notice(
-        &mut a,
-        HostNotice::InstrumentCrashed {
-            track,
-            name: "Odin 2".into(),
-            reason: "it stopped answering".into(),
-        },
-    );
-    let (title, _, buttons, _) = plugin_notice::card(&a).unwrap();
-    assert_eq!(title, "2 plug-ins stopped working");
-    assert_eq!(buttons[0].0, "Reload all");
+    crash_instrument(&mut a);
+    let card = plugin_notice::card(&a).unwrap();
+    assert_eq!(card.sentence(), "2 plug-ins stopped working");
+    assert_eq!(card.buttons[0].0, "Reload all");
     plugin_notice::answer(&mut a, Answer::KeepOff);
     assert!(plugin_notice::card(&a).is_none(), "answered");
 }
@@ -107,25 +141,181 @@ fn the_crash_card_and_the_audio_notices_share_one_stack_and_never_overlap() {
         .notice(cantus_ui::audio_setup::Notice::Lost("Focusrite USB".into()));
     a.audio_setup
         .notice(cantus_ui::audio_setup::Notice::Connected("UMC204HD".into()));
-    plugin_notice::on_notice(&mut a, crashed(id, "Glacier"));
+    // Three crashes: the card has its third button (#28).
+    crash(&mut a, id, 3);
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         cantus_ui::i18n::set_locale(locale);
-        let ctx = ctx();
-        let mut rects = Vec::new();
-        paint(&ctx, egui::vec2(1280.0, 720.0), 2, |ui| {
-            rects = cantus_ui::views::audio_notice::card_rects(&a, ui.ctx());
-        });
-        assert_eq!(rects.len(), 3, "two audio cards and the plug-in card");
-        for (i, r) in rects.iter().enumerate() {
-            for q in &rects[i + 1..] {
+        for size in [egui::vec2(1280.0, 720.0), egui::vec2(420.0, 600.0)] {
+            let ctx = ctx();
+            let mut layout = Vec::new();
+            paint(&ctx, size, 2, |ui| {
+                layout = cantus_ui::views::audio_notice::card_layout(&a, ui.ctx());
+            });
+            assert_eq!(layout.len(), 3, "two audio cards and the plug-in card");
+            assert_eq!(
+                layout[0].1.len(),
+                3,
+                "{locale:?}: Reload, Keep it off, Run individually"
+            );
+            for (i, (r, buttons)) in layout.iter().enumerate() {
                 assert!(
-                    !r.intersects(*q),
-                    "{locale:?}: cards overlap: {r:?} and {q:?}"
+                    r.left() >= 0.0 && r.right() <= size.x && r.top() >= 0.0,
+                    "{locale:?} {size:?}: a card off the screen: {r:?}"
                 );
+                for b in buttons {
+                    assert!(
+                        r.contains_rect(*b),
+                        "{locale:?} {size:?}: a button off its card"
+                    );
+                }
+                for (j, b) in buttons.iter().enumerate() {
+                    for c in &buttons[j + 1..] {
+                        assert!(!b.intersects(*c), "{locale:?} {size:?}: buttons overlap");
+                    }
+                }
+                for (q, _) in &layout[i + 1..] {
+                    assert!(
+                        !r.intersects(*q),
+                        "{locale:?} {size:?}: cards overlap: {r:?} and {q:?}"
+                    );
+                }
             }
         }
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}
+
+/// A card never speaks of a plug-in that is gone: its slot removed, or the project
+/// replaced (#16, #30).
+#[test]
+fn the_crash_card_leaves_with_the_plugin_it_names() {
+    let (p, strip, id) = hosted_project();
+    let mut a = app(p.clone());
+    crash(&mut a, id, 1);
+    plugin_notice::prune(&mut a);
+    assert!(
+        plugin_notice::card(&a).is_some(),
+        "still stopped: still told"
+    );
+    a.exec(Command::RemoveEffect { strip, effect: id });
+    a.sync_engine();
+    plugin_notice::prune(&mut a);
+    assert!(plugin_notice::card(&a).is_none(), "the slot is gone");
+    let ctx = ctx();
+    let mut rects = Vec::new();
+    paint(&ctx, egui::vec2(1280.0, 720.0), 2, |ui| {
+        rects = cantus_ui::views::audio_notice::card_rects(&a, ui.ctx());
+    });
+    assert!(rects.is_empty());
+    // A crash, then another project: the card goes with the old one.
+    let mut a = app(p);
+    crash(&mut a, id, 1);
+    a.replace_project(cantus_ui::starter_project());
+    assert!(plugin_notice::card(&a).is_none(), "a new project");
+}
+
+/// The card's answers: *Run individually* is one undo step on the plug-in that keeps
+/// crashing; *Reload* asks the host (#28).
+#[test]
+fn the_cards_answers_do_what_they_say() {
+    let (p, strip, id) = hosted_project();
+    let mut a = app(p);
+    crash(&mut a, id, 3);
+    let before = a.bus.history().len();
+    plugin_notice::answer(&mut a, Answer::RunIndividually);
+    assert_eq!(a.bus.history().len(), before + 1, "one undo step");
+    let chosen = a
+        .project()
+        .effect(strip, id)
+        .and_then(|e| e.spec.external.as_deref())
+        .and_then(|p| p.isolation);
+    assert_eq!(chosen, Some(PluginIsolation::Individually));
+    assert!(plugin_notice::card(&a).is_none());
+    // Reload: the host tries (Glacier is not on this computer, so it says why).
+    crash(&mut a, id, 0);
+    plugin_notice::answer(&mut a, Answer::Reload);
+    assert!(plugin_notice::card(&a).is_none());
+    assert!(a.status.error, "{}", a.status.text);
+    assert!(a.status.text.contains("Glacier"), "{}", a.status.text);
+}
+
+/// In a card that lists several plug-ins, *Run individually* is offered for the one
+/// that keeps crashing, by name, and moves only that one (#25, #49).
+#[test]
+fn run_individually_names_the_plugin_that_keeps_crashing() {
+    let (p, strip, id) = hosted_project();
+    let mut a = app(p);
+    crash(&mut a, id, 3);
+    let track = crash_instrument(&mut a);
+    let card = plugin_notice::card(&a).unwrap();
+    let labels: Vec<&str> = card.buttons.iter().map(|(l, _)| l.as_str()).collect();
+    assert_eq!(
+        labels,
+        ["Reload all", "Keep them off", "Run Glacier individually"]
+    );
+    plugin_notice::answer(&mut a, Answer::RunIndividually);
+    let glacier = a
+        .project()
+        .effect(strip, id)
+        .and_then(|e| e.spec.external.as_deref())
+        .and_then(|p| p.isolation);
+    assert_eq!(glacier, Some(PluginIsolation::Individually));
+    let odin = a
+        .project()
+        .track(track)
+        .and_then(|t| t.instrument.external())
+        .and_then(|p| p.isolation);
+    assert_eq!(odin, None, "its neighbour stays where it was");
+}
+
+/// A stopped plug-in's window: the status line says why in the interface's words, and
+/// the card comes back with *Reload* (#31).
+#[test]
+fn asking_for_a_stopped_plugins_window_brings_its_card_back() {
+    let (p, _, id) = hosted_project();
+    let mut a = app(p);
+    crash(&mut a, id, 1);
+    plugin_notice::answer(&mut a, Answer::KeepOff);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    a.show_plugin_window(id);
+    let text = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(a.status.error);
+    assert!(text.contains("Glacier dejó de funcionar"), "{text}");
+    assert!(!text.contains("crashed"), "no English: {text}");
+    assert!(plugin_notice::card(&a).is_some(), "its card is back");
+}
+
+/// Why a plug-in stopped, from the forms the host writes on Windows and on Linux (#37).
+#[test]
+fn the_reasons_keep_their_detail_on_every_system() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let w = plugin_notice::reason_words;
+    assert_eq!(
+        w("it crashed (signal 11)"),
+        "it crashed: it touched memory that was not its own (signal 11)"
+    );
+    assert_eq!(
+        w("it crashed (signal 6)"),
+        "it crashed: it aborted (signal 6)"
+    );
+    assert_eq!(
+        w("it crashed (signal 4)"),
+        "it crashed: an instruction the processor refused (signal 4)"
+    );
+    assert_eq!(
+        w("it crashed (signal 8)"),
+        "it crashed: a division by zero (signal 8)"
+    );
+    assert_eq!(w("it crashed (signal 15)"), "it crashed (signal 15)");
+    assert_eq!(
+        w("it crashed (exit code 0xC0000135)"),
+        "it crashed (0xC0000135)"
+    );
+    assert_eq!(
+        w("it crashed: an access violation (0xC0000005)"),
+        "it crashed: it touched memory that was not its own (0xC0000005)"
+    );
 }
 
 #[test]
@@ -164,10 +354,16 @@ fn where_a_plugin_runs_is_its_menus_choice_and_one_undo_step() {
 fn the_strings_of_isolation_exist_in_both_languages() {
     for key in [
         "isolation.crashed.one",
+        "isolation.crashed.suffix",
         "isolation.reload",
         "isolation.keep_off",
         "isolation.run_individually",
+        "isolation.run_name_individually",
         "isolation.slot.band",
+        "isolation.slot.stopped_band",
+        "isolation.window.stopped",
+        "isolation.export.stopped",
+        "isolation.bake.stopped",
         "isolation.manager.band",
         "isolation.status.late",
         "cmd.set_plugin_isolation",

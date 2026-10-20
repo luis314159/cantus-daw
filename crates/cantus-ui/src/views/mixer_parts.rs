@@ -333,6 +333,25 @@ pub(super) fn chain_row(
     );
     let line = v.desk.chain(if master { None } else { Some(sn.index) });
     let empty = line.is_empty();
+    // Inserts whose plug-in stopped working (round 29, review #17): the line in the danger
+    // colour, and their tips with the chain's.
+    let stopped: Vec<String> = app
+        .project()
+        .effects_of(sn.id)
+        .map(|fx| {
+            fx.iter()
+                .filter(|e| app.plugins.crashed(e.id).is_some())
+                .map(|e| {
+                    let name = super::desk::short_name(e);
+                    let tip = crate::views::plugin_notice::tip(
+                        app,
+                        crate::views::plugin_notice::Target::Insert(e.id),
+                    );
+                    format!("{name}: {tip}")
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let inner = r.shrink2(vec2(4.0, 0.0));
     if empty {
         // An icon, not a word forty times across the desk: the hint bar says it.
@@ -340,7 +359,9 @@ pub(super) fn chain_row(
         let g = Rect::from_center_size(r.center(), vec2(9.0, 9.0));
         glyph::paint(b, g, Glyph::Plus, ink);
     } else {
-        let ink = if sn.fx_on {
+        let ink = if !stopped.is_empty() {
+            t.danger
+        } else if sn.fx_on {
             t.text
         } else {
             with_alpha(t.text, 0.5)
@@ -359,10 +380,22 @@ pub(super) fn chain_row(
         } else {
             &v.words.chain
         };
+        let body = if stopped.is_empty() {
+            line.to_string()
+        } else {
+            format!(
+                "{line}
+{}",
+                stopped.join(
+                    "
+"
+                )
+            )
+        };
         hint::set_text(
             ui.ctx(),
             tip,
-            line,
+            &body,
             Caps {
                 menu: true,
                 ..Caps::NONE

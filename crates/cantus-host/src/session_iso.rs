@@ -559,6 +559,38 @@ impl PluginHost {
         self.instruments.get(&track).map(|h| h.isolation)
     }
 
+    /// For the interface's tests: marks a hosted slot (`Some(effect)`) or a track's hosted
+    /// instrument (with its [`cantus_engine::hosted_key`]) as stopped — as a plug-in that crashed while it loaded — and counts
+    /// `times` crashes of the plug-in (`format`, `id`) this session. The application never
+    /// calls it.
+    #[doc(hidden)]
+    pub fn mark_crashed_for_tests(
+        &mut self,
+        target: (Option<EffectId>, Option<(TrackId, u64)>),
+        (format, id): (Format, &str),
+        reason: &str,
+        times: u32,
+    ) {
+        let missing = Missing {
+            key: 0,
+            error: reason.to_string(),
+            isolation: self.default_isolation,
+            crashed: true,
+        };
+        if let Some(e) = target.0 {
+            self.slots.remove(&e);
+            self.missing.insert(e, missing.clone());
+        }
+        if let Some((t, key)) = target.1 {
+            self.instruments.remove(&t);
+            self.inst_missing.insert(t, Missing { key, ..missing });
+        }
+        *self
+            .crash_counts
+            .entry((format, id.to_string()))
+            .or_default() += times;
+    }
+
     /// The plug-ins of the running render (export, stems, bake) that stopped working
     /// during it: a render that lost one must not be reported done (review #6, #47).
     /// Asked before [`Self::finish_render`].

@@ -112,7 +112,23 @@ impl CantusApp {
         let Some(p) = self.modulators.pending_bake.take() else {
             return;
         };
+        // A plug-in that stopped working while the modulator was traced: the trace lacks
+        // it, so nothing is baked (round 29, review #6).
+        let lost = self.plugins.render_failures();
         self.plugins.finish_render();
+        if let Some(f) = lost.first() {
+            self.set_error(tf(
+                "isolation.bake.stopped",
+                &[
+                    ("name", &f.name),
+                    (
+                        "reason",
+                        &crate::views::plugin_notice::reason_words(&f.reason),
+                    ),
+                ],
+            ));
+            return;
+        }
         if trace.is_empty() || p.revision != self.bus.revision() {
             self.set_error(t("mods.status.bake_moved"));
             return;
