@@ -160,6 +160,8 @@ fn a_version_8_keymap_gets_the_marker_keys() {
                 "previous-marker",
                 "next-marker",
                 "loop-between-markers",
+                "select-between-markers",
+                "toggle-tempo-track",
             ]
             .iter()
             .any(|k| l.trim_start().starts_with(k))
@@ -173,8 +175,20 @@ fn a_version_8_keymap_gets_the_marker_keys() {
         })
         .collect::<Vec<_>>()
         .join("\n");
+    for id in ["add-marker", "select-between-markers", "toggle-tempo-track"] {
+        assert!(!text.contains(id), "the v8 text still has {id}");
+    }
     let map = cantus_ui::keymap::Keymap::from_toml(&text).unwrap();
-    assert!(!map.bindings_for(Action::AddMarker).is_empty());
-    assert!(!map.bindings_for(Action::NextMarker).is_empty());
+    // Review 2 (finding 30): all six, not two.
+    for a in [
+        Action::AddMarker,
+        Action::PreviousMarker,
+        Action::NextMarker,
+        Action::LoopBetweenMarkers,
+        Action::SelectBetweenMarkers,
+        Action::ToggleTempoTrack,
+    ] {
+        assert!(!map.bindings_for(a).is_empty(), "{a:?} has no key");
+    }
     assert!(map.conflicts().is_empty(), "{:?}", map.conflicts());
 }

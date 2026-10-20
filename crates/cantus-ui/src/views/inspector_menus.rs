@@ -108,6 +108,25 @@ fn radio(on: bool) -> Check {
     Check::Radio(on)
 }
 
+/// A hosted plug-in's rows: *Reload plug-in* under its own band while it is stopped, then
+/// where it runs under *Runs* (round 29, review #32).
+fn hosting_rows(
+    rows: Vec<(String, Option<bool>, crate::views::plugin_notice::MenuAct)>,
+    out: &mut Vec<Entry>,
+) {
+    let mut banded = false;
+    for (label, on, a) in rows {
+        if a == crate::views::plugin_notice::MenuAct::Reload {
+            out.push(band("isolation.slot.stopped_band"));
+        } else if !banded {
+            banded = true;
+            out.push(band("isolation.slot.band"));
+        }
+        let check = on.map_or(Check::None, radio);
+        out.push(act(Label::Text(label), check, Choice::Hosting(a)));
+    }
+}
+
 /// "3 · Reverb", or "Strip 3" for a strip with no name.
 fn strip_entry(app: &CantusApp, id: StripId) -> String {
     let mut s = String::new();
@@ -235,10 +254,7 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 app,
                 crate::views::plugin_notice::Target::Instrument(t),
             );
-            for (label, on, a) in rows {
-                let check = on.map_or(Check::None, radio);
-                out.push(act(Label::Text(label), check, Choice::Hosting(a)));
-            }
+            hosting_rows(rows, &mut out);
         }
         MenuId::Slot(strip, e) => {
             let Some(s) = p.effects_of(strip) else {
@@ -276,13 +292,7 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 app,
                 crate::views::plugin_notice::Target::Insert(e),
             );
-            if !rows.is_empty() {
-                out.push(band("isolation.slot.band"));
-            }
-            for (label, on, a) in rows {
-                let check = on.map_or(Check::None, radio);
-                out.push(act(Label::Text(label), check, Choice::Hosting(a)));
-            }
+            hosting_rows(rows, &mut out);
         }
         MenuId::Send(me, to) => {
             let on = p

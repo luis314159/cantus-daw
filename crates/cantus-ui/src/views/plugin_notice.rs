@@ -17,7 +17,7 @@
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::{Command, EffectId, PluginIsolation, StripId, TrackId};
-use cantus_host::HostNotice;
+use cantus_host::{Format, HostNotice};
 
 /// What stopped working.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -80,6 +80,33 @@ fn add(app: &mut CantusApp, target: Target, name: String, reason: String) {
     });
 }
 
+/// Keeps only the plug-ins that are still stopped: one removed, swapped, reloaded or moved
+/// (or a project replaced) leaves the card, which never speaks of what is gone (#16, #30).
+/// Every frame, before the card is drawn.
+pub fn prune(app: &mut CantusApp) {
+    if app.plugin_crashes.waiting.is_empty() {
+        return;
+    }
+    let still: Vec<bool> = app
+        .plugin_crashes
+        .waiting
+        .iter()
+        .map(|c| stopped(app, c.target).is_some())
+        .collect();
+    let mut keep = still.into_iter();
+    app.plugin_crashes
+        .waiting
+        .retain(|_| keep.next().unwrap_or(false));
+}
+
+/// Why a hosted insert or instrument is stopped, while it is.
+pub fn stopped(app: &CantusApp, target: Target) -> Option<&str> {
+    match target {
+        Target::Insert(e) => app.plugins.crashed(e),
+        Target::Instrument(tr) => app.plugins.instrument_crashed(tr),
+    }
+}
+
 /// The machine's default, from the settings, into the host (start-up, and a change).
 pub fn apply_default(app: &mut CantusApp) {
     let mode = app.settings.plugin_isolation;
@@ -97,25 +124,51 @@ pub fn set_default(app: &mut CantusApp, mode: PluginIsolation) {
     apply_default(app);
 }
 
-/// The card's words: title, body, buttons (with what each does), the reasons.
-pub type Card = (String, String, Vec<(String, Answer)>, String);
+/// The card's words.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Card {
+    /// For one plug-in: its name, drawn before `title` and shortened in its middle when
+    /// long, so the words that matter are never cut (#36).
+    pub name: Option<String>,
+    /// For one plug-in, what happened ("stopped working"); for several, the whole title.
+    pub title: String,
+    /// What Cantus did, and for one plug-in why it stopped.
+    pub body: String,
+    /// The buttons' labels, with what each does.
+    pub buttons: Vec<(String, Answer)>,
+    /// Every plug-in and why it stopped: the whole card's hint.
+    pub reasons: String,
+}
 
-/// The card's title, body, button labels (with what each does), and the reasons (its
-/// hint), or `None` when nothing waits.
+impl Card {
+    /// The title as one sentence ("Glacier stopped working").
+    pub fn sentence(&self) -> String {
+        match &self.name {
+            Some(n) => tf("isolation.crashed.one", &[("name", n)]),
+            None => self.title.clone(),
+        }
+    }
+}
+
+/// The card's words, or `None` when nothing waits.
 pub fn card(app: &CantusApp) -> Option<Card> {
     let w = &app.plugin_crashes.waiting;
     let first = w.first()?;
     let one = w.len() == 1;
-    let title = if one {
-        tf("isolation.crashed.one", &[("name", &first.name)])
+    let (name, title) = if one {
+        (Some(first.name.clone()), t("isolation.crashed.suffix"))
     } else {
-        tf("isolation.crashed.many", &[("n", &w.len())])
+        (None, tf("isolation.crashed.many", &[("n", &w.len())]))
     };
-    let body = t(if one {
-        "isolation.crashed.body_one"
+    let body = if one {
+        format!(
+            "{} {}",
+            t("isolation.crashed.body_one"),
+            as_sentence(&reason_words(&first.reason))
+        )
     } else {
-        "isolation.crashed.body_many"
-    });
+        t("isolation.crashed.body_many")
+    };
     let mut buttons = vec![
         (
             t(if one {
@@ -134,8 +187,15 @@ pub fn card(app: &CantusApp) -> Option<Card> {
             Answer::KeepOff,
         ),
     ];
-    if one && offers_individually(app, first.target) {
-        buttons.push((t("isolation.run_individually"), Answer::RunIndividually));
+    // The one that keeps crashing — the one its helper's end is laid on, even when the
+    // card lists its neighbours too — is offered a process of its own (#25, #49).
+    if let Some(c) = culprit(app) {
+        let label = if one {
+            t("isolation.run_individually")
+        } else {
+            tf("isolation.run_name_individually", &[("name", &c.name)])
+        };
+        buttons.push((label, Answer::RunIndividually));
     }
     let reasons = w
         .iter()
@@ -147,27 +207,75 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    Some((title, body, buttons, reasons))
+    Some(Card {
+        name,
+        title,
+        body,
+        buttons,
+        reasons,
+    })
 }
 
-/// A plug-in that crashed `OFFER_INDIVIDUALLY` times this session and does not run alone.
-fn offers_individually(app: &CantusApp, target: Target) -> bool {
-    let (info, runs) = match target {
-        Target::Insert(e) => match app.plugins.hosted(e) {
-            Some(h) => (h.info.clone(), h.isolation()),
-            None => return false,
-        },
-        Target::Instrument(tr) => match app.plugins.hosted_instrument(tr) {
-            Some(h) => (h.info.clone(), h.isolation()),
-            None => return false,
-        },
+/// The plug-in on the card offered its own process: one its helper's end is laid on, that
+/// crashed `OFFER_INDIVIDUALLY` times this session, and does not run alone already.
+fn culprit(app: &CantusApp) -> Option<&Crashed> {
+    app.plugin_crashes
+        .waiting
+        .iter()
+        .find(|c| offers_individually(app, c.target))
+}
+
+/// What a stopped plug-in is (format and id) and where it runs: the loaded instance's
+/// word, or the project's record for one that crashed while it loaded.
+fn plugin_of(app: &CantusApp, target: Target) -> Option<(Format, String, PluginIsolation)> {
+    let loaded = match target {
+        Target::Insert(e) => app
+            .plugins
+            .hosted(e)
+            .map(|h| (h.info.format, h.info.id.clone(), h.isolation())),
+        Target::Instrument(tr) => app
+            .plugins
+            .hosted_instrument(tr)
+            .map(|h| (h.info.format, h.info.id.clone(), h.isolation())),
     };
-    runs != PluginIsolation::Individually
-        && app.plugins.crashes_this_session(info.format, &info.id) >= OFFER_INDIVIDUALLY
+    loaded.or_else(|| {
+        let p = app.project();
+        let record = match target {
+            Target::Insert(e) => p
+                .all_effects()
+                .find(|(_, x)| x.id == e)
+                .and_then(|(_, x)| x.spec.external.as_deref()),
+            Target::Instrument(tr) => p.track(tr).and_then(|t| t.instrument.external()),
+        }?;
+        let runs = app.plugins.effective_isolation(record.isolation);
+        Some((
+            cantus_host::from_project_format(record.format),
+            record.id.clone(),
+            runs,
+        ))
+    })
 }
 
-/// The user answered the card.
+fn offers_individually(app: &CantusApp, target: Target) -> bool {
+    let culprit = match target {
+        Target::Insert(e) => app.plugins.crash_culprit(e),
+        Target::Instrument(tr) => app.plugins.instrument_crash_culprit(tr),
+    };
+    let Some((format, id, runs)) = plugin_of(app, target) else {
+        return false;
+    };
+    culprit
+        && runs != PluginIsolation::Individually
+        && app.plugins.crashes_this_session(format, &id) >= OFFER_INDIVIDUALLY
+}
+
+/// The user answered the card. *Run individually* moves the plug-in that keeps crashing
+/// to a process of its own, and reloads the neighbours it took down with it.
 pub fn answer(app: &mut CantusApp, a: Answer) {
+    let alone = match a {
+        Answer::RunIndividually => culprit(app).map(|c| c.target),
+        _ => None,
+    };
     let waiting = std::mem::take(&mut app.plugin_crashes.waiting);
     match a {
         Answer::KeepOff => {}
@@ -178,7 +286,11 @@ pub fn answer(app: &mut CantusApp, a: Answer) {
         }
         Answer::RunIndividually => {
             for c in &waiting {
-                set_isolation(app, c.target, Some(PluginIsolation::Individually));
+                if Some(c.target) == alone {
+                    set_isolation(app, c.target, Some(PluginIsolation::Individually));
+                } else {
+                    reload(app, c.target, &c.name);
+                }
             }
         }
     }
@@ -303,7 +415,7 @@ fn name_of(app: &CantusApp, target: Target) -> String {
             .hosted_instrument(tr)
             .map(|h| h.info.name.clone()),
     }
-    .unwrap_or_default()
+    .unwrap_or_else(|| plugin_name(app, target))
 }
 
 /// A percentage as the CPU figure shows it: "0.42 %", "3.1 %", "12 %".
@@ -321,15 +433,19 @@ pub fn percent(share: f32) -> String {
 /// The lines a hosted plug-in's tip adds: where it runs, its CPU (and its own part when
 /// isolated), blocks it was late for, and why it stopped when it has.
 pub fn tip(app: &CantusApp, target: Target) -> String {
-    let (runs, cpu, crashed) = match target {
-        Target::Insert(e) => match app.plugins.hosted(e) {
-            Some(h) => (h.isolation(), h.cpu(), app.plugins.crashed(e)),
-            None => return String::new(),
-        },
-        Target::Instrument(tr) => match app.plugins.hosted_instrument(tr) {
-            Some(h) => (h.isolation(), h.cpu(), app.plugins.instrument_crashed(tr)),
-            None => return String::new(),
-        },
+    let crashed = stopped(app, target);
+    let loaded = match target {
+        Target::Insert(e) => app.plugins.hosted(e).map(|h| (h.isolation(), h.cpu())),
+        Target::Instrument(tr) => app
+            .plugins
+            .hosted_instrument(tr)
+            .map(|h| (h.isolation(), h.cpu())),
+    };
+    // One that crashed while it loaded has no instance: where it was tried, and why.
+    let (runs, cpu) = match (loaded, plugin_of(app, target)) {
+        (Some(l), _) => l,
+        (None, Some((_, _, runs))) if crashed.is_some() => (runs, None),
+        _ => return String::new(),
     };
     let mut lines = vec![tf("isolation.tip.runs", &[("mode", &t(runs.label_key()))])];
     if let Some(why) = crashed {
@@ -385,15 +501,45 @@ pub fn paint_rack_stopped(
     }
 }
 
+/// `words` as a sentence of its own: a capital first, a full stop last.
+fn as_sentence(words: &str) -> String {
+    let mut c = words.chars();
+    let mut out: String = match c.next() {
+        Some(f) => f.to_uppercase().chain(c).collect(),
+        None => return String::new(),
+    };
+    if !out.ends_with('.') {
+        out.push('.');
+    }
+    out
+}
+
 /// The host's account of why a plug-in stopped, in the interface's language: the forms
 /// `cantus_host::bridge::sandbox` writes (an exception, a signal, a hang, a timeout), with
-/// the system's code kept; anything else as the host said it.
+/// the system's detail kept — the exception's code, the signal's number (#37); anything else
+/// as the host said it.
 pub fn reason_words(reason: &str) -> String {
+    // The last parenthesised detail: "0xC0000005", "signal 11", "exit code 0x00000001".
     let code = reason
-        .find("(0x")
+        .rfind('(')
         .and_then(|i| reason[i + 1..].split(')').next())
-        .map(str::to_string);
-    let key = if reason.contains("access violation") {
+        .filter(|c| !c.is_empty())
+        .map(|c| c.strip_prefix("exit code ").unwrap_or(c).to_string());
+    let signal = code
+        .as_deref()
+        .and_then(|c| c.strip_prefix("signal "))
+        .and_then(|n| n.trim().parse::<i32>().ok());
+    // The common Unix signals, as the Windows exceptions they are.
+    let by_signal = match signal {
+        Some(11) | Some(7) | Some(10) => Some("isolation.why.access"),
+        Some(6) => Some("isolation.why.abort"),
+        Some(4) => Some("isolation.why.illegal"),
+        Some(8) => Some("isolation.why.division"),
+        _ => None,
+    };
+    let key = if let Some(k) = by_signal {
+        k
+    } else if reason.contains("access violation") {
         "isolation.why.access"
     } else if reason.contains("stack buffer overrun or an abort") || reason.contains("an abort") {
         "isolation.why.abort"
@@ -403,7 +549,7 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.illegal"
     } else if reason.contains("division by zero") {
         "isolation.why.division"
-    } else if reason.contains("processed audio") {
+    } else if reason.contains("processed audio") || reason.contains("while it rendered") {
         "isolation.why.hung_audio"
     } else if reason.contains("stopped answering") {
         "isolation.why.hung"
@@ -422,4 +568,44 @@ pub fn reason_words(reason: &str) -> String {
         Some(c) => format!("{} ({c})", t(key)),
         None => t(key),
     }
+}
+
+impl CantusApp {
+    /// A plug-in that stopped working has no window: asked for one, the status line says
+    /// why in the interface's words, and its card comes back with *Reload* one click away
+    /// (review #31). `true` when it is stopped.
+    pub fn window_of_stopped(&mut self, target: Target) -> bool {
+        let Some(why) = stopped(self, target).map(str::to_string) else {
+            return false;
+        };
+        let name = name_of(self, target);
+        let name = if name.is_empty() {
+            plugin_name(self, target)
+        } else {
+            name
+        };
+        self.set_error(tf(
+            "isolation.window.stopped",
+            &[("name", &name), ("reason", &reason_words(&why))],
+        ));
+        add(self, target, name, why);
+        true
+    }
+}
+
+/// The plug-in's name as the project keeps it.
+fn plugin_name(app: &CantusApp, target: Target) -> String {
+    let p = app.project();
+    match target {
+        Target::Insert(e) => p
+            .all_effects()
+            .find(|(_, x)| x.id == e)
+            .and_then(|(_, x)| x.spec.external.as_deref())
+            .map(|x| x.name.clone()),
+        Target::Instrument(tr) => p
+            .track(tr)
+            .and_then(|t| t.instrument.external())
+            .map(|x| x.name.clone()),
+    }
+    .unwrap_or_default()
 }

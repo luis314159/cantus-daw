@@ -10,7 +10,9 @@
 //!   only), mapped with `MapViewOfFile`. The pages live while either side holds a handle.
 //! - **Unix**: `shm_open("/<name>")`, `ftruncate`, `mmap(MAP_SHARED)`. The creator unlinks
 //!   the name when it drops its side, so a crash of the *other* process leaks nothing, and
-//!   the opener may map it only while the creator is alive.
+//!   the opener may map it only while the creator is alive. Once the other side has mapped
+//!   it, the creator removes the name at once ([`SharedMemory::unlink_name`]): the pages
+//!   stay mapped on both sides, and nothing is left in `/dev/shm` however the creator ends.
 //!
 //! Nothing here knows about audio (ADR 0031 §2.7).
 
@@ -62,6 +64,13 @@ impl SharedMemory {
 
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    /// The other side has mapped the region: its name is no longer needed (Unix: removed
+    /// now, so a creator that is killed leaks nothing; Windows: a no-op, the name ends with
+    /// the last handle). Both mappings stay; the region can no longer be opened by name.
+    pub fn unlink_name(&self) {
+        imp::unlink(&self.os);
     }
 }
 
@@ -171,6 +180,8 @@ mod imp {
         map(h, len)
     }
 
+    pub fn unlink(_os: &Handle) {}
+
     pub fn close(ptr: NonNull<u8>, _len: usize, os: &mut Handle) {
         // SAFETY: the view and the handle this value made, released once, here.
         unsafe {
@@ -187,11 +198,32 @@ mod imp {
     use std::ffi::CString;
     use std::io;
     use std::ptr::NonNull;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[derive(Debug)]
     pub struct Handle {
         /// The name to unlink on drop; `None` for the side that opened it.
         unlink: Option<CString>,
+        /// Set once the name is removed.
+        unlinked: AtomicBool,
+    }
+
+    impl Handle {
+        fn new(unlink: Option<CString>) -> Handle {
+            Handle {
+                unlink,
+                unlinked: AtomicBool::new(false),
+            }
+        }
+    }
+
+    pub fn unlink(os: &Handle) {
+        if let Some(c) = &os.unlink {
+            if !os.unlinked.swap(true, Ordering::AcqRel) {
+                // SAFETY: the name this side made, removed once.
+                unsafe { libc::shm_unlink(c.as_ptr()) };
+            }
+        }
     }
 
     fn c_name(name: &str) -> io::Result<CString> {
@@ -243,7 +275,7 @@ mod imp {
             return Err(e);
         }
         match map(fd, len) {
-            Ok(p) => Ok((p, Handle { unlink: Some(c) })),
+            Ok(p) => Ok((p, Handle::new(Some(c)))),
             Err(e) => {
                 // SAFETY: the name we made, removed once.
                 unsafe { libc::shm_unlink(c.as_ptr()) };
@@ -259,16 +291,14 @@ mod imp {
         if fd < 0 {
             return Err(io::Error::last_os_error());
         }
-        map(fd, len).map(|p| (p, Handle { unlink: None }))
+        map(fd, len).map(|p| (p, Handle::new(None)))
     }
 
     pub fn close(ptr: NonNull<u8>, len: usize, os: &mut Handle) {
-        // SAFETY: the mapping this value made, unmapped once; the name removed once.
+        // SAFETY: the mapping this value made, unmapped once.
         unsafe {
             libc::munmap(ptr.as_ptr().cast(), len);
-            if let Some(c) = os.unlink.take() {
-                libc::shm_unlink(c.as_ptr());
-            }
         }
+        unlink(os);
     }
 }

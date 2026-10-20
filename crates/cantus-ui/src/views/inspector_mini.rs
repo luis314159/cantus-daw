@@ -227,6 +227,29 @@ fn hosted(sh: &mut Sheet<'_>, app: &CantusApp, slot: &EffectSlot) {
     };
     sh.text_row("inspector.format", p.format.badge(), false, false);
     let e = slot.id;
+    // Stopped working (round 29, review #33): said in the danger colour, why in its tip.
+    if app.plugins.crashed(e).is_some() {
+        let v = sheet::name(sh.fmt.tr("isolation.stopped_card"));
+        let row = sh.row();
+        sh.label(row.label, "inspector.status", false);
+        let s = sh.s.hue_of(crate::kit::Tok::Danger);
+        crate::kit::well::readout(sh.b, row.value, &s, State::REST, &v, false);
+        let cy = row.value.center().y;
+        sh.b.dot(
+            pos2(row.value.right() - s.s(10.0), cy),
+            s.s(3.0),
+            s.t.danger,
+        );
+        let r = sh
+            .ui
+            .interact(row.full, Id::new(("insp-mini-stopped", e)), Sense::hover());
+        if r.hovered() {
+            use crate::views::plugin_notice::{tip, Target};
+            let tip = tip(app, Target::Insert(e));
+            crate::kit::hint::set_text(sh.ui.ctx(), &v, &tip, crate::kit::hint::Caps::NONE);
+        }
+        return;
+    }
     if app.plugins.missing(e).is_some() {
         let v = sheet::name(sh.fmt.tr("host.missing"));
         let row = sh.row();

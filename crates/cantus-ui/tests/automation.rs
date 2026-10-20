@@ -376,7 +376,7 @@ fn split_then_glue_gives_back_the_automation_clip() {
         next += 1;
         next
     };
-    let cmds = cantus_ui::clips::split(r.0, &clip, Ticks::beats(5), &mut ids).unwrap();
+    let cmds = cantus_ui::clips::split(a.project(), r.0, &clip, Ticks::beats(5), &mut ids).unwrap();
     assert!(a.exec(Command::Batch {
         label_key: "split".into(),
         commands: cmds

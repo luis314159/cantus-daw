@@ -191,11 +191,28 @@ fn stems_in_the_way(app: &CantusApp, d: &ExportSettings, folder: &Path) -> Vec<S
         .collect()
 }
 
+/// Say why a range cannot be exported, in the dialog's note and on the status line.
+fn refuse(app: &mut CantusApp, scope: Scope) {
+    let key = match scope {
+        Scope::Selection => "export_audio.no_selection",
+        Scope::Loop => "export_audio.no_loop",
+        _ if app.project().markers.len() < 2 => "tempo.export.no_markers",
+        _ => "tempo.export.two_markers",
+    };
+    app.export.asked = Some(scope);
+    app.set_error(t(key));
+}
+
 /// Ask where, then start. Stems ask for a folder; a mix for a file.
 pub fn choose_and_start(app: &mut CantusApp) {
     let Some(d) = app.export.dialog.clone() else {
         return;
     };
+    // Nothing to ask a file name for when the range is not there.
+    if !available(app, d.scope) {
+        refuse(app, d.scope);
+        return;
+    }
     let mut picker = rfd::FileDialog::new();
     if let Some(dir) = d.folder.as_ref().filter(|f| f.is_dir()) {
         picker = picker.set_directory(dir);
@@ -279,8 +296,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
             d
         }
     };
+    // A range the project does not have is refused with a word, never turned into the
+    // whole song under a name meant for a part of it (review 2).
     if !available(app, d.scope) {
-        d.scope = Scope::Song;
+        refuse(app, d.scope);
+        return false;
     }
     let stems = d.scope == Scope::Stems;
     let target = if stems {
@@ -411,6 +431,8 @@ pub fn stop(app: &mut CantusApp) {
     }
     if let Some(j) = &app.export.job {
         j.ctl.cancel();
+        // An isolated plug-in hung in the render is not waited for (review #1).
+        app.plugins.cancel_render();
     }
 }
 
@@ -487,9 +509,29 @@ fn finish(app: &mut CantusApp, result: Result<Done, String>) {
     let Some(j) = app.export.job.take() else {
         return;
     };
+    // A plug-in that stopped working during the render (round 29, review #6, #47): the
+    // file lacks it from that point, so the export is not reported done.
+    let lost = app.plugins.render_failures();
     // The render is over: the plug-in instances it used go, on this thread.
     app.plugins.finish_render();
     match result {
+        Ok(_) if !lost.is_empty() => {
+            let text = lost
+                .iter()
+                .map(|f| {
+                    tf(
+                        "isolation.export.stopped",
+                        &[
+                            ("name", &f.name),
+                            ("reason", &super::plugin_notice::reason_words(&f.reason)),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            app.export.last = Some(Err(text.clone()));
+            app.set_error(text);
+        }
         Ok(done) => {
             let text = summary(&done, &j.target, &j.settings);
             app.export.last = Some(Ok(text.clone()));

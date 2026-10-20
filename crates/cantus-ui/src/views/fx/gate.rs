@@ -1034,6 +1034,15 @@ fn history(
     let swing = gs.swing_db().max(1.0);
     let gy = |g: f32| plot.top() + (g.abs() / swing).clamp(0.0, 1.0) * plot.height() * 0.33;
     let bar = host.transport().ticks_per_bar.max(1);
+    // In Cantus, the bars through the song's metre changes (review 2).
+    let map = host
+        .daw()
+        .map(|(app, _, _)| crate::views::bars::map(app.project()))
+        .filter(|m| !m.is_one_metre());
+    let new_bar = |a: i64, b: i64| match &map {
+        Some(m) => m.bar_start(cantus_core::Ticks(a)) != m.bar_start(cantus_core::Ticks(b)),
+        None => a.div_euclid(bar) != b.div_euclid(bar),
+    };
     let mut pts = [Pos2::ZERO; HISTORY];
     let n = hist.len().min(HISTORY);
     with_brush(&ui.painter_at(rect), |b| {
@@ -1051,7 +1060,7 @@ fn history(
         let mut prev: Option<i64> = None;
         for (i, c) in hist.iter().enumerate() {
             if let (Some(tk_), Some(pt)) = (c.tick, prev) {
-                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                if new_bar(tk_, pt) && tk_ > pt {
                     b.vline(
                         b.snap_mid(x_of(i)),
                         plot.top(),

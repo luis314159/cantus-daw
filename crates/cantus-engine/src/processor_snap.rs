@@ -707,11 +707,18 @@ impl Processor {
         // integration review); a watched Speculum dates its frames by it.
         let mut out = [0usize; crate::fx::speculum::MAX_SCOPES];
         let mut lates = std::mem::take(&mut self.lates);
-        let mut n = 0usize;
-        let mut keep = |l: usize| {
+        let mut follow = std::mem::take(&mut self.follow_lates);
+        let (mut n, mut f) = (0usize, 0usize);
+        // Every insert's lateness (its own wrap after a loop's), and the ones that follow
+        // the song apart (their tempo steps, review 2).
+        let mut keep = |l: usize, follows: bool| {
             if l > 0 && n < lates.len() {
                 lates[n] = l;
                 n += 1;
+            }
+            if l > 0 && follows && f < follow.len() {
+                follow[f] = l;
+                f += 1;
             }
         };
         let scoped = self.scoped;
@@ -726,7 +733,7 @@ impl Processor {
                 let mut ahead = self.strip_post[slot].saturating_sub(own);
                 for e in st.effects.iter_mut() {
                     e.late = ahead;
-                    keep(ahead);
+                    keep(ahead, e.follows_song() || at(e.id).is_some());
                     if let Some(k) = at(e.id) {
                         out[k] = ahead;
                     }
@@ -737,7 +744,7 @@ impl Processor {
         let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
         for e in self.master.effects.iter_mut() {
             e.late = ahead;
-            keep(ahead);
+            keep(ahead, e.follows_song() || at(e.id).is_some());
             if let Some(k) = at(e.id) {
                 out[k] = ahead;
             }
@@ -745,17 +752,10 @@ impl Processor {
         }
         self.scoped_delay = out;
         // Distinct, ascending (in place: no allocation).
-        let got = &mut lates[..n];
-        got.sort_unstable();
-        let mut d = 0;
-        for i in 0..got.len() {
-            if d == 0 || got[i] != got[d - 1] {
-                got[d] = got[i];
-                d += 1;
-            }
-        }
+        self.late_n = distinct(&mut lates[..n]);
+        self.follow_n = distinct(&mut follow[..f]);
         self.lates = lates;
-        self.late_n = d;
+        self.follow_lates = follow;
     }
 
     /// Plan compensation again when a latency moved without an edit — automation or a
@@ -998,4 +998,17 @@ impl Processor {
             }
         }
     }
+}
+
+/// Sort `v` and keep each value once at its front, in place (no allocation): how many.
+fn distinct(v: &mut [usize]) -> usize {
+    v.sort_unstable();
+    let mut d = 0;
+    for i in 0..v.len() {
+        if d == 0 || v[i] != v[d - 1] {
+            v[d] = v[i];
+            d += 1;
+        }
+    }
+    d
 }

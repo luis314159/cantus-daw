@@ -63,7 +63,9 @@ helper lives.
 ### 2. Shared memory and the lobby (`cantus-rt`, MPL)
 
 `cantus_rt::shm` maps named shared memory (Windows `CreateFileMappingW`/`MapViewOfFile` in
-`Local\`, Linux `shm_open`/`mmap`, unlinked by its creator); `cantus_rt::ipc` is the
+`Local\`, Linux `shm_open`/`mmap`, its name unlinked by its creator as soon as the helper
+has mapped it — after the handshake for the lobby, after the load for a slot — so a killed
+Cantus leaves nothing in `/dev/shm`, review #43); `cantus_rt::ipc` is the
 protocol, generic and audio-agnostic:
 
 - one **`Exchange`** per instance (job / taken / done sequence numbers, the caller's
@@ -99,8 +101,20 @@ per group, found beside the program (`CANTUS_SANDBOX_EXE` for tests and developm
 own version resource. Its main thread loads the plug-ins (`mark_main_thread`), answers
 Cantus's calls on its standard pipes (JSON frames with a binary blob for states,
 `bridge::proto`, protocol-versioned), pumps the plug-ins' windows with
-`MsgWaitForMultipleObjects`, has COM (`OleInitialize`) for VST3 editors, forwards the
-plug-ins' requests and changed values, and says it is alive every 200 ms. It moves its own
+`MsgWaitForMultipleObjects`, has COM (`OleInitialize`) for VST3 editors, and forwards the
+plug-ins' requests and changed values. **Life** (amended, review isolation-2 #0/#48): the
+main thread bumps a progress count each time round its loop and each time a **pulse** runs
+— a hidden message-only window whose 100 ms timer and wake-ups are dispatched by whatever
+message loop the thread is in, a plug-in's modal dialog or a dragged window included; a
+heartbeat thread of its own says *alive* every 200 ms while that count moves. From a loop
+nested in a plug-in's code the pulse also **serves Cantus's calls** (a save does not wait
+for a file dialog to close), except those that end or replace an instance — unload, drop
+audio, restart, close editor, quit — which, with every call after them, wait for the main
+loop. Before calling into an instance the main thread writes its number into the lobby
+(`MAIN_AT`), and each processing thread knows its job's; a crash handler (the
+unhandled-exception filter on Windows, the fatal signals on Unix) writes the faulting
+thread's instance (`CRASH_AT`) as the process dies, so a crash is **laid on the plug-in
+that did it** (#49). It moves its own
 standard handles to NUL before loading anything (a plug-in that prints cannot break a
 frame), has no crash dialog (`SetErrorMode`), is started without a console window
 (`CREATE_NO_WINDOW`), and ends with Cantus: Windows puts every helper in one job object
@@ -114,21 +128,46 @@ maker — cheap, so built), *Individually* (one per instance), *Within Cantus*.
 **A crash** (the helper ends) is seen at once — the reader thread's pipe closes, the
 watchdog's `try_wait` names how it ended (the Windows exception, the Unix signal) — and
 every instance's exchange is **closed**, which wakes an audio thread waiting on it. **A
-hang** — a job unfinished for 2 s, the main thread silent for 5 s while no call is under
-way, or a call past its time limit (load 30 s, state 10 s, others 5 s) — kills the helper,
-and is then a crash. From the crashing block on, an **effect passes its input through,
+hang** kills the helper, and is then a crash: a real-time job unfinished for 2 s — judged
+by the exchange, so a late job that finished while nothing called again (a bypassed slot,
+a restart) is no hang (#2, #38); an offline job unfinished for 30 s (#1, #11); or a main
+thread with **no life for 5 s while no request — waited for or not, background saves and
+unloads included — is under way within its own limit** (load 30 s, state 10 s, others
+5 s; #41). A request past its limit while the heartbeat still comes is waited for, up to
+six times its limit (a modal dialog during a load). `Sandboxes::set_limits` shortens them
+for tests. Saving a plug-in Cantus knows to be in trouble (a job unfinished, no heartbeat
+for a second) answers at once with its last-good state (#51). From the crashing block on, an **effect passes its input through,
 delayed by the latency it reported** (as a bypassed slot plays, so nothing in parallel
 moves against it); an **instrument is silent**; a block that only went **late** does the
 same and is counted (`Status::late`, shown in the status bar as *Plug-ins late*, beside the
 engine's own drops: the bridge knows it before the engine could, and the engine stays
-unaware). The crashing block itself is the one glitch: if the system takes longer to end the
-process than the block's deadline, it waits for the deadline — which Windows rounds up to
-its timer tick (15.6 ms unless something raised the timer resolution; 15–21 ms measured in
-the shots) — and is a dropout the profiler names; every block after it passes at once.
-`MainThread::idle` says `Notice::Crashed { reason }` once; `PluginHost` marks the
-slot crashed, counts it (this session, and in the plug-in database for good:
-`PluginDb::crashes`) and tells the application `HostNotice::{PluginCrashed,
-InstrumentCrashed}`.
+unaware; it counts **jobs** that missed their deadline, one per late job, #35). What the
+blocks that passed without the plug-in carried is **kept** in buffers made with the half —
+the last value of each parameter, the note-offs, chokes, expressions and controllers, a
+reset — and goes in at the start of its next job, so no note rings on and no value is out of
+step (#3, #10); a note-on late by a block is dropped; a full buffer resets the plug-in. The
+crashing block itself is the one glitch: if the system takes longer to end the process than
+the block's deadline, it waits for the deadline — **to the microsecond**: the caller's
+sleep ends on a high-resolution waitable timer (`CREATE_WAITABLE_TIMER_HIGH_RESOLUTION`)
+beside its event, not on the 15.6 ms system tick (#12; a late wait measured within 2 ms of
+a 5 ms deadline) — and every block after it passes at once. A block the engine sends an
+instance after its slot left passes at once too: its exchange is closed before the helper
+is told to unload it (#5).
+`MainThread::idle` says `Notice::Crashed { reason, blame }` once, and
+`MainThread::stopped` says it whenever asked (a crash while a state loaded that no `idle`
+reported, #45); `PluginHost` marks the slot crashed and counts it by its **blame**: the
+plug-in that did it this session and in the plug-in database for good
+(`PluginDb::crashes`); a neighbour in the same helper not at all; when nothing says whose,
+once per helper death this session and not remembered (#25, #49). It tells the application
+`HostNotice::{PluginCrashed, InstrumentCrashed}` — also for a plug-in whose helper died
+while it **loaded**, which is reloadable and tried again when where it runs changes (#15).
+**Renders** (export, stems, freeze, bounce, a modulator's bake) run their isolated plug-ins
+in helpers of their own (`render-<group>`): a crash there never takes the live ones down;
+an offline wait is sliced, so a render's Stop ends it (`PluginHost::cancel_render`) and a
+hang past the offline limit ends the helper; and a render that lost a plug-in says so
+(`PluginHost::render_failures`) instead of reporting success (#6, #39, #46, #47).
+Numbers that are not finite (a `-inf` dB minimum, a NaN value) cross the channel as the
+nearest finite ones (`proto::Finite`, #4).
 
 ### 4. Nothing lost, nothing different
 
@@ -137,10 +176,14 @@ InstrumentCrashed}`.
   output to the bit — tested at block sizes 1, 37, 64 and 512 for CLAP and VST3 effects and
   instruments, through the whole engine at 64/256/1 000 frames, and for offline renders.
 - **The last-good state.** `BridgeMain` keeps the plug-in's state: the one it started with
-  (sent with the load), every state loaded into it, and a background refresh half a second
+  (sent with the load), every state loaded into it — set before the call, so a helper that
+  dies loading it, or is dead already, keeps the state the project asked for (#9, #40,
+  #44) — and a background refresh half a second
   after it says its state changed, at the end of every gesture
   (`MainThread::checkpoint`, called by `PluginHost::record`), and every ten seconds while
-  its values move. Once the helper is gone, `save_state` answers with it — so
+  its values move; a background answer older than a state loaded or saved since is
+  dropped, and a refused one asked again two seconds later (#7, #8, #50). Once the helper
+  is gone, `save_state` answers with it — so
   `project_for_save`, parking a slot and reloading all keep what the user had; the
   project's own values (kept by commands) are flushed on top at a reload.
 - **The interface never waits in steady state**: values come from a mirror the helper
@@ -292,3 +335,26 @@ languages (`locales/areas/isolation.*`).
   boot path applies the default; one card, its answers; the card and two audio notices
   never overlap, in English and Spanish; the menu's choice is one undo step; both
   languages); `xtask`'s package tests (the helper staged, zipped, waited for).
+- Review isolation-2 (round 29's fix round; `docs/round29/isolation.md` has the table):
+  `ipc_process.rs` — a late wait ends within 2 ms of its deadline; an unlinked region keeps
+  sharing. `bridge_faults.rs` — hangs in a save, a state load, the editor and a background
+  save end within their limits, the save answering with the last-good state and saving
+  meanwhile not waiting; a modal loop in a save or in the plug-in's window is not a hang,
+  and calls are served from inside it; a late block's dry blocks keep their notes and
+  values, pass at once, and count one late job; a late job that finished is no hang; an
+  offline render through a hung plug-in ends, and a cancelled one stops waiting; a block
+  after its instance left passes at once; a state asked for is kept when the helper dies
+  loading it; a refused background save is asked again; an older background state is
+  dropped. `bridge.rs` — instruments at 1/37/64/512 with notes inside blocks; the
+  sidechain to the bit; a crash with latency plays the delayed input to the bit.
+  `session_faults.rs` — the worker pool equals the serial engine and in process; an
+  instrument to the bit through the engine; a crash in a shared helper counted once, for
+  the one that did it, by abort and by access violation; the missing helper said once;
+  the processes each choice makes; a crash while loading reloadable and retried where it
+  runs; a render that loses a plug-in says so, and a hung one ends. `rt_alloc.rs` adds the
+  late path, the crashing block and a live stop; `worker.rs` the retired snapshots;
+  `proto.rs` non-finite numbers; `bridge/mod.rs` the groups; `session_iso.rs` a scan
+  keeps crash records; `cantus-ui` the card's pruning, answers, three-button layout at
+  420×600, *Run {name} individually*, a stopped plug-in's window, the reasons' details,
+  and `plugin_isolation_boot.rs` — a start-up project's plug-in first loads where this
+  computer says.

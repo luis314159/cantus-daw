@@ -30,16 +30,28 @@ impl CantusApp {
     /// Whether the arrangement shows its tempo track: as the user last chose, else while
     /// the project has one.
     pub fn tempo_lane_shown(&self) -> bool {
-        self.arrangement
-            .tempo
-            .shown
+        let st = &self.arrangement.tempo;
+        st.shown
+            .filter(|_| st.epoch == self.epoch)
             .unwrap_or_else(|| self.project().has_tempo_track())
     }
 
-    /// Show or hide the tempo track.
+    /// Show or hide the tempo track (for this project).
     pub fn toggle_tempo_lane(&mut self) {
         let shown = self.tempo_lane_shown();
+        self.forget_other_projects_lanes();
         self.arrangement.tempo.shown = Some(!shown);
+    }
+
+    /// The tempo lane's and the marker lane's state belong to one project: opened,
+    /// replaced or imported, another starts afresh — nothing dragged, typed, renamed or
+    /// asked for in the last one carries over (review 2).
+    pub(crate) fn forget_other_projects_lanes(&mut self) {
+        if self.arrangement.tempo.epoch != self.epoch {
+            self.arrangement.tempo = Default::default();
+            self.arrangement.tempo.epoch = self.epoch;
+            self.arrangement.markers = Default::default();
+        }
     }
 
     /// The tempo the playhead is in (inside a ramp, its value there): what the top bar
@@ -63,6 +75,34 @@ impl CantusApp {
         self.exec_merging(cmd, merge);
     }
 
+    /// The value of the tempo point that governs the playhead (inside a ramp, its start;
+    /// the song's tempo without a tempo track).
+    pub fn tempo_point_now(&self) -> f64 {
+        let p = self.project();
+        match edit::point_at(p, self.engine.position()) {
+            Some(i) => p.tempo_points[i].bpm,
+            None => p.tempo_bpm,
+        }
+    }
+
+    /// Move the tempo at the playhead by `by` BPM — the top bar's wheel and drag (review 2):
+    /// the value of the point that governs the playhead moves by that much (inside a ramp,
+    /// the ramp's start), never set to the value shown there, which a ramp makes another
+    /// one each frame. In tenths; returns what is left under a tenth, for the next frame.
+    pub fn nudge_tempo_now(&mut self, by: f64, key: &str) -> f64 {
+        let base = self.tempo_point_now();
+        let want = base + by;
+        let bpm = ((want * 10.0).round() / 10.0).clamp(20.0, 999.0);
+        if (bpm - base).abs() > 1e-9 {
+            self.set_tempo_now(bpm, key);
+        }
+        if (20.0..=999.0).contains(&want) {
+            want - bpm
+        } else {
+            0.0
+        }
+    }
+
     /// Set the metre in force at the playhead (the song's without metre changes).
     pub fn set_metre_now(&mut self, signature: TimeSignature) {
         let at = self.engine.position();
@@ -74,11 +114,18 @@ impl CantusApp {
     /// rename. Returns its id.
     pub fn add_marker(&mut self, at: Ticks) -> Option<MarkerId> {
         let id = MarkerId(self.bus.alloc_id());
-        let n = self.project().markers.len() + 1;
+        // A name none of the markers has (review 2: "Marker 3" twice after a removal).
+        let markers = &self.project().markers;
+        let mut n = markers.len() + 1;
+        let mut name = tf("tempo.marker_name", &[("n", &n)]);
+        while markers.iter().any(|m| m.name == name) {
+            n += 1;
+            name = tf("tempo.marker_name", &[("n", &n)]);
+        }
         let marker = Marker {
             id,
             tick: at.max(Ticks::ZERO),
-            name: tf("tempo.marker_name", &[("n", &n)]),
+            name,
             color: None,
         };
         let ok = self.exec(Command::AddMarker { marker });

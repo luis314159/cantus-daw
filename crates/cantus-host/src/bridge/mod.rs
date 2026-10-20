@@ -30,7 +30,7 @@ use crate::backend::{AudioSetup, Backend, Format, HostError, Loaded, PluginInfo}
 use cantus_core::PluginIsolation;
 use proto::{Answer, Call};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
 /// The helper group a plug-in runs in, or `None` for *Within Cantus*.
@@ -38,14 +38,9 @@ pub fn group_key(isolation: PluginIsolation, info: &PluginInfo) -> Option<String
     match isolation {
         PluginIsolation::Within => None,
         PluginIsolation::Together => Some("together".into()),
-        PluginIsolation::ByVendor => {
-            let vendor: String = info
-                .vendor
-                .chars()
-                .map(|c| if c.is_alphanumeric() { c } else { '-' })
-                .collect();
-            Some(format!("vendor-{}", vendor.to_lowercase()))
-        }
+        // The maker's name as it is (case aside): makers whose names differ only in
+        // punctuation are different makers.
+        PluginIsolation::ByVendor => Some(format!("vendor-{}", info.vendor.to_lowercase())),
         PluginIsolation::Individually => {
             static NEXT: AtomicU64 = AtomicU64::new(1);
             Some(format!("own-{}", NEXT.fetch_add(1, Ordering::Relaxed)))
@@ -61,6 +56,8 @@ pub struct BridgedBackend {
     pub pool: Arc<Sandboxes>,
     /// For an offline render: blocks are waited for without a deadline.
     pub offline: bool,
+    /// An offline render's stop: set, its instances stop waiting (and their helper ends).
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 impl Backend for BridgedBackend {
@@ -106,10 +103,14 @@ impl Backend for BridgedBackend {
                 slot: slot.name().to_string(),
             },
             &[],
-            sandbox::LOAD_TIMEOUT,
+            self.pool.limits().load,
         );
         let (described, first_state): (proto::Described, Vec<u8>) = match answer {
-            Ok((Answer::Loaded(d), state)) => (d, state),
+            Ok((Answer::Loaded(d), state)) => {
+                // The helper has mapped the slot: its name is no longer needed (review #43).
+                slot.unlink_name();
+                (d, state)
+            }
             Ok(_) => {
                 sandbox.unregister(instance);
                 return Err(HostError::Load(
@@ -130,7 +131,7 @@ impl Backend for BridgedBackend {
             slot.clone(),
             status,
             inbox,
-            self.offline,
+            (self.offline, self.cancel.clone().unwrap_or_default()),
             setup.sample_rate,
             described,
             first_state,
@@ -143,7 +144,7 @@ impl Backend for BridgedBackend {
                 caller,
                 main.status.clone(),
                 (
-                    self.offline,
+                    main.offline_parts(),
                     setup.sample_rate,
                     self.pool.deadline_floor(),
                     latency,
@@ -155,5 +156,58 @@ impl Backend for BridgedBackend {
             main: Box::new(main),
             audio,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(vendor: &str) -> PluginInfo {
+        PluginInfo {
+            format: Format::Clap,
+            id: "com.test.x".into(),
+            name: "X".into(),
+            vendor: vendor.into(),
+            version: String::new(),
+            path: PathBuf::new(),
+            kind: crate::backend::PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        }
+    }
+
+    /// Where each choice puts a plug-in (review #29).
+    #[test]
+    fn each_choice_has_its_group() {
+        let a = info("Acme Audio");
+        assert_eq!(group_key(PluginIsolation::Within, &a), None);
+        assert_eq!(
+            group_key(PluginIsolation::Together, &a),
+            group_key(PluginIsolation::Together, &info("Other"))
+        );
+        let own1 = group_key(PluginIsolation::Individually, &a);
+        let own2 = group_key(PluginIsolation::Individually, &a);
+        assert!(own1.is_some() && own1 != own2, "one process per instance");
+        assert_eq!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("Acme Audio"))
+        );
+        assert_ne!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("Other"))
+        );
+        // Makers whose names differ only in case share one; in punctuation, they do not.
+        assert_eq!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("ACME AUDIO"))
+        );
+        assert_ne!(
+            group_key(PluginIsolation::ByVendor, &info("A&B")),
+            group_key(PluginIsolation::ByVendor, &info("A-B"))
+        );
     }
 }

@@ -19,7 +19,7 @@
 //! at rest measures nothing and allocates nothing of its own.
 
 #[path = "transport_clock.rs"]
-pub(crate) mod clock;
+pub mod clock;
 #[path = "transport_keys.rs"]
 mod keys;
 #[path = "transport_layout.rs"]
@@ -87,6 +87,12 @@ pub const DEVICE_MAX: f32 = 320.0;
 pub struct TopBar {
     /// Tap tempo: the run of taps and when the clock it is timed by started.
     pub tap: tap::TapTempo,
+    /// Where the tempo well was drawn last frame (published geometry: tests aim with it).
+    pub tempo_well: Option<egui::Rect>,
+    /// The metre popup is to open next frame (*Add a metre change* at bar 1, review 2).
+    pub open_metre: bool,
+    /// What a drag on the tempo moved under a tenth of a BPM so far.
+    pub(crate) tempo_rest: f64,
     pub(crate) tap_origin: Option<std::time::Instant>,
     /// Pattern mode: what was compiled last, and where the song was.
     pub pattern: pattern::State,

@@ -71,6 +71,9 @@ impl CantusApp {
         }) else {
             return;
         };
+        if self.window_of_stopped(crate::views::plugin_notice::Target::Instrument(track)) {
+            return;
+        }
         if let Some(why) = self.plugins.instrument_missing(track) {
             let why = why.to_string();
             self.set_error(tf(

@@ -60,8 +60,8 @@ isolation.cpu = CPU
 
 # --- the status bar ---
 isolation.status.late = Plug-ins late: {n}
-isolation.status.late_tip = {n} blocks played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it
-isolation.status.late_tip_one = A block played without an isolated plug-in, because it did not answer in time. A heavy plug-in, a busy computer or a larger buffer size explain it
+isolation.status.late_tip = {n} times an isolated plug-in did not answer in time, and the sound went on without it for a moment. A heavy plug-in or a busy computer explains it; a larger buffer size gives it more time.
+isolation.status.late_tip_one = Once an isolated plug-in did not answer in time, and the sound went on without it for a moment. A heavy plug-in or a busy computer explains it; a larger buffer size gives it more time.
 
 # --- why a plug-in stopped ---
 isolation.why.access = it crashed: it touched memory that was not its own
@@ -75,3 +75,12 @@ isolation.why.hung = its helper stopped answering
 isolation.why.timeout = it did not answer in time
 isolation.why.protocol = its helper sent something Cantus could not read
 isolation.why.ended = its helper ended
+
+# --- review fixes (round 29, isolation-2) ---
+isolation.crashed.suffix = stopped working
+isolation.run_name_individually = Run {name} individually
+isolation.slot.stopped_band = Plug-in
+isolation.window.stopped = {name} stopped working ({reason}): reload it to open its window.
+isolation.export.stopped = {name} stopped working during the export ({reason}): the file is missing it from that point on.
+isolation.bake.stopped = {name} stopped working while the modulator was traced ({reason}): nothing was baked.
+isolation.freeze.stopped = {name} stopped working during the render ({reason}): {job} was not frozen or bounced.

@@ -308,6 +308,15 @@ impl EffectUnit {
         }
     }
 
+    /// Whether the unit reads the song position (`FxUnit::follows_song`).
+    #[inline]
+    pub fn follows_song(&self) -> bool {
+        match &self.dsp {
+            Dsp::Fx(u) => u.follows_song(),
+            _ => false,
+        }
+    }
+
     /// Hand what the unit's own editor did to `f`, oldest first, and forget it.
     #[inline]
     pub fn drain_param_events(&mut self, mut f: impl FnMut(crate::fx::FxParamEvent)) {

@@ -26,6 +26,7 @@ pub const VST3_PULSE_ID: &str = "43414E5455535450554C5345494E5331";
 /// clap-gain's parameters.
 pub const P_GAIN: u32 = 0;
 pub const P_LATENCY: u32 = 1;
+pub const P_KEY: u32 = 2;
 pub const P_FAULT: u32 = 4;
 pub const P_PROCESS: u32 = 5;
 /// clap-synth's.
@@ -46,6 +47,14 @@ pub const ABORT_SAVE: f64 = 3.0;
 pub const ABORT_LOAD: f64 = 4.0;
 pub const ABORT_ACTIVATE: f64 = 5.0;
 pub const ABORT_EDITOR: f64 = 6.0;
+pub const HANG_SAVE: f64 = 7.0;
+pub const HANG_LOAD: f64 = 8.0;
+pub const HANG_EDITOR: f64 = 9.0;
+pub const PUMP_SAVE: f64 = 10.0;
+pub const SLOW_ONCE: f64 = 11.0;
+pub const PUMP_WINDOW: f64 = 12.0;
+pub const FAIL_SAVE_ONCE: f64 = 13.0;
+pub const SEGV_PROCESS: f64 = 14.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -177,6 +186,7 @@ pub fn bridged(
         group: group.to_string(),
         pool: pool.clone(),
         offline,
+        cancel: None,
     }
 }
 

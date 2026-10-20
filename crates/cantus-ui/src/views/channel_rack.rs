@@ -947,10 +947,20 @@ fn track_controls(
     if button.hovered() {
         // Round 20: what the button does now (the selector beside it selects).
         let tip = crate::i18n::t("swap.rack.channel_tip");
+        // A hosted instrument that stopped working says why, and how to bring it back
+        // (round 29, review #34).
+        let why = if app.plugins.instrument_crashed(id).is_some() {
+            crate::views::plugin_notice::tip(
+                app,
+                crate::views::plugin_notice::Target::Instrument(id),
+            )
+        } else {
+            String::new()
+        };
         hint::set_text(
             ui.ctx(),
             &tip,
-            "",
+            &why,
             Caps {
                 menu: true,
                 ..Caps::NONE

@@ -81,6 +81,11 @@ impl Exchange {
         (self.job.load(Acquire), self.done.load(Acquire))
     }
 
+    /// Whether a worker took a job and has not finished it (a job runs now).
+    pub fn running(&self) -> bool {
+        self.taken.load(SeqCst) != self.done.load(SeqCst)
+    }
+
     /// Whether a job waits to be taken (a worker's scan).
     pub fn pending(&self) -> bool {
         self.job.load(SeqCst) != self.taken.load(SeqCst)
@@ -150,6 +155,8 @@ pub struct Caller {
     lobby: *const Lobby,
     mine: Bell,
     theirs: Bell,
+    /// What ends a sleep at its deadline to the microsecond, not the system timer's tick.
+    timer: bell::Timer,
 }
 
 // SAFETY: the exchange and the lobby are atomics in mappings their owner keeps alive for
@@ -174,6 +181,7 @@ impl Caller {
             Ok(Caller {
                 mine: Bell::create(&format!("{name}-c"), &(*x).caller_bell)?,
                 theirs: Bell::open(&format!("{lobby_name}-l"), &(*lobby).bell)?,
+                timer: bell::Timer::make(),
                 x,
                 lobby,
             })
@@ -249,7 +257,7 @@ impl Caller {
                 }
                 None => None,
             };
-            self.mine.wait(epoch, left);
+            self.mine.wait_with(epoch, left, &self.timer);
             x.caller_waiting.store(0, SeqCst);
         }
     }
@@ -498,6 +506,15 @@ impl Bell {
         }
         self.os.wait(self.word(), epoch, timeout)
     }
+
+    /// As [`Bell::wait`], ending a timed sleep with `timer` — to the microsecond where the
+    /// system's own wait would round up to its timer tick (15.6 ms on Windows by default).
+    fn wait_with(&self, epoch: u32, timeout: Option<Duration>, timer: &bell::Timer) -> bool {
+        if self.word().load(SeqCst) != epoch {
+            return true;
+        }
+        self.os.wait_with(self.word(), epoch, timeout, timer)
+    }
 }
 #[cfg(windows)]
 mod bell {
@@ -506,9 +523,44 @@ mod bell {
     use std::time::Duration;
     use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, WAIT_OBJECT_0};
     use windows_sys::Win32::System::Threading::{
-        CreateEventW, OpenEventW, SetEvent, WaitForSingleObject, EVENT_MODIFY_STATE, INFINITE,
+        CreateEventW, CreateWaitableTimerExW, OpenEventW, SetEvent, SetWaitableTimer,
+        WaitForMultipleObjects, WaitForSingleObject, EVENT_MODIFY_STATE, INFINITE,
         SYNCHRONIZATION_SYNCHRONIZE,
     };
+
+    /// `CREATE_WAITABLE_TIMER_HIGH_RESOLUTION` (Windows 10 1803 and later).
+    const HIGH_RESOLUTION: u32 = 0x2;
+    /// `TIMER_ALL_ACCESS`.
+    const TIMER_ALL_ACCESS: u32 = 0x1F_0003;
+
+    /// A high-resolution waitable timer, made once per caller (off the audio thread);
+    /// `None` where the system has none, and the wait rounds to the tick as before.
+    #[derive(Debug)]
+    pub struct Timer(Option<HANDLE>);
+
+    impl Timer {
+        pub fn make() -> Timer {
+            // SAFETY: an unnamed timer with default security; no pointers kept.
+            let h = unsafe {
+                CreateWaitableTimerExW(
+                    std::ptr::null(),
+                    std::ptr::null(),
+                    HIGH_RESOLUTION,
+                    TIMER_ALL_ACCESS,
+                )
+            };
+            Timer((!h.is_null()).then_some(h))
+        }
+    }
+
+    impl Drop for Timer {
+        fn drop(&mut self) {
+            if let Some(h) = self.0 {
+                // SAFETY: our own handle, closed once.
+                unsafe { CloseHandle(h) };
+            }
+        }
+    }
 
     #[derive(Debug)]
     pub struct Os(HANDLE);
@@ -562,6 +614,29 @@ mod bell {
             // SAFETY: our own event handle.
             unsafe { WaitForSingleObject(self.0, ms) == WAIT_OBJECT_0 }
         }
+
+        pub fn wait_with(
+            &self,
+            word: &AtomicU32,
+            epoch: u32,
+            timeout: Option<Duration>,
+            timer: &Timer,
+        ) -> bool {
+            let (Some(t), Some(th)) = (timeout, timer.0) else {
+                return self.wait(word, epoch, timeout);
+            };
+            // Relative due time, in 100-ns units (negative), at least one unit.
+            let due = -((t.as_nanos() / 100).clamp(1, i64::MAX as u128) as i64);
+            // SAFETY: our own timer handle; `due` outlives the call; no completion routine.
+            let armed = unsafe { SetWaitableTimer(th, &due, 0, None, std::ptr::null(), 0) };
+            if armed == 0 {
+                return self.wait(word, epoch, timeout);
+            }
+            let both = [self.0, th];
+            // SAFETY: two live handles of ours; arming the timer reset its state, so it
+            // signals only at this deadline.
+            unsafe { WaitForMultipleObjects(2, both.as_ptr(), 0, INFINITE) == WAIT_OBJECT_0 }
+        }
     }
 
     impl Drop for Os {
@@ -581,6 +656,16 @@ mod bell {
     /// The futex is the word itself: nothing to make or open.
     #[derive(Debug)]
     pub struct Os;
+
+    /// A futex's timeout is already exact: nothing more.
+    #[derive(Debug)]
+    pub struct Timer;
+
+    impl Timer {
+        pub fn make() -> Timer {
+            Timer
+        }
+    }
 
     impl Os {
         pub fn create(_name: &str) -> io::Result<Os> {
@@ -605,6 +690,16 @@ mod bell {
                     0,
                 );
             }
+        }
+
+        pub fn wait_with(
+            &self,
+            word: &AtomicU32,
+            epoch: u32,
+            timeout: Option<Duration>,
+            _timer: &Timer,
+        ) -> bool {
+            self.wait(word, epoch, timeout)
         }
 
         pub fn wait(&self, word: &AtomicU32, epoch: u32, timeout: Option<Duration>) -> bool {
@@ -643,6 +738,16 @@ mod bell {
     #[derive(Debug)]
     pub struct Os;
 
+    /// The sleep loop's timeout is its own: nothing more.
+    #[derive(Debug)]
+    pub struct Timer;
+
+    impl Timer {
+        pub fn make() -> Timer {
+            Timer
+        }
+    }
+
     impl Os {
         pub fn create(_name: &str) -> io::Result<Os> {
             Ok(Os)
@@ -653,6 +758,16 @@ mod bell {
         }
 
         pub fn wake(&self, _word: &AtomicU32) {}
+
+        pub fn wait_with(
+            &self,
+            word: &AtomicU32,
+            epoch: u32,
+            timeout: Option<Duration>,
+            _timer: &Timer,
+        ) -> bool {
+            self.wait(word, epoch, timeout)
+        }
 
         pub fn wait(&self, word: &AtomicU32, epoch: u32, timeout: Option<Duration>) -> bool {
             let start = Instant::now();

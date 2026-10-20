@@ -199,6 +199,7 @@ impl HostTransport {
             tempo_now: tempo,
             beats,
             samples,
+            project_samples: samples,
             seconds: match self.seconds.filter(|s| s.is_finite()) {
                 Some(sec) => {
                     sec + if self.playing {

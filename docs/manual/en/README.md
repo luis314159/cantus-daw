@@ -460,27 +460,36 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
   *Ramp to the next point*, *Remove the point* and *Remove the tempo track*. The header
   beside the lane shows the tempo at the playhead.
 - **The top bar's tempo** shows the tempo at the playhead (inside a ramp, its value
-  there). Dragging it, the wheel, a double-click or **TAP** set the point the playhead is
-  under — the song's tempo when there is no tempo track.
+  there). Dragging it and the wheel (a notch, one BPM) move the point the playhead is
+  under by that much — inside a ramp, the ramp's start; a double-click (120) or **TAP**
+  set it — the song's tempo when there is no tempo track.
 - **Metre changes** are chips on the ruler before a bar's number ("7/8"). Right-click the
-  marker lane (or the ruler's menu) ▸ *Add a metre change here*; click a chip to edit its
-  signature, drag it along the bar lines, right-click to remove it. The bars after a change
+  marker lane or the ruler ▸ *Add a metre change here* (at bar 1 it opens the song's own
+  metre); click a chip to edit its signature, drag it along the bar lines between its
+  neighbours, right-click to remove it. The bars after a change
   keep their numbers; notes never move. The top bar's metre edits the metre in force at the
   playhead.
 - **Markers** appear in a lane under the loop lane. `Alt+M` adds one at the playhead (or
-  double-click the lane); click a marker to put the playhead there; click on its **name**
-  to rename it; drag it along the grid; right-click for *Colour…*, *Loop to the next
+  double-click the lane, or right-click the ruler ▸ *Add a marker here*); click a marker
+  to put the playhead there; **double-click** it to rename it; drag it along the grid;
+  markers on one tick sit side by side; right-click for *Rename…*, *Colour…*, *Loop to the next
   marker*, *Select to the next marker*, *Export to the next marker…* and *Remove*.
-  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+L` loops between the
+  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+,` loops between the
   markers around the playhead. The lane's menu lists every marker under *Go to*.
 - **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
-  two markers by name.
-- Everything follows the tempo: notes, audio clips (an audio clip plays at its natural
-  speed from where it starts), automation, modulators, synced effects, the click (each
-  bar 1 accented, a bar of 7/8 counted in eighths) and plug-ins made by others.
+  two markers by name (two at different places: the dialog says so otherwise, and never
+  exports the whole song instead).
+- Everything follows the tempo: notes, audio clips (an unwarped audio clip plays at its
+  natural speed, laid on the timeline from where its file begins — split it, trim it,
+  comp it anywhere and every piece plays on where it was; move or copy it elsewhere and it
+  plays the same part of its file), automation, modulators, synced effects, the click
+  (the first beat of every bar accented; a bar of 7/8 counted in eighths) and plug-ins
+  made by others.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
-  note) and in — importing into an empty song with *Set the song's tempo* keeps the
-  file's tempo changes, metre changes and markers. **DAWproject** files carry the tempo
+  note, and every marker, those at the end too) and in — importing with *Set the project
+  to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's
+  start they are the song's; dropped at a later bar they start there (the bar line nearest
+  the drop), the song keeping its own tempo and metre before it. **DAWproject** files carry the tempo
   track, the metre changes and the markers both ways.
 
 ### The piano roll
@@ -1024,19 +1033,25 @@ one fails, the helper stops and **Cantus keeps playing**:
 - an effect that stopped passes the sound through untouched, in time with the rest of the
   mix (as if it were bypassed); an instrument that stopped falls silent;
 - a card in the bottom-right corner says so — *"Glacier stopped working. Cantus kept
-  playing without it."* — with **Reload** and **Keep it off**. Point at the card's picture
-  to read what happened;
+  playing without it."* — with **Reload** and **Keep it off**, and what happened in a line
+  of its own. Point anywhere on the card to read the whole account;
 - **Reload** loads the plug-in again with what you had set: its last good state and every
   value of the project. Several plug-ins that stopped together share one card and
   **Reload all**;
 - *Keep it off* leaves it stopped: its slot shows *stopped* in red (an instrument's track
-  shows the sign on its icon and an outlined channel button), and its menu offers
-  **Reload plug-in** whenever you want it back;
+  shows the sign on its icon and an outlined channel button; point at them for why), and
+  its menu — in the inspector and on the mixer strip's insert line — offers **Reload
+  plug-in** whenever you want it back. Asking for its window brings its card back;
+- a plug-in that crashes while it loads is told the same way: Reload it, or choose where it
+  runs, and Cantus tries again;
 - **the project loses nothing**: saving keeps the plug-in's last good state and values, and
   the project opens with them next time;
 - a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
   audio never waits for it longer than a few milliseconds, and the window never waits at
-  all.
+  all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung:
+  Cantus waits for you, and keeps saving and answering meanwhile;
+- notes and knob moves sent while a plug-in was late are not lost: it gets them as soon as
+  it answers.
 
 **Where a plug-in runs.** Settings ▸ Plug-ins ▸ *Where third-party plug-ins run* sets the
 default for this computer: **Together** (one helper for all of them; the default), **By
@@ -1045,16 +1060,20 @@ or **Within Cantus** (no helper: the fastest, and a crash closes Cantus). Each p
 differ: right-click its slot (or open *Runs* on a hosted instrument's row in the inspector)
 and choose. The choice is saved with the project; changing it moves the plug-in at once,
 with its sound. A plug-in that crashes three times in a session is offered **Run
-individually** on its card. The plug-in manager lists the plug-ins that ever stopped on
+individually** on its card — by name, when the card lists the plug-ins it took down with it,
+which are reloaded where they were. Only the plug-in that crashed is counted. The plug-in
+manager lists the plug-ins that ever stopped on
 this computer (*Forget* clears one). Cantus's own effects and instruments always run
 within.
 
 **What it costs.** A plug-in in a helper adds a round trip per audio block: a few
 microseconds while plug-ins follow one another, a few tens of microseconds after a pause
 (ADR 0063 has the measurements). Point at a hosted slot to see where it runs and its
-**CPU**; the status bar counts *Plug-ins late* when a helper did not answer in time
-(those blocks played without the plug-in). Exports, stems and bounces wait for every
-block, so they are always exactly what the plug-in makes.
+**CPU**; the status bar counts *Plug-ins late* each time a helper did not answer in time
+(the sound went on without the plug-in for a moment; a larger buffer gives it more time).
+Exports, stems, freezes and bounces wait for every block, so they are always exactly what
+the plug-in makes; if a plug-in stops working during one, Cantus says so instead of
+calling it done, and *Stop* ends it even while a plug-in hangs.
 
 ## 11. Projects, autosave and settings
 

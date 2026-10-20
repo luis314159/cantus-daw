@@ -465,6 +465,8 @@ pub fn paste_clips(
             project.tracks[(top + r.row).min(last)].id
         };
         let mut plays = None;
+        // The source's rate, for the fine offset a move through the tempo map leaves.
+        let mut rate = 48_000.0;
         if let Some(a) = &r.clip.audio {
             let dst = match plans.get(&a.source) {
                 Some(SourcePlan::Reuse(id)) => *id,
@@ -474,6 +476,7 @@ pub fn paste_clips(
                         out.commands
                             .push(Command::InsertAudioSource { source: s.clone() });
                     }
+                    rate = s.sample_rate as f64;
                     s.id
                 }
                 None if same_origin && project.audio_source(a.source).is_some() => a.source,
@@ -482,6 +485,9 @@ pub fn paste_clips(
                     continue;
                 }
             };
+            if let Some(src) = project.audio_source(dst) {
+                rate = src.sample_rate as f64;
+            }
             plays = Some(dst);
         }
         let mut copy = Clip {
@@ -506,27 +512,22 @@ pub fn paste_clips(
                 a.fade_out = s(a.fade_out);
                 copy.offset = s(copy.offset);
                 copy.length = s(copy.length).max(Ticks(1));
-            } else if mapped
-                && src_map.span_key(board.at + r.clip.start, board.at + r.clip.end())
-                    != dst_map.span_key(copy.start, copy.start + copy.length)
+            }
+        }
+        if plays.is_some() && scale.is_none() && mapped {
+            // Only where the tempo under the clip differs (the same tempo function
+            // over both spans keeps the ticks exactly): the same seconds of its file
+            // (`audio_time::relocate`, which a move and a drag-copy share).
+            let from = board.at + r.clip.start;
+            if let Some(m) =
+                crate::audio_time::relocate(&src_map, from, &copy, &dst_map, copy.start, rate)
             {
-                // Only where the tempo under the clip differs (the same tempo function
-                // over both spans keeps the ticks exactly).
-                let from = board.at + r.clip.start;
-                let (fade_in, fade_out) = (a.fade_in, a.fade_out);
-                let (offset, length) = (copy.offset, copy.length);
-                let secs = |a: Ticks, b: Ticks| src_map.seconds_between(a, b);
-                let off_s = crate::audio_time::offset_seconds(&src_map, from, offset);
-                let len_s = secs(from, from + length);
-                let fi_s = secs(from, from + fade_in);
-                let fo_s = secs(from + length - fade_out, from + length);
-                let to = copy.start.0 as f64;
-                let end = dst_map.tick_after_seconds(to, len_s);
-                let round = |t: f64| Ticks(t.round() as i64);
-                copy.offset = crate::audio_time::offset_for(&dst_map, copy.start, off_s);
-                copy.length = round(end - to).max(Ticks(1));
-                a.fade_in = round(dst_map.tick_after_seconds(to, fi_s) - to).max(Ticks::ZERO);
-                a.fade_out = round(end - dst_map.tick_after_seconds(end, -fo_s)).max(Ticks::ZERO);
+                copy.offset = m.offset;
+                copy.length = m.length;
+                let a = copy.audio.as_mut().expect("an audio clip");
+                a.fade_in = m.fade_in;
+                a.fade_out = m.fade_out;
+                a.slip_frames = m.slip_frames;
             }
         }
         let group = if linked && same_origin {
@@ -598,7 +599,16 @@ fn link_target(project: &Project, r: &ClipRow, copy: &Clip) -> Option<Target> {
 /// whole note list and differ only in which part of it their window shows. That is why
 /// the arrangement's glue can put them back together exactly. (The arrangement's
 /// *Split* is this function; it lives here because the time-range crop is built on it.)
-pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Command>> {
+///
+/// An unwarped audio clip's halves play what the whole played through `project`'s tempo
+/// map (review 2): see [`split_audio`] (a reversed clip's need the map).
+pub fn split(
+    project: &Project,
+    track: TrackId,
+    clip: &Clip,
+    at: Ticks,
+    ids: Ids,
+) -> Option<Vec<Command>> {
     if at <= clip.start || at >= clip.end() {
         return None;
     }
@@ -619,7 +629,7 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
         // Both halves of a comp window are the comp's (ADR 0058, schema 32).
         comp: clip.comp,
     };
-    let audio = split_audio(track, clip, at, &mut right);
+    let audio = split_audio(project, track, clip, at, &mut right);
     // A linked clip's halves stay in its group — they show the same content through two
     // windows — unless the split changes that content (an audio clip's fades, which stay
     // at the outer edges): then both leave it, or the cut would reach every sibling.
@@ -656,11 +666,30 @@ pub fn split(track: TrackId, clip: &Clip, at: Ticks, ids: Ids) -> Option<Vec<Com
 /// right half the opposite — the cut is a hard edge, as in every DAW. A reversed clip
 /// maps its window backwards, so its halves' offsets swap. Returns the extra commands for
 /// the left half.
-pub fn split_audio(track: TrackId, clip: &Clip, at: Ticks, right: &mut Clip) -> Vec<Command> {
+///
+/// Forward, both halves keep the content origin (`start − offset`): the tick arithmetic
+/// is exact through any tempo map (ADR 0060 §5). A reversed clip reads backwards from its
+/// end, so under a tempo track its halves re-derive their offsets in seconds, the rounding
+/// in their fine offsets (`audio_time::reanchor_reversed`); inside one held tempo, the
+/// tick arithmetic exactly. A clip warped to follow the tempo reads content ticks: the
+/// tick arithmetic is its own.
+pub fn split_audio(
+    project: &Project,
+    track: TrackId,
+    clip: &Clip,
+    at: Ticks,
+    right: &mut Clip,
+) -> Vec<Command> {
     let Some(a) = clip.audio.as_ref() else {
         return Vec::new();
     };
     let mut out = Vec::new();
+    let follows = a.warp.as_ref().is_some_and(|w| w.follow);
+    let rate = project
+        .audio_source(a.source)
+        .map_or(48_000.0, |s| s.sample_rate as f64);
+    let map = (!follows && !project.tempo_points.is_empty()).then(|| project.tempo_map());
+    let mut left_slip = a.slip_frames;
     if let Some(r) = right.audio.as_mut() {
         r.fade_in = Ticks::ZERO;
         r.fade_out = a.fade_out.min(right.length);
@@ -671,16 +700,30 @@ pub fn split_audio(track: TrackId, clip: &Clip, at: Ticks, right: &mut Clip) -> 
     let left_len = at - clip.start;
     if a.reverse {
         // Left plays the end of the window, right its beginning.
-        right.offset = clip.offset;
+        let (end, slip) = (clip.end(), a.slip_frames);
+        let (left_offset, right_at) = match &map {
+            Some(m) => {
+                use crate::audio_time::reanchor_reversed as re;
+                let l = re(m, clip.start, end, clip.offset, slip, rate, clip.start, at);
+                (l, re(m, clip.start, end, clip.offset, slip, rate, at, end))
+            }
+            None => ((clip.offset + (end - at), slip), (clip.offset, slip)),
+        };
+        right.offset = right_at.0;
+        if let Some(r) = right.audio.as_mut() {
+            r.slip_frames = right_at.1;
+        }
+        left_slip = left_offset.1;
         out.push(Command::SetClipOffset {
             track,
             clip: clip.id,
-            offset: clip.offset + (clip.end() - at),
+            offset: left_offset.0,
         });
     }
     let left = crate::AudioRegion {
         fade_out: Ticks::ZERO,
         fade_in: a.fade_in.min(left_len),
+        slip_frames: left_slip,
         ..a.clone()
     };
     if left != *a {
@@ -790,7 +833,7 @@ fn crop_by_split(
         Some(())
     };
     if from > clip.start {
-        let c = split(track, clip, from, ids)?;
+        let c = split(project, track, clip, from, ids)?;
         middle = c.iter().find_map(|c| match c {
             Command::InsertClip { clip, .. } => Some(clip.id),
             _ => None,
@@ -799,7 +842,7 @@ fn crop_by_split(
     }
     let current = bus.project().track(track)?.clip(middle)?.clone();
     if to < current.end() {
-        let c = split(track, &current, to, ids)?;
+        let c = split(project, track, &current, to, ids)?;
         cut(&mut bus, c)?;
     }
     let piece = bus.project().track(track)?.clip(middle)?.clone();

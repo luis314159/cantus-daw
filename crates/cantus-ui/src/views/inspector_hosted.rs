@@ -19,6 +19,35 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         sh.text_row("hosted.vendor", &p.vendor, false, false);
     }
     sh.text_row("hosted.format", p.format.badge(), false, false);
+    let target = crate::views::plugin_notice::Target::Instrument(t);
+    // Stopped working (round 29, ADR 0063; review #32) — loaded, or crashed while it
+    // loaded: said in the danger colour with its reason as the tip, and *Reload* under a
+    // band of its own.
+    if let Some(why) = app.plugins.instrument_crashed(t) {
+        stopped_row(sh, t, why);
+        if sh.led_row(
+            "isolation.slot.stopped_band",
+            "isolation.reload",
+            false,
+            Function::Source,
+            false,
+        ) {
+            sh.acts.push(Act::Hosting(
+                target,
+                crate::views::plugin_notice::MenuAct::Reload,
+            ));
+        }
+        if app.plugins.hosted_instrument(t).is_none() {
+            let runs = crate::i18n::t(app.plugins.effective_isolation(p.isolation).label_key());
+            sh.menu_row(
+                "isolation.slot.band",
+                &runs,
+                super::menus::MenuId::Hosting(t),
+                false,
+            );
+            return;
+        }
+    }
     let Some(h) = app.plugins.hosted_instrument(t) else {
         let missing = sh.fmt.tr("hosted.status_missing").to_string();
         let row = sh.text_row("hosted.status", &missing, false, true);
@@ -35,33 +64,9 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         }
         return;
     };
-    // Stopped working (round 29, ADR 0063): said in the danger colour, its reason as the
-    // tip, *Reload* under it; else where it runs and what it costs.
-    let target = crate::views::plugin_notice::Target::Instrument(t);
-    if let Some(why) = app.plugins.instrument_crashed(t) {
-        let stopped = sh.fmt.tr("isolation.stopped_card").to_string();
-        let row = sh.text_row("hosted.status", &stopped, false, true);
-        let r = sh
-            .ui
-            .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
-        if r.hovered() {
-            let why = crate::views::plugin_notice::reason_words(why);
-            let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
-            hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
-        }
-        if sh.led_row(
-            "isolation.slot.band",
-            "isolation.slot.reload",
-            false,
-            Function::Source,
-            false,
-        ) {
-            sh.acts.push(Act::Hosting(
-                target,
-                crate::views::plugin_notice::MenuAct::Reload,
-            ));
-        }
-    } else {
+    // Working: where it runs and what it costs.
+    let stopped = app.plugins.instrument_crashed(t).is_some();
+    if !stopped {
         let ok = sh.fmt.tr("hosted.status_ok").to_string();
         sh.text_row("hosted.status", &ok, false, false);
     }
@@ -72,7 +77,8 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         super::menus::MenuId::Hosting(t),
         false,
     );
-    if let Some(c) = h.cpu() {
+    // A stopped plug-in costs nothing: its last reading is not shown.
+    if let Some(c) = h.cpu().filter(|_| !stopped) {
         let cpu = crate::views::plugin_notice::percent(c.share);
         sh.text_row("isolation.cpu", &cpu, true, false);
     }
@@ -107,6 +113,36 @@ fn window_row(open: bool, floating: bool) -> (&'static str, bool) {
         (false, _) => ("hosted.open_window", false),
         (true, false) => ("hosted.show_window", false),
         (true, true) => ("hosted.close_window", true),
+    }
+}
+
+/// The status row of a stopped plug-in: its label as any row's, its value in the danger
+/// colour with a dot, why it stopped as the tip.
+fn stopped_row(sh: &mut Sheet<'_>, t: TrackId, why: &str) {
+    let stopped = super::sheet::name(sh.fmt.tr("isolation.stopped_card"));
+    let row = sh.row();
+    sh.label(row.label, "hosted.status", false);
+    let s = sh.s.hue_of(crate::kit::Tok::Danger);
+    crate::kit::well::readout(
+        sh.b,
+        row.value,
+        &s,
+        crate::kit::State::REST,
+        &stopped,
+        false,
+    );
+    sh.b.dot(
+        egui::pos2(row.value.right() - s.s(10.0), row.value.center().y),
+        s.s(3.0),
+        s.t.danger,
+    );
+    let r = sh
+        .ui
+        .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
+    if r.hovered() {
+        let why = crate::views::plugin_notice::reason_words(why);
+        let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
+        hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
     }
 }
 

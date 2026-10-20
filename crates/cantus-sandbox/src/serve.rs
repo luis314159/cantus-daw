@@ -1,6 +1,17 @@
 //! The helper's main thread (ADR 0063): Cantus's calls, the plug-ins' windows and requests,
 //! and the heartbeat.
 //!
+//! **Life.** The main thread bumps a progress count each time round its loop, and each
+//! time the platform's pulse runs — which it does inside any message loop the thread is in,
+//! a plug-in's modal dialog or a dragged window included. A heartbeat thread of its own
+//! says *alive* to Cantus while that count moves: a main thread inside a modal loop lives,
+//! one stuck in code that never pumps falls silent (review #0, #48). From a nested loop the
+//! pulse also serves Cantus's calls, but those that end or replace an instance (and every
+//! one after them, in order), which wait for the main loop.
+//!
+//! **Blame.** Before calling into an instance, the thread writes its number in the lobby
+//! ([`cantus_host::bridge::sandbox::MAIN_AT`]), 0 after: a crash there is laid on it.
+//!
 //! Every call that names an instance is answered with the instance's news after it — the
 //! requests it made (`MainThread::idle`) and all its values — so Cantus's mirror is current
 //! the moment the call returns (a restart the plug-in asked for while its state loaded is
@@ -16,18 +27,46 @@ use cantus_host::bridge::proto::{
 use cantus_host::bridge::slot::Slot;
 use cantus_host::window::PluginWindow;
 use cantus_host::{AudioSetup, HostError, MainThread, Notice, ParamChange, ParamOut};
-use std::collections::HashMap;
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufReader, BufWriter, Write};
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{mpsc, Arc, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 /// How often the instances are served between calls.
 const TICK: Duration = Duration::from_millis(15);
-/// How often the heartbeat goes out.
+/// How often the heartbeat goes out (while the main thread makes progress).
 const ALIVE: Duration = Duration::from_millis(200);
+
+/// The main thread's progress: bumped by its loop and by the pulse.
+static PROGRESS: AtomicU64 = AtomicU64::new(0);
+
+/// The protocol's output, shared by the main thread and the heartbeat's.
+type Out = Arc<Mutex<BufWriter<std::fs::File>>>;
+
+fn out_lock(out: &Out) -> MutexGuard<'_, BufWriter<std::fs::File>> {
+    out.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Says, while it lives, which instance the main thread is calling into.
+struct At(&'static AtomicU32);
+
+impl At {
+    fn enter(word: &'static AtomicU32, instance: u32) -> At {
+        word.store(instance, Ordering::Release);
+        crate::platform::blame::set_current(instance);
+        At(word)
+    }
+}
+
+impl Drop for At {
+    fn drop(&mut self) {
+        self.0.store(0, Ordering::Release);
+        crate::platform::blame::set_current(0);
+    }
+}
 
 struct Instance {
     main: Box<dyn MainThread>,
@@ -148,7 +187,9 @@ fn failure(e: HostError) -> Failure {
 }
 
 struct Server {
-    out: BufWriter<std::fs::File>,
+    out: Out,
+    /// The lobby's word naming the instance the main thread is calling into.
+    main_at: &'static AtomicU32,
     instances: HashMap<u32, Instance>,
     /// What the processing threads serve, their lobby's bell, their stop.
     table: Arc<Table>,
@@ -162,7 +203,7 @@ struct Server {
 
 impl Server {
     fn send(&mut self, msg: &Message, blob: &[u8]) -> bool {
-        proto::write_frame(&mut self.out, msg, blob).is_ok()
+        proto::write_frame(&mut *out_lock(&self.out), msg, blob).is_ok()
     }
 
     fn load(
@@ -193,6 +234,7 @@ impl Server {
             .map_err(failure)?;
         let half: Half = Arc::new(Mutex::new(Some(loaded.audio)));
         let rt = Arc::new(Rt {
+            instance,
             slot,
             completer,
             half: half.clone(),
@@ -235,6 +277,7 @@ impl Server {
         if let Some(i) = self.instances.remove(&instance) {
             let rt = i.rt.clone();
             self.table.change(|t| t.retain(|x| !Arc::ptr_eq(x, &rt)));
+            let _at = At::enter(self.main_at, instance);
             i.finish();
         }
     }
@@ -242,6 +285,7 @@ impl Server {
     /// One call; `None` for Quit.
     fn handle(&mut self, req: Request, blob: Vec<u8>) -> Option<()> {
         let id = req.id;
+        let _at = instance_of(&req.call).map(|n| At::enter(self.main_at, n));
         let mut reply_blob = Vec::new();
         let mut named = None;
         let result = match req.call {
@@ -314,6 +358,7 @@ impl Server {
     fn tick(&mut self) {
         let mut news = Vec::new();
         for (n, inst) in &mut self.instances {
+            let _at = At::enter(self.main_at, *n);
             let mut out = ParamOut::new();
             inst.main.flush(&[], &mut out);
             let flushed: Vec<WireEvent> = out.events().iter().map(WireEvent::of).collect();
@@ -331,6 +376,124 @@ impl Server {
             self.send(&m, &[]);
         }
         cantus_host::clap::collect_garbage();
+        // Snapshots the processing threads no longer hold are freed here, not there.
+        self.table.collect();
+    }
+
+    fn flush(&mut self) {
+        let _ = out_lock(&self.out).flush();
+    }
+}
+
+/// The instance a call names (Load and Unload included).
+fn instance_of(call: &Call) -> Option<u32> {
+    match call {
+        Call::Load { instance, .. }
+        | Call::Unload { instance }
+        | Call::DropAudio { instance }
+        | Call::Restart { instance }
+        | Call::SaveState { instance }
+        | Call::LoadState { instance }
+        | Call::Flush { instance, .. }
+        | Call::ParamText { instance, .. }
+        | Call::Params { instance }
+        | Call::OpenEditor { instance, .. }
+        | Call::CloseEditor { instance }
+        | Call::FocusEditor { instance }
+        | Call::ResizeEditor { instance, .. } => Some(*instance),
+        Call::Hello { .. } | Call::Quit => None,
+    }
+}
+
+/// Calls that end or replace an instance (or the process): never served from a loop
+/// nested inside a plug-in's own code, which may be that instance's.
+fn waits_for_main_loop(call: &Call) -> bool {
+    matches!(
+        call,
+        Call::Unload { .. }
+            | Call::DropAudio { .. }
+            | Call::Restart { .. }
+            | Call::CloseEditor { .. }
+            | Call::Quit
+    )
+}
+
+/// The main thread's state: the server, the requests, those kept for the main loop.
+struct Here {
+    server: Server,
+    rx: mpsc::Receiver<Option<(Request, Vec<u8>)>>,
+    deferred: VecDeque<(Request, Vec<u8>)>,
+    quit: bool,
+}
+
+impl Here {
+    /// Serves what waits. `nested`: from a message loop inside a plug-in's code — calls
+    /// that end or replace an instance, and every one after them, wait for the main loop.
+    fn serve(&mut self, nested: bool) {
+        if !nested {
+            while let Some((req, blob)) = self.deferred.pop_front() {
+                if self.server.handle(req, blob).is_none() {
+                    self.quit = true;
+                    return;
+                }
+            }
+        }
+        loop {
+            match self.rx.try_recv() {
+                Ok(Some((req, blob))) => {
+                    if nested && (!self.deferred.is_empty() || waits_for_main_loop(&req.call)) {
+                        self.deferred.push_back((req, blob));
+                        continue;
+                    }
+                    if self.server.handle(req, blob).is_none() {
+                        self.quit = true;
+                        return;
+                    }
+                }
+                Ok(None) | Err(mpsc::TryRecvError::Disconnected) => {
+                    // Cantus is gone.
+                    self.quit = true;
+                    return;
+                }
+                Err(mpsc::TryRecvError::Empty) => return,
+            }
+        }
+    }
+}
+
+thread_local! {
+    static HERE: RefCell<Option<Here>> = const { RefCell::new(None) };
+}
+
+/// The pulse (`platform::start_pulse`): progress, and — when the main thread is in a
+/// message loop of a plug-in's, not inside one of the server's own calls — the calls that
+/// wait.
+fn pulse() {
+    PROGRESS.fetch_add(1, Ordering::Relaxed);
+    HERE.with(|h| {
+        if let Ok(mut h) = h.try_borrow_mut() {
+            if let Some(here) = h.as_mut() {
+                if !here.quit {
+                    here.serve(true);
+                    here.server.flush();
+                }
+            }
+        }
+    });
+}
+
+/// Says *alive* every [`ALIVE`] while the main thread makes progress.
+fn heartbeat(out: Out) {
+    let mut seen = PROGRESS.load(Ordering::Relaxed).wrapping_sub(1);
+    loop {
+        let now = PROGRESS.load(Ordering::Relaxed);
+        if now != seen {
+            seen = now;
+            if proto::write_frame(&mut *out_lock(&out), &Message::Alive, &[]).is_err() {
+                return;
+            }
+        }
+        std::thread::sleep(ALIVE);
     }
 }
 
@@ -424,14 +587,29 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
     else {
         return 4;
     };
-    let lobby_mem = Arc::new(lobby_mem);
-    // SAFETY: the lobby is at the start of its region, which `lobby_mem` keeps mapped for
-    // the life of the process (it is never dropped before the threads end).
+    // Mapped for the life of the process: the threads, the bell and the blame word point
+    // into it.
+    let lobby_mem: &'static cantus_rt::shm::SharedMemory = Box::leak(Box::new(lobby_mem));
+    // SAFETY: the lobby is at the start of its region, mapped for the life of the process.
     let Ok(bell) = (unsafe {
         cantus_rt::ipc::LobbyBell::open(lobby, lobby_mem.as_ptr() as *const cantus_rt::ipc::Lobby)
     }) else {
         return 4;
     };
+    // SAFETY: an aligned u32 inside the region (`MAIN_AT` < its length), mapped for the
+    // life of the process; Cantus only reads it.
+    let main_at: &'static AtomicU32 = unsafe {
+        &*(lobby_mem
+            .as_ptr()
+            .add(cantus_host::bridge::sandbox::MAIN_AT) as *const AtomicU32)
+    };
+    // SAFETY: as for `main_at`.
+    let crash_at: &'static AtomicU32 = unsafe {
+        &*(lobby_mem
+            .as_ptr()
+            .add(cantus_host::bridge::sandbox::CRASH_AT) as *const AtomicU32)
+    };
+    crate::platform::blame::install(crash_at);
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
     let wake = Wake::new();
     let (tx, rx) = mpsc::channel::<Option<(Request, Vec<u8>)>>();
@@ -457,8 +635,17 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
             }
         })
         .ok();
-    let mut server = Server {
-        out: BufWriter::new(pipes.output),
+    let out: Out = Arc::new(Mutex::new(BufWriter::new(pipes.output)));
+    {
+        let out = out.clone();
+        std::thread::Builder::new()
+            .name("cantus-sandbox-heartbeat".into())
+            .spawn(move || heartbeat(out))
+            .ok();
+    }
+    let server = Server {
+        out,
+        main_at,
         instances: HashMap::new(),
         table: Arc::new(Table::default()),
         bell: Arc::new(bell),
@@ -466,38 +653,38 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
         threads: Vec::new(),
         max_threads: cores.saturating_sub(2).clamp(1, 8),
     };
+    HERE.with(|h| {
+        *h.borrow_mut() = Some(Here {
+            server,
+            rx,
+            deferred: VecDeque::new(),
+            quit: false,
+        })
+    });
+    crate::platform::start_pulse(pulse);
     let mut last_tick = Instant::now();
-    let mut last_alive = Instant::now() - ALIVE;
     loop {
         wake.wait(TICK);
-        loop {
-            match rx.try_recv() {
-                Ok(Some((req, blob))) => {
-                    if server.handle(req, blob).is_none() {
-                        finish(server);
-                        return 0;
-                    }
-                }
-                Ok(None) | Err(mpsc::TryRecvError::Disconnected) => {
-                    // Cantus is gone.
-                    finish(server);
-                    return 0;
-                }
-                Err(mpsc::TryRecvError::Empty) => break,
+        PROGRESS.fetch_add(1, Ordering::Relaxed);
+        let quit = HERE.with(|h| {
+            let mut g = h.borrow_mut();
+            let Some(here) = g.as_mut() else {
+                return true;
+            };
+            here.serve(false);
+            if !here.quit && last_tick.elapsed() >= TICK {
+                last_tick = Instant::now();
+                here.server.tick();
             }
-        }
-        if last_tick.elapsed() >= TICK {
-            last_tick = Instant::now();
-            server.tick();
-        }
-        if last_alive.elapsed() >= ALIVE {
-            last_alive = Instant::now();
-            if !server.send(&Message::Alive, &[]) {
-                finish(server);
-                return 0;
+            here.server.flush();
+            here.quit
+        });
+        if quit {
+            if let Some(here) = HERE.with(|h| h.borrow_mut().take()) {
+                finish(here.server);
             }
+            return 0;
         }
-        let _ = server.out.flush();
     }
 }
 
@@ -511,4 +698,5 @@ fn finish(mut server: Server) {
     for t in server.threads.drain(..) {
         let _ = t.join();
     }
+    server.flush();
 }

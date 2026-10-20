@@ -70,8 +70,17 @@ mod win {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DestroyWindow, ShowWindow, SW_HIDE, SW_SHOW, WS_CHILD, WS_VISIBLE,
+        CreateWindowExW, DestroyWindow, SetTimer, ShowWindow, SW_HIDE, SW_SHOW, WS_CHILD,
+        WS_VISIBLE,
     };
+
+    /// The editor's timer: runs the nested loop the Fault parameter asked for (12), from
+    /// inside the window's own message — as a plug-in's file dialog does.
+    unsafe extern "system" fn on_timer(_hwnd: HWND, _msg: u32, _id: usize, _time: u32) {
+        if crate::fault::take_window_pump() {
+            crate::fault::pump(std::time::Duration::from_secs(3));
+        }
+    }
 
     fn wide(s: &str) -> Vec<u16> {
         s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -109,6 +118,7 @@ mod win {
             return false;
         }
         ShowWindow(me.editor as HWND, SW_SHOW);
+        SetTimer(me.editor as HWND, 7, 20, Some(on_timer));
         true
     }
 

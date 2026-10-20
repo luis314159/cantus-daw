@@ -41,6 +41,8 @@ pub struct HostedInst {
     pub(super) isolation: PluginIsolation,
     /// Why it stopped working, while it has.
     pub(super) crashed: Option<String>,
+    /// Whose doing its helper's end was, while it has stopped.
+    pub(super) blame: Option<crate::backend::Blame>,
     pub(super) cpu: super::iso::CpuWatch,
 }
 
@@ -148,6 +150,7 @@ impl HostedInst {
             window: None,
             isolation,
             crashed: None,
+            blame: None,
             cpu: super::iso::CpuWatch::default(),
         }
     }
@@ -198,7 +201,7 @@ impl PluginHost {
 
     /// Why a track's hosted instrument has no plug-in, if it has none.
     pub fn instrument_missing(&self, track: TrackId) -> Option<&str> {
-        self.inst_missing.get(&track).map(|(_, why)| why.as_str())
+        self.inst_missing.get(&track).map(|m| m.error.as_str())
     }
 
     /// The spec that puts `info` on `track`, ready for `Command::SetInstrument`. The
@@ -247,18 +250,18 @@ impl PluginHost {
 
     /// Load a track's plug-in the host has not seen, from the database by format and id,
     /// with the project's state (or the one it had when it was last unloaded) and values.
-    fn load_instrument(
+    pub(super) fn load_instrument(
         &mut self,
         track: TrackId,
         plugin: &ExternalPlugin,
         key: u64,
-    ) -> Result<HostedInst, String> {
+    ) -> Result<HostedInst, super::iso::Failed> {
         let format = from_project_format(plugin.format);
         let info = self
             .db
             .find(format, &plugin.id)
             .cloned()
-            .ok_or_else(|| "not installed on this computer".to_string())?;
+            .ok_or_else(|| super::iso::Failed::from("not installed on this computer"))?;
         let state = self
             .inst_parked
             .remove(&(track, key))
@@ -320,25 +323,24 @@ impl PluginHost {
             if self.instruments.get(&t.id).is_some_and(|h| h.key != key) {
                 self.unload_instrument(t.id);
             }
-            if self.inst_missing.get(&t.id).is_some_and(|(k, _)| *k == key) {
+            let runs = self.effective_isolation(plugin.isolation);
+            // The same plug-in failed where it runs now: it waits (review #15).
+            if self
+                .inst_missing
+                .get(&t.id)
+                .is_some_and(|m| m.key == key && m.isolation == runs)
+            {
                 continue;
             }
             self.inst_missing.remove(&t.id);
             // Where it runs changed: moved there (round 29).
-            let runs = self.effective_isolation(plugin.isolation);
             if self
                 .instruments
                 .get(&t.id)
                 .is_some_and(|h| h.isolation != runs && !h.restarting)
             {
-                if let Err(error) = self.move_instrument(t.id, plugin, engine) {
-                    log::warn!("instrument {}: {error}", plugin.name);
-                    self.inst_missing.insert(t.id, (key, error.clone()));
-                    notices.push(HostNotice::InstrumentLoadFailed {
-                        track: t.id,
-                        name: plugin.name.clone(),
-                        error,
-                    });
+                if let Err(failed) = self.move_instrument(t.id, plugin, engine) {
+                    notices.push(self.instrument_failed(t.id, plugin, (key, runs), failed));
                     continue;
                 }
             }
@@ -347,14 +349,8 @@ impl PluginHost {
                     Ok(h) => {
                         self.instruments.insert(t.id, h);
                     }
-                    Err(error) => {
-                        log::warn!("instrument {}: {error}", plugin.name);
-                        self.inst_missing.insert(t.id, (key, error.clone()));
-                        notices.push(HostNotice::InstrumentLoadFailed {
-                            track: t.id,
-                            name: plugin.name.clone(),
-                            error,
-                        });
+                    Err(failed) => {
+                        notices.push(self.instrument_failed(t.id, plugin, (key, runs), failed));
                         continue;
                     }
                 }
@@ -399,6 +395,44 @@ impl PluginHost {
         self.inst_missing.retain(|id, _| seen.contains(id));
     }
 
+    /// A track's instrument could not be loaded where it runs: kept as missing; told as a
+    /// crash (counted, reloadable) when its helper died doing it (review #15).
+    fn instrument_failed(
+        &mut self,
+        track: TrackId,
+        plugin: &ExternalPlugin,
+        (key, runs): (u64, PluginIsolation),
+        failed: super::iso::Failed,
+    ) -> HostNotice {
+        log::warn!("instrument {}: {}", plugin.name, failed.why);
+        self.inst_missing.insert(
+            track,
+            super::iso::Missing {
+                key,
+                error: failed.why.clone(),
+                isolation: runs,
+                crashed: failed.crashed,
+            },
+        );
+        if failed.crashed {
+            let format = from_project_format(plugin.format);
+            if let Some(info) = self.db.find(format, &plugin.id).cloned() {
+                self.count_crash(&info, crate::backend::Blame::This, None);
+            }
+            HostNotice::InstrumentCrashed {
+                track,
+                name: plugin.name.clone(),
+                reason: failed.why,
+            }
+        } else {
+            HostNotice::InstrumentLoadFailed {
+                track,
+                name: plugin.name.clone(),
+                error: failed.why,
+            }
+        }
+    }
+
     /// Loads a track's instrument where it now runs (round 29), as `move_plugin` does for
     /// an insert.
     fn move_instrument(
@@ -406,7 +440,7 @@ impl PluginHost {
         track: TrackId,
         plugin: &ExternalPlugin,
         engine: &mut EngineHandle,
-    ) -> Result<(), String> {
+    ) -> Result<(), super::iso::Failed> {
         let mut h = self.instruments.remove(&track).ok_or("not loaded")?;
         h.close_window_now();
         let state = h
@@ -429,6 +463,7 @@ impl PluginHost {
         self.retire(old);
         h.isolation = inst.isolation;
         h.crashed = None;
+        h.blame = None;
         h.params = h.main.params();
         h.generation.fetch_add(1, Ordering::AcqRel);
         let unit = make_unit(&mut h, track, inst.audio, setup.sample_rate);

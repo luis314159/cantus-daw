@@ -1,7 +1,8 @@
 //! The real-time rules on Cantus's side of an isolated plug-in (ADR 0005, ADR 0063): a
 //! counting allocator proves that the audio half — the copy into the slot, the lock-step
-//! exchange, the copy back — allocates and frees nothing, in a normal block, a late one, a
-//! dry one after its helper died, and in a reset and a stop.
+//! exchange, the copy back — allocates and frees nothing, in a normal block, a late one,
+//! the dry ones while it is late (keeping what they carry) and the one that delivers it, the
+//! block whose helper dies, a dry one after that, and in a reset and a stop (review #27).
 
 mod support;
 
@@ -70,6 +71,7 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
         position_beats: 4.0,
         position_samples: 96_000,
         position_seconds: 2.0,
+        project_samples: 96_000,
         bar_start_beats: 4.0,
         bar_number: 1,
         time_sig_num: 4,
@@ -151,18 +153,80 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
             audio.reset();
         });
         assert_eq!(n, 0, "{id}: {n} allocations in normal blocks");
-        // The helper dies: the dry blocks after it allocate nothing either.
         let fault_id = if id == GAIN_ID { P_FAULT } else { S_FAULT };
-        audio.process(
-            cantus_host::Audio {
-                left: &mut l,
-                right: &mut r,
-                key: None,
-                transport: None,
-            },
-            &fault(fault_id, ABORT_PROCESS),
-            &[],
-            &mut out,
+        // Late once (50 ms): the late block, the dry ones after it with changes and notes
+        // kept, and the block that delivers them.
+        let off = [NoteEvent {
+            offset: 5,
+            note_id: 1,
+            channel: 0,
+            key: 60,
+            kind: NoteKind::Off { velocity: 0.0 },
+        }];
+        let n = allocations_in(|| {
+            out.clear();
+            audio.process(
+                cantus_host::Audio {
+                    left: &mut l,
+                    right: &mut r,
+                    key: None,
+                    transport: Some(&transport),
+                },
+                &fault(fault_id, SLOW_ONCE),
+                &[],
+                &mut out,
+            );
+            for _ in 0..10 {
+                out.clear();
+                audio.process(
+                    cantus_host::Audio {
+                        left: &mut l,
+                        right: &mut r,
+                        key: None,
+                        transport: Some(&transport),
+                    },
+                    &params,
+                    &off,
+                    &mut out,
+                );
+                audio.reset();
+            }
+            std::thread::sleep(Duration::from_millis(100));
+            for _ in 0..3 {
+                out.clear();
+                audio.process(
+                    cantus_host::Audio {
+                        left: &mut l,
+                        right: &mut r,
+                        key: None,
+                        transport: Some(&transport),
+                    },
+                    &params,
+                    &notes,
+                    &mut out,
+                );
+            }
+        });
+        assert_eq!(main.late_blocks(), 1, "{id}: it was late");
+        assert_eq!(n, 0, "{id}: {n} allocations around a late block");
+        // The helper dies — in the block counted — and the dry blocks after it.
+        let n = allocations_in(|| {
+            out.clear();
+            audio.process(
+                cantus_host::Audio {
+                    left: &mut l,
+                    right: &mut r,
+                    key: None,
+                    transport: None,
+                },
+                &fault(fault_id, ABORT_PROCESS),
+                &[],
+                &mut out,
+            );
+        });
+        assert_eq!(
+            n, 0,
+            "{id}: {n} allocations in the block its helper died in"
         );
         std::thread::sleep(Duration::from_millis(50));
         let n = allocations_in(|| {
@@ -183,5 +247,27 @@ fn the_audio_half_of_an_isolated_plugin_never_allocates() {
             audio.stop();
         });
         assert_eq!(n, 0, "{id}: {n} allocations once its helper is gone");
+        // A stop while it lives.
+        let Loaded {
+            main: _m,
+            mut audio,
+        } = bridged(&pool, info.format, &format!("own-rt-stop-{id}"), false)
+            .load(&info, setup())
+            .unwrap();
+        out.clear();
+        audio.process(
+            cantus_host::Audio {
+                left: &mut l,
+                right: &mut r,
+                key: None,
+                transport: None,
+            },
+            &[],
+            &[],
+            &mut out,
+        );
+        let n = allocations_in(|| audio.stop());
+        assert_eq!(n, 0, "{id}: {n} allocations in a stop");
+        drop(main);
     }
 }

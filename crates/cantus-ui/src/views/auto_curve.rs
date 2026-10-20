@@ -25,6 +25,9 @@ pub struct Frame {
     /// Nothing left or right of this is traced.
     pub clip_left: f32,
     pub clip_right: f32,
+    /// The timeline tick of content tick 0 (the clip's start less its offset; a looped
+    /// clip's repetition's): where the bars and the snapping are counted (review 2).
+    pub origin: cantus_core::Ticks,
 }
 
 impl Frame {
@@ -200,4 +203,15 @@ pub fn visible(r: Rect, f: &Frame) -> Rect {
         pos2(r.left().max(f.clip_left), r.top()),
         pos2(r.right().min(f.clip_right), r.bottom()),
     )
+}
+
+/// A content tick of an automation clip whose content tick 0 is at timeline tick `origin`,
+/// snapped to `grid` (review 2: through the bars of the timeline it lies on).
+pub fn snap_point(
+    project: &cantus_core::Project,
+    origin: cantus_core::Ticks,
+    tick: cantus_core::Ticks,
+    grid: cantus_core::Ticks,
+) -> cantus_core::Ticks {
+    crate::views::bars::snap_content(project, tick, grid, origin)
 }

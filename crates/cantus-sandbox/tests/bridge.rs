@@ -63,7 +63,7 @@ fn crashed_within(main: &mut dyn MainThread, limit: Duration) -> Option<String> 
     let start = Instant::now();
     while start.elapsed() < limit {
         for n in main.idle() {
-            if let Notice::Crashed { reason } = n {
+            if let Notice::Crashed { reason, .. } = n {
                 return Some(reason);
             }
         }
@@ -119,45 +119,131 @@ fn an_isolated_gain_renders_the_same_bits_as_in_process_at_every_block_size() {
     }
 }
 
+/// Notes at their samples, spread over the blocks — some inside later blocks — at block
+/// sizes 1, 37, 64 and 512 (review #24).
 #[test]
 fn an_isolated_instrument_plays_its_notes_at_their_samples_as_in_process() {
     let _g = serial();
     let pool = pool();
+    let note = |at: usize, key, kind| {
+        (
+            at,
+            NoteEvent {
+                offset: 0,
+                note_id: i32::from(key),
+                channel: 0,
+                key,
+                kind,
+            },
+        )
+    };
+    let score = [
+        note(3, 60, NoteKind::On { velocity: 0.8 }),
+        note(40, 64, NoteKind::On { velocity: 0.5 }),
+        note(100, 60, NoteKind::Off { velocity: 0.0 }),
+        note(700, 67, NoteKind::On { velocity: 0.7 }),
+        note(1500, 64, NoteKind::Off { velocity: 0.0 }),
+        note(2101, 72, NoteKind::On { velocity: 0.9 }),
+        note(2900, 67, NoteKind::Off { velocity: 0.0 }),
+    ];
+    let frames = 4_000;
     for id in [SYNTH_ID, VST3_PULSE_ID] {
+        for block in [1usize, 37, 64, 512] {
+            let Loaded {
+                main: _m_in,
+                audio: mut a_in,
+            } = load_within(id);
+            let Loaded {
+                main: _m_out,
+                audio: mut a_out,
+            } = load_offline(&pool, id, "together");
+            let mut outs = Vec::new();
+            for audio in [a_in.as_mut(), a_out.as_mut()] {
+                let mut all = Vec::new();
+                let mut at = 0;
+                while at < frames {
+                    let n = block.min(frames - at);
+                    let notes: Vec<NoteEvent> = score
+                        .iter()
+                        .filter(|(t, _)| (at..at + n).contains(t))
+                        .map(|(t, e)| NoteEvent {
+                            offset: (t - at) as u32,
+                            ..*e
+                        })
+                        .collect();
+                    let (mut l, mut r) = (vec![0.0; n], vec![0.0; n]);
+                    call(audio, &mut l, &mut r, &[], &notes);
+                    all.extend(l);
+                    all.extend(r);
+                    at += n;
+                }
+                outs.push(all);
+            }
+            assert!(peak(&outs[0]) > 0.0, "{id} sounded");
+            assert_eq!(
+                differing(&outs[0], &outs[1]),
+                0,
+                "{id} at {block}: isolated differs"
+            );
+        }
+    }
+}
+
+/// The sidechain reaches an isolated plug-in bit for bit (review #29).
+#[test]
+fn an_isolated_gain_hears_its_sidechain_as_in_process() {
+    let _g = serial();
+    let pool = pool();
+    for block in [1usize, 37, 64, 512] {
         let Loaded {
             main: _m_in,
             audio: mut a_in,
-        } = load_within(id);
+        } = load_within(GAIN_ID);
         let Loaded {
             main: _m_out,
             audio: mut a_out,
-        } = load_offline(&pool, id, "together");
-        let note = |offset, key, kind| NoteEvent {
-            offset,
-            note_id: 7,
-            channel: 0,
-            key,
-            kind,
-        };
-        let notes = [
-            note(3, 60, NoteKind::On { velocity: 0.8 }),
-            note(40, 64, NoteKind::On { velocity: 0.5 }),
-            note(100, 60, NoteKind::Off { velocity: 0.0 }),
+        } = load_offline(&pool, GAIN_ID, "together");
+        let (l0, r0) = (noise(3_000, 21), noise(3_000, 22));
+        let (kl, kr) = (noise(3_000, 23), noise(3_000, 24));
+        let on = [
+            ParamChange {
+                offset: 0,
+                id: P_KEY,
+                value: 1.0,
+            },
+            ParamChange {
+                offset: 0,
+                id: P_GAIN,
+                value: -9.0,
+            },
         ];
         let mut outs = Vec::new();
         for audio in [a_in.as_mut(), a_out.as_mut()] {
-            let mut all = Vec::new();
-            for k in 0..8 {
-                let (mut l, mut r) = (vec![0.0; 128], vec![0.0; 128]);
-                let n: &[NoteEvent] = if k == 0 { &notes } else { &[] };
-                call(audio, &mut l, &mut r, &[], n);
-                all.extend(l);
-                all.extend(r);
+            let (mut l, mut r) = (l0.clone(), r0.clone());
+            let mut at = 0;
+            while at < l.len() {
+                let end = (at + block).min(l.len());
+                let p: &[ParamChange] = if at == 0 { &on } else { &[] };
+                let mut out = cantus_host::ParamOut::new();
+                audio.process(
+                    cantus_host::Audio {
+                        left: &mut l[at..end],
+                        right: &mut r[at..end],
+                        key: Some((&kl[at..end], &kr[at..end])),
+                        transport: None,
+                    },
+                    p,
+                    &[],
+                    &mut out,
+                );
+                at = end;
             }
-            outs.push(all);
+            outs.push((l, r));
         }
-        assert!(peak(&outs[0]) > 0.0, "{id} sounded");
-        assert_eq!(differing(&outs[0], &outs[1]), 0, "{id}: isolated differs");
+        let gained: Vec<f32> = l0.iter().map(|x| x * 10f32.powf(-9.0 / 20.0)).collect();
+        assert_ne!(differing(&outs[0].0, &gained), 0, "the key was heard");
+        assert_eq!(differing(&outs[0].0, &outs[1].0), 0, "left at {block}");
+        assert_eq!(differing(&outs[0].1, &outs[1].1), 0, "right at {block}");
     }
 }
 
@@ -170,10 +256,24 @@ fn a_plugin_that_aborts_in_process_leaves_the_block_dry_and_says_so_once() {
             mut main,
             mut audio,
         } = load_isolated(&pool, id, &format!("own-abort-{id}"));
+        // −6 dB first, so a block it processed differs from one that passed dry (#21).
         let (l0, r0) = (noise(256, 3), noise(256, 4));
         let (mut l, mut r) = (l0.clone(), r0.clone());
-        call(audio.as_mut(), &mut l, &mut r, &[], &[]);
-        assert!(same_bits(&l, &l0), "0 dB passes through");
+        let gain_id = if id == GAIN_ID { P_GAIN } else { V_GAIN };
+        call(
+            audio.as_mut(),
+            &mut l,
+            &mut r,
+            &[ParamChange {
+                offset: 0,
+                id: gain_id,
+                value: -6.0,
+            }],
+            &[],
+        );
+        assert!(!same_bits(&l, &l0), "{id}: processed at −6 dB");
+        // Each block its own input, so a stale output cannot pass for a dry one.
+        let (l0, r0) = (noise(256, 30), noise(256, 31));
         let t = Instant::now();
         let (mut l, mut r) = (l0.clone(), r0.clone());
         call(
@@ -192,11 +292,15 @@ fn a_plugin_that_aborts_in_process_leaves_the_block_dry_and_says_so_once() {
         );
         assert!(same_bits(&l, &l0) && same_bits(&r, &r0), "{id}: dry");
         // Every later block passes dry at once.
-        for _ in 0..10 {
+        for k in 0..10 {
             let t = Instant::now();
+            let (l0, r0) = (noise(256, 40 + k), noise(256, 60 + k));
             let (mut l, mut r) = (l0.clone(), r0.clone());
             call(audio.as_mut(), &mut l, &mut r, &[], &[]);
-            assert!(same_bits(&l, &l0), "{id}: dry after the crash");
+            assert!(
+                same_bits(&l, &l0) && same_bits(&r, &r0),
+                "{id}: dry after the crash"
+            );
             assert!(t.elapsed() < Duration::from_millis(5), "{:?}", t.elapsed());
         }
         let reason = crashed_within(main.as_mut(), Duration::from_secs(5)).expect("told");
@@ -210,6 +314,74 @@ fn a_plugin_that_aborts_in_process_leaves_the_block_dry_and_says_so_once() {
     }
 }
 
+/// A plug-in with latency that crashes: the block passes its input delayed by the latency
+/// — where the plug-in's output would have been — from the crashing block on (#21).
+#[test]
+fn a_crash_with_latency_plays_the_input_delayed_by_the_latency() {
+    let _g = serial();
+    let pool = pool();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load_isolated(&pool, GAIN_ID, "own-abort-latency");
+    let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &[ParamChange {
+            offset: 0,
+            id: P_LATENCY,
+            value: 32.0,
+        }],
+        &[],
+    );
+    // It asks for a restart (its latency changed): the host restarts it.
+    let asked = Instant::now();
+    while !main
+        .idle()
+        .iter()
+        .any(|n| matches!(n, Notice::RestartNeeded | Notice::LatencyChanged(_)))
+    {
+        assert!(asked.elapsed() < Duration::from_secs(5), "never asked");
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    drop(audio);
+    let mut audio = None;
+    for _ in 0..100 {
+        if let Ok(Some(a)) = main.restart() {
+            audio = Some(a);
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let mut audio = audio.expect("restarted with its latency");
+    assert_eq!(main.latency(), 32);
+    let n = 256;
+    let (la, ra) = (noise(n, 70), noise(n, 71));
+    let (mut l, mut r) = (la.clone(), ra.clone());
+    call(audio.as_mut(), &mut l, &mut r, &[], &[]);
+    let (lb, rb) = (noise(n, 72), noise(n, 73));
+    let (mut l, mut r) = (lb.clone(), rb.clone());
+    call(
+        audio.as_mut(),
+        &mut l,
+        &mut r,
+        &fault(P_FAULT, ABORT_PROCESS),
+        &[],
+    );
+    let delayed = |a: &[f32], b: &[f32]| -> Vec<f32> {
+        a[n - 32..].iter().chain(&b[..n - 32]).copied().collect()
+    };
+    assert_eq!(differing(&l, &delayed(&la, &lb)), 0, "left, delayed");
+    assert_eq!(differing(&r, &delayed(&ra, &rb)), 0, "right, delayed");
+    let (lc, rc) = (noise(n, 74), noise(n, 75));
+    let (mut l, mut r) = (lc.clone(), rc.clone());
+    call(audio.as_mut(), &mut l, &mut r, &[], &[]);
+    assert_eq!(differing(&l, &delayed(&lb, &lc)), 0, "and the block after");
+    assert_eq!(differing(&r, &delayed(&rb, &rc)), 0);
+}
+
 #[test]
 fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     let _g = serial();
@@ -221,6 +393,7 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     } = load_isolated(&pool, GAIN_ID, "own-hang");
     let (l0, r0) = (noise(128, 5), noise(128, 6));
     let mut worst = Duration::ZERO;
+    let mut after_late = Vec::new();
     let mut dry = 0;
     let started = Instant::now();
     for k in 0..200 {
@@ -233,6 +406,9 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
         let t = Instant::now();
         call(audio.as_mut(), &mut l, &mut r, p, &[]);
         worst = worst.max(t.elapsed());
+        if k > 2 {
+            after_late.push(t.elapsed());
+        }
         if k > 2 {
             assert!(same_bits(&l, &l0), "dry while it hangs");
             dry += 1;
@@ -251,13 +427,24 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
         std::thread::sleep(Duration::from_millis(3));
     }
     assert!(dry > 0);
-    // Windows' timer may round the deadline up to its tick (15.6 ms).
+    let floor = cantus_host::bridge::audio::DEADLINE_FLOOR;
     assert!(
-        worst
-            < deadline(128, SR, cantus_host::bridge::audio::DEADLINE_FLOOR)
-                + Duration::from_millis(25),
+        worst < deadline(128, SR, floor) + Duration::from_millis(5),
         "the audio thread waited {worst:?}"
     );
+    // The late job is never waited for again: every block after it passes at once (#20),
+    // and only that job counts as late (#35).
+    after_late.sort();
+    let median = after_late[after_late.len() / 2];
+    assert!(
+        median < Duration::from_millis(1),
+        "after the late one: {median:?}"
+    );
+    assert!(
+        after_late.iter().all(|t| *t < deadline(128, SR, floor)),
+        "a block waited out a deadline again: {after_late:?}"
+    );
+    assert_eq!(main.late_blocks(), 1);
     assert!(
         started.elapsed() < Duration::from_secs(5),
         "the hang was ended: {:?}",

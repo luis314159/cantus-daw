@@ -599,12 +599,19 @@ fn body_ui(
                 (h.has_editor(), h.window_open(), h.window_floating())
             });
         let label = window_key(open, floating);
-        let tip = if has_editor {
-            frame_tr("host.editor.window_tip")
-        } else {
-            frame_tr("host.editor.no_window")
+        // A stopped plug-in has no window until it is reloaded (review #31).
+        let stopped = app.plugins.crashed(effect).map(|why| {
+            tf(
+                "isolation.tip.stopped",
+                &[("reason", &crate::views::plugin_notice::reason_words(why))],
+            )
+        });
+        let tip = match &stopped {
+            Some(why) => why.as_str(),
+            None if has_editor => frame_tr("host.editor.window_tip"),
+            None => frame_tr("host.editor.no_window"),
         };
-        ui.add_enabled_ui(has_editor, |ui| {
+        ui.add_enabled_ui(has_editor && stopped.is_none(), |ui| {
             if controls::key(ui, s, Src::Key(label), tip, 170.0, open).clicked() {
                 app.show_plugin_window(effect);
             }
@@ -625,8 +632,9 @@ fn body_ui(
         controls::count(ui, s, "host.editor.count", n, 116.0);
     });
     // Where it runs and what it costs; a plug-in that stopped, and its Reload (round 29,
-    // ADR 0063).
-    if app.plugins.missing(effect).is_none() {
+    // ADR 0063) — one that could not be loaded too: changing where it runs tries again
+    // (review #15).
+    {
         let row = g.full((band::TITLE + 8.0 + controls::ROW + 8.0) * k);
         isolation_card(app, ui, s, row, effect);
     }
@@ -644,7 +652,14 @@ fn body_ui(
                     let name = app
                         .plugins
                         .hosted(effect)
-                        .map_or(String::new(), |h| h.info.name.clone());
+                        .map(|h| h.info.name.clone())
+                        .or_else(|| {
+                            app.project()
+                                .effect(strip, effect)
+                                .and_then(|e| e.spec.external.as_deref())
+                                .map(|p| p.name.clone())
+                        })
+                        .unwrap_or_default();
                     let why = crate::views::plugin_notice::reason_words(&why);
                     let line = tf(
                         "isolation.editor.stopped",
@@ -962,6 +977,9 @@ impl CantusApp {
     /// Open the plug-in's own window, or close it.
     pub fn toggle_plugin_window(&mut self, effect: EffectId) {
         if self.plugins.close_window(effect) {
+            return;
+        }
+        if self.window_of_stopped(crate::views::plugin_notice::Target::Insert(effect)) {
             return;
         }
         let project = self.project();
@@ -1376,6 +1394,9 @@ impl CantusApp {
     /// The card's key: open the plug-in's own window, or bring it back and to the front —
     /// or close it, for a plug-in that floats its own (round 27, ADR 0051 §3).
     pub fn show_plugin_window(&mut self, effect: EffectId) {
+        if self.window_of_stopped(crate::views::plugin_notice::Target::Insert(effect)) {
+            return;
+        }
         let floating = self
             .plugins
             .hosted(effect)

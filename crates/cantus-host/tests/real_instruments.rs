@@ -77,6 +77,7 @@ fn position(playing: bool, frame: usize) -> SongPosition {
         tempo_bpm: 120.0,
         beats,
         samples: frame as i64,
+        project_samples: frame as i64,
         tempo_inc: 0.0,
         tempo_now: 120.0,
         seconds: frame as f64 / RATE,

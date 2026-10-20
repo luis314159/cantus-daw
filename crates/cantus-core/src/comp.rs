@@ -414,7 +414,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(tid, &right, Ticks::beats(6), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, tid, &right, Ticks::beats(6), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {
@@ -474,7 +474,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(t, &w, Ticks::beats(2), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, t, &w, Ticks::beats(2), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {

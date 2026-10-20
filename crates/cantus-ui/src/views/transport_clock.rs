@@ -90,13 +90,15 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let digits_w = digits_width(ui.ctx(), s, widest);
     let (_, tick_digits) = digits(widest);
     let lcd = Rect::from_center_size(r.center(), Vec2::new(r.width(), 40.0 * k));
-    let mut pos = app.engine.position();
+    let at = app.engine.position();
+    let mut pos = at;
     // Pattern mode counts from the pattern's start.
     let pattern = app.project().pattern_mode;
-    if pattern {
-        if let Some(region) = app.topbar.pattern.region() {
-            pos = (pos - region.start).max(Ticks::ZERO);
-        }
+    let region_start = pattern
+        .then(|| app.topbar.pattern.region().map(|r| r.start))
+        .flatten();
+    if let Some(r) = region_start {
+        pos = (pos - r).max(Ticks::ZERO);
     }
     // Through the metre changes and the tempo map (ADR 0060); pattern mode counts its own
     // bars in the song's first metre.
@@ -110,7 +112,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     } else {
         crate::views::bars::bbt(app.project(), pos)
     };
-    let secs = crate::views::bars::seconds_between(app.project(), Ticks::ZERO, pos);
+    let secs = clock_seconds(app.project(), at, region_start);
     let resp = ui.interact(lcd, Id::new("toolbar-clock"), Sense::hover());
     CLOCK.with(|c| {
         let mut c = c.borrow_mut();
@@ -189,4 +191,17 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 
 fn t_(key: &str) -> String {
     t(key)
+}
+
+/// The clock's seconds at `pos` (the playhead): from the song's start, or in pattern mode
+/// from the pattern's (`region_start`), through the tempo map where the music plays.
+pub fn clock_seconds(
+    project: &cantus_core::Project,
+    pos: Ticks,
+    region_start: Option<Ticks>,
+) -> f64 {
+    // The pattern plays where it lies in the song, at the tempo there (review 2: counted
+    // from the song's start, a pattern at a faster bar ran at the first tempo).
+    let from = region_start.unwrap_or(Ticks::ZERO);
+    crate::views::bars::seconds_between(project, from, pos.max(from))
 }

@@ -858,6 +858,7 @@ fn notes_and_expressions_land_on_their_samples() {
         position_samples: 146_250,
         // 6.5 beats at 128 BPM: 146 250 samples at 48 kHz.
         position_seconds: 3.046_875,
+        project_samples: 146_250,
         bar_start_beats: 6.0,
         bar_number: 2,
         time_sig_num: 3,
@@ -893,13 +894,15 @@ fn notes_and_expressions_land_on_their_samples() {
     let want = 2 | 4 | 512 | 1024 | 2048 | 4096 | 8192 | 131_072;
     assert_eq!(state, want, "{state:#b}");
     assert_eq!(v, [128.0, 6.5, 6.0, 0.0, 12.0, 3.0, 4.0, 146_250.0]);
-    // Under a tempo map (round 29, ADR 0060; review 1): the song's real seconds become
-    // `projectTimeSamples`, whatever the beats would be at the tempo now.
+    // Under a tempo map (round 29, ADR 0060; review 1): the song's real samples (the
+    // engine's rounding of its seconds, review 2) become `projectTimeSamples`, whatever the
+    // beats would be at the tempo now.
     let ramp = TransportInfo {
         tempo_bpm: 131.5,
         tempo_inc: 1e-4,
         position_beats: 14.0,
         position_seconds: 7.25,
+        project_samples: 348_000,
         bar_start_beats: 12.0,
         bar_number: 4,
         ..transport

@@ -61,12 +61,20 @@ pub fn export(project: &Project, opts: &ExportOptions) -> Result<Vec<u8>, MidiEr
 /// The file as events, before it is turned into bytes.
 pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError> {
     let ppq = opts.ppq.clamp(1, 0x7FFF);
+    // A marker at or after the music's end (an "End", an "Outro") is the song's too: the
+    // song's file runs to it (review 2, finding 65).
+    let last_marker = project
+        .markers
+        .iter()
+        .map(|m| m.tick)
+        .max()
+        .unwrap_or(Ticks::ZERO);
     // Which tracks, how far each is shifted, and where the file ends.
     let (compiled, shift, end, file_name) = match opts.scope {
         Scope::Song => {
             let snap = Snapshot::compile(project, 0);
             let tracks: Vec<usize> = (0..project.tracks.len()).collect();
-            let end = project.content_end();
+            let end = project.content_end().max(last_marker);
             (
                 Compiled::new(project, &snap, &tracks),
                 Ticks::ZERO,
@@ -83,7 +91,8 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
                 .map(|c| c.end())
                 .max()
                 .unwrap_or(Ticks::ZERO)
-                .max(project.content_end());
+                .max(project.content_end())
+                .max(last_marker);
             (
                 Compiled::new(project, &snap, &[i]),
                 Ticks::ZERO,
@@ -261,7 +270,7 @@ fn conductor(
         }
     }
     for m in &project.markers {
-        if m.tick >= shift && m.tick < stop {
+        if m.tick >= shift && m.tick <= stop {
             ev.push(TimedEvent {
                 tick: at(m.tick),
                 event: Event::Text {

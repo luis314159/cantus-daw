@@ -336,17 +336,18 @@ impl Transport {
     }
 
     /// The transport sample (from the origin, rounded) an unwarped audio clip's frame 0
-    /// lands on: the clip starting at `start`, its source `offset` in there (read at the
-    /// tempo where it starts, `cantus_core::audio_time`), moved by `slip` seconds. Where
-    /// the tempo holds at the clip's start, the old arithmetic to the bit.
+    /// lands on: its content origin (`start − offset`, `cantus_core::audio_time`), through
+    /// the map, moved by `slip` seconds. Where the tempo holds there, the old arithmetic to
+    /// the bit.
     pub fn clip_zero(&self, start: Ticks, offset: Ticks, slip: f64) -> i64 {
-        let s = start.0 as f64;
-        // Only where the clip starts inside the held stretch: on its end (the next point)
-        // the offset is read at the tempo that begins there (review 1).
-        match self.held.filter(|h| s >= h.from && s < h.to) {
-            Some(h) => (((start.0 - offset.0) as f64 - self.origin_tick) / h.tps
-                - slip * self.sample_rate)
-                .round() as i64,
+        let (s, origin) = (start.0 as f64, (start.0 - offset.0) as f64);
+        // The constant arithmetic where one held stretch has the origin and the start;
+        // else from the start, back by the source's seconds before it — the same sample,
+        // and exactly the start's for a render that sets `slip` to cancel them (a warp).
+        match self.held.filter(|h| origin >= h.from && s < h.to) {
+            Some(h) => {
+                ((origin - self.origin_tick) / h.tps - slip * self.sample_rate).round() as i64
+            }
             None => (self.sample_of_f64(s)
                 - (cantus_core::audio_time::offset_seconds(&self.map, start, offset) + slip)
                     * self.sample_rate)
@@ -399,12 +400,28 @@ impl Transport {
 
     /// [`Self::samples_until_step`] for a unit whose audio is `late` samples behind the
     /// transport: samples until the position it hears reaches its next step.
+    ///
+    /// After a loop's wrap the unit may still hear the pass before (review 2, findings 4
+    /// and 9): its steps there are counted to that pass's end, as the position it is told
+    /// folds (`fx::heard_tick`, shared); a step at or past the end is no cut of its own —
+    /// the late wrap's cut (`Wraps::before_wrap`) is.
     pub fn samples_until_step_late(&self, late: u64) -> Option<u64> {
-        let heard = self.tick_before(self.position_f64(), late);
+        let sr = self.sample_rate;
+        let wraps = self.wraps_played();
+        let (heard, folded) =
+            crate::fx::heard_tick(&self.map, self.position_f64(), wraps.as_ref(), late, sr);
         let next = self
             .map
-            .next_step_after(crate::fx::step_of(&self.map, heard))?;
-        let x = self.sample_of_f64(next) + late as f64 - self.samples as f64;
+            .next_step_after(crate::fx::step_of(&self.map, heard, sr))?;
+        let x = match folded {
+            Some((r, end)) => {
+                if next >= end {
+                    return None;
+                }
+                r as f64 - self.map.seconds_between_f64(next, end) * sr
+            }
+            None => self.sample_of_f64(next) + late as f64 - self.samples as f64,
+        };
         Some(ceil_sample(x))
     }
 
@@ -578,12 +595,15 @@ mod tests {
             t.play();
             for _ in 0..2_000 {
                 let p = crate::processor::song_position_of(&t, &None, sr);
+                // CLAP's seconds are round 28's expression to the bit (review 2, finding
+                // 13); VST3's sample position the one it had.
                 assert_eq!(
-                    (p.seconds * sr).round() as i64,
-                    p.samples,
+                    p.seconds.to_bits(),
+                    (p.beats * (60.0 / bpm)).to_bits(),
                     "{bpm} at {}",
                     p.beats
                 );
+                assert_eq!(p.project_samples, p.samples, "{bpm} at {}", p.beats);
                 t.advance(997);
             }
         }
@@ -605,11 +625,11 @@ mod tests {
         assert!((e.seconds - map.seconds_at(want * PPQ as f64)).abs() < 1e-12);
     }
 
-    /// Review 1 (finding 0): a clip starting exactly on a tempo point reads its offset at the
-    /// tempo there — the same source frame at its start from a seek before the point and
-    /// from a seek at it, as `cantus_core::audio_time` says.
+    /// Review 1 (finding 0), review 2: a clip starting exactly on a tempo point plays from
+    /// its content origin — the same source frame at its start from a seek before the
+    /// point and from a seek at it, as `cantus_core::audio_time` says.
     #[test]
-    fn a_clip_on_a_tempo_point_reads_its_offset_at_the_tempo_there() {
+    fn a_clip_on_a_tempo_point_plays_from_its_content_origin() {
         let pt = |tick: i64, bpm: f64| TempoPoint {
             tick: Ticks(tick),
             bpm,
@@ -623,15 +643,16 @@ mod tests {
         ));
         let sr = 48_000.0;
         let (start, offset) = (Ticks(7680), Ticks(960));
-        // One beat at 60 BPM: a second into the file at the clip's start.
+        // Its content origin a beat before the point, at 120 BPM: half a second into the
+        // file at the clip's start (review 2: the origin rule, ADR 0060 §5).
         let want = cantus_core::audio_time::frame_at(&map, start, offset, 0.0, sr, 7680.0);
-        assert_eq!(want, 48_000.0);
+        assert_eq!(want, 24_000.0);
         for from in [0, 7680] {
             let mut t = on_map(&map, sr);
             t.seek(Ticks(from));
             let at_start = t.sample_of_f64(start.0 as f64).round() as i64;
             let frame = at_start - t.clip_zero(start, offset, 0.0);
-            assert_eq!(frame, 48_000, "played from {from}");
+            assert_eq!(frame, 24_000, "played from {from}");
         }
     }
 

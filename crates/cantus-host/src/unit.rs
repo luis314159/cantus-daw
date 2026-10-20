@@ -458,6 +458,7 @@ pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
         position_beats: p.beats,
         position_samples: p.samples,
         position_seconds: p.seconds,
+        project_samples: p.project_samples,
         bar_start_beats: p.bar_start_beats,
         bar_number: p.bar_number,
         time_sig_num: p.time_sig_num,
@@ -508,6 +509,10 @@ impl FxUnit for HostedUnit {
 
     fn take_dropped(&mut self) -> u64 {
         std::mem::take(&mut self.sync.dropped)
+    }
+
+    fn follows_song(&self) -> bool {
+        true
     }
 
     fn set_position(&mut self, p: &SongPosition) {

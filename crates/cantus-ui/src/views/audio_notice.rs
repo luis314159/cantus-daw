@@ -44,6 +44,8 @@ enum Art {
 /// One card of the stack.
 struct Card {
     id: (&'static str, usize),
+    /// A name drawn before the title, shortened in its middle when long (a plug-in card).
+    name: Option<String>,
     title: String,
     body: String,
     tok: Tok,
@@ -51,8 +53,8 @@ struct Card {
     buttons: Vec<(String, Act)>,
     /// What the ✕ does.
     close: Act,
-    /// A hint on the card's picture (the reasons a plug-in stopped).
-    tip: Option<String>,
+    /// A hint on the whole card (the reasons a plug-in stopped), and its heading.
+    tip: Option<(String, String)>,
     /// The audio setup's hit areas (its tests press the buttons through them).
     audio: Option<usize>,
 }
@@ -95,6 +97,7 @@ fn audio_cards(app: &CantusApp) -> Vec<Card> {
         };
         out.push(Card {
             id: ("audio", i),
+            name: None,
             title,
             body,
             tok,
@@ -110,19 +113,22 @@ fn audio_cards(app: &CantusApp) -> Vec<Card> {
 
 /// The plug-in card, when one waits.
 fn plugin_card(app: &CantusApp) -> Option<Card> {
-    let (title, body, buttons, reasons) = plugin_notice::card(app)?;
+    let c = plugin_notice::card(app)?;
+    let sentence = c.sentence();
     Some(Card {
         id: ("plugin", 0),
-        title,
-        body,
+        name: c.name,
+        title: c.title,
+        body: c.body,
         tok: Tok::Danger,
         art: Art::Plugin,
-        buttons: buttons
+        buttons: c
+            .buttons
             .into_iter()
             .map(|(l, a)| (l, Act::Plugin(a)))
             .collect(),
         close: Act::Plugin(plugin_notice::Answer::KeepOff),
-        tip: Some(reasons),
+        tip: Some((sentence, c.reasons)),
         audio: None,
     })
 }
@@ -132,6 +138,7 @@ fn freeze_card(app: &CantusApp) -> Option<Card> {
     let (title, body, buttons, close) = super::freeze_view::card(app)?;
     Some(Card {
         id: ("freeze", 0),
+        name: None,
         title,
         body,
         tok: Tok::Focus,
@@ -173,6 +180,39 @@ pub fn card_rects(app: &CantusApp, ctx: &egui::Context) -> Vec<Rect> {
         .into_iter()
         .map(|(_, r)| r)
         .collect()
+}
+
+/// Each card's rectangle and its buttons' (for tests: every button inside its card).
+pub fn card_layout(app: &CantusApp, ctx: &egui::Context) -> Vec<(Rect, Vec<Rect>)> {
+    let s = Style::current();
+    stack(app, ctx, &s)
+        .into_iter()
+        .map(|(card, r)| {
+            let b = buttons_at(ctx, &card, r, &s)
+                .into_iter()
+                .map(|(_, br)| br)
+                .collect();
+            (r, b)
+        })
+        .collect()
+}
+
+/// Where a card's buttons go, by index: rows that fit, from the card's bottom up.
+fn buttons_at(ctx: &egui::Context, card: &Card, r: Rect, s: &Style) -> Vec<(usize, Rect)> {
+    let k = s.k;
+    let rows = button_rows(ctx, card, s);
+    let n = rows.len();
+    let mut out = Vec::new();
+    for (row, buttons) in rows.into_iter().enumerate() {
+        let top = r.bottom() - (n - row) as f32 * ROW * k - 6.0 * k;
+        let mut bx = r.left() + 84.0 * k;
+        for (j, w) in buttons {
+            let br = Rect::from_min_size(Pos2::new(bx, top + 3.0 * k), Vec2::new(w, 22.0 * k));
+            bx = br.right() + 6.0 * k;
+            out.push((j, br));
+        }
+    }
+    out
 }
 
 pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
@@ -267,12 +307,19 @@ fn draw(
         .order(egui::Order::Foreground)
         .fixed_pos(rect.min)
         .show(ctx, |ui| {
-            let (r, _) = ui.allocate_exact_size(rect.size(), Sense::hover());
+            let (r, whole) = ui.allocate_exact_size(rect.size(), Sense::hover());
             parts::panel(ui, r, s);
+            // The reasons, wherever the pointer is on the card (its buttons say their own).
+            if let Some((heading, tip)) = &card.tip {
+                if whole.hovered() {
+                    hint::set_text(ui.ctx(), heading, tip, Caps::NONE);
+                }
+            }
             let pic = Rect::from_min_size(
                 r.min + Vec2::new(12.0 * k, 10.0 * k),
                 Vec2::new(60.0 * k, 38.0 * k),
             );
+            let ui_ctx = &ui.ctx().clone();
             with_brush(ui.painter(), |b| {
                 let edge = Rect::from_min_size(r.min, Vec2::new(3.0 * k, r.height()))
                     .shrink2(Vec2::new(0.0, 8.0 * k));
@@ -305,9 +352,33 @@ fn draw(
                     Pos2::new(r.left() + 94.0 * k, r.top() + 8.0 * k),
                     Pos2::new(r.right() - 30.0 * k, r.top() + 30.0 * k),
                 );
+                // A name first (shortened in its middle when long), then what happened, at
+                // full width: "Spectra…Omnisphere stopped working" (#36).
+                let mut title_rect = tr;
+                if let Some(name) = &card.name {
+                    let rest = text::measure(
+                        ui_ctx,
+                        &Text::new(&card.title, Role::Body, s.t.text),
+                        s.tk(),
+                    )
+                    .x;
+                    let room = (tr.width() - rest - 4.0 * k).max(24.0 * k);
+                    let nr = Rect::from_min_size(tr.min, Vec2::new(room, tr.height()));
+                    let used = text::paint(
+                        b,
+                        nr,
+                        &Text::new(name, Role::Body, s.t.text)
+                            .align(Align2::LEFT_CENTER)
+                            .policy(Policy::Elide(Elide::Middle)),
+                        s.tk(),
+                    )
+                    .map_or(0.0, |p| p.rect.width());
+                    title_rect =
+                        Rect::from_min_max(Pos2::new(tr.left() + used + 3.0 * k, tr.top()), tr.max);
+                }
                 let _ = text::paint(
                     b,
-                    tr,
+                    title_rect,
                     &Text::new(&card.title, Role::Body, s.t.text)
                         .align(Align2::LEFT_CENTER)
                         .policy(Policy::Elide(Elide::End)),
@@ -322,12 +393,7 @@ fn draw(
                     );
                 }
             });
-            if let Some(tip) = &card.tip {
-                let pr = ui.interact(pic, Id::new(("corner-card-pic", card.id)), Sense::hover());
-                if pr.hovered() {
-                    hint::set_text(ui.ctx(), &card.title, tip, Caps::NONE);
-                }
-            }
+
             // ✕ at the top right.
             let x = Rect::from_center_size(
                 Pos2::new(r.right() - 16.0 * k, r.top() + 18.0 * k),
@@ -341,25 +407,15 @@ fn draw(
             if xr.clicked() {
                 act = Some(card.close.clone());
             }
-            let rows = button_rows(ui.ctx(), card, s);
-            let n = rows.len();
-            for (row, buttons) in rows.into_iter().enumerate() {
-                let top = r.bottom() - (n - row) as f32 * ROW * k - 6.0 * k;
-                let mut bx = r.left() + 84.0 * k;
-                for (j, w) in buttons {
-                    let (label, a) = &card.buttons[j];
-                    let br =
-                        Rect::from_min_size(Pos2::new(bx, top + 3.0 * k), Vec2::new(w, 22.0 * k));
-                    bx = br.right() + 6.0 * k;
-                    let resp =
-                        ui.interact(br, Id::new(("corner-card-b", card.id, j)), Sense::click());
-                    parts::paint_button(ui, br, &resp, label, j == 0, true);
-                    if let Some(i) = card.audio {
-                        app.audio_setup.hit(ui.ctx(), Hit::Notice(i, j), br);
-                    }
-                    if resp.clicked() {
-                        act = Some(a.clone());
-                    }
+            for (j, br) in buttons_at(ui.ctx(), card, r, s) {
+                let (label, a) = &card.buttons[j];
+                let resp = ui.interact(br, Id::new(("corner-card-b", card.id, j)), Sense::click());
+                parts::paint_button(ui, br, &resp, label, j == 0, true);
+                if let Some(i) = card.audio {
+                    app.audio_setup.hit(ui.ctx(), Hit::Notice(i, j), br);
+                }
+                if resp.clicked() {
+                    act = Some(a.clone());
                 }
             }
         });

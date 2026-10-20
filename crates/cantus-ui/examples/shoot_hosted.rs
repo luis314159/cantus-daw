@@ -217,6 +217,52 @@ fn isolation_shots(dir: &std::path::Path, ppp: f32, code: &str) {
             },
         );
         println!("wrote {}", path.display());
+        // A hosted instrument with a long name that stopped working (review #32, #34, #36):
+        // its card (the name shortened in its middle, the verb whole), the inspector's
+        // danger status and Reload, the rack's outline, the header's sign.
+        let ctx = egui::Context::default();
+        cantus_ui::design::install_fonts(&ctx);
+        cantus_ui::design::install_style(&ctx);
+        cantus_ui::theme::apply(&theme, &ctx);
+        let mut project = welcome_project();
+        let plugin = cantus_core::ExternalPlugin::new(
+            cantus_core::PluginFormat::Vst3,
+            "0123456789ABCDEF0123456789ABCDEF",
+            "Spectrasonics Omnisphere Orchestral Edition",
+        );
+        project.tracks[0].instrument = cantus_core::InstrumentSpec::External(plugin.clone());
+        let track = project.tracks[0].id;
+        let (engine, _processor) = EngineHandle::manual(48_000.0);
+        let mut app = CantusApp::from_parts(Some(project), engine, false);
+        app.plugins.mark_crashed_for_tests(
+            (None, Some((track, cantus_engine::hosted_key(&plugin)))),
+            (cantus_host::Format::Vst3, &plugin.id),
+            "it crashed: an access violation (0xC0000005)",
+            1,
+        );
+        views::plugin_notice::on_notice(
+            &mut app,
+            cantus_host::HostNotice::InstrumentCrashed {
+                track,
+                name: plugin.name.clone(),
+                reason: "it crashed: an access violation (0xC0000005)".into(),
+            },
+        );
+        app.select_track(track);
+        // (The status line's word on the staged plug-in not being installed is not the shot.)
+        app.set_status(String::new());
+        let path = dir.join(format!(
+            "isolation-instrument-{theme_name}-{code}-{ppp}x.png"
+        ));
+        shoot(
+            &ctx,
+            egui::vec2(1280.0, 760.0),
+            ppp,
+            6,
+            Some(&path),
+            |root| app.frame(root),
+        );
+        println!("wrote {}", path.display());
     }
 }
 

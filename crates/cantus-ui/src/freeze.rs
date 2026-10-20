@@ -277,6 +277,8 @@ impl CantusApp {
         self.freeze.queue.retain(|w| matches!(w, Want::Refresh(_)));
         if let Some(j) = &self.freeze.job {
             j.progress.cancel();
+            // An isolated plug-in hung in the render is not waited for (round 29, review #1).
+            self.plugins.cancel_render();
         }
     }
 
@@ -521,7 +523,31 @@ fn collect(app: &mut CantusApp) {
         .worker
         .take()
         .map(|w| w.join().unwrap_or(Err(RenderError::Cancelled)));
+    // An isolated plug-in that stopped working during the render (round 29, review #6,
+    // #47): the render lacks it from that point, so nothing is frozen or bounced from it.
+    let lost = app.plugins.render_failures();
     app.plugins.finish_render();
+    if let (Some(Ok(path)), Some(f)) = (&result, lost.first()) {
+        let _ = std::fs::remove_file(path);
+        let text = tf(
+            "isolation.freeze.stopped",
+            &[
+                ("name", &f.name),
+                (
+                    "reason",
+                    &crate::views::plugin_notice::reason_words(&f.reason),
+                ),
+                ("job", &job.name),
+            ],
+        );
+        if !job.content.is_empty() {
+            app.freeze.failed.insert(job.content.clone(), text.clone());
+        }
+        app.engine.frozen.forget_missing();
+        app.force_resync();
+        app.set_error(text);
+        return;
+    }
     app.engine.frozen.forget_missing();
     app.force_resync();
     match result {

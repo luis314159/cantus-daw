@@ -74,6 +74,8 @@ pub struct WireTransport {
     pub loop_sb: f64,
     pub bar_number: i32,
     pub has_loop_seconds: u32,
+    /// VST3's sample clock (review 2): the real samples, rounded once by the engine.
+    pub project_samples: i64,
 }
 
 impl WireTransport {
@@ -104,6 +106,7 @@ impl WireTransport {
             loop_sb,
             bar_number: t.bar_number,
             has_loop_seconds,
+            project_samples: t.project_samples,
         }
     }
 
@@ -122,6 +125,7 @@ impl WireTransport {
             position_seconds: self.seconds,
             bar_number: self.bar_number,
             loop_seconds: (self.has_loop_seconds != 0).then_some((self.loop_sa, self.loop_sb)),
+            project_samples: self.project_samples,
         }
     }
 }
@@ -352,6 +356,11 @@ impl Slot {
             name: name.to_string(),
             at,
         })
+    }
+
+    /// The helper has mapped it: its name is removed (Unix; review #43).
+    pub fn unlink_name(&self) {
+        self.mem.unlink_name();
     }
 
     pub fn name(&self) -> &str {
@@ -590,6 +599,7 @@ mod tests {
             position_beats: 7.25,
             position_samples: 123_456,
             position_seconds: 3.5,
+            project_samples: 168_000,
             bar_start_beats: 4.0,
             bar_number: 2,
             time_sig_num: 7,

@@ -81,8 +81,10 @@ impl Processor {
                 // And at each late insert's own steps (review 1): the audio reaching it is
                 // `l` samples behind, so it hears a point or a ramp's step `l` samples
                 // after the transport does — a pass starts there for it too.
-                if !self.transport.map().is_constant() {
-                    for &l in &self.lates[..self.late_n] {
+                // Only for the units that follow the song (review 2): the others hear no
+                // step.
+                if self.follow_n > 0 && !self.transport.map().is_constant() {
+                    for &l in &self.follow_lates[..self.follow_n] {
                         if let Some(k) = self.transport.samples_until_step_late(l as u64) {
                             if k > 0 {
                                 end = end.min(done + k as usize);

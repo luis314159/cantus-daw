@@ -86,23 +86,41 @@ are functions of the tick). A unit that follows the tempo (the modulation family
 hosted plug-ins) is told one tempo per pass. A pass therefore ends at every tempo point
 and, inside a ramp, every `RAMP_STEP` (60 ticks, a 64th note) counted from the ramp's
 start — tick positions, so the same at every block size, offline as live — and, for every
-insert that hears the song late (delay compensation), at its own delayed step too
-(review 1). The modulation family's clock re-anchors at each step from the beats (the
+insert that follows the song and hears it late (delay compensation), at its own delayed
+step too (review 1), folded through a loop's wraps as the position it is told is
+(`fx::heard_tick`, one rule for both: review 2). Only units that read the position
+(`FxUnit::follows_song`: the modulation family, a watched Speculum, hosted plug-ins) are
+told it or cut passes for it — an equaliser behind a look-ahead costs nothing here
+(review 2). The modulation family's clock re-anchors at each step from the beats (the
 `samples` it is told are the beats at the step's tempo), so its synced phase is the
 song's beats; at one tempo nothing changes, to the bit. A step reached by the engine's own
-rounding counts as reached (`fx::step_of`). **Per-pass tempo with CLAP's `tempo_inc`**
-was chosen over finer splitting: inside a ramp hosted plug-ins are told the exact tempo
-at the block's first sample and its slope per sample (CLAP `tempo` + `tempo_inc`; VST3
-`tempo`), the song's real seconds (`song_pos_seconds`, `projectTimeSamples`), the bar's
-start and number through the metre changes. *Measured:* see §8.
+rounding of a cut — a millionth of a *sample* — counts as reached (`fx::step_of`).
+**Per-pass tempo with CLAP's `tempo_inc`** was chosen over finer splitting: inside a ramp
+hosted plug-ins are told the exact tempo at the block's first sample and its slope per
+sample (CLAP `tempo` + `tempo_inc`; VST3 `tempo`), the song's real seconds
+(`song_pos_seconds`) and samples (`projectTimeSamples`, rounded once by the engine), the
+bar's start and number through the metre changes; at one tempo both are the expressions of
+round 28, to the bit (review 2). *Measured:* see §8.
 
 **Unwarped audio clips** (`cantus_core::audio_time`, the one mapping the engine and every
-interface site use): a clip plays at its natural speed **anchored at its start**, its
-`offset` read at the tempo in force where it starts (Ableton's unwarped clip); with one
-tempo this is exactly the old rule. Fades and comp-seam crossfades are measured through the
-map. A recorded take is moved back by its latency's *seconds* through the map, so a take
-played across a ramp lands where it was played. Pasting an audio clip where the tempo
-under it differs keeps its seconds (the clipboard remembers where it was copied).
+interface site use): a clip plays at its natural speed from its **content origin**
+(`start − offset`, ADR 0025's origin), laid on the timeline once through the map; with one
+tempo this is exactly the old rule. *Review 2 changed this from "anchored at its start,
+the offset read at the tempo there"*: with that rule every window edit — a split, a trim,
+a comp's swipe and seams, glue — needed the offset re-derived in seconds, and the windows
+of one take no longer agreed with each other after a tempo edit inside the take. With the
+origin rule every window of a take shares its origin, the tick arithmetic of every edit
+is exact through any map, and a tempo edit inside a take moves all its windows together.
+The cost, accepted: a clip whose hidden part before its start crosses a tempo change
+plays a different part of its file when that tempo is edited — as the part it hides would.
+Only a move or a copy elsewhere re-derives the offset (`audio_time::relocate`: the same
+second at its start, its length and fades in seconds, the rounding in the fine offset) —
+a drag, a drag-copy, a duplicate and a paste give the same clip — and a reversed window,
+which reads back from its end, at its trims, splits and glue
+(`audio_time::reanchor_reversed`). Fades and comp-seam crossfades are measured through the
+map, where they lie (the inspector too: review 2). A recorded take is moved back by its
+latency's *seconds* through the map, so a take played across a ramp lands where it was
+played; its loop passes' fine offsets put each pass's recorded frame at its window.
 
 **Modulators** read time through the map: `ModTime` carries it while it moves, an
 envelope's note gates are computed in song seconds, a retriggered LFO in Hz counts the
@@ -122,11 +140,19 @@ axis, steps held flat, ramps straight; double-click adds, drag moves (Shift fine
 the grid), Alt+click ramps or holds, double-click types a value, the menu removes. **Metre
 changes** are chips on the ruler before the bar's number: drag along the bar lines, click
 to edit (the top bar's metre editor), remove from the menu. **Markers** are a lane under
-the loop lane while the song has markers: click to jump, click on the name's letters to
-rename (ADR 0051's gesture), drag, recolour from the track palette; Alt+M adds one at the
-playhead, Alt+, and Alt+. step between them, Alt+Shift+L loops between the markers around
-the playhead; the ruler's menu lists them to jump by name; *Export between markers* is a
-scope of the export dialog (`Scope::Markers`), the two markers picked by name.
+the loop lane while the song has markers: a click anywhere on a tab jumps (review 2: the
+name's letters filled the tab, and a click there renamed), a double-click or the menu
+renames, drag, recolour from the track palette; markers on one tick sit side by side;
+Alt+M adds one at the playhead, Alt+, and Alt+. step between them, Alt+Shift+, loops
+between the markers around the playhead (Alt+Shift+L was Select linked's in every preset);
+the ruler's and the empty timeline's menu (one menu) add a marker or a metre change where
+it was opened, the toolbar's ▸ menu at the playhead; *Add a metre change* at bar 1 opens
+the song's own metre; the lane's menu lists the markers to jump by name; *Export between
+markers* is a scope of the export dialog (`Scope::Markers`), the two markers picked by name
+— a pair that makes no range is refused with a word, never exported as the whole song.
+The tempo lane's scale holds while a point is dragged, and the top bar's wheel (a notch,
+one BPM) and drag move the governing point by their own amount, a ramp's start from its
+own value (review 2). The lanes' state belongs to one project.
 
 ### 6. Interchange (amends ADR 0021)
 
@@ -139,15 +165,25 @@ and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. N
   the whole ramp last exactly as long as they play — and every marker as a marker meta
   event (0x06); a clip or a range starts the map at its own start.
 - **MIDI import** has a new default mode, *keep the tempo map* (`TempoMode::Map`): notes by
-  beats, and — when the import sets the song's tempo (an empty project) — the file's tempo
-  changes in the tempo track, its metre changes and its markers; the report says how many
-  of each were kept. `Beats` and `Seconds` stay for importing into a song whose tempo
-  stays.
+  beats, and — when the import sets the song's tempo — the file's tempo changes in the tempo
+  track, its metre changes and its markers; the report says how many of each were kept.
+  Dropped at the song's start the file's map **replaces** the song's tempo track and metre
+  changes (the song's markers stay, the file's join them); dropped at a later bar it starts
+  at the bar line nearest the drop, where the notes go too: the song keeps its own tempo
+  and metre before it, a ramp into it ending where it stood (review 2). A signature Cantus
+  cannot hold is dropped and counted, two at one tick keep the later, a first one written
+  a few ticks in is the song's; an SMPTE file keeps no map; markers kept are no texts
+  dropped. `Beats` and `Seconds` stay for importing into a song whose tempo stays.
 - **DAWproject** writes the arrangement's `Markers` (name, colour), `TempoAutomation`
   (`RealPoint`s on the transport's tempo parameter; a ramp `linear`, a held point `hold`)
   and `TimeSignatureAutomation` (`TimeSignaturePoint`s), valid against the official schema,
-  and reads them back (in beats or seconds); markers inside lanes or clips are still
-  counted as dropped (nowhere to go).
+  and reads them back. Times in seconds are placed through the file's own map — its tempo
+  points one after another, then every clip, note, marker and metre (review 2) — a ramp
+  written in seconds becomes one linear in beats (reported); two points at one time are a
+  jump (the later wins); the lane's `unit` is read (`normalized` through the transport's
+  tempo range, another dropped with a report). Markers inside lanes or clips are still
+  counted as dropped (nowhere to go). **MIDI export** keeps the markers at and after the
+  music's end.
 - **The AI bridge** sees every tempo point, metre change and marker in its context and has
   a `set_tempo_point` tool (an ordinary, undoable command).
 
@@ -165,6 +201,14 @@ All of it is our own code in the MPL crates; the closed forms are textbook calcu
   Splitting at the automation grid (16 samples) instead would multiply the passes by ~16:
   rejected — the per-pass tempo with `tempo_inc` is exact for the engine's own timing and
   within a sixtieth of a beat's tempo change for the units.
+- **Latent inserts in a ramp** (review 2,
+  `tempo_review2::measure_the_passes_of_latent_inserts_in_a_ramp`, the demo over a
+  90→140 ramp, every strip behind a look-ahead limiter and an equaliser, 512-sample
+  blocks, ten seconds): one tempo 938 passes; the
+  ramp with nothing late 1 193; with the latent inserts and no unit that follows the song
+  **1 193** (1 703 before review 2 cut only for followers); with a synced tremolo too
+  1 448 (1 703 before). At the measured 1.8 % per 16 % more passes, a mix of latent
+  plug-ins and no synced unit costs nothing more in a ramp.
 - **Accuracy**: seconds ↔ ticks inverse within 1e-9 s over 300 random maps of up to 8
   points (tempos 20–999); a ramp's closed form within 1e-9 s of Simpson's rule; an event
   after a ramp due at the analytic sample, to the sample; a loop over a tempo change

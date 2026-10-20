@@ -19,12 +19,15 @@
 //!   turns that into a figure per plug-in twice a second.
 
 use super::{changes, settle_new, HostNotice, PluginHost};
-use crate::backend::{AudioSetup, AudioThread, Backend, Format, MainThread, ParamOut, PluginInfo};
+use crate::backend::{
+    AudioSetup, AudioThread, Backend, Blame, Format, HostError, MainThread, ParamOut, PluginInfo,
+};
 use crate::bridge::{group_key, BridgedBackend, Sandboxes};
 use crate::unit::CpuMeter;
 use cantus_core::{EffectId, PluginIsolation, PluginState, Project, TrackId};
 use cantus_engine::EngineHandle;
 use std::collections::BTreeMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -33,6 +36,53 @@ pub(crate) struct Instance {
     pub main: Box<dyn MainThread>,
     pub audio: Box<dyn AudioThread>,
     pub isolation: PluginIsolation,
+}
+
+/// Why a plug-in could not be loaded, and whether its helper died doing it (a crash, not
+/// a refusal: counted, told as a crash, and reloadable — review #15).
+#[derive(Clone, Debug)]
+pub(crate) struct Failed {
+    pub why: String,
+    pub crashed: bool,
+}
+
+impl From<String> for Failed {
+    fn from(why: String) -> Self {
+        Failed {
+            why,
+            crashed: false,
+        }
+    }
+}
+
+impl From<&str> for Failed {
+    fn from(why: &str) -> Self {
+        Failed::from(why.to_string())
+    }
+}
+
+impl From<Failed> for String {
+    fn from(f: Failed) -> Self {
+        f.why
+    }
+}
+
+/// A plug-in that could not be loaded: why, where it was tried, whether that was a crash.
+#[derive(Clone, Debug)]
+pub(crate) struct Missing {
+    /// The instrument's key ([`cantus_engine::hosted_key`]); 0 for an insert.
+    pub key: u64,
+    pub error: String,
+    /// Where it was tried: a choice that changes tries again (review #15).
+    pub isolation: PluginIsolation,
+    pub crashed: bool,
+}
+
+/// A plug-in that stopped working during an offline render (review #6, #47).
+#[derive(Clone, Debug, PartialEq)]
+pub struct RenderFailure {
+    pub name: String,
+    pub reason: String,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -150,9 +200,16 @@ impl PluginHost {
             (Some(group), Some(pool)) => Some((
                 Box::new(BridgedBackend {
                     format: info.format,
-                    group,
+                    // A render's instances run in helpers of their own: a crash or a hang
+                    // there never takes the live plug-ins down with it (review #47).
+                    group: if offline {
+                        format!("render-{group}")
+                    } else {
+                        group
+                    },
                     pool,
                     offline,
+                    cancel: offline.then(|| self.render_cancel.clone()),
                 }),
                 isolation,
             )),
@@ -170,11 +227,14 @@ impl PluginHost {
         values: &BTreeMap<u32, f64>,
         setup: AudioSetup,
         offline: bool,
-    ) -> Result<Instance, String> {
+    ) -> Result<Instance, Failed> {
         let (backend, isolation) = self
             .backend_for_plugin(info, chosen, offline)
-            .ok_or_else(|| "format not hosted".to_string())?;
-        let loaded = backend.load(info, setup).map_err(|e| e.to_string())?;
+            .ok_or_else(|| Failed::from("format not hosted"))?;
+        let loaded = backend.load(info, setup).map_err(|e| Failed {
+            crashed: matches!(e, HostError::Crashed(_)),
+            why: e.to_string(),
+        })?;
         let mut main = loaded.main;
         if !state.is_empty() {
             if let Err(e) = main.load_state(state.bytes()) {
@@ -191,7 +251,7 @@ impl PluginHost {
             values,
             backend.as_ref(),
         )
-        .ok_or_else(|| "it could not restart after its state was loaded".to_string())?;
+        .ok_or_else(|| Failed::from("it could not restart after its state was loaded"))?;
         Ok(Instance {
             main,
             audio,
@@ -207,14 +267,46 @@ impl PluginHost {
         }
     }
 
-    /// A plug-in stopped working: counted this session and in the database.
-    pub(crate) fn count_crash(&mut self, info: &PluginInfo) {
-        *self
-            .crash_counts
-            .entry((info.format, info.id.clone()))
-            .or_default() += 1;
-        self.db.remember_crash(info);
-        self.save_db();
+    /// A plug-in stopped working: counted this session and remembered in the database when
+    /// it was its own doing; when nothing says whose it was, counted once per helper death
+    /// (`pid`) this session, not remembered; a neighbour of the one that did is neither
+    /// (review #25, #49).
+    pub(crate) fn count_crash(&mut self, info: &PluginInfo, blame: Blame, pid: Option<u32>) {
+        let count = match blame {
+            Blame::This => {
+                self.db.remember_crash(info);
+                self.save_db();
+                true
+            }
+            Blame::Unknown => {
+                self.unknown_counted
+                    .insert((pid.unwrap_or(0), info.format, info.id.clone()))
+            }
+            Blame::Neighbour => false,
+        };
+        if count {
+            *self
+                .crash_counts
+                .entry((info.format, info.id.clone()))
+                .or_default() += 1;
+        }
+    }
+
+    /// Whether a crashed slot's plug-in is the one its helper's end is laid on (or nothing
+    /// says otherwise): the one *Run individually* is offered for (review #49).
+    pub fn crash_culprit(&self, effect: EffectId) -> bool {
+        match self.slots.get(&effect) {
+            Some(h) => h.blame != Some(Blame::Neighbour),
+            None => true,
+        }
+    }
+
+    /// [`Self::crash_culprit`] for a track's hosted instrument.
+    pub fn instrument_crash_culprit(&self, track: TrackId) -> bool {
+        match self.instruments.get(&track) {
+            Some(h) => h.blame != Some(Blame::Neighbour),
+            None => true,
+        }
     }
 
     /// How many times `info`'s plug-in crashed in this session.
@@ -225,16 +317,28 @@ impl PluginHost {
             .unwrap_or(0)
     }
 
-    /// Whether a slot's plug-in has stopped working, and why.
+    /// Whether a slot's plug-in has stopped working (or crashed while it loaded), and why.
     pub fn crashed(&self, effect: EffectId) -> Option<&str> {
-        self.slots.get(&effect).and_then(|h| h.crashed.as_deref())
+        match self.slots.get(&effect) {
+            Some(h) => h.crashed.as_deref(),
+            None => self
+                .missing
+                .get(&effect)
+                .filter(|m| m.crashed)
+                .map(|m| m.error.as_str()),
+        }
     }
 
     /// Whether a track's hosted instrument has stopped working, and why.
     pub fn instrument_crashed(&self, track: TrackId) -> Option<&str> {
-        self.instruments
-            .get(&track)
-            .and_then(|h| h.crashed.as_deref())
+        match self.instruments.get(&track) {
+            Some(h) => h.crashed.as_deref(),
+            None => self
+                .inst_missing
+                .get(&track)
+                .filter(|m| m.crashed)
+                .map(|m| m.error.as_str()),
+        }
     }
 
     /// Every crashed slot and instrument.
@@ -264,8 +368,12 @@ impl PluginHost {
         engine: &mut EngineHandle,
         effect: EffectId,
     ) -> Result<(), String> {
-        let (_, slot) = super::find_slot(project, effect).ok_or("no such slot")?;
+        let (strip, slot) = super::find_slot(project, effect).ok_or("no such slot")?;
         let plugin = slot.spec.external.as_deref().ok_or("not a hosted slot")?;
+        if !self.slots.contains_key(&effect) && self.missing.remove(&effect).is_some() {
+            // It never loaded (it crashed loading): loaded now, as `sync` would.
+            return self.load_missing(strip, slot, plugin, engine);
+        }
         let mut old = self.slots.remove(&effect).ok_or("not loaded")?;
         old.close_window_now();
         let state = old
@@ -282,6 +390,7 @@ impl PluginHost {
                 self.retire(gone);
                 old.isolation = inst.isolation;
                 old.crashed = None;
+                old.blame = None;
                 old.restarting = false;
                 old.params = old.main.params();
                 old.synced_state = plugin.state.clone();
@@ -294,7 +403,43 @@ impl PluginHost {
             }
             Err(e) => {
                 self.slots.insert(effect, old);
-                Err(e)
+                Err(e.why)
+            }
+        }
+    }
+
+    /// A slot whose plug-in never loaded, loaded now and put in the engine.
+    fn load_missing(
+        &mut self,
+        strip: cantus_core::StripId,
+        slot: &cantus_core::EffectSlot,
+        plugin: &cantus_core::ExternalPlugin,
+        engine: &mut EngineHandle,
+    ) -> Result<(), String> {
+        match self.load_for(strip, slot, plugin) {
+            Ok(mut h) => {
+                if let Some(audio) = h.audio.take() {
+                    let unit = self.make_unit(&mut h, audio, slot);
+                    if engine.knows_effect(slot.id) {
+                        engine.replace_unit(unit);
+                    } else {
+                        engine.add_unit(unit);
+                    }
+                }
+                self.slots.insert(slot.id, h);
+                Ok(())
+            }
+            Err(f) => {
+                self.missing.insert(
+                    slot.id,
+                    Missing {
+                        key: 0,
+                        error: f.why.clone(),
+                        isolation: self.effective_isolation(plugin.isolation),
+                        crashed: f.crashed,
+                    },
+                );
+                Err(f.why)
             }
         }
     }
@@ -310,6 +455,33 @@ impl PluginHost {
             .track(track)
             .and_then(|t| t.instrument.external())
             .ok_or("not a hosted instrument")?;
+        if !self.instruments.contains_key(&track) && self.inst_missing.remove(&track).is_some() {
+            // It never loaded (it crashed loading): loaded now, as `sync` would.
+            let key = cantus_engine::hosted_key(plugin);
+            return match self.load_instrument(track, plugin, key) {
+                Ok(mut h) => {
+                    if let Some(audio) = h.audio.take() {
+                        let rate = self.setup.sample_rate;
+                        let unit = super::inst::make_unit(&mut h, track, audio, rate);
+                        super::inst::deliver(engine, unit);
+                    }
+                    self.instruments.insert(track, h);
+                    Ok(())
+                }
+                Err(f) => {
+                    self.inst_missing.insert(
+                        track,
+                        Missing {
+                            key,
+                            error: f.why.clone(),
+                            isolation: self.effective_isolation(plugin.isolation),
+                            crashed: f.crashed,
+                        },
+                    );
+                    Err(f.why)
+                }
+            };
+        }
         let mut old = self.instruments.remove(&track).ok_or("not loaded")?;
         old.close_window_now();
         let state = old
@@ -326,6 +498,7 @@ impl PluginHost {
                 self.retire(gone);
                 old.isolation = inst.isolation;
                 old.crashed = None;
+                old.blame = None;
                 old.restarting = false;
                 old.params = old.main.params();
                 old.synced_state = plugin.state.clone();
@@ -338,7 +511,7 @@ impl PluginHost {
             }
             Err(e) => {
                 self.instruments.insert(track, old);
-                Err(e)
+                Err(e.why)
             }
         }
     }
@@ -386,13 +559,111 @@ impl PluginHost {
         self.instruments.get(&track).map(|h| h.isolation)
     }
 
-    /// Blocks every isolated plug-in passed without it because it was late, since loaded:
-    /// shown beside the engine's own drop counts.
+    /// For the interface's tests: marks a hosted slot (`Some(effect)`) or a track's hosted
+    /// instrument (with its [`cantus_engine::hosted_key`]) as stopped — as a plug-in that crashed while it loaded — and counts
+    /// `times` crashes of the plug-in (`format`, `id`) this session. The application never
+    /// calls it.
+    #[doc(hidden)]
+    pub fn mark_crashed_for_tests(
+        &mut self,
+        target: (Option<EffectId>, Option<(TrackId, u64)>),
+        (format, id): (Format, &str),
+        reason: &str,
+        times: u32,
+    ) {
+        let missing = Missing {
+            key: 0,
+            error: reason.to_string(),
+            isolation: self.default_isolation,
+            crashed: true,
+        };
+        if let Some(e) = target.0 {
+            self.slots.remove(&e);
+            self.missing.insert(e, missing.clone());
+        }
+        if let Some((t, key)) = target.1 {
+            self.instruments.remove(&t);
+            self.inst_missing.insert(t, Missing { key, ..missing });
+        }
+        *self
+            .crash_counts
+            .entry((format, id.to_string()))
+            .or_default() += times;
+    }
+
+    /// The plug-ins of the running render (export, stems, bake) that stopped working
+    /// during it: a render that lost one must not be reported done (review #6, #47).
+    /// Asked before [`Self::finish_render`].
+    pub fn render_failures(&self) -> Vec<RenderFailure> {
+        self.render_mains
+            .iter()
+            .filter_map(|m| {
+                m.stopped().map(|(reason, _)| RenderFailure {
+                    name: m.info().name.clone(),
+                    reason,
+                })
+            })
+            .collect()
+    }
+
+    /// Stops the running render's isolated plug-ins from being waited for (the export's
+    /// Stop): a hung one ends with its helper instead of holding the render (review #1).
+    pub fn cancel_render(&self) {
+        self.render_cancel
+            .store(true, std::sync::atomic::Ordering::Release);
+    }
+
+    pub(crate) fn fresh_render_cancel(&mut self) {
+        if self.render_mains.is_empty() {
+            self.render_cancel = Arc::new(AtomicBool::new(false));
+        }
+    }
+
+    /// Jobs of isolated plug-ins that missed their deadline, since loaded: shown beside the
+    /// engine's own drop counts.
     pub fn late_blocks(&self) -> u64 {
         self.slots
             .values()
             .map(|h| h.main.late_blocks())
             .chain(self.instruments.values().map(|h| h.main.late_blocks()))
             .sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::{PluginInfo, PluginKind};
+    use crate::scan::ScanReport;
+
+    /// A crash recorded (or forgotten) while a background scan ran survives the scan's
+    /// result being taken (review #18, #52).
+    #[test]
+    fn a_scan_keeps_the_crash_records_made_while_it_ran() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        let before_scan = host.db.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        host.scan_job = Some(rx);
+        let info = PluginInfo {
+            format: Format::Clap,
+            id: "com.example.glacier".into(),
+            name: "Glacier".into(),
+            vendor: "Example".into(),
+            version: String::new(),
+            path: std::path::PathBuf::new(),
+            kind: PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        };
+        host.count_crash(&info, Blame::This, None);
+        tx.send((before_scan, ScanReport::default())).unwrap();
+        let mut bus = cantus_core::CommandBus::new(Project::new("scan"));
+        let mut engine = EngineHandle::dummy();
+        let _ = host.idle(&mut bus, &mut engine);
+        assert!(host.scan_job.is_none(), "the scan's result was taken");
+        assert!(host.db.crash_record(Format::Clap, &info.id).is_some());
     }
 }

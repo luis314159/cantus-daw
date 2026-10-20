@@ -534,6 +534,7 @@ fn a_split_keeps_the_group_unless_it_changes_the_content() {
     let link = clip(&bus, tracks[0], a).link;
     let mut ids = Counter::of(&bus);
     let cmds = clipboard::split(
+        bus.project(),
         tracks[1],
         &clip(&bus, tracks[1], b),
         Ticks::beats(10),
@@ -574,6 +575,7 @@ fn a_split_keeps_the_group_unless_it_changes_the_content() {
     let sib = linked_copy(&mut bus, tracks[0], aid, tracks[0], Ticks::beats(40));
     let mut ids = Counter::of(&bus);
     let cmds = clipboard::split(
+        bus.project(),
         tracks[0],
         &clip(&bus, tracks[0], aid),
         Ticks::beats(34),

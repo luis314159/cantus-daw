@@ -602,3 +602,58 @@ fn a_baked_route_keeps_the_modulation_of_its_amount() {
         .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
     assert!(worst < 0.01 * peak, "{worst} of {peak}");
 }
+
+/// Review 2 (finding 25): *Bake* under a tempo track — through a ramp from 120 to 60 BPM —
+/// renders what the modulator rendered: an envelope opened by the lead's notes and a 1 Hz
+/// LFO retriggered by them, both measured in the map's seconds by the bake as by the
+/// engine.
+#[test]
+fn a_baked_route_renders_what_the_modulator_did_through_a_ramp() {
+    use cantus_core::modulator::bake::bake;
+    use cantus_core::tempo::TempoPoint;
+    let pt = |b: i64, bpm: f64, ramp: bool| TempoPoint {
+        tick: Ticks::beats(b),
+        bpm,
+        ramp,
+    };
+    for kind in [ModKind::Envelope, ModKind::Lfo] {
+        let mut p = base_project();
+        p.tempo_points = vec![pt(0, 120.0, false), pt(4, 120.0, true), pt(12, 60.0, false)];
+        let lead = p.tracks[0].id;
+        let organ_strip = p.tracks[1].strip.unwrap();
+        let target = AutoTarget::StripPan(organ_strip);
+        let id = add(
+            &mut p,
+            ModHost::Track(lead),
+            kind,
+            vec![(target.clone(), 0.6)],
+        );
+        edit(&mut p, id, |m| match &mut m.source {
+            ModSource::Lfo(l) => {
+                l.rate = ModRate::Hz { hz: 1.0 };
+                l.retrigger = Retrigger::Note;
+            }
+            ModSource::Envelope(e) => {
+                e.attack_ms = 120.0;
+                e.decay_ms = 200.0;
+                e.sustain = 0.3;
+                e.release_ms = 400.0;
+            }
+            _ => {}
+        });
+        let (from, to) = (Ticks::ZERO, Ticks::beats(16));
+        let modulated = render(snap(&p), &opts(512)).unwrap().samples;
+        let pts = bake(&p, id, &target, from, to, Ticks::ZERO, None, None).unwrap();
+        let mut baked = p.clone();
+        edit(&mut baked, id, |m| m.routes.clear());
+        let c = baked.make_automation_clip("baked", target.clone(), from, to - from, pts);
+        baked.tracks[1].clips.push(c);
+        let out = render(snap(&baked), &opts(512)).unwrap().samples;
+        let peak = modulated.iter().fold(0f32, |m, x| m.max(x.abs()));
+        let worst = modulated
+            .iter()
+            .zip(&out)
+            .fold(0f32, |m, (a, b)| m.max((a - b).abs()));
+        assert!(worst < 0.01 * peak, "{kind:?}: {worst} of {peak}");
+    }
+}

@@ -301,7 +301,7 @@ fn split_trim_and_glue_keep_a_takes_fine_offset() {
         next += 1;
         next - 1
     };
-    let cmds = clips::split(t, &clip, Ticks::beats(1), &mut ids).unwrap();
+    let cmds = clips::split(a.project(), t, &clip, Ticks::beats(1), &mut ids).unwrap();
     a.bus.reserve_ids(next);
     a.exec(cantus_core::Command::Batch {
         label_key: "cmd.split".into(),

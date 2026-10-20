@@ -49,8 +49,8 @@ impl PluginHost {
                         self.capture_instrument_changes(bus, track);
                     }
                     Notice::StateDirty => self.capture_instrument_changes(bus, track),
-                    Notice::Crashed { reason } => {
-                        if let Some(n) = self.on_instrument_crash(track, reason) {
+                    Notice::Crashed { reason, blame } => {
+                        if let Some(n) = self.on_instrument_crash(track, reason, blame) {
                             notices.push(n);
                         }
                     }
@@ -68,6 +68,17 @@ impl PluginHost {
                             notices.push(HostNotice::InstrumentWindowClosed(track));
                         }
                     }
+                }
+            }
+            // Stopped without a notice reaching here (it died while loading a state, say).
+            let stopped = self
+                .instruments
+                .get(&track)
+                .filter(|h| h.crashed.is_none())
+                .and_then(|h| h.main.stopped());
+            if let Some((reason, blame)) = stopped {
+                if let Some(n) = self.on_instrument_crash(track, reason, blame) {
+                    notices.push(n);
                 }
             }
             if let Some(n) = self.continue_instrument_restart(engine, track) {
@@ -95,20 +106,28 @@ impl PluginHost {
         }
     }
 
-    /// A track's instrument stopped working: marked, counted, its window gone, told once.
-    fn on_instrument_crash(&mut self, track: TrackId, reason: String) -> Option<HostNotice> {
+    /// A track's instrument stopped working: marked, counted as its blame says, its window
+    /// gone, told once.
+    fn on_instrument_crash(
+        &mut self,
+        track: TrackId,
+        reason: String,
+        blame: crate::backend::Blame,
+    ) -> Option<HostNotice> {
         let h = self.instruments.get_mut(&track)?;
         if h.crashed.is_some() {
             return None;
         }
         h.crashed = Some(reason.clone());
+        h.blame = Some(blame);
         h.restarting = false;
         if let Some(w) = h.window.take() {
             #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
             drop(w);
         }
         let info = h.info.clone();
-        self.count_crash(&info);
+        let pid = h.main.isolated_in();
+        self.count_crash(&info, blame, pid);
         Some(HostNotice::InstrumentCrashed {
             track,
             name: info.name,
@@ -275,7 +294,10 @@ impl PluginHost {
                     Err(error) => {
                         h.restarting = false;
                         self.instruments.insert(track, h);
-                        return Some(HostNotice::InstrumentRestartFailed { track, error });
+                        return Some(HostNotice::InstrumentRestartFailed {
+                            track,
+                            error: error.why,
+                        });
                     }
                 }
             }
@@ -328,6 +350,7 @@ impl PluginHost {
     /// `cantus_engine::render_with_instruments`. Their main halves stay here until
     /// [`Self::finish_render`].
     pub fn render_instruments(&mut self, project: &Project, sample_rate: f64) -> Vec<NativeUnit> {
+        self.fresh_render_cancel();
         let setup = AudioSetup {
             sample_rate,
             max_block: MAX_BLOCK_FRAMES,

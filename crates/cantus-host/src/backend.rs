@@ -153,7 +153,22 @@ pub enum Notice {
     /// answers from now on. Said once.
     Crashed {
         reason: String,
+        /// Whether it was this plug-in that crashed or hung its process (review #49).
+        blame: Blame,
     },
+}
+
+/// Who an isolated plug-in's helper's end is laid on (round 29, review #49): the plug-in
+/// that crashed or hung it, so a neighbour that merely shared its process is neither
+/// counted nor remembered for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Blame {
+    /// This instance was running when its helper died.
+    This,
+    /// Another instance of its helper was.
+    Neighbour,
+    /// Nothing says which.
+    Unknown,
 }
 
 /// Everything called on the main (UI) thread.
@@ -246,6 +261,13 @@ pub trait MainThread: Send {
     /// deadline), since it was loaded.
     fn late_blocks(&self) -> u64 {
         0
+    }
+
+    /// Whether it has stopped working (an isolated plug-in whose helper ended), why, and
+    /// whether that was its own doing — asked any time, so a crash during a load or a
+    /// state that no `idle` reported is seen too (review #45). `None` while it works.
+    fn stopped(&self) -> Option<(String, Blame)> {
+        None
     }
 }
 
@@ -389,8 +411,12 @@ pub struct TransportInfo {
     /// now (the synced-phase clock; see `position_seconds` for real time).
     pub position_samples: i64,
     /// Position at the block's first sample, in seconds from the song start through the
-    /// tempo map: real time (CLAP's seconds timeline, VST3's `projectTimeSamples`).
+    /// tempo map: real time (CLAP's seconds timeline).
     pub position_seconds: f64,
+    /// Position at the block's first sample, in real samples from the song start through
+    /// the tempo map, rounded once (VST3's `projectTimeSamples`; at one tempo exactly the
+    /// value every project before round 29 told — review 2).
+    pub project_samples: i64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
     /// The current bar's 0-based index, counted through every metre change.

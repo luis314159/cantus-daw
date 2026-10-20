@@ -37,7 +37,7 @@ pub use backend::*;
 pub use db::{CrashRecord, DbEntry, PluginDb, ScanStatus};
 pub use inst_unit::HostedInstrument;
 pub use scan::{ScanReport, Scanner};
-pub use session::{HostNotice, HostedInst, PluginHost};
+pub use session::{HostNotice, HostedInst, PluginHost, RenderFailure};
 pub use unit::HostedUnit;
 
 /// Marks the calling thread as the main thread to the plug-ins: the one that loads them and

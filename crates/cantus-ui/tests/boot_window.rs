@@ -180,7 +180,8 @@ fn the_window_services_live_on_the_boot_path_not_only_in_new() {
     let services = body
         .find("start_window_services(")
         .expect("assemble starts the window's services");
-    let parts = body.find("Self::from_parts(").expect("from_parts");
+    // `from_parts` or `from_parts_with` (round 29: the isolation default goes in first).
+    let parts = body.find("Self::from_parts").expect("from_parts");
     assert!(
         services < parts,
         "before the first snapshot (from_parts syncs the engine)"

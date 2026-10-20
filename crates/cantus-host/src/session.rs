@@ -15,8 +15,8 @@
 //! - gives the project to save with every plug-in's current state in it.
 
 use crate::backend::{
-    AudioSetup, AudioThread, Backend, HostError, MainThread, Notice, ParamChange, ParamEvent,
-    ParamInfo, ParamOut, PluginInfo,
+    AudioSetup, AudioThread, Backend, Blame, HostError, MainThread, Notice, ParamChange,
+    ParamEvent, ParamInfo, ParamOut, PluginInfo,
 };
 use crate::db::PluginDb;
 use crate::scan::{ScanReport, Scanner};
@@ -41,7 +41,7 @@ mod inst_idle;
 mod iso;
 
 pub use inst::HostedInst;
-pub use iso::CpuFigure;
+pub use iso::{CpuFigure, RenderFailure};
 
 /// Something the application should know about.
 #[derive(Clone, Debug, PartialEq)]
@@ -114,6 +114,8 @@ pub struct Hosted {
     pub(crate) isolation: PluginIsolation,
     /// Why it stopped working, while it has.
     pub(crate) crashed: Option<String>,
+    /// Whose doing its helper's end was, while it has stopped.
+    pub(crate) blame: Option<Blame>,
     pub(crate) cpu: iso::CpuWatch,
 }
 
@@ -139,6 +141,7 @@ impl Hosted {
             window: None,
             isolation,
             crashed: None,
+            blame: None,
             cpu: iso::CpuWatch::default(),
         }
     }
@@ -216,8 +219,9 @@ pub struct PluginHost {
     slots: HashMap<EffectId, Hosted>,
     /// State of plug-ins unloaded because their slot left the project.
     parked: HashMap<EffectId, PluginState>,
-    /// Hosted slots whose plug-in could not be loaded, and why.
-    missing: HashMap<EffectId, String>,
+    /// Hosted slots whose plug-in could not be loaded: why, where it was tried, whether it
+    /// crashed doing it.
+    missing: HashMap<EffectId, iso::Missing>,
     scan_job: Option<mpsc::Receiver<(PluginDb, ScanReport)>>,
     /// Instances loaded for an offline render, kept until it has finished.
     render_mains: Vec<Box<dyn MainThread>>,
@@ -227,8 +231,9 @@ pub struct PluginHost {
     instruments: HashMap<cantus_core::TrackId, HostedInst>,
     /// State of instruments unloaded because their track left them, by track and plug-in.
     inst_parked: HashMap<(cantus_core::TrackId, u64), PluginState>,
-    /// Tracks whose hosted instrument could not be loaded: the plug-in's key, and why.
-    inst_missing: HashMap<cantus_core::TrackId, (u64, String)>,
+    /// Tracks whose hosted instrument could not be loaded: the plug-in's key, why, where
+    /// it was tried, whether it crashed doing it.
+    inst_missing: HashMap<cantus_core::TrackId, iso::Missing>,
     /// Every parameter command a plug-in's own window ran since the application last took
     /// them ([`PluginHost::take_tweaks`]): what it records as automation and calls *last
     /// tweaked* (ADR 0057) — all of them, not only a frame's last (review 1).
@@ -240,6 +245,11 @@ pub struct PluginHost {
     pub default_isolation: PluginIsolation,
     /// Crashes this session, per plug-in (format, id).
     crash_counts: HashMap<(crate::backend::Format, String), u32>,
+    /// Helper deaths nothing laid on one plug-in, counted once per plug-in: (helper's
+    /// process id, format, id).
+    unknown_counted: HashSet<(u32, crate::backend::Format, String)>,
+    /// The running render's stop ([`Self::cancel_render`]).
+    render_cancel: Arc<std::sync::atomic::AtomicBool>,
     /// Isolation was asked and the helper is missing; told once.
     isolation_missing: bool,
     told_missing: bool,
@@ -352,6 +362,8 @@ impl PluginHost {
             )),
             default_isolation: PluginIsolation::Within,
             crash_counts: HashMap::new(),
+            unknown_counted: HashSet::new(),
+            render_cancel: Arc::default(),
             isolation_missing: false,
             told_missing: false,
             retired: Vec::new(),
@@ -373,7 +385,7 @@ impl PluginHost {
 
     /// Why a hosted slot has no plug-in, if it has none.
     pub fn missing(&self, effect: EffectId) -> Option<&str> {
-        self.missing.get(&effect).map(String::as_str)
+        self.missing.get(&effect).map(|m| m.error.as_str())
     }
 
     /// Loaded plug-ins: inserts and instruments.
@@ -524,13 +536,13 @@ impl PluginHost {
         strip: StripId,
         slot: &EffectSlot,
         plugin: &ExternalPlugin,
-    ) -> Result<Hosted, String> {
+    ) -> Result<Hosted, iso::Failed> {
         let format = from_project_format(plugin.format);
         let info = self
             .db
             .find(format, &plugin.id)
             .cloned()
-            .ok_or_else(|| "not installed on this computer".to_string())?;
+            .ok_or_else(|| iso::Failed::from("not installed on this computer"))?;
         let state = self
             .parked
             .remove(&slot.id)
@@ -589,41 +601,35 @@ impl PluginHost {
                 continue;
             }
             seen.insert(slot.id);
-            if self.missing.contains_key(&slot.id) {
-                continue;
+            let runs = self.effective_isolation(plugin.isolation);
+            // A plug-in that failed where it was tried waits — unless where it runs changed:
+            // then it is tried there (review #15).
+            match self.missing.get(&slot.id) {
+                Some(m) if m.isolation == runs => continue,
+                Some(_) => {
+                    self.missing.remove(&slot.id);
+                }
+                None => {}
             }
             if !self.slots.contains_key(&slot.id) {
                 match self.load_for(host, slot, plugin) {
                     Ok(h) => {
                         self.slots.insert(slot.id, h);
                     }
-                    Err(error) => {
-                        log::warn!("plug-in {}: {error}", plugin.name);
-                        self.missing.insert(slot.id, error.clone());
-                        notices.push(HostNotice::LoadFailed {
-                            effect: slot.id,
-                            name: plugin.name.clone(),
-                            error,
-                        });
+                    Err(failed) => {
+                        notices.push(self.load_failed(slot.id, plugin, runs, failed));
                         continue;
                     }
                 }
             }
             // Where it runs changed (its choice, or the machine's default): moved there.
-            let runs = self.effective_isolation(plugin.isolation);
             if self
                 .slots
                 .get(&slot.id)
                 .is_some_and(|h| h.isolation != runs && !h.restarting)
             {
-                if let Err(error) = self.move_plugin(slot, plugin, engine) {
-                    log::warn!("plug-in {}: {error}", plugin.name);
-                    self.missing.insert(slot.id, error.clone());
-                    notices.push(HostNotice::LoadFailed {
-                        effect: slot.id,
-                        name: plugin.name.clone(),
-                        error,
-                    });
+                if let Err(failed) = self.move_plugin(slot, plugin, engine) {
+                    notices.push(self.load_failed(slot.id, plugin, runs, failed));
                     continue;
                 }
             }
@@ -680,6 +686,44 @@ impl PluginHost {
         notices
     }
 
+    /// A slot's plug-in could not be loaded where it runs: kept as missing; told as a
+    /// crash (counted, reloadable) when its helper died doing it, else as a failure.
+    fn load_failed(
+        &mut self,
+        effect: EffectId,
+        plugin: &ExternalPlugin,
+        runs: PluginIsolation,
+        failed: iso::Failed,
+    ) -> HostNotice {
+        log::warn!("plug-in {}: {}", plugin.name, failed.why);
+        self.missing.insert(
+            effect,
+            iso::Missing {
+                key: 0,
+                error: failed.why.clone(),
+                isolation: runs,
+                crashed: failed.crashed,
+            },
+        );
+        if failed.crashed {
+            let format = from_project_format(plugin.format);
+            if let Some(info) = self.db.find(format, &plugin.id).cloned() {
+                self.count_crash(&info, Blame::This, None);
+            }
+            HostNotice::PluginCrashed {
+                effect,
+                name: plugin.name.clone(),
+                reason: failed.why,
+            }
+        } else {
+            HostNotice::LoadFailed {
+                effect,
+                name: plugin.name.clone(),
+                error: failed.why,
+            }
+        }
+    }
+
     /// Loads a slot's plug-in where it now runs (round 29): its state taken from where it
     /// ran, loaded with the project's values; the new unit replaces the old.
     fn move_plugin(
@@ -687,7 +731,7 @@ impl PluginHost {
         slot: &EffectSlot,
         plugin: &ExternalPlugin,
         engine: &mut EngineHandle,
-    ) -> Result<(), String> {
+    ) -> Result<(), iso::Failed> {
         let mut h = self.slots.remove(&slot.id).ok_or("not loaded")?;
         h.close_window_now();
         let state = h
@@ -711,6 +755,7 @@ impl PluginHost {
         self.retire(old);
         h.isolation = inst.isolation;
         h.crashed = None;
+        h.blame = None;
         h.params = h.main.params();
         h.generation.fetch_add(1, Ordering::AcqRel);
         let unit = self.make_unit(&mut h, inst.audio, slot);
@@ -764,10 +809,13 @@ impl PluginHost {
         if let Some(rx) = &self.scan_job {
             match rx.try_recv() {
                 Ok((db, report)) => {
-                    // Folders the user changed while the scan ran are kept.
+                    // Folders the user changed while the scan ran are kept, and the crash
+                    // records made (or forgotten) meanwhile (review #18, #52).
                     let folders = std::mem::take(&mut self.db.folders);
+                    let crashes = std::mem::take(&mut self.db.crashes);
                     self.db = db;
                     self.db.folders = folders;
+                    self.db.crashes = crashes;
                     self.save_db();
                     self.missing.clear();
                     self.inst_missing.clear();
@@ -807,8 +855,8 @@ impl PluginHost {
                         self.capture_changes(bus, id);
                     }
                     Notice::StateDirty => self.capture_changes(bus, id),
-                    Notice::Crashed { reason } => {
-                        if let Some(n) = self.on_crash(id, reason) {
+                    Notice::Crashed { reason, blame } => {
+                        if let Some(n) = self.on_crash(id, reason, blame) {
                             notices.push(n);
                         }
                     }
@@ -824,6 +872,17 @@ impl PluginHost {
                             notices.push(HostNotice::WindowClosed(id));
                         }
                     }
+                }
+            }
+            // Stopped without a notice reaching here (it died while loading a state, say).
+            let stopped = self
+                .slots
+                .get(&id)
+                .filter(|h| h.crashed.is_none())
+                .and_then(|h| h.main.stopped());
+            if let Some((reason, blame)) = stopped {
+                if let Some(n) = self.on_crash(id, reason, blame) {
+                    notices.push(n);
                 }
             }
             if let Some(n) = self.continue_restart(bus.project(), engine, id) {
@@ -856,13 +915,15 @@ impl PluginHost {
         notices
     }
 
-    /// A slot's plug-in stopped working: marked, counted, its window gone, told once.
-    fn on_crash(&mut self, effect: EffectId, reason: String) -> Option<HostNotice> {
+    /// A slot's plug-in stopped working: marked, counted as its blame says, its window
+    /// gone, told once.
+    fn on_crash(&mut self, effect: EffectId, reason: String, blame: Blame) -> Option<HostNotice> {
         let h = self.slots.get_mut(&effect)?;
         if h.crashed.is_some() {
             return None;
         }
         h.crashed = Some(reason.clone());
+        h.blame = Some(blame);
         h.restarting = false;
         // Its helper made the editor's window, and it is gone with it.
         if let Some(w) = h.window.take() {
@@ -870,7 +931,8 @@ impl PluginHost {
             drop(w);
         }
         let info = h.info.clone();
-        self.count_crash(&info);
+        let pid = h.main.isolated_in();
+        self.count_crash(&info, blame, pid);
         Some(HostNotice::PluginCrashed {
             effect,
             name: info.name,
@@ -1056,7 +1118,10 @@ impl PluginHost {
                     Err(error) => {
                         h.restarting = false;
                         self.slots.insert(effect, h);
-                        return Some(HostNotice::RestartFailed { effect, error });
+                        return Some(HostNotice::RestartFailed {
+                            effect,
+                            error: error.why,
+                        });
                     }
                 }
             }
@@ -1119,6 +1184,7 @@ impl PluginHost {
     /// `cantus_engine::render_with_units`. Their main halves stay here until
     /// [`Self::finish_render`].
     pub fn render_units(&mut self, project: &Project, sample_rate: f64) -> Vec<EffectUnit> {
+        self.fresh_render_cancel();
         let setup = AudioSetup {
             sample_rate,
             max_block: MAX_BLOCK_FRAMES,
@@ -1160,9 +1226,11 @@ impl PluginHost {
         units
     }
 
-    /// The render that [`Self::render_units`] served has finished: its instances go.
+    /// The render that [`Self::render_units`] served has finished: its instances go (ask
+    /// [`Self::render_failures`] first).
     pub fn finish_render(&mut self) {
         self.render_mains.clear();
+        self.fresh_render_cancel();
     }
 
     // ---- windows -------------------------------------------------------------------

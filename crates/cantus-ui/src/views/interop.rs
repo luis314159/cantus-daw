@@ -652,7 +652,10 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
     let (mut import, mut close) = (false, false);
     let p = &d.preview;
     let changes = (p.tempo_points.len() > 1).then(|| (p.tempo_points.len() - 1).to_string());
-    let has_map = p.tempo_points.len() > 1 || !p.metre_changes.is_empty() || !p.markers.is_empty();
+    // Only a file read keeping its map has one to keep (review 2: an SMPTE file's
+    // events all sat at tick 0, and the hint promised a map the import never kept).
+    let has_map = p.tempo_mode == cantus_project::midi::TempoMode::Map
+        && (p.tempo_points.len() > 1 || !p.metre_changes.is_empty() || !p.markers.is_empty());
     let sig = p
         .time_signature
         .unwrap_or(app.project().time_signature)
@@ -687,7 +690,11 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         if form::choice(ui, d.apply_tempo, true, &apply) {
             d.apply_tempo = !d.apply_tempo;
         }
-        if d.apply_tempo && !d.keep_time && has_map {
+        let map_mode = p.tempo_mode == cantus_project::midi::TempoMode::Map;
+        if d.apply_tempo && !d.keep_time && map_mode && bar > 1 {
+            // Dropped later in the song: the file's map starts at that bar (review 2).
+            hint(ui, tf("tempo.midi.map_at", &[("bar", &bar)]));
+        } else if d.apply_tempo && !d.keep_time && has_map {
             hint(ui, t("tempo.midi.map_kept"));
         }
         hint(ui, tf("interop.midi_import.at", &[("bar", &bar)]));

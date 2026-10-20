@@ -236,6 +236,7 @@ pub(super) fn paint_body(
             bottom: inner.bottom() - pad,
             clip_left: visible.left().max(inner.left()),
             clip_right: visible.right().min(inner.right()),
+            origin: shift,
         };
         if first {
             st.drawn.push(Drawn {
@@ -667,8 +668,9 @@ fn dragged(app: &CantusApp, g: &PointDrag, f: &Frame, pos: Pos2, off_grid: bool)
         Grab::Point(i) if i < a.points.len() => {
             let raw = f.tick(pos.x).max(0.0);
             let mut tick = Ticks(raw.round() as i64);
+            // Content ticks, on the bars of the timeline the clip lies on (review 2).
             if app.arrangement.snap && !off_grid {
-                tick = crate::views::bars::snap(app.project(), tick, app.arrangement.grid);
+                tick = curve::snap_point(app.project(), f.origin, tick, app.arrangement.grid);
             }
             // A point stays between its neighbours: the order is the curve.
             let lo = if i > 0 {

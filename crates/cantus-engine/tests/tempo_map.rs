@@ -410,34 +410,94 @@ fn a_late_synced_unit_hears_the_steps_at_every_block_size() {
     }
 }
 
-/// Review 1 (finding 18): an offline render's length and its stop sample are measured
-/// through the map — a range to beat 6 over the ramp is the map's seconds long (plus the
-/// tail), and a note starting exactly at its end is not heard.
+/// Review 1 (finding 18), review 2 (finding 21): an offline render's length and its stop
+/// sample are measured through the map — a range to beat 6 over the ramp is the map's
+/// seconds long plus the tail; a note exactly at its end is never heard (a half-second tail
+/// would hear it), and a note one tick before it sounds from the map's sample. The stems
+/// and a modulator's trace run the same length.
 #[test]
 fn a_rendered_range_is_as_long_as_the_map_says() {
-    let mut p = with_tempo(Project::new("range"));
-    p.loop_enabled = false;
-    let mut t = p.make_track("Square");
-    t.instrument.firmus_mut().unwrap().osc1_wave = Waveform::Square;
-    let mut clip = p.make_clip("n", Ticks::ZERO, Ticks::beats(8));
-    clip.notes
-        .push(p.make_note(Ticks::beats(6), Ticks::QUARTER, 60, 120));
-    t.clips.push(clip);
-    p.tracks.push(t);
+    let song = |at: Ticks| {
+        let mut p = with_tempo(Project::new("range"));
+        p.loop_enabled = false;
+        let mut t = p.make_track("Square");
+        t.instrument.firmus_mut().unwrap().osc1_wave = Waveform::Square;
+        let mut clip = p.make_clip("n", Ticks::ZERO, Ticks::beats(8));
+        clip.notes.push(p.make_note(at, Ticks::QUARTER, 60, 120));
+        t.clips.push(clip);
+        p.tracks.push(t);
+        p
+    };
+    let end = Ticks::beats(6);
     let opts = RenderOptions {
-        end: Some(Ticks::beats(6)),
-        tail_seconds: 0.0,
+        end: Some(end),
+        tail_seconds: 0.5,
         block_frames: 128,
         ..Default::default()
     };
-    let out = render(Arc::new(Snapshot::compile(&p, 1)), &opts)
+    let on_end = song(end);
+    let map = on_end.tempo_map();
+    let out = render(Arc::new(Snapshot::compile(&on_end, 1)), &opts)
         .unwrap()
         .samples;
-    let want = (p.tempo_map().seconds_between(Ticks::ZERO, Ticks::beats(6)) * SR).ceil() as usize;
+    let seconds = map.seconds_between(Ticks::ZERO, end);
+    let want = ((seconds + 0.5) * SR).ceil() as usize;
     assert_eq!(out.len() / 2, want);
     assert!(
         out.iter().all(|x| *x == 0.0),
-        "the note at the end never sounds"
+        "the note at the end never sounds, tail and all"
+    );
+    let before = song(end - Ticks(1));
+    let out = render(Arc::new(Snapshot::compile(&before, 1)), &opts)
+        .unwrap()
+        .samples;
+    let at = map.sample_at((end - Ticks(1)).0 as f64, SR).ceil() as usize;
+    assert!(
+        out[..2 * at].iter().all(|x| *x == 0.0),
+        "nothing before the note"
+    );
+    let heard = onset(&out, at, 1e-4).expect("the note one tick before the end sounds");
+    assert!(
+        heard - at < 64,
+        "it starts at the map's sample {at}, heard at {heard}"
+    );
+    // The stems: the same length, the same stop.
+    let stem_opts = StemOptions {
+        render: opts.clone(),
+        keep_silent: true,
+        ..Default::default()
+    };
+    let spec = StemSpec {
+        source: StemSource::Track(0),
+        file_name: "t.wav".into(),
+    };
+    let stems = render_stems(Arc::new(Snapshot::compile(&on_end, 1)), &stem_opts, &[spec]).unwrap();
+    assert_eq!(stems[0].samples.len() / 2, want);
+    assert!(stems[0].silent, "the stem never hears the note at the end");
+    // A modulator's trace covers the range through the map: its last point is at the end.
+    let mut m = before.clone();
+    let strip = m.tracks[0].strip.unwrap();
+    let lfo = Modulator::new(ModulatorId(m.alloc_id()), ModKind::Lfo);
+    let id = lfo.id;
+    let mut lfo = lfo;
+    lfo.routes.push(ModRoute {
+        target: AutoTarget::StripPan(strip),
+        depth: 0.5,
+    });
+    m.tracks[0].modulators.push(lfo);
+    let trace = cantus_engine::modulator::trace(
+        Arc::new(Snapshot::compile(&m, 1)),
+        &opts,
+        Vec::new(),
+        Vec::new(),
+        id,
+    );
+    // (tick, value) pairs, a control point every 16 samples at most.
+    let last = trace.last().expect("a trace").0;
+    let e = end.0 as f64;
+    assert!(
+        last <= e && e - last < 2.0,
+        "the trace ends at tick {last}, not at the range's end {e}"
     );
 }
 
