@@ -385,3 +385,10 @@ No new `Command` (`freeze_guard::touches` untouched); no schema change; no golde
 | 50 | a file with no metre at bar 1 wiped the song's metre changes | only a file that states a metre replaces them | `midi_tempo::a_file_without_a_metre_leaves_the_songs_metre_changes` (failed) |
 | 51 | imported clips sized in bars of the first metre | `TempoMap::bars_around` through the map the import leaves (the old arithmetic in one metre, to the bit); DAWproject notes on a lane through the file's map | `midi_tempo::imported_clips_end_on_the_songs_bar_lines` (failed: 10 560); the DAWproject lane-notes path is **not tested** |
 | 52 | a DAWproject seconds loop reported moved | compared with `playStart` in the content's own unit (half a frame, half a tick) | `dawproject_tempo::a_looped_seconds_clip_across_a_change_reports_no_loop_moved` (failed on the old code: "Loop" reported) |
+
+**Verified on the merged tree (`r29/integration` e1c1d71 in: freeze's second round,
+schema 38):** core, dsp, project, engine, host, export, ai and plugins 2 227 passed; UI
+1 528 passed; the engine with `fuzz` (`CANTUS_WORKERS=3`) 800 passed; `cargo clippy
+--workspace --all-targets -D warnings` and `cantus-plugins --no-default-features` clean;
+`cargo fmt --check` clean. Shots: `cargo run -p cantus-ui --example shoot_tempo -- <dir>`
+(`tempo-r4-*`, looked at in `F:\projects\daw-r29\shots\tempo-r4`).
