@@ -37,7 +37,7 @@ freeze.card.refreshing_body = {pct} % rendered. It plays live until its render i
 freeze.card.bouncing_body = {pct} % rendered. The song plays on; the audio track comes when it is done.
 freeze.card.stop = Stop
 freeze.card.refused = {name} is frozen
-freeze.card.refused_body = Its sound is a render now, so this edit would not be heard. Unfreeze it to change it; its fader, pan, mute and sends stay live.
+freeze.card.refused_body = Its sound is a render: unfreeze it to change it. Fader, pan and sends stay live.
 freeze.card.ok = OK
 
 # --- menus ---

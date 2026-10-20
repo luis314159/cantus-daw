@@ -108,6 +108,17 @@ fn panel(root: &mut egui::Ui, f: impl FnOnce(&mut egui::Ui)) {
 }
 
 fn main() {
+    // The app and a processor are passed around by value here (a test's convenience, not
+    // the program's): a thread with room for them.
+    std::thread::Builder::new()
+        .stack_size(64 << 20)
+        .spawn(run)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn run() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let dir = args
         .first()
@@ -173,8 +184,16 @@ fn main() {
                     clip,
                     muted: true,
                 });
-                a.audio_setup.popover = true;
                 let out = dir.join(format!("freeze-cards-{tag}.png"));
+                shoot(&ctx, egui::vec2(1200.0, 400.0), k, 6, Some(&out), |root| {
+                    panel(root, |_| {});
+                    views::audio_setup::frame(&mut a, root.ctx());
+                });
+                println!("{}", out.display());
+                let ctx = context(dark);
+                let (mut a, _p) = app();
+                a.audio_setup.popover = true;
+                let out = dir.join(format!("freeze-popover-{tag}.png"));
                 shoot(&ctx, egui::vec2(1200.0, 760.0), k, 6, Some(&out), |root| {
                     panel(root, |_| {});
                     views::audio_setup::frame(&mut a, root.ctx());

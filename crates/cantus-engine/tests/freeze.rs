@@ -442,7 +442,7 @@ fn play(
             std::thread::sleep(pace);
         }
     }
-    (out, p.stats().clone())
+    (out, *p.stats())
 }
 
 #[test]

@@ -37,7 +37,7 @@ freeze.card.refreshing_body = {pct} % hecho. Suena en vivo hasta que su render e
 freeze.card.bouncing_body = {pct} % hecho. La canción sigue sonando; la pista de audio llega cuando termine.
 freeze.card.stop = Detener
 freeze.card.refused = {name} está congelado
-freeze.card.refused_body = Su sonido es ahora un render, así que este cambio no se oiría. Descongélalo para cambiarlo; su fader, su paneo, su silencio y sus envíos siguen en vivo.
+freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. El fader, el paneo y los envíos siguen en vivo.
 freeze.card.ok = Entendido
 
 # --- menús ---

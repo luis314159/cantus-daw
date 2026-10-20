@@ -98,9 +98,9 @@ voice through Tonus with low-latency monitoring on, with real hardware.
 - **Every new `Command`** must be classified in `freeze_guard::touches` (the build says
   so): controllers' controller-map commands are `vec![]` (they change no sound); warp's
   clip commands are `clip_touches`.
-- **Warp**: a warped clip's render must be in the subject — it is (the clip's `audio`
-  is serialised whole), but warp's analysis cache files are not; `compile_for_render`
-  waiting for warp renders makes the freeze render correct.
+- **Warp** (merged here at 5c17c80): `SetClipWarp` is classified (`clip_touches`); the
+  warp is in the subject (it is in `AudioRegion`); freeze and bounce renders wait for the
+  warp renders (`compile_for_render`); `a_frozen_strip_with_a_warped_clip_plays_its_render_to_the_bit`.
 - **Keymap 9**: four actions appended to `NEW_IN_V9`.
 - **Known issues** retired: none listed; the manual §14 *Performance* line may add "or
   freeze heavy tracks (§6)".

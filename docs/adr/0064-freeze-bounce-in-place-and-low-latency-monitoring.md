@@ -58,7 +58,9 @@ without its live controls, the other strips and tracks whole but for what is nev
 (names, colours, heights, docks, groups, panels shown, solo, where a plug-in runs — ADR
 0063 isolation is bit-identical), the automation clips and modulators that reach it (wherever
 they sit), the audio sources its clips play (path and SHA-256 when known), the tempo
-map, and the pan law when a non-root strip's pan uses it. Objects are written with their
+map, and the pan law when a non-root strip's pan uses it. A clip's warp (ADR 0061) is part
+of its `AudioRegion`, so it is in the subject; a freeze's or a bounce's render compiles
+through `compile_for_render`, which waits for the warp renders. Objects are written with their
 keys **sorted** (a removed key must not reorder the rest — the undo fuzz found that one).
 The **content key** is SHA-256 of it, lower-case hex (`sha2` and `serde_json` join
 `cantus-core`'s dependencies; both MIT/Apache-2.0, already in the workspace's notices).
@@ -187,7 +189,8 @@ original **muted** — or removed, the user's choice, remembered (`Settings::bou
 - The latency is **trimmed** (frame 0 is the range's first tick: the new audio track has
   no latency of its own); the tail is kept as for a freeze; the audio clip is rounded up a
   tick so it never ends before its file. 32-bit float WAV in the project's `Audio`
-  folder. One undo step. A frozen track is unfrozen first (the notice says so).
+  folder. One undo step. A track a freeze holds is refused (the notice says to unfreeze it
+  first).
 - *An instrument track becomes an audio track when asked*: bounce with *remove the
   original*.
 

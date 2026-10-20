@@ -69,6 +69,8 @@ pub fn monitored_ms(app: &CantusApp) -> Option<f64> {
 /// and what it bypasses.
 pub fn popover_rows(app: &mut CantusApp, ui: &mut Ui, control_w: f32) {
     let s = crate::kit::Style::current();
+    // The value column: what is left beside the labels (92 at 100 %), never past the edge.
+    let control_w = control_w.min((ui.available_width() / s.k - 92.0 - 10.0).max(120.0));
     super::record_options::band_row(ui, "freeze.ll.band", &s);
     ui.horizontal(|ui| {
         super::record_options::label(ui, "freeze.ll.row", &s);

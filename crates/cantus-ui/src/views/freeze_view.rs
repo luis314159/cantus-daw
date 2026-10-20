@@ -162,7 +162,10 @@ pub enum Answer {
 
 /// The card, when there is one: a render on its way, or an edit a freeze refused (the
 /// newest wins). Title, body, buttons, and what ✕ does.
-pub fn card(app: &CantusApp) -> Option<(String, String, Vec<(String, Answer)>, Answer)> {
+/// A card: title, body, buttons, and what ✕ does.
+pub type Card = (String, String, Vec<(String, Answer)>, Answer);
+
+pub fn card(app: &CantusApp) -> Option<Card> {
     if let Some(j) = &app.freeze.job {
         let pct = (j.progress.fraction() * 100.0).round() as u32;
         let (title, body) = match &j.want {
