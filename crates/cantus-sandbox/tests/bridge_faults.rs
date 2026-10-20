@@ -260,12 +260,14 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
                 told = Some(reason);
             }
         }
-        // Once the helper is silent, saving answers at once with what it said last.
+        // Saving meanwhile answers with what it said last, never waiting past the state's
+        // own limit (its own background save may be slow, not hung: it is waited for that
+        // long — review isolation-3 #2, #24 — and the interface never longer).
         if !saved_quickly && start.elapsed() > Duration::from_millis(1600) && told.is_none() {
             let t = Instant::now();
             assert_eq!(main.save_state().unwrap(), good);
             assert!(
-                t.elapsed() < Duration::from_millis(300),
+                t.elapsed() < Duration::from_millis(3_500),
                 "{:?}",
                 t.elapsed()
             );

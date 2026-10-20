@@ -63,6 +63,13 @@ impl CantusApp {
             self.set_error(t("freeze.bake_waits"));
             return false;
         }
+        // An export renders through the same plug-in instances: one render at a time
+        // (round 29, review isolation-3 #5, #10, #13, #48).
+        if self.export.busy() {
+            let job = t("isolation.render.export");
+            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
+            return false;
+        }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let rate = self.engine.sample_rate.round() as u32;
         let snapshot = self

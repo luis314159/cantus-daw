@@ -193,7 +193,12 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         let label = if one {
             t("isolation.run_individually")
         } else {
-            tf("isolation.run_name_individually", &[("name", &c.name)])
+            // The name shortened in its middle, so the words that say what the button does
+            // always show (review #27).
+            tf(
+                "isolation.run_name_individually",
+                &[("name", &short_name(&c.name, 16))],
+            )
         };
         buttons.push((label, Answer::RunIndividually));
     }
@@ -308,10 +313,18 @@ pub fn reload(app: &mut CantusApp, target: Target, name: &str) {
     app.plugin_crashes.waiting.retain(|c| c.target != target);
     match r {
         Ok(()) => app.set_status(tf("isolation.reloaded", &[("name", &name)])),
-        Err(error) => app.set_error(tf(
-            "isolation.reload_failed",
-            &[("name", &name), ("error", &error)],
-        )),
+        Err(error) => {
+            // In the interface's words (review #31); and when it crashed again, its card
+            // comes back — counted, so one that keeps crashing is offered its own process
+            // (review #15).
+            app.set_error(tf(
+                "isolation.reload_failed",
+                &[("name", &name), ("error", &reason_words(&error))],
+            ));
+            if let Some(why) = stopped(app, target).map(str::to_string) {
+                add(app, target, name.to_string(), why);
+            }
+        }
     }
 }
 
@@ -501,6 +514,19 @@ pub fn paint_rack_stopped(
     }
 }
 
+/// `name` in at most `max` letters, shortened in its middle ("Spectras…Edition").
+pub fn short_name(name: &str, max: usize) -> String {
+    let n = name.chars().count();
+    if n <= max {
+        return name.to_string();
+    }
+    let head = (max - 1).div_ceil(2);
+    let tail = max - 1 - head;
+    let first: String = name.chars().take(head).collect();
+    let last: String = name.chars().skip(n - tail).collect();
+    format!("{}\u{2026}{}", first.trim_end(), last.trim_start())
+}
+
 /// `words` as a sentence of its own: a capital first, a full stop last.
 fn as_sentence(words: &str) -> String {
     let mut c = words.chars();
@@ -519,16 +545,7 @@ fn as_sentence(words: &str) -> String {
 /// the system's detail kept — the exception's code, the signal's number (#37); anything else
 /// as the host said it.
 pub fn reason_words(reason: &str) -> String {
-    // The last parenthesised detail: "0xC0000005", "signal 11", "exit code 0x00000001".
-    let code = reason
-        .rfind('(')
-        .and_then(|i| reason[i + 1..].split(')').next())
-        .filter(|c| !c.is_empty())
-        .map(|c| c.strip_prefix("exit code ").unwrap_or(c).to_string());
-    let signal = code
-        .as_deref()
-        .and_then(|c| c.strip_prefix("signal "))
-        .and_then(|n| n.trim().parse::<i32>().ok());
+    let (code, signal) = system_detail(reason);
     // The common Unix signals, as the Windows exceptions they are.
     let by_signal = match signal {
         Some(11) | Some(7) | Some(10) => Some("isolation.why.access"),
@@ -568,6 +585,43 @@ pub fn reason_words(reason: &str) -> String {
         Some(c) => format!("{} ({c})", t(key)),
         None => t(key),
     }
+}
+
+/// The system's detail a reason ends with, in the interface's words, and the signal's
+/// number: only a code — `(0x…)`, `(signal N)`, `(exit code …)`, `(exit status: N)` —
+/// closing the text counts; a plug-in name's own parentheses ("Kontakt 7 (16 out)") never
+/// do (review #26, #32).
+fn system_detail(reason: &str) -> (Option<String>, Option<i32>) {
+    let Some(inner) = reason
+        .strip_suffix(')')
+        .and_then(|r| r.rfind('(').map(|i| &r[i + 1..]))
+    else {
+        return (None, None);
+    };
+    let hex = |c: &str| {
+        c.strip_prefix("0x")
+            .is_some_and(|h| !h.is_empty() && h.chars().all(|ch| ch.is_ascii_hexdigit()))
+    };
+    if hex(inner) {
+        return (Some(inner.to_string()), None);
+    }
+    if let Some(n) = inner
+        .strip_prefix("signal ")
+        .and_then(|n| n.trim().parse::<i32>().ok())
+    {
+        return (Some(tf("isolation.why.signal", &[("n", &n)])), Some(n));
+    }
+    for prefix in ["exit code ", "exit code: ", "exit status: "] {
+        if let Some(c) = inner.strip_prefix(prefix) {
+            if hex(c) {
+                return (Some(c.to_string()), None);
+            }
+            if c.trim().parse::<i64>().is_ok() {
+                return (Some(tf("isolation.why.exit", &[("code", &c.trim())])), None);
+            }
+        }
+    }
+    (None, None)
 }
 
 impl CantusApp {

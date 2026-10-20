@@ -25,8 +25,9 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     // band of its own.
     if let Some(why) = app.plugins.instrument_crashed(t) {
         stopped_row(sh, t, why);
+        // Its own label, not the name row's *Plug-in* (review #28).
         if sh.led_row(
-            "isolation.slot.stopped_band",
+            "isolation.slot.recover",
             "isolation.reload",
             false,
             Function::Source,
@@ -90,13 +91,27 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     // (it closes with its own close box, F8, or the rack's channel button); and *Close*
     // for a plug-in that floats a window of its own, which Cantus cannot bring forward.
     let (key, close) = window_row(h.window_open(), h.window_floating());
-    if sh.led_row(
+    // A stopped plug-in has no window until it is reloaded: the row is off, and says why
+    // (review #34).
+    let top = sh.ui.cursor().top();
+    let clicked = sh.led_row(
         "hosted.window",
         key,
         h.window_open(),
         Function::Source,
-        !h.has_editor(),
-    ) {
+        !h.has_editor() || stopped,
+    );
+    if let Some(why) = app.plugins.instrument_crashed(t) {
+        let span = sh.ui.max_rect();
+        let row = egui::Rect::from_x_y_ranges(span.x_range(), top..=sh.ui.cursor().top());
+        if sh.ui.rect_contains_pointer(row) {
+            let why = crate::views::plugin_notice::reason_words(why);
+            let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
+            let heading = sh.fmt.tr("hosted.window").to_string();
+            hint::set_text(sh.ui.ctx(), &heading, &tip, Caps::NONE);
+        }
+    }
+    if clicked {
         sh.acts.push(if close {
             Act::CloseInstrument(t)
         } else {

@@ -342,12 +342,16 @@ pub(super) fn chain_row(
             fx.iter()
                 .filter(|e| app.plugins.crashed(e.id).is_some())
                 .map(|e| {
+                    // One line each: its name and why (review #33).
                     let name = super::desk::short_name(e);
-                    let tip = crate::views::plugin_notice::tip(
-                        app,
-                        crate::views::plugin_notice::Target::Insert(e.id),
-                    );
-                    format!("{name}: {tip}")
+                    let why = app.plugins.crashed(e.id).unwrap_or_default();
+                    crate::i18n::tf(
+                        "isolation.reason",
+                        &[
+                            ("name", &name),
+                            ("reason", &crate::views::plugin_notice::reason_words(why)),
+                        ],
+                    )
                 })
                 .collect()
         })
@@ -383,14 +387,10 @@ pub(super) fn chain_row(
         let body = if stopped.is_empty() {
             line.to_string()
         } else {
-            format!(
-                "{line}
-{}",
-                stopped.join(
-                    "
-"
-                )
-            )
+            let mut lines = vec![line.to_string()];
+            lines.extend(stopped.iter().cloned());
+            lines.push(crate::i18n::t("isolation.tip.reload_menu"));
+            lines.join("\n")
         };
         hint::set_text(
             ui.ctx(),
