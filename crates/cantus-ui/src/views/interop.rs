@@ -72,14 +72,17 @@ fn file_name(path: &Path) -> String {
         .unwrap_or_else(|| path.display().to_string())
 }
 
-/// One report line in the interface's language.
+/// One report line in the interface's language — its singular when it counts one and the
+/// language has one (`{key}_one`: round 29's second review, never "1 take(s)").
 pub fn report_line(item: &cantus_project::ReportItem) -> String {
     let args: Vec<(&str, &dyn std::fmt::Display)> = item
         .args
         .iter()
         .map(|(k, v)| (*k, v as &dyn std::fmt::Display))
         .collect();
-    tf(item.key, &args)
+    let one = format!("{}_one", item.key);
+    let single = item.args.iter().any(|(k, v)| *k == "n" && v == "1") && t(&one) != one;
+    tf(if single { &one } else { item.key }, &args)
 }
 
 // ---- the File menu ------------------------------------------------------------------

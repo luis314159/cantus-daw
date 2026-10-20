@@ -599,14 +599,20 @@ The file is never changed: the clip plays a render made beside the window.
   drop). Longer files, every take you record and every take brought back after a crash
   play at their natural speed until you warp them: a recording plays as it was played.
 - **Warp a clip yourself**: right-click it ▸ *Warp* ▸ **Follow the project tempo** (or
-  *Follow* in the inspector or the editor) — nothing moves until you move a marker —
-  **Detect tempo** (markers on every bar it found), or **Warp from here** (its tempo
-  counted from the beat where you right-clicked; in the inspector, from the playhead).
-  *Set the project tempo from this clip* goes the other way: the tempo where the clip
-  starts becomes the clip's.
-- **Warp markers** pin a moment of the audio to a beat. A clip that follows the tempo
-  shows its **transients** (the hits found in it) as ticks along a band at its top, and
-  its markers as gold flags. **Double-click the band** to add a marker (on a transient, it
+  *Follow* in the inspector or the editor) — nothing moves until you move a marker, even
+  under a tempo ramp — **Detect tempo** (markers on every bar it found), or **Warp from
+  here** (its tempo counted from the beat where you right-clicked; in the inspector, from
+  the playhead). Turning *Follow* off plays the clip at its natural speed and keeps its
+  markers for when you turn it on again; turning it off, resetting the warp or laying it
+  again never moves what the clip plays at its start (nor on its linked copies). A linked
+  copy under another tempo than its copies' is made unique when you first warp it, so
+  they keep playing as they did. *Set the project tempo from this clip* goes the other
+  way: the clip's tempo (what the analysis found, while it does not follow) becomes the
+  tempo where it starts.
+- **Warp markers** pin a moment of the audio to a beat. Any audio clip under the pointer
+  or selected shows its **transients** (the hits found in it) as ticks along a band at
+  its top; a clip that follows the tempo also shows its markers as gold flags — the ones
+  on its two ends too — and takes clicks on the band. **Double-click the band** to add a marker (on a transient, it
   lands on it); drag in the band to add one and move it at once. **Drag a marker** to move
   that moment of the audio to another beat — it snaps to the grid (hold `Ctrl` for free)
   and the audio between its neighbours stretches to fit. Hold **`Alt`** while dragging to
@@ -622,8 +628,9 @@ The file is never changed: the clip plays a render made beside the window.
   the mode, its own **snap grid** (1/4 to 1/32, or free), the transposition, *Formants*,
   *Follow*, the clip's tempo (**½**, **×2** when it was counted at half or double),
   *Detect tempo*, *Quantise…* and *Reset warp* — what does nothing in the clip's mode is
-  shown greyed. `Ctrl`+wheel zooms in on the clip, the wheel (or the bar under it)
-  scrolls, and `Q` opens *Quantise audio*.
+  shown greyed; in a narrow window the bar takes a second row. `Ctrl`+wheel (or a pinch)
+  zooms in on the clip about the pointer, the wheel (or the bar under it) scrolls, and `Q`
+  opens *Quantise audio*.
 - **Modes** (the inspector's *Warp* section, or the bar) — choosing one does not warp the
   clip:
   - **Complex** — anything: full mixes, pads, chords. Keeps the attacks sharp, a chord's
@@ -638,21 +645,27 @@ The file is never changed: the clip plays a render made beside the window.
 - **Transpose** shifts the clip by semitones and cents without changing its time (a clip
   that does not follow the tempo keeps its natural speed); **Formants ▸ Keep** keeps a
   voice's colour when it is transposed (no "chipmunk"). The level stays as it was.
-- **Detected** and **Sure** in the inspector: the tempo and bars the analysis found, and
-  how sure it is.
+- **Detected** and **Confidence** in the inspector: the tempo and bars the analysis
+  found, and how sure it is. A marker's hint gives the speed the audio plays at after it,
+  against the tempo in force there.
 - **Quantise audio…** (the clip menu or the inspector, on every audio clip selected with
   the one you chose): pulls the transients toward a grid with a *Strength*, only the
   stronger ones if you choose (*Transients over*) — one undo step for every clip; only
-  the hits inside each clip move, the rest keeps its speed.
+  the hits you hear move (a loop's own period; a reversed clip's on the lines where they
+  play), the rest keeps its speed.
 - **Bounce warped audio** writes the clip's window as it sounds now to a new file beside
   the project's audio, and the clip then plays that file, unwarped (one undo step).
   **Reset warp** puts the clip back to its natural speed.
 
 While a render is on its way (a fraction of a second for a loop, a few seconds for a long
-file) you hear a quick preview at the right timing and pitch; export, stems, freezing and
-a modulator's bake always wait for the full render. Warped clips travel in DAWproject
-files with their markers and mode; a clip at its natural speed travels as a file placed
-in seconds, so it keeps its speed in any application.
+file) you hear a quick preview at the right timing and pitch — a clip warped for the
+first time plays its own audio meanwhile, never silence — and the change from one to the
+next is crossfaded. Export, stems, freezing, bouncing and a modulator's bake wait for the
+full render; if one ever takes too long, the status line says so. Warped clips travel in
+DAWproject files with their markers and mode; a clip at its natural speed travels as a
+file placed in seconds, so it keeps its speed in any application. Opening or dropping a
+`.dawproject` reads it in the background (its audio copied to disk as it goes, a file
+referenced beside it found there).
 
 ### Automation
 
@@ -1261,8 +1274,8 @@ This is a beta. What we know about:
   the buffer if the top bar counts dropouts.
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
-- **Not in this beta**: macOS and Linux, warping, MIDI learn and control surfaces, AI
-  features, several arrangements per project.
+- **Not in this beta**: macOS and Linux, control-surface protocols (Mackie Control, HUI),
+  AI features, several arrangements per project.
 
 ## 15. Report a bug
 

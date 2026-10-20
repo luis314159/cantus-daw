@@ -650,14 +650,21 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   inesperado suenan a su velocidad natural hasta que los ajustes: una grabación suena tal
   como se tocó.
 - **Ajusta tú un clip**: clic derecho ▸ *Warp* ▸ **Seguir el tempo del proyecto** (o
-  *Seguir* en el inspector o en el editor) — nada se mueve hasta que muevas un marcador —,
-  **Detectar el tempo** (marcadores en cada compás encontrado) o **Ajustar desde aquí**
-  (su tempo contado desde el pulso donde hiciste clic derecho; en el inspector, desde el
-  cursor de reproducción). *Usar su tempo en el proyecto* va al revés: el tempo donde
-  empieza el clip pasa a ser el del clip.
-- Los **marcadores de warp** fijan un instante del audio a un pulso. Un clip que sigue el
-  tempo muestra sus **transitorios** (los golpes que contiene) como marcas en una banda en
-  su parte superior, y sus marcadores como banderas doradas. **Doble clic en la banda**
+  *Seguir* en el inspector o en el editor) — nada se mueve hasta que muevas un marcador,
+  ni bajo una rampa de tempo —, **Detectar el tempo** (marcadores en cada compás
+  encontrado) o **Ajustar desde aquí** (su tempo contado desde el pulso donde hiciste clic
+  derecho; en el inspector, desde el cursor de reproducción). Quitar *Seguir* devuelve el
+  clip a su velocidad natural y guarda sus marcadores para cuando lo vuelvas a poner;
+  quitarlo, restablecer el warp o volver a ajustarlo nunca mueve lo que el clip suena al
+  empezar (ni en sus copias enlazadas). Una copia enlazada bajo otro tempo que el de sus
+  copias se vuelve única la primera vez que la ajustas, para que sigan sonando igual.
+  *Usar su tempo en el proyecto* va al revés: el tempo del clip (el que encontró el
+  análisis, mientras no sigue el tempo) pasa a ser el tempo donde empieza.
+- Los **marcadores de warp** fijan un instante del audio a un pulso. Cualquier clip de
+  audio bajo el puntero o seleccionado muestra sus **transitorios** (los golpes que
+  contiene) como marcas en una banda en su parte superior; un clip que sigue el tempo
+  muestra además sus marcadores como banderas doradas — también los de sus dos extremos —
+  y su banda acepta clics. **Doble clic en la banda**
   añade un marcador (sobre un transitorio, cae sobre él); arrastrar en la banda añade uno y
   lo mueve a la vez. **Arrastra un marcador** para llevar ese instante del audio a otro
   pulso — se ajusta a la rejilla (mantén `Ctrl` para moverlo libre) y el audio entre sus
@@ -674,9 +681,10 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   gestos en cualquier clip de audio, y una barra con el modo, su propia **rejilla** (de
   1/4 a 1/32, o libre), la transposición, *Formantes*, *Seguir*, el tempo del clip (**½**,
   **×2** cuando se contó a la mitad o al doble), *Detectar el tempo*, *Cuantizar…* y
-  *Restablecer warp* — lo que no hace nada en el modo del clip aparece atenuado. `Ctrl` y
-  la rueda acercan el clip, la rueda (o la barra de abajo) lo desplaza, y `Q` abre
-  *Cuantizar audio*.
+  *Restablecer warp* — lo que no hace nada en el modo del clip aparece atenuado; en una
+  ventana estrecha la barra ocupa una segunda fila. `Ctrl` y la rueda (o pellizcar)
+  acercan el clip alrededor del puntero, la rueda (o la barra de abajo) lo desplaza, y `Q`
+  abre *Cuantizar audio*.
 - **Modos** (la sección *Warp* del inspector, o la barra) — elegir uno no ajusta el clip:
   - **Complejo** — cualquier cosa: mezclas completas, pads, acordes. Mantiene los ataques
     nítidos, las voces de un acorde estables y la imagen estéreo en su sitio.
@@ -691,23 +699,29 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   no sigue el tempo conserva su velocidad natural); **Formantes ▸ Conservar** mantiene el
   color de una voz al transponerla (sin efecto "ardilla"). El nivel queda como estaba.
 - **Detectado** y **Certeza** en el inspector: el tempo y los compases que encontró el
-  análisis, y lo seguro que está.
+  análisis, y lo seguro que está. La pista de un marcador da la velocidad a la que suena
+  el audio tras él, frente al tempo vigente allí.
 - **Cuantizar audio…** (el menú del clip o el inspector, sobre cada clip de audio
   seleccionado junto al que elegiste): acerca los transitorios a una rejilla con una
   *Intensidad*, solo los más fuertes si lo eliges (*Transitorios desde*) — un paso de
-  deshacer para todos los clips; solo se mueven los golpes dentro de cada clip, el resto
-  conserva su velocidad.
+  deshacer para todos los clips; solo se mueven los golpes que se oyen (el periodo propio
+  de un loop; los de un clip invertido, en las líneas donde suenan), el resto conserva su
+  velocidad.
 - **Renderizar el audio ajustado** escribe la ventana del clip tal como suena ahora en un
   archivo nuevo junto al audio del proyecto, y el clip pasa a reproducir ese archivo, sin
   warp (un paso de deshacer). **Restablecer warp** devuelve el clip a su velocidad
   natural.
 
 Mientras llega un render (una fracción de segundo para un loop, unos segundos para un
-archivo largo) oyes una vista previa rápida con el tiempo y el tono correctos; la
-exportación, las pistas separadas, la congelación y el horneado de un modulador siempre
-esperan al render completo. Los clips ajustados viajan en los archivos DAWproject con sus
-marcadores y su modo; un clip a su velocidad natural viaja como un archivo colocado en
-segundos, así conserva su velocidad en cualquier aplicación.
+archivo largo) oyes una vista previa rápida con el tiempo y el tono correctos — un clip
+ajustado por primera vez suena entretanto con su propio audio, nunca en silencio — y el
+paso de una a otra se funde. La exportación, las pistas separadas, la congelación, el
+renderizado en su sitio y la conversión de un modulador en automatización esperan al
+render completo; si alguna vez tarda demasiado, la línea de estado lo dice. Los clips
+ajustados viajan en los archivos DAWproject con sus marcadores y su modo; un clip a su
+velocidad natural viaja como un archivo colocado en segundos, así conserva su velocidad en
+cualquier aplicación. Abrir o soltar un `.dawproject` lo lee en segundo plano (su audio
+copiado al disco sobre la marcha, un archivo referido a su lado encontrado allí).
 
 ### Automatización
 
@@ -1366,8 +1380,8 @@ Esto es una beta. Lo que ya sabemos:
   sube el búfer si la barra superior cuenta cortes.
 - No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
-- **Fuera de esta beta**: macOS y Linux, warping, MIDI learn y superficies de control,
-  funciones de IA, varios arreglos por proyecto.
+- **Fuera de esta beta**: macOS y Linux, los protocolos de superficies de control (Mackie
+  Control, HUI), funciones de IA, varios arreglos por proyecto.
 
 ## 15. Reportar un error
 

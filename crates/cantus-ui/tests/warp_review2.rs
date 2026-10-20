@@ -701,3 +701,20 @@ fn a_mode_pick_exports_without_a_markers_report() {
     assert!(!out.report.has("interop.report.x_warp_markers"));
     assert!(out.report.has("interop.report.x_warp_transpose"));
 }
+
+/// Finding 55: a report line that counts one says it in the singular ("One take of …",
+/// never "1 take(s)"), in both languages.
+#[test]
+fn a_report_line_of_one_is_singular() {
+    let item = |n: &str| cantus_project::ReportItem {
+        severity: cantus_project::Severity::Dropped,
+        key: "interop.report.x_takes",
+        args: vec![("track", "Vox".into()), ("n", n.into())],
+    };
+    let _ = app(project(120.0));
+    let one = cantus_ui::views::interop::report_line(&item("1"));
+    let two = cantus_ui::views::interop::report_line(&item("2"));
+    assert!(one.starts_with("One take of Vox"), "{one}");
+    assert!(two.starts_with("2 takes of Vox"), "{two}");
+    assert!(!one.contains("(s)") && !two.contains("(s)"));
+}
