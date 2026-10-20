@@ -881,6 +881,15 @@ impl PluginHost {
                             notices.push(HostNotice::WindowClosed(id));
                         }
                     }
+                    // Its window opened after all (its helper was busy when asked): kept
+                    // as open (review isolation-4 #39).
+                    Notice::EditorOpened => {
+                        if let Some(h) = self.slots.get_mut(&id) {
+                            if h.window.is_none() {
+                                h.window = crate::window::PluginWindow::floating(&h.info.name);
+                            }
+                        }
+                    }
                 }
             }
             // Stopped without a notice reaching here (it died while loading a state, say).

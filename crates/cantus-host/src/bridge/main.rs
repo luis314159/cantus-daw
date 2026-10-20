@@ -22,7 +22,7 @@
 
 use super::audio::{BridgeAudio, Offline, Status};
 use super::proto::{Answer, Call, Described, WireNotice};
-use super::sandbox::{Inbox, Pending, Sandbox, Sandboxes, Waited};
+use super::sandbox::{Inbox, Pending, Sandbox, Sandboxes, Wait, Waited};
 use super::slot::Slot;
 use crate::backend::{
     AudioThread, Blame, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo,
@@ -39,6 +39,9 @@ const REFRESH_AFTER: Duration = Duration::from_millis(500);
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
 /// How long after a failed background state it is asked for again.
 const RETRY_AFTER: Duration = Duration::from_secs(2);
+/// How long a restart just asked for is waited for before the frame goes on (it is picked
+/// up by a later one; review isolation-4 #23).
+const RESTART_WAIT: Duration = Duration::from_millis(100);
 
 /// The main half.
 pub struct BridgeMain {
@@ -62,6 +65,9 @@ pub struct BridgeMain {
     asked_state: bool,
     /// A restart asked for and not answered yet.
     restart_pending: Option<Pending>,
+    /// Its window asked for and not answered yet: opened once it is (review isolation-4
+    /// #39).
+    editor_pending: Option<Pending>,
     /// Background states answered to a request before this id are older than the last
     /// state loaded or saved, and dropped (review #7, #50).
     state_after: u64,
@@ -114,6 +120,7 @@ impl BridgeMain {
             dirty_since: None,
             asked_state: false,
             restart_pending: None,
+            editor_pending: None,
             state_after: 0,
             last_refresh: Instant::now(),
             told_crash: false,
@@ -193,6 +200,24 @@ impl BridgeMain {
         timeout: Duration,
     ) -> Result<(Answer, Vec<u8>), HostError> {
         self.sandbox.call(Some(self.instance), call, blob, timeout)
+    }
+
+    /// An offline instance's call: waited for as long as its helper lives, until the
+    /// render is cancelled or the call has run the offline limit, which ends the helper —
+    /// never given up with the render going on regardless (review isolation-4 #10).
+    fn call_offline(
+        &self,
+        call: Call,
+        blob: &[u8],
+        limit: Duration,
+    ) -> Result<(Answer, Vec<u8>), HostError> {
+        let cap = self.pool.limits().offline;
+        self.sandbox.call_while_alive(
+            Some(self.instance),
+            call,
+            blob,
+            (limit, &self.cancel, limit.max(cap)),
+        )
     }
 
     fn crash_reason(&self) -> String {
@@ -301,8 +326,12 @@ impl MainThread for BridgeMain {
                 }
                 Ok(_) => {}
                 // Alive but not answering in time (its dialog is open, a slow call is ahead):
-                // what it said last, never a frozen save (review #4, #44).
-                Err(HostError::Busy(_)) if self.last_good.is_some() => {}
+                // what it said last — or a fresher state answered meanwhile — never a frozen
+                // save (review #4, #44; isolation-4 #1). Its own answer, when it comes,
+                // becomes the last-good state.
+                Err(HostError::Busy(_)) if self.last_good.is_some() => {
+                    self.take_answered_state();
+                }
                 Err(e) if !self.gone() => return Err(e),
                 Err(_) => {}
             }
@@ -320,14 +349,14 @@ impl MainThread for BridgeMain {
         self.last_good = Some(data.to_vec());
         self.state_settled();
         let limit = self.pool.limits().state;
-        self.call(
-            Call::LoadState {
-                instance: self.instance,
-            },
-            data,
-            limit,
-        )
-        .map(|_| ())
+        let call = Call::LoadState {
+            instance: self.instance,
+        };
+        if self.offline {
+            // A render never starts before its state is in (review isolation-4 #10).
+            return self.call_offline(call, data, limit).map(|_| ());
+        }
+        self.call(call, data, limit).map(|_| ())
     }
 
     fn latency(&self) -> usize {
@@ -342,16 +371,34 @@ impl MainThread for BridgeMain {
         &mut self,
         _parent: raw_window_handle::RawWindowHandle,
     ) -> Result<EditorSize, HostError> {
-        let title = self.info.name.clone();
         let limit = self.pool.limits().call;
-        match self.call(
-            Call::OpenEditor {
-                instance: self.instance,
-                title,
-            },
-            &[],
-            limit,
-        )? {
+        // One request: a window asked for while its helper was busy is not asked again,
+        // only waited for; when it opens, the host is told (review isolation-4 #39).
+        let (pending, wait) = match self.editor_pending.take() {
+            Some(p) => (p, Wait::Poll),
+            None => {
+                let title = self.info.name.clone();
+                let p = self.sandbox.post_call(
+                    Some(self.instance),
+                    Call::OpenEditor {
+                        instance: self.instance,
+                        title,
+                    },
+                    &[],
+                    limit,
+                )?;
+                (p, Wait::Limit)
+            }
+        };
+        let answered = match self.sandbox.wait_call(&pending, wait) {
+            Waited::Answered(r) => (*r)?,
+            Waited::Pending => {
+                let e = self.sandbox.give_up_waiting(&pending, limit);
+                self.editor_pending = Some(pending);
+                return Err(e);
+            }
+        };
+        match answered {
             (Answer::Editor { width, height }, _) => Ok(EditorSize { width, height }),
             _ => Err(HostError::Editor(
                 "the plug-in sandbox did not open it".into(),
@@ -404,13 +451,30 @@ impl MainThread for BridgeMain {
             return out;
         }
         self.take_answered_state();
-        let (notices, moved) = {
+        let (notices, moved, params) = {
             let mut d = self.inbox.data();
             (
                 std::mem::take(&mut d.notices),
                 std::mem::take(&mut d.values_moved),
+                d.params.take(),
             )
         };
+        if let Some(p) = params {
+            // A parameter list asked for and given up on, answered now: taken, and the
+            // host told again (review isolation-4 #20).
+            self.params = p;
+            out.push(Notice::ParamsChanged);
+        }
+        if let Some(pending) = self.editor_pending.take() {
+            match self.sandbox.wait_call(&pending, Wait::Poll) {
+                Waited::Answered(r) => match *r {
+                    Ok((Answer::Editor { .. }, _)) => out.push(Notice::EditorOpened),
+                    Ok(_) => {}
+                    Err(e) => log::warn!("{}: its window did not open: {e}", self.info.name),
+                },
+                Waited::Pending => self.editor_pending = Some(pending),
+            }
+        }
         let now = Instant::now();
         if moved && self.dirty_since.is_none() {
             // Values alone move with automation too: refreshed at a slower pace.
@@ -422,6 +486,8 @@ impl MainThread for BridgeMain {
             match n {
                 WireNotice::ParamsChanged => {
                     let limit = self.pool.limits().call;
+                    // Given up on (its helper busy), its answer still comes: taken then
+                    // (`Background::Params`).
                     if let Ok((Answer::Params(p), _)) = self.call(
                         Call::Params {
                             instance: self.instance,
@@ -450,24 +516,28 @@ impl MainThread for BridgeMain {
         out
     }
 
-    /// A restart the helper holds for its main loop, or that takes longer than its limit,
-    /// is not waited for: `Ok(None)` ("not yet"), and the next call picks its answer up —
-    /// one request, never a second, and never a frozen interface (review #11).
+    /// A restart is not waited for past a moment: `Ok(None)` ("not yet"), and a later call
+    /// picks its answer up — one request, never a second, and never a frozen interface
+    /// (review #11; isolation-4 #4, #23).
     fn restart(&mut self) -> Result<Option<Box<dyn AudioThread>>, HostError> {
         let limit = self.pool.limits().call;
-        let pending = match self.restart_pending.take() {
-            Some(p) => p,
-            None => self.sandbox.post_call(
-                Some(self.instance),
-                Call::Restart {
-                    instance: self.instance,
-                },
-                &[],
-                limit,
-            )?,
+        // Asked for: waited for a moment; picked up later: only looked at — never a frame
+        // that waits a call's limit again (review isolation-4 #4, #23, #26, #51, #60).
+        let (pending, wait) = match self.restart_pending.take() {
+            Some(p) => (p, Wait::Poll),
+            None => (
+                self.sandbox.post_call(
+                    Some(self.instance),
+                    Call::Restart {
+                        instance: self.instance,
+                    },
+                    &[],
+                    limit,
+                )?,
+                Wait::For(RESTART_WAIT),
+            ),
         };
-        let until = Instant::now() + limit;
-        let answered = match self.sandbox.wait_call(&pending, until) {
+        let answered = match self.sandbox.wait_call(&pending, wait) {
             Waited::Answered(r) => (*r)?,
             Waited::Pending => {
                 self.restart_pending = Some(pending);
@@ -497,14 +567,17 @@ impl MainThread for BridgeMain {
         }
         let wire = params.iter().map(|p| (p.offset, p.id, p.value)).collect();
         let limit = self.pool.limits().call;
-        match self.call(
-            Call::Flush {
-                instance: self.instance,
-                params: wire,
-            },
-            &[],
-            limit,
-        ) {
+        let call = Call::Flush {
+            instance: self.instance,
+            params: wire,
+        };
+        let answer = if self.offline {
+            // A render's values are in before its first block (review isolation-4 #10).
+            self.call_offline(call, &[], limit)
+        } else {
+            self.call(call, &[], limit)
+        };
+        match answer {
             Ok((
                 Answer::Flushed {
                     processed,
@@ -552,6 +625,29 @@ impl MainThread for BridgeMain {
 
     fn isolated_in(&self) -> Option<u32> {
         Some(self.sandbox.pid)
+    }
+
+    fn helper_id(&self) -> Option<u64> {
+        Some(self.sandbox.serial)
+    }
+
+    fn waiting(&self) -> bool {
+        !self.gone() && self.sandbox.waiting_on(self.instance)
+    }
+
+    fn surface(&mut self) {
+        if !self.gone() {
+            self.sandbox.surface();
+        }
+    }
+
+    fn stop(&mut self) {
+        if !self.gone() {
+            self.sandbox.kill_blaming(
+                &format!("{} was stopped while it waited on a window of its own", self.info.name),
+                Some(self.instance),
+            );
+        }
     }
 
     fn late_blocks(&self) -> u64 {

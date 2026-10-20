@@ -153,6 +153,10 @@ pub enum Notice {
     EditorResized(EditorSize),
     /// The user closed its window (floating editors).
     EditorClosed,
+    /// Its window opened after all: an isolated plug-in's editor asked for while its
+    /// helper was busy opens once it is free (round 29, review isolation-4 #39). The host
+    /// keeps it as open.
+    EditorOpened,
     /// It must be deactivated and activated again (the host does it off the audio thread).
     RestartNeeded,
     /// It stopped working (round 29, ADR 0063): the process it ran in crashed, or it hung
@@ -264,6 +268,25 @@ pub trait MainThread: Send {
     fn isolated_in(&self) -> Option<u32> {
         None
     }
+
+    /// A number of its helper's own, never reused as a process id may be: what a helper's
+    /// death is counted once by (review isolation-4 #35, #53, #59). `None` within Cantus.
+    fn helper_id(&self) -> Option<u64> {
+        None
+    }
+
+    /// Whether it waits on a window of its own — a call of its served past its limit while
+    /// its helper lives: a dialog, perhaps behind Cantus (review isolation-4 #54).
+    fn waiting(&self) -> bool {
+        false
+    }
+
+    /// Brings the windows it waits on to the front.
+    fn surface(&mut self) {}
+
+    /// Ends it — its helper — at the user's word, while it waits on a window of its own
+    /// that never answers. Told as a crash of its own.
+    fn stop(&mut self) {}
 
     /// Blocks that passed without it because it was late (an isolated plug-in past its
     /// deadline), since it was loaded.

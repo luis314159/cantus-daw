@@ -34,6 +34,8 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
+        heavy: Duration::from_millis(state),
+        modal: Duration::from_secs(10),
     });
     pool
 }
@@ -78,6 +80,8 @@ fn noisy(audio: &mut dyn AudioThread, p: &[ParamChange]) -> Vec<f32> {
 fn a_late_jobs_events_survive_the_interface_seeing_it_finish_first() {
     let _g = serial();
     let pool = pool();
+    // Only the slow block is late, however busy the machine.
+    pool.set_deadline_floor(Duration::from_millis(30));
     let Loaded {
         main: mut m,
         audio: mut s,
@@ -161,4 +165,29 @@ fn a_stalled_helper_costs_one_deadline_not_one_per_plugin() {
         played.iter().all(|v| v.abs() < 0.01),
         "B processed again (its gain at -60 dB)"
     );
+}
+
+/// A pause of Cantus (a laptop asleep) while a job is late is not the plug-in's hang: its
+/// job clock starts again with the helper's own (review isolation-4 #12, #22, #36).
+#[test]
+fn a_pause_while_a_job_is_late_ends_nothing() {
+    let _g = serial();
+    let pool = limits(300, 2_000, 2_000);
+    let Loaded {
+        main: mut m,
+        audio: mut s,
+    } = load(&pool, GAIN_ID, "own-pause");
+    m.idle();
+    noisy(s.as_mut(), &fault(P_FAULT, SLOW_SECOND));
+    // Cantus does not run for longer than the silence and the hang limits.
+    std::thread::sleep(Duration::from_millis(700));
+    assert_eq!(crashed(m.as_mut()), None, "the pause was not taken for a hang");
+    // The job finishes; nothing ended meanwhile.
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(600) {
+        assert_eq!(crashed(m.as_mut()), None);
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    noisy(s.as_mut(), &[]);
+    assert!(m.stopped().is_none());
 }

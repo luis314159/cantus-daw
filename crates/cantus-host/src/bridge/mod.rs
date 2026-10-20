@@ -92,7 +92,7 @@ impl Backend for BridgedBackend {
             .map_err(|e| HostError::Load(format!("shared memory: {e}")))?;
         let instance = sandbox.new_instance();
         let inbox = Arc::new(sandbox::Inbox::default());
-        sandbox.register(instance, inbox.clone(), slot.clone(), closer);
+        sandbox.register(instance, info, inbox.clone(), slot.clone(), closer);
         let answer = sandbox.call(
             Some(instance),
             Call::Load {

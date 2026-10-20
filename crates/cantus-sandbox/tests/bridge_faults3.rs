@@ -34,6 +34,8 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
+        heavy: Duration::from_millis(state),
+        modal: Duration::from_secs(10),
     });
     pool
 }
@@ -243,6 +245,8 @@ fn a_crash_in_an_editor_is_laid_on_its_plugin() {
 fn a_late_jobs_events_reach_the_host() {
     let _g = serial();
     let pool = pool();
+    // Only the slow block is late, however busy the machine.
+    pool.set_deadline_floor(Duration::from_millis(30));
     let Loaded {
         main: _main,
         audio: mut s,

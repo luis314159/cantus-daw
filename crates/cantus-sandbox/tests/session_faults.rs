@@ -365,7 +365,7 @@ fn a_plugin_that_crashes_while_loading_can_be_reloaded_or_moved() {
 /// hangs) an offline render's instance in its `process`.
 fn fault_at_beat_two(rig: &mut Rig, effect: EffectId, value: f64) {
     let track = rig.bus.project().tracks[0].id;
-    let pos = (value / 14.0) as f32;
+    let pos = (value / FAULT_LAST) as f32;
     let mut pts = vec![AutoPoint::new(Ticks::ZERO, pos)];
     pts[0].shape = Shape::Hold;
     let mut clip = rig.bus.new_clip("fault", Ticks::beats(2), Ticks::beats(2));

@@ -39,13 +39,15 @@ mod imp {
     use windows_sys::Win32::System::Ole::OleInitialize;
     use windows_sys::Win32::System::StationsAndDesktops::SetUserObjectInformationW;
     use windows_sys::Win32::System::Threading::{
-        CreateEventW, GetCurrentProcess, SetEvent, INFINITE,
+        CreateEventW, GetCurrentProcess, GetCurrentThreadId, SetEvent, INFINITE,
     };
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::IsWindowEnabled;
     use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetAncestor, MsgWaitForMultipleObjects,
-        PeekMessageW, PostMessageW, RegisterClassW, SetTimer, TranslateMessage, GA_ROOTOWNER,
-        HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
+        BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumThreadWindows,
+        IsWindowVisible, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW,
+        RegisterClassW, SetForegroundWindow, SetTimer, TranslateMessage, HWND_MESSAGE, MSG,
+        PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
     };
 
     /// The pulse window (0 until made).
@@ -210,17 +212,45 @@ mod imp {
                     if pulse != 0 && msg.hwnd as isize == pulse {
                         continue;
                     }
-                    // A plug-in window's message runs as a call into its instance: a crash
-                    // or a modal loop in it is that instance's (review #1, #44).
-                    let owner = if msg.hwnd.is_null() {
-                        0
-                    } else {
-                        blame::window_owner(GetAncestor(msg.hwnd, GA_ROOTOWNER) as isize)
-                    };
+                    // A plug-in window's message (or its timer's) runs as a call into its
+                    // instance: a crash or a modal loop in it is that instance's (review
+                    // #1, #44; isolation-4 #55).
+                    let owner = blame::message_owner(&msg);
                     let _calling = (owner != 0).then(|| blame::calling(owner));
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
+                // Between calls again: nothing is laid on the last message's instance.
+                blame::settle();
+            }
+        }
+    }
+
+    /// Brings the main thread's waiting windows — a plug-in's dialog, which disabled the
+    /// windows it is modal to — to the front (review isolation-4 #54). Cantus let this
+    /// process take the foreground first.
+    pub fn surface() {
+        unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> i32 {
+            // SAFETY: queries of a window of this thread; `found` is our own slot.
+            unsafe {
+                if IsWindowVisible(hwnd) != 0 && IsWindowEnabled(hwnd) != 0 {
+                    *(found as *mut HWND) = hwnd;
+                }
+            }
+            1
+        }
+        let mut found: HWND = std::ptr::null_mut();
+        // SAFETY: walks this thread's top-level windows with our callback; brings the last
+        // visible, enabled one (the dialog) forward.
+        unsafe {
+            EnumThreadWindows(
+                GetCurrentThreadId(),
+                Some(each),
+                &mut found as *mut HWND as LPARAM,
+            );
+            if !found.is_null() {
+                BringWindowToTop(found);
+                SetForegroundWindow(found);
             }
         }
     }
@@ -268,6 +298,9 @@ mod imp {
     /// No plug-in windows here, so no nested message loops: the main loop is the pulse.
     pub fn start_pulse(_on_pulse: fn()) {}
 
+    /// No plug-in windows here.
+    pub fn surface() {}
+
     /// Wakes the main thread's wait from another thread (a request arrived).
     #[derive(Clone, Copy)]
     pub struct Wake(&'static (Mutex<bool>, Condvar));
@@ -299,29 +332,51 @@ mod imp {
 
 pub use imp::*;
 
-/// Which plug-in a crash is laid on (review #49, #1, #39): each thread says which instance
-/// it is calling into — the main thread in its calls, its ticks and the plug-in windows'
-/// messages it dispatches, each processing thread in its jobs — and a crash handler (the
-/// unhandled-exception filter and the C runtime's abort signal on Windows; the fatal signals
-/// on Unix, on a stack of their own) writes the faulting thread's into the lobby
-/// ([`cantus_host::bridge::sandbox::CRASH_AT`]) as the process dies — or *outside*
-/// ([`cantus_host::bridge::sandbox::OUTSIDE`]) for a thread calling into none, so the
-/// crash is laid on nobody rather than on whoever was processing. A Windows fail-fast abort
-/// runs no handler; Cantus then judges by what was running, and blames nobody when several
-/// were.
+/// Which plug-in a crash is laid on (review #49, #1, #39; isolation-4 #37, #48, #55): each
+/// thread says which instance it is calling into — the main thread in its calls, its ticks
+/// and every window message it retrieves (in any loop, a plug-in's modal one included: the
+/// message runs as a call into the instance whose window it is for, or whose library its
+/// window class or timer procedure comes from), each processing thread in its jobs — and a
+/// crash handler writes, as the process dies, the instance whose library the faulting code
+/// is in, else the faulting thread's ([`cantus_host::bridge::sandbox::CRASH_AT`]), else
+/// *outside* ([`cantus_host::bridge::sandbox::OUTSIDE`]). A Windows fail-fast abort runs no
+/// handler; Cantus then judges by what was running, and blames nobody when several were.
 pub mod blame {
     use cantus_host::bridge::sandbox::OUTSIDE;
     use std::cell::{Cell, RefCell};
-    use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
+    use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicUsize, Ordering};
 
     thread_local! {
+        /// The instance this thread calls into now (0: none): its call's — or, on the main
+        /// thread, the instance a window message being dispatched belongs to.
         static CURRENT: Cell<u32> = const { Cell::new(0) };
+        /// The instance whose call is under way on this thread (0: none), beneath what a
+        /// message dispatched inside it says.
+        static CONTEXT: Cell<u32> = const { Cell::new(0) };
         /// The plug-in windows (their root handles) and their instances (main thread).
         static WINDOWS: RefCell<Vec<(isize, u32)>> = const { RefCell::new(Vec::new()) };
     }
 
     static CRASH_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
     static MAIN_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
+
+    /// The plug-ins' libraries: the address range of each, and an instance loaded from it
+    /// (0: a free entry). Written by the main thread at loads and unloads, read by a crash
+    /// handler with atomics only.
+    struct Module {
+        start: AtomicUsize,
+        end: AtomicUsize,
+        instance: AtomicU32,
+    }
+
+    const MODULES: usize = 256;
+    #[allow(clippy::declare_interior_mutable_const)]
+    const FREE: Module = Module {
+        start: AtomicUsize::new(0),
+        end: AtomicUsize::new(0),
+        instance: AtomicU32::new(0),
+    };
+    static TABLE: [Module; MODULES] = [FREE; MODULES];
 
     /// The instance this thread calls into now (0: none).
     pub fn current() -> u32 {
@@ -338,16 +393,19 @@ pub mod blame {
     /// message inside a call, a call served from a plug-in's modal loop).
     pub struct Calling {
         prev: u32,
+        prev_context: u32,
     }
 
     pub fn calling(instance: u32) -> Calling {
         let prev = current();
+        let prev_context = CONTEXT.try_with(|c| c.replace(instance)).unwrap_or(0);
         mark(instance);
-        Calling { prev }
+        Calling { prev, prev_context }
     }
 
     impl Drop for Calling {
         fn drop(&mut self) {
+            let _ = CONTEXT.try_with(|c| c.set(self.prev_context));
             mark(self.prev);
         }
     }
@@ -359,6 +417,25 @@ pub mod blame {
             // SAFETY: the lobby's word, mapped for the life of the process (`install`).
             unsafe { &*word }.store(instance, Ordering::Release);
         }
+    }
+
+    /// Back to the call under way (0 between calls), after messages were dispatched.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn settle() {
+        mark(CONTEXT.try_with(|c| c.get()).unwrap_or(0));
+    }
+
+    /// On the main thread, a window message retrieved for dispatch — by any loop, ours or
+    /// a plug-in's: it runs as a call into `owner` when that is an instance, else under the
+    /// call around it (review isolation-4 #37, #48).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub(crate) fn message(owner: u32) {
+        let n = if owner != 0 {
+            owner
+        } else {
+            CONTEXT.try_with(|c| c.get()).unwrap_or(0)
+        };
+        mark(n);
     }
 
     /// A plug-in window (its root handle) belongs to `instance`.
@@ -387,23 +464,126 @@ pub mod blame {
             .unwrap_or(0)
     }
 
-    /// From a crash handler, on the faulting thread: its instance (or *outside*) into the
-    /// lobby. Only atomics and a thread-local made without initialisation are touched.
-    fn record() {
-        let word = CRASH_AT.load(Ordering::Acquire);
-        if word.is_null() {
+    /// The instance loaded from the library `addr` is in (0: none of the plug-ins'): the
+    /// one this thread calls into when it is one of them. Atomics only.
+    pub(crate) fn by_module(addr: usize) -> u32 {
+        if addr == 0 {
+            return 0;
+        }
+        let me = CURRENT.try_with(|c| c.get()).unwrap_or(0);
+        let mut first = 0;
+        for m in &TABLE {
+            let n = m.instance.load(Ordering::Acquire);
+            if n == 0 {
+                continue;
+            }
+            if m.start.load(Ordering::Acquire) <= addr && addr < m.end.load(Ordering::Acquire) {
+                if n == me {
+                    return n;
+                }
+                if first == 0 {
+                    first = n;
+                }
+            }
+        }
+        first
+    }
+
+    /// Records `[start, end)` as a library of `instance`'s (main thread).
+    fn remember_module(start: usize, end: usize, instance: u32) {
+        let known = TABLE.iter().any(|m| {
+            m.instance.load(Ordering::Acquire) == instance
+                && m.start.load(Ordering::Acquire) == start
+        });
+        if known || start >= end {
             return;
         }
-        let n = CURRENT.try_with(|c| c.get()).unwrap_or(0);
-        let n = if n == 0 { OUTSIDE } else { n };
+        if let Some(m) = TABLE
+            .iter()
+            .find(|m| m.instance.load(Ordering::Acquire) == 0)
+        {
+            m.start.store(start, Ordering::Release);
+            m.end.store(end, Ordering::Release);
+            m.instance.store(instance, Ordering::Release);
+        }
+    }
+
+    /// The libraries loaded now, by start address (main thread).
+    pub fn modules_now() -> Vec<usize> {
+        let mut v = Vec::new();
+        imp::modules(&mut |start, _, _: &str| v.push(start));
+        v
+    }
+
+    /// After `instance` was loaded from `path`: the libraries that are its — the plug-in's
+    /// own, and those that came with it from its folder (not loaded `before`) — are
+    /// remembered for the crash handler and for attributing its windows' and timers'
+    /// messages (main thread; review isolation-4 #48, #55).
+    pub fn learn_modules(instance: u32, path: &std::path::Path, before: &[usize]) {
+        let own = path.to_string_lossy().to_lowercase();
+        let folder = path
+            .parent()
+            .map(|p| p.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+        imp::modules(&mut |start, end, file: &str| {
+            let file = file.to_lowercase();
+            let with_it = !before.contains(&start)
+                && !folder.is_empty()
+                && std::path::Path::new(&file)
+                    .parent()
+                    .is_some_and(|p| p.to_string_lossy() == folder);
+            if file.starts_with(&own) || with_it {
+                remember_module(start, end, instance);
+            }
+        });
+    }
+
+    /// `instance` left: its libraries are no longer laid anything on.
+    pub fn forget_instance(instance: u32) {
+        for m in &TABLE {
+            if m.instance.load(Ordering::Acquire) == instance {
+                m.instance.store(0, Ordering::Release);
+            }
+        }
+    }
+
+    /// From a crash handler, on the faulting thread: the instance whose library `addr` (the
+    /// faulting code) is in, else the thread's own, else *outside*, into the lobby — the
+    /// first fault's word stands. `true` when this call wrote it. Only atomics and a
+    /// thread-local made without initialisation are touched.
+    fn record(addr: usize) -> Option<u32> {
+        let word = CRASH_AT.load(Ordering::Acquire);
+        if word.is_null() {
+            return None;
+        }
+        let n = match by_module(addr) {
+            0 => match CURRENT.try_with(|c| c.get()).unwrap_or(0) {
+                0 => OUTSIDE,
+                n => n,
+            },
+            n => n,
+        };
         // SAFETY: `word` points into the lobby, mapped for the life of the process.
         let w = unsafe { &*word };
-        // The first fault's word stands (a second one in the dying process says nothing).
-        let _ = w.compare_exchange(0, n, Ordering::AcqRel, Ordering::Relaxed);
+        w.compare_exchange(0, n, Ordering::AcqRel, Ordering::Relaxed)
+            .ok()
+            .map(|_| n)
+    }
+
+    /// The fault was handled after all (a plug-in's own filter resumed it): its word is
+    /// taken back, so a later end is not laid on it (review isolation-4 #47, #61).
+    #[cfg_attr(not(windows), allow(dead_code))]
+    fn unrecord(n: u32) {
+        let word = CRASH_AT.load(Ordering::Acquire);
+        if !word.is_null() {
+            // SAFETY: as in `record`.
+            let _ = unsafe { &*word }.compare_exchange(n, 0, Ordering::AcqRel, Ordering::Relaxed);
+        }
     }
 
     /// Installs the crash handlers, writing to `crash_at`; `main_at` is the lobby's word
-    /// naming the instance the main thread is calling into.
+    /// naming the instance the main thread is calling into. On Windows the main thread's
+    /// retrieved messages are attributed from here on.
     pub fn install(crash_at: &'static AtomicU32, main_at: &'static AtomicU32) {
         CRASH_AT.store(
             crash_at as *const AtomicU32 as *mut AtomicU32,
@@ -414,13 +594,17 @@ pub mod blame {
             Ordering::Release,
         );
         imp::install();
+        imp::hook_messages();
         alt_stack();
     }
 
-    /// Puts our handler back in front (a plug-in may have installed its own crash reporter
-    /// over it while it loaded): ours records, then hands on to it.
+    /// Puts our handler back in front where a plug-in put its own over it while it loaded,
+    /// opened its editor or restarted (Windows: ours records, then hands on to it). On Unix
+    /// a plug-in's own fatal-signal handler is left in place — its runtime may handle its
+    /// own faults — and ours goes back only where the default was restored (review
+    /// isolation-4 #17, #52).
     pub fn reinstall() {
-        imp::install();
+        imp::reinstall();
     }
 
     /// A stack of its own for this thread's fatal-signal handler, so a stack overflow is
@@ -431,25 +615,73 @@ pub mod blame {
 
     #[cfg(windows)]
     mod imp {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use windows_sys::Win32::Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM};
         use windows_sys::Win32::System::Diagnostics::Debug::{
             SetUnhandledExceptionFilter, EXCEPTION_POINTERS, LPTOP_LEVEL_EXCEPTION_FILTER,
+        };
+        use windows_sys::Win32::System::LibraryLoader::{
+            GetModuleFileNameW, GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        };
+        use windows_sys::Win32::System::ProcessStatus::{
+            K32EnumProcessModules, K32GetModuleInformation, MODULEINFO,
+        };
+        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetCurrentThreadId};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            CallNextHookEx, GetAncestor, GetClassLongPtrW, SetWindowsHookExW, GA_ROOTOWNER,
+            GCLP_HMODULE, HC_ACTION, MSG, PM_REMOVE, WH_GETMESSAGE, WM_TIMER,
         };
 
         /// A filter that was in place before ours (a plug-in's crash reporter): handed on.
         static CHAINED: AtomicUsize = AtomicUsize::new(0);
+        /// Ours runs now: entered again (a plug-in's filter handing back to ours), it
+        /// hands on to nothing (review isolation-4 #7, #16, #28).
+        static INSIDE: AtomicBool = AtomicBool::new(false);
+        const EXCEPTION_CONTINUE_EXECUTION: i32 = -1;
+
+        /// Whether `addr` is in a library still loaded (a filter of one that was unloaded
+        /// is never called).
+        fn loaded(addr: usize) -> bool {
+            let mut h: HMODULE = std::ptr::null_mut();
+            // SAFETY: a lookup of the module an address is in, not changing its count.
+            unsafe {
+                GetModuleHandleExW(
+                    GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS
+                        | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                    addr as *const u16,
+                    &mut h,
+                ) != 0
+            }
+        }
 
         unsafe extern "system" fn filter(info: *const EXCEPTION_POINTERS) -> i32 {
-            super::record();
+            if INSIDE.swap(true, Ordering::AcqRel) {
+                return 0; // EXCEPTION_CONTINUE_SEARCH: the crash goes on as it would have
+            }
+            // SAFETY: the system hands a valid record of the exception being dispatched.
+            let addr = unsafe {
+                info.as_ref()
+                    .and_then(|i| i.ExceptionRecord.as_ref())
+                    .map_or(0, |r| r.ExceptionAddress as usize)
+            };
+            let wrote = super::record(addr);
             let chained = CHAINED.load(Ordering::Acquire);
-            if chained != 0 {
-                // SAFETY: a filter function the process installed, called as the system
-                // would have.
+            let mut verdict = 0;
+            if chained != 0 && loaded(chained) {
+                // SAFETY: a filter function the process installed, in a library still
+                // loaded, called as the system would have.
                 let f: unsafe extern "system" fn(*const EXCEPTION_POINTERS) -> i32 =
                     unsafe { std::mem::transmute(chained) };
-                return unsafe { f(info) };
+                verdict = unsafe { f(info) };
             }
-            0 // EXCEPTION_CONTINUE_SEARCH: the process ends as it would have
+            if verdict == EXCEPTION_CONTINUE_EXECUTION {
+                if let Some(n) = wrote {
+                    super::unrecord(n);
+                }
+            }
+            INSIDE.store(false, Ordering::Release);
+            verdict
         }
 
         unsafe extern "C" {
@@ -460,18 +692,20 @@ pub mod blame {
         const SIGABRT: i32 = 22;
 
         extern "C" fn on_abort(_sig: i32) {
-            super::record();
+            super::record(0);
         }
 
         pub fn install() {
-            // SAFETY: a filter for this process's unhandled exceptions, which only stores
-            // an atomic and hands on; the previous one, kept to hand on to.
+            // SAFETY: a filter for this process's unhandled exceptions, which stores an
+            // atomic and hands on; the previous one, kept to hand on to — or forgotten when
+            // it is ours or none (review isolation-4 #61).
             let prev: LPTOP_LEVEL_EXCEPTION_FILTER =
                 unsafe { SetUnhandledExceptionFilter(Some(filter)) };
-            if let Some(p) = prev {
-                if p as usize != filter as *const () as usize {
+            match prev {
+                Some(p) if p as usize != filter as *const () as usize => {
                     CHAINED.store(p as usize, Ordering::Release);
                 }
+                _ => CHAINED.store(0, Ordering::Release),
             }
             // SAFETY: a handler for the C runtime's abort signal, which only stores an
             // atomic; returning lets the abort end the process as it would have.
@@ -480,37 +714,198 @@ pub mod blame {
             }
         }
 
+        pub fn reinstall() {
+            install();
+        }
+
         pub fn alt_stack() {}
+
+        /// The library a window's class came from (its module handle is its base).
+        fn class_module(hwnd: HWND) -> usize {
+            // SAFETY: a query of a window's class; 0 for a window that is gone.
+            unsafe { GetClassLongPtrW(hwnd, GCLP_HMODULE) }
+        }
+
+        /// The instance a retrieved message belongs to: its window's (by its root owner,
+        /// or the library its class came from), or — a timer with no window — its
+        /// procedure's library's.
+        pub(crate) fn owner(msg: &MSG) -> u32 {
+            if !msg.hwnd.is_null() {
+                // SAFETY: a query of a window handle (any, even one gone).
+                let root = unsafe { GetAncestor(msg.hwnd, GA_ROOTOWNER) };
+                let n = super::window_owner(root as isize);
+                if n != 0 {
+                    return n;
+                }
+                let n = super::by_module(class_module(msg.hwnd));
+                if n != 0 {
+                    return n;
+                }
+            }
+            if msg.message == WM_TIMER && msg.lParam != 0 {
+                return super::by_module(msg.lParam as usize);
+            }
+            0
+        }
+
+        unsafe extern "system" fn on_message(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
+            if code == HC_ACTION as i32 && w == PM_REMOVE as usize && l != 0 {
+                // SAFETY: the system hands the message being retrieved.
+                let msg = unsafe { &*(l as *const MSG) };
+                super::message(owner(msg));
+            }
+            // SAFETY: handing on, as every hook must.
+            unsafe { CallNextHookEx(std::ptr::null_mut(), code, w, l) }
+        }
+
+        /// Every message the main thread retrieves, in any loop, is attributed before it
+        /// is dispatched (review isolation-4 #37, #48, #55).
+        pub fn hook_messages() {
+            // SAFETY: a hook on this thread's own retrievals, with our procedure, kept for
+            // the life of the process.
+            unsafe {
+                SetWindowsHookExW(
+                    WH_GETMESSAGE,
+                    Some(on_message),
+                    std::ptr::null_mut(),
+                    GetCurrentThreadId(),
+                );
+            }
+        }
+
+        /// Each library loaded now: its address range and file.
+        pub fn modules(f: &mut dyn FnMut(usize, usize, &str)) {
+            let mut handles: Vec<HMODULE> = vec![std::ptr::null_mut(); 1024];
+            let mut needed = 0u32;
+            // SAFETY: this process's pseudo-handle; a buffer with its size in bytes.
+            let ok = unsafe {
+                K32EnumProcessModules(
+                    GetCurrentProcess(),
+                    handles.as_mut_ptr(),
+                    (handles.len() * size_of::<HMODULE>()) as u32,
+                    &mut needed,
+                )
+            };
+            if ok == 0 {
+                return;
+            }
+            let n = (needed as usize / size_of::<HMODULE>()).min(handles.len());
+            let mut name = vec![0u16; 1024];
+            for h in &handles[..n] {
+                let mut info: MODULEINFO = MODULEINFO {
+                    lpBaseOfDll: std::ptr::null_mut(),
+                    SizeOfImage: 0,
+                    EntryPoint: std::ptr::null_mut(),
+                };
+                // SAFETY: a module of this process and a structure of the asked size.
+                let ok = unsafe {
+                    K32GetModuleInformation(
+                        GetCurrentProcess(),
+                        *h,
+                        &mut info,
+                        size_of::<MODULEINFO>() as u32,
+                    )
+                };
+                if ok == 0 {
+                    continue;
+                }
+                // SAFETY: a buffer with its length in characters.
+                let len = unsafe { GetModuleFileNameW(*h, name.as_mut_ptr(), name.len() as u32) };
+                let file = String::from_utf16_lossy(&name[..len as usize]);
+                let start = info.lpBaseOfDll as usize;
+                f(start, start + info.SizeOfImage as usize, &file);
+            }
+        }
     }
+
+    #[cfg(windows)]
+    pub(crate) use imp::owner as message_owner;
 
     #[cfg(unix)]
     mod imp {
-        extern "C" fn on_signal(_sig: libc::c_int) {
-            super::record();
+        const SIGNALS: [libc::c_int; 5] = [
+            libc::SIGSEGV,
+            libc::SIGBUS,
+            libc::SIGILL,
+            libc::SIGFPE,
+            libc::SIGABRT,
+        ];
+
+        /// The faulting code's address, from the signal's context (0 where unknown).
+        fn pc(ctx: *mut libc::c_void) -> usize {
+            if ctx.is_null() {
+                return 0;
+            }
+            #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+            {
+                // SAFETY: the kernel hands a `ucontext_t` with a SA_SIGINFO handler.
+                let uc = unsafe { &*(ctx as *const libc::ucontext_t) };
+                uc.uc_mcontext.gregs[libc::REG_RIP as usize] as usize
+            }
+            #[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+            {
+                // SAFETY: as above.
+                let uc = unsafe { &*(ctx as *const libc::ucontext_t) };
+                uc.uc_mcontext.pc as usize
+            }
+            #[cfg(not(all(
+                target_os = "linux",
+                any(target_arch = "x86_64", target_arch = "aarch64")
+            )))]
+            {
+                0
+            }
+        }
+
+        extern "C" fn on_signal(_sig: libc::c_int, _info: *mut libc::siginfo_t, ctx: *mut libc::c_void) {
+            super::record(pc(ctx));
             // The handler was reset (SA_RESETHAND): returning re-raises the fault (or, for
             // SIGABRT, `abort` raises it again), and the process ends as it would have.
         }
 
+        fn ours() -> usize {
+            on_signal as extern "C" fn(libc::c_int, *mut libc::siginfo_t, *mut libc::c_void)
+                as usize
+        }
+
+        fn set(sig: libc::c_int) {
+            // SAFETY: a zeroed sigaction with our handler, reset to the default after it
+            // runs once, on the thread's own signal stack when it has one; the handler only
+            // stores an atomic.
+            unsafe {
+                let mut sa: libc::sigaction = std::mem::zeroed();
+                sa.sa_sigaction = ours();
+                sa.sa_flags = libc::SA_SIGINFO
+                    | libc::SA_RESETHAND
+                    | libc::SA_NODEFER
+                    | libc::SA_ONSTACK;
+                libc::sigemptyset(&mut sa.sa_mask);
+                libc::sigaction(sig, &sa, std::ptr::null_mut());
+            }
+        }
+
         pub fn install() {
-            for sig in [
-                libc::SIGSEGV,
-                libc::SIGBUS,
-                libc::SIGILL,
-                libc::SIGFPE,
-                libc::SIGABRT,
-            ] {
-                // SAFETY: a zeroed sigaction with our handler, reset to the default after
-                // it runs once, on the thread's own signal stack when it has one; the
-                // handler only stores an atomic.
-                unsafe {
-                    let mut sa: libc::sigaction = std::mem::zeroed();
-                    sa.sa_sigaction = on_signal as extern "C" fn(libc::c_int) as usize;
-                    sa.sa_flags = libc::SA_RESETHAND | libc::SA_NODEFER | libc::SA_ONSTACK;
-                    libc::sigemptyset(&mut sa.sa_mask);
-                    libc::sigaction(sig, &sa, std::ptr::null_mut());
+            for sig in SIGNALS {
+                set(sig);
+            }
+        }
+
+        /// Ours back only where the default was restored: a plug-in's own handler stays.
+        pub fn reinstall() {
+            for sig in SIGNALS {
+                // SAFETY: reads the signal's current disposition into a zeroed structure.
+                let current = unsafe {
+                    let mut old: libc::sigaction = std::mem::zeroed();
+                    libc::sigaction(sig, std::ptr::null(), &mut old);
+                    old.sa_sigaction
+                };
+                if current == libc::SIG_DFL {
+                    set(sig);
                 }
             }
         }
+
+        pub fn hook_messages() {}
 
         pub fn alt_stack() {
             const SIZE: usize = 64 * 1024;
@@ -523,6 +918,50 @@ pub mod blame {
             // SAFETY: a stack this thread keeps for the life of the process (leaked).
             unsafe {
                 libc::sigaltstack(&ss, std::ptr::null_mut());
+            }
+        }
+
+        /// Each shared object loaded now: its address range and file.
+        pub fn modules(f: &mut dyn FnMut(usize, usize, &str)) {
+            unsafe extern "C" fn each(
+                info: *mut libc::dl_phdr_info,
+                _size: libc::size_t,
+                data: *mut libc::c_void,
+            ) -> libc::c_int {
+                // SAFETY: the loader hands a valid record; `data` is our closure.
+                unsafe {
+                    let info = &*info;
+                    let f = &mut *(data as *mut &mut dyn FnMut(usize, usize, &str));
+                    let name = if info.dlpi_name.is_null() {
+                        String::new()
+                    } else {
+                        std::ffi::CStr::from_ptr(info.dlpi_name)
+                            .to_string_lossy()
+                            .into_owned()
+                    };
+                    let base = info.dlpi_addr as usize;
+                    let (mut lo, mut hi) = (usize::MAX, 0usize);
+                    for i in 0..info.dlpi_phnum as usize {
+                        let ph = &*info.dlpi_phdr.add(i);
+                        if ph.p_type == libc::PT_LOAD {
+                            let start = base + ph.p_vaddr as usize;
+                            lo = lo.min(start);
+                            hi = hi.max(start + ph.p_memsz as usize);
+                        }
+                    }
+                    if lo < hi {
+                        f(lo, hi, &name);
+                    }
+                }
+                0
+            }
+            let mut f = f;
+            // SAFETY: walks the loaded objects with our callback, on this thread.
+            unsafe {
+                libc::dl_iterate_phdr(
+                    Some(each),
+                    &mut f as *mut &mut dyn FnMut(usize, usize, &str) as *mut libc::c_void,
+                );
             }
         }
     }
