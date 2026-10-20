@@ -235,34 +235,6 @@ fn the_arrangement_draws_warp_markers_to_grab() {
 }
 
 #[test]
-fn bounce_warped_audio_leaves_the_clip_playing_a_file_of_its_own() {
-    let dir = tempfile::tempdir().unwrap();
-    std::env::set_var("CANTUS_DATA_DIR", dir.path());
-    let path = dir.path().join("clicks.wav");
-    let m = click_track(48_000.0, 100.0, 4, 0.0);
-    wav(&path, 48_000, &m.audio);
-    let mut a = app(project(120.0));
-    a.import_audio(std::slice::from_ref(&path), Ticks::ZERO, None);
-    settle(&mut a);
-    let (t, c) = audio_clips(&a).remove(0);
-    let r = (t, c.id);
-    let mut w = Warp::identity(48_000, 100.0, 0);
-    w.cents = -300;
-    a.commit_warp(r, Some(w), cantus_core::warp::WarpOp::Set, false);
-    assert!(a.bounce_warped(r));
-    settle(&mut a);
-    let c = a.project().track(t).unwrap().clip(r.1).unwrap().clone();
-    let region = c.audio.unwrap();
-    assert!(region.warp.is_none(), "it plays the bounce, unwarped");
-    let s = a.project().audio_source(region.source).unwrap();
-    assert_ne!(Path::new(&s.path), path.as_path());
-    assert!(Path::new(&s.path).exists() || dir.path().join(&s.path).exists());
-    // One undo step back to the warped clip.
-    a.undo();
-    assert!(a.clip_warp(r).is_some());
-}
-
-#[test]
 fn alt_dragging_the_right_edge_stretches_the_clip() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("clicks.wav");

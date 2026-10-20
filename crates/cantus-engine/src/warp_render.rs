@@ -93,33 +93,42 @@ impl Plan {
         self.map.seconds_between_f64(self.start.0 as f64, t) * self.rate as f64
     }
 
-    /// The stretcher's map over the window: its ends, every warp marker inside it, and,
-    /// where the tempo moves under the window, a breakpoint every [`RAMP_STEP`] frames.
+    /// The stretcher's map over the window: its ends and every warp marker inside it
+    /// (**hard** points: the audio is pinned there), and, where the tempo moves under the
+    /// window, every tempo point inside it (a step's corner, a ramp's ends) and a sample
+    /// every [`RAMP_STEP`] frames (**soft** points: a smooth curve, which Rhythm never cuts
+    /// at and a transient's hold may move — round 29's review).
     pub fn time_map(&self) -> Map {
         let len = self.len();
         let s = self.start.0 as f64;
-        let held = self
-            .map
-            .held_at(s)
-            .is_some_and(|(_, _, to)| to >= self.end.0 as f64);
-        let mut ks: Vec<f64> = vec![0.0, len as f64];
+        let e = self.end.0 as f64;
+        let held = self.map.held_at(s).is_some_and(|(_, _, to)| to >= e);
+        // (frame, hard)
+        let mut ks: Vec<(f64, bool)> = vec![(0.0, true), (len as f64, true)];
         if !held {
-            ks.extend((1..len / RAMP_STEP + 1).map(|i| (i * RAMP_STEP) as f64));
+            ks.extend((1..len / RAMP_STEP + 1).map(|i| ((i * RAMP_STEP) as f64, false)));
+            for p in self.map.points() {
+                let t = p.tick.0 as f64;
+                if t > s && t < e {
+                    ks.push((self.frame_of(t), false));
+                }
+            }
         }
         if self.warp.follow {
             let origin = s - self.offset.0 as f64;
             for m in &self.warp.markers {
                 let k = self.frame_of(origin + m.tick.0 as f64);
                 if k > 0.0 && k < len as f64 {
-                    ks.push(k);
+                    ks.push((k, true));
                 }
             }
         }
-        ks.sort_by(f64::total_cmp);
-        ks.dedup_by(|b, a| *b - *a < 1e-9);
-        let pts: Vec<(f64, f64)> = ks.iter().map(|&k| (k, self.source_at(k))).collect();
-        // A marker's own frame where it is exact (the formula's round trip aside).
-        Map::new(pts).unwrap_or_else(|| Map::linear(self.source_at(0.0), 1.0))
+        // In order; where two land together, the hard one stays.
+        ks.sort_by(|a, b| a.0.total_cmp(&b.0).then(b.1.cmp(&a.1)));
+        ks.dedup_by(|b, a| b.0 - a.0 < 1e-9);
+        let pts: Vec<(f64, f64)> = ks.iter().map(|&(k, _)| (k, self.source_at(k))).collect();
+        let soft: Vec<bool> = ks.iter().map(|&(_, hard)| !hard).collect();
+        Map::with_soft(pts, soft).unwrap_or_else(|| Map::linear(self.source_at(0.0), 1.0))
     }
 }
 
@@ -140,11 +149,20 @@ fn tail_of(t: WarpTail) -> Tail {
     }
 }
 
-fn channels(d: &SampleData) -> Vec<Vec<f32>> {
+/// The input's channels over frames `[lo, hi)` (clamped) — only the span a render reads,
+/// never a whole long take for a short window (round 29's review).
+fn channels(d: &SampleData, lo: usize, hi: usize) -> Vec<Vec<f32>> {
     let ch = d.channels.max(1) as usize;
+    let frames = d.frames.len() / ch;
+    let (lo, hi) = (lo.min(frames), hi.min(frames).max(lo.min(frames)));
     (0..ch)
-        .map(|c| d.frames.iter().skip(c).step_by(ch).copied().collect())
+        .map(|c| (lo..hi).map(|i| d.frames[i * ch + c]).collect())
         .collect()
+}
+
+/// The input's whole length, frames.
+fn frames_of(d: &SampleData) -> usize {
+    d.frames.len() / d.channels.max(1) as usize
 }
 
 fn interleave(out: &[Vec<f32>], rate: u32) -> SampleData {
@@ -164,61 +182,99 @@ fn interleave(out: &[Vec<f32>], rate: u32) -> SampleData {
     }
 }
 
-/// The clip's render (see the module docs), at full quality. Deterministic.
-pub fn render(input: &SampleData, plan: &Plan, analysis: Option<&Analysis>) -> SampleData {
-    let chs = channels(input);
-    let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();
+/// The clip's render (see the module docs), at full quality. Deterministic. `pitch` is
+/// the pitch base's analysis of the whole input (Melodic: made once per input and kept by
+/// the service, never per render); only the span the window reads is taken out of the
+/// input.
+pub fn render(
+    input: &SampleData,
+    plan: &Plan,
+    analysis: Option<&Analysis>,
+    pitch: Option<&cantus_dsp::pitch::Analysis>,
+) -> SampleData {
     let map = plan.time_map();
     let scale = plan.rate as f64 / plan.source_rate.max(1) as f64;
     let onsets: Vec<f64> = analysis
         .map(|a| a.onsets.iter().map(|o| o * scale).collect())
         .unwrap_or_default();
     let mode = mode_of(plan.warp.mode);
-    let pitch = (mode == Mode::Melodic)
-        .then(|| cantus_dsp::pitch::analyse(&crate::pitch::mixdown(&refs), plan.rate as f32));
-    let out = stretch::render(
-        &refs,
-        plan.rate as f32,
-        &Request {
-            mode,
-            map: &map,
-            len: plan.len(),
-            semitones: plan.warp.semitones(),
-            formants: plan.warp.formants,
-            onsets: &onsets,
-            pitch: pitch.as_ref(),
-            tail: tail_of(plan.warp.tail),
-        },
-    );
+    let mut req = Request {
+        mode,
+        map: &map,
+        len: plan.len(),
+        semitones: plan.warp.semitones(),
+        formants: plan.warp.formants,
+        onsets: &onsets,
+        pitch: pitch.filter(|_| mode == Mode::Melodic),
+        tail: tail_of(plan.warp.tail),
+        origin: 0,
+    };
+    let (lo, hi) = stretch::reach(&req, plan.rate as f32, frames_of(input));
+    let chs = channels(input, lo, hi);
+    let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();
+    req.origin = lo;
+    let out = stretch::render(&refs, plan.rate as f32, &req);
     interleave(&out, plan.rate)
 }
 
-/// The bridge while the render is made: the same map read at varispeed, linear
-/// interpolation, untransposed — the right speed at once, a few milliseconds of work.
-pub fn bridge(input: &SampleData, plan: &Plan) -> SampleData {
-    let chs = channels(input);
+/// The pitch base's analysis of the whole input (for a Melodic render).
+pub fn pitch_of(input: &SampleData, rate: u32) -> cantus_dsp::pitch::Analysis {
+    let chs = channels(input, 0, frames_of(input));
+    let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();
+    cantus_dsp::pitch::analyse(&crate::pitch::mixdown(&refs), rate as f32)
+}
+
+/// The bridge while the render is made, in milliseconds: the right speed and — unless the
+/// clip is Re-pitch, where speed is pitch — the right pitch at once. A transposed clip is
+/// sketched by long grains read at its transposition (`stretch::sketch`), so an edit never
+/// drops it back to its source's pitch while the full render is made (round 29's review);
+/// an untransposed one is read at varispeed through the same map. Only the span the
+/// window reads is taken out of the input. `onsets`: the file's transients at the render's
+/// rate, when its analysis is in (a transposed sketch puts them, and the markers, on their
+/// frames).
+pub fn bridge(input: &SampleData, plan: &Plan, onsets: &[f64]) -> SampleData {
     let map = plan.time_map();
-    let out: Vec<Vec<f32>> = chs
-        .iter()
-        .map(|x| {
-            (0..plan.len())
-                .map(|k| {
-                    let s = map.source(k as f64);
-                    let i = s.floor();
-                    let f = (s - i) as f32;
-                    let get = |j: i64| {
-                        if j >= 0 && (j as usize) < x.len() {
-                            x[j as usize]
-                        } else {
-                            0.0
-                        }
-                    };
-                    let i = i as i64;
-                    get(i) + (get(i + 1) - get(i)) * f
-                })
-                .collect()
-        })
-        .collect();
+    let len = plan.len();
+    let (a, b) = (map.source(0.0), map.source(len as f64));
+    let reach = 8_192.0 * plan.warp.semitones().abs().max(1.0);
+    let lo = (a.min(b) - reach).max(0.0) as usize;
+    let hi = (a.max(b) + reach).max(0.0) as usize + 2;
+    let chs = channels(input, lo, hi);
+    let shift = lo as f64;
+    let transposed = plan.warp.semitones() != 0.0 && plan.warp.mode != WarpMode::Repitch;
+    let out: Vec<Vec<f32>> = if transposed {
+        let refs: Vec<&[f32]> = chs.iter().map(Vec::as_slice).collect();
+        let mut anchors: Vec<f64> = map
+            .hard_points()
+            .map(|p| p.1)
+            .chain(onsets.iter().copied())
+            .collect();
+        anchors.sort_by(f64::total_cmp);
+        anchors.dedup_by(|b, a| (*b - *a).abs() < 1.0);
+        let semis = plan.warp.semitones();
+        stretch::sketch(&refs, plan.rate as f32, &map, len, semis, lo, &anchors)
+    } else {
+        chs.iter()
+            .map(|x| {
+                (0..len)
+                    .map(|k| {
+                        let s = map.source(k as f64) - shift;
+                        let i = s.floor();
+                        let f = (s - i) as f32;
+                        let get = |j: i64| {
+                            if j >= 0 && (j as usize) < x.len() {
+                                x[j as usize]
+                            } else {
+                                0.0
+                            }
+                        };
+                        let i = i as i64;
+                        get(i) + (get(i + 1) - get(i)) * f
+                    })
+                    .collect()
+            })
+            .collect()
+    };
     interleave(&out, plan.rate)
 }
 

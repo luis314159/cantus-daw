@@ -94,8 +94,22 @@ pub fn amplitude(x: &[f32], rate: f32, hz: f32) -> f32 {
 /// peak, over 40 ms windows hopped by 10 ms through `x[from..to]` (a phase vocoder that
 /// loses its partials' phase relations makes them beat; a clean one holds them flat).
 pub fn level_wander_db(x: &[f32], rate: f32, hz: f32, from: usize, to: usize) -> f32 {
-    let w = (0.040 * rate) as usize;
-    let hop = (0.010 * rate) as usize;
+    level_wander_db_in(x, rate, hz, from, to, 0.040)
+}
+
+/// [`level_wander_db`] over windows of `window_s` seconds (hopped by a quarter of one):
+/// longer windows resolve partials that lie close together (a chord's voices), at the
+/// cost of the fastest wander.
+pub fn level_wander_db_in(
+    x: &[f32],
+    rate: f32,
+    hz: f32,
+    from: usize,
+    to: usize,
+    window_s: f32,
+) -> f32 {
+    let w = (window_s * rate) as usize;
+    let hop = (w / 4).max(1);
     let to = to.min(x.len());
     let mut lo = f32::INFINITY;
     let mut hi = f32::NEG_INFINITY;

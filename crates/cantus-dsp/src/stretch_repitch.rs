@@ -1,10 +1,12 @@
-//! Re-pitch: the source read at the map's speed, pitch and speed together (tape), through
-//! Exemplar's windowed-sinc kernel on its octave mip levels — a level chosen so the local
-//! speed read there is at most 1, so nothing above the output's band folds back.
+//! Re-pitch: the source read at the map's speed, pitch and speed together (tape). At speed
+//! 1 or below through Exemplar's windowed-sinc kernel on the source itself; faster through
+//! [`super::read::Fast`] — an octave mip level and a cut-off scaled by the local speed, so
+//! the band follows `fs / 2k` continuously and nothing above it folds back (a speed just
+//! over 1 keeps its top octave; a ramp crossing a power of two does not switch band).
 
+use super::read::Fast;
 use super::Map;
-use crate::exemplar::resample::{mip_chain, Kernel, MAX_TAPS};
-use crate::math;
+use crate::exemplar::resample::{Kernel, MAX_TAPS};
 
 const TAPS: usize = 32;
 const BETA: f64 = 9.0;
@@ -13,33 +15,24 @@ pub(super) fn render(channels: &[&[f32]], map: &Map, len: usize) -> Vec<Vec<f32>
     let kernel = Kernel::new(TAPS, BETA);
     let mut coefs = [0.0f32; MAX_TAPS];
     let top = (0..len).fold(1.0f64, |m, t| m.max(map.slope(t as f64)));
-    let levels = (math::log2(top).ceil().max(0.0) as usize).min(7);
+    let (a, b) = (map.source(0.0), map.source(len as f64));
     channels
         .iter()
         .map(|x| {
-            let mips = if levels > 0 {
-                mip_chain(x, 1, levels, false)
-            } else {
-                Vec::new()
-            };
+            let fast = (top > 1.0).then(|| Fast::new(x, a.min(b), a.max(b), top));
             (0..len)
                 .map(|t| {
                     let s = map.source(t as f64);
                     let k = map.slope(t as f64);
-                    let want = if k > 1.0 {
-                        math::log2(k).ceil() as usize
-                    } else {
-                        0
-                    };
-                    let level = want.min(mips.len());
-                    let data: &[f32] = if level == 0 { x } else { &mips[level - 1] };
-                    let pos = s / (1u64 << level) as f64;
-                    let i = pos.floor();
-                    let frac = pos - i;
+                    if let Some(f) = fast.as_ref().filter(|_| k > 1.0) {
+                        return f.read(s, k);
+                    }
+                    let i = s.floor();
+                    let frac = s - i;
                     let i = i as i64;
                     let get = |j: i64| -> f32 {
-                        if j >= 0 && (j as usize) < data.len() {
-                            data[j as usize]
+                        if j >= 0 && (j as usize) < x.len() {
+                            x[j as usize]
                         } else {
                             0.0
                         }

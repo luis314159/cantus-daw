@@ -28,10 +28,17 @@ pub mod measure;
 mod melodic;
 #[path = "stretch_pv.rs"]
 pub(crate) mod pv;
+#[path = "stretch_read.rs"]
+mod read;
 #[path = "stretch_repitch.rs"]
 mod repitch;
+#[cfg(test)]
+#[path = "stretch_review_tests.rs"]
+mod review_tests;
 #[path = "stretch_rhythm.rs"]
 mod rhythm;
+#[path = "stretch_sketch.rs"]
+mod sketch;
 #[cfg(test)]
 #[path = "stretch_tests.rs"]
 mod tests;
@@ -100,6 +107,10 @@ pub struct Request<'a> {
     pub pitch: Option<&'a Analysis>,
     /// Rhythm's slice ends.
     pub tail: Tail,
+    /// The source frame `channels[..][0]` is (0: the channels are the whole source). The
+    /// map, the onsets and the pitch analysis stay in the source's own frames; a caller may
+    /// pass only [`reach`]'s span of a long file.
+    pub origin: usize,
 }
 
 /// The widest transposition, semitones either way (two octaves).
@@ -117,11 +128,66 @@ pub fn render(channels: &[&[f32]], rate: f32, req: &Request) -> Vec<Vec<f32>> {
         .then(|| req.map.plain_over(req.len))
         .flatten()
     {
-        return copy(channels, req.len, shift);
+        return copy(channels, req.len, shift - req.origin as i64);
     }
     if channels.is_empty() || req.len == 0 {
         return channels.iter().map(|_| vec![0.0; req.len]).collect();
     }
+    // Complex and Melodic work on the span the window reads (with the context their
+    // analyses need), never the whole file: a short window of a long take costs its own
+    // length (round 29's review).
+    let src_end = req.origin + channels.iter().map(|c| c.len()).max().unwrap_or(0);
+    let (lo, hi) = match req.mode {
+        Mode::Complex | Mode::Melodic => {
+            let (lo, hi) = reach(req, rate, src_end);
+            (lo.max(req.origin), hi.min(src_end).max(lo.max(req.origin)))
+        }
+        _ => (req.origin, src_end),
+    };
+    if lo != 0 || hi < src_end {
+        let local: Vec<&[f32]> = channels
+            .iter()
+            .map(|c| {
+                let a = (lo - req.origin).min(c.len());
+                let b = (hi - req.origin).min(c.len()).max(a);
+                &c[a..b]
+            })
+            .collect();
+        let shift = lo as f64;
+        let pts: Vec<(f64, f64)> = req
+            .map
+            .points()
+            .iter()
+            .map(|p| (p.0, p.1 - shift))
+            .collect();
+        let soft: Vec<bool> = (0..pts.len()).map(|i| req.map.is_soft(i)).collect();
+        let map = Map::with_soft(pts, soft).unwrap_or_else(Map::identity);
+        let map = if req.map.points().is_empty() {
+            Map::linear(-shift, 1.0)
+        } else {
+            map
+        };
+        let onsets: Vec<f64> = req
+            .onsets
+            .iter()
+            .filter(|s| **s >= lo as f64 && **s < hi as f64)
+            .map(|s| s - shift)
+            .collect();
+        let pitch = req.pitch.map(|a| window_of(a, lo, hi));
+        let local_req = Request {
+            map: &map,
+            onsets: &onsets,
+            pitch: pitch.as_ref(),
+            origin: 0,
+            ..req.clone()
+        };
+        return dispatch(&local, rate, &local_req, semis);
+    }
+    dispatch(channels, rate, req, semis)
+}
+
+/// The render itself, the channels starting at source frame 0.
+fn dispatch(channels: &[&[f32]], rate: f32, req: &Request, semis: f64) -> Vec<Vec<f32>> {
     let ratio = crate::math::exp2(semis / 12.0);
     match req.mode {
         Mode::Complex => complex(channels, rate, req, ratio),
@@ -145,15 +211,33 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
         (pv::frame_len(rate) / 2) as f64,
         0.030 * rate as f64,
     );
-    let mut out = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants);
+    let (mut out, meant) = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants);
     let p: Vec<&[f32]> = percussive.iter().map(Vec::as_slice).collect();
     let shifted = req.map.held_at(req.onsets, rate);
-    let hits = hpss::grains(&p, rate, &shifted, req.len, ratio);
+    let hits = hpss::grains(&p, rate, &shifted, req.len, ratio, req.onsets);
+    // The level each frame means: the source's own where the frame read it, moved by what
+    // the transposition did to the harmonic frame there (a band moved out of reach, the
+    // formants put back). Not the parts' powers summed: the parts were correlated in the
+    // source and are not after.
+    let win = pv::window(pv::frame_len(rate));
+    let w2: f64 = win.iter().map(|w| (*w as f64) * (*w as f64)).sum();
+    let target: Vec<(i64, f64)> = meant
+        .iter()
+        .map(|m| {
+            let k = if m.analysed > 1e-20 {
+                m.meant / m.analysed
+            } else {
+                1.0
+            };
+            (m.centre, pv::power_of(channels, m.read, &win, w2) * k)
+        })
+        .collect();
     for (o, h) in out.iter_mut().zip(&hits) {
         for (a, b) in o.iter_mut().zip(h) {
             *a += *b;
         }
     }
+    pv::level_match(&mut out, &target, rate);
     out
 }
 
@@ -175,4 +259,87 @@ fn copy(channels: &[&[f32]], len: usize, shift: i64) -> Vec<Vec<f32>> {
                 .collect()
         })
         .collect()
+}
+
+/// The span of the source, frames `[from, to)`, a render of `req` reads: for Complex and
+/// Melodic the source under the window plus the context their analyses reach (the
+/// harmonic/percussive split's median over 17 frames, the vocoder's frames, the grains),
+/// its start on the split's and the pitch analysis' frame grid so a window renders as the
+/// whole file would there; for Rhythm and Re-pitch (which read only where they play) the
+/// whole source. `src_len` is the source's length.
+pub fn reach(req: &Request, rate: f32, src_len: usize) -> (usize, usize) {
+    if !matches!(req.mode, Mode::Complex | Mode::Melodic) {
+        return (0, src_len);
+    }
+    let a = req.map.source(0.0);
+    let b = req.map.source(req.len as f64);
+    let (a, b) = (a.min(b), a.max(b));
+    let ctx = (3 * hpss::frame_len(rate) + 2 * pv::frame_len(rate) + 4_096) as f64;
+    let mut align = hpss::frame_len(rate) / 4;
+    if let Some(p) = req.pitch.filter(|p| p.hop > 0) {
+        align = lcm(align, p.hop);
+    }
+    let lo = ((a - ctx).max(0.0) as usize / align) * align;
+    let hi = ((b + ctx).max(0.0).ceil() as usize).min(src_len);
+    (lo.min(src_len), hi.max(lo.min(src_len)))
+}
+
+fn lcm(a: usize, b: usize) -> usize {
+    fn gcd(a: usize, b: usize) -> usize {
+        if b == 0 {
+            a
+        } else {
+            gcd(b, a % b)
+        }
+    }
+    a / gcd(a, b).max(1) * b
+}
+
+/// The pitch analysis over source frames `[lo, hi)`, its frames and epochs counted from
+/// `lo` (a multiple of its hop).
+fn window_of(a: &Analysis, lo: usize, hi: usize) -> Analysis {
+    let hop = a.hop.max(1);
+    let first = (lo / hop).min(a.frames.len());
+    let last = (hi.div_ceil(hop) + 1).clamp(first, a.frames.len());
+    Analysis {
+        sample_rate: a.sample_rate,
+        hop: a.hop,
+        frames: a.frames[first..last].to_vec(),
+        epochs: a
+            .epochs
+            .iter()
+            .filter(|e| e.at >= lo as f64 && e.at < hi as f64)
+            .map(|e| crate::pitch::Epoch {
+                at: e.at - lo as f64,
+                period: e.period,
+            })
+            .collect(),
+    }
+}
+
+/// A **sketch** of a render, made in milliseconds (WSOLA, `stretch_sketch`): the right
+/// timing and the right pitch, a rougher sound — for what plays while the full render is
+/// made (the engine's bridge). `channels` start at source frame `origin`, as in [`Request`];
+/// `anchors` are the transients and markers (source frames, in order): a grain holding one
+/// is read from it outward, so it lands on its frame.
+pub fn sketch(
+    channels: &[&[f32]],
+    rate: f32,
+    map: &Map,
+    len: usize,
+    semitones: f64,
+    origin: usize,
+    anchors: &[f64],
+) -> Vec<Vec<f32>> {
+    let semis = semitones.clamp(-MAX_SEMITONES, MAX_SEMITONES);
+    let ratio = crate::math::exp2(semis / 12.0);
+    let shift = origin as f64;
+    let pts: Vec<(f64, f64)> = map.points().iter().map(|p| (p.0, p.1 - shift)).collect();
+    let local = if pts.is_empty() {
+        Map::linear(-shift, 1.0)
+    } else {
+        Map::new(pts).unwrap_or_else(Map::identity)
+    };
+    let local_anchors: Vec<f64> = anchors.iter().map(|s| s - shift).collect();
+    sketch::render(channels, rate, &local, len, ratio, &local_anchors)
 }

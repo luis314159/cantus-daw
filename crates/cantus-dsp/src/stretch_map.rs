@@ -5,9 +5,16 @@
 /// breakpoints the map is linear; before the first and after the last it goes on at the
 /// slope of the segment beside it (slope 1 with a single breakpoint; the identity with
 /// none).
+///
+/// A breakpoint is **hard** (a window's end, a warp marker: a place the audio is pinned to)
+/// or **soft** (a sample of a smooth curve — the tempo map's ramp, every few hundred frames:
+/// [`Map::with_soft`]). Rhythm cuts only at hard ones, and a hold around a transient may
+/// move soft ones (ADR 0061 §2).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Map {
     points: Vec<(f64, f64)>,
+    /// Per point, whether it is soft; empty: every point is hard.
+    soft: Vec<bool>,
 }
 
 /// A slope this close to 1, and an offset this close to a whole frame, read the source
@@ -36,13 +43,44 @@ impl Map {
         let ok = points
             .windows(2)
             .all(|w| w[1].0 > w[0].0 && w[1].1 >= w[0].1);
-        (finite && ok).then_some(Map { points })
+        (finite && ok).then_some(Map {
+            points,
+            soft: Vec::new(),
+        })
+    }
+
+    /// A map through `points` where `soft[i]` marks a soft point (see [`Map`]); `None` as
+    /// [`Map::new`], or when `soft` is not one flag per point.
+    pub fn with_soft(points: Vec<(f64, f64)>, soft: Vec<bool>) -> Option<Self> {
+        if soft.len() != points.len() {
+            return None;
+        }
+        let mut m = Map::new(points)?;
+        if soft.iter().any(|s| *s) {
+            m.soft = soft;
+        }
+        Some(m)
+    }
+
+    /// Whether point `i` is soft.
+    pub fn is_soft(&self, i: usize) -> bool {
+        self.soft.get(i).copied().unwrap_or(false)
+    }
+
+    /// The hard points (window ends and markers), in order.
+    pub fn hard_points(&self) -> impl Iterator<Item = (f64, f64)> + '_ {
+        self.points
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| !self.is_soft(*i))
+            .map(|(_, p)| *p)
     }
 
     /// A constant speed: output frame `t` reads source frame `from + t · speed`.
     pub fn linear(from: f64, speed: f64) -> Self {
         Map {
             points: vec![(0.0, from), (1.0, from + speed)],
+            soft: Vec::new(),
         }
     }
 
@@ -145,16 +183,21 @@ impl Map {
     /// This map with a pure shift (slope 1) held from `before` frames ahead of every
     /// transient in `onsets` (source frames) to `after` frames past it, each hold through
     /// the transient's own place — so what is read through it is copied, never stretched.
-    /// The breakpoints stay where they are (a hold never crosses one, and takes at most
-    /// [`HOLD_SHARE`] of the room on either side, in output and in source frames alike);
-    /// the stretch moves into the rest. Returns the map and the holds kept, in order.
+    /// The hard breakpoints stay where they are (a hold never crosses one, and takes at
+    /// most [`HOLD_SHARE`] of the room on either side, in output and in source frames
+    /// alike); the stretch moves into the rest. Soft points (a tempo ramp's samples) do not
+    /// bound a hold: those inside a hold, and those in the room beside it that takes up its
+    /// stretch, are dropped — the curve there is followed by one straight segment — and
+    /// the rest stay. Returns the map and the holds kept, in order.
     pub fn hold(&self, onsets: &[f64], before: f64, after: f64) -> (Map, Vec<Hold>) {
         let mut pts: Vec<(f64, f64)> = self.points.clone();
+        let mut soft: Vec<bool> = (0..pts.len()).map(|i| self.is_soft(i)).collect();
         if pts.len() < 2 {
             let a = self.source(0.0);
             pts = vec![(0.0, a), (1.0, a + 1.0)];
+            soft = vec![false; 2];
         }
-        let fixed: Vec<f64> = self.points.iter().map(|p| p.0).collect();
+        let fixed: Vec<f64> = self.hard_points().map(|p| p.0).collect();
         let places: Vec<f64> = onsets.iter().map(|&s| self.output(s)).collect();
         let mut holds: Vec<Hold> = Vec::new();
         for (i, &o) in places.iter().enumerate() {
@@ -184,25 +227,91 @@ impl Map {
             }
         }
         if holds.is_empty() {
-            return (Map { points: pts }, holds);
+            if !soft.iter().any(|s| *s) {
+                soft.clear();
+            }
+            return (Map { points: pts, soft }, holds);
         }
+        // The room each hold's stretch is taken up in: as far again as the hold reaches on
+        // each side divided by its share (in output and source frames both), never past a
+        // hard point or the next transient (the shares above keep it inside). Soft points
+        // there go; the zone's ends are kept, on the curve.
+        let mut zones: Vec<(f64, f64)> = holds
+            .iter()
+            .map(|h| {
+                let s = self.source(h.at);
+                let rb = (h.at - h.from) / HOLD_SHARE;
+                let ra = (h.to - h.at) / HOLD_SHARE;
+                let lo = (h.at - rb).min(self.output(s - rb));
+                let hi = (h.at + ra).max(self.output(s + ra));
+                (lo, hi)
+            })
+            .collect();
+        zones.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let mut merged: Vec<(f64, f64)> = Vec::with_capacity(zones.len());
+        for z in zones {
+            match merged.last_mut() {
+                Some(l) if z.0 <= l.1 => l.1 = l.1.max(z.1),
+                _ => merged.push(z),
+            }
+        }
+        let inside = |o: f64, r: &[(f64, f64)]| r.iter().any(|z| o > z.0 && o < z.1);
+        let held: Vec<(f64, f64)> = holds.iter().map(|h| (h.from, h.to)).collect();
+        let mut kept_pts: Vec<(f64, f64)> = Vec::with_capacity(pts.len() + 4 * holds.len());
+        let mut kept_soft: Vec<bool> = Vec::with_capacity(kept_pts.capacity());
+        for (p, s) in pts.iter().zip(&soft) {
+            if *s && (inside(p.0, &merged) || inside(p.0, &held)) {
+                continue;
+            }
+            kept_pts.push(*p);
+            kept_soft.push(*s);
+        }
+        let any_soft = soft.iter().any(|s| *s);
+        if any_soft {
+            for z in &merged {
+                for o in [z.0, z.1] {
+                    if !inside(o, &held) {
+                        kept_pts.push((o, self.source(o)));
+                        kept_soft.push(false);
+                    }
+                }
+            }
+        }
+        let (mut pts, mut soft) = (kept_pts, kept_soft);
         for h in &holds {
             let s = self.source(h.at);
             pts.push((h.from, s - (h.at - h.from)));
             pts.push((h.to, s + (h.to - h.at)));
+            soft.extend([false, false]);
         }
-        pts.sort_by(|a, b| a.0.total_cmp(&b.0));
-        pts.dedup_by(|b, a| b.0 == a.0);
+        let mut both: Vec<((f64, f64), bool)> = pts.into_iter().zip(soft).collect();
+        both.sort_by(|a, b| a.0 .0.total_cmp(&b.0 .0));
+        both.dedup_by(|b, a| b.0 .0 == a.0 .0);
+        let pts: Vec<(f64, f64)> = both.iter().map(|b| b.0).collect();
+        let soft: Vec<bool> = both.iter().map(|b| b.1).collect();
         // Never read backwards: a point that would is dropped (it cannot happen inside the
         // shares above; this keeps the map a function whatever the input).
         let mut kept: Vec<(f64, f64)> = Vec::with_capacity(pts.len());
-        for p in pts {
+        let mut kept_soft: Vec<bool> = Vec::with_capacity(pts.len());
+        for (p, s) in pts.into_iter().zip(soft) {
             match kept.last() {
                 Some(l) if p.1 < l.1 => {}
-                _ => kept.push(p),
+                _ => {
+                    kept.push(p);
+                    kept_soft.push(s);
+                }
             }
         }
-        (Map { points: kept }, holds)
+        if !kept_soft.iter().any(|s| *s) {
+            kept_soft.clear();
+        }
+        (
+            Map {
+                points: kept,
+                soft: kept_soft,
+            },
+            holds,
+        )
     }
 }
 

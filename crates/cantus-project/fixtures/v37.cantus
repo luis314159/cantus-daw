@@ -2,7 +2,7 @@
   "format": "cantus-project",
   "schema_version": 37,
   "app_version": "fixture",
-  "saved_at": 1792496814,
+  "saved_at": 1792498492,
   "project": {
     "name": "Fixture",
     "tempo_bpm": 96.0,

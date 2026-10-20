@@ -80,6 +80,8 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     let mut report = Report::default();
     let mut ids = Ids(0);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    // The audio files the archive carries: (path in the archive, file on disk), each once.
+    let mut audio: Vec<(String, std::path::PathBuf)> = Vec::new();
 
     // Plan the mixer first: which strips are written, and which fold into their track.
     let mut plans: HashMap<StripId, StripPlan> = HashMap::new();
@@ -164,10 +166,30 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
             .strip
             .and_then(|s| plans.get(&s).map(|p| (s, p)))
             .filter(|(_, p)| p.merged_into == Some(ti));
+        // What the track holds (round 29's review): audio clips, notes, or both — a track
+        // of audio only is no instrument's.
+        let heard = || {
+            t.clips
+                .iter()
+                .filter(|c| c.lane == 0 && c.automation.is_none())
+        };
+        let has_audio = heard().any(|c| c.audio.is_some());
+        let has_notes = heard().any(|c| c.audio.is_none());
+        let content = match (has_audio, has_notes) {
+            (true, false) => "audio",
+            (true, true) => "audio notes",
+            _ => "notes",
+        };
+        if t.input.is_some() {
+            report.info(
+                "interop.report.x_track_input",
+                vec![("track", t.name.clone())],
+            );
+        }
         w.open(
             "Track",
             &[
-                ("contentType", a("notes")),
+                ("contentType", a(content)),
                 ("loaded", a("true")),
                 ("id", a(&track_id)),
                 ("name", a(&t.name)),
@@ -177,7 +199,7 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
         match merged {
             Some((sid, plan)) => {
                 let strip = project.strip(sid).expect("planned from the project");
-                let inst = instrument_device(&mut ids, &mut files, t);
+                let inst = (content != "audio").then(|| instrument_device(&mut ids, &mut files, t));
                 devices += strip.effects.len();
                 channel(
                     &mut w,
@@ -195,14 +217,14 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
                         pan: strip.pan,
                         mute: strip.muted,
                         solo: strip.soloed,
-                        instrument: Some(inst),
+                        instrument: inst,
                         strip: Some(strip),
                     },
                     &plans,
                 );
             }
             None => {
-                let inst = instrument_device(&mut ids, &mut files, t);
+                let inst = (content != "audio").then(|| instrument_device(&mut ids, &mut files, t));
                 let own = ids.next();
                 channel(
                     &mut w,
@@ -220,7 +242,7 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
                         pan: t.pan,
                         mute: t.muted,
                         solo: t.soloed,
-                        instrument: Some(inst),
+                        instrument: inst,
                         strip: None,
                     },
                     &plans,
@@ -316,8 +338,17 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     for (t, track_id) in project.tracks.iter().zip(&track_ids) {
         w.open("Lanes", &[("track", a(track_id)), ("id", a(ids.next()))]);
         w.open("Clips", &[("id", a(ids.next()))]);
-        for c in &t.clips {
-            muted_notes += clip(&mut w, &mut ids, c, project, base, &mut files, &mut report);
+        // The playing lane only: a take lane is never heard (ADR 0058), and DAWproject's
+        // one lane per track would play every take at once (round 29's review).
+        for c in t.clips.iter().filter(|c| c.lane == 0) {
+            muted_notes += clip(&mut w, &mut ids, c, project, base, &mut audio, &mut report);
+        }
+        let takes = t.clips.iter().filter(|c| c.lane != 0).count();
+        if takes > 0 {
+            report.dropped(
+                "interop.report.x_takes",
+                vec![("track", t.name.clone()), ("n", takes.to_string())],
+            );
         }
         w.close();
         w.close();
@@ -344,6 +375,7 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
         project_xml: w.finish(),
         metadata_xml: m.finish(),
         files,
+        audio,
         report,
     }
 }
@@ -746,7 +778,7 @@ fn clip(
     c: &Clip,
     project: &Project,
     base: Option<&std::path::Path>,
-    files: &mut Vec<(String, Vec<u8>)>,
+    audio: &mut Vec<(String, std::path::PathBuf)>,
     report: &mut Report,
 ) -> usize {
     let period = c.period();
@@ -754,14 +786,31 @@ fn clip(
         .audio
         .as_ref()
         .filter(|a| a.fade_in > Ticks::ZERO || a.fade_out > Ticks::ZERO);
+    // A clip at its natural speed counts its content in seconds of its file (round 29's
+    // review): where it starts in the file, and where its loop ends.
+    let natural = c
+        .audio
+        .as_ref()
+        .filter(|a| super::audio::natural(a))
+        .and_then(|a| Some((a, project.audio_source(a.source)?.sample_rate)))
+        .map(|(a, rate)| super::audio::seconds_of(project, c, a, rate));
+    let (play_start, loop_start, loop_end) = match natural {
+        Some((s, end)) => (num(s), end.map(|_| num(s)), end.map(num)),
+        None => (
+            beats(c.offset),
+            period.map(|_| beats(c.offset)),
+            period.map(|p| beats(c.offset + p)),
+        ),
+    };
     w.open(
         "Clip",
         &[
             ("time", a(beats(c.start))),
             ("duration", a(beats(c.length))),
-            ("playStart", a(beats(c.offset))),
-            ("loopStart", period.map(|_| beats(c.offset))),
-            ("loopEnd", period.map(|p| beats(c.offset + p))),
+            ("contentTimeUnit", natural.map(|_| "seconds".to_string())),
+            ("playStart", a(play_start)),
+            ("loopStart", loop_start),
+            ("loopEnd", loop_end),
             ("fadeTimeUnit", fades.map(|_| "beats".to_string())),
             ("fadeInTime", fades.map(|a| beats(a.fade_in))),
             ("fadeOutTime", fades.map(|a| beats(a.fade_out))),
@@ -772,7 +821,7 @@ fn clip(
     );
     // An audio clip (round 29, ADR 0061): its file and its warp.
     if let Some(au) = &c.audio {
-        super::audio::write(w, &mut || ids.next(), project, c, au, base, files, report);
+        super::audio::write(w, &mut || ids.next(), project, c, au, base, audio, report);
         w.close();
         return 0;
     }

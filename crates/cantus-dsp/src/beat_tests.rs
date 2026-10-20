@@ -79,48 +79,138 @@ fn silence_has_no_tempo() {
     assert!(g.beats.is_empty());
 }
 
-/// The corpus (ADR 0061's measurement): within ±1 BPM, and the octave errors, over click
-/// and drum tracks from 60 to 200 BPM. A tempo outside 70–180 is reported in that range
-/// by design (an octave "error" the user corrects with ×2 / ÷2), so it is counted apart.
+/// The corpus (ADR 0061 §9): every file from 60 to 200 BPM, metronomic and played. What
+/// is asserted, and reported:
+/// - within ±1 BPM: of the metronomic files with a tempo in 70–180, at least 97 %; of the
+///   humanised ones (timing jitter, a slow drift, a pad under them, a pick-up, 3/4, 6/8),
+///   at least 90 % — and every miss is an octave (×2 or ×½), never another tempo;
+/// - a tempo outside 70–180 comes back as its octave inside it (×2 or ×½, within 1 BPM) —
+///   by design, the user corrects it with ×2 / ½ — every one of them, asserted;
+/// - ×1.5 and ×⅔ answers are metric errors, counted apart (a 6/8 groove's dotted-quarter
+///   pulse is one of its two right answers, not an error).
 #[test]
 fn the_corpus_is_within_one_bpm() {
-    let (mut inside, mut inside_ok, mut outside, mut octave) = (0, 0, 0, 0);
-    let mut misses = Vec::new();
+    use super::testkit::{groove, Feel, Metre};
+    #[derive(Default)]
+    struct Tally {
+        files: usize,
+        inside: usize,
+        inside_ok: usize,
+        outside: usize,
+        outside_octave: usize,
+        metric: usize,
+        /// Misses inside 70–180 that are an octave of the truth.
+        inside_octave: usize,
+        misses: Vec<(f64, usize, f64)>,
+    }
+    let near = |a: f64, b: f64| (a - b).abs() <= 1.0;
+    let feel = |metre, jitter_ms, pickup| Feel {
+        metre,
+        jitter_ms,
+        drift: 0.01,
+        pad_db: Some(-20.0),
+        pickup,
+    };
+    let (mut metro, mut played) = (Tally::default(), Tally::default());
     let mut bpm = 60.0;
     while bpm <= 200.0 {
-        for kind in 0..3 {
-            let m = match kind {
-                0 => click_track(44_100.0, bpm, 8, 0.1),
-                1 => drum_loop(44_100.0, bpm, 6, 0.0, 0.2, bpm as u64),
-                _ => drum_loop(48_000.0, bpm, 6, 0.6, 0.05, bpm as u64 + 1),
+        for kind in 0..7 {
+            let seed = bpm as u64 * 7 + kind as u64;
+            let (m, metre) = match kind {
+                0 => (click_track(44_100.0, bpm, 8, 0.1), Metre::FourFour),
+                1 => (drum_loop(44_100.0, bpm, 6, 0.0, 0.2, seed), Metre::FourFour),
+                2 => (
+                    drum_loop(48_000.0, bpm, 6, 0.6, 0.05, seed),
+                    Metre::FourFour,
+                ),
+                3 => (
+                    groove(48_000.0, bpm, 6, 0.1, feel(Metre::FourFour, 8.0, 0), seed),
+                    Metre::FourFour,
+                ),
+                4 => (
+                    groove(44_100.0, bpm, 6, 0.3, feel(Metre::FourFour, 15.0, 1), seed),
+                    Metre::FourFour,
+                ),
+                5 => (
+                    groove(48_000.0, bpm, 8, 0.1, feel(Metre::ThreeFour, 8.0, 0), seed),
+                    Metre::ThreeFour,
+                ),
+                _ => (
+                    groove(48_000.0, bpm, 8, 0.2, feel(Metre::SixEight, 8.0, 0), seed),
+                    Metre::SixEight,
+                ),
             };
-            let g = grid(&m);
-            let in_range = (PREFER.0..=PREFER.1).contains(&bpm);
-            let ok = (g.bpm - bpm).abs() <= 1.0;
-            let oct = [0.5, 2.0, 1.5, 2.0 / 3.0]
+            let got = grid(&m).bpm;
+            // A 6/8 groove's pulse may be its quarters or its dotted quarters.
+            let truths: Vec<f64> = if metre == Metre::SixEight {
+                vec![bpm, bpm * 2.0 / 3.0]
+            } else {
+                vec![bpm]
+            };
+            let t = if kind < 3 { &mut metro } else { &mut played };
+            t.files += 1;
+            let in_range = truths.iter().any(|b| (PREFER.0..=PREFER.1).contains(b));
+            let ok = truths.iter().any(|b| near(got, *b));
+            let octave = truths
                 .iter()
-                .any(|k| (g.bpm - bpm * k).abs() <= 1.0);
+                .any(|b| near(got, b * 2.0) || near(got, b / 2.0));
+            if !ok
+                && !octave
+                && truths
+                    .iter()
+                    .any(|b| near(got, b * 1.5) || near(got, b * 2.0 / 3.0))
+            {
+                t.metric += 1;
+            }
             if in_range {
-                inside += 1;
+                t.inside += 1;
                 if ok {
-                    inside_ok += 1;
+                    t.inside_ok += 1;
                 } else {
-                    misses.push((bpm, kind, g.bpm));
+                    t.inside_octave += usize::from(octave);
+                    t.misses.push((bpm, kind, got));
                 }
             } else {
-                outside += 1;
-            }
-            if !ok && oct {
-                octave += 1;
+                t.outside += 1;
+                if octave && (PREFER.0..=PREFER.1).contains(&got) {
+                    t.outside_octave += 1;
+                } else {
+                    t.misses.push((bpm, kind, got));
+                }
             }
         }
         bpm += 5.0;
     }
-    eprintln!(
-        "corpus: {inside_ok}/{inside} within ±1 BPM in 70–180; {outside} outside; {octave} octave errors; misses {misses:?}"
+    for (name, t) in [("metronomic", &metro), ("played", &played)] {
+        eprintln!(
+            "corpus {name}: {} files; {}/{} within ±1 BPM in 70–180 ({} of the misses an \
+             octave); {}/{} outside it answered by their octave inside it; {} metric (×1.5, ×⅔) \
+             errors; misses {:?}",
+            t.files,
+            t.inside_ok,
+            t.inside,
+            t.inside_octave,
+            t.outside_octave,
+            t.outside,
+            t.metric,
+            t.misses
+        );
+    }
+    assert!(
+        metro.inside_ok * 100 >= metro.inside * 97,
+        "{:?}",
+        metro.misses
     );
     assert!(
-        inside_ok * 100 >= inside * 97,
-        "{inside_ok}/{inside}: {misses:?}"
+        played.inside_ok * 100 >= played.inside * 90,
+        "{:?}",
+        played.misses
     );
+    // Every miss is an octave (the ×2 / ½ the user corrects), never another tempo.
+    for t in [&metro, &played] {
+        assert_eq!(t.inside_ok + t.inside_octave, t.inside, "{:?}", t.misses);
+        assert_eq!(t.metric, 0, "{:?}", t.misses);
+    }
+    assert_eq!(metro.outside_octave, metro.outside, "{:?}", metro.misses);
+    assert_eq!(played.outside_octave, played.outside, "{:?}", played.misses);
 }

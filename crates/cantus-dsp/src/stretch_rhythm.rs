@@ -3,6 +3,7 @@
 //! (a short fade before it, so the next transient starts clean), or — when the clip is
 //! slowed and the slice runs out first — ends by its [`Tail`].
 
+use super::read::Fast;
 use super::{Request, Tail};
 
 /// The fade that ends a slice, seconds.
@@ -33,12 +34,14 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
     let map = req.map;
     let len = req.len;
     let src_len = channels.iter().map(|c| c.len()).max().unwrap_or(0) as f64;
-    // The cuts: every transient and every breakpoint (a warp marker), in the source.
+    // The cuts: every transient and every hard breakpoint (a warp marker, a window's end),
+    // in the source — never a tempo ramp's samples (soft points): a slice rides through
+    // them at its own speed.
     let mut cuts: Vec<f64> = req
         .onsets
         .iter()
         .copied()
-        .chain(map.points().iter().map(|p| p.1))
+        .chain(map.hard_points().map(|p| p.1))
         .map(f64::round)
         .filter(|s| *s > 0.0 && *s < src_len)
         .collect();
@@ -58,6 +61,33 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
         slices.push((s, o));
     }
     let fade = (FADE_S * rate as f64).max(1.0);
+    // Transposed up, a slice is read faster than it was recorded: through the band-limited
+    // reader (nothing above the output's band folds back), over the span the slices read.
+    let fast: Vec<Option<Fast>> = channels
+        .iter()
+        .map(|c| {
+            (ratio > 1.0).then(|| {
+                let lo = slices.iter().map(|s| s.0).fold(f64::MAX, f64::min);
+                let hi = slices
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(s0, o0))| {
+                        let (s1, o1) = slices
+                            .get(i + 1)
+                            .map_or((src_len, len as f64), |&(s, o)| (s, o));
+                        (s0 + (o1 - o0) * ratio).min(s1)
+                    })
+                    .fold(lo, f64::max);
+                Fast::new(c, lo, hi, ratio)
+            })
+        })
+        .collect();
+    let at = |c: usize, ch: &[f32], q: f64| -> f32 {
+        match &fast[c] {
+            Some(f) => f.read(q, ratio),
+            None => read(ch, q),
+        }
+    };
     let mut out: Vec<Vec<f32>> = channels.iter().map(|_| vec![0.0; len]).collect();
     for (i, &(s0, o0)) in slices.iter().enumerate() {
         let (s1, o1) = slices
@@ -117,10 +147,10 @@ pub(super) fn render(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64) 
             } else {
                 1.0
             };
-            for (o, ch) in out.iter_mut().zip(channels) {
-                let mut v = read(ch, p);
+            for (c, (o, ch)) in out.iter_mut().zip(channels).enumerate() {
+                let mut v = at(c, ch, p);
                 if let Some((q, w)) = x {
-                    v = v * (1.0 - w) + read(ch, q) * w;
+                    v = v * (1.0 - w) + at(c, ch, q) * w;
                 }
                 o[t as usize] += v * g;
             }

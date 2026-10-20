@@ -36,6 +36,11 @@ pub struct ClipData {
     pub audio: Option<super::audio::AudioData>,
     /// An audio clip's fades (in, out).
     pub fades: (Ticks, Ticks),
+    /// An audio clip at its natural speed: the fine offset (frames at its file's rate)
+    /// its `playStart` seconds leave after whole ticks.
+    pub slip: i32,
+    /// Whether the tempo never changes (an on-line warp comes back as no warp then).
+    pub one_tempo: bool,
 }
 
 /// The note clips of every track, by the track's id.
@@ -239,6 +244,8 @@ fn walk(
                     notes,
                     audio: None,
                     fades: (Ticks::ZERO, Ticks::ZERO),
+                    slip: 0,
+                    one_tempo: true,
                 });
             }
             "Points" => counts.automation += 1,
@@ -305,7 +312,7 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
     let start = cx.at(map, time);
     let start_tl = start.0 as f64 + cx.shift;
     let play_start = attr_f64(clip, "playStart").unwrap_or(0.0);
-    let offset = if content_seconds {
+    let mut offset = if content_seconds {
         Ticks::from_seconds(play_start, map.bpm_at(start_tl))
     } else {
         Ticks((play_start * PPQ as f64).round() as i64)
@@ -370,6 +377,18 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         }
         _ => {}
     }
+    // A bare file at its natural speed (round 29's review): its `playStart` is the second
+    // of the file at its left edge, placed through the tempo map (ADR 0060's rule), whole
+    // ticks in the offset and the rest in the fine offset.
+    let mut slip = 0;
+    if let Some(d) = audio
+        .as_ref()
+        .filter(|d| d.warps.is_empty() && content_seconds)
+    {
+        let at = Ticks(start_tl.round() as i64);
+        (offset, slip) =
+            cantus_core::audio_time::anchor(map, at, play_start.max(0.0), 0, d.rate as f64);
+    }
     let end_of_notes = notes
         .iter()
         .map(|n| n.start + n.length)
@@ -419,6 +438,8 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         name,
         audio,
         fades: (fade("fadeInTime", false), fade("fadeOutTime", true)),
+        slip,
+        one_tempo: map.is_constant(),
     })
 }
 

@@ -268,7 +268,10 @@ fn offline_equals_real_time_at_any_block_size() {
     let p = project(&path, 48_000, m.audio.len(), 120.0, 8, Some(w));
     let mut s = Snapshot::compile(&p, 1);
     let mut cache = SampleCache::new();
-    cache.attach_audio(&mut s, 48_000);
+    assert!(cache.attach_audio(&mut s, 48_000).is_empty());
+    // A render, attached (not nothing, not the source).
+    let data = s.tracks[0].audio[0].data.clone().expect("the render");
+    assert_ne!(data.len_frames(), m.audio.len());
     let snap = Arc::new(s);
     let opts = RenderOptions {
         sample_rate: 48_000,
@@ -277,6 +280,17 @@ fn offline_equals_real_time_at_any_block_size() {
         ..Default::default()
     };
     let offline = render(snap.clone(), &opts).unwrap();
+    let peak = offline.samples.iter().fold(0.0f32, |a, v| a.max(v.abs()));
+    assert!(peak > 0.01, "it sounds ({peak})");
+    let plain = bounce(
+        &project(&path, 48_000, m.audio.len(), 120.0, 8, None),
+        48_000,
+    );
+    let left: Vec<f32> = offline.samples.chunks_exact(2).map(|f| f[0]).collect();
+    assert!(
+        left.iter().zip(&plain).any(|(a, b)| (a - b).abs() > 1e-3),
+        "the warp is heard, not the source"
+    );
     for sizes in [
         vec![1usize],
         vec![37],
@@ -345,10 +359,11 @@ fn while_a_render_is_on_its_way_the_last_render_plays() {
     let first = attach(&mut cache, &one, 3).expect("the first render");
     let source_len = m.audio.len();
     assert_ne!(first.len_frames(), source_len, "a render, not the source");
-    // Moved: at once, the render it had (or a bridge already made), never the source.
+    // Moved: at once, the render it had — never the source, never nothing (the bridge
+    // itself is held to its place, length and pitch in `warp_review.rs`).
     let meanwhile = attach(&mut cache, &two, 4).expect("something plays");
-    assert!(!Arc::ptr_eq(&meanwhile, &first) || cache.loading());
-    assert_ne!(meanwhile.len_frames(), source_len);
+    assert!(Arc::ptr_eq(&meanwhile, &first), "the render it had");
+    assert!(cache.loading(), "the new one on its way");
     settle(&mut cache);
     let second = attach(&mut cache, &two, 5).unwrap();
     assert!(!Arc::ptr_eq(&second, &first));
