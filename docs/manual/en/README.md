@@ -1024,19 +1024,25 @@ one fails, the helper stops and **Cantus keeps playing**:
 - an effect that stopped passes the sound through untouched, in time with the rest of the
   mix (as if it were bypassed); an instrument that stopped falls silent;
 - a card in the bottom-right corner says so — *"Glacier stopped working. Cantus kept
-  playing without it."* — with **Reload** and **Keep it off**. Point at the card's picture
-  to read what happened;
+  playing without it."* — with **Reload** and **Keep it off**, and what happened in a line
+  of its own. Point anywhere on the card to read the whole account;
 - **Reload** loads the plug-in again with what you had set: its last good state and every
   value of the project. Several plug-ins that stopped together share one card and
   **Reload all**;
 - *Keep it off* leaves it stopped: its slot shows *stopped* in red (an instrument's track
-  shows the sign on its icon and an outlined channel button), and its menu offers
-  **Reload plug-in** whenever you want it back;
+  shows the sign on its icon and an outlined channel button; point at them for why), and
+  its menu — in the inspector and on the mixer strip's insert line — offers **Reload
+  plug-in** whenever you want it back. Asking for its window brings its card back;
+- a plug-in that crashes while it loads is told the same way: Reload it, or choose where it
+  runs, and Cantus tries again;
 - **the project loses nothing**: saving keeps the plug-in's last good state and values, and
   the project opens with them next time;
 - a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
   audio never waits for it longer than a few milliseconds, and the window never waits at
-  all.
+  all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung:
+  Cantus waits for you, and keeps saving and answering meanwhile;
+- notes and knob moves sent while a plug-in was late are not lost: it gets them as soon as
+  it answers.
 
 **Where a plug-in runs.** Settings ▸ Plug-ins ▸ *Where third-party plug-ins run* sets the
 default for this computer: **Together** (one helper for all of them; the default), **By
@@ -1045,16 +1051,20 @@ or **Within Cantus** (no helper: the fastest, and a crash closes Cantus). Each p
 differ: right-click its slot (or open *Runs* on a hosted instrument's row in the inspector)
 and choose. The choice is saved with the project; changing it moves the plug-in at once,
 with its sound. A plug-in that crashes three times in a session is offered **Run
-individually** on its card. The plug-in manager lists the plug-ins that ever stopped on
+individually** on its card — by name, when the card lists the plug-ins it took down with it,
+which are reloaded where they were. Only the plug-in that crashed is counted. The plug-in
+manager lists the plug-ins that ever stopped on
 this computer (*Forget* clears one). Cantus's own effects and instruments always run
 within.
 
 **What it costs.** A plug-in in a helper adds a round trip per audio block: a few
 microseconds while plug-ins follow one another, a few tens of microseconds after a pause
 (ADR 0063 has the measurements). Point at a hosted slot to see where it runs and its
-**CPU**; the status bar counts *Plug-ins late* when a helper did not answer in time
-(those blocks played without the plug-in). Exports, stems and bounces wait for every
-block, so they are always exactly what the plug-in makes.
+**CPU**; the status bar counts *Plug-ins late* each time a helper did not answer in time
+(the sound went on without the plug-in for a moment; a larger buffer gives it more time).
+Exports, stems, freezes and bounces wait for every block, so they are always exactly what
+the plug-in makes; if a plug-in stops working during one, Cantus says so instead of
+calling it done, and *Stop* ends it even while a plug-in hangs.
 
 ## 11. Projects, autosave and settings
 

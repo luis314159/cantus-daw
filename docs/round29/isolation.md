@@ -165,5 +165,67 @@ weak machine — the setting is there either way.
 - Run `CANTUS_TEST_PLUGINS_PREBUILT=1` to skip the nested cargo builds of the test plug-ins
   if the package lock is contended; the sandbox tests need nothing else (they use
   `CARGO_BIN_EXE_cantus-sandbox`).
-- A *Plug-ins late* count of a few blocks after a crash is expected: the blocks between the
-  crash and the helper's end are counted.
+- *Plug-ins late* counts jobs that missed their deadline, one per late job: a hang counts
+  one, a crash none (its block is closed, not late).
+- **Freeze and bounce** (merged from bbcc062): their renders go through `render_units` /
+  `render_instruments` like an export, so they get the render helpers, the sliced waits and
+  `cancel_render` (wired into `cancel_freeze`); `freeze::collect` asks `render_failures`
+  before `finish_render` and commits nothing from a render that lost a plug-in (the file
+  is removed, the job's content marked failed). A dormant slot is unloaded like any other:
+  its `BridgeMain` drops, its exchange closes first, its last-good state is parked; a crash
+  card for it is pruned. No command was added in the fix round (`freeze_guard` needs no
+  arm).
+
+## The fix round (review isolation-2: 53 findings, all closed)
+
+Merged `r29/integration` first (bef6f62, then bbcc062 with freeze). Each fix has a test
+seen failing first — by running it against the code with that fix disabled (marked *✗→✓*),
+or, where the old code waited forever or lacked the API, by its absence. Tests:
+`sandbox/tests/bridge_faults.rs` (13), `session_faults.rs` (8), `bridge.rs`, `session.rs`,
+`rt_alloc.rs`, `cantus-rt/tests/ipc_process.rs`, `cantus-host` unit tests, `cantus-ui`
+`plugin_isolation.rs` (10) and `plugin_isolation_boot.rs`.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0, 48 | Heartbeat only from the main loop: a modal dialog, a drag or a long main-thread task got a healthy helper killed | A pulse (message-only window, 100 ms timer, posted wake-ups) runs inside any message loop and bumps progress; a heartbeat thread sends *alive* while progress moves; calls are served from nested loops (all but unload/drop/restart/close/quit, kept in order) | `a_modal_loop_while_saving_is_not_taken_for_a_hang`, `calls_are_served_while_a_plugin_window_runs_a_modal_loop` ✗→✓ (new faults 10, 12) |
+| 1, 11, 39, 46 | A hung plug-in in a render blocked the render thread for ever; Stop could not end it | Offline waits in 100 ms slices; a cancel flag (`PluginHost::cancel_render`, wired to export and freeze Stop) and an offline hang limit (30 s) end the helper | `an_offline_render_through_a_hung_plugin_ends_within_the_limit`, `a_cancelled_render_stops_waiting_for_a_hung_plugin`, `a_render_that_loses_a_plugin_says_so` (the old wait was INFINITE) |
+| 2, 38 | `since_ms` outlived a late job when nothing called again (bypass, restart): a healthy helper killed | `Status` holds the late job's number; the hang is judged by the exchange; a restarted half shares it and never submits over a running job | `a_late_job_that_finished_is_not_a_hang_when_nothing_calls_again` ✗→✓ |
+| 3, 10 | Notes and values of dry blocks lost: stuck notes, values out of step | `Carry` in `BridgeAudio` (made once): last value per parameter, note-offs/chokes/expressions/MIDI, a reset; merged at offset 0 into the next job; a full buffer resets | `a_late_block_keeps_the_notes_and_values_of_the_blocks_that_pass_without_it` ✗→✓ |
+| 4 | NaN/±inf broke the JSON frame and the helper | `proto::Finite`: every frame's numbers made finite (NaN→0, ±inf→±MAX) in `write_frame` | `non_finite_numbers_cross_as_finite_ones` ✗→✓ |
+| 5 | A block after its slot left waited a whole deadline | `Sandbox::unregister` closes the exchange before telling Unload | `a_block_after_its_instance_left_passes_at_once` ✗→✓ |
+| 6, 47 | A render that lost a plug-in reported success | Render instances in helpers of their own (`render-<group>`); `PluginHost::render_failures` checked by export, bake, freeze and bounce | `a_render_that_loses_a_plugin_says_so` ✗→✓ |
+| 7, 50 | An older background state overwrote a newer one | Background answers tagged with their request id; dropped when older than the last state loaded or saved | `a_background_state_older_than_a_loaded_one_is_dropped` ✗→✓ |
+| 8, 50 | One failed background save stopped every refresh | Failures delivered; asked again 2 s later | `a_refused_background_save_is_asked_again` ✗→✓ (new fault 13) |
+| 9, 40, 44 | A failed `load_state` kept the old last-good state, and save/reload wrote it over the project's | The state asked for becomes the last-good one before the call | `a_plugin_that_hangs_or_dies_loading_a_state_keeps_the_state_asked_for` ✗→✓ |
+| 12 | Deadline rounded up to the 15.6 ms tick | `Caller` sleeps on its event and a high-resolution waitable timer | `a_late_wait_ends_within_two_milliseconds_of_its_deadline` ✗→✓ (median 15.9 ms before) |
+| 13, 42 | Processing threads freed memory and unmapped slots | Replaced table snapshots are retired and freed by the main thread once no thread holds them; workers borrow, never clone | `a_retired_snapshot_is_freed_by_the_main_thread_once_no_thread_holds_it` |
+| 14 | Start-up plug-ins loaded within Cantus before the default applied | `CantusApp::from_parts_with(.., isolation)`: the setting is in the host before the first sync | `a_start_up_projects_plugin_first_loads_where_this_computer_says` ✗→✓ |
+| 15 | A plug-in that crashed loading was stuck as missing | `Missing` keeps where it was tried and whether it crashed; a changed choice retries; `reload` loads a missing slot; a crash on load is told and counted as a crash; the editor shows its *Runs* card | `a_plugin_that_crashes_while_loading_can_be_reloaded_or_moved` ✗→✓ |
+| 16, 30 | Stale crash cards | `plugin_notice::prune` each frame; cleared when a project is replaced or opened | `the_crash_card_leaves_with_the_plugin_it_names` |
+| 17, 33 | Mixer's slot menu without *Runs*/*Reload*; chain line and mini inspector unaware | `mixer_menu` `Act::Hosting` rows; chain line in the danger colour with the stopped tips; mini inspector's danger status row | shots |
+| 18, 52 | A scan wiped crash records | The live `db.crashes` kept with the folders when a scan's result is taken | (one line beside the folders' own) |
+| 19 | No main-thread hang test | Faults 7–9 (hang in save/load/editor); `Sandboxes::set_limits` | `…hangs_while_saving…`, `…hangs_or_dies_loading…`, `…hangs_opening_its_editor…`, `a_background_save_that_hangs…` ✗→✓ |
+| 20 | Hang test did not catch re-waiting | Every block after the late one timed (median < 1 ms, none a deadline), at the bridge and through the engine | `a_plugin_that_hangs_never_holds…`, `a_hang_never_blocks…` |
+| 21 | Dry assertions vacuous | −6 dB first, fresh noise per block; a latency variant checks the delayed dry path to the bit | `a_plugin_that_aborts_in_process…`, `a_crash_with_latency_plays_the_input_delayed_by_the_latency` |
+| 22 | Crashing block skipped | The first dry block is the one that carried the fault; every later one equals the bypassed reference; the instrument silent from that block | `a_crash_mid_song…`, `an_instrument_that_crashes…` |
+| 23 | Parallel = serial untested | Four isolated gains (Together, Individually) under `Workers::parallel(3)` against serial and in-process, and a crash under the pool | `the_worker_pool_plays_isolated_plugins_to_the_bit_of_the_serial_engine` |
+| 24 | Instruments not bit-tested at the claimed sizes | Notes spread over blocks at 1/37/64/512 (CLAP and VST3); Within vs Together through the engine at 64/256/1000 | `an_isolated_instrument_plays_its_notes…`, `an_isolated_instrument_plays_the_project_to_the_bit…` |
+| 25, 49 | A shared helper's death blamed every neighbour; *Run individually* never offered there | Blame: the crash handler's `CRASH_AT`, else `MAIN_AT` and the running exchanges, else the only instance; `Blame::{This, Neighbour, Unknown}` drives counting (database only for *This*); the card offers *Run {name} individually* for the culprit and reloads the others | `a_crash_in_a_shared_helper_is_counted_once…` (abort and access violation), `two_instances_of_one_plugin_count_one_crash` ✗→✓, `run_individually_names_the_plugin_that_keeps_crashing` |
+| 26 | Missing-helper fallback untested | — (it behaved) | `without_the_helper_plugins_run_within_cantus_and_it_is_said_once` |
+| 27 | `rt_alloc` gaps | The late block, the dry blocks that carry, the delivery, the crashing block and a live stop are counted | `the_audio_half_of_an_isolated_plugin_never_allocates` |
+| 28 | Card answers and three-button layout unexercised | A hidden seam (`mark_crashed_for_tests`); answers tested; EN and ES at 1280×720 and 420×600: cards on screen, buttons inside, nothing overlapping | `the_cards_answers_do_what_they_say`, `the_crash_card_and_the_audio_notices_share_one_stack…` |
+| 29 | `group_key` and the sidechain untested; makers differing in punctuation shared a helper | The by-maker key is the maker's name (case aside) | `each_choice_has_its_group` ✗→✓, `each_choice_makes_the_processes_it_says`, `an_isolated_gain_hears_its_sidechain_as_in_process` |
+| 31 | A stopped plug-in's window: a mixed-language error, no reload | Window key disabled with the reason; `window_of_stopped` says why in the interface's words and brings the card back (editor, rack, F8) | `asking_for_a_stopped_plugins_window_brings_its_card_back` |
+| 32 | Instrument inspector greyed, Reload under *Runs*, a stale CPU | Danger status row; Reload under its own *Plug-in* band (slot menus too); CPU hidden while stopped | shots |
+| 34 | Rack and header said nothing | Rack button and header icon tips | shots |
+| 35 | Late tip blamed the cure; a hang inflated the count | Reworded with full stops; one count per late job | `…late_block_keeps…` (`late_blocks() == 1`) |
+| 36 | Long names cut the verb; the reason only on the picture | Name elided in its middle, the verb at full width; the reason in the body; the hint on the whole card | `a_crash_is_one_card…` |
+| 37 | Linux signals dropped | The last parenthesised detail kept; SIGSEGV/BUS/ABRT/ILL/FPE named | `the_reasons_keep_their_detail_on_every_system` |
+| 41 | Background requests not counted | Every request (calls, background saves, texts, unloads) is in flight with its limit | `a_background_save_that_hangs_is_ended…` |
+| 43 | Linux shm leaked when Cantus died | Names unlinked once the helper has mapped them | `an_unlinked_region_still_shares_its_pages_and_cannot_be_opened_again` |
+| 45 | `settle_new` swallowed the crash notice | `MainThread::stopped()`, asked every frame | `…hangs_or_dies_loading…` (told after a crash in `load_state`) |
+| 51 | Saving froze on a troubled helper | The last-good state at once when a job is unfinished or the heartbeat is a second old | `a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait` ✗→✓ |
+
+Faults added to the test plug-ins: 7–9 hang in save, load, editor; 10 a 3 s modal loop in
+save; 11 one 50 ms block; 12 a 3 s modal loop in the editor's window (CLAP); 13 a refused
+save (CLAP); 14 an access violation in `process` (CLAP).

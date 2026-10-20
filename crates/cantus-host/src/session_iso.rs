@@ -629,3 +629,41 @@ impl PluginHost {
             .sum()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::{PluginInfo, PluginKind};
+    use crate::scan::ScanReport;
+
+    /// A crash recorded (or forgotten) while a background scan ran survives the scan's
+    /// result being taken (review #18, #52).
+    #[test]
+    fn a_scan_keeps_the_crash_records_made_while_it_ran() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        let before_scan = host.db.clone();
+        let (tx, rx) = std::sync::mpsc::channel();
+        host.scan_job = Some(rx);
+        let info = PluginInfo {
+            format: Format::Clap,
+            id: "com.example.glacier".into(),
+            name: "Glacier".into(),
+            vendor: "Example".into(),
+            version: String::new(),
+            path: std::path::PathBuf::new(),
+            kind: PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        };
+        host.count_crash(&info, Blame::This, None);
+        tx.send((before_scan, ScanReport::default())).unwrap();
+        let mut bus = cantus_core::CommandBus::new(Project::new("scan"));
+        let mut engine = EngineHandle::dummy();
+        let _ = host.idle(&mut bus, &mut engine);
+        assert!(host.scan_job.is_none(), "the scan's result was taken");
+        assert!(host.db.crash_record(Format::Clap, &info.id).is_some());
+    }
+}

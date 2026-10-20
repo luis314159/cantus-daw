@@ -1117,19 +1117,26 @@ cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
 - un efecto detenido deja pasar el sonido intacto, a tiempo con el resto de la mezcla
   (como si estuviera en bypass); un instrumento detenido se queda en silencio;
 - una tarjeta en la esquina inferior derecha lo dice — *"Glacier dejó de funcionar. Cantus
-  siguió sonando sin él."* — con **Recargar** y **Dejarlo apagado**. Señala el dibujo de la
-  tarjeta para leer qué pasó;
+  siguió sonando sin él."* — con **Recargar** y **Dejarlo apagado**, y qué pasó en una línea
+  propia. Señala cualquier punto de la tarjeta para leer el relato entero;
 - **Recargar** vuelve a cargar el plug-in con lo que tenías: su último estado bueno y todos
   los valores del proyecto. Varios plug-ins que se detuvieron juntos comparten una tarjeta
   y **Recargar todos**;
 - *Dejarlo apagado* lo deja detenido: su ranura muestra *detenido* en rojo (la pista de un
-  instrumento muestra la señal en su icono y el botón de canal con borde), y su menú ofrece
-  **Recargar plug-in** cuando quieras recuperarlo;
+  instrumento muestra la señal en su icono y el botón de canal con borde; señálalos para
+  saber por qué), y su menú — en el inspector y en la línea de inserciones de la tira del
+  mezclador — ofrece **Recargar plug-in** cuando quieras recuperarlo. Pedir su ventana
+  vuelve a mostrar su tarjeta;
+- un plug-in que falla mientras se carga se avisa igual: recárgalo, o elige dónde se
+  ejecuta, y Cantus lo intenta de nuevo;
 - **el proyecto no pierde nada**: al guardar se conservan el último estado bueno y los
   valores del plug-in, y el proyecto se abre con ellos la próxima vez;
 - un plug-in colgado tiene dos segundos; después su ayudante se termina; mientras está
   colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
-  nunca.
+  nunca. Un plug-in que muestra un diálogo propio (un archivo que abrir, una licencia) no
+  está colgado: Cantus te espera, y mientras tanto sigue guardando y respondiendo;
+- las notas y los movimientos de mandos enviados mientras un plug-in iba tarde no se
+  pierden: le llegan en cuanto responde.
 
 **Dónde se ejecuta un plug-in.** Ajustes ▸ Plug-ins ▸ *Dónde se ejecutan los plug-ins de
 terceros* fija el valor de este equipo: **Juntos** (un ayudante para todos; el
@@ -1139,7 +1146,9 @@ más rápido, y un fallo cierra Cantus). Cada plug-in puede ser distinto: clic d
 ranura (o *Se ejecuta* en la fila de un instrumento alojado del inspector) y elige. La
 elección se guarda con el proyecto; cambiarla mueve el plug-in en el acto, con su sonido.
 A un plug-in que falla tres veces en una sesión su tarjeta le ofrece **Ejecutar por
-separado**. El gestor de plug-ins lista los que alguna vez se detuvieron en este equipo
+separado** — con su nombre, cuando la tarjeta lista los plug-ins que arrastró consigo, que
+se recargan donde estaban. Solo se cuenta el plug-in que falló. El gestor de plug-ins lista
+los que alguna vez se detuvieron en este equipo
 (*Olvidar* borra uno). Los efectos e instrumentos propios de Cantus siempre se ejecutan
 dentro.
 
@@ -1147,8 +1156,11 @@ dentro.
 unos microsegundos mientras los plug-ins se suceden, unas decenas tras una pausa (la ADR
 0063 tiene las medidas). Señala una ranura alojada para ver dónde se ejecuta y su
 **CPU**; la barra de estado cuenta *Plug-ins tarde* cuando un ayudante no respondió a
-tiempo (esos bloques sonaron sin el plug-in). Las exportaciones, las pistas por separado
-y los bounces esperan cada bloque, así que siempre son exactamente lo que hace el plug-in.
+tiempo (el sonido siguió sin el plug-in un momento; un búfer mayor le da más tiempo). Las
+exportaciones, las pistas por separado, los congelados y los bounces esperan cada bloque,
+así que siempre son exactamente lo que hace el plug-in; si un plug-in deja de funcionar
+durante uno, Cantus lo dice en vez de darlo por terminado, y *Detener* lo acaba aunque un
+plug-in esté colgado.
 
 ## 11. Proyectos, autoguardado y ajustes
 

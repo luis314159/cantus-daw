@@ -116,21 +116,6 @@ fn window_row(open: bool, floating: bool) -> (&'static str, bool) {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::window_row;
-
-    /// Review 4: a plug-in that floats its own editor keeps a working *Close*; any other
-    /// open window gets *Show*.
-    #[test]
-    fn the_window_row_shows_or_closes_by_the_windows_state() {
-        assert_eq!(window_row(false, false), ("hosted.open_window", false));
-        assert_eq!(window_row(false, true), ("hosted.open_window", false));
-        assert_eq!(window_row(true, false), ("hosted.show_window", false));
-        assert_eq!(window_row(true, true), ("hosted.close_window", true));
-    }
-}
-
 /// The status row of a stopped plug-in: its label as any row's, its value in the danger
 /// colour with a dot, why it stopped as the tip.
 fn stopped_row(sh: &mut Sheet<'_>, t: TrackId, why: &str) {
@@ -158,5 +143,20 @@ fn stopped_row(sh: &mut Sheet<'_>, t: TrackId, why: &str) {
         let why = crate::views::plugin_notice::reason_words(why);
         let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
         hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::window_row;
+
+    /// Review 4: a plug-in that floats its own editor keeps a working *Close*; any other
+    /// open window gets *Show*.
+    #[test]
+    fn the_window_row_shows_or_closes_by_the_windows_state() {
+        assert_eq!(window_row(false, false), ("hosted.open_window", false));
+        assert_eq!(window_row(false, true), ("hosted.open_window", false));
+        assert_eq!(window_row(true, false), ("hosted.show_window", false));
+        assert_eq!(window_row(true, true), ("hosted.close_window", true));
     }
 }
