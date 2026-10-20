@@ -303,10 +303,17 @@ impl PluginHost {
     ) {
         let rate = self.setup.sample_rate;
         let mut seen = HashSet::new();
+        // Frozen (ADR 0064): an instrument that is not run is unloaded until it thaws.
+        let dormant = engine
+            .frozen
+            .dormant(project, engine.sample_rate.round() as u32);
         for t in &project.tracks {
             let Some(plugin) = t.instrument.external() else {
                 continue;
             };
+            if dormant.instrument_rests(t.id) {
+                continue;
+            }
             seen.insert(t.id);
             let key = hosted_key(plugin);
             // The track now hosts another plug-in: the old one goes (and is parked).

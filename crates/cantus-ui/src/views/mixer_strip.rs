@@ -576,6 +576,8 @@ fn head(
         &Text::new(&v.buf, Role::Label, on_fill(fill)),
         s.tk(),
     );
+    // Frozen, or held by a frozen strip (round 29, ADR 0064).
+    crate::views::freeze_view::paint_strip_mark(b, cr, app, sn.id, s);
     let renaming = matches!(v.rename, Some((Renaming::Strip(r), _)) if r == sn.id);
     if renaming {
         v.rename_at = Some(cell);
@@ -889,6 +891,19 @@ fn controls(
         let hit = |c: Pos2| Rect::from_center_size(c, vec2(11.0, 13.0));
         let m = sense(ui, pass, hit(mc), pid(Some(id), Part::Mute), Sense::click());
         let so = sense(ui, pass, hit(sc), pid(Some(id), Part::Solo), Sense::click());
+        // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            hit(mc),
+            cantus_core::controller::MappingTarget::StripMute(id),
+        );
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            hit(sc),
+            cantus_core::controller::MappingTarget::StripSolo(id),
+        );
         let mh = m.as_ref().is_some_and(|r| r.hovered());
         let sh = so.as_ref().is_some_and(|r| r.hovered());
         lamp(b, s, mc, !sn.muted, Tok::Led, mh);

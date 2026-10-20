@@ -64,6 +64,7 @@ impl Processor {
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
                 EngineMessage::SetRecording(on) => self.recording = on,
+                EngineMessage::SetLowLatency(limit) => self.set_low_latency(limit),
                 EngineMessage::SetAnalyser(id) => self.analysed = id,
                 EngineMessage::WatchScopes(ids) => {
                     // A ring whose watch changed (released, or given to another — or the
@@ -252,7 +253,28 @@ impl Processor {
                     }
                 }
             }
-            0xB0 | 0xE0 => {
+            // Round 29 (ADR 0062): what was parsed and dropped before — key pressure to the
+            // key's live note, program changes to the instrument.
+            0xA0 => {
+                let v = f32::from(ev.data2) / 127.0;
+                for t in self.live_targets(track) {
+                    if let Some(slot) = t.and_then(|t| self.slot_for(t)) {
+                        if let Some(mut s) = self.nodes.track(slot) {
+                            s.expression_live(ev.data1, crate::inst::NoteExpression::Pressure, v);
+                        }
+                    }
+                }
+            }
+            0xC0 => {
+                for t in self.live_targets(track) {
+                    if let Some(slot) = t.and_then(|t| self.slot_for(t)) {
+                        if let Some(mut s) = self.nodes.track(slot) {
+                            s.program(ev.data1 & 0x7F);
+                        }
+                    }
+                }
+            }
+            0xB0 | 0xD0 | 0xE0 => {
                 if let Some((c, v)) = controller_of(&ev) {
                     for t in self.live_targets(track) {
                         if let Some(slot) = t.and_then(|t| self.slot_for(t)) {

@@ -268,6 +268,17 @@ impl<'a> Cell<'a> {
             },
             self.offer.is_some_and(|o| o.modulation.is_some()),
         );
+        crate::kit::automate::probe::note_learn(
+            if self.name.is_empty() {
+                match self.label {
+                    Src::Key(k) => k,
+                    Src::Str(t) => t,
+                }
+            } else {
+                self.name
+            },
+            self.offer.and_then(|o| o.learn()).is_some(),
+        );
         let size = cell::size(self.size) * s.k;
         let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
         let (min, max, taper) = (self.min, self.max, self.taper);
@@ -403,6 +414,9 @@ impl<'a> Cell<'a> {
                         if m.is_some_and(|m| m.depth.is_some() && !m.mapping) {
                             crate::kit::automate::mod_mark(b, rect, s);
                         }
+                        if m.and_then(|m| m.learn).is_some_and(|l| l.mapped) {
+                            crate::kit::automate::learn_mark(b, rect, s);
+                        }
                         if m.is_some()
                             && crate::kit::automate::handle_in_flight(ui.ctx())
                             && resp.contains_pointer()
@@ -419,7 +433,11 @@ impl<'a> Cell<'a> {
             done,
             automate: choice == Some(crate::kit::automate::Choice::Automate),
             modulation: match choice {
-                Some(c @ crate::kit::automate::Choice::Modulate) => Some(c),
+                Some(
+                    c @ (crate::kit::automate::Choice::Modulate
+                    | crate::kit::automate::Choice::Learn
+                    | crate::kit::automate::Choice::Forget),
+                ) => Some(c),
                 _ => mod_choice,
             },
         }

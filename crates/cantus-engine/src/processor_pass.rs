@@ -225,6 +225,7 @@ impl Processor {
                 c.profiling = self.prof.is_on();
                 c.tap = tap;
                 c.split_voices = self.split_voices;
+                c.offline = self.offline;
             }
             None => nodes.conflict(),
         }

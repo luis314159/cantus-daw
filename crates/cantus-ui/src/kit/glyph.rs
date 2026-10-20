@@ -117,6 +117,13 @@ pub enum Glyph {
     /// A plug pulled apart, a gap between its two halves: a hosted plug-in that stopped
     /// working (the crash card, a slot that stopped).
     PluginStopped,
+    // --- freeze (round 29, ADR 0064) ---
+    /// A snowflake: six arms, each with a pair of twigs — a frozen track or strip.
+    Frozen,
+    // --- controllers (round 29, ADR 0062) ---
+    /// A hardware controller: a knob with its pointer beside a fader and its cap — MIDI
+    /// learn, the mappings pane.
+    Controller,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -504,6 +511,47 @@ fn window(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
                 color,
             );
             b.segment(p(0.0, 2.2), p(0.0, 5.4), w, color, true);
+        }
+        Glyph::Frozen => {
+            // Six arms at 60° (cos/sin of 30° and 60° written out: 0.866, 0.5), each with
+            // two twigs a little out from the middle.
+            const ARMS: [(f32, f32); 6] = [
+                (0.0, -1.0),
+                (0.866, -0.5),
+                (0.866, 0.5),
+                (0.0, 1.0),
+                (-0.866, 0.5),
+                (-0.866, -0.5),
+            ];
+            let r = 5.2;
+            for (i, (x, y)) in ARMS.iter().enumerate() {
+                b.segment(p(0.0, 0.0), p(x * r, y * r), w, color, true);
+                // The twigs: from 60 % along the arm, out at the neighbours' directions.
+                let (bx, by) = (x * r * 0.6, y * r * 0.6);
+                for j in [(i + 1) % 6, (i + 5) % 6] {
+                    let (nx, ny) = ARMS[j];
+                    let t = 1.8;
+                    b.segment(
+                        p(bx, by),
+                        p(bx + (x + nx) * 0.5 * t, by + (y + ny) * 0.5 * t),
+                        w * 0.8,
+                        color,
+                        true,
+                    );
+                }
+            }
+        }
+        Glyph::Controller => {
+            // A knob at the left (its ring and pointer), a fader at the right (its slot and
+            // its cap).
+            b.circle_stroke(p(-2.4, 0.6), 2.9 * u, w * 0.9, color);
+            b.segment(p(-2.4, 0.6), p(-3.9, -1.4), w, color, true);
+            b.segment(p(3.4, -4.8), p(3.4, 4.8), w * 0.8, color, true);
+            b.rrect(
+                Rect::from_min_max(p(2.0, -1.8), p(4.8, 0.6)),
+                0.5 * u,
+                Fill::Solid(color),
+            );
         }
         Glyph::Filter => {
             // A funnel in outline: the wide mouth, the narrowing, the spout cut slanted.

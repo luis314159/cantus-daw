@@ -56,6 +56,16 @@ pub enum Action {
     SelectBetweenMarkers,
     /// The arrangement's tempo track shown or hidden.
     ToggleTempoTrack,
+    /// Freeze the selected track (its own strip, or its source), or unfreeze what holds it
+    /// (round 29, ADR 0064).
+    FreezeTrack,
+    /// Bounce in place with the strip's inserts: the selected clips, the time selection or
+    /// the whole selected track.
+    BounceInPlace,
+    /// Bounce in place, the source only (before the track's level).
+    BounceSource,
+    /// Low-latency monitoring on or off.
+    ToggleLowLatency,
     // File
     NewProject,
     Open,
@@ -162,6 +172,13 @@ pub enum Action {
     /// Open or close the selected track's instrument window, or bring it back from the
     /// device tray (F8; round 20).
     ToggleInstrumentWindow,
+    // MIDI controllers (round 29, ADR 0062)
+    /// The learn mode (Ableton's MIDI Map mode): every learnable control outlined.
+    MidiLearnMode,
+    /// FL's *Link to controller* for the last tweaked parameter.
+    LinkLastTweaked,
+    /// Show or hide the controller mappings.
+    ViewControllers,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -207,7 +224,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 88] = [
+    pub const ALL: [Action; 95] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -296,6 +313,14 @@ impl Action {
         Action::ShowTakes,
         Action::AutomateLastTweaked,
         Action::ToggleInstrumentWindow,
+        // Round 29 (ADR 0064).
+        Action::FreezeTrack,
+        Action::BounceInPlace,
+        Action::BounceSource,
+        Action::ToggleLowLatency,
+        Action::MidiLearnMode,
+        Action::LinkLastTweaked,
+        Action::ViewControllers,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -315,6 +340,10 @@ impl Action {
             Action::LoopBetweenMarkers => "loop-between-markers",
             Action::SelectBetweenMarkers => "select-between-markers",
             Action::ToggleTempoTrack => "toggle-tempo-track",
+            Action::FreezeTrack => "freeze-track",
+            Action::BounceInPlace => "bounce-in-place",
+            Action::BounceSource => "bounce-source",
+            Action::ToggleLowLatency => "toggle-low-latency",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
             Action::DemoSongs => "demo-songs",
@@ -389,6 +418,9 @@ impl Action {
             Action::ShowTakes => "show-takes",
             Action::AutomateLastTweaked => "automate-last-tweaked",
             Action::ToggleInstrumentWindow => "toggle-instrument-window",
+            Action::MidiLearnMode => "midi-learn-mode",
+            Action::LinkLastTweaked => "link-last-tweaked",
+            Action::ViewControllers => "view-controllers",
         }
     }
 
@@ -409,6 +441,9 @@ impl Action {
             | LoopBetweenMarkers => Category::Transport,
             SelectBetweenMarkers => Category::Arrangement,
             ToggleTempoTrack => Category::View,
+            // Freezing and bouncing are the track's; low-latency monitoring the recording's
+            // (round 29, ADR 0064).
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
@@ -438,7 +473,10 @@ impl Action {
             | ToggleBrowser
             | ToggleClips
             | ViewRouting
-            | ToggleInstrumentWindow => Category::View,
+            | ToggleInstrumentWindow
+            | ViewControllers => Category::View,
+            MidiLearnMode => Category::Tools,
+            LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave | RouteMenu => Category::Mixer,
         }
@@ -708,6 +746,38 @@ fn common() -> Vec<(Action, Binding)> {
                 ..Binding::alt(Key::T)
             },
         ),
+        // Freeze (round 29, ADR 0064): Alt+Shift+F freezes the selected track or thaws it,
+        // Alt+Shift+B bounces it in place; Alt+Shift+R switches low-latency monitoring (R
+        // as recording: Alt+R arms).
+        (
+            FreezeTrack,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::F)
+            },
+        ),
+        (
+            BounceInPlace,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
+        // Ctrl+Alt+B bounces the source only (the same gesture, one modifier more).
+        (
+            BounceSource,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
+        (
+            ToggleLowLatency,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::R)
+            },
+        ),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
         // FL's function keys for the three central views. They are the most widely known
         // — every preset gets them, because arriving from anywhere else they are simply
@@ -783,6 +853,18 @@ fn common() -> Vec<(Action, Binding)> {
         (ShowTakes, Binding::alt(Key::T)),
         // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
         (AutomateLastTweaked, Binding::alt(Key::A)),
+        // MIDI controllers (round 29, ADR 0062): Ctrl+Shift+M for the learn mode (Live's
+        // Cmd+M, which is our metronome), Alt+Shift+A links the last tweaked parameter
+        // beside Alt+A's automation clip, Ctrl+Shift+K shows the mappings (K for knobs).
+        (MidiLearnMode, Binding::cmd_shift(Key::M)),
+        (
+            LinkLastTweaked,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::A)
+            },
+        ),
+        (ViewControllers, Binding::cmd_shift(Key::K)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }
@@ -1155,13 +1237,22 @@ pub const FILE_VERSION: u32 = 9;
 
 /// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
 /// 0060); the other round-29 builders append theirs here.
-const NEW_IN_V9: [Action; 6] = [
+const NEW_IN_V9: [Action; 13] = [
     Action::AddMarker,
     Action::PreviousMarker,
     Action::NextMarker,
     Action::LoopBetweenMarkers,
     Action::SelectBetweenMarkers,
     Action::ToggleTempoTrack,
+    // Freeze (round 29, ADR 0064).
+    Action::FreezeTrack,
+    Action::BounceInPlace,
+    Action::BounceSource,
+    Action::ToggleLowLatency,
+    // The controllers builder's (ADR 0062).
+    Action::MidiLearnMode,
+    Action::LinkLastTweaked,
+    Action::ViewControllers,
 ];
 
 /// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round

@@ -88,6 +88,9 @@ pub struct EngineHandle {
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
+    /// Where frozen renders are and the ones opened (ADR 0064): every snapshot compiled
+    /// here plays the renders at hand.
+    pub frozen: crate::freeze::FrozenStore,
     /// The newest snapshot, while some Exemplar's new zone table waits for its starts to be
     /// read ([`Self::set_snapshot`]), and since when it has waited (an absolute bound).
     pending: Option<Arc<Snapshot>>,
@@ -301,6 +304,7 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            frozen: crate::freeze::FrozenStore::default(),
             pending: None,
             pending_since: None,
             tables_late: 0,
@@ -376,6 +380,7 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            frozen: crate::freeze::FrozenStore::default(),
             pending: None,
             pending_since: None,
             tables_late: 0,
@@ -669,6 +674,10 @@ impl EngineHandle {
         let rate = self.sample_rate.round() as u32;
         for (path, err) in self.samples.attach_audio(&mut snapshot, rate) {
             log::warn!("audio {}: {err}", path.display());
+        }
+        // Frozen strips and tracks whose render is at hand play it (ADR 0064).
+        if project.any_frozen() {
+            self.frozen.attach(project, &mut snapshot, rate);
         }
         Arc::new(snapshot)
     }

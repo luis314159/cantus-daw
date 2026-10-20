@@ -12,6 +12,7 @@ pub mod automation;
 pub mod backend;
 pub mod devices;
 pub mod effects;
+pub mod freeze;
 pub mod fx;
 pub mod graph;
 pub mod hotplug;
@@ -49,7 +50,7 @@ pub use messages::{
     NoteInput, ANALYSER_SAMPLES, CAPTURE_SAMPLES, MAX_BLOCK_FRAMES, MAX_EFFECTS_PER_TRACK,
     MAX_LIVE_ECHO, MAX_SENDS_PER_STRIP, MAX_STRIPS, MAX_TRACKS,
 };
-pub use midi::{list_ports, MidiInputs, MidiSender};
+pub use midi::{list_ports, Heard, MidiInputs, MidiOutputs, MidiSender, MidiTap};
 pub use processor::{Processor, Workers};
 pub use profile::{BlockHistogram, Culprit, Dropout};
 pub use recorder::{

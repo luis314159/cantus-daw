@@ -10,8 +10,13 @@
 //! value — and while a modulator is *mapping*, a plain drag does. The control reports these
 //! as [`Choice`]s; the caller knows which parameter it is.
 //!
-//! The kit knows nothing of projects: the caller says whether the parameter is automated
-//! or modulated and acts on the choice it gets back.
+//! **MIDI learn** (round 29, ADR 0062): *Learn MIDI controller* and *Forget MIDI
+//! controller* in every parameter's menu, a mark on a mapped control, and the learn mode
+//! (Ableton's MIDI Map mode): every learnable control outlined, a click on one answers
+//! [`Choice::Learn`] and its value does not move.
+//!
+//! The kit knows nothing of projects: the caller says whether the parameter is automated,
+//! modulated or mapped and acts on the choice it gets back.
 
 use super::menu::Item;
 use super::text::Src;
@@ -27,12 +32,29 @@ pub mod probe {
     thread_local! {
         static SEEN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
         static LIVE: RefCell<Option<Vec<(String, &'static str)>>> = const { RefCell::new(None) };
+        static LEARN: RefCell<Option<Vec<(String, bool)>>> = const { RefCell::new(None) };
     }
 
     /// Start recording (what was recorded before is dropped).
     pub fn start() {
         SEEN.with(|s| *s.borrow_mut() = Some(Vec::new()));
         LIVE.with(|s| *s.borrow_mut() = Some(Vec::new()));
+        LEARN.with(|s| *s.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// A parameter control was drawn, `learnable` when its menu offered *Learn MIDI
+    /// controller* (round 29, ADR 0062).
+    pub fn note_learn(name: &str, learnable: bool) {
+        LEARN.with(|s| {
+            if let Some(v) = s.borrow_mut().as_mut() {
+                v.push((name.to_string(), learnable));
+            }
+        });
+    }
+
+    /// The learn offers noted since [`start`] (and stop noting them).
+    pub fn take_learn() -> Vec<(String, bool)> {
+        LEARN.with(|s| s.borrow_mut().take()).unwrap_or_default()
     }
 
     /// A control showed where modulation has it now, the way `how` names (review of fix4:
@@ -86,6 +108,26 @@ pub struct ModOffer {
     pub mapping: bool,
     /// The parameter's position now, modulation in (0…1), for the live dot.
     pub live: Option<f32>,
+    /// What MIDI learn knows of it (round 29, ADR 0062); `None` where it cannot be learnt.
+    pub learn: Option<LearnOffer>,
+}
+
+/// A learnable control's MIDI mapping (round 29, ADR 0062).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct LearnOffer {
+    /// A controller drives it: the mark, and *Forget* in its menu.
+    pub mapped: bool,
+    /// The learn mode is on: outlined, and a click learns.
+    pub mode: bool,
+    /// It is waiting for a hardware control to move.
+    pub armed: bool,
+}
+
+impl Offer {
+    /// What MIDI learn knows of the control, when it can be learnt.
+    pub fn learn(&self) -> Option<LearnOffer> {
+        self.modulation.and_then(|m| m.learn)
+    }
 }
 
 impl Offer {
@@ -119,6 +161,10 @@ pub enum Choice {
     DepthDone,
     /// A modulator's handle was dropped on the control: connect it.
     Connect(u64),
+    /// Learn the next hardware control moved for it (its menu, or a click in learn mode).
+    Learn,
+    /// Take its MIDI mapping away.
+    Forget,
 }
 
 /// The menu on a right-click of `resp`; the choice, the frame it is made.
@@ -144,6 +190,19 @@ pub fn menu(ui: &Ui, resp: &Response, offer: Offer) -> Option<Choice> {
         if offer.typing {
             items.push(Item::action(Src::Key("auto.param.type")));
             choices.push(Choice::Type);
+        }
+        // MIDI learn (round 29, ADR 0062).
+        if let Some(l) = offer.learn() {
+            items.push(Item::action(Src::Key(if l.mapped {
+                "ctl.param.relearn"
+            } else {
+                "ctl.param.learn"
+            })));
+            choices.push(Choice::Learn);
+            if l.mapped {
+                items.push(Item::action(Src::Key("ctl.param.forget")));
+                choices.push(Choice::Forget);
+            }
         }
         items.push(Item::Separator);
         choices.push(Choice::Reset);
@@ -181,6 +240,10 @@ pub fn depth_drag(ui: &Ui, offer: Option<Offer>) -> bool {
     let Some(m) = offer.and_then(|o| o.modulation) else {
         return false;
     };
+    // In learn mode a drag moves nothing (the click learns).
+    if m.learn.is_some_and(|l| l.mode) {
+        return true;
+    }
     m.mapping || (m.depth.is_some() && ui.input(|i| i.modifiers.alt))
 }
 
@@ -188,6 +251,9 @@ pub fn depth_drag(ui: &Ui, offer: Option<Offer>) -> bool {
 /// depth (Shift for fine) or its end. `None` when none of these happened.
 pub fn modulation_choice(ui: &Ui, resp: &Response, offer: Option<Offer>) -> Option<Choice> {
     let m = offer.and_then(|o| o.modulation)?;
+    if let Some(l) = m.learn.filter(|l| l.mode) {
+        return learn_spot(ui, resp.rect, resp.id, l).then_some(Choice::Learn);
+    }
     // Only a modulator's handle is ours: egui's release takes whatever is carried, and a
     // control also takes other drops (an instrument's source chip, a track for routing).
     if handle_in_flight(&resp.ctx) {
@@ -230,6 +296,48 @@ pub fn mod_mark(b: &mut Brush, rect: Rect, s: &Style) {
     let c = Pos2::new(rect.left() + r + 1.5 * s.k, rect.top() + r + 1.5 * s.k);
     b.circle(c, r + b.px(), Fill::Solid(s.t.panel));
     b.circle(c, r, Fill::Solid(s.t.hue_mod));
+}
+
+/// The mapped mark (round 29, ADR 0062): a small dot in the highlight's colour at the
+/// control's lower right — "a hardware control moves this".
+pub fn learn_mark(b: &mut Brush, rect: Rect, s: &Style) {
+    let r = 2.6 * s.k;
+    let c = Pos2::new(rect.right() - r - 1.5 * s.k, rect.bottom() - r - 1.5 * s.k);
+    b.circle(c, r + b.px(), Fill::Solid(s.t.panel));
+    b.circle(c, r, Fill::Solid(s.t.highlight));
+}
+
+/// A learnable spot in learn mode (round 29, ADR 0062): outlined above whatever is drawn
+/// there — faint when free, in the highlight's colour when mapped, lit while it waits for a
+/// hardware control — and covered so the control under it does not move: `true` when it was
+/// clicked. Every learnable control of the kit goes through here; buttons that are not
+/// parameters (a mute, the transport's) call it themselves.
+pub fn learn_spot(ui: &Ui, rect: Rect, id: egui::Id, l: LearnOffer) -> bool {
+    let cover = ui.interact(rect, id.with("cantus-learn"), egui::Sense::click_and_drag());
+    let s = Style::current();
+    // Above the control's own painting: a sublayer of the layer it is drawn in.
+    let parent = ui.layer_id();
+    let layer = egui::LayerId::new(parent.order, parent.id.with("cantus-learn"));
+    ui.ctx().set_sublayer(parent, layer);
+    let painter = ui.ctx().layer_painter(layer).with_clip_rect(ui.clip_rect());
+    super::with_brush(&painter, |b| {
+        let r = rect.shrink(b.px());
+        let (fill, line, w) = if l.armed {
+            (s.t.led.gamma_multiply(0.22), s.t.led, s.s(2.0))
+        } else if l.mapped {
+            (s.t.highlight.gamma_multiply(0.18), s.t.highlight, s.s(1.5))
+        } else if cover.hovered() {
+            (s.t.focus.gamma_multiply(0.16), s.t.focus, s.s(1.5))
+        } else {
+            (s.t.focus.gamma_multiply(0.12), s.t.focus, s.s(1.0))
+        };
+        b.rrect(r, s.r(3.0), Fill::Solid(fill));
+        b.rrect_stroke(r, s.r(3.0), w, line);
+    });
+    if cover.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    cover.clicked()
 }
 
 /// A handle hovering over a control that would take it: the drop target's outline.

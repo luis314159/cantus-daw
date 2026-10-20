@@ -24,6 +24,12 @@ impl CantusApp {
     /// A command moved a parameter: written into the pass's automation when a pass is
     /// recording it.
     pub fn record_tweak(&mut self, cmd: &Command) {
+        self.record_tweak_at(cmd, None);
+    }
+
+    /// [`Self::record_tweak`] at `tick` (a controller's message, at its own time: round 29,
+    /// ADR 0062), or at the heard position now.
+    pub fn record_tweak_at(&mut self, cmd: &Command, tick: Option<i64>) {
         if self.rec.pass.is_none() || !self.project().recording.record_automation {
             return;
         }
@@ -46,7 +52,7 @@ impl CantusApp {
                 None => return,
             }
         };
-        let tick = self.engine.position().0;
+        let tick = tick.unwrap_or(self.engine.position().0);
         self.modulators
             .rec
             .points

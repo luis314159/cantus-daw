@@ -622,6 +622,7 @@ impl PinMod {
     fn input(&self, st: &mut Inspector, ui: &Ui, resp: &Response, probe: &str) -> bool {
         use crate::kit::automate as a;
         a::probe::note(probe, true);
+        a::probe::note_learn(probe, self.offer.learn().is_some());
         let choice = a::modulation_choice(ui, resp, Some(self.offer))
             .or_else(|| a::menu(ui, resp, self.offer));
         if let Some(c) = choice {

@@ -28,6 +28,7 @@ pub mod channel_rack;
 pub mod clip_browser;
 pub mod clips_chrome;
 pub mod comp_editor;
+pub mod controllers;
 pub mod demos;
 pub mod device_chrome;
 /// A drum kit's row names in the interface's language (round 28).
@@ -58,6 +59,9 @@ pub mod picker_thumbs;
 pub mod pitch;
 pub mod pitch_lane;
 pub mod plugin_notice;
+// Round 29 (ADR 0064): freezing and low-latency monitoring on screen.
+pub mod freeze_monitor;
+pub mod freeze_view;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;

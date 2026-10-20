@@ -1,1 +1,121 @@
 # controllers — ronda 29: MIDI learn y mapeo de controladores. Cada clave de controllers.en.txt tiene aquí su gemela.
+
+# Etiquetas de deshacer (cmd.*)
+cmd.controllers.add = asignación de controlador añadida
+cmd.controllers.remove = asignación de controlador quitada
+cmd.controllers.set = cambio de asignación de controlador
+cmd.controllers.gesture = movimiento del controlador
+
+# Acciones (el mapa de teclas)
+action.midi-learn-mode = Modo de aprendizaje MIDI
+action.link-last-tweaked = Vincular el último parámetro movido a un controlador
+action.view-controllers = Mostrar las asignaciones de controladores
+
+# El menú de un parámetro
+ctl.param.learn = Aprender controlador MIDI
+ctl.param.relearn = Cambiar controlador MIDI
+ctl.param.forget = Olvidar el controlador MIDI
+
+# Menús del mezclador y de la cabecera de pista
+ctl.menu.band = Controlador MIDI
+ctl.menu.volume = Aprender volumen
+ctl.menu.pan = Aprender panorama
+ctl.menu.width = Aprender anchura estéreo
+ctl.menu.mute = Aprender silencio
+ctl.menu.solo = Aprender solo
+ctl.menu.arm = Aprender armado de grabación
+ctl.menu.bypass = Aprender puenteo
+ctl.menu.mix = Aprender mezcla
+ctl.menu.forget = Olvidar estos controladores
+
+# Qué es un control
+ctl.src.cc = CC {n}
+ctl.src.cc14 = CC de 14 bits {n}
+ctl.src.note = Nota {n}
+ctl.src.bend = Inflexión de tono
+ctl.src.program = Programa {n}
+ctl.src.pressure = Presión
+ctl.src.key_pressure = Presión de tecla {n}
+ctl.src.channel = Canal {n}
+ctl.src.any_channel = Cualquier canal
+ctl.src.any_port = Cualquier puerto
+
+# Modos y toma de control
+ctl.mode.absolute = Absoluto
+ctl.mode.rel_twos = Relativo (compl. a 2)
+ctl.mode.rel_offset = Relativo (centro 64)
+ctl.mode.rel_sign = Relativo (signo)
+ctl.mode.toggle = Conmutar
+ctl.mode.momentary = Momentáneo
+ctl.mode.trigger = Disparo
+ctl.takeover.jump = Saltar
+ctl.takeover.pickup = Recoger
+ctl.takeover.scale = Escalar
+
+# Destinos
+ctl.desk.volume = Volumen
+ctl.desk.pan = Panorama
+ctl.desk.mute = Silencio
+ctl.desk.solo = Solo
+ctl.desk.arm = Armado de grabación
+ctl.target.bypass = Puenteo
+ctl.target.mix = Mezcla
+ctl.target.tempo = Tempo
+ctl.target.action = Transporte
+ctl.target.selected_track = Pista seleccionada
+ctl.target.selected_strip = Canal seleccionado
+ctl.target.device_param = Dispositivo enfocado · Perilla {n}
+ctl.value.on = Sí
+ctl.value.off = No
+
+# La línea de estado
+ctl.status.armed = Mueve un control de tu controlador MIDI para {name} (Esc cancela)
+ctl.status.cancelled = Aprendizaje MIDI cancelado
+ctl.status.learnt = {source} mueve ahora {name}
+ctl.status.learnt_shared = {source} mueve ahora {name}, y también {others}
+ctl.status.forgot = {name} ya no tiene controlador
+ctl.status.mode_on = Aprendizaje MIDI: haz clic en un control y mueve un control de tu controlador MIDI
+ctl.status.mode_off = Aprendizaje MIDI desactivado
+ctl.status.not_a_value = No es un valor para este control
+ctl.status.save_failed = No se pudieron guardar las asignaciones de controladores: {error}
+
+# El panel de asignaciones
+ctl.pane = Controladores
+ctl.toggle = Mostrar las asignaciones de controladores
+ctl.view.learn = Aprender
+ctl.view.learn_tip = Modo de aprendizaje MIDI: se marcan todos los controles que se pueden aprender
+ctl.view.add = Añadir asignación
+ctl.view.filter = Filtrar
+ctl.view.new_takeover = Las nuevas toman el control
+ctl.view.ports = Entrada MIDI: {names}
+ctl.view.no_ports = Sin entrada MIDI. Conecta una y luego Ajustes → MIDI → Volver a buscar puertos
+ctl.view.armed = Esperando un control: mueve una perilla, un fader, un botón o un pad para {name}. Esc cancela
+ctl.view.global = En todas partes (tus asignaciones globales)
+ctl.view.global_empty = Aún no hay nada: añade una asignación para el transporte, el máster, la pista seleccionada o el dispositivo enfocado
+ctl.view.project = Este proyecto
+ctl.view.project_empty = Aún no hay nada: clic derecho en cualquier perilla → Aprender controlador MIDI, o activa Aprender y haz clic en un control
+ctl.view.no_match = Ninguna asignación coincide con el filtro
+ctl.view.shared = Compartido
+ctl.view.shared_tip = Este control también mueve
+ctl.view.missing = Falta
+ctl.view.send = Enviar
+ctl.view.send_tip = Retorno: envía el valor de vuelta al controlador (faders motorizados, anillos de LED)
+ctl.view.relearn = Aprender otra vez este control
+ctl.view.remove = Quitar esta asignación
+ctl.col.control = Control
+ctl.col.target = Mueve
+ctl.col.mode = Modo
+ctl.col.from = Desde
+ctl.col.to = Hasta
+ctl.col.curve = Curva
+ctl.col.takeover = Toma de control
+ctl.col.feedback = Retorno
+ctl.add.transport = Transporte
+ctl.add.master = Máster
+ctl.add.selected_track = Pista seleccionada
+ctl.add.selected_strip = Canal seleccionado
+ctl.add.device = Dispositivo enfocado
+
+# La barra superior
+ctl.topbar.learn_tip = Aprendizaje MIDI: haz clic en un control y mueve una perilla, un fader, un botón o un pad de tu controlador
+ctl.topbar.lamp_tip = Clic: modo de aprendizaje MIDI. Clic derecho: ajustes MIDI

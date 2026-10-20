@@ -79,6 +79,8 @@ struct Key {
     live: bool,
     locale: Option<Locale>,
     tk: u32,
+    /// The latency is the monitored path's (low-latency monitoring, ADR 0064 §4).
+    monitored: bool,
 }
 
 #[derive(Default)]
@@ -128,10 +130,12 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
     use cantus_engine::DeviceState as S;
     let lost = state == S::Lost || app.audio_setup.plug.lost.is_some();
     let stalled = !lost && matches!(state, S::Stalled | S::RestartRequested);
-    let ms = if rate > 0.0 {
-        rt as f64 / rate * 1000.0
-    } else {
-        0.0
+    // Low-latency monitoring (round 29, ADR 0064 §4): what is monitored, round trip.
+    let monitored = super::freeze_monitor::monitored_ms(app);
+    let ms = match monitored {
+        Some(ms) => ms,
+        None if rate > 0.0 => rt as f64 / rate * 1000.0,
+        None => 0.0,
     };
     CACHE.with(|c| {
         let mut c = c.borrow_mut();
@@ -145,7 +149,8 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             && k.stalled == stalled
             && k.live == live
             && k.locale == Some(crate::i18n::locale())
-            && k.tk == s.tk().to_bits();
+            && k.tk == s.tk().to_bits()
+            && k.monitored == monitored.is_some();
         if same {
             return;
         }
@@ -164,7 +169,11 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             tf("devices.chip.stalled", &[("name", &name)])
         } else {
             let mut lat = String::new();
-            if rt > 0 {
+            if monitored.is_some() {
+                let mut n = String::new();
+                latency::fmt_ms(ms, &mut n);
+                lat = tf("freeze.chip.monitored", &[("ms", &n)]);
+            } else if rt > 0 {
                 latency::fmt_ms(ms, &mut lat);
                 lat.push_str(" ms");
             } else {
@@ -195,6 +204,7 @@ fn refresh(app: &CantusApp, ctx: &egui::Context, s: &Style) {
             live,
             locale: Some(crate::i18n::locale()),
             tk: s.tk().to_bits(),
+            monitored: monitored.is_some(),
         };
     });
 }

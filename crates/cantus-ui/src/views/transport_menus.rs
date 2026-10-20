@@ -295,7 +295,9 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     // Routing tab after the mixer (round 25).
     let areas = std::iter::once(Pane::Browser)
         .chain(Pane::ZONES)
-        .chain(std::iter::once(Pane::Routing));
+        .chain(std::iter::once(Pane::Routing))
+        // The controller mappings (round 29, ADR 0062).
+        .chain(std::iter::once(Pane::Controllers));
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -304,6 +306,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Mixer => Action::ViewMixer,
             Pane::Browser => Action::ToggleBrowser,
             Pane::Routing => Action::ViewRouting,
+            Pane::Controllers => Action::ViewControllers,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);

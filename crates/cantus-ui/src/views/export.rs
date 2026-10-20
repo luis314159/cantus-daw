@@ -281,6 +281,12 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
     if app.export.busy() {
         return false;
     }
+    // A freeze or a bounce rendering holds the hosted plug-ins' render instances (round 29,
+    // ADR 0064): one set at a time — the export waits for it.
+    if app.freeze.job.is_some() {
+        app.set_error(crate::i18n::t("freeze.export_waits"));
+        return false;
+    }
     let from_dialog = choices.is_none();
     let mut d = match choices.or_else(|| app.export.dialog.clone()) {
         Some(d) => d,

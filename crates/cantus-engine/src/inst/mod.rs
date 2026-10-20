@@ -131,6 +131,9 @@ pub trait InstrumentUnit: Send + std::fmt::Debug {
     }
     fn expression(&mut self, _id: u64, _expression: NoteExpression, _value: f32) {}
     fn controller(&mut self, _controller: Controller, _value: f32) {}
+    /// A program change from live MIDI (round 29, ADR 0062): a hosted instrument hears it
+    /// as MIDI; a native one has no programs. Default: nothing.
+    fn program(&mut self, _program: u8) {}
     /// Release every voice (transport stop, loop wrap). Tails may ring.
     fn all_notes_off(&mut self);
     /// Silence at once and forget every tail (seek, panic, instrument switched).

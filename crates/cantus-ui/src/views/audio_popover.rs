@@ -167,6 +167,9 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
             }
             rows(app, &mut child, &live, key.as_deref());
             buffers(app, &mut child, &live);
+            // Low-latency monitoring, where the buffer is chosen (round 29, ADR 0064 §4).
+            let w = (child.available_width() / k - LABEL_W - 8.0).max(160.0);
+            super::freeze_monitor::popover_rows(app, &mut child, w);
             footer(app, &mut child);
             let used = child.min_rect().bottom() - rect.top() + 12.0 * k;
             if (used - app.audio_setup.pop_h).abs() > 0.5 {

@@ -59,6 +59,10 @@ pub enum CommandError {
     AudioSourceNotFound(AudioSourceId),
     #[error("audio source {0} is still played by a clip")]
     AudioSourceInUse(AudioSourceId),
+    /// The edit would change the sound of a frozen strip or track (ADR 0064): unfreeze it
+    /// first. Names the frozen target.
+    #[error("{0:?} is frozen: unfreeze it to change this")]
+    Frozen(crate::freeze::FreezeTarget),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -138,6 +142,21 @@ pub enum Command {
     /// A marker moved, renamed or recoloured.
     SetMarker {
         marker: crate::tempo::Marker,
+    },
+    // --- MIDI controller mappings (round 29, ADR 0062) ---------------------------------
+    /// A controller mapping added to the project's map at `index` (clamped to its end).
+    InsertMapping {
+        index: usize,
+        mapping: Box<crate::controller::Mapping>,
+    },
+    /// A controller mapping taken out of the project's map.
+    RemoveMapping {
+        id: crate::controller::MappingId,
+    },
+    /// A controller mapping, found by its id, replaced whole: learnt again, its target,
+    /// mode, range, bend, takeover, feedback or sensitivity changed.
+    SetMapping {
+        mapping: Box<crate::controller::Mapping>,
     },
     SetMasterGain {
         gain_db: f32,
@@ -511,6 +530,18 @@ pub enum Command {
         track: TrackId,
         isolation: Option<crate::external::PluginIsolation>,
     },
+    /// Freeze a mixer strip (round 29, ADR 0064) — `Some` with its content key now, which
+    /// is checked — or unfreeze it (`None`).
+    SetStripFrozen {
+        strip: StripId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
+    /// Freeze a track's own source (round 29, ADR 0064), or unfreeze it; the twin of
+    /// [`Command::SetStripFrozen`].
+    SetTrackFrozen {
+        track: TrackId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -750,6 +781,9 @@ impl Command {
             SetMetreAt { .. } => "cmd.tempo.set_metre",
             RemoveMetreAt { .. } => "cmd.tempo.remove_metre",
             MoveMetre { .. } => "cmd.tempo.move_metre",
+            InsertMapping { .. } => "cmd.controllers.add",
+            RemoveMapping { .. } => "cmd.controllers.remove",
+            SetMapping { .. } => "cmd.controllers.set",
             AddMarker { .. } => "cmd.tempo.add_marker",
             RemoveMarker { .. } => "cmd.tempo.remove_marker",
             SetMarker { .. } => "cmd.tempo.set_marker",
@@ -803,6 +837,15 @@ impl Command {
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
             SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
+            SetStripFrozen {
+                frozen: Some(_), ..
+            }
+            | SetTrackFrozen {
+                frozen: Some(_), ..
+            } => "cmd.freeze",
+            SetStripFrozen { frozen: None, .. } | SetTrackFrozen { frozen: None, .. } => {
+                "cmd.unfreeze"
+            }
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -888,6 +931,7 @@ impl Command {
             | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
+            (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             (
                 SetClipAudio {
@@ -1160,6 +1204,12 @@ impl Command {
     /// Apply to `project`, returning the inverse command. On error the project is
     /// unchanged (batches roll back).
     pub fn apply(self, project: &mut Project) -> Result<Command, CommandError> {
+        // Frozen sounds are locked (ADR 0064): an edit that would change one is refused.
+        crate::freeze::guard(self, project, Command::apply_unguarded)
+    }
+
+    /// The command's body, without the frozen lock ([`Self::apply`] is what runs it).
+    fn apply_unguarded(self, project: &mut Project) -> Result<Command, CommandError> {
         use Command::*;
         match self {
             SetProjectName { name } => {
@@ -2176,6 +2226,20 @@ impl Command {
                     isolation: old,
                 })
             }
+            SetStripFrozen { strip, frozen } => {
+                let s = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let old = std::mem::replace(&mut s.frozen, frozen);
+                Ok(SetStripFrozen { strip, frozen: old })
+            }
+            SetTrackFrozen { track, frozen } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.frozen, frozen);
+                Ok(SetTrackFrozen { track, frozen: old })
+            }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
                 check_joins(project, &clip)?;
@@ -2438,6 +2502,11 @@ impl Command {
             AddMarker { marker } => crate::tempo::edit::apply_add_marker(project, marker),
             RemoveMarker { id } => crate::tempo::edit::apply_remove_marker(project, id),
             SetMarker { marker } => crate::tempo::edit::apply_set_marker(project, marker),
+            InsertMapping { index, mapping } => {
+                crate::controller::apply_insert(project, index, *mapping)
+            }
+            RemoveMapping { id } => crate::controller::apply_remove(project, id),
+            SetMapping { mapping } => crate::controller::apply_set(project, *mapping),
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,

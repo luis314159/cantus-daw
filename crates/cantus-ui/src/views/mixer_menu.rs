@@ -147,6 +147,19 @@ enum Act {
     CableLevels,
     CableMaster,
     CablePreset(CablePreset),
+    /// Freeze the strip, or unfreeze what holds it (round 29, ADR 0064).
+    Freeze(StripId),
+    /// Bounce the whole strip in place.
+    Bounce(StripId),
+    /// Round 29 (ADR 0062): learn a controller for a strip's (or the master's) volume (0),
+    /// pan (1), width (2), mute (3) or solo (4).
+    Learn(StripId, u8),
+    /// Learn a controller for an insert's bypass (0) or mix (1).
+    LearnSlot(EffectId, u8),
+    /// Forget every controller of the strip's (or the master's) controls.
+    ForgetStrip(StripId),
+    /// Forget the controllers of an insert's bypass and mix.
+    ForgetSlot(EffectId),
 }
 
 impl Act {
@@ -349,6 +362,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             let s = &p.strips[index];
             e.push(Entry::act(Label::Key("mixer.menu.rename"), Act::Rename(id)));
             automate_entries(id, &mut e);
+            learn_entries(app, id, &mut e);
             e.push(Entry::sub(
                 Label::Key("mixer.menu.color"),
                 Sub::Colors(ColorOf::Strip(id)),
@@ -375,6 +389,21 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                     );
                 }
             }
+            // Freeze and bounce in place (round 29, ADR 0064).
+            e.push(Entry::band("freeze.menu.band"));
+            let held = app.freeze_holding_strip(id);
+            e.push(Entry::act(
+                Label::Key(if held.is_some() {
+                    "freeze.menu.unfreeze_strip"
+                } else {
+                    "freeze.menu.freeze_strip"
+                }),
+                Act::Freeze(id),
+            ));
+            e.push(
+                Entry::act(Label::Key("bounce.menu.strip"), Act::Bounce(id))
+                    .enabled(crate::bounce::strip_plan(app, id).is_ok()),
+            );
             e.push(Entry::band("mixer.menu.routing"));
             e.push(
                 Entry::act(Label::Key("routing.menu.where"), Act::RouteMenu(id)).shortcut(
@@ -527,6 +556,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
         Menu::Master => {
             let m = &p.master;
             automate_entries(StripId::MASTER, &mut e);
+            learn_entries(app, StripId::MASTER, &mut e);
             e.push(Entry::band("master.menu.effects"));
             e.push(Entry::sub(
                 Label::Key("effect.add"),
@@ -564,6 +594,19 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Entry::act(Label::Key("effect.bypass"), Act::Bypass(id, fx, !bypass))
                     .check(on(bypass)),
             );
+            // MIDI learn (round 29, ADR 0062): the insert's bypass and mix.
+            let mut mapped = false;
+            for (what, key) in [(0u8, "ctl.menu.bypass"), (1, "ctl.menu.mix")] {
+                let m = app.is_mapped(&crate::controllers::slot_learn_target(fx, what));
+                mapped |= m;
+                e.push(Entry::act(Label::Key(key), Act::LearnSlot(fx, what)).check(on(m)));
+            }
+            if mapped {
+                e.push(Entry::act(
+                    Label::Key("ctl.menu.forget"),
+                    Act::ForgetSlot(fx),
+                ));
+            }
             e.push(
                 Entry::act(
                     Label::Key("effect.up"),
@@ -1116,6 +1159,11 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
 fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
     let mut prefs = v.prefs.current;
     match act {
+        Act::Freeze(id) => match app.freeze_holding_strip(id) {
+            Some(h) => app.unfreeze_target(h),
+            None => app.freeze_target(cantus_core::FreezeTarget::Strip(id)),
+        },
+        Act::Bounce(id) => app.bounce_strip(id),
         Act::Rename(id) => {
             if let Some(s) = app.project().strip(id) {
                 let name = s.name.clone();
@@ -1234,6 +1282,31 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         Act::Colourful(c) => {
             prefs.colourful = c;
             v.prefs.set(prefs);
+        }
+        Act::Learn(id, what) => {
+            if let Some(t) = crate::controllers::strip_learn_target(id, what) {
+                app.learn_target(t);
+            }
+        }
+        Act::LearnSlot(fx, what) => {
+            app.learn_target(crate::controllers::slot_learn_target(fx, what));
+        }
+        Act::ForgetStrip(id) => {
+            for what in 0..5 {
+                if let Some(t) = crate::controllers::strip_learn_target(id, what) {
+                    if app.is_mapped(&t) {
+                        app.forget_target(&t);
+                    }
+                }
+            }
+        }
+        Act::ForgetSlot(fx) => {
+            for what in 0..2 {
+                let t = crate::controllers::slot_learn_target(fx, what);
+                if app.is_mapped(&t) {
+                    app.forget_target(&t);
+                }
+            }
         }
         Act::Automate(id, what) => app.automate(strip_target(id, what)),
         Act::Modulate(id, what) => {
@@ -1470,6 +1543,34 @@ fn strip_target(id: StripId, what: u8) -> cantus_core::AutoTarget {
         (false, 0) => A::StripGain(id),
         (false, 1) => A::StripPan(id),
         (false, _) => A::StripWidth(id),
+    }
+}
+
+/// A strip's (or the master's) MIDI learn rows (round 29, ADR 0062): its volume, pan,
+/// width, mute and solo (the master has no mute or solo), each checked when mapped, and
+/// *Forget* when anything is.
+fn learn_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
+    e.push(Entry::band("ctl.menu.band"));
+    let mut mapped = false;
+    for (what, key) in [
+        (0u8, "ctl.menu.volume"),
+        (1, "ctl.menu.pan"),
+        (2, "ctl.menu.width"),
+        (3, "ctl.menu.mute"),
+        (4, "ctl.menu.solo"),
+    ] {
+        let Some(t) = crate::controllers::strip_learn_target(id, what) else {
+            continue;
+        };
+        let m = app.is_mapped(&t);
+        mapped |= m;
+        e.push(Entry::act(Label::Key(key), Act::Learn(id, what)).check(on(m)));
+    }
+    if mapped {
+        e.push(Entry::act(
+            Label::Key("ctl.menu.forget"),
+            Act::ForgetStrip(id),
+        ));
     }
 }
 

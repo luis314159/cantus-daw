@@ -340,12 +340,10 @@ fn monitoring_through_it_is_late_by_its_latency_only() {
     }
 }
 
-/// What a singer hears when another strip has a latent insert (a linear-phase EQ): delay
-/// compensation aligns every strip to the project's largest latency, the monitored voice
-/// included — so the voice is late by that, not by Tonus. (BACKLOG §4c's recording mode is
-/// the remedy: armed strips live, the rest baked without their compensation.)
-#[test]
-fn monitoring_waits_for_the_projects_largest_latency() {
+/// A singer monitored through Tonus while another strip has a linear-phase EQ (and,
+/// `eq_on_voice`, the voice's own strip one too): how many samples late the voice comes
+/// out, with low-latency monitoring at `low` samples or off (ADR 0064 §4), and the stats.
+fn monitored(low: Option<u32>, eq_on_voice: bool) -> (usize, usize, EngineStats) {
     let mut p = Project::new("monitor");
     p.tempo_bpm = 120.0;
     let mut t = p.make_track("Voice");
@@ -360,7 +358,12 @@ fn monitoring_waits_for_the_projects_largest_latency() {
     support::strip_of(&mut p, 0).effects.push(fx);
     let mut eq = p.make_effect(EffectKind::Eq);
     eq.spec.set("mode", 2.0).unwrap();
-    support::strip_of(&mut p, 1).effects.push(eq);
+    support::strip_of(&mut p, 1).effects.push(eq.clone());
+    if eq_on_voice {
+        let mut eq2 = p.make_effect(EffectKind::Eq);
+        eq2.spec.set("mode", 2.0).unwrap();
+        support::strip_of(&mut p, 0).effects.push(eq2);
+    }
     let snap = Snapshot::compile(&p, 1);
     let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
     let (tx_engine, _rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
@@ -374,6 +377,7 @@ fn monitoring_waits_for_the_projects_largest_latency() {
         }
     }
     tx.push(EngineMessage::SetSnapshot(Arc::new(snap))).unwrap();
+    tx.push(EngineMessage::SetLowLatency(low)).unwrap();
     let x = testkit::voice(SR as f32, 0.5, Vowel::A, 0.4, |_| 220.0);
     let mut out = Vec::new();
     for block in x.chunks(256) {
@@ -385,8 +389,47 @@ fn monitoring_waits_for_the_projects_largest_latency() {
         out.extend(buf.chunks_exact(2).map(|f| f[0]));
     }
     let first = out.iter().position(|v| *v != 0.0).unwrap();
-    let eq_latency = EffectUnit::new(&p.strips[1].effects[0], SR as f32).latency();
+    let eq_latency = EffectUnit::new(&eq, SR as f32).latency();
+    (first, eq_latency, *proc.stats())
+}
+
+/// What a singer hears when another strip has a latent insert (a linear-phase EQ), with
+/// low-latency monitoring off: delay compensation aligns every strip to the project's
+/// largest latency, the monitored voice included — so the voice is late by that, not by
+/// Tonus.
+#[test]
+fn monitoring_waits_for_the_projects_largest_latency() {
+    let (first, eq_latency, stats) = monitored(None, false);
     assert!(eq_latency > LATENCY);
     eprintln!("monitored voice: {first} samples late (the EQ's {eq_latency}, Tonus's {LATENCY})");
     assert_eq!(first, eq_latency.max(LATENCY));
+    assert!(!stats.low_latency.on);
+}
+
+/// The same with low-latency monitoring on (ADR 0064 §4, its default limit of 3 ms): the
+/// voice's own strip is not held back for the other strip's EQ — it arrives after Tonus's
+/// 128 samples only (2.7 ms instead of 96) — while the backing keeps its alignment.
+#[test]
+fn low_latency_monitoring_hears_the_voice_after_tonus_only() {
+    let limit = (0.003 * SR as f64).round() as u32;
+    let (first, eq_latency, stats) = monitored(Some(limit), false);
+    eprintln!("low-latency monitoring: {first} samples late (Tonus's {LATENCY})");
+    assert_eq!(first, LATENCY);
+    assert_eq!(
+        stats.latency_samples as usize, eq_latency,
+        "the backing stays aligned"
+    );
+    assert!(stats.low_latency.on && stats.low_latency.monitoring);
+    assert_eq!(
+        stats.low_latency.off_count, 0,
+        "nothing on the voice's path is over 3 ms"
+    );
+    assert_eq!(stats.low_latency.monitored_samples as usize, LATENCY);
+    // A linear-phase EQ on the voice's own strip is over the limit: bypassed, and named.
+    let (first, _, stats) = monitored(Some(limit), true);
+    assert_eq!(
+        first, LATENCY,
+        "the voice's EQ is bypassed while monitoring"
+    );
+    assert_eq!(stats.low_latency.off_count, 1);
 }

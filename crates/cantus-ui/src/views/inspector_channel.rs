@@ -72,6 +72,8 @@ pub fn show(
     input(sh, app, subject, strip);
     // The track's recording input: device channels, monitor, trim, arm (ADR 0025).
     super::record::show(sh, app, subject, strip);
+    // Freeze (round 29, ADR 0064): what this track or strip freezes, and whether it is.
+    super::record::freeze_row(sh, app, subject, strip);
     match strip.and_then(|id| p.strip(id)) {
         Some(ms) => {
             let chain = Chain {

@@ -1741,6 +1741,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut tempoed = [0usize; 12];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
+    // Round 29, freeze (ADR 0064): a strip frozen, a track frozen, an unfreeze, and a
+    // command some frozen target refused.
+    let mut froze = [0usize; 4];
+    // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
+    let mut mappings = [0usize; 3];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1795,6 +1800,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 _ => None,
             };
+            let mapped = match &cmd {
+                Command::InsertMapping { .. } => Some(0),
+                Command::RemoveMapping { .. } => Some(1),
+                Command::SetMapping { .. } => Some(2),
+                _ => None,
+            };
             let isolation = match &cmd {
                 Command::SetPluginIsolation { .. } => Some(0),
                 Command::SetInstrumentIsolation { .. } => Some(1),
@@ -1818,7 +1829,17 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 _ => Vec::new(),
             };
             let tempo = tempo_kind(&cmd);
-            let ok = bus.execute(cmd, origin).is_ok();
+            let freezing = freeze_kind(&cmd);
+            let shown: String = format!("{cmd:?}").chars().take(600).collect();
+            let result = bus.execute(cmd, origin);
+            if matches!(result, Err(CommandError::Frozen(_))) {
+                froze[3] += 1;
+            }
+            let ok = result.is_ok();
+            // Whatever was applied or refused, every frozen sound is the one frozen.
+            cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
+                panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown}")
+            });
             // Schema 32: a split comp window's half is the comp's; a copy or a paste is not.
             if ok {
                 for (t, c, half) in &made {
@@ -1854,6 +1875,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = isolation {
                     isolated[k] += 1;
+                }
+                if let Some(k) = freezing {
+                    froze[k] += 1;
+                }
+                if let Some(k) = mapped {
+                    mappings[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1922,6 +1949,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         "isolation choices never applied: {isolated:?}"
     );
     assert!(
+        froze.iter().all(|n| *n > 0),
+        "freeze commands never applied (or nothing refused): {froze:?}"
+    );
+    assert!(
         comped.iter().all(|n| *n > 0),
         "comp commands never applied: {comped:?}"
     );
@@ -1932,6 +1963,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         tempoed.iter().all(|n| *n > 0),
         "tempo commands never applied: {tempoed:?}"
+    );
+    assert!(
+        mappings.iter().all(|n| *n > 0),
+        "controller mapping commands never applied: {mappings:?}"
     );
 }
 
@@ -2903,10 +2938,130 @@ fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
-/// Round 29, controllers (ADR 0062): controller mappings stored in the project.
-fn round29_controller_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, controllers (ADR 0062): controller mappings stored in the project — added at
+/// any index, removed, replaced whole (a source learnt again, a target, a mode, a range,
+/// a bend, takeover, feedback), and the refused ones (a malformed mapping, an id taken or
+/// unknown).
+fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::controller::*;
+    // One draw from the shared generator, as the contract's placeholder took; the rest
+    // from our own.
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x5c0_77e1);
+    let maps = project.controllers.mappings.clone();
+    let mut targets = vec![
+        MappingTarget::Param(AutoTarget::MasterGain),
+        MappingTarget::Tempo,
+        MappingTarget::Action("play-pause".into()),
+        MappingTarget::SelectedTrack(DeskParam::Volume),
+        MappingTarget::DeviceParam(3),
+    ];
+    for t in &project.tracks {
+        targets.push(MappingTarget::TrackMute(t.id));
+        targets.push(MappingTarget::TrackArm(t.id));
+        targets.push(MappingTarget::Param(AutoTarget::TrackPan(t.id)));
+    }
+    for s in &project.strips {
+        targets.push(MappingTarget::StripSolo(s.id));
+        targets.push(MappingTarget::Param(AutoTarget::StripGain(s.id)));
+    }
+    for (_, e) in project.all_effects() {
+        targets.push(MappingTarget::EffectBypass(e.id));
+        targets.push(MappingTarget::EffectMix(e.id));
+    }
+    // A target since removed: kept dormant.
+    targets.push(MappingTarget::TrackSolo(TrackId(u64::MAX - 1)));
+    let controls = [
+        Control::Cc(21),
+        Control::Cc14(7),
+        Control::Note(36),
+        Control::PitchBend,
+        Control::Program(5),
+        Control::ChannelPressure,
+        Control::PolyPressure(60),
+    ];
+    let modes = [
+        MapMode::Absolute,
+        MapMode::Relative(Encoding::TwosComplement),
+        MapMode::Relative(Encoding::SignBit),
+        MapMode::Toggle,
+        MapMode::Momentary,
+        MapMode::Trigger,
+    ];
+    let takeovers = [Takeover::Jump, Takeover::Pickup, Takeover::Scale];
+    let make = |rng: &mut Lcg, id: MappingId| Mapping {
+        id,
+        source: MidiSource {
+            port: PortRef {
+                name: ["", "Keys", "Pads"][rng.below(3) as usize].into(),
+                ordinal: rng.below(2) as u8,
+            },
+            channel: (rng.below(3) > 0).then(|| rng.below(16) as u8),
+            control: controls[rng.below(controls.len() as u64) as usize],
+        },
+        target: targets[rng.below(targets.len() as u64) as usize].clone(),
+        mode: modes[rng.below(modes.len() as u64) as usize],
+        min: rng.f32(0.0, 1.0),
+        max: rng.f32(0.0, 1.0),
+        curve: rng.f32(-1.0, 1.0),
+        takeover: takeovers[rng.below(3) as usize],
+        feedback: rng.below(2) == 0,
+        sensitivity: rng.f32(0.25, 4.0),
+    };
+    let pick = |rng: &mut Lcg| {
+        maps.get(rng.below(maps.len().max(1) as u64) as usize)
+            .cloned()
+    };
+    match rng.below(10) {
+        // Malformed: refused, nothing changes.
+        0 => {
+            let id = MappingId(rng.below(1 << 20) + 1);
+            let mut m = make(rng, id);
+            match rng.below(3) {
+                0 => m.min = 2.0,
+                1 => m.source.channel = Some(16),
+                _ => m.sensitivity = 0.0,
+            }
+            Command::InsertMapping {
+                index: 0,
+                mapping: Box::new(m),
+            }
+        }
+        1 | 2 => match pick(rng) {
+            Some(m) => Command::RemoveMapping { id: m.id },
+            None => Command::RemoveMapping {
+                id: MappingId(u64::MAX),
+            },
+        },
+        3..=5 => match pick(rng) {
+            Some(old) => {
+                let mut m = make(rng, old.id);
+                if rng.below(2) == 0 {
+                    // Learnt again: only the source changes.
+                    m = Mapping {
+                        source: m.source,
+                        ..old
+                    };
+                }
+                Command::SetMapping {
+                    mapping: Box::new(m),
+                }
+            }
+            None => Command::SetMapping {
+                mapping: Box::new(make(rng, MappingId(u64::MAX))),
+            },
+        },
+        _ => {
+            // An id already in the map now and then: refused.
+            let id = match pick(rng) {
+                Some(m) if rng.below(6) == 0 => m.id,
+                // Not from the project's ids: the other arms' draws stay where they were.
+                _ => MappingId((1 << 40) + rng.below(1 << 30)),
+            };
+            Command::InsertMapping {
+                index: rng.below(maps.len() as u64 + 2) as usize,
+                mapping: Box::new(make(rng, id)),
+            }
+        }
     }
 }
 
@@ -2978,9 +3133,66 @@ fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
     }
 }
 
-/// Round 29, freeze (ADR 0064): freezing, unfreezing and bouncing in place.
-fn round29_freeze_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, freeze (ADR 0064): freezing and unfreezing a strip or a track, now and then
+/// with a key that is not the target's (refused). Every other arm then runs against the
+/// frozen regions: the driver checks after every command that each frozen target's stored
+/// key is still its content key (the edit lock's invariant).
+fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::freeze::{self, FreezeTarget};
+    let frozen = project.frozen_targets();
+    // A frozen target stays so until this arm runs again (about 48 commands), so the
+    // other arms keep most of the project to themselves.
+    if !frozen.is_empty() {
+        return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
+    }
+    // Half the time an unfreeze of something live (a command that changes nothing).
+    let pick_track = |rng: &mut Lcg| {
+        FreezeTarget::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+    };
+    if rng.below(2) == 0 {
+        return freeze::unfreeze_command(pick_track(rng));
+    }
+    // Mostly a track's source (a small lock), a strip a quarter of the time.
+    let target = if !project.strips.is_empty() && rng.below(4) == 0 {
+        FreezeTarget::Strip(project.strips[rng.below(project.strips.len() as u64) as usize].id)
+    } else {
+        pick_track(rng)
+    };
+    if rng.below(8) == 0 {
+        // A key that is not the target's: refused.
+        let frozen = Some(Frozen {
+            content: "0".repeat(64),
+        });
+        return match target {
+            FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
+            FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
+        };
+    }
+    match freeze::freeze_commands(project, target) {
+        Ok(cmd) => cmd,
+        Err(_) => freeze::unfreeze_command(target),
+    }
+}
+
+/// Which freeze command a generated one is: 0 a strip frozen, 1 a track frozen (alone or
+/// in the batch that disarms first), 2 an unfreeze.
+fn freeze_kind(cmd: &Command) -> Option<usize> {
+    let one = |c: &Command| match c {
+        Command::SetStripFrozen {
+            frozen: Some(_), ..
+        } => Some(0),
+        Command::SetTrackFrozen {
+            frozen: Some(_), ..
+        } => Some(1),
+        Command::SetStripFrozen { frozen: None, .. }
+        | Command::SetTrackFrozen { frozen: None, .. } => Some(2),
+        _ => None,
+    };
+    match cmd {
+        Command::Batch {
+            label_key,
+            commands,
+        } if label_key == "cmd.freeze" => commands.last().and_then(one),
+        c => one(c),
     }
 }

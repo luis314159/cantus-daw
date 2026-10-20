@@ -54,6 +54,9 @@ pub enum Pane {
     /// The Routing tab: the routing graph as a matrix (round 25, `views::routing`), in the
     /// lower zone beside the mixer; Alt+F9.
     Routing,
+    /// The controller mappings (round 29, ADR 0062, `views::controllers`): every MIDI
+    /// mapping, global and the project's, in the lower zone beside the mixer; Ctrl+Shift+K.
+    Controllers,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -81,6 +84,7 @@ impl Pane {
             Pane::Browser => "samples.title",
             Pane::Clips => "links.browser.title",
             Pane::Routing => "matrix.pane",
+            Pane::Controllers => "ctl.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -97,6 +101,7 @@ impl Pane {
             Pane::Browser => "samples.toggle",
             Pane::Clips => "links.browser.toggle",
             Pane::Routing => "matrix.toggle",
+            Pane::Controllers => "ctl.toggle",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -112,6 +117,7 @@ impl Pane {
             Pane::Browser => Glyph::Browser,
             Pane::Clips => Glyph::Link,
             Pane::Routing => Glyph::Send,
+            Pane::Controllers => Glyph::Controller,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -121,7 +127,7 @@ impl Pane {
     pub fn is_lower(self) -> bool {
         matches!(
             self,
-            Pane::PianoRoll | Pane::ChannelRack | Pane::Mixer | Pane::Routing
+            Pane::PianoRoll | Pane::ChannelRack | Pane::Mixer | Pane::Routing | Pane::Controllers
         )
     }
 

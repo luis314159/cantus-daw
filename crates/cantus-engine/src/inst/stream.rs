@@ -1159,6 +1159,62 @@ pub fn load(
     Ok(Loaded::Streamed(head))
 }
 
+/// A frozen render (round 29, ADR 0064) at `path`, a cache-format file
+/// ([`stream_cache::write_at`]): streamed from it, heads only in memory — or, when short,
+/// read whole. With the label it was written with (the caller checks it: a file is never
+/// played for another render).
+pub fn open_file(path: &Path) -> Result<(Loaded, String), String> {
+    let (c, found) = stream_cache::open_at(path).ok_or_else(|| "not a render".to_string())?;
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos().min(i64::MAX as u128) as i64);
+    let id = Identity {
+        size: meta.len(),
+        mtime,
+        print: 0,
+    };
+    if let Some(head) = existing(path, &id) {
+        return Ok((Loaded::Streamed(head), found));
+    }
+    let mut o = Open::new(c).ok_or_else(|| "cannot be opened".to_string())?;
+    let (ch, rate, frames) = (o.c.channels, o.c.rate, o.c.frames);
+    if frames <= HEAD_FRAMES + BLOCK {
+        let mut all = vec![0.0f32; frames.div_ceil(BLOCK) * BLOCK * ch];
+        o.with_file(|c, f| c.read_blocks(f, 0, frames.div_ceil(BLOCK), &mut all))
+            .unwrap_or(Err(stream_cache::ReadError::Damaged))
+            .map_err(|e| e.to_string())?;
+        all.truncate(frames * ch);
+        return Ok((
+            Loaded::Whole {
+                data: SampleData {
+                    rate,
+                    channels: ch as u8,
+                    frames: all.into(),
+                    stream: None,
+                },
+                note: None,
+            },
+            found,
+        ));
+    }
+    let need = needs(frames, levels_of(frames))[0];
+    let mut prefix = vec![0.0f32; need.next_multiple_of(BLOCK).min(frames) * ch];
+    o.with_file(|c, f| c.read_blocks(f, 0, need.div_ceil(BLOCK), &mut prefix))
+        .unwrap_or(Err(stream_cache::ReadError::Damaged))
+        .map_err(|e| e.to_string())?;
+    let (head, _) = make(
+        path,
+        id,
+        (ch, rate, frames),
+        Backing::File(o),
+        &prefix[..need * ch],
+    );
+    Ok((Loaded::Streamed(head), found))
+}
+
 /// The whole of `source` from its cache file, when one is there for the file as it is (an
 /// editor's waveform of a streamed zone: a positioned read of the decoded samples, no
 /// decode). Off the audio thread and off the interface's (it reads the whole file).

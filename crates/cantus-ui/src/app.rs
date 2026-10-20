@@ -167,7 +167,7 @@ pub struct CantusApp {
     /// The audio chip, its popover, the first-run setup, plug-and-play (round 20).
     pub audio_setup: crate::audio_setup::AudioSetup,
     pub midi_port_names: Vec<String>,
-    midi_inputs: Option<MidiInputs>,
+    pub(crate) midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
     /// The look as the user set it: light and dark, a base theme for each, and every
     /// change on top (`kit::appearance`). Kept in `appearance.json`; an older `theme.json`
@@ -272,9 +272,14 @@ pub struct CantusApp {
     pub merge_job: Option<crate::record_session::MergeJob>,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
+    /// Freezing and bouncing in place (round 29, ADR 0064): the renders, their queue.
+    pub freeze: crate::freeze::FreezeState,
     /// Warping (round 29, ADR 0061): imports waiting for their analysis, the selected
     /// marker, the quantise dialog, the warp editor, a bounce on its way.
     pub warp: crate::warp::WarpUi,
+    /// MIDI learn and controller mapping (round 29, ADR 0062): the tap, the global map,
+    /// the learn mode.
+    pub controllers: crate::controllers::ControllerUi,
 }
 
 impl CantusApp {
@@ -422,6 +427,8 @@ impl CantusApp {
             layouts_path,
             keymap,
             keymap_path,
+            controllers,
+            controllers_path,
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
@@ -449,6 +456,8 @@ impl CantusApp {
         app.settings_path = settings_path;
         // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
         views::plugin_notice::apply_default(&mut app);
+        // Frozen renders' folders and low-latency monitoring (round 29, ADR 0064).
+        crate::freeze::wire(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -472,6 +481,14 @@ impl CantusApp {
         }
         // Plug-in windows are owned by the main window, so they stay above it.
         app.plugins.owner_window = owner_window;
+        // MIDI learn (round 29, ADR 0062): the ports' tap (the boot opened them with one
+        // that wakes this window; without ports, one is made here), the global map.
+        app.controllers.tap = match &midi {
+            Some(inputs) => inputs.tap().clone(),
+            None => crate::controllers::waking_tap(ctx),
+        };
+        app.controllers.global = controllers;
+        app.controllers.global_path = Some(controllers_path);
         if let Some(inputs) = midi {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
@@ -601,7 +618,9 @@ impl CantusApp {
             modulators: Default::default(),
             merge_job: None,
             pitch: Default::default(),
+            freeze: Default::default(),
             warp: Default::default(),
+            controllers: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
@@ -631,6 +650,11 @@ impl CantusApp {
                 }
                 true
             }
+            // A frozen sound refused it (ADR 0064): which, and how to give it back.
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -642,6 +666,10 @@ impl CantusApp {
         self.note_tweak(&cmd);
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => true,
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -872,14 +900,20 @@ impl CantusApp {
                 // Chorda's strings for the new rate (a rate it has met before is kept).
                 cantus_engine::inst::chorda::warm(self.engine.sample_rate as f32);
                 self.midi_inputs = None;
+                self.controllers.reopened();
                 if self.engine.is_live() {
-                    let inputs = MidiInputs::open_all(self.engine.midi_sender());
+                    let inputs = MidiInputs::open_with(
+                        self.engine.midi_sender(),
+                        self.controllers.tap.clone(),
+                    );
                     self.midi_port_names = inputs.names.clone();
                     self.midi_inputs = Some(inputs);
                 }
                 // The new engine has never seen this project.
                 self.synced_revision = u64::MAX;
                 self.live_track_sent = None;
+                // Nor its frozen renders' folders, nor low-latency monitoring (ADR 0064).
+                crate::freeze::engine_replaced(self);
                 self.sync_engine();
                 self.sync_live_track();
                 crate::audio_setup::apply_routing(self);
@@ -906,7 +940,8 @@ impl CantusApp {
             return;
         }
         self.midi_inputs = None;
-        let inputs = MidiInputs::open_all(self.engine.midi_sender());
+        self.controllers.reopened();
+        let inputs = MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
         self.midi_port_names = inputs.names.clone();
         self.midi_inputs = Some(inputs);
         self.set_status(tf(
@@ -2983,7 +3018,7 @@ impl CantusApp {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            let snapshot = if self.rec.count_in_click {
+            let mut snapshot = if self.rec.count_in_click {
                 // A count-in with the metronome off: the click sounds for the count-in
                 // only (`ClickMode::CountInOnly`), and the project is not touched.
                 let mut p = self.bus.project().clone();
@@ -2996,6 +3031,8 @@ impl CantusApp {
             } else {
                 self.engine.compile(self.bus.project(), rev)
             };
+            // A parameter a recording pass has moved follows its controller (ADR 0062).
+            self.latch_recorded(&mut snapshot);
             self.sent_effects.clear();
             self.sent_effects
                 .extend(snapshot.effect_slots().map(|s| s.id));
@@ -3200,10 +3237,22 @@ impl CantusApp {
         if self.tempo_action(action) {
             return;
         }
+        // Round 29 (ADR 0064): freezing, bouncing in place, low-latency monitoring.
+        if views::freeze_view::action(self, action) {
+            return;
+        }
+        // Round 29 (ADR 0062): MIDI learn, *Link to controller*, the mappings pane.
+        if self.controllers_action(action) {
+            return;
+        }
         match action {
+            // Handled by `controllers_action` above.
+            MidiLearnMode | LinkLastTweaked | ViewControllers => {}
             // Handled by `tempo_action` above.
             AddMarker | PreviousMarker | NextMarker | LoopBetweenMarkers | SelectBetweenMarkers
             | ToggleTempoTrack => {}
+            // Handled by `freeze_view::action` above.
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => {}
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => {
@@ -3625,6 +3674,8 @@ impl CantusApp {
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         // What their windows moved: last tweaked, and recorded automation (ADR 0057).
         self.host_tweaks();
+        // MIDI controllers (round 29, ADR 0062): what the tap heard since the last frame.
+        self.controller_input();
         self.host_notices(notices);
         self.pump_capture();
         self.pump_analyser();
@@ -3742,6 +3793,8 @@ impl CantusApp {
         // them on, and collect them when their worker is done, even with nothing else
         // moving.
         self.poll_merge();
+        // Freezes and bounces rendering (round 29, ADR 0064).
+        crate::freeze::tick(self, ctx);
         // Imports waiting for their analysis, a warped bounce being written (ADR 0061).
         if self.poll_warp() {
             ticker::wake_after(ctx, Duration::from_millis(50));
@@ -3877,6 +3930,9 @@ pub struct Files {
     pub layouts_path: PathBuf,
     pub keymap: Keymap,
     pub keymap_path: PathBuf,
+    /// The global controller map (round 29, ADR 0062), beside the keymap.
+    pub controllers: cantus_core::controller::ControllerMap,
+    pub controllers_path: PathBuf,
 }
 
 impl Files {
@@ -3907,6 +3963,8 @@ impl Files {
                 log::warn!("cannot write keymap file: {e}");
             }
         }
+        let controllers_path = crate::controllers::global_path(dir);
+        let controllers = crate::controllers::load_global(&controllers_path);
         Files {
             settings,
             settings_path,
@@ -3916,6 +3974,8 @@ impl Files {
             layouts_path,
             keymap,
             keymap_path,
+            controllers,
+            controllers_path,
         }
     }
 }

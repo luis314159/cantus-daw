@@ -203,6 +203,9 @@ pub struct Instance {
     /// (`IMidiMapping`: CC 0…127, channel pressure 128, pitch bend 129), or
     /// [`NO_MIDI_PARAM`]. Read once at activation; the audio thread only looks up.
     pub midi_map: Box<MidiMap>,
+    /// The steps of each channel's program-change parameter (its programs less one), read
+    /// with the map: a program change sets it to `program / steps` (round 29).
+    pub program_steps: [i32; 16],
     active: bool,
     /// Last: terminated after deactivation.
     pub parts: Parts,
@@ -235,6 +238,7 @@ impl Instance {
             setup,
             layout: Layout::default(),
             midi_map: Box::new([[NO_MIDI_PARAM; MIDI_CONTROLLERS]; 16]),
+            program_steps: [0; 16],
             active: false,
             parts,
         };
@@ -300,6 +304,27 @@ impl Instance {
                 }
             }
         }
+        // The program-change parameters' steps (round 29), from the controller's list.
+        let wanted: Vec<ParamID> = self.midi_map.iter().map(|r| r[PROGRAM_CHANGE]).collect();
+        if wanted.iter().all(|id| *id == NO_MIDI_PARAM) {
+            return;
+        }
+        let Some(ctrl) = self.parts.controller.as_ref() else {
+            return;
+        };
+        // SAFETY: main-thread controller queries into a zeroed struct.
+        unsafe {
+            for i in 0..ctrl.getParameterCount().max(0) {
+                let mut info: ::vst3::Steinberg::Vst::ParameterInfo = std::mem::zeroed();
+                if ok(ctrl.getParameterInfo(i, &mut info)) {
+                    for (c, id) in wanted.iter().enumerate() {
+                        if *id == info.id {
+                            self.program_steps[c] = info.stepCount.max(0);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// The parameter a MIDI channel message drives, and its normalized value.
@@ -318,6 +343,11 @@ impl Instance {
                 let raw = (u16::from(data2 & 127) << 7) | u16::from(data1 & 127);
                 (129, f64::from(raw) / 16383.0)
             }
+            // A program change chooses one of the parameter's programs (round 29).
+            0xC0 => (
+                PROGRAM_CHANGE,
+                program_value(data1, self.program_steps[usize::from(channel & 15)]),
+            ),
             _ => return None,
         };
         let id = row[ctrl];
@@ -367,11 +397,25 @@ fn lock_requests(r: &SharedRequests) -> std::sync::MutexGuard<'_, Requests> {
     super::host_objects::lock(r)
 }
 
-/// CC 0…127, then channel pressure (128) and pitch bend (129), as `IMidiMapping` numbers
-/// them.
-pub const MIDI_CONTROLLERS: usize = 130;
+/// CC 0…127, then channel pressure (128), pitch bend (129) and program change (130,
+/// `kCtrlProgramChange`, round 29), as `IMidiMapping` numbers them.
+pub const MIDI_CONTROLLERS: usize = 131;
+/// The `IMidiMapping` number of a program change.
+pub const PROGRAM_CHANGE: usize = 130;
 /// No parameter for this controller.
 pub const NO_MIDI_PARAM: ParamID = u32::MAX;
+
+/// The normalised value of program `program` on a program-change parameter of `steps`
+/// steps (programs less one): `program / steps`, the last for one past it; a parameter
+/// that says no steps reads the program over MIDI's 127.
+pub fn program_value(program: u8, steps: i32) -> f64 {
+    let p = f64::from(program & 127);
+    if steps > 0 {
+        p.min(f64::from(steps)) / f64::from(steps)
+    } else {
+        p / 127.0
+    }
+}
 pub type MidiMap = [[ParamID; MIDI_CONTROLLERS]; 16];
 
 /// Room for the controller's edits between two blocks.
@@ -444,5 +488,19 @@ unsafe fn arrange(component: &ComPtr<IComponent>, processor: &ComPtr<IAudioProce
         inputs,
         outputs,
         main_input,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// A program change picks one of the program list's programs (round 29, ADR 0062).
+    #[test]
+    fn a_program_change_picks_its_program() {
+        use super::program_value;
+        assert_eq!(program_value(0, 7), 0.0);
+        assert_eq!(program_value(7, 7), 1.0);
+        assert_eq!(program_value(3, 6), 0.5);
+        assert_eq!(program_value(20, 7), 1.0, "past the last: the last");
+        assert_eq!(program_value(127, 0), 1.0, "no steps said: over 127");
     }
 }

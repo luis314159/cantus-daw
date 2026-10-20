@@ -7,6 +7,27 @@ use super::*;
 /// Not in the order.
 const NOWHERE: u16 = u16::MAX;
 
+/// Whether two frozen handles are the same render.
+fn same_handle(
+    a: &Option<Arc<crate::freeze::FrozenHandle>>,
+    b: &Option<Arc<crate::freeze::FrozenHandle>>,
+) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+/// The render frame of the snapshot's loop start, when it loops: a frozen reader keeps it
+/// ready (ADR 0064).
+fn loop_frame(snapshot: &Snapshot, rate: f64) -> Option<i64> {
+    snapshot
+        .loop_region
+        .as_ref()
+        .map(|l| crate::freeze::frame_of_tick(&snapshot.tempo, l.start, rate))
+}
+
 impl Processor {
     pub(super) fn install_snapshot(
         &mut self,
@@ -68,6 +89,18 @@ impl Processor {
                 s.pan = t.pan;
                 s.audible = t.audible;
                 apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                // Freezing (ADR 0064): the render it plays, if any (an `Arc` clone; the
+                // one it replaces is still the old snapshot's), and whether it rests.
+                let h = crate::freeze::handle_of(t.frozen.as_ref());
+                if !same_handle(&s.frozen, &h) {
+                    s.frozen_place.block = None;
+                }
+                s.frozen = h;
+                s.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
+                s.rest = t.rest;
+            }
+            if t.rest {
+                nodes.track_peak[slot].store(0, std::sync::atomic::Ordering::Relaxed);
             }
         }
         // Slots whose track vanished: silence them and free them.
@@ -134,6 +167,17 @@ impl Processor {
                     ss.eq_l.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                     ss.eq_r.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                 }
+                let h = crate::freeze::handle_of(st.frozen.as_ref());
+                if !same_handle(&ss.frozen, &h) {
+                    ss.frozen_place.block = None;
+                }
+                ss.frozen = h;
+                ss.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
+                ss.rest = st.rest;
+            }
+            if st.rest {
+                nodes.strip_peak[slot].store(0, std::sync::atomic::Ordering::Relaxed);
+                nodes.strip_gr[slot].store(0, std::sync::atomic::Ordering::Relaxed);
             }
         }
         // Routing is resolved to slot indices once, here — outputs and sends alike.
@@ -342,6 +386,11 @@ impl Processor {
         let mut post = [0usize; MAX_STRIPS];
         let mut master = 0usize;
         let mut own = [0usize; MAX_STRIPS];
+        // Freezing (ADR 0064): a resting strip or track is not run and delays nothing; a
+        // strip playing its render gathers nothing, so nothing arrives into it (its render
+        // is on the timeline: its own lateness is none).
+        let mut rest_s = [false; MAX_STRIPS];
+        let mut deaf = [false; MAX_STRIPS];
         // Soft bypass (ADR 0022): a bypassed insert — or a chain switched off — keeps its
         // latency, delaying its dry signal by it, so bypassing re-plans nothing.
         for (slot, own) in own.iter_mut().enumerate() {
@@ -349,9 +398,43 @@ impl Processor {
                 continue;
             }
             if let Some(st) = nodes.strip(slot) {
-                *own = st.effects.iter().map(|e| e.latency()).sum();
+                rest_s[slot] = st.rest;
+                deaf[slot] = st.rest || st.frozen.is_some();
+                if let Some(h) = st.frozen.as_ref() {
+                    // The latency the render was made with: everything it gathered and
+                    // its chain, kept (the render's frames arrive after it).
+                    *own = h.latency;
+                } else if !st.rest {
+                    *own = st.effects.iter().map(|e| e.latency()).sum();
+                }
             }
         }
+        // Low-latency monitoring (ADR 0064 §4): the monitored path, its hard bypasses.
+        let mon = self.monitor_plan(&rest_s);
+        if mon.on {
+            for (slot, own) in own.iter_mut().enumerate() {
+                if self.strip_ids[slot].is_none() || rest_s[slot] {
+                    continue;
+                }
+                if let Some(st) = nodes.strip(slot) {
+                    if st.frozen.is_none() {
+                        *own = st
+                            .effects
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, _)| !st.ll_off[*i])
+                            .map(|(_, e)| e.latency())
+                            .sum();
+                    }
+                }
+            }
+        }
+        // A monitored track into a strip carrying monitored input only (or into the
+        // master) is not held back.
+        let quick = |slot: usize, feeds: Option<usize>| {
+            mon.track[slot] && feeds.is_none_or(|d| mon.pure[d])
+        };
+        let mut rest_t = [false; MAX_TRACKS];
         // A track leaves at its instrument's latency (a hosted synth's lookahead, ADR 0028),
         // so what it feeds arrives no earlier and every other path waits for it.
         let mut leave = [0usize; MAX_TRACKS];
@@ -361,27 +444,44 @@ impl Processor {
             let Some(s) = nodes.track(slot) else {
                 continue;
             };
+            rest_t[slot] = s.rest;
+            if s.rest {
+                continue;
+            }
             let latency = s.latency();
             leave[slot] = latency;
             feeds[slot] = s.strip;
             match s.strip {
+                Some(d) if deaf[d] => {}
+                _ if quick(slot, s.strip) => {}
                 Some(d) => arrive[d] = arrive[d].max(latency),
                 None => master = master.max(latency),
             }
         }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
+            if rest_s[slot] {
+                post[slot] = 0;
+                continue;
+            }
             let p = arrive[slot] + own[slot];
             post[slot] = p;
+            // A strip carrying monitored input only is not waited for (ADR 0064 §4).
+            if mon.pure[slot] {
+                continue;
+            }
             let Some(st) = nodes.strip(slot) else {
                 continue;
             };
             match st.output {
+                Some(d) if deaf[d] => {}
                 Some(d) => arrive[d] = arrive[d].max(p),
                 None => master = master.max(p),
             }
             for (d, _) in st.sends.iter().take(st.send_count) {
-                arrive[*d] = arrive[*d].max(p);
+                if !deaf[*d] {
+                    arrive[*d] = arrive[*d].max(p);
+                }
             }
         }
         self.strip_post = post;
@@ -409,9 +509,12 @@ impl Processor {
             let mut ahead = arrive[slot] as u64;
             let mut inserts = [(EffectId(0), 0usize, None); MAX_EFFECTS_PER_TRACK];
             let count = match nodes.strip(slot) {
+                // A resting strip's inserts do not run: they hear no notes.
+                Some(st) if st.rest => 0,
                 Some(st) => {
                     for (i, e) in st.effects.iter().enumerate() {
-                        inserts[i] = (e.id, e.latency(), st.midi_id[i]);
+                        let latency = if st.ll_off[i] { 0 } else { e.latency() };
+                        inserts[i] = (e.id, latency, st.midi_id[i]);
                     }
                     st.effects.len()
                 }
@@ -433,6 +536,11 @@ impl Processor {
         for ti in 0..self.track_to_slot.len() {
             let slot = self.track_to_slot[ti];
             let want = match feeds[slot] {
+                // Gathered by nobody: no line.
+                _ if rest_t[slot] => continue,
+                Some(d) if deaf[d] => continue,
+                // Monitored, not held back (ADR 0064 §4).
+                f if quick(slot, f) => leave[slot],
                 Some(d) => arrive[d],
                 None => master,
             };
@@ -441,14 +549,19 @@ impl Processor {
         }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
+            if rest_s[slot] {
+                continue;
+            }
             let Some(st) = nodes.strip(slot) else {
                 continue;
             };
+            let pure = mon.pure[slot];
             let target = match st.output {
-                Some(d) => arrive[d],
-                None => master,
+                Some(d) if deaf[d] => None,
+                _ if pure => Some(post[slot]),
+                Some(d) => Some(arrive[d]),
+                None => Some(master),
             };
-            let out_delay = target - post[slot];
             let sends = st.sends;
             let send_count = st.send_count;
             // Every latent insert has a dry line of its latency, always running, so its
@@ -456,13 +569,19 @@ impl Processor {
             // step with the effect — switching them re-plans nothing and nothing jumps.
             let mut dry = [0usize; MAX_EFFECTS_PER_TRACK];
             for (i, e) in st.effects.iter().enumerate() {
-                dry[i] = e.latency();
+                // Bypassed hard for monitoring: no dry line (ADR 0064 §4).
+                dry[i] = if st.ll_off[i] { 0 } else { e.latency() };
             }
             drop(st);
-            self.pdc.want(&mut kept, Edge::Out(slot), out_delay);
-            for (k, (d, _)) in sends.iter().take(send_count).enumerate() {
+            if let Some(target) = target {
                 self.pdc
-                    .want(&mut kept, Edge::Send(slot, k), arrive[*d] - post[slot]);
+                    .want(&mut kept, Edge::Out(slot), target - post[slot]);
+            }
+            for (k, (d, _)) in sends.iter().take(send_count).enumerate() {
+                if !deaf[*d] {
+                    let want = if pure { 0 } else { arrive[*d] - post[slot] };
+                    self.pdc.want(&mut kept, Edge::Send(slot, k), want);
+                }
             }
             for (i, delay) in dry.iter().enumerate() {
                 self.pdc.want(&mut kept, Edge::Dry(slot, i), *delay);
@@ -527,6 +646,7 @@ impl Processor {
                 None => {}
             }
         }
+        self.monitored_wait(&mon, &post, heard);
         self.pdc.total = heard;
         self.stats.latency_samples = heard as u64;
         self.stats.pdc_unserved = self.pdc.unserved as u64;

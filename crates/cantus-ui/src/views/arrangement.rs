@@ -1108,6 +1108,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
             // A hosted instrument that stopped working (round 29, ADR 0063).
             super::plugin_notice::paint_header_stopped(&p, hr.icon, a, track.id, s);
+            // Frozen (round 29, ADR 0064).
+            super::freeze_view::paint_header_frozen(&p, hr.icon, a, track.id, s);
         }
     }
     app.arrangement.scratch = scratch;
@@ -1204,6 +1206,19 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 hint::set_text(ui.ctx(), chrome::word(key), "", Caps::NONE);
             }
         }
+        // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            m.rect,
+            cantus_core::controller::MappingTarget::TrackMute(id),
+        );
+        crate::controllers::learn_spot(
+            app,
+            ui,
+            so.rect,
+            cantus_core::controller::MappingTarget::TrackSolo(id),
+        );
         if m.clicked() {
             app.exec(Command::SetTrackMute { id, muted: !muted });
         }
@@ -1407,6 +1422,16 @@ fn track_menu(
     }
     // The pitch lane (round 28, ADR 0054).
     if super::pitch_lane::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
+    // Freeze and bounce in place (round 29, ADR 0064).
+    if super::freeze_view::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
+    // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
+    if crate::controllers::track_menu(app, ui, id) {
         ui.close();
         return;
     }
@@ -1665,6 +1690,8 @@ fn clips(
     let mut out = ClipHits::default();
     // Where audio plays on the timeline (ADR 0060).
     let tempo_map = crate::views::bars::map(app.project());
+    // What freezes hold (round 29, ADR 0064): their clips under a frosted veil.
+    let held = super::freeze_view::held(app);
     audio::begin_frame(&mut scratch.audio);
     scratch.refresh_words();
     // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
@@ -1855,6 +1882,10 @@ fn clips(
                         );
                     }
                 }
+            }
+            // A frozen track's clip (ADR 0064): in a render now, under a frosted veil.
+            if clip.automation.is_none() && clip.lane == 0 && held.held_tracks.contains(&track.id) {
+                super::freeze_view::veil_clip(b, body, lanes, s);
             }
             // Repeat marks: a hairline where the content starts again.
             if let Some(period) = shown.period() {
@@ -2605,6 +2636,9 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
     }
     // A group or clip chosen by name (round 26): the picker.
     entries.push(Entry::Run(Action::LinkTo, "clip.link_to"));
+    // Bounce in place (round 29, ADR 0064): the selected clips, to audio.
+    entries.push(Entry::Run(Action::BounceInPlace, "bounce.clips"));
+    entries.push(Entry::Run(Action::BounceSource, "bounce.clips_source"));
     // An audio clip plays its file once: it has no repeat (ADR 0025).
     if !is_audio {
         entries.push(Entry::Run(

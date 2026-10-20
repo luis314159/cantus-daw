@@ -48,6 +48,8 @@ pub(super) struct MasterChain {
     pub(super) dry_r: Vec<f32>,
     /// The deepest reduction of the chain's dynamics over the last block, dB.
     pub(super) gr: f32,
+    /// Per insert: bypassed hard for low-latency monitoring (ADR 0064 §4).
+    pub(super) ll_off: [bool; MAX_EFFECTS_PER_TRACK],
 }
 
 impl MasterChain {
@@ -67,21 +69,26 @@ impl MasterChain {
             dry_l: vec![0.0; PASS_FRAMES],
             dry_r: vec![0.0; PASS_FRAMES],
             gr: 0.0,
+            ll_off: [false; MAX_EFFECTS_PER_TRACK],
         }
     }
 
     /// The chain's latency: every insert's, bypassed or not (soft bypass keeps it).
     pub(super) fn latency(&self) -> usize {
-        self.effects.iter().map(|e| e.latency()).sum()
-    }
-
-    /// Whether the chain has anything to do to the mix this pass: an insert that runs, or
-    /// a latent one whose dry line must keep time.
-    pub(super) fn runs(&self) -> bool {
         self.effects
             .iter()
             .enumerate()
-            .any(|(i, e)| (self.fx_enabled && !self.bypass[i]) || e.latency() > 0)
+            .filter(|(i, _)| !self.ll_off[*i])
+            .map(|(_, e)| e.latency())
+            .sum()
+    }
+
+    /// Whether the chain has anything to do to the mix this pass: an insert that runs, or
+    /// a latent one whose dry line must keep time (not one bypassed hard for monitoring).
+    pub(super) fn runs(&self) -> bool {
+        self.effects.iter().enumerate().any(|(i, e)| {
+            !self.ll_off[i] && ((self.fx_enabled && !self.bypass[i]) || e.latency() > 0)
+        })
     }
 }
 
@@ -166,7 +173,15 @@ impl Processor {
         for i in 0..self.master.effects.len() {
             let (effect, latency) = {
                 let e = &self.master.effects[i];
-                (e.id, e.latency())
+                // Bypassed hard for monitoring: no latency, no dry line (ADR 0064 §4).
+                (
+                    e.id,
+                    if self.master.ll_off[i] {
+                        0
+                    } else {
+                        e.latency()
+                    },
+                )
             };
             self.pdc.want(kept, Edge::MasterDry(i), latency);
             let track = self.master.midi_id[i].and_then(|id| self.slot_for(id));

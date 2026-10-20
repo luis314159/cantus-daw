@@ -65,6 +65,9 @@ mod master;
 #[path = "graph/master_run.rs"]
 mod master_run;
 /// Messages, MIDI and live notes.
+#[path = "processor_monitor.rs"]
+pub(crate) mod monitor;
+
 #[path = "processor_msg.rs"]
 mod msg;
 /// The block: passes, the pool, and what is folded back after each.
@@ -100,7 +103,7 @@ use strip::{StripOut, StripSlot};
 use track::{TrackOut, TrackSlot};
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
-const LIVE_TAG: u64 = u64::MAX;
+pub(crate) const LIVE_TAG: u64 = u64::MAX;
 /// How many snapshots we can hold back when the garbage queue is full.
 const PENDING_GARBAGE: usize = 8;
 /// MIDI events drained per block at most.
@@ -182,6 +185,10 @@ pub struct Processor {
     /// Instruments may split their voices over the pool (ADR 0038); `CANTUS_VOICE_SPLIT=0`
     /// or [`Processor::set_voice_split`] turns it off (the same bits either way).
     split_voices: bool,
+    /// An offline render: frozen renders' readers wait for their blocks (ADR 0064).
+    offline: bool,
+    /// Low-latency monitoring (ADR 0064 §4): the insert limit in samples, when on.
+    low_latency: Option<usize>,
     click: Click,
     /// The browser's audition voice, mixed after the master strip like the click.
     preview: crate::preview::Preview,
@@ -311,6 +318,8 @@ impl Processor {
             pool_wakes: 0,
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
+            offline: false,
+            low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
@@ -403,6 +412,12 @@ impl Processor {
     /// it off). Off, no node is blamed; the block histogram is kept either way.
     pub fn set_profiling(&mut self, on: bool) {
         self.prof.set_on(on);
+    }
+
+    /// An offline render (round 29, ADR 0064): a frozen render's reader waits for its
+    /// blocks instead of playing silence where one is late. Never in real time.
+    pub fn set_offline(&mut self, on: bool) {
+        self.offline = on;
     }
 
     /// Let the heavy instruments split their voices over the pool's threads (ADR 0038; on
@@ -526,6 +541,14 @@ impl Processor {
     /// The slot a snapshot strip plays in.
     pub fn strip_slot(&self, index: usize) -> Option<usize> {
         self.strip_to_slot.get(index).copied()
+    }
+
+    /// How many samples a snapshot track's source lags the timeline: its instrument's
+    /// latency (ADR 0028; none while it plays a frozen render).
+    pub fn track_latency(&self, index: usize) -> usize {
+        self.track_slot(index)
+            .and_then(|s| self.nodes.track(s).map(|t| t.latency()))
+            .unwrap_or(0)
     }
 
     /// How many samples a snapshot strip's fader output lags the timeline.
@@ -808,6 +831,8 @@ fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
             let raw = ((ev.data2 as i32) << 7 | ev.data1 as i32) - 8192;
             Some((Controller::PitchBend, raw as f32 / 8192.0 * 2.0))
         }
+        // Channel pressure (round 29): one data byte.
+        0xD0 => Some((Controller::Pressure, f32::from(ev.data1) / 127.0)),
         0xB0 => {
             let v = ev.data2 as f32 / 127.0;
             Some(match ev.data1 {

@@ -223,6 +223,9 @@ pub struct HandleRecorder {
     /// The pass being recorded, from `begin_recording` to `finish_recording`.
     pass: Option<Pass>,
     record_start: Option<cantus_core::Ticks>,
+    /// The latency the last finished pass was placed by: what it was when that pass
+    /// started (round 29, ADR 0064).
+    last_pass: Option<RecordLatency>,
 }
 
 impl HandleRecorder {
@@ -256,14 +259,18 @@ impl HandleRecorder {
 
     /// A mark from the engine, folded into the pass.
     pub(crate) fn mark(&mut self, mark: RecordMark) {
+        let now = self.latency;
         let Some(pass) = self.pass.as_mut() else {
             return;
         };
         match mark {
             // The first start is the file's first frame; a later one (recording switched
-            // off and on again in one pass) continues the same file.
+            // off and on again in one pass) continues the same file. The latency the take
+            // is placed by is the one at that start (ADR 0064): low-latency monitoring
+            // switched while the pass records must not move it.
             RecordMark::Started { tick } => {
                 pass.started.get_or_insert(tick);
+                pass.latency.get_or_insert(now);
             }
             RecordMark::Wrapped { frames } => pass.wraps.push(frames),
             RecordMark::Overflow { track, frames } => {
@@ -307,6 +314,12 @@ impl EngineHandle {
 
     pub fn record_latency(&self) -> RecordLatency {
         self.rec.latency
+    }
+
+    /// The latency a take of the last finished pass was placed by — what it was when
+    /// that pass started recording (ADR 0064) — or, before any, the latency now.
+    pub fn pass_latency(&self) -> RecordLatency {
+        self.rec.last_pass.unwrap_or(self.rec.latency)
     }
 
     /// The user's latency correction, in frames (from the settings or a loopback test).
@@ -405,6 +418,7 @@ impl EngineHandle {
             writer: Some(writer),
             peaks: peaks_rx,
             started: None,
+            latency: None,
             wraps: Vec::new(),
             dropped: Vec::new(),
             stopped: None,
@@ -499,7 +513,11 @@ impl EngineHandle {
             return Vec::new();
         };
         let outcomes = pass.end();
-        let latency = self.rec.latency.total();
+        // Captured when the pass started (ADR 0064): a bypass restored on stop, or the
+        // compensation re-planned since, must not move the take.
+        let captured = pass.latency.unwrap_or(self.rec.latency);
+        self.rec.last_pass = Some(captured);
+        let latency = captured.total();
         // Ticks per frame at the tempo the pass was recorded at (one tempo); through the
         // tempo map it was recorded under otherwise (ADR 0060), so a take played across a
         // ramp lands where it was played.
@@ -593,6 +611,8 @@ struct Pass {
     peaks: mpsc::Receiver<LivePeaks>,
     /// From the engine's marks.
     started: Option<f64>,
+    /// The latency when it started (ADR 0064): what its takes are placed by.
+    latency: Option<RecordLatency>,
     wraps: Vec<u64>,
     dropped: Vec<(TrackId, u64)>,
     stopped: Option<u64>,

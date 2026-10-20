@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 36;
+pub const SCHEMA_VERSION: u32 = 37;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -171,6 +171,9 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
 
     let mut file: ProjectFile = serde_json::from_value(value)?;
     let links_repaired = cantus_core::links::repair(&mut file.project);
+    // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
+    // made again (ADR 0064). After the links' repair, which may change what one holds.
+    cantus_core::freeze::repair(&mut file.project);
     Ok(LoadReport {
         file,
         migrated_from,
@@ -219,6 +222,7 @@ static MIGRATIONS: &[Migration] = &[
     migrate_33_to_34,
     migrate_34_to_35,
     migrate_35_to_36,
+    migrate_36_to_37,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -797,8 +801,11 @@ fn migrate_33_to_34(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
-/// Schema 35 belongs to round 29's controllers builder; until it merges it is a
-/// placeholder that writes nothing, replaced by theirs at the merge.
+/// Schema 35 (round 29, controllers — ADR 0062): the project keeps its MIDI controller
+/// mappings (`Project::controllers`: each a port by name and ordinal, a channel, a
+/// control; a target; a mode, a range, a bend, a takeover, feedback). A file without them
+/// had none, so the step writes nothing; the number makes an older build refuse a file
+/// whose knobs it would silently forget.
 fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
@@ -809,6 +816,15 @@ fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
 /// plug-in follows the default, as it did. An older build must refuse a v36 file, or a
 /// plug-in the user moved out of process would load back into Cantus's own.
 fn migrate_35_to_36(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 37 (round 29, ADR 0064): a mixer strip or a track may be frozen —
+/// `MixerStrip::frozen` / `Track::frozen`, the content key its render was made for, absent
+/// while it plays live. Nothing to write: a v36 strip or track plays live, as it did. An
+/// older build must refuse a v37 file, or it would play a frozen strip's chain live and let
+/// edits through that the render no longer matches.
+fn migrate_36_to_37(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -989,6 +1005,50 @@ mod tests {
         let p = parse(&old, true).unwrap().file.project;
         assert!(p.tempo_points.is_empty() && p.metre_changes.is_empty() && p.markers.is_empty());
         assert!(p.tempo_map().is_constant() && p.tempo_map().is_one_metre());
+    }
+
+    /// Schema 35 (round 29, ADR 0062): the fixture's controller mappings come back whole —
+    /// a knob on a filter with its range and bend, a 14-bit fader picking up with
+    /// feedback, an encoder in sign-bit on the tempo, a pad toggling a mute, a button
+    /// firing *play*, one whose target is gone (kept dormant); an older file (33) has none.
+    /// (The tree's newest fixture holds them: the integrator regenerates `v35.cantus` once
+    /// the round's schemas are chained.)
+    #[test]
+    fn schema_35_keeps_the_controller_mappings() {
+        use cantus_core::controller::*;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let newest = format!("v{SCHEMA_VERSION}.cantus");
+        let text = std::fs::read_to_string(dir.join(newest)).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let maps = &p.controllers.mappings;
+        assert_eq!(maps.len(), 6);
+        let knob = &maps[0];
+        assert_eq!(knob.source.port.name, "Keystation 49");
+        assert_eq!(knob.source.control, Control::Cc(74));
+        assert_eq!((knob.min, knob.max, knob.curve), (0.1, 0.9, 0.4));
+        assert!(matches!(
+            knob.target,
+            MappingTarget::Param(cantus_core::AutoTarget::Effect { .. })
+        ));
+        assert!(knob.target.exists(&p));
+        let fader = &maps[1];
+        assert_eq!(fader.source.control, Control::Cc14(7));
+        assert!(fader.feedback);
+        assert_eq!(fader.takeover, Takeover::Pickup);
+        assert_eq!(maps[2].mode, MapMode::Relative(Encoding::SignBit));
+        assert_eq!(maps[2].target, MappingTarget::Tempo);
+        assert_eq!(maps[2].sensitivity, 0.5);
+        assert_eq!(maps[3].mode, MapMode::Toggle);
+        assert_eq!(maps[3].source.port.ordinal, 1);
+        assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
+        assert!(!maps[5].target.exists(&p), "the dormant one stays");
+        let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
+        assert!(parse(&old, true)
+            .unwrap()
+            .file
+            .project
+            .controllers
+            .is_empty());
     }
 
     #[test]
@@ -1809,5 +1869,46 @@ mod isolation_tests {
         use cantus_core::PluginIsolation::*;
         assert_eq!(hosted("v36.cantus"), (Some(Individually), Some(Within)));
         assert_eq!(hosted("v32.cantus"), (None, None));
+    }
+}
+
+#[cfg(test)]
+mod freeze_tests {
+    use super::*;
+    use cantus_core::freeze::{self, FreezeTarget};
+
+    fn fixture(file: &str) -> Project {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(file);
+        let text = std::fs::read_to_string(&path).expect("the fixture");
+        parse(&text, true).expect("opens").file.project
+    }
+
+    /// Schema 37 (round 29, ADR 0064): the fixture's first strip is frozen and so is one
+    /// track's source, each with the key of what it holds; a v36 file has nothing frozen.
+    #[test]
+    fn schema_37_keeps_frozen_strips_and_tracks() {
+        let p = fixture("v37.cantus");
+        let targets = p.frozen_targets();
+        assert_eq!(targets.len(), 2, "{targets:?}");
+        assert!(matches!(targets[0], FreezeTarget::Strip(_)));
+        assert!(matches!(targets[1], FreezeTarget::Track(_)));
+        assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
+        assert!(!fixture("v36.cantus").any_frozen());
+    }
+
+    /// A frozen key that is not what the target holds (a hand edit) is re-keyed on load.
+    #[test]
+    fn a_hand_edited_frozen_key_is_repaired_on_load() {
+        let mut p = fixture("v37.cantus");
+        let FreezeTarget::Strip(s) = p.frozen_targets()[0] else {
+            panic!("a strip first");
+        };
+        p.strip_mut(s).unwrap().frozen.as_mut().unwrap().content = "a".repeat(64);
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let back = parse(&text, false).unwrap().file.project;
+        assert!(freeze::consistent(&back).is_ok());
+        assert!(back.strip(s).unwrap().frozen.is_some(), "still frozen");
     }
 }

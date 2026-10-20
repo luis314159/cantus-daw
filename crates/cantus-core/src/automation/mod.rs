@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 pub mod compile;
 pub mod edit;
 pub mod range;
+pub mod set;
 
 pub use compile::{AutoLane, AutoSeg};
 pub use range::{AutoRange, Taper};

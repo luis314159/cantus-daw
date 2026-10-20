@@ -111,6 +111,8 @@ pub fn audition(project: &Project, region: Option<&PatternRegion>) -> Project {
     };
     p.loop_region = Some(LoopRegion { start, end });
     p.loop_enabled = true;
+    // A frozen render is the song's (ADR 0064): the pattern plays every chain live.
+    crate::freeze::thaw(&mut p);
     p
 }
 
