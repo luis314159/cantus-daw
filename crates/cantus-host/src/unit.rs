@@ -362,11 +362,52 @@ impl ParamSync {
 /// Automation's timed changes one block holds at most (the engine's own queue is as long).
 const TIMED_CAPACITY: usize = cantus_engine::modulator::HOSTED_QUEUE;
 
+/// What a hosted plug-in costs the thread that calls it (round 29, ADR 0063): the
+/// nanoseconds spent in its calls and the frames they covered, summed on the audio thread
+/// (relaxed atomics, no allocation) and read by the interface for the plug-in's CPU figure.
+/// For an isolated plug-in this is its whole cost to Cantus, the round trip included.
+#[derive(Debug, Default)]
+pub struct CpuMeter {
+    nanos: AtomicU64,
+    frames: AtomicU64,
+}
+
+impl CpuMeter {
+    #[inline]
+    pub fn add(&self, nanos: u64, frames: u64) {
+        self.nanos.fetch_add(nanos, Ordering::Relaxed);
+        self.frames.fetch_add(frames, Ordering::Relaxed);
+    }
+
+    /// Nanoseconds and frames since it was made.
+    pub fn read(&self) -> (u64, u64) {
+        (
+            self.nanos.load(Ordering::Relaxed),
+            self.frames.load(Ordering::Relaxed),
+        )
+    }
+
+    /// Times one call of `frames` frames.
+    #[inline]
+    pub(crate) fn time<R>(meter: Option<&CpuMeter>, frames: usize, f: impl FnOnce() -> R) -> R {
+        match meter {
+            Some(m) => {
+                let t = std::time::Instant::now();
+                let r = f();
+                m.add(t.elapsed().as_nanos() as u64, frames as u64);
+                r
+            }
+            None => f(),
+        }
+    }
+}
+
 pub struct HostedUnit {
     audio: Box<dyn AudioThread>,
     sync: ParamSync,
     latency: usize,
     transport: Option<TransportInfo>,
+    meter: Option<Arc<CpuMeter>>,
 }
 
 impl std::fmt::Debug for HostedUnit {
@@ -394,7 +435,14 @@ impl HostedUnit {
             sync: ParamSync::new(params, values, sample_rate, generation),
             latency,
             transport: None,
+            meter: None,
         }
+    }
+
+    /// Measures what its calls cost into `meter` (round 29).
+    pub fn metered(mut self, meter: Arc<CpuMeter>) -> Self {
+        self.meter = Some(meter);
+        self
     }
 }
 
@@ -403,7 +451,9 @@ pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
     TransportInfo {
         playing: p.playing,
         recording: false,
-        tempo_bpm: p.tempo_bpm,
+        // The tempo exactly here, which `tempo_inc` moves on from (review 1: the step's
+        // start tempo with a slope told a sawtooth).
+        tempo_bpm: p.tempo_now,
         tempo_inc: p.tempo_inc,
         position_beats: p.beats,
         position_samples: p.samples,
@@ -427,17 +477,20 @@ impl FxUnit for HostedUnit {
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>) {
         let frames = left.len();
         self.sync.merge();
-        self.audio.process(
-            crate::backend::Audio {
-                left,
-                right,
-                key,
-                transport: self.transport.as_ref(),
-            },
-            &self.sync.merged,
-            &[],
-            &mut self.sync.out,
-        );
+        let (audio, sync, transport) = (&mut self.audio, &mut self.sync, self.transport.as_ref());
+        CpuMeter::time(self.meter.as_deref(), frames, || {
+            audio.process(
+                crate::backend::Audio {
+                    left,
+                    right,
+                    key,
+                    transport,
+                },
+                &sync.merged,
+                &[],
+                &mut sync.out,
+            )
+        });
         // A plug-in may leave MXCSR changed: the next native unit renders with FTZ/DAZ as
         // the engine set them (ADR 0031 R9; a no-op outside a `DenormalGuard`).
         cantus_rt::fpenv::reassert();
@@ -526,9 +579,8 @@ mod tests {
         let p = cantus_engine::fx::position_at_tick(&map, tick, true, sr);
         let t = transport_of(&p);
         assert!((t.position_seconds - map.seconds_at(tick)).abs() < 1e-12);
-        let step = map.step_start(tick);
-        assert_eq!(t.tempo_bpm, map.bpm_at(step));
-        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(step) * 960.0 / (60.0 * sr);
+        assert_eq!(t.tempo_bpm, map.bpm_at(tick), "the tempo exactly there");
+        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(tick) * 960.0 / (60.0 * sr);
         assert!(
             (t.tempo_inc - inc).abs() < 1e-15,
             "{} vs {inc}",

@@ -1,0 +1,50 @@
+[package]
+name = "cantus-sandbox"
+description = "Cantus DAW — the helper process that hosts third-party CLAP and VST3 plug-ins out of Cantus's own process, so one that crashes or hangs cannot take the session down (ADR 0063)."
+# GPL like the application and the host it runs (cantus-host).
+license = "GPL-3.0-or-later"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cantus-sandbox"
+path = "src/main.rs"
+
+[dependencies]
+cantus-host.workspace = true
+cantus-rt.workspace = true
+serde_json.workspace = true
+log.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+# The message pump of the plug-ins' windows, COM for VST3 editors, quiet crashes, and the
+# standard handles moved off the protocol's pipes.
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_Console",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Ole",
+    "Win32_System_Threading",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[build-dependencies]
+# The Windows version resource (ADR 0048 §9), as cantus-host's scanner has.
+winresource = "0.1"
+
+[dev-dependencies]
+cantus-core.workspace = true
+cantus-engine.workspace = true
+cantus-project.workspace = true
+tempfile = "3"
+raw-window-handle = "0.6"
+# Built (as a DLL next to the test binaries) for the VST3 isolation tests; not linked.
+cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }

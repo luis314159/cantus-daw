@@ -162,8 +162,7 @@ fn default_at(app: &CantusApp) -> Ticks {
     if app.project().content_end() == Ticks::ZERO {
         return Ticks::ZERO;
     }
-    let bar = app.project().time_signature.ticks_per_bar().max(Ticks(1));
-    app.engine.position().snap_floor(bar).max(Ticks::ZERO)
+    crate::views::bars::bar_start(app.project(), app.engine.position()).max(Ticks::ZERO)
 }
 
 /// Read a file and open the import dialog on it.
@@ -210,8 +209,12 @@ pub fn import_midi(
 ) -> bool {
     let target_bpm = (!apply_tempo).then(|| app.project().tempo_bpm);
     let opts = midi::ImportOptions {
+        // Keeping the bars with the song's tempo set from the file keeps its whole tempo
+        // map (round 29, ADR 0060); into a song whose tempo stays, its bars at one tempo.
         tempo_mode: if keep_time {
             midi::TempoMode::Seconds
+        } else if apply_tempo {
+            midi::TempoMode::Map
         } else {
             midi::TempoMode::Beats
         },
@@ -648,16 +651,13 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
     };
     let (mut import, mut close) = (false, false);
     let p = &d.preview;
-    let changes = p
-        .report
-        .get("interop.report.tempo_changes")
-        .and_then(|i| i.arg("n"))
-        .map(str::to_string);
+    let changes = (p.tempo_points.len() > 1).then(|| (p.tempo_points.len() - 1).to_string());
+    let has_map = p.tempo_points.len() > 1 || !p.metre_changes.is_empty() || !p.markers.is_empty();
     let sig = p
         .time_signature
         .unwrap_or(app.project().time_signature)
         .to_string();
-    let bar = app.project().time_signature.bbt(d.at).0;
+    let bar = crate::views::bars::bbt(app.project(), d.at).0;
     dialog(t("interop.midi_import.title")).show(ctx, |ui| {
         ui.label(tf(
             "interop.midi_import.summary",
@@ -686,6 +686,9 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
         );
         if form::choice(ui, d.apply_tempo, true, &apply) {
             d.apply_tempo = !d.apply_tempo;
+        }
+        if d.apply_tempo && !d.keep_time && has_map {
+            hint(ui, t("tempo.midi.map_kept"));
         }
         hint(ui, tf("interop.midi_import.at", &[("bar", &bar)]));
         form::buttons(ui, |ui| {
@@ -906,7 +909,7 @@ pub fn drop_target(app: &CantusApp, pos: Option<egui::Pos2>) -> (Ticks, Option<u
         (Some(g), Some(p)) if inside(&g, p) => {
             let mut at = crate::views::beats_to_ticks(g.beats(p.x)).max(Ticks::ZERO);
             if app.arrangement.snap {
-                at = at.snap_floor(app.arrangement.grid.max(Ticks(1)));
+                at = crate::views::bars::snap_floor(app.project(), at, app.arrangement.grid);
             }
             let index = g.row_at(p.y).map(|r| r + 1);
             (at, index)

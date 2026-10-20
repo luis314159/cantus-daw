@@ -197,7 +197,7 @@ pub fn paint(
     // The transients, when the analysis is in.
     if show {
         if let Some(a) = app.warp_analysis(r) {
-            let map = app.project().tempo_map();
+            let map = crate::views::bars::map(app.project());
             let (start, offset) = (shown.start, shown.offset);
             let (lo, hi) = (start.0 as f64, (start + shown.length).0 as f64);
             let ink = with_alpha(s.t.text_dim, 0.6);
@@ -347,7 +347,7 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
         let mut tick = Ticks(m.tick.0 + dx);
         let a = &app.arrangement;
         if a.snap && !a.audio.mods.command && !reverse {
-            tick = (tick + origin).snap(a.grid) - origin;
+            tick = crate::views::bars::snap(app.project(), tick + origin, a.grid) - origin;
         }
         (
             d.warp0.move_marker(d.marker, tick),

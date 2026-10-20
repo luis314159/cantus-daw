@@ -234,7 +234,10 @@ fn the_loudness_target_ceiling_and_limit_choose() {
 fn the_scope_and_stems_choices_choose() {
     let _l = language();
     let mut u = Ui::open();
+    // Song, Selection, Loop, Markers (round 29: refused without markers), Stems.
     u.click("export_audio.row.what#3");
+    assert_ne!(u.d().scope, Scope::Stems, "no markers to export between");
+    u.click("export_audio.row.what#4");
     assert_eq!(u.d().scope, Scope::Stems);
     u.click("export_audio.row.stems#1");
     assert!(u.d().stems.tracks);

@@ -129,6 +129,11 @@ pub enum Act {
     Mod(modulators::ModAct),
     /// The warp section's keys (round 29, ADR 0061).
     Warp(warp::WarpAct),
+    /// A hosted plug-in's *Reload* and where it runs (round 29, ADR 0063).
+    Hosting(
+        crate::views::plugin_notice::Target,
+        crate::views::plugin_notice::MenuAct,
+    ),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -770,6 +775,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::OpenEditor(s, e) => app.open_effect_editor(s, e),
         Act::OpenInstrument(t) => app.open_inst_editor(t),
         Act::CloseInstrument(t) => app.close_instrument_window(t),
+        Act::Hosting(target, a) => crate::views::plugin_notice::run_menu(app, target, a),
         Act::Pick(purpose) => app.open_picker(purpose),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);

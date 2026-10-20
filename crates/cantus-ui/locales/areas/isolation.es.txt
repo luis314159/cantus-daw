@@ -1,1 +1,77 @@
 # isolation — ronda 29: plug-ins de terceros alojados fuera del proceso. Cada clave de isolation.en.txt tiene aquí su gemela.
+cmd.set_plugin_isolation = dónde se ejecuta un plug-in
+
+# --- dónde se ejecuta un plug-in (ADR 0063) ---
+isolation.within = Dentro de Cantus
+isolation.together = Juntos
+isolation.by_vendor = Por fabricante
+isolation.individually = Por separado
+
+# --- un plug-in que dejó de funcionar: la tarjeta de la esquina ---
+isolation.crashed.one = {name} dejó de funcionar
+isolation.crashed.many = {n} plug-ins dejaron de funcionar
+isolation.crashed.body_one = Cantus siguió sonando sin él. Recargar lo devuelve tal como lo dejaste.
+isolation.crashed.body_many = Cantus siguió sonando sin ellos. Recargar los devuelve tal como los dejaste.
+isolation.reload = Recargar
+isolation.reload_all = Recargar todos
+isolation.keep_off = Dejarlo apagado
+isolation.keep_off_many = Dejarlos apagados
+isolation.run_individually = Ejecutar por separado
+isolation.reason = {name}: {reason}
+isolation.reloaded = {name} ha vuelto, tal como lo dejaste.
+isolation.reload_failed = No se pudo recargar {name}: {error}
+isolation.unavailable = Los plug-ins se ejecutan dentro de Cantus: el ayudante que los separa (cantus-sandbox) no está instalado. Instala Cantus de nuevo para recuperarlo.
+
+# --- el menú y la ayuda de una ranura ---
+isolation.slot.band = Se ejecuta
+isolation.slot.default = Como diga este equipo ({mode})
+isolation.slot.reload = Recargar plug-in
+isolation.stopped = detenido
+isolation.tip.runs = Se ejecuta: {mode}
+isolation.tip.cpu = CPU: {share} de un núcleo
+isolation.tip.own = De ello, en su propio proceso: {share}
+isolation.tip.late = Bloques sonados sin él (tarde): {n}
+isolation.tip.stopped = Dejó de funcionar: {reason}. Recárgalo desde su menú.
+isolation.short.default = Predeterminado
+isolation.short.within = Dentro
+isolation.short.together = Juntos
+isolation.short.by_vendor = Por fabricante
+isolation.short.individually = Aparte
+
+# --- el editor genérico ---
+isolation.stopped_card = Dejó de funcionar
+isolation.editor.stopped = {name} dejó de funcionar: {reason}.
+isolation.editor.kept = Cantus siguió sonando sin él, y sus ajustes se conservan y se guardan con el proyecto.
+
+# --- el gestor de plug-ins de Ajustes ---
+isolation.manager.band = Dónde se ejecutan los plug-ins de terceros
+isolation.manager.within = Dentro de Cantus: sin ida y vuelta, y un plug-in que falla se lleva Cantus con él.
+isolation.manager.together = Juntos: un ayudante para todos; el que falla detiene solo ese ayudante, nunca Cantus.
+isolation.manager.by_vendor = Por fabricante: un ayudante por fabricante; un fallo detiene solo los de ese fabricante.
+isolation.manager.individually = Por separado: un ayudante para cada uno; un fallo detiene solo ese plug-in.
+isolation.manager.cost = Cada plug-in puede separarse desde el menú de su ranura.
+isolation.manager.own = Los efectos e instrumentos propios de Cantus siempre se ejecutan dentro.
+isolation.manager.crashed = Plug-ins que dejaron de funcionar en este equipo
+isolation.manager.times = {n} veces
+isolation.manager.times_one = una vez
+isolation.manager.forget = Olvidar
+isolation.manager.forget_tip = Olvidar que dejó de funcionar (ya se arregló)
+isolation.cpu = CPU
+
+# --- la barra de estado ---
+isolation.status.late = Plug-ins tarde: {n}
+isolation.status.late_tip = {n} bloques sonaron sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
+isolation.status.late_tip_one = Un bloque sonó sin un plug-in aislado, porque no respondió a tiempo. Un plug-in pesado, un equipo ocupado o un tamaño de búfer mayor lo explican
+
+# --- por qué se detuvo un plug-in ---
+isolation.why.access = falló: tocó memoria que no era suya
+isolation.why.abort = falló: se abortó
+isolation.why.stack = falló: se desbordó su pila
+isolation.why.illegal = falló: una instrucción que el procesador rechazó
+isolation.why.division = falló: una división por cero
+isolation.why.crashed = falló
+isolation.why.hung_audio = dejó de responder mientras procesaba audio
+isolation.why.hung = su ayudante dejó de responder
+isolation.why.timeout = no respondió a tiempo
+isolation.why.protocol = su ayudante envió algo que Cantus no pudo leer
+isolation.why.ended = su ayudante terminó

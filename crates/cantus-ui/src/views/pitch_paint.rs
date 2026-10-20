@@ -211,29 +211,29 @@ fn outside(b: &mut Brush, geo: &Geo, (a, z): (f64, f64), s: &Style) {
 fn ladder(b: &mut Brush, app: &CantusApp, geo: &Geo, tm: &ClipTime, s: &Style) {
     let t = &s.t;
     let g = geo.grid;
-    let ts = app.project().time_signature;
-    let (bar, beat) = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
     // Ordered: a clip played backwards runs its bars right to left.
     let (x0, x1) = (
         tm.tick(geo.frame(g.left())).0,
         tm.tick(geo.frame(g.right())).0,
     );
     let (t0, t1) = (x0.min(x1), x0.max(x1));
-    let px_beat =
-        (geo.x(tm.frame(cantus_core::Ticks(beat))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
-    let step = if px_beat >= 8.0 { beat } else { bar };
+    // Through the metre changes (ADR 0060).
+    let map = crate::views::bars::map(app.project());
+    let beat = map.beat_len_at(cantus_core::Ticks(t0)).0.max(1);
+    let px_beat = (geo.x(tm.frame(cantus_core::Ticks(t0 + beat)))
+        - geo.x(tm.frame(cantus_core::Ticks(t0))))
+    .abs();
     let side = mix(t.grid_bar, t.row_black, 0.55);
-    let mut k = t0.div_euclid(step) * step;
-    while k <= t1 {
-        let x = geo.x(tm.frame(cantus_core::Ticks(k)));
-        if k % bar == 0 {
+    let (from, to) = (cantus_core::Ticks(t0), cantus_core::Ticks(t1 + 1));
+    crate::views::bars::lines(&map, from, to, px_beat >= 8.0, |k, is_bar| {
+        let x = geo.x(tm.frame(k));
+        if is_bar {
             b.vline(x, g.top(), g.bottom(), 3.0 * b.px(), side);
             b.vline(x, g.top(), g.bottom(), b.px(), t.grid_bar);
         } else {
             b.vline(x, g.top(), g.bottom(), b.px(), t.grid_strong);
         }
-        k += step;
-    }
+    });
 }
 
 /// The take's waveform behind the blobs, faint, read through the time map so a moved
@@ -521,8 +521,8 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
     let Some(tm) = time else {
         return;
     };
-    let ts = app.project().time_signature;
-    let bar = ts.ticks_per_bar().0.max(1);
+    let map = crate::views::bars::map(app.project());
+    let bar = map.bar_len_at(cantus_core::Ticks::ZERO).0.max(1);
     let px_bar =
         (geo.x(tm.frame(cantus_core::Ticks(bar))) - geo.x(tm.frame(cantus_core::Ticks(0)))).abs();
     let mut every = 1i64;
@@ -535,9 +535,13 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
         tm.tick(geo.frame(r.right())).0,
     );
     let (t0, t1) = (x0.min(x1), x0.max(x1));
-    let mut k = t0.div_euclid(bar);
-    while k * bar <= t1 {
-        let x = geo.x(tm.frame(cantus_core::Ticks(k * bar)));
+    // The bars through the metre changes (ADR 0060), numbered as the arrangement does.
+    for line in map.bar_lines(
+        map.bar_start(cantus_core::Ticks(t0)),
+        cantus_core::Ticks(t1 + 1),
+    ) {
+        let k = map.bbt(line).0 - 1;
+        let x = geo.x(tm.frame(line));
         if k >= 0 && k % every == 0 {
             b.vline(x, r.center().y, r.bottom(), b.px(), t.text_dim);
             let label = (k + 1).to_string();
@@ -548,7 +552,6 @@ fn ruler(b: &mut Brush, app: &CantusApp, geo: &Geo, time: Option<&ClipTime>, s: 
             );
             let _ = text::paint(b, lr, &tx, s.tk());
         }
-        k += 1;
     }
     let x = geo.x(tm.frame(app.engine.position()));
     if x >= r.left() && x <= r.right() {

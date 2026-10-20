@@ -776,7 +776,7 @@ impl CantusApp {
 
     /// A Comprimo set to duck (see [`Self::duck_strip_from`]), with a fresh id.
     pub fn ducking_compressor(&mut self) -> cantus_core::EffectSlot {
-        let bpm = self.project().tempo_bpm as f32;
+        let bpm = crate::views::bars::bpm_at(self.project(), self.engine.position()) as f32;
         let eighth_ms = (30_000.0 / bpm.max(1.0)).clamp(40.0, 600.0);
         let mut slot = self.bus.new_effect(EffectKind::Compressor);
         for (k, v) in [
@@ -1095,7 +1095,8 @@ fn pump(host: &mut dyn FxHost, st: &mut State) {
                 st.demo = None;
                 app.fx.injected = None;
             }
-            let ts = app.project().time_signature;
+            // The bar and the beat at the playhead (ADR 0060).
+            let ts = crate::views::bars::map(app.project()).signature_at(app.engine.position());
             st.beats = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
             app.engine.drain_analyser(&mut st.scratch);
             // The largest of every block since the last frame.

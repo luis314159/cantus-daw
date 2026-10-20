@@ -8,6 +8,8 @@ members = [
     "crates/cantus-project",
     "crates/cantus-ai",
     "crates/cantus-host",
+    # The helper process that hosts third-party plug-ins out of Cantus's (round 29, ADR 0063).
+    "crates/cantus-sandbox",
     "crates/cantus-content",
     "crates/cantus-export",
     "crates/cantus-test-plugins/clap-gain",
@@ -35,6 +37,8 @@ default-members = [
     "crates/cantus-project",
     "crates/cantus-ai",
     "crates/cantus-host",
+    # The helper process that hosts third-party plug-ins out of Cantus's (round 29, ADR 0063).
+    "crates/cantus-sandbox",
     "crates/cantus-content",
     "crates/cantus-export",
     "crates/cantus-ui",
@@ -63,6 +67,7 @@ cantus-engine = { path = "crates/cantus-engine" }
 cantus-project = { path = "crates/cantus-project" }
 cantus-ai = { path = "crates/cantus-ai" }
 cantus-host = { path = "crates/cantus-host" }
+cantus-sandbox = { path = "crates/cantus-sandbox" }
 cantus-content = { path = "crates/cantus-content" }
 cantus-export = { path = "crates/cantus-export" }
 cantus-ui = { path = "crates/cantus-ui" }

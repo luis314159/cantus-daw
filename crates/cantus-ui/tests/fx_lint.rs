@@ -67,13 +67,18 @@ const ON_THE_KIT: &[&str] = &[
     "views/fx/translatio.rs",
     "views/fx/tremor.rs",
     "views/fx/vibrans.rs",
+    "views/arrangement_markers.rs",
+    "views/arrangement_tempo.rs",
+    "views/bars.rs",
     "views/pitch.rs",
     "views/pitch_bar.rs",
     "views/pitch_input.rs",
     "views/pitch_lane.rs",
     "views/pitch_paint.rs",
     "views/pitch_panel.rs",
+    "views/plugin_notice.rs",
     "views/plugins.rs",
+    "views/audio_notice.rs",
 ];
 
 /// What a file on the kit never says.

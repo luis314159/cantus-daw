@@ -1687,7 +1687,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 /// The settings `--editor space` and the screenshot tool open it with: a hall with a
 /// drawn curve, a post EQ, a synced pre-delay and some ducking.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
-    let bpm = app.project().tempo_bpm;
+    let bpm = crate::views::bars::bpm_at(app.project(), app.engine.position());
     let fields: Vec<(String, f32)> = [
         ("space", 0.62),
         ("decay", 2.4),

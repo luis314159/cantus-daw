@@ -196,6 +196,7 @@ impl HostTransport {
             // The host's tempo is read once a block; a ramp arrives as a new tempo each
             // block (the clock re-anchors from the beats then, ADR 0060).
             tempo_inc: 0.0,
+            tempo_now: tempo,
             beats,
             samples,
             seconds: match self.seconds.filter(|s| s.is_finite()) {

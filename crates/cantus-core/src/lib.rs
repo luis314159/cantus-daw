@@ -44,6 +44,7 @@ pub use effect::{
     eq_key, EffectKind, EffectParamInfo, EffectSlot, EffectSpec, ExternalPlugin, PluginFormat,
     PluginState, EQ_BANDS, EQ_BAND_FIELDS,
 };
+pub use external::PluginIsolation;
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,

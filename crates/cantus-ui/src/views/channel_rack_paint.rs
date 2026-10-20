@@ -162,8 +162,19 @@ pub(super) fn grid(
         .map_or(grid.top(), |r| r.top + r.height)
         .clamp(grid.top(), grid.bottom());
     // A bar line between bars; the groups of keys say where the beats are.
+    // Through the metre changes (ADR 0060): a bar line where a bar starts, the beat groups
+    // by the beats of the bar each step is in.
+    let map = crate::views::bars::map(app.project());
+    let several = !map.is_one_metre();
+    let bar_at = |step: usize| {
+        if several {
+            crate::views::bars::is_bar_line(&map, pattern.tick(step))
+        } else {
+            step.is_multiple_of(per_bar)
+        }
+    };
     for step in first..last {
-        if step % per_bar == 0 && step > 0 {
+        if bar_at(step) && step > 0 {
             b.vline(
                 x_of(step),
                 grid.top(),
@@ -187,7 +198,13 @@ pub(super) fn grid(
         .filter(|r| r.lane.is_some() && r.top + r.height > grid.top() && r.top < grid.bottom())
         .count();
     let lod = StepLod::for_size(geo.step_w, row_h, on_screen * last.saturating_sub(first));
-    let group = |step: usize| (step / per_beat) % 2 == 1;
+    let group = |step: usize| {
+        if several {
+            map.bbt(pattern.tick(step)).1 % 2 == 0
+        } else {
+            (step / per_beat) % 2 == 1
+        }
+    };
     for (ri, row) in geo.rows.iter().enumerate() {
         if row.top + row.height < grid.top() || row.top > grid.bottom() {
             continue;
@@ -336,6 +353,7 @@ pub(super) fn header(
         shade(t.panel, -0.2),
     );
     let ts = app.project().time_signature;
+    let map = crate::views::bars::map(app.project());
     let per_bar = (ts.ticks_per_bar().0 / pattern.step.0).max(1) as usize;
     let mut every = 1usize;
     while geo.step_w * ((per_bar * every) as f32) < 40.0 * s.k {
@@ -348,11 +366,18 @@ pub(super) fn header(
     let mut digits = Digits::default();
     let x_of = |step: usize| geo.grid_left + (step as f32 - geo.scroll_steps) * geo.step_w;
     for step in (first - first % label_every)..last {
-        if step % label_every != 0 {
+        // Through the metre changes (ADR 0060): every bar line, thinned by its number.
+        let (bar, _, _) = map.bbt(pattern.tick(step));
+        let on = if map.is_one_metre() {
+            step % label_every == 0
+        } else {
+            crate::views::bars::is_bar_line(&map, pattern.tick(step))
+                && (bar - 1).rem_euclid(every as i64) == 0
+        };
+        if !on {
             continue;
         }
         let x = x_of(step);
-        let (bar, _, _) = ts.bbt(pattern.tick(step));
         let color = if (bar - 1) % 4 == 0 {
             t.text
         } else {

@@ -84,7 +84,7 @@ fn a_swipe_makes_seams_that_crossfade_by_the_projects_default() {
     let mut p = Project::default();
     let (t, a, b) = takes(&mut p, "Vox");
     let mut a_ = app(p);
-    let x = comping::xfade_ticks(a_.project());
+    let x = comping::xfade_ticks(a_.project(), Ticks::ZERO);
     assert_eq!(x, Ticks(19), "10 ms at 120 BPM");
     let steps = a_.bus.history().len();
     a_.comp_swipe(t, 1, beats(2), beats(4));
@@ -689,7 +689,7 @@ fn every_seams_crossfade_is_one_undo_step() {
     assert!(lane0(&a, t)
         .iter()
         .filter(|w| w.3 > 0)
-        .all(|w| w.3 == comping::xfade_ticks(a.project()).0));
+        .all(|w| w.3 == comping::xfade_ticks(a.project(), Ticks::ZERO).0));
     a.undo();
     assert_eq!(a.project(), &before);
 }

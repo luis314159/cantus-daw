@@ -39,6 +39,12 @@ pub struct Timeline {
     pub clips: HashMap<String, Vec<ClipData>>,
     /// Tracks whose notes are all on MIDI channel 10: drum parts.
     pub drums: HashSet<String>,
+    /// The tempo automation (round 29, ADR 0060): where, the tempo, whether it ramps.
+    pub tempo: Vec<(Ticks, f64, bool)>,
+    /// The time-signature automation: where, numerator, denominator.
+    pub metres: Vec<(Ticks, u8, u8)>,
+    /// The markers: where, the name, the colour.
+    pub markers: Vec<(Ticks, String, Option<Color>)>,
 }
 
 #[derive(Clone)]
@@ -77,18 +83,42 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         seconds: attr(arr, "timeUnit") == Some("seconds"),
     };
     walk(arr, &ctx, bpm, project, &mut out, &mut counts);
-    for name in ["TempoAutomation", "TimeSignatureAutomation"] {
-        let points = child(arr, name)
-            .map(|p| p.children().filter(|c| c.is_element()).count())
-            .unwrap_or(0);
-        // One point is the target, the rest are points.
-        if points > 2 {
-            let key = if name == "TempoAutomation" {
-                "interop.report.d_tempo_automation"
-            } else {
-                "interop.report.d_metre_automation"
+    // The tempo map (round 29, ADR 0060): the arrangement's tempo and time-signature
+    // automation and its markers come in, in the arrangement's unit or their own.
+    let unit = |n: Node| attr(n, "timeUnit").map_or(ctx.seconds, |u| u == "seconds");
+    if let Some(t) = child(arr, "TempoAutomation") {
+        let secs = unit(t);
+        for p in t.children().filter(|c| c.has_tag_name("RealPoint")) {
+            if let (Some(time), Some(value)) = (attr_f64(p, "time"), attr_f64(p, "value")) {
+                let ramp = attr(p, "interpolation") == Some("linear");
+                out.tempo.push((ticks(time, secs, bpm), value, ramp));
+            }
+        }
+    }
+    if let Some(t) = child(arr, "TimeSignatureAutomation") {
+        let secs = unit(t);
+        for p in t
+            .children()
+            .filter(|c| c.has_tag_name("TimeSignaturePoint"))
+        {
+            let (Some(time), Some(n), Some(d)) = (
+                attr_f64(p, "time"),
+                attr_f64(p, "numerator"),
+                attr_f64(p, "denominator"),
+            ) else {
+                continue;
             };
-            report.dropped(key, vec![]);
+            out.metres.push((ticks(time, secs, bpm), n as u8, d as u8));
+        }
+    }
+    if let Some(m) = child(arr, "Markers") {
+        let secs = unit(m);
+        for k in m.children().filter(|c| c.has_tag_name("Marker")) {
+            if let Some(time) = attr_f64(k, "time") {
+                let name = attr(k, "name").unwrap_or("").to_string();
+                out.markers
+                    .push((ticks(time, secs, bpm), name, parse_color(attr(k, "color"))));
+            }
         }
     }
     report.count_dropped("interop.report.d_audio_clips", counts.audio);
@@ -161,7 +191,9 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
                 });
             }
             "Points" => counts.automation += 1,
-            "Markers" | "markers" => {
+            // The arrangement's own markers come in (round 29); markers inside a lane or
+            // a clip have nowhere to go.
+            "Markers" | "markers" if !c.parent().is_some_and(|p| p.has_tag_name("Arrangement")) => {
                 counts.markers += c.children().filter(|m| m.has_tag_name("Marker")).count()
             }
             "ClipSlot" => counts.launcher += 1,

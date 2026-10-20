@@ -41,7 +41,7 @@ mod snap;
 #[path = "transport_tap.rs"]
 pub mod tap;
 #[path = "transport_tempo.rs"]
-mod tempo;
+pub(crate) mod tempo;
 #[path = "transport_title.rs"]
 pub mod title;
 
@@ -173,7 +173,7 @@ fn wants_cached(app: &CantusApp, ctx: &egui::Context) -> ([Want; COUNT], usize) 
         ppp: ctx.pixels_per_point().to_bits(),
         groups,
         chip: super::audio_chip::width(app, ctx).to_bits(),
-        metre: app.project().time_signature,
+        metre: crate::views::bars::widest_metre(app.project()),
     };
     WANTS.with(|c| {
         let mut c = c.borrow_mut();
@@ -210,7 +210,11 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
         Group::Transport => fixed(keys::transport_width(s)),
         Group::Tempo => fixed(tempo::width(ctx, s)),
         Group::Metronome => fixed(metro::width(ctx, s)),
-        Group::Position => fixed(clock::width(ctx, s, app.project().time_signature)),
+        Group::Position => fixed(clock::width(
+            ctx,
+            s,
+            crate::views::bars::widest_metre(app.project()),
+        )),
         Group::Snap => fixed(snap::width(ctx, s)),
         Group::Undo => fixed(keys::undo_width(s)),
         Group::Windows => fixed(keys::windows_width(s)),

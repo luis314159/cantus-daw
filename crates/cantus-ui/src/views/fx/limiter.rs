@@ -873,12 +873,17 @@ fn song_ctx(host: &mut dyn FxHost, st: &State) -> SongCtx {
     let tr = host.transport();
     let bpm = tr.ticks_per_second / PPQ as f64 * 60.0;
     if let Some((app, _, _)) = host.daw() {
-        let ts = app.project().time_signature;
         return SongCtx {
             playhead: app.engine.position().0 as f64,
             sel: app.time_selection.map(|(a, b)| (a.0, b.0)),
-            bar: ts.ticks_per_bar().0.max(1),
-            beat: ts.ticks_per_beat().0.max(1),
+            // The bar at the playhead, through the metre changes (ADR 0060).
+            bar: crate::views::bars::bar_len(app.project(), app.engine.position())
+                .0
+                .max(1),
+            beat: crate::views::bars::map(app.project())
+                .beat_len_at(app.engine.position())
+                .0
+                .max(1),
             bpm,
             can_seek: true,
         };
@@ -3383,7 +3388,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
-    let bpm = app.project().tempo_bpm;
+    let bpm = crate::views::bars::bpm_at(app.project(), Ticks::ZERO);
     // Twelve bars of the project's tempo.
     let beats = 4.0 * 12.0;
     let (l, r) = demo_signal(beats * 60.0 / bpm as f32, bpm as f32);
@@ -3417,7 +3422,9 @@ pub fn demo_feed(app: &mut CantusApp) {
     // can draw.
     st.view = View::Song;
     app.fx.injected = Some(last);
-    let bar = app.project().time_signature.ticks_per_bar().0;
-    app.set_time_selection(Ticks(4 * bar), Ticks(8 * bar));
-    app.engine.seek(Ticks(11 * bar + bar / 2));
+    let map = crate::views::bars::map(app.project());
+    let (b5, b9, b12) = (map.bar_tick(5), map.bar_tick(9), map.bar_tick(12));
+    let half = (map.bar_tick(13) - b12).0 / 2;
+    app.set_time_selection(b5, b9);
+    app.engine.seek(b12 + Ticks(half));
 }

@@ -222,12 +222,16 @@ fn merged_pitch(
     });
     let (_, first) = edits.next()?;
     let mut out = (**first).clone();
-    let bpm = project.tempo_bpm.max(1e-9);
+    let map = crate::views::bars::map(project);
     for (c, e) in edits {
         let rate = f64::from(e.rate.max(1));
         let slip = c.audio.as_ref().map_or(0.0, |a| f64::from(a.slip_frames));
-        let frame = |t: Ticks| (t.to_seconds(bpm) * rate + slip).max(0.0) as u64;
-        let (s0, s1) = (frame(c.offset), frame(c.offset + c.length));
+        // The window's frames, through the tempo map (ADR 0060, `audio_time`).
+        let frame = |t: Ticks| {
+            cantus_core::audio_time::frame_at(&map, c.start, c.offset, slip, rate, t.0 as f64)
+                .max(0.0) as u64
+        };
+        let (s0, s1) = (frame(c.start), frame(c.start + c.length));
         let incoming: Vec<_> = e
             .notes
             .iter()
@@ -263,10 +267,22 @@ fn merged_pitch(
     }
 }
 
-/// The project's seam crossfade, in ticks at its tempo (ADR 0058).
-pub fn xfade_ticks(project: &Project) -> Ticks {
+/// The project's seam crossfade, in ticks at its tempo (ADR 0058) — at `at`, through the
+/// tempo map when it changes (ADR 0060).
+pub fn xfade_ticks(project: &Project, at: Ticks) -> Ticks {
     let ms = f64::from(project.recording.comp_xfade_ms.max(0.0));
-    let t = (ms / 1000.0 * project.tempo_bpm / 60.0 * cantus_core::PPQ as f64).round() as i64;
+    ms_ticks(project, ms, at)
+}
+
+/// `ms` milliseconds as ticks at `at` (the old arithmetic at one tempo).
+pub fn ms_ticks(project: &Project, ms: f64, at: Ticks) -> Ticks {
+    let map = crate::views::bars::map(project);
+    let t = if map.is_constant() {
+        (ms / 1000.0 * project.tempo_bpm / 60.0 * cantus_core::PPQ as f64).round() as i64
+    } else {
+        let a = at.0 as f64;
+        (map.tick_after_seconds(a, ms / 1000.0) - a).round() as i64
+    };
     Ticks(t).min(cantus_core::audio::MAX_XFADE)
 }
 
@@ -291,7 +307,7 @@ pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
 
 /// The seams at `at` that have no crossfade yet get the project's.
 fn seam_defaults(project: &Project, tid: TrackId, at: &[Ticks]) -> Vec<Command> {
-    let x = xfade_ticks(project);
+    let x = xfade_ticks(project, at.first().copied().unwrap_or(Ticks::ZERO));
     let Some(track) = project.track(tid) else {
         return Vec::new();
     };

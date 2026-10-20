@@ -156,7 +156,16 @@ pub struct Settings {
     /// The top bar's groups: their order, which are hidden, and what the master meter
     /// shows (round 28, ADR 0052).
     pub topbar: TopBarSettings,
+    /// Where third-party plug-ins run unless their project says otherwise (round 29,
+    /// ADR 0063): this machine's choice, in Settings' plug-in manager.
+    pub plugin_isolation: cantus_core::PluginIsolation,
 }
+
+/// Where third-party plug-ins run on a new installation (ADR 0063): *Together* — one helper
+/// process for all of them, so a crash never takes the session down, at the cost the ADR
+/// measured.
+pub const DEFAULT_PLUGIN_ISOLATION: cantus_core::PluginIsolation =
+    cantus_core::PluginIsolation::Together;
 
 /// The top bar as the owner arranged it (ADR 0052): *Customise top bar…* ticks groups on
 /// and off and drags them into an order; *Reset* empties both lists (the FL-like default).
@@ -235,6 +244,7 @@ impl Default for Settings {
             link_copies: true,
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
+            plugin_isolation: DEFAULT_PLUGIN_ISOLATION,
         }
     }
 }

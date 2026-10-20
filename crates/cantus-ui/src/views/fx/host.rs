@@ -494,8 +494,11 @@ impl FxHost for DawHost<'_> {
                 // The engine's position, not the heard one: an editor times what its unit
                 // sees at its input (ADR 0022).
                 .then(|| self.app.engine.engine_position().0),
-            ticks_per_second: project.tempo_bpm / 60.0 * cantus_core::PPQ as f64,
-            ticks_per_bar: project.time_signature.ticks_per_bar().0,
+            // The tempo and the bar at the playhead, through the tempo map (ADR 0060).
+            ticks_per_second: crate::views::bars::bpm_at(project, self.app.engine.position())
+                / 60.0
+                * cantus_core::PPQ as f64,
+            ticks_per_bar: crate::views::bars::bar_len(project, self.app.engine.position()).0,
         }
     }
 

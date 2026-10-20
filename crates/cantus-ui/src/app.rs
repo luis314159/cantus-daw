@@ -137,6 +137,9 @@ pub struct CantusApp {
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
+    /// Hosted plug-ins that stopped working, waiting for an answer on their card (round
+    /// 29, ADR 0063, `views::plugin_notice`).
+    pub plugin_crashes: views::plugin_notice::Crashes,
     /// The native instruments' editors (ADR 0023).
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
@@ -444,6 +447,8 @@ impl CantusApp {
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
+        // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
+        views::plugin_notice::apply_default(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -520,6 +525,7 @@ impl CantusApp {
             samples: Default::default(),
             update: Default::default(),
             plugins,
+            plugin_crashes: Default::default(),
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
             swap_keep: Default::default(),
@@ -1624,7 +1630,12 @@ impl CantusApp {
             .iter()
             .filter(|n| targets.contains(&n.id))
             .map(|n| cantus_core::Note {
-                start: n.start.snap(grid),
+                start: crate::views::bars::snap_content(
+                    self.project(),
+                    n.start,
+                    grid,
+                    clip.start - clip.offset,
+                ),
                 ..n.clone()
             })
             .filter(|n| clip.note(n.id).map(|o| o.start != n.start).unwrap_or(false))
@@ -1911,7 +1922,8 @@ impl CantusApp {
 
     /// One arrow-key press: clips or notes, by the grid or by the bar.
     fn nudge(&mut self, direction: i64, by_bar: bool) {
-        let bar = self.project().time_signature.ticks_per_bar();
+        // A bar of the metre in force at the playhead (ADR 0060).
+        let bar = crate::views::bars::bar_len(self.project(), self.engine.position());
         if self.editing_clips() {
             let step = if by_bar { bar } else { self.arrangement.grid };
             self.nudge_clips(Ticks(step.0 * direction));
@@ -3054,6 +3066,11 @@ impl CantusApp {
                 HostNotice::InstrumentRestartFailed { error, .. } => {
                     self.set_error(tf("host.restart_failed", &[("error", &error)]))
                 }
+                // A plug-in that stopped working, and isolation without its helper (round
+                // 29, ADR 0063): the crash card and the status line.
+                HostNotice::PluginCrashed { .. }
+                | HostNotice::InstrumentCrashed { .. }
+                | HostNotice::IsolationUnavailable => views::plugin_notice::on_notice(self, n),
             }
         }
     }
@@ -3149,7 +3166,14 @@ impl CantusApp {
         if self.warp_action(action) {
             return;
         }
+        // Round 29 (ADR 0060): markers and the tempo track.
+        if self.tempo_action(action) {
+            return;
+        }
         match action {
+            // Handled by `tempo_action` above.
+            AddMarker | PreviousMarker | NextMarker | LoopBetweenMarkers | SelectBetweenMarkers
+            | ToggleTempoTrack => {}
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => {

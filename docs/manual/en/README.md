@@ -361,6 +361,41 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
 The **grid** (the arrangement's toolbar) starts at one bar; choose finer values for
 detail. Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom.
 
+### The tempo track and markers
+
+A song can change tempo and metre as it goes, and carry named markers (round 29).
+
+- **The tempo track** is a lane under the ruler (*View ▸ Tempo track*, or the ruler's
+  menu): each point is a tempo, held flat to the next point or **ramping** straight to
+  it. Double-click the lane to add a point (on the grid, at the tempo where you clicked);
+  drag a point to move it (`Shift` for fine tempo steps, `Ctrl` off the grid); `Alt+click`
+  turns a point's ramp on or off; double-click a point to type its tempo; right-click for
+  *Ramp to the next point*, *Remove the point* and *Remove the tempo track*. The header
+  beside the lane shows the tempo at the playhead.
+- **The top bar's tempo** shows the tempo at the playhead (inside a ramp, its value
+  there). Dragging it, the wheel, a double-click or **TAP** set the point the playhead is
+  under — the song's tempo when there is no tempo track.
+- **Metre changes** are chips on the ruler before a bar's number ("7/8"). Right-click the
+  marker lane (or the ruler's menu) ▸ *Add a metre change here*; click a chip to edit its
+  signature, drag it along the bar lines, right-click to remove it. The bars after a change
+  keep their numbers; notes never move. The top bar's metre edits the metre in force at the
+  playhead.
+- **Markers** appear in a lane under the loop lane. `Alt+M` adds one at the playhead (or
+  double-click the lane); click a marker to put the playhead there; click on its **name**
+  to rename it; drag it along the grid; right-click for *Colour…*, *Loop to the next
+  marker*, *Select to the next marker*, *Export to the next marker…* and *Remove*.
+  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+L` loops between the
+  markers around the playhead. The lane's menu lists every marker under *Go to*.
+- **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
+  two markers by name.
+- Everything follows the tempo: notes, audio clips (an audio clip plays at its natural
+  speed from where it starts), automation, modulators, synced effects, the click (each
+  bar 1 accented, a bar of 7/8 counted in eighths) and plug-ins made by others.
+- **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
+  note) and in — importing into an empty song with *Set the song's tempo* keeps the
+  file's tempo changes, metre changes and markers. **DAWproject** files carry the tempo
+  track, the metre changes and the markers both ways.
+
 ### The piano roll
 
 Select a MIDI clip and show the piano roll (`F7`, or its tab under the arrangement): it
@@ -801,6 +836,47 @@ are inserted **doing nothing**, so a fresh one changes no sample until you turn 
 | Speculum | An analyser that never touches the sound | Tabs: *Overview*, *Spectrum* (averaging, slope, peak hold, mid/side/left/right), *Spectrogram*, *Scope* (free, triggered, or **on the beat**), *Vector* (and the **correlation**: under 0 means trouble in mono), *Loudness* (momentary, short-term and integrated LUFS, range, true peak, against a target — the EBU R128 readings). ⋯ ▸ **Dock in the workspace** makes it a tab you can resize, split or tear out; dock several and watch them at once. |
 
 Pages: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
+
+### When a plug-in crashes
+
+A plug-in made by someone else — a CLAP or VST3 effect or instrument — can crash or hang.
+Cantus runs those plug-ins **in a helper process of their own** (`cantus-sandbox`), so when
+one fails, the helper stops and **Cantus keeps playing**:
+
+- an effect that stopped passes the sound through untouched, in time with the rest of the
+  mix (as if it were bypassed); an instrument that stopped falls silent;
+- a card in the bottom-right corner says so — *"Glacier stopped working. Cantus kept
+  playing without it."* — with **Reload** and **Keep it off**. Point at the card's picture
+  to read what happened;
+- **Reload** loads the plug-in again with what you had set: its last good state and every
+  value of the project. Several plug-ins that stopped together share one card and
+  **Reload all**;
+- *Keep it off* leaves it stopped: its slot shows *stopped* in red (an instrument's track
+  shows the sign on its icon and an outlined channel button), and its menu offers
+  **Reload plug-in** whenever you want it back;
+- **the project loses nothing**: saving keeps the plug-in's last good state and values, and
+  the project opens with them next time;
+- a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
+  audio never waits for it longer than a few milliseconds, and the window never waits at
+  all.
+
+**Where a plug-in runs.** Settings ▸ Plug-ins ▸ *Where third-party plug-ins run* sets the
+default for this computer: **Together** (one helper for all of them; the default), **By
+maker** (one per maker), **Individually** (a helper each: a crash stops only that plug-in)
+or **Within Cantus** (no helper: the fastest, and a crash closes Cantus). Each plug-in can
+differ: right-click its slot (or open *Runs* on a hosted instrument's row in the inspector)
+and choose. The choice is saved with the project; changing it moves the plug-in at once,
+with its sound. A plug-in that crashes three times in a session is offered **Run
+individually** on its card. The plug-in manager lists the plug-ins that ever stopped on
+this computer (*Forget* clears one). Cantus's own effects and instruments always run
+within.
+
+**What it costs.** A plug-in in a helper adds a round trip per audio block: a few
+microseconds while plug-ins follow one another, a few tens of microseconds after a pause
+(ADR 0063 has the measurements). Point at a hosted slot to see where it runs and its
+**CPU**; the status bar counts *Plug-ins late* when a helper did not answer in time
+(those blocks played without the plug-in). Exports, stems and bounces wait for every
+block, so they are always exactly what the plug-in makes.
 
 ## 11. Projects, autosave and settings
 

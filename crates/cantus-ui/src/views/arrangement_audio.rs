@@ -119,8 +119,9 @@ pub struct Shown<'a> {
     pub start: Ticks,
     pub length: Ticks,
     pub offset: Ticks,
-    /// The project's tempo: content ticks to seconds (ADR 0025 §1).
-    pub bpm: f64,
+    /// The project's tempo map: where the source plays (ADR 0025 §1, ADR 0060,
+    /// `cantus_core::audio_time`).
+    pub map: &'a cantus_core::TempoMap,
 }
 
 /// Buffers reused frame to frame, and the handles drawn this frame (published).
@@ -322,7 +323,7 @@ fn wave(
     let ppp = b.ppp();
     let n = (((x1 - x0) * ppp).ceil() as usize).clamp(1, 8192);
     let col_w = (x1 - x0) / n as f32;
-    let bpm = shown.bpm.max(1.0);
+    let bpm = shown.map.bpm_at(0.0).max(1.0);
     let rate = peaks.rate.max(1) as f64;
     // Frames per beat of timeline, and the content beat at x0.
     let frames_per_beat = 60.0 / bpm * rate;
@@ -349,7 +350,8 @@ fn wave(
             Which::Mono
         };
         match shown.region.warp.as_deref().filter(|w| w.follow) {
-            // A warped clip: read through its warp, a run of columns per segment.
+            // A warped clip (ADR 0061): read through its warp, a run of columns per
+            // segment (it mirrors a reversed window itself).
             Some(w) => warp::columns(
                 peaks,
                 which,
@@ -363,7 +365,13 @@ fn wave(
                 &mut scratch.run,
             ),
             None => {
-                peaks.columns(which, from, per, n, out);
+                if shown.map.is_constant() {
+                    peaks.columns(which, from, per, n, out);
+                } else {
+                    // Through the tempo map (ADR 0060): each column's own stretch of the
+                    // source, where the engine plays it.
+                    map_columns(peaks, which, shown, geo, x0, col_w, n, out);
+                }
                 if reverse {
                     out.reverse();
                 }
@@ -430,4 +438,46 @@ pub(super) fn missing_ground(look: &ClipLook, s: &Style) -> egui::Color32 {
         s.t.row_white
     };
     shade(mix(look.tint.large, ground, 0.8), -0.04)
+}
+
+/// The waveform's columns of a clip under a tempo map that changes (ADR 0060): each
+/// column reads the source frames `cantus_core::audio_time` puts under its two edges
+/// (mirrored in the window when the clip plays backwards, as the engine reads it).
+#[allow(clippy::too_many_arguments)]
+fn map_columns(
+    peaks: &crate::waveform::SourcePeaks,
+    which: Which,
+    shown: &Shown,
+    geo: &TimelineGeometry,
+    x0: f32,
+    col_w: f32,
+    n: usize,
+    out: &mut Vec<(f32, f32)>,
+) {
+    use cantus_core::audio_time::frame_at;
+    let rate = peaks.rate.max(1) as f64;
+    let slip = shown.region.slip_frames as f64;
+    let (start, end) = (shown.start.0 as f64, (shown.start + shown.length).0 as f64);
+    let frame = |tick: f64| {
+        let t = if shown.region.reverse {
+            start + end - tick
+        } else {
+            tick
+        };
+        frame_at(shown.map, shown.start, shown.offset, slip, rate, t)
+    };
+    let tick_at = |x: f32| geo.beats(x) as f64 * cantus_core::PPQ as f64;
+    out.clear();
+    let mut one = Vec::with_capacity(1);
+    for i in 0..n {
+        let (a, b) = (x0 + i as f32 * col_w, x0 + (i + 1) as f32 * col_w);
+        let (fa, fb) = (frame(tick_at(a)), frame(tick_at(b)));
+        let (lo, hi) = if fa <= fb { (fa, fb) } else { (fb, fa) };
+        peaks.columns(which, lo, (hi - lo).max(1e-6), 1, &mut one);
+        out.push(one.first().copied().unwrap_or((0.0, 0.0)));
+    }
+    if shown.region.reverse {
+        // `wave` reverses the columns of a backward clip after reading them in order.
+        out.reverse();
+    }
 }

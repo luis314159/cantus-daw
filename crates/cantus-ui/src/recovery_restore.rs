@@ -70,12 +70,30 @@ pub fn wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
     if b <= a || pass.tempo_bpm <= 0.0 {
         return Vec::new();
     }
-    let fpt = f64::from(pass.sample_rate) * 60.0 / (pass.tempo_bpm * cantus_core::PPQ as f64);
     let first = (b - pass.transport_start).0;
     if first <= 0 {
         return Vec::new();
     }
+    let map = pass.tempo_map();
     let mut out = Vec::new();
+    if !map.is_constant() {
+        // Through the tempo map (ADR 0060): the first wrap at the loop's end, then a loop's
+        // length of seconds each.
+        let sr = f64::from(pass.sample_rate);
+        let lead = map.seconds_between(pass.transport_start, b) * sr;
+        let len = map.seconds_between(a, b) * sr;
+        let mut k = 0.0;
+        loop {
+            let f = (lead + k * len).round() as u64;
+            if f >= frames {
+                break;
+            }
+            out.push(f);
+            k += 1.0;
+        }
+        return out;
+    }
+    let fpt = f64::from(pass.sample_rate) * 60.0 / (pass.tempo_bpm * cantus_core::PPQ as f64);
     let mut at = first as f64;
     loop {
         let f = (at * fpt).round() as u64;
@@ -100,15 +118,17 @@ pub fn finished_take(
         return None;
     }
     let spec = hound::WavReader::open(path).ok()?.spec();
-    let fpt =
-        f64::from(spec.sample_rate) * 60.0 / (pass.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
     Some(FinishedTake {
         track,
         path: path.to_path_buf(),
         sample_rate: spec.sample_rate,
         channels: spec.channels as u8,
         frames,
-        start_tick: pass.transport_start.0 as f64 - pass.latency_frames as f64 / fpt,
+        start_tick: pass.tick_after(
+            pass.transport_start.0 as f64,
+            -(pass.latency_frames as f64),
+            spec.sample_rate,
+        ),
         wraps: wraps(pass, frames),
         dropped: 0,
     })

@@ -21,6 +21,9 @@ fuzz = []
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.59", features = [
     "Win32_Foundation",
+    # Shared memory and named events between Cantus and its plug-in sandbox (ADR 0063):
+    # their creation functions take a SECURITY_ATTRIBUTES pointer.
+    "Win32_Security",
     "Win32_System_Threading",
     "Win32_System_SystemInformation",
     "Win32_System_Memory",

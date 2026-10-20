@@ -136,12 +136,18 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
     if super::warp::hint(ctx, app, r, handle, live) {
         return;
     }
-    let bpm = app.project().tempo_bpm;
+    // The fades' lengths in seconds where they lie, through the tempo map (ADR 0060).
+    let clip = app.project().track(r.0).and_then(|t| t.clip(r.1));
+    let (start, end) = clip.map_or((Ticks::ZERO, Ticks::ZERO), |c| (c.start, c.end()));
+    let secs = |a: Ticks, b: Ticks| crate::views::bars::seconds_between(app.project(), a, b);
     let (name, value) = match handle {
-        Handle::FadeIn => ("audioclips.fade_in", Value::Time(a.fade_in.to_seconds(bpm))),
+        Handle::FadeIn => (
+            "audioclips.fade_in",
+            Value::Time(secs(start, start + a.fade_in)),
+        ),
         Handle::FadeOut => (
             "audioclips.fade_out",
-            Value::Time(a.fade_out.to_seconds(bpm)),
+            Value::Time(secs(end - a.fade_out, end)),
         ),
         Handle::Gain => ("audioclips.gain", Value::Db(a.gain_db)),
         _ => return,

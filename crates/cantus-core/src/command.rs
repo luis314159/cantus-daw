@@ -498,6 +498,19 @@ pub enum Command {
         state: crate::external::PluginState,
         params: std::collections::BTreeMap<u32, f64>,
     },
+    /// Where a hosted insert runs (round 29, ADR 0063): `None` follows the machine's
+    /// default. Refused for a slot that holds no hosted plug-in.
+    SetPluginIsolation {
+        strip: StripId,
+        effect: EffectId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
+    /// Where a track's hosted instrument runs (round 29, ADR 0063); the instrument twin of
+    /// [`Command::SetPluginIsolation`].
+    SetInstrumentIsolation {
+        track: TrackId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -789,6 +802,7 @@ impl Command {
             SetPluginState { .. } => "cmd.set_plugin_state",
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
+            SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -1169,12 +1183,16 @@ impl Command {
                         "time signature {time_signature}"
                     )));
                 }
-                let old = std::mem::replace(&mut project.time_signature, time_signature);
-                // With metre changes the first is the song's metre (ADR 0060); the later
-                // ones stay at their ticks.
-                if let Some(m) = project.metre_changes.first_mut() {
-                    m.signature = time_signature;
+                // With metre changes the song's metre is the first, and the later changes
+                // keep their bars, as `SetMetreAt` at tick 0 (ADR 0060, review 1).
+                if !project.metre_changes.is_empty() {
+                    return crate::tempo::edit::apply_set_metre_at(
+                        project,
+                        Ticks::ZERO,
+                        time_signature,
+                    );
                 }
+                let old = std::mem::replace(&mut project.time_signature, time_signature);
                 Ok(SetTimeSignature {
                     time_signature: old,
                 })
@@ -2134,6 +2152,28 @@ impl Command {
                     track,
                     state: old_state,
                     params: old_params,
+                })
+            }
+            // Round 29, isolation (ADR 0063): where a hosted plug-in runs.
+            SetPluginIsolation {
+                strip,
+                effect,
+                isolation,
+            } => {
+                let plugin = external_mut(project, strip, effect)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetPluginIsolation {
+                    strip,
+                    effect,
+                    isolation: old,
+                })
+            }
+            SetInstrumentIsolation { track, isolation } => {
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetInstrumentIsolation {
+                    track,
+                    isolation: old,
                 })
             }
             InsertClip { track, clip } => {

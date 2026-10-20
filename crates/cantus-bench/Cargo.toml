@@ -29,3 +29,5 @@ sha2.workspace = true
 hound.workspace = true
 # `paced`: the callback's promotion, as on WASAPI (round 22).
 cantus-rt.workspace = true
+# `isolation`: hosted plug-ins within Cantus and out of process (round 29, ADR 0063).
+cantus-host.workspace = true

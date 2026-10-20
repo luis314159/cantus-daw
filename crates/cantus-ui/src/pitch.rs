@@ -64,7 +64,7 @@ impl ClipTime {
             offset: clip.offset,
             slip: clip.audio.as_ref().map_or(0, |a| a.slip_frames),
             rate: source.sample_rate.max(1),
-            map: Arc::new(project.tempo_map()),
+            map: crate::views::bars::map(project),
             warp: clip
                 .audio
                 .as_ref()
@@ -256,9 +256,15 @@ impl CantusApp {
         ) else {
             return None;
         };
-        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
-        let start = first.snap_floor(bar).max(Ticks::ZERO);
-        let length = Ticks(((last - start).0 + bar.0 - 1) / bar.0 * bar.0).max(bar);
+        // Whole bars around the notes, through the metre changes (ADR 0060).
+        let map = crate::views::bars::map(self.project());
+        let start = map.bar_start(first).max(Ticks::ZERO);
+        let end = if map.bar_start(last) == last {
+            last
+        } else {
+            map.bar_end(last)
+        };
+        let length = (end - start).max(map.bar_end(start) - start);
         let name = self
             .project()
             .track(track)
@@ -456,7 +462,7 @@ impl CantusApp {
         };
         let at = match first {
             Some(t) => {
-                let beat = self.project().time_signature.ticks_per_beat();
+                let beat = crate::views::bars::map(self.project()).beat_len_at(t);
                 (t - beat).max(Ticks::ZERO)
             }
             None => self

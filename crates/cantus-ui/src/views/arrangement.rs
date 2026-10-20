@@ -36,12 +36,18 @@ pub mod autolanes;
 /// The comp on the playing lane: seams, take numbers, the comps' chip (ADR 0058).
 #[path = "arrangement_comp.rs"]
 pub mod comp;
+/// The markers on the ruler (round 29, ADR 0060).
+#[path = "arrangement_markers.rs"]
+pub mod markers;
 #[path = "arrangement_paint.rs"]
 mod paint;
 #[path = "arrangement_rec.rs"]
 mod rec;
 #[path = "arrangement_takes.rs"]
 mod takes;
+/// The tempo track and the metre chips (round 29, ADR 0060).
+#[path = "arrangement_tempo.rs"]
+pub mod tempo;
 pub use rec::{record_controls, RecordControls};
 
 /// The ruler is two lanes, and that is what makes both gestures direct.
@@ -69,6 +75,10 @@ const PX_MAX: f32 = 400.0;
 
 #[derive(Debug)]
 pub struct ArrangementView {
+    /// The tempo track's lane (round 29, ADR 0060).
+    pub tempo: tempo::State,
+    /// The marker lane (round 29, ADR 0060).
+    pub markers: markers::State,
     pub px_per_beat: f32,
     pub scroll_beats: f32,
     /// How far the rows are scrolled up, in points.
@@ -214,6 +224,8 @@ struct ClipDrag {
 impl Default for ArrangementView {
     fn default() -> Self {
         ArrangementView {
+            tempo: tempo::State::default(),
+            markers: markers::State::default(),
             px_per_beat: 26.0,
             scroll_beats: 0.0,
             scroll_y: 0.0,
@@ -374,39 +386,66 @@ struct Frame {
     /// The punch lane's height (zero while punch is off), between the loop lane and the
     /// bar numbers.
     punch_h: f32,
+    /// The marker lane's height (zero without markers), under the loop lane (ADR 0060).
+    markers_h: f32,
+    /// The tempo track's lane, between the ruler and the tracks (empty while hidden).
+    tempo: Rect,
 }
 
 impl Frame {
-    fn of(full: Rect, header_w: f32, punch_h: f32, s: &Style) -> Frame {
+    /// The regions, with the marker lane in the ruler and the tempo lane under it (round
+    /// 29, ADR 0060).
+    fn with_lanes(
+        full: Rect,
+        header_w: f32,
+        punch_h: f32,
+        markers_h: f32,
+        tempo_h: f32,
+        s: &Style,
+    ) -> Frame {
         let bar = s.s(BAR);
         let hx = full.left() + header_w;
         let right = full.right() - bar;
         let hbar = Rect::from_min_max(pos2(hx + 1.0, full.top()), pos2(right, full.top() + bar));
         let ruler = Rect::from_min_max(
             pos2(hbar.left(), hbar.bottom()),
-            pos2(right, hbar.bottom() + RULER_H + punch_h),
+            pos2(right, hbar.bottom() + RULER_H + punch_h + markers_h),
+        );
+        let tempo = Rect::from_min_max(
+            pos2(hbar.left(), ruler.bottom()),
+            pos2(right, ruler.bottom() + tempo_h),
         );
         let lanes = Rect::from_min_max(
-            pos2(hbar.left(), ruler.bottom()),
+            pos2(hbar.left(), tempo.bottom()),
             pos2(right, full.bottom()),
         );
         Frame {
             corner: Rect::from_min_max(full.min, pos2(hx, ruler.bottom())),
-            headers: Rect::from_min_max(pos2(full.left(), ruler.bottom()), pos2(hx, full.bottom())),
+            headers: Rect::from_min_max(pos2(full.left(), tempo.bottom()), pos2(hx, full.bottom())),
             hbar,
             ruler,
             lanes,
-            vbar: Rect::from_min_max(pos2(right, ruler.bottom()), full.max),
+            vbar: Rect::from_min_max(pos2(right, tempo.bottom()), full.max),
             vcorner: Rect::from_min_max(
                 pos2(right, full.top()),
-                pos2(full.right(), ruler.bottom()),
+                pos2(full.right(), tempo.bottom()),
             ),
             split: Rect::from_center_size(
                 pos2(hx + 0.5, (full.top() + full.bottom()) * 0.5),
                 vec2(s.s(kit::chrome::SPLITTER), full.height()),
             ),
             punch_h,
+            markers_h,
+            tempo,
         }
+    }
+
+    /// The tempo lane's header: the header column beside it.
+    fn tempo_head(&self) -> Rect {
+        Rect::from_min_max(
+            pos2(self.corner.left(), self.tempo.top()),
+            pos2(self.corner.right(), self.tempo.bottom()),
+        )
     }
 }
 
@@ -543,6 +582,15 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
     // The right end: what is selected, and what can be done with a time selection.
     let bars_per = app.project().time_signature.ticks_per_bar().0 as f32;
     let time_selection = app.time_selection;
+    // The selection's length in bars, through the metre changes (ADR 0060).
+    let span_bars = time_selection.map(|(from, to)| {
+        if crate::views::bars::map(app.project()).is_one_metre() {
+            (to - from).0 as f32 / bars_per
+        } else {
+            (crate::views::bars::bar_position(app.project(), to)
+                - crate::views::bars::bar_position(app.project(), from)) as f32
+        }
+    });
     let scratch = &mut app.arrangement.scratch;
     scratch.refresh_words();
     if scratch.selected.0 != selected || scratch.selected.1.is_empty() {
@@ -553,7 +601,8 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui) {
         // dragged. Shown even when empty, so the readout is a place the eye learns.
         let text = match time_selection {
             Some((from, to)) => {
-                let bars = (to - from).0 as f32 / bars_per;
+                let _ = (from, to);
+                let bars = span_bars.unwrap_or(0.0);
                 tf("arrangement.selection", &[("bars", &format!("{bars:.2}"))])
             }
             None => t("arrangement.no_selection"),
@@ -691,6 +740,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         return;
     }
     let punch_h = rec::punch_height(app, &s);
+    let markers_h = markers::height(app, &s);
+    let tempo_h = tempo::height(app, &s);
     // The automation lanes' order, once per edit.
     let mut auto_st = std::mem::take(&mut app.arrangement.auto);
     auto_st.refresh(app);
@@ -698,7 +749,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     let v = &mut app.arrangement;
     let most = HEADER_MAX.min(full.width() * 0.6).max(40.0);
     v.header_width = v.header_width.clamp(HEADER_MIN.min(most), most);
-    let f = Frame::of(full, v.header_width, punch_h, &s);
+    let f = Frame::with_lanes(full, v.header_width, punch_h, markers_h, tempo_h, &s);
     navigate(app, ui, &f, &s);
     let mut geo = layout(app, &f);
     timeline(app, ui, &f, &geo, &s);
@@ -722,6 +773,19 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
 
 /// The song's length in beats, rounded up to a bar, plus room to keep writing.
 fn song_beats(app: &CantusApp) -> f32 {
+    let map = crate::views::bars::map(app.project());
+    if !map.is_one_metre() {
+        // Through the metre changes (ADR 0060): to the bar line at or after the end, and
+        // eight bars more.
+        let end = app.project().content_end();
+        let at = if map.bar_start(end) == end {
+            end
+        } else {
+            map.bar_end(end)
+        };
+        let (bar, _, _) = map.bbt(at);
+        return ticks_to_beats(map.bar_tick(bar + 8));
+    }
     let ts = app.project().time_signature;
     let per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let end = ticks_to_beats(app.project().content_end());
@@ -850,14 +914,20 @@ fn layout(app: &mut CantusApp, f: &Frame) -> TimelineGeometry {
         scroll_beats: 0.0,
         rows: Vec::new(),
         punch: None,
+        markers: None,
+        tempo: None,
     });
     geo.left = f.lanes.left();
     geo.width = f.lanes.width();
     geo.ruler_top = f.ruler.top();
     geo.loop_lane_bottom = f.ruler.top() + LOOP_LANE_H;
     geo.body_top = f.lanes.top();
-    geo.punch =
-        (f.punch_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.punch_h));
+    // The marker lane under the loop lane, the punch lane under it (ADR 0060).
+    geo.markers =
+        (f.markers_h > 0.0).then_some((geo.loop_lane_bottom, geo.loop_lane_bottom + f.markers_h));
+    let punch_top = geo.loop_lane_bottom + f.markers_h;
+    geo.punch = (f.punch_h > 0.0).then_some((punch_top, punch_top + f.punch_h));
+    geo.tempo = (f.tempo.height() > 0.0).then_some((f.tempo.top(), f.tempo.bottom()));
     geo.px_per_beat = v.px_per_beat;
     geo.scroll_beats = v.scroll_beats;
     let (top, base) = (f.lanes.top() - v.scroll_y, v.track_height);
@@ -957,7 +1027,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
     {
         let a: &CantusApp = app;
         let any_solo = a.project().tracks.iter().any(|t| t.soloed);
-        let bar = a.project().time_signature.ticks_per_bar().0.max(1) as f32;
+        let bar = crate::views::bars::bar_len(a.project(), a.project().content_end())
+            .0
+            .max(1) as f32;
         let song_len = ((a.project().content_end().0 as f32 / bar).ceil() * bar).max(bar);
         let meters = a.engine.meters();
         let v = &a.arrangement;
@@ -1033,6 +1105,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 super::device_chrome::chip_plate(b, hr.icon, over, tint.on_large, s.k)
             });
             icons::paint_track_icon(&p, hr.icon, track.icon(), tint.on_large);
+            // A hosted instrument that stopped working (round 29, ADR 0063).
+            super::plugin_notice::paint_header_stopped(&p, hr.icon, a, track.id, s);
         }
     }
     app.arrangement.scratch = scratch;
@@ -1463,6 +1537,10 @@ pub struct TimelineGeometry {
     pub rows: Vec<TrackRow>,
     /// The punch lane's top and bottom, while punch is on (ADR 0025): the red brace.
     pub punch: Option<(f32, f32)>,
+    /// The marker lane's top and bottom, while the song has markers (ADR 0060).
+    pub markers: Option<(f32, f32)>,
+    /// The tempo track's top and bottom, while it is shown (ADR 0060).
+    pub tempo: Option<(f32, f32)>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -1584,6 +1662,8 @@ fn clips(
 ) -> ClipHits {
     let v = &app.arrangement;
     let mut out = ClipHits::default();
+    // Where audio plays on the timeline (ADR 0060).
+    let tempo_map = crate::views::bars::map(app.project());
     audio::begin_frame(&mut scratch.audio);
     scratch.refresh_words();
     // Linked clips (ADR 0037): the groups' sizes and the selection's groups, once.
@@ -1674,7 +1754,7 @@ fn clips(
                     start,
                     length,
                     offset: clip.offset + v.slip_preview(r, region.reverse),
-                    bpm: app.project().tempo_bpm,
+                    map: &tempo_map,
                 };
                 let near = pointer.is_some_and(|p| body.contains(p));
                 let show = sel || near || dragging.is_some();
@@ -1836,8 +1916,6 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     let rect = Rect::from_min_max(f.ruler.min, f.lanes.max);
     let resp = ui.allocate_rect(rect, Sense::click_and_drag());
     let body_top = f.lanes.top();
-    let ts = app.project().time_signature;
-    let beats_per_bar = ts.numerator as f32 * 4.0 / ts.denominator as f32;
     let view = geo;
     let pointer = resp.hover_pos();
     let press_origin = ui.input(|i| i.pointer.press_origin());
@@ -1855,12 +1933,25 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
             paint::ruler(b, a, view, f.ruler, s);
             rec::paint_punch(b, a, view, f.ruler, s);
+            if let Some((top, bottom)) = view.markers {
+                let lane =
+                    Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
+                markers::paint(b, a, view, lane, s);
+            }
         });
+        // The tempo track under the ruler, its name and tempo in the header column.
+        if f.tempo.height() > 0.0 {
+            let head = f.tempo_head();
+            kit::with_brush(&ui.painter().with_clip_rect(f.tempo.union(head)), |b| {
+                tempo::paint(b, a, view, f.tempo, head, s);
+            });
+        }
         kit::with_brush(&lanes_p, |b| {
             paint::lanes(b, a, view, f.lanes, s);
             takes::grounds(b, a, view, f.lanes, s);
             autolanes::grounds(b, &auto_st, a.arrangement.track_height, view, f.lanes, s);
             super::pitch_lane::paint(b, a, view, f.lanes, s);
+            markers::paint_lines(b, a, view, f.lanes, s);
             clips(
                 b,
                 a,
@@ -1990,11 +2081,20 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // egui only reports a click when the pointer did not travel, so the two never meet.
     let grid = app.arrangement.grid;
     let snap_on = app.arrangement.snap;
+    // Through the metre changes (ADR 0060).
+    let map = crate::views::bars::map(app.project());
+    let one_bar = app.project().time_signature.ticks_per_bar();
     let snap_to = move |t: Ticks, off_grid: bool| {
         if off_grid || !snap_on {
             t
+        } else if grid == crate::views::bars::BAR_GRID {
+            if map.is_one_metre() {
+                t.snap(one_bar)
+            } else {
+                map.snap_bar(t)
+            }
         } else {
-            t.snap(grid)
+            map.snap(t, grid.max(Ticks(1)))
         }
     };
 
@@ -2040,8 +2140,10 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
             if pos.y >= body_top && hit.is_none() {
                 if let Some(tid) = track_at(app, pos.y) {
                     let beats = view.beats(pos.x).max(0.0);
-                    let start = beats_to_ticks(beats).snap_floor(beats_to_ticks(beats_per_bar));
-                    app.create_clip(tid, start, beats_to_ticks(beats_per_bar * 4.0));
+                    // A bar's start and four bars, through the metre changes (ADR 0060).
+                    let start = crate::views::bars::bar_start(app.project(), beats_to_ticks(beats));
+                    let end = crate::views::bars::bars_from(app.project(), start, 4);
+                    app.create_clip(tid, start, end - start);
                 }
             }
         }
@@ -2259,6 +2361,19 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
     // Registered after the timeline's own response, so they are on top of it: the punch
     // lane's brace and the take lanes' swipes are theirs, not a clip drag's.
     rec::punch_input(app, ui, view, f.ruler, s);
+    // The marker lane, the metre chips and the tempo track (round 29, ADR 0060).
+    if let Some((top, bottom)) = view.markers {
+        let lane = Rect::from_min_max(pos2(f.ruler.left(), top), pos2(f.ruler.right(), bottom));
+        markers::input(app, ui, view, lane, s);
+    }
+    let numbers_top = view
+        .punch
+        .map(|p| p.1)
+        .or(view.markers.map(|m| m.1))
+        .unwrap_or(view.loop_lane_bottom);
+    let numbers = Rect::from_min_max(pos2(f.ruler.left(), numbers_top), f.ruler.max);
+    tempo::metre_input(app, ui, view, numbers, s);
+    tempo::input(app, ui, view, f.tempo, s);
     takes::input(app, ui, view, f.lanes, s);
     autolanes::input(app, ui, f.lanes, s);
     super::pitch_lane::input(app, ui, view, f.lanes, s);
@@ -2370,6 +2485,8 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Some(_) => ui.close(),
         None => {}
     }
+    // The tempo track, markers and metre (round 29, ADR 0060): a list of their own.
+    markers::timeline_menu(app, ui);
 }
 
 /// The empty-timeline menu's *Paste*: at the point the menu was opened on (snapped down to

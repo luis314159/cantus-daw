@@ -42,7 +42,7 @@ fn starts(app: &CantusApp, source: ClipRef, st: &Stroke) -> Vec<Ticks> {
     let len = clip.length.max(Ticks(1));
     let snap = |t: Ticks| {
         if app.arrangement.snap {
-            t.snap_floor(app.arrangement.grid.max(Ticks(1)))
+            crate::views::bars::snap_floor(app.project(), t, app.arrangement.grid)
         } else {
             t
         }

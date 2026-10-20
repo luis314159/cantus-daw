@@ -95,6 +95,10 @@ pub fn range(app: &CantusApp, scope: Scope) -> Option<(Ticks, Ticks)> {
             .as_ref()
             .filter(|l| l.end > l.start)
             .map(|l| (l.start, l.end)),
+        Scope::Markers { from, to } => app.span_between(
+            cantus_core::tempo::MarkerId(from),
+            cantus_core::tempo::MarkerId(to),
+        ),
         Scope::Song | Scope::Stems => None,
     }
 }
@@ -102,7 +106,7 @@ pub fn range(app: &CantusApp, scope: Scope) -> Option<(Ticks, Ticks)> {
 /// Whether `scope` can be exported now (a range needs to be there).
 pub fn available(app: &CantusApp, scope: Scope) -> bool {
     match scope {
-        Scope::Selection | Scope::Loop => range(app, scope).is_some(),
+        Scope::Selection | Scope::Loop | Scope::Markers { .. } => range(app, scope).is_some(),
         Scope::Song | Scope::Stems => true,
     }
 }
@@ -146,7 +150,8 @@ pub fn close(app: &mut CantusApp) {
 pub fn remember(app: &mut CantusApp, d: &ExportSettings) {
     let mut keep = d.clone();
     keep.tags.title.clear();
-    if keep.scope == Scope::Loop {
+    // The project's markers are the project's: kept as the song (round 29).
+    if matches!(keep.scope, Scope::Loop | Scope::Markers { .. }) {
         keep.scope = Scope::Song;
     }
     if app.settings.export != keep {

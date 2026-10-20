@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 34;
+pub const SCHEMA_VERSION: u32 = 36;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -217,6 +217,8 @@ static MIGRATIONS: &[Migration] = &[
     migrate_31_to_32,
     migrate_32_to_33,
     migrate_33_to_34,
+    migrate_34_to_35,
+    migrate_35_to_36,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -792,6 +794,21 @@ fn migrate_31_to_32(value: &mut Value) -> Result<(), String> {
 /// not play the clip at its natural speed; no older project holds one, so the step writes
 /// nothing — a clip without a warp plays as it always did.
 fn migrate_33_to_34(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 35 belongs to round 29's controllers builder; until it merges it is a
+/// placeholder that writes nothing, replaced by theirs at the merge.
+fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 36 (round 29, ADR 0063): a hosted plug-in records where it runs —
+/// `ExternalPlugin::isolation`, *Within Cantus*, *Together*, *By vendor* or
+/// *Individually*, absent while it follows the machine's default. Nothing to write: a v35
+/// plug-in follows the default, as it did. An older build must refuse a v36 file, or a
+/// plug-in the user moved out of process would load back into Cantus's own.
+fn migrate_35_to_36(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1753,5 +1770,44 @@ mod send_tap_tests {
             "only the pre send writes it"
         );
         assert!(again.contains("\"tap\": \"Pre\""));
+    }
+}
+
+#[cfg(test)]
+mod isolation_tests {
+    use super::*;
+
+    fn hosted(
+        file: &str,
+    ) -> (
+        Option<cantus_core::PluginIsolation>,
+        Option<cantus_core::PluginIsolation>,
+    ) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(file);
+        let text = std::fs::read_to_string(&path).expect("the fixture");
+        let p = parse(&text, true).expect("opens").file.project;
+        let insert = p
+            .all_effects()
+            .find_map(|(_, e)| e.spec.external.as_deref())
+            .expect("a hosted insert")
+            .isolation;
+        let inst = p
+            .tracks
+            .iter()
+            .find_map(|t| t.instrument.external())
+            .expect("a hosted instrument")
+            .isolation;
+        (insert, inst)
+    }
+
+    /// Schema 36 (round 29, ADR 0063): the fixture's hosted insert runs *Individually* and
+    /// its hosted instrument *Within Cantus*, as chosen; the v32 file's follow the default.
+    #[test]
+    fn schema_36_keeps_where_a_hosted_plugin_runs() {
+        use cantus_core::PluginIsolation::*;
+        assert_eq!(hosted("v36.cantus"), (Some(Individually), Some(Within)));
+        assert_eq!(hosted("v32.cantus"), (None, None));
     }
 }

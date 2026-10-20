@@ -178,7 +178,7 @@ impl Warp {
     }
 
     /// [`Warp::quantise`] to a grid laid from timeline tick 0 when content tick 0 sits at
-    /// timeline tick `origin` (`start − offset`): the lines the user sees.
+    /// timeline tick `origin` (`start − offset`), one metre throughout.
     pub fn quantise_from(
         &self,
         transients: &[f64],
@@ -188,10 +188,25 @@ impl Warp {
         from: Ticks,
         to: Ticks,
     ) -> Warp {
-        let mut w = self.clone();
         if grid.0 <= 0 {
-            return w;
+            return self.clone();
         }
+        let (g, o) = (grid.0 as f64, origin.0 as f64);
+        let line = move |t: f64| ((t + o) / g).round() * g - o;
+        self.quantise_to(transients, &line, strength, from, to)
+    }
+
+    /// Quantise to the lines `line` gives: the content tick of the grid line nearest a
+    /// content tick (the interface counts it through the metres, `views/bars.rs`).
+    pub fn quantise_to(
+        &self,
+        transients: &[f64],
+        line: &dyn Fn(f64) -> f64,
+        strength: f32,
+        from: Ticks,
+        to: Ticks,
+    ) -> Warp {
+        let mut w = self.clone();
         let s = strength.clamp(0.0, 1.0) as f64;
         // The targets first, from the map as it is (a pulled transient moves its
         // neighbours' places only once it is a marker).
@@ -202,9 +217,8 @@ impl Warp {
                 if t < from.0 as f64 || t >= to.0 as f64 {
                     return None;
                 }
-                let o = origin.0 as f64;
-                let line = ((t + o) / grid.0 as f64).round() * grid.0 as f64 - o;
-                Some((f, (t + s * (line - t)).round() as i64))
+                let l = line(t);
+                Some((f, (t + s * (l - t)).round() as i64))
             })
             .collect();
         for (f, tick) in wanted {

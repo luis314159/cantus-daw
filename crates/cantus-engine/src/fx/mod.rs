@@ -197,6 +197,9 @@ pub struct SongPosition {
     /// How fast the tempo moves inside a ramp, in BPM per sample (CLAP's `tempo_inc`);
     /// 0 while it holds.
     pub tempo_inc: f64,
+    /// The tempo exactly at the block's first sample (inside a ramp, the ramp's value
+    /// there, which `tempo_inc` moves on from): what a hosted plug-in is told (review 1).
+    pub tempo_now: f64,
     /// Quarter notes from the song start.
     pub beats: f64,
     /// Samples from the song start at the current tempo: the beats as samples at
@@ -400,7 +403,7 @@ impl SongPosition {
         SongPosition {
             beats,
             samples: (beats * 60.0 / self.tempo_bpm.max(1e-9) * sample_rate).round() as i64,
-            seconds: beats * (60.0 / self.tempo_bpm.max(1e-9)),
+            seconds: beats * 60.0 / self.tempo_bpm.max(1e-9),
             bar_start_beats: (beats / bar).floor() * bar,
             bar_number: (beats / bar).floor() as i32,
             ..*self
@@ -418,7 +421,17 @@ pub fn position_at_tick(
     playing: bool,
     sample_rate: f64,
 ) -> SongPosition {
-    position_at_step(map, tick, map.step_start(tick), playing, sample_rate)
+    position_at_step(map, tick, step_of(map, tick), playing, sample_rate)
+}
+
+/// The start of the tempo step that holds `tick` — a step whose boundary `tick` is a
+/// hair short of (the rounding of a position reached by the engine's own samples) counts
+/// as reached, so a pass cut there is in the new step at every block size (review 1).
+pub fn step_of(map: &cantus_core::TempoMap, tick: f64) -> f64 {
+    match map.next_step_after(tick) {
+        Some(n) if n - tick < 1e-6 => n,
+        _ => map.step_start(tick),
+    }
 }
 
 /// [`position_at_tick`] with the step's start given (the transport knows it to the
@@ -443,7 +456,8 @@ pub fn position_at_step(
     SongPosition {
         playing,
         tempo_bpm: tempo,
-        tempo_inc: map.slope_at(step) * tempo * ppq / (60.0 * sample_rate.max(1.0)),
+        tempo_inc: map.slope_at(tick) * map.bpm_at(tick) * ppq / (60.0 * sample_rate.max(1.0)),
+        tempo_now: map.bpm_at(tick),
         beats,
         samples: samples.round() as i64,
         seconds: map.seconds_at(tick),
@@ -512,6 +526,7 @@ mod position_tests {
             beats: 8.25,
             samples: 198_000,
             tempo_inc: 0.0,
+            tempo_now: 120.0,
             seconds: 4.125,
             bar_start_beats: 8.0,
             bar_number: 2,
@@ -552,6 +567,7 @@ mod position_tests {
             beats: 8.25,
             samples: 198_000,
             tempo_inc: 0.0,
+            tempo_now: 120.0,
             seconds: 4.125,
             bar_start_beats: 8.0,
             bar_number: 2,

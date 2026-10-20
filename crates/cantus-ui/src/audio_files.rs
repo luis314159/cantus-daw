@@ -52,10 +52,15 @@ pub fn read(path: &Path) -> Result<ImportFile, String> {
     })
 }
 
-/// The timeline length of `frames` at `rate`, at the project's tempo.
-pub fn length_ticks(project: &Project, frames: u64, rate: u32) -> Ticks {
+/// The timeline length of `frames` at `rate` played from `at` at natural speed: at the
+/// project's tempo, through the tempo map when it changes (ADR 0060).
+pub fn length_ticks(project: &Project, at: Ticks, frames: u64, rate: u32) -> Ticks {
     let seconds = frames as f64 / rate.max(1) as f64;
-    Ticks::from_seconds(seconds, project.tempo_bpm)
+    let map = crate::views::bars::map(project);
+    if map.is_constant() {
+        return Ticks::from_seconds(seconds, project.tempo_bpm);
+    }
+    cantus_core::audio_time::length_ticks(&map, at, frames as f64, rate.max(1) as f64)
 }
 
 /// The project file's folder: what relative source paths are relative to.
@@ -144,11 +149,10 @@ impl CantusApp {
         else {
             return;
         };
-        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
         let at = if self.project().content_end() == Ticks::ZERO {
             Ticks::ZERO
         } else {
-            self.engine.position().snap_floor(bar).max(Ticks::ZERO)
+            crate::views::bars::bar_start(self.project(), self.engine.position()).max(Ticks::ZERO)
         };
         self.import_audio(&paths, at, None);
     }
@@ -232,7 +236,7 @@ impl CantusApp {
                 sha256: None,
                 recorded: false,
             };
-            let length = length_ticks(self.project(), frames, f.data.rate).max(Ticks(1));
+            let length = length_ticks(self.project(), at, frames, f.data.rate).max(Ticks(1));
             let row = onto.map(|r| r + i).filter(|r| *r < existing);
             let track: TrackId = match row {
                 Some(r) => self.project().tracks[r].id,
@@ -383,16 +387,15 @@ pub fn drop_audio(app: &mut CantusApp, paths: &[PathBuf], pos: Option<egui::Pos2
         (Some(g), Some(p)) if p.x >= g.left && p.x <= g.left + g.width && p.y >= g.ruler_top => {
             let mut at = crate::views::beats_to_ticks(g.beats(p.x)).max(Ticks::ZERO);
             if app.arrangement.snap {
-                at = at.snap_floor(app.arrangement.grid.max(Ticks(1)));
+                at = crate::views::bars::snap_floor(app.project(), at, app.arrangement.grid);
             }
             (at, g.row_at(p.y))
         }
         _ => {
-            let bar = app.project().time_signature.ticks_per_bar().max(Ticks(1));
             let at = if app.project().content_end() == Ticks::ZERO {
                 Ticks::ZERO
             } else {
-                app.engine.position().snap_floor(bar).max(Ticks::ZERO)
+                crate::views::bars::bar_start(app.project(), app.engine.position()).max(Ticks::ZERO)
             };
             (at, None)
         }

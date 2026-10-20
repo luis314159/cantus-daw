@@ -265,14 +265,15 @@ impl CantusApp {
                 .filter(|(_, s)| **s >= q.threshold * top)
                 .map(|(f, _)| *f)
                 .collect();
-            let next = w.quantise_from(
-                &hits,
-                q.grid,
-                c.start - c.offset,
-                q.strength,
-                c.offset,
-                c.offset + c.length,
-            );
+            // The lines the user sees: counted through the metres (`views/bars.rs`).
+            let origin = c.start - c.offset;
+            let project = self.project();
+            let grid = q.grid;
+            let line = |t: f64| {
+                let at = Ticks((t + origin.0 as f64).round() as i64);
+                (crate::views::bars::snap(project, at, grid) - origin).0 as f64
+            };
+            let next = w.quantise_to(&hits, &line, q.strength, c.offset, c.offset + c.length);
             if self.clip_warp(r) != Some(&next) {
                 commands.push(Command::SetClipWarp {
                     track: r.0,

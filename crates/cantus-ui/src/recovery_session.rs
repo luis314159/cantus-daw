@@ -182,6 +182,7 @@ impl CantusApp {
             loop_takes: plan.loop_takes,
             mode: plan.mode,
             tempo_bpm: self.project().tempo_bpm,
+            tempo_points: self.project().tempo_points.clone(),
             sample_rate: self.engine.sample_rate.round().max(1.0) as u32,
             latency_frames: self.engine.record_latency().total(),
             takes: match_takes(&tracks, &new),
@@ -319,20 +320,21 @@ impl CantusApp {
                 plan.mode = j.mode;
                 plan.take_word = t("rec.take");
                 plan.audio_tracks = here.iter().map(|t| t.track).collect();
-                let fpt = f64::from(j.sample_rate) * 60.0
-                    / (j.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
                 // Where the playhead was when the pass ended: after the last wrap, from
                 // the loop's start; else from where the transport started.
                 let longest = here.iter().max_by_key(|t| t.frames);
                 plan.stop_at = match (longest, j.loop_region) {
                     (Some(t), Some((a, _))) if !t.wraps.is_empty() => {
                         let last = t.wraps.last().copied().unwrap_or(0);
-                        a + cantus_core::Ticks(((t.frames - last) as f64 / fpt).round() as i64)
+                        cantus_core::Ticks(
+                            j.tick_after(a.0 as f64, (t.frames - last) as f64, j.sample_rate)
+                                .round() as i64,
+                        )
                     }
-                    (Some(t), _) => {
-                        j.transport_start
-                            + cantus_core::Ticks((t.frames as f64 / fpt).round() as i64)
-                    }
+                    (Some(t), _) => cantus_core::Ticks(
+                        j.tick_after(j.transport_start.0 as f64, t.frames as f64, j.sample_rate)
+                            .round() as i64,
+                    ),
                     (None, _) => j.record_start,
                 };
                 if self.finish_pass_with_latency(plan, here.clone(), j.latency_frames) {

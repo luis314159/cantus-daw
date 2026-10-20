@@ -124,7 +124,9 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     }
 
     // How the clip plays it.
-    let bpm = app.project().tempo_bpm;
+    // Durations where the clip lies, through the tempo map (ADR 0060): the fades at the
+    // tempo where they start.
+    let bpm = crate::views::bars::bpm_at(app.project(), clip.start);
     let gain = a.gain_db;
     let at = a.clone();
     sh.param_row(
@@ -140,7 +142,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         false,
         |v| Act::Merge(ac::set(t, clip, ac::with_gain(&at, v)), key(t, c)),
     );
-    let most = clip.length.to_seconds(bpm) as f32;
+    let most = crate::views::bars::seconds_between(app.project(), clip.start, clip.end()) as f32;
     for fade in [Fade::In, Fade::Out] {
         let (label, now, curve) = match fade {
             Fade::In => ("audioclips.fade_in", a.fade_in, a.fade_in_curve),

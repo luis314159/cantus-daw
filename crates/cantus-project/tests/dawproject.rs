@@ -444,8 +444,6 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
         "interop.report.d_device",
         "interop.report.d_audio_clips",
         "interop.report.d_automation",
-        "interop.report.d_markers",
-        "interop.report.d_tempo_automation",
         "interop.report.d_scenes",
         "interop.report.d_loop",
     ] {
@@ -460,7 +458,13 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
         arg("interop.report.d_instrument", "name").as_deref(),
         Some("Surge XT")
     );
-    assert_eq!(arg("interop.report.d_markers", "n").as_deref(), Some("2"));
+    // The arrangement's markers and its tempo automation come in (round 29, ADR 0060).
+    assert_eq!(arg("tempo.report.markers_kept", "n").as_deref(), Some("2"));
+    assert!(r.has("tempo.report.tempo_kept"));
+    assert!(!r.has("interop.report.d_markers") && !r.has("interop.report.d_tempo_automation"));
+    let names: Vec<&str> = p.markers.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, ["Intro", "Verse"]);
+    assert_eq!(p.tempo_points.len(), 2);
     assert!(r.has("interop.report.d_seconds"));
     assert!(
         !r.has("interop.report.d_pre_sends"),
@@ -581,4 +585,89 @@ fn a_dawproject_from_before_the_calibration_keeps_its_level() {
         let n = b.instrument.native().unwrap();
         assert_eq!(n.get(cantus_core::inst::TRIM_KEY), n.kind.calibration_db());
     }
+}
+
+/// Round 29 (ADR 0060): the tempo track (a ramp as `linear`, a step as `hold`), the metre
+/// changes and the markers go out as the arrangement's `TempoAutomation`,
+/// `TimeSignatureAutomation` and `Markers` — valid against the official schema — and come
+/// back exactly.
+#[test]
+fn the_tempo_map_round_trips_through_a_dawproject() {
+    use cantus_core::tempo::{Marker, MarkerId, MetreChange, TempoPoint};
+    let mut p = rich_project();
+    p.tempo_points = vec![
+        TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: p.tempo_bpm,
+            ramp: true,
+        },
+        TempoPoint {
+            tick: Ticks::beats(8),
+            bpm: 140.0,
+            ramp: false,
+        },
+        TempoPoint {
+            tick: Ticks::beats(16),
+            bpm: 100.0,
+            ramp: false,
+        },
+    ];
+    p.metre_changes = vec![
+        MetreChange {
+            tick: Ticks::ZERO,
+            signature: p.time_signature,
+        },
+        MetreChange {
+            tick: Ticks(3 * 2880),
+            signature: TimeSignature::new(7, 8),
+        },
+    ];
+    p.markers = vec![
+        Marker {
+            id: MarkerId(5_000),
+            tick: Ticks::ZERO,
+            name: "Intro".into(),
+            color: None,
+        },
+        Marker {
+            id: MarkerId(5_001),
+            tick: Ticks::beats(8),
+            name: "Verse".into(),
+            color: Some(Color::PALETTE[2]),
+        },
+    ];
+    let (xsd, _) = schemas();
+    let parts = dawproject::write::parts(&p, "0.1.0");
+    let errors = xsd.validate(&parts.project_xml);
+    assert!(
+        errors.is_empty(),
+        "project.xml:
+{}",
+        errors.join(
+            "
+"
+        )
+    );
+    let back = dawproject::import(&dawproject::export(&p, "0.1.0").bytes).unwrap();
+    assert!(
+        back.report.is_lossless(),
+        "{:?}",
+        back.report.dropped_items().collect::<Vec<_>>()
+    );
+    let a = back.project;
+    assert_eq!(a.tempo_bpm, p.tempo_bpm);
+    assert_eq!(a.tempo_points, p.tempo_points);
+    assert_eq!(a.metre_changes, p.metre_changes);
+    let m: Vec<(Ticks, &str, Option<Color>)> = a
+        .markers
+        .iter()
+        .map(|m| (m.tick, m.name.as_str(), m.color))
+        .collect();
+    assert_eq!(
+        m,
+        [
+            (Ticks::ZERO, "Intro", None),
+            (Ticks::beats(8), "Verse", Some(Color::PALETTE[2]))
+        ]
+    );
 }

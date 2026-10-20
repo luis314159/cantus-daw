@@ -23,7 +23,6 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{self, well, with_brush, Brush, Fill, State, Style};
 use cantus_core::audio::TakeMode;
-use cantus_core::Ticks;
 use egui::{pos2, vec2, Align2, Id, Rect, Sense, Ui};
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -301,7 +300,6 @@ pub fn paint_elapsed(b: &mut Brush, app: &CantusApp, rect: Rect, s: &Style) {
         b.circle(c, 4.0 * k, Fill::Solid(with_alpha(t.danger, pulse)));
     }
     let pos = app.engine.position();
-    let bpm = app.project().tempo_bpm;
     let start = live.plan.record_start;
     WORDS.with(|w| {
         let mut w = w.borrow_mut();
@@ -309,11 +307,12 @@ pub fn paint_elapsed(b: &mut Brush, app: &CantusApp, rect: Rect, s: &Style) {
         if pos < start {
             // Counting in: the bars and beats left.
             let left = start - pos;
-            let ts = app.project().time_signature;
-            let beats = (left.0 as f64 / ts.ticks_per_beat().0.max(1) as f64).ceil() as i64;
+            // The beats of the metre counted in (ADR 0060: the bar before the take's).
+            let beat = crate::views::bars::map(app.project()).beat_len_at(pos);
+            let beats = (left.0 as f64 / beat.0.max(1) as f64).ceil() as i64;
             let _ = write!(w, "\u{2212}{beats}");
         } else {
-            let secs = (pos - start).max(Ticks::ZERO).to_seconds(bpm);
+            let secs = crate::views::bars::seconds_between(app.project(), start, pos.max(start));
             let _ = write!(w, "{}:{:04.1}", (secs / 60.0) as i64, secs % 60.0);
         }
         let tr = Rect::from_min_max(pos2(c.x + 7.0 * k, rect.top()), rect.max);

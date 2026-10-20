@@ -97,7 +97,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         scroll_beats: c.start.as_beats_f64() as f32 - len_b * 0.05,
         rows: Vec::new(),
         punch: None,
+        markers: None,
+        tempo: None,
     };
+    let tempo = crate::views::bars::map(app.project());
     let painter = ui.painter_at(full);
     kit::with_brush(&painter, |b| {
         well::paint(b, full, &s, State::REST, None);
@@ -109,7 +112,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
             start: c.start,
             length: c.length,
             offset: c.offset,
-            bpm: app.project().tempo_bpm,
+            map: &tempo,
         };
         let x0 = geo.x(c.start.as_beats_f64() as f32).max(full.left());
         let x1 = geo.x(c.end().as_beats_f64() as f32).min(full.right());
@@ -131,7 +134,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
                         &mut run,
                     ),
                     None => {
-                        let map = app.project().tempo_map();
+                        let map = crate::views::bars::map(app.project());
                         let f = |x: f32| {
                             let t = geo.beats(x) as f64 * PPQ as f64;
                             cantus_core::audio_time::clip_frame_at(
@@ -174,7 +177,7 @@ fn paint_ruler(
     ruler: Rect,
     s: &Style,
 ) {
-    let map = app.project().tempo_map();
+    let map = crate::views::bars::map(app.project());
     let from = Ticks((geo.beats(ruler.left()).max(0.0) as f64 * PPQ as f64) as i64);
     let to = Ticks((geo.beats(ruler.right()) as f64 * PPQ as f64) as i64 + 1);
     b.hline(

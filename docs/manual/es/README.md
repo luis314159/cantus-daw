@@ -388,6 +388,47 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
 La **rejilla** (barra del arreglo) empieza en un compás; elige valores más finos para el
 detalle. Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom.
 
+### La pista de tempo y los marcadores
+
+Una canción puede cambiar de tempo y de compás a lo largo de ella y llevar marcadores con
+nombre (ronda 29).
+
+- **La pista de tempo** es una franja bajo la regla (*Ver ▸ Pista de tempo*, o el menú de
+  la regla): cada punto es un tempo, que se mantiene plano hasta el siguiente o hace una
+  **rampa** recta hasta él. Doble clic en la franja para añadir un punto (en la rejilla, al
+  tempo donde hiciste clic); arrastra un punto para moverlo (`Mayús` para pasos finos de
+  tempo, `Ctrl` fuera de la rejilla); `Alt+clic` activa o quita la rampa de un punto;
+  doble clic en un punto para escribir su tempo; clic derecho para *Rampa hasta el punto
+  siguiente*, *Quitar el punto* y *Quitar la pista de tempo*. La cabecera junto a la franja
+  muestra el tempo en el cursor de reproducción.
+- **El tempo de la barra superior** muestra el tempo en el cursor (dentro de una rampa, su
+  valor ahí). Arrastrarlo, la rueda, un doble clic o **TAP** cambian el punto bajo el que
+  está el cursor — el tempo de la canción cuando no hay pista de tempo.
+- **Los cambios de compás** son fichas en la regla antes del número del compás ("7/8").
+  Clic derecho en la franja de marcadores (o el menú de la regla) ▸ *Añadir un cambio de
+  compás aquí*; clic en una ficha para editar su compás, arrástrala por las líneas de
+  compás, clic derecho para quitarla. Los compases que siguen a un cambio conservan su
+  número; las notas nunca se mueven. El compás de la barra superior edita el que rige en el
+  cursor.
+- **Los marcadores** aparecen en una franja bajo la del bucle. `Alt+M` añade uno en el
+  cursor (o doble clic en la franja); clic en un marcador para llevar el cursor ahí; clic
+  en su **nombre** para renombrarlo; arrástralo por la rejilla; clic derecho para
+  *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
+  siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar*. `Alt+,` y `Alt+.` van al
+  marcador anterior y al siguiente; `Alt+Mayús+L` hace un bucle entre los marcadores que
+  rodean el cursor. El menú de la franja lista todos los marcadores bajo *Ir a*.
+- **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
+  elige los dos marcadores por su nombre.
+- Todo sigue al tempo: las notas, los clips de audio (un clip de audio suena a su
+  velocidad natural desde donde empieza), la automatización, los moduladores, los efectos
+  sincronizados, el metrónomo (acentuando el compás 1 de cada compás; un compás de 7/8 se
+  cuenta en corcheas) y los plug-ins de otros.
+- **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
+  de tempo cada semicorchea) y al importar — en una canción vacía con *Poner el tempo de la
+  canción* se conservan los cambios de tempo, de compás y los marcadores del archivo. Los
+  archivos **DAWproject** llevan la pista de tempo, los cambios de compás y los marcadores
+  en ambos sentidos.
+
 ### El piano roll
 
 Selecciona un clip MIDI y muestra el piano roll (`F7`, o su pestaña bajo el arreglo):
@@ -871,6 +912,48 @@ hasta que lo tocas.
 | Speculum | Un analizador que nunca toca el sonido | Pestañas: *Resumen*, *Espectro* (promedio, pendiente, retención de picos, medio/lados/izquierda/derecha), *Espectrograma*, *Osciloscopio* (libre, con disparo o **en el pulso**), *Vectorial* (y la **correlación**: por debajo de 0 hay problemas en mono), *Sonoridad* (LUFS momentánea, a corto plazo e integrada, rango, pico real, frente a un objetivo: las lecturas de EBU R128). ⋯ ▸ **Acoplar en el espacio de trabajo** lo vuelve una pestaña que puedes redimensionar, dividir o sacar como ventana; acopla varios y míralos a la vez. |
 
 Páginas: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
+
+### Cuando un plug-in falla
+
+Un plug-in de terceros — un efecto o instrumento CLAP o VST3 — puede fallar o colgarse.
+Cantus ejecuta esos plug-ins **en un proceso ayudante propio** (`cantus-sandbox`), así que
+cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
+
+- un efecto detenido deja pasar el sonido intacto, a tiempo con el resto de la mezcla
+  (como si estuviera en bypass); un instrumento detenido se queda en silencio;
+- una tarjeta en la esquina inferior derecha lo dice — *"Glacier dejó de funcionar. Cantus
+  siguió sonando sin él."* — con **Recargar** y **Dejarlo apagado**. Señala el dibujo de la
+  tarjeta para leer qué pasó;
+- **Recargar** vuelve a cargar el plug-in con lo que tenías: su último estado bueno y todos
+  los valores del proyecto. Varios plug-ins que se detuvieron juntos comparten una tarjeta
+  y **Recargar todos**;
+- *Dejarlo apagado* lo deja detenido: su ranura muestra *detenido* en rojo (la pista de un
+  instrumento muestra la señal en su icono y el botón de canal con borde), y su menú ofrece
+  **Recargar plug-in** cuando quieras recuperarlo;
+- **el proyecto no pierde nada**: al guardar se conservan el último estado bueno y los
+  valores del plug-in, y el proyecto se abre con ellos la próxima vez;
+- un plug-in colgado tiene dos segundos; después su ayudante se termina; mientras está
+  colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
+  nunca.
+
+**Dónde se ejecuta un plug-in.** Ajustes ▸ Plug-ins ▸ *Dónde se ejecutan los plug-ins de
+terceros* fija el valor de este equipo: **Juntos** (un ayudante para todos; el
+predeterminado), **Por fabricante** (uno por fabricante), **Por separado** (un ayudante
+para cada uno: un fallo detiene solo ese plug-in) o **Dentro de Cantus** (sin ayudante: lo
+más rápido, y un fallo cierra Cantus). Cada plug-in puede ser distinto: clic derecho en su
+ranura (o *Se ejecuta* en la fila de un instrumento alojado del inspector) y elige. La
+elección se guarda con el proyecto; cambiarla mueve el plug-in en el acto, con su sonido.
+A un plug-in que falla tres veces en una sesión su tarjeta le ofrece **Ejecutar por
+separado**. El gestor de plug-ins lista los que alguna vez se detuvieron en este equipo
+(*Olvidar* borra uno). Los efectos e instrumentos propios de Cantus siempre se ejecutan
+dentro.
+
+**Lo que cuesta.** Un plug-in en un ayudante añade una ida y vuelta por bloque de audio:
+unos microsegundos mientras los plug-ins se suceden, unas decenas tras una pausa (la ADR
+0063 tiene las medidas). Señala una ranura alojada para ver dónde se ejecuta y su
+**CPU**; la barra de estado cuenta *Plug-ins tarde* cuando un ayudante no respondió a
+tiempo (esos bloques sonaron sin el plug-in). Las exportaciones, las pistas por separado
+y los bounces esperan cada bloque, así que siempre son exactamente lo que hace el plug-in.
 
 ## 11. Proyectos, autoguardado y ajustes
 

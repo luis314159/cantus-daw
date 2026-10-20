@@ -270,12 +270,32 @@ fn a_recovered_loop_pass_wraps_where_the_engine_would_have() {
         loop_takes: true,
         mode: TakeMode::Stack,
         tempo_bpm: 120.0,
+        tempo_points: vec![],
         sample_rate: 48_000,
         latency_frames: 0,
         takes: vec![],
         finished: false,
     };
     assert_eq!(wraps(&pass, 130_000), vec![48_000, 96_000]);
+    // Under a tempo track (ADR 0060): 60 BPM from beat 2, so the loop (beats 1–3) is a
+    // half second at 120 and a second at 60 — 72 000 frames — and its first end is 72 000
+    // frames after beat 1.
+    let mapped = JournalPass {
+        tempo_points: vec![
+            cantus_core::TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: false,
+            },
+            cantus_core::TempoPoint {
+                tick: Ticks::beats(2),
+                bpm: 60.0,
+                ramp: false,
+            },
+        ],
+        ..pass.clone()
+    };
+    assert_eq!(wraps(&mapped, 200_000), vec![72_000, 144_000]);
     // With a bar of count-in (4 beats before), the first wrap comes a bar later.
     let counted = JournalPass {
         transport_start: Ticks::beats(1) - Ticks::beats(4),

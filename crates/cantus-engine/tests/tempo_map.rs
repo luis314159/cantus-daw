@@ -385,3 +385,155 @@ fn a_beat_on_the_loops_start_sounds_on_every_pass() {
         );
     }
 }
+
+/// Review 1 (findings 6, 8, 11): a synced unit behind latency (a limiter's look-ahead
+/// before the tremolo) hears each tempo point and each ramp step at the sample its audio
+/// reaches it, whatever the blocks: the passes are cut at the late unit's own steps too.
+#[test]
+fn a_late_synced_unit_hears_the_steps_at_every_block_size() {
+    let mut p = with_tempo(demo_project());
+    let _lim = add_effect(&mut p, EffectKind::Limiter);
+    let fx = add_effect(&mut p, EffectKind::Tremolo);
+    set_all(
+        &mut p,
+        fx,
+        &[("depth", 1.0), ("div", 8.0), ("shape", 0.0), ("edge", 0.0)],
+    );
+    p.loop_enabled = false;
+    let reference = render_with(&p, 64);
+    for block in [1usize, 37, 512] {
+        same_bits(
+            &reference,
+            &render_with(&p, block),
+            &format!("block {block}"),
+        );
+    }
+}
+
+/// Review 1 (finding 18): an offline render's length and its stop sample are measured
+/// through the map — a range to beat 6 over the ramp is the map's seconds long (plus the
+/// tail), and a note starting exactly at its end is not heard.
+#[test]
+fn a_rendered_range_is_as_long_as_the_map_says() {
+    let mut p = with_tempo(Project::new("range"));
+    p.loop_enabled = false;
+    let mut t = p.make_track("Square");
+    t.instrument.firmus_mut().unwrap().osc1_wave = Waveform::Square;
+    let mut clip = p.make_clip("n", Ticks::ZERO, Ticks::beats(8));
+    clip.notes
+        .push(p.make_note(Ticks::beats(6), Ticks::QUARTER, 60, 120));
+    t.clips.push(clip);
+    p.tracks.push(t);
+    let opts = RenderOptions {
+        end: Some(Ticks::beats(6)),
+        tail_seconds: 0.0,
+        block_frames: 128,
+        ..Default::default()
+    };
+    let out = render(Arc::new(Snapshot::compile(&p, 1)), &opts)
+        .unwrap()
+        .samples;
+    let want = (p.tempo_map().seconds_between(Ticks::ZERO, Ticks::beats(6)) * SR).ceil() as usize;
+    assert_eq!(out.len() / 2, want);
+    assert!(
+        out.iter().all(|x| *x == 0.0),
+        "the note at the end never sounds"
+    );
+}
+
+/// Review 1 (finding 19): played live — the click, a loop over the tempo change and an
+/// automation lane — the same at every block size.
+#[test]
+fn the_click_a_loop_and_automation_live_are_the_same_at_every_block_size() {
+    let mut p = busy_song();
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(3),
+        end: Ticks::beats(7),
+    });
+    p.loop_enabled = true;
+    let strip = p.tracks[0].strip.unwrap();
+    let points = vec![
+        AutoPoint::new(Ticks::ZERO, 0.3),
+        AutoPoint::new(Ticks::beats(5), 0.9),
+    ];
+    let c = p.make_automation_clip(
+        "g",
+        AutoTarget::StripGain(strip),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        points,
+    );
+    p.tracks[0].clips.push(c);
+    let frames = 200_000;
+    let reference = play(&p, Ticks::ZERO, frames, 64);
+    for block in [1usize, 37, 512] {
+        same_bits(
+            &reference,
+            &play(&p, Ticks::ZERO, frames, block),
+            &format!("block {block}"),
+        );
+    }
+}
+
+/// Review 1 (finding 24): the arithmetic by hand, not the map against itself — 120 BPM for
+/// four beats (96 000 samples at 48 kHz), then 60: beat 6 is 96 000 + 96 000 samples in.
+#[test]
+fn an_event_after_a_step_is_due_at_the_hand_computed_sample() {
+    let mut p = Project::new("hand");
+    p.tempo_points = vec![
+        TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 120.0,
+            ramp: false,
+        },
+        TempoPoint {
+            tick: Ticks::beats(4),
+            bpm: 60.0,
+            ramp: false,
+        },
+    ];
+    let mut t = Transport::new(SR);
+    t.set_map(Arc::new(p.tempo_map()));
+    t.seek(Ticks::ZERO);
+    t.play();
+    assert_eq!(t.samples_until(Ticks::beats(6).0 as f64), 192_000);
+    t.advance(150_000);
+    // 54 000 samples past the point at 60 BPM: 1.125 beats past beat 4.
+    assert!((t.position_f64() - 5.125 * 960.0).abs() < 1e-9);
+}
+
+/// ADR 0060 §4's measurement: what cutting the passes at every ramp step costs. The busy
+/// song rendered over a ramp against the same song at one tempo, best of five (run with
+/// `--ignored --nocapture`).
+#[test]
+#[ignore = "a measurement"]
+fn measure_the_cost_of_ramp_steps() {
+    let ramp = busy_song();
+    let mut flat = ramp.clone();
+    flat.tempo_points.clear();
+    flat.metre_changes.clear();
+    let time_at = |p: &Project, block: usize| {
+        (0..5)
+            .map(|_| {
+                let t0 = std::time::Instant::now();
+                let _ = render_with(p, block);
+                t0.elapsed().as_secs_f64()
+            })
+            .fold(f64::MAX, f64::min)
+    };
+    let time = |p: &Project| time_at(p, 256);
+    let (a, b) = (time(&ramp), time(&flat));
+    // What the extra passes alone cost: the one-tempo song cut into the passes a ramp adds
+    // (a 60-tick step every ~1 560 samples at these tempos on top of 256-sample blocks is
+    // ~16 % more passes: blocks of 221).
+    let (c, d) = (time_at(&flat, 256), time_at(&flat, 221));
+    eprintln!("one tempo, 16 % more passes: ratio {:.3}", d / c);
+    let secs = |p: &Project| p.tempo_map().seconds_between(Ticks::ZERO, p.content_end());
+    let (sa, sb) = (secs(&ramp), secs(&flat));
+    eprintln!(
+        "ramp: {:.3} ms per song second; one tempo: {:.3} ms per song second; ratio {:.3}",
+        a / sa * 1e3,
+        b / sb * 1e3,
+        (a / sa) / (b / sb)
+    );
+}
