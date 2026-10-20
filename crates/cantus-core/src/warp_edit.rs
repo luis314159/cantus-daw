@@ -320,3 +320,58 @@ impl Warp {
         w
     }
 }
+
+impl Warp {
+    /// The warp that plays a clip exactly as it plays unwarped (ADR 0060: natural speed
+    /// from its content origin `start − offset`, through the tempo map), following the
+    /// tempo: markers on the content origin, the window's two ends, every tempo point
+    /// between and, inside a ramp, every sixteenth — each on the source frame the unwarped
+    /// rule reads there (`audio_time::frame_at`). What a first warp edit starts from, so
+    /// nothing moves until a marker is dragged (round 29's review: a straight line at the
+    /// song's first tempo moved a clip that sat under another). Under one tempo it is the
+    /// identity.
+    pub fn natural_of(
+        map: &crate::tempo::TempoMap,
+        start: Ticks,
+        offset: Ticks,
+        length: Ticks,
+        slip_frames: i32,
+        rate: u32,
+    ) -> Warp {
+        let origin = start - offset;
+        let end = start + length;
+        let mut ticks: Vec<i64> = vec![origin.0, start.0, end.0];
+        let (lo, hi) = (origin.0.min(start.0), end.0);
+        for p in map.points() {
+            if p.tick.0 > lo && p.tick.0 < hi {
+                ticks.push(p.tick.0);
+            }
+        }
+        let step = PPQ / 4;
+        let mut t = lo - lo.rem_euclid(step) + step;
+        while t < hi && ticks.len() < super::MAX_MARKERS / 2 {
+            if map.in_ramp(t as f64) {
+                ticks.push(t);
+            }
+            t += step;
+        }
+        ticks.sort_unstable();
+        ticks.dedup();
+        let rate_f = rate.max(1) as f64;
+        let mut w = Warp::new(rate.max(1), map.bpm_at(start.0 as f64));
+        for t in ticks {
+            let frame = crate::audio_time::frame_at(
+                map,
+                start,
+                offset,
+                slip_frames as f64,
+                rate_f,
+                t as f64,
+            );
+            if let Some(n) = w.with_marker(frame, Ticks(t - origin.0)) {
+                w = n;
+            }
+        }
+        w
+    }
+}

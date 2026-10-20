@@ -296,3 +296,47 @@ fn quantise_leaves_the_audio_beyond_the_range_alone() {
         );
     }
 }
+
+/// Round 29's review: the warp a first edit starts from plays the clip exactly as it plays
+/// unwarped — under a tempo track, a ramp, a window into the middle of its take — and under
+/// one tempo it is the identity.
+#[test]
+fn the_natural_warp_plays_as_the_clip_plays_unwarped() {
+    use crate::tempo::{TempoMap, TempoPoint};
+    use crate::time::TimeSignature;
+    let map = TempoMap::new(
+        120.0,
+        TimeSignature::default(),
+        &[
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: false,
+            },
+            TempoPoint {
+                tick: Ticks::beats(16),
+                bpm: 90.0,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(24),
+                bpm: 140.0,
+                ramp: false,
+            },
+        ],
+        &[],
+    );
+    let (start, offset, length, slip) = (Ticks::beats(12), Ticks::beats(6), Ticks::beats(20), 37);
+    let w = Warp::natural_of(&map, start, offset, length, slip, 48_000);
+    assert!(w.is_valid() && w.follow);
+    let origin = (start - offset).0 as f64;
+    for k in 0..=200 {
+        let t = start.0 as f64 + length.0 as f64 * k as f64 / 200.0;
+        let want = crate::audio_time::frame_at(&map, start, offset, slip as f64, 48_000.0, t);
+        let got = w.frame_at(t - origin);
+        assert!((got - want).abs() < 0.5, "tick {t}: {got} against {want}");
+    }
+    let one = TempoMap::constant(120.0, TimeSignature::default());
+    let w = Warp::natural_of(&one, start, offset, length, slip, 48_000);
+    assert!(w.is_identity(120.0, slip));
+}

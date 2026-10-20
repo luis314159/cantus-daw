@@ -503,10 +503,10 @@ pub fn paste_clips(
         if let (Some(a), Some(dst)) = (copy.audio.as_mut(), plays) {
             a.source = dst;
             // A warp that follows the tempo counts in content ticks (ADR 0061): the paste
-            // keeps them as they are, whatever the tempo where it lands.
+            // keeps them as they are, whatever the tempo where it lands (`relocate` below
+            // leaves it too).
             let follows = a.warp.as_ref().is_some_and(|w| w.follow);
-            if follows {
-            } else if let Some(k) = scale {
+            if let Some(k) = scale.filter(|_| !follows) {
                 let s = |t: Ticks| Ticks((t.0 as f64 * k).round() as i64);
                 a.fade_in = s(a.fade_in);
                 a.fade_out = s(a.fade_out);

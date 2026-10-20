@@ -1,15 +1,19 @@
-//! Audio clips in a `.dawproject` (round 29, ADR 0061): written as `<Warps>` over
-//! `<Audio>` — the clip's file (in the archive when it can be read, else referenced where it
-//! is), its warp markers as `<Warp time contentTime>` pairs (beats of the clip's content
-//! against seconds of the file), its mode as the `algorithm` — and read back the same way
-//! from any application's file (Bitwig and Studio One write them so). A clip at its natural
-//! speed is two warp points on its natural line, which reads back unwarped.
+//! Audio clips in a `.dawproject` (round 29, ADR 0061). A clip that **follows the tempo**
+//! (warped) is written as `<Warps>` over `<Audio>`: its markers as `<Warp time
+//! contentTime>` pairs (beats of the clip's content against seconds of the file), its mode
+//! as the `algorithm`. A clip at its **natural speed** (not warped, or not following) is a
+//! bare `<Audio>` in a clip whose content is in seconds, its `playStart` the second of the
+//! file at its left edge — so it plays at natural speed in any application, whatever the
+//! tempo map (round 29's review: a natural line at the first tempo made it follow the
+//! tempo elsewhere). Each file goes into the archive once (stored, not deflated), or is
+//! referenced where it is (its absolute path) when it cannot be read. Read back the same
+//! way from any application's file (Bitwig and Studio One write them so).
 
 use super::xml::{a, num, XmlWriter};
 use crate::report::Report;
-use cantus_core::warp::{Warp, WarpMarker, WarpMode};
+use cantus_core::warp::{Warp, WarpMarker, WarpMode, WarpTail};
 use cantus_core::{AudioRegion, AudioSource, Clip, Project, Ticks, PPQ};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// The algorithm a mode is written as (Ableton's words, which Bitwig reads too).
 pub fn algorithm(m: WarpMode) -> &'static str {
@@ -31,43 +35,58 @@ pub fn mode_of(algorithm: Option<&str>) -> WarpMode {
     }
 }
 
-/// The warp points of a clip: its markers (beats of content, seconds of the file); a clip
-/// not warped, its natural line at the project's tempo, from its first frame to its last.
-pub fn points(project: &Project, a: &AudioRegion, s: &AudioSource) -> Vec<(f64, f64)> {
+/// Whether a clip plays at its natural speed (written as bare `<Audio>`).
+pub fn natural(a: &AudioRegion) -> bool {
+    a.warp.as_deref().is_none_or(|w| !w.follow)
+}
+
+/// The seconds of the file a natural-speed clip shows at its left edge (and where its
+/// loop ends, when it repeats): through the project's tempo map, its fine offset added.
+pub fn seconds_of(project: &Project, c: &Clip, a: &AudioRegion, rate: u32) -> (f64, Option<f64>) {
+    let map = project.tempo_map();
+    let slip = a.slip_frames as f64 / rate.max(1) as f64;
+    let start = cantus_core::audio_time::offset_seconds(&map, c.start, c.offset) + slip;
+    let end = c.period().map(|p| {
+        cantus_core::audio_time::source_seconds(&map, c.start, c.offset, (c.start + p).0 as f64)
+            + slip
+    });
+    (start, end)
+}
+
+/// The warp points of a clip that follows the tempo: its markers (beats of content, seconds
+/// of the file), and its ends where the markers do not reach them.
+pub fn points(w: &Warp, s: &AudioSource) -> Vec<(f64, f64)> {
     let rate = s.sample_rate.max(1) as f64;
     let end = s.frames as f64;
-    match a.warp.as_deref().filter(|w| w.follow) {
-        Some(w) => {
-            let mut pts: Vec<(f64, f64)> = w
-                .markers
-                .iter()
-                .map(|m| (m.tick.0 as f64 / PPQ as f64, m.frame / rate))
-                .collect();
-            // Its ends, where the markers do not reach them.
-            let t0 = w.tick_at(0.0);
-            if pts.first().is_none_or(|p| p.1 > 0.0) {
-                pts.insert(0, (t0 / PPQ as f64, 0.0));
-            }
-            let t1 = w.tick_at(end);
-            if pts.last().is_none_or(|p| p.1 < end / rate) {
-                pts.push((t1 / PPQ as f64, end / rate));
-            }
-            pts
-        }
-        None => {
-            let slip = a.slip_frames as f64 / rate;
-            let beats = |secs: f64| (secs - slip) * project.tempo_bpm / 60.0;
-            vec![
-                (beats(slip.max(0.0)), slip.max(0.0)),
-                (beats(end / rate), end / rate),
-            ]
-        }
+    let mut pts: Vec<(f64, f64)> = w
+        .markers
+        .iter()
+        .map(|m| (m.tick.0 as f64 / PPQ as f64, m.frame / rate))
+        .collect();
+    let t0 = w.tick_at(0.0);
+    if pts.first().is_none_or(|p| p.1 > 0.0) {
+        pts.insert(0, (t0 / PPQ as f64, 0.0));
+    }
+    let t1 = w.tick_at(end);
+    if pts.last().is_none_or(|p| p.1 < end / rate) {
+        pts.push((t1 / PPQ as f64, end / rate));
+    }
+    pts
+}
+
+/// Where a source's file is on disk: its stored path, a relative one against `base`.
+pub fn file_of(s: &AudioSource, base: Option<&Path>) -> PathBuf {
+    let stored = Path::new(&s.path);
+    match base {
+        Some(b) if stored.is_relative() => b.join(stored),
+        _ => stored.to_path_buf(),
     }
 }
 
-/// Write `c`'s audio content (inside its `<Clip>`): `<Warps>` over `<Audio>`. `base` is the
-/// project's folder (a stored path is relative to it); the file goes into the archive as
-/// `audio/<id> <name>` when it can be read, `files` collecting it.
+/// Write `c`'s audio content (inside its `<Clip>`). `base` is the project's folder (a
+/// stored path is relative to it); a file that can be read goes into the archive as
+/// `audio/<id> <name>` — listed once in `audio` (archive path, file on disk), read when the
+/// archive is written — else it is referenced at its absolute path, and said.
 #[allow(clippy::too_many_arguments)]
 pub fn write(
     w: &mut XmlWriter,
@@ -76,23 +95,24 @@ pub fn write(
     c: &Clip,
     au: &AudioRegion,
     base: Option<&Path>,
-    files: &mut Vec<(String, Vec<u8>)>,
+    audio: &mut Vec<(String, PathBuf)>,
     report: &mut Report,
 ) {
     let Some(s) = project.audio_source(au.source) else {
         return;
     };
-    let mode = au.warp.as_deref().map_or(WarpMode::Repitch, |w| {
-        if w.follow {
-            w.mode
-        } else {
-            WarpMode::Repitch
-        }
-    });
-    w.open(
-        "Warps",
-        &[("contentTimeUnit", a_str("seconds")), ("id", a(next_id()))],
-    );
+    let natural = natural(au);
+    let warp = au.warp.as_deref().filter(|w| w.follow);
+    let mode = warp.map_or(WarpMode::Repitch, |w| w.mode);
+    if !natural {
+        w.open(
+            "Warps",
+            &[
+                ("contentTimeUnit", Some("seconds".into())),
+                ("id", a(next_id())),
+            ],
+        );
+    }
     let seconds = s.frames as f64 / s.sample_rate.max(1) as f64;
     w.open(
         "Audio",
@@ -104,63 +124,70 @@ pub fn write(
             ("id", a(next_id())),
         ],
     );
-    let stored = Path::new(&s.path);
-    let file = match base {
-        Some(b) if stored.is_relative() => b.join(stored),
-        _ => stored.to_path_buf(),
-    };
-    let name = stored
+    let file = file_of(s, base);
+    let name = file
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_else(|| "audio.wav".into());
-    match std::fs::read(&file) {
-        Ok(bytes) => {
-            let inner = format!("audio/{} {name}", s.id.0);
-            if !files.iter().any(|(p, _)| *p == inner) {
-                files.push((inner.clone(), bytes));
-            }
-            w.empty("File", &[("path", a(&inner)), ("external", a("false"))]);
+    let inner = format!("audio/{} {name}", s.id.0);
+    if audio.iter().any(|(p, _)| *p == inner) || file.is_file() {
+        if !audio.iter().any(|(p, _)| *p == inner) {
+            audio.push((inner.clone(), file.clone()));
         }
-        Err(_) => {
-            report.info(
-                "interop.report.x_audio_external",
-                vec![("file", s.path.clone())],
-            );
-            w.empty("File", &[("path", a(&s.path)), ("external", a("true"))]);
-        }
+        w.empty("File", &[("path", a(&inner)), ("external", a("false"))]);
+    } else {
+        let at = file.to_string_lossy().into_owned();
+        report.info(
+            "interop.report.x_audio_external",
+            vec![("file", at.clone())],
+        );
+        w.empty("File", &[("path", a(&at)), ("external", a("true"))]);
     }
     w.close(); // Audio
-    for (t, secs) in points(project, au, s) {
-        w.empty(
-            "Warp",
-            &[("time", a(num(t))), ("contentTime", a(num(secs)))],
-        );
+    if let Some(wp) = warp {
+        for (t, secs) in points(wp, s) {
+            w.empty(
+                "Warp",
+                &[("time", a(num(t))), ("contentTime", a(num(secs)))],
+            );
+        }
+        w.close(); // Warps
     }
-    w.close(); // Warps
-               // What DAWproject has no words for.
-    if au
-        .warp
-        .as_deref()
-        .is_some_and(|w| w.cents != 0 && w.mode.transposes())
-    {
-        report.dropped(
-            "interop.report.x_warp_transpose",
-            vec![("clip", c.name.clone())],
-        );
-    }
-    if au.pitch.as_deref().is_some_and(|p| p.edited()) {
-        report.dropped(
-            "interop.report.x_pitch_edits",
-            vec![("clip", c.name.clone())],
-        );
-    }
-    if au.reverse {
-        report.dropped("interop.report.x_reverse", vec![("clip", c.name.clone())]);
-    }
+    dropped(c, au, report);
 }
 
-fn a_str(s: &str) -> Option<String> {
-    Some(s.to_string())
+/// What DAWproject has no words for, said (never dropped in silence, ADR 0021).
+fn dropped(c: &Clip, au: &AudioRegion, report: &mut Report) {
+    let clip = || vec![("clip", c.name.clone())];
+    if let Some(w) = au.warp.as_deref() {
+        if w.cents != 0 && w.mode.transposes() {
+            report.dropped("interop.report.x_warp_transpose", clip());
+            if !w.formants {
+                report.dropped("interop.report.x_warp_formants", clip());
+            }
+        }
+        if w.follow && w.mode == WarpMode::Rhythm && w.tail != WarpTail::Fade {
+            report.dropped("interop.report.x_warp_tail", clip());
+        }
+        if !w.follow && w.markers.len() > 1 {
+            report.dropped("interop.report.x_warp_markers", clip());
+        }
+    }
+    if au.pitch.as_deref().is_some_and(|p| p.edited()) {
+        report.dropped("interop.report.x_pitch_edits", clip());
+    }
+    if au.reverse {
+        report.dropped("interop.report.x_reverse", clip());
+    }
+    if au.gain_db.abs() >= 0.005 {
+        report.dropped("interop.report.x_clip_gain", clip());
+    }
+    let curve = cantus_core::audio::FadeCurve::default();
+    if (au.fade_in > Ticks::ZERO && au.fade_in_curve != curve)
+        || (au.fade_out > Ticks::ZERO && au.fade_out_curve != curve)
+    {
+        report.dropped("interop.report.x_fade_curve", clip());
+    }
 }
 
 /// What a `<Warps>` or `<Audio>` clip content holds.
@@ -177,9 +204,16 @@ pub struct AudioData {
     pub warps: Vec<(f64, f64)>,
 }
 
-/// The region an imported audio clip plays: its warp from the points (none when they lie
-/// on the natural line at `bpm` — the clip plays as recorded, its fine offset kept).
-pub fn region(source: cantus_core::AudioSourceId, d: &AudioData, bpm: f64) -> AudioRegion {
+/// The region an imported audio clip plays: its warp from the points. Points that lie on
+/// the natural line at `bpm` come back unwarped (the fine offset kept) only when `collapse`
+/// — the project has one tempo; under a tempo map they stay a warp that follows it (round
+/// 29's review). No points: natural speed (the caller places it from its `playStart`).
+pub fn region(
+    source: cantus_core::AudioSourceId,
+    d: &AudioData,
+    bpm: f64,
+    collapse: bool,
+) -> AudioRegion {
     let mut r = AudioRegion::of(source);
     let rate = d.rate.max(1) as f64;
     let mut pts: Vec<(f64, f64)> = d
@@ -194,10 +228,10 @@ pub fn region(source: cantus_core::AudioSourceId, d: &AudioData, bpm: f64) -> Au
     }
     // On the natural line: secs = beats · 60 / bpm + slip.
     let slip = pts[0].1 - pts[0].0 * 60.0 / bpm;
-    let natural = pts
+    let on_line = pts
         .iter()
         .all(|(b, s)| ((b * 60.0 / bpm + slip) - s).abs() * rate < 0.5);
-    if natural {
+    if on_line && collapse {
         r.slip_frames = (slip * rate).round() as i32;
         return r;
     }
@@ -252,7 +286,7 @@ pub fn read(n: roxmltree::Node, bpm: f64, beats_in_seconds: bool) -> Option<Audi
     };
     let file = child(audio, "File")?;
     Some(AudioData {
-        path: attr(file, "path")?.to_string(),
+        path: attr(file, "path")?.trim_start_matches("./").to_string(),
         external: attr(file, "external") == Some("true"),
         channels: attr_f64(audio, "channels").unwrap_or(2.0).clamp(1.0, 2.0) as u8,
         rate: attr_f64(audio, "sampleRate").unwrap_or(48_000.0).max(1.0) as u32,

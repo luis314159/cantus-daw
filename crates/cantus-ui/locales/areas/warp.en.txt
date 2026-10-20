@@ -103,3 +103,14 @@ interop.report.x_reverse = A reversed clip (it plays forwards): {clip}
 # On load (a hand-edited or damaged file).
 warp.status.repaired_one = A clip's warp in this file was damaged: the clip plays at its natural speed
 warp.status.repaired = {n} clips' warps in this file were damaged: they play at their natural speed
+
+# DAWproject (round 29's review): what an audio clip loses on the way out, and in.
+interop.report.x_takes = {n} take(s) of {track} (only the comp is heard; DAWproject has no take lanes)
+interop.report.x_track_input = The audio input of {track} (set it again after opening the file)
+interop.report.x_clip_gain = The clip gain of {clip}
+interop.report.x_fade_curve = The fade shapes of {clip} (they come back straight)
+interop.report.x_warp_tail = The slice ends of {clip} (Rhythm: they come back faded)
+interop.report.x_warp_formants = Formants not kept on {clip}
+interop.report.x_warp_markers = The warp markers of {clip} (it plays at natural speed, as written)
+interop.report.x_audio_unread = An audio file that could not be read while writing: {file}
+interop.report.d_audio_missing = An audio file found neither in the archive nor on disk: {file}

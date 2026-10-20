@@ -309,10 +309,13 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
         report.info("interop.report.d_foreign", vec![]);
     }
     // The audio files the archive carries, for the caller to put on disk (round 29).
-    let media = files
+    let media: Vec<(String, Vec<u8>)> = files
         .iter()
-        .filter(|(p, _)| project.audio_pool.iter().any(|s| s.path == *p))
-        .cloned()
+        .filter(|(p, _)| {
+            let p = p.trim_start_matches("./");
+            project.audio_pool.iter().any(|s| s.path == p)
+        })
+        .map(|(p, d)| (p.trim_start_matches("./").to_string(), d.clone()))
         .collect();
     Ok(Imported {
         project,
@@ -512,6 +515,16 @@ fn build(
         let clips = timeline.clips.get(&key).map(Vec::as_slice).unwrap_or(&[]);
         let drums = timeline.drums.contains(&key);
         track.instrument = instrument(ch, &t.name, drums, clips, files, report);
+        // A track of audio records audio (round 29's review): an input, as a new audio
+        // track has.
+        if t.content.iter().any(|c| c == "audio") {
+            track.input = Some(cantus_core::audio::TrackInput {
+                first: 0,
+                stereo: true,
+                monitor: Default::default(),
+                trim_db: 0.0,
+            });
+        }
         match ch {
             Some(c) if c.track_channel => {
                 track.strip = target(c);
@@ -559,7 +572,8 @@ fn build(
                         id
                     }
                 };
-                let mut region = super::audio::region(id, au, project.tempo_bpm);
+                let mut region = super::audio::region(id, au, project.tempo_bpm, c.one_tempo);
+                region.slip_frames += c.slip;
                 region.fade_in = c.fades.0;
                 region.fade_out = c.fades.1;
                 clip.audio = Some(region);
