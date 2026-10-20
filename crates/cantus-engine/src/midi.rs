@@ -14,7 +14,7 @@ use crate::messages::MidiEvent;
 use cantus_core::controller::Control;
 use midir::{Ignore, MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use rtrb::{Consumer, Producer, RingBuffer};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -214,12 +214,15 @@ impl MidiFilter {
         }
     }
 
+    /// Learning on or off. Released: the words published before it are seen by a callback
+    /// that sees learning end — a control just learnt is taken from its first message on
+    /// (review 2, #14).
     pub fn set_learning(&self, on: bool) {
-        self.learning.store(on, Ordering::Relaxed);
+        self.learning.store(on, Ordering::Release);
     }
 
     pub fn learning(&self) -> bool {
-        self.learning.load(Ordering::Relaxed)
+        self.learning.load(Ordering::Acquire)
     }
 }
 
@@ -236,6 +239,23 @@ struct TapShared {
     stop: Arc<AtomicBool>,
     /// A wake is on its way and the interface has not drained yet: no other is sent.
     pending: AtomicBool,
+    /// What a full ring could not take, the newest per address (review 2, #16): a stalled
+    /// interface still gets a control's final value and a pad's release.
+    overflow: Box<[AtomicU32]>,
+    overflowed: AtomicBool,
+}
+
+/// Slots of the overflow table (an address hashes to one; a collision keeps the newest).
+const OVERFLOW_SLOTS: usize = 1024;
+
+fn overflow_slot(port: usize, ev: &MidiEvent) -> usize {
+    // Notes on and off share their address (a release replaces its press).
+    let kind = match ev.status & 0xF0 {
+        0x80 => 0x90,
+        k => k,
+    };
+    let key = (port as u32) << 16 | u32::from(kind | (ev.status & 0x0F)) << 8 | u32::from(ev.data1);
+    (key.wrapping_mul(0x9E37_79B1) >> 22) as usize % OVERFLOW_SLOTS
 }
 
 impl Drop for TapShared {
@@ -292,6 +312,8 @@ impl MidiTap {
                 waker,
                 stop,
                 pending: AtomicBool::new(false),
+                overflow: (0..OVERFLOW_SLOTS).map(|_| AtomicU32::new(0)).collect(),
+                overflowed: AtomicBool::new(false),
             }),
         }
     }
@@ -312,7 +334,7 @@ impl MidiTap {
 
     /// Wake the interface, once until it drains.
     /// Lock-free: a flag and an unpark (no lock the interface holds, no allocation).
-    fn wake(&self) {
+    pub(crate) fn wake(&self) {
         if !self.shared.pending.swap(true, Ordering::AcqRel) {
             if let Some(t) = &self.shared.waker {
                 t.unpark();
@@ -320,9 +342,47 @@ impl MidiTap {
         }
     }
 
-    /// The interface drained the rings: the next message wakes it again.
-    pub fn rearm(&self) {
-        self.shared.pending.store(false, Ordering::Release);
+    /// The interface is about to drain the rings: the next message wakes it again.
+    /// A swap, not a store (review 2, #13): ordered with the callback's own swap, either the
+    /// callback sees the rearm and wakes, or this sees its push. Returns whether a wake was
+    /// pending.
+    pub fn rearm(&self) -> bool {
+        self.shared.pending.swap(false, Ordering::AcqRel)
+    }
+
+    /// Keep `ev` from `port`, which a full ring could not take: the newest per address.
+    fn overflow(&self, port: usize, ev: &MidiEvent) {
+        let packed = 1 << 31
+            | (port.min(127) as u32) << 24
+            | u32::from(ev.status) << 16
+            | u32::from(ev.data1 & 0x7F) << 8
+            | u32::from(ev.data2 & 0x7F);
+        self.shared.overflow[overflow_slot(port, ev)].store(packed, Ordering::Release);
+        self.shared.overflowed.store(true, Ordering::Release);
+    }
+
+    /// What full rings could not take since the last call, the newest per address, as
+    /// heard now (after the rings' messages). Interface thread.
+    pub fn take_overflow(&self, out: &mut Vec<Heard>) {
+        if !self.shared.overflowed.swap(false, Ordering::AcqRel) {
+            return;
+        }
+        let at = Instant::now();
+        for slot in self.shared.overflow.iter() {
+            let v = slot.swap(0, Ordering::AcqRel);
+            if v & 1 << 31 == 0 {
+                continue;
+            }
+            out.push(Heard {
+                port: (v >> 24 & 0x7F) as u8,
+                event: MidiEvent {
+                    status: (v >> 16) as u8,
+                    data1: (v >> 8 & 0x7F) as u8,
+                    data2: (v & 0x7F) as u8,
+                },
+                at,
+            });
+        }
     }
 }
 
@@ -333,7 +393,17 @@ impl MidiTap {
 #[derive(Clone, Debug, Default)]
 pub struct PortState {
     notes: [[u64; 2]; 16],
-    pedal: [bool; 16],
+    /// The sustain (64) and sostenuto (66) pedals down, per channel.
+    pedal: [[bool; 2]; 16],
+}
+
+/// The pedal a controller number is: 0 sustain, 1 sostenuto.
+fn pedal_of(cc: u8) -> Option<usize> {
+    match cc {
+        64 => Some(0),
+        66 => Some(1),
+        _ => None,
+    }
 }
 
 impl PortState {
@@ -355,9 +425,14 @@ impl PortState {
         match ev.status & 0xF0 {
             0x90 if ev.data2 > 0 => self.notes[ch][w] |= b,
             0x80 | 0x90 => self.notes[ch][w] &= !b,
-            0xB0 if ev.data1 == 64 => self.pedal[ch] = ev.data2 >= 64,
-            // All notes off, all sound off: nothing held any more.
-            0xB0 if ev.data1 == 120 || ev.data1 == 123 => self.notes[ch] = [0; 2],
+            0xB0 => match (pedal_of(ev.data1), ev.data1) {
+                (Some(p), _) => self.pedal[ch][p] = ev.data2 >= 64,
+                // All sound off, all notes off: nothing held any more.
+                (None, 120 | 123) => self.notes[ch] = [0; 2],
+                // Reset all controllers: the pedals are up.
+                (None, 121) => self.pedal[ch] = [false; 2],
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -368,8 +443,18 @@ impl PortState {
         match ev.status & 0xF0 {
             0x80 => self.holds(ev.status & 15, ev.data1),
             0x90 if ev.data2 == 0 => self.holds(ev.status & 15, ev.data1),
-            0xB0 => ev.data1 == 64 && ev.data2 < 64 && self.pedal[ch],
+            0xB0 => pedal_of(ev.data1).is_some_and(|p| ev.data2 < 64 && self.pedal[ch][p]),
             _ => false,
+        }
+    }
+
+    /// The message the engine gets for `ev`, a release of what it holds: a pedal fully up
+    /// (a continuous pedal's first value below half would leave a half-pedalling piano
+    /// half damped, review 2, #15); a key's release as it is.
+    fn release_of(ev: MidiEvent) -> MidiEvent {
+        match ev.status & 0xF0 {
+            0xB0 => MidiEvent { data2: 0, ..ev },
+            _ => ev,
         }
     }
 }
@@ -390,16 +475,22 @@ pub fn route(
 ) -> bool {
     let consumed = tap.filter().learning() || tap.filter().takes(port, &ev);
     if consumed {
-        // A full ring drops the message: the interface is not draining (it is closing).
-        let _ = ui.push(Heard {
-            port: port.min(u8::MAX as usize) as u8,
-            event: ev,
-            at: Instant::now(),
-        });
+        // A full ring (an interface stalled) keeps the newest per address aside.
+        if ui
+            .push(Heard {
+                port: port.min(u8::MAX as usize) as u8,
+                event: ev,
+                at: Instant::now(),
+            })
+            .is_err()
+        {
+            tap.overflow(port, &ev);
+        }
         tap.wake();
         if state.releases(&ev) {
-            state.sent(&ev);
-            return engine.send(ev);
+            let release = PortState::release_of(ev);
+            state.sent(&release);
+            return engine.send(release);
         }
         engine.count();
         false
@@ -515,6 +606,7 @@ impl MidiInputs {
                 out.push(h);
             }
         }
+        self.tap.take_overflow(out);
     }
 }
 
@@ -866,4 +958,103 @@ mod tests {
         assert_eq!(output_for("Launchkey MK3 49 MIDI In", &outs), Some(3));
         assert_eq!(output_for("Arturia KeyStep", &outs), None);
     }
+
+    // ---- review 2 -----------------------------------------------------------------------
+
+    fn rig() -> (MidiTap, MidiSender, rtrb::Consumer<MidiEvent>) {
+        let tap = MidiTap::new(None);
+        tap.filter().set_learning(true);
+        let (p, engine) = RingBuffer::<MidiEvent>::new(64);
+        (tap, MidiSender::new(p), engine)
+    }
+
+    /// Review 2, #15: the pedal let go while its messages are taken reaches the engine as
+    /// fully up (a half-pedalling piano is not left half damped); reset all controllers
+    /// lets it go; the sostenuto pedal is kept like the sustain.
+    #[test]
+    fn a_pedal_let_go_while_taken_reaches_the_engine_fully_up() {
+        let (tap, sender, mut engine) = rig();
+        tap.filter().set_learning(false);
+        let (mut ui, _heard) = RingBuffer::<Heard>::new(64);
+        let mut held = PortState::default();
+        for cc in [64u8, 66] {
+            route(ev(0xB0, cc, 127), 0, &tap, &sender, &mut ui, &mut held);
+            assert_eq!(engine.pop().unwrap(), ev(0xB0, cc, 127));
+            tap.filter().set_learning(true);
+            route(ev(0xB0, cc, 50), 0, &tap, &sender, &mut ui, &mut held);
+            assert_eq!(engine.pop().unwrap(), ev(0xB0, cc, 0), "fully up");
+            route(ev(0xB0, cc, 20), 0, &tap, &sender, &mut ui, &mut held);
+            assert!(engine.pop().is_err(), "once");
+            tap.filter().set_learning(false);
+        }
+        route(ev(0xB0, 64, 127), 0, &tap, &sender, &mut ui, &mut held);
+        route(ev(0xB0, 121, 0), 0, &tap, &sender, &mut ui, &mut held);
+        while engine.pop().is_ok() {}
+        tap.filter().set_learning(true);
+        route(ev(0xB0, 64, 0), 0, &tap, &sender, &mut ui, &mut held);
+        assert!(engine.pop().is_err(), "reset let the pedal go already");
+    }
+
+    /// Review 2, #16: a full ring keeps the newest value of each control: the drain hands
+    /// it over after the ring's.
+    #[test]
+    fn a_full_ring_keeps_the_newest_value() {
+        let (tap, sender, _engine) = rig();
+        let (mut ui, mut heard) = RingBuffer::<Heard>::new(2);
+        let mut held = PortState::default();
+        for v in 1..=6u8 {
+            route(ev(0xB0, 7, v), 0, &tap, &sender, &mut ui, &mut held);
+        }
+        route(ev(0x90, 36, 100), 0, &tap, &sender, &mut ui, &mut held);
+        route(ev(0x80, 36, 0), 0, &tap, &sender, &mut ui, &mut held);
+        let mut out = Vec::new();
+        while let Ok(h) = heard.pop() {
+            out.push(h.event);
+        }
+        let mut late = Vec::new();
+        tap.take_overflow(&mut late);
+        let late: Vec<MidiEvent> = late.iter().map(|h| h.event).collect();
+        assert_eq!(out, vec![ev(0xB0, 7, 1), ev(0xB0, 7, 2)]);
+        assert!(late.contains(&ev(0xB0, 7, 6)), "{late:?}");
+        assert!(late.contains(&ev(0x80, 36, 0)), "the release: {late:?}");
+        let mut again = Vec::new();
+        tap.take_overflow(&mut again);
+        assert!(again.is_empty());
+    }
+
+    /// Review 2, #32: the wake runs on the tap's own thread, never on the callback's (it
+    /// may take a lock the interface holds for a frame).
+    #[test]
+    fn the_wake_runs_on_its_own_thread() {
+        let on = Arc::new(std::sync::Mutex::new(None));
+        let o = on.clone();
+        let tap = MidiTap::new(Some(Arc::new(move || {
+            *o.lock().unwrap() = Some(std::thread::current().id());
+        })));
+        let mut set = FilterSet::default();
+        set.take(0, Some(0), Control::Cc(74));
+        tap.filter().publish(&set);
+        let (p, _engine) = RingBuffer::<MidiEvent>::new(16);
+        let sender = MidiSender::new(p);
+        let (mut ui, _heard) = RingBuffer::<Heard>::new(16);
+        let mut held = PortState::default();
+        route(ev(0xB0, 74, 3), 0, &tap, &sender, &mut ui, &mut held);
+        let deadline = Instant::now() + std::time::Duration::from_secs(5);
+        while on.lock().unwrap().is_none() && Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        let woke = on.lock().unwrap().expect("woken");
+        assert_ne!(woke, std::thread::current().id());
+    }
+
+    /// Review 2, #13: the rearm is a swap, so a wake is never lost between the rearm and
+    /// the rings' reads.
+    #[test]
+    fn the_rearm_reports_a_pending_wake() {
+        let tap = MidiTap::new(None);
+        tap.wake();
+        assert!(tap.rearm(), "a wake was pending");
+        assert!(!tap.rearm());
+    }
+
 }

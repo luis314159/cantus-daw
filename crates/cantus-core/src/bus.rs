@@ -178,13 +178,18 @@ impl CommandBus {
         }
     }
 
-    /// Seal the current gesture only if the step on top is `key`'s: a gesture that ends on
-    /// its own clock (a controller's) never seals another's (a mouse drag going on).
+    /// Seal `key`'s gesture only: a gesture that ends on its own clock (a controller's)
+    /// never seals another's (a mouse drag going on). Its step is sealed wherever it is —
+    /// buried under another step, an undo bringing it back to the top must not let a later
+    /// gesture with the same key merge into it (review 2, #53).
     pub fn end_gesture_if(&mut self, key: MergeKey) {
-        if let Some(top) = self.undo.last_mut() {
-            if top.merge_key == Some(key) {
-                top.merge_key = None;
-            }
+        if let Some(e) = self
+            .undo
+            .iter_mut()
+            .rev()
+            .find(|e| e.merge_key == Some(key))
+        {
+            e.merge_key = None;
         }
     }
 
@@ -458,6 +463,25 @@ mod tests {
             .unwrap();
         assert_eq!(bus.history().len(), 3);
     }
+    /// Review 2, #20/#53: a gesture sealed while another step is on top is sealed all the
+    /// same — an undo that brings it back to the top never lets a later turn merge into it.
+    #[test]
+    fn a_buried_gesture_is_sealed_by_its_key() {
+        let mut bus = CommandBus::default();
+        let k = MergeKey::of(&"knob");
+        bus.execute_merging(Command::SetMasterPan { pan: 0.2 }, Origin::User, k)
+            .unwrap();
+        bus.execute(Command::SetMetronome { enabled: true }, Origin::User)
+            .unwrap();
+        bus.end_gesture_if(k);
+        bus.undo();
+        bus.execute_merging(Command::SetMasterPan { pan: 0.4 }, Origin::User, k)
+            .unwrap();
+        assert_eq!(bus.history().len(), 2, "two separate turns");
+        bus.undo();
+        assert_eq!(bus.project().master.pan, 0.2);
+    }
+
     use crate::model::TrackId;
 
     #[test]

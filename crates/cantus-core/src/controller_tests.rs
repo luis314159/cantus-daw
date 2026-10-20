@@ -889,3 +889,112 @@ fn a_hosted_mapping_is_dormant_under_another_plug_in() {
     p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(vital);
     assert!(m.alive(&p), "back: alive");
 }
+
+// ---- review 2 ------------------------------------------------------------------------
+
+/// Review 2, #8: *scale* moves a stepped target — it keeps its own unrounded position while
+/// nothing else moves the target, as an encoder does.
+#[test]
+fn scale_moves_a_stepped_target() {
+    let m = Mapping {
+        takeover: Takeover::Scale,
+        ..knob(MapMode::Absolute)
+    };
+    let q = |p: f32| (p * 3.0).round() / 3.0; // four steps
+    let mut st = DriveState::default();
+    let mut now = 1.0 / 3.0;
+    // The knob far from the target (0.9 against 0.33): scale, not jump.
+    let _ = m.read(115, true, Some(now), &mut st);
+    st.last_out = Some(now);
+    let mut moved = false;
+    for v in (40..115).rev() {
+        if let Drive::Set(p) = m.read(v, true, Some(now), &mut st) {
+            now = q(p);
+            st.last_out = Some(now);
+        }
+        if now == 0.0 {
+            moved = true;
+            break;
+        }
+    }
+    assert!(moved, "the stepped target came down a step: {now}");
+}
+
+/// Review 2, #2: a switch target driven by an absolute control takes no takeover — the
+/// first press of a latching button sets it.
+#[test]
+fn a_switch_takes_no_takeover() {
+    let m = Mapping {
+        takeover: Takeover::Pickup,
+        ..Mapping::new(
+            MappingId(1),
+            src(Control::Cc(20)),
+            MappingTarget::TrackMute(crate::TrackId(1)),
+            MapMode::Absolute,
+        )
+    };
+    let mut st = DriveState::default();
+    assert_eq!(m.read(127, true, Some(0.0), &mut st), Drive::Set(1.0));
+    assert_eq!(m.read(0, true, Some(1.0), &mut st), Drive::Set(0.0));
+}
+
+/// Review 2, #6: a program-change button whose keyboard sends bank select first is learnt
+/// as the program change.
+#[test]
+fn a_program_after_bank_select_is_learnt_as_the_program() {
+    let target = MappingTarget::TrackMute(crate::TrackId(1));
+    let heard = [
+        (Control::Cc(0), 0),
+        (Control::Cc(32), 0),
+        (Control::Program(4), 127),
+    ];
+    assert_eq!(
+        detect(&heard, &target),
+        Some((Control::Program(4), MapMode::Toggle))
+    );
+    // A real 14-bit pair is still one.
+    let pair = [(Control::Cc(0), 3), (Control::Cc(32), 5), (Control::Cc(0), 4)];
+    assert_eq!(detect(&pair, &target).map(|d| d.0), Some(Control::Cc14(0)));
+}
+
+/// Review 2, #1/#24/#51: a mapping learnt on another plug-in is not this one's — the map
+/// finds only the ones that fit the plug-in loaded now.
+#[test]
+fn the_map_finds_only_the_mappings_of_the_plug_in_loaded() {
+    use crate::external::{ExternalPlugin, PluginFormat};
+    let mut p = project();
+    let t = p.tracks[0].id;
+    let vital = ExternalPlugin::new(PluginFormat::Clap, "audio.vital", "Vital");
+    let surge = ExternalPlugin::new(PluginFormat::Clap, "org.surge", "Surge");
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(vital.clone());
+    let target = MappingTarget::Param(crate::AutoTarget::PluginInstrument { track: t, id: 17 });
+    let mut m = Mapping::new(
+        MappingId(1),
+        src(Control::Cc(1)),
+        target.clone(),
+        MapMode::Absolute,
+    );
+    m.plugin = target.plugin_of(&p);
+    let map = ControllerMap { mappings: vec![m] };
+    assert!(map.mappings[0].fits(&p));
+    assert_eq!(map.of_target_in(&target, &p).count(), 1);
+    p.track_mut(t).unwrap().instrument = crate::InstrumentSpec::External(surge);
+    assert!(!map.mappings[0].fits(&p));
+    assert_eq!(map.of_target_in(&target, &p).count(), 0);
+    assert_eq!(map.of_target(&target).count(), 1, "still there for an undo");
+}
+
+/// Review 2, #42: a hosted mapping's plug-in survives a save and a load.
+#[test]
+fn a_mappings_plug_in_survives_serde() {
+    use crate::external::PluginFormat;
+    let mut m = knob(MapMode::Absolute);
+    m.plugin = Some(PluginRef {
+        format: PluginFormat::Clap,
+        id: "org.test.synth".into(),
+    });
+    let text = serde_json::to_string(&m).unwrap();
+    assert!(text.contains("org.test.synth"), "{text}");
+    let back: Mapping = serde_json::from_str(&text).unwrap();
+    assert_eq!(back, m);
+}
