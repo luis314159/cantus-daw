@@ -20,6 +20,7 @@
 //! | 11 | this `process` takes 50 ms, once (late, not hung) |
 //! | 12 | its editor's window runs a nested message loop for 3 s, as a file dialog does |
 //! | 13 | the next `save_state` fails (once) |
+//! | 14 | an access violation in this `process` (a crash a handler sees, unlike an abort) |
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -36,8 +37,9 @@ pub const PUMP_SAVE: u32 = 10;
 pub const SLOW_ONCE: u32 = 11;
 pub const PUMP_WINDOW: u32 = 12;
 pub const FAIL_SAVE_ONCE: u32 = 13;
+pub const SEGV_PROCESS: u32 = 14;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 13.0;
+pub const LAST: f64 = 14.0;
 
 /// A nested loop the editor's window runs at its next timer (`PUMP_WINDOW`).
 static WINDOW_PUMP: AtomicBool = AtomicBool::new(false);
@@ -67,6 +69,10 @@ impl Fault {
             PUMP_WINDOW => {
                 self.0.store(0, Ordering::Release);
                 WINDOW_PUMP.store(true, Ordering::Release);
+            }
+            SEGV_PROCESS => {
+                // SAFETY: none — a write to an address no process maps, on purpose.
+                unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
             }
             _ => {}
         }

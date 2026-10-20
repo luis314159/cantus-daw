@@ -436,7 +436,10 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     // and only that job counts as late (#35).
     after_late.sort();
     let median = after_late[after_late.len() / 2];
-    assert!(median < Duration::from_millis(1), "after the late one: {median:?}");
+    assert!(
+        median < Duration::from_millis(1),
+        "after the late one: {median:?}"
+    );
     assert!(
         after_late.iter().all(|t| *t < deadline(128, SR, floor)),
         "a block waited out a deadline again: {after_late:?}"

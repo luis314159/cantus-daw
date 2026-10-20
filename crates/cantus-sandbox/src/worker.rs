@@ -38,6 +38,8 @@ pub type Half = Arc<Mutex<Option<Box<dyn AudioThread>>>>;
 
 /// One instance as the processing threads see it.
 pub struct Rt {
+    /// Cantus's number for the instance (what a crash in it is laid on).
+    pub instance: u32,
     pub slot: Arc<Slot>,
     pub completer: Completer,
     pub half: Half,
@@ -153,6 +155,7 @@ fn run(
     let frames = job.left.len() as u64;
     out.clear();
     out.lost_in = 0;
+    crate::platform::blame::set_current(rt.instance);
     let st = match rt.half.try_lock() {
         Ok(mut guard) => match guard.as_mut() {
             Some(audio) => {
@@ -179,6 +182,7 @@ fn run(
         },
         Err(_) => status::NO_AUDIO,
     };
+    crate::platform::blame::set_current(0);
     // SAFETY: still job `n`'s area, not yet completed.
     unsafe { rt.slot.put_result(out, st) };
     rt.slot.account(started.elapsed().as_nanos() as u64, frames);

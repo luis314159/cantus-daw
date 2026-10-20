@@ -56,6 +56,7 @@ struct At(&'static AtomicU32);
 impl At {
     fn enter(word: &'static AtomicU32, instance: u32) -> At {
         word.store(instance, Ordering::Release);
+        crate::platform::blame::set_current(instance);
         At(word)
     }
 }
@@ -63,6 +64,7 @@ impl At {
 impl Drop for At {
     fn drop(&mut self) {
         self.0.store(0, Ordering::Release);
+        crate::platform::blame::set_current(0);
     }
 }
 
@@ -232,6 +234,7 @@ impl Server {
             .map_err(failure)?;
         let half: Half = Arc::new(Mutex::new(Some(loaded.audio)));
         let rt = Arc::new(Rt {
+            instance,
             slot,
             completer,
             half: half.clone(),
@@ -600,6 +603,13 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
             .as_ptr()
             .add(cantus_host::bridge::sandbox::MAIN_AT) as *const AtomicU32)
     };
+    // SAFETY: as for `main_at`.
+    let crash_at: &'static AtomicU32 = unsafe {
+        &*(lobby_mem
+            .as_ptr()
+            .add(cantus_host::bridge::sandbox::CRASH_AT) as *const AtomicU32)
+    };
+    crate::platform::blame::install(crash_at);
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
     let wake = Wake::new();
     let (tx, rx) = mpsc::channel::<Option<(Request, Vec<u8>)>>();

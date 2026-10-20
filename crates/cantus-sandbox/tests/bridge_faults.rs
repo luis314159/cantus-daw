@@ -99,7 +99,9 @@ fn a_plugin_that_hangs_while_saving_answers_with_its_last_good_state_within_the_
         let good = main.save_state().expect("a state");
         arm(main.as_mut(), audio.as_mut(), fault_id, HANG_SAVE);
         let t = Instant::now();
-        let saved = main.save_state().expect("the last-good state, not an error");
+        let saved = main
+            .save_state()
+            .expect("the last-good state, not an error");
         assert!(
             t.elapsed() < Duration::from_secs(4),
             "{id}: the save waited {:?}",
@@ -135,7 +137,11 @@ fn a_plugin_that_hangs_or_dies_loading_a_state_keeps_the_state_asked_for() {
         assert_eq!(main.save_state().unwrap(), default, "{what}");
         // Gone, a state the project changes to (an undo) is still what it keeps.
         assert!(main.load_state(&changed).is_err());
-        assert_eq!(main.save_state().unwrap(), changed, "{what}: after the crash");
+        assert_eq!(
+            main.save_state().unwrap(),
+            changed,
+            "{what}: after the crash"
+        );
     }
 }
 
@@ -198,7 +204,8 @@ fn a_background_state_older_than_a_loaded_one_is_dropped() {
         main.idle();
         std::thread::sleep(Duration::from_millis(10));
     }
-    main.load_state(&first).expect("loads after the save's loop");
+    main.load_state(&first)
+        .expect("loads after the save's loop");
     for _ in 0..30 {
         main.idle();
         std::thread::sleep(Duration::from_millis(10));
@@ -257,13 +264,21 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
         if !saved_quickly && start.elapsed() > Duration::from_millis(1600) && told.is_none() {
             let t = Instant::now();
             assert_eq!(main.save_state().unwrap(), good);
-            assert!(t.elapsed() < Duration::from_millis(300), "{:?}", t.elapsed());
+            assert!(
+                t.elapsed() < Duration::from_millis(300),
+                "{:?}",
+                t.elapsed()
+            );
             saved_quickly = true;
         }
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(told.is_some(), "the hung helper was ended");
-    assert!(start.elapsed() < Duration::from_secs(7), "{:?}", start.elapsed());
+    assert!(
+        start.elapsed() < Duration::from_secs(7),
+        "{:?}",
+        start.elapsed()
+    );
 }
 
 /// A plug-in that runs a message loop of its own for 3 s (a modal dialog) is alive: with
@@ -283,7 +298,10 @@ fn a_modal_loop_while_saving_is_not_taken_for_a_hang() {
     let start = Instant::now();
     while start.elapsed() < Duration::from_millis(1200) {
         assert!(
-            !main.idle().iter().any(|n| matches!(n, Notice::Crashed { .. })),
+            !main
+                .idle()
+                .iter()
+                .any(|n| matches!(n, Notice::Crashed { .. })),
             "taken for hung while its modal loop ran"
         );
         std::thread::sleep(Duration::from_millis(10));
@@ -370,10 +388,16 @@ fn a_late_block_keeps_the_notes_and_values_of_the_blocks_that_pass_without_it() 
         }],
         &[note(NoteKind::Off { velocity: 0.0 })],
     );
-    assert!(took < Duration::from_millis(2), "a dry block waited {took:?}");
+    assert!(
+        took < Duration::from_millis(2),
+        "a dry block waited {took:?}"
+    );
     for _ in 0..3 {
         let (took, _) = block(audio.as_mut(), &[], &[]);
-        assert!(took < Duration::from_millis(2), "a dry block waited {took:?}");
+        assert!(
+            took < Duration::from_millis(2),
+            "a dry block waited {took:?}"
+        );
     }
     std::thread::sleep(Duration::from_millis(150));
     // Two seconds on: the note was let go, and the value is the plug-in's.
@@ -408,7 +432,10 @@ fn a_late_job_that_finished_is_not_a_hang_when_nothing_calls_again() {
     let start = Instant::now();
     while start.elapsed() < Duration::from_millis(1500) {
         assert!(
-            !main.idle().iter().any(|n| matches!(n, Notice::Crashed { .. })),
+            !main
+                .idle()
+                .iter()
+                .any(|n| matches!(n, Notice::Crashed { .. })),
             "a finished job was taken for a hang"
         );
         std::thread::sleep(Duration::from_millis(10));

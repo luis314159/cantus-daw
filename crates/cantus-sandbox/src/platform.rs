@@ -271,3 +271,97 @@ mod imp {
 }
 
 pub use imp::*;
+
+/// Which plug-in a crash is laid on (review #49): each thread says which instance it is
+/// calling into, and a crash handler — the unhandled-exception filter on Windows, a
+/// handler for the fatal signals on Unix — writes the faulting thread's into the lobby
+/// ([`cantus_host::bridge::sandbox::CRASH_AT`]) before the process dies. An abort on
+/// Windows (a fail-fast) passes no handler; Cantus then lays it on whatever was running.
+pub mod blame {
+    use std::cell::Cell;
+    use std::sync::atomic::{AtomicPtr, AtomicU32, Ordering};
+
+    thread_local! {
+        static CURRENT: Cell<u32> = const { Cell::new(0) };
+    }
+
+    static CRASH_AT: AtomicPtr<AtomicU32> = AtomicPtr::new(std::ptr::null_mut());
+
+    /// This thread calls into `instance` now (0: none).
+    pub fn set_current(instance: u32) {
+        let _ = CURRENT.try_with(|c| c.set(instance));
+    }
+
+    /// From a crash handler, on the faulting thread: its instance into the lobby.
+    fn record() {
+        let word = CRASH_AT.load(Ordering::Acquire);
+        if word.is_null() {
+            return;
+        }
+        if let Ok(n) = CURRENT.try_with(|c| c.get()) {
+            if n != 0 {
+                // SAFETY: `word` points into the lobby, mapped for the life of the process
+                // (`install`'s contract).
+                unsafe { &*word }.store(n, Ordering::Release);
+            }
+        }
+    }
+
+    /// Installs the crash handler, writing to `word`.
+    pub fn install(word: &'static AtomicU32) {
+        CRASH_AT.store(
+            word as *const AtomicU32 as *mut AtomicU32,
+            Ordering::Release,
+        );
+        imp::install();
+    }
+
+    #[cfg(windows)]
+    mod imp {
+        use windows_sys::Win32::System::Diagnostics::Debug::{
+            SetUnhandledExceptionFilter, EXCEPTION_POINTERS,
+        };
+
+        unsafe extern "system" fn filter(_info: *const EXCEPTION_POINTERS) -> i32 {
+            super::record();
+            0 // EXCEPTION_CONTINUE_SEARCH: the process ends as it would have
+        }
+
+        pub fn install() {
+            // SAFETY: a filter for this process's unhandled exceptions; it only stores an
+            // atomic and returns.
+            unsafe {
+                SetUnhandledExceptionFilter(Some(filter));
+            }
+        }
+    }
+
+    #[cfg(unix)]
+    mod imp {
+        extern "C" fn on_signal(_sig: libc::c_int) {
+            super::record();
+            // The handler was reset (SA_RESETHAND): returning re-raises the fault (or, for
+            // SIGABRT, `abort` raises it again), and the process ends as it would have.
+        }
+
+        pub fn install() {
+            for sig in [
+                libc::SIGSEGV,
+                libc::SIGBUS,
+                libc::SIGILL,
+                libc::SIGFPE,
+                libc::SIGABRT,
+            ] {
+                // SAFETY: a zeroed sigaction with our handler, reset to the default after
+                // it runs once; the handler only stores an atomic.
+                unsafe {
+                    let mut sa: libc::sigaction = std::mem::zeroed();
+                    sa.sa_sigaction = on_signal as extern "C" fn(libc::c_int) as usize;
+                    sa.sa_flags = libc::SA_RESETHAND | libc::SA_NODEFER;
+                    libc::sigemptyset(&mut sa.sa_mask);
+                    libc::sigaction(sig, &sa, std::ptr::null_mut());
+                }
+            }
+        }
+    }
+}

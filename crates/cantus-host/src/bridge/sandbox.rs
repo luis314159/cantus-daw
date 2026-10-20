@@ -61,6 +61,10 @@ pub const LOBBY_BYTES: usize = 4096;
 /// into (0 between calls): what names the plug-in that crashed it (review #49).
 pub const MAIN_AT: usize = 2048;
 
+/// Where the helper's crash handler writes the instance the faulting thread was calling
+/// into, as the process dies (0: no handler ran, as for an abort on Windows).
+pub const CRASH_AT: usize = 2052;
+
 /// The time limits of a pool's helpers (tests shorten them).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Limits {
@@ -122,9 +126,18 @@ impl LobbyMem {
 
     /// The instance the helper's main thread is calling into now, 0 for none ([`MAIN_AT`]).
     pub fn main_at(&self) -> u32 {
-        // SAFETY: an aligned u32 inside the region, which `self` keeps mapped; the helper
-        // writes it as an atomic.
-        let word = unsafe { &*(self.mem.as_ptr().add(MAIN_AT) as *const AtomicU32) };
+        self.word(MAIN_AT)
+    }
+
+    /// The instance the helper crashed in, if its crash handler said ([`CRASH_AT`]).
+    pub fn crash_at(&self) -> u32 {
+        self.word(CRASH_AT)
+    }
+
+    fn word(&self, at: usize) -> u32 {
+        // SAFETY: an aligned u32 inside the region (`at` < `LOBBY_BYTES`), which `self`
+        // keeps mapped; the helper writes it as an atomic.
+        let word = unsafe { &*(self.mem.as_ptr().add(at) as *const AtomicU32) };
         word.load(Ordering::Acquire)
     }
 }
@@ -439,8 +452,14 @@ impl Sandbox {
     fn find_culprits(&self, culprit: Option<u32>) -> HashSet<u32> {
         let mut out = HashSet::new();
         out.extend(culprit);
-        let at = self.lobby.main_at();
         let instances = lock(&self.instances);
+        // The crash handler named the faulting thread's plug-in: that one alone.
+        let crashed = self.lobby.crash_at();
+        if culprit.is_none() && crashed != 0 && instances.contains_key(&crashed) {
+            out.insert(crashed);
+            return out;
+        }
+        let at = self.lobby.main_at();
         if at != 0 && instances.contains_key(&at) {
             out.insert(at);
         }
