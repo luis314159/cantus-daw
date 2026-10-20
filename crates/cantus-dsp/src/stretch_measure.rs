@@ -49,6 +49,12 @@ pub fn attack_frames(x: &[f32], rate: f32, from: usize, to: usize) -> Option<usi
     Some(hi.saturating_sub(lo))
 }
 
+/// Half the vocoder's long frame at `rate` (frames): how far before a hit a frame reaches,
+/// so how far back pre-echo is measured (round 29's third review: 25 ms saw a third of it).
+pub fn half_frame(rate: f32) -> usize {
+    super::pv::frame_len(rate) / 2
+}
+
 /// Energy before a transient relative to the transient itself, dB: the stretch
 /// `onset − window .. onset − guard` against `onset .. onset + window`. A clean stretch
 /// leaves the first far below the second (pre-echo is the smear a long window spreads in

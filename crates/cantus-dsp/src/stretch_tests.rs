@@ -247,11 +247,13 @@ fn attacks_stay_sharp_and_nothing_rings_before_them() {
     // Hits half a second apart: a tail has died away before the next (what is measured
     // before a hit is smear, not the hit before).
     let (x, at) = hits(192_000, 6_000, 24_000, 7);
+    let half = half_frame(SR);
     for mode in [Mode::Complex, Mode::Rhythm] {
         for stretch in [0.5, 0.8, 1.25, 2.0] {
             let map = stretched(stretch);
             let len = (192_000.0 * stretch) as usize;
             let out = render(&[&x], SR, &req(mode, &map, len, 0.0, &at));
+            let mut pres = Vec::new();
             for &s in &at[1..at.len() - 1] {
                 let o = map.output(s) as usize;
                 let att = attack_frames(&out[0], SR, o - 240, o + 960).unwrap();
@@ -260,9 +262,19 @@ fn attacks_stay_sharp_and_nothing_rings_before_them() {
                     att <= att0 + 48,
                     "{mode:?} ×{stretch}: attack {att} frames (source {att0})"
                 );
-                let pre = pre_echo_db(&out[0], o, 1_200, 48);
-                assert!(pre < -24.0, "{mode:?} ×{stretch}: pre-echo {pre} dB at {o}");
+                // Over half a vocoder frame (what a frame reaches before the hit): every
+                // hit under −25 dB, their median under −30 (ADR 0061 §9; round 29's third
+                // review: the test held −24 over 25 ms).
+                let pre = pre_echo_db(&out[0], o, half, 48);
+                assert!(pre < -25.0, "{mode:?} ×{stretch}: pre-echo {pre} dB at {o}");
+                pres.push(pre);
             }
+            pres.sort_by(f32::total_cmp);
+            let median = 0.5 * (pres[(pres.len() - 1) / 2] + pres[pres.len() / 2]);
+            assert!(
+                median < -30.0,
+                "{mode:?} ×{stretch}: a median pre-echo of {median:.1} dB ({pres:?})"
+            );
         }
     }
 }

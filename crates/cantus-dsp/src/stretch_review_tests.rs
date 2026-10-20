@@ -151,7 +151,8 @@ fn attacks_stay_sharp_under_a_tempo_ramp() {
                     att <= att0 + 48,
                     "{mode:?} {k0}→{k1}: attack {att} frames (source {att0})"
                 );
-                let pre = pre_echo_db(&out[0], o, 1_200, 48);
+                // Over half a vocoder frame (round 29's third review: 25 ms saw a third).
+                let pre = pre_echo_db(&out[0], o, half_frame(SR), 48);
                 assert!(pre < -30.0, "{mode:?} {k0}→{k1}: pre-echo {pre} dB at {o}");
             }
         }
@@ -307,7 +308,17 @@ fn a_window_of_a_long_file_renders_as_the_whole_file_would() {
                 .zip(&whole[0])
                 .map(|(a, b)| (a - b).abs())
                 .fold(0.0f32, f32::max);
-            assert!(worst < 1e-4, "{mode:?} {name}: {worst} from the whole file");
+            // Re-pitch reads only what it plays: to the bit; the others to the rounding
+            // of their arithmetic (3e-8 to 6e-8 measured: ADR 0061 §11).
+            let bound = if mode == Mode::Repitch {
+                f32::MIN_POSITIVE
+            } else {
+                1e-6
+            };
+            assert!(
+                worst < bound,
+                "{mode:?} {name}: {worst} from the whole file"
+            );
         }
     }
 }
@@ -611,12 +622,17 @@ fn a_complex_renders_hits_keep_their_level_slowed_and_sped_up() {
                 peaks.push(2.0 * db(pk(got), pk(src)));
                 energies.push(db(en(got), en(src)));
             }
-            let mean = |v: &[f64]| v.iter().sum::<f64>() / v.len().max(1) as f64;
+            // Each hit, not their mean (round 29's third review: ±1 dB alternating hits
+            // passed a mean).
+            let worst = |v: &[f64]| v.iter().fold(0.0f64, |m, x| m.max(x.abs()));
             assert!(peaks.len() >= 4);
-            let (p, e) = (mean(&peaks), mean(&energies));
+            let (p, e) = (worst(&peaks), worst(&energies));
+            // ADR 0061 §11: drum hits within 0.35 dB each (0.21 and 0.31 measured, the
+            // peak), hats within 0.05 (0.01).
+            let bound = if every == 6_000 { 0.05 } else { 0.35 };
             assert!(
-                p.abs() < 0.3 && e.abs() < 0.3,
-                "hits every {every} at ×{k}: peak {p:+.2} dB, energy {e:+.2} dB"
+                p < bound && e < bound,
+                "hits every {every} at ×{k}: peak {p:+.2} dB, energy {e:+.2} dB (the worst)"
             );
         }
     }
@@ -647,7 +663,7 @@ fn dense_hits_keep_half_a_frame_before_each_clean() {
                 worst = worst.max(pre);
             }
             assert!(
-                worst < -30.0,
+                worst < -34.0,
                 "hats every {every} at ×{k}: {worst:.1} dB of pre-echo"
             );
         }
@@ -708,7 +724,8 @@ fn complex_follows_a_moving_pitch() {
             let map = Map::new(vec![(0.0, 0.0), (len as f64, len as f64 * k)]).unwrap();
             let out = render(&[x], SR, &req(Mode::Complex, &map, len, 0.0, &[]));
             let e = track_error(x, &out[0], &map, 12_000, len - 12_000);
-            assert!(e < 4.0, "{name} at ×{k}: {e:.2} cents from the source");
+            let bound = if name == "vibrato" { 2.6 } else { 1.5 };
+            assert!(e < bound, "{name} at ×{k}: {e:.2} cents from the source");
         }
     }
 }
@@ -770,6 +787,7 @@ fn a_stereo_image_over_independent_noise_is_kept() {
         let map = Map::new(vec![(0.0, 0.0), (len as f64, n as f64)]).unwrap();
         let out = render(&[&l, &r], SR, &req(Mode::Complex, &map, len, 0.0, &[]));
         let win = 9_600;
+        let mut most = 0.0f64;
         for &(hz, d) in &parts {
             let mut at = len / 8;
             while at + win < len - len / 8 {
@@ -780,8 +798,9 @@ fn a_stereo_image_over_independent_noise_is_kept() {
                 let off = got as f64 - own;
                 let off =
                     off - 2.0 * std::f64::consts::PI * (off / (2.0 * std::f64::consts::PI)).round();
+                most = most.max(off.abs());
                 assert!(
-                    off.abs() < 0.1,
+                    off.abs() < 0.04,
                     "×{stretch} {hz} Hz at {at}: {got:.3} rad, the source's {own:.3} ({d})"
                 );
                 at += win;

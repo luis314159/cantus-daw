@@ -205,3 +205,14 @@ fn the_rig_measures_a_chorda_that_sounds_its_voices() {
     );
     assert_eq!(run.voices, 8, "eight voices sounding");
 }
+
+/// Round 29's third review (finding 31): a row whose baseline is zero (a hit's place: 0
+/// frames) regresses when it moves a unit, the runs apart — never "0 % worse" whatever.
+#[test]
+fn a_zero_baseline_is_an_absolute_bound() {
+    let base = report(&[("warp.place", Better::Lower, [0.0, 0.0, 0.0])]);
+    let now = report(&[("warp.place", Better::Lower, [2.0, 3.0, 3.0])]);
+    let v = compare::compare(&now, &base, 25.0);
+    assert_eq!(v[0].status, Status::Regressed, "{v:?}");
+    assert!(!compare::failed(&compare::compare(&base, &base, 25.0)));
+}

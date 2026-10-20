@@ -123,6 +123,9 @@ fn the_corpus_is_within_one_bpm() {
     let (mut metro, mut played) = (Tally::default(), Tally::default());
     // (beats checked, all tracked, downbeats checked, on the bar line, the wrong ones)
     let mut played_beats: (usize, usize, usize, usize, Vec<(f64, usize)>) = Default::default();
+    // 3/4 and 6/8 files' first downbeat, analysed in 4/4 as import does: on one of their
+    // own bar lines, of how many (reported).
+    let mut odd_bars = (0usize, 0usize);
     let mut bpm = 60.0;
     while bpm <= 200.0 {
         for kind in 0..7 {
@@ -167,7 +170,9 @@ fn the_corpus_is_within_one_bpm() {
                 _ => (0, 4, true),
             };
             if kind >= 3 && at_beats && truths.iter().any(|b| near(got, *b)) {
-                let g = analyse(&detect(&m.audio, m.rate), m.rate, m.audio.len(), bpb);
+                // As the import analyses every file: in 4/4 (`analyse_channels`) — never
+                // told the file's own metre (round 29's third review).
+                let g = analyse(&detect(&m.audio, m.rate), m.rate, m.audio.len(), 4);
                 let t = &mut played_beats;
                 t.0 += 1;
                 let tol = 0.035 * m.rate as f64;
@@ -179,12 +184,27 @@ fn the_corpus_is_within_one_bpm() {
                         <= tol
                 });
                 t.1 += usize::from(tracked);
-                t.2 += 1;
                 let first = m.beats[pickup];
-                let on = g.first_downbeat().is_some_and(|d| (d - first).abs() <= tol);
-                t.3 += usize::from(on);
-                if !on {
-                    t.4.push((bpm, kind));
+                if metre == Metre::FourFour {
+                    t.2 += 1;
+                    let on = g.first_downbeat().is_some_and(|d| (d - first).abs() <= tol);
+                    t.3 += usize::from(on);
+                    if !on {
+                        t.4.push((bpm, kind));
+                    }
+                } else {
+                    odd_bars.0 += 1;
+                    let bars: Vec<f64> = m
+                        .beats
+                        .iter()
+                        .skip(pickup)
+                        .step_by(bpb as usize)
+                        .copied()
+                        .collect();
+                    let on = g
+                        .first_downbeat()
+                        .is_some_and(|d| bars.iter().any(|b| (d - b).abs() <= tol));
+                    odd_bars.1 += usize::from(on);
                 }
             }
             let t = if kind < 3 { &mut metro } else { &mut played };
@@ -228,12 +248,15 @@ fn the_corpus_is_within_one_bpm() {
     played.wrong_downbeats = played_beats.4;
     eprintln!(
         "corpus played: beats tracked within 35 ms in {}/{} right answers; the downbeat on \
-         the bar line after the pick-up in {}/{} (wrong: {:?})",
+         the bar line after the pick-up in {}/{} of the 4/4 files (wrong: {:?}); a 3/4 or \
+         6/8 file's on one of its own bar lines in {}/{}, analysed in 4/4 as import does",
         played.beats_ok,
         played.beats_checked,
         played.downbeats_ok,
         played.downbeats_checked,
-        played.wrong_downbeats
+        played.wrong_downbeats,
+        odd_bars.1,
+        odd_bars.0
     );
     for (name, t) in [("metronomic", &metro), ("played", &played)] {
         eprintln!(
@@ -279,6 +302,14 @@ fn the_corpus_is_within_one_bpm() {
         played.downbeats_ok,
         played.downbeats_checked,
         played.wrong_downbeats
+    );
+    // A 3/4 or 6/8 file, analysed in 4/4: its first downbeat on one of its own bar lines
+    // in four in five at least (36 of 42 measured).
+    assert!(
+        odd_bars.1 * 100 >= odd_bars.0 * 80,
+        "3/4 and 6/8 downbeats {}/{}",
+        odd_bars.1,
+        odd_bars.0
     );
     assert!(
         played.wrong_downbeats.iter().all(|w| w.1 != 4),

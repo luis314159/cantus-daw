@@ -249,7 +249,7 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
                 if let Some(a) = m::attack_frames(&y[0], SR, o.saturating_sub(240), o + 960) {
                     att.push(a as f64);
                 }
-                pre.push(m::pre_echo_db(&y[0], o, 1_200, 48) as f64);
+                pre.push(m::pre_echo_db(&y[0], o, m::half_frame(SR), 48) as f64);
                 let si = s as usize;
                 if let (Some(r), Some(r0)) = (
                     m::rise_at(&y[0], o.saturating_sub(400), o + 400, 0.25),
@@ -543,7 +543,7 @@ fn transients(x: &[f32], y: &[f32], map: &Map, onsets: &[f64]) -> (Vec<f64>, Vec
         ) {
             att.push(a as f64 - a0 as f64);
         }
-        pre.push(m::pre_echo_db(y, o, 1_200, 48) as f64);
+        pre.push(m::pre_echo_db(y, o, m::half_frame(SR), 48) as f64);
         if let (Some(r), Some(r0)) = (
             m::rise_at(y, o - 48, o + 400, 0.25),
             m::rise_at(x, si - 48, si + 400, 0.25),
