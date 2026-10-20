@@ -1036,6 +1036,9 @@ pub struct Project {
     /// The named markers (schema 33, ADR 0060), sorted by position, then id.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub markers: Vec<crate::tempo::Marker>,
+    /// The project's MIDI controller mappings (schema 35, ADR 0062): empty without any.
+    #[serde(default, skip_serializing_if = "crate::controller::ControllerMap::is_empty")]
+    pub controllers: crate::controller::ControllerMap,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1079,6 +1082,7 @@ impl Project {
             tempo_points: Vec::new(),
             metre_changes: Vec::new(),
             markers: Vec::new(),
+            controllers: crate::controller::ControllerMap::default(),
             next_id: 1,
         }
     }

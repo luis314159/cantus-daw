@@ -139,6 +139,21 @@ pub enum Command {
     SetMarker {
         marker: crate::tempo::Marker,
     },
+    // --- MIDI controller mappings (round 29, ADR 0062) ---------------------------------
+    /// A controller mapping added to the project's map at `index` (clamped to its end).
+    InsertMapping {
+        index: usize,
+        mapping: Box<crate::controller::Mapping>,
+    },
+    /// A controller mapping taken out of the project's map.
+    RemoveMapping {
+        id: crate::controller::MappingId,
+    },
+    /// A controller mapping, found by its id, replaced whole: learnt again, its target,
+    /// mode, range, bend, takeover, feedback or sensitivity changed.
+    SetMapping {
+        mapping: Box<crate::controller::Mapping>,
+    },
     SetMasterGain {
         gain_db: f32,
     },
@@ -740,6 +755,9 @@ impl Command {
             SetMetreAt { .. } => "cmd.tempo.set_metre",
             RemoveMetreAt { .. } => "cmd.tempo.remove_metre",
             MoveMetre { .. } => "cmd.tempo.move_metre",
+            InsertMapping { .. } => "cmd.controllers.add",
+            RemoveMapping { .. } => "cmd.controllers.remove",
+            SetMapping { .. } => "cmd.controllers.set",
             AddMarker { .. } => "cmd.tempo.add_marker",
             RemoveMarker { .. } => "cmd.tempo.remove_marker",
             SetMarker { .. } => "cmd.tempo.set_marker",
@@ -877,6 +895,7 @@ impl Command {
             | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
             (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
             (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
+            (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             (
                 SetClipAudio {
@@ -2389,6 +2408,11 @@ impl Command {
             AddMarker { marker } => crate::tempo::edit::apply_add_marker(project, marker),
             RemoveMarker { id } => crate::tempo::edit::apply_remove_marker(project, id),
             SetMarker { marker } => crate::tempo::edit::apply_set_marker(project, marker),
+            InsertMapping { index, mapping } => {
+                crate::controller::apply_insert(project, index, *mapping)
+            }
+            RemoveMapping { id } => crate::controller::apply_remove(project, id),
+            SetMapping { mapping } => crate::controller::apply_set(project, *mapping),
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,

@@ -728,6 +728,70 @@ fn main() {
             });
         }
     }
+    // Schema 35 (round 29, controllers — ADR 0062): six controller mappings — a knob on
+    // the delay's mix with a range and a bend, a 14-bit fader on strip 1 picking up with
+    // feedback, a sign-bit encoder on the tempo, a pad (the second port of its name)
+    // toggling the track's mute, a button firing *play*, and one whose target is gone.
+    {
+        use cantus_core::controller::*;
+        let keys = |ordinal| PortRef {
+            name: "Keystation 49".into(),
+            ordinal,
+        };
+        let delay = p.strip(strip1).unwrap().effects[0].id;
+        let track = p.tracks[0].id;
+        let src = |port, channel, control| MidiSource {
+            port,
+            channel,
+            control,
+        };
+        let mut knob = Mapping::new(
+            MappingId(1),
+            src(keys(0), Some(0), Control::Cc(74)),
+            MappingTarget::Param(AutoTarget::Effect {
+                effect: delay,
+                key: "mix".into(),
+            }),
+            MapMode::Absolute,
+        );
+        knob.min = 0.1;
+        knob.max = 0.9;
+        knob.curve = 0.4;
+        let mut fader = Mapping::new(
+            MappingId(2),
+            src(keys(0), Some(0), Control::Cc14(7)),
+            MappingTarget::Param(AutoTarget::StripGain(strip1)),
+            MapMode::Absolute,
+        );
+        fader.feedback = true;
+        let mut tempo = Mapping::new(
+            MappingId(3),
+            src(PortRef::any(), None, Control::Cc(16)),
+            MappingTarget::Tempo,
+            MapMode::Relative(Encoding::SignBit),
+        );
+        tempo.sensitivity = 0.5;
+        tempo.takeover = Takeover::Jump;
+        let pad = Mapping::new(
+            MappingId(4),
+            src(keys(1), Some(9), Control::Note(36)),
+            MappingTarget::TrackMute(track),
+            MapMode::Toggle,
+        );
+        let play = Mapping::new(
+            MappingId(5),
+            src(keys(0), Some(0), Control::Cc(41)),
+            MappingTarget::Action("play-pause".into()),
+            MapMode::Trigger,
+        );
+        let gone = Mapping::new(
+            MappingId(6),
+            src(keys(0), Some(0), Control::Cc(75)),
+            MappingTarget::TrackSolo(TrackId(999_999)),
+            MapMode::Toggle,
+        );
+        p.controllers.mappings = vec![knob, fader, tempo, pad, play, gone];
+    }
     // Schema 36 (round 29, isolation, ADR 0063): where a hosted plug-in runs — the absent
     // insert of schema 14 *Individually*, the hosted synth of schema 20 *Within Cantus*.
     for slot in p.all_effects_mut() {

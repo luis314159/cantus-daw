@@ -1739,6 +1739,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut tempoed = [0usize; 12];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
+    // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
+    let mut mappings = [0usize; 3];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         let mut bus = CommandBus::default();
@@ -1782,6 +1784,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::Batch { label_key, .. } if label_key == "cmd.comp_window_copies" => {
                     Some(3)
                 }
+                _ => None,
+            };
+            let mapped = match &cmd {
+                Command::InsertMapping { .. } => Some(0),
+                Command::RemoveMapping { .. } => Some(1),
+                Command::SetMapping { .. } => Some(2),
                 _ => None,
             };
             let isolation = match &cmd {
@@ -1840,6 +1848,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = isolation {
                     isolated[k] += 1;
+                }
+                if let Some(k) = mapped {
+                    mappings[k] += 1;
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1914,6 +1925,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         tempoed.iter().all(|n| *n > 0),
         "tempo commands never applied: {tempoed:?}"
+    );
+    assert!(
+        mappings.iter().all(|n| *n > 0),
+        "controller mapping commands never applied: {mappings:?}"
     );
 }
 
@@ -2710,10 +2725,127 @@ fn round29_warp_command(rng: &mut Lcg, _project: &mut Project) -> Command {
     }
 }
 
-/// Round 29, controllers (ADR 0062): controller mappings stored in the project.
-fn round29_controller_command(rng: &mut Lcg, _project: &mut Project) -> Command {
-    Command::SetProjectName {
-        name: format!("P{}", rng.below(100)),
+/// Round 29, controllers (ADR 0062): controller mappings stored in the project — added at
+/// any index, removed, replaced whole (a source learnt again, a target, a mode, a range,
+/// a bend, takeover, feedback), and the refused ones (a malformed mapping, an id taken or
+/// unknown).
+fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::controller::*;
+    // One draw from the shared generator, as the contract's placeholder took; the rest
+    // from our own.
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x5c0_77e1);
+    let maps = project.controllers.mappings.clone();
+    let mut targets = vec![
+        MappingTarget::Param(AutoTarget::MasterGain),
+        MappingTarget::Tempo,
+        MappingTarget::Action("play-pause".into()),
+        MappingTarget::SelectedTrack(DeskParam::Volume),
+        MappingTarget::DeviceParam(3),
+    ];
+    for t in &project.tracks {
+        targets.push(MappingTarget::TrackMute(t.id));
+        targets.push(MappingTarget::TrackArm(t.id));
+        targets.push(MappingTarget::Param(AutoTarget::TrackPan(t.id)));
+    }
+    for s in &project.strips {
+        targets.push(MappingTarget::StripSolo(s.id));
+        targets.push(MappingTarget::Param(AutoTarget::StripGain(s.id)));
+    }
+    for (_, e) in project.all_effects() {
+        targets.push(MappingTarget::EffectBypass(e.id));
+        targets.push(MappingTarget::EffectMix(e.id));
+    }
+    // A target since removed: kept dormant.
+    targets.push(MappingTarget::TrackSolo(TrackId(u64::MAX - 1)));
+    let controls = [
+        Control::Cc(21),
+        Control::Cc14(7),
+        Control::Note(36),
+        Control::PitchBend,
+        Control::Program(5),
+        Control::ChannelPressure,
+        Control::PolyPressure(60),
+    ];
+    let modes = [
+        MapMode::Absolute,
+        MapMode::Relative(Encoding::TwosComplement),
+        MapMode::Relative(Encoding::SignBit),
+        MapMode::Toggle,
+        MapMode::Momentary,
+        MapMode::Trigger,
+    ];
+    let takeovers = [Takeover::Jump, Takeover::Pickup, Takeover::Scale];
+    let make = |rng: &mut Lcg, id: MappingId| Mapping {
+        id,
+        source: MidiSource {
+            port: PortRef {
+                name: ["", "Keys", "Pads"][rng.below(3) as usize].into(),
+                ordinal: rng.below(2) as u8,
+            },
+            channel: (rng.below(3) > 0).then(|| rng.below(16) as u8),
+            control: controls[rng.below(controls.len() as u64) as usize],
+        },
+        target: targets[rng.below(targets.len() as u64) as usize].clone(),
+        mode: modes[rng.below(modes.len() as u64) as usize],
+        min: rng.f32(0.0, 1.0),
+        max: rng.f32(0.0, 1.0),
+        curve: rng.f32(-1.0, 1.0),
+        takeover: takeovers[rng.below(3) as usize],
+        feedback: rng.below(2) == 0,
+        sensitivity: rng.f32(0.25, 4.0),
+    };
+    let pick = |rng: &mut Lcg| maps.get(rng.below(maps.len().max(1) as u64) as usize).cloned();
+    match rng.below(10) {
+        // Malformed: refused, nothing changes.
+        0 => {
+            let id = MappingId(rng.below(1 << 20) + 1);
+            let mut m = make(rng, id);
+            match rng.below(3) {
+                0 => m.min = 2.0,
+                1 => m.source.channel = Some(16),
+                _ => m.sensitivity = 0.0,
+            }
+            Command::InsertMapping {
+                index: 0,
+                mapping: Box::new(m),
+            }
+        }
+        1 | 2 => match pick(rng) {
+            Some(m) => Command::RemoveMapping { id: m.id },
+            None => Command::RemoveMapping {
+                id: MappingId(u64::MAX),
+            },
+        },
+        3..=5 => match pick(rng) {
+            Some(old) => {
+                let mut m = make(rng, old.id);
+                if rng.below(2) == 0 {
+                    // Learnt again: only the source changes.
+                    m = Mapping {
+                        source: m.source,
+                        ..old
+                    };
+                }
+                Command::SetMapping {
+                    mapping: Box::new(m),
+                }
+            }
+            None => Command::SetMapping {
+                mapping: Box::new(make(rng, MappingId(u64::MAX))),
+            },
+        },
+        _ => {
+            // An id already in the map now and then: refused.
+            let id = match pick(rng) {
+                Some(m) if rng.below(6) == 0 => m.id,
+                // Not from the project's ids: the other arms' draws stay where they were.
+                _ => MappingId((1 << 40) + rng.below(1 << 30)),
+            };
+            Command::InsertMapping {
+                index: rng.below(maps.len() as u64 + 2) as usize,
+                mapping: Box::new(make(rng, id)),
+            }
+        }
     }
 }
 

@@ -1,1 +1,7 @@
 # controllers — ronda 29: MIDI learn y mapeo de controladores. Cada clave de controllers.en.txt tiene aquí su gemela.
+
+# Etiquetas de deshacer (cmd.*)
+cmd.controllers.add = asignación de controlador añadida
+cmd.controllers.remove = asignación de controlador quitada
+cmd.controllers.set = cambio de asignación de controlador
+cmd.controllers.gesture = movimiento del controlador

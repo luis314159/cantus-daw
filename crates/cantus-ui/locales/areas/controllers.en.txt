@@ -1,1 +1,7 @@
 # controllers — round 29: MIDI learn and controller mapping. Every key here needs its twin in controllers.es.txt.
+
+# Undo labels (cmd.*)
+cmd.controllers.add = controller mapping added
+cmd.controllers.remove = controller mapping removed
+cmd.controllers.set = controller mapping change
+cmd.controllers.gesture = controller move
