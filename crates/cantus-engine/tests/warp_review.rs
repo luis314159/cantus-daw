@@ -260,7 +260,10 @@ fn next_data(cache: &mut SampleCache, p: &Project, not: &Arc<SampleData>) -> Arc
 /// A 440 Hz tone with a click a second on top, four seconds at 48 kHz.
 fn tone_and_clicks() -> Vec<f32> {
     let mut x: Vec<f32> = (0..48_000 * 4)
-        .map(|i| 0.3 * cantus_dsp::math::sin(2.0 * std::f64::consts::PI * 440.0 * i as f64 / 48_000.0) as f32)
+        .map(|i| {
+            0.3 * cantus_dsp::math::sin(2.0 * std::f64::consts::PI * 440.0 * i as f64 / 48_000.0)
+                as f32
+        })
         .collect();
     for k in 1..4 {
         x[k * 48_000] += 0.9;
