@@ -478,16 +478,18 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
   double-click the lane, or right-click the ruler ▸ *Add a marker here*); click a marker
   to put the playhead there; **double-click** it to rename it; drag it along the grid;
   markers on one tick sit side by side; right-click for *Rename…*, *Colour…*, *Loop to the next
-  marker*, *Select to the next marker*, *Export to the next marker…* and *Remove*.
-  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+,` loops between the
+  marker*, *Select to the next marker*, *Export to the next marker…* and *Remove the marker*.
+  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+O` loops between the
   markers around the playhead. The lane's menu lists every marker under *Go to*.
 - **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
   two markers by name (two at different places: the dialog says so otherwise, and never
   exports the whole song instead).
 - Everything follows the tempo: notes, audio clips (an unwarped audio clip plays at its
-  natural speed, laid on the timeline from where its file begins — split it, trim it,
-  comp it anywhere and every piece plays on where it was; move or copy it elsewhere and it
-  plays the same part of its file), automation, modulators, synced effects, the click
+  natural speed from the moment of its file at its start — split it, trim it, comp it
+  anywhere and every piece plays on where it was; move or copy it elsewhere and it plays
+  the same part of its file, several clips moved together still meeting; a tempo change
+  never moves what a clip plays at its start, though a clip that spans the change plays
+  on at its own speed — warp it to keep it on its bars), automation, modulators, synced effects, the click
   (the first beat of every bar accented; a bar of 7/8 counted in eighths) and plug-ins
   made by others.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth

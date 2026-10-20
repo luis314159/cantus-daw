@@ -719,8 +719,9 @@ fn common() -> Vec<(Action, Binding)> {
         (TapTempo, Binding::shift(Key::T)),
         // Markers (round 29, ADR 0060): Alt and a key, so the typing piano never takes
         // them — M for marker; Alt+, and Alt+. step to the one before and after (Logic's
-        // keys, with Alt); Alt+Shift+, loops between the markers around the playhead (the
-        // marker keys with Shift — review 2: Alt+Shift+L is Select linked's in every preset).
+        // keys, with Alt); Alt+Shift+O loops between the markers around the playhead — a
+        // letter, the same key on every layout (review 3: Shift+, is ';' on a Spanish or
+        // German keyboard, and Alt+Shift+L is Select linked's in every preset).
         (AddMarker, Binding::alt(Key::M)),
         (PreviousMarker, Binding::alt(Key::Comma)),
         (NextMarker, Binding::alt(Key::Period)),
@@ -728,7 +729,7 @@ fn common() -> Vec<(Action, Binding)> {
             LoopBetweenMarkers,
             Binding {
                 shift: true,
-                ..Binding::alt(Key::Comma)
+                ..Binding::alt(Key::O)
             },
         ),
         // Alt+Shift+M selects between them; Alt+Shift+T shows the tempo track.
@@ -1388,6 +1389,39 @@ mod tests {
     /// Review 2 (findings 5, 14, 31): every action new in version 9 has a key in every
     /// shipped preset — a later binding of the same chord (Select linked) once took Loop
     /// between markers' away in all four.
+    /// Review 3 (findings 12, 23, 38): *Loop between markers* fires from the event a
+    /// Spanish (or German, or French) keyboard sends — a letter is the same key there.
+    #[test]
+    fn loop_between_markers_fires_on_every_layout() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            let ctx = egui::Context::default();
+            let mods = egui::Modifiers {
+                alt: true,
+                shift: true,
+                ..Default::default()
+            };
+            let input = egui::RawInput {
+                events: vec![
+                    egui::Event::ModifiersChanged(mods),egui::Event::Key {
+                    key: Key::O,
+                    physical_key: Some(Key::O),
+                    pressed: true,
+                    repeat: false,
+                    modifiers: mods,
+                }],
+                ..Default::default()
+            };
+            let mut fired = Vec::new();
+            let _ = ctx.run_ui(input, |ui| fired = map.pressed(ui.ctx(), false, false));
+            assert!(
+                fired.contains(&Action::LoopBetweenMarkers),
+                "{}: {fired:?}",
+                preset.id()
+            );
+        }
+    }
+
     #[test]
     fn every_new_action_has_a_key_in_every_preset() {
         for preset in Preset::ALL {

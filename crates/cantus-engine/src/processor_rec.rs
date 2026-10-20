@@ -240,8 +240,9 @@ pub(super) fn add_clips(
         // content origin (`start − offset`, whole ticks) less the region's fine offset.
         // One rounding keeps the halves of a split seamless, and the fine offset puts a
         // take where it was played to the sample (ADR 0025 §7).
-        // Unwarped (ADR 0060 §5, `cantus_core::audio_time`): natural speed, anchored at
-        // the window's start, the offset read at the tempo there.
+        // Unwarped (ADR 0060 §4, `cantus_core::audio_time`): natural speed from the content
+        // origin through the tempo map (a tempo edit re-anchors the window, `tempo::keep`,
+        // so what plays at its start never moves).
         let zero = transport.clip_zero(c.start, c.offset, c.slip);
         // The file frame under the window's first sample.
         let offset = start - zero;

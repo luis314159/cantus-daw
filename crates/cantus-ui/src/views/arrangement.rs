@@ -360,6 +360,22 @@ impl ArrangementView {
         }
     }
 
+    /// The drag in progress as the result its release would give.
+    fn drag_result(&self) -> Option<((TrackId, ClipId), ClipDragResult)> {
+        let d = self.drag.as_ref()?;
+        let r = match d.mode {
+            DragMode::Move => ClipDragResult::Move {
+                delta: d.delta,
+                rows: d.rows,
+                copy: false,
+            },
+            DragMode::TrimStart => ClipDragResult::TrimStart { delta: d.delta },
+            DragMode::TrimEnd => ClipDragResult::TrimEnd { delta: d.delta },
+            DragMode::Slip => ClipDragResult::Slip { delta: d.delta },
+        };
+        Some((d.anchor, r))
+    }
+
     /// The right-edge drag of clip `r` with Alt (round 29, ADR 0061): how far, while it
     /// stretches the clip — the painter previews the stretched waveform.
     pub fn stretch_preview(&self, r: (TrackId, ClipId)) -> Option<Ticks> {
@@ -1710,6 +1726,17 @@ fn clips(
     let mut counts = std::mem::take(&mut scratch.counts);
     let n_rows = geo.rows.len() as i32;
     let (vis_l, vis_r) = (geo.beats(lanes.left()), geo.beats(lanes.right()));
+    // Under a tempo track a drag of unwarped audio re-derives the clips it moves (review
+    // 3): the clips its release would leave are drawn, not tick arithmetic.
+    let dropped: Vec<((TrackId, ClipId), cantus_core::Clip)> = match v.drag_result() {
+        Some((anchor, result)) if !app.project().tempo_points.is_empty() && v.stretch_preview(anchor).is_none() => {
+            crate::clips::drag_preview(app.project(), &app.clip_selection(), anchor, result)
+                .into_iter()
+                .filter(|(_, c)| c.audio.is_some())
+                .collect()
+        }
+        _ => Vec::new(),
+    };
     for (i, track) in app.project().tracks.iter().enumerate() {
         let Some(here) = geo.rows.get(i).copied() else {
             continue;
@@ -1743,8 +1770,11 @@ fn clips(
             if target.top + target.height < lanes.top() || target.top > lanes.bottom() {
                 continue;
             }
-            let start = clip.start + dstart;
-            let length = (clip.length + dlen).max(Ticks::SIXTEENTH);
+            let landed = dropped.iter().find(|(k, _)| *k == r).map(|(_, c)| c);
+            let (start, length) = match landed {
+                Some(c) => (c.start, c.length.max(Ticks::SIXTEENTH)),
+                None => (clip.start + dstart, (clip.length + dlen).max(Ticks::SIXTEENTH)),
+            };
             let x0 = geo.x(ticks_to_beats(start));
             let x1 = geo.x(ticks_to_beats(start + length));
             if x1 < lanes.left() || x0 > lanes.right() {
@@ -1786,13 +1816,17 @@ fn clips(
             // An audio clip: its waveform, fades, gain and handles (ADR 0025).
             let audio_h = clip.audio.as_ref().and_then(|region| {
                 let dragging = v.audio.drag.as_ref().filter(|d| d.r == r).map(|d| d.handle);
+                let (region, offset) = match landed.and_then(|c| c.audio.as_ref().map(|a| (a, c.offset))) {
+                    Some(l) => l,
+                    None => (region, clip.offset + v.slip_preview(r, region.reverse)),
+                };
                 let shown = audio::Shown {
                     track: track.id,
                     clip,
                     region,
                     start,
                     length,
-                    offset: clip.offset + v.slip_preview(r, region.reverse),
+                    offset,
                     map: &tempo_map,
                 };
                 let near = pointer.is_some_and(|p| body.contains(p));
@@ -2203,8 +2237,8 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
                 beats_to_ticks(view.beats(pos.x).max(0.0)),
                 track_at(app, pos.y),
             )),
-            // The ruler (review 2): its menu's *Add a marker here* acts at the bar under
-            // the pointer; no track under it.
+            // The ruler (review 2): its menu's *Add a marker here* acts under the pointer
+            // (on the grid: `menu_point`); no track under it.
             (None, Some(pos)) => Some((beats_to_ticks(view.beats(pos.x).max(0.0)), None)),
             _ => None,
         };
@@ -2567,8 +2601,14 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
 /// menu was opened on (a right-click, `at_pointer`), else the playhead.
 pub fn menu_point(app: &CantusApp, at_pointer: bool) -> Ticks {
     let here = app.arrangement.menu_at.filter(|_| at_pointer);
-    here.map_or(app.engine.position(), |(t, _)| t)
-        .max(Ticks::ZERO)
+    match here {
+        // On the grid, as the marker lane's own entries (review 3).
+        Some((t, _)) if app.arrangement.snap => {
+            crate::views::bars::snap(app.project(), t.max(Ticks::ZERO), app.arrangement.grid)
+        }
+        Some((t, _)) => t.max(Ticks::ZERO),
+        None => app.engine.position().max(Ticks::ZERO),
+    }
 }
 
 /// The empty-timeline menu's *Paste*: at the point the menu was opened on (snapped down to

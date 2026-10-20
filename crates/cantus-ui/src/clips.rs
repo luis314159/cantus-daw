@@ -127,16 +127,164 @@ pub fn relocate(project: &Project, clip: &Clip, copy: &mut Clip, start: Ticks) {
     }
 }
 
-/// Slip: move the content under a window that stays where it is.
-pub fn slip(track: TrackId, clip: &Clip, by: Ticks) -> Vec<Command> {
+/// Slip: move the content under a window that stays where it is. An unwarped audio window
+/// under a tempo track moves its source by the seconds `by` lasts at its start, so the
+/// content follows the pointer (`audio_time::slipped`, review 3).
+pub fn slip(project: &Project, track: TrackId, clip: &Clip, by: Ticks) -> Vec<Command> {
     if by == Ticks::ZERO {
         return Vec::new();
     }
-    vec![Command::SetClipOffset {
+    let (offset, slip) = slipped(project, clip, by);
+    let mut out = vec![Command::SetClipOffset {
         track,
         clip: clip.id,
-        offset: clip.offset + by,
-    }]
+        offset,
+    }];
+    if let (Some(a), Some(s)) = (clip.audio.as_ref(), slip) {
+        out.push(Command::SetClipAudio {
+            track,
+            clip: clip.id,
+            audio: Some(cantus_core::AudioRegion {
+                slip_frames: s,
+                ..a.clone()
+            }),
+        });
+    }
+    out
+}
+
+/// A clip's content slipped by `by`: its new offset, and its new fine offset when that
+/// moves too (an unwarped, unlinked audio window under a tempo track).
+pub fn slipped(project: &Project, clip: &Clip, by: Ticks) -> (Ticks, Option<i32>) {
+    let audio = clip
+        .audio
+        .as_ref()
+        .filter(|a| !a.warp.as_ref().is_some_and(|w| w.follow));
+    match audio {
+        Some(a) if !project.tempo_points.is_empty() => {
+            let map = crate::views::bars::map(project);
+            let rate = project
+                .audio_source(a.source)
+                .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)));
+            let (o, s) = cantus_core::audio_time::slipped(
+                &map,
+                clip.start,
+                clip.offset,
+                a.slip_frames,
+                rate,
+                by,
+            );
+            let s = (s != a.slip_frames && clip.link.is_none()).then_some(s);
+            (o, s)
+        }
+        _ => (clip.offset + by, None),
+    }
+}
+
+/// The commands a finished drag of `anchor` makes (`sel` the selection): what
+/// [`crate::app::CantusApp::commit_clip_drag`] runs, and what the arrangement draws while
+/// the drag goes on (review 3: the preview is the drop).
+pub fn drag_commands(
+    project: &Project,
+    sel: &[ClipRef],
+    anchor: ClipRef,
+    result: crate::views::arrangement::ClipDragResult,
+    link: bool,
+    ids: Ids,
+) -> (Vec<Command>, Vec<ClipRef>) {
+    use crate::views::arrangement::ClipDragResult;
+    let Some(clip) = clip_of(project, anchor) else {
+        return (Vec::new(), Vec::new());
+    };
+    // A reversed audio clip maps its window backwards (ADR 0025).
+    if let Some((edit, delta)) = crate::audio_clips::reversed_drag(clip, result) {
+        return (
+            crate::audio_clips::reversed_edit(project, anchor.0, clip, edit, delta),
+            Vec::new(),
+        );
+    }
+    // A comp window's edge at a seam moves the seam: both sides (ADR 0058).
+    let seam = match result {
+        ClipDragResult::TrimStart { delta } => Some((true, delta)),
+        ClipDragResult::TrimEnd { delta } => Some((false, delta)),
+        _ => None,
+    }
+    .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
+    if let Some(cmds) = seam.filter(|c| !c.is_empty()) {
+        return (cmds, Vec::new());
+    }
+    match result {
+        ClipDragResult::Move { delta, rows, copy } => {
+            transpose_selection(project, sel, delta, rows, copy, link, ids)
+        }
+        ClipDragResult::TrimStart { delta } => (
+            set_window(anchor.0, clip, clip.start + delta, clip.length - delta),
+            Vec::new(),
+        ),
+        ClipDragResult::TrimEnd { delta } => (
+            set_window(anchor.0, clip, clip.start, clip.length + delta),
+            Vec::new(),
+        ),
+        // Dragging the content to the right moves the music later, which means the window
+        // starts *earlier* in the content.
+        ClipDragResult::Slip { delta } => (slip(project, anchor.0, clip, -delta), Vec::new()),
+    }
+}
+
+/// The clips a drag would leave (`drag_commands` without copies, applied to copies of the
+/// clips it touches): what the arrangement draws mid-drag.
+pub fn drag_preview(
+    project: &Project,
+    sel: &[ClipRef],
+    anchor: ClipRef,
+    result: crate::views::arrangement::ClipDragResult,
+) -> Vec<(ClipRef, Clip)> {
+    use crate::views::arrangement::ClipDragResult;
+    let result = match result {
+        ClipDragResult::Move { delta, rows, .. } => ClipDragResult::Move {
+            delta,
+            rows,
+            copy: false,
+        },
+        other => other,
+    };
+    let mut none = || 0u64;
+    let (commands, _) = drag_commands(project, sel, anchor, result, false, &mut none);
+    let mut out: Vec<(ClipRef, Clip)> = Vec::new();
+    for cmd in commands {
+        let (track, id) = match &cmd {
+            Command::SetClipBounds { track, clip, .. }
+            | Command::SetClipOffset { track, clip, .. }
+            | Command::SetClipAudio { track, clip, .. } => (*track, *clip),
+            _ => continue,
+        };
+        let at = match out.iter().position(|(r, _)| r.1 == id) {
+            Some(i) => i,
+            None => {
+                let Some(c) = project
+                    .tracks
+                    .iter()
+                    .find_map(|t| t.clip(id).map(|c| (t.id, c.clone())))
+                else {
+                    continue;
+                };
+                out.push(((c.0, id), c.1));
+                out.len() - 1
+            }
+        };
+        let _ = track;
+        let c = &mut out[at].1;
+        match cmd {
+            Command::SetClipBounds { start, length, .. } => {
+                c.start = start;
+                c.length = length;
+            }
+            Command::SetClipOffset { offset, .. } => c.offset = offset,
+            Command::SetClipAudio { audio, .. } => c.audio = audio,
+            _ => {}
+        }
+    }
+    out
 }
 
 /// Split a clip at a timeline tick (`None` when the tick is not strictly inside it). It
@@ -519,6 +667,31 @@ pub fn transpose_selection(
     if delta == Ticks::ZERO && rows == 0 && !copy {
         return (commands, made);
     }
+    // One block (review 3): its earliest clip moves by `delta`; an unwarped audio window
+    // lands the same seconds after it (`audio_time::block_start`), so windows that met still
+    // meet and a take's windows keep one content origin.
+    let latest = clips.iter().map(|(_, c)| c.end()).max().unwrap_or(earliest);
+    let map = crate::views::bars::map(project);
+    let same = project.tempo_points.is_empty()
+        || map.span_key(earliest, latest) == map.span_key(earliest + delta, latest + delta);
+    let place = |clip: &Clip| {
+        let unwarped = clip
+            .audio
+            .as_ref()
+            .is_some_and(|a| !a.warp.as_ref().is_some_and(|w| w.follow));
+        if unwarped {
+            cantus_core::audio_time::block_start(
+                &map,
+                earliest,
+                &map,
+                earliest + delta,
+                clip.start,
+                same,
+            )
+        } else {
+            clip.start + delta
+        }
+    };
     for (index, clip) in clips {
         // An automation clip stays in its lane under its track (ADR 0027): its target does
         // not depend on where it sits, and a lane is not a row to drop it on.
@@ -529,14 +702,15 @@ pub fn transpose_selection(
         };
         let from = project.tracks[index].id;
         if copy {
+            let at = place(clip);
             let mut copy = if link {
-                let (pre, copy) = linker.copy(from, clip, clip.start + delta, ids);
+                let (pre, copy) = linker.copy(from, clip, at, ids);
                 commands.extend(pre);
                 copy
             } else {
-                copy_of(clip, clip.start + delta, ids)
+                copy_of(clip, at, ids)
             };
-            relocate(project, clip, &mut copy, clip.start + delta);
+            relocate(project, clip, &mut copy, at);
             made.push((to, copy.id));
             commands.push(Command::InsertClip {
                 track: to,
@@ -559,7 +733,7 @@ pub fn transpose_selection(
                     });
                 }
             }
-            commands.extend(move_to(project, to, clip, clip.start + delta));
+            commands.extend(move_to(project, to, clip, place(clip)));
         }
     }
     (commands, made)
@@ -747,7 +921,7 @@ mod tests {
     fn slipping_moves_the_music_and_leaves_the_window() {
         let (mut bus, tid, cid) = fixture();
         let clip = bus.project().track(tid).unwrap().clip(cid).unwrap().clone();
-        run(&mut bus, slip(tid, &clip, Ticks::beats(4)));
+        run(&mut bus, slip(&Project::new("s"), tid, &clip, Ticks::beats(4)));
         let after = bus.project().track(tid).unwrap().clip(cid).unwrap();
         assert_eq!(after.start, clip.start, "slip moved the window");
         assert_eq!(after.length, clip.length);

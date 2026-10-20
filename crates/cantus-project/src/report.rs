@@ -15,6 +15,7 @@ pub const KEYS: &[&str] = &[
     "interop.report.tempo_changes",
     "interop.report.tempo_retimed",
     "interop.report.metre_changes",
+    "interop.report.odd_metres",
     "interop.report.controllers",
     "interop.report.pitch_bends",
     "interop.report.pressure",

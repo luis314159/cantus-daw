@@ -483,17 +483,22 @@ pub fn summary(app: &CantusApp, d: &ExportSettings) -> String {
 }
 
 /// The markers around the playhead as an export range: the one at or before it (the first
-/// otherwise) and the next.
+/// otherwise) and the next on a later tick — past markers sharing a tick, which make no
+/// range (review 3); before the end, the last two that do.
 fn default_markers(app: &CantusApp) -> Scope {
     let p = app.project();
     let at = app.engine.position();
-    let i = p.markers.iter().rposition(|m| m.tick <= at).unwrap_or(0);
-    let pick = |k: usize| p.markers.get(k).map_or(0, |m| m.id.0);
-    let (a, b) = if i + 1 < p.markers.len() {
-        (i, i + 1)
-    } else {
-        (i.saturating_sub(1), i)
+    let ms = &p.markers;
+    let pair = |a: usize| {
+        let b = ms[a + 1..].iter().position(|m| m.tick > ms[a].tick)? + a + 1;
+        Some((a, b))
     };
+    let i = ms.iter().rposition(|m| m.tick <= at).unwrap_or(0);
+    let found = (i..ms.len())
+        .find_map(pair)
+        .or_else(|| (0..i).rev().find_map(pair));
+    let pick = |k: usize| ms.get(k).map_or(0, |m| m.id.0);
+    let (a, b) = found.unwrap_or((i.saturating_sub(1), i));
     Scope::Markers {
         from: pick(a),
         to: pick(b),

@@ -513,17 +513,20 @@ nombre (ronda 29).
   cursor (o doble clic en la franja, o clic derecho en la regla ▸ *Añadir un marcador
   aquí*); clic en un marcador para llevar el cursor ahí; **doble clic** para renombrarlo;
   arrástralo por la rejilla; los marcadores de un mismo tick quedan uno junto a otro; clic
-  derecho para *Renombrar…*, *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
-  siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar*. `Alt+,` y `Alt+.` van al
-  marcador anterior y al siguiente; `Alt+Mayús+,` hace un bucle entre los marcadores que
+  derecho para *Cambiar el nombre…*, *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
+  siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar el marcador*. `Alt+,` y `Alt+.` van al
+  marcador anterior y al siguiente; `Alt+Mayús+O` hace un bucle entre los marcadores que
   rodean el cursor. El menú de la franja lista todos los marcadores bajo *Ir a*.
 - **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
   elige los dos marcadores por su nombre (dos en lugares distintos: si no, el diálogo lo
   dice, y nunca exporta la canción entera en su lugar).
 - Todo sigue al tempo: las notas, los clips de audio (un clip de audio sin warp suena a su
-  velocidad natural, colocado en la línea de tiempo desde donde empieza su archivo —
-  divídelo, recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba;
-  muévelo o cópialo a otro lugar y suena la misma parte de su archivo), la automatización,
+  velocidad natural desde el momento de su archivo que tiene en su inicio — divídelo,
+  recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba; muévelo o
+  cópialo a otro lugar y suena la misma parte de su archivo, y varios clips movidos juntos
+  siguen tocándose; un cambio de tempo nunca mueve lo que un clip suena en su inicio,
+  aunque un clip que cruza el cambio sigue a su propia velocidad — aplícale warp para que
+  siga sus compases), la automatización,
   los moduladores, los efectos sincronizados, el metrónomo (acentúa el primer tiempo de
   cada compás; un compás de 7/8 se cuenta en corcheas) y los plug-ins de otros.
 - **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio

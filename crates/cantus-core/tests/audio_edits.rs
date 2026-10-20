@@ -1,8 +1,8 @@
-//! Review 2 (findings 0, 3, 43): an unwarped audio clip's edits under a tempo track. Its
-//! `offset` is read at the tempo where it starts (ADR 0060 §5), so an edit that moves its
-//! start — a split's right half, a reversed clip's halves, a time-range crop — re-derives
-//! the offset in seconds and carries the rounding into `slip_frames`: every piece plays
-//! the frames the whole clip played there, to within one frame.
+//! Reviews 2 and 3 (findings 0, 3, 43, 19): an unwarped audio clip's edits under a tempo
+//! track. It plays from its content origin (`start − offset`, ADR 0060 §4), so a forward
+//! split, trim or crop keeps the origin and the fine offset exactly (tick arithmetic); a
+//! reversed clip's halves re-derive the offset in seconds, the rounding in `slip_frames`,
+//! to within one frame. Every piece plays the frames the whole clip played there.
 
 use cantus_core::audio_time;
 use cantus_core::clipboard;

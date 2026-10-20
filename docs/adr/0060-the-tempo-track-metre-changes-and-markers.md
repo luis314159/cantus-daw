@@ -143,7 +143,7 @@ to edit (the top bar's metre editor), remove from the menu. **Markers** are a la
 the loop lane while the song has markers: a click anywhere on a tab jumps (review 2: the
 name's letters filled the tab, and a click there renamed), a double-click or the menu
 renames, drag, recolour from the track palette; markers on one tick sit side by side;
-Alt+M adds one at the playhead, Alt+, and Alt+. step between them, Alt+Shift+, loops
+Alt+M adds one at the playhead, Alt+, and Alt+. step between them, Alt+Shift+O loops
 between the markers around the playhead (Alt+Shift+L was Select linked's in every preset);
 the ruler's and the empty timeline's menu (one menu) add a marker or a metre change where
 it was opened, the toolbar's ▸ menu at the playhead; *Add a metre change* at bar 1 opens

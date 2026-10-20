@@ -488,4 +488,26 @@ mod tests {
         let map = p.tempo_map();
         assert!((map.bpm_at(cantus_core::Ticks::beats(8).0 as f64) - 115.0).abs() < 1e-9);
     }
+
+    /// Review 3 (finding 55): the ramp asked for first, the point it ramps to after.
+    #[test]
+    fn the_agent_can_ramp_from_the_start_asked_first() {
+        let mut bus = CommandBus::default();
+        for input in [
+            json!({ "beat": 0.0, "bpm": 90.0, "ramp": true }),
+            json!({ "beat": 16.0, "bpm": 140.0, "ramp": false }),
+        ] {
+            let call = ToolCall {
+                name: "set_tempo_point".into(),
+                input,
+            };
+            let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+            bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
+        }
+        let p = bus.project();
+        assert_eq!(p.tempo_bpm, 90.0);
+        assert!(p.tempo_points[0].ramp, "{:?}", p.tempo_points);
+        let map = p.tempo_map();
+        assert!((map.bpm_at(cantus_core::Ticks::beats(8).0 as f64) - 115.0).abs() < 1e-9);
+    }
 }

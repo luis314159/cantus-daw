@@ -211,7 +211,8 @@ fn a_metre_change_at_bar_one_opens_the_metre() {
     views::arrangement::tempo::add_metre_change(&mut a, Ticks(300));
     assert_eq!(*a.project(), before);
     assert_eq!(a.bus.history().len(), undo, "no empty undo step");
-    assert!(a.topbar.open_metre, "the top bar's metre opens");
+    // Review 3: its editor opens on the ruler, where it is seen, at bar 1.
+    assert_eq!(a.arrangement.tempo.metre_editor_at(), Some(Ticks::ZERO));
 }
 
 /// Finding 52: a metre chip dragged too far stops at the bar lines it may take.

@@ -455,9 +455,25 @@ pub(super) fn missing_ground(look: &ClipLook, s: &Style) -> egui::Color32 {
     shade(mix(look.tint.large, ground, 0.8), -0.04)
 }
 
+/// The source frame a **reversed** window from `start` to `end` plays at `tick`, as the
+/// engine reads it: the frame at its start plus the seconds from `tick` to its end —
+/// mirrored in seconds, not in ticks (review 3).
+pub fn reversed_frame(
+    map: &cantus_core::TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    slip: f64,
+    rate: f64,
+    end: f64,
+    tick: f64,
+) -> f64 {
+    let first = cantus_core::audio_time::frame_at(map, start, offset, slip, rate, start.0 as f64);
+    first + map.seconds_between_f64(tick, end) * rate
+}
+
 /// The waveform's columns of a clip under a tempo map that changes (ADR 0060): each
 /// column reads the source frames `cantus_core::audio_time` puts under its two edges
-/// (mirrored in the window when the clip plays backwards, as the engine reads it).
+/// (backwards, the frames the engine reads there: [`reversed_frame`]).
 #[allow(clippy::too_many_arguments)]
 fn map_columns(
     peaks: &crate::waveform::SourcePeaks,
@@ -472,14 +488,13 @@ fn map_columns(
     use cantus_core::audio_time::frame_at;
     let rate = peaks.rate.max(1) as f64;
     let slip = shown.region.slip_frames as f64;
-    let (start, end) = (shown.start.0 as f64, (shown.start + shown.length).0 as f64);
+    let end = (shown.start + shown.length).0 as f64;
     let frame = |tick: f64| {
-        let t = if shown.region.reverse {
-            start + end - tick
+        if shown.region.reverse {
+            reversed_frame(shown.map, shown.start, shown.offset, slip, rate, end, tick)
         } else {
-            tick
-        };
-        frame_at(shown.map, shown.start, shown.offset, slip, rate, t)
+            frame_at(shown.map, shown.start, shown.offset, slip, rate, tick)
+        }
     };
     let tick_at = |x: f32| geo.beats(x) as f64 * cantus_core::PPQ as f64;
     out.clear();

@@ -43,20 +43,32 @@ pub struct State {
     drag: Option<Drag>,
     /// The point whose tempo is being typed, and the words so far.
     typing: Option<(usize, String)>,
-    /// The metre change being dragged: its tick at the press.
-    metre_drag: Option<Ticks>,
+    /// The metre change being dragged: its tick at the press, and the pointer's distance
+    /// from its line there (a drag moves it by the pointer's travel: review 3).
+    metre_drag: Option<(Ticks, Ticks)>,
+    /// A metre editor opened at a ruler point (*Add a metre change*): the change's tick,
+    /// where it is drawn, and the pass it was asked in (review 3: an editor asked for is
+    /// one the owner sees, here and now).
+    metre_at: Option<(Ticks, Pos2, u64)>,
     /// What the lane's menu was opened on: a point, or a tick.
     menu: Option<MenuOn>,
     /// The metre change whose editor opens next frame (one just added, or *Edit*).
     open_metre: Option<Ticks>,
     /// Where each point was drawn last frame (published geometry: tests aim with it).
     drawn: Vec<Pos2>,
+    /// Each metre chip drawn last frame: its change's tick and its rect (published).
+    chips_drawn: Vec<(Ticks, Rect)>,
 }
 
 impl State {
     /// Where each tempo point was drawn last frame, in order.
     pub fn points_drawn(&self) -> &[Pos2] {
         &self.drawn
+    }
+
+    /// Each metre chip drawn last frame: its change's tick and its rect.
+    pub fn chips_drawn(&self) -> &[(Ticks, Rect)] {
+        &self.chips_drawn
     }
 }
 
@@ -137,15 +149,28 @@ impl Axis {
         (self.hi - self.lo) / f64::from((self.bottom - self.top).max(1.0))
     }
 
-    /// The lane's axis: the one at a drag's press while a point is dragged.
+    /// The lane's axis: the one at a drag's press while a point is dragged — its scale
+    /// held, its range slid to keep the dragged value inside (review 3: past the range the
+    /// dot stuck to the edge while the value ran on).
     fn of_lane(st: &State, pts: &[TempoPoint], rect: Rect, s: &Style) -> Axis {
         let a = Axis::of(pts, rect, s);
         match st.drag {
-            Some(d) => Axis {
-                lo: d.lo,
-                hi: d.hi,
-                ..a
-            },
+            Some(d) => {
+                let v = pts.get(d.index).map_or(d.bpm, |p| p.bpm);
+                let span = d.hi - d.lo;
+                let lo = if v > d.hi {
+                    v - span
+                } else if v < d.lo {
+                    v
+                } else {
+                    d.lo
+                };
+                Axis {
+                    lo,
+                    hi: lo + span,
+                    ..a
+                }
+            }
             None => a,
         }
     }
@@ -701,12 +726,16 @@ pub(super) fn metre_input(
     s: &Style,
 ) {
     let chips = chips(app);
+    let mut drawn = Vec::with_capacity(chips.len());
+    let mut chip_rects = Vec::with_capacity(chips.len());
     for (i, (tick, sig)) in chips.iter().copied().enumerate() {
         let x = geo.x(ticks_to_beats(tick));
         if x < numbers.left() - 40.0 || x > numbers.right() {
             continue;
         }
+        drawn.push(tick);
         let r = chip_rect(ui.ctx(), x, numbers.top(), numbers.bottom(), sig, s);
+        chip_rects.push((tick, r));
         let id = Id::new(("metre-chip", i));
         let resp = ui.interact(r, id, Sense::click_and_drag());
         if resp.hovered() {
@@ -729,23 +758,28 @@ pub(super) fn metre_input(
         }
         if i > 0 && resp.dragged_by(egui::PointerButton::Primary) {
             if let Some(p) = resp.interact_pointer_pos() {
+                let at = beats_to_ticks(geo.beats(p.x).max(0.0));
                 if app.arrangement.tempo.metre_drag.is_none() {
-                    app.arrangement.tempo.metre_drag = Some(tick);
+                    // Where the press was against the line: kept through the drag.
+                    let press = ui
+                        .input(|i| i.pointer.press_origin())
+                        .map_or(at, |o| beats_to_ticks(geo.beats(o.x).max(0.0)));
+                    app.arrangement.tempo.metre_drag = Some((tick, press - tick));
                 }
+                let grab = app.arrangement.tempo.metre_drag.map_or(Ticks::ZERO, |d| d.1);
                 let p0 = app.project();
                 let mut without = p0.metre_changes.clone();
                 without.remove(i);
                 let other = cantus_core::TempoMap::new(120.0, p0.time_signature, &[], &without);
-                let to = other.snap_bar(beats_to_ticks(geo.beats(p.x).max(0.0)));
-                // Held between its neighbours, and quiet: a drag never says "refused"
-                // (review 2).
+                let to = other.snap_bar((at - grab).max(Ticks::ZERO));
+                // Held between its neighbours (review 2): no refusal of a move out of
+                // range; a frozen sound's refusal is said, as for every edit (review 3).
                 if let Some(to) = clamp_move(p0, i, to) {
-                    let key = MergeKey::of(&("metre-move", app.arrangement.tempo.metre_drag));
-                    let _ = app.bus.execute_merging(
-                        Command::MoveMetre { from: tick, to },
-                        cantus_core::Origin::User,
-                        key,
-                    );
+                    let key = MergeKey::of(&(
+                        "metre-move",
+                        app.arrangement.tempo.metre_drag.map(|d| d.0),
+                    ));
+                    app.exec_merging(Command::MoveMetre { from: tick, to }, key);
                 }
             }
         }
@@ -793,13 +827,15 @@ pub(super) fn metre_input(
                 }
             });
     }
-    // An editor asked for on a chip there is no longer (undone, or never one): forgotten,
-    // so it never opens by itself later (review 2).
+    // An editor asked for on a chip not drawn this frame (gone, or out of view): forgotten,
+    // so it never opens by itself later (reviews 2 and 3).
     if let Some(t) = app.arrangement.tempo.open_metre {
-        if !chips.iter().any(|(c, _)| *c == t) {
+        if !drawn.contains(&t) {
             app.arrangement.tempo.open_metre = None;
         }
     }
+    app.arrangement.tempo.chips_drawn = chip_rects;
+    metre_popup(app, ui, s);
 }
 
 /// Add a metre change at the bar line nearest `at` (the metre in force there, its editor
@@ -811,19 +847,52 @@ pub fn add_metre_change(app: &mut CantusApp, at: Ticks) {
     let bar = map.snap_bar(at.max(Ticks::ZERO));
     let sig = map.signature_at(bar);
     let there = app.project().metre_changes.iter().any(|m| m.tick == bar);
-    if bar == Ticks::ZERO || there {
-        if chips(app).iter().any(|(t, _)| *t == bar) {
-            app.arrangement.tempo.open_metre = Some(bar);
-        } else {
-            app.topbar.open_metre = true;
-        }
+    if bar > Ticks::ZERO
+        && !there
+        && !app.exec(Command::SetMetreAt {
+            tick: bar,
+            signature: sig,
+        })
+    {
         return;
     }
-    if app.exec(Command::SetMetreAt {
-        tick: bar,
-        signature: sig,
-    }) {
-        app.arrangement.tempo.open_metre = Some(bar);
+    // The editor opens on the ruler at that bar — in view, or at the ruler's nearer end
+    // (review 3: the top bar's metre may be hidden, a chip out of view).
+    let pos = app.arrangement.geometry().map_or(pos2(0.0, 0.0), |g| {
+        let x = g.x(ticks_to_beats(bar)).clamp(g.left, g.left + g.width - 160.0);
+        pos2(x, g.loop_lane_bottom)
+    });
+    app.arrangement.tempo.metre_at = Some((bar, pos, u64::MAX));
+}
+
+/// The editor *Add a metre change* opened on the ruler (see [`State::metre_at`]): closed by
+/// a click away (after the pass that opened it) or Esc.
+fn metre_popup(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style) {
+    let Some((tick, pos, pass)) = app.arrangement.tempo.metre_at else {
+        return;
+    };
+    let now = ui.ctx().cumulative_pass_nr();
+    // Stamped with the first pass that draws it.
+    let pass = if pass == u64::MAX { now } else { pass };
+    app.arrangement.tempo.metre_at = Some((tick, pos, pass));
+    let area = egui::Area::new(Id::new("metre-at-editor"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(pos)
+        .show(ui.ctx(), |ui| {
+            crate::views::record_options::frame_for(s).show(ui, |ui| {
+                crate::views::transport::tempo::metre_editor(app, ui, tick)
+            });
+        });
+    let away = area.response.clicked_elsewhere() && now > pass;
+    if away || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        app.arrangement.tempo.metre_at = None;
+    }
+}
+
+impl State {
+    /// The tick whose metre editor is open on the ruler (*Add a metre change*).
+    pub fn metre_editor_at(&self) -> Option<Ticks> {
+        self.metre_at.map(|m| m.0)
     }
 }
 

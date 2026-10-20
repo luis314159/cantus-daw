@@ -414,6 +414,9 @@ pub struct CompEditor {
     ratio_drag: Option<f32>,
     /// Ticks in a bar and in a beat, for the history's grid.
     beats: (i64, i64),
+    /// The song's tempo map while it has metre changes (Cantus; review 3): the history's
+    /// bars and beats through it. `None`: one bar length.
+    pub(super) map: Option<std::sync::Arc<cantus_core::TempoMap>>,
 }
 
 /// The editor's state on any host: [`editor`] draws it.
@@ -501,6 +504,7 @@ impl Default for CompEditor {
             band_menu: None,
             ratio_drag: None,
             beats: (4 * cantus_core::PPQ, cantus_core::PPQ),
+            map: None,
         }
     }
 }
@@ -1096,8 +1100,10 @@ fn pump(host: &mut dyn FxHost, st: &mut State) {
                 app.fx.injected = None;
             }
             // The bar and the beat at the playhead (ADR 0060).
-            let ts = crate::views::bars::map(app.project()).signature_at(app.engine.position());
+            let map = crate::views::bars::map(app.project());
+            let ts = map.signature_at(app.engine.position());
             st.beats = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
+            st.map = (!map.is_one_metre()).then_some(map);
             app.engine.drain_analyser(&mut st.scratch);
             // The largest of every block since the last frame.
             app.engine.take_comp_meter()

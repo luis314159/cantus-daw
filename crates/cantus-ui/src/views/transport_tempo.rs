@@ -118,23 +118,37 @@ fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     if resp.hovered() {
         // The wheel's own notches (one is one BPM), not the smoothed scroll that spreads
         // a notch over frames (review 2: a notch moved it by five).
+        // Fractions (a touchpad, a smooth wheel) add up to a whole step (review 3); a
+        // wheel with Ctrl, Cmd or Shift is a zoom or a scroll, never the tempo.
         let notches: f32 = ui.input(|i| {
             i.raw
                 .events
                 .iter()
                 .filter_map(|e| match e {
-                    egui::Event::MouseWheel { unit, delta, .. } => Some(match unit {
-                        egui::MouseWheelUnit::Point => delta.y / 40.0,
-                        egui::MouseWheelUnit::Line => delta.y,
-                        egui::MouseWheelUnit::Page => delta.y * 8.0,
-                    }),
+                    egui::Event::MouseWheel {
+                        unit,
+                        delta,
+                        modifiers,
+                        ..
+                    } if !(modifiers.ctrl || modifiers.command || modifiers.shift) => {
+                        Some(match unit {
+                            egui::MouseWheelUnit::Point => delta.y / 40.0,
+                            egui::MouseWheelUnit::Line => delta.y,
+                            egui::MouseWheelUnit::Page => delta.y * 8.0,
+                        })
+                    }
                     _ => None,
                 })
                 .sum()
         });
         if notches != 0.0 {
-            by += f64::from(notches.signum() * notches.abs().round().max(1.0));
-            gesture = true;
+            let acc = app.topbar.tempo_notches + notches;
+            let whole = acc.trunc();
+            app.topbar.tempo_notches = acc - whole;
+            if whole != 0.0 {
+                by += f64::from(whole);
+                gesture = true;
+            }
         }
     }
     if resp.double_clicked() {
@@ -291,9 +305,7 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
             );
         });
     });
-    // A click toggles it; *Add a metre change* at bar 1 opens it (review 2).
-    let asked = std::mem::take(&mut app.topbar.open_metre) && !open;
-    let toggle = resp.clicked() || asked;
+    let toggle = resp.clicked();
     if !open && !toggle {
         return;
     }

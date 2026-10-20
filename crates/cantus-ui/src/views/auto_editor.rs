@@ -463,7 +463,12 @@ fn paint(
     // metre at the window's left.
     // Content ticks here; the bars are the timeline's where the clip lies (review 2).
     let map = crate::views::bars::map(project);
-    let shift = f.origin;
+    // With one metre the lines are the content's own, as the snapping is (review 3).
+    let shift = if map.is_one_metre() {
+        Ticks::ZERO
+    } else {
+        f.origin
+    };
     let lo = f.tick(canvas.left()).floor() as i64;
     let bar = map.bar_len_at(Ticks(lo) + shift).0.max(1);
     let beat = map.beat_len_at(Ticks(lo) + shift).0.max(1);

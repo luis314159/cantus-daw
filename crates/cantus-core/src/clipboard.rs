@@ -443,6 +443,15 @@ pub fn paste_clips(
     // clip measured in seconds where it was copied and laid out where it lands.
     let (src_map, dst_map) = (board.tempo_map(), project.tempo_map());
     let mapped = !(src_map.is_constant() && dst_map.is_constant());
+    // The block's anchor (its earliest clip) and whether the tempo over the block is the
+    // same function where it lands: unwarped audio is laid the same seconds after the
+    // anchor, so windows that met still meet (review 3).
+    let first = rows.iter().map(|r| r.clip.start).min().unwrap_or(Ticks::ZERO);
+    let last_end = rows.iter().map(|r| r.clip.end()).max().unwrap_or(first);
+    let (from_anchor, to_anchor) = (board.at + first, at + first);
+    let same_block = !mapped
+        || src_map.span_key(from_anchor, board.at + last_end)
+            == dst_map.span_key(to_anchor, at + last_end);
     let scale = if !mapped
         && !same_origin
         && board.tempo_bpm > 0.0
@@ -490,9 +499,26 @@ pub fn paste_clips(
             }
             plays = Some(dst);
         }
+        let unwarped = r
+            .clip
+            .audio
+            .as_ref()
+            .is_some_and(|a| !a.warp.as_ref().is_some_and(|w| w.follow));
+        let start = if unwarped {
+            crate::audio_time::block_start(
+                &src_map,
+                from_anchor,
+                &dst_map,
+                to_anchor,
+                board.at + r.clip.start,
+                same_block,
+            )
+        } else {
+            at + r.clip.start
+        };
         let mut copy = Clip {
             id: ClipId(ids()),
-            start: at + r.clip.start,
+            start,
             lane: 0,
             link: None,
             // A paste is no comp window, linked or not, wherever it lands — over its takes
@@ -520,10 +546,14 @@ pub fn paste_clips(
             {
                 copy.offset = m.offset;
                 copy.length = m.length;
-                let a = copy.audio.as_mut().expect("an audio clip");
-                a.fade_in = m.fade_in;
-                a.fade_out = m.fade_out;
-                a.slip_frames = m.slip_frames;
+                // A paste that links takes the group's fades and fine offset as they are
+                // (they are shared): its window alone (review 3).
+                if !(linked && same_origin) {
+                    let a = copy.audio.as_mut().expect("an audio clip");
+                    a.fade_in = m.fade_in;
+                    a.fade_out = m.fade_out;
+                    a.slip_frames = m.slip_frames;
+                }
             }
         }
         let group = if linked && same_origin {
