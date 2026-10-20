@@ -247,37 +247,24 @@ impl Window {
         frames.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
 
-    /// [`Self::slip_frames`] through a tempo map (ADR 0060): the source's seconds at the
-    /// window's start less what the whole-tick offset says there (`cantus_core::audio_time`:
-    /// the offset at the tempo where the clip starts), in frames. One tempo: exactly
-    /// [`Self::slip_frames`].
+    /// [`Self::slip_frames`] through a tempo map (ADR 0060): the seconds from where the
+    /// file's frame 0 is (`origin`) to the whole-tick content origin (`start − offset`,
+    /// `cantus_core::audio_time`), in frames. One tempo: exactly [`Self::slip_frames`].
     pub fn slip_frames_in(self, start: Ticks, offset: Ticks, map: &TempoMap, rate: u32) -> i32 {
         if map.is_constant() {
             return self.slip_frames(start, offset, map.bpm_at(0.0), rate);
         }
-        let src = map.seconds_between_f64(self.origin, start.0 as f64);
-        let said = cantus_core::audio_time::offset_seconds(map, start, offset);
-        let frames = (src - said) * rate as f64;
+        let whole = (start - offset).0 as f64;
+        let frames = map.seconds_between_f64(self.origin, whole) * rate as f64;
         frames.round().clamp(i32::MIN as f64, i32::MAX as f64) as i32
     }
 
-    /// [`Self::ticks`] through a tempo map: the offset is the source's seconds at the
-    /// window's start, in whole ticks at the tempo there. One tempo: exactly
-    /// [`Self::ticks`].
+    /// [`Self::ticks`] through a tempo map: the content origin is a tick on the timeline
+    /// whatever the tempo (`cantus_core::audio_time`), so the whole ticks are the same —
+    /// the map only moves the fine offset ([`Self::slip_frames_in`]).
     pub fn ticks_in(self, map: &TempoMap) -> Option<(Ticks, Ticks, Ticks)> {
-        if map.is_constant() {
-            return self.ticks();
-        }
-        let mut start = self.start.round() as i64;
-        let end = self.end.round() as i64;
-        let src = map.seconds_between_f64(self.origin, start as f64);
-        let mut offset = cantus_core::audio_time::offset_for(map, Ticks(start), src).0;
-        if offset < 0 {
-            // The content begins later: the window starts where it does.
-            start = self.origin.round() as i64;
-            offset = 0;
-        }
-        (end > start).then_some((Ticks(start), Ticks(end - start), Ticks(offset)))
+        let _ = map;
+        self.ticks()
     }
 
     /// Whole ticks: the start and end rounded, the content offset from the origin. A

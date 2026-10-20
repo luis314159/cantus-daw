@@ -191,11 +191,28 @@ fn stems_in_the_way(app: &CantusApp, d: &ExportSettings, folder: &Path) -> Vec<S
         .collect()
 }
 
+/// Say why a range cannot be exported, in the dialog's note and on the status line.
+fn refuse(app: &mut CantusApp, scope: Scope) {
+    let key = match scope {
+        Scope::Selection => "export_audio.no_selection",
+        Scope::Loop => "export_audio.no_loop",
+        _ if app.project().markers.len() < 2 => "tempo.export.no_markers",
+        _ => "tempo.export.two_markers",
+    };
+    app.export.asked = Some(scope);
+    app.set_error(t(key));
+}
+
 /// Ask where, then start. Stems ask for a folder; a mix for a file.
 pub fn choose_and_start(app: &mut CantusApp) {
     let Some(d) = app.export.dialog.clone() else {
         return;
     };
+    // Nothing to ask a file name for when the range is not there.
+    if !available(app, d.scope) {
+        refuse(app, d.scope);
+        return;
+    }
     let mut picker = rfd::FileDialog::new();
     if let Some(dir) = d.folder.as_ref().filter(|f| f.is_dir()) {
         picker = picker.set_directory(dir);
@@ -273,8 +290,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
             d
         }
     };
+    // A range the project does not have is refused with a word, never turned into the
+    // whole song under a name meant for a part of it (review 2).
     if !available(app, d.scope) {
-        d.scope = Scope::Song;
+        refuse(app, d.scope);
+        return false;
     }
     let stems = d.scope == Scope::Stems;
     let target = if stems {

@@ -373,27 +373,36 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
   *Ramp to the next point*, *Remove the point* and *Remove the tempo track*. The header
   beside the lane shows the tempo at the playhead.
 - **The top bar's tempo** shows the tempo at the playhead (inside a ramp, its value
-  there). Dragging it, the wheel, a double-click or **TAP** set the point the playhead is
-  under — the song's tempo when there is no tempo track.
+  there). Dragging it and the wheel (a notch, one BPM) move the point the playhead is
+  under by that much — inside a ramp, the ramp's start; a double-click (120) or **TAP**
+  set it — the song's tempo when there is no tempo track.
 - **Metre changes** are chips on the ruler before a bar's number ("7/8"). Right-click the
-  marker lane (or the ruler's menu) ▸ *Add a metre change here*; click a chip to edit its
-  signature, drag it along the bar lines, right-click to remove it. The bars after a change
+  marker lane or the ruler ▸ *Add a metre change here* (at bar 1 it opens the song's own
+  metre); click a chip to edit its signature, drag it along the bar lines between its
+  neighbours, right-click to remove it. The bars after a change
   keep their numbers; notes never move. The top bar's metre edits the metre in force at the
   playhead.
 - **Markers** appear in a lane under the loop lane. `Alt+M` adds one at the playhead (or
-  double-click the lane); click a marker to put the playhead there; click on its **name**
-  to rename it; drag it along the grid; right-click for *Colour…*, *Loop to the next
+  double-click the lane, or right-click the ruler ▸ *Add a marker here*); click a marker
+  to put the playhead there; **double-click** it to rename it; drag it along the grid;
+  markers on one tick sit side by side; right-click for *Rename…*, *Colour…*, *Loop to the next
   marker*, *Select to the next marker*, *Export to the next marker…* and *Remove*.
-  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+L` loops between the
+  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+,` loops between the
   markers around the playhead. The lane's menu lists every marker under *Go to*.
 - **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
-  two markers by name.
-- Everything follows the tempo: notes, audio clips (an audio clip plays at its natural
-  speed from where it starts), automation, modulators, synced effects, the click (each
-  bar 1 accented, a bar of 7/8 counted in eighths) and plug-ins made by others.
+  two markers by name (two at different places: the dialog says so otherwise, and never
+  exports the whole song instead).
+- Everything follows the tempo: notes, audio clips (an unwarped audio clip plays at its
+  natural speed, laid on the timeline from where its file begins — split it, trim it,
+  comp it anywhere and every piece plays on where it was; move or copy it elsewhere and it
+  plays the same part of its file), automation, modulators, synced effects, the click
+  (the first beat of every bar accented; a bar of 7/8 counted in eighths) and plug-ins
+  made by others.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
-  note) and in — importing into an empty song with *Set the song's tempo* keeps the
-  file's tempo changes, metre changes and markers. **DAWproject** files carry the tempo
+  note, and every marker, those at the end too) and in — importing with *Set the project
+  to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's
+  start they are the song's; dropped at a later bar they start there (the bar line nearest
+  the drop), the song keeping its own tempo and metre before it. **DAWproject** files carry the tempo
   track, the metre changes and the markers both ways.
 
 ### The piano roll

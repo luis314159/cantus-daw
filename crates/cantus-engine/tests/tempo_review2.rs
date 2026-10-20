@@ -31,7 +31,10 @@ fn same_bits(a: &[f32], b: &[f32], what: &str) {
         .zip(b)
         .position(|(x, y)| x.to_bits() != y.to_bits())
     {
-        panic!("{what}: first difference at sample {i} ({} vs {})", a[i], b[i]);
+        panic!(
+            "{what}: first difference at sample {i} ({} vs {})",
+            a[i], b[i]
+        );
     }
 }
 
@@ -100,7 +103,11 @@ fn live(p: &Project, frames: usize, block: usize) -> (Vec<f32>, u64) {
 fn looped_ramp() -> Project {
     let mut p = demo_project();
     p.tempo_bpm = 100.0;
-    p.tempo_points = vec![pt(0, 100.0, false), pt(3840, 100.0, true), pt(11_520, 140.0, false)];
+    p.tempo_points = vec![
+        pt(0, 100.0, false),
+        pt(3840, 100.0, true),
+        pt(11_520, 140.0, false),
+    ];
     let lim = add_effect(&mut p, EffectKind::Limiter);
     set_all(&mut p, lim, &[("look", 5.0)]);
     let fx = add_effect(&mut p, EffectKind::Tremolo);
@@ -140,7 +147,11 @@ fn a_late_unit_after_a_wrap_hears_the_steps_at_every_block_size() {
 fn only_the_units_that_follow_the_song_cut_passes_at_their_late_steps() {
     let base = || {
         let mut p = demo_project();
-        p.tempo_points = vec![pt(0, 90.0, false), pt(960, 90.0, true), pt(15_360, 140.0, false)];
+        p.tempo_points = vec![
+            pt(0, 90.0, false),
+            pt(960, 90.0, true),
+            pt(15_360, 140.0, false),
+        ];
         p.loop_enabled = false;
         p
     };
@@ -154,7 +165,11 @@ fn only_the_units_that_follow_the_song_cut_passes_at_their_late_steps() {
         live(&p, 200_000, 512).1
     };
     let plain = with(false, EffectKind::Eq);
-    assert_eq!(with(true, EffectKind::Eq), plain, "an equaliser behind a look-ahead");
+    assert_eq!(
+        with(true, EffectKind::Eq),
+        plain,
+        "an equaliser behind a look-ahead"
+    );
     assert!(
         with(true, EffectKind::Tremolo) > with(false, EffectKind::Tremolo),
         "a tremolo behind one hears its own steps"
@@ -170,7 +185,11 @@ fn a_late_step_is_reached_exactly_at_its_cut() {
     let map = Arc::new(TempoMap::new(
         20.0,
         TimeSignature::default(),
-        &[pt(0, 20.0, false), pt(960, 20.0, true), pt(9_600, 30.0, false)],
+        &[
+            pt(0, 20.0, false),
+            pt(960, 20.0, true),
+            pt(9_600, 30.0, false),
+        ],
         &[],
     ));
     let mut checked = 0;
@@ -253,7 +272,11 @@ fn the_transport_loops_over_a_ramps_end_and_meets_the_closed_form() {
     let map = Arc::new(TempoMap::new(
         90.0,
         TimeSignature::default(),
-        &[pt(0, 90.0, false), pt(960, 90.0, true), pt(4_800, 140.0, false)],
+        &[
+            pt(0, 90.0, false),
+            pt(960, 90.0, true),
+            pt(4_800, 140.0, false),
+        ],
         &[],
     ));
     let by_hand = 60.0 / 90.0 + 60.0 * 4.0 / 50.0 * (140.0f64 / 90.0).ln() + 60.0 / 140.0;
@@ -306,11 +329,17 @@ fn measure_the_passes_of_latent_inserts_in_a_ramp() {
         let mut p = demo_project();
         p.loop_enabled = false;
         if ramp {
-            p.tempo_points = vec![pt(0, 90.0, false), pt(960, 90.0, true), pt(30_720, 140.0, false)];
+            p.tempo_points = vec![
+                pt(0, 90.0, false),
+                pt(960, 90.0, true),
+                pt(30_720, 140.0, false),
+            ];
         }
         if latent {
             for i in 0..p.tracks.len() {
-                let Some(strip) = p.tracks[i].strip else { continue };
+                let Some(strip) = p.tracks[i].strip else {
+                    continue;
+                };
                 let mut lim = p.make_effect(EffectKind::Limiter);
                 lim.spec.set("look", 1.0 + i as f32).unwrap();
                 let mut eq = p.make_effect(EffectKind::Eq);
@@ -329,6 +358,12 @@ fn measure_the_passes_of_latent_inserts_in_a_ramp() {
     let flat = song(false, true, true);
     eprintln!("one tempo, latent inserts and a tremolo: {flat} passes");
     eprintln!("ramp, nothing latent: {} passes", song(true, false, false));
-    eprintln!("ramp, latent inserts, no follower: {} passes", song(true, true, false));
-    eprintln!("ramp, latent inserts, a tremolo: {} passes", song(true, true, true));
+    eprintln!(
+        "ramp, latent inserts, no follower: {} passes",
+        song(true, true, false)
+    );
+    eprintln!(
+        "ramp, latent inserts, a tremolo: {} passes",
+        song(true, true, true)
+    );
 }

@@ -135,7 +135,11 @@ fn a_split_across_a_tempo_change_plays_on_without_a_jump() {
     split_case(pts.clone(), Ticks::ZERO, false, Ticks::beats(12));
     split_case(pts.clone(), Ticks::beats(3), false, Ticks(11_520 + 7));
     // Through a ramp.
-    let ramp = vec![point(0, 90.0, false), point(4, 90.0, true), point(12, 140.0, false)];
+    let ramp = vec![
+        point(0, 90.0, false),
+        point(4, 90.0, true),
+        point(12, 140.0, false),
+    ];
     split_case(ramp, Ticks(333), false, Ticks(7_000));
 }
 
@@ -144,7 +148,11 @@ fn a_reversed_split_across_a_tempo_change_plays_on_without_a_jump() {
     let pts = vec![point(0, 120.0, false), point(8, 60.0, false)];
     split_case(pts.clone(), Ticks::ZERO, true, Ticks::beats(12));
     split_case(pts, Ticks::beats(2), true, Ticks::beats(5));
-    let ramp = vec![point(0, 90.0, false), point(4, 90.0, true), point(12, 140.0, false)];
+    let ramp = vec![
+        point(0, 90.0, false),
+        point(4, 90.0, true),
+        point(12, 140.0, false),
+    ];
     split_case(ramp, Ticks(333), true, Ticks(7_000));
 }
 
@@ -223,14 +231,14 @@ fn a_seam_moved_across_a_tempo_change_keeps_the_right_windows_audio() {
     };
     let crop = clipboard::split(bus.project(), t, &whole, Ticks::beats(6), &mut ids).unwrap();
     run(&mut bus, crop);
-    let left_half = clips(&bus, t)
-        .into_iter()
-        .find(|x| x.id == c)
-        .unwrap();
+    let left_half = clips(&bus, t).into_iter().find(|x| x.id == c).unwrap();
     run(
         &mut bus,
         vec![
-            Command::RemoveClip { track: t, clip: left_half.id },
+            Command::RemoveClip {
+                track: t,
+                clip: left_half.id,
+            },
             Command::InsertClip {
                 track: t,
                 clip: Box::new(left),
@@ -246,10 +254,12 @@ fn a_seam_moved_across_a_tempo_change_keeps_the_right_windows_audio() {
             left: lid,
             right: right.id,
             at: Ticks::beats(10),
-            window: None,
         }],
     );
-    let moved = clips(&bus, t).into_iter().find(|x| x.id == right.id).unwrap();
+    let moved = clips(&bus, t)
+        .into_iter()
+        .find(|x| x.id == right.id)
+        .unwrap();
     assert_eq!(moved.start, Ticks::beats(10));
     same_frames(&map, &whole, &[moved]);
     let after = bus.project().clone();

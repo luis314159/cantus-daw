@@ -1,9 +1,10 @@
 //! The markers on the ruler (round 29, ADR 0060): FL's playlist markers and Cubase's
 //! marker track. A lane under the loop lane, there while the song has markers: each marker
 //! a tab with its name in its colour (the track palette's, or the accent) and a line down
-//! from it. Click a marker to put the playhead there; click exactly on its name's letters
-//! to rename it (ADR 0051's gesture); drag it along the grid; its menu renames, recolours,
-//! loops, selects or exports to the next marker, and removes it. Double-click the lane to
+//! from it. Click a marker to put the playhead there (anywhere on its tab, as in FL —
+//! review 2); double-click it to rename it; drag it along the grid; its menu renames,
+//! recolours, loops, selects or exports to the next marker, and removes it. Markers on one
+//! tick sit side by side. Double-click the lane to
 //! add a marker there (Alt+M adds one at the playhead); the lane's menu adds a marker or a
 //! metre change, jumps to a marker by name, loops and selects between markers, and shows
 //! or hides the tempo track.
@@ -30,8 +31,34 @@ pub struct State {
     rename: Option<(MarkerId, String)>,
     /// What the lane's menu was opened on.
     menu: Option<MenuOn>,
+    /// The marker whose colours are offered, and the pass they were offered in (the click
+    /// that offered them is not a click away from them).
+    colour: Option<(MarkerId, u64)>,
+    /// Each visible marker's tab and its name's letters, last frame (published geometry:
+    /// tests aim with it).
+    drawn: Vec<(MarkerId, Rect, Rect)>,
+}
+
+impl State {
+    /// Each visible marker's tab and its letters as drawn last frame.
+    pub fn tabs(&self) -> &[(MarkerId, Rect, Rect)] {
+        &self.drawn
+    }
+
+    /// The marker being renamed.
+    pub fn renaming(&self) -> Option<MarkerId> {
+        self.rename.as_ref().map(|(id, _)| *id)
+    }
+
     /// The marker whose colours are offered.
-    colour: Option<MarkerId>,
+    pub fn colours_open(&self) -> Option<MarkerId> {
+        self.colour.map(|(id, _)| id)
+    }
+}
+
+/// Offer `id`'s colours (the menu's *Colour…*), from this pass on.
+pub fn offer_colours(app: &mut CantusApp, id: MarkerId, ctx: &egui::Context) {
+    app.arrangement.markers.colour = Some((id, ctx.cumulative_pass_nr()));
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -64,13 +91,23 @@ fn tabs(
 ) -> Vec<(MarkerId, Rect, Rect)> {
     let k = s.k;
     let markers = &app.project().markers;
-    let mut out = Vec::with_capacity(markers.len());
+    let mut out: Vec<(MarkerId, Rect, Rect)> = Vec::with_capacity(markers.len());
+    // The right edge of the tab before, when it is on the same tick: the next starts there
+    // (review 2: a later tab on one tick covered the earlier one whole).
+    let mut beside: Option<(Ticks, f32)> = None;
     for (i, m) in markers.iter().enumerate() {
-        let x = geo.x(ticks_to_beats(m.tick));
-        let next = markers
-            .get(i + 1)
+        let at = geo.x(ticks_to_beats(m.tick));
+        let x = match beside {
+            Some((t, right)) if t == m.tick => right + 1.0 * k,
+            _ => at,
+        };
+        // The next marker on another tick bounds the tab.
+        let next = markers[i + 1..]
+            .iter()
+            .find(|n| n.tick > m.tick)
             .map_or(f32::INFINITY, |n| geo.x(ticks_to_beats(n.tick)));
         if x > lane.right() || next < lane.left() {
+            beside = None;
             continue;
         }
         let w = text::measure(
@@ -79,13 +116,21 @@ fn tabs(
             s.tk(),
         )
         .x;
-        let right = (x + w + 10.0 * k).min(next - 2.0 * k).max(x + 6.0 * k);
+        // On one tick the tabs keep their whole names; otherwise the next marker cuts.
+        let same = markers.get(i + 1).is_some_and(|n| n.tick == m.tick);
+        let full = x + w + 10.0 * k;
+        let right = if same {
+            full
+        } else {
+            full.min(next - 2.0 * k).max(x + 6.0 * k)
+        };
         let tab = Rect::from_min_max(pos2(x, lane.top() + 1.0), pos2(right, lane.bottom() - 1.0));
         let letters = Rect::from_min_max(
             pos2(x + 4.0 * k, tab.top()),
             pos2((x + 4.0 * k + w).min(tab.right()), tab.bottom()),
         );
         out.push((m.id, tab, letters));
+        beside = Some((m.tick, right));
     }
     out
 }
@@ -106,7 +151,8 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, lane
         };
         let c = ink(m, s);
         b.rect(b.snap_rect(tab), Fill::Solid(with_alpha(c, 0.35)));
-        b.vline(tab.left(), lane.top(), lane.bottom(), 2.0 * b.px(), c);
+        let at = geo.x(ticks_to_beats(m.tick));
+        b.vline(at, lane.top(), lane.bottom(), 2.0 * b.px(), c);
         if renaming == Some(id) {
             continue;
         }
@@ -197,15 +243,12 @@ pub(super) fn input(
         .frame(chrome::menu_frame())
         .show(|ui| lane_menu(app, ui));
 
-    for (id, tab, letters) in tabs(app, ui.ctx(), geo, lane, s) {
+    let drawn = tabs(app, ui.ctx(), geo, lane, s);
+    app.arrangement.markers.drawn.clone_from(&drawn);
+    for (id, tab, _letters) in drawn {
         let r = ui.interact(tab, Id::new(("marker", id.0)), Sense::click_and_drag());
-        let on_letters = r.hover_pos().is_some_and(|p| letters.contains(p));
         if r.hovered() {
-            ui.ctx().set_cursor_icon(if on_letters {
-                egui::CursorIcon::Text
-            } else {
-                egui::CursorIcon::Grab
-            });
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             let name = app
                 .project()
                 .marker(id)
@@ -221,14 +264,14 @@ pub(super) fn input(
                 },
             );
         }
-        if r.clicked() {
-            let letters_hit = r
-                .interact_pointer_pos()
-                .is_some_and(|p| letters.contains(p));
-            match app.project().marker(id).cloned() {
-                Some(m) if letters_hit => app.arrangement.markers.rename = Some((id, m.name)),
-                Some(m) => app.seek(m.tick),
-                None => {}
+        // A click goes there; a double-click (the click went there first) renames.
+        if r.double_clicked() {
+            if let Some(m) = app.project().marker(id).cloned() {
+                app.arrangement.markers.rename = Some((id, m.name));
+            }
+        } else if r.clicked() {
+            if let Some(m) = app.project().marker(id).cloned() {
+                app.seek(m.tick);
             }
         }
         if r.dragged_by(egui::PointerButton::Primary) {
@@ -255,7 +298,7 @@ pub(super) fn input(
         egui::Popup::context_menu(&r)
             .frame(chrome::menu_frame())
             .show(|ui| marker_menu(app, ui, id));
-        if app.arrangement.markers.colour == Some(id) {
+        if app.arrangement.markers.colours_open() == Some(id) {
             colours(app, ui, id, tab, s);
         }
     }
@@ -296,7 +339,7 @@ fn marker_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: MarkerId) {
             ui.close();
         }
         Some(1) => {
-            app.arrangement.markers.colour = Some(id);
+            offer_colours(app, id, ui.ctx());
             ui.close();
         }
         Some(3) => {
@@ -470,7 +513,13 @@ fn colours(app: &mut CantusApp, ui: &mut egui::Ui, id: MarkerId, tab: Rect, s: &
                 }
             });
         });
-    if area.response.clicked_elsewhere() {
+    // A click away closes them — not the click that offered them, in this same pass
+    // (review 2) — and so does Esc.
+    let offered = app.arrangement.markers.colour.map_or(0, |(_, pass)| pass);
+    if area.response.clicked_elsewhere() && ui.ctx().cumulative_pass_nr() > offered {
+        away = true;
+    }
+    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         away = true;
     }
     if let Some(i) = picked {
@@ -488,45 +537,7 @@ fn colours(app: &mut CantusApp, ui: &mut egui::Ui, id: MarkerId, tab: Rect, s: &
     }
 }
 
-/// The empty timeline's (and the ruler's) entries for the tempo map: a marker or a metre
-/// change where the menu was opened (the playhead without a point), and the tempo track
-/// shown or hidden. A separate list, so the arrangement's own menu keeps its indices.
-pub(super) fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
-    let at = app
-        .arrangement
-        .menu_at
-        .map_or(app.engine.position(), |(t, _)| t)
-        .max(Ticks::ZERO);
-    let shown = app.tempo_lane_shown();
-    let items = [
-        Item::Separator,
-        Item::action(Src::Key("tempo.menu.add_marker")),
-        Item::action(Src::Key("tempo.menu.add_metre")),
-        Item::Action {
-            label: Src::Key("tempo.view_menu"),
-            check: if shown { Check::On } else { Check::Off },
-            shortcut: None,
-            submenu: false,
-            enabled: true,
-        },
-    ];
-    match kit::widgets::menu_list(ui, &items, 240.0).1.clicked {
-        Some(1) => {
-            if let Some(id) = app.add_marker(at) {
-                let name = app.project().marker(id).map(|m| m.name.clone());
-                app.arrangement.markers.rename = name.map(|n| (id, n));
-            }
-            ui.close();
-        }
-        Some(2) => {
-            super::tempo::add_metre_change(app, at);
-            ui.close();
-        }
-        Some(3) => {
-            app.toggle_tempo_lane();
-            ui.close();
-        }
-        Some(_) => ui.close(),
-        None => {}
-    }
+/// Start renaming marker `id` (one just added), its name so far `name`.
+pub(super) fn rename_now(app: &mut CantusApp, id: MarkerId, name: Option<String>) {
+    app.arrangement.markers.rename = name.map(|n| (id, n));
 }

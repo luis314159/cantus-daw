@@ -681,12 +681,7 @@ fn modulators_read_time_through_a_moving_tempo_map() {
         levels.from[1]
     );
     // At one tempo's seconds (0.5 s a beat) it would start elsewhere.
-    let constant = super::eval::gate_level(
-        &env,
-        0.0,
-        Gate { on: 0.0, off: 2.0 },
-        2.5,
-    );
+    let constant = super::eval::gate_level(&env, 0.0, Gate { on: 0.0, off: 2.0 }, 2.5);
     assert!((constant - by_hand).abs() > 1e-3);
     for beat in [1.2, 2.5, 4.0, 5.5, 6.3, 6.9, 7.4] {
         let t = ModTime::at_beats_in(beat, 0.0, &map);

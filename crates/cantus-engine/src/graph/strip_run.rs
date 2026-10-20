@@ -83,11 +83,7 @@ pub(crate) fn scope(
             (Some(b), Some(f)) => {
                 // Inside a ramp's step (ADR 0060) the beats bend away from the step's
                 // straight line by far less than a frame: carrying on is no jump.
-                let tol = if inc != 0.0 {
-                    1e-3
-                } else {
-                    1e-6
-                };
+                let tol = if inc != 0.0 { 1e-3 } else { 1e-6 };
                 p.tempo_bpm == bpm && (b + f64::from(p.frames) * per_frame - f).abs() < tol
             }
             (None, None) => true,

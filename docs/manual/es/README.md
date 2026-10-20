@@ -402,30 +402,38 @@ nombre (ronda 29).
   siguiente*, *Quitar el punto* y *Quitar la pista de tempo*. La cabecera junto a la franja
   muestra el tempo en el cursor de reproducción.
 - **El tempo de la barra superior** muestra el tempo en el cursor (dentro de una rampa, su
-  valor ahí). Arrastrarlo, la rueda, un doble clic o **TAP** cambian el punto bajo el que
-  está el cursor — el tempo de la canción cuando no hay pista de tempo.
+  valor ahí). Arrastrarlo y la rueda (un paso, un BPM) mueven en esa cantidad el punto bajo
+  el que está el cursor — dentro de una rampa, su inicio; un doble clic (120) o **TAP** lo
+  fijan — el tempo de la canción cuando no hay pista de tempo.
 - **Los cambios de compás** son fichas en la regla antes del número del compás ("7/8").
-  Clic derecho en la franja de marcadores (o el menú de la regla) ▸ *Añadir un cambio de
-  compás aquí*; clic en una ficha para editar su compás, arrástrala por las líneas de
-  compás, clic derecho para quitarla. Los compases que siguen a un cambio conservan su
+  Clic derecho en la franja de marcadores o en la regla ▸ *Añadir un cambio de compás aquí*
+  (en el compás 1 abre el compás propio de la canción); clic en una ficha para editar su
+  compás, arrástrala por las líneas de compás entre sus vecinas, clic derecho para quitarla. Los compases que siguen a un cambio conservan su
   número; las notas nunca se mueven. El compás de la barra superior edita el que rige en el
   cursor.
 - **Los marcadores** aparecen en una franja bajo la del bucle. `Alt+M` añade uno en el
-  cursor (o doble clic en la franja); clic en un marcador para llevar el cursor ahí; clic
-  en su **nombre** para renombrarlo; arrástralo por la rejilla; clic derecho para
-  *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
+  cursor (o doble clic en la franja, o clic derecho en la regla ▸ *Añadir un marcador
+  aquí*); clic en un marcador para llevar el cursor ahí; **doble clic** para renombrarlo;
+  arrástralo por la rejilla; los marcadores de un mismo tick quedan uno junto a otro; clic
+  derecho para *Renombrar…*, *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
   siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar*. `Alt+,` y `Alt+.` van al
-  marcador anterior y al siguiente; `Alt+Mayús+L` hace un bucle entre los marcadores que
+  marcador anterior y al siguiente; `Alt+Mayús+,` hace un bucle entre los marcadores que
   rodean el cursor. El menú de la franja lista todos los marcadores bajo *Ir a*.
 - **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
-  elige los dos marcadores por su nombre.
-- Todo sigue al tempo: las notas, los clips de audio (un clip de audio suena a su
-  velocidad natural desde donde empieza), la automatización, los moduladores, los efectos
-  sincronizados, el metrónomo (acentuando el compás 1 de cada compás; un compás de 7/8 se
-  cuenta en corcheas) y los plug-ins de otros.
+  elige los dos marcadores por su nombre (dos en lugares distintos: si no, el diálogo lo
+  dice, y nunca exporta la canción entera en su lugar).
+- Todo sigue al tempo: las notas, los clips de audio (un clip de audio sin warp suena a su
+  velocidad natural, colocado en la línea de tiempo desde donde empieza su archivo —
+  divídelo, recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba;
+  muévelo o cópialo a otro lugar y suena la misma parte de su archivo), la automatización,
+  los moduladores, los efectos sincronizados, el metrónomo (acentúa el primer tiempo de
+  cada compás; un compás de 7/8 se cuenta en corcheas) y los plug-ins de otros.
 - **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
-  de tempo cada semicorchea) y al importar — en una canción vacía con *Poner el tempo de la
-  canción* se conservan los cambios de tempo, de compás y los marcadores del archivo. Los
+  de tempo cada semicorchea, y todos los marcadores, también los del final) y al importar —
+  con *Poner el proyecto a … BPM en …* se conservan los cambios de tempo, de compás y los
+  marcadores del archivo: al inicio de la canción pasan a ser los suyos; soltados en un
+  compás posterior empiezan ahí (en la línea de compás más cercana), y la canción conserva
+  su tempo y su compás antes. Los
   archivos **DAWproject** llevan la pista de tempo, los cambios de compás y los marcadores
   en ambos sentidos.
 

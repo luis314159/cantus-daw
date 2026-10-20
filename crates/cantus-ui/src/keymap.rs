@@ -681,7 +681,8 @@ fn common() -> Vec<(Action, Binding)> {
         (TapTempo, Binding::shift(Key::T)),
         // Markers (round 29, ADR 0060): Alt and a key, so the typing piano never takes
         // them — M for marker; Alt+, and Alt+. step to the one before and after (Logic's
-        // keys, with Alt); Alt+Shift+L loops between the markers around the playhead.
+        // keys, with Alt); Alt+Shift+, loops between the markers around the playhead (the
+        // marker keys with Shift — review 2: Alt+Shift+L is Select linked's in every preset).
         (AddMarker, Binding::alt(Key::M)),
         (PreviousMarker, Binding::alt(Key::Comma)),
         (NextMarker, Binding::alt(Key::Period)),
@@ -689,7 +690,7 @@ fn common() -> Vec<(Action, Binding)> {
             LoopBetweenMarkers,
             Binding {
                 shift: true,
-                ..Binding::alt(Key::L)
+                ..Binding::alt(Key::Comma)
             },
         ),
         // Alt+Shift+M selects between them; Alt+Shift+T shows the tempo track.
@@ -1292,6 +1293,23 @@ pub fn keymap_path(dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Review 2 (findings 5, 14, 31): every action new in version 9 has a key in every
+    /// shipped preset — a later binding of the same chord (Select linked) once took Loop
+    /// between markers' away in all four.
+    #[test]
+    fn every_new_action_has_a_key_in_every_preset() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            for a in NEW_IN_V9 {
+                assert!(
+                    !map.bindings_for(a).is_empty(),
+                    "{a:?} has no key in {}",
+                    preset.id()
+                );
+            }
+        }
+    }
 
     #[test]
     fn every_action_has_a_stable_id_and_a_category() {

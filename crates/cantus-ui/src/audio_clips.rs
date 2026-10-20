@@ -226,9 +226,17 @@ pub fn clamp_edit(project: &Project, clip: &Clip, edit: WindowEdit, delta: Ticks
 }
 
 /// The commands of a window edit on a **reversed** audio clip, where the window maps
-/// backwards (`clips.rs` handles every other clip). `delta` is already clamped.
-pub fn reversed_edit(track: TrackId, clip: &Clip, edit: WindowEdit, delta: Ticks) -> Vec<Command> {
-    let mut out = Vec::with_capacity(2);
+/// backwards (`clips.rs` handles every other clip). `delta` is already clamped. Under a
+/// tempo track a trim re-derives the offset in seconds, the rounding in the fine offset
+/// (`audio_time::reanchor_reversed`, review 2); inside one held tempo, the tick arithmetic.
+pub fn reversed_edit(
+    project: &Project,
+    track: TrackId,
+    clip: &Clip,
+    edit: WindowEdit,
+    delta: Ticks,
+) -> Vec<Command> {
+    let mut out = Vec::with_capacity(3);
     let (start, length, offset) = match edit {
         // The left edge cuts or reveals the window's end: the offset stays.
         WindowEdit::TrimStart => (clip.start + delta, clip.length - delta, clip.offset),
@@ -240,6 +248,34 @@ pub fn reversed_edit(track: TrackId, clip: &Clip, edit: WindowEdit, delta: Ticks
     };
     let start = start.max(Ticks::ZERO);
     let length = length.max(Ticks::SIXTEENTH);
+    let mut offset = offset;
+    if let (Some(a), false) = (clip.audio.as_ref(), project.tempo_points.is_empty()) {
+        if edit != WindowEdit::Slip && clip.link.is_none() {
+            let map = crate::views::bars::map(project);
+            let rate = rate_of(project, a);
+            let (o, slip) = cantus_core::audio_time::reanchor_reversed(
+                &map,
+                clip.start,
+                clip.end(),
+                clip.offset,
+                a.slip_frames,
+                rate,
+                start,
+                start + length,
+            );
+            offset = o;
+            if slip != a.slip_frames {
+                out.push(set(
+                    track,
+                    clip,
+                    AudioRegion {
+                        slip_frames: slip,
+                        ..a.clone()
+                    },
+                ));
+            }
+        }
+    }
     if start != clip.start || length != clip.length {
         out.push(Command::SetClipBounds {
             track,
@@ -269,23 +305,50 @@ pub fn is_reversed(clip: &Clip) -> bool {
 // `split_audio` (the fades and a reversed clip's windows at a split) is
 // `cantus_core::clipboard::split_audio`, beside the split it serves.
 
+/// The source's rate (48 kHz for a source the project does not hold).
+fn rate_of(project: &Project, a: &AudioRegion) -> f64 {
+    project
+        .audio_source(a.source)
+        .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)))
+}
+
 /// Glue audio clips: only clips that are **contiguous windows on one source** — each
 /// starts where the last ended, on the timeline and in the file — with the same gain and
 /// direction. The first keeps its fade in and takes the last one's fade out. `None` when
-/// they cannot be glued (a clip of notes among them, two files, a gap).
+/// they cannot be glued (a clip of notes among them, two files, a gap). At one tempo; see
+/// [`glue_in`] under the project's tempo map.
 pub fn glue(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
+    glue_with(None, track, clips)
+}
+
+/// [`glue`] under `project`'s tempo map (review 2): forward windows go on by their tick
+/// arithmetic (one content origin, ADR 0060 §5); reversed ones, which read back from their
+/// ends, go on when the frames meet to within one, and the glued window re-derives its
+/// offset.
+pub fn glue_in(project: &Project, track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
+    glue_with(Some(project), track, clips)
+}
+
+fn glue_with(project: Option<&Project>, track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
     let mut ordered: Vec<&Clip> = clips.to_vec();
     ordered.sort_by_key(|c| (c.start, c.id.0));
     let first = *ordered.first()?;
     let last = *ordered.last()?;
     let a = first.audio.as_ref()?;
+    // A reversed window under a tempo track, where the tick arithmetic is not the map's.
+    let mapped = project
+        .filter(|p| a.reverse && !p.tempo_points.is_empty())
+        .map(|p| (crate::views::bars::map(p), rate_of(p, a)))
+        .filter(|(m, _)| {
+            !cantus_core::audio_time::held_over(m, first.start - first.offset, last.end())
+        });
     for w in ordered.windows(2) {
         let (p, n) = (w[0], w[1]);
         let na = n.audio.as_ref()?;
         let same = na.source == a.source
             && na.gain_db == a.gain_db
             && na.reverse == a.reverse
-            && na.slip_frames == a.slip_frames
+            && (na.slip_frames == a.slip_frames || mapped.is_some())
             // Round 28 (ADR 0054): one clip, one pitch edit; halves edited apart are not
             // glued (one half's corrections would be lost).
             && na.pitch == a.pitch
@@ -295,10 +358,18 @@ pub fn glue(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
             return None;
         }
         // Forward, the next window continues the file; reversed, it precedes it.
-        let continues = if a.reverse {
-            n.offset + n.length == p.offset
-        } else {
-            n.offset == p.offset + p.length
+        let continues = match &mapped {
+            Some((m, rate)) => {
+                let pa = p.audio.as_ref()?;
+                let anchor = |c: &Clip, slip: i32| {
+                    cantus_core::audio_time::offset_seconds(m, c.start, c.offset) * rate
+                        + f64::from(slip)
+                };
+                let want = anchor(n, na.slip_frames) + m.seconds_between(n.start, n.end()) * rate;
+                (anchor(p, pa.slip_frames) - want).abs() <= 1.0
+            }
+            None if a.reverse => n.offset + n.length == p.offset,
+            None => n.offset == p.offset + p.length,
         };
         if !continues {
             return None;
@@ -316,17 +387,37 @@ pub fn glue(track: TrackId, clips: &[&Clip]) -> Option<Vec<Command>> {
         start: first.start,
         length,
     });
+    let mut slip = a.slip_frames;
     if a.reverse {
-        // Reversed, the glued window starts at the last clip's offset.
+        // Reversed, the glued window starts where the last clip's file does: its offset
+        // (re-derived at the first's start under a tempo track).
+        let offset = match &mapped {
+            Some((m, rate)) => {
+                let (o, s) = cantus_core::audio_time::reanchor_reversed(
+                    m,
+                    last.start,
+                    last.end(),
+                    last.offset,
+                    la.slip_frames,
+                    *rate,
+                    first.start,
+                    last.end(),
+                );
+                slip = s;
+                o
+            }
+            None => last.offset,
+        };
         commands.push(Command::SetClipOffset {
             track,
             clip: first.id,
-            offset: last.offset,
+            offset,
         });
     }
     let glued = AudioRegion {
         fade_out: la.fade_out,
         fade_out_curve: la.fade_out_curve,
+        slip_frames: slip,
         ..a.clone()
     };
     if glued != *a {
@@ -355,4 +446,39 @@ pub fn reversed_drag(
         R::Slip { delta } => Some((WindowEdit::Slip, delta)),
         R::Move { .. } => None,
     }
+}
+
+/// A fade's length in seconds (review 2): a fade in from the clip's `start`, a fade out
+/// back from its `end` — where it lies, through the tempo map, as the engine plays it.
+pub fn fade_seconds(
+    map: &cantus_core::TempoMap,
+    start: Ticks,
+    end: Ticks,
+    fade: Ticks,
+    out: bool,
+) -> f64 {
+    if out {
+        map.seconds_between(end - fade, end)
+    } else {
+        map.seconds_between(start, start + fade)
+    }
+}
+
+/// The fade's length in ticks that lasts `seconds` where it lies (the inverse of
+/// [`fade_seconds`]).
+pub fn fade_ticks(
+    map: &cantus_core::TempoMap,
+    start: Ticks,
+    end: Ticks,
+    seconds: f64,
+    out: bool,
+) -> Ticks {
+    let t = if out {
+        let e = end.0 as f64;
+        e - map.tick_after_seconds(e, -seconds)
+    } else {
+        let s = start.0 as f64;
+        map.tick_after_seconds(s, seconds) - s
+    };
+    Ticks(t.round() as i64).max(Ticks::ZERO)
 }

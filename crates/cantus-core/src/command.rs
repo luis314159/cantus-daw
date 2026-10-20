@@ -652,10 +652,6 @@ pub enum Command {
         left: ClipId,
         right: ClipId,
         at: Ticks,
-        /// The right window's offset and fine offset, set exactly — the inverse of a move
-        /// through a tempo change (review 2); `None` derives them where it starts.
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        window: Option<(Ticks, i32)>,
     },
     /// A track's alternate comps, whole, and which plays (ADR 0058).
     SetTrackComps {
@@ -2448,8 +2444,7 @@ impl Command {
                 left,
                 right,
                 at,
-                window,
-            } => crate::comp::apply_seam(project, track, left, right, at, window),
+            } => crate::comp::apply_seam(project, track, left, right, at),
             SetTrackComps {
                 track,
                 comps,

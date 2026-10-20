@@ -597,7 +597,7 @@ fn link_target(project: &Project, r: &ClipRow, copy: &Clip) -> Option<Target> {
 /// *Split* is this function; it lives here because the time-range crop is built on it.)
 ///
 /// An unwarped audio clip's halves play what the whole played through `project`'s tempo
-/// map (review 2): see [`split_audio`].
+/// map (review 2): see [`split_audio`] (a reversed clip's need the map).
 pub fn split(
     project: &Project,
     track: TrackId,
@@ -663,11 +663,12 @@ pub fn split(
 /// maps its window backwards, so its halves' offsets swap. Returns the extra commands for
 /// the left half.
 ///
-/// Under a tempo track the offset is read at the tempo where a window starts (ADR 0060
-/// §5), so a half that starts elsewhere — the right one, or a reversed clip's either —
-/// re-derives it in seconds, the rounding in its fine offset (`audio_time::reanchor`);
-/// inside one held tempo, the tick arithmetic exactly. A clip warped to follow the tempo
-/// reads content ticks: the tick arithmetic is its own.
+/// Forward, both halves keep the content origin (`start − offset`): the tick arithmetic
+/// is exact through any tempo map (ADR 0060 §5). A reversed clip reads backwards from its
+/// end, so under a tempo track its halves re-derive their offsets in seconds, the rounding
+/// in their fine offsets (`audio_time::reanchor_reversed`); inside one held tempo, the
+/// tick arithmetic exactly. A clip warped to follow the tempo reads content ticks: the
+/// tick arithmetic is its own.
 pub fn split_audio(
     project: &Project,
     track: TrackId,
@@ -714,13 +715,6 @@ pub fn split_audio(
             clip: clip.id,
             offset: left_offset.0,
         });
-    } else if let Some(m) = &map {
-        let (offset, slip) =
-            crate::audio_time::reanchor(m, clip.start, clip.offset, a.slip_frames, rate, at);
-        right.offset = offset;
-        if let Some(r) = right.audio.as_mut() {
-            r.slip_frames = slip;
-        }
     }
     let left = crate::AudioRegion {
         fade_out: Ticks::ZERO,

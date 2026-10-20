@@ -437,7 +437,13 @@ pub fn position_at_tick(
     playing: bool,
     sample_rate: f64,
 ) -> SongPosition {
-    position_at_step(map, tick, step_of(map, tick, sample_rate), playing, sample_rate)
+    position_at_step(
+        map,
+        tick,
+        step_of(map, tick, sample_rate),
+        playing,
+        sample_rate,
+    )
 }
 
 /// The start of the tempo step that holds `tick` — a step whose boundary `tick` is a
@@ -471,7 +477,10 @@ pub fn heard_tick(
     match wrap.and_then(|w| w.locate(late)) {
         Some((r, end)) => {
             let end = end * cantus_core::PPQ as f64;
-            (map.tick_after_seconds(end, -(r as f64) / sr), Some((r, end)))
+            (
+                map.tick_after_seconds(end, -(r as f64) / sr),
+                Some((r, end)),
+            )
         }
         None => (map.tick_after_seconds(now, -(late as f64) / sr), None),
     }

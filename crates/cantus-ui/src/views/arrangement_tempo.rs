@@ -36,6 +36,9 @@ pub const TEMPO_H: f32 = 54.0;
 pub struct State {
     /// The user's choice to show it (`None`: shown while the project has a tempo track).
     pub shown: Option<bool>,
+    /// The project (`CantusApp::epoch`) this state is about: another project starts afresh
+    /// (review 2: a lane hidden in one stayed hidden in the next).
+    pub(crate) epoch: u64,
     /// The point being dragged: its index and its tempo, and where the press was.
     drag: Option<Drag>,
     /// The point whose tempo is being typed, and the words so far.
@@ -46,6 +49,15 @@ pub struct State {
     menu: Option<MenuOn>,
     /// The metre change whose editor opens next frame (one just added, or *Edit*).
     open_metre: Option<Ticks>,
+    /// Where each point was drawn last frame (published geometry: tests aim with it).
+    drawn: Vec<Pos2>,
+}
+
+impl State {
+    /// Where each tempo point was drawn last frame, in order.
+    pub fn points_drawn(&self) -> &[Pos2] {
+        &self.drawn
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -53,6 +65,10 @@ struct Drag {
     index: usize,
     bpm: f64,
     y: f32,
+    /// The lane's tempo range at the press: the scale holds for the whole gesture (review
+    /// 2: rebuilt from the point being dragged, it ran away from the pointer).
+    lo: f64,
+    hi: f64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -119,6 +135,19 @@ impl Axis {
     /// BPM per point of height.
     fn per_px(&self) -> f64 {
         (self.hi - self.lo) / f64::from((self.bottom - self.top).max(1.0))
+    }
+
+    /// The lane's axis: the one at a drag's press while a point is dragged.
+    fn of_lane(st: &State, pts: &[TempoPoint], rect: Rect, s: &Style) -> Axis {
+        let a = Axis::of(pts, rect, s);
+        match st.drag {
+            Some(d) => Axis {
+                lo: d.lo,
+                hi: d.hi,
+                ..a
+            },
+            None => a,
+        }
     }
 }
 
@@ -188,7 +217,7 @@ pub(super) fn paint(
         }
     });
     let pts = points(app.project());
-    let axis = Axis::of(&pts, lane, s);
+    let axis = Axis::of_lane(&app.arrangement.tempo, &pts, lane, s);
     let ink = t.highlight;
     // The curve: held flat to the next point, then the step; a ramp straight to it.
     for (i, p) in pts.iter().enumerate() {
@@ -356,7 +385,11 @@ pub(super) fn input(
     let id = Id::new("arrangement-tempo-lane");
     let resp = ui.interact(lane, id, Sense::click_and_drag());
     let pts = points(app.project());
-    let axis = Axis::of(&pts, lane, s);
+    let axis = Axis::of_lane(&app.arrangement.tempo, &pts, lane, s);
+    app.arrangement.tempo.drawn = pts
+        .iter()
+        .map(|p| pos2(geo.x(ticks_to_beats(p.tick)), axis.y(p.bpm)))
+        .collect();
     let mods = ui.input(|i| i.modifiers);
     let hover = resp.hover_pos();
     let under = hover.and_then(|p| point_at(&pts, geo, &axis, p, s));
@@ -378,9 +411,12 @@ pub(super) fn input(
             (None, Some(i)) => pts[i].bpm,
             (None, None) => crate::views::bars::bpm_at(app.project(), tick),
         };
+        // Tempo is no automation target (the tempo track is how it changes), and only a
+        // point can be typed (review 2).
         let caps = Caps {
             menu: true,
-            ..Caps::PARAM
+            typed: under.is_some(),
+            ..Caps::NONE
         };
         hint::set(ui.ctx(), &t("tempo.lane"), caps, resp.dragged(), |b| {
             write!(b, "{bpm:.1} {}", t("transport.bpm"))
@@ -415,6 +451,8 @@ pub(super) fn input(
                     index: i,
                     bpm: pts[i].bpm,
                     y: p.y,
+                    lo: axis.lo,
+                    hi: axis.hi,
                 });
             }
         }
@@ -699,9 +737,15 @@ pub(super) fn metre_input(
                 without.remove(i);
                 let other = cantus_core::TempoMap::new(120.0, p0.time_signature, &[], &without);
                 let to = other.snap_bar(beats_to_ticks(geo.beats(p.x).max(0.0)));
-                if to != tick && to > Ticks::ZERO {
+                // Held between its neighbours, and quiet: a drag never says "refused"
+                // (review 2).
+                if let Some(to) = clamp_move(p0, i, to) {
                     let key = MergeKey::of(&("metre-move", app.arrangement.tempo.metre_drag));
-                    app.exec_merging(Command::MoveMetre { from: tick, to }, key);
+                    let _ = app.bus.execute_merging(
+                        Command::MoveMetre { from: tick, to },
+                        cantus_core::Origin::User,
+                        key,
+                    );
                 }
             }
         }
@@ -749,18 +793,60 @@ pub(super) fn metre_input(
                 }
             });
     }
+    // An editor asked for on a chip there is no longer (undone, or never one): forgotten,
+    // so it never opens by itself later (review 2).
+    if let Some(t) = app.arrangement.tempo.open_metre {
+        if !chips.iter().any(|(c, _)| *c == t) {
+            app.arrangement.tempo.open_metre = None;
+        }
+    }
 }
 
 /// Add a metre change at the bar line nearest `at` (the metre in force there, its editor
-/// opened on it).
+/// opened on it). At bar 1 — or on a change already there — nothing is added: that
+/// change's editor opens, the top bar's for the song's own metre (review 2: a change
+/// that changed nothing left an empty undo step and an editor that never opened).
 pub fn add_metre_change(app: &mut CantusApp, at: Ticks) {
     let map = crate::views::bars::map(app.project());
     let bar = map.snap_bar(at.max(Ticks::ZERO));
     let sig = map.signature_at(bar);
+    let there = app.project().metre_changes.iter().any(|m| m.tick == bar);
+    if bar == Ticks::ZERO || there {
+        if chips(app).iter().any(|(t, _)| *t == bar) {
+            app.arrangement.tempo.open_metre = Some(bar);
+        } else {
+            app.topbar.open_metre = true;
+        }
+        return;
+    }
     if app.exec(Command::SetMetreAt {
         tick: bar,
         signature: sig,
     }) {
         app.arrangement.tempo.open_metre = Some(bar);
     }
+}
+
+/// Where metre change `i` may be dragged to, `to` asked (review 2): on a bar line of the
+/// metre before it, a bar after that change at the earliest and the last bar line before
+/// the next change at the latest; `None` when it would not move.
+pub fn clamp_move(p: &Project, i: usize, to: Ticks) -> Option<Ticks> {
+    let tick = p.metre_changes.get(i)?.tick;
+    if i == 0 {
+        return None;
+    }
+    let mut without = p.metre_changes.clone();
+    without.remove(i);
+    let other = cantus_core::TempoMap::new(120.0, p.time_signature, &[], &without);
+    let prev = p.metre_changes[i - 1];
+    let lo = prev.tick + prev.signature.ticks_per_bar();
+    let hi = match p.metre_changes.get(i + 1) {
+        Some(next) => other.bar_start(next.tick - Ticks(1)),
+        None => Ticks(i64::MAX / 4),
+    };
+    if hi < lo {
+        return None;
+    }
+    let to = other.snap_bar(to).clamp(lo, hi);
+    (to != tick).then_some(to)
 }

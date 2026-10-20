@@ -86,7 +86,7 @@ pub(super) fn paint(b: &mut Brush, app: &CantusApp, geo: &TimelineGeometry, rect
                 .align(Align2::CENTER_CENTER);
             let _ = text::paint(b, chip, &tx, s.tk());
         }
-        for (_, _, at, x) in comping::seams(app.project(), track) {
+        for (_, _, at, x) in comping::seams(track) {
             let h = handle(geo, row, at, k);
             if h.right() < rect.left() || h.left() > rect.right() {
                 continue;
@@ -145,7 +145,7 @@ pub(super) fn input(
         if super::takes::shown_lanes(track) == 0 {
             continue;
         }
-        for (l, r, at, _) in comping::seams(app.project(), track) {
+        for (l, r, at, _) in comping::seams(track) {
             let h = handle(geo, row, at, k).expand(2.0 * k);
             if h.intersects(rect) {
                 handles.push((track.id, l, r, h.intersect(rect)));

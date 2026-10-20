@@ -10,8 +10,7 @@ use cantus_project::dawproject::{self, zip::ZipWriter};
 const FOREIGN: &str = include_str!("fixtures/dawproject/foreign.xml");
 
 const TEMPO: &str = r#"<TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="149"/><RealPoint time="32" value="120"/></TempoAutomation>"#;
-const MARKERS: &str =
-    r#"<Markers id="id80"><Marker time="0" name="Intro"/><Marker time="16" name="Verse"/></Markers>"#;
+const MARKERS: &str = r#"<Markers id="id80"><Marker time="0" name="Intro"/><Marker time="16" name="Verse"/></Markers>"#;
 const KIT_CLIP: &str = r#"<Clip time="2.0" duration="2.0" contentTimeUnit="seconds">"#;
 
 fn import(xml: &str) -> cantus_project::dawproject::Imported {
@@ -52,14 +51,20 @@ fn map_of(p: &Project) -> TempoMap {
 #[test]
 fn seconds_content_after_a_tempo_change_lands_where_it_sounds() {
     let imported = with(&[
-        (KIT_CLIP, r#"<Clip time="20.0" duration="2.0" contentTimeUnit="seconds">"#),
+        (
+            KIT_CLIP,
+            r#"<Clip time="20.0" duration="2.0" contentTimeUnit="seconds">"#,
+        ),
         (
             MARKERS,
             r#"<Markers id="id80" timeUnit="seconds"><Marker time="0" name="Intro"/><Marker time="16" name="Verse"/></Markers>"#,
         ),
     ]);
     let p = &imported.project;
-    assert_eq!(p.tempo_points, vec![pt(0, 149.0, false), pt(30_720, 120.0, false)]);
+    assert_eq!(
+        p.tempo_points,
+        vec![pt(0, 149.0, false), pt(30_720, 120.0, false)]
+    );
     let map = map_of(p);
     let at = |s: f64| Ticks(map.tick_at_seconds(s).round() as i64);
     // By hand: beat 32 is 32·60/149 s in; 120 BPM after it.
@@ -89,7 +94,11 @@ fn tempo_points_in_seconds_are_placed_one_after_another() {
     let third = (30_720.0 + (20.0 - b32) * 2.0 * 960.0).round() as i64;
     assert_eq!(
         p.tempo_points,
-        vec![pt(0, 149.0, false), pt(30_720, 120.0, false), pt(third, 100.0, false)]
+        vec![
+            pt(0, 149.0, false),
+            pt(30_720, 120.0, false),
+            pt(third, 100.0, false)
+        ]
     );
 }
 
@@ -103,15 +112,27 @@ fn a_jump_written_as_two_points_keeps_the_later() {
         );
         with(&[(TEMPO, &tempo)]).project.tempo_points
     };
-    let held = pts(r#"<RealPoint time="0" value="120" interpolation="linear"/><RealPoint time="16" value="120" interpolation="linear"/><RealPoint time="16" value="140" interpolation="linear"/><RealPoint time="32" value="140"/>"#);
+    let held = pts(
+        r#"<RealPoint time="0" value="120" interpolation="linear"/><RealPoint time="16" value="120" interpolation="linear"/><RealPoint time="16" value="140" interpolation="linear"/><RealPoint time="32" value="140"/>"#,
+    );
     assert_eq!(
         held,
-        vec![pt(0, 120.0, false), pt(15_360, 140.0, false), pt(30_720, 140.0, false)]
+        vec![
+            pt(0, 120.0, false),
+            pt(15_360, 140.0, false),
+            pt(30_720, 140.0, false)
+        ]
     );
-    let ramped = pts(r#"<RealPoint time="0" value="100" interpolation="linear"/><RealPoint time="16" value="140"/><RealPoint time="16" value="90"/>"#);
+    let ramped = pts(
+        r#"<RealPoint time="0" value="100" interpolation="linear"/><RealPoint time="16" value="140"/><RealPoint time="16" value="90"/>"#,
+    );
     assert_eq!(
         ramped,
-        vec![pt(0, 100.0, true), pt(15_359, 140.0, false), pt(15_360, 90.0, false)]
+        vec![
+            pt(0, 100.0, true),
+            pt(15_359, 140.0, false),
+            pt(15_360, 90.0, false)
+        ]
     );
 }
 

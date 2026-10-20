@@ -473,7 +473,10 @@ fn a_file_from_bitwig_comes_in_and_everything_it_could_not_keep_is_named() {
         .collect();
     assert_eq!(
         pts,
-        [(Ticks::ZERO, 149.0, false), (Ticks::beats(32), 120.0, false)]
+        [
+            (Ticks::ZERO, 149.0, false),
+            (Ticks::beats(32), 120.0, false)
+        ]
     );
     let at: Vec<Ticks> = p.markers.iter().map(|m| m.tick).collect();
     assert_eq!(at, [Ticks::ZERO, Ticks::beats(16)]);

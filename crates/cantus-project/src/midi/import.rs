@@ -1022,7 +1022,13 @@ fn map_from(project: &Project, import: &MidiImport, at: Ticks) -> Vec<Command> {
         }));
     } else {
         // The file says nothing: the song's metre goes on.
-        metres.extend(project.metre_changes.iter().copied().filter(|m| m.tick >= at));
+        metres.extend(
+            project
+                .metre_changes
+                .iter()
+                .copied()
+                .filter(|m| m.tick >= at),
+        );
     }
     metres.dedup_by(|b, a| a.signature == b.signature);
     if metres.len() > 1 && metres != project.metre_changes {

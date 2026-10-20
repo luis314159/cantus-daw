@@ -43,7 +43,11 @@ fn note(tick: u64, len: u64, key: u8) -> [smf::TimedEvent; 2] {
 }
 
 /// A type 1 file: the conductor `conductor`, one track of notes.
-fn file(division: smf::Division, conductor: Vec<smf::TimedEvent>, notes: Vec<smf::TimedEvent>) -> Vec<u8> {
+fn file(
+    division: smf::Division,
+    conductor: Vec<smf::TimedEvent>,
+    notes: Vec<smf::TimedEvent>,
+) -> Vec<u8> {
     smf::write(&smf::Smf {
         format: 1,
         division,
@@ -97,11 +101,15 @@ fn markers_kept_are_no_texts_dropped() {
     let mut p = Project::new("Round");
     let mut t = p.make_track("Lead");
     let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(16));
-    c.notes.push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100));
+    c.notes
+        .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100));
     t.clips.push(c);
     p.tracks.push(t);
     p.tempo_points = vec![pt(0, 120.0), pt(7680, 90.0)];
-    for (i, (tick, name)) in [(0, "Intro"), (3840, "Verse"), (11_520, "Chorus")].iter().enumerate() {
+    for (i, (tick, name)) in [(0, "Intro"), (3840, "Verse"), (11_520, "Chorus")]
+        .iter()
+        .enumerate()
+    {
         p.markers.push(Marker {
             id: MarkerId(800 + i as u64),
             tick: Ticks(*tick),
@@ -136,7 +144,10 @@ fn odd_and_crowded_metres_are_tidied() {
     let bytes = file(smf::Division::Ppq(ppq as u16), conductor, notes.clone());
     let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
     assert_eq!(read.metre_changes, vec![mc(0, 4, 4), mc(3840, 5, 4)]);
-    assert!(read.report.has("interop.report.metre_changes"), "the 3/64 is said");
+    assert!(
+        read.report.has("interop.report.metre_changes"),
+        "the 3/64 is said"
+    );
     let bus = import(
         Project::new("Into"),
         &bytes,
@@ -145,7 +156,10 @@ fn odd_and_crowded_metres_are_tidied() {
             ..Default::default()
         },
     );
-    assert_eq!(bus.project().metre_changes, vec![mc(0, 4, 4), mc(3840, 5, 4)]);
+    assert_eq!(
+        bus.project().metre_changes,
+        vec![mc(0, 4, 4), mc(3840, 5, 4)]
+    );
     // A sequencer's first signature after its setup events: 4/4 at file tick 10.
     for (n, pow) in [(4u8, 2u8), (3, 2)] {
         let bytes = file(
@@ -154,7 +168,11 @@ fn odd_and_crowded_metres_are_tidied() {
             notes.clone(),
         );
         let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
-        assert!(read.metre_changes.is_empty(), "{n}: {:?}", read.metre_changes);
+        assert!(
+            read.metre_changes.is_empty(),
+            "{n}: {:?}",
+            read.metre_changes
+        );
         assert_eq!(read.time_signature, Some(TimeSignature::new(n, 1 << pow)));
     }
 }
@@ -195,7 +213,8 @@ fn markers_at_and_after_the_end_are_exported() {
     let mut p = Project::new("End");
     let mut t = p.make_track("Lead");
     let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(8));
-    c.notes.push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100));
+    c.notes
+        .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100));
     t.clips.push(c);
     p.tracks.push(t);
     for (i, (beat, name)) in [(8, "End"), (12, "Outro")].iter().enumerate() {
@@ -264,7 +283,12 @@ fn a_map_dropped_into_a_song_starts_at_its_bar() {
     let p = bus.project();
     assert_eq!(
         p.tempo_points,
-        vec![pt(0, 100.0), pt(3840, 120.0), pt(bar5, 90.0), pt(bar5 + 3840, 150.0)]
+        vec![
+            pt(0, 100.0),
+            pt(3840, 120.0),
+            pt(bar5, 90.0),
+            pt(bar5 + 3840, 150.0)
+        ]
     );
     assert_eq!(p.tempo_bpm, 100.0, "the song's start keeps its tempo");
     assert_eq!(
@@ -272,15 +296,33 @@ fn a_map_dropped_into_a_song_starts_at_its_bar() {
         vec![mc(0, 4, 4), mc(bar5, 3, 4), mc(bar5 + 5760, 4, 4)]
     );
     assert_eq!(p.time_signature, TimeSignature::new(4, 4));
-    let marks: Vec<(Ticks, &str)> = p.markers.iter().map(|m| (m.tick, m.name.as_str())).collect();
-    assert_eq!(marks, vec![(Ticks::ZERO, "A"), (Ticks(bar5 + 2880), "Hook")]);
+    let marks: Vec<(Ticks, &str)> = p
+        .markers
+        .iter()
+        .map(|m| (m.tick, m.name.as_str()))
+        .collect();
+    assert_eq!(
+        marks,
+        vec![(Ticks::ZERO, "A"), (Ticks(bar5 + 2880), "Hook")]
+    );
     let notes: Vec<Ticks> = p
         .tracks
         .iter()
-        .flat_map(|t| t.clips.iter().flat_map(|c| c.notes.iter().map(move |n| c.start - c.offset + n.start)))
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .flat_map(|c| c.notes.iter().map(move |n| c.start - c.offset + n.start))
+        })
         .collect();
-    assert_eq!(notes, vec![Ticks(bar5)], "the note on the bar the map starts at");
-    assert!(p.tempo_map().bbt(Ticks(bar5 + 5760)).1 == 1, "4/4 on a bar line");
+    assert_eq!(
+        notes,
+        vec![Ticks(bar5)],
+        "the note on the bar the map starts at"
+    );
+    assert!(
+        p.tempo_map().bbt(Ticks(bar5 + 5760)).1 == 1,
+        "4/4 on a bar line"
+    );
     bus.undo().unwrap();
     assert_eq!(bus.project().tempo_points, before.tempo_points);
     assert_eq!(bus.project().metre_changes, before.metre_changes);

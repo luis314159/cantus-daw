@@ -622,7 +622,12 @@ fn a_baked_route_renders_what_the_modulator_did_through_a_ramp() {
         let lead = p.tracks[0].id;
         let organ_strip = p.tracks[1].strip.unwrap();
         let target = AutoTarget::StripPan(organ_strip);
-        let id = add(&mut p, ModHost::Track(lead), kind, vec![(target.clone(), 0.6)]);
+        let id = add(
+            &mut p,
+            ModHost::Track(lead),
+            kind,
+            vec![(target.clone(), 0.6)],
+        );
         edit(&mut p, id, |m| match &mut m.source {
             ModSource::Lfo(l) => {
                 l.rate = ModRate::Hz { hz: 1.0 };

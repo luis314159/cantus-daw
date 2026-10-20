@@ -125,11 +125,13 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         &out.tempo,
         &[],
     );
-    let ctx_at = |secs: bool, v: f64| Ctx {
-        seconds: secs,
-        ..ctx.clone()
-    }
-    .at(&map, v);
+    let ctx_at = |secs: bool, v: f64| {
+        Ctx {
+            seconds: secs,
+            ..ctx.clone()
+        }
+        .at(&map, v)
+    };
     walk(arr, &ctx, &map, project, &mut out, &mut counts);
     if let Some(t) = child(arr, "TimeSignatureAutomation") {
         let secs = unit(t);

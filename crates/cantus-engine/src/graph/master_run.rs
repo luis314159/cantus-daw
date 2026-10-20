@@ -312,7 +312,11 @@ impl Processor {
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
             if e.follows_song() {
-                e.set_position(&position.earlier_in(e.late, self.sample_rate, self.transport.map()));
+                e.set_position(&position.earlier_in(
+                    e.late,
+                    self.sample_rate,
+                    self.transport.map(),
+                ));
             }
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);

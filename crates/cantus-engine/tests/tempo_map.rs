@@ -457,7 +457,10 @@ fn a_rendered_range_is_as_long_as_the_map_says() {
         "nothing before the note"
     );
     let heard = onset(&out, at, 1e-4).expect("the note one tick before the end sounds");
-    assert!(heard - at < 64, "it starts at the map's sample {at}, heard at {heard}");
+    assert!(
+        heard - at < 64,
+        "it starts at the map's sample {at}, heard at {heard}"
+    );
     // The stems: the same length, the same stop.
     let stem_opts = StemOptions {
         render: opts.clone(),
@@ -468,8 +471,7 @@ fn a_rendered_range_is_as_long_as_the_map_says() {
         source: StemSource::Track(0),
         file_name: "t.wav".into(),
     };
-    let stems = render_stems(Arc::new(Snapshot::compile(&on_end, 1)), &stem_opts, &[spec])
-        .unwrap();
+    let stems = render_stems(Arc::new(Snapshot::compile(&on_end, 1)), &stem_opts, &[spec]).unwrap();
     assert_eq!(stems[0].samples.len() / 2, want);
     assert!(stems[0].silent, "the stem never hears the note at the end");
     // A modulator's trace covers the range through the map: its last point is at the end.
