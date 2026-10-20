@@ -2562,6 +2562,9 @@ fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipI
     }
     // A group or clip chosen by name (round 26): the picker.
     entries.push(Entry::Run(Action::LinkTo, "clip.link_to"));
+    // Bounce in place (round 29, ADR 0064): the selected clips, to audio.
+    entries.push(Entry::Run(Action::BounceInPlace, "bounce.clips"));
+    entries.push(Entry::Run(Action::BounceSource, "bounce.clips_source"));
     // An audio clip plays its file once: it has no repeat (ADR 0025).
     if !is_audio {
         entries.push(Entry::Run(

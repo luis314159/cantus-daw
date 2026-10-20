@@ -15,10 +15,8 @@
 use crate::app::CantusApp;
 use crate::freeze::Want;
 use crate::i18n::tf;
-use cantus_core::freeze::{self, Region};
-use cantus_core::{
-    AudioSource, AudioSourceId, ClipId, Command, Project, StripId, Ticks, Track, TrackId,
-};
+use cantus_core::freeze::{self, FreezeTarget, Region};
+use cantus_core::{AudioSource, AudioSourceId, ClipId, Command, StripId, Ticks, Track, TrackId};
 use cantus_engine::freeze::render::{render_tapped, write_wav, TapOptions, TapPoint};
 use cantus_engine::render::RenderProgress;
 use std::path::PathBuf;
@@ -31,6 +29,9 @@ pub enum Through {
     Source,
     /// This track through its strip's chain, up to the width.
     Inserts,
+    /// A whole strip (the strip menu's): everything it gathers through its chain, up to
+    /// the width. The plan's track is where the new track goes (after it).
+    Strip(StripId),
 }
 
 /// What a bounce takes of the track.
@@ -92,15 +93,57 @@ pub fn refusal(app: &CantusApp, track: TrackId) -> Option<String> {
     None
 }
 
+/// The strip menu's bounce of a whole strip: refused while a freeze holds it, or when
+/// nothing it gathers has a clip. The plan otherwise (placed after its first track).
+pub fn strip_plan(app: &CantusApp, strip: StripId) -> Result<Plan, String> {
+    let p = app.project();
+    let name = crate::freeze::name_of(p, FreezeTarget::Strip(strip));
+    if let Some(owner) = app.freeze_holding_strip(strip) {
+        return Err(tf(
+            "bounce.frozen",
+            &[("name", &crate::freeze::name_of(p, owner))],
+        ));
+    }
+    let r = freeze::region(p, FreezeTarget::Strip(strip));
+    let track = p
+        .tracks
+        .iter()
+        .filter(|t| r.tracks.contains(&t.id))
+        .find(|t| {
+            t.clips
+                .iter()
+                .any(|c| c.lane == 0 && !c.muted && c.automation.is_none())
+        })
+        .map(|t| t.id)
+        .ok_or_else(|| tf("bounce.nothing", &[("name", &name)]))?;
+    Ok(Plan {
+        track,
+        through: Through::Strip(strip),
+        range: Range::Track,
+    })
+}
+
 impl CantusApp {
     /// Bounce in place (the track menu, the clip menu, the strip menu): rendered on a
     /// worker, laid back in one undo step.
     pub fn bounce(&mut self, plan: Plan) {
-        if let Some(why) = refusal(self, plan.track) {
+        let refused = match plan.through {
+            Through::Strip(s) => strip_plan(self, s).err(),
+            _ => refusal(self, plan.track),
+        };
+        if let Some(why) = refused {
             self.set_error(why);
             return;
         }
         crate::freeze::queue(self, Want::Bounce(plan));
+    }
+
+    /// The strip menu's *Bounce in place*: the whole strip.
+    pub fn bounce_strip(&mut self, strip: StripId) {
+        match strip_plan(self, strip) {
+            Ok(plan) => self.bounce(plan),
+            Err(why) => self.set_error(why),
+        }
     }
 }
 
@@ -112,7 +155,10 @@ fn clips_in(t: &Track, range: &Range) -> Vec<ClipId> {
         .filter(|c| c.lane == 0 && !c.muted && c.automation.is_none());
     match range {
         Range::Track => sounding.map(|c| c.id).collect(),
-        Range::Clips(ids) => sounding.filter(|c| ids.contains(&c.id)).map(|c| c.id).collect(),
+        Range::Clips(ids) => sounding
+            .filter(|c| ids.contains(&c.id))
+            .map(|c| c.id)
+            .collect(),
         Range::Time(a, b) => sounding
             .filter(|c| c.start < *b && c.end() > *a)
             .map(|c| c.id)
@@ -122,19 +168,40 @@ fn clips_in(t: &Track, range: &Range) -> Vec<ClipId> {
 
 /// Begin a bounce's render (on a worker).
 pub fn start(app: &mut CantusApp, plan: Plan) -> Result<crate::freeze::Job, String> {
-    if let Some(why) = refusal(app, plan.track) {
+    let refused = match plan.through {
+        Through::Strip(s) => strip_plan(app, s).err(),
+        _ => refusal(app, plan.track),
+    };
+    if let Some(why) = refused {
         return Err(why);
     }
     let project = app.project().clone();
     let t = project.track(plan.track).ok_or("gone")?.clone();
-    let taken = clips_in(&t, &plan.range);
+    // A strip's bounce takes every clip of every track it gathers.
+    let whole = match plan.through {
+        Through::Strip(s) => Some(freeze::region(&project, FreezeTarget::Strip(s))),
+        _ => None,
+    };
+    let taken = match &whole {
+        Some(r) => project
+            .tracks
+            .iter()
+            .filter(|x| r.tracks.contains(&x.id))
+            .flat_map(|x| clips_in(x, &plan.range))
+            .collect(),
+        None => clips_in(&t, &plan.range),
+    };
     if taken.is_empty() {
         return Err(tf("bounce.nothing", &[("name", &t.name)]));
     }
     let (start, end, stop) = match &plan.range {
         Range::Time(a, b) => (*a, *b, true),
         _ => {
-            let cs = t.clips.iter().filter(|c| taken.contains(&c.id));
+            let cs = project
+                .tracks
+                .iter()
+                .flat_map(|x| x.clips.iter())
+                .filter(|c| taken.contains(&c.id));
             let a = cs.clone().map(|c| c.start).min().unwrap_or(Ticks::ZERO);
             let b = cs.map(|c| c.end()).max().unwrap_or(a);
             (a, b, false)
@@ -144,19 +211,22 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<crate::freeze::Job, Stri
     // it: the transport stops at the end), the rest of the song resting.
     let mut alone = project.clone();
     freeze::thaw(&mut alone);
-    if !matches!(plan.range, Range::Time(..)) {
+    if !matches!(plan.range, Range::Time(..)) && whole.is_none() {
         if let Some(tr) = alone.track_mut(plan.track) {
             tr.clips
                 .retain(|c| c.automation.is_some() || taken.contains(&c.id));
         }
     }
-    let strip = t.strip.filter(|_| plan.through == Through::Inserts);
-    let (keep, point) = match strip {
-        Some(s) => (
+    let (keep, point) = match (plan.through, t.strip) {
+        (Through::Strip(s), _) => (
+            whole.clone().unwrap_or_default(),
+            TapPoint::Strip(alone.strip_index(s).ok_or("gone")?),
+        ),
+        (Through::Inserts, Some(s)) => (
             freeze::region_through(&alone, plan.track, s),
             TapPoint::Strip(alone.strip_index(s).ok_or("gone")?),
         ),
-        None => (
+        _ => (
             Region {
                 tracks: [plan.track].into_iter().collect(),
                 ..Region::default()
@@ -171,10 +241,16 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<crate::freeze::Job, Stri
     let opts = TapOptions::bounce(rate, start, end, stop);
     let dir = app.audio_record_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let wav = unique(&dir, &t.name);
+    let label = match plan.through {
+        Through::Strip(s) => crate::freeze::name_of(&project, FreezeTarget::Strip(s)),
+        _ => t.name.clone(),
+    };
+    let wav = unique(&dir, &label);
     let raw = wav.with_extension("raw.part");
     let units = app.plugins.render_units(&alone, app.engine.sample_rate);
-    let insts = app.plugins.render_instruments(&alone, app.engine.sample_rate);
+    let insts = app
+        .plugins
+        .render_instruments(&alone, app.engine.sample_rate);
     let progress = Arc::new(RenderProgress::default());
     let p = progress.clone();
     let out = wav.clone();
@@ -205,7 +281,7 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<crate::freeze::Job, Stri
     };
     Ok(crate::freeze::bounce_job(
         Want::Bounce(plan),
-        tf("bounce.job", &[("name", &t.name)]),
+        tf("bounce.job", &[("name", &label)]),
         progress,
         worker,
         prepared,
@@ -301,7 +377,15 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
     };
     let source_id = AudioSourceId(app.bus.alloc_id());
     let base = app.audio_base().map(std::path::Path::to_path_buf);
-    let name = format!("{} (bounce)", orig.name);
+    let whole = match plan.through {
+        Through::Strip(s) => Some(s),
+        _ => None,
+    };
+    let label = match whole {
+        Some(s) => crate::freeze::name_of(&project, FreezeTarget::Strip(s)),
+        None => orig.name.clone(),
+    };
+    let name = tf("bounce.track_name", &[("name", &label)]);
     commands.push(Command::InsertAudioSource {
         source: AudioSource {
             id: source_id,
@@ -319,8 +403,13 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
     track.color = orig.color;
     track.icon = orig.icon;
     track.height = orig.height;
-    let new_strip: Option<cantus_core::MixerStrip> = match (plan.through, orig.strip) {
-        (Through::Inserts, Some(s)) => project.strip(s).map(|old| {
+    let through_strip = match (plan.through, orig.strip) {
+        (Through::Strip(s), _) => Some(s),
+        (Through::Inserts, s) => s,
+        _ => None,
+    };
+    let new_strip: Option<cantus_core::MixerStrip> = match through_strip {
+        Some(s) => project.strip(s).map(|old| {
             let mut st = app.bus.new_strip(name.clone());
             st.gain_db = old.gain_db;
             st.pan = old.pan;
@@ -344,8 +433,7 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         }
     }
     if let Some(st) = new_strip {
-        let index = orig
-            .strip
+        let index = through_strip
             .and_then(|s| project.strip_index(s))
             .map_or(project.strips.len(), |i| i + 1);
         commands.push(Command::InsertStrip {
@@ -359,17 +447,25 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         index,
         track: Box::new(track),
     });
+    // Rounded up: the clip must not end before the file's last frame (a tick past it
+    // plays silence; a tick short would cut the tail).
     let length = crate::audio_files::length_ticks(&project, prepared.start, frames, prepared.rate)
-        .max(Ticks(1));
+        .max(Ticks(1))
+        + Ticks(1);
     let mut clip = app.bus.new_clip(name, prepared.start, length);
     clip.audio = Some(cantus_core::AudioRegion::of(source_id));
     commands.push(Command::InsertClip {
         track: tid,
         clip: Box::new(clip),
     });
-    // The original: muted or removed (the user's choice).
+    // The original: muted or removed (the user's choice); a whole strip, muted.
     let remove = removes(app);
     match plan.range {
+        _ if whole.is_some() => {
+            if let Some(s) = whole {
+                commands.push(Command::SetStripMute { id: s, muted: true });
+            }
+        }
         Range::Track if remove => commands.push(Command::RemoveTrack { id: plan.track }),
         Range::Track => commands.push(Command::SetTrackMute {
             id: plan.track,
@@ -397,13 +493,8 @@ pub fn commit(app: &mut CantusApp, prepared: Prepared, wav: PathBuf) {
         commands,
     }) {
         app.select_track(tid);
-        app.set_status(tf("bounce.done", &[("name", &orig.name)]));
+        app.set_status(tf("bounce.done", &[("name", &label)]));
     } else {
         let _ = std::fs::remove_file(&wav);
     }
-}
-
-/// The strip a bounce *with the inserts* goes through, if the track has one.
-pub fn strip_of(project: &Project, track: TrackId) -> Option<StripId> {
-    project.track(track).and_then(|t| t.strip)
 }

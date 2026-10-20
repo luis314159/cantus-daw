@@ -147,6 +147,10 @@ enum Act {
     CableLevels,
     CableMaster,
     CablePreset(CablePreset),
+    /// Freeze the strip, or unfreeze what holds it (round 29, ADR 0064).
+    Freeze(StripId),
+    /// Bounce the whole strip in place.
+    Bounce(StripId),
 }
 
 impl Act {
@@ -375,6 +379,21 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                     );
                 }
             }
+            // Freeze and bounce in place (round 29, ADR 0064).
+            e.push(Entry::band("freeze.menu.band"));
+            let held = app.freeze_holding_strip(id);
+            e.push(Entry::act(
+                Label::Key(if held.is_some() {
+                    "freeze.menu.unfreeze_strip"
+                } else {
+                    "freeze.menu.freeze_strip"
+                }),
+                Act::Freeze(id),
+            ));
+            e.push(
+                Entry::act(Label::Key("bounce.menu.strip"), Act::Bounce(id))
+                    .enabled(crate::bounce::strip_plan(app, id).is_ok()),
+            );
             e.push(Entry::band("mixer.menu.routing"));
             e.push(
                 Entry::act(Label::Key("routing.menu.where"), Act::RouteMenu(id)).shortcut(
@@ -1116,6 +1135,11 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
 fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
     let mut prefs = v.prefs.current;
     match act {
+        Act::Freeze(id) => match app.freeze_holding_strip(id) {
+            Some(h) => app.unfreeze_target(h),
+            None => app.freeze_target(cantus_core::FreezeTarget::Strip(id)),
+        },
+        Act::Bounce(id) => app.bounce_strip(id),
         Act::Rename(id) => {
             if let Some(s) = app.project().strip(id) {
                 let name = s.name.clone();

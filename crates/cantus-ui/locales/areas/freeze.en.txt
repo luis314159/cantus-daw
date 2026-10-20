@@ -1,1 +1,78 @@
 # freeze — round 29: freeze, bounce in place and low-latency monitoring. Every key here needs its twin in freeze.es.txt.
+
+# Undo labels (cmd.*)
+cmd.freeze = freeze
+cmd.unfreeze = unfreeze
+cmd.bounce_in_place = bounce in place
+
+# Actions (the keymap)
+action.freeze-track = Freeze or unfreeze the track
+action.bounce-in-place = Bounce in place (with the inserts)
+action.bounce-source = Bounce in place (source only)
+action.toggle-low-latency = Low-latency monitoring on or off
+
+# --- freezing ---
+freeze.strip_n = Strip {n}
+freeze.done = {name} is frozen: it plays its render, its CPU is free. Fader, pan, mute and sends stay live.
+freeze.unfrozen = {name} plays live again.
+freeze.already = {name} is frozen already.
+freeze.cannot_monitoring = {name} cannot be frozen while {track} monitors its input always: set its monitoring to Auto or Off first.
+freeze.stopped = Stopped: {name} was not changed.
+freeze.failed = {name} could not be rendered: {error}
+freeze.refused = {name} is frozen: {how}
+freeze.how_track = unfreeze it to change this (the track's menu ▸ Unfreeze).
+freeze.how_strip = unfreeze it to change this (the strip's menu ▸ Unfreeze).
+freeze.unfreeze = Unfreeze
+freeze.row = Freeze
+freeze.freeze = Freeze
+freeze.frozen = Frozen
+
+# --- the corner card ---
+freeze.card.freezing = Freezing {name}
+freeze.card.freezing_body = {pct} % rendered. The song plays on; nothing changes until it is done.
+freeze.card.refreshing = Preparing {name}'s render
+freeze.card.refreshing_body = {pct} % rendered. It plays live until its render is ready.
+freeze.card.bouncing_body = {pct} % rendered. The song plays on; the audio track comes when it is done.
+freeze.card.stop = Stop
+freeze.card.refused = {name} is frozen
+freeze.card.refused_body = Its sound is a render now, so this edit would not be heard. Unfreeze it to change it; its fader, pan, mute and sends stay live.
+freeze.card.ok = OK
+
+# --- menus ---
+freeze.menu.band = Freeze
+freeze.menu.freeze = Freeze track
+freeze.menu.unfreeze = Unfreeze
+freeze.menu.freeze_strip = Freeze strip
+freeze.menu.unfreeze_strip = Unfreeze
+bounce.menu.inserts = Bounce in place
+bounce.menu.source = Bounce in place (source only)
+bounce.menu.removes = Remove the original after a bounce
+bounce.menu.strip = Bounce strip in place
+bounce.clips = Bounce clips in place
+bounce.clips_source = Bounce clips in place (source only)
+
+# --- bouncing ---
+bounce.job = Bouncing {name}
+bounce.track_name = {name} (bounce)
+bounce.done = {name} bounced to audio, on the track below it.
+bounce.frozen = {name} is frozen: unfreeze it to bounce it.
+bounce.nothing = {name} has nothing to bounce.
+bounce.no_track = Select a track, its clips or a time range first.
+bounce.unreadable = The bounce's file could not be read: {file}
+
+# --- low-latency monitoring ---
+freeze.ll.band = Low-latency monitoring
+freeze.ll.row = Low latency
+freeze.ll.on = On
+freeze.ll.tip = Low-latency monitoring ({key}): what you monitor is not held back for other tracks' latency, and its inserts over the limit are bypassed while it is on.
+freeze.ll.limit = Limit
+freeze.ll.limit_tip = Inserts on a monitored path whose latency is above this are bypassed
+freeze.ll.ms = {ms} ms
+freeze.ll.now = Bypassed
+freeze.ll.none_off = Nothing over the limit
+freeze.ll.without = Monitoring without: {names}
+freeze.ll.heard = You hear
+freeze.ll.round_trip = {ms} ms round trip
+freeze.ll.now_on = Low-latency monitoring on: what you monitor is heard without waiting for other tracks.
+freeze.ll.now_off = Low-latency monitoring off: everything is aligned again.
+freeze.chip.monitored = {ms} ms monitored

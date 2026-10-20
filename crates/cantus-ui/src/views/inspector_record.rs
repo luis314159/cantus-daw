@@ -197,9 +197,10 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
         Function::Dynamics,
         dim,
     ) {
-        sh.acts.push(Act::Freeze(
-            crate::views::freeze_view::InspAct::LowLatency(!app.settings.low_latency),
-        ));
+        sh.acts
+            .push(Act::Freeze(crate::views::freeze_view::InspAct::LowLatency(
+                !app.settings.low_latency,
+            )));
     }
     if app.settings.low_latency && !dim {
         let off = crate::views::freeze_monitor::bypassed(app);

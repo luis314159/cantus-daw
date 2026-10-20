@@ -90,10 +90,17 @@ pub fn paint_header_frozen(
             .and_then(|t| t.strip)
             .is_some_and(|st| h.strips.contains(&st));
     let d = icon.width().min(icon.height()) * 0.62;
-    let badge = Rect::from_center_size(icon.right_top() + Vec2::new(-d * 0.18, d * 0.18), Vec2::splat(d));
+    let badge = Rect::from_center_size(
+        icon.right_top() + Vec2::new(-d * 0.18, d * 0.18),
+        Vec2::splat(d),
+    );
     crate::kit::with_brush(painter, |b| {
         b.circle(badge.center(), d * 0.5, Fill::Solid(s.t.panel));
-        let ink = if own { ice(s) } else { with_alpha(s.t.text_dim, 0.8) };
+        let ink = if own {
+            ice(s)
+        } else {
+            with_alpha(s.t.text_dim, 0.8)
+        };
         glyph::paint(b, badge.shrink(d * 0.08), Glyph::Frozen, ink);
     });
 }
@@ -129,10 +136,17 @@ pub fn paint_strip_mark(b: &mut Brush, cell: Rect, app: &CantusApp, strip: Strip
     let lit = h.strips.contains(&strip);
     let d = (cell.height() * 0.62).min(s.s(12.0));
     let gr = Rect::from_min_size(
-        egui::pos2(cell.right() - d - s.s(2.0), cell.top() + (cell.height() - d) * 0.5),
+        egui::pos2(
+            cell.right() - d - s.s(2.0),
+            cell.top() + (cell.height() - d) * 0.5,
+        ),
         Vec2::splat(d),
     );
-    let ink = if lit { ice(s) } else { with_alpha(s.t.text_dim, 0.8) };
+    let ink = if lit {
+        ice(s)
+    } else {
+        with_alpha(s.t.text_dim, 0.8)
+    };
     glyph::paint(b, gr, Glyph::Frozen, ink);
 }
 

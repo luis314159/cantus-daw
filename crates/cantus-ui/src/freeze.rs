@@ -98,10 +98,7 @@ pub fn project_dir(path: Option<&std::path::Path>) -> Option<PathBuf> {
 /// A target's name on screen.
 pub fn name_of(project: &Project, target: FreezeTarget) -> String {
     match target {
-        FreezeTarget::Track(t) => project
-            .track(t)
-            .map(|t| t.name.clone())
-            .unwrap_or_default(),
+        FreezeTarget::Track(t) => project.track(t).map(|t| t.name.clone()).unwrap_or_default(),
         FreezeTarget::Strip(s) => match project.strip(s) {
             Some(st) if !st.name.is_empty() => st.name.clone(),
             Some(_) => project
@@ -440,7 +437,9 @@ fn render_job(
 ) -> Result<Job, String> {
     let job = cantus_engine::freeze::render::prepare(&mut app.engine, project, target)?;
     let units = app.plugins.render_units(project, app.engine.sample_rate);
-    let insts = app.plugins.render_instruments(project, app.engine.sample_rate);
+    let insts = app
+        .plugins
+        .render_instruments(project, app.engine.sample_rate);
     let progress = Arc::new(RenderProgress::default());
     let p = progress.clone();
     let worker = std::thread::Builder::new()
@@ -499,7 +498,7 @@ fn commit_freeze(app: &mut CantusApp, target: FreezeTarget, before: Vec<Command>
         label_key: "cmd.freeze".into(),
         commands,
     }) {
-        app.set_status(tf("freeze.frozen", &[("name", &name)]));
+        app.set_status(tf("freeze.done", &[("name", &name)]));
     }
     app.force_resync();
 }
