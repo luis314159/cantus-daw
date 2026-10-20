@@ -68,11 +68,11 @@ impl CantusApp {
     /// Set the tempo at the playhead as the top bar's field and tap tempo do (ADR 0060 §2):
     /// the song's tempo without a tempo track, else the point the playhead is under; one
     /// undo step per gesture (`key`'s merge, by point).
-    pub fn set_tempo_now(&mut self, bpm: f64, key: &str) {
+    pub fn set_tempo_now(&mut self, bpm: f64, key: &str) -> bool {
         let at = self.engine.position();
         let cmd = edit::set_tempo_at(self.project(), at, bpm);
         let merge = cantus_core::MergeKey::of(&(key, edit::point_at(self.project(), at)));
-        self.exec_merging(cmd, merge);
+        self.exec_merging(cmd, merge)
     }
 
     /// The value of the tempo point that governs the playhead (inside a ramp, its start;

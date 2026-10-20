@@ -553,12 +553,21 @@ impl CantusApp {
     /// widens when a target joins (one step per gesture, review 1, #22); the targets that
     /// did not move are sent with their last command (review 1, #18).
     fn apply_moves(&mut self, pending: Vec<Pending>, last: Option<Instant>) {
-        // A knob on the tempo waits while a take records (review 4); the others move.
+        // A knob on the tempo waits while audio records (review 4); the others move. The
+        // refused knob is sent the tempo again (review 5: a motor fader stayed where the
+        // hand left it).
         let mut pending = pending;
-        if self.is_recording() {
-            let before = pending.len();
-            pending.retain(|p| !cantus_core::tempo::keep::changes_tempo(&p.cmd));
-            if pending.len() < before {
+        if self.audio_take_running() {
+            let (held, moved): (Vec<Pending>, Vec<Pending>) = pending
+                .into_iter()
+                .partition(|p| cantus_core::tempo::keep::changes_tempo(&p.cmd));
+            pending = moved;
+            if !held.is_empty() {
+                for p in &held {
+                    for k in &p.keys {
+                        self.controllers.sent.remove(k);
+                    }
+                }
                 self.set_status(crate::i18n::t("tempo.status.recording"));
             }
         }

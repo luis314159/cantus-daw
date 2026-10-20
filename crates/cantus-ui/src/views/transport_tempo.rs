@@ -233,11 +233,14 @@ pub fn tap_at(app: &mut CantusApp, now: f64) {
     }
     let tap = app.topbar.tap.tap(now);
     if let Some(bpm) = tap.bpm {
-        app.set_tempo_now(bpm, "tap-tempo");
-        app.set_status(crate::i18n::tf(
-            "topbar.tapped",
-            &[("bpm", &format!("{bpm:.1}"))],
-        ));
+        // Said only when it took (review 5: a refusal while audio records was
+        // overwritten by "tapped").
+        if app.set_tempo_now(bpm, "tap-tempo") {
+            app.set_status(crate::i18n::tf(
+                "topbar.tapped",
+                &[("bpm", &format!("{bpm:.1}"))],
+            ));
+        }
     } else {
         app.set_status(t("topbar.tap_more"));
     }
@@ -317,18 +320,25 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         .gap(4.0)
         .show(|ui| {
             let at = app.engine.position();
-            metre_editor(app, ui, at)
+            metre_editor(app, ui, at, false)
         });
 }
 
 /// The time signature's editor: the beats with ‹ ›, the note value, the usual metres —
 /// of the metre in force at `at` (the playhead's for the top bar, a metre chip's own).
-pub fn metre_editor(app: &mut CantusApp, ui: &mut Ui, at: cantus_core::Ticks) {
+pub fn metre_editor(app: &mut CantusApp, ui: &mut Ui, at: cantus_core::Ticks, named: bool) {
     let s = Style::current();
     ui.spacing_mut().item_spacing = vec2(4.0 * s.k, 3.0 * s.k);
-    let ts = crate::views::bars::map(app.project()).signature_at(at);
+    let map = crate::views::bars::map(app.project());
+    let ts = map.signature_at(at);
     let mut next = ts;
-    crate::views::record_options::band_row(ui, "topbar.metre", &s);
+    if named {
+        // Opened on the ruler, maybe for a bar out of view: it says which (review 5).
+        let title = crate::i18n::tf("tempo.metre_at_bar", &[("bar", &map.bbt(at).0.to_string())]);
+        crate::views::record_options::band_row_src(ui, Src::Str(&title), &s);
+    } else {
+        crate::views::record_options::band_row(ui, "topbar.metre", &s);
+    }
     ui.horizontal(|ui| {
         crate::views::record_options::label(ui, "topbar.metre_beats", &s);
         let mut beats = String::new();

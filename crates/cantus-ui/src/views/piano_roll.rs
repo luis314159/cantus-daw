@@ -1438,7 +1438,7 @@ fn interact(
                         let length = drawn_note_length(
                             geo.axis,
                             snapping,
-                            grid_ticks,
+                            crate::views::bars::grid_len(app.project(), grid_ticks, to_tl + start),
                             app.piano_roll.last_note_length,
                         );
                         let note = app.bus.new_note(start, length, pitch, 100);
@@ -1579,7 +1579,15 @@ fn interact(
                                 .iter()
                                 .map(|n| {
                                     let end = snap_round(n.end() + raw);
-                                    let min_len = if snapping { grid_ticks } else { Ticks(10) };
+                                    let min_len = if snapping {
+                                        crate::views::bars::grid_len(
+                                            app.project(),
+                                            grid_ticks,
+                                            to_tl + n.start,
+                                        )
+                                    } else {
+                                        Ticks(10)
+                                    };
                                     Note {
                                         length: (end - n.start).max(min_len),
                                         ..n.clone()
@@ -1717,7 +1725,8 @@ fn paint_cell(
     if occupied {
         return;
     }
-    let length = drawn_note_length(geo.axis, snapping, grid_ticks, grid_ticks);
+    let grid_here = crate::views::bars::grid_len(app.project(), grid_ticks, to_tl + start);
+    let length = drawn_note_length(geo.axis, snapping, grid_here, grid_here);
     let note = app.bus.new_note(start, length, pitch, 100);
     let key = MergeKey::of(&("paint", app.piano_roll.stroke));
     app.exec_merging(

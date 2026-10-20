@@ -72,12 +72,22 @@ fn cc(n: u8, v: u8) -> Heard {
     }
 }
 
-/// Findings 4, 13, 20, 42: while a take records, the tempo stays — the top bar, a command,
+/// Findings 4, 13, 20, 42: while an audio take records, the tempo stays — the top bar, a command,
 /// a knob mapped to the tempo — and says why; a pan knob in the same gesture still moves;
 /// after the take the tempo can be changed again.
 #[test]
 fn the_tempo_stays_while_a_take_records() {
-    let mut a = app(cantus_ui::starter_project());
+    // An audio take (review 5: a notes-only pass leaves the tempo free): a hand-driven
+    // engine with one input channel, an armed audio track.
+    let dir = tempfile::tempdir().unwrap();
+    let (h, mut proc) = cantus_engine::EngineHandle::manual(48_000.0);
+    let (_ring, consumer) = rtrb::RingBuffer::<f32>::new(96_000);
+    proc.attach_input(consumer, 1);
+    let mut a = CantusApp::from_parts(Some(cantus_ui::starter_project()), h, false);
+    a.rec.demo_inputs = Some(vec![0.0]);
+    a.path = Some(dir.path().join("song.cantus"));
+    a.add_audio_track();
+    a.sync_engine();
     a.midi_port_names = vec!["Keys".into()];
     let s = a.project().tracks[0].strip.unwrap();
     let source = |n: u8| MidiSource {
@@ -98,7 +108,7 @@ fn the_tempo_stays_while_a_take_records() {
     }
     let bpm = a.project().tempo_bpm;
     a.start_recording();
-    assert!(a.is_recording());
+    assert!(a.audio_take_running());
     a.set_tempo_now(bpm + 10.0, "tempo");
     assert_eq!(a.project().tempo_bpm, bpm, "the top bar");
     assert!(a.status.text.contains("record"), "said: {}", a.status.text);

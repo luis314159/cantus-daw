@@ -77,10 +77,12 @@ struct Drag {
     index: usize,
     bpm: f64,
     y: f32,
-    /// The point's tick and the pointer's x at the press: the point moves along the lane
-    /// by the pointer's travel, never to the grid line under it (review 4).
+    /// The point's tick at the press, and where in the song the pointer held it (ticks
+    /// from the point): the point moves along the lane by the pointer's travel, never to
+    /// the grid line under it (review 4), and stays under the pointer through a zoom or a
+    /// scroll mid-drag (review 5: a screen x did not).
     tick: Ticks,
-    x: f32,
+    grab: Ticks,
     /// The lane's tempo range at the press: the scale holds for the whole gesture (review
     /// 2: rebuilt from the point being dragged, it ran away from the pointer).
     lo: f64,
@@ -481,7 +483,7 @@ pub(super) fn input(
                     bpm: pts[i].bpm,
                     y: p.y,
                     tick: pts[i].tick,
-                    x: p.x,
+                    grab: beats_to_ticks(geo.beats(p.x)) - pts[i].tick,
                     lo: axis.lo,
                     hi: axis.hi,
                 });
@@ -497,11 +499,11 @@ pub(super) fn input(
             // Along the lane by the travel, once it is more than a few points (a drag up
             // or down keeps the point's place, on the grid or off it), snapped as the lane
             // snaps.
-            let tick = if (p.x - d.x).abs() < 4.0 * s.k {
+            let held = geo.x(ticks_to_beats(d.tick + d.grab));
+            let tick = if (p.x - held).abs() < 4.0 * s.k {
                 d.tick
             } else {
-                let travel = beats_to_ticks(geo.beats(p.x)) - beats_to_ticks(geo.beats(d.x));
-                let t = (d.tick + travel).max(Ticks::ZERO);
+                let t = (beats_to_ticks(geo.beats(p.x)) - d.grab).max(Ticks::ZERO);
                 if mods.command || !app.arrangement.snap {
                     t
                 } else {
@@ -744,6 +746,11 @@ pub(super) fn metre_input(
     numbers: Rect,
     s: &Style,
 ) {
+    // A chip released out of view is never told it stopped: its drag ends here (review 5).
+    if app.arrangement.tempo.metre_drag.is_some() && !ui.input(|i| i.pointer.primary_down()) {
+        app.arrangement.tempo.metre_drag = None;
+        app.end_gesture();
+    }
     let chips = chips(app);
     let mut drawn = Vec::with_capacity(chips.len());
     let mut chip_rects = Vec::with_capacity(chips.len());
@@ -821,7 +828,7 @@ pub(super) fn metre_input(
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                 .frame(crate::views::record_options::frame_for(s))
                 .gap(4.0)
-                .show(|ui| crate::views::transport::tempo::metre_editor(app, ui, tick));
+                .show(|ui| crate::views::transport::tempo::metre_editor(app, ui, tick, true));
         }
         egui::Popup::context_menu(&resp)
             .frame(chrome::menu_frame())
@@ -888,7 +895,8 @@ pub fn add_metre_change(app: &mut CantusApp, at: Ticks) {
             .x(ticks_to_beats(bar))
             .min(g.left + g.width - 160.0)
             .max(g.left);
-        pos2(x, g.loop_lane_bottom)
+        // Under the ruler and the tempo lane: the chip it edits stays in sight (review 5).
+        pos2(x, g.body_top)
     });
     app.arrangement.tempo.metre_at = Some((bar, pos, u64::MAX));
 }
@@ -909,7 +917,7 @@ fn metre_popup(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style) {
         .fixed_pos(pos)
         .show(ui.ctx(), |ui| {
             crate::views::record_options::frame_for(s).show(ui, |ui| {
-                crate::views::transport::tempo::metre_editor(app, ui, tick)
+                crate::views::transport::tempo::metre_editor(app, ui, tick, true)
             });
         });
     let away = area.response.clicked_elsewhere() && now > pass;
@@ -965,7 +973,7 @@ mod tests {
                 bpm: 120.0,
                 y: 30.0,
                 tick: Ticks::ZERO,
-                x: 0.0,
+                grab: Ticks::ZERO,
                 lo: 110.0,
                 hi: 130.0,
             }),

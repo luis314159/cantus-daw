@@ -730,11 +730,39 @@ impl CantusApp {
         self.bus.end_gesture();
     }
 
-    /// Whether `cmd` would change the tempo map while a take records — refused, and said
+    /// Whether an audio take is being written: what the tempo hold protects (review 5:
+    /// notes are recorded in ticks, so a notes-only pass leaves the tempo free).
+    pub fn audio_take_running(&self) -> bool {
+        self.rec.pass.as_ref().is_some_and(|l| l.audio)
+    }
+
+    /// Whether undoing (`undo`) or redoing the step on top would move the tempo map, or
+    /// put another song in place, while an audio take is written — refused, and said
+    /// (review 5: undo and redo went around the hold).
+    fn step_held(&mut self, undo: bool) -> bool {
+        if !self.audio_take_running() {
+            return false;
+        }
+        let step = if undo {
+            self.bus.history().last().map(|e| &e.inverse)
+        } else {
+            self.bus.redo_history().last().map(|e| &e.command)
+        };
+        let held = step.is_some_and(|c| {
+            cantus_core::tempo::keep::changes_tempo(c)
+                || matches!(c, Command::ReplaceProject { .. })
+        });
+        if held {
+            self.set_status(t("tempo.status.recording"));
+        }
+        held
+    }
+
+    /// Whether `cmd` would change the tempo map while audio records — refused, and said
     /// (review 4): the take is laid through the map it was played under, and a take not
     /// yet in the song cannot be kept where it was played by `tempo::keep`.
     pub(crate) fn tempo_held(&mut self, cmd: &Command) -> bool {
-        let held = self.is_recording() && cantus_core::tempo::keep::changes_tempo(cmd);
+        let held = self.audio_take_running() && cantus_core::tempo::keep::changes_tempo(cmd);
         if held {
             self.set_status(t("tempo.status.recording"));
         }
@@ -742,6 +770,9 @@ impl CantusApp {
     }
 
     pub fn undo(&mut self) {
+        if self.step_held(true) {
+            return;
+        }
         let replaced = self.bus.undo_label_key() == Some(REPLACE_PROJECT);
         self.bus.undo();
         if replaced {
@@ -752,6 +783,9 @@ impl CantusApp {
     }
 
     pub fn redo(&mut self) {
+        if self.step_held(false) {
+            return;
+        }
         let replaced = self.bus.redo_label_key() == Some(REPLACE_PROJECT);
         self.bus.redo();
         if replaced {
@@ -2032,7 +2066,8 @@ impl CantusApp {
         let p = self.project();
         let bar_from = |from: Ticks| crate::views::bars::add_bars(p, from, direction) - from;
         if self.editing_clips() {
-            let step = if by_bar {
+            // The *Bar* grid steps a bar of the metre too (review 5).
+            let step = if by_bar || self.arrangement.grid == crate::views::bars::BAR_GRID {
                 let first = self
                     .clip_selection()
                     .iter()
@@ -2045,7 +2080,7 @@ impl CantusApp {
             };
             self.nudge_clips(step);
         } else {
-            let step = if by_bar {
+            let step = if by_bar || self.piano_roll.grid == crate::views::bars::BAR_GRID {
                 let first = self.selected_note_values().and_then(|(t, c, sel)| {
                     let clip = p.track(t)?.clip(c)?;
                     let n = sel.iter().map(|n| n.start).min()?;
@@ -2540,7 +2575,26 @@ impl CantusApp {
         let end = sel.iter().map(|n| n.end()).max().unwrap_or(Ticks::ZERO);
         let grid = self.piano_roll.grid;
         let span = end - start;
-        let offset = Ticks(((span.0 + grid.0 - 1) / grid.0).max(1) * grid.0);
+        let offset = if grid == crate::views::bars::BAR_GRID {
+            // Whole bars of the metre where the notes are, through its changes (review 5):
+            // the fewest that hold the span, the copy at the same place in its bar.
+            let p = self.project();
+            let to_tl = p
+                .track(t)
+                .and_then(|tr| tr.clip(c))
+                .map_or(Ticks::ZERO, |clip| clip.start - clip.offset);
+            let from = to_tl + start;
+            let mut k = 1;
+            loop {
+                let o = crate::views::bars::add_bars(p, from, k) - from;
+                if o >= span || k >= 4096 {
+                    break o;
+                }
+                k += 1;
+            }
+        } else {
+            Ticks(((span.0 + grid.0 - 1) / grid.0).max(1) * grid.0)
+        };
         let copies: Vec<_> = sel
             .iter()
             .map(|n| {

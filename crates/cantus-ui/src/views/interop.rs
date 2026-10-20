@@ -180,6 +180,14 @@ pub fn empty_song(p: &Project) -> bool {
         && p.markers.is_empty()
 }
 
+/// Whether a MIDI file sets the song's tempo, metre and markers by default (the dialog's
+/// choice, and a drop's).
+pub fn sets_tempo_by_default(app: &CantusApp) -> bool {
+    // Not while audio records: the tempo holds then, and the notes come in at the song's
+    // (review 5: a drop was refused whole for a tempo the user did not ask to set).
+    empty_song(app.project()) && !app.audio_take_running()
+}
+
 /// Where an import lands by default: the bar the playhead is in, or the start of an empty
 /// project.
 fn default_at(app: &CantusApp) -> Ticks {
@@ -203,7 +211,7 @@ pub fn open_midi_import(app: &mut CantusApp, path: &Path) {
     };
     match midi::read(&bytes, &midi::ImportOptions::default()) {
         Ok(preview) => {
-            let empty = empty_song(app.project());
+            let empty = sets_tempo_by_default(app);
             app.interop.midi_import = Some(MidiImportDialog {
                 path: path.to_path_buf(),
                 bytes,
@@ -977,6 +985,11 @@ fn open_imported(app: &mut CantusApp, mut project: Project, report: Report, name
     let first = project.tracks.first().map(|t| t.id);
     // A save in flight writes the project being replaced: it lands first (`save_job`).
     app.wait_for_save();
+    // A pass in progress belongs to the song it was recorded into (review 5), as
+    // `replace_project` has it.
+    if app.is_recording() {
+        app.stop_recording();
+    }
     app.engine.stop();
     if !app.exec(Command::ReplaceProject {
         project: Box::new(project),
@@ -1119,7 +1132,7 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
         };
         if midi::is_midi_path(Path::new(&lower)) {
             let (at, index) = drop_target(app, pos);
-            let empty = empty_song(app.project());
+            let empty = sets_tempo_by_default(app);
             import_midi(app, &bytes, &name, false, empty, at, index);
         } else if is_project {
             import_dawproject(app, &bytes, &name);

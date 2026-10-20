@@ -154,6 +154,17 @@ pub fn snap_floor(project: &Project, tick: Ticks, grid: Ticks) -> Ticks {
     m.snap_floor(tick, grid.max(Ticks(1)))
 }
 
+/// The grid's length at `tick`: the *Bar* grid is the bar of the metre in force there
+/// (review 5: a nudge, a duplicate and a drawn note took four quarters), any other grid
+/// its own length.
+pub fn grid_len(project: &Project, grid: Ticks, tick: Ticks) -> Ticks {
+    if grid == BAR_GRID {
+        bar_len(project, tick)
+    } else {
+        grid
+    }
+}
+
 /// The length of the bar that holds `tick` (the grid a bar's worth of anything snaps to).
 pub fn bar_len(project: &Project, tick: Ticks) -> Ticks {
     let m = map(project);
