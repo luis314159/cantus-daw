@@ -276,7 +276,7 @@ pub(crate) struct Pending {
 
 /// How a wait for a [`Pending`] call ended.
 pub(crate) enum Waited {
-    Answered(Result<(Answer, Vec<u8>), HostError>),
+    Answered(Box<Result<(Answer, Vec<u8>), HostError>>),
     /// Not yet: the helper lives (held for its main loop, or busy ahead of it).
     Pending,
 }
@@ -789,7 +789,7 @@ impl Sandbox {
     ) -> Result<(Answer, Vec<u8>), HostError> {
         let pending = self.post_call(instance, call, blob, timeout)?;
         match self.wait_call(&pending, Instant::now() + timeout) {
-            Waited::Answered(r) => r,
+            Waited::Answered(r) => *r,
             Waited::Pending => {
                 self.drop_call(pending);
                 Err(HostError::Busy(format!(
@@ -830,11 +830,11 @@ impl Sandbox {
         loop {
             let left = until.saturating_duration_since(Instant::now());
             match p.rx.recv_timeout(left.min(slice)) {
-                Ok((Ok(answer), blob)) => return Waited::Answered(Ok((answer, blob))),
-                Ok((Err(f), _)) => return Waited::Answered(Err(failure(f))),
+                Ok((Ok(answer), blob)) => return Waited::Answered(Box::new(Ok((answer, blob)))),
+                Ok((Err(f), _)) => return Waited::Answered(Box::new(Err(failure(f)))),
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
                     lock(&self.inflight).remove(&p.id);
-                    return Waited::Answered(Err(self.gone()));
+                    return Waited::Answered(Box::new(Err(self.gone())));
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     if !self.rebased_after_a_pause() {
@@ -843,7 +843,7 @@ impl Sandbox {
                             let culprit = self.hung_on().or(p.instance);
                             lock(&self.inflight).remove(&p.id);
                             self.kill_blaming(&why, culprit);
-                            return Waited::Answered(Err(self.gone()));
+                            return Waited::Answered(Box::new(Err(self.gone())));
                         }
                     }
                     let held = lock(&self.inflight).get(&p.id).is_some_and(|f| f.deferred);

@@ -458,7 +458,7 @@ impl MainThread for BridgeMain {
         };
         let until = Instant::now() + limit;
         let answered = match self.sandbox.wait_call(&pending, until) {
-            Waited::Answered(r) => r?,
+            Waited::Answered(r) => (*r)?,
             Waited::Pending => {
                 self.restart_pending = Some(pending);
                 return Ok(None);
