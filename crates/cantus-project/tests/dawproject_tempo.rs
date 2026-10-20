@@ -165,3 +165,45 @@ fn two_metre_points_at_one_time_keep_the_later() {
         .collect();
     assert_eq!(sigs, vec![(Ticks(0), (4, 4)), (Ticks::beats(8), (7, 8))]);
 }
+
+/// Findings 10 and 50: an audio clip whose content is in seconds plays its `playStart`
+/// second at its start, through the map — its hidden part reaching back across a tempo
+/// change (120 to beat 8, then 60; the clip at beat 10, 3 s in).
+#[test]
+fn a_seconds_audio_clip_starts_at_its_second_through_the_map() {
+    let old = r#"<Clip time="0.0" duration="8.0" playStart="0.0" name="Drumfunk3 170bpm">
+            <Clips id="id26">
+              <Clip time="0.0" duration="8.0" contentTimeUnit="beats" playStart="0.0">
+                <Warps contentTimeUnit="seconds" timeUnit="beats" id="id28">
+                  <Audio algorithm="stretch" channels="2" duration="2.823541666666667" sampleRate="48000" id="id27">
+                    <File path="audio/Drumfunk3 170bpm.wav"/>
+                  </Audio>
+                  <Warp time="0.0" contentTime="0.0"/>
+                  <Warp time="8.0" contentTime="2.823541666666667"/>
+                </Warps>
+              </Clip>
+            </Clips>
+          </Clip>"#;
+    let new = r#"<Clip time="10.0" duration="2.0" contentTimeUnit="seconds" playStart="3" name="Take">
+            <Audio algorithm="raw" channels="2" duration="20" sampleRate="48000" id="id27">
+              <File path="audio/Drumfunk3 170bpm.wav"/>
+            </Audio>
+          </Clip>"#;
+    let tempo = r#"<TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="120"/><RealPoint time="8" value="60"/></TempoAutomation>"#;
+    let mut xml = FOREIGN.replace('\r', "").replace(TEMPO, tempo);
+    let fixture = xml.clone();
+    xml = xml.replace(old, new);
+    assert_ne!(xml, fixture, "the fixture has the clip");
+    let p = import(&xml).project;
+    let c = p
+        .tracks
+        .iter()
+        .flat_map(|t| &t.clips)
+        .find(|c| c.audio.is_some())
+        .expect("the audio clip");
+    assert_eq!(c.start, Ticks::beats(10));
+    let map = p.tempo_map();
+    let slip = f64::from(c.audio.as_ref().unwrap().slip_frames) / 48_000.0;
+    let at = cantus_core::audio_time::offset_seconds(&map, c.start, c.offset) + slip;
+    assert!((at - 3.0).abs() < 1.0 / 48_000.0, "{at} s at its start");
+}

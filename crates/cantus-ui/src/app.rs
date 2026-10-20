@@ -2250,42 +2250,7 @@ impl CantusApp {
         let sel = self.clip_selection();
         let link = self.settings.link_copies;
         let (commands, made) = self.with_ids(|project, ids| {
-            let Some(clip) = clips::clip_of(project, anchor) else {
-                return (Vec::new(), Vec::new());
-            };
-            // A reversed audio clip maps its window backwards (ADR 0025).
-            if let Some((edit, delta)) = crate::audio_clips::reversed_drag(clip, result) {
-                return (
-                    crate::audio_clips::reversed_edit(project, anchor.0, clip, edit, delta),
-                    Vec::new(),
-                );
-            }
-            // A comp window's edge at a seam moves the seam: both sides (ADR 0058).
-            let seam = match result {
-                ClipDragResult::TrimStart { delta } => Some((true, delta)),
-                ClipDragResult::TrimEnd { delta } => Some((false, delta)),
-                _ => None,
-            }
-            .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
-            if let Some(cmds) = seam.filter(|c| !c.is_empty()) {
-                return (cmds, Vec::new());
-            }
-            match result {
-                ClipDragResult::Move { delta, rows, copy } => {
-                    clips::transpose_selection(project, &sel, delta, rows, copy, link, ids)
-                }
-                ClipDragResult::TrimStart { delta } => (
-                    clips::set_window(anchor.0, clip, clip.start + delta, clip.length - delta),
-                    Vec::new(),
-                ),
-                ClipDragResult::TrimEnd { delta } => (
-                    clips::set_window(anchor.0, clip, clip.start, clip.length + delta),
-                    Vec::new(),
-                ),
-                // Dragging the content to the right moves the music later, which means
-                // the window starts *earlier* in the content.
-                ClipDragResult::Slip { delta } => (clips::slip(anchor.0, clip, -delta), Vec::new()),
-            }
+            clips::drag_commands(project, &sel, anchor, result, link, ids)
         });
         let label = match result {
             ClipDragResult::Move { copy: true, .. } => "cmd.duplicate_clips",

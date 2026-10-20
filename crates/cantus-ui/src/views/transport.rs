@@ -89,10 +89,10 @@ pub struct TopBar {
     pub tap: tap::TapTempo,
     /// Where the tempo well was drawn last frame (published geometry: tests aim with it).
     pub tempo_well: Option<egui::Rect>,
-    /// The metre popup is to open next frame (*Add a metre change* at bar 1, review 2).
-    pub open_metre: bool,
     /// What a drag on the tempo moved under a tenth of a BPM so far.
     pub(crate) tempo_rest: f64,
+    /// What the wheel turned under a whole notch so far (a touchpad's fractions).
+    pub(crate) tempo_notches: f32,
     pub(crate) tap_origin: Option<std::time::Instant>,
     /// Pattern mode: what was compiled last, and where the song was.
     pub pattern: pattern::State,

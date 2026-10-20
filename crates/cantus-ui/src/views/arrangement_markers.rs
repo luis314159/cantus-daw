@@ -37,6 +37,8 @@ pub struct State {
     /// Each visible marker's tab and its name's letters, last frame (published geometry:
     /// tests aim with it).
     drawn: Vec<(MarkerId, Rect, Rect)>,
+    /// The marker being dragged and the pointer's distance from its tick at the press.
+    grab: Option<(MarkerId, Ticks)>,
 }
 
 impl State {
@@ -92,45 +94,54 @@ fn tabs(
     let k = s.k;
     let markers = &app.project().markers;
     let mut out: Vec<(MarkerId, Rect, Rect)> = Vec::with_capacity(markers.len());
-    // The right edge of the tab before, when it is on the same tick: the next starts there
-    // (review 2: a later tab on one tick covered the earlier one whole).
-    let mut beside: Option<(Ticks, f32)> = None;
-    for (i, m) in markers.iter().enumerate() {
-        let at = geo.x(ticks_to_beats(m.tick));
-        let x = match beside {
-            Some((t, right)) if t == m.tick => right + 1.0 * k,
-            _ => at,
-        };
-        // The next marker on another tick bounds the tab.
-        let next = markers[i + 1..]
-            .iter()
-            .find(|n| n.tick > m.tick)
+    let mut i = 0;
+    // Where the last tab drawn ended: a run too close behind a narrow one starts after it,
+    // its line still at its tick (review 3: no tab under another, each one clickable).
+    let mut floor = f32::NEG_INFINITY;
+    while i < markers.len() {
+        // A run of markers on one tick shares the room before the next marker on another
+        // tick, side by side, each name elided to its share (reviews 2 and 3: a run's tabs
+        // ran over the next marker, or the last of it was left 6 px wide under it).
+        let tick = markers[i].tick;
+        let run = markers[i..].iter().take_while(|m| m.tick == tick).count();
+        let at = geo.x(ticks_to_beats(tick));
+        let next = markers
+            .get(i + run)
             .map_or(f32::INFINITY, |n| geo.x(ticks_to_beats(n.tick)));
-        if x > lane.right() || next < lane.left() {
-            beside = None;
+        if at > lane.right() || next < lane.left() {
+            i += run;
             continue;
         }
-        let w = text::measure(
-            ctx,
-            &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
-            s.tk(),
-        )
-        .x;
-        // On one tick the tabs keep their whole names; otherwise the next marker cuts.
-        let same = markers.get(i + 1).is_some_and(|n| n.tick == m.tick);
-        let full = x + w + 10.0 * k;
-        let right = if same {
-            full
-        } else {
-            full.min(next - 2.0 * k).max(x + 6.0 * k)
-        };
-        let tab = Rect::from_min_max(pos2(x, lane.top() + 1.0), pos2(right, lane.bottom() - 1.0));
-        let letters = Rect::from_min_max(
-            pos2(x + 4.0 * k, tab.top()),
-            pos2((x + 4.0 * k + w).min(tab.right()), tab.bottom()),
-        );
-        out.push((m.id, tab, letters));
-        beside = Some((m.tick, right));
+        let at = at.max(floor);
+        let room = (next - 2.0 * k - at).max(6.0 * k * run as f32);
+        let mut x = at;
+        for (n, m) in markers[i..i + run].iter().enumerate() {
+            let w = text::measure(
+                ctx,
+                &Text::new(&m.name, Role::Micro, s.t.text).caps(false),
+                s.tk(),
+            )
+            .x;
+            // Its share's end: whole names while the run fits, else an equal share each.
+            let share_end = at + room * (n + 1) as f32 / run as f32;
+            let want = x + w + 10.0 * k;
+            let fits = at + room >= x + w + 10.0 * k && markers[i + n + 1..i + run].is_empty();
+            let right = if fits {
+                want.min(at + room)
+            } else {
+                want.min(share_end).max(x + 6.0 * k)
+            };
+            let tab =
+                Rect::from_min_max(pos2(x, lane.top() + 1.0), pos2(right, lane.bottom() - 1.0));
+            let letters = Rect::from_min_max(
+                pos2(x + 4.0 * k, tab.top()),
+                pos2((x + 4.0 * k + w).min(tab.right() - 2.0 * k), tab.bottom()),
+            );
+            out.push((m.id, tab, letters));
+            x = right + 1.0 * k;
+            floor = x;
+        }
+        i += run;
     }
     out
 }
@@ -278,7 +289,20 @@ pub(super) fn input(
             if let (Some(p), Some(m)) =
                 (r.interact_pointer_pos(), app.project().marker(id).cloned())
             {
-                let at = tick_at(app, geo, p.x, mods.command);
+                // By the pointer's travel from the press, snapped: grabbing a tab away
+                // from its line never jumps it (review 3).
+                let raw = |x: f32| beats_to_ticks(geo.beats(x).max(0.0));
+                if app.arrangement.markers.grab.is_none_or(|g| g.0 != id) {
+                    let press = ui.input(|i| i.pointer.press_origin()).map_or(p.x, |o| o.x);
+                    app.arrangement.markers.grab = Some((id, raw(press) - m.tick));
+                }
+                let grab = app.arrangement.markers.grab.map_or(Ticks::ZERO, |g| g.1);
+                let free = (raw(p.x) - grab).max(Ticks::ZERO);
+                let at = if mods.command || !app.arrangement.snap {
+                    free
+                } else {
+                    crate::views::bars::snap(app.project(), free, app.arrangement.grid)
+                };
                 if at != m.tick {
                     app.exec_merging(
                         Command::SetMarker {
@@ -290,6 +314,7 @@ pub(super) fn input(
             }
         }
         if r.drag_stopped() {
+            app.arrangement.markers.grab = None;
             app.end_gesture();
         }
         if r.secondary_clicked() {
@@ -452,7 +477,14 @@ fn rename(app: &mut CantusApp, ui: &mut egui::Ui, geo: &TimelineGeometry, lane: 
         return;
     };
     let k = s.k;
-    let x = geo.x(ticks_to_beats(m.tick));
+    // On its own tab (review 3: a marker beside another on one tick was renamed over it).
+    let x = app
+        .arrangement
+        .markers
+        .drawn
+        .iter()
+        .find(|d| d.0 == id)
+        .map_or_else(|| geo.x(ticks_to_beats(m.tick)), |d| d.1.left());
     let fid = Id::new(("marker-rename", id.0));
     let mut event = None;
     egui::Area::new(fid.with("area"))

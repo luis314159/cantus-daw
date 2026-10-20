@@ -125,10 +125,11 @@ pub fn offset_for(map: &TempoMap, start: Ticks, seconds: f64) -> Ticks {
 // recorded take's does.
 
 /// The offset and fine offset that put `seconds` of source (the fine offset `slip`
-/// aside) before a window starting at `at`: whole ticks (never negative), the rest in
+/// aside) before a window starting at `at`: whole ticks, the rest in
 /// frames at `rate`, added to `slip`.
 pub fn anchor(map: &TempoMap, at: Ticks, seconds: f64, slip: i32, rate: f64) -> (Ticks, i32) {
-    let offset = offset_for(map, at, seconds).max(Ticks::ZERO);
+    // Before the file (a window shown from before its first frame): negative, as it was.
+    let offset = offset_for(map, at, seconds);
     let rest = (seconds - offset_seconds(map, at, offset)) * rate;
     let slip = (slip as f64 + rest.round()).clamp(i32::MIN as f64, i32::MAX as f64);
     (offset, slip as i32)
@@ -162,6 +163,49 @@ pub fn reanchor_reversed(
     anchor(map, to, seconds, slip, rate)
 }
 
+/// A window's content slipped by `by` ticks under its start (review 3): the source under
+/// the window's start moves by the seconds `by` lasts *there* — the content follows the
+/// pointer whatever the tempo over its hidden part. Its new `(offset, slip_frames)`; the
+/// tick arithmetic (`offset + by`) where one tempo holds over all of it.
+pub fn slipped(
+    map: &TempoMap,
+    start: Ticks,
+    offset: Ticks,
+    slip: i32,
+    rate: f64,
+    by: Ticks,
+) -> (Ticks, i32) {
+    let origin = start - offset;
+    let lo = origin.min(origin - by);
+    let hi = start.max(start + by);
+    if held_over(map, lo, hi) {
+        return (offset + by, slip);
+    }
+    let s = start.0 as f64;
+    let seconds = offset_seconds(map, start, offset) + map.seconds_between_f64(s, s + by.0 as f64);
+    anchor(map, start, seconds, slip, rate)
+}
+
+/// Where a window of a block moved together lands (review 3): the block's anchor (its
+/// earliest start) goes from `from_anchor` to `to_anchor`, and an unwarped window starting
+/// at `start` lands the same seconds after it — so windows that met still meet, and the
+/// windows of one take keep their content origin. Where the tempo over the block is the
+/// same function at both places (`same`), the ticks exactly.
+pub fn block_start(
+    src: &TempoMap,
+    from_anchor: Ticks,
+    dst: &TempoMap,
+    to_anchor: Ticks,
+    start: Ticks,
+    same: bool,
+) -> Ticks {
+    if same {
+        return start + (to_anchor - from_anchor);
+    }
+    let secs = src.seconds_between(from_anchor, start);
+    Ticks(dst.tick_after_seconds(to_anchor.0 as f64, secs).round() as i64)
+}
+
 /// What [`relocate`] gives a moved audio window: its offset, length, fades and fine
 /// offset where it lands.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -193,6 +237,10 @@ pub fn relocate(
     }
     let (length, offset) = (clip.length, clip.offset.max(Ticks::ZERO));
     if src.span_key(from - offset, from + length) == dst.span_key(to - offset, to + length) {
+        return None;
+    }
+    // A looping window repeats its period in ticks: kept as it is (review 3).
+    if clip.content_length.is_some_and(|p| p < length) {
         return None;
     }
     let secs = |x: Ticks, y: Ticks| src.seconds_between(x, y);

@@ -63,10 +63,14 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
     let ppq = opts.ppq.clamp(1, 0x7FFF);
     // A marker at or after the music's end (an "End", an "Outro") is the song's too: the
     // song's file runs to it (review 2, finding 65).
+    // So do the tempo map's last point and last metre change (review 3: a map with no
+    // clips yet — a click map for a drummer — exported as one tempo).
     let last_marker = project
         .markers
         .iter()
         .map(|m| m.tick)
+        .chain(project.tempo_points.iter().map(|p| p.tick))
+        .chain(project.metre_changes.iter().map(|m| m.tick))
         .max()
         .unwrap_or(Ticks::ZERO);
     // Which tracks, how far each is shifted, and where the file ends.
@@ -229,7 +233,7 @@ fn conductor(
     for m in map
         .metres()
         .iter()
-        .filter(|m| m.tick > shift && m.tick < shift + len)
+        .filter(|m| m.tick > shift && m.tick <= shift + len)
     {
         metre(&mut ev, at(m.tick), m.signature);
     }
@@ -268,6 +272,10 @@ fn conductor(
         if t >= stop {
             break;
         }
+    }
+    // A tempo point exactly at the end is the map's too (review 3).
+    if stop > shift && project.tempo_points.iter().any(|p| p.tick == stop) {
+        tempo_at(&mut ev, stop, stop);
     }
     for m in &project.markers {
         if m.tick >= shift && m.tick <= stop {

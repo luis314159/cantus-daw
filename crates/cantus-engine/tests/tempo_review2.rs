@@ -369,3 +369,40 @@ fn measure_the_passes_of_latent_inserts_in_a_ramp() {
         song(true, true, true)
     );
 }
+
+/// Review 3 (finding 21): blocks that cross the loop's end (no cut there) carry the
+/// overshoot: after each wrap the position is the map's seconds past the end, laid after
+/// the loop's start — the end inside a ramp, at several block sizes.
+#[test]
+fn a_wrap_inside_a_ramp_carries_its_overshoot_through_the_map() {
+    let map = Arc::new(TempoMap::new(
+        90.0,
+        TimeSignature::default(),
+        &[
+            pt(0, 90.0, false),
+            pt(960, 90.0, true),
+            pt(4_800, 140.0, false),
+        ],
+        &[],
+    ));
+    let (start, end) = (Ticks::beats(2), Ticks(4_000));
+    for block in [37u64, 512, 1000] {
+        let mut t = Transport::new(SR);
+        t.set_map(map.clone());
+        t.set_loop(Some(LoopRegion { start, end }));
+        t.seek(Ticks::ZERO);
+        t.play();
+        let mut wraps = 0;
+        for _ in 0..(30.0 * SR) as u64 / block {
+            let before = t.position_f64();
+            if t.advance(block) {
+                let over = block as f64 / SR - map.seconds_between_f64(before, end.0 as f64);
+                let want = map.tick_after_seconds(start.0 as f64, over);
+                let got = t.position_f64();
+                assert!((got - want).abs() < 1e-6, "block {block}: {got} vs {want}");
+                wraps += 1;
+            }
+        }
+        assert!(wraps > 10, "block {block}: {wraps} wraps");
+    }
+}

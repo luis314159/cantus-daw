@@ -1,8 +1,8 @@
-//! Review 2 (findings 0, 3, 43): an unwarped audio clip's edits under a tempo track. Its
-//! `offset` is read at the tempo where it starts (ADR 0060 §5), so an edit that moves its
-//! start — a split's right half, a reversed clip's halves, a time-range crop — re-derives
-//! the offset in seconds and carries the rounding into `slip_frames`: every piece plays
-//! the frames the whole clip played there, to within one frame.
+//! Reviews 2 and 3 (findings 0, 3, 43, 19): an unwarped audio clip's edits under a tempo
+//! track. It plays from its content origin (`start − offset`, ADR 0060 §4), so a forward
+//! split, trim or crop keeps the origin and the fine offset exactly (tick arithmetic); a
+//! reversed clip's halves re-derive the offset in seconds, the rounding in `slip_frames`,
+//! to within one frame. Every piece plays the frames the whole clip played there.
 
 use cantus_core::audio_time;
 use cantus_core::clipboard;
@@ -124,6 +124,13 @@ fn split_case(points: Vec<TempoPoint>, offset: Ticks, reverse: bool, at: Ticks) 
     let after = clips(&bus, t);
     assert_eq!(after.len(), 2);
     same_frames(&map, &whole, &after);
+    if !reverse {
+        // Forward: the content origin and the fine offset exactly (review 3, finding 19).
+        for c in &after {
+            assert_eq!(c.start - c.offset, whole.start - whole.offset, "one origin");
+            assert_eq!(c.audio.as_ref().unwrap().slip_frames, 37);
+        }
+    }
     // One undo gives the clip back exactly.
     bus.undo().unwrap();
     assert_eq!(clips(&bus, t), vec![whole]);
@@ -194,6 +201,10 @@ fn a_time_range_cut_across_a_tempo_change_leaves_the_rest_in_place() {
     let after = clips(&bus, t);
     assert_eq!(after.len(), 2, "{after:?}");
     same_frames(&map, &whole, &after);
+    for c in &after {
+        assert_eq!(c.start - c.offset, whole.start - whole.offset, "one origin");
+        assert_eq!(c.audio.as_ref().unwrap().slip_frames, 37);
+    }
 }
 
 /// A comp seam moved across a tempo change: the right window plays on what it played

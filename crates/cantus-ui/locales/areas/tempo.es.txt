@@ -67,4 +67,4 @@ tempo.report.seconds_ramp = Una rampa de tempo escrita en segundos pasó a ser u
 tempo.report.tempo_unit = La automatización de tempo en «{unit}» no se pudo leer: la canción conserva su primer tempo
 tempo.report.map_at = El tempo y el compás del archivo empiezan en el compás {bar}; la canción conserva los suyos antes
 tempo.midi.map_kept = Los cambios de tempo, los cambios de compás y los marcadores del archivo van a la pista de tempo, a la regla y a la franja de marcadores.
-tempo.midi.map_at = El tempo y el compás del archivo empiezan en el compás {bar}: la canción conserva los suyos antes, y los marcadores del archivo se suman a la pista de marcadores.
+tempo.midi.map_at = El tempo y el compás del archivo empiezan en el compás {bar}: la canción conserva los suyos antes, y los marcadores del archivo se suman a la franja de marcadores.

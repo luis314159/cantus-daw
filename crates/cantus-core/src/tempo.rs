@@ -35,6 +35,7 @@ mod tests;
 
 pub mod bars;
 pub mod edit;
+pub mod keep;
 
 use crate::model::{Color, Project};
 use crate::time::{Ticks, TimeSignature, MAX_BPM, MIN_BPM, PPQ};

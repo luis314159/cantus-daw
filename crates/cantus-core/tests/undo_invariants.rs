@@ -1738,6 +1738,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // Round 29, warp (ADR 0061): a warp set, cleared, and a marker edit applied.
     let mut warped = [0usize; 3];
     // The tempo track, metre and markers (ADR 0060): one count per command kind.
+    let mut kept_frames = 0usize;
     let mut tempoed = [0usize; 12];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
@@ -1832,7 +1833,26 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             let tempo = tempo_kind(&cmd);
             let freezing = freeze_kind(&cmd);
             let shown: String = format!("{cmd:?}").chars().take(600).collect();
+            // Review 3: a tempo edit keeps every unwarped window's frame at its start.
+            let starts =
+                cantus_core::tempo::keep::changes_tempo(&cmd).then(|| window_starts(bus.project()));
             let result = bus.execute(cmd, origin);
+            if let (Some(before), true) = (starts, result.is_ok()) {
+                let after = window_starts(bus.project());
+                for (key, (start, frame, linked)) in &before {
+                    if let Some((s2, f2, _)) = after.get(key) {
+                        if s2 == start {
+                            // A linked window keeps its group's fine offset: half a tick.
+                            let reach = if *linked { 160.0 } else { 0.5 + 1e-6 };
+                            assert!(
+                                (f2 - frame).abs() <= reach,
+                                "seed {seed}: {key:?} frame {frame} became {f2} after {shown}"
+                            );
+                            kept_frames += 1;
+                        }
+                    }
+                }
+            }
             if matches!(result, Err(CommandError::Frozen(_))) {
                 froze[3] += 1;
             }
@@ -1973,6 +1993,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         tempoed.iter().all(|n| *n > 0),
         "tempo commands never applied: {tempoed:?}"
+    );
+    assert!(
+        kept_frames > 0,
+        "no tempo edit ran over an unwarped audio window"
     );
     assert!(
         mappings.iter().all(|n| *n > 0),
@@ -3247,4 +3271,32 @@ fn freeze_kind(cmd: &Command) -> Option<usize> {
         } if label_key == "cmd.freeze" => commands.last().and_then(one),
         c => one(c),
     }
+}
+
+/// Every unwarped audio window's source frame at its start (48 kHz when the source is
+/// gone), by track and clip, with its start and whether it is linked.
+fn window_starts(p: &Project) -> std::collections::HashMap<(TrackId, ClipId), (Ticks, f64, bool)> {
+    let map = p.tempo_map();
+    let mut out = std::collections::HashMap::new();
+    for t in &p.tracks {
+        for c in &t.clips {
+            let Some(a) = c.audio.as_ref() else { continue };
+            if a.warp.as_ref().is_some_and(|w| w.follow) {
+                continue;
+            }
+            let rate = p
+                .audio_source(a.source)
+                .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)));
+            let f = cantus_core::audio_time::frame_at(
+                &map,
+                c.start,
+                c.offset,
+                f64::from(a.slip_frames),
+                rate,
+                c.start.0 as f64,
+            );
+            out.insert((t.id, c.id), (c.start, f, c.link.is_some()));
+        }
+    }
+    out
 }

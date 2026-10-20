@@ -1172,12 +1172,17 @@ fn history(
         let mut prev: Option<i64> = None;
         for (i, c) in hist.iter().enumerate() {
             if let (Some(tk_), Some(pt)) = (c.tick, prev) {
-                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                if new_bar(tk_, pt) && tk_ > pt {
+                    // Numbered through the metre changes too (review 3).
+                    let number = match &map {
+                        Some(m) => m.bbt(cantus_core::Ticks(tk_)).0,
+                        None => tk_.div_euclid(bar) + 1,
+                    };
                     micro(
                         b,
                         pos2(x_of(i) + 2.0 * k, plot.top() + 2.0 * k),
                         Align2::LEFT_TOP,
-                        format_args!("{}", tk_.div_euclid(bar) + 1),
+                        format_args!("{number}"),
                     );
                 }
             }

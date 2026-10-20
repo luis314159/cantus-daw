@@ -307,8 +307,8 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         None => cx.seconds,
     };
     // Where the clip starts (in its context's ticks, and on the timeline), and its offset:
-    // content seconds in whole ticks at the tempo where it starts, as an audio clip's
-    // offset is read (ADR 0060 §5).
+    // content seconds in whole ticks at the tempo where it starts (notes count on from
+    // there; an audio clip's is re-derived below through the map, ADR 0060 §4).
     let start = cx.at(map, time);
     let start_tl = start.0 as f64 + cx.shift;
     let play_start = attr_f64(clip, "playStart").unwrap_or(0.0);

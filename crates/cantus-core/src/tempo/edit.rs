@@ -447,6 +447,18 @@ pub fn add_tempo_point(project: &Project, tick: Ticks, bpm: f64, ramp: bool) -> 
                 },
             };
         }
+        if ramp {
+            // A track of one ramping point: it holds until a later point is added, and
+            // then ramps to it (review 3: asked first, the ramp was dropped).
+            return Command::SetTempoTrack {
+                bpm,
+                points: vec![TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm,
+                    ramp: true,
+                }],
+            };
+        }
         return set_tempo_at(project, Ticks::ZERO, bpm);
     }
     if pts.is_empty() {

@@ -114,6 +114,12 @@ fn a_trim_across_a_tempo_change_keeps_what_plays() {
             },
         );
         same_frames(&map, &whole, &clip(&a, r));
+        if !reverse {
+            // Forward: the origin and the fine offset exactly (review 3, finding 19).
+            let c = clip(&a, r);
+            assert_eq!(c.start - c.offset, whole.start - whole.offset);
+            assert_eq!(c.audio.as_ref().unwrap().slip_frames, 37);
+        }
         a.undo();
         assert_eq!(clip(&a, r), whole);
         a.commit_clip_drag(
@@ -243,8 +249,10 @@ fn a_duplicate_across_a_tempo_change_plays_the_same_seconds() {
         .unwrap();
     assert_eq!(copy.start, whole.end());
     let secs = |c: &Clip| map.seconds_between(c.start, c.end());
+    // Within half a tick at the slower tempo (review 3, finding 20).
+    let half_tick = 0.5 * 60.0 / (60.0 * 960.0);
     assert!(
-        (secs(&copy) - secs(&whole)).abs() < 0.01,
+        (secs(&copy) - secs(&whole)).abs() <= half_tick,
         "{} vs {}",
         secs(&copy),
         secs(&whole)
@@ -348,4 +356,65 @@ fn an_export_between_markers_never_falls_back_to_the_song() {
     let started = cantus_ui::views::export::start_with(&mut a, &dir.path().join("x.wav"), Some(d));
     assert!(!started, "no export of the song in its place");
     assert!(!a.export.busy());
+}
+
+/// Review 3 (finding 20): a clip whose fades straddle the tempo change, moved, drag-copied
+/// and duplicated where one tempo holds: its window and both fades last the seconds they
+/// did, within half a tick there.
+#[test]
+fn moved_fades_and_lengths_keep_their_seconds() {
+    let (mut a, r) = song(6, 10, false);
+    // A linked copy shares its group's fades in ticks (ADR 0037): the copy here is free.
+    a.settings.link_copies = false;
+    {
+        let mut c = clip(&a, r);
+        let au = c.audio.as_mut().unwrap();
+        au.fade_in = Ticks::beats(3);
+        au.fade_out = Ticks::beats(3);
+        a.exec(Command::SetClipAudio {
+            track: r.0,
+            clip: r.1,
+            audio: c.audio,
+        });
+    }
+    let whole = clip(&a, r);
+    let map = a.project().tempo_map();
+    let seconds = |c: &Clip| {
+        let au = c.audio.as_ref().unwrap();
+        (
+            map.seconds_between(c.start, c.end()),
+            map.seconds_between(c.start, c.start + au.fade_in),
+            map.seconds_between(c.end() - au.fade_out, c.end()),
+        )
+    };
+    let was = seconds(&whole);
+    let half_tick = 0.5 * 60.0 / (60.0 * 960.0);
+    let near = |a: (f64, f64, f64), b: (f64, f64, f64), what: &str| {
+        for (x, y) in [(a.0, b.0), (a.1, b.1), (a.2, b.2)] {
+            assert!((x - y).abs() <= half_tick + 1e-12, "{what}: {a:?} vs {b:?}");
+        }
+    };
+    for copy in [false, true] {
+        a.set_clip_selection(vec![r]);
+        a.commit_clip_drag(
+            r,
+            ClipDragResult::Move {
+                delta: Ticks::beats(8),
+                rows: 0,
+                copy,
+            },
+        );
+        let moved = a.project().tracks[0]
+            .clips
+            .iter()
+            .find(|c| c.start == Ticks::beats(14))
+            .cloned()
+            .expect("at beat 14");
+        near(
+            seconds(&moved),
+            was,
+            if copy { "drag-copy" } else { "move" },
+        );
+        a.undo();
+    }
 }

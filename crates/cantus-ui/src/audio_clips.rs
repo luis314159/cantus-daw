@@ -249,8 +249,22 @@ pub fn reversed_edit(
     let start = start.max(Ticks::ZERO);
     let length = length.max(Ticks::SIXTEENTH);
     let mut offset = offset;
-    if let (Some(a), false) = (clip.audio.as_ref(), project.tempo_points.is_empty()) {
-        if edit != WindowEdit::Slip && clip.link.is_none() {
+    if edit == WindowEdit::Slip {
+        // The content follows the pointer at the window (review 3).
+        let (o, slip) = crate::clips::slipped(project, clip, delta);
+        offset = o;
+        if let (Some(a), Some(s)) = (clip.audio.as_ref(), slip) {
+            out.push(set(
+                track,
+                clip,
+                AudioRegion {
+                    slip_frames: s,
+                    ..a.clone()
+                },
+            ));
+        }
+    } else if let (Some(a), false) = (clip.audio.as_ref(), project.tempo_points.is_empty()) {
+        if clip.link.is_none() {
             let map = crate::views::bars::map(project);
             let rate = rate_of(project, a);
             let (o, slip) = cantus_core::audio_time::reanchor_reversed(

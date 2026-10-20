@@ -120,6 +120,10 @@ pub struct MidiImport {
     pub metre_changes: Vec<cantus_core::MetreChange>,
     /// The file's markers (meta event 6): where and what.
     pub markers: Vec<(Ticks, String)>,
+    /// In [`TempoMode::Seconds`] (and every SMPTE file): the tempo the notes' ticks were
+    /// counted at — their seconds are their ticks at it (review 3: a song with a tempo
+    /// track places them through its map).
+    pub seconds_bpm: f64,
 }
 
 impl MidiImport {
@@ -209,6 +213,20 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             }
         }
     }
+    // A first tempo written a few ticks in (after a sequencer's setup events, within a
+    // sixteenth) is the song's own (review 3), as the first metre is.
+    let ppq_file = match file.division {
+        Division::Ppq(p) => u64::from(p.max(1)),
+        Division::Smpte { .. } => 1,
+    };
+    if !tempos.contains_key(&0) {
+        if let Some((&t, &us)) = tempos.iter().next() {
+            if t < (ppq_file / 4).max(1) {
+                tempos.remove(&t);
+                tempos.insert(0, us);
+            }
+        }
+    }
     let first_us = tempos.get(&0).copied().unwrap_or(500_000);
     let tempo_bpm = round_bpm(60_000_000.0 / first_us as f64);
     let ppq = match file.division {
@@ -270,6 +288,9 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             ramp: false,
         });
     }
+    // The file's tempo is its first point's (a point at Cantus tick 0 may have taken the
+    // place of one a few file ticks in).
+    let tempo_bpm = tempo_points.first().map_or(tempo_bpm, |p| p.bpm);
     if tempo_points.len() < 2 {
         tempo_points.clear();
     }
@@ -291,13 +312,16 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         }
         metre_list.push(cantus_core::MetreChange { tick, signature });
     }
-    let first_bar = TimeSignature::default().ticks_per_bar();
+    // A first signature within a sixteenth of the start is the song's (review 3: a whole
+    // bar moved a pickup's 3/4 to tick 0); one that lands on tick 0 is, whatever its file
+    // tick was.
+    let near = Ticks(PPQ / 4);
     let mut time_signature = metres
         .get(&0)
         .map(|(n, d)| TimeSignature::new(*n, *d))
         .filter(|s| cantus_core::tempo::valid_signature(*s));
     if let Some(first) = metre_list.first_mut() {
-        if first.tick > Ticks::ZERO && first.tick < first_bar {
+        if first.tick < near {
             first.tick = Ticks::ZERO;
             time_signature = Some(first.signature);
         }
@@ -361,9 +385,10 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         report.count_dropped("interop.report.metre_changes", raw);
     }
     if keep_map {
-        report.count_dropped("interop.report.metre_changes", odd_metres);
+        report.count_dropped("interop.report.odd_metres", odd_metres);
     }
     let tempo_mode = clock.mode;
+    let target_bpm = clock.target_bpm;
 
     // Markers kept are no texts dropped (review 2, finding 59).
     let mut counts = Dropped {
@@ -514,6 +539,7 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
         tempo_points,
         metre_changes: metre_list,
         markers,
+        seconds_bpm: target_bpm,
     })
 }
 
@@ -721,7 +747,14 @@ pub fn import_commands(
             ],
         );
     } else if place.apply_tempo {
-        if (import.tempo_bpm - project.tempo_bpm).abs() > 1e-9 {
+        if !project.tempo_points.is_empty() {
+            // The file's one tempo is the song's: no tempo track left to move its notes
+            // off the seconds they were counted at (review 3).
+            commands.push(Command::SetTempoTrack {
+                bpm: cantus_core::time::clamp_bpm(import.tempo_bpm),
+                points: Vec::new(),
+            });
+        } else if (import.tempo_bpm - project.tempo_bpm).abs() > 1e-9 {
             commands.push(Command::SetTempo {
                 bpm: cantus_core::time::clamp_bpm(import.tempo_bpm),
             });
@@ -784,10 +817,33 @@ pub fn import_commands(
     let mut strips = FreeStrips::new(project);
     let mut built_tracks = Vec::new();
     let mut first_clip = None;
+    // Notes kept at their seconds go through the song's tempo map from the drop (review
+    // 3): a tick counted at `seconds_bpm` is so many seconds after `at`.
+    let song_map = project.tempo_map();
+    let retime =
+        import.tempo_mode == TempoMode::Seconds && !place.apply_tempo && !song_map.is_constant();
+    let to_song = |t: Ticks| -> Ticks {
+        let secs = t.0 as f64 * 60.0 / (import.seconds_bpm.max(1.0) * PPQ as f64);
+        let at_f = at.0 as f64;
+        Ticks((song_map.tick_after_seconds(at_f, secs) - at_f).round() as i64)
+    };
     for (i, it) in import.tracks.iter().take(room).enumerate() {
         if it.notes.is_empty() {
             continue;
         }
+        let retimed;
+        let it = if retime {
+            let mut copy = it.clone();
+            for n in &mut copy.notes {
+                let (a, b) = (to_song(n.start), to_song(n.start + n.length));
+                n.start = a;
+                n.length = (b - a).max(Ticks(1));
+            }
+            retimed = copy;
+            &retimed
+        } else {
+            it
+        };
         let first = it
             .notes
             .iter()
@@ -991,6 +1047,12 @@ fn map_from(project: &Project, import: &MidiImport, at: Ticks) -> Vec<Command> {
         out.push(Command::SetTempoTrack {
             bpm: points[0].bpm,
             points,
+        });
+    } else if points.len() <= 1 && !project.tempo_points.is_empty() {
+        // One tempo left: the song's later points give way to the file's (review 3).
+        out.push(Command::SetTempoTrack {
+            bpm: points.first().map_or(project.tempo_bpm, |p| p.bpm),
+            points: Vec::new(),
         });
     }
     // The metre.

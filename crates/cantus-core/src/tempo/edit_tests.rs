@@ -512,10 +512,24 @@ fn a_ramp_from_the_start_ramps() {
     let q = round_trip(&mut p, cmd);
     assert_eq!(q.tempo_points[0], pt(0, 90.0, true));
     assert_eq!(q.tempo_bpm, 90.0);
-    // Without a track there is no next point to ramp to: the song's tempo, as before.
-    let p = Project::empty("t");
+    // Without a track, asked first (review 3): a track of one ramping point, which ramps
+    // to the point added next.
+    let mut p = Project::empty("t");
+    let q = round_trip(
+        &mut p,
+        edit::add_tempo_point(&Project::empty("t"), Ticks::ZERO, 90.0, true),
+    );
+    assert_eq!(q.tempo_points, vec![pt(0, 90.0, true)]);
+    let cmd = edit::add_tempo_point(&q, Ticks(15_360), 140.0, false);
+    let r = round_trip(&mut p, cmd);
     assert_eq!(
-        edit::add_tempo_point(&p, Ticks::ZERO, 90.0, true),
+        r.tempo_points,
+        vec![pt(0, 90.0, true), pt(15_360, 140.0, false)]
+    );
+    assert!((r.tempo_map().bpm_at(7680.0) - 115.0).abs() < 1e-9);
+    // Without a ramp: the song's tempo, as before.
+    assert_eq!(
+        edit::add_tempo_point(&Project::empty("t"), Ticks::ZERO, 90.0, false),
         Command::SetTempo { bpm: 90.0 }
     );
 }
