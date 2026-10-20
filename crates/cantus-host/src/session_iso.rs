@@ -797,6 +797,24 @@ impl PluginHost {
         );
     }
 
+    /// For the interface's tests: a track's hosted instrument (with its
+    /// [`cantus_engine::hosted_key`]) that could not be loaded — not a crash. The
+    /// application never calls it.
+    #[doc(hidden)]
+    pub fn mark_instrument_missing_for_tests(&mut self, track: TrackId, key: u64, why: &str) {
+        self.instruments.remove(&track);
+        self.inst_missing.insert(
+            track,
+            Missing {
+                key,
+                error: why.to_string(),
+                isolation: self.default_isolation,
+                crashed: false,
+                found: true,
+            },
+        );
+    }
+
     /// For the interface's tests: a hosted slot said to wait on a window of its own (or no
     /// longer). The application never calls it.
     #[doc(hidden)]

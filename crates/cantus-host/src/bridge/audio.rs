@@ -252,6 +252,21 @@ fn fold_of(e: &NoteEvent) -> Fold {
     }
 }
 
+/// A bank select (CC 0 or 32).
+fn is_bank_select(e: &NoteEvent) -> bool {
+    matches!(e.kind, NoteKind::Midi { status, data1, .. } if status & 0xF0 == 0xB0 && (data1 == 0 || data1 == 32))
+}
+
+/// A program change on the channel of `bank` (a bank select).
+fn is_program_of(k: &NoteEvent, bank: &NoteEvent) -> bool {
+    match (k.kind, bank.kind) {
+        (NoteKind::Midi { status, .. }, NoteKind::Midi { status: b, .. }) => {
+            status & 0xF0 == 0xC0 && status & 0x0F == b & 0x0F
+        }
+        _ => false,
+    }
+}
+
 /// Whether two carried events are the same controller or expression (review #9, #16):
 /// a controller and poly pressure are one per number (key); pitch bend, channel pressure
 /// and the program one per channel; an expression one per note.
@@ -359,7 +374,13 @@ impl Carry {
             match fold_of(&e) {
                 Fold::Last => {
                     if let Some(i) = self.notes.iter().position(|k| same_kind(k, &e)) {
-                        self.notes.remove(i);
+                        // A bank select a carried program change was sent under stays with
+                        // it; the newer one is kept after (review isolation-5 #10).
+                        let under_a_program = is_bank_select(&e)
+                            && self.notes[i + 1..].iter().any(|k| is_program_of(k, &e));
+                        if !under_a_program {
+                            self.notes.remove(i);
+                        }
                     }
                 }
                 Fold::Switch => {
@@ -367,8 +388,10 @@ impl Carry {
                     let last = self.notes.iter().rposition(|k| same_kind(k, &e));
                     if let (Some(f), Some(l)) = (first, last) {
                         if pressed(&self.notes[l]) == pressed(&e) {
-                            // The same position again: the newer stands for it.
-                            self.notes.remove(l);
+                            // The same position again: the newer value takes its place —
+                            // never moved after what came since (review isolation-5 #16).
+                            self.notes[l] = e;
+                            continue;
                         } else if f != l {
                             // A lift and a press kept already: the oldest goes.
                             self.notes.remove(f);
@@ -949,6 +972,40 @@ mod tests {
                 midi(0xC0, 5, 0).kind
             ]
         );
+    }
+
+    /// A program change keeps the bank select it was sent under, though a later bank
+    /// select (for the next program) came after it (review isolation-5 #10).
+    #[test]
+    fn a_program_keeps_the_bank_it_was_sent_under() {
+        let mut c = Carry::new();
+        c.keep(
+            &[],
+            &[midi(0xB0, 0, 1), midi(0xC0, 5, 0), midi(0xB0, 0, 2)],
+        );
+        let m = merged(&mut c, &[]);
+        let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                midi(0xB0, 0, 1).kind,
+                midi(0xC0, 5, 0).kind,
+                midi(0xB0, 0, 2).kind
+            ]
+        );
+    }
+
+    /// A pedal pressed, a note let go, the pedal moved again but still pressed: the press
+    /// keeps its place before the note-off, so the pedal holds the note (review
+    /// isolation-5 #16).
+    #[test]
+    fn a_repeated_pedal_position_keeps_its_place() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 64, 127), off(60), midi(0xB0, 64, 120)]);
+        let m = merged(&mut c, &[]);
+        assert_eq!(m.len(), 2, "{m:?}");
+        assert_eq!(m[0].kind, midi(0xB0, 64, 120).kind, "the press, its newest value");
+        assert!(matches!(m[1].kind, NoteKind::Off { .. }));
     }
 
     /// Polyphonic pressure is one value per key, not per channel (review isolation-4 #65).

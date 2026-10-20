@@ -675,7 +675,7 @@ fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
     assert!(!text.contains("desde ese punto"), "{text}");
     assert!(!text.contains("init refused"), "{text}");
     assert!(matches!(a.export.last, Some(Err(_))));
-    // Begun from its last-saved state: done, and said.
+    // Begun from its state as it was last said: done, and said.
     let mut a = app(cantus_ui::starter_project());
     assert!(cantus_ui::views::export::start_with(
         &mut a,
@@ -684,14 +684,14 @@ fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
     ));
     a.plugins.lose_in_render_for_tests(
         "Glacier",
-        "the plug-in is busy: its own window holds it",
+        "it did not answer in time",
         cantus_host::RenderLoss::Stale,
     );
     cantus_ui::views::export::wait(&mut a);
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     assert!(matches!(a.export.last, Some(Ok(_))), "done");
     assert!(
-        a.status.text.contains("estaba ocupado"),
+        a.status.text.contains("el último que dio"),
         "{}",
         a.status.text
     );
@@ -845,4 +845,169 @@ fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
         "{text}"
     );
     assert!(!text.contains("not installed"), "{text}");
+}
+
+/// A save that kept plug-ins as they were last said names them, in the interface's words —
+/// one by name and why, several by count and names (review isolation-5 rule 2).
+#[test]
+fn a_save_names_the_plugins_it_kept_as_they_were_last_said() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let one = plugin_notice::saved_stale(&[(
+        "Glacier".to_string(),
+        "it did not answer in time".to_string(),
+    )]);
+    let many = plugin_notice::saved_stale(&[
+        ("Glacier".to_string(), "it did not answer in time".to_string()),
+        ("Odin 2".to_string(), "it was still answering".to_string()),
+    ]);
+    let none = plugin_notice::saved_stale(&[]);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    let one = one.expect("said");
+    assert!(
+        one.contains("Glacier") && one.contains("no respondió a tiempo"),
+        "{one}"
+    );
+    assert!(!one.contains("answer"), "{one}");
+    let many = many.expect("said");
+    assert!(
+        many.contains('2') && many.contains("Glacier, Odin 2"),
+        "{many}"
+    );
+    assert!(none.is_none());
+}
+
+/// A window that could not open for another reason than a busy helper is said in the
+/// interface's words: one that stopped as it opened as a stop, anything else without the
+/// host's English (review isolation-5 #49).
+#[test]
+fn a_window_that_could_not_open_is_said_in_its_words() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let mut a = app(cantus_ui::starter_project());
+    plugin_notice::window_failed(
+        &mut a,
+        "Glacier",
+        &cantus_host::HostError::Crashed("it crashed: an access violation (0xC0000005)".into()),
+    );
+    let crashed = a.status.text.clone();
+    plugin_notice::window_failed(
+        &mut a,
+        "Glacier",
+        &cantus_host::HostError::Editor("the plug-in sandbox did not open it".into()),
+    );
+    let other = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(
+        crashed.contains("Glacier") && crashed.contains("memoria") && crashed.contains("0xC0000005"),
+        "{crashed}"
+    );
+    assert!(
+        !crashed.contains("crashed") && !crashed.contains("access violation"),
+        "{crashed}"
+    );
+    assert!(
+        !other.contains("sandbox") && !other.contains("did not open"),
+        "{other}"
+    );
+}
+
+/// A bake and a freeze begun from a plug-in's state as it was last said are done, and say
+/// so after their own word — never written over by it (review isolation-5 #46).
+#[test]
+fn a_render_from_a_state_as_last_said_says_so_after_its_own_word() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let baked = cantus_ui::i18n::t("mods.status.baked");
+    // The bake.
+    let (p, mid, target) = follower_project();
+    let mut a = app(p);
+    let before = a.bus.history().len();
+    assert!(a.bake_route(mid, &target));
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "it did not answer in time",
+        cantus_host::RenderLoss::Stale,
+    );
+    let start = std::time::Instant::now();
+    while a.modulators.pending_bake.is_some() && start.elapsed().as_secs() < 30 {
+        a.poll_bake();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let bake_text = a.status.text.clone();
+    let bake_steps = a.bus.history().len() - before;
+    // The freeze.
+    let dir = tempfile::tempdir().unwrap();
+    let mut a = app(cantus_ui::starter_project());
+    a.engine.frozen.set_app_dir(dir.path().join("renders"));
+    a.path = Some(dir.path().join("song.cantus"));
+    let strip = a.project().tracks[0].strip.unwrap();
+    a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
+    assert!(a.freeze.job.is_some());
+    a.plugins.lose_in_render_for_tests(
+        "Glacier",
+        "it did not answer in time",
+        cantus_host::RenderLoss::Stale,
+    );
+    let ctx = ctx();
+    let start = std::time::Instant::now();
+    while a.freeze.job.is_some() && start.elapsed().as_secs() < 30 {
+        cantus_ui::freeze::tick(&mut a, &ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let freeze_text = a.status.text.clone();
+    let frozen = a.project().strip(strip).is_some_and(|s| s.frozen.is_some());
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert_eq!(bake_steps, 1, "baked");
+    assert!(
+        bake_text.contains(&baked) && bake_text.contains("Glacier"),
+        "{bake_text}"
+    );
+    assert!(frozen, "frozen");
+    assert!(
+        freeze_text.contains("Glacier") && freeze_text.contains("el último que dio"),
+        "{freeze_text}"
+    );
+}
+
+/// The waiting card's title is short, and its hint names the plug-in whole — a long name
+/// is shortened in the title (review isolation-5 #48).
+#[test]
+fn the_waiting_cards_hint_names_its_plugin_whole() {
+    let long = "Spectrasonics Omnisphere Orchestral Edition";
+    let mut p = cantus_ui::starter_project();
+    let strip = p.tracks[0].strip.unwrap();
+    let mut slot = p.make_effect(EffectKind::External);
+    slot.spec = EffectSpec::external(ExternalPlugin::new(PluginFormat::Clap, GLACIER, long));
+    let id = slot.id;
+    p.strip_mut(strip).unwrap().effects.push(slot);
+    let mut a = app(p);
+    a.plugins.set_waiting_for_tests(id, true);
+    let card = plugin_notice::waiting_card(&a).expect("its card");
+    assert_eq!(card.tip.0, long);
+    assert_eq!(card.tip.1, card.body);
+    assert!(card.title.chars().count() <= 20, "{}", card.title);
+}
+
+/// An instrument on this computer that could not be loaded is never said to be missing
+/// until it is installed: Reload is its way back (review isolation-5 #45).
+#[test]
+fn a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let (p, _, _) = hosted_project();
+    let mut a = app(p);
+    let track = a.project().tracks[0].id;
+    let key = a.project().tracks[0]
+        .instrument
+        .external()
+        .map(cantus_engine::hosted_key)
+        .unwrap();
+    a.plugins
+        .mark_instrument_missing_for_tests(track, key, "it did not load within 30 s");
+    a.open_hosted_window(track);
+    let text = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(text.contains("no se pudo cargar"), "{text}");
+    assert!(text.contains("no se cargó a tiempo"), "the reason: {text}");
+    assert!(
+        !text.contains("instale") && !text.contains("no está en este equipo"),
+        "{text}"
+    );
 }

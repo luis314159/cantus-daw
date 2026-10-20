@@ -1145,7 +1145,8 @@ fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
     assert_eq!(value_words(&a, &key, 0.0), "Off");
     assert_eq!(value_words(&a, &key, 1.0), "On");
     let fault = MappingTarget::Param(AutoTarget::Plugin { effect, id: 4 });
-    assert_eq!(value_words(&a, &fault, 3.0 / 17.0), "3");
+    // Its steps run 0 to `fault::LAST` (24).
+    assert_eq!(value_words(&a, &fault, 3.0 / 24.0), "3");
 }
 
 /// #57: a loaded plug-in that crashed: its mappings read *Not loaded* (they stay the map's).
