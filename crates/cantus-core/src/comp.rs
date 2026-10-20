@@ -273,7 +273,7 @@ mod tests {
         c.audio.as_mut().unwrap().xfade = Ticks(20);
         assert!(!seam_window(
             p.track(t).unwrap().clip(r).unwrap(),
-            Some(120.0)
+            crate::warp::held_tempo(&p)
         ));
         let moved = Command::SetCompSeam {
             track: t,
@@ -438,7 +438,7 @@ mod tests {
         carried.audio.as_mut().unwrap().xfade = Ticks(20);
         let mut left = right.clone();
         left.length = Ticks::beats(2);
-        assert!(!is_seam(&left, &carried, Some(120.0)));
+        assert!(!is_seam(&left, &carried, crate::warp::held_tempo(&p)));
         p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
         p.track_mut(tid).unwrap().clips.push(carried.clone());
         assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());

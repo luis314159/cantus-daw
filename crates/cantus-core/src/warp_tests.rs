@@ -477,3 +477,41 @@ fn the_warps_own_markers_go_to_the_file() {
     let user = serde_json::to_string(&WarpMarker::at(1.0, Ticks(2))).unwrap();
     assert!(!user.contains("auto"), "{user}");
 }
+
+// --- Round 29's third review: a following warp that plays its source -------------------
+
+/// Finding 30: a following warp maps as the unwarped clip over a window where no ramp lies
+/// and its line meets the natural one at every corner — a natural warp on a trimmed window
+/// before a ramp, a marker placed and not moved — and not across a ramp, nor once a marker
+/// is dragged; a warp that does not follow always does.
+#[test]
+fn a_following_warp_maps_as_unwarped_where_its_line_is_the_natural_one() {
+    let map = ramp_map(120.0, 150.0, 4);
+    // Before the ramp: beats 1–7 of the window, its start between frames at 44.1 kHz.
+    let (start, offset, length, slip) = (
+        Ticks::beats(1),
+        Ticks::beats(3) + Ticks(7),
+        Ticks::beats(6),
+        0,
+    );
+    let w = Warp::natural_of(&map, start, offset, length, slip, 44_100);
+    let (lo, hi) = (start.0 as f64, (start + length).0 as f64);
+    assert!(w.maps_as_unwarped(&map, start, offset, 0.0, lo, hi));
+    let placed = w.add_marker(offset + Ticks::beats(2)).unwrap();
+    assert!(placed.maps_as_unwarped(&map, start, offset, 0.0, lo, hi));
+    let i = placed
+        .markers
+        .iter()
+        .position(|m| m.tick == offset + Ticks::beats(2))
+        .unwrap();
+    let dragged = placed.move_marker(i, Ticks(offset.0 + Ticks::beats(2).0 + 120));
+    assert!(!dragged.maps_as_unwarped(&map, start, offset, 0.0, lo, hi));
+    // Across the ramp (beats 8–12): its curve is not a straight line through the corners.
+    let (start, length) = (Ticks::beats(6), Ticks::beats(8));
+    let w = Warp::natural_of(&map, start, offset, length, slip, 44_100);
+    let (lo, hi) = (start.0 as f64, (start + length).0 as f64);
+    assert!(!w.maps_as_unwarped(&map, start, offset, 0.0, lo, hi));
+    let mut not = w.clone();
+    not.follow = false;
+    assert!(not.maps_as_unwarped(&map, start, offset, 0.0, lo, hi));
+}

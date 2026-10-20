@@ -1748,6 +1748,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut froze = [0usize; 4];
     // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
     let mut mappings = [0usize; 4];
+    // Round 29's third review: the commands carrying an invalid warp in, each refused.
+    let mut refused_warps = 0usize;
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
@@ -1766,6 +1768,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
             }
             let origin = origins[rng.below(5) as usize];
+            let invalid_warp = carries_invalid_warp(&cmd);
             let kind = clipboard_kind(&cmd);
             let route = routing_kind(&cmd);
             let pitch = match &cmd {
@@ -1919,6 +1922,13 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 froze[3] += 1;
             }
             let ok = result.is_ok();
+            // An invalid warp never comes in, by any command (round 29's third review: a
+            // kept comp window's was let in unseen when its own check was gone).
+            assert!(
+                !(invalid_warp && ok),
+                "seed {seed}: an invalid warp came in after {shown}"
+            );
+            refused_warps += usize::from(invalid_warp);
             // Whatever was applied or refused, every frozen sound is the one frozen.
             cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
                 panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown}")
@@ -1966,9 +1976,11 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     mappings[k] += 1;
                 }
                 // Every warp stays valid through whatever any command did to its clip
-                // (split, trim, glue, loops, links, comps — round 29's review).
+                // (split, trim, glue, loops, links, comps — round 29's review), the
+                // windows alternate comps keep included (third review).
                 for t in &bus.project().tracks {
-                    for c in &t.clips {
+                    let kept = t.comps.iter().flat_map(|c| c.windows.iter());
+                    for c in t.clips.iter().chain(kept) {
                         if let Some(w) = c.audio.as_ref().and_then(|a| a.warp.as_ref()) {
                             assert!(w.is_valid(), "seed {seed}: an invalid warp on {:?}", c.id);
                         }
@@ -2052,6 +2064,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         warped.iter().all(|n| *n > 0),
         "warp commands never applied: {warped:?}"
     );
+    assert!(refused_warps > 0, "no invalid warp was ever sent in");
     assert!(
         tempoed.iter().all(|n| *n > 0),
         "tempo commands never applied: {tempoed:?}"
@@ -3567,4 +3580,106 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
         checked += 1;
     }
     Ok(checked)
+}
+
+/// Whether `cmd` carries an invalid warp in — set by `SetClipWarp`, or on a clip that
+/// `SetClipAudio`, `InsertClip`, `InsertTrack` or a kept comp window brings (round 29's
+/// third review): the fuzz asserts every one is refused.
+fn carries_invalid_warp(cmd: &Command) -> bool {
+    let bad = |w: &cantus_core::warp::Warp| !w.is_valid();
+    let bad_clip = |c: &Clip| {
+        c.audio
+            .as_ref()
+            .and_then(|a| a.warp.as_deref())
+            .is_some_and(bad)
+    };
+    match cmd {
+        Command::SetClipWarp { warp: Some(w), .. } => bad(w),
+        Command::SetClipAudio { audio: Some(a), .. } => a.warp.as_deref().is_some_and(bad),
+        Command::InsertClip { clip, .. } => bad_clip(clip),
+        Command::InsertTrack { track, .. } => track.clips.iter().any(bad_clip),
+        Command::SetTrackComps { comps, .. } => {
+            comps.iter().flat_map(|c| c.windows.iter()).any(bad_clip)
+        }
+        Command::Batch { commands, .. } => commands.iter().any(carries_invalid_warp),
+        _ => false,
+    }
+}
+
+/// Round 29's third review (finding 36): the warp arm's every way of carrying an invalid
+/// warp in — `SetClipWarp`, `SetClipAudio`, `InsertClip`, `InsertTrack` and a kept comp
+/// window — drawn by the arm itself until each has come several times, is refused, and
+/// leaves no invalid warp anywhere, the comps' kept windows included.
+#[test]
+fn every_way_the_warp_arm_carries_an_invalid_warp_in_is_refused() {
+    let mut bus = CommandBus::default();
+    let mut rng = Lcg(29_3);
+    // A track and an audio clip for the arm to work on.
+    let mut scratch = bus.project().clone();
+    let track = scratch.make_track("Take");
+    while bus.project().next_id < scratch.next_id {
+        bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    }
+    bus.execute(
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(track),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut scratch = bus.project().clone();
+    let first = round29_warp_command(&mut rng, &mut scratch);
+    while bus.project().next_id < scratch.next_id {
+        bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    }
+    bus.execute(first, Origin::User).unwrap();
+    let mut seen = std::collections::BTreeMap::<&'static str, usize>::new();
+    for _ in 0..200_000 {
+        let mut scratch = bus.project().clone();
+        let cmd = round29_warp_command(&mut rng, &mut scratch);
+        if !carries_invalid_warp(&cmd) {
+            continue;
+        }
+        while bus.project().next_id < scratch.next_id {
+            bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+        }
+        let kind = match &cmd {
+            Command::SetClipWarp { .. } => "SetClipWarp",
+            Command::SetClipAudio { .. } => "SetClipAudio",
+            Command::InsertClip { .. } => "InsertClip",
+            Command::InsertTrack { .. } => "InsertTrack",
+            Command::SetTrackComps { .. } => "SetTrackComps",
+            _ => "other",
+        };
+        let before = bus.project().tracks.clone();
+        assert!(
+            bus.execute(cmd, Origin::User).is_err(),
+            "{kind}: an invalid warp came in"
+        );
+        assert_eq!(
+            bus.project().tracks,
+            before,
+            "{kind}: refused, yet it changed"
+        );
+        *seen.entry(kind).or_default() += 1;
+        if seen.len() == 5 && seen.values().all(|n| *n >= 3) {
+            break;
+        }
+    }
+    assert!(
+        seen.len() == 5 && seen.values().all(|n| *n >= 3),
+        "the arm's refusals drawn: {seen:?}"
+    );
+    for t in &bus.project().tracks {
+        let kept = t.comps.iter().flat_map(|c| c.windows.iter());
+        for c in t.clips.iter().chain(kept) {
+            let w = c.audio.as_ref().and_then(|a| a.warp.as_ref());
+            assert!(
+                w.is_none_or(|w| w.is_valid()),
+                "an invalid warp on {:?}",
+                c.id
+            );
+        }
+    }
 }
