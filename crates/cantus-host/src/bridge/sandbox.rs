@@ -61,6 +61,14 @@ pub const MAIN_AT: usize = 2048;
 /// into, as the process dies (0: no handler ran, as for an abort on Windows).
 pub const CRASH_AT: usize = 2052;
 
+/// Where the helper's processing threads count the jobs they finished (review isolation-4
+/// #62).
+pub const JOBS_DONE: usize = 2056;
+
+/// Where Cantus marks a helper stalled: one more than [`JOBS_DONE`] read when a job of it
+/// was not even taken by its deadline (0: not stalled). Any job finishing ends it.
+pub const STALLED: usize = 2060;
+
 /// The time limits of a pool's helpers (tests shorten them).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Limits {
@@ -131,10 +139,29 @@ impl LobbyMem {
     }
 
     fn word(&self, at: usize) -> u32 {
+        self.atom(at).load(Ordering::Acquire)
+    }
+
+    fn atom(&self, at: usize) -> &AtomicU32 {
         // SAFETY: an aligned u32 inside the region (`at` < `LOBBY_BYTES`), which `self`
-        // keeps mapped; the helper writes it as an atomic.
-        let word = unsafe { &*(self.mem.as_ptr().add(at) as *const AtomicU32) };
-        word.load(Ordering::Acquire)
+        // keeps mapped; both processes use it as an atomic.
+        unsafe { &*(self.mem.as_ptr().add(at) as *const AtomicU32) }
+    }
+
+    /// Whether the helper is stalled: a job of it was not taken by its deadline, and none
+    /// has finished since — its other instances pass dry at once instead of each waiting
+    /// out a deadline in the same callback (review isolation-4 #62). Real-time safe.
+    pub fn stalled(&self) -> bool {
+        let s = self.atom(STALLED).load(Ordering::Acquire);
+        s != 0 && self.atom(JOBS_DONE).load(Ordering::Acquire).wrapping_add(1) == s
+    }
+
+    /// A job was not even taken by its deadline: the helper is stalled until any job of it
+    /// finishes. Real-time safe.
+    pub fn mark_stalled(&self) {
+        let done = self.atom(JOBS_DONE).load(Ordering::Acquire);
+        self.atom(STALLED)
+            .store(done.wrapping_add(1), Ordering::Release);
     }
 }
 
@@ -305,6 +332,8 @@ pub struct Sandbox {
     inflight: Mutex<HashMap<u64, Flight>>,
     /// Milliseconds since `started` of the last judgement of its life (a pause guard).
     judged_ms: AtomicU64,
+    /// Pauses of Cantus seen so far: each instance's job clock starts again after one.
+    pauses: AtomicU64,
     /// The instances its end is laid on, once it ended; empty when nothing said which.
     blamed: Mutex<Option<HashSet<u32>>>,
     pool: Weak<Sandboxes>,
@@ -337,8 +366,11 @@ impl Sandbox {
             .arg("--group")
             .arg(key)
             .arg("--lobby")
-            .arg(&lobby.name)
-            .stdin(Stdio::piped())
+            .arg(&lobby.name);
+        if let Some(n) = pool.threads() {
+            cmd.arg("--threads").arg(n.to_string());
+        }
+        cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
         // A console program started by a windowed one: no console window for it.
@@ -378,6 +410,7 @@ impl Sandbox {
             alive_ms: AtomicU64::new(0),
             inflight: Mutex::new(HashMap::new()),
             judged_ms: AtomicU64::new(0),
+            pauses: AtomicU64::new(0),
             blamed: Mutex::new(None),
             pool: Arc::downgrade(pool),
         });
@@ -658,7 +691,14 @@ impl Sandbox {
             f.at = t;
             f.started = f.started.map(|_| t);
         }
+        self.pauses.fetch_add(1, Ordering::AcqRel);
         true
+    }
+
+    /// How many pauses of Cantus were seen: an instance whose count moved starts its late
+    /// job's clock again (review isolation-4 #12, #22).
+    pub(crate) fn pauses(&self) -> u64 {
+        self.pauses.load(Ordering::Acquire)
     }
 
     fn route(&self, msg: Message, blob: Vec<u8>) {
@@ -1084,6 +1124,8 @@ pub struct Sandboxes {
     limits: Mutex<Limits>,
     /// The shortest real-time deadline, in microseconds.
     deadline_floor_us: AtomicU64,
+    /// How many processing threads each new helper has (`None`: its own choice).
+    threads: Mutex<Option<usize>>,
     #[cfg(windows)]
     job: Option<job::Job>,
 }
@@ -1104,6 +1146,7 @@ impl Sandboxes {
             groups: Mutex::new(HashMap::new()),
             limits: Mutex::new(Limits::default()),
             deadline_floor_us: AtomicU64::new(super::audio::DEADLINE_FLOOR.as_micros() as u64),
+            threads: Mutex::new(None),
             #[cfg(windows)]
             job: job::Job::new(),
         })
@@ -1132,6 +1175,17 @@ impl Sandboxes {
 
     pub fn set_limits(&self, limits: Limits) {
         *lock(&self.limits) = limits;
+    }
+
+    /// How many processing threads the helpers started from now on have (`None`: as many
+    /// as the cores beside Cantus's allow) — tests that need two jobs at once on any
+    /// machine (review isolation-4 #32).
+    pub fn set_threads(&self, threads: Option<usize>) {
+        *lock(&self.threads) = threads;
+    }
+
+    fn threads(&self) -> Option<usize> {
+        *lock(&self.threads)
     }
 
     pub fn hang_limit(&self) -> Duration {

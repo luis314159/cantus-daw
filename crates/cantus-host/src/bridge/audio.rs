@@ -109,8 +109,11 @@ impl Status {
     }
 
     /// How long the late job has been out — judged by the exchange, not by whether an
-    /// audio half calls again: a job that has finished is cleared here, so a slot bypassed
-    /// or restarted after one late block is never taken for hung (review #2, #38).
+    /// audio half calls again: a job that has finished is not out, so a slot bypassed or
+    /// restarted after one late block is never taken for hung (review #2, #38). Only
+    /// reads: the audio half clears it once it has taken the job's events, so the
+    /// interface seeing the job finish first loses none of them (review isolation-4 #0,
+    /// #11).
     pub fn unfinished_for(&self, x: &Exchange) -> Option<Duration> {
         let since = self.since_ms.load(Ordering::Acquire);
         if since == 0 {
@@ -118,14 +121,33 @@ impl Status {
         }
         let n = self.job.load(Ordering::Acquire);
         if x.numbers().1 == n {
-            let _ = self
-                .since_ms
-                .compare_exchange(since, 0, Ordering::AcqRel, Ordering::Relaxed);
             return None;
         }
         let now = self.epoch.elapsed().as_millis() as u64;
         Some(Duration::from_millis(now.saturating_sub(since)))
     }
+
+    /// Cantus (or the machine) was paused: the late job's clock starts again from now, so
+    /// the pause is not taken for the plug-in's hang (review isolation-4 #12, #22).
+    pub fn rebase(&self) {
+        let since = self.since_ms.load(Ordering::Acquire);
+        if since != 0 {
+            let _ = self.since_ms.compare_exchange(
+                since,
+                self.now_ms(),
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            );
+        }
+    }
+}
+
+/// Whether one slice of an offline wait took far longer than asked — more than the
+/// silence limit past it: Cantus (or the machine) was paused, a laptop asleep, and the
+/// job's clock starts again instead of the plug-in being taken for hung (review
+/// isolation-4 #12, #22, #36).
+fn slice_paused(took: Duration, silence: Duration) -> bool {
+    took > OFFLINE_SLICE + silence
 }
 
 /// What an offline half needs to end a hung render, or a cancelled one.
@@ -141,20 +163,57 @@ pub struct Offline {
 struct Carry {
     /// The last value of each parameter changed meanwhile, at offset 0.
     params: Vec<ParamChange>,
-    /// Note-offs and chokes, and the last value of each controller and expression, at
-    /// offset 0 (note-ons are dropped: a note late by a block or more is not played).
+    /// What the dry blocks carried, at offset 0, **in the order it came**: note-offs and
+    /// chokes; MIDI controllers, pitch bend, pressure, program changes and expressions,
+    /// each folded to its last value (the older one removed, the newer appended, so the
+    /// order of last values stands); switches (sustain and the other pedals) keep their
+    /// last lift and press; (N)RPN, data entry and channel-mode messages are never folded
+    /// (review isolation-4 #14, #65). Note-ons are dropped: a note late by a block or more
+    /// is not played.
     notes: Vec<NoteEvent>,
-    /// A reset asked for meanwhile (or forced, when the carry overflowed).
+    /// A reset asked for meanwhile (or forced, when the carry overflowed): it ends every
+    /// voice, so the note-offs, chokes and per-note expressions before it are gone and
+    /// those after it are not kept — the controllers are (review isolation-4 #8).
     reset: bool,
-    /// Changes that found no room (more distinct parameters than the slot carries).
+    /// Changes that found no room (more distinct parameters than the slot carries, or
+    /// controllers past the carry's room).
     lost: u64,
     /// This block's own changes and notes after the carried ones (made once).
     merged_params: Vec<ParamChange>,
     merged_notes: Vec<NoteEvent>,
 }
 
-/// What a carried event stands for: a controller or an expression is replaced by a later
-/// one of the same kind, never piled up (review #9, #16).
+/// How a carried event stands for later ones of its kind.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Fold {
+    /// Replaced by a later one of the same kind (a value).
+    Last,
+    /// A switch (CC 64–69): an off and an on are both kept, so a lift between two presses
+    /// still reaches the plug-in.
+    Switch,
+    /// Kept as it is, in order (note-offs, chokes, (N)RPN and data entry, channel mode).
+    Keep,
+}
+
+fn fold_of(e: &NoteEvent) -> Fold {
+    match e.kind {
+        NoteKind::Midi { status, data1, .. } => match status & 0xF0 {
+            0xB0 => match data1 {
+                64..=69 => Fold::Switch,
+                6 | 38 | 96..=101 | 120..=127 => Fold::Keep,
+                _ => Fold::Last,
+            },
+            0xA0 | 0xC0 | 0xD0 | 0xE0 => Fold::Last,
+            _ => Fold::Keep,
+        },
+        NoteKind::Expression { .. } => Fold::Last,
+        _ => Fold::Keep,
+    }
+}
+
+/// Whether two carried events are the same controller or expression (review #9, #16):
+/// a controller and poly pressure are one per number (key); pitch bend, channel pressure
+/// and the program one per channel; an expression one per note.
 fn same_kind(a: &NoteEvent, b: &NoteEvent) -> bool {
     match (a.kind, b.kind) {
         (
@@ -171,8 +230,7 @@ fn same_kind(a: &NoteEvent, b: &NoteEvent) -> bool {
         ) => {
             a.channel == b.channel
                 && sa & 0xF0 == sb & 0xF0
-                // A controller is one per number; pitch bend and pressure one per channel.
-                && (sa & 0xF0 != 0xB0 || da == db)
+                && (!matches!(sa & 0xF0, 0xA0 | 0xB0) || da == db)
         }
         (
             NoteKind::Expression { expression: ea, .. },
@@ -182,9 +240,22 @@ fn same_kind(a: &NoteEvent, b: &NoteEvent) -> bool {
     }
 }
 
+/// A switch controller's position: pressed (64 and up) or lifted.
+fn pressed(e: &NoteEvent) -> bool {
+    matches!(e.kind, NoteKind::Midi { data2, .. } if data2 >= 64)
+}
+
 /// A note-off or a choke: what must never be lost (a voice would ring on).
 fn ends_a_note(e: &NoteEvent) -> bool {
     matches!(e.kind, NoteKind::Off { .. } | NoteKind::Choke)
+}
+
+/// What a reset supersedes: whatever belongs to a voice (it ends them all).
+fn of_a_voice(e: &NoteEvent) -> bool {
+    matches!(
+        e.kind,
+        NoteKind::On { .. } | NoteKind::Off { .. } | NoteKind::Choke | NoteKind::Expression { .. }
+    )
 }
 
 impl Carry {
@@ -199,13 +270,32 @@ impl Carry {
         }
     }
 
+    /// A carry with no room, swapped in while the real one is in use (allocates nothing).
+    fn empty() -> Carry {
+        Carry {
+            params: Vec::new(),
+            notes: Vec::new(),
+            reset: false,
+            lost: 0,
+            merged_params: Vec::new(),
+            merged_notes: Vec::new(),
+        }
+    }
+
     fn is_empty(&self) -> bool {
         self.params.is_empty() && self.notes.is_empty() && self.lost == 0
     }
 
+    /// A reset asked for while the plug-in is late: delivered before its next job; the
+    /// voices' events carried so far are superseded by it.
+    fn reset_now(&mut self) {
+        self.reset = true;
+        self.notes.retain(|k| !of_a_voice(k));
+    }
+
     /// Keeps a dry block's changes and notes. Never grows a buffer: when the notes do not
-    /// fit, the plug-in is reset instead (no voice can stay stuck) and the carried notes,
-    /// which a reset supersedes, go.
+    /// fit, the plug-in is reset instead (no voice can stay stuck) and the voices' events,
+    /// which the reset supersedes, go; the controllers stay (review isolation-4 #14, #65).
     fn keep(&mut self, params: &[ParamChange], notes: &[NoteEvent]) {
         for p in params {
             if let Some(k) = self.params.iter_mut().find(|k| k.id == p.id) {
@@ -221,26 +311,68 @@ impl Carry {
             }
         }
         for n in notes {
-            if matches!(n.kind, NoteKind::On { .. }) || self.reset {
+            if matches!(n.kind, NoteKind::On { .. }) || (self.reset && of_a_voice(n)) {
                 continue;
             }
             let e = NoteEvent { offset: 0, ..*n };
-            if let Some(k) = self.notes.iter_mut().find(|k| same_kind(k, &e)) {
-                *k = e;
-            } else if self.notes.len() < self.notes.capacity() {
+            match fold_of(&e) {
+                Fold::Last => {
+                    if let Some(i) = self.notes.iter().position(|k| same_kind(k, &e)) {
+                        self.notes.remove(i);
+                    }
+                }
+                Fold::Switch => {
+                    let first = self.notes.iter().position(|k| same_kind(k, &e));
+                    let last = self.notes.iter().rposition(|k| same_kind(k, &e));
+                    if let (Some(f), Some(l)) = (first, last) {
+                        if pressed(&self.notes[l]) == pressed(&e) {
+                            // The same position again: the newer stands for it.
+                            self.notes.remove(l);
+                        } else if f != l {
+                            // A lift and a press kept already: the oldest goes.
+                            self.notes.remove(f);
+                        }
+                    }
+                }
+                Fold::Keep => {}
+            }
+            if self.notes.len() < self.notes.capacity() {
                 self.notes.push(e);
             } else {
-                self.reset = true;
-                self.notes.clear();
+                self.reset_now();
+                if of_a_voice(&e) {
+                    continue;
+                }
+                if self.notes.len() < self.notes.capacity() {
+                    self.notes.push(e);
+                } else {
+                    self.lost += 1;
+                }
             }
         }
     }
 
-    /// The carried changes and notes, then this block's: what the next job takes. This
-    /// block's own events come first in priority — the carried note-offs and chokes next,
-    /// the carried controllers and expressions in what room is left (review #8, #9, #23,
-    /// #41). Returns what found no room (counted as lost), and whether a carried note-off
-    /// had none (the plug-in is then reset first).
+    /// Whether the carried note-offs and chokes would find no room beside `own` events of
+    /// the block: the plug-in is then reset before the block, so no voice rings on — and
+    /// that is decided before anything is merged (review isolation-4 #9, #15).
+    fn needs_reset_first(&self, own: usize) -> bool {
+        let room = self.merged_notes.capacity().saturating_sub(own);
+        self.notes.iter().filter(|n| ends_a_note(n)).count() > room
+    }
+
+    /// The reset asked for by [`Self::needs_reset_first`] was delivered: the voices'
+    /// events it supersedes go.
+    fn reset_delivered(&mut self) {
+        self.notes.retain(|k| !of_a_voice(k));
+    }
+
+    /// The carried changes and notes, then this block's: what the next job takes. The
+    /// carried ones come first in time, in the order they came; when room is short the
+    /// block's own events come first in priority, the carried note-offs and chokes next,
+    /// and the oldest carried controllers go first — every one that finds no room is
+    /// counted as lost (review #8, #9, #23, #41; isolation-4 #14, #15, #65). Returns what
+    /// was lost, and whether a carried note-off found no room (never, once
+    /// [`Self::needs_reset_first`] was heeded).
     fn merge(&mut self, params: &[ParamChange], notes: &[NoteEvent]) -> (u64, bool) {
         self.merged_params.clear();
         self.merged_notes.clear();
@@ -255,17 +387,25 @@ impl Carry {
         let cap = self.merged_notes.capacity();
         let own = notes.len().min(cap);
         lost += (notes.len() - own) as u64;
-        let mut room = cap - own;
-        let mut reset = false;
-        // Carried events first in time (offset 0): the note-offs, then the rest.
-        for pass in [true, false] {
-            for n in self.notes.iter().filter(|n| ends_a_note(n) == pass) {
-                if room > 0 {
+        let room = cap - own;
+        let ends = self.notes.iter().filter(|n| ends_a_note(n)).count();
+        let others = self.notes.len() - ends;
+        let mut ends_room = room.min(ends);
+        let mut skip = others.saturating_sub(room - ends_room);
+        let reset = ends > room;
+        for n in &self.notes {
+            if ends_a_note(n) {
+                if ends_room > 0 {
                     self.merged_notes.push(*n);
-                    room -= 1;
-                } else if pass {
-                    reset = true;
+                    ends_room -= 1;
+                } else {
+                    lost += 1;
                 }
+            } else if skip > 0 {
+                skip -= 1;
+                lost += 1;
+            } else {
+                self.merged_notes.push(*n);
             }
         }
         self.merged_notes.extend_from_slice(&notes[..own]);
@@ -273,15 +413,41 @@ impl Carry {
         self.notes.clear();
         (lost, reset)
     }
+
+    /// What the next job takes after dry blocks: the carried events merged with the
+    /// block's own (`Some(lost)`), after a reset when the carried note-offs would find no
+    /// room (`run_reset`, which says whether it finished in time). A reset that ran late
+    /// leaves the carry whole and keeps this block's own events in it (`None`: the block
+    /// passes dry; review isolation-4 #9, #15).
+    fn deliver(
+        &mut self,
+        params: &[ParamChange],
+        notes: &[NoteEvent],
+        run_reset: impl FnOnce() -> bool,
+    ) -> Option<u64> {
+        if self.needs_reset_first(notes.len()) {
+            if !run_reset() {
+                self.keep(params, notes);
+                return None;
+            }
+            self.reset_delivered();
+        }
+        Some(self.merge(params, notes).0)
+    }
 }
 
 /// The audio half.
 pub struct BridgeAudio {
     slot: Arc<Slot>,
-    /// Keeps the helper's lobby mapped while the caller points into it.
-    _lobby: Arc<super::sandbox::LobbyMem>,
+    /// The helper's lobby: kept mapped while the caller points into it, and read for
+    /// whether the helper is stalled (review isolation-4 #62).
+    lobby: Arc<super::sandbox::LobbyMem>,
     caller: Caller,
     status: Arc<Status>,
+    /// This half's job that missed its deadline and runs on, kept here — not only in
+    /// [`Status`], which the interface reads too — so its events are taken however the
+    /// two threads interleave (review isolation-4 #0, #11).
+    late_job: Option<u32>,
     /// `Some` for an offline instance (a render): no deadline.
     offline: Option<Offline>,
     sample_rate: f64,
@@ -320,9 +486,10 @@ impl BridgeAudio {
         let longest = if latency > 0 { slot.max_block() } else { 0 };
         BridgeAudio {
             slot,
-            _lobby: lobby,
+            lobby,
             caller,
             status,
+            late_job: None,
             offline,
             sample_rate,
             floor,
@@ -385,14 +552,22 @@ impl BridgeAudio {
         if self.status.is_dead() {
             return false;
         }
-        if let Some(n) = self.status.outstanding() {
+        // This half's late job, or a previous half's of the same instance.
+        if let Some(n) = self.late_job.or_else(|| self.status.outstanding()) {
             if !self.caller.finished(n) {
                 return false;
             }
             // Its audio is too late to play; what the plug-in reported in it is not.
             // SAFETY: the late job finished and no other is in flight: the area is ours.
             unsafe { self.slot.take_events(&mut self.late_out) };
+            self.late_job = None;
             self.status.clear();
+        }
+        if self.offline.is_none() && self.lobby.stalled() {
+            // No processing thread of the helper took a job of it in time and none has
+            // finished one since: this instance would wait its whole deadline too, in the
+            // same callback — it passes dry at once (review isolation-4 #62).
+            return false;
         }
         if self.carry.reset {
             self.carry.reset = false;
@@ -418,8 +593,15 @@ impl BridgeAudio {
         match self.caller.wait(n, SPIN, Some(deadline)) {
             Outcome::Done => true,
             Outcome::Late => {
+                self.late_job = Some(n);
                 self.status.set_outstanding(n);
                 self.status.late.fetch_add(1, Ordering::Relaxed);
+                // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps.
+                let x = unsafe { &*self.slot.exchange() };
+                if x.pending() {
+                    // Not even taken: no processing thread was free for it.
+                    self.lobby.mark_stalled();
+                }
                 false
             }
             Outcome::Closed => {
@@ -432,7 +614,8 @@ impl BridgeAudio {
     /// An offline job: waited for while it runs, in slices — until the render is
     /// cancelled, or the job has run past the offline hang limit, which ends its helper.
     fn run_offline(&mut self, n: u32) -> bool {
-        let started = Instant::now();
+        let mut started = Instant::now();
+        let mut last = started;
         loop {
             match self
                 .caller
@@ -445,6 +628,11 @@ impl BridgeAudio {
                 }
                 Outcome::Late => {
                     let Some(o) = &self.offline else { return false };
+                    let now = Instant::now();
+                    if slice_paused(now - last, o.sandbox.limits().silence) {
+                        started = now;
+                    }
+                    last = now;
                     if o.cancel.load(Ordering::Acquire) {
                         // The render stops; its own helper with it.
                         o.sandbox
@@ -501,17 +689,21 @@ impl AudioThread for BridgeAudio {
         let flush = cantus_rt::denormal::flushing();
         let carried = !self.carry.is_empty();
         if carried {
-            let (lost, reset_first) = self.carry.merge(params, notes);
-            out.lost_in += lost;
-            if reset_first {
-                // A note-off the buffer had no room for: the plug-in is reset first, so no
-                // voice rings on.
+            let mut carry = std::mem::replace(&mut self.carry, Carry::empty());
+            // A carried note-off with no room: the plug-in is reset first, so no voice
+            // rings on.
+            let delivered = carry.deliver(params, notes, || {
                 // SAFETY: no job is in flight (`ready`): the slot's job area is ours.
                 unsafe {
                     self.slot
-                        .put_job(op::RESET, &[], &[], None, None, &[], &[], false);
-                }
-                if !self.run(0) {
+                        .put_job(op::RESET, &[], &[], None, None, &[], &[], false)
+                };
+                self.run(0)
+            });
+            self.carry = carry;
+            match delivered {
+                Some(lost) => out.lost_in += lost,
+                None => {
                     self.play_dry(left, right);
                     return;
                 }
@@ -551,7 +743,7 @@ impl AudioThread for BridgeAudio {
         if !self.ready() {
             // Delivered before the next job (review #3).
             if !self.status.is_dead() {
-                self.carry.reset = true;
+                self.carry.reset_now();
             }
             return;
         }
@@ -582,5 +774,269 @@ impl Drop for BridgeAudio {
         if let Some(f) = self.on_drop.take() {
             f();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::backend::NoteExpression;
+
+    fn midi(status: u8, data1: u8, data2: u8) -> NoteEvent {
+        NoteEvent {
+            offset: 3,
+            note_id: -1,
+            channel: 0,
+            key: 0,
+            kind: NoteKind::Midi {
+                status,
+                data1,
+                data2,
+            },
+        }
+    }
+
+    fn off(key: u8) -> NoteEvent {
+        NoteEvent {
+            offset: 1,
+            note_id: -1,
+            channel: 0,
+            key,
+            kind: NoteKind::Off { velocity: 0.0 },
+        }
+    }
+
+    fn pressure(key: u8, value: f64) -> NoteEvent {
+        NoteEvent {
+            offset: 2,
+            note_id: -1,
+            channel: 0,
+            key,
+            kind: NoteKind::Expression {
+                expression: NoteExpression::Pressure,
+                value,
+            },
+        }
+    }
+
+    /// What the next job takes, as (status or kind, data1, data2).
+    fn merged(c: &mut Carry, notes: &[NoteEvent]) -> Vec<NoteEvent> {
+        let _ = c.merge(&[], notes);
+        c.merged_notes.clone()
+    }
+
+    /// A wheel swept through a long dry stretch reaches the plug-in as its last value
+    /// (review isolation-4 #33).
+    #[test]
+    fn a_wheel_sweep_folds_to_its_last_value() {
+        let mut c = Carry::new();
+        for i in 0..2_000u32 {
+            c.keep(&[], &[midi(0xE0, (i & 0x7F) as u8, (i >> 7) as u8 & 0x7F)]);
+        }
+        assert_eq!(c.notes.len(), 1);
+        assert_eq!(c.notes[0].kind, midi(0xE0, (1999 & 0x7F) as u8, 15).kind);
+        assert_eq!(c.notes[0].offset, 0, "carried events go at the block's start");
+    }
+
+    /// A sustain pedal lifted and pressed again while the plug-in was late: both reach it,
+    /// so the old chord stops ringing (review isolation-4 #14).
+    #[test]
+    fn a_pedal_lift_and_press_both_reach_the_plugin() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 64, 0)]);
+        c.keep(&[], &[midi(0xB0, 64, 127)]);
+        let m = merged(&mut c, &[]);
+        let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
+        assert_eq!(kinds, vec![midi(0xB0, 64, 0).kind, midi(0xB0, 64, 127).kind]);
+    }
+
+    /// The carried events keep the order they came in: a pedal pressed before a note-off
+    /// still holds that note (review isolation-4 #14).
+    #[test]
+    fn carried_events_keep_their_order() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 64, 127), off(60)]);
+        let m = merged(&mut c, &[]);
+        assert_eq!(m.len(), 2);
+        assert_eq!(m[0].kind, midi(0xB0, 64, 127).kind);
+        assert!(matches!(m[1].kind, NoteKind::Off { .. }));
+    }
+
+    /// A bank select stays before the program change that follows it, whatever was folded
+    /// (review isolation-4 #14).
+    #[test]
+    fn a_bank_select_stays_before_its_program_change() {
+        let mut c = Carry::new();
+        c.keep(
+            &[],
+            &[
+                midi(0xC0, 1, 0),
+                midi(0xB0, 0, 2),
+                midi(0xB0, 32, 0),
+                midi(0xC0, 5, 0),
+            ],
+        );
+        let m = merged(&mut c, &[]);
+        let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                midi(0xB0, 0, 2).kind,
+                midi(0xB0, 32, 0).kind,
+                midi(0xC0, 5, 0).kind
+            ]
+        );
+    }
+
+    /// Polyphonic pressure is one value per key, not per channel (review isolation-4 #65).
+    #[test]
+    fn poly_pressure_is_kept_per_key() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xA0, 60, 10), midi(0xA0, 64, 20), midi(0xA0, 60, 30)]);
+        let m = merged(&mut c, &[]);
+        let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
+        assert_eq!(kinds, vec![midi(0xA0, 64, 20).kind, midi(0xA0, 60, 30).kind]);
+    }
+
+    /// A reset asked for while the plug-in was late ends its voices, not its controllers:
+    /// a pitch bend back to centre or a pedal lift after it still reaches the plug-in; the
+    /// note-offs and per-note expressions it supersedes do not (review isolation-4 #8, #33).
+    #[test]
+    fn controllers_after_a_reset_are_kept() {
+        let mut c = Carry::new();
+        c.keep(&[], &[off(60), pressure(61, 0.5), midi(0xB0, 1, 9)]);
+        c.reset_now();
+        c.keep(&[], &[midi(0xE0, 0, 64), midi(0xB0, 64, 0), off(62), pressure(62, 1.0)]);
+        assert!(c.reset);
+        let kinds: Vec<NoteKind> = c.notes.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                midi(0xB0, 1, 9).kind,
+                midi(0xE0, 0, 64).kind,
+                midi(0xB0, 64, 0).kind
+            ]
+        );
+    }
+
+    /// Notes that overflow the carry reset the plug-in: the note-offs go (the reset ends
+    /// every voice), the controllers stay (review isolation-4 #14, #65).
+    #[test]
+    fn an_overflow_resets_and_keeps_the_controllers() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 7, 100)]);
+        let offs: Vec<NoteEvent> = (0..MAX_NOTES).map(|k| off((k % 128) as u8)).collect();
+        c.keep(&[], &offs);
+        assert!(c.reset, "no room: a reset instead");
+        c.keep(&[], &[midi(0xB0, 64, 0)]);
+        let kinds: Vec<NoteKind> = c.notes.iter().map(|e| e.kind).collect();
+        assert_eq!(kinds, vec![midi(0xB0, 7, 100).kind, midi(0xB0, 64, 0).kind]);
+    }
+
+    /// Carried controllers that find no room beside the block's own events are counted as
+    /// lost, the oldest first (review isolation-4 #15, #65).
+    #[test]
+    fn carried_controllers_without_room_are_counted() {
+        let mut c = Carry::new();
+        let ccs: Vec<NoteEvent> = (0..10u8).map(|n| midi(0xB0, 10 + n, 1)).collect();
+        c.keep(&[], &ccs);
+        let own: Vec<NoteEvent> = (0..MAX_NOTES - 4).map(|k| off((k % 128) as u8)).collect();
+        let (lost, _) = c.merge(&[], &own);
+        assert_eq!(lost, 6);
+        assert_eq!(c.merged_notes.len(), MAX_NOTES);
+        // The newest four carried ones, then the block's own.
+        assert_eq!(c.merged_notes[0].kind, midi(0xB0, 16, 1).kind);
+        assert!(matches!(c.merged_notes[4].kind, NoteKind::Off { .. }));
+    }
+
+    /// The block's own note-off is never pushed out by carried events (review isolation-4
+    /// #33).
+    #[test]
+    fn the_blocks_own_note_off_is_kept() {
+        let mut c = Carry::new();
+        let ccs: Vec<NoteEvent> = (0..MAX_NOTES)
+            .map(|n| midi(0xB0, 6, (n % 128) as u8))
+            .collect();
+        c.keep(&[], &ccs);
+        let (_, _) = c.merge(&[], &[off(60)]);
+        assert!(c
+            .merged_notes
+            .iter()
+            .any(|e| matches!(e.kind, NoteKind::Off { .. }) && e.key == 60));
+    }
+
+    /// Parameters past what the slot carries are counted, not dropped unseen.
+    #[test]
+    fn parameters_past_the_slots_room_are_counted() {
+        let mut c = Carry::new();
+        let ps: Vec<ParamChange> = (0..MAX_PARAMS as u32 + 3)
+            .map(|id| ParamChange {
+                offset: 0,
+                id,
+                value: 0.5,
+            })
+            .collect();
+        c.keep(&ps, &[]);
+        let (lost, _) = c.merge(&[], &[]);
+        assert_eq!(lost, 3);
+    }
+    /// Carried note-offs with no room beside the block's own events: the plug-in is reset
+    /// first, decided before anything is merged (review isolation-4 #15, #33).
+    #[test]
+    fn a_carried_note_off_without_room_asks_for_a_reset_first() {
+        let mut c = Carry::new();
+        let offs: Vec<NoteEvent> = (0..10).map(|k| off(k as u8)).collect();
+        c.keep(&[], &offs);
+        assert!(!c.needs_reset_first(MAX_NOTES - 10));
+        assert!(c.needs_reset_first(MAX_NOTES - 9));
+        let mut resets = 0;
+        let own: Vec<NoteEvent> = (0..MAX_NOTES - 9).map(|_| midi(0xB0, 6, 1)).collect();
+        let lost = c.deliver(&[], &own, || {
+            resets += 1;
+            true
+        });
+        assert_eq!(resets, 1);
+        assert_eq!(lost, Some(0), "the reset superseded the note-offs: nothing lost");
+        assert_eq!(c.merged_notes.len(), MAX_NOTES - 9);
+    }
+
+    /// When that reset runs late, the carry stays whole and keeps the block's own events
+    /// too: nothing merged is dropped unseen (review isolation-4 #9, #15).
+    #[test]
+    fn a_late_reset_first_keeps_the_carry_and_the_blocks_events() {
+        let mut c = Carry::new();
+        let offs: Vec<NoteEvent> = (0..300).map(|k| off((k % 128) as u8)).collect();
+        c.keep(
+            &[ParamChange {
+                offset: 0,
+                id: 4,
+                value: 0.25,
+            }],
+            &offs,
+        );
+        let own_params = [ParamChange {
+            offset: 7,
+            id: 5,
+            value: 0.75,
+        }];
+        // The block's own events: a wheel's 300 steps (one value carried).
+        let own: Vec<NoteEvent> = (0..300).map(|v| midi(0xB0, 1, (v % 128) as u8)).collect();
+        let lost = c.deliver(&own_params, &own, || false);
+        assert_eq!(lost, None, "the block passes dry");
+        let ids: Vec<u32> = c.params.iter().map(|p| p.id).collect();
+        assert_eq!(ids, vec![4, 5], "both values carried on");
+        assert_eq!(c.notes.iter().filter(|n| ends_a_note(n)).count(), 300);
+        assert_eq!(c.notes.last().map(|n| n.kind), Some(midi(0xB0, 1, 43).kind));
+        assert_eq!(c.lost, 0);
+    }
+
+    /// A slice of an offline wait that took far longer than asked is a pause of Cantus, not
+    /// the plug-in's hang (review isolation-4 #22, #36).
+    #[test]
+    fn a_long_slice_is_a_pause() {
+        let s = Duration::from_secs(5);
+        assert!(!slice_paused(OFFLINE_SLICE, s));
+        assert!(!slice_paused(Duration::from_secs(4), s));
+        assert!(slice_paused(Duration::from_secs(60), s));
     }
 }

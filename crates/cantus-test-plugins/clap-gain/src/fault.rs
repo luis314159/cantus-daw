@@ -24,6 +24,17 @@
 //! | 15 | its editor's window runs a nested message loop for 10 s |
 //! | 16 | an access violation in its editor's window (its timer), on the main thread |
 //! | 17 | the next `save_state` takes 3 s, without pumping messages (slow, not hung) |
+//! | 18 | this `process` takes 1 s, once (late for long, not hung) |
+//! | 19 | an access violation when the instance is destroyed (its destructor, an unload) |
+//! | 20 | an access violation in a thread timer of the main thread (no window: as a framework's) |
+//! | 21 | a thread timer of the main thread that never returns |
+//!
+//! And, read from the environment (the helper inherits Cantus's, so a test sets them before
+//! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
+//! a file there when an instance is destroyed; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
+//! every `load_state` run a nested message loop that long; `CANTUS_TEST_GAIN_CHAIN_FILTER`
+//! installs, at load, a crash filter that hands on to the one before it (Windows), as a
+//! plug-in's crash reporter does.
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -44,8 +55,16 @@ pub const SEGV_PROCESS: u32 = 14;
 pub const PUMP_WINDOW_LONG: u32 = 15;
 pub const SEGV_EDITOR: u32 = 16;
 pub const SLOW_SAVE: u32 = 17;
+pub const SLOW_SECOND: u32 = 18;
+pub const SEGV_DESTROY: u32 = 19;
+pub const SEGV_THREAD_TIMER: u32 = 20;
+pub const HANG_THREAD_TIMER: u32 = 21;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 17.0;
+pub const LAST: f64 = 21.0;
+
+/// What a thread timer of the main thread does when it fires (`SEGV_THREAD_TIMER`,
+/// `HANG_THREAD_TIMER`); 0 for none.
+static THREAD_TIMER: AtomicU32 = AtomicU32::new(0);
 
 /// A nested loop the editor's window runs at its next timer, in seconds (`PUMP_WINDOW`,
 /// `PUMP_WINDOW_LONG`); 0 for none.
@@ -95,7 +114,41 @@ impl Fault {
                 // SAFETY: none — a write to an address no process maps, on purpose.
                 unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
             }
+            SLOW_SECOND => {
+                self.0.store(0, Ordering::Release);
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+            SEGV_THREAD_TIMER | HANG_THREAD_TIMER => {
+                self.0.store(0, Ordering::Release);
+                THREAD_TIMER.store(v, Ordering::Release);
+            }
             _ => {}
+        }
+    }
+
+    /// Whether the main thread should be asked for a callback (a thread timer to start).
+    pub fn wants_main_thread(value: f64) -> bool {
+        matches!(
+            value.round() as u32,
+            SEGV_THREAD_TIMER | HANG_THREAD_TIMER
+        )
+    }
+
+    /// The instance is being destroyed: `SEGV_DESTROY` crashes here; the destroy marker
+    /// (environment) is written.
+    pub fn on_destroy(&self) {
+        if let Some(dir) = std::env::var_os("CANTUS_TEST_GAIN_DESTROY_MARKER") {
+            let at = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
+            let _ = std::fs::write(
+                std::path::Path::new(&dir).join(format!("{}-{at}.gone", std::process::id())),
+                b"gone",
+            );
+        }
+        if self.0.load(Ordering::Acquire) == SEGV_DESTROY {
+            // SAFETY: none — a write to an address no process maps, on purpose.
+            unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
         }
     }
 
@@ -132,6 +185,96 @@ impl Fault {
         }
     }
 }
+
+/// On the main thread (the host's callback): starts the thread timer armed, if any.
+pub fn on_main_thread() {
+    let what = THREAD_TIMER.swap(0, Ordering::AcqRel);
+    if what != 0 {
+        start_thread_timer(what);
+    }
+}
+
+#[cfg(windows)]
+static TIMER_DOES: AtomicU32 = AtomicU32::new(0);
+
+#[cfg(windows)]
+unsafe extern "system" fn thread_timer(
+    _hwnd: windows_sys::Win32::Foundation::HWND,
+    _msg: u32,
+    id: usize,
+    _time: u32,
+) {
+    // SAFETY: our own timer, killed once.
+    unsafe { windows_sys::Win32::UI::WindowsAndMessaging::KillTimer(std::ptr::null_mut(), id) };
+    match TIMER_DOES.swap(0, Ordering::AcqRel) {
+        SEGV_THREAD_TIMER => {
+            // SAFETY: none — a write to an address no process maps, on purpose.
+            unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
+        }
+        HANG_THREAD_TIMER => hang(),
+        _ => {}
+    }
+}
+
+#[cfg(windows)]
+fn start_thread_timer(what: u32) {
+    TIMER_DOES.store(what, Ordering::Release);
+    // SAFETY: a thread timer (no window) on this, the main, thread, with our procedure.
+    unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SetTimer(
+            std::ptr::null_mut(),
+            0,
+            10,
+            Some(thread_timer),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn start_thread_timer(_what: u32) {}
+
+/// `CANTUS_TEST_GAIN_PUMP_LOAD_MS`: how long a `load_state` runs a nested message loop.
+pub fn pump_load() {
+    if let Some(ms) = std::env::var("CANTUS_TEST_GAIN_PUMP_LOAD_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+    {
+        pump(std::time::Duration::from_millis(ms));
+    }
+}
+
+/// `CANTUS_TEST_GAIN_CHAIN_FILTER`: a crash filter installed at load that hands every
+/// crash on to the one before it — ours, for a plug-in loaded in Cantus's helper.
+#[cfg(windows)]
+pub fn chain_filter() {
+    use std::sync::atomic::AtomicUsize;
+    use windows_sys::Win32::System::Diagnostics::Debug::{
+        SetUnhandledExceptionFilter, EXCEPTION_POINTERS,
+    };
+    static PREV: AtomicUsize = AtomicUsize::new(0);
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    unsafe extern "system" fn mine(info: *const EXCEPTION_POINTERS) -> i32 {
+        let prev = PREV.load(Ordering::Acquire);
+        if prev != 0 {
+            // SAFETY: the filter that was in place before ours, called as the system would.
+            let f: unsafe extern "system" fn(*const EXCEPTION_POINTERS) -> i32 =
+                unsafe { std::mem::transmute(prev) };
+            return unsafe { f(info) };
+        }
+        0
+    }
+    if std::env::var_os("CANTUS_TEST_GAIN_CHAIN_FILTER").is_none() {
+        return;
+    }
+    ONCE.call_once(|| {
+        // SAFETY: a process-wide filter of our own; the previous one kept to hand on to.
+        let prev = unsafe { SetUnhandledExceptionFilter(Some(mine)) };
+        PREV.store(prev.map_or(0, |p| p as usize), Ordering::Release);
+    });
+}
+
+#[cfg(not(windows))]
+pub fn chain_filter() {}
 
 fn hang() -> ! {
     loop {

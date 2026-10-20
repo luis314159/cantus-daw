@@ -160,6 +160,11 @@ impl Plugin {
         self.set(e.param_id, e.value);
         if processing && e.param_id == P_FAULT {
             self.fault.arm(e.value);
+            if crate::fault::Fault::wants_main_thread(e.value) {
+                if let Some(f) = (*self.host).request_callback {
+                    f(self.host);
+                }
+            }
         }
         if e.param_id == P_LATENCY
             && self.get(P_LATENCY) as u32 != self.active_latency.load(Ordering::Acquire)
@@ -358,10 +363,12 @@ pub unsafe fn me<'a>(plugin: *const clap_plugin) -> &'a mut Plugin {
 }
 
 unsafe extern "C" fn init(_plugin: *const clap_plugin) -> bool {
+    crate::fault::chain_filter();
     true
 }
 
 unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
+    me(plugin).fault.on_destroy();
     drop(Box::from_raw((*plugin).plugin_data as *mut Plugin));
 }
 
@@ -400,7 +407,9 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     p.mod_wheel = 0.0;
 }
 
-unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {}
+unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {
+    crate::fault::on_main_thread();
+}
 
 fn header<T>(type_: u16) -> clap_event_header {
     clap_event_header {

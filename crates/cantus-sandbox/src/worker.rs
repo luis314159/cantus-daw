@@ -22,7 +22,7 @@ use cantus_host::bridge::slot::{op, status, Slot, MAX_NOTES, MAX_PARAMS};
 use cantus_host::{Audio, AudioThread, ParamOut};
 use cantus_rt::ipc::{Completer, LobbyBell};
 use std::cell::RefCell;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -94,8 +94,15 @@ impl Table {
     }
 }
 
-/// One processing thread: serves the table's instances until `stop`.
-pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
+/// One processing thread: serves the table's instances until `stop`, counting each job it
+/// finishes in the lobby's `done` word (Cantus reads it to know the helper is not stalled;
+/// review isolation-4 #62).
+pub fn serve(
+    table: Arc<Table>,
+    bell: Arc<LobbyBell>,
+    stop: Arc<AtomicBool>,
+    done: &'static AtomicU32,
+) {
     let _promotion = cantus_rt::thread::promote_worker(
         cantus_rt::thread::WorkerRole::Live,
         Duration::from_millis(5),
@@ -138,6 +145,7 @@ pub fn serve(table: Arc<Table>, bell: Arc<LobbyBell>, stop: Arc<AtomicBool>) {
             // Borrowed, never cloned: this thread's reference is never the last.
             let s = seen.borrow();
             run(&s.1[i], n, &mut params, &mut notes, &mut out);
+            done.fetch_add(1, Ordering::AcqRel);
         },
     );
 }

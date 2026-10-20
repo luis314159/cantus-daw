@@ -59,6 +59,10 @@ fn main() {
     platform::init_com();
     let group = arg("--group").unwrap_or_default();
     let lobby = arg("--lobby").unwrap_or_default();
-    let code = serve::run(pipes, &group, &lobby);
+    // How many processing threads, when Cantus says (its tests: review isolation-4 #32).
+    let threads = arg("--threads")
+        .and_then(|t| t.parse::<usize>().ok())
+        .map(|t| t.clamp(1, 64));
+    let code = serve::run(pipes, &group, &lobby, threads);
     std::process::exit(code);
 }

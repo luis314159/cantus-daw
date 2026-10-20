@@ -184,8 +184,11 @@ struct Server {
     stop: Arc<AtomicBool>,
     threads: Vec<JoinHandle<()>>,
     /// The most processing threads: as many as the plug-ins Cantus may call at once, no
-    /// more than the cores beside Cantus's own (ADR 0031 R15).
+    /// more than the cores beside Cantus's own (ADR 0031 R15) — or what Cantus asked for
+    /// (`--threads`, tests).
     max_threads: usize,
+    /// The lobby's count of finished jobs.
+    jobs_done: &'static AtomicU32,
 }
 
 impl Server {
@@ -251,10 +254,11 @@ impl Server {
         let want = instances.min(self.max_threads).max(1);
         while self.threads.len() < want {
             let (table, bell, stop) = (self.table.clone(), self.bell.clone(), self.stop.clone());
+            let done = self.jobs_done;
             let k = self.threads.len();
             let t = std::thread::Builder::new()
                 .name(format!("cantus-sandbox-audio-{k}"))
-                .spawn(move || worker::serve(table, bell, stop))
+                .spawn(move || worker::serve(table, bell, stop, done))
                 .map_err(|e| Failure::Load(e.to_string()))?;
             self.threads.push(t);
         }
@@ -595,7 +599,7 @@ fn on_instance(
 
 /// Serves until Cantus says Quit or its pipe closes; returns the exit code. `lobby` names
 /// the shared region (and bell) Cantus made for this helper's threads.
-pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
+pub fn run(pipes: Pipes, group: &str, lobby: &str, threads: Option<usize>) -> i32 {
     let _ = group;
     cantus_host::mark_main_thread();
     let Ok(lobby_mem) =
@@ -624,6 +628,12 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
         &*(lobby_mem
             .as_ptr()
             .add(cantus_host::bridge::sandbox::CRASH_AT) as *const AtomicU32)
+    };
+    // SAFETY: as for `main_at`; the processing threads write it, Cantus reads it.
+    let jobs_done: &'static AtomicU32 = unsafe {
+        &*(lobby_mem
+            .as_ptr()
+            .add(cantus_host::bridge::sandbox::JOBS_DONE) as *const AtomicU32)
     };
     crate::platform::blame::install(crash_at, main_at);
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
@@ -666,7 +676,8 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str) -> i32 {
         bell: Arc::new(bell),
         stop: Arc::new(AtomicBool::new(false)),
         threads: Vec::new(),
-        max_threads: cores.saturating_sub(2).clamp(1, 8),
+        max_threads: threads.unwrap_or_else(|| cores.saturating_sub(2).clamp(1, 8)),
+        jobs_done,
     };
     HERE.with(|h| {
         *h.borrow_mut() = Some(Here {

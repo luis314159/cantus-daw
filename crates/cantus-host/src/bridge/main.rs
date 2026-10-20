@@ -67,6 +67,8 @@ pub struct BridgeMain {
     state_after: u64,
     last_refresh: Instant,
     told_crash: bool,
+    /// The helper's pauses already applied to this instance's job clock.
+    pauses_seen: u64,
 }
 
 impl std::fmt::Debug for BridgeMain {
@@ -115,6 +117,7 @@ impl BridgeMain {
             state_after: 0,
             last_refresh: Instant::now(),
             told_crash: false,
+            pauses_seen: 0,
         }
     }
 
@@ -368,6 +371,13 @@ impl MainThread for BridgeMain {
     fn idle(&mut self) -> Vec<Notice> {
         let mut out = Vec::new();
         self.sandbox.check_alive();
+        let pauses = self.sandbox.pauses();
+        if pauses != self.pauses_seen {
+            // Cantus was paused (a laptop asleep): the late job's clock starts again, as
+            // the helper's own did (review isolation-4 #12, #22).
+            self.pauses_seen = pauses;
+            self.status.rebase();
+        }
         if !self.gone() {
             // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
             let x = unsafe { &*self.slot.exchange() };
