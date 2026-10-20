@@ -198,6 +198,9 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
 /// whole ramp) lasts exactly as long as it plays (ADR 0060).
 pub const RAMP_EXPORT_STEP: i64 = PPQ / 4;
 
+/// The most tempo events one ramp is written as (review 5).
+const MAX_RAMP_STEPS: i64 = 4_096;
+
 /// Track 0 of a type 1 file: the name of the piece, and its whole tempo map from `shift`
 /// (the file's tick 0) for `len` ticks — every metre change, every tempo point (a ramp in
 /// steps of [`RAMP_EXPORT_STEP`]) and every marker as a marker meta event (0x06).
@@ -259,10 +262,15 @@ fn conductor(
             .unwrap_or(stop)
             .min(stop);
         if map.in_ramp(t.0 as f64) {
-            // From the ramp's start: steps on the ramp's own sixteenths.
+            // From the ramp's start: steps on the ramp's own sixteenths — or, past
+            // `MAX_RAMP_STEPS` of them, on whole runs of sixteenths, each still its run's
+            // average tempo (review 5: a ramp a million beats long looped for hours).
             let ramp_start = map.point_at_or_before(t.0 as f64) as i64;
-            let k = (t.0 - ramp_start).div_euclid(RAMP_EXPORT_STEP) + 1;
-            let step = Ticks(ramp_start + k * RAMP_EXPORT_STEP).min(next_point);
+            let ramp_len = next_point.0 - ramp_start;
+            let unit =
+                RAMP_EXPORT_STEP * (ramp_len / (RAMP_EXPORT_STEP * MAX_RAMP_STEPS) + 1).max(1);
+            let k = (t.0 - ramp_start).div_euclid(unit) + 1;
+            let step = Ticks(ramp_start + k * unit).min(next_point);
             tempo_at(&mut ev, t, step);
             t = step;
         } else {

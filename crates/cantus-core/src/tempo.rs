@@ -51,6 +51,11 @@ pub use bars::BarLines;
 /// own timing (notes, clips, automation, the click) is exact, never stepped.
 pub const RAMP_STEP: i64 = PPQ / 16;
 
+/// How far into a song a tempo point, a metre change or a marker may be (review 5): a
+/// million beats — days of music. An agent's or a file's point past it is refused or left
+/// out (and said): a ramp to a billion beats made a MIDI export loop for hours.
+pub const HORIZON: Ticks = Ticks(PPQ * 1_000_000);
+
 /// One point of the tempo track: from `tick` on, the tempo is `bpm`; when `ramp` is set
 /// the tempo moves linearly in ticks from this point's `bpm` to the next point's (ADR
 /// 0060), otherwise it holds until the next point.

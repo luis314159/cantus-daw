@@ -67,6 +67,7 @@ tempo.report.markers_kept = {n} markers kept
 tempo.report.seconds_map = Times given in seconds were placed through the file's tempo track
 tempo.report.seconds_ramp = A tempo ramp written in seconds became a ramp in beats: its points keep their times, the tempo between them bends slightly differently
 tempo.report.tempo_unit = The tempo automation in "{unit}" could not be read: the song keeps its first tempo
+tempo.report.too_far = {n} tempo points, metre changes or markers lay past a million beats and were left out
 tempo.report.map_at = The file's tempo and metre start at bar {bar}; the song keeps its own before it
 tempo.midi.map_kept = The file's tempo changes, metre changes and markers go into the tempo track, the ruler and the marker lane.
 tempo.midi.map_at = The file's tempo and metre start at bar {bar}: the song keeps its own before it, and the file's markers join the marker lane.

@@ -576,3 +576,34 @@ fn a_clip_dropped_into_a_songs_metre_change_ends_on_its_bars() {
     // second bar of 3/4 after it, which ends 2 × 2 880 on.
     assert_eq!(c.end(), bar6 + Ticks(2 * 2880));
 }
+
+/// Review 5 (finding 28): a ramp a million beats long exports in a bounded number of tempo
+/// events (each still its stretch's average tempo), at once.
+#[test]
+fn a_very_long_ramp_exports_in_bounded_steps() {
+    let mut p = Project::new("Far");
+    let mut t = p.make_track("Lead");
+    let mut c = p.make_clip("c", Ticks::ZERO, Ticks::beats(4));
+    c.notes
+        .push(p.make_note(Ticks::ZERO, Ticks::QUARTER, 60, 100));
+    t.clips.push(c);
+    p.tracks.push(t);
+    p.tempo_bpm = 90.0;
+    p.tempo_points = vec![
+        TempoPoint {
+            tick: Ticks::ZERO,
+            bpm: 90.0,
+            ramp: true,
+        },
+        pt(Ticks::beats(1_000_000).0, 140.0),
+    ];
+    let t0 = std::time::Instant::now();
+    let bytes = midi::export(&p, &ExportOptions::default()).unwrap();
+    assert!(t0.elapsed().as_secs_f64() < 5.0, "at once");
+    let read = midi::read(&bytes, &ImportOptions::default()).unwrap();
+    assert!(
+        read.tempo_points.len() <= 5_000,
+        "{} tempo events",
+        read.tempo_points.len()
+    );
+}

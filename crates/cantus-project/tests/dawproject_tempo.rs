@@ -275,7 +275,10 @@ fn notes_on_a_lane_get_a_clip_on_the_files_bar_lines() {
             .replace('\r', "")
             .replace(lane_clips, &lane)
             .replace("</Arrangement>", &format!("{metres}</Arrangement>"));
-        assert!(xml.contains("key=\"49\" vel=\"0.8\"/></Notes></Lanes>"), "the lane");
+        assert!(
+            xml.contains("key=\"49\" vel=\"0.8\"/></Notes></Lanes>"),
+            "the lane"
+        );
         let p = import(&xml).project;
         let c = p
             .tracks
@@ -299,4 +302,17 @@ fn notes_on_a_lane_get_a_clip_on_the_files_bar_lines() {
         r#"<TimeSignatureAutomation id="id91"><Target parameter="id1"/><TimeSignaturePoint time="0" numerator="3" denominator="4"/></TimeSignatureAutomation>"#,
     );
     assert_eq!((c.start, c.end()), (Ticks::ZERO, Ticks(5_760)));
+}
+
+/// Review 5 (finding 28): tempo points, metres and markers past the song's horizon are
+/// left out, and said.
+#[test]
+fn points_past_the_horizon_are_left_out_and_said() {
+    let tempo = r#"<TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="120" interpolation="linear"/><RealPoint time="1e9" value="121"/></TempoAutomation>"#;
+    let marker = r#"<Markers id="id80"><Marker time="0" name="Intro"/><Marker time="1e9" name="Never"/></Markers>"#;
+    let imported = with(&[(TEMPO, tempo), (MARKERS, marker)]);
+    let p = &imported.project;
+    assert!(p.tempo_points.is_empty(), "{:?}", p.tempo_points);
+    assert!(!p.markers.iter().any(|m| m.name == "Never"));
+    assert!(imported.report.has("tempo.report.too_far"));
 }

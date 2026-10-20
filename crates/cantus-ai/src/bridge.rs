@@ -170,20 +170,30 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
             Ok(Some(Command::SetTempo { bpm }))
         }
         "set_tempo_point" => {
+            let horizon = cantus_core::tempo::HORIZON.as_beats_f64();
             let beat = a
                 .get("beat")
                 .and_then(Value::as_f64)
-                .filter(|b| b.is_finite() && *b >= 0.0)
+                .filter(|b| b.is_finite() && *b >= 0.0 && *b <= horizon)
                 .ok_or(BridgeError::BadArgument("beat"))?;
             let bpm = a
                 .get("bpm")
                 .and_then(Value::as_f64)
                 .filter(|b| b.is_finite())
                 .ok_or(BridgeError::BadArgument("bpm"))?;
-            let ramp = a.get("ramp").and_then(Value::as_bool).unwrap_or(false);
+            let tick = Ticks::from_beats_f64(beat);
+            // Unsaid, the point's own ramp stays (review 5: a new start tempo cleared the
+            // accelerando).
+            let ramp = a.get("ramp").and_then(Value::as_bool).unwrap_or_else(|| {
+                bus.project()
+                    .tempo_points
+                    .iter()
+                    .find(|p| p.tick == tick.max(Ticks::ZERO))
+                    .is_some_and(|p| p.ramp)
+            });
             Ok(Some(cantus_core::tempo::edit::add_tempo_point(
                 bus.project(),
-                Ticks::from_beats_f64(beat),
+                tick,
                 bpm,
                 ramp,
             )))
@@ -509,5 +519,32 @@ mod tests {
         assert!(p.tempo_points[0].ramp, "{:?}", p.tempo_points);
         let map = p.tempo_map();
         assert!((map.bpm_at(cantus_core::Ticks::beats(8).0 as f64) - 115.0).abs() < 1e-9);
+    }
+
+    /// Review 5 (finding 28): a point past the song's horizon is refused; a call that says
+    /// nothing of the ramp keeps the point's own (a new start tempo keeps the accelerando).
+    #[test]
+    fn a_far_point_is_refused_and_an_unsaid_ramp_is_kept() {
+        let mut bus = CommandBus::default();
+        let mut call = |bus: &mut CommandBus, input: serde_json::Value| {
+            let call = ToolCall {
+                name: "set_tempo_point".into(),
+                input,
+            };
+            to_command(&call, bus).map(|c| {
+                bus.execute(c.unwrap(), cantus_core::Origin::Ai).unwrap();
+            })
+        };
+        assert!(call(&mut bus, json!({ "beat": 1e9, "bpm": 140.0 })).is_err());
+        call(&mut bus, json!({ "beat": 0.0, "bpm": 90.0, "ramp": true })).unwrap();
+        call(&mut bus, json!({ "beat": 16.0, "bpm": 140.0 })).unwrap();
+        call(&mut bus, json!({ "beat": 0.0, "bpm": 100.0 })).unwrap();
+        let p = bus.project();
+        assert_eq!(p.tempo_points[0].bpm, 100.0);
+        assert!(
+            p.tempo_points[0].ramp,
+            "the accelerando kept: {:?}",
+            p.tempo_points
+        );
     }
 }

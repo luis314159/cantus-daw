@@ -154,13 +154,20 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
             ) else {
                 continue;
             };
-            out.metres.push((ctx_at(secs, time), n as u8, d as u8));
+            let at = ctx_at(secs, time);
+            if at > cantus_core::tempo::HORIZON {
+                report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                continue;
+            }
+            out.metres.push((at, n as u8, d as u8));
         }
     }
     let metres = super::read::metre_list(&out.metres, project.time_signature);
     let map = TempoMap::new(
         out.tempo.first().map_or(bpm, |p| p.bpm),
-        metres.first().map_or(project.time_signature, |m| m.signature),
+        metres
+            .first()
+            .map_or(project.time_signature, |m| m.signature),
         &out.tempo,
         &metres,
     );
@@ -170,8 +177,12 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         for k in m.children().filter(|c| c.has_tag_name("Marker")) {
             if let Some(time) = attr_f64(k, "time") {
                 let name = attr(k, "name").unwrap_or("").to_string();
-                out.markers
-                    .push((ctx_at(secs, time), name, parse_color(attr(k, "color"))));
+                let at = ctx_at(secs, time);
+                if at > cantus_core::tempo::HORIZON {
+                    report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                    continue;
+                }
+                out.markers.push((at, name, parse_color(attr(k, "color"))));
             }
         }
     }
@@ -527,9 +538,15 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
         report.info("tempo.report.seconds_ramp", Vec::new());
     }
     let mut out: Vec<TempoPoint> = Vec::with_capacity(raw.len() + 1);
+    let mut far = 0usize;
     for (&(_, bpm, ramp), &tick) in raw.iter().zip(&ticks) {
         let tick = Ticks(tick.round() as i64);
         if tick.0 < 0 {
+            continue;
+        }
+        // Past the song's horizon: left out, and said (review 5).
+        if tick > cantus_core::tempo::HORIZON {
+            far += 1;
             continue;
         }
         if let Some(earlier) = out.pop_if(|l| l.tick == tick) {
@@ -546,6 +563,9 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
             }
         }
         out.push(TempoPoint { tick, bpm, ramp });
+    }
+    if far > 0 {
+        report.dropped("tempo.report.too_far", vec![("n", far.to_string())]);
     }
     if out.is_empty() {
         return out;
