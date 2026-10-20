@@ -1739,6 +1739,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut warped = [0usize; 3];
     // The tempo track, metre and markers (ADR 0060): one count per command kind.
     let mut kept_frames = 0usize;
+    let mut gestures = 0usize;
     let mut tempoed = [0usize; 12];
     // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
     let mut isolated = [0usize; 2];
@@ -1749,6 +1750,8 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut mappings = [0usize; 4];
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
+        // The gestures' own draws, so the commands drawn stay the ones they were.
+        let mut grng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(17));
         let mut bus = CommandBus::default();
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
         let mut applied = 0;
@@ -1833,25 +1836,84 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             let tempo = tempo_kind(&cmd);
             let freezing = freeze_kind(&cmd);
             let shown: String = format!("{cmd:?}").chars().take(600).collect();
-            // Review 3: a tempo edit keeps every unwarped window's frame at its start.
-            let starts =
-                cantus_core::tempo::keep::changes_tempo(&cmd).then(|| window_starts(bus.project()));
-            let result = bus.execute(cmd, origin);
-            if let (Some(before), true) = (starts, result.is_ok()) {
-                let after = window_starts(bus.project());
-                for (key, (start, frame, linked)) in &before {
-                    if let Some((s2, f2, _)) = after.get(key) {
-                        if s2 == start {
-                            // A linked window keeps its group's fine offset: half a tick.
-                            let reach = if *linked { 160.0 } else { 0.5 + 1e-6 };
-                            assert!(
-                                (f2 - frame).abs() <= reach,
-                                "seed {seed}: {key:?} frame {frame} became {f2} after {shown}"
-                            );
-                            kept_frames += 1;
+            // Reviews 3-4: a tempo edit keeps every take where it comes in, its windows on
+            // one line, the windows that shared an origin sharing it still.
+            let tempo_cmd = cantus_core::tempo::keep::changes_tempo(&cmd);
+            let starts = tempo_cmd.then(|| windows_of(bus.project()));
+            let plain = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::InsertTempoPoint { .. }
+                    | Command::RemoveTempoPoint { .. }
+                    | Command::SetTempoPoint { .. }
+            );
+            let scratch = tempo_cmd.then(|| (bus.project().clone(), cmd.clone()));
+            // Review 4: a tempo command in four runs as a gesture — merged frames of it,
+            // sometimes widened by another target — which must be its last frame as one
+            // edit (measured from where it began) and one undo step.
+            let gesture = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::SetTempoPoint { .. }
+            ) && grng.below(4) == 0;
+            let result = if gesture {
+                let pre = bus.project().clone();
+                let (key, wide) = (
+                    MergeKey::of(&("fuzz", seed, 0)),
+                    MergeKey::of(&("fuzz", seed, 1)),
+                );
+                let first = bus.execute_merging(cmd.clone(), origin, key);
+                if first.is_ok() {
+                    let mut last = cmd.clone();
+                    for _ in 0..1 + grng.below(6) {
+                        let frame = jittered(&last, &mut grng);
+                        if bus.execute_merging(frame.clone(), origin, key).is_ok() {
+                            last = frame;
                         }
                     }
+                    if grng.below(2) == 0 {
+                        let both = Command::Batch {
+                            label_key: "cmd.controllers.move".into(),
+                            commands: vec![
+                                last.clone(),
+                                Command::SetMasterPan {
+                                    pan: grng.f32(-1.0, 1.0),
+                                },
+                            ],
+                        };
+                        if bus.widen_merging(both.clone(), origin, key, wide).is_ok() {
+                            last = both;
+                        }
+                    }
+                    bus.end_gesture();
+                    gestures += 1;
+                    let mut once = CommandBus::new(pre);
+                    once.execute(last, origin)
+                        .unwrap_or_else(|e| panic!("seed {seed}: the last frame alone: {e:?}"));
+                    assert!(
+                        once.project().tracks == bus.project().tracks
+                            && once.project().tempo_points == bus.project().tempo_points
+                            && once.project().tempo_bpm == bus.project().tempo_bpm,
+                        "seed {seed}: a gesture is not its last frame as one edit after {shown}"
+                    );
                 }
+                first
+            } else {
+                bus.execute(cmd, origin)
+            };
+            if let (Some(before), true) = (starts.as_ref(), result.is_ok()) {
+                kept_frames += takes_kept(before, &windows_of(bus.project()), bus.project(), plain)
+                    .unwrap_or_else(|e| panic!("seed {seed}: {e} after {shown}"));
+            }
+            // Review 4: a tempo edit refused is refused for itself, never for a window it
+            // would have kept.
+            if let (Some((mut p, c)), Err(e)) = (scratch, &result) {
+                assert!(
+                    c.apply(&mut p).is_err(),
+                    "seed {seed}: refused by its windows ({e:?}) after {shown}"
+                );
             }
             if matches!(result, Err(CommandError::Frozen(_))) {
                 froze[3] += 1;
@@ -1998,6 +2060,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         kept_frames > 0,
         "no tempo edit ran over an unwarped audio window"
     );
+    assert!(gestures > 0, "no tempo gesture ran");
     assert!(
         mappings.iter().all(|n| *n > 0),
         "controller mapping commands never applied: {mappings:?}"
@@ -2792,6 +2855,32 @@ fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
 }
 
 /// Which tempo command a generated command is, for the coverage check (ADR 0060).
+/// A tempo command's next frame in a gesture: its tempos nudged (a drag, a knob).
+fn jittered(cmd: &Command, rng: &mut Lcg) -> Command {
+    let mut nudge = |bpm: f64| (bpm * f64::from(rng.f32(0.9, 1.1))).clamp(30.0, 300.0);
+    match cmd {
+        Command::SetTempo { bpm } => Command::SetTempo { bpm: nudge(*bpm) },
+        Command::SetTempoPoint { index, point } => Command::SetTempoPoint {
+            index: *index,
+            point: cantus_core::tempo::TempoPoint {
+                bpm: nudge(point.bpm),
+                ..*point
+            },
+        },
+        Command::SetTempoTrack { bpm, points } => Command::SetTempoTrack {
+            bpm: nudge(*bpm),
+            points: points
+                .iter()
+                .map(|q| cantus_core::tempo::TempoPoint {
+                    bpm: nudge(q.bpm),
+                    ..*q
+                })
+                .collect(),
+        },
+        other => other.clone(),
+    }
+}
+
 fn tempo_kind(cmd: &Command) -> Option<usize> {
     Some(match cmd {
         Command::SetTempoTrack { .. } => 0,
@@ -3273,30 +3362,139 @@ fn freeze_kind(cmd: &Command) -> Option<usize> {
     }
 }
 
-/// Every unwarped audio window's source frame at its start (48 kHz when the source is
-/// gone), by track and clip, with its start and whether it is linked.
-fn window_starts(p: &Project) -> std::collections::HashMap<(TrackId, ClipId), (Ticks, f64, bool)> {
+/// One unwarped, non-looping audio window whose file is in the pool: by track and where
+/// (a clip, or window `j` of alternate comp `i`).
+#[derive(Clone, Debug)]
+struct Win {
+    key: (TrackId, Option<ClipId>, usize, usize),
+    source: AudioSourceId,
+    reverse: bool,
+    linked: bool,
+    start: Ticks,
+    end: Ticks,
+    origin: Ticks,
+    slip: i32,
+    rate: f64,
+    /// The forward frame under its start (what it plays there; at its end, reversed).
+    frame: f64,
+    /// The line it reads: one number for every window of one take.
+    line: f64,
+}
+
+fn windows_of(p: &Project) -> Vec<Win> {
     let map = p.tempo_map();
-    let mut out = std::collections::HashMap::new();
+    let mut out = Vec::new();
     for t in &p.tracks {
-        for c in &t.clips {
+        let clips = t.clips.iter().map(|c| ((t.id, Some(c.id), 0, 0), c));
+        let comps = t.comps.iter().enumerate().flat_map(|(i, comp)| {
+            comp.windows
+                .iter()
+                .enumerate()
+                .map(move |(j, c)| ((t.id, None, i, j), c))
+        });
+        for (key, c) in clips.chain(comps) {
             let Some(a) = c.audio.as_ref() else { continue };
-            if a.warp.as_ref().is_some_and(|w| w.follow) {
+            if a.warp.as_ref().is_some_and(|w| w.follow)
+                || c.content_length.is_some_and(|q| q < c.length)
+            {
                 continue;
             }
-            let rate = p
-                .audio_source(a.source)
-                .map_or(48_000.0, |s| f64::from(s.sample_rate.max(1)));
-            let f = cantus_core::audio_time::frame_at(
-                &map,
-                c.start,
-                c.offset,
-                f64::from(a.slip_frames),
+            let Some(src) = p.audio_source(a.source) else {
+                continue;
+            };
+            let rate = f64::from(src.sample_rate.max(1));
+            let frame = cantus_core::audio_time::offset_seconds(&map, c.start, c.offset) * rate
+                + f64::from(a.slip_frames);
+            let entry = if a.reverse { c.end() } else { c.start };
+            let to = map.seconds_between_f64(0.0, entry.0 as f64) * rate;
+            out.push(Win {
+                key,
+                source: a.source,
+                reverse: a.reverse,
+                linked: c.link.is_some(),
+                start: c.start,
+                end: c.end(),
+                origin: c.start - c.offset,
+                slip: a.slip_frames,
                 rate,
-                c.start.0 as f64,
-            );
-            out.insert((t.id, c.id), (c.start, f, c.link.is_some()));
+                frame,
+                line: if a.reverse { frame + to } else { frame - to },
+            });
         }
     }
     out
+}
+
+/// The take rule (ADR 0060 §4, review 4) between the windows before a tempo edit and
+/// after: each line (one file, one direction, one line within a frame) keeps its frame
+/// where it comes in — within half a frame, or half a tick at the song's slowest tempo when
+/// linked — and every window stays on it; windows that shared an origin and a fine offset
+/// share them still (`plain`: a tempo command alone, which moves no window itself). The
+/// number of windows checked.
+fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result<usize, String> {
+    let map = p.tempo_map();
+    let slowest = p
+        .tempo_points
+        .iter()
+        .map(|q| q.bpm)
+        .fold(p.tempo_bpm, f64::min);
+    let now: std::collections::HashMap<_, &Win> = after.iter().map(|w| (w.key, w)).collect();
+    // Windows the edit left in place (a window the command moved is the command's).
+    let live: Vec<(&Win, &Win)> = before
+        .iter()
+        .filter_map(|b| {
+            let a = now.get(&b.key)?;
+            (a.start == b.start && a.end == b.end && a.reverse == b.reverse).then_some((b, *a))
+        })
+        .collect();
+    let reach = |w: &Win| {
+        if w.linked {
+            0.5 * 60.0 / (slowest * 960.0) * w.rate + 1e-6
+        } else {
+            0.5 + 1e-6
+        }
+    };
+    let mut checked = 0;
+    for (i, (b, a)) in live.iter().enumerate() {
+        // Its line's head: where the line comes in, among the windows left in place.
+        let head = live
+            .iter()
+            .filter(|(o, _)| {
+                o.source == b.source && o.reverse == b.reverse && (o.line - b.line).abs() <= 1.0
+            })
+            .min_by_key(|(o, _)| if o.reverse { -o.end.0 } else { o.start.0 })
+            .map(|(o, _)| *o)
+            .expect("itself");
+        // The frame the line plays at this window's entry now, from the head's kept entry.
+        let run = if b.reverse {
+            map.seconds_between(b.end, head.end)
+        } else {
+            map.seconds_between(head.start, b.start)
+        };
+        let want = head.frame + run * b.rate;
+        let tolerance = reach(a) + reach(head) + if std::ptr::eq(head, *b) { 0.0 } else { 1.0 };
+        if (a.frame - want).abs() > tolerance {
+            return Err(format!(
+                "{:?}: frame {} where its take puts {want} (was {})",
+                b.key, a.frame, b.frame
+            ));
+        }
+        if plain {
+            for (o, oa) in &live[i + 1..] {
+                let shared = !b.reverse
+                    && !o.reverse
+                    && o.source == b.source
+                    && o.linked == b.linked
+                    && (o.origin, o.slip) == (b.origin, b.slip);
+                if shared && (oa.origin, oa.slip) != (a.origin, a.slip) {
+                    return Err(format!(
+                        "{:?} and {:?} no longer share their origin",
+                        b.key, o.key
+                    ));
+                }
+            }
+        }
+        checked += 1;
+    }
+    Ok(checked)
 }

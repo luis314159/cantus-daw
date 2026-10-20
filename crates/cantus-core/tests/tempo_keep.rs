@@ -163,8 +163,9 @@ fn comp_windows_of_one_take_keep_their_frames_and_their_origin() {
     assert_eq!(after[1].1, after[2].1, "one origin");
 }
 
-/// A reversed window keeps the frame its start reads; the whole tempo track replaced, and
-/// the song's tempo changed.
+/// A reversed window keeps the frame it lands on — at its end, the forward frame under its
+/// start, which `frames` measures (review 4: a tempo point inside one is
+/// `tempo_keep_groups`); the whole tempo track replaced, and the song's tempo changed.
 #[test]
 fn a_reversed_window_and_whole_track_edits_keep_their_frames() {
     let (bus, t, _) = song(
