@@ -227,3 +227,10 @@ origin rule's own arithmetic; `warp_attach`'s `zero_slip = −offset_seconds` st
 window's start at the render's frame 0 under the origin rule), `clipboard.rs` (a warped clip
 is never relocated), `audio_clips.rs` glue (warp equality kept). Isolation's `WireTransport`
 carries `project_samples` (protocol 3).
+
+**Verified after merging `r29/integration` (bbcc062, freeze):** core, dsp, project, engine,
+host, export, ai and plugins 2 087 passed; UI 1 366 passed; the engine with `fuzz`
+(`CANTUS_WORKERS=3`) 756 passed; `cargo clippy --workspace --all-targets -D warnings` and
+`cantus-plugins --no-default-features` clean; `cargo fmt --check` clean. No Command was
+added or changed (freeze's `freeze_guard::touches` untouched); no golden moved,
+`DSP_VERSION` unchanged.
