@@ -3168,6 +3168,8 @@ impl CantusApp {
                 HostNotice::PluginCrashed { .. }
                 | HostNotice::InstrumentCrashed { .. }
                 | HostNotice::IsolationUnavailable => views::plugin_notice::on_notice(self, n),
+                // A plug-in window's change a freeze refused (round 29, review 2).
+                HostNotice::Frozen(target) => crate::freeze::refused(self, target),
             }
         }
     }

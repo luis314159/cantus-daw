@@ -90,6 +90,9 @@ pub enum HostNotice {
     /// Plug-ins were set to run isolated, but the helper (`cantus-sandbox`) is not
     /// installed: they run within Cantus. Said once.
     IsolationUnavailable,
+    /// A change made in a plug-in's own window was refused by a freeze (round 29, ADR
+    /// 0064, review 2): the plug-in is given back the project's values; say which.
+    Frozen(cantus_core::freeze::FreezeTarget),
 }
 
 /// One loaded plug-in in a slot.
@@ -240,6 +243,8 @@ pub struct PluginHost {
     /// them ([`PluginHost::take_tweaks`]): what it records as automation and calls *last
     /// tweaked* (ADR 0057) — all of them, not only a frame's last (review 1).
     tweaks: Vec<Command>,
+    /// Edits from plug-ins' windows a freeze refused since the last `idle` (review 2).
+    pub(crate) frozen_refusals: Vec<cantus_core::freeze::FreezeTarget>,
     /// The helper processes isolated plug-ins run in (round 29, ADR 0063).
     sandboxes: Option<Arc<crate::bridge::Sandboxes>>,
     /// Where a hosted plug-in runs when its project does not say: the machine's choice
@@ -275,7 +280,7 @@ impl std::fmt::Debug for PluginHost {
     }
 }
 
-fn changes(params: &BTreeMap<u32, f64>) -> Vec<ParamChange> {
+pub(crate) fn changes(params: &BTreeMap<u32, f64>) -> Vec<ParamChange> {
     params
         .iter()
         .map(|(id, v)| ParamChange {
@@ -360,6 +365,7 @@ impl PluginHost {
             inst_parked: HashMap::new(),
             inst_missing: HashMap::new(),
             tweaks: Vec::new(),
+            frozen_refusals: Vec::new(),
             sandboxes: Some(crate::bridge::Sandboxes::new(
                 crate::bridge::Sandboxes::default_exe(),
             )),
@@ -915,7 +921,42 @@ impl PluginHost {
         }
         self.idle_instruments(bus, engine, &mut notices);
         self.tell_unavailable(&mut notices);
+        for t in std::mem::take(&mut self.frozen_refusals) {
+            if !notices.contains(&HostNotice::Frozen(t)) {
+                notices.push(HostNotice::Frozen(t));
+            }
+        }
         notices
+    }
+
+    /// A window's change a freeze refused: the plug-in is given back what the project
+    /// holds (its state, then its values), and the refusal is said (review 2: the plug-in
+    /// kept the new value, a refresh rendered it under the old key, a save wrote it).
+    pub(crate) fn refused_by_freeze(
+        &mut self,
+        project: &Project,
+        effect: EffectId,
+        error: &cantus_core::CommandError,
+    ) -> bool {
+        let cantus_core::CommandError::Frozen(target) = error else {
+            return false;
+        };
+        if let (Some(h), Some((_, slot))) = (self.slots.get_mut(&effect), find_slot(project, effect)) {
+            if let Some(plugin) = slot.spec.external.as_deref() {
+                if !plugin.state.is_empty() {
+                    if let Err(e) = h.main.load_state(plugin.state.bytes()) {
+                        log::warn!("{}: {e}", h.info.name);
+                    }
+                }
+                let mut out = ParamOut::new();
+                h.main.flush(&changes(&plugin.params), &mut out);
+                h.flushed = plugin.params.clone();
+                h.synced_state = plugin.state.clone();
+                h.generation.fetch_add(1, Ordering::AcqRel);
+            }
+        }
+        self.frozen_refusals.push(*target);
+        true
     }
 
     /// A slot's plug-in stopped working: marked, counted as its blame says, its window
@@ -999,7 +1040,11 @@ impl PluginHost {
                 };
                 match result {
                     Ok(_) => self.tweaked(cmd),
-                    Err(e) => log::warn!("plug-in parameter {id}: {e}"),
+                    Err(e) => {
+                        if !self.refused_by_freeze(bus.project(), effect, &e) {
+                            log::warn!("plug-in parameter {id}: {e}");
+                        }
+                    }
                 }
             }
             FxParamEvent::End(id) => {
@@ -1058,7 +1103,9 @@ impl PluginHost {
             params,
         };
         if let Err(e) = bus.execute(cmd, Origin::User) {
-            log::warn!("plug-in state: {e}");
+            if !self.refused_by_freeze(bus.project(), effect, &e) {
+                log::warn!("plug-in state: {e}");
+            }
         }
     }
 
@@ -1166,10 +1213,17 @@ impl PluginHost {
     /// whose plug-in is missing keeps what the project holds, untouched.
     pub fn project_for_save(&mut self, project: &Project) -> Project {
         let mut out = project.clone();
+        // A plug-in in a frozen region keeps the state its render holds (review 2).
+        let locks = project
+            .any_frozen()
+            .then(|| cantus_core::freeze::Locks::of(project));
         for slot in out.all_effects_mut() {
             let Some(h) = self.slots.get_mut(&slot.id) else {
                 continue;
             };
+            if locks.as_ref().is_some_and(|l| l.chain.contains(&h.strip)) {
+                continue;
+            }
             let Some(plugin) = slot.spec.external.as_deref_mut() else {
                 continue;
             };
@@ -1178,7 +1232,7 @@ impl PluginHost {
                 Err(e) => log::warn!("{}: {e}", h.info.name),
             }
         }
-        self.instruments_for_save(&mut out);
+        self.instruments_for_save(&mut out, locks.as_ref());
         out
     }
 
@@ -1187,6 +1241,21 @@ impl PluginHost {
     /// `cantus_engine::render_with_units`. Their main halves stay here until
     /// [`Self::finish_render`].
     pub fn render_units(&mut self, project: &Project, sample_rate: f64) -> Vec<EffectUnit> {
+        self.render_units_as(project, sample_rate, false)
+    }
+
+    /// [`Self::render_units`] with the states `project` holds instead of the live ones: a
+    /// render kept under a key of what the project holds (a freeze's — review 2).
+    pub fn render_units_stored(&mut self, project: &Project, sample_rate: f64) -> Vec<EffectUnit> {
+        self.render_units_as(project, sample_rate, true)
+    }
+
+    fn render_units_as(
+        &mut self,
+        project: &Project,
+        sample_rate: f64,
+        stored: bool,
+    ) -> Vec<EffectUnit> {
         self.fresh_render_cancel();
         let setup = AudioSetup {
             sample_rate,
@@ -1200,11 +1269,14 @@ impl PluginHost {
             let Some(h) = self.slots.get_mut(&slot.id) else {
                 continue;
             };
-            let state = h
-                .main
-                .save_state()
-                .map(PluginState::new)
-                .unwrap_or_default();
+            let state = if stored {
+                plugin.state.clone()
+            } else {
+                h.main
+                    .save_state()
+                    .map(PluginState::new)
+                    .unwrap_or_default()
+            };
             let info = h.info.clone();
             // Where it runs live; an isolated one waits for every block without a deadline
             // (ADR 0063), so the render equals the in-process one to the bit.

@@ -662,7 +662,6 @@ fn is_root_live(target: &AutoTarget, root: StripId) -> bool {
 /// A target's subject: the canonical form of everything that makes its sound. `None` when
 /// the target is gone.
 pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Value> {
-    use serde_json::{json, Value};
     let (kind, root_strip, source_track) = match target {
         FreezeTarget::Strip(s) => {
             project.strip(s)?;
@@ -674,11 +673,37 @@ pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Va
         }
     };
     let r = region(project, target);
+    Some(subject_with(project, &r, kind, root_strip, source_track, &|t| {
+        reaches(project, target, &r, t)
+    }))
+}
+
+/// A key of everything a region's sound is made of — all its controls included (no frozen
+/// root's left live): what a bounce in place depends on (review 2: any edit anywhere made
+/// it start again).
+pub fn region_key(project: &Project, r: &Region) -> String {
+    let v = subject_with(project, r, "region", None, None, &|t| {
+        r.whole || target_in_strip_region(project, r, None, None, t)
+    });
+    sha256_hex(&serde_json::to_vec(&canonical(v)).unwrap_or_default())
+}
+
+/// The subject of region `r`: see [`subject`]; `reach` says which automation and
+/// modulation reach it.
+fn subject_with(
+    project: &Project,
+    r: &Region,
+    kind: &str,
+    root_strip: Option<StripId>,
+    source_track: Option<TrackId>,
+    reach: &dyn Fn(&AutoTarget) -> bool,
+) -> serde_json::Value {
+    use serde_json::{json, Value};
     // The frozen strip on its own (where it sits on the desk is nothing to hear); the
     // others in the desk's order (their sums are made in it).
     let root: Option<Value> = root_strip
         .and_then(|s| project.strip(s))
-        .map(|s| strip_part(s, &r));
+        .map(|s| strip_part(s, r));
     let strips: Vec<Value> = project
         .strips
         .iter()
@@ -714,7 +739,7 @@ pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Va
         .flat_map(|t| t.clips.iter())
         .filter_map(|c| {
             let a = c.automation.as_ref()?;
-            reaches(project, target, &r, &a.target).then(|| {
+            reach(&a.target).then(|| {
                 (
                     value(&a.target).to_string(),
                     c.start,
@@ -743,7 +768,7 @@ pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Va
         .filter(|(_, m)| {
             m.routes
                 .iter()
-                .any(|x| reaches(project, target, &r, &x.target))
+                .any(|x| reach(&x.target))
         })
         .map(|(host, m)| json!({ "host": value(&host), "m": scrub(value(m), &["name"]) }))
         .collect();
@@ -808,7 +833,7 @@ pub fn subject(project: &Project, target: FreezeTarget) -> Option<serde_json::Va
     if r.whole || r.hears_root || r.strips.iter().any(|s| Some(*s) != root_strip) {
         o.insert("pan_law".into(), value(&project.pan_law));
     }
-    Some(Value::Object(o))
+    Value::Object(o)
 }
 
 /// A target's content key: SHA-256 of its subject's compact JSON, lower-case hex. `None`
