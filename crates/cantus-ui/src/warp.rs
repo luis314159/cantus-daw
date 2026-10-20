@@ -28,6 +28,10 @@ pub const AUTO_MAX_S: f64 = 60.0;
 pub const AUTO_CONFIDENCE: f32 = 0.5;
 /// How long an import waits for its analysis before the clip simply stays as it is.
 pub const AUTO_PATIENCE_S: f64 = 120.0;
+/// How long a landed analysis waits for another gesture going on to end (a drag), seconds:
+/// it never splits it (round 29's third review) — a gesture left open longer than this
+/// (nothing seals it) no longer holds it back.
+pub const AUTO_HOLD_S: f64 = 60.0;
 
 /// An imported clip waiting for its file's analysis.
 #[derive(Clone, Debug)]
@@ -41,6 +45,8 @@ pub struct AutoWarp {
     /// The project it was imported into (round 29's second review: a job outliving it
     /// never lands on another project's clip of the same ids).
     pub epoch: u64,
+    /// Since when its analysis has waited for another gesture to end.
+    pub held: Option<std::time::Instant>,
 }
 
 /// Quantise audio's choices (the dialog remembers them).
@@ -198,6 +204,7 @@ impl CantusApp {
                 key,
                 since: std::time::Instant::now(),
                 epoch: self.epoch,
+                held: None,
             });
         }
     }
@@ -208,6 +215,9 @@ impl CantusApp {
         // Another project: nothing of the last one lands on it (round 29's second review).
         if self.warp.epoch != self.epoch {
             self.warp.epoch = self.epoch;
+            // No render of the last project plays on this one's clips (their ids start
+            // again — round 29's third review).
+            self.engine.samples.forget_project();
             self.warp.auto.retain(|j| j.epoch == self.epoch);
             self.warp.selected = None;
             self.warp.menu_tick = None;
@@ -240,6 +250,19 @@ impl CantusApp {
         for job in waiting {
             match svc.lookup(&job.path, job.rate) {
                 Lookup::Pending if job.since.elapsed().as_secs_f64() < AUTO_PATIENCE_S => {
+                    self.warp.auto.push(job);
+                }
+                // Another gesture going on (a drag of something else): the warp waits for
+                // it to end — landing would split it in two undo steps (round 29's third
+                // review).
+                Lookup::Ready(_)
+                    if self.bus.open_gesture().is_some_and(|k| k != job.key)
+                        && job
+                            .held
+                            .is_none_or(|h| h.elapsed().as_secs_f64() < AUTO_HOLD_S) =>
+                {
+                    let mut job = job;
+                    job.held.get_or_insert_with(std::time::Instant::now);
                     self.warp.auto.push(job);
                 }
                 Lookup::Ready(a) => {
@@ -282,7 +305,11 @@ impl CantusApp {
         let Some(commands) = auto_warp(self.project(), job.r, a) else {
             return;
         };
-        // In the import's own step while it is the newest; its own step otherwise.
+        // In the import's own step while it is the newest; its own step otherwise (the
+        // import's sealed first, so no later step merges into it).
+        if !self.bus.merging(job.key) {
+            self.bus.end_gesture_if(job.key);
+        }
         let cmd = Command::Batch {
             label_key: "cmd.warp.auto".into(),
             commands,

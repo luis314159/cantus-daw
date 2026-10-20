@@ -183,6 +183,11 @@ impl CommandBus {
         }
     }
 
+    /// The gesture whose step is on top, still open (a drag going on), if any.
+    pub fn open_gesture(&self) -> Option<MergeKey> {
+        self.undo.last().and_then(|top| top.merge_key)
+    }
+
     /// Whether the step on top is `key`'s gesture, still open (a drag going on).
     pub fn merging(&self, key: MergeKey) -> bool {
         self.undo

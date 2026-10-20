@@ -340,7 +340,14 @@ pub fn paint(
             let at = warp::Window {
                 offset: shown.offset,
                 length: shown.length,
-                reverse: shown.region.reverse,
+                start: shown.start,
+                reversal: shown.region.reverse.then(|| {
+                    warp::Reversal::new(
+                        std::sync::Arc::new(shown.map.clone()),
+                        shown.start,
+                        shown.start + shown.length,
+                    )
+                }),
                 origin: geo.x(shown.start.as_beats_f64() as f32) - shown.offset.0 as f32 * ppt,
                 ppt,
             };

@@ -31,6 +31,113 @@ pub const BAND: f32 = 7.0;
 /// How near the pointer must be to a marker or a transient, points at 100 %.
 pub const REACH: f32 = 4.0;
 
+/// Where a reversed window's content is heard (round 29's third review): the engine renders
+/// the window forwards and plays the render backwards sample by sample, so what lies at
+/// forward timeline tick `t` is heard `seconds(t, end)` after the window's start — the tick
+/// mirror where one tempo holds over the window (to the bit), not across a tempo change.
+/// Its own inverse: [`Reversal::heard`] of a heard tick is the forward one.
+#[derive(Clone, Debug)]
+pub struct Reversal {
+    map: std::sync::Arc<cantus_core::TempoMap>,
+    start: f64,
+    end: f64,
+    held: bool,
+}
+
+impl Reversal {
+    /// The window `[start, end)` under `map`.
+    pub fn new(map: std::sync::Arc<cantus_core::TempoMap>, start: Ticks, end: Ticks) -> Self {
+        let (s, e) = (start.0 as f64, end.0 as f64);
+        let held = map
+            .held_at(s)
+            .is_some_and(|(_, from, to)| from <= s && to >= e);
+        Reversal {
+            map,
+            start: s,
+            end: e,
+            held,
+        }
+    }
+
+    /// The timeline tick where forward tick `t` is heard (and back).
+    pub fn heard(&self, t: f64) -> f64 {
+        if self.held {
+            self.start + self.end - t
+        } else {
+            self.map
+                .tick_after_seconds(self.start, self.map.seconds_between_f64(t, self.end))
+        }
+    }
+
+    /// The content tick drawn (heard) where content tick `c` plays, content tick 0 at
+    /// timeline tick `origin` — and back.
+    pub fn content(&self, origin: f64, c: f64) -> f64 {
+        self.heard(origin + c) - origin
+    }
+
+    /// The same, as a table of knots a hit test can hold by value ([`Mirror`]).
+    pub fn mirror(&self, origin: f64) -> Mirror {
+        let mut knots: Vec<f64> = vec![self.start, self.end];
+        let mut t = self.start;
+        while let Some(n) = self.map.next_change_after(t).filter(|n| *n < self.end) {
+            knots.push(n);
+            knots.push(self.heard(n));
+            t = n;
+        }
+        // Inside a ramp the mirror is curved: samples between.
+        if !self.held {
+            for k in 1..MIRROR_KNOTS / 2 {
+                knots.push(
+                    self.start + (self.end - self.start) * k as f64 / (MIRROR_KNOTS / 2) as f64,
+                );
+            }
+        }
+        knots.sort_by(f64::total_cmp);
+        knots.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+        let n = knots.len().min(MIRROR_KNOTS);
+        let step = (knots.len() - 1) as f64 / (n - 1).max(1) as f64;
+        let mut m = Mirror {
+            n,
+            drawn: [0.0; MIRROR_KNOTS],
+            content: [0.0; MIRROR_KNOTS],
+        };
+        for i in 0..n {
+            let t = knots[((i as f64 * step).round() as usize).min(knots.len() - 1)];
+            // Heard at t: the content forward there.
+            m.drawn[i] = t - origin;
+            m.content[i] = self.heard(t) - origin;
+        }
+        m
+    }
+}
+
+/// The most knots a [`Mirror`] holds.
+pub const MIRROR_KNOTS: usize = 24;
+
+/// A reversed window's content mirror held by value: the content tick under a drawn one,
+/// exact between its knots where the tempo holds (the tempo points and their mirrors), a
+/// line between samples inside a ramp.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Mirror {
+    n: usize,
+    drawn: [f64; MIRROR_KNOTS],
+    content: [f64; MIRROR_KNOTS],
+}
+
+impl Mirror {
+    /// The content tick played where content tick `c` is drawn.
+    pub fn content(&self, c: f64) -> f64 {
+        let (d, v) = (&self.drawn[..self.n], &self.content[..self.n]);
+        if self.n < 2 {
+            return v.first().copied().unwrap_or(c);
+        }
+        let i = d.partition_point(|x| *x <= c).clamp(1, self.n - 1);
+        let (a, b) = (i - 1, i);
+        let u = (c - d[a]) / (d[b] - d[a]).max(1e-12);
+        v[a] + (v[b] - v[a]) * u
+    }
+}
+
 /// Where a clip's markers and transients were drawn this frame: the hit test's geometry.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct Hits {
@@ -48,9 +155,9 @@ pub struct Hits {
     reach: f32,
     /// Whether the band and the transients take a press (a warped clip, or the editor).
     offer: bool,
-    /// A reversed clip's window (offset, length, content ticks): its content is drawn
-    /// mirrored, so a place on it is too.
-    mirror: Option<(f32, f32)>,
+    /// A reversed clip's mirror: its content is drawn where it is heard, so a place on it
+    /// is read back the same way.
+    mirror: Option<Mirror>,
 }
 
 impl Hits {
@@ -74,9 +181,9 @@ impl Hits {
 
     /// The content tick under x (a reversed clip's mirrored, as it is drawn).
     pub fn tick_at(&self, x: f32) -> Ticks {
-        let c = (x - self.origin) / self.px_per_tick.max(1e-9);
-        let c = match self.mirror {
-            Some((off, len)) => 2.0 * off + len - c,
+        let c = ((x - self.origin) / self.px_per_tick.max(1e-9)) as f64;
+        let c = match &self.mirror {
+            Some(m) => m.content(c),
             None => c,
         };
         Ticks(c.round() as i64)
@@ -139,15 +246,18 @@ pub fn columns(
     let origin = geo.x(shown.start.as_beats_f64() as f32) as f64 - shown.offset.0 as f64 * ppt;
     let scale = peaks.rate as f64 / w.rate.max(1) as f64;
     let content = |x: f64| (x - origin) / ppt;
-    let len = shown.length.0 as f64;
-    let reverse = shown.region.reverse;
-    let off = shown.offset.0 as f64;
-    // Read (reversed: mirrored inside the window) through the warp.
-    let frame = |x: f64| {
-        let c = content(x);
-        let c = if reverse { 2.0 * off + len - c } else { c };
-        w.frame_at(c) * scale
-    };
+    // Reversed: each content tick drawn where it is heard (mirrored through the map).
+    let rev = shown.region.reverse.then(|| {
+        Reversal::new(
+            std::sync::Arc::new(shown.map.clone()),
+            shown.start,
+            shown.start + shown.length,
+        )
+    });
+    let origin_t = (shown.start - shown.offset).0 as f64;
+    let mirrored = |c: f64| rev.as_ref().map_or(c, |r| r.content(origin_t, c));
+    // Read through the warp.
+    let frame = |x: f64| w.frame_at(mirrored(content(x))) * scale;
     let mut i = 0usize;
     while i < n {
         // The run: columns up to the next marker's x (where the slope changes).
@@ -157,7 +267,7 @@ pub fn columns(
             .markers
             .iter()
             .map(|m| m.tick.0 as f64)
-            .map(|t| if reverse { 2.0 * off + len - t } else { t })
+            .map(mirrored)
             .filter(|t| *t > ca)
             .fold(f64::INFINITY, f64::min);
         let end_x = origin + next * ppt;
@@ -210,9 +320,15 @@ pub fn paint(
     let mut hits = Hits::new(band, inner, origin, ppt, k);
     let warp = shown.region.warp.as_deref();
     hits.offer = editor || warp.is_some_and(|w| w.follow);
-    if shown.region.reverse {
-        hits.mirror = Some((shown.offset.0 as f32, shown.length.0 as f32));
-    }
+    let origin_t = (shown.start - shown.offset).0 as f64;
+    let rev = shown.region.reverse.then(|| {
+        Reversal::new(
+            crate::views::bars::map(app.project()),
+            shown.start,
+            shown.start + shown.length,
+        )
+    });
+    hits.mirror = rev.as_ref().map(|r| r.mirror(origin_t));
     // Every handle drawn is offered by its nearness to the pointer: the nearest
     // [`MAX_HITS`] (round 29's review: the first ones in order left the rest ungrabbable).
     let pointer = b
@@ -240,7 +356,7 @@ pub fn paint(
                     a.rate.max(1) as f64,
                     *f,
                 );
-                let t = if shown.region.reverse { lo + hi - t } else { t };
+                let t = rev.as_ref().map_or(t, |r| r.heard(t));
                 if t < lo || t > hi {
                     continue;
                 }
@@ -266,7 +382,8 @@ pub fn paint(
         let at = Window {
             offset: shown.offset,
             length: shown.length,
-            reverse: shown.region.reverse,
+            start: shown.start,
+            reversal: rev.clone(),
             origin,
             ppt,
         };
@@ -309,11 +426,14 @@ pub fn paint(
 }
 
 /// Where a clip's window lies, for its markers' places.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Window {
     pub offset: Ticks,
     pub length: Ticks,
-    pub reverse: bool,
+    /// The window's start on the timeline.
+    pub start: Ticks,
+    /// A reversed window's mirror through the map.
+    pub reversal: Option<Reversal>,
     /// The x of content tick 0, and points a tick.
     pub origin: f32,
     pub ppt: f32,
@@ -337,7 +457,8 @@ pub fn marker_places(w: &Warp, at: &Window, inner: Rect, lanes: Rect, k: f32) ->
         if m.auto || c < off || c > off + len {
             continue;
         }
-        let c = if at.reverse { 2.0 * off + len - c } else { c };
+        let origin_t = (at.start - at.offset).0 as f64;
+        let c = at.reversal.as_ref().map_or(c, |r| r.content(origin_t, c));
         let x = at.origin + c as f32 * at.ppt;
         if x >= lo && x <= hi {
             out.push((x.clamp(lo, hi), i.min(u16::MAX as usize) as u16));
@@ -443,22 +564,39 @@ pub fn update(app: &mut CantusApp, r: ClipRef, d: &MarkerDrag, dx: Ticks) {
     } else {
         c.offset
     };
-    // Reversed, the content runs right to left.
-    let dx = if reverse { -dx.0 } else { dx.0 };
+    // Where the marker is heard, and the content heard at a timeline tick: reversed, its
+    // content runs right to left, mirrored through the map (round 29's third review).
+    let origin = c.start - offset;
+    let o = origin.0 as f64;
+    let span = c
+        .content_length
+        .filter(|p| *p < c.length)
+        .unwrap_or(c.length);
+    let rev = reverse.then(|| {
+        Reversal::new(
+            crate::views::bars::map(app.project()),
+            c.start,
+            c.start + span,
+        )
+    });
+    let heard = |t: f64| rev.as_ref().map_or(o + t, |r| r.heard(o + t));
+    let content_at = |h: f64| rev.as_ref().map_or(h - o, |r| r.heard(h) - o);
+    let h0 = heard(m.tick.0 as f64);
     let (next, op) = if d.slide {
-        let f = d.warp0.frame_at((m.tick.0 - dx) as f64);
+        let f = d.warp0.frame_at(content_at(h0 - dx.0 as f64).round());
         (
             d.warp0.move_content(d.marker, f),
             cantus_core::warp::WarpOp::MoveContent,
         )
     } else {
-        let origin = c.start - offset;
-        let mut tick = Ticks(m.tick.0 + dx);
-        if let Some(g) = d
-            .snap
-            .filter(|_| !app.arrangement.audio.mods.command && !reverse)
-        {
-            tick = crate::views::bars::snap(app.project(), tick + origin, g) - origin;
+        let mut tick = Ticks(content_at(h0 + dx.0 as f64).round() as i64);
+        if let Some(g) = d.snap.filter(|_| !app.arrangement.audio.mods.command) {
+            let at = crate::views::bars::snap(
+                app.project(),
+                Ticks((h0 + dx.0 as f64).round() as i64),
+                g,
+            );
+            tick = Ticks(content_at(at.0 as f64).round() as i64);
         }
         (
             d.warp0.move_marker(d.marker, tick),
@@ -730,7 +868,8 @@ mod tests {
         let at = Window {
             offset: Ticks(960),
             length: Ticks(1_920),
-            reverse: false,
+            start: Ticks(960),
+            reversal: None,
             origin: 100.0 - 96.0,
             ppt: 0.1,
         };
@@ -748,8 +887,12 @@ mod tests {
     fn a_reversed_clips_band_is_read_mirrored() {
         let mut h = hits();
         assert_eq!(h.tick_at(100.0), Ticks(100));
-        // Window: offset 0, length 400 content ticks.
-        h.mirror = Some((0.0, 400.0));
+        // Window: offset 0, length 400 content ticks, under one tempo.
+        let map = std::sync::Arc::new(cantus_core::TempoMap::constant(
+            120.0,
+            cantus_core::TimeSignature::default(),
+        ));
+        h.mirror = Some(Reversal::new(map, Ticks::ZERO, Ticks(400)).mirror(0.0));
         assert_eq!(h.tick_at(100.0), Ticks(300));
     }
 

@@ -39,7 +39,7 @@ fn write(
         .iter()
         .flat_map(|t| t.audio.iter())
         .find(|c| c.clip == id)
-        .and_then(|c| c.data.clone())
+        .and_then(rendered)
         .ok_or_else(|| {
             errors
                 .first()
@@ -66,6 +66,13 @@ fn write(
         channels: data.channels.max(1),
         frames: data.len_frames() as u64,
     })
+}
+
+/// The data of a clip piece when it is the render of its own window (laid on its start):
+/// never its input, nor another window's render (round 29's third review: a clip whose
+/// input was not ready wrote the whole source as "the window").
+fn rendered(c: &cantus_core::AudioClipSnapshot) -> Option<std::sync::Arc<cantus_core::SampleData>> {
+    c.data.clone().filter(|_| c.zero_at == Some((c.start, 0.0)))
 }
 
 /// A file name not yet taken in `dir`.
@@ -120,7 +127,14 @@ impl CantusApp {
         if spawned.is_err() {
             return false;
         }
-        self.warp.bounce = Some(Bounce::new(r, c.name.clone(), rx, self.epoch, c.clone()));
+        let tempo = self.project().tempo_map();
+        self.warp.bounce = Some(Bounce::new(
+            r,
+            c.name.clone(),
+            rx,
+            (self.epoch, tempo),
+            c.clone(),
+        ));
         self.set_status(tf("warp.bounce.working", &[("name", &c.name)]));
         true
     }
@@ -144,6 +158,7 @@ impl CantusApp {
                     .track(b.r.0)
                     .and_then(|t| t.clip(b.r.1))
                     .filter(|c| self.epoch == b.epoch && **c == b.clip)
+                    .filter(|_| self.project().tempo_map() == b.tempo)
                     .cloned()
                 else {
                     self.set_status(tf("warp.bounce.stale", &[("name", &b.name)]));
@@ -208,7 +223,7 @@ impl Bounce {
         r: ClipRef,
         name: String,
         rx: std::sync::mpsc::Receiver<Result<Written, String>>,
-        epoch: u64,
+        (epoch, tempo): (u64, cantus_core::TempoMap),
         clip: cantus_core::Clip,
     ) -> Self {
         Bounce {
@@ -217,6 +232,7 @@ impl Bounce {
             rx,
             epoch,
             clip,
+            tempo,
         }
     }
 
@@ -226,5 +242,45 @@ impl Bounce {
             Err(std::sync::mpsc::TryRecvError::Empty) => None,
             Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(Err(t("warp.bounce.nothing"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Round 29's third review (finding 17): only a piece's own render is written — its
+    /// input (laid as unwarped) or another window's render never is.
+    #[test]
+    fn only_the_windows_own_render_is_written() {
+        let mut p = cantus_core::Project::new("b");
+        let mut t = p.make_track("T");
+        let id = AudioSourceId(p.alloc_id());
+        let c = p.make_audio_clip("c", id, Ticks::beats(4), Ticks::beats(4));
+        t.clips.push(c);
+        p.audio_pool.push(AudioSource {
+            id,
+            name: "c".into(),
+            path: "c.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 48_000,
+            sha256: None,
+            recorded: false,
+        });
+        p.tracks.push(t);
+        let s = Snapshot::compile(&p, 1);
+        let mut c = s.tracks[0].audio[0].clone();
+        c.data = Some(std::sync::Arc::new(cantus_core::SampleData {
+            stream: None,
+            rate: 48_000,
+            channels: 1,
+            frames: vec![0.0; 10].into(),
+        }));
+        assert!(rendered(&c).is_none(), "its input");
+        c.zero_at = Some((Ticks::beats(2), 0.0));
+        assert!(rendered(&c).is_none(), "another window's render");
+        c.zero_at = Some((c.start, 0.0));
+        assert!(rendered(&c).is_some(), "its own render");
     }
 }
