@@ -220,6 +220,12 @@ impl InstrumentUnit for HostedInstrument {
         }
     }
 
+    /// A live program change (round 29, ADR 0062): the plug-in hears it as MIDI, as from
+    /// the keyboard itself.
+    fn program(&mut self, program: u8) {
+        self.midi(0xC0, program & 127, 0);
+    }
+
     fn all_notes_off(&mut self) {
         while let Some(h) = self.held.pop() {
             self.push(h.channel, h.key, h.id, NoteKind::Off { velocity: 0.0 });

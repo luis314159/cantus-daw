@@ -27,11 +27,7 @@ fn rich() -> (Project, Vec<AutoTarget>) {
     let fx_id = fx.id;
     p.strips[0].effects.push(fx);
     let mut plug = p.make_effect(EffectKind::External);
-    plug.spec = EffectSpec::external(ExternalPlugin::new(
-        PluginFormat::Vst3,
-        "ABCD0001",
-        "Gain",
-    ));
+    plug.spec = EffectSpec::external(ExternalPlugin::new(PluginFormat::Vst3, "ABCD0001", "Gain"));
     let plug_id = plug.id;
     p.strips[1].effects.push(plug);
     let master_fx = p.make_effect(EffectKind::Eq);
@@ -114,7 +110,10 @@ fn every_target_has_the_command_that_sets_it() {
         cmd.apply(&mut q).unwrap_or_else(|e| panic!("{t:?}: {e}"));
         if !t.is_plugin() {
             let now = base_value(&q, t).unwrap();
-            assert!((f64::from(now) - v).abs() < 1e-5, "{t:?}: set {v}, holds {now}");
+            assert!(
+                (f64::from(now) - v).abs() < 1e-5,
+                "{t:?}: set {v}, holds {now}"
+            );
         }
     }
 }

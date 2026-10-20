@@ -2794,7 +2794,10 @@ fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
         feedback: rng.below(2) == 0,
         sensitivity: rng.f32(0.25, 4.0),
     };
-    let pick = |rng: &mut Lcg| maps.get(rng.below(maps.len().max(1) as u64) as usize).cloned();
+    let pick = |rng: &mut Lcg| {
+        maps.get(rng.below(maps.len().max(1) as u64) as usize)
+            .cloned()
+    };
     match rng.below(10) {
         // Malformed: refused, nothing changes.
         0 => {

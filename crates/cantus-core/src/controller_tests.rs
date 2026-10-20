@@ -27,8 +27,14 @@ fn knob(mode: MapMode) -> Mapping {
 #[test]
 fn the_three_encodings_read_their_steps() {
     use Encoding::*;
-    assert_eq!((TwosComplement.steps(1), TwosComplement.steps(127)), (1, -1));
-    assert_eq!((TwosComplement.steps(5), TwosComplement.steps(123)), (5, -5));
+    assert_eq!(
+        (TwosComplement.steps(1), TwosComplement.steps(127)),
+        (1, -1)
+    );
+    assert_eq!(
+        (TwosComplement.steps(5), TwosComplement.steps(123)),
+        (5, -5)
+    );
     assert_eq!((BinaryOffset.steps(65), BinaryOffset.steps(63)), (1, -1));
     assert_eq!(BinaryOffset.steps(64), 0);
     assert_eq!((SignBit.steps(1), SignBit.steps(65)), (1, -1));
@@ -81,7 +87,10 @@ fn jump_goes_where_the_control_is() {
         ..knob(MapMode::Absolute)
     };
     let mut st = DriveState::default();
-    assert_eq!(m.drive(Input::Abs(1.0), Some(0.0), &mut st), Drive::Set(1.0));
+    assert_eq!(
+        m.drive(Input::Abs(1.0), Some(0.0), &mut st),
+        Drive::Set(1.0)
+    );
 }
 
 #[test]
@@ -91,16 +100,32 @@ fn pick_up_never_jumps_and_takes_over_when_the_knob_passes_the_value() {
     let mut st = DriveState::default();
     // The target is at 0.5; the knob at the bottom moves up — nothing until it reaches 0.5.
     for x in [0.0, 0.1, 0.3, 0.45] {
-        assert_eq!(m.drive(Input::Abs(x), Some(0.5), &mut st), Drive::Nothing, "{x}");
+        assert_eq!(
+            m.drive(Input::Abs(x), Some(0.5), &mut st),
+            Drive::Nothing,
+            "{x}"
+        );
     }
     // It passes the value between two messages (a fast turn): picked up.
-    assert_eq!(m.drive(Input::Abs(0.6), Some(0.5), &mut st), Drive::Set(0.6));
+    assert_eq!(
+        m.drive(Input::Abs(0.6), Some(0.5), &mut st),
+        Drive::Set(0.6)
+    );
     // From then on it follows.
-    assert_eq!(m.drive(Input::Abs(0.7), Some(0.6), &mut st), Drive::Set(0.7));
+    assert_eq!(
+        m.drive(Input::Abs(0.7), Some(0.6), &mut st),
+        Drive::Set(0.7)
+    );
     // Something else moved the target (the mouse): picked up again only when passed.
-    assert_eq!(m.drive(Input::Abs(0.72), Some(0.2), &mut st), Drive::Nothing);
+    assert_eq!(
+        m.drive(Input::Abs(0.72), Some(0.2), &mut st),
+        Drive::Nothing
+    );
     assert_eq!(m.drive(Input::Abs(0.5), Some(0.2), &mut st), Drive::Nothing);
-    assert_eq!(m.drive(Input::Abs(0.19), Some(0.2), &mut st), Drive::Set(0.19));
+    assert_eq!(
+        m.drive(Input::Abs(0.19), Some(0.2), &mut st),
+        Drive::Set(0.19)
+    );
 }
 
 #[test]
@@ -127,7 +152,10 @@ fn scale_moves_with_the_control_and_meets_it_at_the_end() {
     }
     assert!((cur - 1.0).abs() < 1e-5, "they meet at the end: {cur}");
     // Now they agree: down moves it directly.
-    assert_eq!(m.drive(Input::Abs(0.5), Some(cur), &mut st), Drive::Set(0.5));
+    assert_eq!(
+        m.drive(Input::Abs(0.5), Some(cur), &mut st),
+        Drive::Set(0.5)
+    );
 }
 
 #[test]
@@ -145,14 +173,23 @@ fn a_relative_encoder_steps_from_where_the_target_is_within_its_range() {
     };
     assert!((p - (0.5 + 0.5 / 128.0)).abs() < 1e-6, "{p}");
     // Never past the range's end, whatever the steps.
-    assert_eq!(m.drive(Input::Steps(-500), Some(0.5), &mut st), Drive::Set(0.25));
-    assert_eq!(m.drive(Input::Steps(500), Some(0.5), &mut st), Drive::Set(0.75));
+    assert_eq!(
+        m.drive(Input::Steps(-500), Some(0.5), &mut st),
+        Drive::Set(0.25)
+    );
+    assert_eq!(
+        m.drive(Input::Steps(500), Some(0.5), &mut st),
+        Drive::Set(0.75)
+    );
     // Sensitivity scales a step.
     let fast = Mapping {
         sensitivity: 4.0,
         ..knob(MapMode::Relative(Encoding::TwosComplement))
     };
-    assert_eq!(fast.drive(Input::Steps(2), Some(0.0), &mut st), Drive::Set(8.0 / 128.0));
+    assert_eq!(
+        fast.drive(Input::Steps(2), Some(0.0), &mut st),
+        Drive::Set(8.0 / 128.0)
+    );
 }
 
 #[test]
@@ -166,11 +203,23 @@ fn toggle_flips_on_each_press_and_ignores_the_release() {
     let mut st = DriveState::default();
     assert_eq!(m.input(100, true), Input::Press(true));
     assert_eq!(m.input(0, false), Input::Press(false));
-    assert_eq!(m.drive(Input::Press(true), Some(0.0), &mut st), Drive::Set(1.0));
-    assert_eq!(m.drive(Input::Press(false), Some(1.0), &mut st), Drive::Nothing);
-    assert_eq!(m.drive(Input::Press(true), Some(1.0), &mut st), Drive::Set(0.0));
+    assert_eq!(
+        m.drive(Input::Press(true), Some(0.0), &mut st),
+        Drive::Set(1.0)
+    );
+    assert_eq!(
+        m.drive(Input::Press(false), Some(1.0), &mut st),
+        Drive::Nothing
+    );
+    assert_eq!(
+        m.drive(Input::Press(true), Some(1.0), &mut st),
+        Drive::Set(0.0)
+    );
     // A held press repeated (a controller resending 127) counts once.
-    assert_eq!(m.drive(Input::Press(true), Some(0.0), &mut st), Drive::Nothing);
+    assert_eq!(
+        m.drive(Input::Press(true), Some(0.0), &mut st),
+        Drive::Nothing
+    );
     // A controller as a button: pressed from its middle up.
     m.source.control = Control::Cc(64);
     assert_eq!(m.input(127, true), Input::Press(true));
@@ -181,9 +230,18 @@ fn toggle_flips_on_each_press_and_ignores_the_release() {
 fn momentary_holds_the_top_while_pressed() {
     let m = knob(MapMode::Momentary);
     let mut st = DriveState::default();
-    assert_eq!(m.drive(Input::Press(true), Some(0.3), &mut st), Drive::Set(1.0));
-    assert_eq!(m.drive(Input::Press(true), Some(1.0), &mut st), Drive::Nothing);
-    assert_eq!(m.drive(Input::Press(false), Some(1.0), &mut st), Drive::Set(0.0));
+    assert_eq!(
+        m.drive(Input::Press(true), Some(0.3), &mut st),
+        Drive::Set(1.0)
+    );
+    assert_eq!(
+        m.drive(Input::Press(true), Some(1.0), &mut st),
+        Drive::Nothing
+    );
+    assert_eq!(
+        m.drive(Input::Press(false), Some(1.0), &mut st),
+        Drive::Set(0.0)
+    );
 }
 
 #[test]
@@ -218,7 +276,10 @@ fn a_pad_on_a_parameter_sets_it_by_velocity_and_keeps_it_on_release() {
     let mut st = DriveState::default();
     let i = m.input(127, true);
     assert_eq!(m.drive(i, Some(0.0), &mut st), Drive::Set(1.0));
-    assert_eq!(m.drive(m.input(0, false), Some(1.0), &mut st), Drive::Nothing);
+    assert_eq!(
+        m.drive(m.input(0, false), Some(1.0), &mut st),
+        Drive::Nothing
+    );
 }
 
 #[test]
@@ -250,10 +311,20 @@ fn learning_tells_the_kind_of_control() {
     let play = MappingTarget::Action("play-pause".into());
     // A knob: absolute.
     let knob: Vec<(Control, u16)> = [60, 61, 63, 66].map(|v| (Control::Cc(21), v)).to_vec();
-    assert_eq!(detect(&knob, &param), Some((Control::Cc(21), MapMode::Absolute)));
+    assert_eq!(
+        detect(&knob, &param),
+        Some((Control::Cc(21), MapMode::Absolute))
+    );
     // A 14-bit fader: the coarse controller and its fine twin.
-    let fine = vec![(Control::Cc(7), 64), (Control::Cc(39), 12), (Control::Cc(7), 65)];
-    assert_eq!(detect(&fine, &param), Some((Control::Cc14(7), MapMode::Absolute)));
+    let fine = vec![
+        (Control::Cc(7), 64),
+        (Control::Cc(39), 12),
+        (Control::Cc(7), 65),
+    ];
+    assert_eq!(
+        detect(&fine, &param),
+        Some((Control::Cc14(7), MapMode::Absolute))
+    );
     // Encoders, by their bands.
     let twos: Vec<(Control, u16)> = [1, 1, 1, 2].map(|v| (Control::Cc(16), v)).to_vec();
     assert_eq!(
@@ -268,13 +339,28 @@ fn learning_tells_the_kind_of_control() {
     assert_eq!(encoder(&[1, 2, 3, 4]), None);
     // A button: its two ends.
     let button = vec![(Control::Cc(64), 127), (Control::Cc(64), 0)];
-    assert_eq!(detect(&button, &mute), Some((Control::Cc(64), MapMode::Toggle)));
-    assert_eq!(detect(&button, &play), Some((Control::Cc(64), MapMode::Trigger)));
+    assert_eq!(
+        detect(&button, &mute),
+        Some((Control::Cc(64), MapMode::Toggle))
+    );
+    assert_eq!(
+        detect(&button, &play),
+        Some((Control::Cc(64), MapMode::Trigger))
+    );
     // A pad: toggles a switch, sets a parameter by velocity, fires an action.
     let pad = vec![(Control::Note(36), 90)];
-    assert_eq!(detect(&pad, &mute), Some((Control::Note(36), MapMode::Toggle)));
-    assert_eq!(detect(&pad, &param), Some((Control::Note(36), MapMode::Absolute)));
-    assert_eq!(detect(&pad, &play), Some((Control::Note(36), MapMode::Trigger)));
+    assert_eq!(
+        detect(&pad, &mute),
+        Some((Control::Note(36), MapMode::Toggle))
+    );
+    assert_eq!(
+        detect(&pad, &param),
+        Some((Control::Note(36), MapMode::Absolute))
+    );
+    assert_eq!(
+        detect(&pad, &play),
+        Some((Control::Note(36), MapMode::Trigger))
+    );
     assert_eq!(detect(&[], &param), None);
 }
 
@@ -373,7 +459,10 @@ fn the_tempo_target_sets_the_tempo_where_the_playhead_is() {
     let mut p = project();
     let mid = 0.5f32;
     let cmd = MappingTarget::Tempo.command(&p, mid, Ticks::ZERO).unwrap();
-    assert_eq!(cmd, crate::tempo::edit::set_tempo_at(&p, Ticks::ZERO, 140.0));
+    assert_eq!(
+        cmd,
+        crate::tempo::edit::set_tempo_at(&p, Ticks::ZERO, 140.0)
+    );
     cmd.apply(&mut p).unwrap();
     assert_eq!(p.tempo_bpm, 140.0);
     assert_eq!(MappingTarget::Tempo.current_pos(&p, Ticks::ZERO), Some(0.5));
@@ -403,7 +492,11 @@ fn the_maps_commands_have_exact_inverses_and_refuse_what_is_malformed() {
     .apply(&mut p)
     .unwrap();
     assert_eq!(
-        p.controllers.mappings.iter().map(|m| m.id.0).collect::<Vec<_>>(),
+        p.controllers
+            .mappings
+            .iter()
+            .map(|m| m.id.0)
+            .collect::<Vec<_>>(),
         [2, 1]
     );
     let mid = p.clone();
@@ -419,7 +512,9 @@ fn the_maps_commands_have_exact_inverses_and_refuse_what_is_malformed() {
     back.apply(&mut p).unwrap();
     assert_eq!(p, mid);
     // Removing puts it back where it was.
-    let restore = Command::RemoveMapping { id: MappingId(1) }.apply(&mut p).unwrap();
+    let restore = Command::RemoveMapping { id: MappingId(1) }
+        .apply(&mut p)
+        .unwrap();
     restore.apply(&mut p).unwrap();
     assert_eq!(p, mid);
     inv2.apply(&mut p).unwrap();

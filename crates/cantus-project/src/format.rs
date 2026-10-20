@@ -1011,7 +1011,10 @@ mod tests {
         assert_eq!(knob.source.port.name, "Keystation 49");
         assert_eq!(knob.source.control, Control::Cc(74));
         assert_eq!((knob.min, knob.max, knob.curve), (0.1, 0.9, 0.4));
-        assert!(matches!(knob.target, MappingTarget::Param(cantus_core::AutoTarget::Effect { .. })));
+        assert!(matches!(
+            knob.target,
+            MappingTarget::Param(cantus_core::AutoTarget::Effect { .. })
+        ));
         assert!(knob.target.exists(&p));
         let fader = &maps[1];
         assert_eq!(fader.source.control, Control::Cc14(7));
@@ -1025,7 +1028,12 @@ mod tests {
         assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
         assert!(!maps[5].target.exists(&p), "the dormant one stays");
         let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
-        assert!(parse(&old, true).unwrap().file.project.controllers.is_empty());
+        assert!(parse(&old, true)
+            .unwrap()
+            .file
+            .project
+            .controllers
+            .is_empty());
     }
 
     #[test]

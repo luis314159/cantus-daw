@@ -157,7 +157,8 @@ impl MidiSource {
     /// covering the other's, the same control).
     pub fn overlaps(&self, other: &MidiSource) -> bool {
         let ports = self.port.is_any() || other.port.is_any() || self.port == other.port;
-        let channels = self.channel.is_none() || other.channel.is_none() || self.channel == other.channel;
+        let channels =
+            self.channel.is_none() || other.channel.is_none() || self.channel == other.channel;
         let controls = match (self.control, other.control) {
             // A 14-bit pair takes both of its 7-bit controllers.
             (Control::Cc14(a), Control::Cc(b)) | (Control::Cc(b), Control::Cc14(a)) => {
@@ -595,7 +596,11 @@ impl Mapping {
     /// The position a control at `x` (0…1 of its travel) asks for: the bend, then the
     /// range.
     pub fn shape(&self, x: f32) -> f32 {
-        let x = if x.is_finite() { x.clamp(0.0, 1.0) } else { 0.0 };
+        let x = if x.is_finite() {
+            x.clamp(0.0, 1.0)
+        } else {
+            0.0
+        };
         let y = Shape::Curve.at(self.curve, x);
         self.min + (self.max - self.min) * y
     }

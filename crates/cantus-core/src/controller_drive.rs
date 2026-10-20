@@ -64,7 +64,9 @@ impl Mapping {
             MapMode::Absolute => Input::Abs(x),
             MapMode::Toggle | MapMode::Momentary | MapMode::Trigger => {
                 if button {
-                    Input::Press(on && (value > 0 || matches!(self.source.control, Control::Program(_))))
+                    Input::Press(
+                        on && (value > 0 || matches!(self.source.control, Control::Program(_))),
+                    )
                 } else {
                     // A controller used as a button: pressed from its middle up.
                     Input::Press(value >= 64.max(self.source.control.max() / 2 + 1))
@@ -90,7 +92,11 @@ impl Mapping {
                     let now = current.or(state.last_out).unwrap_or(self.min);
                     let (lo, hi) = (self.shape(0.0), self.shape(1.0));
                     // To the far end from where it is.
-                    let to = if (now - hi).abs() <= (now - lo).abs() { lo } else { hi };
+                    let to = if (now - hi).abs() <= (now - lo).abs() {
+                        lo
+                    } else {
+                        hi
+                    };
                     Drive::Set(to)
                 }),
                 (MapMode::Momentary, Input::Press(p)) => {
@@ -98,9 +104,7 @@ impl Mapping {
                     state.held = p;
                     (p != was).then(|| Drive::Set(self.shape(if p { 1.0 } else { 0.0 })))
                 }
-                (MapMode::Trigger, i) => self
-                    .press(i, state)
-                    .then(|| Drive::Set(self.shape(1.0))),
+                (MapMode::Trigger, i) => self.press(i, state).then(|| Drive::Set(self.shape(1.0))),
                 _ => None,
             }
         };
@@ -191,7 +195,9 @@ impl Mapping {
                     0
                 }
             }
-            _ => (self.unshape(pos) * f32::from(max)).round().clamp(0.0, f32::from(max)) as u16,
+            _ => (self.unshape(pos) * f32::from(max))
+                .round()
+                .clamp(0.0, f32::from(max)) as u16,
         }
     }
 }

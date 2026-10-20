@@ -11,16 +11,13 @@ pub fn detect(heard: &[(Control, u16)], target: &MappingTarget) -> Option<(Contr
     let (first, _) = *heard.first()?;
     let control = match first {
         // The coarse half of a 14-bit pair, when its fine half came too.
-        Control::Cc(n)
-            if n < 32
-                && heard
-                    .iter()
-                    .any(|(c, _)| *c == Control::Cc(n + 32)) =>
-        {
+        Control::Cc(n) if n < 32 && heard.iter().any(|(c, _)| *c == Control::Cc(n + 32)) => {
             Control::Cc14(n)
         }
         // The fine half came first: the pair is the coarse one's.
-        Control::Cc(n) if (32..64).contains(&n) && heard.iter().any(|(c, _)| *c == Control::Cc(n - 32)) => {
+        Control::Cc(n)
+            if (32..64).contains(&n) && heard.iter().any(|(c, _)| *c == Control::Cc(n - 32)) =>
+        {
             Control::Cc14(n - 32)
         }
         c => c,

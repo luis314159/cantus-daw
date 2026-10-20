@@ -65,7 +65,12 @@ impl AutoTarget {
                 }
             }
             AutoTarget::Instrument { track, key } => {
-                project.track(*track)?.instrument.native()?.kind.param(key)?;
+                project
+                    .track(*track)?
+                    .instrument
+                    .native()?
+                    .kind
+                    .param(key)?;
                 Command::SetInstrumentValue {
                     track: *track,
                     key: key.clone(),

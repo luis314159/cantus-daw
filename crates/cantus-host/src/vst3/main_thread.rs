@@ -188,7 +188,9 @@ impl MainThread for MainHalf {
             .inst
             .midi_map
             .iter()
-            .flatten()
+            // The program-change parameter is the plug-in's program list, a setting the
+            // user chooses too (round 29): not hidden.
+            .flat_map(|row| row[..super::instance::PROGRAM_CHANGE].iter())
             .copied()
             .filter(|id| *id != super::instance::NO_MIDI_PARAM)
             .collect();
