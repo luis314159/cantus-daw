@@ -268,6 +268,13 @@ pub(super) fn header_input(
         ui.id().with(("arr-arm", id.0)),
         Sense::click(),
     );
+    // MIDI learn mode (round 29, ADR 0062): the arm lamp is learnable.
+    crate::controllers::learn_spot(
+        app,
+        ui,
+        arm.rect,
+        cantus_core::controller::MappingTarget::TrackArm(id),
+    );
     if arm.hovered() {
         hint::set_text(ui.ctx(), chrome::word("rec.arm_tip"), "", Caps::NONE);
     }

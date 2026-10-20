@@ -80,6 +80,14 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     if resp.clicked() {
         app.run_action(Action::TapTempo);
     }
+    // MIDI learn mode (round 29, ADR 0062): tap tempo and the tempo itself.
+    crate::controllers::learn_action_spot(app, ui, tap_r, Action::TapTempo);
+    crate::controllers::learn_spot(
+        app,
+        ui,
+        bpm_r,
+        cantus_core::controller::MappingTarget::Tempo,
+    );
     let metre_r = Rect::from_min_size(
         Pos2::new(tap_r.right() + STEP * k, bpm_r.top()),
         Vec2::new(metre_w(&ctx, s), well_h),

@@ -40,6 +40,7 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let well = Rect::from_center_size(r.center(), Vec2::new(r.width(), 36.0 * k));
     let resp = ui.interact(well, Id::new("toolbar-mode"), Sense::click());
     let pattern = app.project().pattern_mode;
+    crate::controllers::learn_action_spot(app, ui, well, Action::TogglePatternMode);
     if resp.clicked() {
         app.run_action(Action::TogglePatternMode);
     }
@@ -110,11 +111,14 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         (stop, "transport.stop", Action::Stop),
     ];
     for (resp, key, action) in keys {
+        // MIDI learn mode (round 29, ADR 0062): every key here is learnable.
+        crate::controllers::learn_action_spot(app, ui, resp.rect, action);
         let resp = strip_tip(ui, resp, || tip(app, key, Some(action)));
         if resp.clicked() {
             app.run_action(action);
         }
     }
+    crate::controllers::learn_action_spot(app, ui, record.rect, Action::Record);
     let record = strip_tip(ui, record, || {
         tip(app, "transport.record", Some(Action::Record))
     });
@@ -144,6 +148,7 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     {
         app.run_action(Action::ToggleLoop);
     }
+    crate::controllers::learn_action_spot(app, ui, lr, Action::ToggleLoop);
 }
 
 // ---- undo ----------------------------------------------------------------------------
@@ -243,7 +248,8 @@ fn lamp_w(ctx: &egui::Context, s: &Style, i: usize) -> f32 {
 }
 
 pub fn inputs_width(ctx: &egui::Context, s: &Style) -> f32 {
-    ROW_KEY * s.k + 2.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
+    // The typing keyboard, the two lamps and the MIDI learn key (round 29, ADR 0062).
+    2.0 * ROW_KEY * s.k + 3.0 * STEP * s.k + lamp_w(ctx, s, 0) + lamp_w(ctx, s, 1)
 }
 
 /// A lamp, a word and a number in a well, one row: the MIDI input, the armed tracks.
@@ -378,6 +384,22 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
     if a_clicked {
         app.run_action(Action::ArmTrack);
+    }
+    // The MIDI learn mode (round 29, ADR 0062), Ableton's MIDI Map key: lit while on.
+    let lk = key_rect(r, ar.right() + STEP * k, s);
+    let learning = app.controllers.learn_mode;
+    if key_in(
+        ui,
+        lk,
+        s,
+        KeyFace::Glyph(Glyph::Controller),
+        learning,
+        "midi-learn",
+        || tip(app, "ctl.topbar.learn_tip", Some(Action::MidiLearnMode)),
+    )
+    .clicked()
+    {
+        app.run_action(Action::MidiLearnMode);
     }
 }
 

@@ -76,6 +76,8 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     {
         app.run_action(Action::ToggleMetronome);
     }
+    // MIDI learn mode (round 29, ADR 0062).
+    crate::controllers::learn_action_spot(app, ui, kr, Action::ToggleMetronome);
     let (lw, vw) = columns(ui.ctx(), s);
     let x = kr.right() + STEP * k;
     let row_h = s.d(20.0);

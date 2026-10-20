@@ -199,6 +199,18 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                 },
                 self.offer.is_some_and(|o| o.modulation.is_some()),
             );
+            super::automate::probe::note_learn(
+                if self.name.is_empty() {
+                    match self.label {
+                        Some(Src::Key(k)) => k,
+                        Some(Src::Str(t)) => t,
+                        None => "",
+                    }
+                } else {
+                    self.name
+                },
+                self.offer.and_then(|o| o.learn()).is_some(),
+            );
         }
         let s = self.style.unwrap_or_else(Style::current);
         let size = if self.label.is_some() {
@@ -303,6 +315,9 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                 .is_some_and(|m| m.depth.is_some() && !m.mapping);
             if modulated {
                 with_brush(&painter, |b| super::automate::mod_mark(b, rect, &s));
+            }
+            if self.offer.and_then(|o| o.learn()).is_some_and(|l| l.mapped) {
+                with_brush(&painter, |b| super::automate::learn_mark(b, rect, &s));
             }
             if self.offer.is_some_and(|o| o.modulation.is_some())
                 && super::automate::handle_in_flight(ui.ctx())

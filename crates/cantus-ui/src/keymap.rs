@@ -162,6 +162,13 @@ pub enum Action {
     /// Open or close the selected track's instrument window, or bring it back from the
     /// device tray (F8; round 20).
     ToggleInstrumentWindow,
+    // MIDI controllers (round 29, ADR 0062)
+    /// The learn mode (Ableton's MIDI Map mode): every learnable control outlined.
+    MidiLearnMode,
+    /// FL's *Link to controller* for the last tweaked parameter.
+    LinkLastTweaked,
+    /// Show or hide the controller mappings.
+    ViewControllers,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -207,7 +214,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 88] = [
+    pub const ALL: [Action; 91] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -296,6 +303,9 @@ impl Action {
         Action::ShowTakes,
         Action::AutomateLastTweaked,
         Action::ToggleInstrumentWindow,
+        Action::MidiLearnMode,
+        Action::LinkLastTweaked,
+        Action::ViewControllers,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -389,6 +399,9 @@ impl Action {
             Action::ShowTakes => "show-takes",
             Action::AutomateLastTweaked => "automate-last-tweaked",
             Action::ToggleInstrumentWindow => "toggle-instrument-window",
+            Action::MidiLearnMode => "midi-learn-mode",
+            Action::LinkLastTweaked => "link-last-tweaked",
+            Action::ViewControllers => "view-controllers",
         }
     }
 
@@ -438,7 +451,10 @@ impl Action {
             | ToggleBrowser
             | ToggleClips
             | ViewRouting
-            | ToggleInstrumentWindow => Category::View,
+            | ToggleInstrumentWindow
+            | ViewControllers => Category::View,
+            MidiLearnMode => Category::Tools,
+            LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave | RouteMenu => Category::Mixer,
         }
@@ -782,6 +798,18 @@ fn common() -> Vec<(Action, Binding)> {
         (ShowTakes, Binding::alt(Key::T)),
         // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
         (AutomateLastTweaked, Binding::alt(Key::A)),
+        // MIDI controllers (round 29, ADR 0062): Ctrl+Shift+M for the learn mode (Live's
+        // Cmd+M, which is our metronome), Alt+Shift+A links the last tweaked parameter
+        // beside Alt+A's automation clip, Ctrl+Shift+K shows the mappings (K for knobs).
+        (MidiLearnMode, Binding::cmd_shift(Key::M)),
+        (
+            LinkLastTweaked,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::A)
+            },
+        ),
+        (ViewControllers, Binding::cmd_shift(Key::K)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }
@@ -1154,13 +1182,17 @@ pub const FILE_VERSION: u32 = 9;
 
 /// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
 /// 0060); the other round-29 builders append theirs here.
-const NEW_IN_V9: [Action; 6] = [
+const NEW_IN_V9: [Action; 9] = [
     Action::AddMarker,
     Action::PreviousMarker,
     Action::NextMarker,
     Action::LoopBetweenMarkers,
     Action::SelectBetweenMarkers,
     Action::ToggleTempoTrack,
+    // The controllers builder's (ADR 0062).
+    Action::MidiLearnMode,
+    Action::LinkLastTweaked,
+    Action::ViewControllers,
 ];
 
 /// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round

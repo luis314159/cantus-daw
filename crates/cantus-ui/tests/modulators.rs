@@ -267,6 +267,7 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
             depth: Some(0.2),
             mapping: false,
             live: Some(0.6),
+            learn: None,
         }),
         ..Default::default()
     };
@@ -281,6 +282,7 @@ fn alt_drag_on_a_modulated_knob_moves_the_depth_not_the_value() {
             depth: None,
             mapping: true,
             live: None,
+            learn: None,
         }),
         ..Default::default()
     };

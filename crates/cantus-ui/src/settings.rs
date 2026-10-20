@@ -159,6 +159,9 @@ pub struct Settings {
     /// Where third-party plug-ins run unless their project says otherwise (round 29,
     /// ADR 0063): this machine's choice, in Settings' plug-in manager.
     pub plugin_isolation: cantus_core::PluginIsolation,
+    /// How a newly learnt controller takes over a parameter that moved elsewhere (round 29,
+    /// ADR 0062): *pick up* unless the user chose otherwise in the mappings view.
+    pub controller_takeover: cantus_core::controller::Takeover,
 }
 
 /// Where third-party plug-ins run on a new installation (ADR 0063): *Together* — one helper
@@ -245,6 +248,7 @@ impl Default for Settings {
             sample_cache_gb: None,
             topbar: TopBarSettings::default(),
             plugin_isolation: DEFAULT_PLUGIN_ISOLATION,
+            controller_takeover: cantus_core::controller::Takeover::Pickup,
         }
     }
 }

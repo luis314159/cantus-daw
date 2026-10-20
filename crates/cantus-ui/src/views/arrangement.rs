@@ -1194,6 +1194,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 hint::set_text(ui.ctx(), chrome::word(key), "", Caps::NONE);
             }
         }
+        // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
+        crate::controllers::learn_spot(app, ui, m.rect, cantus_core::controller::MappingTarget::TrackMute(id));
+        crate::controllers::learn_spot(app, ui, so.rect, cantus_core::controller::MappingTarget::TrackSolo(id));
         if m.clicked() {
             app.exec(Command::SetTrackMute { id, muted: !muted });
         }
@@ -1397,6 +1400,11 @@ fn track_menu(
     }
     // The pitch lane (round 28, ADR 0054).
     if super::pitch_lane::track_menu(app, ui, id) {
+        ui.close();
+        return;
+    }
+    // MIDI controllers (round 29, ADR 0062): learn the track's volume, pan, mute, solo, arm.
+    if crate::controllers::track_menu(app, ui, id) {
         ui.close();
         return;
     }
