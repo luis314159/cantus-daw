@@ -195,6 +195,19 @@ fn app() -> CantusApp {
         ),
         not_loaded,
         other,
+        // Review 3: a port not open (*Not connected*), the strip's effects switch.
+        Mapping::new(
+            MappingId(23),
+            src("Launchkey Mini", Some(0), Control::Cc(21)),
+            MappingTarget::Param(AutoTarget::MasterPan),
+            MapMode::Absolute,
+        ),
+        Mapping::new(
+            MappingId(24),
+            src("nanoKONTROL2", Some(0), Control::Cc(65)),
+            MappingTarget::StripFx(strip),
+            MapMode::Toggle,
+        ),
     ] {
         app.add_mapping(Scope::Project, m);
     }
@@ -366,6 +379,26 @@ fn main() {
                 });
                 println!("{}", out.display());
             }
+            // Review 3: Tonus's scale keyboard in the learn mode — each key outlined where
+            // it shows, one key armed.
+            cantus_ui::i18n::set_locale(lang);
+            let ctx = context(dark);
+            let mut a = app();
+            let strip = a.project().tracks[0].strip.unwrap();
+            a.add_effect(strip, EffectKind::AutoTune);
+            let fx = a.project().strip(strip).unwrap().effects.last().unwrap().id;
+            a.open_effect_editor(strip, fx);
+            a.toggle_learn_mode();
+            a.learn_target(MappingTarget::Param(AutoTarget::Effect {
+                effect: fx,
+                key: "n1".into(),
+            }));
+            let out = name(&dir, "learn-tonus", dark, lang, 1.0);
+            shoot(&ctx, egui::vec2(1100.0, 700.0), 1.0, 8, Some(&out), |root| {
+                panel(root, |_| {});
+                views::fx::window(&mut a, root.ctx());
+            });
+            println!("{}", out.display());
             // A parameter's menu: *Learn MIDI controller* again and *Forget*.
             cantus_ui::i18n::set_locale(lang);
             let ctx = context(dark);

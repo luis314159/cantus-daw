@@ -292,9 +292,23 @@ Files outside my area touched by review 2's fixes:
 ## Review 3 (`reviews/controllers-3.json`, 60 confirmed) — how each was fixed
 
 Merged `r29/integration` df2cdd4 first (a fast-forward). Every fix has a test, and each
-test was seen failing with its fix taken out again:
+test was seen failing with its fix taken out again (the fixes broken on purpose, then put
+back):
 
-MUTATIONS
+- core: 7 broken in one run, 7 tests caught them;
+- engine: 5 broken in three runs (the overflow's slot, its parking, the half pedal, CC 121,
+  the soft pedal), both tests caught each;
+- host: the MIDI-only program flag broken, `a_program_change_reaches_the_program_list_and_the_project` caught it;
+- interface: 32 broken in six runs, every one caught. Two are one defence in two places
+  (a stale half resolved before a burst, and only a recent coarse half paired with a fine
+  one): each alone is covered by the other, both removed are caught
+  (`a_fine_first_controller_is_read_whole`). Two tests were made sharper when a break
+  slipped past them: the lone fine half's pair now arrives split between two frames, and
+  the recorded split pair moves the playhead between its halves;
+- the Tonus keyboard, the typed curve, the editors' idle offers (both fast paths: 209 and
+  1 646 allocations, and 7 for one offer alone) and the tempo gesture each broken alone,
+  each caught; the exhaustive stepped test named the FM operator's, Organ's, the EQ's and
+  the sampler's plain controls before they were wired.
 
 Tests live in `crates/cantus-ui/tests/controllers_review3.rs` unless named otherwise.
 Numbers are the findings' places in the file, from 0, as in the earlier tables.
@@ -359,7 +373,12 @@ Files outside my area touched by review 3's fixes:
   `views/eq_editor_panel.rs`, `views/inst/{analog_parts,frame,organ,organ_parts,
   sampler_map,sampler_parts,sampler_wave,wavetable_osc,wavetable_parts}.rs`.
 - Tests: `learn_everywhere.rs`, `frame_budget.rs`, and the earlier controllers tests where
-  the rules changed (RULES).
+  the rules changed: `controllers_review.rs` and `controllers_review2.rs` (a lone coarse
+  half waits `PAIR_GAP`; fine-first is known after three pairs). `controllers.rs`
+  `a_parameter_a_pass_records_follows_its_controller_not_its_clip` caught a gap the
+  false-start fix opened: a pass that writes nothing changed no revision, so the latched
+  lane was not sent back to its clip — the commit now asks for a fresh snapshot whenever a
+  pass recorded anything.
 
 ## Left
 

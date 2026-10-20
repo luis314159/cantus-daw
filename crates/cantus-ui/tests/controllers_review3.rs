@@ -257,8 +257,11 @@ fn a_split_pair_records_no_half_made_point() {
     a.start_recording();
     let mut t = Instant::now() + Duration::from_millis(50);
     for (i, coarse) in (31..41u8).enumerate() {
-        a.engine.set_heard_for_tests(Ticks::beats(4 + i as i64), true);
+        // The fine half in the next frame, the playhead a little on.
+        let at = Ticks::beats(4 + i as i64);
+        a.engine.set_heard_for_tests(at, true);
         a.controller_heard(&[msg_at(0xB0, 7, coarse, t)]);
+        a.engine.set_heard_for_tests(at + Ticks(4), true);
         a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(600))]);
         t += Duration::from_millis(30);
     }
@@ -296,10 +299,12 @@ fn a_lone_fine_half_proves_nothing() {
         // A fine-only update, then a pair: coarse, fine, a moment later.
         a.controller_heard(&[msg_at(0xB0, 39, 120, t)]);
         t += Duration::from_millis(2);
-        a.controller_heard(&[
-            msg_at(0xB0, 7, coarse, t),
-            msg_at(0xB0, 39, 3, t + Duration::from_micros(300)),
-        ]);
+        // The pair split between two frames: the coarse half waits for its fine half,
+        // never driven with the lone fine half before it.
+        let w = a.project().master.width;
+        a.controller_heard(&[msg_at(0xB0, 7, coarse, t)]);
+        assert_eq!(a.project().master.width, w, "{coarse}: the coarse half waits");
+        a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(300))]);
         assert!(
             (a.project().master.width - width_of(u16::from(coarse) << 7 | 3)).abs() < 1e-4,
             "{coarse}: {}",
