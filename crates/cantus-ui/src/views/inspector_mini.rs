@@ -170,7 +170,7 @@ pub fn show(
             }
         }
     }
-    sh.param_row(
+    let mix_row = sh.param_row(
         "effect.mix",
         Id::new(("insp-fx-mix", e)),
         slot.mix,
@@ -190,6 +190,12 @@ pub fn show(
             )
         },
     );
+    // The insert's mix is learnable here too (round 29, review 4 of ADR 0062, #21).
+    let mix = crate::controllers::slot_learn_target(e, 1);
+    let clip = sh.ui.clip_rect();
+    if crate::controllers::learn_spot_view(app, sh.ui, mix_row.value, clip, &mix) {
+        sh.acts.push(Act::Learn(mix));
+    }
     // The key: another strip the detector listens to. Dimmed where the effect has none.
     let takes = slot.spec.takes_sidechain();
     let text = sh.fmt.get(

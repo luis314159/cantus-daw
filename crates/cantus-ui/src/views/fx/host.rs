@@ -116,6 +116,9 @@ pub trait FxHost {
     fn learn_idle(&self, _key: &str) -> bool {
         false
     }
+    /// The header's bypass lamp as the insert's bypass for MIDI learn: outlined and
+    /// clickable in the learn mode, marked when mapped (round 29, review 4 of ADR 0062, #21).
+    fn learn_bypass_spot(&mut self, _ui: &egui::Ui, _rect: egui::Rect) {}
     /// When the armed MIDI learn was armed (`None`: none): a control that stands for one
     /// value of `key` compares it before and after its offer (round 29, review 4 of ADR
     /// 0062, #46).
@@ -413,6 +416,11 @@ impl FxHost for DawHost<'_> {
 
     fn learn_armed_at(&self) -> Option<std::time::Instant> {
         self.app.learn_armed_at()
+    }
+
+    fn learn_bypass_spot(&mut self, ui: &egui::Ui, rect: egui::Rect) {
+        let target = cantus_core::controller::MappingTarget::EffectBypass(self.effect);
+        crate::controllers::learn_spot_in(self.app, ui, rect, ui.clip_rect(), target);
     }
 
     fn set_learn_range(&mut self, key: &str, from: f32, to: f32) {

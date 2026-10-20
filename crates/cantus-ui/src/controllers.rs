@@ -1139,6 +1139,35 @@ pub fn learn_spot_in(
     clicked
 }
 
+/// [`learn_spot_in`] for a view that holds the application read-only and runs what its
+/// rows ask afterwards (the inspector): outlined and clickable in the learn mode, marked
+/// when mapped; `true` when the click asks to learn `target` (round 29, review 4 of ADR
+/// 0062, #21).
+pub fn learn_spot_view(
+    app: &CantusApp,
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    clip: egui::Rect,
+    target: &MappingTarget,
+) -> bool {
+    let shown = rect.intersect(clip).intersect(ui.clip_rect());
+    if shown.width() <= 0.0 || shown.height() <= 0.0 || !ui.is_rect_visible(shown) {
+        return false;
+    }
+    if crate::kit::automate::probe::noting_learn() {
+        crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
+    }
+    let offer = app.learn_offer(target);
+    if !offer.mode {
+        if offer.mapped {
+            crate::kit::automate::learn_mark_over(ui, rect, shown);
+        }
+        return false;
+    }
+    let id = ui.id().with(("learn-spot", target));
+    crate::kit::automate::learn_spot_clipped(ui, rect, shown, id, offer)
+}
+
 /// A stepped parameter drawn by a control that only sets its value — a segmented choice, an
 /// LED, a menu field, a stepper (round 29, review 2 of ADR 0062, #44): its parameter's menu
 /// (automate, modulate, *Learn MIDI controller*, reset to `default`), its mapped mark, and

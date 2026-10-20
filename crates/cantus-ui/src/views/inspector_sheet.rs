@@ -395,6 +395,8 @@ pub struct Row {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct BandClicks {
     pub power: bool,
+    /// Where the power LED is (a learn spot goes over it).
+    pub power_rect: Option<Rect>,
     pub plus: bool,
     pub plus_rect: Option<Rect>,
 }
@@ -410,6 +412,8 @@ pub struct Sheet<'a> {
     pub s: Style,
     /// The label column's width.
     pub col: f32,
+    /// Where the last LED row's key is (a learn spot goes over it).
+    pub last_led: Rect,
 }
 
 impl<'a> Sheet<'a> {
@@ -444,6 +448,7 @@ impl<'a> Sheet<'a> {
                 .ui
                 .interact(lr, Id::new(("insp-band-power", key)), Sense::click());
             out.power = r.clicked();
+            out.power_rect = Some(lr);
             if r.hovered() {
                 let name = self.fmt.tr(key);
                 hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
@@ -687,6 +692,7 @@ impl<'a> Sheet<'a> {
             hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
         }
         led::button(self.b, br, &self.s.function(f), st, Src::Key(button_key));
+        self.last_led = br;
         r.clicked() && !dim
     }
 

@@ -136,6 +136,10 @@ pub enum Act {
     ),
     /// Freeze, unfreeze, low-latency monitoring (round 29, ADR 0064).
     Freeze(crate::views::freeze_view::InspAct),
+    /// Arm a MIDI learn of the target (round 29, review 4 of ADR 0062, #21); `Forget`
+    /// its controllers.
+    Learn(cantus_core::controller::MappingTarget),
+    ForgetSlot(EffectId),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -246,6 +250,7 @@ impl Inspector {
             menu: &mut self.menu,
             s: *s,
             col,
+            last_led: Rect::NOTHING,
         }
     }
 }
@@ -784,6 +789,8 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::CloseInstrument(t) => app.close_instrument_window(t),
         Act::Hosting(target, a) => crate::views::plugin_notice::run_menu(app, target, a),
         Act::Freeze(a) => crate::views::freeze_view::apply_insp(app, a),
+        Act::Learn(target) => app.learn_target(target),
+        Act::ForgetSlot(fx) => app.forget_slot(fx),
         Act::Pick(purpose) => app.open_picker(purpose),
         Act::OpenPulsus(t, pad) => {
             app.pulsus.selected = Some(pad);

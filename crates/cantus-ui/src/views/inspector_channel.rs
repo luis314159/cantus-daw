@@ -200,6 +200,15 @@ fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: Chain<'_>) {
             Command::SetStripFxEnabled { id, enabled: !fx }
         }));
     }
+    // The inserts' switch is the strip's effects switch: learnable here too (round 29,
+    // review 4 of ADR 0062, #21).
+    if let Some(pr) = band.power_rect {
+        let target = cantus_core::controller::MappingTarget::StripFx(id);
+        let clip = sh.ui.clip_rect();
+        if crate::controllers::learn_spot_view(app, sh.ui, pr, clip, &target) {
+            sh.acts.push(Act::Learn(target));
+        }
+    }
     let mut rects = [Rect::NOTHING; MAX_INSERTS];
     for (i, slot) in ms.effects.iter().enumerate() {
         rects[i] = insert_tile(sh, st, app, ms, i, slot);
@@ -307,6 +316,15 @@ fn insert_tile(
         &sheet::Range::lin(0.0, 1.0, 1.0),
         false,
     );
+    // The tile's lamp is the insert's bypass, its ring its mix: learnable (review 4 of ADR
+    // 0062, #21).
+    let clip = sh.ui.clip_rect();
+    for (what, r) in [(0u8, lamp.rect), (1, ring.resp.rect)] {
+        let target = crate::controllers::slot_learn_target(e, what);
+        if crate::controllers::learn_spot_view(app, sh.ui, r, clip, &target) {
+            sh.acts.push(Act::Learn(target));
+        }
+    }
     if menu.clicked() {
         match st.open.iter().position(|x| *x == e) {
             Some(k) => {

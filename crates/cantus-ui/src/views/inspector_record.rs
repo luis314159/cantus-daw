@@ -189,6 +189,12 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
             armed: !track.armed,
         }));
     }
+    // Learnable, as the track header's (round 29, review 4 of ADR 0062, #21).
+    let arm = cantus_core::controller::MappingTarget::TrackArm(tid);
+    let (led, clip) = (sh.last_led, sh.ui.clip_rect());
+    if crate::controllers::learn_spot_view(app, sh.ui, led, clip, &arm) {
+        sh.acts.push(Act::Learn(arm));
+    }
     // Low-latency monitoring (round 29, ADR 0064 §4): on a track with an input, where it
     // is monitored (the record options and the audio chip have it for every track).
     if !dim
