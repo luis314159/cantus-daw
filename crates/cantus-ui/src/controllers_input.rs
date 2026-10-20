@@ -27,7 +27,7 @@ pub struct Gesture {
 /// Where a message `age` seconds old was heard, the playhead being at tick `now`: through
 /// the tempo map, so a knob turned across a ramp lands where it was turned.
 pub fn tick_of_message(map: &cantus_core::TempoMap, now: f64, age: f64) -> i64 {
-    if !(age > 0.0) {
+    if age.is_nan() || age <= 0.0 {
         return now.round() as i64;
     }
     map.tick_at_seconds(map.seconds_at(now) - age).round() as i64

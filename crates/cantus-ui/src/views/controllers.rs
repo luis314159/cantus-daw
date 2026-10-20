@@ -656,7 +656,7 @@ fn section(app: &mut CantusApp, ui: &mut Ui, scope: Scope, w: f32) {
     with_brush(ui.painter(), |b| {
         band::section(b, br, &s, State::REST, Src::Key(title), None, false)
     });
-    put(app, format!("{title}"), br);
+    put(app, title, br);
     let (hr, _) = ui.allocate_exact_size(Vec2::new(w, 20.0 * k), Sense::hover());
     let cols = columns(hr, k);
     const TITLES: [&str; 11] = [

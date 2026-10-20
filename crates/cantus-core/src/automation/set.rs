@@ -47,7 +47,7 @@ impl AutoTarget {
                 Command::SetStripWidth { id: *id, width: v }
             }
             AutoTarget::Send { strip, to } => {
-                let mut send = project.strip(*strip)?.send_to(*to)?.clone();
+                let mut send = *project.strip(*strip)?.send_to(*to)?;
                 send.level = v;
                 Command::SetStripSend { id: *strip, send }
             }

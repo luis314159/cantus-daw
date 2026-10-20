@@ -205,6 +205,7 @@ fn knobs(ui: &mut egui::Ui) {
                 depth: Some(0.3),
                 mapping: false,
                 live: Some(0.68),
+                learn: None,
             },
         ),
         (
@@ -214,6 +215,7 @@ fn knobs(ui: &mut egui::Ui) {
                 depth: Some(-0.25),
                 mapping: false,
                 live: Some(0.52),
+                learn: None,
             },
         ),
         (
@@ -223,6 +225,7 @@ fn knobs(ui: &mut egui::Ui) {
                 depth: Some(0.2),
                 mapping: true,
                 live: Some(0.82),
+                learn: None,
             },
         ),
         (0.2, &[], ModOffer::default()),

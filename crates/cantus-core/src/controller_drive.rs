@@ -161,9 +161,7 @@ impl Mapping {
                 }
             }
             Takeover::Scale => {
-                let Some(xp) = prev else {
-                    return None;
-                };
+                let xp = prev?;
                 let (lo, hi) = (self.shape(0.0), self.shape(1.0));
                 // The target covers what is left of its way in the same share of what is
                 // left of the control's.
