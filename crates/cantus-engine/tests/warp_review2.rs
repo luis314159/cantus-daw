@@ -314,7 +314,11 @@ fn a_tempo_edit_that_keeps_a_transposed_window_keeps_its_render() {
         )
         .unwrap();
         let plan = plan_of(bus.project(), 0);
-        assert_eq!(render_key(&plan), before, "re-rendered at {bpm} BPM before the window");
+        assert_eq!(
+            render_key(&plan),
+            before,
+            "re-rendered at {bpm} BPM before the window"
+        );
         // And the frame heard at its start is the one it was (to the frame).
         let d = plan.source_at(0.0) - first.source_at(0.0);
         assert!(d.abs() < 1.0, "{d:+} frames at {bpm} BPM");

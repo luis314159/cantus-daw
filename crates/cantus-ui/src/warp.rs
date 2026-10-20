@@ -83,11 +83,14 @@ pub struct WarpUi {
     pub pending_bake: Option<(cantus_core::ModulatorId, cantus_core::AutoTarget, u64)>,
     /// A drag of a clip's tempo: the clip, the warp it started from and each window's
     /// frame at its start then (`set_warp_tempo`: laid from these, nothing drifts).
-    pub(crate) relay: Option<(ClipRef, Warp, Vec<(ClipRef, f64)>)>,
+    pub(crate) relay: Option<Relay>,
     /// The project epoch this state belongs to: another project (opened, replaced, undone
     /// to) lets every job, selection and gesture go.
     pub(crate) epoch: u64,
 }
+
+/// A tempo drag's start: the clip, the warp it started from, each window's frame then.
+pub(crate) type Relay = (ClipRef, Warp, Vec<(ClipRef, f64)>);
 
 /// Whether the analysis says the file is a loop to warp at once (ADR 0061 §4): no longer
 /// than [`AUTO_MAX_S`], a whole number of bars or an `acid` tempo, and a sure tempo.
