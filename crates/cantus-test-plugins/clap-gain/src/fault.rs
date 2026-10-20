@@ -19,6 +19,7 @@
 //! | 10 | the next `save_state` runs a nested message loop for 3 s, as a modal dialog does |
 //! | 11 | this `process` takes 50 ms, once (late, not hung) |
 //! | 12 | its editor's window runs a nested message loop for 3 s, as a file dialog does |
+//! | 13 | the next `save_state` fails (once) |
 
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -34,8 +35,9 @@ pub const HANG_EDITOR: u32 = 9;
 pub const PUMP_SAVE: u32 = 10;
 pub const SLOW_ONCE: u32 = 11;
 pub const PUMP_WINDOW: u32 = 12;
+pub const FAIL_SAVE_ONCE: u32 = 13;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 12.0;
+pub const LAST: f64 = 13.0;
 
 /// A nested loop the editor's window runs at its next timer (`PUMP_WINDOW`).
 static WINDOW_PUMP: AtomicBool = AtomicBool::new(false);
@@ -68,6 +70,13 @@ impl Fault {
             }
             _ => {}
         }
+    }
+
+    /// Whether the save asked for now fails (`FAIL_SAVE_ONCE`, then disarmed).
+    pub fn refuse_save(&self) -> bool {
+        self.0
+            .compare_exchange(FAIL_SAVE_ONCE, 0, Ordering::AcqRel, Ordering::Relaxed)
+            .is_ok()
     }
 
     /// At a site — `ABORT_SAVE`, `ABORT_LOAD`, `ABORT_EDITOR` or `ABORT_ACTIVATE` — fires

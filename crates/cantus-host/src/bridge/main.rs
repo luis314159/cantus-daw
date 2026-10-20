@@ -38,7 +38,7 @@ const REFRESH_AFTER: Duration = Duration::from_millis(500);
 /// did not report as a gesture).
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
 /// How long after a failed background state it is asked for again.
-const RETRY_AFTER: Duration = Duration::from_secs(5);
+const RETRY_AFTER: Duration = Duration::from_secs(2);
 /// A helper whose heartbeat is older than this is in trouble (hung, or about to be found
 /// so): saving answers with the last-good state at once instead of waiting (review #51).
 const TROUBLE: Duration = Duration::from_secs(1);

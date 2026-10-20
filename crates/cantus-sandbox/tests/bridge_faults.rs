@@ -133,7 +133,78 @@ fn a_plugin_that_hangs_or_dies_loading_a_state_keeps_the_state_asked_for() {
         assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
         // …and that is what saving and reloading keep, not the state before it.
         assert_eq!(main.save_state().unwrap(), default, "{what}");
+        // Gone, a state the project changes to (an undo) is still what it keeps.
+        assert!(main.load_state(&changed).is_err());
+        assert_eq!(main.save_state().unwrap(), changed, "{what}: after the crash");
     }
+}
+
+/// The value a fresh instance shows for `id` once `state` is loaded into it.
+fn value_in(pool: &Arc<Sandboxes>, state: &[u8], id: u32) -> Option<f64> {
+    let Loaded { mut main, .. } = load(pool, GAIN_ID, "own-fresh", false);
+    main.load_state(state).expect("loads");
+    main.idle();
+    main.param_value(id)
+}
+
+/// A background save the plug-in refuses once is asked again: the last-good state keeps
+/// following what the user does (review #8, #50).
+#[test]
+fn a_refused_background_save_is_asked_again() {
+    let _g = serial();
+    let pool = pool();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(&pool, GAIN_ID, "own-refused-save", false);
+    set(main.as_mut(), P_GAIN, -6.0);
+    arm(main.as_mut(), audio.as_mut(), P_FAULT, FAIL_SAVE_ONCE);
+    main.checkpoint();
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(3500) {
+        main.idle();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    arm_crash(main.as_mut(), audio.as_mut());
+    let saved = main.save_state().expect("the last-good state");
+    assert_eq!(value_in(&pool, &saved, P_GAIN), Some(-6.0));
+}
+
+/// Crashes the helper from `process` and waits until it is told.
+fn arm_crash(main: &mut dyn MainThread, audio: &mut dyn cantus_host::AudioThread) {
+    let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
+    call(audio, &mut l, &mut r, &fault(P_FAULT, ABORT_PROCESS), &[]);
+    assert!(crashed_within(main, Duration::from_secs(5)).is_some());
+}
+
+/// A background save answered after a state was loaded is older than it: dropped, so the
+/// last-good state is the one loaded (review #7, #50).
+#[cfg(windows)]
+#[test]
+fn a_background_state_older_than_a_loaded_one_is_dropped() {
+    let _g = serial();
+    let pool = pool();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(&pool, GAIN_ID, "own-older-state", false);
+    let first = main.save_state().unwrap();
+    set(main.as_mut(), P_GAIN, -6.0);
+    arm(main.as_mut(), audio.as_mut(), P_FAULT, PUMP_SAVE);
+    main.checkpoint();
+    // The background save is asked for (half a second on) and runs its 3 s loop.
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(800) {
+        main.idle();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    main.load_state(&first).expect("loads after the save's loop");
+    for _ in 0..30 {
+        main.idle();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    arm_crash(main.as_mut(), audio.as_mut());
+    assert_eq!(main.save_state().unwrap(), first);
 }
 
 #[cfg(windows)]

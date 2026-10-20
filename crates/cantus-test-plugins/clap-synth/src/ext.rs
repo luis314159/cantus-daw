@@ -180,6 +180,9 @@ static STATE_EXT: clap_plugin_state = clap_plugin_state {
 unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostream) -> bool {
     let me = me(p);
     me.fault.fire(crate::fault::ABORT_SAVE);
+    if me.fault.refuse_save() {
+        return false;
+    }
     let mut bytes = MAGIC.to_vec();
     for row in &PARAMS[..crate::plugin::STATE_PARAMS] {
         bytes.extend_from_slice(&me.get(row.0).to_le_bytes());

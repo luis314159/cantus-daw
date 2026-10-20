@@ -52,6 +52,7 @@ pub const HANG_EDITOR: f64 = 9.0;
 pub const PUMP_SAVE: f64 = 10.0;
 pub const SLOW_ONCE: f64 = 11.0;
 pub const PUMP_WINDOW: f64 = 12.0;
+pub const FAIL_SAVE_ONCE: f64 = 13.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
