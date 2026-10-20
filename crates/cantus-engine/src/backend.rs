@@ -1046,6 +1046,15 @@ impl EngineHandle {
 
     /// Readings as if the engine had sent them, for the dummy engine's tests and screenshots
     /// (it sends none); a running engine's next report replaces them.
+    /// Where the engine is heard and whether it plays, as if it had reported it, for the
+    /// dummy engine's tests (round 29: a controller's move recorded at its message's time).
+    #[doc(hidden)]
+    pub fn set_heard_for_tests(&mut self, position: Ticks, playing: bool) {
+        self.position = position;
+        self.engine_position = position;
+        self.playing = playing;
+    }
+
     #[doc(hidden)]
     pub fn set_meters(&mut self, meters: Meters) {
         self.meters = meters;
