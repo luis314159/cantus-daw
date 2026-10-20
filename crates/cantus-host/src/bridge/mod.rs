@@ -38,14 +38,9 @@ pub fn group_key(isolation: PluginIsolation, info: &PluginInfo) -> Option<String
     match isolation {
         PluginIsolation::Within => None,
         PluginIsolation::Together => Some("together".into()),
-        PluginIsolation::ByVendor => {
-            let vendor: String = info
-                .vendor
-                .chars()
-                .map(|c| if c.is_alphanumeric() { c } else { '-' })
-                .collect();
-            Some(format!("vendor-{}", vendor.to_lowercase()))
-        }
+        // The maker's name as it is (case aside): makers whose names differ only in
+        // punctuation are different makers.
+        PluginIsolation::ByVendor => Some(format!("vendor-{}", info.vendor.to_lowercase())),
         PluginIsolation::Individually => {
             static NEXT: AtomicU64 = AtomicU64::new(1);
             Some(format!("own-{}", NEXT.fetch_add(1, Ordering::Relaxed)))
@@ -161,5 +156,58 @@ impl Backend for BridgedBackend {
             main: Box::new(main),
             audio,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn info(vendor: &str) -> PluginInfo {
+        PluginInfo {
+            format: Format::Clap,
+            id: "com.test.x".into(),
+            name: "X".into(),
+            vendor: vendor.into(),
+            version: String::new(),
+            path: PathBuf::new(),
+            kind: crate::backend::PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        }
+    }
+
+    /// Where each choice puts a plug-in (review #29).
+    #[test]
+    fn each_choice_has_its_group() {
+        let a = info("Acme Audio");
+        assert_eq!(group_key(PluginIsolation::Within, &a), None);
+        assert_eq!(
+            group_key(PluginIsolation::Together, &a),
+            group_key(PluginIsolation::Together, &info("Other"))
+        );
+        let own1 = group_key(PluginIsolation::Individually, &a);
+        let own2 = group_key(PluginIsolation::Individually, &a);
+        assert!(own1.is_some() && own1 != own2, "one process per instance");
+        assert_eq!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("Acme Audio"))
+        );
+        assert_ne!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("Other"))
+        );
+        // Makers whose names differ only in case share one; in punctuation, they do not.
+        assert_eq!(
+            group_key(PluginIsolation::ByVendor, &a),
+            group_key(PluginIsolation::ByVendor, &info("ACME AUDIO"))
+        );
+        assert_ne!(
+            group_key(PluginIsolation::ByVendor, &info("A&B")),
+            group_key(PluginIsolation::ByVendor, &info("A-B"))
+        );
     }
 }

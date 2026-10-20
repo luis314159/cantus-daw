@@ -26,6 +26,7 @@ pub const VST3_PULSE_ID: &str = "43414E5455535450554C5345494E5331";
 /// clap-gain's parameters.
 pub const P_GAIN: u32 = 0;
 pub const P_LATENCY: u32 = 1;
+pub const P_KEY: u32 = 2;
 pub const P_FAULT: u32 = 4;
 pub const P_PROCESS: u32 = 5;
 /// clap-synth's.
