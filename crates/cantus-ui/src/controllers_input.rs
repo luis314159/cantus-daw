@@ -129,7 +129,11 @@ impl CantusApp {
         // partner is not coming — a coarse half is read with a fine 0 (MIDI's rule), a
         // fine-first controller's fine half with its coarse half as it stands (review 2,
         // #5; review 3: never one frame early, when the partner is a moment away).
-        let now = heard.iter().map(|h| h.at).max().unwrap_or_else(Instant::now);
+        let now = heard
+            .iter()
+            .map(|h| h.at)
+            .max()
+            .unwrap_or_else(Instant::now);
         let now = now.max(Instant::now());
         self.drive_wide_alone(now, &mut pending);
         self.learn_tick();
@@ -163,7 +167,14 @@ impl CantusApp {
         }
         for (port, channel, n, value, at) in alone {
             let control = cantus_core::controller::Control::Cc14(n);
-            self.drive_decoded(port, channel, &[control], &[(control, value, true)], at, pending);
+            self.drive_decoded(
+                port,
+                channel,
+                &[control],
+                &[(control, value, true)],
+                at,
+                pending,
+            );
         }
     }
 
@@ -296,10 +307,13 @@ impl CantusApp {
     /// A hosted parameter's own words for `value` (the loaded plug-in's), when it has them.
     pub fn hosted_param_text(&self, a: &AutoTarget, id: u32, value: f64) -> Option<String> {
         match a {
-            AutoTarget::Plugin { effect, .. } => self.plugins.hosted(*effect)?.param_text(id, value),
-            AutoTarget::PluginInstrument { track, .. } => {
-                self.plugins.hosted_instrument(*track)?.param_text(id, value)
+            AutoTarget::Plugin { effect, .. } => {
+                self.plugins.hosted(*effect)?.param_text(id, value)
             }
+            AutoTarget::PluginInstrument { track, .. } => self
+                .plugins
+                .hosted_instrument(*track)?
+                .param_text(id, value),
             _ => None,
         }
     }
@@ -703,8 +717,7 @@ impl CantusApp {
             // A gesture that turned the tempo before the take began is sealed: its tempo
             // command is never sent again during the take (round 29, review 3 of ADR 0062).
             let g = &self.controllers.gesture;
-            if g
-                .moves
+            if g.moves
                 .iter()
                 .any(|(_, c)| cantus_core::tempo::keep::changes_tempo(c))
             {

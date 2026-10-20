@@ -873,9 +873,8 @@ fn body_ui(
                             }
                             // The plug-in's words for the value, asked once per value — again
                             // while not answered (an isolated plug-in answers later).
-                            let text = texts.get(effect, p.id, value.to_bits(), || {
-                                h.param_text(p.id, value)
-                            });
+                            let text = texts
+                                .get(effect, p.id, value.to_bits(), || h.param_text(p.id, value));
                             let fmt = |_: f32, b: &mut String| match text {
                                 Some(t) => b.push_str(t),
                                 None => {

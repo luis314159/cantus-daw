@@ -303,7 +303,11 @@ fn a_lone_fine_half_proves_nothing() {
         // never driven with the lone fine half before it.
         let w = a.project().master.width;
         a.controller_heard(&[msg_at(0xB0, 7, coarse, t)]);
-        assert_eq!(a.project().master.width, w, "{coarse}: the coarse half waits");
+        assert_eq!(
+            a.project().master.width,
+            w,
+            "{coarse}: the coarse half waits"
+        );
         a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(300))]);
         assert!(
             (a.project().master.width - width_of(u16::from(coarse) << 7 | 3)).abs() < 1e-4,
@@ -363,7 +367,11 @@ fn an_echo_stamped_before_its_send_is_an_echo() {
         bytes[2],
         sent_at - Duration::from_micros(500),
     )]);
-    assert_eq!(a.project().strip(s).unwrap().pan, 0.9, "the echo moved nothing");
+    assert_eq!(
+        a.project().strip(s).unwrap().pan,
+        0.9,
+        "the echo moved nothing"
+    );
 }
 
 // ---- frozen --------------------------------------------------------------------------------
@@ -374,9 +382,8 @@ fn frozen_strip() -> (CantusApp, StripId, EffectId) {
     let delay = p.make_effect(EffectKind::Delay);
     let fx = delay.id;
     p.strip_mut(s).unwrap().effects.push(delay);
-    let content =
-        cantus_core::freeze::content_key(&p, cantus_core::freeze::FreezeTarget::Strip(s))
-            .expect("a key");
+    let content = cantus_core::freeze::content_key(&p, cantus_core::freeze::FreezeTarget::Strip(s))
+        .expect("a key");
     p.strip_mut(s).unwrap().frozen = Some(cantus_core::freeze::Frozen { content });
     (keys_app_with(p), s, fx)
 }
@@ -475,7 +482,10 @@ fn a_punched_pass_ends_its_clip_at_the_punch_out() {
     a.controller_heard(&[cc(10, 100)]);
     a.engine.set_heard_for_tests(bar(6), true);
     a.controller_heard(&[cc(10, 20)]);
-    assert!(a.latched(&AutoTarget::StripPan(s)), "latched inside the punch");
+    assert!(
+        a.latched(&AutoTarget::StripPan(s)),
+        "latched inside the punch"
+    );
     a.engine.set_heard_for_tests(bar(9), true);
     assert!(
         !a.latched(&AutoTarget::StripPan(s)),
@@ -538,10 +548,7 @@ fn a_count_in_inside_the_loop_lands_at_the_record_start() {
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();
-    assert!(
-        points.iter().all(|(t, _)| *t >= bar(6).0),
-        "{points:?}"
-    );
+    assert!(points.iter().all(|(t, _)| *t >= bar(6).0), "{points:?}");
 }
 
 /// #34: a real wrap — the playhead going back to the loop's start — puts a message heard
@@ -663,7 +670,10 @@ fn a_lossy_global_file_is_kept_once() {
     // A path that is a folder: unreadable, and nothing can be kept.
     let folder = dir.path().join("as-folder");
     std::fs::create_dir_all(global_path(&folder)).unwrap();
-    assert_eq!(load_global_report(&global_path(&folder)).1, GlobalLoad::Unsafe);
+    assert_eq!(
+        load_global_report(&global_path(&folder)).1,
+        GlobalLoad::Unsafe
+    );
 }
 
 // ---- names ----------------------------------------------------------------------------------
@@ -680,7 +690,12 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
     p.track_mut(t).unwrap().instrument = InstrumentSpec::External(vital.clone());
     let mut a = keys_app_with(p);
     let target = MappingTarget::Param(AutoTarget::PluginInstrument { track: t, id: 7 });
-    let mut m = Mapping::new(MappingId(1), source(Control::Cc(71)), target.clone(), MapMode::Absolute);
+    let mut m = Mapping::new(
+        MappingId(1),
+        source(Control::Cc(71)),
+        target.clone(),
+        MapMode::Absolute,
+    );
     m.plugin = target.plugin_of(a.project());
     a.add_mapping(Scope::Project, m.clone());
     a.exec(Command::SetInstrument {
@@ -688,7 +703,10 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
         spec: Box::new(InstrumentSpec::External(surge)),
     });
     let name = a.mapping_name(&m);
-    assert!(name.contains("audio.vital") || name.contains("Vital"), "{name}");
+    assert!(
+        name.contains("audio.vital") || name.contains("Vital"),
+        "{name}"
+    );
     assert!(!name.contains("Surge"), "{name}");
     a.learn_target(target);
     a.controller_heard(&(0..8).map(|v| cc(71, 60 + v)).collect::<Vec<_>>());
@@ -702,7 +720,10 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
     let shared = a
         .project()
         .controllers
-        .sharing_in(a.project().controllers.mappings.last().unwrap(), a.project())
+        .sharing_in(
+            a.project().controllers.mappings.last().unwrap(),
+            a.project(),
+        )
         .count();
     assert_eq!(shared, 0);
 }
@@ -795,7 +816,11 @@ fn the_selected_strip_can_be_the_master() {
     });
     a.select_master();
     a.controller_heard(&[cc(7, 0)]);
-    assert!(a.project().master.gain_db < -60.0, "{}", a.project().master.gain_db);
+    assert!(
+        a.project().master.gain_db < -60.0,
+        "{}",
+        a.project().master.gain_db
+    );
 }
 
 /// #46: the strip's effects switch and record arm are mapped from its menu's rows and move
@@ -865,7 +890,11 @@ fn the_learn_mode_and_the_areas_light_a_button() {
     assert_eq!(a.action_state(Action::MidiLearnMode.id()), Some(0.0));
     a.toggle_learn_mode();
     assert_eq!(a.action_state(Action::MidiLearnMode.id()), Some(1.0));
-    for action in [Action::ViewMixer, Action::ToggleBrowser, Action::ToggleInspector] {
+    for action in [
+        Action::ViewMixer,
+        Action::ToggleBrowser,
+        Action::ToggleInspector,
+    ] {
         let before = a.action_state(action.id()).expect("a state");
         a.run_action(action);
         assert_ne!(a.action_state(action.id()), Some(before), "{action:?}");
@@ -911,8 +940,14 @@ fn swapping_an_insert_keeps_its_controllers() {
         .iter()
         .map(|m| m.target.clone())
         .collect();
-    assert!(targets.contains(&MappingTarget::EffectBypass(new)), "{targets:?}");
-    assert!(targets.contains(&MappingTarget::EffectMix(new)), "{targets:?}");
+    assert!(
+        targets.contains(&MappingTarget::EffectBypass(new)),
+        "{targets:?}"
+    );
+    assert!(
+        targets.contains(&MappingTarget::EffectMix(new)),
+        "{targets:?}"
+    );
     a.undo();
     assert!(a
         .project()
@@ -1121,7 +1156,12 @@ fn a_crashed_plug_ins_mapping_is_not_loaded() {
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let target = MappingTarget::Param(AutoTarget::Plugin { effect, id: 0 });
-    let mut m = Mapping::new(MappingId(1), source(Control::Cc(20)), target.clone(), MapMode::Absolute);
+    let mut m = Mapping::new(
+        MappingId(1),
+        source(Control::Cc(20)),
+        target.clone(),
+        MapMode::Absolute,
+    );
     m.plugin = target.plugin_of(a.project());
     a.add_mapping(Scope::Project, m.clone());
     assert_eq!(a.mapping_state(Scope::Project, &m), None);
@@ -1248,7 +1288,8 @@ fn a_curve_is_typed_into_its_cell_as_typed() {
         MapMode::Absolute,
         Takeover::Jump,
     );
-    let mut show = |a: &mut CantusApp, ui: &mut egui::Ui| cantus_ui::views::controllers::show(a, ui);
+    let mut show =
+        |a: &mut CantusApp, ui: &mut egui::Ui| cantus_ui::views::controllers::show(a, ui);
     let mut f = Frames::new(egui::vec2(1400.0, 600.0));
     let curve = |a: &CantusApp| a.project().controllers.get(id).unwrap().curve;
     for (typed, want) in [("1", 0.01f32), ("-35 %", -0.35), ("+50", 0.5)] {

@@ -372,7 +372,6 @@ pub struct Pick {
     pub open: bool,
 }
 
-
 /// The card's selector over the stepped parameter `key` (an LFO's wave, a filter's type): its
 /// menu, its mapped mark, the learn mode (round 29, review 2 of ADR 0062, #44). Nothing
 /// picked while the learn mode has it.

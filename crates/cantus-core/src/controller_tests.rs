@@ -1155,7 +1155,10 @@ fn the_selected_strip_can_be_the_master() {
         MappingTarget::SelectedStrip(DeskParam::Pan).resolve(&focus),
         Some(MappingTarget::Param(AutoTarget::MasterPan))
     );
-    assert_eq!(MappingTarget::SelectedStrip(DeskParam::Mute).resolve(&focus), None);
+    assert_eq!(
+        MappingTarget::SelectedStrip(DeskParam::Mute).resolve(&focus),
+        None
+    );
 }
 
 /// Review 3, #46: a strip's effects switch and its record arm are switch targets that set
@@ -1165,7 +1168,12 @@ fn a_strips_effects_and_record_arm_set_and_read() {
     let mut p = project();
     let t = p.tracks[0].id;
     let s = p.tracks[0].strip.unwrap();
-    p.track_mut(t).unwrap().input = Some(crate::audio::TrackInput { first: 0, stereo: false, monitor: Default::default(), trim_db: 0.0 });
+    p.track_mut(t).unwrap().input = Some(crate::audio::TrackInput {
+        first: 0,
+        stereo: false,
+        monitor: Default::default(),
+        trim_db: 0.0,
+    });
     for target in [
         MappingTarget::StripFx(s),
         MappingTarget::StripFx(StripId::MASTER),

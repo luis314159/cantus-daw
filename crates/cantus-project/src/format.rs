@@ -1976,13 +1976,20 @@ mod freeze_tests {
         let p = fixture("v39.cantus");
         let targets: Vec<&MappingTarget> =
             p.controllers.mappings.iter().map(|m| &m.target).collect();
-        assert!(targets.iter().any(|t| matches!(t, MappingTarget::StripFx(_))));
-        assert!(targets.iter().any(|t| matches!(t, MappingTarget::StripArm(_))));
+        assert!(targets
+            .iter()
+            .any(|t| matches!(t, MappingTarget::StripFx(_))));
+        assert!(targets
+            .iter()
+            .any(|t| matches!(t, MappingTarget::StripArm(_))));
         assert!(!fixture("v38.cantus")
             .controllers
             .mappings
             .iter()
-            .any(|m| matches!(m.target, MappingTarget::StripFx(_) | MappingTarget::StripArm(_))));
+            .any(|m| matches!(
+                m.target,
+                MappingTarget::StripFx(_) | MappingTarget::StripArm(_)
+            )));
     }
 
     /// Schema 38 (round 29, review 2): a bounced track keeps its lateness; a v37 track has

@@ -151,14 +151,13 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
             .map_or(value, |pos| lo + f64::from(pos) * (hi - lo));
         let bits = shown_v.to_bits();
         let text = sh.ui.data_mut(|d| {
-            d.get_temp_mut_or_default::<Texts>(tid)
-                .get(
-                    stamp,
-                    p.id,
-                    bits,
-                    || h.param_text(p.id, shown_v),
-                    || format!("{shown_v:.2}"),
-                )
+            d.get_temp_mut_or_default::<Texts>(tid).get(
+                stamp,
+                p.id,
+                bits,
+                || h.param_text(p.id, shown_v),
+                || format!("{shown_v:.2}"),
+            )
         });
         let range = Range {
             stepped: p.stepped,

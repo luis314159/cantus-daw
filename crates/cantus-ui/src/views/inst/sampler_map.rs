@@ -968,7 +968,8 @@ pub fn zone_card(
     );
     // The zone's trigger and switches are parameters (round 29, review 3 of ADR 0062, #35).
     let zkey = |f: usize| format!("z{n}.{}", model::zone_field_name(f));
-    let learning = crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::TRIG), &trig_resp);
+    let learning =
+        crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::TRIG), &trig_resp);
     let c = if learning { Default::default() } else { c };
     let labels: Vec<Src<'_>> = TRIGGERS.iter().map(|k| Src::Key(k)).collect();
     let items = parts::radio_items(&labels, Some(trig));

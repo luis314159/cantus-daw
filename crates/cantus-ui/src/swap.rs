@@ -339,7 +339,9 @@ impl CantusApp {
             let target = match &m.target {
                 T::EffectBypass(e) if *e == old => T::EffectBypass(new),
                 T::EffectMix(e) if *e == old => T::EffectMix(new),
-                T::Param(A::Effect { effect, key }) if *effect == old && kind.param(key).is_some() => {
+                T::Param(A::Effect { effect, key })
+                    if *effect == old && kind.param(key).is_some() =>
+                {
                     T::Param(A::Effect {
                         effect: new,
                         key: key.clone(),

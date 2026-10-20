@@ -104,9 +104,10 @@ impl CantusApp {
         let Some(l) = self.controllers.learning.take() else {
             return;
         };
-        let (Some((port, channel)), Some((control, mode))) =
-            (l.source, detect_in(&l.heard, &l.target, self.target_shape(&l.target)))
-        else {
+        let (Some((port, channel)), Some((control, mode))) = (
+            l.source,
+            detect_in(&l.heard, &l.target, self.target_shape(&l.target)),
+        ) else {
             self.controllers.tap.filter().set_learning(false);
             return;
         };

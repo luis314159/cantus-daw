@@ -361,7 +361,9 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
     }
     match (kind, key) {
         // Culmen's named bands: shown when the bands are split.
-        ("Maximizer", k) if k.starts_with("lo.") || k.starts_with("mid.") || k.starts_with("hi.") => {
+        ("Maximizer", k)
+            if k.starts_with("lo.") || k.starts_with("mid.") || k.starts_with("hi.") =>
+        {
             Some("a band of a split Culmen (one band in the demo)")
         }
         ("Maximizer", "all.on") => Some("the whole band's switch, shown when split"),
@@ -386,7 +388,10 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
         ("Fm", "priority") => Some("no control in the editor (presets set it)"),
         // An envelope's stage count, sustain and loop points: set on its display (a point's
         // menu, the add-stage button), not by a control of their own.
-        ("Fm", k) if k.starts_with("env.") && (k.ends_with(".n") || k.ends_with(".sus") || k.ends_with(".loop")) => {
+        ("Fm", k)
+            if k.starts_with("env.")
+                && (k.ends_with(".n") || k.ends_with(".sus") || k.ends_with(".loop")) =>
+        {
             Some("set on the envelope's display")
         }
         ("Sampler", k) if k.ends_with(".gen") => Some("the zone's source, chosen with its sound"),
@@ -409,7 +414,8 @@ fn not_drawn(name: &str, get: &dyn Fn(&str) -> f32, shown: &str) -> Option<&'sta
             .or_else(|| key.strip_prefix("env."))
             .or_else(|| key.strip_prefix("ks."))
             .and_then(|r| r.split('.').next());
-        (kind == "Fm" && op.is_some_and(|o| o != shown)).then_some("another operator than the one shown")
+        (kind == "Fm" && op.is_some_and(|o| o != shown))
+            .then_some("another operator than the one shown")
     })
 }
 

@@ -1047,14 +1047,22 @@ mod tests {
         assert_eq!(engine.pop().unwrap(), ev(0xB0, 64, 50));
         tap.filter().set_learning(true);
         route(ev(0xB0, 64, 30), 0, &tap, &sender, &mut ui, &mut held);
-        assert_eq!(engine.pop().unwrap(), ev(0xB0, 64, 0), "a half pedal let go");
+        assert_eq!(
+            engine.pop().unwrap(),
+            ev(0xB0, 64, 0),
+            "a half pedal let go"
+        );
         tap.filter().set_learning(false);
         // The soft pedal (Chorda's una corda) is kept too.
         route(ev(0xB0, 67, 127), 0, &tap, &sender, &mut ui, &mut held);
         assert_eq!(engine.pop().unwrap(), ev(0xB0, 67, 127));
         tap.filter().set_learning(true);
         route(ev(0xB0, 67, 0), 0, &tap, &sender, &mut ui, &mut held);
-        assert_eq!(engine.pop().unwrap(), ev(0xB0, 67, 0), "the soft pedal let go");
+        assert_eq!(
+            engine.pop().unwrap(),
+            ev(0xB0, 67, 0),
+            "the soft pedal let go"
+        );
     }
 
     /// Review 3, #10, #11, #26: under a full ring, the pitch wheel and channel pressure end

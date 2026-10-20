@@ -787,7 +787,8 @@ pub fn sample_card(
     let rev = z.get(zf::REV) >= 0.5;
     let rr = Rect::from_min_size(r2.min, vec2(rev_w - 4.0 * k, h));
     let rev_resp = parts::led(ui, rr, s, rev, Src::Key("smp.reverse"), &t("smp.reverse"));
-    let learning = crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::REV), &rev_resp);
+    let learning =
+        crate::controllers::stepped_inst(app, ui, track, spec, &zkey(zf::REV), &rev_resp);
     if rev_resp.clicked() && !learning {
         set_fields(
             app,

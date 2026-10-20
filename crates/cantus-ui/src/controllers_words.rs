@@ -112,7 +112,9 @@ pub fn stepped_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Ve
             let words = app.controllers.inst_words.get(kind, key)?;
             Some((info.min.round() as i32, words.clone()))
         }
-        MappingTarget::Param(a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. })) => {
+        MappingTarget::Param(
+            a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
+        ) => {
             let info = app.hosted_param_info(a)?;
             let n = (info.max - info.min).round();
             if !info.stepped || !(1.0..=64.0).contains(&n) {

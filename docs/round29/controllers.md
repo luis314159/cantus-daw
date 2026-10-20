@@ -100,19 +100,24 @@ Branch `r29/controllers` (worktree `F:\projects\daw-r29\controllers`), from
 - `fx_lint` lists `views/controllers.rs`; `modulators.rs` / `shoot_modulators.rs` literals
   gained `learn: None`.
 
-## The runs (Windows, after review 2, on `r29/integration` 6e74f7e merged)
+## The runs (Windows, after review 3, on `r29/integration` df2cdd4 merged)
 
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean;
   `cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings`:
-  clean. `cargo fmt --all`: clean.
-- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 592
-  passed.
-- `cargo test -p cantus-engine`: 786 passed.
-- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 790 passed.
-- `cargo test -p cantus-ui`: 1 468 passed, the frame budget included (a new case: an idle
-  frame with a hosted mapping allocates nothing).
+  clean. `cargo fmt --all -- --check`: clean.
+- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 409 + 102
+  + 82 + 55 = 648 passed. (`bridge_faults3`'s `the_crash_handler_names_the_plugin_whose_thread_crashed`
+  failed once in the full run — `LoadLibraryExW failed` on its fresh temporary copy of the
+  test plug-in, with two other builds compiling — and passed when run again; nothing of
+  mine is on its path.)
+- `cargo test -p cantus-engine`: 797 passed.
+- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 801 passed.
+- `cargo test -p cantus-ui`: 1 567 passed, the frame budget included (a new case: a warm
+  Compressor and Wavetable editor frame, and one idle offer, allocate within their budget).
 - Shots: `cargo run -p cantus-ui --example shoot_controllers -- F:\projects\daw-r29\shots\controllers`
-  (90 PNGs, Night and Paper, English and Spanish, 75/100/200 %), looked at.
+  (94 PNGs: the earlier ones re-shot, the pane with names, *Off*/*On*, *Not connected* and
+  a strip's effects switch; new `controllers-learn-tonus-*`, the scale keyboard in the learn
+  mode, each key outlined where it shows), looked at.
 - Not run here: the Linux check in WSL (`tools/wsl/check.sh`); nothing of mine is behind
   `#[cfg(windows)]`.
 
@@ -297,7 +302,8 @@ back):
 
 - core: 7 broken in one run, 7 tests caught them;
 - engine: 5 broken in three runs (the overflow's slot, its parking, the half pedal, CC 121,
-  the soft pedal), both tests caught each;
+  the soft pedal), each caught — the overflow's by the full-ring test, the pedals' by the
+  pedal test;
 - host: the MIDI-only program flag broken, `a_program_change_reaches_the_program_list_and_the_project` caught it;
 - interface: 32 broken in six runs, every one caught. Two are one defence in two places
   (a stale half resolved before a burst, and only a recent coarse half paired with a fine

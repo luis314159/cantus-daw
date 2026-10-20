@@ -287,7 +287,10 @@ fn shown_parts(keys: &[Rect; 12], pc: usize) -> [Rect; 2] {
             }
         }
     }
-    [lower, Rect::from_min_max(pos2(left, r.top()), pos2(right, black_bottom))]
+    [
+        lower,
+        Rect::from_min_max(pos2(left, r.top()), pos2(right, black_bottom)),
+    ]
 }
 
 /// The keys as their notes' parameters for MIDI learn: `true` while the learn mode is on.

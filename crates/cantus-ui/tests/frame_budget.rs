@@ -1076,10 +1076,18 @@ fn an_editors_idle_stepped_controls_cost_no_allocation() {
     cantus_ui::views::inst::demo_setup(&mut app, track, InstrumentKind::Wavetable);
     app.open_inst_editor(track);
     app.inst.view = cantus_ui::views::inst::View::Edit;
-    let wt = measure(&mut app, &mut |a, ui| cantus_ui::views::inst::window_in(a, ui));
+    let wt = measure(&mut app, &mut |a, ui| {
+        cantus_ui::views::inst::window_in(a, ui)
+    });
     eprintln!("a warm editor frame, nothing mapped: Compressor {comp}, Wavetable {wt} allocations");
-    assert!(comp <= COMP_EDITOR_ALLOCS, "Compressor: {comp} allocations a frame");
-    assert!(wt <= WAVETABLE_EDITOR_ALLOCS, "Wavetable: {wt} allocations a frame");
+    assert!(
+        comp <= COMP_EDITOR_ALLOCS,
+        "Compressor: {comp} allocations a frame"
+    );
+    assert!(
+        wt <= WAVETABLE_EDITOR_ALLOCS,
+        "Wavetable: {wt} allocations a frame"
+    );
     // The offer alone over a drawn switch: nothing.
     let input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),

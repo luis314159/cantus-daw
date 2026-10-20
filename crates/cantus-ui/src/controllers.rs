@@ -570,7 +570,12 @@ impl CantusApp {
             .mappings
             .iter()
             .any(|m| is(&m.target) && m.fits(p))
-            || self.controllers.global.mappings.iter().any(|m| is(&m.target))
+            || self
+                .controllers
+                .global
+                .mappings
+                .iter()
+                .any(|m| is(&m.target))
     }
 
     /// Whether a controller drives `target`.
@@ -1271,7 +1276,8 @@ pub(crate) fn decode(
     match ev.status & 0xF0 {
         0xB0 => {
             let first = (Control::Cc(d1), u16::from(d2), true);
-            let gap = |t: Option<Instant>| t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
+            let gap =
+                |t: Option<Instant>| t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
             if d1 < 32 {
                 let e = wide.entry((port, ch, d1)).or_default();
                 e.msb = d2;

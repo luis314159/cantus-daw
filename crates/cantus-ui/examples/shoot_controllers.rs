@@ -394,10 +394,17 @@ fn main() {
                 key: "n1".into(),
             }));
             let out = name(&dir, "learn-tonus", dark, lang, 1.0);
-            shoot(&ctx, egui::vec2(1100.0, 700.0), 1.0, 8, Some(&out), |root| {
-                panel(root, |_| {});
-                views::fx::window(&mut a, root.ctx());
-            });
+            shoot(
+                &ctx,
+                egui::vec2(1100.0, 700.0),
+                1.0,
+                8,
+                Some(&out),
+                |root| {
+                    panel(root, |_| {});
+                    views::fx::window(&mut a, root.ctx());
+                },
+            );
             println!("{}", out.display());
             // A parameter's menu: *Learn MIDI controller* again and *Forget*.
             cantus_ui::i18n::set_locale(lang);
