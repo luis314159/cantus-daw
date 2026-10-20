@@ -1216,16 +1216,18 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             }
         }
         // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
-        crate::controllers::learn_spot(
+        crate::controllers::learn_spot_in(
             app,
             ui,
             m.rect,
+            clip,
             cantus_core::controller::MappingTarget::TrackMute(id),
         );
-        crate::controllers::learn_spot(
+        crate::controllers::learn_spot_in(
             app,
             ui,
             so.rect,
+            clip,
             cantus_core::controller::MappingTarget::TrackSolo(id),
         );
         if m.clicked() {
@@ -1243,7 +1245,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         let swap = crate::picker::PickPurpose::ReplaceInstrument { track: id };
         super::device_chrome::drop_target(app, ui, &resp, swap);
         if let Some(rr) = &rr {
-            rec::header_input(app, ui, id, rr, s);
+            rec::header_input(app, ui, id, rr, s, clip);
         }
         takes::header_input(app, ui, id, row, clip, s);
         autolanes::header_input(app, ui, i, id, row, clip);

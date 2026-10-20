@@ -17,6 +17,9 @@ use std::time::{Duration, Instant};
 /// How long a knob is listened to before it is learnt: enough for a turn to show whether it
 /// is an encoder or a 14-bit fader.
 pub const LEARN_WINDOW: Duration = Duration::from_millis(300);
+/// An armed learn that hears nothing this long lets go: the keyboard plays again (every
+/// message is the control being learnt meanwhile, review 1, #32).
+pub const LEARN_TIMEOUT: Duration = Duration::from_secs(15);
 /// Enough messages to tell: learnt at once.
 const ENOUGH: usize = 8;
 
@@ -62,6 +65,15 @@ impl CantusApp {
         });
         if ready {
             self.finish_learning();
+            return;
+        }
+        let stale = self
+            .controllers
+            .learning
+            .as_ref()
+            .is_some_and(|l| l.first.is_none() && l.armed_at.elapsed() >= LEARN_TIMEOUT);
+        if stale {
+            self.cancel_learning();
         }
     }
 
@@ -70,10 +82,10 @@ impl CantusApp {
         let Some(l) = self.controllers.learning.take() else {
             return;
         };
-        self.controllers.tap.filter().set_learning(false);
         let (Some((port, channel)), Some((control, mode))) =
             (l.source, detect(&l.heard, &l.target))
         else {
+            self.controllers.tap.filter().set_learning(false);
             return;
         };
         let source = MidiSource {
@@ -96,6 +108,8 @@ impl CantusApp {
                 let id = self.new_mapping_id();
                 let mut m = Mapping::new(id, source, l.target.clone(), mode);
                 m.takeover = self.settings.controller_takeover;
+                // A hosted parameter's id means something only in its plug-in.
+                m.plugin = l.target.plugin_of(self.project());
                 if l.target == MappingTarget::Tempo {
                     // A knob covers 60…180 BPM to start with (the range narrows or widens it).
                     let (lo, hi) = TEMPO_TRAVEL;
@@ -110,6 +124,10 @@ impl CantusApp {
         } else {
             self.add_mapping(l.scope, m.clone());
         }
+        // The control is the map's before the tap stops taking everything: its next moves
+        // drive the target, none reaches the instrument (review 1, #16).
+        self.publish_controller_filter();
+        self.controllers.tap.filter().set_learning(false);
         self.controllers.states.remove(&(l.scope, m.id));
         let others: Vec<String> = [Scope::Project, Scope::Global]
             .into_iter()

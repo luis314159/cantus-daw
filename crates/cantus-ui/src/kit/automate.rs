@@ -313,13 +313,28 @@ pub fn learn_mark(b: &mut Brush, rect: Rect, s: &Style) {
 /// clicked. Every learnable control of the kit goes through here; buttons that are not
 /// parameters (a mute, the transport's) call it themselves.
 pub fn learn_spot(ui: &Ui, rect: Rect, id: egui::Id, l: LearnOffer) -> bool {
-    let cover = ui.interact(rect, id.with("cantus-learn"), egui::Sense::click_and_drag());
+    learn_spot_clipped(ui, rect, ui.clip_rect(), id, l)
+}
+
+/// [`learn_spot`] shown and clickable only inside `clip`: a control scrolled half under a
+/// view's dock or ruler is outlined and covered where it shows, never over what is on top.
+pub fn learn_spot_clipped(ui: &Ui, rect: Rect, clip: Rect, id: egui::Id, l: LearnOffer) -> bool {
+    let clip = clip.intersect(ui.clip_rect());
+    let shown = rect.intersect(clip);
+    if shown.width() <= 0.0 || shown.height() <= 0.0 {
+        return false;
+    }
+    let cover = ui.interact(
+        shown,
+        id.with("cantus-learn"),
+        egui::Sense::click_and_drag(),
+    );
     let s = Style::current();
     // Above the control's own painting: a sublayer of the layer it is drawn in.
     let parent = ui.layer_id();
     let layer = egui::LayerId::new(parent.order, parent.id.with("cantus-learn"));
     ui.ctx().set_sublayer(parent, layer);
-    let painter = ui.ctx().layer_painter(layer).with_clip_rect(ui.clip_rect());
+    let painter = ui.ctx().layer_painter(layer).with_clip_rect(clip);
     super::with_brush(&painter, |b| {
         let r = rect.shrink(b.px());
         let (fill, line, w) = if l.armed {
@@ -338,6 +353,20 @@ pub fn learn_spot(ui: &Ui, rect: Rect, id: egui::Id, l: LearnOffer) -> bool {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
     cover.clicked()
+}
+
+/// The mapped mark over a control drawn by its caller (a lamp, a key), on a layer above it,
+/// shown only inside `clip`.
+pub fn learn_mark_over(ui: &Ui, rect: Rect, clip: Rect) {
+    let s = Style::current();
+    let parent = ui.layer_id();
+    let layer = egui::LayerId::new(parent.order, parent.id.with("cantus-learn"));
+    ui.ctx().set_sublayer(parent, layer);
+    let painter = ui
+        .ctx()
+        .layer_painter(layer)
+        .with_clip_rect(clip.intersect(ui.clip_rect()));
+    super::with_brush(&painter, |b| learn_mark(b, rect, &s));
 }
 
 /// A handle hovering over a control that would take it: the drop target's outline.

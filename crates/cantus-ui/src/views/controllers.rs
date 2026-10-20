@@ -12,6 +12,10 @@
 use crate::app::CantusApp;
 use crate::controllers::{channel_text, control_text, mode_text, port_text, takeover_text, Scope};
 use crate::i18n::{t, tf};
+
+fn t_(key: &str) -> String {
+    t(key)
+}
 use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
 use crate::kit::menu::{Check, Item};
@@ -303,20 +307,16 @@ fn header(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     }
 }
 
-/// Every target a global map can hold, in sections: what *Add* offers.
+/// Every target a global map can hold, in sections: what *Add* offers — the tempo, the
+/// master, the selected track and channel, the focused device's knobs, and every keymap
+/// action by its category (FL's and Ableton's: anything a key does, a button can).
 pub fn portable_targets() -> Vec<(Option<&'static str>, MappingTarget)> {
     use crate::keymap::{Action, Category};
     let mut out: Vec<(Option<&'static str>, MappingTarget)> = Vec::new();
     let band = |out: &mut Vec<(Option<&'static str>, MappingTarget)>, key: &'static str| {
         out.push((Some(key), MappingTarget::Tempo));
     };
-    band(&mut out, "ctl.add.transport");
-    for a in Action::ALL
-        .into_iter()
-        .filter(|a| a.category() == Category::Transport)
-    {
-        out.push((None, MappingTarget::Action(a.id().to_string())));
-    }
+    band(&mut out, "ctl.target.tempo");
     out.push((None, MappingTarget::Tempo));
     band(&mut out, "ctl.add.master");
     for t in [
@@ -338,6 +338,12 @@ pub fn portable_targets() -> Vec<(Option<&'static str>, MappingTarget)> {
     for n in 0..DEVICE_PARAMS {
         out.push((None, MappingTarget::DeviceParam(n)));
     }
+    for c in Category::ALL {
+        band(&mut out, c.label_key());
+        for a in Action::ALL.into_iter().filter(|a| a.category() == c) {
+            out.push((None, MappingTarget::Action(a.id().to_string())));
+        }
+    }
     out
 }
 
@@ -348,7 +354,11 @@ fn add_menu(app: &mut CantusApp, field: &egui::Response) {
         .iter()
         .map(|(band, t)| match band {
             Some(_) => None,
-            None => Some(app.mapping_target_name(t)),
+            None => Some(match t {
+                MappingTarget::Action(id) => crate::keymap::Action::from_id(id)
+                    .map_or_else(|| id.clone(), |a| t_(&a.label_key())),
+                _ => app.mapping_target_name(t),
+            }),
         })
         .collect();
     let mut chosen = None;
@@ -484,6 +494,14 @@ pub fn parse_value(app: &CantusApp, target: &MappingTarget, typed: &str) -> Opti
                 | AutoTarget::MasterWidth
                 | AutoTarget::Send { .. }
                 | AutoTarget::ModAmount(_) => v / 100.0,
+                // A device's parameter in its own units, as its knob reads them: "50%",
+                // "1.2 s", "2.5 kHz" (review 1, #43).
+                AutoTarget::Effect { .. }
+                | AutoTarget::Instrument { .. }
+                | AutoTarget::Firmus { .. } => cantus_core::fx::readout::parse_readout(
+                    typed,
+                    crate::automation::unit_of(p, a),
+                )?,
                 _ => v,
             };
             r.pos(v)
@@ -730,7 +748,7 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     let cid = |what: &str| Id::new(("ctl-row", sc, m.id.0, what.to_string()));
     let c = columns(rr, k);
     let key = (scope, m.id);
-    let alive = scope == Scope::Global || m.target.exists(app.project());
+    let alive = app.mapping_alive(scope, m);
     let lit = app
         .controllers
         .activity
@@ -895,8 +913,8 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
             &curve_words,
             (m.curve + 1.0) * 0.5,
             0.5,
-            // A curve is typed in percent, −100…100.
-            &MappingTarget::DeviceParam(0),
+            // A curve is typed in percent, -100 to 100: a pan's words (review 1, #42).
+            &MappingTarget::Param(AutoTarget::MasterPan),
         )
     };
     put(app, tag("curve"), c[6]);
@@ -934,15 +952,20 @@ fn row(app: &mut CantusApp, ui: &mut Ui, scope: Scope, m: &Mapping, i: usize, w:
     }
     // Feedback.
     let fr = c[8].shrink2(Vec2::new(0.0, 3.0 * k));
-    let fb = LedButton::new(m.feedback, Src::Key("ctl.view.send"))
-        .name(&t("ctl.view.send_tip"))
-        .id(cid("feedback"))
-        .show_at(ui, fr);
-    put(app, tag("feedback"), fr);
-    if fb.clicked() {
-        let mut n = m.clone();
-        n.feedback = !n.feedback;
-        app.set_mapping(scope, n, None);
+    if crate::controllers_feedback::can_feed_back(app, m) {
+        let fb = LedButton::new(m.feedback, Src::Key("ctl.view.send"))
+            .name(&t("ctl.view.send_tip"))
+            .id(cid("feedback"))
+            .show_at(ui, fr);
+        put(app, tag("feedback"), fr);
+        if fb.clicked() {
+            let mut n = m.clone();
+            n.feedback = !n.feedback;
+            app.set_mapping(scope, n, None);
+        }
+    } else {
+        // Nothing to send back: a program change, an action that is no state (#44).
+        cell_text(ui, fr, &s, "\u{2014}", s.t.text_dim, Role::Body);
     }
     // Learn again; remove.
     let lr = c[9].shrink(2.0 * k);

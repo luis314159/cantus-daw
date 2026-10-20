@@ -664,6 +664,10 @@ impl PinMod {
         if self.offer.automated {
             a::mark(b, rect, s);
         }
+        // Mapped to a controller (round 29, review 1 of ADR 0062).
+        if self.offer.learn().is_some_and(|l| l.mapped) {
+            a::learn_mark(b, rect, s);
+        }
         if self.n > 0 {
             a::mod_mark(b, rect, s);
             let live = self.offer.modulation.and_then(|m| m.live);

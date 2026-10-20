@@ -1321,22 +1321,24 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         Act::LearnSlot(fx, what) => {
             app.learn_target(crate::controllers::slot_learn_target(fx, what));
         }
+        // One undo step, one status for the whole strip or insert (review 1, #51).
         Act::ForgetStrip(id) => {
-            for what in 0..5 {
-                if let Some(t) = crate::controllers::strip_learn_target(id, what) {
-                    if app.is_mapped(&t) {
-                        app.forget_target(&t);
-                    }
-                }
-            }
+            let all: Vec<_> = (0..5)
+                .filter_map(|w| crate::controllers::strip_learn_target(id, w))
+                .collect();
+            let name = crate::automation::target_parts(
+                app.project(),
+                &cantus_core::AutoTarget::StripGain(id),
+            )
+            .0;
+            app.forget_targets(&all, &name);
         }
         Act::ForgetSlot(fx) => {
-            for what in 0..2 {
-                let t = crate::controllers::slot_learn_target(fx, what);
-                if app.is_mapped(&t) {
-                    app.forget_target(&t);
-                }
-            }
+            let all: Vec<_> = (0..2)
+                .map(|w| crate::controllers::slot_learn_target(fx, w))
+                .collect();
+            let name = app.mapping_target_name(&all[0]);
+            app.forget_targets(&all, &name);
         }
         Act::Automate(id, what) => app.automate(strip_target(id, what)),
         Act::Modulate(id, what) => {

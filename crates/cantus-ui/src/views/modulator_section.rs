@@ -492,6 +492,10 @@ pub fn wired_value(
     if offer.automated {
         crate::kit::automate::mark(sh.b, rect, &s);
     }
+    // Mapped to a controller (round 29, review 1 of ADR 0062).
+    if m.learn.is_some_and(|l| l.mapped) {
+        crate::kit::automate::learn_mark(sh.b, rect, &s);
+    }
     if n > 0 {
         crate::kit::automate::mod_mark(sh.b, rect, &s);
         // Where modulation has it now: a tick on the well's level bar.

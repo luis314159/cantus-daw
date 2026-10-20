@@ -892,16 +892,18 @@ fn controls(
         let m = sense(ui, pass, hit(mc), pid(Some(id), Part::Mute), Sense::click());
         let so = sense(ui, pass, hit(sc), pid(Some(id), Part::Solo), Sense::click());
         // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
-        crate::controllers::learn_spot(
+        crate::controllers::learn_spot_in(
             app,
             ui,
             hit(mc),
+            pass.clip,
             cantus_core::controller::MappingTarget::StripMute(id),
         );
-        crate::controllers::learn_spot(
+        crate::controllers::learn_spot_in(
             app,
             ui,
             hit(sc),
+            pass.clip,
             cantus_core::controller::MappingTarget::StripSolo(id),
         );
         let mh = m.as_ref().is_some_and(|r| r.hovered());
@@ -1418,6 +1420,7 @@ impl DeskMod {
     ) -> Self {
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
         let (m, n) = app.mod_offer(&target, pos, s, &mut rings);
+        crate::kit::automate::probe::note_learn(&format!("desk:{target:?}"), m.learn.is_some());
         DeskMod {
             target,
             offer: Some(crate::kit::automate::Offer {
@@ -1458,6 +1461,11 @@ impl DeskMod {
             && resp.is_some_and(|r| r.contains_pointer())
         {
             crate::kit::automate::drop_target(b, rect, s);
+        }
+        // Mapped to a controller (round 29, review 1 of ADR 0062): the mapped mark.
+        let learn = self.offer.and_then(|o| o.learn());
+        if learn.is_some_and(|l| l.mapped && !l.mode) {
+            crate::kit::automate::learn_mark(b, rect, s);
         }
     }
 

@@ -261,6 +261,7 @@ pub(super) fn header_input(
     id: TrackId,
     rr: &RecRects,
     s: &Style,
+    clip: Rect,
 ) {
     let k = s.k;
     let arm = ui.interact(
@@ -269,10 +270,11 @@ pub(super) fn header_input(
         Sense::click(),
     );
     // MIDI learn mode (round 29, ADR 0062): the arm lamp is learnable.
-    crate::controllers::learn_spot(
+    crate::controllers::learn_spot_in(
         app,
         ui,
         arm.rect,
+        clip,
         cantus_core::controller::MappingTarget::TrackArm(id),
     );
     if arm.hovered() {

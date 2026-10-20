@@ -178,6 +178,58 @@ impl CommandBus {
         }
     }
 
+    /// Seal the current gesture only if the step on top is `key`'s: a gesture that ends on
+    /// its own clock (a controller's) never seals another's (a mouse drag going on).
+    pub fn end_gesture_if(&mut self, key: MergeKey) {
+        if let Some(top) = self.undo.last_mut() {
+            if top.merge_key == Some(key) {
+                top.merge_key = None;
+            }
+        }
+    }
+
+    /// Widen the gesture on top: `command` (a batch over every target the gesture moves now,
+    /// more than before) is applied, and if the step on top is `from`'s it becomes that
+    /// step — its command the new one (which sets every target it moves from scratch), its
+    /// inverse the new inverse then the old (which restore the joining targets, then the
+    /// earlier ones, to where they were before the gesture) — under the key `to`. Otherwise
+    /// it is [`Self::execute_merging`] under `to`. One gesture, one undo step, however its
+    /// targets join (a controller's knobs, ADR 0062 review 1).
+    pub fn widen_merging(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        from: MergeKey,
+        to: MergeKey,
+    ) -> Result<(), CommandError> {
+        let widen = self
+            .undo
+            .last()
+            .is_some_and(|top| top.merge_key == Some(from) && top.origin == origin);
+        if !widen {
+            return self.execute_inner(command, origin, Some(to));
+        }
+        let label_key = command.label_key().to_string();
+        let inverse = match command.clone().apply(&mut self.project) {
+            Ok(inv) => inv,
+            Err(e) => {
+                self.audit_push(origin, label_key, AuditKind::Rejected);
+                return Err(e);
+            }
+        };
+        self.revision += 1;
+        self.redo.clear();
+        let top = self.undo.last_mut().expect("checked above");
+        let placeholder = Command::SetMetronome { enabled: false };
+        let old_inv = std::mem::replace(&mut top.inverse, placeholder);
+        top.inverse = compose(&label_key, old_inv, inverse, true);
+        top.command = command;
+        top.label_key = label_key.clone();
+        top.merge_key = Some(to);
+        self.audit_push(origin, label_key, AuditKind::Execute);
+        Ok(())
+    }
+
     fn execute_inner(
         &mut self,
         command: Command,
@@ -354,6 +406,58 @@ fn compose(label: &str, old: Command, new: Command, prepend: bool) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A gesture that widens (a second knob joins a turning one) is one undo step: undo
+    /// takes both back to where they were before it; redo sets both; and another gesture's
+    /// step is not sealed by this one's clock.
+    #[test]
+    fn a_widened_gesture_is_one_step_and_seals_only_itself() {
+        let mut bus = CommandBus::default();
+        let m = bus.project().master.clone();
+        let (a, b) = (MergeKey::of(&"a"), MergeKey::of(&"ab"));
+        bus.execute_merging(Command::SetMasterPan { pan: 0.2 }, Origin::User, a)
+            .unwrap();
+        bus.execute_merging(Command::SetMasterPan { pan: 0.3 }, Origin::User, a)
+            .unwrap();
+        let both = |pan: f32, width: f32| Command::Batch {
+            label_key: "cmd.controllers.gesture".into(),
+            commands: vec![
+                Command::SetMasterPan { pan },
+                Command::SetMasterWidth { width },
+            ],
+        };
+        bus.widen_merging(both(0.4, 1.5), Origin::User, a, b)
+            .unwrap();
+        bus.execute_merging(both(0.5, 1.7), Origin::User, b)
+            .unwrap();
+        assert_eq!(bus.history().len(), 1, "one step");
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (0.5, 1.7)
+        );
+        bus.undo();
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (m.pan, m.width)
+        );
+        bus.redo();
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (0.5, 1.7)
+        );
+        // Sealing by another key leaves the step open; by its own, closes it.
+        let c = MergeKey::of(&"c");
+        bus.execute_merging(both(0.6, 1.8), Origin::User, c)
+            .unwrap();
+        bus.end_gesture_if(MergeKey::of(&"mouse"));
+        bus.execute_merging(both(0.65, 1.8), Origin::User, c)
+            .unwrap();
+        assert_eq!(bus.history().len(), 2);
+        bus.end_gesture_if(c);
+        bus.execute_merging(both(0.7, 1.9), Origin::User, c)
+            .unwrap();
+        assert_eq!(bus.history().len(), 3);
+    }
     use crate::model::TrackId;
 
     #[test]

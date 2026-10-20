@@ -53,6 +53,15 @@ impl CantusApp {
             }
         };
         let tick = tick.unwrap_or(self.engine.position().0);
+        self.record_point_at(target, pos, tick);
+    }
+
+    /// A parameter at `pos` (0…1 of its travel) at `tick`, into the pass's automation (what
+    /// a controller writes: its target and position, whatever its command, ADR 0062).
+    pub fn record_point_at(&mut self, target: AutoTarget, pos: f32, tick: i64) {
+        if self.rec.pass.is_none() || !self.project().recording.record_automation {
+            return;
+        }
         self.modulators
             .rec
             .points

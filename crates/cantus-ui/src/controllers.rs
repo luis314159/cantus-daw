@@ -41,6 +41,14 @@ pub enum Scope {
 /// A mapping's key in the interface's state.
 pub type Key = (Scope, MappingId);
 
+/// A 14-bit pair's state on one port, channel and number: its coarse value, and whether its
+/// fine half has ever come (a controller in 7-bit mode never sends it).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Wide {
+    pub msb: u8,
+    pub lsb_seen: bool,
+}
+
 /// A target armed to learn the next hardware control moved.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Learning {
@@ -53,7 +61,8 @@ pub struct Learning {
     pub source: Option<(u8, u8)>,
     /// When the first message came.
     pub first: Option<Instant>,
-    /// When it was armed (an armed learn that hears nothing is dropped after a while).
+    /// When it was armed: an armed learn that hears nothing is dropped after
+    /// `controllers_learn::LEARN_TIMEOUT`, so a forgotten learn does not eat the next note.
     pub armed_at: Instant,
 }
 
@@ -76,12 +85,18 @@ pub struct ControllerUi {
     pub gesture: crate::controllers_input::Gesture,
     /// The filter last published, and what it was made from: the project's revision, the
     /// global map, the ports.
-    pub(crate) published: Option<(u64, ControllerMap, Vec<String>)>,
+    /// The project's revision, the loaded hosted parameters' signature, the global map, the
+    /// ports.
+    pub(crate) published: Option<(u64, u64, ControllerMap, Vec<String>)>,
     /// MIDI out for feedback, and the value last sent per mapping.
     pub outputs: MidiOutputs,
     pub sent: HashMap<Key, u16>,
+    /// Feedback just sent, by port: what comes back within a moment is its echo.
+    pub(crate) echoes: Vec<(u8, [u8; 3], Instant)>,
+    /// Feedback written here instead of to MIDI out (the tests' sink).
+    pub feedback_log: Option<Vec<(String, Vec<u8>)>>,
     /// The coarse and fine halves of 14-bit controllers, per port, channel and number.
-    pub(crate) wide: HashMap<(u8, u8, u8), (u8, u8)>,
+    pub(crate) wide: HashMap<(u8, u8, u8), Wide>,
     /// A frame's messages (kept to reuse the allocation).
     pub(crate) buf: Vec<Heard>,
     /// The mappings view's state.
@@ -104,6 +119,7 @@ impl ControllerUi {
         self.published = None;
         self.outputs.reset();
         self.sent.clear();
+        self.echoes.clear();
         self.wide.clear();
         self.states.clear();
     }
@@ -137,14 +153,21 @@ struct GlobalFile {
 /// is malformed or names a target that is not portable is left out (logged), so one bad
 /// line never loses the rest.
 pub fn load_global(path: &Path) -> ControllerMap {
+    load_global_checked(path).0
+}
+
+/// [`load_global`], and whether the file was damaged: then it is kept beside, as
+/// `controllers.json.bad`, before anything can write over it (review 1, #31).
+pub fn load_global_checked(path: &Path) -> (ControllerMap, bool) {
     let Ok(text) = std::fs::read_to_string(path) else {
-        return ControllerMap::default();
+        return (ControllerMap::default(), false);
     };
     let file: GlobalFile = match serde_json::from_str(&text) {
         Ok(f) => f,
         Err(e) => {
             log::warn!("controllers: cannot read {}: {e}", path.display());
-            return ControllerMap::default();
+            let _ = std::fs::rename(path, path.with_extension("json.bad"));
+            return (ControllerMap::default(), true);
         }
     };
     let mut map = ControllerMap::default();
@@ -157,7 +180,7 @@ pub fn load_global(path: &Path) -> ControllerMap {
             Err(e) => log::warn!("controllers: a mapping left out: {e}"),
         }
     }
-    map
+    (map, false)
 }
 
 /// Write the global map.
@@ -174,7 +197,15 @@ pub fn save_global(path: &Path, map: &ControllerMap) -> std::io::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    std::fs::write(path, text)
+    // Through a file beside, flushed, then renamed: a crash mid-write leaves the old map.
+    let tmp = path.with_extension("json.tmp");
+    {
+        use std::io::Write as _;
+        let mut f = std::fs::File::create(&tmp)?;
+        f.write_all(text.as_bytes())?;
+        f.sync_all()?;
+    }
+    std::fs::rename(&tmp, path)
 }
 
 // ---- words --------------------------------------------------------------------------------
@@ -421,13 +452,28 @@ impl CantusApp {
 
     /// Take every mapping of `target` away (the project's: one undo step).
     pub fn forget_target(&mut self, target: &MappingTarget) {
+        let name = self.mapping_target_name(target);
+        self.forget_targets(std::slice::from_ref(target), &name);
+    }
+
+    /// Take every mapping of every target in `targets` away: the project's in one undo
+    /// step, the global ones saved once, one status naming `what` (review 1, #51).
+    pub fn forget_targets(&mut self, targets: &[MappingTarget], what: &str) {
         let project: Vec<MappingId> = self
             .project()
             .controllers
-            .of_target(target)
+            .mappings
+            .iter()
+            .filter(|m| targets.contains(&m.target))
             .map(|m| m.id)
             .collect();
-        let global = self.controllers.global.of_target(target).count();
+        let global = self
+            .controllers
+            .global
+            .mappings
+            .iter()
+            .filter(|m| targets.contains(&m.target))
+            .count();
         if !project.is_empty() {
             let commands: Vec<Command> = project
                 .into_iter()
@@ -447,11 +493,10 @@ impl CantusApp {
             self.controllers
                 .global
                 .mappings
-                .retain(|m| &m.target != target);
+                .retain(|m| !targets.contains(&m.target));
             self.store_global_map();
         }
-        let name = self.mapping_target_name(target);
-        self.set_status(tf("ctl.status.forgot", &[("name", &name)]));
+        self.set_status(tf("ctl.status.forgot", &[("name", &what)]));
     }
 
     /// The learn mode on or off (Ableton's MIDI Map mode). Off lets go of a learn in
@@ -743,12 +788,33 @@ pub fn learn_spot(
     rect: egui::Rect,
     target: MappingTarget,
 ) -> bool {
-    if !app.controllers.learn_mode || !ui.is_rect_visible(rect) {
+    learn_spot_in(app, ui, rect, ui.clip_rect(), target)
+}
+
+/// [`learn_spot`] inside `clip` (a view's own visible area: the mixer's strips scrolled
+/// under a dock, an arrangement header under the ruler) — nothing outlined or covered
+/// outside it (review 1, #46). Outside learn mode a mapped spot wears the mapped mark.
+pub fn learn_spot_in(
+    app: &mut CantusApp,
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    clip: egui::Rect,
+    target: MappingTarget,
+) -> bool {
+    let shown = rect.intersect(clip).intersect(ui.clip_rect());
+    crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
+    if shown.width() <= 0.0 || shown.height() <= 0.0 || !ui.is_rect_visible(shown) {
         return false;
     }
     let offer = app.learn_offer(&target);
+    if !app.controllers.learn_mode {
+        if offer.mapped {
+            crate::kit::automate::learn_mark_over(ui, rect, shown);
+        }
+        return false;
+    }
     let id = ui.id().with(("learn-spot", &target));
-    let clicked = crate::kit::automate::learn_spot(ui, rect, id, offer);
+    let clicked = crate::kit::automate::learn_spot_clipped(ui, rect, shown, id, offer);
     if clicked {
         app.learn_target(target);
     }
@@ -810,11 +876,13 @@ pub fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: cantus_core::Track
             true
         }
         Some(i) if any && i == targets.len() + 1 => {
-            for ((t, _), m) in targets.iter().zip(&mapped) {
-                if *m {
-                    app.forget_target(t);
-                }
-            }
+            let all: Vec<MappingTarget> = targets.iter().map(|(t, _)| t.clone()).collect();
+            let name = app
+                .project()
+                .track(id)
+                .map(|t| t.name.clone())
+                .unwrap_or_default();
+            app.forget_targets(&all, &name);
             true
         }
         _ => false,
@@ -851,7 +919,7 @@ pub fn slot_learn_target(effect: cantus_core::EffectId, what: u8) -> MappingTarg
 /// A raw message's addresses and values as mappings read them: a 7-bit controller is also
 /// its 14-bit pair's half; a note-off (or a note-on at 0) is a release.
 pub(crate) fn decode(
-    wide: &mut HashMap<(u8, u8, u8), (u8, u8)>,
+    wide: &mut HashMap<(u8, u8, u8), Wide>,
     port: u8,
     ev: &MidiEvent,
 ) -> (u8, [(Control, u16, bool); 2], usize) {
@@ -862,18 +930,22 @@ pub(crate) fn decode(
         0xB0 => {
             let first = (Control::Cc(d1), u16::from(d2), true);
             if d1 < 32 {
-                let e = wide.entry((port, ch, d1)).or_insert((0, 0));
-                // A new coarse value starts its fine part again (MIDI's rule).
-                *e = (d2, 0);
-                (
-                    ch,
-                    [first, (Control::Cc14(d1), u16::from(d2) << 7, true)],
-                    2,
-                )
+                let e = wide.entry((port, ch, d1)).or_default();
+                e.msb = d2;
+                if e.lsb_seen {
+                    // Its fine half follows: the pair is read then, never half-made
+                    // (review 1, #9).
+                    (ch, [first, none], 1)
+                } else {
+                    // A pair that never sent its fine half (7-bit mode): the coarse value
+                    // over the whole 14-bit travel, so its top is the top.
+                    let v = (u32::from(d2) * 16_383 / 127) as u16;
+                    (ch, [first, (Control::Cc14(d1), v, true)], 2)
+                }
             } else if d1 < 64 {
-                let e = wide.entry((port, ch, d1 - 32)).or_insert((0, 0));
-                e.1 = d2;
-                let v = u16::from(e.0) << 7 | u16::from(d2);
+                let e = wide.entry((port, ch, d1 - 32)).or_default();
+                e.lsb_seen = true;
+                let v = u16::from(e.msb) << 7 | u16::from(d2);
                 (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
             } else {
                 (ch, [first, none], 1)
