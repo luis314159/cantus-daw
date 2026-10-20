@@ -533,15 +533,17 @@ nombre (ronda 29).
 - **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
   elige los dos marcadores por su nombre (dos en lugares distintos: si no, el diálogo lo
   dice, y nunca exporta la canción entera en su lugar).
-- Todo sigue al tempo: las notas, los clips de audio (un clip de audio sin warp suena a su
-  velocidad natural desde el momento de su archivo que tiene en su inicio — divídelo,
-  recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba; muévelo o
-  cópialo a otro lugar y suena la misma parte de su archivo, y varios clips movidos juntos
-  siguen tocándose; un cambio de tempo nunca mueve lo que un clip suena en su inicio,
-  aunque un clip que cruza el cambio sigue a su propia velocidad — aplícale warp para que
-  siga sus compases), la automatización,
-  los moduladores, los efectos sincronizados, el metrónomo (acentúa el primer tiempo de
-  cada compás; un compás de 7/8 se cuenta en corcheas) y los plug-ins de otros.
+- Todo sigue al tempo: las notas, los clips de audio, la automatización, los moduladores,
+  los efectos sincronizados, el metrónomo (acentúa el primer tiempo de cada compás; un
+  compás de 7/8 se cuenta en corcheas) y los plug-ins de otros. Un clip de audio sin warp
+  suena a su velocidad natural a partir del punto de su archivo que cae en su inicio:
+  divídelo, recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba;
+  mueve o copia clips a otro lugar y cada uno cae en su propio compás con la misma parte
+  de su archivo (los trozos de una misma toma movidos juntos siguen tocándose). Un cambio
+  de tempo nunca cambia dónde entra una toma, y los trozos de una toma se mueven juntos,
+  así que una división nunca salta; un cambio *dentro* de una toma deja que el resto siga
+  a su propia velocidad — aplícale warp para que siga los compases. Un clip invertido
+  conserva el instante en que termina. El tempo no cambia mientras se graba una toma.
 - **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
   de tempo cada semicorchea, y todos los marcadores, también los del final) y al importar —
   con *Poner el proyecto a … BPM en …* se conservan los cambios de tempo, de compás y los

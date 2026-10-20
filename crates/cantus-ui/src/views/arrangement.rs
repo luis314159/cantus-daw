@@ -327,6 +327,22 @@ impl ArrangementView {
         self.audio.drag.is_some()
     }
 
+    /// A move of the selection in progress, `anchor` dragged by `delta` — for the shots
+    /// (`examples/shoot_tempo.rs`), which cannot press a pointer: what a drag draws.
+    #[doc(hidden)]
+    pub fn shoot_move(&mut self, anchor: (TrackId, ClipId), start: Ticks, delta: Ticks) {
+        self.drag = Some(ClipDrag {
+            mode: DragMode::Move,
+            anchor,
+            anchor_start: start,
+            anchor_length: Ticks::ZERO,
+            press: egui::Pos2::ZERO,
+            delta,
+            rows: 0,
+            copy: false,
+        });
+    }
+
     pub fn begin_rename_clip(&mut self, clip: (TrackId, ClipId), name: String) {
         self.rename_clip = Some((clip, name));
     }

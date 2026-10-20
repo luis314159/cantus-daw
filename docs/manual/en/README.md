@@ -496,14 +496,16 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
 - **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
   two markers by name (two at different places: the dialog says so otherwise, and never
   exports the whole song instead).
-- Everything follows the tempo: notes, audio clips (an unwarped audio clip plays at its
-  natural speed from the moment of its file at its start — split it, trim it, comp it
-  anywhere and every piece plays on where it was; move or copy it elsewhere and it plays
-  the same part of its file, several clips moved together still meeting; a tempo change
-  never moves what a clip plays at its start, though a clip that spans the change plays
-  on at its own speed — warp it to keep it on its bars), automation, modulators, synced effects, the click
-  (the first beat of every bar accented; a bar of 7/8 counted in eighths) and plug-ins
-  made by others.
+- Everything follows the tempo: notes, audio clips, automation, modulators, synced
+  effects, the click (the first beat of every bar accented; a bar of 7/8 counted in
+  eighths) and plug-ins made by others. An unwarped audio clip plays at its natural speed
+  from the point of its file at its start: split it, trim it or comp it anywhere and every
+  piece plays on where it was; move or copy clips elsewhere and each lands on its own bar,
+  playing the same part of its file (the pieces of one take moved together still meet).
+  A tempo change never moves where a take comes in, and the pieces of one take move
+  together, so a split never jumps; a change *inside* a take lets the rest of it run on
+  at its own speed — warp it to keep it on its bars. A reversed clip keeps the moment it
+  lands on, at its end. The tempo stays as it is while a take records.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
   note, and every marker, those at the end too) and in — importing with *Set the project
   to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's
