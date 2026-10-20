@@ -346,9 +346,15 @@ fn an_encoder_steps_and_a_button_toggles_and_fires_once() {
     play.source.port = PortRef::any();
     a.controllers.global.mappings.push(play);
     let before = a.project().metronome;
-    a.controller_heard(&[cc(41, 127), cc(41, 127)]);
+    a.controller_heard(&[cc(41, 127)]);
     assert_eq!(a.project().metronome, !before, "fired once");
+    // A button that never sends a release presses each time it sends (review 1, #0).
+    a.controller_heard(&[cc(41, 127)]);
+    assert_eq!(a.project().metronome, before, "fired again");
     a.controller_heard(&[cc(41, 0), cc(41, 127)]);
+    assert_eq!(a.project().metronome, !before, "released, pressed: fired");
+    a.controller_heard(&[cc(41, 0)]);
+    a.controller_heard(&[cc(41, 127)]);
     assert_eq!(
         a.project().metronome,
         before,
@@ -537,21 +543,21 @@ fn a_parameter_a_pass_records_follows_its_controller_not_its_clip() {
 
 #[test]
 fn feedback_sends_the_value_back_once_per_change() {
-    use cantus_ui::controllers_feedback::feedback_bytes;
-    assert_eq!(feedback_bytes(Control::Cc(7), 2, 100), vec![0xB2, 7, 100]);
+    use cantus_ui::controllers_feedback::feedback_messages;
+    assert_eq!(feedback_messages(Control::Cc(7), 2, 100), vec![vec![0xB2, 7, 100]]);
     assert_eq!(
-        feedback_bytes(Control::Cc14(7), 0, 16_383),
-        vec![0xB0, 7, 127, 0xB0, 39, 127]
+        feedback_messages(Control::Cc14(7), 0, 16_383),
+        vec![vec![0xB0, 7, 127], vec![0xB0, 39, 127]]
     );
     assert_eq!(
-        feedback_bytes(Control::Note(36), 9, 127),
-        vec![0x99, 36, 127]
+        feedback_messages(Control::Note(36), 9, 127),
+        vec![vec![0x99, 36, 127]]
     );
     assert_eq!(
-        feedback_bytes(Control::PitchBend, 0, 8192),
-        vec![0xE0, 0, 64]
+        feedback_messages(Control::PitchBend, 0, 8192),
+        vec![vec![0xE0, 0, 64]]
     );
-    assert!(feedback_bytes(Control::Program(1), 0, 1).is_empty());
+    assert!(feedback_messages(Control::Program(1), 0, 1).is_empty());
     let mut a = keys_app();
     let s = strip(&a);
     let id = map(
@@ -564,6 +570,7 @@ fn feedback_sends_the_value_back_once_per_change() {
     let mut m = a.project().controllers.get(id).unwrap().clone();
     m.feedback = true;
     a.set_mapping(Scope::Project, m, None);
+    a.controllers.feedback_log = Some(Vec::new());
     a.controller_input();
     let sent = a.controllers.sent.get(&(Scope::Project, id)).copied();
     assert_eq!(sent, Some(64), "the pan's middle");
