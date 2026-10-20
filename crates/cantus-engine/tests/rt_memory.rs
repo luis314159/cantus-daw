@@ -925,3 +925,44 @@ fn a_tempo_map_never_allocates() {
         );
     }
 }
+
+/// Round 29 (ADR 0062): what live MIDI now routes that it used to drop — channel
+/// pressure, key pressure on a held key, program changes — on a native instrument whose
+/// unit reads pressure, while it plays: not one allocation.
+#[test]
+fn live_pressure_and_program_changes_never_allocate() {
+    let mut p = Project::new("live");
+    let mut tr = p.make_track("Wave");
+    tr.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Wavetable));
+    let track = tr.id;
+    p.tracks.push(tr);
+    let mut rig = Rig::new();
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::SetLiveTrack(Some(track))).unwrap();
+    rig.play("warm", 4);
+    rig.allocations.clear();
+    let ev = |status: u8, data1: u8, data2: u8| {
+        EngineMessage::Midi(cantus_engine::MidiEvent {
+            status,
+            data1,
+            data2,
+        })
+    };
+    for i in 0..40u8 {
+        rig.tx.push(ev(0x90, 48 + i % 12, 100)).unwrap();
+        rig.tx.push(ev(0xD0, i * 3, 0)).unwrap();
+        rig.tx.push(ev(0xA0, 48 + i % 12, i * 2)).unwrap();
+        rig.tx.push(ev(0xC0, i % 8, 0)).unwrap();
+        rig.play("live pressure and programs", 1);
+        rig.tx.push(ev(0x80, 48 + i % 12, 0)).unwrap();
+    }
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "live MIDI allocated: {:?}",
+        rig.allocations
+    );
+}

@@ -74,8 +74,9 @@ pub struct ControllerUi {
     pub activity: HashMap<Key, Instant>,
     /// The gesture going on: the targets it moved, its undo key, its last message.
     pub gesture: crate::controllers_input::Gesture,
-    /// The filter last published, and what it was made from.
-    pub(crate) published: Option<(ControllerMap, ControllerMap, Vec<String>)>,
+    /// The filter last published, and what it was made from: the project's revision, the
+    /// global map, the ports.
+    pub(crate) published: Option<(u64, ControllerMap, Vec<String>)>,
     /// MIDI out for feedback, and the value last sent per mapping.
     pub outputs: MidiOutputs,
     pub sent: HashMap<Key, u16>,

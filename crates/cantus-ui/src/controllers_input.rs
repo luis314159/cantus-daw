@@ -309,35 +309,27 @@ impl CantusApp {
         self.controllers.gesture.last = Some(Instant::now());
     }
 
-    /// Publish what the maps take (only when the maps, the ports or which targets exist
-    /// changed): mapped messages are consumed before the engine.
+    /// Publish what the maps take (only when the project changed, the global map or the
+    /// ports did): mapped messages are consumed before the engine. Nothing is cloned while
+    /// nothing changed (a revision and two comparisons a frame).
     pub fn publish_controller_filter(&mut self) {
-        let names = self.midi_port_names.clone();
-        let p = self.project();
-        let alive: Vec<bool> = p
-            .controllers
-            .mappings
-            .iter()
-            .map(|m| m.target.exists(p))
-            .collect();
-        let mut proj = p.controllers.clone();
-        // Dormant mappings take nothing: their messages play as if unmapped.
-        let mut keep = alive.iter();
-        proj.mappings.retain(|_| *keep.next().unwrap_or(&false));
+        let rev = self.bus.revision();
         let same = self
             .controllers
             .published
             .as_ref()
-            .is_some_and(|(a, b, c)| *a == proj && *b == self.controllers.global && *c == names);
+            .is_some_and(|(r, g, n)| {
+                *r == rev && *g == self.controllers.global && *n == self.midi_port_names
+            });
         if same {
             return;
         }
+        let names = self.midi_port_names.clone();
+        let p = self.project();
         let mut set = FilterSet::default();
-        for m in proj
-            .mappings
-            .iter()
-            .chain(&self.controllers.global.mappings)
-        {
+        // Dormant mappings take nothing: their messages play as if unmapped.
+        let live = p.controllers.mappings.iter().filter(|m| m.target.exists(p));
+        for m in live.chain(&self.controllers.global.mappings) {
             for i in 0..names.len() {
                 if m.source.port.matches(&names, i) {
                     set.take(i, m.source.channel, m.source.control);
@@ -345,7 +337,7 @@ impl CantusApp {
             }
         }
         self.controllers.tap.filter().publish(&set);
-        self.controllers.published = Some((proj, self.controllers.global.clone(), names));
+        self.controllers.published = Some((rev, self.controllers.global.clone(), names));
     }
 
     /// While a pass records automation, a parameter it has recorded follows what moves it,
