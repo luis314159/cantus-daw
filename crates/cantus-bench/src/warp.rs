@@ -169,3 +169,270 @@ pub fn render(mat: &Material, mode: Mode, ratio: f64, semis: f64) -> Vec<Vec<f32
         },
     )
 }
+
+/// A hit every half second (the transient measurements): a 0.2 ms rise into noise and a
+/// thump, nothing ringing from one into the next.
+fn hits() -> Material {
+    let n = (6.0 * SR) as usize;
+    let mut x = vec![0.0f32; n];
+    let mut g = Noise::new(7);
+    let mut at = Vec::new();
+    let mut s = (0.25 * SR) as usize;
+    while s + ((0.2 * SR) as usize) < n {
+        at.push(s as f64);
+        for k in 0..(0.15 * SR) as usize {
+            let t = k as f32 / SR;
+            let env = math::exp(-t / 0.025) * (k as f32 / (0.0002 * SR)).min(1.0);
+            let thump = math::sin(2.0 * std::f32::consts::PI * 70.0 * t) * math::exp(-t / 0.05);
+            x[s + k] += 0.6 * env * g.next() + 0.4 * thump * (k as f32 / 10.0).min(1.0);
+        }
+        s += (0.5 * SR) as usize;
+    }
+    Material {
+        name: "hits",
+        channels: stereo(x),
+        onsets: at,
+    }
+}
+
+fn metric(id: &str, unit: &str, better: Better, v: &[f64], note: &str) -> Metric {
+    Metric::new(id, unit, better, Summary::of(v))
+        .ungated()
+        .note(note)
+}
+
+/// The suite's metrics.
+pub fn suite(plan: &Plan) -> Vec<Metric> {
+    let mut out = Vec::new();
+    // Transients: attack (frames, 10–90 %), pre-echo (dB), timing (frames) per mode and
+    // ratio.
+    let h = hits();
+    for mode in [Mode::Complex, Mode::Rhythm] {
+        for ratio in RATIOS {
+            let y = render(&h, mode, ratio, 0.0);
+            let (mut att, mut pre, mut err) = (Vec::new(), Vec::new(), Vec::new());
+            for &s in &h.onsets[1..h.onsets.len() - 1] {
+                let o = (s * ratio).round() as usize;
+                if let Some(a) = m::attack_frames(&y[0], SR, o.saturating_sub(240), o + 960) {
+                    att.push(a as f64);
+                }
+                pre.push(m::pre_echo_db(&y[0], o, 1_200, 48) as f64);
+                if let Some(r) = m::rise_at(&y[0], o.saturating_sub(400), o + 400, 0.25) {
+                    err.push((r as f64 - o as f64).abs());
+                }
+            }
+            let id = format!("warp.{}.x{ratio}", mode_id(mode));
+            out.push(metric(
+                &format!("{id}.attack"),
+                "frames",
+                Better::Lower,
+                &att,
+                "10-90 % of a hit's envelope",
+            ));
+            out.push(metric(
+                &format!("{id}.pre_echo"),
+                "dB",
+                Better::Lower,
+                &pre,
+                "the 25 ms before a hit against the hit",
+            ));
+            out.push(metric(
+                &format!("{id}.timing"),
+                "frames",
+                Better::Lower,
+                &err,
+                "a hit's rise from where the map puts it",
+            ));
+        }
+    }
+    // Pitch: a harmonic tone shifted, measured by its fundamental (cents).
+    let tone: Vec<f32> = (0..(3.0 * SR) as usize)
+        .map(|i| {
+            let w = 2.0 * std::f64::consts::PI * 220.0 * i as f64 / SR as f64;
+            (0.4 * math::sin(w) + 0.2 * math::sin(2.0 * w) + 0.1 * math::sin(3.0 * w)) as f32
+        })
+        .collect();
+    let tm = Material {
+        name: "tone",
+        channels: stereo(tone),
+        onsets: Vec::new(),
+    };
+    for semis in [-12.0, -3.0, 7.0, 12.0] {
+        let mut cents = Vec::new();
+        for ratio in [0.8, 1.0, 1.25] {
+            let y = render(&tm, Mode::Complex, ratio, semis);
+            let want = 220.0 * math::exp2(semis as f32 / 12.0);
+            let n = y[0].len();
+            let f = pk::measured_f0(&y[0][n / 4..n * 3 / 4], SR, want);
+            cents.push(m::cents(f, want).abs() as f64);
+        }
+        out.push(metric(
+            &format!("warp.complex.pitch{semis:+}"),
+            "cents",
+            Better::Lower,
+            &cents,
+            "a 220 Hz tone shifted, stretched x0.8/1/1.25",
+        ));
+    }
+    // Phasiness: a held chord's level wander.
+    let p = pad();
+    for ratio in [0.8, 1.25] {
+        let y = render(&p, Mode::Complex, ratio, 0.0);
+        let n = y[0].len();
+        // What the stretch adds to the chord's own beating (its detuned voices wander too).
+        let n0 = p.channels[0].len();
+        let own = m::level_wander_db(&p.channels[0], SR, 261.6, n0 / 16, n0 / 4 - n0 / 32) as f64;
+        let w = m::level_wander_db(&y[0], SR, 261.6, n / 16, n / 4 - n / 32) as f64 - own;
+        out.push(metric(
+            &format!("warp.complex.x{ratio}.wander"),
+            "dB",
+            Better::Lower,
+            &[w],
+            "added to a held chord's own beating: its C, peak to peak, 40 ms windows",
+        ));
+    }
+    // CPU: milliseconds per second of audio, per mode, at x1.25 and -3 st.
+    let mats = if plan.quick {
+        vec![drums(), voice()]
+    } else {
+        vec![drums(), mix(), voice()]
+    };
+    for mode in Mode::ALL {
+        let mut ms = Vec::new();
+        for mat in &mats {
+            let secs = mat.channels[0].len() as f64 / SR as f64;
+            let t = Instant::now();
+            let _ = render(mat, mode, 1.25, -3.0);
+            ms.push(t.elapsed().as_secs_f64() * 1e3 / secs);
+        }
+        out.push(metric(
+            &format!("warp.{}.cpu", mode_id(mode)),
+            "ms/s",
+            Better::Lower,
+            &ms,
+            "one core, stereo, x1.25 and -3 st, offline",
+        ));
+    }
+    // The tempo detector's corpus (60–200 BPM, clicks and drums with swing).
+    let (mut inside, mut ok, mut octave) = (0usize, 0usize, 0usize);
+    let mut bpm = 60.0;
+    while bpm <= 200.0 {
+        for kind in 0..3 {
+            let mat = match kind {
+                0 => click_track(44_100.0, bpm, 8, 0.1),
+                1 => drum_loop(44_100.0, bpm, 6, 0.0, 0.2, bpm as u64),
+                _ => drum_loop(48_000.0, bpm, 6, 0.6, 0.05, bpm as u64 + 1),
+            };
+            let o = cantus_dsp::onset::detect(&mat.audio, mat.rate);
+            let g = cantus_dsp::beat::analyse(&o, mat.rate, mat.audio.len(), 4);
+            let near = (g.bpm - bpm).abs() <= 1.0;
+            if (70.0..=180.0).contains(&bpm) {
+                inside += 1;
+                ok += near as usize;
+            }
+            if !near && [0.5, 2.0].iter().any(|k| (g.bpm - bpm * k).abs() <= 1.0) {
+                octave += 1;
+            }
+        }
+        bpm += 5.0;
+    }
+    out.push(metric(
+        "warp.tempo.within_1bpm",
+        "%",
+        Better::Higher,
+        &[ok as f64 * 100.0 / inside.max(1) as f64],
+        "generated clicks and drums, 70-180 BPM",
+    ));
+    out.push(metric(
+        "warp.tempo.octave",
+        "files",
+        Better::Lower,
+        &[octave as f64],
+        "60-200 BPM: those outside 70-180 are put inside by design",
+    ));
+    out
+}
+
+fn mode_id(m: Mode) -> &'static str {
+    match m {
+        Mode::Complex => "complex",
+        Mode::Rhythm => "rhythm",
+        Mode::Melodic => "melodic",
+        Mode::Repitch => "repitch",
+    }
+}
+
+fn write(path: &Path, ch: &[Vec<f32>]) -> std::io::Result<()> {
+    let spec = hound::WavSpec {
+        channels: ch.len() as u16,
+        sample_rate: SR as u32,
+        bits_per_sample: 24,
+        sample_format: hound::SampleFormat::Int,
+    };
+    let mut w = hound::WavWriter::create(path, spec).map_err(std::io::Error::other)?;
+    for i in 0..ch[0].len() {
+        for c in ch {
+            let v = (c[i].clamp(-1.0, 1.0) * 8_388_607.0).round() as i32;
+            w.write_sample(v).map_err(std::io::Error::other)?;
+        }
+    }
+    w.finalize().map_err(std::io::Error::other)
+}
+
+/// The listening set: every material as it is, then each mode x ratio (and a few
+/// transpositions) — WAVs and a README for the owner. Returns how many files.
+pub fn listen(dir: &Path) -> std::io::Result<usize> {
+    std::fs::create_dir_all(dir)?;
+    let mut n = 0;
+    for mat in set() {
+        write(&dir.join(format!("{}-source.wav", mat.name)), &mat.channels)?;
+        n += 1;
+        for mode in Mode::ALL {
+            for ratio in RATIOS {
+                let y = render(&mat, mode, ratio, 0.0);
+                let name = format!("{}-{}-x{ratio}.wav", mat.name, mode_id(mode));
+                write(&dir.join(name), &y)?;
+                n += 1;
+            }
+        }
+        for (mode, semis) in [
+            (Mode::Complex, -3.0),
+            (Mode::Complex, 7.0),
+            (Mode::Melodic, -3.0),
+            (Mode::Rhythm, 5.0),
+        ] {
+            let y = render(&mat, mode, 1.0, semis);
+            let name = format!("{}-{}-{semis:+}st.wav", mat.name, mode_id(mode));
+            write(&dir.join(name), &y)?;
+            n += 1;
+        }
+        // The brief's case: slowed by 25 % and down three semitones.
+        let y = render(&mat, Mode::Melodic, 1.25, -3.0);
+        write(&dir.join(format!("{}-melodic-x1.25-3st.wav", mat.name)), &y)?;
+        n += 1;
+    }
+    std::fs::write(dir.join("README.txt"), README)?;
+    Ok(n)
+}
+
+const README: &str = "Cantus round 29 - the warp listening set (ADR 0061)
+
+Each material as it is (<material>-source.wav), then stretched by each mode:
+  <material>-<mode>-x<ratio>.wav   ratio = output length / input length
+  x0.5 twice as fast, x0.8 a little faster, x1.25 a little slower, x2 half speed
+and transposed at its own length:
+  <material>-<mode>-<semitones>st.wav   (Complex -3 and +7, Melodic -3, Rhythm +5)
+and the brief's case, slowed 25 % and down three semitones:
+  <material>-melodic-x1.25-3st.wav
+
+Materials: drums (a swung loop, 100 BPM), mix (the startup demo song's first 8 s),
+voice (a sung phrase with vibrato), solo (a flute-like line), pad (held chords, wide).
+Modes: complex (mixes, anything polyphonic: phase-locked STFT, transients copied),
+rhythm (drums: slices at the transients), melodic (a voice: PSOLA, formants kept),
+repitch (tape: speed and pitch together; it does not transpose).
+
+What to listen for: hits as sharp as the source (no flam, no smear before them); no
+phasiness or swirl on the mix and the pad at x0.8 and x1.25; a natural voice at x1.25
+-3 st with its own vowel (not a chipmunk, not a giant); the pad's stereo image kept.
+Compare with elastique (Ableton Complex Pro, FL Studio) or Rubber Band if at hand.
+";

@@ -26,5 +26,6 @@ serde.workspace = true
 serde_json.workspace = true
 # `cantus-bench hashes`: the null corpus as SHA-256s, compared across builds (round 22).
 sha2.workspace = true
+hound.workspace = true
 # `paced`: the callback's promotion, as on WASAPI (round 22).
 cantus-rt.workspace = true

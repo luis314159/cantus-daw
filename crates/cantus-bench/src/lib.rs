@@ -35,6 +35,7 @@ pub mod startup;
 pub mod stats;
 pub mod suites;
 pub mod ui;
+pub mod warp;
 
 /// How hard a run measures.
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -65,17 +66,17 @@ impl Plan {
 }
 
 /// The groups of the suite, by the name the command line takes.
-pub const GROUPS: [&str; 9] = [
-    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup",
+pub const GROUPS: [&str; 10] = [
+    "fx", "inst", "engine", "demos", "render", "open", "ui", "dawbench", "startup", "warp",
 ];
 
 /// Run the groups in `only` (all of them when empty; the quick plan never runs
-/// `dawbench` or `startup`) into a report.
+/// `dawbench`, `startup` or `warp`) into a report.
 pub fn run(plan: &Plan, only: &[String]) -> report::Report {
     let mut r = report::Report::new(if plan.quick { "quick" } else { "full" });
     let wants = |g: &str| {
         if only.is_empty() {
-            !(plan.quick && (g == "dawbench" || g == "startup"))
+            !(plan.quick && (g == "dawbench" || g == "startup" || g == "warp"))
         } else {
             only.iter().any(|o| o == g)
         }
@@ -106,5 +107,6 @@ pub fn run(plan: &Plan, only: &[String]) -> report::Report {
     step("ui", &mut |_| ui::frames(plan));
     step("dawbench", &mut |_| dawbench::suite(plan));
     step("startup", &mut |_| startup::suite(plan));
+    step("warp", &mut |_| warp::suite(plan));
     r
 }

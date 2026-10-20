@@ -312,3 +312,24 @@ fn the_map_inverts_and_holds_keep_the_breakpoints() {
     assert_eq!(Map::identity().plain_over(100), Some(0));
     assert_eq!(map.plain_over(100), None);
 }
+
+#[test]
+#[ignore]
+fn timing_parts() {
+    let x = noise(48_000 * 4, 1);
+    let y = noise(48_000 * 4, 2);
+    let t = std::time::Instant::now();
+    let (h, _) = hpss::split(&[&x, &y], SR);
+    eprintln!("hpss {:?}", t.elapsed());
+    let hr: Vec<&[f32]> = h.iter().map(Vec::as_slice).collect();
+    let map = stretched(1.25);
+    let t = std::time::Instant::now();
+    let _ = pv::render(&hr, SR, &map, &[], 240_000, 1.0, false);
+    eprintln!("pv plain {:?}", t.elapsed());
+    let t = std::time::Instant::now();
+    let _ = pv::render(&hr, SR, &map, &[], 240_000, 0.84, true);
+    eprintln!("pv shifted+formants {:?}", t.elapsed());
+    let t = std::time::Instant::now();
+    let _ = pv::render(&hr, SR, &map, &[], 240_000, 0.84, false);
+    eprintln!("pv shifted {:?}", t.elapsed());
+}
