@@ -32,9 +32,14 @@ pub struct LowLatency {
     /// An audio input is among it (the driver's input latency and the input ring's wait
     /// are on its way; an armed instrument track's notes never pass them — review 2).
     pub audio: bool,
-    /// Samples the monitored input waits inside the engine: its instrument's, its chain's
-    /// and the master's — and, where a strip mixes it with backing, the backing's there.
+    /// Notes played into an armed instrument are among it.
+    pub notes: bool,
+    /// Samples a monitored audio input waits inside the engine at most: its chain's and
+    /// the master's — and, where a strip mixes it with backing, the backing's there.
     pub monitored_samples: u64,
+    /// The same for notes played into an armed instrument, its instrument's latency
+    /// included (review 3: one maximum over both put the input's way on a note's path).
+    pub monitored_note_samples: u64,
     /// The inserts bypassed for it (effect ids; the first `off_count`).
     pub off: [u64; MAX_LOW_LATENCY_OFF],
     pub off_count: u8,
@@ -77,6 +82,7 @@ impl Processor {
         let mut mixed = [false; MAX_STRIPS];
         let mut any = false;
         let mut any_audio = false;
+        let mut any_notes = false;
         if plan.on {
             for &slot in &self.track_to_slot {
                 let Some(s) = nodes.track(slot) else {
@@ -100,6 +106,7 @@ impl Processor {
                 plan.track[slot] = heard;
                 any |= heard;
                 any_audio |= heard && i.has;
+                any_notes |= heard && !i.has;
                 if let Some(d) = s.strip {
                     if heard {
                         plan.path[d] = true;
@@ -135,6 +142,7 @@ impl Processor {
             on: plan.on,
             monitoring: any,
             audio: any_audio,
+            notes: any_notes,
             ..LowLatency::default()
         };
         let name = |id: EffectId, stats: &mut LowLatency| {
@@ -194,25 +202,57 @@ impl Processor {
     pub(super) fn monitored_wait(&mut self, plan: &MonitorPlan, a: &Arrivals) {
         if !plan.on || !self.stats.low_latency.monitoring {
             self.stats.low_latency.monitored_samples = 0;
+            self.stats.low_latency.monitored_note_samples = 0;
             return;
         }
+        // An audio input's way and a note's apart (review 3).
+        let audio = self.wait_of(plan, a, true);
+        let notes = self.wait_of(plan, a, false);
+        self.stats.low_latency.monitored_samples = audio;
+        self.stats.low_latency.monitored_note_samples = notes;
+    }
+
+    /// The most a monitored audio input (`audio`) — or notes played into an armed
+    /// instrument — waits inside the engine, through the very delays planned.
+    fn wait_of(&self, plan: &MonitorPlan, a: &Arrivals, audio: bool) -> u64 {
         let nodes = self.nodes.clone();
         let mut at = [None::<usize>; MAX_STRIPS];
         let mut master: Option<usize> = None;
+        let mut any = false;
         let reach = |to: &mut Option<usize>, t: usize| *to = Some(to.map_or(t, |x| x.max(t)));
         for &slot in &self.track_to_slot {
             if !plan.track[slot] || a.rest_t[slot] {
                 continue;
             }
+            let has_input = nodes.track(slot).is_some_and(|s| s.input.has);
+            if has_input != audio {
+                continue;
+            }
+            any = true;
             let feeds = a.feeds[slot];
             // Not held back (into a strip of monitored input only, or the master): it
-            // leaves at its instrument's latency; else with what it is mixed with.
+            // leaves at its own latency; else with what it is mixed with. An input passes
+            // no instrument and no kept delay (it joins after them): it leaves that much
+            // sooner than the track's own latency says (review 3).
             let quick = feeds.is_none_or(|d| plan.pure[d]);
+            let want = match feeds {
+                Some(d) if !quick => a.arrive[d],
+                None if !quick => a.master,
+                _ => a.leave[slot],
+            };
+            let enter = if audio {
+                want.saturating_sub(a.leave[slot])
+            } else {
+                want
+            };
             match feeds {
                 Some(d) if a.deaf[d] => {}
-                Some(d) => reach(&mut at[d], if quick { a.leave[slot] } else { a.arrive[d] }),
-                None => reach(&mut master, if quick { a.leave[slot] } else { a.master }),
+                Some(d) => reach(&mut at[d], enter),
+                None => reach(&mut master, enter),
             }
+        }
+        if !any {
+            return 0;
         }
         for &slot in &self.strip_play_order {
             if a.rest_s[slot] {
@@ -246,8 +286,7 @@ impl Processor {
                 reach(&mut at[*d], out(target));
             }
         }
-        self.stats.low_latency.monitored_samples =
-            (master.unwrap_or(0) + self.master.latency()) as u64;
+        (master.unwrap_or(0) + self.master.latency()) as u64
     }
 }
 

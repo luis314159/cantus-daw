@@ -108,6 +108,9 @@ pub struct LoadReport {
     /// Warps dropped because they were not valid (ADR 0061: a hand-edited or damaged
     /// file); their clips play at their natural speed. Zero for every file Cantus wrote.
     pub warps_repaired: usize,
+    /// Track delays dropped because a bounce could not have kept them (ADR 0064, review 3:
+    /// a hand-edited or damaged file). Zero for every file Cantus wrote.
+    pub lateness_repaired: usize,
 }
 
 /// Parse JSON text into a project, migrating older schemas. `verify_integrity = false`
@@ -176,6 +179,9 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     // Warps a command would refuse (a hand edit) go first (round 29's second review): the
     // links and the frozen keys below are checked against what each clip then holds.
     let warps_repaired = cantus_core::warp::repair(&mut file.project);
+    // A track delay out of range never reaches the plan (review 3); before the frozen
+    // keys, which hold it.
+    let lateness_repaired = file.project.repair_lateness();
     let links_repaired = cantus_core::links::repair(&mut file.project);
     // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
     // made again (ADR 0064). After the links' repair, which may change what one holds.
@@ -192,6 +198,7 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
         integrity_verified,
         links_repaired,
         warps_repaired,
+        lateness_repaired,
     })
 }
 
@@ -2018,6 +2025,27 @@ mod freeze_tests {
         let back = parse(&text, false).unwrap().file.project;
         assert!(freeze::consistent(&back).is_ok());
         assert!(back.strip(s).unwrap().frozen.is_some(), "still frozen");
+    }
+
+    /// Round 29's third review (finding 46): a track delay a bounce could not have kept (a
+    /// hand edit) is dropped on load and counted, never planned with.
+    #[test]
+    fn an_out_of_range_track_delay_is_dropped_on_load() {
+        let mut p = fixture("v37.cantus");
+        p.tracks[0].lateness = Some(cantus_core::Lateness {
+            frames: 1_000_000_000_000_000,
+            rate: 1,
+        });
+        p.tracks[1].lateness = Some(cantus_core::Lateness {
+            frames: 4_608,
+            rate: 48_000,
+        });
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, false).unwrap();
+        assert_eq!(r.lateness_repaired, 1);
+        assert_eq!(r.file.project.tracks[0].lateness, None);
+        assert!(r.file.project.tracks[1].lateness.is_some());
+        assert!(freeze::consistent(&r.file.project).is_ok());
     }
 
     /// Round 29's second review (finding 33): a warp dropped on load goes before the links

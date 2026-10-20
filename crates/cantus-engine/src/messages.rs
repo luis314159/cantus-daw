@@ -164,6 +164,10 @@ pub enum EngineMessage {
     /// Where the take begins when recording starts with a count-in (`ClickMode::CountInOnly`
     /// clicks only before it); `None` when not counting in.
     SetRecordStart(Option<Ticks>),
+    /// The devices' round trip (the output's latency and the input's), in frames: what
+    /// was played in that time was played against the backing as it was (round 29's third
+    /// review: a heard-latency move shifts a take only once the musician can hear it).
+    SetDeviceRoundTrip(u32),
 }
 
 /// Peak meters for one block. Track order matches the snapshot's track order.
@@ -179,11 +183,6 @@ pub struct Meters {
     /// Each strip's compressor gain reduction, dB (positive): the deepest of its working
     /// compressors in the block, 0 without one.
     pub strip_gr: [f32; MAX_STRIPS],
-    /// How late each strip's fader output is (its compensation and its inserts), and each
-    /// track's level, in frames, as planned now (round 29, review 2: a bounce in place
-    /// keeps the lateness of what it replaces).
-    pub strip_late: [u32; MAX_STRIPS],
-    pub track_late: [u32; MAX_TRACKS],
     /// The analysed EQ's dynamic gain per band, dB.
     pub eq_deltas: [f32; METERED_EQ_BANDS],
     /// The analysed compressor's last block: input peak, output peak (linear), and gain
@@ -235,8 +234,6 @@ impl Default for Meters {
             strip_count: 0,
             strips: [0.0; MAX_STRIPS],
             strip_gr: [0.0; MAX_STRIPS],
-            strip_late: [0; MAX_STRIPS],
-            track_late: [0; MAX_TRACKS],
             eq_deltas: [0.0; METERED_EQ_BANDS],
             comp: [0.0; 3],
             fx: [0.0; crate::fx::TELEMETRY_LEN],

@@ -956,6 +956,11 @@ fn frozen_playback_never_allocates() {
     delay.spec.set("feedback", 0.6).unwrap();
     let s0 = p.tracks[0].strip.unwrap();
     p.strip_mut(s0).unwrap().effects.push(delay);
+    // Keyed from the bass's strip: a desk solo of it thaws it (review 3).
+    let s1 = p.tracks[1].strip.unwrap();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(s1);
+    p.strip_mut(s0).unwrap().effects.push(comp);
     let (mut h, _) = EngineHandle::manual(48_000.0);
     h.frozen.set_app_dir(dir.path().to_path_buf());
     let bass = p.tracks[1].id;
@@ -980,6 +985,32 @@ fn frozen_playback_never_allocates() {
         .any(|t| t.frozen.as_ref().is_some_and(|f| f.plays())));
     let mut live = p.clone();
     freeze::thaw(&mut live);
+    // The review-3 states, compiled here, off the audio thread: the strip silenced by a
+    // solo elsewhere, played live under its own (its render kept at the playhead), the
+    // bass running for its notes only and resting with its render, a track's kept delay.
+    let mut silenced = p.clone();
+    silenced.strips[3].soloed = true;
+    let silenced = h.compile(&silenced, 3);
+    let mut solo = p.clone();
+    solo.strip_mut(s0).unwrap().soloed = true;
+    let parked = h.compile(&solo, 4);
+    assert!(parked
+        .strips
+        .iter()
+        .any(|s| s.frozen.as_ref().is_some_and(|f| f.live)));
+    let mut notes = (*frozen).clone();
+    notes.tracks[1].notes_only = true;
+    let notes = Arc::new(notes);
+    let mut rests = (*frozen).clone();
+    rests.tracks[1].rest = true;
+    let rests = Arc::new(rests);
+    let mut late = p.clone();
+    freeze::thaw(&mut late);
+    late.tracks[0].lateness = Some(Lateness {
+        frames: 3_000,
+        rate: 48_000,
+    });
+    let late = h.compile(&late, 5);
     let live = h.compile(&live, 2);
     for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
         let mut rig = Rig::with(workers);
@@ -1001,6 +1032,23 @@ fn frozen_playback_never_allocates() {
         rig.play("unfrozen", 40);
         rig.send(frozen.clone());
         rig.play("frozen again", 40);
+        // Review 3: Render, Silenced, Live (parked) and back, while playing.
+        for _ in 0..2 {
+            rig.send(silenced.clone());
+            rig.play("silenced", 20);
+            rig.send(parked.clone());
+            rig.play("live, render kept", 20);
+            rig.send(frozen.clone());
+            rig.play("render again", 20);
+        }
+        rig.send(notes.clone());
+        rig.play("notes only", 20);
+        rig.send(rests.clone());
+        rig.play("rests with its render", 20);
+        rig.send(frozen.clone());
+        rig.play("frozen once more", 20);
+        rig.send(late.clone());
+        rig.play("a kept delay", 40);
         rig.tx.push(EngineMessage::Stop).unwrap();
         rig.play("stop", 10);
         assert!(
@@ -1033,7 +1081,12 @@ fn low_latency_monitoring_never_allocates() {
     let mut lim = p.make_effect(EffectKind::Limiter);
     lim.spec.set("look", 5.0).unwrap();
     p.master.effects.push(lim);
+    let mut without_eq = p.clone();
+    without_eq.strip_mut(s1).unwrap().effects.clear();
+    let rec_track = p.tracks[0].id;
     for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        // The take's ring, made here (it would be the writer's).
+        let (rec_ring, _rec_reader) = rtrb::RingBuffer::<f32>::new(48_000 * 4);
         let mut rig = Rig::with(workers);
         rig.snapshot(&p);
         rig.tx.push(EngineMessage::Play).unwrap();
@@ -1045,6 +1098,27 @@ fn low_latency_monitoring_never_allocates() {
         rig.play("low latency on", 40);
         rig.tx.push(EngineMessage::SetRecording(true)).unwrap();
         rig.play("recording", 40);
+        // Review 3: the heard latency moved while a pass records (the mode switched, a
+        // latent insert gone and back), the take moved a round trip later — into rings.
+        rig.tx
+            .push(EngineMessage::AttachRecorder(Box::new(RecordRings {
+                tracks: vec![cantus_engine::recorder::TrackRing::new(
+                    rec_track, 1, rec_ring,
+                )],
+            })))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetDeviceRoundTrip(600)).unwrap();
+        rig.play("recording into rings", 20);
+        rig.tx.push(EngineMessage::SetLowLatency(None)).unwrap();
+        rig.play("mode off while recording", 20);
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("mode on while recording", 20);
+        rig.snapshot(&without_eq);
+        rig.play("a latent insert gone while recording", 20);
+        rig.snapshot(&p);
+        rig.play("and back", 20);
         rig.tx.push(EngineMessage::SetRecording(false)).unwrap();
         rig.tx.push(EngineMessage::SetLowLatency(None)).unwrap();
         rig.play("off", 40);

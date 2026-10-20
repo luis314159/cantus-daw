@@ -1182,3 +1182,283 @@ fn thawing_a_strip_while_playing_resets_its_eq_and_a_resting_strips_echoes() {
         );
     }
 }
+
+// ---- review 3 ---------------------------------------------------------------------
+
+/// A delay a track keeps (a bounce's, `Track::lateness`): `frames` at 48 kHz.
+fn keeps(frames: u64) -> Option<Lateness> {
+    Some(Lateness {
+        frames,
+        rate: 48_000,
+    })
+}
+
+#[test]
+fn a_track_delay_plays_its_source_late_and_the_mix_on_the_grid() {
+    // The lead keeps 3 000 frames: its source is that much later at its level, reported,
+    // and everything else waits for it — the compensated mix is the mix without it.
+    let mut h = handle("lateness");
+    let p = demo_project();
+    let reference = mix(&mut h, &p, 512);
+    let mut q = p.clone();
+    q.tracks[0].lateness = keeps(3_000);
+    for block in [64, 512, 1000] {
+        same_bits(
+            &mix(&mut h, &q, block),
+            &reference,
+            &format!("on the grid, block {block}"),
+        );
+    }
+    // Before its level: a level ride meets its source 3 000 frames later than it did.
+    let mut r = p.clone();
+    let lead = r.tracks[0].id;
+    let ride = r.make_automation_clip(
+        "ride",
+        AutoTarget::TrackGain(lead),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.9),
+            AutoPoint::new(Ticks::beats(8), 0.1),
+        ],
+    );
+    r.tracks[0].clips.push(ride);
+    let ridden = mix(&mut h, &r, 512);
+    r.tracks[0].lateness = keeps(3_000);
+    assert_ne!(mix(&mut h, &r, 512), ridden, "the ride meets it later");
+    // Frozen with it: the render holds the delay and reports it — the same mix.
+    let live = mix(&mut h, &q, 512);
+    let lead = FreezeTarget::Track(q.tracks[0].id);
+    freeze_now(&mut h, &mut q, lead);
+    same_bits(&mix(&mut h, &q, 512), &live, "frozen with its delay");
+}
+
+#[test]
+fn track_and_direct_stems_are_on_the_grid_with_a_kept_delay() {
+    use cantus_engine::stems::{render_stems, StemOptions, StemSource, StemSpec};
+    let mut h = handle("stems-lateness");
+    let mut p = demo_project();
+    // Both tracks straight to the master: the Direct sum is theirs.
+    for t in &mut p.tracks {
+        t.strip = None;
+    }
+    let specs = vec![
+        StemSpec {
+            source: StemSource::Track(0),
+            file_name: "lead".into(),
+        },
+        StemSpec {
+            source: StemSource::Direct,
+            file_name: "direct".into(),
+        },
+    ];
+    let opts = StemOptions {
+        render: RenderOptions {
+            tail_seconds: 1.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let on_time = render_stems(h.compile_for_render(&p, 1), &opts, &specs).unwrap();
+    p.tracks[0].lateness = keeps(2_500);
+    p.tracks[1].lateness = keeps(700);
+    let kept = render_stems(h.compile_for_render(&p, 1), &opts, &specs).unwrap();
+    for (a, b) in kept.iter().zip(&on_time) {
+        let n = b.samples.len();
+        same_bits(
+            &a.samples[..n],
+            &b.samples,
+            &format!("{}: sample 0 is tick 0", a.spec.file_name),
+        );
+    }
+}
+
+#[test]
+fn a_latency_that_moves_during_the_song_is_no_render() {
+    // The lead's clipper switches its oversampling (and so its latency) at beat 4: one
+    // render cannot hold both; the freeze fails and the strip stays live.
+    let mut h = handle("latency-moves");
+    let mut p = song();
+    let fx = add_effect(&mut p, EffectKind::Clipper);
+    let mut a = AutoPoint::new(Ticks::ZERO, 0.0);
+    a.shape = cantus_core::automation::Shape::Hold;
+    let mut b = AutoPoint::new(Ticks::beats(4), 1.0);
+    b.shape = cantus_core::automation::Shape::Hold;
+    let clip = p.make_automation_clip(
+        "os",
+        AutoTarget::Effect {
+            effect: fx,
+            key: "os".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![a, b],
+    );
+    p.tracks[0].clips.push(clip);
+    let job = prepare(&mut h, &p, lead_strip(&p)).expect("prepared");
+    let err = job
+        .run(Vec::new(), Vec::new(), &RenderProgress::default())
+        .unwrap_err();
+    assert!(matches!(err, RenderError::LatencyMoved), "{err}");
+    assert!(!job.path.exists(), "no render under its key");
+}
+
+/// Play `snaps` in turn in real time (a snapshot every `each` blocks of 256, at twice real
+/// time), on a manual engine `h` drives; the stats at the end.
+fn play_turns(
+    h: &mut EngineHandle,
+    proc: &mut Processor,
+    snaps: &[Project],
+    each: usize,
+) -> EngineStats {
+    let mut buf = vec![0f32; 512];
+    let first = h.compile(&snaps[0], 1);
+    h.set_snapshot(first);
+    for _ in 0..4 {
+        proc.process(&mut buf, 2);
+        h.poll();
+    }
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    h.play();
+    for (k, p) in snaps.iter().enumerate() {
+        if k > 0 {
+            let snap = h.compile(p, 1 + k as u64);
+            h.set_snapshot(snap);
+        }
+        for _ in 0..each {
+            proc.process(&mut buf, 2);
+            h.poll();
+            std::thread::sleep(std::time::Duration::from_micros(2_700));
+        }
+    }
+    *proc.stats()
+}
+
+#[test]
+fn a_solo_that_thaws_a_frozen_strip_while_it_plays_drops_nothing_when_lifted() {
+    // The lead's strip keyed from the bass's, frozen. Soloing it on the desk silences its
+    // key: it plays live — its render kept at the playhead — and lifting the solo plays
+    // the render again at once, no block late.
+    let (mut h, mut proc) = EngineHandle::manual(SR);
+    h.frozen.set_app_dir(folder("solo-turns"));
+    let mut p = song();
+    let lead = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].strip.unwrap();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(bass);
+    p.strip_mut(lead).unwrap().effects.push(comp);
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let mut soloed = p.clone();
+    soloed.strip_mut(lead).unwrap().soloed = true;
+    assert_eq!(freeze::solo_play(&soloed, target), freeze::SoloPlay::Live);
+    let stats = play_turns(
+        &mut h,
+        &mut proc,
+        &[p.clone(), soloed.clone(), p.clone(), soloed, p],
+        120,
+    );
+    assert_eq!(stats.stream_late, 0, "no block came late");
+}
+
+#[test]
+fn a_read_error_that_outlasts_its_first_try_keeps_the_render_playing() {
+    let mut h = handle("io-long");
+    let mut p = song();
+    let live = mix(&mut h, &p, 512);
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let path = h.frozen.path_of(&content, 48_000).unwrap();
+    // A lock that holds through the read and the first two tries again.
+    cantus_engine::inst::stream::inject_io_faults(&path, 3);
+    same_bits(&mix(&mut h, &p, 512), &live, "read again later, to the bit");
+    assert!(path.is_file() && h.frozen.find(&content, 48_000).is_some());
+}
+
+#[test]
+fn a_read_error_that_outlasts_every_try_is_looked_at_again_not_made_again() {
+    let mut h = handle("io-longer");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let path = h.frozen.path_of(&content, 48_000).unwrap();
+    cantus_engine::inst::stream::inject_io_faults(&path, 50);
+    let snap = h.compile_for_render(&p, 1);
+    let _ = render(
+        snap,
+        &RenderOptions {
+            tail_seconds: 0.2,
+            ..Default::default()
+        },
+    );
+    // The faults end; the render failed for now: played live a moment, never thought
+    // damaged — opened again once looked at again, its file the same.
+    cantus_engine::inst::stream::inject_io_faults(&path, 0);
+    // Its tries take a moment.
+    let t0 = std::time::Instant::now();
+    while h.frozen.find(&content, 48_000).is_some() && t0.elapsed().as_secs() < 10 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(h.frozen.find(&content, 48_000).is_none(), "failed for now");
+    assert!(h.frozen.take_lost(), "compiled again at once");
+    h.frozen.forget_missing();
+    assert!(
+        h.frozen.find(&content, 48_000).is_some(),
+        "opened again: not damaged"
+    );
+    assert!(path.is_file());
+}
+
+#[test]
+fn a_frozen_track_that_runs_for_its_notes_only_lets_its_blocks_go() {
+    // The bass frozen on its own; its notes heard by a gate on the lead's strip (live).
+    // Then the bass's strip is frozen around it: the bass rests but for its notes, and its
+    // render, read by nobody, is let go of.
+    let (mut h, mut proc) = EngineHandle::manual(SR);
+    h.frozen.set_app_dir(folder("notes-only-board"));
+    let mut p = song();
+    let bass = p.tracks[1].id;
+    let lead = p.tracks[0].strip.unwrap();
+    let mut gate = p.make_effect(EffectKind::Gate);
+    gate.midi_from = Some(bass);
+    p.strip_mut(lead).unwrap().effects.push(gate);
+    freeze_now(&mut h, &mut p, FreezeTarget::Track(bass));
+    let board = |snap: &Snapshot| {
+        snap.tracks[1]
+            .frozen
+            .as_ref()
+            .unwrap()
+            .audio
+            .as_ref()
+            .unwrap()
+            .reader
+            .0
+            .clone()
+            .downcast::<cantus_engine::freeze::FrozenHandle>()
+            .unwrap()
+            .board
+            .clone()
+    };
+    let first = h.compile(&p, 1);
+    let b = board(&first);
+    h.set_snapshot(first);
+    h.play();
+    let mut buf = vec![0f32; 512];
+    for _ in 0..20 {
+        proc.process(&mut buf, 2);
+        h.poll();
+    }
+    assert_ne!(b.get(0), 0, "read while it plays");
+    let bass_strip = FreezeTarget::Strip(p.tracks[1].strip.unwrap());
+    freeze_now(&mut h, &mut p, bass_strip);
+    let second = h.compile(&p, 2);
+    assert!(second.tracks[1].notes_only, "its notes only");
+    h.set_snapshot(second);
+    for _ in 0..4 {
+        proc.process(&mut buf, 2);
+        h.poll();
+    }
+    assert_eq!((b.get(0), b.get(1)), (0, 0), "its blocks let go");
+}

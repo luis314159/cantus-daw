@@ -232,8 +232,13 @@ pub struct Processor {
     /// How late each strip slot's fader output is against the timeline, in samples: the
     /// compensation it waits for plus its own inserts' latency (ADR 0018's `P`).
     strip_post: [usize; MAX_STRIPS],
-    /// Each track slot's leaving latency, as planned (`Meters::track_late`).
-    track_leave: [usize; MAX_TRACKS],
+    /// Each strip slot's input arrival, as planned (ADR 0018's `A`).
+    strip_arrive: [usize; MAX_STRIPS],
+    /// A render's floor under one snapshot strip's arrival (index, frames): a bounce
+    /// through its inserts enters the chain as late as it did live (review 3).
+    arrive_floor: Option<(usize, usize)>,
+    /// What reaches the master arrives this late, as planned (before its chain).
+    master_arrive: usize,
     /// The inserts' and instruments' latencies when compensation was last planned, as one
     /// number (`Self::latency_signature`): a pass that finds another re-plans (ADR 0056).
     latency_sig: u64,
@@ -351,7 +356,9 @@ impl Processor {
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
             strip_post: [0; MAX_STRIPS],
-            track_leave: [0; MAX_TRACKS],
+            strip_arrive: [0; MAX_STRIPS],
+            arrive_floor: None,
+            master_arrive: 0,
             latency_sig: 0,
             click_line: None,
             capture_line: None,
@@ -568,6 +575,27 @@ impl Processor {
         self.strip_slot(index)
             .map(|s| self.strip_post[s])
             .unwrap_or(0)
+    }
+
+    /// How many samples what enters a snapshot strip's chain lags the timeline: the
+    /// compensation it waits for (ADR 0018's `A`).
+    pub fn strip_arrival(&self, index: usize) -> usize {
+        self.strip_slot(index)
+            .map(|s| self.strip_arrive[s])
+            .unwrap_or(0)
+    }
+
+    /// How late what reaches the master is, before its chain (the stems' Direct sum is
+    /// trimmed by it).
+    pub fn master_arrival(&self) -> usize {
+        self.master_arrive
+    }
+
+    /// An offline render's floor under snapshot strip `index`'s arrival (`None`: none),
+    /// planned with the next snapshot: what enters its chain waits at least `frames`
+    /// (a bounce through a strip's inserts whose other inputs it left out, review 3).
+    pub fn set_arrive_floor(&mut self, floor: Option<(usize, usize)>) {
+        self.arrive_floor = floor;
     }
 
     /// Give the processor the producer end of the analyser's ring (see

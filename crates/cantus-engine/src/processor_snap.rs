@@ -90,11 +90,15 @@ impl Processor {
                 s.audible = t.audible;
                 apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
                 // Freezing (ADR 0064): the render it plays, if any (an `Arc` clone; the
-                // one it replaces is still the old snapshot's), and whether it rests.
+                // one it replaces is still the old snapshot's) — or the one it keeps at the
+                // playhead while it plays live (review 3) — and whether it rests.
                 let h = crate::freeze::handle_of(t.frozen.as_ref());
-                if !same_handle(&s.frozen, &h) {
+                let parked = crate::freeze::parked_of(t.frozen.as_ref());
+                let held = s.frozen.clone().or_else(|| s.parked.clone());
+                let holds = h.clone().or_else(|| parked.clone());
+                if !same_handle(&held, &holds) {
                     s.frozen_place.block = None;
-                    if let Some(old) = s.frozen.as_ref() {
+                    if let Some(old) = held.as_ref() {
                         crate::freeze::release(old);
                     }
                 }
@@ -103,18 +107,25 @@ impl Processor {
                 // note-off long passed, when it thawed during playback).
                 let quiet = |frozen: bool, rest: bool, notes: bool| frozen || rest || notes;
                 let was = quiet(s.frozen.is_some(), s.rest, s.notes_only);
-                // A render kept while the node starts resting is read by nobody: its board
-                // lets its blocks go (review 2).
-                if t.rest && !s.rest && same_handle(&s.frozen, &h) {
-                    if let Some(old) = s.frozen.as_ref() {
+                // A render kept while the node stops reading it — it starts resting, or
+                // running for its notes only — is read by nobody: its board lets its
+                // blocks go (review 2, 3).
+                let stops = (t.rest && !s.rest) || (t.notes_only && !s.notes_only);
+                if stops && same_handle(&held, &holds) {
+                    if let Some(old) = held.as_ref() {
                         crate::freeze::release(old);
                     }
                 }
+                drop((held, holds));
                 s.frozen = h;
+                s.parked = parked;
                 s.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
                 s.rest = t.rest;
                 s.notes_only = t.notes_only;
-                s.lateness = t.lateness.map_or(0, |l| l.at(self.sample_rate));
+                // Bounded (review 3): never past what a line can hold.
+                s.lateness = t
+                    .lateness
+                    .map_or(0, |l| l.at(self.sample_rate).min(crate::pdc::MAX_DELAY));
                 if was != quiet(s.frozen.is_some(), s.rest, s.notes_only) {
                     s.reset();
                 }
@@ -132,9 +143,10 @@ impl Processor {
                     s.id = None;
                     // Its render let go while the old snapshot still holds it (never the
                     // last owner on this thread).
-                    if let Some(h) = s.frozen.take() {
+                    if let Some(h) = s.frozen.take().or_else(|| s.parked.take()) {
                         crate::freeze::release(&h);
                     }
+                    s.parked = None;
                     s.native.take()
                 });
                 if let Some(u) = native {
@@ -193,20 +205,26 @@ impl Processor {
                     ss.eq_r.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                 }
                 let h = crate::freeze::handle_of(st.frozen.as_ref());
+                // Played live while frozen: its render kept at the playhead (review 3).
+                let parked = crate::freeze::parked_of(st.frozen.as_ref());
                 // Playing a render or live: the other's state is from another time.
                 let swapped = ss.frozen.is_some() != h.is_some();
-                if !same_handle(&ss.frozen, &h) {
+                let held = ss.frozen.clone().or_else(|| ss.parked.clone());
+                let holds = h.clone().or_else(|| parked.clone());
+                if !same_handle(&held, &holds) {
                     ss.frozen_place.block = None;
-                    if let Some(old) = ss.frozen.as_ref() {
+                    if let Some(old) = held.as_ref() {
                         crate::freeze::release(old);
                     }
                 } else if st.rest && !ss.rest {
                     // Kept while it starts resting: read by nobody (review 2).
-                    if let Some(old) = ss.frozen.as_ref() {
+                    if let Some(old) = held.as_ref() {
                         crate::freeze::release(old);
                     }
                 }
+                drop((held, holds));
                 ss.frozen = h;
+                ss.parked = parked;
                 ss.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
                 // A strip that starts or stops resting — or playing its render — comes back
                 // empty: its inserts and EQ hold nothing from before (review 1, 2).
@@ -273,9 +291,10 @@ impl Processor {
                     s.send_count = 0;
                     s.has_pre = false;
                     s.rest = false;
-                    if let Some(h) = s.frozen.take() {
+                    if let Some(h) = s.frozen.take().or_else(|| s.parked.take()) {
                         crate::freeze::release(&h);
                     }
+                    s.parked = None;
                     while let Some(e) = s.effects.pop() {
                         // `dispose_effect` needs `&mut self`: the unit goes through the
                         // scratch list, which never holds more than one chain.
@@ -518,6 +537,13 @@ impl Processor {
                 None => master = master.max(latency),
             }
         }
+        // A render's floor (review 3): a bounce through a strip's inserts waits there as
+        // long as the strip's other inputs, left out of the render, made it wait live.
+        if let Some((i, floor)) = self.arrive_floor {
+            if let Some(&slot) = self.strip_to_slot.get(i) {
+                arrive[slot] = arrive[slot].max(floor);
+            }
+        }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
             if rest_s[slot] {
@@ -559,7 +585,8 @@ impl Processor {
             }
         }
         self.strip_post = post;
-        self.track_leave = leave;
+        self.strip_arrive = arrive;
+        self.master_arrive = master;
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
         // before it — so note and sound meet at the effect.
@@ -608,6 +635,17 @@ impl Processor {
         // The master chain delays every path equally: it moves what is heard, not the mix.
         let heard = master + self.master.latency();
         let mut kept = self.pdc.begin();
+        // The delay a track keeps before its level (a bounce's, review 3): its own line.
+        for ti in 0..self.track_to_slot.len() {
+            let slot = self.track_to_slot[ti];
+            let keeps = match nodes.track(slot) {
+                Some(s) if !s.rest && !s.notes_only && s.frozen.is_none() => s.lateness,
+                _ => 0,
+            };
+            if keeps > 0 {
+                self.pdc.want(&mut kept, Edge::Source(slot), keeps);
+            }
+        }
         for ti in 0..self.track_to_slot.len() {
             let slot = self.track_to_slot[ti];
             let want = match feeds[slot] {
@@ -682,6 +720,7 @@ impl Processor {
             if self.track_ids[slot].is_some() {
                 if let Some(mut s) = nodes.track(slot) {
                     s.line = None;
+                    s.source_line = None;
                     s.listened = self.listened[slot];
                 }
             }
@@ -703,6 +742,11 @@ impl Processor {
                 Some(Edge::Track(s)) => {
                     if let Some(mut t) = nodes.track(s) {
                         t.line = Some(i);
+                    }
+                }
+                Some(Edge::Source(s)) => {
+                    if let Some(mut t) = nodes.track(s) {
+                        t.source_line = Some(i);
                     }
                 }
                 Some(Edge::Out(s)) => {

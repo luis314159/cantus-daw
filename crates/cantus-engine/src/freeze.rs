@@ -161,9 +161,20 @@ fn failed(a: &FrozenAudio) -> bool {
         .unwrap_or(false)
 }
 
-/// The engine's handle of a snapshot's frozen render (an `Arc` clone: allocation-free).
+/// The engine's handle of a snapshot's frozen render it plays (an `Arc` clone:
+/// allocation-free).
 pub(crate) fn handle_of(play: Option<&FrozenPlay>) -> Option<Arc<FrozenHandle>> {
-    let a = play?.audio.as_ref()?;
+    let p = play.filter(|p| p.plays())?;
+    let a = p.audio.as_ref()?;
+    a.reader.0.clone().downcast::<FrozenHandle>().ok()
+}
+
+/// The handle of a render kept while its target plays live (`FrozenPlay::live`): the node
+/// keeps its board at the playhead without reading it (review 3: going back to it found
+/// its blocks gone and dropped out).
+pub(crate) fn parked_of(play: Option<&FrozenPlay>) -> Option<Arc<FrozenHandle>> {
+    let p = play.filter(|p| p.live)?;
+    let a = p.audio.as_ref()?;
     a.reader.0.clone().downcast::<FrozenHandle>().ok()
 }
 
@@ -181,6 +192,9 @@ pub struct FrozenStore {
     /// A render the live snapshot may still hold failed: compile again so its target
     /// plays live meanwhile (review 2: it played silence until the render was made).
     lost: bool,
+    /// Render keys kept open even while no snapshot plays them (the project's frozen
+    /// targets, in pattern mode): going back to them reopens nothing (review 3).
+    held: Vec<String>,
 }
 
 /// A file's modification time.
@@ -242,9 +256,19 @@ impl FrozenStore {
             // Its file is never deleted here (review 2: a passing read error destroyed a
             // good render; the reader deletes a damaged one itself).
             Some(Ok(a)) if failed(a) => {
-                log::warn!("frozen render {key}: unreadable, made again");
-                let time = self.path_of(content, rate).as_deref().and_then(mtime);
-                self.damaged.insert(key.clone(), time);
+                let path = self.path_of(content, rate);
+                // Read errors that outlasted their tries (a long lock): played live for
+                // now, looked at again after a moment — not made again (review 3).
+                if path
+                    .as_deref()
+                    .is_some_and(crate::inst::stream::take_io_failed)
+                {
+                    log::warn!("frozen render {key}: read errors, tried again later");
+                } else {
+                    log::warn!("frozen render {key}: unreadable, made again");
+                    let time = path.as_deref().and_then(mtime);
+                    self.damaged.insert(key.clone(), time);
+                }
                 self.open.insert(key, Err(Instant::now()));
                 self.lost = true;
                 return None;
@@ -335,18 +359,28 @@ impl FrozenStore {
         if !own_boards {
             // The engine still holds what it plays through its snapshot, which goes back
             // to this thread to be freed: never the last owner on the audio thread.
+            let held = &self.held;
             self.open
-                .retain(|k, v| v.is_err() || used.iter().any(|u| u == k));
+                .retain(|k, v| v.is_err() || used.iter().any(|u| u == k) || held.contains(k));
         }
         if any {
             cantus_core::freeze::settle(project, snapshot);
         }
     }
 
-    /// Let every opened render go (nothing is frozen any more); the snapshots that still
-    /// hold one free it on this thread.
+    /// Let every opened render go (nothing is frozen any more) but those held; the
+    /// snapshots that still hold one free it on this thread.
     pub fn let_go_all(&mut self) {
-        self.open.retain(|_, v| v.is_err());
+        let held = std::mem::take(&mut self.held);
+        self.open.retain(|k, v| v.is_err() || held.contains(k));
+        self.held = held;
+    }
+
+    /// Keep the renders of `content` keys at `rate` open while they are frozen in the
+    /// project, whatever a snapshot plays (pattern mode plays every chain live: leaving it
+    /// found them closed — review 3).
+    pub fn hold(&mut self, content: &[String], rate: u32) {
+        self.held = content.iter().map(|c| render_key(c, rate)).collect();
     }
 
     /// Whether a render failed since the last call (the interface compiles again).
