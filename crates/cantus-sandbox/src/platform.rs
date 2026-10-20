@@ -45,7 +45,7 @@ mod imp {
     use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumThreadWindows,
-        IsWindowVisible, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, RegisterClassW,
+        GetWindow, IsWindowVisible, GW_OWNER, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, RegisterClassW,
         SetForegroundWindow, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT,
         WM_APP, WM_TIMER, WNDCLASSW,
     };
@@ -220,37 +220,59 @@ mod imp {
                     TranslateMessage(&msg);
                     DispatchMessageW(&msg);
                 }
-                // Between calls again: nothing is laid on the last message's instance.
-                blame::settle();
             }
         }
     }
 
-    /// Brings the main thread's waiting windows — a plug-in's dialog, which disabled the
-    /// windows it is modal to — to the front (review isolation-4 #54). Cantus let this
-    /// process take the foreground first.
-    pub fn surface() {
+    /// The calling thread's id (the main thread's, for [`surface`] from another thread).
+    pub fn current_thread() -> u32 {
+        // SAFETY: a plain query.
+        unsafe { GetCurrentThreadId() }
+    }
+
+    /// Brings the main thread's (`thread`'s) waiting window to the front — a plug-in's
+    /// dialog: the topmost visible, enabled window whose owner it disabled (a modal one),
+    /// else the topmost visible, enabled one (review isolation-4 #54; isolation-5 #5, #17,
+    /// #26, #35, #47, #57, #68: never the bottom-most). Cantus let this process take the
+    /// foreground first. Safe from any thread.
+    pub fn surface(thread: u32) {
+        struct Found {
+            modal: HWND,
+            any: HWND,
+        }
         unsafe extern "system" fn each(hwnd: HWND, found: LPARAM) -> i32 {
-            // SAFETY: queries of a window of this thread; `found` is our own slot.
+            // SAFETY: queries of a window of that thread; `found` is our own slot; the
+            // windows come topmost first, so the first of each kind is kept.
             unsafe {
-                if IsWindowVisible(hwnd) != 0 && IsWindowEnabled(hwnd) != 0 {
-                    *(found as *mut HWND) = hwnd;
+                let f = &mut *(found as *mut Found);
+                if IsWindowVisible(hwnd) == 0 || IsWindowEnabled(hwnd) == 0 {
+                    return 1;
+                }
+                if f.any.is_null() {
+                    f.any = hwnd;
+                }
+                let owner = GetWindow(hwnd, GW_OWNER);
+                if f.modal.is_null() && !owner.is_null() && IsWindowEnabled(owner) == 0 {
+                    f.modal = hwnd;
                 }
             }
             1
         }
-        let mut found: HWND = std::ptr::null_mut();
-        // SAFETY: walks this thread's top-level windows with our callback; brings the last
-        // visible, enabled one (the dialog) forward.
+        let mut found = Found {
+            modal: std::ptr::null_mut(),
+            any: std::ptr::null_mut(),
+        };
+        // SAFETY: walks that thread's top-level windows with our callback.
         unsafe {
-            EnumThreadWindows(
-                GetCurrentThreadId(),
-                Some(each),
-                &mut found as *mut HWND as LPARAM,
-            );
-            if !found.is_null() {
-                BringWindowToTop(found);
-                SetForegroundWindow(found);
+            EnumThreadWindows(thread, Some(each), &mut found as *mut Found as LPARAM);
+            let w = if found.modal.is_null() {
+                found.any
+            } else {
+                found.modal
+            };
+            if !w.is_null() {
+                BringWindowToTop(w);
+                SetForegroundWindow(w);
             }
         }
     }
@@ -299,7 +321,11 @@ mod imp {
     pub fn start_pulse(_on_pulse: fn()) {}
 
     /// No plug-in windows here.
-    pub fn surface() {}
+    pub fn surface(_thread: u32) {}
+
+    pub fn current_thread() -> u32 {
+        0
+    }
 
     /// Wakes the main thread's wait from another thread (a request arrived).
     #[derive(Clone, Copy)]
@@ -332,27 +358,26 @@ mod imp {
 
 pub use imp::*;
 
-/// Which plug-in a crash is laid on (review #49, #1, #39; isolation-4 #37, #48, #55): each
-/// thread says which instance it is calling into — the main thread in its calls, its ticks
-/// and every window message it retrieves (in any loop, a plug-in's modal one included: the
-/// message runs as a call into the instance whose window it is for, or whose library its
-/// window class or timer procedure comes from), each processing thread in its jobs — and a
-/// crash handler writes, as the process dies, the instance whose library the faulting code
-/// is in, else the faulting thread's ([`cantus_host::bridge::sandbox::CRASH_AT`]), else
-/// *outside* ([`cantus_host::bridge::sandbox::OUTSIDE`]). A Windows fail-fast abort runs no
-/// handler; Cantus then judges by what was running, and blames nobody when several were.
+/// Which plug-in a crash is laid on (review #49, #1, #39; isolation-4 #55; isolation-5 #7,
+/// #32, #55): each thread says which instance it is calling into — the main thread in its
+/// calls, its ticks and the window messages its own loop dispatches (the instance whose
+/// window it is for, or whose library alone the window's class or the timer's procedure
+/// comes from), each processing thread in its jobs — and a crash handler writes, as the
+/// process dies, the faulting thread's instance; for a thread calling into none, the one
+/// instance whose library the faulting code is in; else *outside*
+/// ([`cantus_host::bridge::sandbox::OUTSIDE`]) ([`cantus_host::bridge::sandbox::CRASH_AT`]).
+/// A library several instances share names none of them. Messages a plug-in's own modal
+/// loop dispatches run under the call or window that loop is in. A Windows fail-fast abort
+/// runs no handler; Cantus then judges by what was running, and blames nobody when several
+/// were.
 pub mod blame {
     use cantus_host::bridge::sandbox::OUTSIDE;
     use std::cell::{Cell, RefCell};
     use std::sync::atomic::{AtomicPtr, AtomicU32, AtomicUsize, Ordering};
 
     thread_local! {
-        /// The instance this thread calls into now (0: none): its call's — or, on the main
-        /// thread, the instance a window message being dispatched belongs to.
+        /// The instance this thread calls into now (0: none).
         static CURRENT: Cell<u32> = const { Cell::new(0) };
-        /// The instance whose call is under way on this thread (0: none), beneath what a
-        /// message dispatched inside it says.
-        static CONTEXT: Cell<u32> = const { Cell::new(0) };
         /// The plug-in windows (their root handles) and their instances (main thread).
         static WINDOWS: RefCell<Vec<(isize, u32)>> = const { RefCell::new(Vec::new()) };
     }
@@ -393,19 +418,16 @@ pub mod blame {
     /// message inside a call, a call served from a plug-in's modal loop).
     pub struct Calling {
         prev: u32,
-        prev_context: u32,
     }
 
     pub fn calling(instance: u32) -> Calling {
         let prev = current();
-        let prev_context = CONTEXT.try_with(|c| c.replace(instance)).unwrap_or(0);
         mark(instance);
-        Calling { prev, prev_context }
+        Calling { prev }
     }
 
     impl Drop for Calling {
         fn drop(&mut self) {
-            let _ = CONTEXT.try_with(|c| c.set(self.prev_context));
             mark(self.prev);
         }
     }
@@ -417,25 +439,6 @@ pub mod blame {
             // SAFETY: the lobby's word, mapped for the life of the process (`install`).
             unsafe { &*word }.store(instance, Ordering::Release);
         }
-    }
-
-    /// Back to the call under way (0 between calls), after messages were dispatched.
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub fn settle() {
-        mark(CONTEXT.try_with(|c| c.get()).unwrap_or(0));
-    }
-
-    /// On the main thread, a window message retrieved for dispatch — by any loop, ours or
-    /// a plug-in's: it runs as a call into `owner` when that is an instance, else under the
-    /// call around it (review isolation-4 #37, #48).
-    #[cfg_attr(not(windows), allow(dead_code))]
-    pub(crate) fn message(owner: u32) {
-        let n = if owner != 0 {
-            owner
-        } else {
-            CONTEXT.try_with(|c| c.get()).unwrap_or(0)
-        };
-        mark(n);
     }
 
     /// A plug-in window (its root handle) belongs to `instance`.
@@ -464,29 +467,27 @@ pub mod blame {
             .unwrap_or(0)
     }
 
-    /// The instance loaded from the library `addr` is in (0: none of the plug-ins'): the
-    /// one this thread calls into when it is one of them. Atomics only.
+    /// The one instance loaded from the library `addr` is in — 0 for none of the plug-ins'
+    /// and for a library several instances share (nothing says whose; isolation-5 #7, #32,
+    /// #55). Atomics only.
     pub(crate) fn by_module(addr: usize) -> u32 {
         if addr == 0 {
             return 0;
         }
-        let me = CURRENT.try_with(|c| c.get()).unwrap_or(0);
-        let mut first = 0;
+        let mut found = 0;
         for m in &TABLE {
             let n = m.instance.load(Ordering::Acquire);
             if n == 0 {
                 continue;
             }
             if m.start.load(Ordering::Acquire) <= addr && addr < m.end.load(Ordering::Acquire) {
-                if n == me {
-                    return n;
+                if found != 0 && found != n {
+                    return 0;
                 }
-                if first == 0 {
-                    first = n;
-                }
+                found = n;
             }
         }
-        first
+        found
     }
 
     /// Records `[start, end)` as a library of `instance`'s (main thread).
@@ -547,17 +548,17 @@ pub mod blame {
         }
     }
 
-    /// From a crash handler, on the faulting thread: the instance whose library `addr` (the
-    /// faulting code) is in, else the thread's own, else *outside*, into the lobby — the
-    /// first fault's word stands. `true` when this call wrote it. Only atomics and a
-    /// thread-local made without initialisation are touched.
+    /// From a crash handler, on the faulting thread: the instance it calls into, else the
+    /// one instance whose library `addr` (the faulting code) is in, else *outside*, into the
+    /// lobby — the first fault's word stands. The instance written when this call wrote it.
+    /// Only atomics and a thread-local made without initialisation are touched.
     fn record(addr: usize) -> Option<u32> {
         let word = CRASH_AT.load(Ordering::Acquire);
         if word.is_null() {
             return None;
         }
-        let n = match by_module(addr) {
-            0 => match CURRENT.try_with(|c| c.get()).unwrap_or(0) {
+        let n = match CURRENT.try_with(|c| c.get()).unwrap_or(0) {
+            0 => match by_module(addr) {
                 0 => OUTSIDE,
                 n => n,
             },
@@ -582,8 +583,7 @@ pub mod blame {
     }
 
     /// Installs the crash handlers, writing to `crash_at`; `main_at` is the lobby's word
-    /// naming the instance the main thread is calling into. On Windows the main thread's
-    /// retrieved messages are attributed from here on.
+    /// naming the instance the main thread is calling into.
     pub fn install(crash_at: &'static AtomicU32, main_at: &'static AtomicU32) {
         CRASH_AT.store(
             crash_at as *const AtomicU32 as *mut AtomicU32,
@@ -594,15 +594,16 @@ pub mod blame {
             Ordering::Release,
         );
         imp::install();
-        imp::hook_messages();
         alt_stack();
     }
 
     /// Puts our handler back in front where a plug-in put its own over it while it loaded,
-    /// opened its editor or restarted (Windows: ours records, then hands on to it). On Unix
-    /// a plug-in's own fatal-signal handler is left in place — its runtime may handle its
-    /// own faults — and ours goes back only where the default was restored (review
-    /// isolation-4 #17, #52).
+    /// opened its editor or restarted (Windows: the unhandled-exception filter, ours
+    /// recording, then handing on to it; the C runtime's abort signal is ours only from the
+    /// start, so a plug-in's reporter keeps its own — isolation-5 #73). On Unix a plug-in's
+    /// own fatal-signal handler is left in place — its runtime may handle its own faults —
+    /// and ours goes back only where the default was restored (review isolation-4 #17,
+    /// #52).
     pub fn reinstall() {
         imp::reinstall();
     }
@@ -616,7 +617,7 @@ pub mod blame {
     #[cfg(windows)]
     mod imp {
         use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-        use windows_sys::Win32::Foundation::{HMODULE, HWND, LPARAM, LRESULT, WPARAM};
+        use windows_sys::Win32::Foundation::{HMODULE, HWND};
         use windows_sys::Win32::System::Diagnostics::Debug::{
             SetUnhandledExceptionFilter, EXCEPTION_POINTERS, LPTOP_LEVEL_EXCEPTION_FILTER,
         };
@@ -627,10 +628,9 @@ pub mod blame {
         use windows_sys::Win32::System::ProcessStatus::{
             K32EnumProcessModules, K32GetModuleInformation, MODULEINFO,
         };
-        use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetCurrentThreadId};
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
         use windows_sys::Win32::UI::WindowsAndMessaging::{
-            CallNextHookEx, GetAncestor, GetClassLongPtrW, SetWindowsHookExW, GA_ROOTOWNER,
-            GCLP_HMODULE, HC_ACTION, MSG, PM_REMOVE, WH_GETMESSAGE, WM_TIMER,
+            GetAncestor, GetClassLongPtrW, GA_ROOTOWNER, GCLP_HMODULE, MSG, WM_TIMER,
         };
 
         /// A filter that was in place before ours (a plug-in's crash reporter): handed on.
@@ -696,6 +696,15 @@ pub mod blame {
         }
 
         pub fn install() {
+            filter_on_top();
+            // SAFETY: a handler for the C runtime's abort signal, which only stores an
+            // atomic; returning lets the abort end the process as it would have.
+            unsafe {
+                signal(SIGABRT, on_abort as extern "C" fn(i32) as usize);
+            }
+        }
+
+        fn filter_on_top() {
             // SAFETY: a filter for this process's unhandled exceptions, which stores an
             // atomic and hands on; the previous one, kept to hand on to — or forgotten when
             // there is none (review isolation-4 #61).
@@ -710,15 +719,10 @@ pub mod blame {
                 Some(_) => {}
                 None => CHAINED.store(0, Ordering::Release),
             }
-            // SAFETY: a handler for the C runtime's abort signal, which only stores an
-            // atomic; returning lets the abort end the process as it would have.
-            unsafe {
-                signal(SIGABRT, on_abort as extern "C" fn(i32) as usize);
-            }
         }
 
         pub fn reinstall() {
-            install();
+            filter_on_top();
         }
 
         pub fn alt_stack() {}
@@ -749,31 +753,6 @@ pub mod blame {
                 return super::by_module(msg.lParam as usize);
             }
             0
-        }
-
-        unsafe extern "system" fn on_message(code: i32, w: WPARAM, l: LPARAM) -> LRESULT {
-            if code == HC_ACTION as i32 && w == PM_REMOVE as usize && l != 0 {
-                // SAFETY: the system hands the message being retrieved.
-                let msg = unsafe { &*(l as *const MSG) };
-                super::message(owner(msg));
-            }
-            // SAFETY: handing on, as every hook must.
-            unsafe { CallNextHookEx(std::ptr::null_mut(), code, w, l) }
-        }
-
-        /// Every message the main thread retrieves, in any loop, is attributed before it
-        /// is dispatched (review isolation-4 #37, #48, #55).
-        pub fn hook_messages() {
-            // SAFETY: a hook on this thread's own retrievals, with our procedure, kept for
-            // the life of the process.
-            unsafe {
-                SetWindowsHookExW(
-                    WH_GETMESSAGE,
-                    Some(on_message),
-                    std::ptr::null_mut(),
-                    GetCurrentThreadId(),
-                );
-            }
         }
 
         /// Each library loaded now: its address range and file.
@@ -922,8 +901,6 @@ pub mod blame {
             }
         }
 
-        pub fn hook_messages() {}
-
         pub fn alt_stack() {
             const SIZE: usize = 64 * 1024;
             let stack: &'static mut [u8] = Box::leak(vec![0u8; SIZE].into_boxed_slice());
@@ -938,7 +915,13 @@ pub mod blame {
             }
         }
 
+        /// Each shared object loaded now: its address range and file (Linux; none
+        /// elsewhere — macOS has no `dl_iterate_phdr`, isolation-5 #9).
+        #[cfg(not(target_os = "linux"))]
+        pub fn modules(_f: &mut dyn FnMut(usize, usize, &str)) {}
+
         /// Each shared object loaded now: its address range and file.
+        #[cfg(target_os = "linux")]
         pub fn modules(f: &mut dyn FnMut(usize, usize, &str)) {
             unsafe extern "C" fn each(
                 info: *mut libc::dl_phdr_info,

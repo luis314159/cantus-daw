@@ -3,25 +3,34 @@
 //! own — started on demand, watched, and killed when they hang.
 //!
 //! Each helper has three threads here, none of them real-time: a **writer** that owns its
-//! standard input, a **reader** that owns its standard output and routes what arrives
-//! (replies to the call that waits for them, news to the instance's [`Inbox`]), and a
-//! **watchdog** that owns the process, polls whether it has ended and kills it when asked.
-//! When the helper ends — a crash, a kill, its own exit — every instance in it is marked
-//! gone at once: their exchanges are closed, so an audio thread waiting on one is woken
-//! there and then, and every call waiting for an answer gets an error.
+//! standard input, a **reader** that owns its standard output and routes what arrives —
+//! every answer and every piece of news into its instance's [`Inbox`] — and a **watchdog**
+//! that owns the process, polls whether it has ended and kills it when asked. When the
+//! helper ends — a crash, a kill, its own exit — every instance in it is marked gone at
+//! once: their exchanges are closed, so an audio thread waiting on one is woken there and
+//! then.
+//!
+//! **Nothing here waits for the helper** (round 29, review isolation-5): a request is sent
+//! and its answer lands in the inbox, which the instance's main half takes each frame —
+//! loads, states, values, windows, restarts, parameter lists. A request that takes long
+//! shows its plug-in's waiting card (*Show it*, *Stop it*); one that runs past its own
+//! limit with the helper silent gets the helper ended.
 //!
 //! On Windows every helper is put in one job object made with *kill on job close*, so no
 //! helper outlives Cantus, whatever way Cantus ends; on Linux the helper asks for a
 //! `SIGKILL` when its parent dies, and ends when its standard input closes.
 
-use super::proto::{self, After, Answer, Call, Failure, Message, Request, WireEvent, WireNotice};
+use super::audio::Status;
+use super::proto::{
+    self, After, Answer, Call, Described, Failure, Message, Request, WireEvent, WireNotice,
+};
 use super::slot::Slot;
 use crate::backend::{HostError, ParamInfo, PluginInfo};
 use cantus_rt::ipc::Closer;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{mpsc, Arc, Mutex, MutexGuard, Weak};
 use std::time::{Duration, Instant};
 
@@ -49,13 +58,6 @@ pub const HANG_LIMIT: Duration = Duration::from_secs(2);
 /// How long an offline job (a render) may stay unfinished before its helper is taken for
 /// hung: far beyond real time, for a plug-in that is merely slow.
 pub const OFFLINE_HANG_LIMIT: Duration = Duration::from_secs(30);
-
-/// How long a load, a state or an unload may run with the helper silent before it is taken
-/// for hung (review isolation-4 #66).
-pub const HEAVY_LIMIT: Duration = Duration::from_secs(120);
-
-/// How long a load served while its plug-in's own dialog is up is waited for, at most.
-pub const MODAL_LIMIT: Duration = Duration::from_secs(600);
 
 /// The size of a helper's lobby region (the words its processing threads share).
 pub const LOBBY_BYTES: usize = 4096;
@@ -89,12 +91,6 @@ pub struct Limits {
     pub hang: Duration,
     /// An offline job unfinished this long: hung.
     pub offline: Duration,
-    /// A load, a state or an unload running this long with the helper silent: hung — a
-    /// sampler may read its samples without pumping (review isolation-4 #66).
-    pub heavy: Duration,
-    /// A load the helper serves while it lives (its own dialog up) is waited for this
-    /// long at most (review isolation-4 #57).
-    pub modal: Duration,
 }
 
 impl Default for Limits {
@@ -106,8 +102,6 @@ impl Default for Limits {
             call: CALL_TIMEOUT,
             hang: HANG_LIMIT,
             offline: OFFLINE_HANG_LIMIT,
-            heavy: HEAVY_LIMIT,
-            modal: MODAL_LIMIT,
         }
     }
 }
@@ -165,31 +159,49 @@ impl LobbyMem {
 
     /// Whether the helper is stalled: a job of it was not taken by its deadline, and none
     /// has finished since — its other instances pass dry at once instead of each waiting
-    /// out a deadline in the same callback (review isolation-4 #62). Real-time safe.
+    /// out a deadline in the same callback (review isolation-4 #62). The processing threads
+    /// clear the mark when they finish a job. Real-time safe.
     pub fn stalled(&self) -> bool {
         let s = self.atom(STALLED).load(Ordering::Acquire);
         s != 0 && self.atom(JOBS_DONE).load(Ordering::Acquire).wrapping_add(1) == s
     }
 
+    /// The count of finished jobs, read before a late job is looked at.
+    pub fn jobs_done(&self) -> u32 {
+        self.atom(JOBS_DONE).load(Ordering::Acquire)
+    }
+
     /// A job was not even taken by its deadline: the helper is stalled until any job of it
-    /// finishes. Real-time safe.
-    pub fn mark_stalled(&self) {
-        let done = self.atom(JOBS_DONE).load(Ordering::Acquire);
+    /// finishes. `done` is [`Self::jobs_done`] read before the job was seen untaken, so a
+    /// job that finished in between moves the count past the mark (review isolation-5 #8).
+    /// Real-time safe.
+    pub fn mark_stalled(&self, done: u32) {
         self.atom(STALLED)
             .store(done.wrapping_add(1), Ordering::Release);
     }
 }
 
-/// Time limits of the main-thread calls.
+/// Time limits of the main-thread requests, from when the helper starts each one: past it,
+/// with the helper silent, the helper is taken for hung. A load and a state are given long
+/// (a sampler reading its samples without pumping is slow, not hung); nothing waits on
+/// them meanwhile, and a request served past [`WAIT_CARD_AFTER`] shows its plug-in's
+/// waiting card.
 pub const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
-pub const STATE_TIMEOUT: Duration = Duration::from_secs(10);
+pub const STATE_TIMEOUT: Duration = Duration::from_secs(30);
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long Cantus, quitting, gives its helpers to end their plug-ins by themselves (their
+/// destructors write preferences, release licences) before their job object ends them
+/// (round 29, review isolation-5 #24, #54).
+pub const QUIT_GRACE: Duration = Duration::from_secs(3);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// What an instance's helper has said between calls, and the mirror of its values.
+/// What an instance's helper has said, and the mirror of its values. Every answer lands
+/// here (the reader thread puts it here; the main half takes it each frame): nothing on
+/// Cantus's interface thread ever waits for one (round 29, review isolation-5).
 #[derive(Debug, Default)]
 pub struct Inbox {
     inner: Mutex<InboxData>,
@@ -205,12 +217,20 @@ pub(crate) struct InboxData {
     pub latency: Option<usize>,
     pub texts: HashMap<(u32, u64), Option<String>>,
     pub asked_texts: HashSet<(u32, u64)>,
-    /// A state asked for in the background, once it is answered: the request's id, and
-    /// the state or why there is none.
+    /// The load's answer: what the plug-in is and its first state, or why it failed.
+    pub loaded: Option<Result<(Described, Vec<u8>), String>>,
+    /// A state asked for, once it is answered: the request's id, and the state or why there
+    /// is none.
     pub state: Option<(u64, Result<Vec<u8>, String>)>,
-    /// A parameter list asked for and given up on, once it is answered (review
-    /// isolation-4 #20).
+    /// A state given to it, once it is answered: the request's id, and whether it took it.
+    pub state_loaded: Option<(u64, Result<(), String>)>,
+    /// A parameter list asked for, once it is answered.
     pub params: Option<Vec<ParamInfo>>,
+    /// A window asked for, once it is answered: the request's id, and whether it opened.
+    pub editor: Option<(u64, Result<(), String>)>,
+    /// A restart asked for, once it is answered: the request's id, and what the plug-in is
+    /// now (`None`: its old audio half was still on its way back — ask again).
+    pub restarted: Option<(u64, Result<Option<Described>, String>)>,
 }
 
 impl Inbox {
@@ -235,21 +255,21 @@ impl Inbox {
     }
 }
 
-/// An answer as it arrives: what the helper said, and its blob.
-type Answered = (Result<Answer, Failure>, Vec<u8>);
-
-/// What a request no caller waits for (any more) was for: its answer, when it comes, lands
-/// where it belongs — a state given up on still becomes the last-good one, a parameter
-/// list given up on is still taken (review isolation-4 #1, #13, #20, #43).
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Background {
-    Text(u32, u32, u64),
-    /// A state: the instance's last-good one.
-    State(u32),
-    /// A parameter list: the instance's, told again.
-    Params(u32),
+/// What a request is for: where its answer lands, and how long it may take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Purpose {
+    Hello,
+    Load,
+    SaveState,
+    LoadState,
+    Flush,
+    Params,
+    Text(u32, u64),
+    Editor,
+    Restart,
     /// An instance's unload: its record goes once it is answered.
-    Unloaded(u32),
+    Unload(u32),
+    /// Nothing to keep (a close, a focus, a dropped audio half, a quit, a surface).
     Ignore,
 }
 
@@ -258,67 +278,19 @@ struct Registered {
     /// Kept so the closer's mapping outlives it; its exchange says whether a job runs.
     slot: Arc<Slot>,
     closer: Closer,
-}
-
-/// What a request asks, for how it is judged.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Kind {
-    /// Loading a plug-in: not given up while the helper serves it and lives — its own
-    /// dialog (a licence, a demo) may be open (review isolation-4 #57).
-    Load,
-    /// A state saved or loaded, an unload: may take long without pumping (a sampler
-    /// reading its samples), so the helper is taken for hung only past
-    /// [`Limits::heavy`] (review isolation-4 #66).
-    Heavy,
-    Other,
-}
-
-impl Kind {
-    fn of(call: &Call) -> Kind {
-        match call {
-            Call::Load { .. } => Kind::Load,
-            Call::SaveState { .. } | Call::LoadState { .. } | Call::Unload { .. } => Kind::Heavy,
-            _ => Kind::Other,
-        }
-    }
+    /// What its audio halves read: ready once it is loaded, failed when it never will be.
+    status: Arc<Status>,
 }
 
 /// A request under way: when it went, when the helper started it (`Message::Started`),
-/// whether the helper holds it for its main loop (`Message::Deferred`), how long a caller
-/// waits for it, how long it may run with the helper silent, the instance it names.
+/// how long it may run once started, the instance it names, what it is for.
 #[derive(Clone, Copy, Debug)]
 struct Flight {
     at: Instant,
     started: Option<Instant>,
-    deferred: bool,
-    /// The helper queued it behind a call of its instance's under way (`Message::Behind`).
-    behind: bool,
     limit: Duration,
-    hang_after: Duration,
     instance: Option<u32>,
-    kind: Kind,
-}
-
-/// How long [`Sandbox::wait_call`] waits.
-#[derive(Clone, Copy)]
-pub(crate) enum Wait<'a> {
-    /// Not at all: the answer, if it is in (a restart picked up each frame; review
-    /// isolation-4 #4, #23, #26, #51, #60).
-    Poll,
-    /// At most this long from now (a restart just posted), and not for a held call.
-    For(Duration),
-    /// The call's own limit, counted from when the helper starts it (from posting while it
-    /// waits its turn; review isolation-4 #1). A call held for a plug-in's main loop is not
-    /// waited for, nor one queued behind a request that runs past its own limit while the
-    /// helper lives — a plug-in's dialog inside it (#4, #13, #43, #54).
-    Limit,
-    /// As long as the helper lives (an offline render's load, state and values): until
-    /// `cancel` is set, or the request has run `cap`, which ends the helper — never a
-    /// render that starts with the wrong state (review isolation-4 #10).
-    WhileAlive {
-        cancel: &'a AtomicBool,
-        cap: Duration,
-    },
+    purpose: Purpose,
 }
 
 pub use crate::backend::Blame;
@@ -334,8 +306,8 @@ pub(crate) enum End {
     /// It ended by itself (a crash, an exit): what it was doing says whose.
     Observed,
     /// Cantus ended it (a hang, a silence, a broken protocol, a stop), laying it on this
-    /// instance or on nobody — never on a bystander whose job happened to be running
-    /// (review isolation-4 #3, #30, #44, #55).
+    /// instance or on nobody — never on a bystander whose job happened to run (review
+    /// isolation-4 #3, #30, #44, #55).
     Decided(Option<u32>),
 }
 
@@ -388,28 +360,14 @@ fn paused(last_ms: u64, now_ms: u64, silence: Duration) -> bool {
     last_ms != 0 && now_ms.saturating_sub(last_ms) > silence.as_millis() as u64
 }
 
-/// How long a call the helper neither started nor queued behind a call of its instance's
-/// waits, behind a request stalled in a plug-in's dialog, before it gives up (the helper
-/// serves the others from inside the dialog: they start well within this).
-const STALL_GRACE: Duration = Duration::from_secs(2);
+/// How long a request is served (or its helper's main thread stays in a plug-in's own
+/// loop) before the plug-in's waiting card shows (round 29, review isolation-5).
+pub const WAIT_CARD_AFTER: Duration = Duration::from_secs(2);
 
-/// How long an instance's own request may run with its helper silent before saving takes
-/// its last-good state at once: its helper's main thread is stuck in its code (review
-/// isolation-4 #27).
-const OWN_SILENCE: Duration = Duration::from_secs(1);
-
-/// A call posted and not yet answered ([`Sandbox::post_call`]).
-pub(crate) struct Pending {
-    id: u64,
-    rx: mpsc::Receiver<Answered>,
-}
-
-/// How a wait for a [`Pending`] call ended.
-pub(crate) enum Waited {
-    Answered(Box<Result<(Answer, Vec<u8>), HostError>>),
-    /// Not yet: the helper lives (held for its main loop, or busy ahead of it).
-    Pending,
-}
+/// How long the helper's main thread may stay in a plug-in's own loop before a request
+/// queued behind it is taken as one that will not be served soon (a save then keeps what
+/// that plug-in said last, and says so).
+pub const NESTED_GRACE: Duration = Duration::from_secs(1);
 
 /// A plug-in whose crash ended its helper while it was leaving it — its destructor, often
 /// after Cantus let go of it — for the host to count (review isolation-4 #45, #46).
@@ -481,8 +439,6 @@ pub struct Sandbox {
     /// Its processing threads' lobby.
     pub lobby: Arc<LobbyMem>,
     to_child: Mutex<Option<mpsc::Sender<Vec<u8>>>>,
-    waiters: Mutex<HashMap<u64, mpsc::Sender<Answered>>>,
-    background: Mutex<HashMap<u64, Background>>,
     instances: Mutex<HashMap<u32, Registered>>,
     next_id: AtomicU64,
     next_instance: AtomicU32,
@@ -497,14 +453,19 @@ pub struct Sandbox {
     /// Whether any frame came from it yet: until then it is judged by its handshake's own
     /// limit, not by the silence limit (review isolation-4 #50).
     heard: AtomicBool,
-    /// Requests under way (waited for or not), by id.
+    /// Requests under way, by id.
     inflight: Mutex<HashMap<u64, Flight>>,
+    /// Its main thread is in a loop nested in this instance's code (0: whose, unknown),
+    /// since then: it serves nothing meanwhile.
+    nested: Mutex<Option<(u32, Instant)>>,
     /// Milliseconds since `started` of the last judgement of its life (a pause guard).
     judged_ms: AtomicU64,
     /// Pauses of Cantus seen so far: each instance's job clock starts again after one.
     pauses: AtomicU64,
     /// The instances its end is laid on, once it ended; empty when nothing said which.
     blamed: Mutex<Option<HashSet<u32>>>,
+    /// The user stopped it from this instance's waiting card (and its plug-in's name).
+    user_stop: Mutex<Option<(u32, String)>>,
     ending: Arc<Ending>,
     pool: Weak<Sandboxes>,
 }
@@ -520,6 +481,10 @@ impl std::fmt::Debug for Sandbox {
 }
 
 impl Sandbox {
+    /// Starts a helper and returns at once: its handshake is the first request it serves,
+    /// answered on the reader thread — a helper slow to start never holds the interface
+    /// (round 29, review isolation-5); one that never answers it in its load limit is
+    /// ended, and the plug-ins asked of it fail to load.
     fn spawn(pool: &Arc<Sandboxes>, key: &str) -> Result<Arc<Sandbox>, HostError> {
         let fma3 = match cantus_rt::fpenv::crt_fma3_enabled() {
             Some(false) => "off",
@@ -577,8 +542,6 @@ impl Sandbox {
             serial,
             lobby,
             to_child: Mutex::new(Some(tx)),
-            waiters: Mutex::new(HashMap::new()),
-            background: Mutex::new(HashMap::new()),
             instances: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             next_instance: AtomicU32::new(1),
@@ -590,9 +553,11 @@ impl Sandbox {
             alive_ms: AtomicU64::new(0),
             heard: AtomicBool::new(false),
             inflight: Mutex::new(HashMap::new()),
+            nested: Mutex::new(None),
             judged_ms: AtomicU64::new(0),
             pauses: AtomicU64::new(0),
             blamed: Mutex::new(None),
+            user_stop: Mutex::new(None),
             ending: ending.clone(),
             pool: Arc::downgrade(pool),
         });
@@ -637,49 +602,25 @@ impl Sandbox {
         // The watchdog.
         let me = Arc::downgrade(&sandbox);
         let kill = sandbox.kill.clone();
+        let live = pool.live.clone();
+        live.fetch_add(1, Ordering::AcqRel);
         std::thread::Builder::new()
             .name("cantus-sandbox-watchdog".into())
-            .spawn(move || watch(child, kill, me, ending))
+            .spawn(move || {
+                watch(child, kill, me, ending);
+                live.fetch_sub(1, Ordering::AcqRel);
+            })
             .map_err(|e| HostError::Load(e.to_string()))?;
-        // The handshake.
-        match sandbox.call(
+        // The handshake: the first request it serves.
+        sandbox.post(
             None,
             Call::Hello {
                 protocol: proto::PROTOCOL,
             },
             &[],
-            pool.limits().load,
-        ) {
-            Ok((Answer::Hello { protocol, .. }, _)) if protocol == proto::PROTOCOL => {
-                // The helper has mapped its lobby: the name is no longer needed (review #43).
-                sandbox.lobby.mem.unlink_name();
-                Ok(sandbox)
-            }
-            Ok((Answer::Hello { protocol, .. }, _)) => {
-                sandbox.request_kill();
-                Err(HostError::Load(format!(
-                    "the plug-in sandbox speaks protocol {protocol}, Cantus {}",
-                    proto::PROTOCOL
-                )))
-            }
-            Ok(_) => {
-                sandbox.request_kill();
-                Err(HostError::Load("the plug-in sandbox did not greet".into()))
-            }
-            // Ended (or never answered) before its handshake: it could not start — another
-            // build's helper, a missing library. A load failure, never a plug-in's crash
-            // (review #40).
-            Err(e) => {
-                sandbox.request_kill();
-                let why = match e {
-                    HostError::Crashed(w) | HostError::Busy(w) => w,
-                    e => e.to_string(),
-                };
-                Err(HostError::Load(format!(
-                    "the plug-in sandbox could not start: {why}"
-                )))
-            }
-        }
+            Purpose::Hello,
+        );
+        Ok(sandbox)
     }
 
     pub fn is_dead(&self) -> bool {
@@ -702,9 +643,8 @@ impl Sandbox {
     }
 
     /// Marks it gone, as it ended by itself: every instance's exchange closed (waking an
-    /// audio thread that waits on one), every waiting call answered with an error. `why`
-    /// is kept if none was given before; `None` (its pipe closed) leaves it to the
-    /// watchdog, which knows how the process ended.
+    /// audio thread that waits on one). `why` is kept if none was given before; `None` (its
+    /// pipe closed) leaves it to the watchdog, which knows how the process ended.
     pub(crate) fn mark_dead(&self, why: Option<&str>) {
         self.mark_dead_blaming(why, End::Observed);
     }
@@ -736,8 +676,8 @@ impl Sandbox {
         );
         for r in lock(&self.instances).values() {
             r.closer.close();
+            r.status.mark_dead();
         }
-        lock(&self.waiters).clear();
         *lock(&self.to_child) = None;
     }
 
@@ -786,6 +726,19 @@ impl Sandbox {
         self.request_kill();
     }
 
+    /// The user stopped `instance` (its plug-in `name`) from its waiting card: its helper
+    /// ends — with every plug-in in it. Told so to each, and counted as no crash (round 29,
+    /// review isolation-5 #28, #44, #67).
+    pub(crate) fn stop_by_user(&self, instance: u32, name: &str) {
+        *lock(&self.user_stop) = Some((instance, name.to_string()));
+        self.kill_blaming("stopped by the user", Some(instance));
+    }
+
+    /// Whom the user stopped, if the user ended it: the instance and its plug-in's name.
+    pub(crate) fn user_stop(&self) -> Option<(u32, String)> {
+        lock(&self.user_stop).clone()
+    }
+
     /// How long since its main thread last showed life (its heartbeat).
     pub fn silent_for(&self) -> Duration {
         let now = self.started.elapsed().as_millis() as u64;
@@ -797,17 +750,11 @@ impl Sandbox {
         self.pool.upgrade().map(|p| p.limits()).unwrap_or_default()
     }
 
-    /// Whether its main thread shows life now (heard from, within the silence limit).
-    fn alive(&self) -> bool {
-        self.heard.load(Ordering::Acquire) && self.silent_for() <= self.limits().silence
-    }
-
     /// Whether the helper is hung, and why. Before it said anything, it is judged by its
     /// handshake's own limit (review isolation-4 #50). A helper that shows life is never
-    /// hung — whatever waits on it, a plug-in's dialog or a call held for its main loop
-    /// (review #36, #44). A silent one is hung unless the request it is serving now (the
-    /// last it started) is still within its own hang limit — a request queued behind it is
-    /// not judged until the helper starts it (#3, #37).
+    /// hung — a plug-in's dialog keeps it alive (review #36, #44). A silent one is hung
+    /// unless the request it is serving now is still within its own limit — a request
+    /// queued behind it is not judged until the helper starts it (#3, #37).
     fn hung(&self) -> Option<String> {
         if !self.heard.load(Ordering::Acquire) {
             let late = lock(&self.inflight)
@@ -821,10 +768,10 @@ impl Sandbox {
         match self.serving() {
             Some((_, f)) => {
                 let took = f.started.map_or(Duration::ZERO, |s| s.elapsed());
-                (took > f.hang_after).then(|| {
+                (took > f.limit).then(|| {
                     format!(
                         "the plug-in sandbox did not answer in {} s",
-                        f.hang_after.as_secs().max(1)
+                        f.limit.as_secs().max(1)
                     )
                 })
             }
@@ -832,49 +779,19 @@ impl Sandbox {
         }
     }
 
-    /// Whether `instance` itself is in trouble here: the helper is hung; a request of this
-    /// instance's has run past its limit since the helper started it; or one has run a
-    /// second with the helper silent — its main thread is stuck in this plug-in's code
-    /// (review isolation-4 #27). A neighbour that is merely slow is not this one's trouble
-    /// (review #2, #24).
-    pub(crate) fn troubled(&self, instance: u32) -> bool {
-        if self.hung().is_some() {
-            return true;
-        }
-        let silent = self.heard.load(Ordering::Acquire) && self.silent_for() > OWN_SILENCE;
-        lock(&self.inflight).values().any(|f| {
-            f.instance == Some(instance)
-                && !f.deferred
-                && f.started
-                    .is_some_and(|s| s.elapsed() > f.limit || (silent && s.elapsed() > OWN_SILENCE))
-        })
-    }
-
-    /// Whether a request of `instance`'s is being served past its own limit while the
-    /// helper lives: the plug-in waits on a window of its own — a dialog, perhaps behind
-    /// Cantus (review isolation-4 #54).
-    pub(crate) fn waiting_on(&self, instance: u32) -> bool {
-        self.alive()
-            && lock(&self.inflight).values().any(|f| {
-                f.instance == Some(instance)
-                    && !f.deferred
-                    && f.started.is_some_and(|s| s.elapsed() > f.limit)
-            })
-    }
-
-    /// The request the helper is serving now: the last one it started and has not
-    /// answered (a held one is not being served), and its id.
+    /// The request the helper is serving now (the last it started, not yet answered), and
+    /// its id.
     fn serving(&self) -> Option<(u64, Flight)> {
         lock(&self.inflight)
             .iter()
-            .filter(|(_, f)| f.started.is_some() && !f.deferred)
+            .filter(|(_, f)| f.started.is_some())
             .max_by_key(|(_, f)| f.started)
             .map(|(id, f)| (*id, *f))
     }
 
-    /// What a hang of the main thread is laid on: the instance it is calling into, else
-    /// the one whose request it is serving — never the caller of a request it had not
-    /// started (review isolation-4 #3, #30, #44, #55).
+    /// What a hang of the main thread is laid on: the instance it is calling into, else the
+    /// one whose request it is serving — never the caller of a request it had not started
+    /// (review isolation-4 #3, #30, #44, #55).
     fn hung_on(&self) -> Option<u32> {
         let at = self.lobby.main_at();
         if at != 0 && at != OUTSIDE {
@@ -883,45 +800,51 @@ impl Sandbox {
         self.serving().and_then(|(_, f)| f.instance)
     }
 
-    /// Whether the call `id` (not started, not held) waits behind a request the helper
-    /// serves past its own limit while it lives — a plug-in's dialog: given up at once
-    /// when the helper said it waits behind its instance's call (the others are served
-    /// from inside the dialog), else after a grace (review isolation-4 #4, #13, #43, #54).
-    fn stalled_ahead(&self, id: u64, f: &Flight, now: Instant) -> bool {
-        if f.started.is_some() || f.deferred || !self.alive() {
+    /// Whether `instance` keeps its helper waiting — a request of its served for a while,
+    /// or the helper's main thread in a loop of its code (a dialog, perhaps behind Cantus):
+    /// its waiting card shows (round 29, review isolation-5).
+    pub(crate) fn waiting_on(&self, instance: u32) -> bool {
+        if self.is_dead() {
             return false;
         }
-        let Some((sid, s)) = self.serving() else {
-            return false;
-        };
-        if sid == id
-            || !s
-                .started
-                .is_some_and(|t| now.saturating_duration_since(t) > s.limit)
-        {
-            return false;
+        if let Some((n, since)) = *lock(&self.nested) {
+            if n == instance && since.elapsed() > WAIT_CARD_AFTER {
+                return true;
+            }
         }
-        f.behind || now.saturating_duration_since(f.at) > STALL_GRACE
+        self.serving().is_some_and(|(_, f)| {
+            f.instance == Some(instance)
+                && f.started.is_some_and(|s| s.elapsed() > WAIT_CARD_AFTER)
+        })
     }
 
-    fn fly(&self, id: u64, limit: Duration, instance: Option<u32>, kind: Kind) {
-        let hang_after = match kind {
-            Kind::Other => limit,
-            Kind::Load | Kind::Heavy => limit.max(self.limits().heavy),
+    /// Whether request `id` will not be served soon though its helper lives: queued behind
+    /// a plug-in's own loop (a dialog) for longer than [`NESTED_GRACE`], or behind a
+    /// request served past its own limit. A save then keeps what that plug-in said last,
+    /// and says so (round 29, review isolation-5).
+    pub(crate) fn held_up(&self, id: u64) -> bool {
+        let Some(f) = lock(&self.inflight).get(&id).copied() else {
+            return false;
         };
-        lock(&self.inflight).insert(
-            id,
-            Flight {
-                at: Instant::now(),
-                started: None,
-                deferred: false,
-                behind: false,
-                limit,
-                hang_after,
-                instance,
-                kind,
-            },
-        );
+        if f.started.is_some() {
+            return false;
+        }
+        if lock(&self.nested).is_some_and(|(_, since)| since.elapsed() > NESTED_GRACE) {
+            return true;
+        }
+        self.serving().is_some_and(|(sid, s)| {
+            sid != id && s.started.is_some_and(|t| t.elapsed() > s.limit)
+        })
+    }
+
+    /// When request `id` was started by the helper (`None`: not yet, or answered).
+    pub(crate) fn started_at(&self, id: u64) -> Option<Instant> {
+        lock(&self.inflight).get(&id).and_then(|f| f.started)
+    }
+
+    /// Request `id`'s own limit.
+    pub(crate) fn limit_of(&self, id: u64) -> Option<Duration> {
+        lock(&self.inflight).get(&id).map(|f| f.limit)
     }
 
     /// Cantus (or the whole system) was paused — a debugger, a laptop asleep — for longer
@@ -938,6 +861,9 @@ impl Sandbox {
         for f in lock(&self.inflight).values_mut() {
             f.at = t;
             f.started = f.started.map(|_| t);
+        }
+        if let Some((_, since)) = lock(&self.nested).as_mut() {
+            *since = t;
         }
         self.pauses.fetch_add(1, Ordering::AcqRel);
         true
@@ -960,19 +886,13 @@ impl Sandbox {
             Message::Started { id } => {
                 if let Some(f) = lock(&self.inflight).get_mut(&id) {
                     f.started = Some(Instant::now());
-                    f.deferred = false;
-                    f.behind = false;
                 }
             }
-            Message::Deferred { id } => {
-                if let Some(f) = lock(&self.inflight).get_mut(&id) {
-                    f.deferred = true;
-                }
+            Message::Nested { instance } => {
+                *lock(&self.nested) = Some((instance, Instant::now()));
             }
-            Message::Behind { id } => {
-                if let Some(f) = lock(&self.inflight).get_mut(&id) {
-                    f.behind = true;
-                }
+            Message::Unnested => {
+                *lock(&self.nested) = None;
             }
             Message::News {
                 instance,
@@ -988,56 +908,118 @@ impl Sandbox {
                 }
             }
             Message::Reply { id, result, after } => {
-                lock(&self.inflight).remove(&id);
+                let flight = lock(&self.inflight).remove(&id);
                 if let Some((instance, after)) = after.map(|b| *b) {
                     if let Some(inbox) = self.inbox(instance) {
                         inbox.absorb(after);
                     }
                 }
-                let waiter = lock(&self.waiters).remove(&id);
-                match waiter {
-                    Some(tx) => {
-                        let _ = tx.send((result, blob));
-                    }
-                    None => self.background_answer(id, result, blob),
+                if let Some(f) = flight {
+                    self.land(id, f, result, blob);
                 }
             }
         }
     }
 
-    fn background_answer(&self, id: u64, result: Result<Answer, Failure>, blob: Vec<u8>) {
-        let Some(kind) = lock(&self.background).remove(&id) else {
+    /// An answer, where its request's purpose says it goes: the handshake checked here,
+    /// everything else into its instance's inbox (and its audio halves told it is ready).
+    fn land(&self, id: u64, f: Flight, result: Result<Answer, Failure>, blob: Vec<u8>) {
+        let words = |f: Failure| failure(f).to_string();
+        if f.purpose == Purpose::Hello {
+            match result {
+                Ok(Answer::Hello { protocol, .. }) if protocol == proto::PROTOCOL => {
+                    // The helper has mapped its lobby: the name is no longer needed (#43).
+                    self.lobby.mem.unlink_name();
+                }
+                Ok(Answer::Hello { protocol, .. }) => self.kill(&format!(
+                    "the plug-in sandbox could not start: it speaks protocol {protocol}, \
+                     Cantus {}",
+                    proto::PROTOCOL
+                )),
+                _ => self.kill("the plug-in sandbox could not start: it did not greet"),
+            }
+            return;
+        }
+        if let Purpose::Unload(n) = f.purpose {
+            lock(&self.ending.infos).remove(&n);
+            return;
+        }
+        let Some(instance) = f.instance else {
             return;
         };
-        match (kind, result) {
-            (Background::Text(instance, pid, bits), Ok(Answer::Text(text))) => {
-                if let Some(inbox) = self.inbox(instance) {
-                    let mut d = inbox.data();
-                    if d.texts.len() > 4096 {
-                        d.texts.clear();
-                    }
-                    d.asked_texts.remove(&(pid, bits));
-                    d.texts.insert((pid, bits), text);
+        let (inbox, status, slot) = {
+            let instances = lock(&self.instances);
+            let Some(r) = instances.get(&instance) else {
+                return;
+            };
+            (r.inbox.clone(), r.status.clone(), r.slot.clone())
+        };
+        let mut d = inbox.data();
+        match (f.purpose, result) {
+            (Purpose::Load, Ok(Answer::Loaded(described))) => {
+                // The helper has mapped the slot: its name is no longer needed (review #43).
+                slot.unlink_name();
+                // An offline instance never renders with another state than its own.
+                if status.offline && described.refused_state.is_some() {
+                    status.fail();
+                } else {
+                    status.set_ready();
                 }
+                d.latency = Some(described.latency);
+                d.loaded = Some(Ok((described, blob)));
             }
-            (Background::State(instance), result) => {
+            (Purpose::Load, r) => {
+                status.fail();
+                d.loaded = Some(Err(match r {
+                    Err(f) => words(f),
+                    Ok(_) => "the plug-in sandbox did not load it".into(),
+                }));
+            }
+            (Purpose::SaveState, r) => {
                 // A failure is delivered too, so the instance asks again later (review #8).
-                let state = match result {
-                    Ok(Answer::State) => Ok(blob),
-                    Ok(_) => Err("no state in the answer".to_string()),
-                    Err(f) => Err(failure(f).to_string()),
-                };
-                if let Some(inbox) = self.inbox(instance) {
-                    inbox.data().state = Some((id, state));
-                }
+                d.state = Some((
+                    id,
+                    match r {
+                        Ok(Answer::State) => Ok(blob),
+                        Ok(_) => Err("no state in the answer".into()),
+                        Err(f) => Err(words(f)),
+                    },
+                ));
             }
-            (Background::Params(instance), Ok(Answer::Params(p))) => {
-                if let Some(inbox) = self.inbox(instance) {
-                    inbox.data().params = Some(p);
-                }
+            (Purpose::LoadState, r) => {
+                d.state_loaded = Some((id, r.map(|_| ()).map_err(words)));
             }
-            (Background::Unloaded(instance), _) => {
-                lock(&self.ending.infos).remove(&instance);
+            (Purpose::Flush, Ok(Answer::Flushed { out, .. })) => d.flushed.extend(out),
+            (Purpose::Params, Ok(Answer::Params(p))) => d.params = Some(p),
+            (Purpose::Text(pid, bits), Ok(Answer::Text(text))) => {
+                if d.texts.len() > 4096 {
+                    d.texts.clear();
+                }
+                d.asked_texts.remove(&(pid, bits));
+                d.texts.insert((pid, bits), text);
+            }
+            (Purpose::Text(pid, bits), Err(_)) => {
+                d.asked_texts.remove(&(pid, bits));
+            }
+            (Purpose::Editor, r) => {
+                d.editor = Some((
+                    id,
+                    match r {
+                        Ok(Answer::Editor { .. }) => Ok(()),
+                        Ok(_) => Err("the plug-in sandbox did not open it".into()),
+                        Err(f) => Err(words(f)),
+                    },
+                ));
+            }
+            (Purpose::Restart, r) => {
+                d.restarted = Some((
+                    id,
+                    match r {
+                        Ok(Answer::Restarted(described)) => Ok(described),
+                        Ok(_) => Err("restart".into()),
+                        Err(f) => Err(words(f)),
+                    },
+                ));
             }
             _ => {}
         }
@@ -1063,97 +1045,26 @@ impl Sandbox {
         buf
     }
 
-    fn post(&self, frame: Vec<u8>) -> bool {
-        match lock(&self.to_child).as_ref() {
-            Some(tx) => tx.send(frame).is_ok(),
-            None => false,
-        }
-    }
-
-    fn gone(&self) -> HostError {
-        HostError::Crashed(
-            self.why()
-                .unwrap_or_else(|| "the plug-in sandbox ended".into()),
-        )
-    }
-
-    /// A call that waits for its answer ([`Wait::Limit`]). A helper that is hung is
-    /// killed; one that lives but has not answered — a plug-in's dialog holds the call for
-    /// its main loop, a slow call is ahead of it — is not: the call gives up with
-    /// `HostError::Busy`, and its late answer still lands where it belongs (a state, a
-    /// parameter list; review isolation-4 #1, #20). Cantus's interface never waits past
-    /// the call's own limit (review #4, #36, #44). `instance` names the instance whose news
-    /// the answer carries.
-    pub(crate) fn call(
+    /// Sends a request and returns its id at once (0 when the helper is gone): its answer
+    /// lands where `purpose` says, and nothing waits for it here. A request that may open
+    /// a window (a licence dialog in a load, the editor) lets the helper take the
+    /// foreground first, so the window is not left behind Cantus (review isolation-4 #54).
+    pub(crate) fn post(
         &self,
         instance: Option<u32>,
         call: Call,
         blob: &[u8],
-        timeout: Duration,
-    ) -> Result<(Answer, Vec<u8>), HostError> {
-        let later = match &call {
-            Call::SaveState { instance } => Background::State(*instance),
-            Call::Params { instance } => Background::Params(*instance),
-            _ => Background::Ignore,
-        };
-        let pending = self.post_call(instance, call, blob, timeout)?;
-        match self.wait_call(&pending, Wait::Limit) {
-            Waited::Answered(r) => *r,
-            Waited::Pending => Err(self.give_up(pending, later, timeout)),
-        }
-    }
-
-    /// A call that waits as long as the helper lives ([`Wait::WhileAlive`]): an offline
-    /// render's load, state and values (review isolation-4 #10). Cancelled, it is an error.
-    pub(crate) fn call_while_alive(
-        &self,
-        instance: Option<u32>,
-        call: Call,
-        blob: &[u8],
-        (limit, cancel, cap): (Duration, &AtomicBool, Duration),
-    ) -> Result<(Answer, Vec<u8>), HostError> {
-        let pending = self.post_call(instance, call, blob, limit)?;
-        match self.wait_call(&pending, Wait::WhileAlive { cancel, cap }) {
-            Waited::Answered(r) => *r,
-            Waited::Pending => {
-                self.drop_call(pending, Background::Ignore);
-                Err(HostError::Crashed("the render was stopped".into()))
-            }
-        }
-    }
-
-    /// A call no longer waited for: its answer goes to `later`; the error says why it was
-    /// given up — held for the plug-in's own window, or not answered in time (review
-    /// isolation-4 #39).
-    pub(crate) fn give_up(&self, p: Pending, later: Background, timeout: Duration) -> HostError {
-        let e = self.give_up_waiting(&p, timeout);
-        self.drop_call(p, later);
-        e
-    }
-
-    /// Why a call is not waited for now (it stays posted, and may be waited for again).
-    pub(crate) fn give_up_waiting(&self, p: &Pending, timeout: Duration) -> HostError {
-        let held = lock(&self.inflight).get(&p.id).is_some_and(|f| f.deferred);
-        HostError::Busy(if held {
-            "its own window holds it".to_string()
-        } else {
-            format!("it did not answer in {} s", timeout.as_secs().max(1))
-        })
-    }
-
-    /// Posts a call whose answer is waited for with [`Self::wait_call`]. A call that may
-    /// open a window (a licence dialog in a load, the editor) lets the helper take the
-    /// foreground, so the window is not left behind Cantus (review isolation-4 #54).
-    pub(crate) fn post_call(
-        &self,
-        instance: Option<u32>,
-        call: Call,
-        blob: &[u8],
-        limit: Duration,
-    ) -> Result<Pending, HostError> {
+        purpose: Purpose,
+    ) -> u64 {
         if self.is_dead() {
-            return Err(self.gone());
+            return 0;
         }
+        let limits = self.limits();
+        let limit = match &call {
+            Call::Hello { .. } | Call::Load { .. } => limits.load,
+            Call::SaveState { .. } | Call::LoadState { .. } | Call::Unload { .. } => limits.state,
+            _ => limits.call,
+        };
         if matches!(
             call,
             Call::Load { .. }
@@ -1165,180 +1076,34 @@ impl Sandbox {
             allow_foreground(self.pid);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let (tx, rx) = mpsc::channel();
-        lock(&self.waiters).insert(id, tx);
-        self.fly(id, limit, instance, Kind::of(&call));
-        if !self.post(Self::frame(id, &call, blob)) {
-            lock(&self.waiters).remove(&id);
-            lock(&self.inflight).remove(&id);
-            return Err(self.gone());
-        }
-        Ok(Pending { id, rx })
-    }
-
-    fn answered(a: Answered) -> Waited {
-        match a {
-            (Ok(answer), blob) => Waited::Answered(Box::new(Ok((answer, blob)))),
-            (Err(f), _) => Waited::Answered(Box::new(Err(failure(f)))),
-        }
-    }
-
-    /// Waits for a posted call as `wait` says (in slices: a hung helper is killed on the
-    /// way). Before any sleep it looks whether the answer is in and whether the call is
-    /// held, so a call polled each frame costs no wait (review isolation-4 #4, #26, #51).
-    pub(crate) fn wait_call(&self, p: &Pending, wait: Wait<'_>) -> Waited {
-        let slice = Duration::from_millis(20);
-        let began = Instant::now();
-        loop {
-            match p.rx.try_recv() {
-                Ok(a) => return Self::answered(a),
-                Err(mpsc::TryRecvError::Disconnected) => {
-                    lock(&self.inflight).remove(&p.id);
-                    return Waited::Answered(Box::new(Err(self.gone())));
-                }
-                Err(mpsc::TryRecvError::Empty) => {}
-            }
-            if !self.rebased_after_a_pause() {
-                if let Some(why) = self.hung() {
-                    lock(&self.waiters).remove(&p.id);
-                    lock(&self.inflight).remove(&p.id);
-                    self.kill_blaming(&why, self.hung_on());
-                    return Waited::Answered(Box::new(Err(self.gone())));
-                }
-            }
-            let flight = lock(&self.inflight).get(&p.id).copied();
-            let now = Instant::now();
-            // When the wait ends by itself, if it does: a slice never sleeps past it.
-            let mut ends: Option<Instant> = None;
-            let give_up = match (wait, flight) {
-                (Wait::Poll, _) => true,
-                // Answered: on its way.
-                (_, None) => false,
-                (Wait::For(d), Some(f)) => {
-                    ends = Some(began + d);
-                    f.deferred || self.stalled_ahead(p.id, &f, now) || now >= began + d
-                }
-                (Wait::Limit, Some(f)) => {
-                    let since = f.started.unwrap_or(f.at);
-                    // A load the helper is serving while it lives: its own dialog (a
-                    // licence, a demo) may be up; it is waited for (review isolation-4 #57).
-                    let load_served = f.kind == Kind::Load
-                        && f.started.is_some()
-                        && !f.deferred
-                        && self.alive()
-                        && now.saturating_duration_since(since) < self.limits().modal;
-                    if !load_served {
-                        ends = Some(since + f.limit);
-                    }
-                    f.deferred
-                        || self.stalled_ahead(p.id, &f, now)
-                        || (now >= since + f.limit && !load_served)
-                }
-                (Wait::WhileAlive { cancel, cap }, Some(f)) => {
-                    if now.saturating_duration_since(f.started.unwrap_or(f.at)) > cap {
-                        lock(&self.waiters).remove(&p.id);
-                        lock(&self.inflight).remove(&p.id);
-                        self.kill_blaming(
-                            "it did not answer while the render loaded it",
-                            f.instance,
-                        );
-                        return Waited::Answered(Box::new(Err(self.gone())));
-                    }
-                    cancel.load(Ordering::Acquire)
-                }
-            };
-            if give_up {
-                return Waited::Pending;
-            }
-            let nap = ends.map_or(slice, |e| {
-                slice
-                    .min(e.saturating_duration_since(now))
-                    .max(Duration::from_millis(1))
-            });
-            match p.rx.recv_timeout(nap) {
-                Ok(a) => return Self::answered(a),
-                Err(mpsc::RecvTimeoutError::Disconnected) => {
-                    lock(&self.inflight).remove(&p.id);
-                    return Waited::Answered(Box::new(Err(self.gone())));
-                }
-                Err(mpsc::RecvTimeoutError::Timeout) => {}
-            }
-        }
-    }
-
-    /// A posted call no longer waited for: its answer, when it comes, goes to `later`
-    /// (the request stays under way: the helper still serves it). One that came in just
-    /// now goes there too.
-    pub(crate) fn drop_call(&self, p: Pending, later: Background) {
-        lock(&self.background).insert(p.id, later);
-        lock(&self.waiters).remove(&p.id);
-        if let Ok((result, blob)) = p.rx.try_recv() {
-            self.background_answer(p.id, result, blob);
-        }
-    }
-
-    /// A call whose answer is not waited for.
-    pub(crate) fn tell(&self, call: Call, blob: &[u8]) {
-        self.tell_as(call, blob, Background::Ignore);
-    }
-
-    fn tell_as(&self, call: Call, blob: &[u8], later: Background) {
-        if self.is_dead() {
-            return;
-        }
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        lock(&self.background).insert(id, later);
-        // Under way like a call (review #41): an unload that takes long is not silence.
-        let instance = match &call {
-            Call::Unload { instance }
-            | Call::DropAudio { instance }
-            | Call::CloseEditor { instance }
-            | Call::FocusEditor { instance } => Some(*instance),
-            _ => None,
-        };
+        // Quit is never answered after the helper's end: not under way.
         if !matches!(call, Call::Quit) {
-            self.fly(id, self.limits().call, instance, Kind::of(&call));
-        }
-        self.post(Self::frame(id, &call, blob));
-    }
-
-    /// Brings the helper's waiting windows (a plug-in's dialog) to the front (review
-    /// isolation-4 #54): told, not waited for.
-    pub(crate) fn surface(&self) {
-        allow_foreground(self.pid);
-        self.tell(Call::Surface, &[]);
-    }
-
-    /// A text asked for in the background; the answer lands in the instance's inbox.
-    pub(crate) fn ask_text(&self, instance: u32, id: u32, value: f64) {
-        if self.is_dead() {
-            return;
-        }
-        let rid = self.next_id.fetch_add(1, Ordering::Relaxed);
-        lock(&self.background).insert(rid, Background::Text(instance, id, value.to_bits()));
-        self.fly(rid, self.limits().call, Some(instance), Kind::Other);
-        self.post(Self::frame(
-            rid,
-            &Call::ParamText {
-                instance,
+            lock(&self.inflight).insert(
                 id,
-                value,
-            },
-            &[],
-        ));
-    }
-
-    /// A state asked for in the background; it lands in the instance's inbox, tagged with
-    /// the request's id (returned; 0 when the helper is gone).
-    pub(crate) fn ask_state(&self, instance: u32) -> u64 {
-        if self.is_dead() {
+                Flight {
+                    at: Instant::now(),
+                    started: None,
+                    limit,
+                    instance,
+                    purpose,
+                },
+            );
+        }
+        let sent = match lock(&self.to_child).as_ref() {
+            Some(tx) => tx.send(Self::frame(id, &call, blob)).is_ok(),
+            None => false,
+        };
+        if !sent {
+            lock(&self.inflight).remove(&id);
             return 0;
         }
-        let rid = self.next_id.fetch_add(1, Ordering::Relaxed);
-        lock(&self.background).insert(rid, Background::State(instance));
-        self.fly(rid, self.limits().state, Some(instance), Kind::Heavy);
-        self.post(Self::frame(rid, &Call::SaveState { instance }, &[]));
-        rid
+        id
+    }
+
+    /// Brings the helper's waiting window (a plug-in's dialog) to the front: served by its
+    /// reader thread at once (review isolation-4 #54; isolation-5).
+    pub(crate) fn surface(&self) {
+        self.post(None, Call::Surface, &[], Purpose::Ignore);
     }
 
     /// The id the next request will have: answers to requests before it are older.
@@ -1354,7 +1119,7 @@ impl Sandbox {
         &self,
         instance: u32,
         info: &PluginInfo,
-        inbox: Arc<Inbox>,
+        (inbox, status): (Arc<Inbox>, Arc<Status>),
         slot: Arc<Slot>,
         closer: Closer,
     ) {
@@ -1365,11 +1130,13 @@ impl Sandbox {
                 inbox,
                 slot,
                 closer,
+                status,
             },
         );
         if self.is_dead() {
             if let Some(r) = lock(&self.instances).get(&instance) {
                 r.closer.close();
+                r.status.mark_dead();
             }
         }
     }
@@ -1389,15 +1156,16 @@ impl Sandbox {
         if let Some(r) = &gone {
             r.closer.close();
         }
-        self.tell_as(
+        self.post(
+            Some(instance),
             Call::Unload { instance },
             &[],
-            Background::Unloaded(instance),
+            Purpose::Unload(instance),
         );
         drop(gone);
         if empty {
             self.ending.quit.store(true, Ordering::Release);
-            self.tell(Call::Quit, &[]);
+            self.post(None, Call::Quit, &[], Purpose::Ignore);
             if let Some(pool) = self.pool.upgrade() {
                 pool.release(self);
             }
@@ -1553,6 +1321,8 @@ pub struct Sandboxes {
     threads: Mutex<Option<usize>>,
     /// Plug-ins that crashed while they left their helper, for the host to count.
     departed: Mutex<Vec<DepartedCrash>>,
+    /// Helper processes still running (their watchdogs count them).
+    live: Arc<AtomicUsize>,
     #[cfg(windows)]
     job: Option<job::Job>,
 }
@@ -1575,6 +1345,7 @@ impl Sandboxes {
             deadline_floor_us: AtomicU64::new(super::audio::DEADLINE_FLOOR.as_micros() as u64),
             threads: Mutex::new(None),
             departed: Mutex::new(Vec::new()),
+            live: Arc::new(AtomicUsize::new(0)),
             #[cfg(windows)]
             job: job::Job::new(),
         })
@@ -1675,6 +1446,11 @@ impl Sandboxes {
         v
     }
 
+    /// How many helper processes are still running.
+    pub fn running(&self) -> usize {
+        self.live.load(Ordering::Acquire)
+    }
+
     #[cfg(windows)]
     fn adopt(&self, child: &Child) {
         if let Some(j) = &self.job {
@@ -1684,6 +1460,19 @@ impl Sandboxes {
 
     #[cfg(not(windows))]
     fn adopt(&self, _child: &Child) {}
+}
+
+/// The pool goes when Cantus quits (its last user let go): the helpers, told to quit as
+/// their last plug-ins left, are given [`QUIT_GRACE`] to end by themselves before the job
+/// object (or the parent-death signal) ends what is left (round 29, review isolation-5
+/// #24, #54).
+impl Drop for Sandboxes {
+    fn drop(&mut self) {
+        let start = Instant::now();
+        while self.live.load(Ordering::Acquire) > 0 && start.elapsed() < QUIT_GRACE {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
 }
 
 #[cfg(windows)]

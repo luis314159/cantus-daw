@@ -95,13 +95,14 @@ impl Table {
 }
 
 /// One processing thread: serves the table's instances until `stop`, counting each job it
-/// finishes in the lobby's `done` word (Cantus reads it to know the helper is not stalled;
-/// review isolation-4 #62).
+/// finishes in the lobby's `done` word and clearing its `stalled` mark (Cantus marks the
+/// helper stalled when a job of it was not even taken by its deadline; any job finished
+/// ends it — review isolation-4 #62, isolation-5).
 pub fn serve(
     table: Arc<Table>,
     bell: Arc<LobbyBell>,
     stop: Arc<AtomicBool>,
-    done: &'static AtomicU32,
+    (done, stalled): (&'static AtomicU32, &'static AtomicU32),
 ) {
     let _promotion = cantus_rt::thread::promote_worker(
         cantus_rt::thread::WorkerRole::Live,
@@ -146,6 +147,9 @@ pub fn serve(
             let s = seen.borrow();
             run(&s.1[i], n, &mut params, &mut notes, &mut out);
             done.fetch_add(1, Ordering::AcqRel);
+            if stalled.load(Ordering::Relaxed) != 0 {
+                stalled.store(0, Ordering::Release);
+            }
         },
     );
 }

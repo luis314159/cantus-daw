@@ -16,7 +16,7 @@ use std::io::{self, Read, Write};
 
 /// Bumped whenever a message or the slot layout changes: a helper from another build is
 /// refused at the handshake.
-pub const PROTOCOL: u32 = 5;
+pub const PROTOCOL: u32 = 6;
 
 /// The largest frame accepted (a plug-in state of 256 MB is already absurd).
 pub const MAX_FRAME: usize = 256 << 20;
@@ -27,13 +27,17 @@ pub enum Call {
     Hello {
         protocol: u32,
     },
-    /// Load, instantiate and activate; serve its audio half from the shared `slot`.
+    /// Load, instantiate and activate; give it the state (the blob, when not empty) and
+    /// the values, restart it when they ask for it — then serve its audio half from the
+    /// shared `slot`: one request, so its first job always has its state (round 29, review
+    /// isolation-5).
     Load {
         instance: u32,
         info: PluginInfo,
         sample_rate: f64,
         max_block: usize,
         slot: String,
+        values: Vec<(u32, f64)>,
     },
     Unload {
         instance: u32,
@@ -79,8 +83,9 @@ pub enum Call {
         width: u32,
         height: u32,
     },
-    /// Bring the helper's waiting windows (a plug-in's dialog, which disabled the rest) to
-    /// the front (round 29, review isolation-4 #54).
+    /// Bring the helper's waiting window (a plug-in's dialog) to the front. Served by the
+    /// helper's reader thread at once, whatever its main thread is doing (round 29, review
+    /// isolation-5).
     Surface,
     Quit,
 }
@@ -112,7 +117,7 @@ impl WireNotice {
             Notice::EditorResized(s) => WireNotice::EditorResized(s.width, s.height),
             Notice::EditorClosed => WireNotice::EditorClosed,
             Notice::RestartNeeded => WireNotice::RestartNeeded,
-            Notice::Crashed { .. } | Notice::EditorOpened => return None,
+            Notice::Crashed { .. } | Notice::EditorOpened | Notice::Loaded => return None,
         })
     }
 
@@ -163,6 +168,9 @@ pub struct Described {
     pub params: Vec<ParamInfo>,
     pub latency: usize,
     pub has_editor: bool,
+    /// The state a load carried, refused (why): the plug-in goes on as it is.
+    #[serde(default)]
+    pub refused_state: Option<String>,
 }
 
 /// An answer.
@@ -236,14 +244,12 @@ pub enum Message {
     /// The helper starts serving request `id` now: its time limit runs from here, not from
     /// when it was sent (a request queued behind a slow one is not late, review #37).
     Started { id: u64 },
-    /// Request `id` waits, on purpose, for the helper's main loop: a plug-in's modal loop
-    /// runs, and the request ends or replaces the instance whose window it is (#36, #44).
-    /// It is not late while the helper lives.
-    Deferred { id: u64 },
-    /// Request `id` waits behind a call of its instance's that is under way further out in
-    /// the helper's main thread (a plug-in's dialog inside that call): served when that
-    /// call ends — Cantus waits for it as for any call ahead of it (review isolation-4 #54).
-    Behind { id: u64 },
+    /// The helper's main thread runs a message loop nested in `instance`'s code (0: whose,
+    /// unknown) — a plug-in's dialog: it serves nothing until it is back (round 29, review
+    /// isolation-5).
+    Nested { instance: u32 },
+    /// Back in its own loop.
+    Unnested,
 }
 
 /// What crosses the channel holds only finite numbers: JSON has no NaN or infinity
@@ -287,7 +293,14 @@ fn finite_events(v: &mut [WireEvent]) {
 impl Finite for Request {
     fn make_finite(&mut self) {
         match &mut self.call {
-            Call::Load { sample_rate, .. } => finite(sample_rate),
+            Call::Load {
+                sample_rate,
+                values,
+                ..
+            } => {
+                finite(sample_rate);
+                finite_values(values);
+            }
             Call::Flush { params, .. } => {
                 for (_, _, x) in params {
                     finite(x);
@@ -325,8 +338,8 @@ impl Finite for Message {
             }
             Message::Alive
             | Message::Started { .. }
-            | Message::Deferred { .. }
-            | Message::Behind { .. } => {}
+            | Message::Nested { .. }
+            | Message::Unnested => {}
         }
     }
 }

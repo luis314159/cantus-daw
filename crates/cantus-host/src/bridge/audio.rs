@@ -56,9 +56,21 @@ pub fn deadline(frames: usize, sample_rate: f64, floor: Duration) -> Duration {
 
 /// What Cantus knows of one isolated instance across its halves — a restarted audio half
 /// shares it, so it never hands the slot a job while the old half's late one still runs.
+/// Its helper's reader thread says when the instance is loaded (or never will be), so an
+/// audio half passes dry until its plug-in is there with its state (round 29, review
+/// isolation-5).
 #[derive(Debug)]
 pub struct Status {
     dead: AtomicBool,
+    /// Loaded, with its state and values: its jobs may run.
+    ready: AtomicBool,
+    /// It will never be ready: its load failed (or, offline, it refused its state).
+    failed: AtomicBool,
+    /// A render's instance (offline).
+    pub(crate) offline: bool,
+    /// The newest audio half made (each half has its number): only the newest tells the
+    /// helper to drop the plug-in's when it goes.
+    halves: AtomicU32,
     /// Jobs that missed their deadline (one per late job, not one per block it kept dry).
     pub late: AtomicU64,
     /// Milliseconds since `epoch` when the unfinished job was published; 0 for none.
@@ -68,19 +80,48 @@ pub struct Status {
     epoch: Instant,
 }
 
-impl Default for Status {
-    fn default() -> Self {
+impl Status {
+    pub(crate) fn new(offline: bool) -> Status {
         Status {
             dead: AtomicBool::new(false),
+            ready: AtomicBool::new(false),
+            failed: AtomicBool::new(false),
+            offline,
+            halves: AtomicU32::new(0),
             late: AtomicU64::new(0),
             since_ms: AtomicU64::new(0),
             job: AtomicU32::new(0),
             epoch: Instant::now(),
         }
     }
-}
 
-impl Status {
+    /// Loaded: its jobs may run.
+    pub(crate) fn set_ready(&self) {
+        self.ready.store(true, Ordering::Release);
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+    }
+
+    /// It will never be ready.
+    pub(crate) fn fail(&self) {
+        self.failed.store(true, Ordering::Release);
+    }
+
+    pub fn has_failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    /// A new audio half's number.
+    pub(crate) fn new_half(&self) -> u32 {
+        self.halves.fetch_add(1, Ordering::AcqRel) + 1
+    }
+
+    fn newest_half(&self) -> u32 {
+        self.halves.load(Ordering::Acquire)
+    }
+
     pub fn is_dead(&self) -> bool {
         self.dead.load(Ordering::Acquire)
     }
@@ -157,6 +198,8 @@ pub struct Offline {
     pub name: String,
     /// Set when the render is cancelled.
     pub cancel: Arc<AtomicBool>,
+    /// Its load's request id: what it waits for before its first job.
+    pub load: u64,
 }
 
 /// What blocks that passed without the plug-in carried, for its next job.
@@ -462,8 +505,12 @@ pub struct BridgeAudio {
     /// What a late job reported (its gestures and values), once it finished: handed to the
     /// next block's caller (made once; review #12, #42, #46).
     late_out: Box<ParamOut>,
-    /// Told when this half is dropped (on the main thread), so the helper drops its own.
+    /// Told when this half is dropped (on the main thread), so the helper drops its own —
+    /// when it is the instance's newest half (one replaced once its plug-in loaded tells
+    /// nothing).
     on_drop: Option<Box<dyn FnOnce() + Send>>,
+    /// This half's number ([`Status::new_half`]).
+    half: u32,
 }
 
 impl std::fmt::Debug for BridgeAudio {
@@ -484,6 +531,7 @@ impl BridgeAudio {
         on_drop: Box<dyn FnOnce() + Send>,
     ) -> BridgeAudio {
         let longest = if latency > 0 { slot.max_block() } else { 0 };
+        let half = status.new_half();
         BridgeAudio {
             slot,
             lobby,
@@ -505,6 +553,7 @@ impl BridgeAudio {
             carry: Carry::new(),
             late_out: Box::new(ParamOut::new()),
             on_drop: Some(on_drop),
+            half,
         }
     }
 
@@ -549,7 +598,11 @@ impl BridgeAudio {
     /// half's or a previous half's of the same instance), and a reset carried over from
     /// dry blocks delivered.
     fn ready(&mut self) -> bool {
-        if self.status.is_dead() {
+        if self.status.is_dead() || self.status.has_failed() {
+            return false;
+        }
+        // Not loaded yet: dry live; a render waits for it (its first job has its state).
+        if !self.status.is_ready() && (self.offline.is_none() || !self.wait_loaded()) {
             return false;
         }
         // This half's late job, or a previous half's of the same instance.
@@ -596,11 +649,13 @@ impl BridgeAudio {
                 self.late_job = Some(n);
                 self.status.set_outstanding(n);
                 self.status.late.fetch_add(1, Ordering::Relaxed);
+                // Read first: a job finished after it moves the count past the mark.
+                let done = self.lobby.jobs_done();
                 // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps.
                 let x = unsafe { &*self.slot.exchange() };
                 if x.pending() {
                     // Not even taken: no processing thread was free for it.
-                    self.lobby.mark_stalled();
+                    self.lobby.mark_stalled(done);
                 }
                 false
             }
@@ -608,6 +663,43 @@ impl BridgeAudio {
                 self.status.mark_dead();
                 false
             }
+        }
+    }
+
+    /// A render's instance not loaded yet: waited for in slices, as its helper's life is
+    /// judged on the way — until it is loaded (`true`), its load fails, the render is
+    /// cancelled, or the load has run past its own limit, which ends its helper (round 29,
+    /// review isolation-5). Not a real-time path.
+    fn wait_loaded(&mut self) -> bool {
+        let Some(o) = &self.offline else {
+            return false;
+        };
+        loop {
+            if self.status.is_ready() {
+                return true;
+            }
+            if self.status.is_dead() || self.status.has_failed() || o.sandbox.is_dead() {
+                return false;
+            }
+            if o.cancel.load(Ordering::Acquire) {
+                o.sandbox
+                    .kill_blaming("the render was stopped", Some(o.instance));
+                self.status.mark_dead();
+                return false;
+            }
+            o.sandbox.check_alive();
+            let late = o.sandbox.started_at(o.load).is_some_and(|t| {
+                t.elapsed() > o.sandbox.limit_of(o.load).unwrap_or(o.sandbox.limits().load)
+            });
+            if late {
+                o.sandbox.kill_blaming(
+                    &format!("{} did not load in time for the render", o.name),
+                    Some(o.instance),
+                );
+                self.status.mark_dead();
+                return false;
+            }
+            std::thread::sleep(OFFLINE_SLICE / 10);
         }
     }
 
@@ -772,7 +864,9 @@ impl AudioThread for BridgeAudio {
 impl Drop for BridgeAudio {
     fn drop(&mut self) {
         if let Some(f) = self.on_drop.take() {
-            f();
+            if self.half == self.status.newest_half() {
+                f();
+            }
         }
     }
 }
