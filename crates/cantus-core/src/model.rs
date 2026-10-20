@@ -529,6 +529,30 @@ pub struct Track {
     /// render — the track's level, balance, mute and solo stay live. `None` plays live.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub frozen: Option<crate::freeze::Frozen>,
+    /// How late this track's audio arrives at its level (schema 38, ADR 0064 §6): a bounce
+    /// in place keeps the latency its source or its chain had in its file, and the track
+    /// reports it as its own, so its level, its strip's fader, sends and keys meet the
+    /// audio as late as they did before (review 2). `None`: on time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lateness: Option<Lateness>,
+}
+
+/// A latency kept in a track's audio: `frames` at `rate` (the engine converts it to its own
+/// rate).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lateness {
+    pub frames: u64,
+    pub rate: u32,
+}
+
+impl Lateness {
+    /// In frames at `rate`.
+    pub fn at(&self, rate: f64) -> usize {
+        if self.rate == 0 {
+            return 0;
+        }
+        (self.frames as f64 * rate / self.rate as f64).round() as usize
+    }
 }
 
 fn is_true(x: &bool) -> bool {
@@ -1459,6 +1483,7 @@ impl Project {
             comps: Vec::new(),
             active_comp: 0,
             frozen: None,
+            lateness: None,
         }
     }
 

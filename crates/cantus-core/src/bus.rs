@@ -392,6 +392,11 @@ impl CommandBus {
         &self.undo
     }
 
+    /// What redo would apply, the next first last.
+    pub fn redo_history(&self) -> &[HistoryEntry] {
+        &self.redo
+    }
+
     pub fn audit_log(&self) -> &[AuditEntry] {
         &self.audit
     }

@@ -22,6 +22,11 @@ freeze.gone = Lo que se iba a congelar ya no está.
 freeze.no_folder = No hay carpeta donde guardar los renders congelados.
 freeze.plugin_missing = {plugin} no está cargado y el render lo necesita: cárgalo primero (o descongela lo que lo usa).
 freeze.bake_waits = Se está congelando o pasando algo a audio: convierte cuando termine, o detenlo.
+freeze.file_missing = {file} no está: congélalo cuando esté (un paquete de sonidos que aún se descarga, un disco sin conectar).
+freeze.file_missing_any = Un archivo que reproduce no está: congélalo cuando esté.
+freeze.master = El máster no se congela ni se pasa a audio: elige una pista o un canal.
+freeze.done_heard = {name} está congelado: suena su render y su CPU queda libre. Un modulador dentro escucha su mezcla, así que su fader, su paneo y su silencio son parte de su sonido; sus envíos siguen en vivo.
+freeze.done_track = {name} está congelado: su instrumento suena desde un render y su CPU queda libre. Su nivel, su balance, su silencio y su solo siguen en vivo.
 freeze.stopped = Detenido: {name} no cambió.
 freeze.failed = No se pudo hacer el render de {name}: {error}
 freeze.refused = {name} está congelado: {how}
@@ -43,6 +48,11 @@ freeze.card.bouncing_body = {pct} % hecho. La canción sigue sonando; la pista d
 freeze.card.stop = Detener
 freeze.card.refused = {name} está congelado
 freeze.card.refused_body = Su sonido es un render: descongélalo para cambiarlo. Su fader, paneo, silencio, solo y envíos siguen en vivo.
+freeze.card.refused_body_heard = Su sonido es un render, y un modulador dentro escucha su mezcla: su fader, su paneo y su silencio son parte de él. Descongélalo para cambiarlos.
+freeze.card.refused_body_track = Su sonido es un render: descongélalo para cambiarlo. Su nivel, balance, silencio y solo siguen en vivo.
+freeze.card.waiting = {name} espera
+freeze.card.waiting_body = Empieza cuando terminen la exportación, la conversión o la carga de archivos.
+freeze.card.more = {body} {n} más esperan.
 freeze.card.ok = Entendido
 
 # --- menús ---
@@ -52,7 +62,7 @@ freeze.menu.unfreeze = Descongelar
 freeze.menu.freeze_strip = Congelar canal
 freeze.menu.unfreeze_strip = Descongelar
 bounce.menu.inserts = Pasar a audio en su lugar
-bounce.menu.source = Pasar a audio en su lugar (solo la fuente)
+bounce.menu.source = Pasar a audio (solo la fuente)
 bounce.menu.removes = Quitar el original al pasar a audio
 bounce.menu.strip = Pasar el canal a audio en su lugar
 bounce.clips = Pasar los clips a audio en su lugar
@@ -71,6 +81,11 @@ bounce.muted = {name} está silenciado: quítale el silencio para pasarlo a audi
 bounce.key = {name} es la clave de otro inserto o lo sigue un modulador: pasa a audio solo la fuente, o el canal entero.
 bounce.again = La canción cambió mientras se pasaba a audio: se pasa otra vez.
 bounce.kept_for_notes = {name} queda silenciado, no se quita: algo sigue oyendo sus notas.
+bounce.done_kept = {name} pasó a audio, en la pista de abajo. {track} queda silenciada, no se quita: algo sigue oyendo sus notas.
+bounce.live_input = {name} toca una entrada en vivo (armada, o con la Escucha siempre): desármala o pon su Escucha en Auto o en No primero.
+bounce.soloed = {what} está en solo dentro: su audio lo guarda todo. Quita antes el solo de {what}.
+bounce.notes_heard = Algo oye las notas de {name}: silenciar sus clips lo callaría. Pasa a audio la pista entera.
+bounce.strip_source = Un canal pasa a audio con sus inserciones: Pasar el canal a audio en su lugar.
 
 # --- escucha con baja latencia ---
 freeze.ll.band = Escucha con baja latencia

@@ -864,6 +864,14 @@ fn main() {
             plugin.isolation = Some(cantus_core::PluginIsolation::Within);
         }
     }
+    // Schema 38 (round 29, review 2 — ADR 0064 §6): the second track's audio arrives 4 608
+    // frames late (a bounce in place through a linear-phase EQ keeps that in its file).
+    if let Some(t) = p.tracks.get_mut(1) {
+        t.lateness = Some(cantus_core::Lateness {
+            frames: 4_608,
+            rate: 48_000,
+        });
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

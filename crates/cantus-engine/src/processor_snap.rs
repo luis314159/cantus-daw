@@ -101,12 +101,21 @@ impl Processor {
                 // Frozen or resting, the instrument is not played: on either change its
                 // voices go (review 1 — a note held when it froze sounded again, its
                 // note-off long passed, when it thawed during playback).
-                let quiet = |frozen: bool, rest: bool| frozen || rest;
-                let was = quiet(s.frozen.is_some(), s.rest);
+                let quiet = |frozen: bool, rest: bool, notes: bool| frozen || rest || notes;
+                let was = quiet(s.frozen.is_some(), s.rest, s.notes_only);
+                // A render kept while the node starts resting is read by nobody: its board
+                // lets its blocks go (review 2).
+                if t.rest && !s.rest && same_handle(&s.frozen, &h) {
+                    if let Some(old) = s.frozen.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                }
                 s.frozen = h;
                 s.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
                 s.rest = t.rest;
-                if was != quiet(s.frozen.is_some(), s.rest) {
+                s.notes_only = t.notes_only;
+                s.lateness = t.lateness.map_or(0, |l| l.at(self.sample_rate));
+                if was != quiet(s.frozen.is_some(), s.rest, s.notes_only) {
                     s.reset();
                 }
             }
@@ -184,17 +193,24 @@ impl Processor {
                     ss.eq_r.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                 }
                 let h = crate::freeze::handle_of(st.frozen.as_ref());
+                // Playing a render or live: the other's state is from another time.
+                let swapped = ss.frozen.is_some() != h.is_some();
                 if !same_handle(&ss.frozen, &h) {
                     ss.frozen_place.block = None;
+                    if let Some(old) = ss.frozen.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                } else if st.rest && !ss.rest {
+                    // Kept while it starts resting: read by nobody (review 2).
                     if let Some(old) = ss.frozen.as_ref() {
                         crate::freeze::release(old);
                     }
                 }
                 ss.frozen = h;
                 ss.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
-                // A strip that starts or stops resting comes back empty: its inserts and
-                // EQ hold nothing from before (review 1).
-                if ss.rest != st.rest {
+                // A strip that starts or stops resting — or playing its render — comes back
+                // empty: its inserts and EQ hold nothing from before (review 1, 2).
+                if ss.rest != st.rest || swapped {
                     for e in &mut ss.effects {
                         e.reset();
                     }
@@ -371,6 +387,12 @@ impl Processor {
             return;
         };
         self.scratch_effects.clear();
+        // The hard bypass of low-latency monitoring goes with its unit, not its place
+        // (review 2: a chain edit made another insert "come back" and reset its tail).
+        let mut was_off = [(EffectId(u64::MAX), false); MAX_EFFECTS_PER_TRACK];
+        for (i, e) in s.effects.iter().enumerate().take(MAX_EFFECTS_PER_TRACK) {
+            was_off[i] = (e.id, s.ll_off[i]);
+        }
         while let Some(e) = s.effects.pop() {
             self.scratch_effects.push(e);
         }
@@ -394,6 +416,7 @@ impl Processor {
                     s.mix[idx] = want.mix.clamp(0.0, 1.0);
                     s.key_id[idx] = want.sidechain;
                     s.midi_id[idx] = want.midi_from;
+                    s.ll_off[idx] = was_off.iter().any(|(id, off)| *off && *id == unit.id);
                     s.effects.push(unit);
                 }
                 // Unit not delivered yet (or dropped): skip it this snapshot.
@@ -485,7 +508,10 @@ impl Processor {
             feeds[slot] = s.strip;
             match s.strip {
                 Some(d) if deaf[d] => {}
-                _ if quick(slot, s.strip) => {}
+                // Not held back — but a strip of monitored input only knows how late it
+                // really comes (review 2: its instrument's latency was left out).
+                Some(d) if quick(slot, s.strip) => arrive[d] = arrive[d].max(latency),
+                None if quick(slot, None) => {}
                 Some(d) => arrive[d] = arrive[d].max(latency),
                 None => master = master.max(latency),
             }
@@ -509,8 +535,11 @@ impl Processor {
                     .output
                     .into_iter()
                     .chain(st.sends.iter().take(st.send_count).map(|(d, _)| *d));
+                // Its arrival reaches the next strip too — a strip of monitored input only
+                // is still not held back by it (its line wants nothing), but it knows how
+                // late what it carries is (review 2: two pure hops arrived early).
                 for d in dests {
-                    if !deaf[d] && !mon.pure[d] {
+                    if !deaf[d] {
                         arrive[d] = arrive[d].max(p);
                     }
                 }
@@ -528,6 +557,7 @@ impl Processor {
             }
         }
         self.strip_post = post;
+        self.track_leave = leave;
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
         // before it — so note and sound meet at the effect.
@@ -708,6 +738,11 @@ impl Processor {
                 rest_t: &rest_t,
             },
         );
+        // A pass recording: playing from now on follows a backing heard this much later
+        // (or sooner); the recorder moves it in the file by as much (review 2).
+        if self.live_recording() {
+            self.live_shift(heard as i64 - self.pdc.total as i64);
+        }
         self.pdc.total = heard;
         self.stats.latency_samples = heard as u64;
         self.stats.pdc_unserved = self.pdc.unserved as u64;

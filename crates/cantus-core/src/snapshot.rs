@@ -76,6 +76,12 @@ pub struct TrackSnapshot {
     /// Resting (ADR 0064): its sound only reaches a frozen strip that plays its render, and
     /// nothing live needs it — the engine does not run it. Set by the engine's attach.
     pub rest: bool,
+    /// Resting but for its notes (ADR 0064, review 2): an insert or a modulator that runs
+    /// hears them, so its events go on to them; its instrument is not played and its sound
+    /// goes nowhere.
+    pub notes_only: bool,
+    /// How late its audio arrives at its level (`Track::lateness`, schema 38).
+    pub lateness: Option<crate::model::Lateness>,
 }
 
 impl TrackSnapshot {
@@ -229,11 +235,18 @@ impl Snapshot {
                 audio: compile_audio(project, t),
                 input: t.input.clone(),
                 armed: t.armed,
+                // Played live while a solo silences part of what made its render (review 2).
                 frozen: t
                     .frozen
                     .as_ref()
+                    .filter(|_| {
+                        crate::freeze::solo_play(project, crate::freeze::FreezeTarget::Track(t.id))
+                            != crate::freeze::SoloPlay::Live
+                    })
                     .map(|f| crate::freeze::FrozenPlay::new(f, false)),
                 rest: false,
+                notes_only: false,
+                lateness: t.lateness,
             })
             .collect::<Vec<_>>();
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
@@ -290,12 +303,14 @@ impl Snapshot {
                             })
                             .collect(),
                         // A solo elsewhere (or its only input's mute) silences what the
-                        // render holds.
-                        frozen: s.frozen.as_ref().map(|f| {
-                            crate::freeze::FrozenPlay::new(
-                                f,
-                                crate::freeze::silenced(project, s.id),
-                            )
+                        // render holds; one that silences part of it plays it live.
+                        frozen: s.frozen.as_ref().and_then(|f| {
+                            use crate::freeze::{solo_play, FreezeTarget, SoloPlay};
+                            match solo_play(project, FreezeTarget::Strip(s.id)) {
+                                SoloPlay::Render => Some(crate::freeze::FrozenPlay::new(f, false)),
+                                SoloPlay::Silenced => Some(crate::freeze::FrozenPlay::new(f, true)),
+                                SoloPlay::Live => None,
+                            }
                         }),
                         rest: false,
                     })

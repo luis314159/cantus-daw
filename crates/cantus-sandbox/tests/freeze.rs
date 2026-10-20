@@ -61,3 +61,67 @@ fn a_frozen_chain_unloads_its_hosted_plug_in_and_plays_the_live_mix() {
         assert_eq!(differing(&live, &again), 0, "{iso:?}: thawed = live");
     }
 }
+
+/// Review 2: a change made in the window of a plug-in a freeze locks (its render not at
+/// hand, so it plays live and is loaded) is refused — the plug-in is given back the
+/// project's value, the refusal is said, and a save keeps what the project holds.
+#[test]
+fn a_window_change_a_freeze_refuses_is_given_back_and_said() {
+    let _g = serial();
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Within);
+    rig.set_param(strip, id, P_GAIN, -6.0);
+    rig.settle();
+    // Frozen, its render missing: it plays live, its plug-in loaded, its chain locked.
+    let dir = tempfile::tempdir().unwrap();
+    rig.engine.frozen.set_app_dir(dir.path().to_path_buf());
+    let target = FreezeTarget::Strip(strip);
+    let p = rig.bus.project().clone();
+    rig.exec(freeze::freeze_commands(&p, target).unwrap());
+    assert!(rig.host.hosted(id).is_some(), "loaded: it plays live");
+    rig.notices.clear();
+    // The window turns the gain.
+    rig.host.record(
+        &mut rig.bus,
+        id,
+        cantus_engine::FxParamEvent::Value(P_GAIN, -18.0),
+    );
+    rig.frame();
+    let stored = |rig: &Rig| {
+        rig.bus
+            .project()
+            .all_effects()
+            .find(|(_, e)| e.id == id)
+            .and_then(|(_, e)| e.spec.external.as_ref().map(|x| x.params.clone()))
+            .unwrap()
+    };
+    assert_eq!(stored(&rig).get(&P_GAIN), Some(&-6.0), "refused");
+    rig.settle();
+    let (_, live) = rig.host.capture(id).unwrap();
+    assert_eq!(
+        live.get(&P_GAIN),
+        Some(&-6.0),
+        "the plug-in given back the value"
+    );
+    assert!(
+        rig.notices
+            .contains(&cantus_host::HostNotice::Frozen(target)),
+        "said: {:?}",
+        rig.notices
+    );
+    // A save writes what the project holds of a frozen region's plug-in.
+    let saved = rig.host.project_for_save(rig.bus.project());
+    assert_eq!(
+        saved
+            .all_effects()
+            .find(|(_, e)| e.id == id)
+            .map(|(_, e)| e.spec.clone()),
+        rig.bus
+            .project()
+            .all_effects()
+            .find(|(_, e)| e.id == id)
+            .map(|(_, e)| e.spec.clone())
+    );
+}

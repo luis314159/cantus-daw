@@ -204,6 +204,8 @@ impl CantusApp {
                 self.path = Some(job.path.clone());
                 self.sync_audio_base();
                 self.bus.mark_saved_at(job.revision);
+                // Its renders beside it, and only those it may want (round 29, review 2).
+                crate::freeze::saved(self);
                 self.autosaved_revision = self.autosaved_revision.max(job.revision);
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
                 self.journal_persisted(None, &job.persisted);

@@ -6,7 +6,8 @@
 //! ```
 //!
 //! A song with a heavy synth frozen with its strip, a bass frozen on its own (it shares its
-//! strip with a pad), a singer armed and monitored through Tonus with a linear-phase EQ, and
+//! strip with a pad), an empty strip 12 frozen (a two-digit number beside its snowflake), a
+//! singer armed and monitored through Tonus with a linear-phase EQ, and
 //! low-latency monitoring on: the arrangement (snowflakes, frosted clips), the mixer with
 //! the frozen strip's menu open, the inspector's *Freeze* and *Low latency* rows, the
 //! track menu's entries, the corner cards (a freeze rendering with its Stop; an edit
@@ -69,9 +70,12 @@ fn song() -> Project {
     let mut eq = p.make_effect(EffectKind::Eq);
     let _ = eq.spec.set("mode", 2.0);
     p.strip_mut(voice).unwrap().effects.push(eq);
+    // A two-digit strip frozen too: its number beside the snowflake (review 2).
+    let twelfth = p.strips[11].id;
     for target in [
         FreezeTarget::Strip(lead),
         FreezeTarget::Track(p.tracks[1].id),
+        FreezeTarget::Strip(twelfth),
     ] {
         let cmd = freeze::freeze_commands(&p, target).expect("freezable");
         cmd.apply(&mut p).expect("frozen");

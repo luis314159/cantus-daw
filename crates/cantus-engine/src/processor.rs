@@ -232,6 +232,8 @@ pub struct Processor {
     /// How late each strip slot's fader output is against the timeline, in samples: the
     /// compensation it waits for plus its own inserts' latency (ADR 0018's `P`).
     strip_post: [usize; MAX_STRIPS],
+    /// Each track slot's leaving latency, as planned (`Meters::track_late`).
+    track_leave: [usize; MAX_TRACKS],
     /// The inserts' and instruments' latencies when compensation was last planned, as one
     /// number (`Self::latency_signature`): a pass that finds another re-plans (ADR 0056).
     latency_sig: u64,
@@ -349,6 +351,7 @@ impl Processor {
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
             strip_post: [0; MAX_STRIPS],
+            track_leave: [0; MAX_TRACKS],
             latency_sig: 0,
             click_line: None,
             capture_line: None,

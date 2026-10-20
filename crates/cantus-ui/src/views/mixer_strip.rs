@@ -570,9 +570,12 @@ fn head(
     }
     v.buf.clear();
     let _ = write!(v.buf, "{}", sn.index + 1);
+    // Beside the snowflake of a frozen strip, never under it (round 29, review 2).
+    let room = crate::views::freeze_view::strip_mark_room(app, sn.id, cr, s);
+    let nr = egui::Rect::from_min_max(cr.min, egui::pos2(cr.right() - room, cr.bottom()));
     let _ = text::paint(
         b,
-        cr,
+        nr,
         &Text::new(&v.buf, Role::Label, on_fill(fill)),
         s.tk(),
     );
