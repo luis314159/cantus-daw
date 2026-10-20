@@ -27,6 +27,8 @@ freeze.row = Freeze
 freeze.freeze = Freeze
 freeze.frozen = Frozen
 
+freeze.export_waits = A freeze or a bounce is rendering: export when it is done, or stop it.
+
 # --- the corner card ---
 freeze.card.freezing = Freezing {name}
 freeze.card.freezing_body = {pct} % rendered. The song plays on; nothing changes until it is done.

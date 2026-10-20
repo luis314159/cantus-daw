@@ -27,6 +27,8 @@ freeze.row = Congelar
 freeze.freeze = Congelar
 freeze.frozen = Congelado
 
+freeze.export_waits = Se está congelando o pasando algo a audio: exporta cuando termine, o detenlo.
+
 # --- la tarjeta de la esquina ---
 freeze.card.freezing = Congelando {name}
 freeze.card.freezing_body = {pct} % hecho. La canción sigue sonando; nada cambia hasta que termine.

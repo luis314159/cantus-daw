@@ -208,9 +208,10 @@ pub fn start(app: &mut CantusApp, plan: Plan) -> Result<crate::freeze::Job, Stri
         }
     };
     // The render's project: the track plays what the range takes (a time range, all of
-    // it: the transport stops at the end), the rest of the song resting.
+    // it: the transport stops at the end), the rest of the song resting. Frozen strips the
+    // bounce hears (a key) play their renders, as in the session: their plug-ins are
+    // unloaded there too.
     let mut alone = project.clone();
-    freeze::thaw(&mut alone);
     if !matches!(plan.range, Range::Time(..)) && whole.is_none() {
         if let Some(tr) = alone.track_mut(plan.track) {
             tr.clips

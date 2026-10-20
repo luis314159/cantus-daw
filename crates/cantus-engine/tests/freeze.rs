@@ -62,6 +62,32 @@ fn song() -> Project {
         ],
     );
     p.tracks[0].clips.push(ride);
+    // Its pan sweeps and its send to the return swells: live too.
+    let sweep = p.make_automation_clip(
+        "sweep",
+        AutoTarget::StripPan(lead),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.2),
+            AutoPoint::new(Ticks::beats(8), 0.8),
+        ],
+    );
+    let swell = p.make_automation_clip(
+        "swell",
+        AutoTarget::Send {
+            strip: lead,
+            to: ret,
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.1),
+            AutoPoint::new(Ticks::beats(6), 0.9),
+        ],
+    );
+    p.tracks[1].clips.push(sweep);
+    p.tracks[1].clips.push(swell);
     p
 }
 

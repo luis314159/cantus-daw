@@ -63,7 +63,7 @@ pub struct FreezeState {
     /// Renders that failed, by content key, and why: not tried again this session.
     failed: HashMap<String, String>,
     scanned: Option<Instant>,
-    /// The project folder the store was last given.
+    /// The project path the store's folder was last set for.
     dir_for: Option<Option<PathBuf>>,
     /// The low-latency monitoring the engine was last told (limit in samples, or off).
     told: Option<Option<u32>>,
@@ -126,12 +126,12 @@ pub fn wire(app: &mut CantusApp) {
 
 /// The store follows the project's folder (opened, saved as).
 fn follow_path(app: &mut CantusApp) {
-    let now = Some(project_dir(app.path.as_deref()));
-    if app.freeze.dir_for != now {
+    // Compared as it is: nothing is allocated while the path stays.
+    if app.freeze.dir_for.as_ref() != Some(&app.path) {
         app.engine
             .frozen
             .set_project_dir(project_dir(app.path.as_deref()));
-        app.freeze.dir_for = now;
+        app.freeze.dir_for = Some(app.path.clone());
         app.force_resync();
     }
 }
