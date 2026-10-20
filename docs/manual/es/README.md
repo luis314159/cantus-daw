@@ -717,8 +717,8 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
   no sigue el tempo conserva su velocidad natural); **Formantes ▸ Conservar** mantiene el
   color de una voz al transponerla (sin efecto "ardilla"). El nivel queda como estaba.
 - **Detectado** y **Certeza** en el inspector: el tempo y los compases que encontró el
-  análisis, y lo seguro que está. La pista de un marcador da la velocidad a la que suena
-  el audio tras él, frente al tempo vigente allí.
+  análisis, y lo seguro que está. Sobre un marcador, el panel de ayuda da la velocidad a
+  la que suena el audio tras él, frente al tempo vigente allí.
 - **Cuantizar audio…** (el menú del clip o el inspector, sobre cada clip de audio
   seleccionado junto al que elegiste): acerca los transitorios a una rejilla con una
   *Intensidad*, solo los más fuertes si lo eliges (*Transitorios desde*) — un paso de
@@ -732,14 +732,17 @@ archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
 
 Mientras llega un render (una fracción de segundo para un loop, unos segundos para un
 archivo largo) oyes una vista previa rápida con el tiempo y el tono correctos — un clip
-ajustado por primera vez suena entretanto con su propio audio, nunca en silencio — y el
-paso de una a otra se funde. La exportación, las pistas separadas, la congelación, el
-renderizado en su sitio y la conversión de un modulador en automatización esperan al
-render completo; si alguna vez tarda demasiado, la línea de estado lo dice. Los clips
-ajustados viajan en los archivos DAWproject con sus marcadores y su modo; un clip a su
-velocidad natural viaja como un archivo colocado en segundos, así conserva su velocidad en
-cualquier aplicación. Abrir o soltar un `.dawproject` lo lee en segundo plano (su audio
-copiado al disco sobre la marcha, un archivo referido a su lado encontrado allí).
+transpuesto por primera vez suena entretanto con su propio audio; uno cuyos marcadores
+mueven su audio espera un momento a su vista previa, nunca suena en el compás que no es —
+y el paso de una a otra se funde una vez. La exportación, los stems, la congelación, pasar a
+audio en su lugar y la conversión de un modulador en automatización esperan al render
+completo; si alguna vez tarda demasiado, la línea de estado lo dice al terminar. Los clips
+ajustados viajan en los archivos DAWproject con sus marcadores y su modo (un archivo que
+escribió Cantus vuelve con su warp tal como estaba); un clip a su velocidad natural viaja
+como un archivo colocado en segundos, así conserva su velocidad en cualquier aplicación.
+Abrir o soltar un `.dawproject` lo lee en segundo plano (su audio copiado al disco sobre
+la marcha, un archivo referido a su lado encontrado allí); se abre cuando nada se graba
+ni se arrastra, y nunca sobre otro proyecto abierto entretanto.
 
 ### Automatización
 
@@ -1364,10 +1367,8 @@ Esto es una beta. Lo que ya sabemos:
 - **Un plug-in de terceros que falla cierra Cantus** (los plug-ins se ejecutan dentro del
   programa; aislarlos viene después). Guarda seguido.
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
-- **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
-  tempo y un compás por proyecto. Sin fundidos cruzados entre clips distintos (las
-  costuras de una composición de tomas sí los hacen, §4) ni envolventes de ganancia por
-  clip.
+- Sin fundidos cruzados entre clips distintos (las costuras de una composición de tomas
+  sí los hacen, §4) ni envolventes de ganancia por clip.
 - La automatización grabada escribe cada movimiento hecho mientras graba una pasada
   (todavía sin modos latch ni touch). En los stems exportados *a través de la cadena del
   máster*, un efecto de terceros en el máster no entra en los stems (la mezcla completa sí

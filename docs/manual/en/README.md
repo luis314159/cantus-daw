@@ -672,14 +672,17 @@ The file is never changed: the clip plays a render made beside the window.
   **Reset warp** puts the clip back to its natural speed.
 
 While a render is on its way (a fraction of a second for a loop, a few seconds for a long
-file) you hear a quick preview at the right timing and pitch — a clip warped for the
-first time plays its own audio meanwhile, never silence — and the change from one to the
-next is crossfaded. Export, stems, freezing, bouncing and a modulator's bake wait for the
-full render; if one ever takes too long, the status line says so. Warped clips travel in
-DAWproject files with their markers and mode; a clip at its natural speed travels as a
-file placed in seconds, so it keeps its speed in any application. Opening or dropping a
+file) you hear a quick preview at the right timing and pitch — a clip transposed for the
+first time plays its own audio meanwhile; one whose markers move its audio waits a moment
+for its preview, never playing at the wrong bar — and the change from one to the next is
+crossfaded once. Export, stems, freezing, bouncing and a modulator's bake wait for the
+full render; if one ever takes too long, the status line says so when the job is done.
+Warped clips travel in DAWproject files with their markers and mode (a file Cantus wrote
+comes back with its warp exactly as it was); a clip at its natural speed travels as a file
+placed in seconds, so it keeps its speed in any application. Opening or dropping a
 `.dawproject` reads it in the background (its audio copied to disk as it goes, a file
-referenced beside it found there).
+referenced beside it found there); it opens once nothing is being recorded or dragged, and
+never over another project opened meanwhile.
 
 ### Automation
 
@@ -1256,9 +1259,8 @@ This is a beta. What we know about:
 - **A plug-in made by someone else that crashes closes Cantus** (plug-ins run inside the
   program; isolating them comes later). Save often.
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
-- **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
-  one time signature per project. No crossfades between separate clips (comp seams do
-  crossfade, §4) and no clip gain envelopes.
+- No crossfades between separate clips (comp seams do crossfade, §4) and no clip gain
+  envelopes.
 - Recorded automation writes every move made while a pass records (no latch or touch
   modes yet). In stems exported *through the master chain*, a hosted effect on the master
   is left out of the stems (the full mix has it).
