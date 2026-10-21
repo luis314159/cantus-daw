@@ -302,7 +302,7 @@ trimmed by its track's latency. The inspector shows the delay with *Clear*
 
 | # | Sev | Finding | Fix | Test |
 |---|---|---|---|---|
-| 0 | H | Saving pruned the renders of every project in the same folder | A folder of renders per project, `Freeze/<file name>` (`project_dir`); the old shared folder is looked in, never pruned (`shared_dir`) | ui `saving_one_project_keeps_the_renders_of_another_beside_it`, `the_renders_folder_follows_the_project_before_its_first_compile` |
+| 0 | H | Saving pruned the renders of every project in the same folder | A folder of renders per project, `Freeze/<file stem>` (`project_dir`); the old shared folder is looked in, never pruned (`shared_dir`) | ui `saving_one_project_keeps_the_renders_of_another_beside_it`, `the_renders_folder_follows_the_project_before_its_first_compile` |
 | 1 | H | `Track::lateness` on the track, the late frames in the clip's file | The file trimmed to the grid, the delay a source line before the track's level (see above) | engine `a_track_delay_plays_its_source_late_and_the_mix_on_the_grid`; ui `a_bounced_clip_moved_to_a_track_of_its_own_plays_on_the_grid`, `a_bounced_clip_copied_and_pasted_on_a_plain_track_plays_on_the_grid`, `a_clip_put_on_a_bounced_track_plays_on_the_grid`, `a_bounced_track_exported_to_dawproject_plays_on_the_grid_elsewhere`, `a_bounce_through_a_latent_chain_keeps_the_song_to_the_bit`, `a_bounce_through_latency_keeps_its_rides_and_keys_in_time` |
 | 2 | H | The commit compared hosted states' bytes: a freeze of an automated plug-in never landed | The host counts edits from windows and browsers (`Hosted::edits`, `HostedInst::edits`, `PluginHost::edits_of`); `commit_freeze` compares the count at start and at landing | ui `a_freeze_lands_though_a_plug_ins_state_moved_without_an_edit`; sandbox `edits_count_what_windows_do_never_what_automation_does` |
 | 3 | M | Pruning missed undo inverses, a render landing, history renders on Save As | `keys_in` reads `InsertTrack`, `InsertStrip`, `ReplaceProject`, both sides of every step; `wanted_by_jobs`; every kept key copied | core `the_keys_an_undo_wants_include_removed_frozen_tracks_strips_and_projects`; ui `a_removed_frozen_track_saved_and_undone_finds_its_render` (as opened: the freeze not in the undo), `a_save_while_a_freeze_is_landing_keeps_its_render`, `saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame` |
@@ -335,7 +335,7 @@ trimmed by its track's latency. The inspector shows the delay with *Clear*
 | 30 | L | The live-input refusal looked only at tracks reaching the strip | `live_region_refusal` (key and note sources of a track bounce) and `strip_plan`'s check over every track of the region | ui `a_live_key_source_refuses_a_bounce_through_the_inserts_and_of_the_strip` |
 | 31 | H | `solo_play` thawed a strip the solo or mute had silenced | As #4: the root asked first | As #4 |
 | 32 | M | As #15 (realtime lens; pattern mode too) | As #15; pattern mode holds the renders in use (`FrozenStore::hold`, `held` keys) | As #15; ui `renders_stay_open_while_pattern_mode_plays_every_chain_live` |
-| 33 | M | As #0 and #3; Save As copied renders on the UI thread | As #0, #3; copies and prune on `cantus-freeze-save` (`copy_and_prune`, `.copy.part` renamed; `FreezeState::copying`; the store looks in the old folder meanwhile, `set_also`); no folder made when nothing to copy | ui `saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame` |
+| 33 | M | As #0 and #3; Save As copied renders on the UI thread | As #0, #3; copies and prune on `cantus-freeze-save` (`copy_and_prune`, `.copy.part` renamed; `FreezeState::copying`); no folder made when nothing to copy (review 4 made it one thread at a time, its prune safe, the close waiting, the sources noted) | ui `saving_elsewhere_brings_the_renders_an_undo_wants` (review 4: and `saving_elsewhere_returns_before_its_copies_…`, which can tell) |
 | 34 | M | As #1 (realtime lens) | As #1 | As #1 |
 | 35 | L | As #20 (the move a round trip early) | As #20 | As #20 |
 | 36 | L | A refused edit reloaded the whole state per value event | Give-backs deferred to the end of the frame, and while the plug-in's gesture is open to its end (`give_back`, `inst_give_back`, `give_back_now`) | sandbox `a_drag_a_freeze_refuses_gives_back_once_at_its_end` |
@@ -414,10 +414,69 @@ are tall enough for the *Freeze* row (they stopped at *Recording*). The test fol
 earlier runs are swept at a run's first test (`cantus-freeze-ui`), and the last run's
 removed.
 
+## Review 4 — the fixes (26 confirmed: 2 high, 10 medium, 14 low)
+
+`F:\projects\daw-r29\reviews\freeze-4.json`, merged with `r29/integration` at 01fddb7 first
+(a fast-forward: isolation's `render_ready`, PROTOCOL 6, and warp's third round with its
+`late` flag in `commit_freeze`). Every test was seen failing with its fix taken out
+(`sab4_*.py`; below the table) but where a row says otherwise. The names are as in review
+3's table, plus *inspector* and *final_look* (`cantus-ui/tests/{inspector,final_look}.rs`).
+
+| # | Sev | Finding | Fix | Test |
+|---|---|---|---|---|
+| 0 | H | The save's thread pruned with its save's list, deleting renders written while it copied | The prune removes only renders the folder held when its save began (`listed`, on the frame) and none the session wants now (`FreezeState::protect`: each save's wanted set, and each render started, `render_job`); one save thread at a time, a later one queued behind it (`saver`, joined first); queued freezes kept by their `as_frozen` key | ui `a_freeze_landing_while_a_save_copies_keeps_its_render` (failing only with both defences out: each alone keeps it), `two_saves_in_a_row_keep_what_the_later_one_wants`, `a_save_keeps_the_render_a_waiting_freeze_of_an_armed_track_will_land_with` |
+| 1 | M | Nothing waited on the copy: a quit right after a save killed it | `freeze::finish_saving` (a join, bounded at two minutes) in `close_session` after the save lands; the folder notes where its copies come from (`copying-from.txt`) until they are in, and the next session looks there | ui `closing_the_session_waits_for_the_renders_copy`, `a_session_cut_short_while_copying_finds_the_renders_where_they_were` |
+| 2 | M | A renamed or duplicated project lost its renders (`Freeze/<stem>`) | The other projects' folders beside it are looked in, read-only (`also_dirs`); its next save copies what it wants into its own; an orphan folder (no project file of its name) loses what the own folder now holds, and goes when empty | ui `a_renamed_project_finds_its_renders_and_its_save_brings_them`, `a_copied_project_finds_its_renders_and_leaves_the_originals_alone` |
+| 3 | M | The `.wires` note was not copied with its render | Copied with it (part file, renamed); pruned with it, and an orphan note removed; `scan` reads every copy's note (`FrozenStore::paths_of`) and sets every copy aside (`set_aside`), removing those in its own folders | ui `a_render_made_with_a_wire_and_saved_elsewhere_is_made_again_once_it_is_installed` |
+| 4 | L | `exec_through` copied re-keyed renders on the frame | On the save's thread, under the new key *inside* (`cantus_engine::freeze::copy_as`, `stream_cache::relabel` — the plain copy kept the old key in its header and never opened, a defect beyond the finding); the old render plays under the new key meanwhile (`FrozenStore::alias`) | ui `a_take_moved_by_saving_keeps_its_render_under_its_new_key`, `saving_a_frozen_take_…` (waits for the copy); engine `a_render_copied_under_a_new_key_opens_under_it_and_its_alias_plays_meanwhile` (the relabel and the alias each sabotaged) |
+| 5 | L | The engine's `missing_file` counted a muted pad, and skipped kits with layers | Pads one by one, then every pad's layers in `attach`'s order; a muted pad's files skipped | engine `a_muted_pads_missing_file_refuses_no_render`, `a_layers_missing_file_refuses_a_render` |
+| 6 | L | A read error looked up by `path_of`, so a good copy was marked damaged | `FrozenHandle::path` (the file opened): the io check and the setting aside are that copy's; copies set aside one by one, the first good one opened | engine `a_read_error_on_one_copy_never_sets_a_good_copy_aside`, `a_damaged_copy_is_passed_over_for_a_good_one` |
+| 7 | H | A locked plug-in that echoes a host load was given back and said every frame | `session::Echo` on every hosted insert and instrument: a report that is the project's state, what it held after the host's last load, what it said last, or its first after a give-back is the load's echo — no edit, nothing refused. The test plug-ins learnt a *dirty* tag (every load marks the state dirty and asks for a values rescan, as JUCE's VST3 wrapper) | sandbox `a_locked_plug_in_that_echoes_its_give_back_is_given_back_once` (in process and isolated), `a_locked_instrument_that_echoes_its_give_back_is_given_back_once`, `a_locked_plug_in_loaded_again_that_echoes_its_load_is_left_alone` (passes on the old host too: CLAP's instantiate drops the load's flags — kept as the guard) |
+| 8 | M | As #2 | As #2 | As #2 |
+| 9 | M | As #0 (overlapping saves) | As #0 | As #0 |
+| 10 | M | As #1 | As #1 | As #1 |
+| 11 | L | As #3 | As #3 | As #3 |
+| 12 | L | Synthesized notices (a late params answer, a title change) counted as edits or refused | As #7: a report of nothing new is no edit and no refusal | sandbox `an_echo_of_the_hosts_own_load_is_no_edit` |
+| 13 | L | The Save As test could not fail for what it claimed | A hook holds the save's thread (`FreezeState::hold_copies`): the frame returns without the copies, the render — let go of — is found where it was | ui `saving_elsewhere_returns_before_its_copies_and_the_old_folder_is_looked_in`; the old test now claims only what it checks (`saving_elsewhere_brings_the_renders_an_undo_wants`) |
+| 14 | L | `commit_freeze`'s edit count had no interface test | The test, on a strip and on the master of a whole-mix region — which found a defect: `hosted_states` never wrote the master's plug-in states for a whole-mix freeze (now it does) | ui `a_state_of_its_own_changed_while_it_renders_renders_it_again` (the edit check out, and the master's states out, each fail it) |
+| 15 | M | As #1 | As #1 | As #1 |
+| 16 | M | As #3 | As #3 | As #3 |
+| 17 | M | The manual said a frozen target's mix always stays live | Both manuals: unless a modulator inside follows it (or the bus it plays into), and the card says so | Docs (read against `Locks::of` and the strings) |
+| 18 | M | The Delay row's tip too long for the hint bar | Short tips (EN 68, ES 77 characters with the figure); the key's own hint (`freeze.lateness.clear`) | final_look `the_delay_rows_hints_read_whole` (both languages, 1280 × 720 and 200 %) |
+| 19 | L | A bounce whose latency moves said "Bouncing X stays live" | `bounce.latency_moves`, with the track's or strip's name; both manuals say the status line says it, for bounces too | ui `a_bounce_whose_latency_moves_is_said_as_a_bounce` |
+| 20 | L | As #0 | As #0 | As #0 |
+| 21 | L | As #2 (the old folder never searched nor cleaned) | As #2 (the orphan tidied) | As #2 |
+| 22 | L | The Delay row allocated three strings a frame; no inspector test drew it | Its figure from the sheet's cache, its tip made only when pointed at; on a square key (`Sheet::readout_clear_row`, `glyph_key` with the close glyph) — the word button cut the figure at 220 pt, seen by the new collision run | inspector `no_two_texts_collide_…` (a bounced track in the scene: "96.0…" was cut), `the_delay_row_allocates_nothing_of_its_own` (9 more allocations with the old row) |
+| 23 | L | "Espera uno más." read as an order | "Uno más en espera." and "{n} más en espera." | ui `one_render_waiting_is_said_in_good_spanish_and_english_names_the_bake` |
+| 24 | L | The manual's clip menu sentence contradicted itself | Both manuals: the menu acts on clips, never a strip or the master chosen before — the clip right-clicked, with the clips selected with it | Docs (read against `clip_menu_opened` and `bounce_selection`) |
+| 25 | L | ADR 0064's review-3 text did not match the code | `Freeze/<file stem>`; *meanwhile* and the copying flag rewritten with what the code does now; 9 more sandbox tests, not 10; review 3's table rows 0 and 33 corrected | Docs |
+
+### How the tests were seen failing (review 4)
+
+- **host**: the review-3 host sources put back (`git checkout HEAD~1 -- crates/cantus-host/src`):
+  the three echo tests that can fail did (30 give-backs in 30 frames; one edit counted).
+- **engine** (`sab4_eng.py`: a muted pad's file counted and layers skipped, the first copy
+  found blamed, only the first copy tried, no alias, no relabel): all five failed; the
+  relabel alone failed the new-key test too.
+- **interface saves** (`sab4_ui.py` a: the prune over the folder's listing at its moment,
+  no note of the sources, no sibling folders, no wires carried, the old plain copy on the
+  frame without an alias, a queued freeze keyed as the project holds it, no wait at the
+  close — 8 failed; b: the prune without the session's wants, orphans never tidied — 4
+  failed). The freeze landing during a copy is kept by either defence, and failed with both
+  out.
+- **interface words and rows**: the old Spanish tip and *Espera uno más.*, and the bounce's
+  words through the freeze's, each failed its test; the old Delay row failed both inspector
+  tests; the edit check and the master's states, each taken out, failed the edit-count test.
+
+### The run after review 4
+
+RUN4_RESULTS
+
 ## Left
 
 Nothing of mine (review 1: all 62 closed; review 2: all 58 closed — #14 by decision,
-documented; review 3: all 55 closed — #23 by construction, said in its row). Owner-only:
+documented; review 3: all 55 closed — #23 by construction, said in its row; review 4: all
+26 closed). Owner-only:
 listen to a frozen heavy track and its unfreeze, and record a voice through Tonus with
 low-latency monitoring on, with real hardware.
 
@@ -472,6 +531,17 @@ reader board released on rest (#20).
   new fields), `cantus-engine/tests/rt_memory.rs` (phases),
   `cantus-core/tests/undo_invariants.rs` (the kept-delay arm). Another branch that builds
   `FinishedTake`, `JournalPass` or `RecordMark::Wrapped` literals adds the new fields.
+- **Review 4, files outside my area**: `cantus-test-plugins/{clap-gain,clap-synth}/src/{ext.rs,
+  lib.rs}` (the *dirty* tag: a load that marks the state dirty and asks for a values rescan —
+  the sandbox tests need them rebuilt into `target/test-plugins`, which a run without
+  `CANTUS_TEST_PLUGINS_PREBUILT` does); `cantus-host/src/{session.rs (`Echo`, `ECHO`,
+  `render_states_for_test`), session_inst.rs, session_inst_idle.rs}`;
+  `cantus-engine/src/{freeze.rs (`FrozenHandle::path`, `copy_as`, `open_as`, `paths_of`,
+  `set_aside`, `alias`; `damaged` by copy), inst/stream_cache.rs (`relabel`),
+  freeze_render.rs}`; `cantus-ui/src/{recovery_session.rs (`finish_saving` in
+  `close_session`), views/inspector_sheet.rs (`readout_clear_row` replaces
+  `text_button_row`), views/inspector_record.rs}`; tests `cantus-ui/tests/{inspector.rs,
+  final_look.rs}`. `FreezeState` lost `left` (the copies' sources are noted on disk now).
 - **Every new `Command`** must be classified in `freeze_guard::touches` (the build says
   so): controllers' controller-map commands are `vec![]` (they change no sound); warp's
   clip commands are `clip_touches`.
