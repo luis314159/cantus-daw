@@ -451,3 +451,8 @@ test named below was seen failing before its fix, except where the row says othe
 | 17 | the manual's "every sixteenth" | EN/ES: a very long ramp in fewer, longer steps; far points left out and said | — |
 | 18 | the AI tool's description | the beat's range (0 to 1 000 000, in the schema too) and an unsaid ramp kept | — (words) |
 | 19 | `tempo_map`'s doc comment on `metre_list` | moved back | — |
+
+**Verified on the merged tree (`r29/integration` 622caf1 in):** core, dsp, project, engine,
+host, export, ai and plugins 2 321 passed; UI 1 645 passed; the engine with `fuzz`
+(`CANTUS_WORKERS=3`) 824 passed; `cargo clippy --workspace --all-targets -D warnings` and
+`cantus-plugins --no-default-features` clean; `cargo fmt --check` clean.
