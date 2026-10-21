@@ -2214,10 +2214,11 @@ fn a_save_while_a_freeze_is_landing_keeps_its_render() {
 }
 
 #[test]
-fn saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame() {
+fn saving_elsewhere_brings_the_renders_an_undo_wants() {
     // Frozen, edited and frozen again: the first render is the undo's. Saved elsewhere,
-    // both come along — copied on a thread of their own, the old folder looked in
-    // meanwhile (review 3: only the current one came, on the frame).
+    // both come along (review 3: only the current one came). Off the frame, and looked for
+    // where they were meanwhile: `saving_elsewhere_returns_before_its_copies_…` (review 4:
+    // this test could not tell).
     let ctx = support::ctx();
     let (mut app, dir) = app("save-as-history");
     let strip = app.project().tracks[0].strip.unwrap();
@@ -2239,12 +2240,6 @@ fn saving_elsewhere_brings_the_renders_an_undo_wants_off_the_frame() {
     std::fs::create_dir_all(file.parent().unwrap()).unwrap();
     app.start_save(&file);
     app.poll_save(true);
-    assert!(app.freeze.copying.is_some(), "copied off the frame");
-    app.sync_engine();
-    assert!(
-        app.engine.frozen.find(&second, 48_000).is_some(),
-        "found meanwhile"
-    );
     copies_done(&app);
     let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
     for (what, content) in [("current", &second), ("the undo's", &first)] {
