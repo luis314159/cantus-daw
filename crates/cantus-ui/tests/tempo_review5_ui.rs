@@ -276,7 +276,10 @@ fn the_rulers_metre_editor_names_its_bar() {
     views::arrangement::tempo::add_metre_change(&mut a, Ticks::beats(44));
     arrangement(&mut a, &ctx, vec![]);
     let text = arrangement_out(&mut a, &ctx, vec![]);
-    assert!(text.to_lowercase().contains("metre at bar 12"), "{text}");
+    assert!(
+        text.to_lowercase().contains("time signature at bar 12"),
+        "{text}"
+    );
 }
 
 /// Finding 23: a marker dragged out of view and released there ends its drag: the next

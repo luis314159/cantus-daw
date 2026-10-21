@@ -552,3 +552,95 @@ fn a_drag_over_two_thousand_windows_keeps_to_its_budget() {
     println!("a drag frame over 2 000 windows: {:.2} ms", best * 1e3);
     assert!(best < 0.003, "{:.2} ms a frame", best * 1e3);
 }
+
+/// Review 6 (findings 0, 4, 10): a linked piece's rounding is half a tick where its offset
+/// is rounded — at its content origin — so a take whose origin lies in a slower section
+/// keeps its linked piece through two point edits: the seam plays on within half a tick at
+/// the origin (and a frame).
+#[test]
+fn a_linked_piece_stays_in_its_take_when_its_origin_is_slower() {
+    for (points, take, split, edits) in [
+        (
+            vec![pt(0, 60.0, false), pt(16, 120.0, false)],
+            (8 * B, 7 * B),
+            24 * B,
+            [(0usize, pt(0, 61.4, false)), (1, pt(16, 110.0, false))],
+        ),
+        (
+            vec![pt(0, 80.0, false), pt(32, 140.0, false)],
+            (0, 0),
+            48 * B,
+            [(1, pt(32, 141.0, false)), (1, pt(32, 142.0, false))],
+        ),
+    ] {
+        let (start, origin) = take;
+        let w = [
+            (start, split - start, start - origin, 0, false),
+            (split, 8 * B, split - origin, 0, false),
+        ];
+        let (mut bus, t, ids) = song(points, &w);
+        bus.execute(
+            Command::SetClipLink {
+                track: t,
+                clip: ids[1],
+                link: Some(LinkId(9_999)),
+            },
+            Origin::User,
+        )
+        .unwrap();
+        for (index, point) in edits {
+            run(&mut bus, Command::SetTempoPoint { index, point });
+            let map = bus.project().tempo_map();
+            let o = origin as f64;
+            let half_tick = 0.5 * map.seconds_between_f64(o, o + 1.0) * RATE;
+            let (l, r) = (clip(&bus, t, ids[0]), clip(&bus, t, ids[1]));
+            let (x, y) = (
+                frame(&map, &l, l.end().0 as f64),
+                frame(&map, &r, r.start.0 as f64),
+            );
+            assert!(
+                (x - y).abs() <= half_tick + 1.0,
+                "{:?}: the seam plays {x} then {y}",
+                point
+            );
+        }
+    }
+}
+
+/// Review 6 (findings 2, 5): a take whose first piece is linked is laid on its unlinked
+/// pieces' line, never on the linked one's rounding: through six tempo edits the unlinked
+/// piece plays what it would with no link (within a frame or two of rounding).
+#[test]
+fn a_linked_first_piece_never_drags_its_take() {
+    let w = [
+        (16 * B, 16 * B, 16 * B - 3 * B / 2, 0, false),
+        (32 * B, 32 * B, 32 * B - 3 * B / 2, 0, false),
+    ];
+    let (mut linked, t, ids) = song(vec![], &w);
+    let (mut plain, _, _) = song(vec![], &w);
+    linked
+        .execute(
+            Command::SetClipLink {
+                track: t,
+                clip: ids[0],
+                link: Some(LinkId(9_999)),
+            },
+            Origin::User,
+        )
+        .unwrap();
+    let at = |bus: &CommandBus| {
+        let c = clip(bus, t, ids[1]);
+        frame(&bus.project().tempo_map(), &c, c.start.0 as f64)
+    };
+    for bpm in [121.3, 122.7, 119.1, 125.9, 117.3, 128.6] {
+        for bus in [&mut linked, &mut plain] {
+            bus.execute(Command::SetTempo { bpm }, Origin::User)
+                .unwrap();
+        }
+        let (a, b) = (at(&linked), at(&plain));
+        assert!(
+            (a - b).abs() <= 2.0,
+            "{bpm}: {a} with a linked head, {b} without"
+        );
+    }
+}

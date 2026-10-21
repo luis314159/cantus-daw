@@ -129,8 +129,12 @@ stays a seam and glue still glues. The final rule (reviews 3–4) has three part
    source, the same direction, and the same source second at every tick within a frame
    (for a forward window, its frame at its start less the song's frames to it; reversed,
    plus) — within half a tick more for a linked window, which a re-anchor moves by whole
-   ticks (review 5: after one edit it fell out of its take, and the next edit tore the take
-   at its edges; moves chain linked windows with the same reach). After it runs, each take keeps the frame where it comes in — a forward take at
+   ticks: half a tick at its content origin, where `offset_for` rounds it, or at its entry,
+   the longer (reviews 5–6: after one edit it fell out of its take — an origin in a slower
+   section too — and the next edit tore the take at its edges; moves chain linked windows
+   with the same reach, met or across a gap). A take is laid on an unlinked window's exact
+   line when it has one, so a linked first piece never drags the rest by its rounding
+   (review 6). After it runs, each take keeps the frame where it comes in — a forward take at
    its earliest window's start, a reversed one at its latest window's end — and runs on
    from there at natural speed through the new map; every window is re-anchored onto that
    line (`audio_time::anchor`: whole ticks, the rest in `slip_frames`), and **the windows
@@ -169,12 +173,14 @@ tempo changed in a song without a tempo track keeps each take where it comes in 
 slid trimmed clips by the change in their offset's seconds); playback of every project as
 saved is unchanged, to the bit — only an edit of the tempo re-anchors. **While audio
 records, the tempo stays** (the top bar, the lane, tap, a controller knob — sent the tempo
-back — any command that changes the map, and undo or redo of a step that would, or that
-puts another song in place: refused with a word, reviews 4–5): an audio take is laid
-through the map it was played under, and a take not yet in the song cannot be kept by
-`keep`. A DAWproject imported during a take stops it first (it lands in the song it was
-recorded into); a MIDI file opened then does not set the tempo. A notes-only pass leaves
-the tempo free: notes are recorded in ticks (review 5).
+back — any command that changes the map, and undo or redo of a step that would: refused
+with a word, reviews 4–5): an audio take is laid through the map it was played under, and
+a take not yet in the song cannot be kept by `keep`. A notes-only pass leaves the tempo
+free: notes are recorded in ticks (review 5). Another song in place waits while *any*
+pass records — undo or redo of an import, in its own words; a DAWproject read in the
+background opens when the pass ends; one imported at once stops the pass first (it lands
+in the song it was recorded into); a MIDI file imported during an audio take brings its
+notes at the song's tempo, the dialog's tempo choice disabled (review 6).
 
 Moving and copying go through the map too, **clip by clip**: every clip of a selection
 moved, nudged, drag-copied or pasted lands its delta later — on the bars it had, beside the
@@ -241,8 +247,8 @@ slides the range with it, the scale held, and moves along the lane by the pointe
 travel, never to the grid line under it (review 4), held by its place in the song, so a
 zoom or a scroll mid-drag keeps it under the pointer (review 5). The ruler's menu adds on the grid when snap is
 on; *Add a metre change* opens its editor under the ruler and the tempo lane, in view,
-its title naming its bar (review 5: out of view it opened elsewhere unnamed, and over the
-chips). A tab or a chip released out of view ends its drag. The grid menu's *Bar* is the
+its title naming its bar — "Time signature at bar 14", as the top bar names the same
+editor (reviews 5–6: out of view it opened elsewhere unnamed, and over the chips). A tab or a chip released out of view ends its drag. The grid menu's *Bar* is the
 bar of the metre in force for the arrow keys, a duplicate of notes and a drawn note too
 (review 5). The lanes' state
 belongs to one project.
@@ -287,7 +293,7 @@ and a DAWproject's `TempoAutomation`, `TimeSignatureAutomation` and `Markers`. N
   compared with where the clip plays in the content's own unit (review 4). The metre is read
   before the clips, so notes straight on a lane get a clip on the file's bar lines through
   its changes (review 5). Tempo points, metres and markers past the song's horizon
-  (`tempo::HORIZON`, a million beats) are left out and said (review 5).
+  (`tempo::HORIZON`, a million beats) are left out and said, in one line (reviews 5–6).
   Times in seconds are placed through the file's own map — its tempo
   points one after another, then every clip, note, marker and metre (review 2) — a ramp
   written in seconds becomes one linear in beats (reported); two points at one time are a

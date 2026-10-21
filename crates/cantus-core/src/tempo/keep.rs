@@ -82,6 +82,10 @@ pub struct Kept {
     bpm: f64,
     points: Vec<TempoPoint>,
     windows: Vec<Window>,
+    /// Each window's line (see [`line_of`]), and the song's frames to its entry, before the
+    /// edit: a take is laid on an unlinked window's exact line (review 6).
+    line: Vec<f64>,
+    to_entry: Vec<f64>,
     /// The lines: indices into `windows`, one take each.
     lines: Vec<Vec<usize>>,
 }
@@ -173,20 +177,16 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
     }
     // One line a take: the same file, the same direction, the same line within a frame.
     let line: Vec<f64> = windows.iter().map(|w| line_of(&map, w)).collect();
+    let to_entry: Vec<f64> = windows
+        .iter()
+        .map(|w| map.seconds_between_f64(0.0, w.entry().0 as f64) * w.rate)
+        .collect();
     // A linked window is re-anchored by whole ticks (its fine offset is its group's), so
     // it sits up to half a tick off its take's line: within that of the line it is still
     // the take's (review 5: one edit left it out, and the next tore the take at its edges).
-    let slack: Vec<f64> = windows
-        .iter()
-        .map(|w| {
-            if w.link.is_some() {
-                let e = w.entry().0 as f64;
-                0.5 * map.seconds_between_f64(e, e + 1.0) * w.rate
-            } else {
-                0.0
-            }
-        })
-        .collect();
+    // The tick is rounded at its content origin, so half a tick there — or at its entry,
+    // whichever is longer (review 6: an origin in a slower section lost it again).
+    let slack: Vec<f64> = windows.iter().map(|w| linked_slack(&map, w)).collect();
     let mut order: Vec<usize> = (0..windows.len()).collect();
     order.sort_by(|&a, &b| {
         let (x, y) = (&windows[a], &windows[b]);
@@ -211,8 +211,21 @@ pub fn before(project: &Project, cmd: &Command) -> Option<Kept> {
         bpm: project.tempo_bpm,
         points: project.tempo_points.clone(),
         windows,
+        line,
+        to_entry,
         lines,
     })
+}
+
+/// How far off its take's line a linked window may sit: half a tick at its content origin
+/// (where `offset_for` rounds it) or at its entry, the longer, in frames; 0 unlinked.
+fn linked_slack(map: &TempoMap, w: &Window) -> f64 {
+    if w.link.is_none() {
+        return 0.0;
+    }
+    let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
+    let origin = (w.start - w.offset).0.max(0) as f64;
+    half(origin).max(half(w.entry().0 as f64))
 }
 
 /// The window edits that keep, after the edit ran, every take's frame where it comes in
@@ -284,13 +297,26 @@ pub fn after(kept: &Kept, project: &Project) -> Vec<Command> {
             continue;
         };
         let h = &kept.windows[head];
+        // The frame the take plays where it comes in: its head's — or, when the head is
+        // linked (whole ticks, up to half a tick off), the line of its earliest unlinked
+        // window there, so a linked piece never drags the rest of its take (review 6).
+        let exact = live
+            .iter()
+            .copied()
+            .filter(|&i| kept.windows[i].link.is_none())
+            .min_by_key(|&i| kept.windows[i].start);
+        let h_keep = match (h.link, exact) {
+            (Some(_), Some(u)) if h.reverse => kept.line[u] - kept.to_entry[head],
+            (Some(_), Some(u)) => kept.line[u] + kept.to_entry[head],
+            _ => h.keep,
+        };
         // The frame the line plays at `tick` through the new map, its entry kept.
         let target = |tick: Ticks| -> f64 {
             let (a, b) = (h.entry().0 as f64, tick.0 as f64);
             if h.reverse {
-                h.keep + map.seconds_between_f64(b, a) * h.rate
+                h_keep + map.seconds_between_f64(b, a) * h.rate
             } else {
-                h.keep + map.seconds_between_f64(a, b) * h.rate
+                h_keep + map.seconds_between_f64(a, b) * h.rate
             }
         };
         // The windows that shared their origin and fine offset shift as one (forwards; a

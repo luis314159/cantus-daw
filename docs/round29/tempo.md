@@ -430,3 +430,29 @@ core, project and ai again, 540, after clippy's last words); UI 1 607 passed, 1 
 not in this branch's files (they match `r29/integration` there); the engine with `fuzz`
 (`CANTUS_WORKERS=3`) 812 passed; `cargo clippy --workspace --all-targets -D warnings` and
 `cantus-plugins --no-default-features` clean; `cargo fmt --check` clean.
+
+## Review 6 (`tempo-6.json`, 20 confirmed) — how each was fixed
+
+Merged `r29/integration` (622caf1: freeze's third round, isolation's fifth) first. Every
+test named below was seen failing before its fix, except where the row says otherwise.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0, 4, 10 | a linked piece's reach was half a tick at its entry; the rounding is at its content origin | the reach is half a tick at the origin or the entry, the longer — in `keep::before` (`linked_slack`), `lay_chains` and the fuzz's `takes_kept` | `tempo_keep_groups::a_linked_piece_stays_in_its_take_when_its_origin_is_slower` (60 → 120 at beat 16, edits 61.4 then 110; and 80 → 140 at 32, 141 then 142; failed: the seam 632 736 then 615 273) |
+| 2, 5 | a linked head dragged its take by its rounding at every edit | the take's frame where it comes in is its earliest unlinked window's exact line (the line before the edit plus the song's frames to the head's entry); a linked head is laid on it | `tempo_keep_groups::a_linked_first_piece_never_drags_its_take` (six edits, against the same take unlinked; failed at the second: 723 592 vs 723 587) |
+| 3, 6 | `lay_chains` lost a linked piece across a gap; its slack untested | a linked window joins the take whose line it reads within its reach, met or not | `tempo_review4::a_take_with_a_linked_piece_moves_as_one` (met and with a gap, moved and pasted after a re-anchoring edit; failed on review 5's `lay_chains`: 1.546 s vs 1.875 s) |
+| 1, 11 | undo/redo of an import during a notes pass replaced the song under it | another song's undo or redo waits while *any* pass records | `tempo_review6_ui::undo_of_an_import_waits_while_any_pass_records` (a notes pass and an audio take, undo and redo; failed) |
+| 8, 12 | that refusal spoke of the tempo, untested | its own words, `rec.status.song_held` (EN/ES). The undo keys still show enabled (not done: they cannot know which step a refusal would hold without asking the bus each frame) | the same test asserts the words |
+| 7 | a background DAWproject read cut a take short when it finished | a read that finishes while a pass records waits (`Interop::waiting`, `interop.status.import_waits`) and opens when the pass ends | `tempo_review6_ui::a_background_import_opens_when_the_take_ends` (the threaded path; failed) |
+| 13 | the MIDI dialog's tempo choice during an audio take dropped the whole import | `import_midi` keeps the song's tempo while audio records (the notes come in); the choice is shown disabled | `tempo_review6_ui::a_midi_import_during_an_audio_take_brings_its_notes` (failed) |
+| 15 | "COMPÁS EN EL COMPÁS 14"; two names for one editor | "Time signature at bar {bar}" / "Indicación de compás en el compás {bar}"; re-shot (`F:\projects\daw-r29\shots\tempo-r6`) | `tempo_review6_ui::the_rulers_editor_is_the_time_signature_at_its_bar` (failed), `tempo_review5_ui::the_rulers_metre_editor_names_its_bar` |
+| 16 | the first tap during an audio take said "tap again" | `tap_at` says the hold from the first tap | `tempo_review6_ui::the_first_tap_during_an_audio_take_says_the_hold` (failed) |
+| 9, 14 | far points said a line each, "1 … points"; no singular for kept lines | one counter for far tempo points, metres and markers, said once; `_one` lines for `too_far`, `tempo_kept`, `metres_kept`, `markers_kept` (EN/ES) | `dawproject_tempo::points_past_the_horizon_are_left_out_and_said` (a far metre too; one line, n = 3; failed: three lines), `tempo_review6_ui::one_kept_or_left_out_is_said_in_the_singular` (failed) |
+| 17 | the manual's "every sixteenth" | EN/ES: a very long ramp in fewer, longer steps; far points left out and said | — |
+| 18 | the AI tool's description | the beat's range (0 to 1 000 000, in the schema too) and an unsaid ramp kept | — (words) |
+| 19 | `tempo_map`'s doc comment on `metre_list` | moved back | — |
+
+**Verified on the merged tree (`r29/integration` 622caf1 in):** core, dsp, project, engine,
+host, export, ai and plugins 2 321 passed; UI 1 645 passed; the engine with `fuzz`
+(`CANTUS_WORKERS=3`) 824 passed; `cargo clippy --workspace --all-targets -D warnings` and
+`cantus-plugins --no-default-features` clean; `cargo fmt --check` clean.

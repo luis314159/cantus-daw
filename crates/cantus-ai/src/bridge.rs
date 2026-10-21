@@ -36,11 +36,11 @@ pub fn tool_specs() -> Vec<ToolSpec> {
         },
         ToolSpec {
             name: "set_tempo_point".into(),
-            description: "Put a tempo change on the tempo track at a beat (a ramp when `ramp` is true: the tempo moves linearly from this point to the next). Beat 0 sets the song's starting tempo.".into(),
+            description: "Put a tempo change on the tempo track at a beat, 0 to 1 000 000 (a ramp when `ramp` is true: the tempo moves linearly from this point to the next; leave `ramp` out to keep an existing point's own). Beat 0 sets the song's starting tempo.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {
-                    "beat": { "type": "number" },
+                    "beat": { "type": "number", "minimum": 0, "maximum": 1_000_000 },
                     "bpm": { "type": "number" },
                     "ramp": { "type": "boolean" }
                 },

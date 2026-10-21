@@ -3619,12 +3619,14 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             0.5 + 1e-6
         }
     };
-    // A linked window sits within half a tick of its take's line (review 5): within that
+    // A linked window sits within half a tick of its take's line (review 5) — the tick
+    // rounded at its content origin, or at its entry, the longer (review 6): within that
     // (and a frame) it is the take's.
     let slack = |w: &Win| {
         if w.linked {
+            let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
             let e = if w.reverse { w.end } else { w.start }.0 as f64;
-            0.5 * map.seconds_between_f64(e, e + 1.0) * w.rate
+            half(w.origin.0.max(0) as f64).max(half(e))
         } else {
             0.0
         }
@@ -3657,7 +3659,8 @@ fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result
             && !head.linked
             && (b.origin, b.slip) == (head.origin, head.slip);
         let tolerance = if std::ptr::eq(head, *b) {
-            reach(a)
+            // A linked head is laid on its take's exact line, which it sat off by its slack.
+            reach(a) + slack(b)
         } else if with_head {
             0.5 + 1e-6
         } else {

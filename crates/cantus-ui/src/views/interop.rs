@@ -283,6 +283,9 @@ pub fn import_midi(
     at: Ticks,
     index: Option<usize>,
 ) -> bool {
+    // The tempo holds while audio records: the notes come in at the song's (review 6: the
+    // whole import was refused).
+    let apply_tempo = apply_tempo && !app.audio_take_running();
     let target_bpm = (!apply_tempo).then(|| app.project().tempo_bpm);
     let opts = midi::ImportOptions {
         // Keeping the bars with the song's tempo set from the file keeps its whole tempo
@@ -763,7 +766,9 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
             "interop.midi_import.apply_tempo",
             &[("bpm", &p.tempo_bpm), ("sig", &sig)],
         );
-        if form::choice(ui, d.apply_tempo, true, &apply) {
+        // Not while audio records: the tempo holds then (review 6).
+        let free = !app.audio_take_running();
+        if form::choice(ui, d.apply_tempo && free, free, &apply) {
             d.apply_tempo = !d.apply_tempo;
         }
         let map_mode = p.tempo_mode == cantus_project::midi::TempoMode::Map;

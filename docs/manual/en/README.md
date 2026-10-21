@@ -534,11 +534,13 @@ A song can change tempo and metre as it goes, and carry named markers (round 29)
   point of its file it lands on, at its end. While audio records the tempo stays as it
   is — undo and redo of a tempo change too; recording notes leaves it free.
 - **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
-  note, and every marker, those at the end too) and in — importing with *Set the project
+  note — a very long one, over 1 024 beats, in fewer, longer steps, each its stretch's
+  average — and every marker, those at the end too) and in — importing with *Set the project
   to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's
   start they are the song's; dropped at a later bar they start there (the bar line nearest
   the drop), the song keeping its own tempo and metre before it. **DAWproject** files carry the tempo
-  track, the metre changes and the markers both ways.
+  track, the metre changes and the markers both ways. A file's tempo points, metre
+  changes or markers past a million beats are left out, and the import says so.
 
 ### The piano roll
 
