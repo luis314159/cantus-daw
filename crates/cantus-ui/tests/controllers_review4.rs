@@ -407,6 +407,10 @@ fn a_split_pair_on_another_port_waits_for_its_fine_half() {
         MappingTarget::Param(AutoTarget::MasterPan),
         MapMode::Absolute,
     );
+    // While a pass records: every message's value is kept (a half-made one would be).
+    a.engine.seek(Ticks::beats(4));
+    a.start_recording();
+    a.engine.set_heard_for_tests(Ticks::beats(8), true);
     let t = Instant::now() + Duration::from_millis(50);
     a.controller_heard(&[msg_on(1, 0xB0, 7, 10, t), msg_on(1, 0xB0, 39, 5, t)]);
     let before = a.project().master.width;
@@ -423,6 +427,20 @@ fn a_split_pair_on_another_port_waits_for_its_fine_half() {
         "the pair, whole: {}",
         a.project().master.width
     );
+    let half = f32::from(11u16 << 7) / 16_383.0;
+    let points = a
+        .modulators
+        .rec
+        .points
+        .get(&AutoTarget::MasterWidth)
+        .cloned()
+        .unwrap_or_default();
+    assert!(!points.is_empty());
+    assert!(
+        points.iter().all(|(_, v)| (v - half).abs() > 1e-6),
+        "a half-made value recorded: {points:?}"
+    );
+    a.stop_recording();
 }
 
 // ---- learning ----------------------------------------------------------------------------
