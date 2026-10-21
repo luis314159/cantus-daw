@@ -228,6 +228,11 @@ pub fn tap(app: &mut CantusApp) {
 
 /// [`tap`] at a given time on the tap clock (tests drive the clock).
 pub fn tap_at(app: &mut CantusApp, now: f64) {
+    // While audio records the tempo holds: said from the first tap (review 6).
+    if app.audio_take_running() {
+        app.set_status(t("tempo.status.recording"));
+        return;
+    }
     if app.topbar.tap.taps() > 0 && app.topbar.tap.ended(now) {
         app.end_gesture();
     }

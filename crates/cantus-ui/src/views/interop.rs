@@ -30,6 +30,9 @@ pub struct Interop {
         String,
         std::sync::mpsc::Receiver<Result<dawproject::ImportedFile, String>>,
     )>,
+    /// A `.dawproject` read while a pass recorded: it opens when the pass ends (review 6:
+    /// it cut the take short whenever the read happened to finish).
+    pub waiting: Option<(String, dawproject::ImportedFile)>,
 }
 
 /// What "Export MIDI…" writes.
@@ -239,6 +242,9 @@ pub fn import_midi(
     at: Ticks,
     index: Option<usize>,
 ) -> bool {
+    // The tempo holds while audio records: the notes come in at the song's (review 6: the
+    // whole import was refused).
+    let apply_tempo = apply_tempo && !app.audio_take_running();
     let target_bpm = (!apply_tempo).then(|| app.project().tempo_bpm);
     let opts = midi::ImportOptions {
         // Keeping the bars with the song's tempo set from the file keeps its whole tempo
@@ -719,7 +725,9 @@ fn midi_import_window(app: &mut CantusApp, ctx: &egui::Context) {
             "interop.midi_import.apply_tempo",
             &[("bpm", &p.tempo_bpm), ("sig", &sig)],
         );
-        if form::choice(ui, d.apply_tempo, true, &apply) {
+        // Not while audio records: the tempo holds then (review 6).
+        let free = !app.audio_take_running();
+        if form::choice(ui, d.apply_tempo && free, free, &apply) {
             d.apply_tempo = !d.apply_tempo;
         }
         let map_mode = p.tempo_mode == cantus_project::midi::TempoMode::Map;
@@ -900,6 +908,11 @@ pub fn import_dawproject_from(app: &mut CantusApp, path: &Path) -> bool {
 
 /// Every frame: a `.dawproject` read on its thread is opened (or said failed).
 pub fn poll_import(app: &mut CantusApp, ctx: Option<&egui::Context>) {
+    if !app.is_recording() {
+        if let Some((name, f)) = app.interop.waiting.take() {
+            open_read(app, f, &name);
+        }
+    }
     let Some((name, rx)) = &app.interop.importing else {
         return;
     };
@@ -916,18 +929,25 @@ pub fn poll_import(app: &mut CantusApp, ctx: Option<&egui::Context>) {
     let name = name.clone();
     app.interop.importing = None;
     match result {
-        Ok(f) => {
-            let mut report = f.report;
-            for file in f.unwritten {
-                report.dropped("interop.report.d_audio_unwritten", vec![("file", file)]);
-            }
-            open_imported(app, f.project, report, &name);
+        Ok(f) if app.is_recording() => {
+            app.set_status(tf("interop.status.import_waits", &[("file", &name)]));
+            app.interop.waiting = Some((name, f));
         }
+        Ok(f) => open_read(app, f, &name),
         Err(e) => app.set_error(tf(
             "interop.status.import_failed",
             &[("file", &name), ("error", &e)],
         )),
     }
+}
+
+/// Open a `.dawproject` read on its thread.
+fn open_read(app: &mut CantusApp, f: dawproject::ImportedFile, name: &str) {
+    let mut report = f.report;
+    for file in f.unwritten {
+        report.dropped("interop.report.d_audio_unwritten", vec![("file", file)]);
+    }
+    open_imported(app, f.project, report, name);
 }
 
 /// Wait for a `.dawproject` on its way and open it (tests, and a quit).

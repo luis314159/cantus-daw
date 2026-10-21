@@ -755,18 +755,20 @@ impl CantusApp {
     /// put another song in place, while an audio take is written — refused, and said
     /// (review 5: undo and redo went around the hold).
     fn step_held(&mut self, undo: bool) -> bool {
-        if !self.audio_take_running() {
-            return false;
-        }
         let step = if undo {
             self.bus.history().last().map(|e| &e.inverse)
         } else {
             self.bus.redo_history().last().map(|e| &e.command)
         };
-        let held = step.is_some_and(|c| {
-            cantus_core::tempo::keep::changes_tempo(c)
-                || matches!(c, Command::ReplaceProject { .. })
-        });
+        // Another song in place waits while any pass records: the pass belongs to the
+        // song it was recorded into (review 6: a notes pass finished into another song).
+        if self.is_recording() && step.is_some_and(|c| matches!(c, Command::ReplaceProject { .. }))
+        {
+            self.set_status(t("rec.status.song_held"));
+            return true;
+        }
+        let held =
+            self.audio_take_running() && step.is_some_and(cantus_core::tempo::keep::changes_tempo);
         if held {
             self.set_status(t("tempo.status.recording"));
         }
