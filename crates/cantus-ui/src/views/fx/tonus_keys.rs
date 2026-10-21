@@ -87,7 +87,7 @@ pub(super) fn show(
     // Each note of the scale is a parameter: in the learn mode each key is outlined and a
     // click learns it; a mapped one wears the mark — the right-click stays the note's own
     // cycle (round 29, review 2 of ADR 0062, #44).
-    let learning = learn_keys(host, ui, s, &keys);
+    let learning = learn_keys(host, ui, s, &keys, ss);
     if editable && !learning {
         let right = resp.secondary_clicked();
         if resp.clicked() || right {
@@ -294,7 +294,13 @@ fn shown_parts(keys: &[Rect; 12], pc: usize) -> [Rect; 2] {
 }
 
 /// The keys as their notes' parameters for MIDI learn: `true` while the learn mode is on.
-fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect; 12]) -> bool {
+fn learn_keys(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    keys: &[Rect; 12],
+    ss: &TonusSettings,
+) -> bool {
     use crate::kit::automate as a;
     let mut mode = false;
     // The white keys first, the black keys over them. Each key is outlined and covered
@@ -323,6 +329,12 @@ fn learn_keys(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, keys: &[Rect;
             }
             if clicked {
                 host.modulate(key, a::Choice::Learn, *r);
+                // The key stands for its click: as the scale ↔ removed (a note of the
+                // scale) or a target (one outside it) — what the learnt control toggles
+                // (review 4, #46).
+                let other = after_click(ss, pc, false).index() as f32;
+                let other = if other == 0.0 { 2.0 } else { other };
+                host.set_learn_range(key, 0.0, other);
             }
         } else if l.mapped {
             a::learn_mark_over(ui, *r, ui.clip_rect());

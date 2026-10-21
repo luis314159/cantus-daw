@@ -3,27 +3,35 @@
 //! for the controllers pane's *From* and *To* cells and the status line, and typed back
 //! in either language. An effect's choices come from the table below (its prefixes, as
 //! `cantus_plugins::params` lists them for a host, with the round-28 kinds' own tables in
-//! `EffectKind::choices`); an instrument's from the labels its editor drew (noted once per
-//! key, never per frame); a hosted plug-in's from its own words for each step.
+//! `EffectKind::choices`); an instrument's from `inst_choices` (the editors' labels, held to
+//! them by a test); a hosted plug-in's from its own words for each of its steps.
 
 use crate::app::CantusApp;
-use crate::i18n::{t, t_in, Locale};
+use crate::i18n::{t_in, Locale};
 use cantus_core::controller::MappingTarget;
 use cantus_core::{AutoTarget, EffectKind, InstrumentKind};
 use std::collections::HashMap;
 
-/// One step's word: a locale key, or text the plug-in or an editor gave.
+/// One step's word: a locale key, a key with a number (`Band {n}`), or text the plug-in or
+/// an editor gave.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Word {
     Key(String),
+    Format(String, i32),
     Text(String),
 }
 
 impl Word {
     /// In the interface's language.
     pub fn show(&self) -> String {
+        self.show_in(crate::i18n::locale())
+    }
+
+    /// In `locale`.
+    pub fn show_in(&self, locale: Locale) -> String {
         match self {
-            Word::Key(k) => t(k),
+            Word::Key(k) => t_in(locale, k),
+            Word::Format(k, n) => crate::i18n::tf_in(locale, k, &[("n", n)]),
             Word::Text(s) => s.clone(),
         }
     }
@@ -31,12 +39,29 @@ impl Word {
     /// Whether `typed` (lower case) names it, in either language.
     fn named_by(&self, typed: &str) -> bool {
         match self {
-            Word::Key(k) => [Locale::En, Locale::Es]
-                .iter()
-                .any(|l| t_in(*l, k).to_lowercase() == typed),
             Word::Text(s) => s.to_lowercase() == typed,
+            _ => [Locale::En, Locale::Es]
+                .iter()
+                .any(|l| self.show_in(*l).to_lowercase() == typed),
         }
     }
+}
+
+/// An effect's choice names for `key` in `locale`, from its lowest value up (`None`: it has
+/// none) — what the exported plug-ins give a host too (`cantus_plugins::params`, whose test
+/// holds the two tables equal).
+pub fn effect_choice_words(kind: EffectKind, key: &str, locale: Locale) -> Option<Vec<String>> {
+    let info = kind.param(key)?;
+    if !info.stepped {
+        return None;
+    }
+    let (lo, hi) = (info.min.round() as i32, info.max.round() as i32);
+    Some(
+        effect_words(kind, key, lo, hi)?
+            .iter()
+            .map(|w| w.show_in(locale))
+            .collect(),
+    )
 }
 
 /// An instrument's choices as its editor drew them, by kind and key; and the language they
@@ -65,7 +90,9 @@ impl InstWords {
             .insert(key.to_string(), words());
     }
 
-    fn get(&self, kind: InstrumentKind, key: &str) -> Option<&Vec<Word>> {
+    /// What an editor drew for `key` of `kind` (the test that holds `inst_choices` to the
+    /// editors reads it).
+    pub fn get(&self, kind: InstrumentKind, key: &str) -> Option<&Vec<Word>> {
         self.words.get(&kind)?.get(key)
     }
 }
@@ -87,9 +114,33 @@ pub fn srcs(labels: &[crate::kit::text::Src<'_>]) -> Vec<Word> {
         .collect()
 }
 
-/// `target`'s steps' words, from its lowest value up, with that value; `None` for a
-/// target that has none (a range, or a stepped number such as a count or semitones).
-pub fn stepped_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Vec<Word>)> {
+/// A hosted plug-in's stepped parameter at `a`: its description, its id and its steps (at
+/// most [`HOSTED_WORDS`]), when its steps may have words.
+fn hosted_steps<'a>(
+    app: &'a CantusApp,
+    a: &AutoTarget,
+) -> Option<(&'a cantus_host::ParamInfo, u32, u32)> {
+    let id = match a {
+        AutoTarget::Plugin { id, .. } | AutoTarget::PluginInstrument { id, .. } => *id,
+        _ => return None,
+    };
+    let info = app.hosted_param_info(a)?;
+    let n = info.step_count()?;
+    (1..=HOSTED_WORDS).contains(&n).then_some((info, id, n))
+}
+
+/// A hosted parameter's steps beyond this are numbers, not choices.
+pub const HOSTED_WORDS: u32 = 64;
+
+/// The plain value of step `k` of `n` of a hosted parameter: its own steps, whatever its
+/// plain values are (a JUCE VST3's 0…1, another's 0, 10…40; review 4, #1, #58).
+fn hosted_step_value(info: &cantus_host::ParamInfo, k: u32, n: u32) -> f64 {
+    info.min + f64::from(k) / f64::from(n) * (info.max - info.min)
+}
+
+/// A native target's choice words, from its lowest value up, with that value; `None` for
+/// a target that has none (a range, or a stepped number such as a count or semitones).
+fn native_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Vec<Word>)> {
     let p = app.project();
     match target {
         MappingTarget::Param(AutoTarget::Effect { effect, key }) => {
@@ -103,54 +154,101 @@ pub fn stepped_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Ve
             let words = effect_words(kind, key, lo, hi)?;
             Some((lo, words))
         }
+        // A native instrument's from its static table — never from what an editor drew
+        // this session (review 4, #7, #22, #33, #45).
         MappingTarget::Param(AutoTarget::Instrument { track, key }) => {
             let kind = p.track(*track)?.instrument.native()?.kind;
             let info = kind.param(key)?;
             if !info.stepped {
                 return None;
             }
-            let words = app.controllers.inst_words.get(kind, key)?;
-            Some((info.min.round() as i32, words.clone()))
+            Some((
+                info.min.round() as i32,
+                crate::inst_choices::words(kind, key)?,
+            ))
         }
+        MappingTarget::Param(AutoTarget::Firmus {
+            param: cantus_core::FirmusParam::Osc1Wave | cantus_core::FirmusParam::Osc2Wave,
+            ..
+        }) => Some((0, crate::inst_choices::firmus_waves())),
+        _ => None,
+    }
+}
+
+/// `target`'s steps' words, from its lowest step up — what a typed name is looked up in
+/// (a hosted plug-in is asked for each of its steps: only when a name is typed).
+pub fn stepped_words(app: &CantusApp, target: &MappingTarget) -> Option<Vec<Word>> {
+    match target {
         MappingTarget::Param(
             a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
         ) => {
-            let info = app.hosted_param_info(a)?;
-            let n = (info.max - info.min).round();
-            if !info.stepped || !(1.0..=64.0).contains(&n) {
-                return None;
-            }
-            let id = match a {
-                AutoTarget::Plugin { id, .. } | AutoTarget::PluginInstrument { id, .. } => *id,
-                _ => return None,
-            };
-            let words: Option<Vec<Word>> = (0..=n as i32)
-                .map(|i| {
-                    app.hosted_param_text(a, id, info.min + f64::from(i))
+            let (info, id, n) = hosted_steps(app, a)?;
+            (0..=n)
+                .map(|k| {
+                    app.hosted_param_text(a, id, hosted_step_value(info, k, n))
                         .map(Word::Text)
                 })
-                .collect();
-            Some((info.min.round() as i32, words?))
+                .collect()
+        }
+        _ => native_words(app, target).map(|(_, w)| w),
+    }
+}
+
+/// The word of `target` at `pos` (0…1 of its travel): the name of the step there — a
+/// hosted plug-in asked for that one step only (review 4, #27, #63); `None` when its steps
+/// have no words.
+pub fn word_at_pos(app: &CantusApp, target: &MappingTarget, pos: f32) -> Option<String> {
+    match target {
+        MappingTarget::Param(
+            a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
+        ) => {
+            let (info, id, n) = hosted_steps(app, a)?;
+            let k = (pos.clamp(0.0, 1.0) * n as f32).round() as u32;
+            app.hosted_param_text(a, id, hosted_step_value(info, k, n))
+        }
+        MappingTarget::Param(a) => {
+            let (lo, words) = native_words(app, target)?;
+            let r = cantus_core::automation::range::range_of(app.project(), a)?;
+            let i = (r.value(pos).round() as i32 - lo).clamp(0, words.len() as i32 - 1);
+            words.get(i as usize).map(Word::show)
         }
         _ => None,
     }
 }
 
-/// The word of the step at `value` (in the target's own units).
-pub fn word_at(app: &CantusApp, target: &MappingTarget, value: f32) -> Option<String> {
-    let (lo, words) = stepped_words(app, target)?;
-    let i = (value.round() as i32 - lo).clamp(0, words.len() as i32 - 1);
-    words.get(i as usize).map(Word::show)
+/// The position (0…1 of `target`'s travel) of the step `typed` names, in either language.
+pub fn pos_named(app: &CantusApp, target: &MappingTarget, typed: &str) -> Option<f32> {
+    let typed = typed.trim().to_lowercase();
+    match target {
+        MappingTarget::Param(
+            a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
+        ) => {
+            let (_, _, n) = hosted_steps(app, a)?;
+            let words = stepped_words(app, target)?;
+            let k = words.iter().position(|w| w.named_by(&typed))?;
+            Some(k as f32 / n as f32)
+        }
+        MappingTarget::Param(a) => {
+            let (lo, words) = native_words(app, target)?;
+            let i = words.iter().position(|w| w.named_by(&typed))?;
+            let r = cantus_core::automation::range::range_of(app.project(), a)?;
+            Some(r.pos((lo + i as i32) as f32))
+        }
+        _ => None,
+    }
 }
 
-/// The value (in the target's units) whose word `typed` is, in either language.
-pub fn value_named(app: &CantusApp, target: &MappingTarget, typed: &str) -> Option<f32> {
-    let (lo, words) = stepped_words(app, target)?;
-    let typed = typed.trim().to_lowercase();
-    words
-        .iter()
-        .position(|w| w.named_by(&typed))
-        .map(|i| (lo + i as i32) as f32)
+/// Whether `target`'s steps have names (a hosted plug-in asked for its first step only).
+pub fn has_words(app: &CantusApp, target: &MappingTarget) -> bool {
+    match target {
+        MappingTarget::Param(
+            a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
+        ) => hosted_steps(app, a).is_some_and(|(info, id, n)| {
+            app.hosted_param_text(a, id, hosted_step_value(info, 0, n))
+                .is_some()
+        }),
+        _ => native_words(app, target).is_some(),
+    }
 }
 
 /// An effect's choices from `lo` to `hi`.
@@ -167,7 +265,15 @@ fn effect_words(kind: EffectKind, key: &str, lo: i32, hi: i32) -> Option<Vec<Wor
         (EffectKind::Limiter | EffectKind::Maximizer, "dither") => {
             let mut v = vec![Word::Key("export.off".into())];
             for bits in [24, 22, 20, 18, 16] {
-                v.push(Word::Text(crate::i18n::tf("export.bits", &[("n", &bits)])));
+                v.push(Word::Format("export.bits".into(), bits));
+            }
+            Some(v)
+        }
+        // Which band is heard alone: none, or band n (review 4, #39, #46).
+        (EffectKind::Eq, "solo") => {
+            let mut v = vec![Word::Key("export.off".into())];
+            for b in 1..=hi {
+                v.push(Word::Format("export.group.band".into(), b));
             }
             Some(v)
         }
@@ -250,7 +356,7 @@ fn choice_key(kind: EffectKind, prefix: &str, i: i32) -> String {
     }
 }
 
-/// Every effect choice key the pane may show, for the i18n test (both languages).
+/// Every effect choice key the pane may show (the i18n test holds both languages to them).
 pub fn effect_choice_keys() -> Vec<String> {
     let mut out = Vec::new();
     for kind in EffectKind::ALL {

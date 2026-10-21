@@ -31,6 +31,7 @@ pub mod gestures;
 pub mod hosted_inst;
 pub mod i18n;
 pub mod icons;
+pub mod inst_choices;
 pub mod keyboard;
 pub mod keymap;
 pub mod kit;

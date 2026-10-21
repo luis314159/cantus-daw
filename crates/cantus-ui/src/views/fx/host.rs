@@ -116,6 +116,23 @@ pub trait FxHost {
     fn learn_idle(&self, _key: &str) -> bool {
         false
     }
+    /// The header's bypass lamp as the insert's bypass for MIDI learn: outlined and
+    /// clickable in the learn mode, marked when mapped (round 29, review 4 of ADR 0062, #21).
+    fn learn_bypass_spot(&mut self, _ui: &egui::Ui, _rect: egui::Rect) {}
+    /// When the armed MIDI learn was armed (`None`: none): a control that stands for one
+    /// value of `key` compares it before and after its offer (round 29, review 4 of ADR
+    /// 0062, #46).
+    fn learn_armed_at(&self) -> Option<std::time::Instant> {
+        None
+    }
+    /// The armed learn of `key` is made over `from` … `to` (in `key`'s own values): what
+    /// the control it was armed from stands for.
+    fn set_learn_range(&mut self, _key: &str, _from: f32, _to: f32) {}
+    /// Whether a controller of `key` reaches `value` (its *From* or *To*): the mark of one
+    /// value's control. `true` where unknown.
+    fn mapping_reaches(&self, _key: &str, _value: f32) -> bool {
+        true
+    }
     /// Notes into a MIDI clip on a new drum track — something only a DAW can do. `notes`
     /// are (tick, velocity) at `pitch`. `None` when the host cannot; `Some(written)`.
     fn notes_to_clip(&mut self, _notes: &[(i64, u8)], _pitch: u8) -> Option<bool> {
@@ -395,6 +412,45 @@ impl FxHost for DawHost<'_> {
                     cantus_core::AutoTarget::Effect { effect: e, key: k }
                 ) if *e == effect && k == key)
             })
+    }
+
+    fn learn_armed_at(&self) -> Option<std::time::Instant> {
+        self.app.learn_armed_at()
+    }
+
+    fn learn_bypass_spot(&mut self, ui: &egui::Ui, rect: egui::Rect) {
+        let target = cantus_core::controller::MappingTarget::EffectBypass(self.effect);
+        crate::controllers::learn_spot_in(self.app, ui, rect, ui.clip_rect(), target);
+    }
+
+    fn set_learn_range(&mut self, key: &str, from: f32, to: f32) {
+        let Some(info) = self.spec.kind.param(key) else {
+            return;
+        };
+        let span = info.max - info.min;
+        if span <= 0.0 {
+            return;
+        }
+        let pos = |v: f32| (v - info.min) / span;
+        let target =
+            cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
+                effect: self.effect,
+                key: key.to_string(),
+            });
+        self.app.set_learn_range(&target, pos(from), pos(to));
+    }
+
+    fn mapping_reaches(&self, key: &str, value: f32) -> bool {
+        let Some(info) = self.spec.kind.param(key) else {
+            return true;
+        };
+        let span = info.max - info.min;
+        let target =
+            cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
+                effect: self.effect,
+                key: key.to_string(),
+            });
+        span > 0.0 && self.app.mapping_reaches(&target, (value - info.min) / span)
     }
 
     fn can_automate(&self) -> bool {

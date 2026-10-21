@@ -850,6 +850,14 @@ fn main() {
         );
         hosted.plugin = hosted_target.plugin_of(&p);
         assert!(hosted.plugin.is_some());
+        // The names a learnt plug-in carries came with schema 41.
+        if let Some(r) = hosted.plugin.as_mut() {
+            if upto >= 41 {
+                r.param = "Cutoff".into();
+            } else {
+                r.name.clear();
+            }
+        }
         p.controllers.mappings = vec![knob, fader, tempo, pad, play, gone, hosted];
     }
     // Schema 36 (round 29, isolation, ADR 0063): where a hosted plug-in runs — the absent

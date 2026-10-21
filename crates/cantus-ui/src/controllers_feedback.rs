@@ -194,17 +194,19 @@ impl CantusApp {
             }
             let mut all = true;
             for msg in &messages {
-                // Stamped before it goes: a loopback's echo can arrive (and be stamped)
-                // before the send returns (review 3, #14).
-                let sent_at = Instant::now();
-                let ok = match self.controllers.feedback_log.as_mut() {
+                // Stamped as it goes — after its output opened, immediately before the
+                // write: a loopback's echo can arrive (and be stamped) before the send
+                // returns (review 3, #14), and an open's time is no part of the echo's
+                // (review 4, #13).
+                let sent = match self.controllers.feedback_log.as_mut() {
                     Some(log) => {
                         log.push((names[port].clone(), msg.clone()));
-                        true
+                        Some(Instant::now())
                     }
-                    None => self.controllers.outputs.send(&names[port], msg),
+                    None => self.controllers.outputs.send_at(&names[port], msg),
                 };
-                if ok {
+                let ok = sent.is_some();
+                if let Some(sent_at) = sent {
                     let mut b = [0u8; 3];
                     b[..msg.len()].copy_from_slice(msg);
                     let echoes = &mut self.controllers.echoes;

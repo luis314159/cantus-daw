@@ -109,6 +109,7 @@ ctl.view.other_plugin = Otro plug-in
 ctl.view.not_loaded = Sin cargar
 ctl.view.frozen = Congelado
 ctl.view.not_connected = No conectado
+ctl.view.no_input = Sin entrada
 ctl.menu.send_learn = Aprender el nivel del envío
 ctl.menu.send_relearn = Cambiar el controlador del nivel del envío
 ctl.menu.send_forget = Olvidar el controlador del nivel del envío

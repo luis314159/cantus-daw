@@ -454,6 +454,7 @@ mod tests {
             automatable: true,
             hidden: false,
             read_only: false,
+            steps: 0,
         };
         let msgs = [
             Message::News {

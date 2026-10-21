@@ -16,6 +16,95 @@ fn the_boot_path_reads_the_global_map_and_wires_a_waking_tap() {
     std::env::set_var("CANTUS_DATA_DIR", data.path());
     reads_the_global_map();
     opens_the_ports_with_the_tap_assemble_keeps();
+    a_lossy_global_file_is_kept_and_said();
+    an_unreadable_global_file_is_never_saved_over();
+}
+
+/// A dummy app on the boot path from `dir`'s files.
+fn boot(dir: &std::path::Path) -> CantusApp {
+    let files = Files::read(dir, Some(cantus_ui::i18n::Locale::En));
+    CantusApp::assemble(
+        &egui::Context::default(),
+        files,
+        None,
+        EngineHandle::dummy(),
+        None,
+        None,
+        None,
+        false,
+    )
+}
+
+/// Review 4 of ADR 0062, #42: a global file that loses a mapping is kept beside, the start
+/// says where, and the session saves the map over the file (what it read is safe).
+fn a_lossy_global_file_is_kept_and_said() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = cantus_ui::controllers::global_path(dir.path());
+    let good = serde_json::to_value(Mapping::new(
+        MappingId(1),
+        MidiSource {
+            port: PortRef::any(),
+            channel: None,
+            control: Control::Cc(41),
+        },
+        MappingTarget::Action("play-pause".into()),
+        MapMode::Trigger,
+    ))
+    .unwrap();
+    let text = serde_json::json!({
+        "version": 1,
+        "mappings": [good, {"id": 2, "target": {"FromTheFuture": 3}}],
+    })
+    .to_string();
+    std::fs::write(&path, &text).unwrap();
+    let app = boot(dir.path());
+    assert_eq!(
+        app.controllers.global.mappings.len(),
+        1,
+        "what could be read"
+    );
+    assert_eq!(app.controllers.global_path.as_deref(), Some(path.as_path()));
+    assert!(app.status.error, "said");
+    let kept = std::fs::read_dir(dir.path())
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().to_string())
+        .find(|n| n.ends_with(".bad"))
+        .expect("kept beside");
+    assert!(
+        app.status.text.contains(&kept),
+        "names {kept}: {}",
+        app.status.text
+    );
+}
+
+/// #42, #28: a global file that can be neither read nor kept (a folder where it should
+/// be): never saved over, and every global edit says it is not kept.
+fn an_unreadable_global_file_is_never_saved_over() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = cantus_ui::controllers::global_path(dir.path());
+    std::fs::create_dir_all(&path).unwrap();
+    let mut app = boot(dir.path());
+    assert_eq!(app.controllers.global_path, None, "never saved over");
+    app.set_status("something else said since".into());
+    app.controllers.global.mappings.push(Mapping::new(
+        MappingId(5),
+        MidiSource {
+            port: PortRef::any(),
+            channel: None,
+            control: Control::Cc(42),
+        },
+        MappingTarget::Action("stop".into()),
+        MapMode::Trigger,
+    ));
+    app.store_global_map();
+    assert!(path.is_dir(), "nothing written over it");
+    assert!(app.status.error, "the edit says it is not kept");
+    assert!(
+        app.status.text.contains(&path.display().to_string()),
+        "{}",
+        app.status.text
+    );
 }
 
 fn reads_the_global_map() {

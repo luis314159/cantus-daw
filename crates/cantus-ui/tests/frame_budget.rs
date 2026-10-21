@@ -949,6 +949,13 @@ fn a_hovered_bus_with_many_inputs_timing() {
     );
 }
 
+/// The hosted cases one at a time: `plugins::demo_setup` copies the test plug-in into one
+/// shared folder, and a copy made while another case loads it can leave it unreadable.
+fn hosted_serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The test CLAP plug-in, built from source where the host's tests build it.
 fn test_clap() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -981,6 +988,7 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
     let (engine, _processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
     app.midi_port_names = vec!["Keys".into()];
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
     let effect = app
         .fx
@@ -1120,3 +1128,35 @@ fn an_editors_idle_stepped_controls_cost_no_allocation() {
 const COMP_EDITOR_ALLOCS: u64 = 200;
 /// The Wavetable's Edit view: 1 494 measured idle, 1 646 with the offers building.
 const WAVETABLE_EDITOR_ALLOCS: u64 = 1_560;
+
+/// Round 29, review 4 of ADR 0062, #27, #56, #63: the pane's word for a hosted choice asks
+/// the plug-in for the one step it shows — not for each of its steps, every cell, every
+/// frame. The test plug-in's fault selector has 25 steps.
+#[test]
+fn a_hosted_choices_word_asks_for_one_step() {
+    use cantus_core::controller::MappingTarget;
+    let (engine, _processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let _one = hosted_serial();
+    cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
+    let effect = app
+        .fx
+        .open
+        .map(|(_, e, _)| e)
+        .expect("the test plug-in inserted");
+    let target = MappingTarget::Param(cantus_core::AutoTarget::Plugin { effect, id: 4 });
+    let steps = app
+        .hosted_param_info(&cantus_core::AutoTarget::Plugin { effect, id: 4 })
+        .and_then(|i| i.step_count())
+        .expect("a stepped parameter");
+    assert!(steps > 16, "{steps}");
+    let _ = cantus_ui::views::controllers::value_words(&app, &target, 0.5);
+    let (word, allocs, _) =
+        counted(|| cantus_ui::views::controllers::value_words(&app, &target, 3.0 / steps as f32));
+    eprintln!("a hosted choice's word: {allocs} allocations ({word})");
+    assert_eq!(word, "3");
+    assert!(
+        allocs <= 8,
+        "{allocs} allocations: one step asked, not {steps}"
+    );
+}

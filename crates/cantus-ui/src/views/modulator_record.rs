@@ -71,12 +71,10 @@ impl CantusApp {
         }
         // The pass begins at the record start — a loop's later passes, once it came round,
         // at its start, which may be before (review 3, #19, #34, #58: a count-in inside the
-        // loop is not the pass) — and at the punch-in when punch is on.
-        let wrapped = live.plan.loop_region.is_some() && self.controllers.last_wrap.is_some();
-        let start = match live.plan.loop_region {
-            Some((a, _)) if wrapped => a.min(live.pass_start),
-            _ => live.pass_start,
-        };
+        // loop is not the pass); the wrap is seen once a frame before anything is recorded
+        // in it, by the recorder's rule (review 4, #17, #38) — and at the punch-in when
+        // punch is on.
+        let start = live.pass_start;
         let (from, to) = match live.plan.punch {
             Some((a, b)) => (a.0, Some(b.0)),
             None => (start.0, None),

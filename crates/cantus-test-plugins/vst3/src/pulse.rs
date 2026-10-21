@@ -48,6 +48,14 @@ pub fn last_program() -> f64 {
     f64::from_bits(LAST_PROGRAM.load(Ordering::SeqCst))
 }
 
+/// The next `process` sleeps this long (ms) before it reads its input: a heavy block, so
+/// a test can run the main thread's idle in the middle of one (round 29, review 4).
+static SLOW_NEXT: AtomicU32 = AtomicU32::new(0);
+
+pub fn slow_next_process(ms: u32) {
+    SLOW_NEXT.store(ms, Ordering::SeqCst);
+}
+
 static LAST_STATE: AtomicU32 = AtomicU32::new(0);
 static LAST_VALUES: [AtomicU64; 8] = [const { AtomicU64::new(0) }; 8];
 
@@ -219,6 +227,10 @@ impl IAudioProcessorTrait for Pulse {
 
     unsafe fn process(&self, data: *mut ProcessData) -> tresult {
         let data = &*data;
+        let slow = SLOW_NEXT.swap(0, Ordering::SeqCst);
+        if slow > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(u64::from(slow)));
+        }
         // The hidden Fault parameter (round 29): a value that arrives here arms it.
         if let Some(changes) = ComRef::from_raw(data.inputParameterChanges) {
             for i in 0..changes.getParameterCount() {

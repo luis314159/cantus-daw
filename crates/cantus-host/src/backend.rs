@@ -73,6 +73,44 @@ pub struct ParamInfo {
     pub automatable: bool,
     pub hidden: bool,
     pub read_only: bool,
+    /// How many steps a stepped parameter has from `min` to `max`, as the plug-in counts
+    /// them (VST3 `stepCount`; CLAP `max − min`); 0 when continuous or not said (review 4
+    /// of ADR 0062, #1, #58). A VST3's plain values need not be step numbers: JUCE's and
+    /// the SDK's base parameter give a four-way choice as 0…1, another plug-in 0, 10…40.
+    #[serde(default)]
+    pub steps: u32,
+}
+
+impl ParamInfo {
+    /// The steps from `min` to `max` of a stepped parameter (`None` for a continuous one):
+    /// the plug-in's count, or the whole units between the ends when it said none.
+    pub fn step_count(&self) -> Option<u32> {
+        if !self.stepped {
+            return None;
+        }
+        if self.steps > 0 {
+            return Some(self.steps);
+        }
+        let n = (self.max - self.min).abs().round();
+        (n >= 1.0 && n < f64::from(u32::MAX)).then_some(n as u32)
+    }
+
+    /// `plain` on the parameter's nearest step (counted in its own steps, never in whole
+    /// plain units); a continuous parameter's value as it is.
+    pub fn snap(&self, plain: f64) -> f64 {
+        snap_to_steps(plain, self.min, self.max, self.step_count().unwrap_or(0))
+    }
+}
+
+/// `plain` on the nearest of `steps` steps from `min` to `max` (0: continuous).
+pub fn snap_to_steps(plain: f64, min: f64, max: f64, steps: u32) -> f64 {
+    let span = max - min;
+    if steps == 0 || span == 0.0 || !plain.is_finite() {
+        return plain;
+    }
+    let n = f64::from(steps);
+    let k = ((plain - min) / span * n).round().clamp(0.0, n);
+    min + k / n * span
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -562,4 +600,19 @@ pub trait AudioThread: Send {
     /// Stop processing. Called on the audio thread before the half is handed back to the
     /// UI thread to be dropped; `process` is not called again.
     fn stop(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::snap_to_steps;
+
+    /// Review 4 of ADR 0062, #1, #58: a value lands on the plug-in's own steps.
+    #[test]
+    fn values_land_on_the_plug_ins_own_steps() {
+        assert_eq!(snap_to_steps(0.4, 0.0, 1.0, 3), 1.0 / 3.0);
+        assert_eq!(snap_to_steps(0.9, 0.0, 1.0, 3), 1.0);
+        assert_eq!(snap_to_steps(13.0, 0.0, 40.0, 4), 10.0);
+        assert_eq!(snap_to_steps(2.6, 1.0, 16.0, 15), 3.0);
+        assert_eq!(snap_to_steps(0.37, 0.0, 1.0, 0), 0.37, "continuous");
+    }
 }

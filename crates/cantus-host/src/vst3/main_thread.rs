@@ -208,6 +208,7 @@ impl MainThread for MainHalf {
                     automatable: i.flags & kCanAutomate != 0,
                     hidden: i.flags & kIsHidden != 0 || from_midi,
                     read_only: i.flags & kIsReadOnly != 0 || from_midi,
+                    steps: i.stepCount.max(0) as u32,
                 }
             })
             .collect()

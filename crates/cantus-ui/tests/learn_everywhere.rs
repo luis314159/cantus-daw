@@ -706,3 +706,90 @@ const WIRED_IN_REVIEW_2: &[&str] = &[
     "Organ.rot.speed",
     "Organ.rot.cab",
 ];
+
+/// Review 4 of ADR 0062, #7, #22, #33, #45: the instruments' choice table the controllers
+/// pane reads (`cantus_ui::inst_choices`) names each choice as its editor draws it: every
+/// editor painted whole (every view, FM's every detail page), and every choice it drew
+/// found in the table with the same words (a short variant of a word where a narrow cell
+/// draws one; Gravis's play mode draws *Strings* with its string engine only).
+#[test]
+fn the_choice_table_names_choices_as_the_editors_draw_them() {
+    let mut compared = 0;
+    for kind in InstrumentKind::ALL {
+        let mut a = app(cantus_ui::starter_project());
+        let track = a.project().tracks[0].id;
+        a.set_instrument(track, InstrumentSpec::Native(NativeSpec::new(kind)));
+        cantus_ui::views::inst::demo_setup(&mut a, track, kind);
+        a.open_inst_editor(track);
+        for view in [View::Play, View::Edit, View::Matrix] {
+            a.inst.view = view;
+            paint(&ctx(), egui::vec2(1800.0, 4000.0), 3, |ui| {
+                cantus_ui::views::inst::window_in(&mut a, ui)
+            });
+        }
+        if kind == InstrumentKind::Fm {
+            for d in [
+                cantus_ui::views::inst::fm::Detail::Envelope,
+                cantus_ui::views::inst::fm::Detail::Scaling,
+                cantus_ui::views::inst::fm::Detail::Oscillator,
+            ] {
+                a.inst.fm.detail = d;
+                paint(&ctx(), egui::vec2(1400.0, 6000.0), 3, |ui| {
+                    cantus_ui::views::inst::edit_body_for_tests(&mut a, ui, track)
+                });
+            }
+        }
+        let spec = a
+            .project()
+            .track(track)
+            .unwrap()
+            .instrument
+            .native()
+            .unwrap()
+            .clone();
+        let mut keys: Vec<String> = kind.params().iter().map(|i| i.key.to_string()).collect();
+        keys.extend((1..=4).map(|n| format!("mod{n}.curve")));
+        if let Some(n) = a.inst.sampler.selected {
+            keys.extend(cantus_core::inst::sampler::zone_keys(&spec, n).0);
+        }
+        for key in keys {
+            let Some(drawn) = a.controllers.inst_words.get(kind, &key).cloned() else {
+                continue;
+            };
+            let table = cantus_ui::inst_choices::words(kind, &key)
+                .unwrap_or_else(|| panic!("{kind:?} {key}: drawn with names the table lacks"));
+            assert!(
+                drawn.len() <= table.len(),
+                "{kind:?} {key}: {} drawn, {} in the table",
+                drawn.len(),
+                table.len()
+            );
+            for (d, w) in drawn.iter().zip(&table) {
+                let (d, w) = (d.show(), w.show());
+                assert!(
+                    d == w || short_of(&w, &d),
+                    "{kind:?} {key}: the editor draws {d:?}, the table says {w:?}"
+                );
+            }
+            compared += 1;
+        }
+    }
+    assert!(compared > 40, "{compared} choices compared");
+}
+
+/// Whether `drawn` is the short form of the table's `word`: one of the narrow cells' own
+/// words (Modulus's operator table: its waves' and its frequency modes' short names).
+fn short_of(word: &str, drawn: &str) -> bool {
+    use cantus_ui::i18n::t;
+    let pairs = [
+        ("fm.wave.sine", "fm.wave.sine_short"),
+        ("fm.wave.tri", "fm.wave.tri_short"),
+        ("fm.wave.saw", "fm.wave.saw_short"),
+        ("fm.wave.square", "fm.wave.square_short"),
+        ("fm.op.ratio", "fm.freq.ratio_short"),
+        ("fm.op.fixed", "fm.freq.fixed_short"),
+    ];
+    pairs
+        .iter()
+        .any(|(long, short)| t(long) == word && t(short) == drawn)
+}

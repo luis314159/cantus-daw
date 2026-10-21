@@ -30,14 +30,16 @@ struct Texts {
 
 impl Texts {
     /// The words for parameter `id` at the value with `bits`, asked of `ask` only when not
-    /// known for this stamp; a plug-in that has not answered yet (`None`, isolated) is
-    /// asked again next time and shows `fallback` meanwhile — never kept (round 29, review 3
-    /// of ADR 0062, #59).
+    /// known for this stamp. A plug-in that answers `later` (isolated: `None` is "not yet")
+    /// is asked again next time and shows `fallback` meanwhile — never kept (round 29,
+    /// review 3 of ADR 0062, #59); an in-process plug-in's `None` is its answer, and the
+    /// number is kept as its words (review 4, #63: never a call into it every frame).
     fn get(
         &mut self,
         stamp: u64,
         id: u32,
         bits: u64,
+        later: bool,
         ask: impl FnOnce() -> Option<String>,
         fallback: impl FnOnce() -> String,
     ) -> std::sync::Arc<str> {
@@ -53,7 +55,12 @@ impl Texts {
                     self.words.insert(id, (bits, s.clone()));
                     s
                 }
-                None => fallback().into(),
+                None if later => fallback().into(),
+                None => {
+                    let s: std::sync::Arc<str> = fallback().into();
+                    self.words.insert(id, (bits, s.clone()));
+                    s
+                }
             },
         }
     }
@@ -155,6 +162,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId) {
                 stamp,
                 p.id,
                 bits,
+                h.isolation() != cantus_core::PluginIsolation::Within,
                 || h.param_text(p.id, shown_v),
                 || format!("{shown_v:.2}"),
             )
@@ -253,11 +261,20 @@ mod tests {
             w.to_string()
         };
         let fb = || "0.50".to_string();
-        assert_eq!(&*texts.get(1, 0, bits, || Some(ask("Saw")), fb), "Saw");
-        assert_eq!(&*texts.get(1, 0, bits, || Some(ask("never")), fb), "Saw");
-        assert_eq!(&*texts.get(2, 0, bits, || Some(ask("50 %")), fb), "50 %");
         assert_eq!(
-            &*texts.get(2, 0, 0.6f64.to_bits(), || Some(ask("60 %")), fb),
+            &*texts.get(1, 0, bits, false, || Some(ask("Saw")), fb),
+            "Saw"
+        );
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || Some(ask("never")), fb),
+            "Saw"
+        );
+        assert_eq!(
+            &*texts.get(2, 0, bits, false, || Some(ask("50 %")), fb),
+            "50 %"
+        );
+        assert_eq!(
+            &*texts.get(2, 0, 0.6f64.to_bits(), false, || Some(ask("60 %")), fb),
             "60 %"
         );
         assert_eq!(asked, 3);
@@ -269,10 +286,30 @@ mod tests {
     fn an_unanswered_value_is_asked_again() {
         let mut texts = super::Texts::default();
         let bits = 0.42f64.to_bits();
-        assert_eq!(&*texts.get(1, 0, bits, || None, || "0.42".into()), "0.42");
         assert_eq!(
-            &*texts.get(1, 0, bits, || Some("1.2 kHz".into()), || "0.42".into()),
+            &*texts.get(1, 0, bits, true, || None, || "0.42".into()),
+            "0.42"
+        );
+        assert_eq!(
+            &*texts.get(
+                1,
+                0,
+                bits,
+                true,
+                || Some("1.2 kHz".into()),
+                || "0.42".into()
+            ),
             "1.2 kHz"
+        );
+        // Review 4, #63: an in-process plug-in's "no words" is its answer: not asked again.
+        let mut texts = super::Texts::default();
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || None, || "0.42".into()),
+            "0.42"
+        );
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || panic!("asked again"), || "x".into()),
+            "0.42"
         );
     }
 
@@ -292,6 +329,7 @@ mod tests {
             automatable: true,
             hidden: false,
             read_only: false,
+            steps: 0,
         };
         let params = [info(0, false), info(1, true)];
         let mut spec = cantus_core::ExternalPlugin::new(

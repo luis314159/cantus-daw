@@ -512,6 +512,11 @@ pub fn show(
     });
     let s = Style::current().scaled(out.k).function(hue_of(kind));
     let rects = shell::header_rects(out.header, &s, &header);
+    // The bypass lamp is the insert's bypass for MIDI learn (round 29, review 4 of ADR
+    // 0062, #21).
+    if let Some(br) = rects.bypass {
+        host.learn_bypass_spot(ui, br);
+    }
     chrome.save_at = out.header.left_bottom() + Vec2::new(24.0, 4.0) * s.k;
     let mut moved = Vec2::ZERO;
     // A part of the header opens its list, or closes it when it is the one open.

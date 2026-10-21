@@ -43,28 +43,35 @@ pub type Key = (Scope, MappingId);
 
 /// A 14-bit pair's state on one port, channel and number: its halves, and whether its fine
 /// half has ever come (a controller in 7-bit mode never sends it).
+///
+/// A half whose partner may follow is held, never driven half-made (review 3, #5, #9),
+/// for at most [`PAIR_GAP`]. Which half a controller sends first is told by time (review
+/// 4, #4, #11, #37): a coarse half held after a fine half alone takes as its own the fine
+/// half that is the closer to it — the one before it (a fine-first pair; the next fine
+/// half is then the next pair's) or the one after it (a coarse-first pair after a fine-only
+/// update) — so pairs a millisecond or two apart are read whole, and the last one too.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Wide {
     pub msb: u8,
     pub lsb: u8,
     pub lsb_seen: bool,
-    /// A coarse half came and its fine half has not yet: read with a fine 0 at the end of
-    /// the burst if it does not come (MIDI resets the fine half on a coarse one, and a
-    /// sender may leave a 0 out, review 2, #5).
+    /// A coarse half waiting for its fine half (when it came): read alone with the fine
+    /// half it holds (0, as MIDI resets it, or the fine half alone just before it) after
+    /// [`PAIR_GAP`].
     pub pending: Option<Instant>,
-    /// A fine half came on its own, when: a coarse half right after it is the same pair (a
-    /// controller that sends its fine half first).
+    /// When the fine half alone just before the held coarse half came: the pair a
+    /// fine-first controller sends, unless a closer fine half follows.
+    pub pending_after: Option<Instant>,
+    /// A fine half came alone and was read with the coarse half as it stands (a fine-only
+    /// update), when: a coarse half right after it is held with it.
     pub lsb_at: Option<Instant>,
-    /// When the coarse half last came: a fine half right after it completes that pair.
-    pub msb_at: Option<Instant>,
-    /// The controller sends its fine half first: known only from [`FINE_FIRST`] pairs in a
-    /// row that came fine half first, none the other way (review 3: one coincidence, a
-    /// fine half alone just before a coarse change, proved nothing).
+    /// The controller sends its fine half first: known after [`FINE_FIRST`] pairs in a row
+    /// told so by time, none the other way.
     pub lsb_first: bool,
-    /// Pairs seen fine half first since the last seen coarse half first.
+    /// Pairs told fine half first since the last told coarse half first.
     pub fine_first_seen: u8,
-    /// A fine-first controller's fine half, waiting for its coarse half (never driven with
-    /// the old coarse half, review 3, #56).
+    /// A fine half of a controller that looks fine-first, waiting for its coarse half
+    /// (never driven with the old coarse half, review 3, #56).
     pub pending_lsb: Option<Instant>,
 }
 
@@ -90,6 +97,9 @@ pub enum Idle {
     Frozen,
     /// Its port is not open here (the controller unplugged, another computer's).
     NotConnected,
+    /// A strip's record arm with no track to arm: none with an input feeds the strip
+    /// (review 4, #6).
+    NoInput,
 }
 
 /// The pairs whose half has waited [`PAIR_GAP`] by `now` without its partner: each read
@@ -106,7 +116,11 @@ pub(crate) fn wide_alone(
     for (&(port, ch, n), e) in wide.iter_mut() {
         if let Some(at) = e.pending.filter(old) {
             e.pending = None;
-            out.push((port, ch, n, u16::from(e.msb) << 7, at));
+            // Held after a fine half and nothing closer came: that was its pair.
+            if e.pending_after.take().is_some() {
+                told_fine_first(e);
+            }
+            out.push((port, ch, n, u16::from(e.msb) << 7 | u16::from(e.lsb), at));
         }
         if let Some(at) = e.pending_lsb.filter(old) {
             e.pending_lsb = None;
@@ -114,6 +128,15 @@ pub(crate) fn wide_alone(
         }
     }
     out
+}
+
+/// A pair told fine half first: counted, and the controller known as such at
+/// [`FINE_FIRST`].
+fn told_fine_first(e: &mut Wide) {
+    e.fine_first_seen = e.fine_first_seen.saturating_add(1);
+    if e.fine_first_seen >= FINE_FIRST {
+        e.lsb_first = true;
+    }
 }
 
 /// A target armed to learn the next hardware control moved.
@@ -131,6 +154,10 @@ pub struct Learning {
     /// When it was armed: an armed learn that hears nothing is dropped after
     /// `controllers_learn::LEARN_TIMEOUT`, so a forgotten learn does not eat the next note.
     pub armed_at: Instant,
+    /// The two positions the control it was armed from stands for (*From*, *To*): a band's
+    /// solo LED (off ↔ that band), a scale key (as the scale ↔ its click), a lamp lit at 0
+    /// (review 4, #46, #53). The mapping is made over them, and read as two states.
+    pub range: Option<(f32, f32)>,
 }
 
 /// The controllers' state in the interface.
@@ -141,6 +168,9 @@ pub struct ControllerUi {
     /// The user's global map, and its file.
     pub global: ControllerMap,
     pub global_path: Option<PathBuf>,
+    /// The global file this session cannot save over (it could neither be read whole nor
+    /// kept beside): each global edit says so (review 4, #28).
+    pub global_unsaved: Option<PathBuf>,
     /// Ableton's MIDI Map mode: every learnable control outlined, a click arms it.
     pub learn_mode: bool,
     pub learning: Option<Learning>,
@@ -160,6 +190,8 @@ pub struct ControllerUi {
     /// The playhead last frame, and when a loop's wrap was last seen.
     pub(crate) prev_pos: Option<i64>,
     pub(crate) last_wrap: Option<Instant>,
+    /// Whether the last snapshot was built with a recording pass's latch on.
+    pub(crate) latching: bool,
     /// The filter last published, and what it was made from: the project's revision, the
     /// global map, the ports.
     /// The project's revision, the loaded hosted parameters' signature, the global map, the
@@ -466,22 +498,29 @@ impl CantusApp {
         let p = self.project();
         if let (MappingTarget::Param(a), Some(learnt)) = (&m.target, &m.plugin) {
             if !m.fits(p) {
-                let format = cantus_host::from_project_format(learnt.format);
-                let plugin = self
-                    .plugins
-                    .db
-                    .plugins()
-                    .into_iter()
-                    .find(|i| i.format == format && i.id == learnt.id)
-                    .map_or_else(|| learnt.id.clone(), |i| i.name.clone());
-                let id = match a {
-                    AutoTarget::Plugin { id, .. } | AutoTarget::PluginInstrument { id, .. } => *id,
-                    _ => 0,
+                // The names it was learnt with (review 4, #47); else the catalogue's name, a
+                // lookup with no sorting (#62); else its id.
+                let plugin = if learnt.name.is_empty() {
+                    let format = cantus_host::from_project_format(learnt.format);
+                    self.plugins
+                        .db
+                        .find(format, &learnt.id)
+                        .map_or_else(|| learnt.id.clone(), |i| i.name.clone())
+                } else {
+                    learnt.name.clone()
                 };
-                return format!(
-                    "{plugin} \u{b7} {}",
+                let param = if learnt.param.is_empty() {
+                    let id = match a {
+                        AutoTarget::Plugin { id, .. } | AutoTarget::PluginInstrument { id, .. } => {
+                            *id
+                        }
+                        _ => 0,
+                    };
                     tf("ctl.target.plugin_param", &[("n", &id)])
-                );
+                } else {
+                    learnt.param.clone()
+                };
+                return format!("{plugin} \u{b7} {param}");
             }
         }
         self.mapping_target_name(&m.target)
@@ -516,8 +555,9 @@ impl CantusApp {
             MappingTarget::StripMute(id) => two(strip(*id), t("ctl.desk.mute")),
             MappingTarget::StripSolo(id) => two(strip(*id), t("ctl.desk.solo")),
             MappingTarget::EffectBypass(id) => two(effect(*id), t("ctl.target.bypass")),
+            // The master as the pane names it everywhere (review 4, #51).
             MappingTarget::StripFx(id) if id.is_master() => {
-                two(t("mixer.master"), t("ctl.desk.fx"))
+                two(t("kit.mixer.master"), t("ctl.desk.fx"))
             }
             MappingTarget::StripFx(id) => two(strip(*id), t("ctl.desk.fx")),
             MappingTarget::StripArm(id) => two(strip(*id), t("ctl.desk.arm")),
@@ -651,9 +691,39 @@ impl CantusApp {
             source: None,
             first: None,
             armed_at: Instant::now(),
+            range: None,
         });
         self.controllers.tap.filter().set_learning(true);
         self.set_status(tf("ctl.status.armed", &[("name", &name)]));
+    }
+
+    /// When the armed learn was armed (a control compares it before and after its offer:
+    /// changed, the learn is its own).
+    pub fn learn_armed_at(&self) -> Option<Instant> {
+        self.controllers.learning.as_ref().map(|l| l.armed_at)
+    }
+
+    /// The armed learn of `target` is made over `from` … `to` (positions of its travel):
+    /// what the control it was armed from stands for (review 4, #46, #53).
+    pub fn set_learn_range(&mut self, target: &MappingTarget, from: f32, to: f32) {
+        if let Some(l) = self.controllers.learning.as_mut() {
+            if &l.target == target {
+                l.range = Some((from.clamp(0.0, 1.0), to.clamp(0.0, 1.0)));
+            }
+        }
+    }
+
+    /// Whether a live mapping of `target` reaches `pos` at its *From* or its *To*: the mark
+    /// of a control that stands for one value of a choice (a band's solo LED) is shown on
+    /// the control whose value the mapping reaches only (review 4, #46).
+    pub fn mapping_reaches(&self, target: &MappingTarget, pos: f32) -> bool {
+        let near = |a: f32| (a - pos).abs() <= 1e-4;
+        [Scope::Project, Scope::Global].into_iter().any(|scope| {
+            self.controller_map(scope)
+                .mappings
+                .iter()
+                .any(|m| &m.target == target && (near(m.min) || near(m.max)))
+        })
     }
 
     /// Stop waiting for a control.
@@ -843,6 +913,11 @@ impl CantusApp {
             if let Err(e) = save_global(path, &self.controllers.global) {
                 self.set_error(tf("ctl.status.save_failed", &[("error", &e.to_string())]));
             }
+        } else if let Some(path) = &self.controllers.global_unsaved {
+            // Not kept: said at every edit, never lost without a word (the start's notice
+            // may have been covered by the boot's own).
+            let file = path.display().to_string();
+            self.set_error(tf("ctl.status.global_unsaved", &[("file", &file)]));
         }
     }
 
@@ -1064,6 +1139,35 @@ pub fn learn_spot_in(
     clicked
 }
 
+/// [`learn_spot_in`] for a view that holds the application read-only and runs what its
+/// rows ask afterwards (the inspector): outlined and clickable in the learn mode, marked
+/// when mapped; `true` when the click asks to learn `target` (round 29, review 4 of ADR
+/// 0062, #21).
+pub fn learn_spot_view(
+    app: &CantusApp,
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    clip: egui::Rect,
+    target: &MappingTarget,
+) -> bool {
+    let shown = rect.intersect(clip).intersect(ui.clip_rect());
+    if shown.width() <= 0.0 || shown.height() <= 0.0 || !ui.is_rect_visible(shown) {
+        return false;
+    }
+    if crate::kit::automate::probe::noting_learn() {
+        crate::kit::automate::probe::note_learn(&format!("spot:{target:?}"), true);
+    }
+    let offer = app.learn_offer(target);
+    if !offer.mode {
+        if offer.mapped {
+            crate::kit::automate::learn_mark_over(ui, rect, shown);
+        }
+        return false;
+    }
+    let id = ui.id().with(("learn-spot", target));
+    crate::kit::automate::learn_spot_clipped(ui, rect, shown, id, offer)
+}
+
 /// A stepped parameter drawn by a control that only sets its value — a segmented choice, an
 /// LED, a menu field, a stepper (round 29, review 2 of ADR 0062, #44): its parameter's menu
 /// (automate, modulate, *Learn MIDI controller*, reset to `default`), its mapped mark, and
@@ -1278,38 +1382,32 @@ pub(crate) fn decode(
             let first = (Control::Cc(d1), u16::from(d2), true);
             let gap =
                 |t: Option<Instant>| t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
+            let pair = |e: &Wide| u16::from(e.msb) << 7 | u16::from(e.lsb);
             if d1 < 32 {
                 let e = wide.entry((port, ch, d1)).or_default();
                 e.msb = d2;
-                e.msb_at = Some(at);
-                let pair = |e: &Wide| u16::from(e.msb) << 7 | u16::from(e.lsb);
-                if e.lsb_first {
-                    // A fine-first controller: its waiting fine half and this are the pair;
-                    // alone, MIDI resets the fine half.
-                    if e.pending_lsb.take().is_none() {
-                        e.lsb = 0;
+                if gap(e.pending_lsb.take()) {
+                    // Its fine half came first, from a controller that sends so.
+                    e.pending = None;
+                    e.pending_after = None;
+                    e.lsb_at = None;
+                    if !e.lsb_first {
+                        told_fine_first(e);
                     }
                     (ch, [first, (Control::Cc14(d1), pair(e), true)], 2)
-                } else if gap(e.lsb_at.take()) {
-                    // A fine half came alone just before: once, a coincidence (a fine-only
-                    // update before a coarse change); many times in a row, the order this
-                    // controller sends in.
-                    e.fine_first_seen = e.fine_first_seen.saturating_add(1);
-                    if e.fine_first_seen >= FINE_FIRST {
-                        e.lsb_first = true;
-                        e.pending = None;
-                        (ch, [first, (Control::Cc14(d1), pair(e), true)], 2)
-                    } else {
-                        e.lsb = 0;
-                        e.pending = Some(at);
-                        (ch, [first, none], 1)
-                    }
-                } else if e.lsb_seen {
-                    // Its fine half follows: the pair is read then, never half-made
-                    // (review 1, #9) — or, if it does not come within PAIR_GAP, with a fine
-                    // 0 (`wide_alone`).
+                } else if let Some(l_at) = e.lsb_at.take().filter(|t| gap(Some(*t))) {
+                    // A fine half alone just before: held with it — its pair, unless a
+                    // closer fine half follows (time tells, review 4, #4, #11).
+                    e.pending = Some(at);
+                    e.pending_after = Some(l_at);
+                    (ch, [first, none], 1)
+                } else if e.lsb_seen || e.lsb_first {
+                    // Its fine half follows: the pair is read then, never half-made (review
+                    // 1, #9) — or, if it does not come within PAIR_GAP, with a fine 0
+                    // (MIDI's rule; `wide_alone`).
                     e.lsb = 0;
                     e.pending = Some(at);
+                    e.pending_after = None;
                     (ch, [first, none], 1)
                 } else {
                     // A pair that never sent its fine half (7-bit mode): the coarse value
@@ -1320,28 +1418,40 @@ pub(crate) fn decode(
             } else if d1 < 64 {
                 let e = wide.entry((port, ch, d1 - 32)).or_default();
                 e.lsb_seen = true;
-                e.lsb = d2;
-                // Its coarse half a moment ago (never one left waiting long before).
-                let after_coarse = gap(e.pending.take()) || gap(e.msb_at);
-                if after_coarse {
-                    // The second half of a pair sent coarse half first: this controller is
-                    // not fine-first, whatever it looked like.
-                    e.lsb_first = false;
-                    e.fine_first_seen = 0;
-                    e.lsb_at = None;
-                    e.pending_lsb = None;
-                    let v = u16::from(e.msb) << 7 | u16::from(d2);
-                    (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
-                } else if e.lsb_first {
+                if let Some(m_at) = e.pending.filter(|t| gap(Some(*t))) {
+                    e.pending = None;
+                    let after = e.pending_after.take();
+                    let next_pairs = after.is_some_and(|l_at| {
+                        at.saturating_duration_since(m_at) >= m_at.saturating_duration_since(l_at)
+                    });
+                    if next_pairs {
+                        // The held coarse half's pair was the fine half before it (fine
+                        // first); this one is the next pair's, and waits for its coarse half.
+                        told_fine_first(e);
+                        let v = pair(e);
+                        e.lsb = d2;
+                        e.pending_lsb = Some(at);
+                        (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
+                    } else {
+                        // Its own fine half, after it: the pair, coarse half first — this
+                        // controller is not fine-first, whatever it looked like.
+                        e.lsb_first = false;
+                        e.fine_first_seen = 0;
+                        e.lsb = d2;
+                        (ch, [first, (Control::Cc14(d1 - 32), pair(e), true)], 2)
+                    }
+                } else if e.lsb_first || e.fine_first_seen > 0 {
                     // A fine-first controller's fine half: it waits for its coarse half.
+                    e.lsb = d2;
                     e.pending_lsb = Some(at);
                     (ch, [first, none], 1)
                 } else {
                     // A fine half alone: its coarse half the same (MIDI lets a sender leave
                     // it out), read now.
+                    e.pending = None;
+                    e.lsb = d2;
                     e.lsb_at = Some(at);
-                    let v = u16::from(e.msb) << 7 | u16::from(d2);
-                    (ch, [first, (Control::Cc14(d1 - 32), v, true)], 2)
+                    (ch, [first, (Control::Cc14(d1 - 32), pair(e), true)], 2)
                 }
             } else {
                 (ch, [first, none], 1)

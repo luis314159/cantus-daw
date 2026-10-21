@@ -343,7 +343,11 @@ move). With no MIDI input open, a click on the cell opens the MIDI settings inst
 track header's menu have *Learn* rows for the volume, pan, width, mute, solo, arm, bypass
 and mix, and a strip's for its effects switch and record arm (the strip's FX bulb and
 record dot learn in the learn mode too); a send's menu has them for its level; the channel rack's knobs and lamps, and a
-device's switches and choices, learn like any knob. Inside a plug-in's own window, move
+device's switches and choices, learn like any knob. In the inspector an insert's lamp
+(bypass) and ring (mix), the inserts' switch and the arm LED learn too, and so does a device
+window's bypass lamp. A control that stands for one value of a choice learns that value: a
+band's *Solo* LED learns that band (a button then solos it and lets it go), a key of
+Tonus's scale learns its click. Inside a plug-in's own window, move
 the parameter there, then press `Alt+Shift+A` (**Link the last tweaked parameter to a
 controller**, FL Studio's way — also in the top bar's **Clip** menu) and move the hardware.
 
@@ -354,7 +358,8 @@ bank select a keyboard sends before it is passed over). Press a button and let i
 pressed and released it toggles; a button that stays down by itself (it sends its top
 value only) sets the target on and off as it is. Any parameter with two states (a
 device's on/off, a lamp) is a switch: a button sets it at once, with no takeover. NRPN and
-RPN controls are not learnt — Cantus says so; set the controller to send plain CCs.
+RPN controls are not learnt — Cantus says so and keeps waiting for another control; set
+the controller to send plain CCs.
 
 **How a mapping reads its control** — in the **Controllers** pane (View menu, or
 `Ctrl+Shift+K`), one row per mapping:
@@ -364,14 +369,15 @@ RPN controls are not learnt — Cantus says so; set the controller to send plain
   off), *Trigger* (each press fires an action).
 - **From / To**: the part of the target's travel the control covers, in the target's own
   units (−∞ dB to +6 dB, 200 Hz to 4 kHz, 60 to 180 BPM…), a choice by its names (*Clean*
-  to *Opto*), a switch *Off* and *On*; *To* below *From* turns it round. Drag a cell, or
-  double-click it and type — a number, or a choice's name; right-click resets it.
+  to *Opto*, *Linear phase* to *Minimum phase*; a plug-in's choices by the plug-in's own
+  words), a switch with no names *Off* and *On*; *To* below *From* turns it round. Drag a
+  cell, or double-click it and type — a number, or a choice's name; right-click resets it.
 - **Curve**: a bend, so the first half of the turn does less (or more); typed in percent
   (−100 to 100), kept as typed.
 - **Takeover**, for a control that does not move itself when the value changes elsewhere:
   *Pick up* (the default: nothing moves until the knob passes the value — no jumps),
   *Scale* (the value moves with the knob, so both reach the end together), *Jump*. The
-  header sets the takeover new mappings get.
+  header sets the takeover new mappings get; a switch has none.
 - **Feedback** (*Send*): the value goes back to the controller whenever it changes — for
   motor faders and LED rings, and the lights of the transport's buttons and every switch
   with a state (play, record, loop, the metronome, punch, count-in…). Off by default; an
@@ -382,13 +388,15 @@ A lit dot at the left of a row shows a message just came. **Shared** marks one c
 on several targets (allowed: one knob can open two filters at once). A row whose target is
 gone (a deleted track) is kept, marked **Missing**, and works again if undo brings the
 target back. A plug-in's parameter is learnt with that plug-in: after the instrument or the
-insert is swapped for another, the row says **Other plug-in**, still named after the
-plug-in it was learnt on, and its knob is free (learn the new one's parameter; an undo of
-the swap brings the old row back to life). An insert swapped for one of Cantus's own
-keeps its bypass and mix, and a parameter the new effect also has. **Not loaded** says the
+insert is swapped for another — a plug-in, or one of Cantus's own — the row says **Other
+plug-in**, still named after the plug-in and the parameter it was learnt on, its range in
+percent, and its knob is free (learn the new one's parameter; an undo of the swap brings
+the old row back to life). An insert swapped for one of Cantus's own keeps its bypass and
+mix, and a parameter the new effect also has. **Not loaded** says the
 plug-in is in the project but not running here (or it stopped); **Frozen**, that the
 target's sound is frozen — a move is refused and said, and the knob reaches no other
-instrument; **Not connected**, that the mapping's MIDI input is not open.
+instrument; **Not connected**, that the mapping's MIDI input is not open; **No input**,
+that a strip's record arm has no track with an input to arm.
 
 **Two maps.** *This project*'s mappings are saved with the project, and every change is
 one undo step. **Everywhere** — your global mappings, kept beside your keyboard shortcuts
@@ -400,7 +408,9 @@ transport key or the master puts it there; **Add a mapping** in the pane offers 
 and every keyboard shortcut's action by its group (arm the selected track, punch, undo,
 save, the views…).
 When one control is in both, the project's mapping wins. If the global file cannot be read
-whole, a copy is kept beside it (the status says its name) and nothing is lost.
+whole, a copy is kept beside it (the status says its name) and nothing is lost; if not even
+a copy can be made, it is never written over, and each change to the global mappings says
+it will not be kept.
 
 **While you play and record.** A mapped knob no longer reaches the instrument (it does
 not also bend its filter), and a mapped pad plays no note. A move made with the mouse or a
@@ -408,8 +418,10 @@ controller is one undo step per gesture. With a parameter under an automation cl
 clip plays it — until a recording pass moves it: from that moment the parameter follows
 your hand (the clip is set aside for the rest of the pass), and the pass writes what you
 did as an automation clip, each move at the moment its message arrived, inside the pass
-(the count-in and anything past the punch-out are not written; Record options ▸
-*Record automation*). A knob mapped to the tempo waits while a take records.
+(the count-in and anything past the punch-out are not written, and past the punch-out the
+parameter follows its clip again; Record options ▸ *Record automation*). While audio
+records, a knob mapped to the tempo does nothing (the status says why): change the tempo
+before or after the take.
 
 Channel pressure and key pressure now reach the instrument (Cantus's and hosted ones), and
 a program change reaches a hosted instrument.

@@ -225,7 +225,9 @@ fn a_pair_split_between_frames_is_never_half_made() {
     let mut a = wide_fader();
     a.controller_heard(&[cc(7, 10), cc(39, 5)]);
     let before = a.project().master.width;
-    let t = Instant::now();
+    // Stamped ahead: a slow machine's pause inside the call never makes it old (review 4,
+    // #43).
+    let t = Instant::now() + Duration::from_millis(50);
     a.controller_heard(&[msg_at(0xB0, 7, 11, t)]);
     assert_eq!(a.project().master.width, before, "the coarse half waits");
     a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(600))]);
@@ -710,13 +712,7 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
     assert!(!name.contains("Surge"), "{name}");
     a.learn_target(target);
     a.controller_heard(&(0..8).map(|v| cc(71, 60 + v)).collect::<Vec<_>>());
-    let also = cantus_ui::i18n::t("ctl.status.learnt_shared");
-    let head = also.split('{').next().unwrap_or_default().to_string();
-    assert!(
-        head.is_empty() || !a.status.text.starts_with(&head) || !a.status.text.contains(','),
-        "{}",
-        a.status.text
-    );
+    // The status's words: review 4's `learning_beside_a_swapped_out_mapping_shares_nothing`.
     let shared = a
         .project()
         .controllers
@@ -793,7 +789,8 @@ fn an_nrpn_knob_is_not_learnt() {
     let s = strip(&a);
     a.learn_target(MappingTarget::Param(AutoTarget::StripPan(s)));
     a.controller_heard(&[cc(99, 1), cc(98, 2), cc(6, 64), cc(38, 0)]);
-    assert!(a.controllers.learning.is_none());
+    // Passed over, said; the learn stays armed for another control (review 4, #24).
+    assert!(a.controllers.learning.is_some());
     assert!(a.project().controllers.is_empty());
     assert!(a.status.error);
 }
@@ -1067,6 +1064,13 @@ fn clicking_the_mixers_controls_arms_them() {
     }
 }
 
+/// The hosted tests one at a time: `plugins::demo_setup` copies the test plug-in into one
+/// shared folder, and a copy made while another test loads it can leave it unreadable.
+fn hosted_serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The test CLAP plug-in, built from source where the host's tests build it.
 fn test_plugin() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1094,6 +1098,7 @@ fn test_plugin() -> std::path::PathBuf {
 #[test]
 fn clicking_a_hosted_editors_cells_arms_them() {
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let armed = armed_by_clicks(&mut a, egui::vec2(1600.0, 1000.0), &mut |a, ui| {
@@ -1115,18 +1120,18 @@ fn a_hosted_values_words_are_asked_until_answered() {
     let mut w = ValueWords::default();
     let (a, b) = (EffectId(1), EffectId(2));
     let bits = 0.42f64.to_bits();
-    assert_eq!(w.get(a, 0, bits, || None), None, "not answered yet");
+    assert_eq!(w.get(a, 0, bits, true, || None), None, "not answered yet");
     assert_eq!(
-        w.get(a, 0, bits, || Some("1.2 kHz".into())),
+        w.get(a, 0, bits, true, || Some("1.2 kHz".into())),
         Some("1.2 kHz"),
         "asked again"
     );
     assert_eq!(
-        w.get(a, 0, bits, || panic!("asked again once answered")),
+        w.get(a, 0, bits, true, || panic!("asked again once answered")),
         Some("1.2 kHz")
     );
     assert_eq!(
-        w.get(b, 0, bits, || Some("3 dB".into())),
+        w.get(b, 0, bits, true, || Some("3 dB".into())),
         Some("3 dB"),
         "another effect's own words"
     );
@@ -1139,14 +1144,20 @@ fn a_hosted_values_words_are_asked_until_answered() {
 fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
     use cantus_ui::views::controllers::value_words;
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let key = MappingTarget::Param(AutoTarget::Plugin { effect, id: 2 });
     assert_eq!(value_words(&a, &key, 0.0), "Off");
     assert_eq!(value_words(&a, &key, 1.0), "On");
+    // Its third step, however many the test plug-in's fault selector has now (it grows
+    // with the faults it can stage: review 4's note).
     let fault = MappingTarget::Param(AutoTarget::Plugin { effect, id: 4 });
-    // Its steps run 0 to `fault::LAST` (24).
-    assert_eq!(value_words(&a, &fault, 3.0 / 24.0), "3");
+    let steps = a
+        .hosted_param_info(&AutoTarget::Plugin { effect, id: 4 })
+        .and_then(|i| i.step_count())
+        .expect("stepped");
+    assert_eq!(value_words(&a, &fault, 3.0 / steps as f32), "3");
 }
 
 /// #57: a loaded plug-in that crashed: its mappings read *Not loaded* (they stay the map's).
@@ -1154,6 +1165,7 @@ fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
 fn a_crashed_plug_ins_mapping_is_not_loaded() {
     use cantus_ui::controllers::Idle;
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let target = MappingTarget::Param(AutoTarget::Plugin { effect, id: 0 });

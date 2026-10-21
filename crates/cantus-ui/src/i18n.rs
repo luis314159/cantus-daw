@@ -293,6 +293,11 @@ pub fn t(key: &str) -> String {
     key.to_string()
 }
 
+/// Whether `locale`'s own table has `key` (no English stand-in).
+pub fn has(locale: Locale, key: &str) -> bool {
+    tables().get(&locale).is_some_and(|t| t.contains_key(key))
+}
+
 /// A key's text in `locale` (English when that language lacks it, else the key).
 pub fn t_in(locale: Locale, key: &str) -> String {
     let tables = tables();
@@ -302,6 +307,15 @@ pub fn t_in(locale: Locale, key: &str) -> String {
         .or_else(|| tables.get(&Locale::En).and_then(|t| t.get(key)))
         .cloned()
         .unwrap_or_else(|| key.to_string())
+}
+
+/// [`tf`] in `locale`.
+pub fn tf_in(locale: Locale, key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    let mut s = t_in(locale, key);
+    for (name, value) in args {
+        s = s.replace(&format!("{{{name}}}"), &value.to_string());
+    }
+    s
 }
 
 /// Look up a key and substitute `{name}` placeholders.

@@ -144,8 +144,9 @@ fn app() -> CantusApp {
     other.id = MappingId(17);
     other.source = src("Keystation 49", Some(0), Control::Cc(72));
     other.plugin = Some(PluginRef {
-        format: cantus_core::external::PluginFormat::Vst3,
-        id: "SurgeXT".into(),
+        name: "Surge XT".into(),
+        param: "Filter 1 Cutoff".into(),
+        ..PluginRef::new(cantus_core::external::PluginFormat::Vst3, "SurgeXT")
     });
     let style = EffectKind::Compressor
         .params()
@@ -403,6 +404,26 @@ fn main() {
                 |root| {
                     panel(root, |_| {});
                     views::fx::window(&mut a, root.ctx());
+                },
+            );
+            println!("{}", out.display());
+            // Review 4: the inspector in the learn mode — an insert tile's lamp and ring, the
+            // inserts' switch, the sends' and the arm's rows.
+            cantus_ui::i18n::set_locale(lang);
+            let ctx = context(dark);
+            let mut a = app();
+            let strip = a.project().tracks[0].strip.unwrap();
+            a.select_strip(strip);
+            a.toggle_learn_mode();
+            let out = name(&dir, "learn-inspector", dark, lang, 1.0);
+            shoot(
+                &ctx,
+                egui::vec2(420.0, 1100.0),
+                1.0,
+                6,
+                Some(&out),
+                |root| {
+                    panel(root, |ui| views::inspector::show(&mut a, ui));
                 },
             );
             println!("{}", out.display());

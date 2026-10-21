@@ -63,6 +63,10 @@ enum Choice {
     Link(super::track::LinkAct),
     /// Where a hosted plug-in runs, and reloading one that stopped (round 29, ADR 0063).
     Hosting(crate::views::plugin_notice::MenuAct),
+    /// MIDI learn of the insert's bypass (0) or mix (1), and forgetting them (round 29,
+    /// review 4 of ADR 0062, #21).
+    LearnSlot(u8),
+    ForgetSlot,
 }
 
 /// One row, owning its words until the list closes.
@@ -287,6 +291,24 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 Check::None,
                 Choice::Remove,
             ));
+            // MIDI learn: the insert's bypass and mix, as the mixer's menu offers them.
+            let mut mapped = false;
+            for (what, key) in [(0u8, "ctl.menu.bypass"), (1, "ctl.menu.mix")] {
+                let m = app.is_mapped(&crate::controllers::slot_learn_target(e, what));
+                mapped |= m;
+                out.push(act(
+                    Label::Key(key),
+                    if m { Check::On } else { Check::Off },
+                    Choice::LearnSlot(what),
+                ));
+            }
+            if mapped {
+                out.push(act(
+                    Label::Key("ctl.menu.forget"),
+                    Check::None,
+                    Choice::ForgetSlot,
+                ));
+            }
             // A hosted plug-in: where it runs (round 29, ADR 0063).
             let rows = crate::views::plugin_notice::menu_rows(
                 app,
@@ -550,6 +572,10 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                     });
                 }
                 Choice::Remove => app.remove_effect(strip, e),
+                Choice::LearnSlot(what) => {
+                    app.learn_target(crate::controllers::slot_learn_target(e, what));
+                }
+                Choice::ForgetSlot => app.forget_slot(e),
                 Choice::Hosting(a) => crate::views::plugin_notice::run_menu(
                     app,
                     crate::views::plugin_notice::Target::Insert(e),

@@ -544,14 +544,17 @@ fn a_14_bit_pair_reads_a_coarse_half_alone_and_a_fine_half_first() {
     assert!((a.project().master.width - width_of(131)).abs() < 1e-3);
     // A coarse half alone waits its fine half's moment (review 3: PAIR_GAP), then is read
     // with a fine 0.
-    let old = Instant::now() - Duration::from_millis(20);
-    a.controller_heard(&[msg_at(0xB0, 7, 0, old)]);
+    let t = Instant::now() + Duration::from_millis(50);
+    a.controller_heard(&[msg_at(0xB0, 7, 0, t)]);
+    // A later burst: the half has waited its moment.
+    a.controller_heard(&[msg_at(0xB0, 100, 0, t + Duration::from_millis(10))]);
     assert_eq!(a.project().master.width, 0.0, "to the bottom");
-    a.controller_heard(&[cc(7, 64), cc(39, 5)]);
+    let t = t + Duration::from_millis(30);
+    a.controller_heard(&[msg_at(0xB0, 7, 64, t), msg_at(0xB0, 39, 5, t)]);
     assert!((a.project().master.width - width_of(64 << 7 | 5)).abs() < 1e-3);
     // Fine half first (a moment after the pairs above), pair after pair: known as such
     // after cantus_ui::controllers::FINE_FIRST of them (review 3), then read whole.
-    let mut t = Instant::now() + Duration::from_millis(50);
+    let mut t = t + Duration::from_millis(50);
     for coarse in 97..=100u8 {
         a.controller_heard(&[msg_at(0xB0, 39, 9, t), msg_at(0xB0, 7, coarse, t)]);
         t += Duration::from_millis(20);

@@ -605,6 +605,43 @@ pub fn stepped_offer(
     name: &str,
     resp: &Response,
 ) -> bool {
+    stepped_offer_marked(ui, s, host, key, name, resp, true)
+}
+
+/// [`stepped_offer`] for a control that stands for one value of `key` — a band's solo LED
+/// (none ↔ that band): a learn armed from it (its click in the learn mode, its menu) is
+/// made over `rest` … `value`, and its mark shows only where a controller reaches `value`
+/// (round 29, review 4 of ADR 0062, #46).
+#[allow(clippy::too_many_arguments)]
+pub fn stepped_offer_one(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+    rest: f32,
+    value: f32,
+) -> bool {
+    let before = host.learn_armed_at();
+    let mark = host.mapping_reaches(key, value);
+    let out = stepped_offer_marked(ui, s, host, key, name, resp, mark);
+    let now = host.learn_armed_at();
+    if now.is_some() && now != before {
+        host.set_learn_range(key, rest, value);
+    }
+    out
+}
+
+fn stepped_offer_marked(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+    mark: bool,
+) -> bool {
     use crate::kit::automate as a;
     // Nothing of learn to show and no menu asked for: no offer built (review 3, #51).
     if host.learn_idle(key)
@@ -642,7 +679,7 @@ pub fn stepped_offer(
             }
             return l.mode;
         }
-        if l.mapped {
+        if l.mapped && mark {
             a::learn_mark_over(ui, resp.rect, ui.clip_rect());
         }
     }

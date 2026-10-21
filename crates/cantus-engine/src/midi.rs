@@ -698,11 +698,34 @@ pub fn output_for(input: &str, outputs: &[String]) -> Option<usize> {
 
 /// Output ports opened for feedback, by the name of the input they answer. Opened on
 /// demand (the first mapping with feedback on a port); interface thread.
-#[derive(Default)]
 pub struct MidiOutputs {
-    open: Vec<(String, MidiOutputConnection)>,
+    open: Vec<(String, Box<dyn OutPort>)>,
     /// Inputs whose output could not be found or opened (not tried again until a rescan).
     missing: Vec<String>,
+    /// Opens the output that answers an input (the system's; a test's own).
+    connect: fn(&str) -> Option<Box<dyn OutPort>>,
+}
+
+impl Default for MidiOutputs {
+    fn default() -> Self {
+        MidiOutputs {
+            open: Vec::new(),
+            missing: Vec::new(),
+            connect: |input| MidiOutputs::connect(input).map(|c| Box::new(c) as Box<dyn OutPort>),
+        }
+    }
+}
+
+/// An open output: what a message is written to.
+pub trait OutPort: Send {
+    /// Write `bytes`: whether it went out.
+    fn write(&mut self, bytes: &[u8]) -> bool;
+}
+
+impl OutPort for MidiOutputConnection {
+    fn write(&mut self, bytes: &[u8]) -> bool {
+        self.send(bytes).is_ok()
+    }
 }
 
 impl std::fmt::Debug for MidiOutputs {
@@ -718,26 +741,39 @@ impl std::fmt::Debug for MidiOutputs {
 }
 
 impl MidiOutputs {
+    /// Outputs opened by `connect` (a test's ports).
+    pub fn with_connect(connect: fn(&str) -> Option<Box<dyn OutPort>>) -> Self {
+        MidiOutputs {
+            connect,
+            ..MidiOutputs::default()
+        }
+    }
+
     /// Send `bytes` to the output that answers the input `input`, opening it the first
     /// time. Returns whether it went out.
     pub fn send(&mut self, input: &str, bytes: &[u8]) -> bool {
-        if let Some((_, c)) = self.open.iter_mut().find(|(n, _)| n == input) {
-            return c.send(bytes).is_ok();
-        }
-        if self.missing.iter().any(|n| n == input) {
-            return false;
-        }
-        match Self::connect(input) {
-            Some(mut c) => {
-                let ok = c.send(bytes).is_ok();
-                self.open.push((input.to_string(), c));
-                ok
+        self.send_at(input, bytes).is_some()
+    }
+
+    /// [`Self::send`], answering when the write began: after the output was opened (an
+    /// open enumerates the ports and may take long), immediately before the bytes left —
+    /// the moment a loopback's echo is measured from (review 4 of ADR 0062, #13).
+    pub fn send_at(&mut self, input: &str, bytes: &[u8]) -> Option<std::time::Instant> {
+        if !self.open.iter().any(|(n, _)| n == input) {
+            if self.missing.iter().any(|n| n == input) {
+                return None;
             }
-            None => {
-                self.missing.push(input.to_string());
-                false
+            match (self.connect)(input) {
+                Some(c) => self.open.push((input.to_string(), c)),
+                None => {
+                    self.missing.push(input.to_string());
+                    return None;
+                }
             }
         }
+        let (_, c) = self.open.iter_mut().find(|(n, _)| n == input)?;
+        let at = std::time::Instant::now();
+        c.write(bytes).then_some(at)
     }
 
     fn connect(input: &str) -> Option<MidiOutputConnection> {
@@ -775,6 +811,41 @@ impl MidiOutputs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A port that takes a while to open (a full enumeration) and keeps what it was given.
+    struct SlowPort;
+
+    impl OutPort for SlowPort {
+        fn write(&mut self, _bytes: &[u8]) -> bool {
+            true
+        }
+    }
+
+    fn slow_connect(input: &str) -> Option<Box<dyn OutPort>> {
+        std::thread::sleep(std::time::Duration::from_millis(40));
+        (input == "Pads").then(|| Box::new(SlowPort) as Box<dyn OutPort>)
+    }
+
+    /// Review 4 of ADR 0062, #13: the moment a message left is after its output opened,
+    /// not before — an echo measured from it is not late by the open's time.
+    #[test]
+    fn a_messages_moment_is_after_its_output_opened() {
+        let mut out = MidiOutputs::with_connect(slow_connect);
+        let before = std::time::Instant::now();
+        let at = out.send_at("Pads", &[0x90, 36, 127]).expect("sent");
+        assert!(
+            at.duration_since(before) >= std::time::Duration::from_millis(40),
+            "stamped before the open: {:?}",
+            at.duration_since(before)
+        );
+        // Open now: the next one is stamped at once; a missing output answers nothing.
+        let again = std::time::Instant::now();
+        let at = out.send_at("Pads", &[0x80, 36, 0]).expect("sent");
+        assert!(at.duration_since(again) < std::time::Duration::from_millis(20));
+        assert_eq!(out.send_at("Keys", &[0x90, 1, 1]), None);
+        assert!(!out.send("Keys", &[0x90, 1, 1]), "remembered as missing");
+        assert_eq!(out.open_names(), vec!["Pads"]);
+    }
 
     /// The top bar's MIDI lamp counts what comes in, through any clone of the sender.
     #[test]
