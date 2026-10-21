@@ -35,6 +35,7 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
+        heavy: Duration::from_millis(state),
     });
     pool
 }

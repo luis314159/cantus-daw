@@ -34,6 +34,8 @@ fn quick_pool() -> Arc<Sandboxes> {
         call: Duration::from_secs(1),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(1),
+        // A hung load or state ends at once here (the shipped ratio has its own test).
+        heavy: Duration::from_secs(1),
     });
     pool
 }
