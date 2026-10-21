@@ -870,36 +870,41 @@ descongelarla.
 - Una pista o un canal congelado se sigue **mezclando**: su fader, su paneo, su anchura,
   su silencio, su solo y el nivel de sus envíos —y su automatización— siguen en vivo, y
   también el silencio y el solo de la cabecera de una pista congelada con su canal propio
-  (su nivel y su balance están dentro del render: mézclala con el fader del canal). Lo que
+    (su nivel y su balance están dentro del render: mézclala con el fader del canal). Salvo
+  que un modulador dentro de lo que congela lo siga (o siga al bus al que suena): entonces
+  su mezcla es parte de su sonido y también queda fija —la tarjeta lo dice—. Lo que
   cambiaría su sonido (sus notas, su instrumento, sus inserciones, el tempo, mover un canal
   entre los que recoge) se rechaza, y la tarjeta dice cómo devolverlo: **Descongelar** (las
   mismas entradas de menú, la misma tecla). Una perilla girada en la ventana propia de un
   plug-in congelado vuelve a donde estaba, con la misma tarjeta, y también un preset o una
-  muestra cargados desde su propio navegador. Descongelado, vuelve a
-  sonar en vivo, idéntico.
+  muestra cargados desde su propio navegador. Descongelado, vuelve a sonar en vivo,
+  idéntico.
 - Lo que también suena en otra parte sigue sonando: congelar un bus no calla un canal que
   hace de clave de su compresor y suena al máster, ni congelar un retorno el canal que le
   envía. El solo sigue siendo una ayuda para escuchar —se congela como si nada estuviera en
   solo—; con algo en solo **dentro** de lo que congelas, quítale antes el solo. Un solo que
   calla una parte de aquello con lo que suena un canal congelado (una de las pistas o de
   los canales que se oyen por él) hace sonar ese canal en vivo mientras dura; un solo que
-  lo calla entero —un solo en otra parte— solo lo silencia, sin despertar sus plug-ins. Guardar un proyecto mueve una toma congelada
-  a su carpeta *Audio* y la deja congelada.
+    lo calla entero —un solo en otra parte— solo lo silencia, sin despertar sus plug-ins.
+  Guardar un proyecto mueve una toma congelada a su carpeta *Audio* y la deja congelada.
 - Sus plug-ins se descargan mientras está congelado y vuelven con sus ajustes. Congelar
   necesita los plug-ins de lo que se congela (uno en bypass no hace falta): si uno no está
   cargado, se nombra y no se congela nada. Lo mismo con un archivo que suena y aún no está
   (un paquete de sonidos descargándose, un disco desconectado; una toma en un carril de
   comp de abajo, o un clip en silencio, no cuenta): se nombra, y una pista congelada espera
-  a sus archivos antes de rehacer su render. Una pista cuyos plug-ins cambian su latencia
-  durante la canción no se puede congelar, y la tarjeta lo dice.
+    a sus archivos antes de rehacer su render. Una pista cuyos plug-ins cambian su latencia
+  durante la canción (una anticipación o un sobremuestreo automatizados) no se puede
+  congelar ni pasar a audio en su lugar: la línea de estado lo dice.
 - Los renders se guardan en la carpeta propia del proyecto dentro de una carpeta *Freeze*
   junto a él (*Freeze/Canción* para *Canción.cantus*; en la caché de Cantus si el proyecto
-  aún no se ha guardado), con el nombre de lo que contienen: volver a
-  congelar lo que no cambió es instantáneo, y un proyecto abierto sin ellos (en otra
-  computadora, a otra frecuencia de muestreo) suena en vivo mientras se rehacen en segundo
-  plano. *Guardar como* se los lleva (copiados en segundo plano); al guardar se quitan de la
-  carpeta del proyecto los renders que ningún deshacer puede traer de vuelta —los de otros
-  proyectos junto a él nunca se tocan.
+  aún no se ha guardado), con el nombre de lo que contienen: volver a congelar lo que no
+  cambió es instantáneo, y un proyecto abierto sin ellos (en otra computadora, a otra
+  frecuencia de muestreo) suena en vivo mientras se rehacen en segundo plano. *Guardar
+  como* se los lleva —copiados en segundo plano; cerrar Cantus espera a la copia—. Un
+  proyecto renombrado o copiado junto al original encuentra sus renders en la carpeta del
+  original, y al guardarlo los trae a la suya. Al guardar se quitan de la carpeta del
+  proyecto los renders que ningún deshacer puede traer de vuelta; los de otros proyectos
+  junto a él nunca se tocan.
 - Con el bucle activo, una pista congelada toca su grabación de corrido: en el salto al
   inicio del bucle oyes lo que llevaba a ese compás, no la cola de una reverberación del
   final del bucle (como en otros DAW; descongélala para oír el salto exacto).
@@ -919,8 +924,9 @@ justo debajo de la original**, en el mismo lugar:
   las teclas pasan a audio la pista entera; con un canal elegido en el mezclador, el canal
   entero; el máster nunca se congela ni se pasa a audio. No se pueden pasar clips ni un
   tramo de tiempo mientras algo oye las notas de la pista (pasa la pista entera), y las
-  ventanas de un comp unidas por un fundido cruzado se pasan juntas o no se pasan. Las
-  entradas del menú del clip pasan a audio el clip sobre el que hiciste clic derecho.
+    ventanas de un comp unidas por un fundido cruzado se pasan juntas o no se pasan. Las
+  entradas del menú del clip actúan sobre clips, nunca sobre un canal o el máster elegidos
+  antes: el clip sobre el que hiciste clic derecho, con los clips elegidos con él.
 - *Pasar el canal a audio en su lugar* (el menú del canal): todo lo que el canal recoge; lo
   que tenía su clave en él, o lo seguía, sigue al canal nuevo. Quita antes el solo de lo
   que esté en solo dentro de él.
@@ -929,10 +935,10 @@ justo debajo de la original**, en el mismo lugar:
   sigue oyendo queda en silencio en su lugar, y el resultado lo dice). Su automatización
   de nivel, de fader y de envíos va con el audio, y también su solo. Por un plug-in con
   latencia, el audio del clip nuevo queda en la cuadrícula y la pista nueva conserva el
-  retardo (la fila *Retardo* del inspector; *Quitar* lo elimina), así que esa
+    retardo (la fila *Retardo* del inspector; la tecla a su derecha lo quita), así que esa
   automatización y lo que tenga su clave en ella siguen a tiempo, y el clip suena a tiempo
-  dondequiera que lo muevas, lo copies o lo exportes. La cola (la de una reverberación) se conserva
-  hasta que se apaga. Un solo paso de deshacer. Si editas lo que se pasa a audio mientras
+  dondequiera que lo muevas, lo copies o lo exportes. La cola (la de una reverberación) se
+  conserva hasta que se apaga. Un solo paso de deshacer. Si editas lo que se pasa a audio mientras
   se hace el render, se vuelve a pasar desde tu edición (una edición en otra parte no lo
   reinicia); **Detener** mientras se escribe su archivo no deja nada. Una pista que
   escucha una entrada en vivo —o una que hace de clave o le manda notas— no se pasa a audio
