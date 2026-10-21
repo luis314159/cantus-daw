@@ -15,7 +15,7 @@
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::freeze::{self, CannotFreeze, FreezeTarget};
-use cantus_core::{Command, Project, Snapshot};
+use cantus_core::{Command, Project, Snapshot, StripId};
 use cantus_engine::render::{RenderError, RenderProgress};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -993,7 +993,10 @@ fn hosted_states(app: &mut CantusApp, target: FreezeTarget) -> Vec<Command> {
     let saved = app.plugins.project_for_save(&project);
     let mut out = Vec::new();
     for (strip, slot) in project.all_effects() {
-        if !r.strips.contains(&strip) {
+        // The master's too when the whole mix is in the region (review 4: its live state
+        // never reached the project, and the render was made from the stored one).
+        let inside = r.strips.contains(&strip) || (r.whole && strip == StripId::MASTER);
+        if !inside {
             continue;
         }
         let (Some(was), Some(now)) = (

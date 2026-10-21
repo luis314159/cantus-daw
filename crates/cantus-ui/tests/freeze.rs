@@ -3263,3 +3263,85 @@ fn a_save_keeps_the_render_a_waiting_freeze_of_an_armed_track_will_land_with() {
     ));
     assert!(render.is_file(), "kept for the waiting freeze");
 }
+
+#[test]
+fn a_state_of_its_own_changed_while_it_renders_renders_it_again() {
+    // A preset or a sample loaded in the plug-in's own browser while its region renders:
+    // no value moves, so only the edit count tells — rendered again, landing with what it
+    // holds now; on a strip of the region, and on the master of a whole-mix region (review
+    // 4: no interface test reached that branch).
+    for on_master in [false, true] {
+        let ctx = support::ctx();
+        let (mut app, dir) = app(if on_master {
+            "own-state-master"
+        } else {
+            "own-state"
+        });
+        let info = knows_gain(&mut app, &dir);
+        let strip = app.project().tracks[0].strip.unwrap();
+        if on_master {
+            // A follower of the whole mix in the region: the master is in it.
+            let mut p = app.project().clone();
+            let delay = p.strip(strip).unwrap().effects[0].id;
+            let mut f = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Follower);
+            if let ModSource::Follower(src) = &mut f.source {
+                src.listen = cantus_core::modulator::Listen::Master;
+            }
+            f.routes.push(ModRoute {
+                target: AutoTarget::Effect {
+                    effect: delay,
+                    key: "mix".into(),
+                },
+                depth: 0.3,
+            });
+            p.strip_mut(strip).unwrap().modulators.push(f);
+            app.bus = CommandBus::new(p);
+        }
+        let host = if on_master { StripId::MASTER } else { strip };
+        let slot = app
+            .plugins
+            .make_slot_isolated(&mut app.bus, host, &info, Some(PluginIsolation::Within))
+            .expect("it loads");
+        let id = slot.id;
+        let index = if on_master {
+            app.project().master.effects.len()
+        } else {
+            app.project().strip(strip).unwrap().effects.len()
+        };
+        assert!(app.exec(Command::InsertEffect {
+            strip: host,
+            index,
+            slot: Box::new(slot),
+        }));
+        app.sync_engine();
+        let target = FreezeTarget::Strip(strip);
+        if on_master {
+            assert!(cantus_core::freeze::region(app.project(), target).whole);
+        }
+        app.freeze_target(target);
+        assert!(app.freeze.job.is_some(), "rendering");
+        let (now, _) = app.plugins.capture(id).unwrap();
+        let mut tagged = now.bytes().to_vec();
+        let len = tagged.len();
+        tagged.truncate(len - 4);
+        tagged.extend_from_slice(&3u32.to_le_bytes());
+        tagged.extend_from_slice(b"new");
+        app.plugins.state_dirty_for_test(&mut app.bus, id, &tagged);
+        settle(&mut app, &ctx);
+        assert!(
+            app.project().frozen(target).is_some(),
+            "{}",
+            app.status.text
+        );
+        let stored = app
+            .project()
+            .all_effects()
+            .find(|(_, e)| e.id == id)
+            .and_then(|(_, e)| e.spec.external.as_ref().map(|x| x.state.bytes().to_vec()))
+            .unwrap();
+        assert!(
+            stored.ends_with(b"new"),
+            "on the master: {on_master} — landed with what it holds now"
+        );
+    }
+}
