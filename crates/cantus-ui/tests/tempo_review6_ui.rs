@@ -155,7 +155,10 @@ fn one_kept_or_left_out_is_said_in_the_singular() {
             key,
             args: vec![("n", "1".into())],
         };
-        assert!(views::interop::report_line(&item).starts_with(want), "{key}");
+        assert!(
+            views::interop::report_line(&item).starts_with(want),
+            "{key}"
+        );
     }
     let far = ReportItem {
         severity: Severity::Dropped,

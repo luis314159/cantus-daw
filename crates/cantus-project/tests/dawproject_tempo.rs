@@ -311,12 +311,18 @@ fn points_past_the_horizon_are_left_out_and_said() {
     let tempo = r#"<TempoAutomation id="id90" unit="bpm"><Target parameter="id0"/><RealPoint time="0" value="120" interpolation="linear"/><RealPoint time="1e9" value="121"/></TempoAutomation>"#;
     let marker = r#"<Markers id="id80"><Marker time="0" name="Intro"/><Marker time="1e9" name="Never"/></Markers>"#;
     let metres = r#"<TimeSignatureAutomation id="id91"><Target parameter="id1"/><TimeSignaturePoint time="0" numerator="4" denominator="4"/><TimeSignaturePoint time="8" numerator="3" denominator="4"/><TimeSignaturePoint time="2e9" numerator="7" denominator="8"/></TimeSignatureAutomation></Arrangement>"#;
-    let imported = with(&[(TEMPO, tempo), (MARKERS, marker), ("</Arrangement>", metres)]);
+    let imported = with(&[
+        (TEMPO, tempo),
+        (MARKERS, marker),
+        ("</Arrangement>", metres),
+    ]);
     let p = &imported.project;
     assert!(p.tempo_points.is_empty(), "{:?}", p.tempo_points);
     assert!(!p.markers.iter().any(|m| m.name == "Never"));
     assert!(
-        p.metre_changes.iter().all(|m| m.tick <= cantus_core::tempo::HORIZON),
+        p.metre_changes
+            .iter()
+            .all(|m| m.tick <= cantus_core::tempo::HORIZON),
         "{:?}",
         p.metre_changes
     );
