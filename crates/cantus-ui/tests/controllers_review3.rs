@@ -225,7 +225,9 @@ fn a_pair_split_between_frames_is_never_half_made() {
     let mut a = wide_fader();
     a.controller_heard(&[cc(7, 10), cc(39, 5)]);
     let before = a.project().master.width;
-    let t = Instant::now();
+    // Stamped ahead: a slow machine's pause inside the call never makes it old (review 4,
+    // #43).
+    let t = Instant::now() + Duration::from_millis(50);
     a.controller_heard(&[msg_at(0xB0, 7, 11, t)]);
     assert_eq!(a.project().master.width, before, "the coarse half waits");
     a.controller_heard(&[msg_at(0xB0, 39, 3, t + Duration::from_micros(600))]);
@@ -710,13 +712,7 @@ fn a_swapped_out_plug_ins_mapping_keeps_its_name_and_shares_nothing() {
     assert!(!name.contains("Surge"), "{name}");
     a.learn_target(target);
     a.controller_heard(&(0..8).map(|v| cc(71, 60 + v)).collect::<Vec<_>>());
-    let also = cantus_ui::i18n::t("ctl.status.learnt_shared");
-    let head = also.split('{').next().unwrap_or_default().to_string();
-    assert!(
-        head.is_empty() || !a.status.text.starts_with(&head) || !a.status.text.contains(','),
-        "{}",
-        a.status.text
-    );
+    // The status's words: review 4's `learning_beside_a_swapped_out_mapping_shares_nothing`.
     let shared = a
         .project()
         .controllers
@@ -793,7 +789,8 @@ fn an_nrpn_knob_is_not_learnt() {
     let s = strip(&a);
     a.learn_target(MappingTarget::Param(AutoTarget::StripPan(s)));
     a.controller_heard(&[cc(99, 1), cc(98, 2), cc(6, 64), cc(38, 0)]);
-    assert!(a.controllers.learning.is_none());
+    // Passed over, said; the learn stays armed for another control (review 4, #24).
+    assert!(a.controllers.learning.is_some());
     assert!(a.project().controllers.is_empty());
     assert!(a.status.error);
 }

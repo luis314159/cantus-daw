@@ -1147,6 +1147,18 @@ impl PluginHost {
         }
     }
 
+    /// For the interface's tests: the loaded plug-in in `effect`'s slot describes its
+    /// parameter `info.id` as `info` (a step count a test plug-in has no way to give). The
+    /// application never calls it.
+    #[doc(hidden)]
+    pub fn set_param_info_for_tests(&mut self, effect: EffectId, info: ParamInfo) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            if let Some(p) = h.params.iter_mut().find(|p| p.id == info.id) {
+                *p = info;
+            }
+        }
+    }
+
     fn on_crash(&mut self, effect: EffectId, reason: String, blame: Blame) -> Option<HostNotice> {
         let h = self.slots.get_mut(&effect)?;
         if h.crashed.is_some() {

@@ -293,6 +293,11 @@ pub fn t(key: &str) -> String {
     key.to_string()
 }
 
+/// Whether `locale`'s own table has `key` (no English stand-in).
+pub fn has(locale: Locale, key: &str) -> bool {
+    tables().get(&locale).is_some_and(|t| t.contains_key(key))
+}
+
 /// A key's text in `locale` (English when that language lacks it, else the key).
 pub fn t_in(locale: Locale, key: &str) -> String {
     let tables = tables();
