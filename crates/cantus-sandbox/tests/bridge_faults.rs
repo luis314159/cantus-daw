@@ -20,6 +20,7 @@ fn load(pool: &Arc<Sandboxes>, id: &str, group: &str, offline: bool) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, offline)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -33,15 +34,16 @@ fn quick_pool() -> Arc<Sandboxes> {
         call: Duration::from_secs(1),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(1),
-        heavy: Duration::from_secs(1),
-        modal: Duration::from_secs(10),
     });
     pool
 }
 
 fn arrived(main: &mut dyn MainThread, id: u32, value: f64) {
     let start = Instant::now();
-    while main.param_value(id) != Some(value) {
+    while main
+        .param_value(id)
+        .is_none_or(|v| (v - value).abs() > 1e-6)
+    {
         assert!(
             start.elapsed() < Duration::from_secs(5),
             "parameter {id} never arrived"
@@ -76,6 +78,8 @@ fn fault_change(id: u32, value: f64) -> [ParamChange; 1] {
     fault(id, value)
 }
 
+/// Sets a value while nothing processes (sent; its answer comes later) and waits until
+/// the helper's mirror shows it.
 fn set(main: &mut dyn MainThread, id: u32, value: f64) {
     let mut out = ParamOut::new();
     main.flush(
@@ -86,6 +90,7 @@ fn set(main: &mut dyn MainThread, id: u32, value: f64) {
         }],
         &mut out,
     );
+    arrived(main, id, value);
 }
 
 #[test]
@@ -97,13 +102,16 @@ fn a_plugin_that_hangs_while_saving_answers_with_its_last_good_state_within_the_
             mut main,
             mut audio,
         } = load(&pool, id, &format!("own-hang-save-{id}"), false);
-        set(main.as_mut(), gain, -6.0);
-        let good = main.save_state().expect("a state");
+        arm(main.as_mut(), audio.as_mut(), gain, -6.0);
+        let good = state_now(main.as_mut());
         arm(main.as_mut(), audio.as_mut(), fault_id, HANG_SAVE);
+        // A save asks for its state as it is now: not to be had within the limit, what it
+        // said last stands — said as such.
         let t = Instant::now();
-        let saved = main
-            .save_state()
-            .expect("the last-good state, not an error");
+        let saved = match fresh_state(main.as_mut()) {
+            cantus_host::StatePoll::Stale(s, _) => s,
+            other => panic!("{id}: the last-good state, said as such: {other:?}"),
+        };
         assert!(
             t.elapsed() < Duration::from_secs(4),
             "{id}: the save waited {:?}",
@@ -125,15 +133,16 @@ fn a_plugin_that_hangs_or_dies_loading_a_state_keeps_the_state_asked_for() {
             mut main,
             mut audio,
         } = load(&pool, GAIN_ID, &format!("own-load-{what}"), false);
-        let default = main.save_state().unwrap();
+        let default = state_now(main.as_mut());
         set(main.as_mut(), P_GAIN, -6.0);
-        let changed = main.save_state().unwrap();
+        let changed = state_now(main.as_mut());
         assert_ne!(default, changed);
         arm(main.as_mut(), audio.as_mut(), P_FAULT, fault_value);
-        // The project asks for the default state back (an undo, a preset)…
+        // The project asks for the default state back (an undo, a preset): sent, never
+        // waited for…
         let t = Instant::now();
-        assert!(main.load_state(&default).is_err(), "{what}: an error");
-        assert!(t.elapsed() < Duration::from_secs(4), "{:?}", t.elapsed());
+        assert!(main.load_state(&default).is_ok(), "{what}: sent");
+        assert!(t.elapsed() < Duration::from_millis(50), "{:?}", t.elapsed());
         assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
         // …and that is what saving and reloading keep, not the state before it.
         assert_eq!(main.save_state().unwrap(), default, "{what}");
@@ -150,8 +159,9 @@ fn a_plugin_that_hangs_or_dies_loading_a_state_keeps_the_state_asked_for() {
 /// The value a fresh instance shows for `id` once `state` is loaded into it.
 fn value_in(pool: &Arc<Sandboxes>, state: &[u8], id: u32) -> Option<f64> {
     let Loaded { mut main, .. } = load(pool, GAIN_ID, "own-fresh", false);
-    main.load_state(state).expect("loads");
-    main.idle();
+    main.load_state(state).expect("sent");
+    // A state asked for after it is answered after it: the mirror is current then.
+    state_now(main.as_mut());
     main.param_value(id)
 }
 
@@ -252,7 +262,6 @@ fn a_background_save_that_hangs_is_ended_and_saving_meanwhile_does_not_wait() {
     // A state may take 3 s: the hung background save is not overdue when Cantus saves.
     pool.set_limits(Limits {
         state: Duration::from_secs(3),
-        heavy: Duration::from_secs(3),
         ..pool.limits()
     });
     let Loaded {
@@ -326,11 +335,14 @@ fn a_modal_loop_while_saving_is_not_taken_for_a_hang() {
     assert!(crashed_within(main.as_mut(), Duration::from_secs(4)).is_none());
 }
 
-/// While a plug-in's window runs a modal loop (a file dialog), Cantus's calls are served
-/// from inside it: a save does not wait for the dialog to close.
+/// While a plug-in's window runs a modal loop (a file dialog), its helper serves nothing —
+/// nothing is called into under a plug-in's own code — and nothing in Cantus waits for it:
+/// every call returns at once, a save asked meanwhile waits (its request not started, no
+/// limit runs), the plug-in's waiting card shows, and once the dialog closes its state
+/// comes as it is (round 29, review isolation-5).
 #[cfg(windows)]
 #[test]
-fn calls_are_served_while_a_plugin_window_runs_a_modal_loop() {
+fn a_plugin_windows_modal_loop_holds_its_calls_and_freezes_nothing() {
     let _g = serial();
     let pool = quick_pool();
     let Loaded {
@@ -340,7 +352,8 @@ fn calls_are_served_while_a_plugin_window_runs_a_modal_loop() {
     let parent = raw_window_handle::RawWindowHandle::Win32(
         raw_window_handle::Win32WindowHandle::new(std::num::NonZeroIsize::new(1).unwrap()),
     );
-    main.open_editor(parent).expect("the editor opens");
+    open_window(main.as_mut(), parent).expect("the editor opens");
+    set(main.as_mut(), P_GAIN, -6.0);
     let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
     call(
         audio.as_mut(),
@@ -349,16 +362,50 @@ fn calls_are_served_while_a_plugin_window_runs_a_modal_loop() {
         &fault(P_FAULT, PUMP_WINDOW),
         &[],
     );
-    // Its window's timer starts the loop within a few tens of milliseconds.
+    // Its window's timer starts the loop (3 s) within a few tens of milliseconds.
     std::thread::sleep(Duration::from_millis(300));
-    let t = Instant::now();
-    assert!(main.save_state().is_ok());
-    assert!(
-        t.elapsed() < Duration::from_millis(1500),
-        "the save waited for the dialog: {:?}",
-        t.elapsed()
+    let mut worst = Duration::ZERO;
+    let mut timed = |f: &mut dyn FnMut()| {
+        let t = Instant::now();
+        f();
+        worst = worst.max(t.elapsed());
+    };
+    timed(&mut || main.ask_state_now());
+    let mut held = true;
+    let mut waiting = false;
+    let start = Instant::now();
+    while start.elapsed() < Duration::from_millis(2400) {
+        timed(&mut || {
+            held &= main.state_waiting();
+            waiting |= main.waiting();
+            assert!(!main
+                .idle()
+                .iter()
+                .any(|n| matches!(n, Notice::Crashed { .. })));
+        });
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(worst < Duration::from_millis(50), "a call waited {worst:?}");
+    assert!(held, "the save waited for the dialog, never cut short");
+    assert!(waiting, "its waiting card showed");
+    // The dialog closed: the save asked during it is answered, as it is now.
+    let start = Instant::now();
+    while main.state_waiting() {
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "answered after it"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(matches!(
+        main.poll_state(),
+        cantus_host::StatePoll::Fresh(_)
+    ));
+    assert_eq!(
+        value_in(&pool, &main.save_state().unwrap(), P_GAIN),
+        Some(-6.0)
     );
-    assert!(crashed_within(main.as_mut(), Duration::from_secs(3)).is_none());
+    assert!(crashed_within(main.as_mut(), Duration::from_secs(1)).is_none());
     main.close_editor();
 }
 

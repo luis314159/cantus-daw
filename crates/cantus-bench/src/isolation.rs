@@ -22,7 +22,9 @@ use crate::Plan;
 use cantus_core::*;
 use cantus_engine::{EngineHandle, Processor};
 use cantus_host::bridge::Sandboxes;
-use cantus_host::{Audio, AudioSetup, Backend, Format, Loaded, ParamOut, PluginHost, PluginInfo};
+use cantus_host::{
+    Audio, AudioSetup, Backend, Format, Loaded, Notice, ParamOut, PluginHost, PluginInfo,
+};
 use std::path::{Path, PathBuf};
 use std::process::Command as Process;
 use std::sync::Arc;
@@ -105,15 +107,29 @@ fn load(pool: &Arc<Sandboxes>, info: &PluginInfo, mode: PluginIsolation, frames:
             .expect("CLAP")
             .load(info, setup)
             .expect("loads"),
-        Some(group) => cantus_host::bridge::BridgedBackend {
-            format: info.format,
-            group,
-            pool: pool.clone(),
-            offline: false,
-            cancel: None,
+        Some(group) => {
+            let mut l = cantus_host::bridge::BridgedBackend {
+                format: info.format,
+                group,
+                pool: pool.clone(),
+                offline: false,
+                cancel: None,
+            }
+            .load(info, setup)
+            .expect("loads in the helper");
+            // Its load is answered later (ADR 0063, isolation-5): waited for here, a bench's
+            // thread; the audio half made once it is in replaces the first.
+            let start = Instant::now();
+            while !l.main.idle().contains(&Notice::Loaded) {
+                assert!(l.main.stopped().is_none(), "it loads");
+                assert!(start.elapsed() < Duration::from_secs(60), "in time");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+            if let Some(a) = l.main.take_audio() {
+                l.audio = a;
+            }
+            l
         }
-        .load(info, setup)
-        .expect("loads in the helper"),
     }
 }
 
@@ -312,6 +328,16 @@ fn dsp32(
     p = bus.project().clone();
     let (mut engine, mut processor): (EngineHandle, Processor) = EngineHandle::manual(SR);
     host.sync(&p, &mut engine);
+    // Isolated plug-ins' loads are answered later: the frames run until they are in.
+    let start = Instant::now();
+    while host.loading() {
+        assert!(
+            start.elapsed() < Duration::from_secs(120),
+            "the plug-ins load"
+        );
+        host.idle(&mut bus, &mut engine);
+        std::thread::sleep(Duration::from_millis(2));
+    }
     let snapshot = engine.compile(&p, 1);
     engine.set_snapshot(snapshot);
     let mut buf = vec![0f32; frames * 2];

@@ -22,10 +22,14 @@ impl CantusApp {
         match self.plugins.make_instrument(track, info) {
             Ok(spec) => {
                 self.close_inst_editor();
-                self.exec(Command::SetInstrument {
-                    track,
-                    spec: Box::new(spec),
-                });
+                // An isolated plug-in's values, known once it loads, join this step.
+                self.exec_merging(
+                    Command::SetInstrument {
+                        track,
+                        spec: Box::new(spec),
+                    },
+                    cantus_host::PluginHost::inst_load_key(track),
+                );
                 true
             }
             Err(e) => {
@@ -76,10 +80,13 @@ impl CantusApp {
         }
         if let Some(why) = self.plugins.instrument_missing(track) {
             let why = crate::views::plugin_notice::load_words(why);
-            self.set_error(tf(
-                "hosted.missing_status",
-                &[("name", &plugin), ("why", &why)],
-            ));
+            // On this computer but not loaded: Reload, never "install it" (isolation-5 #45).
+            let key = if self.plugins.instrument_load_error(track).is_some() {
+                "isolation.inst.not_loaded_status"
+            } else {
+                "hosted.missing_status"
+            };
+            self.set_error(tf(key, &[("name", &plugin), ("why", &why)]));
             return;
         }
         let has_editor = self

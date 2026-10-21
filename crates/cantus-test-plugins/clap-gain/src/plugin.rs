@@ -180,6 +180,7 @@ unsafe extern "C" fn activate(plugin: *const clap_plugin, _sr: f64, _min: u32, _
     let p = me(plugin);
     p.fault.fire(crate::fault::ABORT_ACTIVATE);
     crate::fault::pump_activate_once();
+    crate::fault::slow_activate_once();
     // For the isolation tests: a plug-in that crashes every time it is loaded (the helper
     // inherits Cantus's environment).
     if std::env::var_os("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE").is_some() {

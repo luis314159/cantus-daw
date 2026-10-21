@@ -28,7 +28,7 @@ pub use sandbox::{Sandbox, Sandboxes};
 
 use crate::backend::{AudioSetup, Backend, Format, HostError, Loaded, PluginInfo};
 use cantus_core::PluginIsolation;
-use proto::{Answer, Call};
+use proto::Call;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
@@ -81,6 +81,32 @@ impl Backend for BridgedBackend {
     }
 
     fn load(&self, info: &PluginInfo, setup: AudioSetup) -> Result<Loaded, HostError> {
+        self.load_async(info, setup, &[], &[])
+    }
+
+    fn load_with(
+        &self,
+        info: &PluginInfo,
+        setup: AudioSetup,
+        state: &[u8],
+        values: &[(u32, f64)],
+    ) -> Option<Result<Loaded, HostError>> {
+        Some(self.load_async(info, setup, state, values))
+    }
+}
+
+impl BridgedBackend {
+    /// Sends the load — the plug-in, its state and its values in one request — and returns
+    /// at once: the main half says when it is loaded (`Notice::Loaded`), and the audio half
+    /// passes dry until then; a render's waits for it. Nothing here waits for the helper,
+    /// not even a new one's start (round 29, review isolation-5).
+    fn load_async(
+        &self,
+        info: &PluginInfo,
+        setup: AudioSetup,
+        state: &[u8],
+        values: &[(u32, f64)],
+    ) -> Result<Loaded, HostError> {
         let sandbox = self.pool.group(&self.group)?;
         let slot = Arc::new(
             slot::Slot::create(setup.max_block)
@@ -92,58 +118,49 @@ impl Backend for BridgedBackend {
             .map_err(|e| HostError::Load(format!("shared memory: {e}")))?;
         let instance = sandbox.new_instance();
         let inbox = Arc::new(sandbox::Inbox::default());
-        sandbox.register(instance, info, inbox.clone(), slot.clone(), closer);
-        let answer = sandbox.call(
+        let status = Arc::new(Status::new(self.offline));
+        sandbox.register(
+            instance,
+            info,
+            (inbox.clone(), status.clone()),
+            slot.clone(),
+            closer,
+        );
+        let load = sandbox.post(
             Some(instance),
             Call::Load {
                 instance,
-                info: info.clone(),
+                info: Box::new(info.clone()),
                 sample_rate: setup.sample_rate,
                 max_block: setup.max_block,
                 slot: slot.name().to_string(),
+                values: values.to_vec(),
             },
-            &[],
-            self.pool.limits().load,
+            state,
+            sandbox::Purpose::Load,
         );
-        let (described, first_state): (proto::Described, Vec<u8>) = match answer {
-            Ok((Answer::Loaded(d), state)) => {
-                // The helper has mapped the slot: its name is no longer needed (review #43).
-                slot.unlink_name();
-                (d, state)
-            }
-            Ok(_) => {
-                sandbox.unregister(instance);
-                return Err(HostError::Load(
-                    "the plug-in sandbox did not load it".into(),
-                ));
-            }
-            // The helper died while it loaded: whose doing that was goes with the error
-            // (review #7, #40).
-            Err(HostError::Crashed(why)) => {
-                let blame = sandbox.blame(instance);
-                sandbox.unregister(instance);
-                return Err(HostError::Ended { why, blame });
-            }
-            Err(e) => {
-                sandbox.unregister(instance);
-                return Err(e);
-            }
-        };
-        let latency = described.latency;
-        let status = Arc::new(Status::default());
+        if load == 0 {
+            let why = sandbox
+                .why()
+                .unwrap_or_else(|| "the plug-in sandbox ended".into());
+            sandbox.unregister(instance);
+            return Err(HostError::Load(format!(
+                "the plug-in sandbox could not start: {why}"
+            )));
+        }
         let main = BridgeMain::new(
             sandbox,
             self.pool.clone(),
-            instance,
+            (instance, load),
             slot.clone(),
-            status,
-            inbox,
+            (status, inbox),
             (self.offline, self.cancel.clone().unwrap_or_default()),
             setup.sample_rate,
-            described,
-            first_state,
+            info.clone(),
+            state,
         );
-        // The first audio half reuses the caller made above, whose bells the helper opened.
+        // The first audio half reuses the caller made above, whose bells the helper opens
+        // when it serves the load.
         let audio = {
             let sandbox = main.sandbox.clone();
             Box::new(BridgeAudio::new(
@@ -154,9 +171,16 @@ impl Backend for BridgedBackend {
                     main.offline_parts(),
                     setup.sample_rate,
                     self.pool.deadline_floor(),
-                    latency,
+                    0,
                 ),
-                Box::new(move || sandbox.tell(Call::DropAudio { instance }, &[])),
+                Box::new(move || {
+                    sandbox.post(
+                        Some(instance),
+                        Call::DropAudio { instance },
+                        &[],
+                        sandbox::Purpose::Ignore,
+                    );
+                }),
             ))
         };
         Ok(Loaded {

@@ -37,7 +37,7 @@
 //! a file there when an instance is destroyed, 300 ms on; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
 //! every `load_state` run a nested message loop that long;
 //! `CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE=<file>` makes the first activation run one for
-//! 1.5 s; `CANTUS_TEST_GAIN_CHAIN_FILTER`
+//! 1.5 s; `CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE=<file>` makes it take 1.5 s without one; `CANTUS_TEST_GAIN_CHAIN_FILTER`
 //! installs, at load, a crash filter that hands on to the one before it (Windows), as a
 //! plug-in's crash reporter does.
 
@@ -348,6 +348,18 @@ pub fn pump_activate_once() {
         if !file.exists() {
             let _ = std::fs::write(&file, b"pumped");
             pump(std::time::Duration::from_millis(1_500));
+        }
+    }
+}
+
+/// `CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE=<file>`: the first activation (while the file is
+/// not there) takes 1.5 s without pumping — a slow load, not a dialog — and makes the file.
+pub fn slow_activate_once() {
+    if let Some(file) = std::env::var_os("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE") {
+        let file = std::path::PathBuf::from(file);
+        if !file.exists() {
+            let _ = std::fs::write(&file, b"slow");
+            std::thread::sleep(std::time::Duration::from_millis(1_500));
         }
     }
 }

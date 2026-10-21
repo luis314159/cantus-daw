@@ -19,6 +19,7 @@ fn load(pool: &Arc<Sandboxes>, id: &str, group: &str) -> Loaded {
     let info = info(id);
     bridged(pool, info.format, group, false)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -142,8 +143,9 @@ fn a_hang_in_a_framework_timer_is_its_plugins() {
 }
 
 /// A neighbour's window crashing while another plug-in's dialog runs its loop: laid on the
-/// neighbour whose window it was, not on the plug-in whose dialog dispatched it (review
-/// isolation-4 #37, #48).
+/// neighbour whose library the crash is in, not on the plug-in whose dialog dispatched it
+/// (review isolation-4 #37, #48; isolation-5: no message hook — the faulting code's own
+/// library says it, inside a plug-in's loop).
 #[cfg(windows)]
 #[test]
 fn a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours() {
@@ -152,15 +154,15 @@ fn a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours() {
     let Loaded {
         main: mut a,
         audio: mut a_audio,
-    } = load(&pool, GAIN_ID, "together-dialog-crash");
+    } = load(&pool, SYNTH_ID, "together-dialog-crash");
     let Loaded {
         main: mut b,
         audio: mut b_audio,
     } = load(&pool, GAIN_ID, "together-dialog-crash");
-    a.open_editor(parent()).expect("A's editor");
-    b.open_editor(parent()).expect("B's editor");
+    open_window(a.as_mut(), parent()).expect("A's editor");
+    open_window(b.as_mut(), parent()).expect("B's editor");
     // A's window runs its dialog (3 s); inside it, B's window's timer crashes.
-    block(a_audio.as_mut(), &fault(P_FAULT, PUMP_WINDOW), &[]);
+    block(a_audio.as_mut(), &fault(S_FAULT, PUMP_WINDOW), &[]);
     std::thread::sleep(Duration::from_millis(400));
     block(b_audio.as_mut(), &fault(P_FAULT, SEGV_EDITOR), &[]);
     let (blame, why) = crashed_within(b.as_mut(), Duration::from_secs(5)).expect("it ended");

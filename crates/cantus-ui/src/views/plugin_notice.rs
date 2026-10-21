@@ -62,6 +62,9 @@ pub struct WaitCard {
     pub name: String,
     pub title: String,
     pub body: String,
+    /// The plug-in's whole name and the card's words, as a hint on the card (a long name
+    /// is shortened in the title — review isolation-5 #48).
+    pub tip: (String, String),
     pub buttons: Vec<(String, WaitAnswer)>,
 }
 
@@ -79,11 +82,23 @@ pub fn waiting_card(app: &CantusApp) -> Option<WaitCard> {
     } else {
         name
     };
+    // Stopping it ends its process: the plug-ins that share it stop too, and the card says
+    // so (review isolation-5 #44).
+    let others = match target {
+        Target::Insert(e) => app.plugins.neighbours(Some(e), None),
+        Target::Instrument(tr) => app.plugins.neighbours(None, Some(tr)),
+    };
+    let body = if others == 0 {
+        t("isolation.waiting.body")
+    } else {
+        tf("isolation.waiting.body_shared", &[("n", &others)])
+    };
     Some(WaitCard {
         target,
+        tip: (name.clone(), body.clone()),
         name,
         title: t("isolation.waiting.title"),
-        body: t("isolation.waiting.body"),
+        body,
         buttons: vec![
             (t("isolation.waiting.show"), WaitAnswer::Show),
             (t("isolation.waiting.stop"), WaitAnswer::Stop),
@@ -453,7 +468,7 @@ pub fn menu_rows(app: &CantusApp, target: Target) -> Vec<(String, Option<bool>, 
         return Vec::new();
     };
     let mut rows = Vec::new();
-    // Stopped, or never loaded (refused, or its helper busy): it can be loaded again
+    // Stopped, or never loaded (refused, or not loaded in time): it can be loaded again
     // (review isolation-4 #57).
     let reloadable = match target {
         Target::Insert(e) => {
@@ -656,8 +671,14 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.hung_audio"
     } else if reason.contains("stopped answering") {
         "isolation.why.hung"
-    } else if reason.contains("waited on a window of its own") {
-        "isolation.why.stopped_waiting"
+    } else if reason.contains("stopped by you") {
+        "isolation.why.stopped_by_you"
+    } else if let Some(name) = reason.split("was ended to stop ").nth(1) {
+        return tf("isolation.why.ended_for", &[("name", &name)]);
+    } else if reason.contains("did not load within") {
+        "isolation.why.load_timeout"
+    } else if reason.contains("still answering") {
+        "isolation.why.answering"
     } else if reason.contains("did not answer in")
         || reason.contains("did not start in time")
         || reason.contains("did not answer while")
@@ -701,14 +722,35 @@ pub fn load_words(error: &str) -> String {
     words_or(error, "isolation.why.not_loaded")
 }
 
-/// [`reason_words`], with `fallback`'s words for a reason in none of the host's forms.
+/// [`reason_words`], with `fallback`'s words for a reason in none of the host's forms (the
+/// host logs its own text where it records it — this runs while drawing, and says nothing
+/// to the log: review isolation-5 #29).
 pub fn words_or(reason: &str, fallback: &str) -> String {
     let words = reason_words(reason);
     if words == reason {
-        log::warn!("plug-in: {reason}");
         t(fallback)
     } else {
         words
+    }
+}
+
+/// What a save says of the plug-ins it kept as they were last said (their state as it is
+/// now not to be had in time), in the interface's words — `None` when there were none
+/// (review isolation-5 rule 2: never silently).
+pub fn saved_stale(stale: &[(String, String)]) -> Option<String> {
+    match stale {
+        [] => None,
+        [(name, why)] => Some(tf(
+            "isolation.save.stale_one",
+            &[("name", name), ("reason", &stopped_words(why))],
+        )),
+        many => {
+            let names: Vec<&str> = many.iter().map(|(n, _)| n.as_str()).collect();
+            Some(tf(
+                "isolation.save.stale_many",
+                &[("n", &many.len()), ("names", &names.join(", "))],
+            ))
+        }
     }
 }
 
@@ -749,10 +791,22 @@ pub fn render_words(
 /// request ahead) is said as such — the window opens by itself once it is free — anything
 /// else as the failure it was (review isolation-4 #39).
 pub fn window_failed(app: &mut CantusApp, name: &str, e: &cantus_host::HostError) {
-    if matches!(e, cantus_host::HostError::Busy(_)) {
-        app.set_status(tf("isolation.busy", &[("name", &name)]));
-    } else {
-        app.set_error(tf("host.editor.window_failed", &[("error", e)]));
+    use cantus_host::HostError;
+    match e {
+        HostError::Busy(_) => app.set_status(tf("isolation.busy", &[("name", &name)])),
+        // It stopped as its window opened: said as a stop, in the interface's words
+        // (review isolation-5 #49).
+        HostError::Crashed(why) | HostError::Ended { why, .. } => app.set_error(tf(
+            "isolation.window.stopped",
+            &[("name", &name), ("reason", &stopped_words(why))],
+        )),
+        e => app.set_error(tf(
+            "host.editor.window_failed",
+            &[(
+                "error",
+                &words_or(&e.to_string(), "isolation.why.no_window"),
+            )],
+        )),
     }
 }
 

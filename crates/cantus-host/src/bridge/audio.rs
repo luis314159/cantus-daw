@@ -56,9 +56,21 @@ pub fn deadline(frames: usize, sample_rate: f64, floor: Duration) -> Duration {
 
 /// What Cantus knows of one isolated instance across its halves — a restarted audio half
 /// shares it, so it never hands the slot a job while the old half's late one still runs.
+/// Its helper's reader thread says when the instance is loaded (or never will be), so an
+/// audio half passes dry until its plug-in is there with its state (round 29, review
+/// isolation-5).
 #[derive(Debug)]
 pub struct Status {
     dead: AtomicBool,
+    /// Loaded, with its state and values: its jobs may run.
+    ready: AtomicBool,
+    /// It will never be ready: its load failed (or, offline, it refused its state).
+    failed: AtomicBool,
+    /// A render's instance (offline).
+    pub(crate) offline: bool,
+    /// The newest audio half made (each half has its number): only the newest tells the
+    /// helper to drop the plug-in's when it goes.
+    halves: AtomicU32,
     /// Jobs that missed their deadline (one per late job, not one per block it kept dry).
     pub late: AtomicU64,
     /// Milliseconds since `epoch` when the unfinished job was published; 0 for none.
@@ -68,19 +80,48 @@ pub struct Status {
     epoch: Instant,
 }
 
-impl Default for Status {
-    fn default() -> Self {
+impl Status {
+    pub(crate) fn new(offline: bool) -> Status {
         Status {
             dead: AtomicBool::new(false),
+            ready: AtomicBool::new(false),
+            failed: AtomicBool::new(false),
+            offline,
+            halves: AtomicU32::new(0),
             late: AtomicU64::new(0),
             since_ms: AtomicU64::new(0),
             job: AtomicU32::new(0),
             epoch: Instant::now(),
         }
     }
-}
 
-impl Status {
+    /// Loaded: its jobs may run.
+    pub(crate) fn set_ready(&self) {
+        self.ready.store(true, Ordering::Release);
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.ready.load(Ordering::Acquire)
+    }
+
+    /// It will never be ready.
+    pub(crate) fn fail(&self) {
+        self.failed.store(true, Ordering::Release);
+    }
+
+    pub fn has_failed(&self) -> bool {
+        self.failed.load(Ordering::Acquire)
+    }
+
+    /// A new audio half's number.
+    pub(crate) fn new_half(&self) -> u32 {
+        self.halves.fetch_add(1, Ordering::AcqRel) + 1
+    }
+
+    fn newest_half(&self) -> u32 {
+        self.halves.load(Ordering::Acquire)
+    }
+
     pub fn is_dead(&self) -> bool {
         self.dead.load(Ordering::Acquire)
     }
@@ -211,6 +252,21 @@ fn fold_of(e: &NoteEvent) -> Fold {
     }
 }
 
+/// A bank select (CC 0 or 32).
+fn is_bank_select(e: &NoteEvent) -> bool {
+    matches!(e.kind, NoteKind::Midi { status, data1, .. } if status & 0xF0 == 0xB0 && (data1 == 0 || data1 == 32))
+}
+
+/// A program change on the channel of `bank` (a bank select).
+fn is_program_of(k: &NoteEvent, bank: &NoteEvent) -> bool {
+    match (k.kind, bank.kind) {
+        (NoteKind::Midi { status, .. }, NoteKind::Midi { status: b, .. }) => {
+            status & 0xF0 == 0xC0 && status & 0x0F == b & 0x0F
+        }
+        _ => false,
+    }
+}
+
 /// Whether two carried events are the same controller or expression (review #9, #16):
 /// a controller and poly pressure are one per number (key); pitch bend, channel pressure
 /// and the program one per channel; an expression one per note.
@@ -318,7 +374,13 @@ impl Carry {
             match fold_of(&e) {
                 Fold::Last => {
                     if let Some(i) = self.notes.iter().position(|k| same_kind(k, &e)) {
-                        self.notes.remove(i);
+                        // A bank select a carried program change was sent under stays with
+                        // it; the newer one is kept after (review isolation-5 #10).
+                        let under_a_program = is_bank_select(&e)
+                            && self.notes[i + 1..].iter().any(|k| is_program_of(k, &e));
+                        if !under_a_program {
+                            self.notes.remove(i);
+                        }
                     }
                 }
                 Fold::Switch => {
@@ -326,8 +388,10 @@ impl Carry {
                     let last = self.notes.iter().rposition(|k| same_kind(k, &e));
                     if let (Some(f), Some(l)) = (first, last) {
                         if pressed(&self.notes[l]) == pressed(&e) {
-                            // The same position again: the newer stands for it.
-                            self.notes.remove(l);
+                            // The same position again: the newer value takes its place —
+                            // never moved after what came since (review isolation-5 #16).
+                            self.notes[l] = e;
+                            continue;
                         } else if f != l {
                             // A lift and a press kept already: the oldest goes.
                             self.notes.remove(f);
@@ -462,8 +526,12 @@ pub struct BridgeAudio {
     /// What a late job reported (its gestures and values), once it finished: handed to the
     /// next block's caller (made once; review #12, #42, #46).
     late_out: Box<ParamOut>,
-    /// Told when this half is dropped (on the main thread), so the helper drops its own.
+    /// Told when this half is dropped (on the main thread), so the helper drops its own —
+    /// when it is the instance's newest half (one replaced once its plug-in loaded tells
+    /// nothing).
     on_drop: Option<Box<dyn FnOnce() + Send>>,
+    /// This half's number ([`Status::new_half`]).
+    half: u32,
 }
 
 impl std::fmt::Debug for BridgeAudio {
@@ -484,6 +552,7 @@ impl BridgeAudio {
         on_drop: Box<dyn FnOnce() + Send>,
     ) -> BridgeAudio {
         let longest = if latency > 0 { slot.max_block() } else { 0 };
+        let half = status.new_half();
         BridgeAudio {
             slot,
             lobby,
@@ -505,6 +574,7 @@ impl BridgeAudio {
             carry: Carry::new(),
             late_out: Box::new(ParamOut::new()),
             on_drop: Some(on_drop),
+            half,
         }
     }
 
@@ -549,7 +619,11 @@ impl BridgeAudio {
     /// half's or a previous half's of the same instance), and a reset carried over from
     /// dry blocks delivered.
     fn ready(&mut self) -> bool {
-        if self.status.is_dead() {
+        if self.status.is_dead() || self.status.has_failed() {
+            return false;
+        }
+        // Not loaded yet: dry (a render's units are made once its plug-ins are loaded).
+        if !self.status.is_ready() {
             return false;
         }
         // This half's late job, or a previous half's of the same instance.
@@ -596,11 +670,13 @@ impl BridgeAudio {
                 self.late_job = Some(n);
                 self.status.set_outstanding(n);
                 self.status.late.fetch_add(1, Ordering::Relaxed);
+                // Read first: a job finished after it moves the count past the mark.
+                let done = self.lobby.jobs_done();
                 // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps.
                 let x = unsafe { &*self.slot.exchange() };
                 if x.pending() {
                     // Not even taken: no processing thread was free for it.
-                    self.lobby.mark_stalled();
+                    self.lobby.mark_stalled(done);
                 }
                 false
             }
@@ -756,8 +832,10 @@ impl AudioThread for BridgeAudio {
     }
 
     fn stop(&mut self) {
-        // The half's last call: a late job's half is dropped by the helper anyway.
-        if !self.ready() {
+        // The half's last call: a late job's half is dropped by the helper anyway. A half
+        // replaced by a newer one over the same plug-in (once it loaded) stops nothing: the
+        // plug-in plays on through the new one.
+        if self.half != self.status.newest_half() || !self.ready() {
             return;
         }
         // SAFETY: as in `reset`.
@@ -772,7 +850,9 @@ impl AudioThread for BridgeAudio {
 impl Drop for BridgeAudio {
     fn drop(&mut self) {
         if let Some(f) = self.on_drop.take() {
-            f();
+            if self.half == self.status.newest_half() {
+                f();
+            }
         }
     }
 }
@@ -892,6 +972,41 @@ mod tests {
                 midi(0xC0, 5, 0).kind
             ]
         );
+    }
+
+    /// A program change keeps the bank select it was sent under, though a later bank
+    /// select (for the next program) came after it (review isolation-5 #10).
+    #[test]
+    fn a_program_keeps_the_bank_it_was_sent_under() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 0, 1), midi(0xC0, 5, 0), midi(0xB0, 0, 2)]);
+        let m = merged(&mut c, &[]);
+        let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
+        assert_eq!(
+            kinds,
+            vec![
+                midi(0xB0, 0, 1).kind,
+                midi(0xC0, 5, 0).kind,
+                midi(0xB0, 0, 2).kind
+            ]
+        );
+    }
+
+    /// A pedal pressed, a note let go, the pedal moved again but still pressed: the press
+    /// keeps its place before the note-off, so the pedal holds the note (review
+    /// isolation-5 #16).
+    #[test]
+    fn a_repeated_pedal_position_keeps_its_place() {
+        let mut c = Carry::new();
+        c.keep(&[], &[midi(0xB0, 64, 127), off(60), midi(0xB0, 64, 120)]);
+        let m = merged(&mut c, &[]);
+        assert_eq!(m.len(), 2, "{m:?}");
+        assert_eq!(
+            m[0].kind,
+            midi(0xB0, 64, 120).kind,
+            "the press, its newest value"
+        );
+        assert!(matches!(m[1].kind, NoteKind::Off { .. }));
     }
 
     /// Polyphonic pressure is one value per key, not per channel (review isolation-4 #65).

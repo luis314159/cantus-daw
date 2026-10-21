@@ -247,6 +247,8 @@ pub struct CantusApp {
     pub(crate) autosave_warned: bool,
     /// The autosave being written on its thread (`autosave`).
     pub(crate) autosave_job: Option<crate::autosave::Job>,
+    /// An autosave waiting for its hosted plug-ins' states (round 29, review isolation-5).
+    pub(crate) autosave_gathering: bool,
     /// *Save* written on its thread (`save_job`, round 24): the save in flight, one queued
     /// behind it, and what the *Save changes?* question waits to do.
     pub saving: crate::save_job::Saving,
@@ -659,6 +661,7 @@ impl CantusApp {
             autosave_every: None,
             autosave_warned: false,
             autosave_job: None,
+            autosave_gathering: false,
             saving: Default::default(),
             epoch: 0,
             session: None,
@@ -3111,11 +3114,6 @@ impl CantusApp {
             self.inst.sampler.cut_told = true;
             self.set_status(t("smp.cut_notes"));
         }
-        // A hosted plug-in given up on while its helper was busy, due to be tried again
-        // (round 29, review isolation-4 #57).
-        if self.plugins.wants_sync() {
-            self.synced_revision = u64::MAX;
-        }
         // An effect the last snapshot holds that the engine has no unit for: a remove and
         // its undo both went out before the engine handed the removed unit back, so the
         // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.
@@ -3241,13 +3239,22 @@ impl CantusApp {
                 HostNotice::WindowClosed(_) | HostNotice::InstrumentWindowClosed(_) => {}
                 // A hosted instrument that is not here (ADR 0028): the track keeps its
                 // data and plays silence, and the status line says so.
-                HostNotice::InstrumentLoadFailed { name, error, .. } => self.set_error(tf(
-                    "hosted.missing_status",
-                    &[
-                        ("name", &name),
-                        ("why", &views::plugin_notice::load_words(&error)),
-                    ],
-                )),
+                // On this computer but not loaded: Reload, never "install it" (review
+                // isolation-5 #45).
+                HostNotice::InstrumentLoadFailed { track, name, error } => {
+                    let key = if self.plugins.instrument_load_error(track).is_some() {
+                        "isolation.inst.not_loaded_status"
+                    } else {
+                        "hosted.missing_status"
+                    };
+                    self.set_error(tf(
+                        key,
+                        &[
+                            ("name", &name),
+                            ("why", &views::plugin_notice::load_words(&error)),
+                        ],
+                    ))
+                }
                 HostNotice::InstrumentRestartFailed { error, .. } => self.set_error(tf(
                     "host.restart_failed",
                     &[("error", &views::plugin_notice::load_words(&error))],
@@ -3924,7 +3931,7 @@ impl CantusApp {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }
         // A save or an autosave being written: look again shortly to collect it.
-        if self.autosave_job.is_some() || self.save_in_flight() {
+        if self.autosave_job.is_some() || self.autosave_gathering || self.save_in_flight() {
             ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.

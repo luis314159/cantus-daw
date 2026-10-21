@@ -107,8 +107,9 @@ main thread bumps a progress count each time round its loop and each time a **pu
 — a hidden message-only window whose 100 ms timer and wake-ups are dispatched by whatever
 message loop the thread is in, a plug-in's modal dialog or a dragged window included; a
 heartbeat thread of its own says *alive* every 200 ms while that count moves; every frame
-the helper sends counts as life too. From a loop nested in a plug-in's code the pulse also
-**serves Cantus's calls** (a save does not wait for a file dialog to close). Held for the
+the helper sends counts as life too. *(Superseded by the isolation-5 amendment below: the
+helper serves nothing from a nested loop.)* From a loop nested in a plug-in's code the pulse
+also **serves Cantus's calls** (a save does not wait for a file dialog to close). Held for the
 main loop — and said so, `Message::Deferred` — are only quit and the calls that end or
 replace **the instance whose window runs the loop** (unload, drop audio, restart, close
 editor), and the later calls on that same instance, in order; every other instance's
@@ -201,7 +202,9 @@ helper is the stream's end, not a broken protocol (isolation-3 #43).
 Numbers that are not finite (a `-inf` dB minimum, a NaN value) cross the channel as the
 nearest finite ones (`proto::Finite`, #4).
 
-**Amended (review isolation-4).**
+**Amended (review isolation-4).** *Its first four points — serving from a dialog inside a
+call, the calls' waits and retries, `Limits::heavy`, the message hook — are superseded by
+the isolation-5 amendment that follows them.*
 
 - *Serving from a dialog inside a call.* The helper keeps each instance in a cell of its
   own and holds none across a call, so its pulse serves from **any** loop nested in a
@@ -274,6 +277,87 @@ nearest finite ones (`proto::Finite`, #4).
 - *A late job's events* are taken by the audio half from its own record of the job,
   whatever the interface saw first.
 
+**Amended (review isolation-5): four rules, and what they took away.** The fourth review
+found the call handling not converging (53 → 50 → 67 → 74 findings): each round had added a
+mechanism — calls served from loops nested in plug-in code, `Behind`/`Deferred`, a *heavy*
+and a *modal* limit, a message hook for blame, load retries, synchronous waits bounded by
+ever longer limits — and each opened edge cases of its own. The call handling was rebuilt
+on four rules, and what they made unnecessary was removed.
+
+1. **The interface thread never waits on a helper** beyond a frame's share
+   (`bridge::main::FRAME_WAIT`, 30 ms, and only where the answer usually comes at once: a
+   window opened, a restart). Every request is posted (`Sandbox::post`, its `Purpose`
+   saying where the answer goes); the helper's reader thread lands the answer in the
+   instance's inbox; `BridgeMain` takes it each frame. **Loading is one request** carrying
+   the plug-in, its state and its values (protocol 6): the helper loads, gives the state
+   and the values, settles a restart the state asks for, and only then puts the instance
+   in its processing threads' table — its first job has its state. Until then its audio
+   half passes dry; `idle` then says `Notice::Loaded`, and `MainThread::take_audio` hands
+   the host the audio half made with its latency, which replaces the first (a half
+   replaced by a newer one over the same plug-in tells the helper nothing as it goes — no
+   drop, no stop: the test that found the plug-in playing dry after its load is
+   `session_faults.rs`'s worker-pool test). A fresh insert's values join its insert's
+   undo step when they come (`PluginHost::load_key`, `inst_load_key`); a value set
+   meanwhile stands. States (saved and given), reloads, moves, windows opened and closed,
+   parameter lists: requests answered later. While a request has been served for more
+   than 2 s, or the helper's main thread is in a loop of the plug-in's own code (a dialog:
+   `Message::Nested`, `Unnested`), the plug-in's **waiting card** shows — *is waiting for
+   you*, its whole name in the card's hint — with *Show it* (`Call::Surface`, served by
+   the helper's reader thread whatever its main thread is doing: the topmost window of
+   the main thread that is the dialog — modal, its owner disabled — else the topmost
+   visible one; never the last one listed) and *Stop it* (its helper ended at the user's
+   word: never counted as its crash; the plug-ins that share its process are told they
+   went with it — *its process was ended to stop X* — and the card says beforehand how
+   many will).
+2. **No stale state is ever reported as fresh.** A save asks every plug-in for its state
+   (`PluginHost::ask_states`), looks frame by frame (`states_in`), and is written once each
+   has answered or passed its own limit **counted from when its helper started the
+   request** (`MainThread::{ask_state_now, poll_state, state_waiting}`): a background
+   refresh asked since the last change is the one waited for; a request held behind a
+   plug-in's dialog waits with it (the card says so) — no grace cuts it short; a slow but
+   healthy save is no trouble. One not to be had is saved as it was last said, and the
+   save names it on the status line (`PluginHost::saved_stale`, `isolation.save.*`). New,
+   Open and the close (`wait_for_save`) take what each said last at once, and name it;
+   autosaves gather the same way. A render gathers the live states the same way before its
+   instances load (`PluginHost::render_ready`, polled each frame by an export, a bake, a
+   freeze or a bounce as they wait for samples); one not had in time is the render's
+   warning (`RenderLoss::Stale`), said with its outcome — after a bake's or a bounce's own
+   word, never under it. A move to another process waits for its fresh state the same way.
+3. **Nothing that ends or replaces an instance is served from a nested loop.** The helper
+   serves **nothing** from a loop nested in a plug-in's code; requests wait for its main
+   loop, in their order — no instance is ever ended, replaced or called into under a
+   plug-in's own code (no destructor runs with its code on the stack), and no backend's
+   lock is entered again on the same thread. Rule 1 makes this free: nothing in Cantus
+   waits for them.
+4. **No unbounded retries.** A load past its limit from when its helper started it — its
+   helper alive, no dialog of its holding it — is a **failed load** (`Notice::LoadFailed`:
+   kept as one that could not be loaded, with *Reload*, worded as such — never *install
+   it*); its late answer is not taken. A load held by its own dialog waits for it, with its
+   card. A render's instance has no card: its load's limit holds inside a dialog too. The
+   limits are the same live and offline. Nothing is tried again by itself; a helper that
+   never started is a failed load too, nobody's crash.
+
+**Removed, and why.** Serving calls from nested loops — `Here`'s re-entrant cells, the
+pulse's serving, `Message::{Deferred, Behind}` (protocol 5 → 6): rule 3, and rule 1 makes it
+unnecessary. `Limits::heavy` (120 s) and `Limits::modal` (10 min), and the trouble checks
+that cut a save short (`troubled`, `in_trouble`, `fresh_state`'s `Busy`, `held_up` and its
+1 s grace): nothing waits, so no limit needs stretching for a waiter, and a request is
+judged only by its own limit from its start. The synchronous `Sandbox::call` on the
+interface thread: rule 1. The load retry with its doubling wait (`Missing::retry_at`,
+`PluginHost::wants_sync`, the busy failure): rule 4. The offline load wait inside the audio
+half: a render's units are made once its plug-ins are in. The `WH_GETMESSAGE` hook and its
+marks: its mark outlived the message it was set for (#2, #23, #33, #64). Blame is now the
+faulting thread's own instance — the main thread's call, tick or the window message its own
+loop dispatches, a processing thread's job — and, inside a plug-in's own loop (where any
+window's message may run), the one instance whose library the faulting code is in, else
+nobody; a library several instances share names none of them (#7, #32, #55); the Unix
+module walk is Linux-only (`dl_iterate_phdr`, #9, #18, #25, #42, #58, #72); the crash filter
+goes back on top after each call, the abort signal is ours only from the start, so a
+plug-in's own reporter keeps it (#73). A stalled helper's mark is cleared by the first job
+a processing thread finishes after it, read before the job's look, so it never stays (#8,
+#71). Cantus, quitting, gives its helpers three seconds (`QUIT_GRACE`) to end their
+plug-ins by themselves before the job object ends them (#24, #54).
+
 ### 4. Nothing lost, nothing different
 
 - **The same bits.** The helper runs the same backends on the same block splits, with the
@@ -291,11 +375,10 @@ nearest finite ones (`proto::Finite`, #4).
   is gone, `save_state` answers with it — so
   `project_for_save`, parking a slot and reloading all keep what the user had; the
   project's own values (kept by commands) are flushed on top at a reload.
-- **The interface never waits in steady state**: values come from a mirror the helper
-  keeps current (after every call and whenever they change), texts are cached and fetched
-  in the background, a flush the plug-in asked for arrives as news. Calls that must answer
-  are user actions (load, a state, an editor, a restart) and wait at most their time limit,
-  once — the helper is then killed.
+- **The interface never waits on a helper**: values come from a mirror the helper keeps
+  current (after every call and whenever they change), texts are cached and fetched in the
+  background, a flush the plug-in asked for arrives as news, and every other call is a
+  request answered later (§3, isolation-5).
 - **Editors** are top-level windows the helper makes and owns: an owned or child window
   across processes would join the two processes' input queues, and a hung helper would
   freeze Cantus's window (Raymond Chen, *Is it legal to have a cross-process parent/child or
@@ -335,6 +418,11 @@ parked between them (the first isolated job of each block). Each figure is one r
 | Comprimo CLAP within Cantus | 593 (1.05× native) |
 | Comprimo CLAP *Together* | 773 (**1.30× within**) |
 | Comprimo CLAP *Individually* | 1 125 (1.90× within) |
+
+**After isolation-5** (the calls made asynchronous; the audio half reads two more flags
+per block): run again, the same order — *Together* 0.6 µs hot and 14.0 µs paced at 64
+frames (p99 43.2), 0.51 % of a core per instance; *Individually* 5.7 %; the 32-instance
+session 1.16× within on that run (`docs/perf/isolation.md`, run 3).
 
 **The design moved by the numbers.** The first build gave each instance its own helper
 thread that spun 300 µs after every job: the hot round trip was the same, but the helpers
@@ -483,7 +571,21 @@ languages (`locales/areas/isolation.*`).
   render waits for a state that takes its time (a state only the state carries), says so
   when it never comes, when it is refused, and when the plug-in crashes loading.
   Unit tests: the carry (order, folding, switches, poly pressure, resets, room, a late
-  reset first), `culprits` split per finding, `must_wait`'s safety half, a long slice is a
-  pause. `cantus-ui`: two bakes never overlap; render losses, reload failures and a busy
-  window in the interface's words; *Reload* for a plug-in that never loaded; the waiting
-  card.
+  reset first), `culprits` split per finding, a long slice is a pause. `cantus-ui`: two
+  bakes never overlap; render losses, reload failures and a busy window in the interface's
+  words; *Reload* for a plug-in that never loaded; the waiting card.
+- Review isolation-5 (the four rules; the table in `docs/round29/isolation.md`):
+  `bridge_faults.rs` — a plug-in window's modal loop holds its calls and freezes nothing
+  (every look under 50 ms, the save asked meanwhile waits and is then answered as it is,
+  the card shows); a hang in a save gives what it said last, said as such, within the
+  limit. `bridge_faults3.rs` — a 10 s dialog holds the helper, kills nothing, freezes
+  nothing, and every held request runs after it in order; a slow neighbour's save never
+  makes another's stale; a helper that never started is a failed load. `bridge_faults4.rs` —
+  a dialog inside a call holds the helper: the slow one past its limit no longer holds the
+  save, its neighbours answer after it as they are; a parameter list is said once it
+  comes. `bridge_blame.rs` — a neighbour's window crashing inside a dialog is laid on the
+  neighbour by its library. `session_faults4.rs` — a load held by its own dialog waits
+  for it and loads; a load past its limit is a failed load, never retried, its late answer
+  not taken, Reload loads it; a render whose instance's load passes its limit says it
+  never had it. Through the whole engine every earlier test holds with loads answered
+  later (`Rig::until_loaded`, `prepare_render`).

@@ -46,6 +46,11 @@ pub struct HostedInst {
     /// Whose doing its helper's end was, while it has stopped.
     pub(super) blame: Option<crate::backend::Blame>,
     pub(super) cpu: super::iso::CpuWatch,
+    /// Just put on its track, its load answered later (an isolated plug-in): its values and
+    /// state go into the project when it loads, in that step of the undo history.
+    pub(super) fresh: bool,
+    /// Where it runs changed: moved once its state as it is now is in (review isolation-5).
+    pub(super) moving: bool,
 }
 
 impl HostedInst {
@@ -155,6 +160,8 @@ impl HostedInst {
             crashed: None,
             blame: None,
             cpu: super::iso::CpuWatch::default(),
+            fresh: false,
+            moving: false,
         }
     }
 }
@@ -235,7 +242,9 @@ impl PluginHost {
         self.learn(main.as_ref());
         let info = main.info().clone();
         let state = main.save_state().map(PluginState::new).unwrap_or_default();
+        let fresh = !main.loaded();
         let mut h = HostedInst::new(info.clone(), main, loaded.audio, runs);
+        h.fresh = fresh;
         let values = values_of(h.main.as_ref(), &h.params);
         let mut plugin =
             ExternalPlugin::new(to_project_format(info.format), info.id.clone(), info.name);
@@ -249,6 +258,12 @@ impl PluginHost {
         self.inst_missing.remove(&track);
         self.instruments.insert(track, h);
         Ok(InstrumentSpec::External(plugin))
+    }
+
+    /// The undo key the command that puts a new instrument on `track` is run under: an
+    /// isolated plug-in's values, known once it loads, join that step (review isolation-5).
+    pub fn inst_load_key(track: TrackId) -> cantus_core::MergeKey {
+        cantus_core::MergeKey::of(&("instrument-load", track.0))
     }
 
     /// Load a track's plug-in the host has not seen, from the database by format and id,
@@ -331,28 +346,17 @@ impl PluginHost {
                 self.unload_instrument(t.id);
             }
             let runs = self.effective_isolation(plugin.isolation);
-            // The same plug-in failed where it runs now: it waits (review #15) — but one
-            // whose helper was busy is tried again in a while (review isolation-4 #57).
-            if self.inst_missing.get(&t.id).is_some_and(|m| {
-                m.key == key && m.isolation == runs && m.waits(std::time::Instant::now())
-            }) {
+            // The same plug-in failed where it runs now: it waits until where it runs
+            // changes (review #15) or it is reloaded — never tried again by itself (review
+            // isolation-5 rule 4).
+            if self
+                .inst_missing
+                .get(&t.id)
+                .is_some_and(|m| m.key == key && m.isolation == runs)
+            {
                 continue;
             }
-            let waited = self
-                .inst_missing
-                .remove(&t.id)
-                .and_then(|m| m.retry_at.map(|(_, d)| d));
-            // Where it runs changed: moved there (round 29).
-            if self
-                .instruments
-                .get(&t.id)
-                .is_some_and(|h| h.isolation != runs && !h.restarting)
-            {
-                if let Err(failed) = self.move_instrument(t.id, plugin, engine) {
-                    notices.extend(self.instrument_failed(t.id, plugin, (key, runs, None), failed));
-                    continue;
-                }
-            }
+            self.inst_missing.remove(&t.id);
             if !self.instruments.contains_key(&t.id) {
                 let locked = crate::session::instrument_locked(project, t.id);
                 match self.load_instrument(t.id, plugin, key, locked) {
@@ -360,12 +364,7 @@ impl PluginHost {
                         self.instruments.insert(t.id, h);
                     }
                     Err(failed) => {
-                        notices.extend(self.instrument_failed(
-                            t.id,
-                            plugin,
-                            (key, runs, waited),
-                            failed,
-                        ));
+                        notices.extend(self.instrument_failed(t.id, plugin, (key, runs), failed));
                         continue;
                     }
                 }
@@ -373,6 +372,12 @@ impl PluginHost {
             let Some(h) = self.instruments.get_mut(&t.id) else {
                 continue;
             };
+            // Where it runs changed: its state as it is now is asked for, and `idle` moves
+            // it once that is in (round 29, review isolation-5).
+            if h.isolation != runs && !h.restarting && !h.moving {
+                h.moving = true;
+                h.main.ask_state_now();
+            }
             if plugin.state != h.synced_state {
                 if !plugin.state.is_empty() {
                     if let Err(e) = h.main.load_state(plugin.state.bytes()) {
@@ -412,11 +417,11 @@ impl PluginHost {
 
     /// A track's instrument could not be loaded where it runs: kept as missing; told as a
     /// crash (counted, reloadable) when its helper died doing it (review #15).
-    fn instrument_failed(
+    pub(super) fn instrument_failed(
         &mut self,
         track: TrackId,
         plugin: &ExternalPlugin,
-        (key, runs, waited): (u64, PluginIsolation, Option<std::time::Duration>),
+        (key, runs): (u64, PluginIsolation),
         failed: super::iso::Failed,
     ) -> Option<HostNotice> {
         log::warn!("instrument {}: {}", plugin.name, failed.why);
@@ -427,16 +432,12 @@ impl PluginHost {
                 error: failed.why.clone(),
                 isolation: runs,
                 crashed: failed.crashed,
-                retry_at: super::iso::Missing::retry(failed.busy, waited),
                 found: self
                     .db
                     .find(from_project_format(plugin.format), &plugin.id)
                     .is_some(),
             },
         );
-        if waited.is_some() && failed.busy {
-            return None;
-        }
         Some(if failed.crashed {
             let format = from_project_format(plugin.format);
             if let Some(info) = self.db.find(format, &plugin.id).cloned() {
@@ -456,21 +457,17 @@ impl PluginHost {
         })
     }
 
-    /// Loads a track's instrument where it now runs (round 29), as `move_plugin` does for
-    /// an insert.
-    fn move_instrument(
+    /// Loads a track's instrument where it now runs (round 29) with `state`, as
+    /// `move_plugin` does for an insert.
+    pub(super) fn move_instrument(
         &mut self,
         track: TrackId,
         plugin: &ExternalPlugin,
         engine: &mut EngineHandle,
+        state: PluginState,
     ) -> Result<(), super::iso::Failed> {
         let mut h = self.instruments.remove(&track).ok_or("not loaded")?;
         h.close_window_now();
-        let state = h
-            .main
-            .save_state()
-            .map(PluginState::new)
-            .unwrap_or_else(|_| plugin.state.clone());
         let setup = self.setup;
         let info = h.info.clone();
         let values = h.flushed.clone();

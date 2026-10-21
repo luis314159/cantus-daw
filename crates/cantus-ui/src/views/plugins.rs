@@ -295,11 +295,16 @@ impl CantusApp {
         match self.plugins.make_slot(&mut self.bus, strip, info) {
             Ok(slot) => {
                 let index = self.project().effects_of(strip).map_or(0, |s| s.len());
-                self.exec(Command::InsertEffect {
-                    strip,
-                    index,
-                    slot: Box::new(slot),
-                });
+                // An isolated plug-in's values, known once it loads, join this step.
+                let key = cantus_host::PluginHost::load_key(slot.id);
+                self.exec_merging(
+                    Command::InsertEffect {
+                        strip,
+                        index,
+                        slot: Box::new(slot),
+                    },
+                    key,
+                );
             }
             Err(e) => self.set_error(tf(
                 "host.load_failed",
@@ -368,14 +373,21 @@ pub fn slot_title(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) {
     controls::line(ui, &s, &p.name, s.t.text, w);
     badge(ui, p.format.badge());
     if let Some(why) = app.plugins.missing(slot.id) {
-        let word = t("host.missing");
+        // On this computer but not loaded: said as such, never as one to install (review
+        // isolation-5 #45).
+        let not_loaded = app.plugins.load_error(slot.id).is_some();
+        let (word, tip_key) = if not_loaded {
+            (t("isolation.not_loaded"), "isolation.not_loaded_tip")
+        } else {
+            (t("host.missing"), "host.missing_tip")
+        };
         let r = ui.scope(|ui| controls::line(ui, &s, &word, s.t.danger, 80.0));
         if r.response.hovered() {
             crate::kit::hint::set_text(
                 ui.ctx(),
                 &word,
                 &tf(
-                    "host.missing_tip",
+                    tip_key,
                     &[
                         ("vendor", &p.vendor),
                         ("why", &crate::views::plugin_notice::load_words(why)),
@@ -727,20 +739,53 @@ fn body_ui(
         );
         return;
     }
-    if let Some(why) = app.plugins.missing(effect) {
+    if let Some(why) = app.plugins.missing(effect).map(str::to_string) {
+        // On this computer but not loaded: said as such, with Reload (review isolation-5
+        // #45); not here at all: to install.
+        let not_loaded = app.plugins.load_error(effect).is_some();
+        let (title, line_key, kept) = if not_loaded {
+            (
+                "isolation.not_loaded_card",
+                "isolation.editor.not_loaded",
+                "isolation.editor.not_loaded_kept",
+            )
+        } else {
+            (
+                "host.missing",
+                "host.editor.missing",
+                "host.editor.missing_kept",
+            )
+        };
         let rest = g.rest();
-        controls::card(ui, s, rest, Src::Key("host.missing"), None, |ui, cr| {
+        controls::card(ui, s, rest, Src::Key(title), None, |ui, cr| {
             let w = cr.body.width() / k;
             controls::column(ui, s, w, |ui| {
                 let name = app
                     .project()
                     .effect(strip, effect)
                     .and_then(|e| e.spec.external.as_deref())
-                    .map_or("", |p| p.name.as_str());
-                let why = crate::views::plugin_notice::load_words(why);
-                let line = tf("host.editor.missing", &[("name", &name), ("why", &why)]);
+                    .map_or(String::new(), |p| p.name.clone());
+                let why = crate::views::plugin_notice::load_words(&why);
+                let line = tf(line_key, &[("name", &name), ("why", &why)]);
                 controls::line(ui, s, &line, s.t.danger, w);
-                controls::line(ui, s, frame_tr("host.editor.missing_kept"), s.t.text_dim, w);
+                controls::line(ui, s, frame_tr(kept), s.t.text_dim, w);
+                if not_loaded
+                    && controls::key(
+                        ui,
+                        s,
+                        Src::Key("isolation.slot.reload"),
+                        frame_tr("isolation.slot.reload"),
+                        170.0,
+                        false,
+                    )
+                    .clicked()
+                {
+                    crate::views::plugin_notice::reload(
+                        app,
+                        crate::views::plugin_notice::Target::Insert(effect),
+                        &name,
+                    );
+                }
             });
         });
         return;

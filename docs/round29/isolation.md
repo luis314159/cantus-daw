@@ -359,3 +359,136 @@ them. Shots in `F:\projects\daw-r29\shots\isolation\`, English taken again with 
 `isolation-three-buttons-night-{en,es}-1x.png` (two plug-ins: *Run Spectras…Edition
 individually*), `isolation-waiting-night-{en,es}-1x.png` (new: the waiting card, and a busy
 window said on the status line), the mixer at XL with its chain line in both languages.
+
+## The fourth fix round (review isolation-5: 74 findings — a simplification first)
+
+The fourth review's count was not converging (53 → 50 → 67 → 74; highs 14 → 3 → 2 → 9):
+each round had added a mechanism — calls served from loops nested in plug-in code, a
+*heavy* and a *modal* limit, a message hook for blame, load retries — and each opened edge
+cases of its own. So this round **rebuilt the call handling on four rules and removed
+what they made unnecessary**, then closed what still applied. ADR 0063 §3 has the rules
+and the list of what went, and why. Merged `r29/integration` (0c26d0e) first; PROTOCOL
+is now 6.
+
+**The four rules.**
+
+1. *The interface thread never waits on a helper* beyond a frame's share (30 ms, only for
+   a window opened or a restart). Every request is posted; its answer lands in the
+   instance's inbox and is taken each frame. A load is **one request** (the plug-in, its
+   state, its values; the helper settles a restart before the first job). Saves, reloads,
+   moves, windows, parameter lists, a render's plug-ins: requests answered later, looked
+   at frame by frame. A request served for more than 2 s, or a plug-in's own loop on the
+   helper's main thread, shows that plug-in's waiting card.
+2. *No stale state is ever reported as fresh.* A save asks every plug-in
+   (`PluginHost::ask_states`), looks each frame (`states_in`), and is written when each
+   answered or passed its own limit from its start; a request held behind a dialog waits
+   with it. One kept as it was last said is named on the status line
+   (`isolation.save.*`). New/Open/close take what each said last at once, and name it.
+   Autosaves gather the same way; renders, moves too.
+3. *Nothing that ends or replaces an instance is served from a nested loop* — the helper
+   serves **nothing** nested; requests wait for its main loop, in order.
+4. *No unbounded retries.* A load past its limit (helper alive, no dialog of its) is a
+   failed load with Reload, never retried; its late answer is not taken. A load held by
+   its own dialog waits for it, with its card.
+
+**Removed.** The re-entrant serving (`Here`'s cells, the pulse's serving,
+`Message::{Deferred, Behind}`), `Limits::{heavy, modal}`, `troubled`/`in_trouble`/
+`fresh_state`/`held_up`, synchronous `Sandbox::call` on the interface thread, the load
+retry (`Missing::retry_at`, `wants_sync`, `Failed::busy`), the audio half's offline load
+wait, the `WH_GETMESSAGE` hook. In lines that are not comments: the helper's serving
+(`serve.rs`) 859 → 685, the sandbox (`sandbox.rs`) 1 519 → 1 345; the main half
+(`main.rs`) 590 → 817, as it now keeps every request's state itself; the session gained
+the render preparation (`session_render.rs`, which took the two render functions out of
+`session.rs` and `session_inst_idle.rs`). The mechanisms are fewer; the rules they keep
+are written where they are kept.
+
+**Found by the tests on the way** (each seen failing in the whole-engine suite before its
+fix): a replaced audio half (the first one, made before the load was answered) sent its
+*stop* to the helper as the engine let it go, so the plug-in played **dry** from then on;
+the values a fresh insert records when it loads overwrote a value set meanwhile; a plug-in
+counted as loaded before `idle` had said so. And: the stalled mark was 0 — *no mark* —
+once every 2^32 jobs (`mark_of`).
+
+**Seen failing first.** New behaviour is held by tests written for it; each was seen
+failing by putting the old behaviour back in the code (`sabotage5.py` swaps the old lines
+in, runs the test, restores the file byte for byte) — every one below failed so:
+*overdue, nested, heldup ×2, blame, heard, sync, fill, stale, lost, stop, 46, 49, 45, 48,
+words, quit, userstop, surface, whose, mark* (the names in the table's last column). The
+carry's two tests failed against the old carry before its fix. The rewritten earlier
+tests (async loads, `Rig::until_loaded`, `prepare_render`, `state_now`/`fresh_state`,
+`open_window`) hold what they held, under the new rules.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 19, 43, 63, 12, 52 (high ×3) | A load whose plug-in shows a dialog blocked the interface up to 10 min; its card could never appear | Rule 1: a load is one request answered later; while its dialog is up (`Message::Nested`) the card shows, *Show it* / *Stop it*; nothing waits | `a_load_held_by_its_own_dialog_waits_for_it_and_loads` (*nested*), `nothing_the_interface_does_waits_on_a_helper` (*sync*) |
+| 20, 62, 3, 11, 31, 51 (high ×2) | A load past 30 s without pumping was retried forever, freezing the interface 30 s each try | Rule 4 + rule 1: a failed load (`Notice::LoadFailed`), Reload, never retried; its late answer ignored; same limits live and offline | `a_load_past_its_limit_is_a_failed_load_never_retried` (*overdue*) |
+| 0, 65 (high) | A healthy slow background save made a project save write the older state silently after 1 s | Rule 2: judged only by its own limit from its start; the save waits for the refresh under way; stale only past the limit, and then named | `a_slow_neighbour_does_not_make_a_save_stale`, `a_save_behind_a_slow_one_waits_from_its_own_start`, `a_save_names_a_plugin_kept_as_it_was_last_said` (*heldup*, *stale*) |
+| 30, 61, 4, 13, 21, 53 (high ×2) | `Limits::heavy` (120 s) kept a hung helper alive and made every neighbour's call wait | Moot: `heavy` and `modal` removed — nothing waits, so no limit is stretched for a waiter | (removed; `a_dialog_inside_a_call_holds_the_helper_and_freezes_nothing`) |
+| 50 (high), 1, 69, 15, 56 | A nested loop served Unload/Close/Restart under an instance's own stack; re-entered backend locks; an Unload answered before its destructor | Moot (rule 3): the helper serves nothing nested; an unload runs from the main loop and is answered after the destructor | `an_instance_removed_during_a_dialog_is_ended_after_it`, `a_long_modal_loop_holds_the_helper_kills_nothing_and_freezes_nothing` (*heldup*), `a_plugin_that_crashes_as_it_leaves_is_counted` |
+| 2, 23, 33, 64 | The message hook's mark outlived the message: a plug-in's own crash laid on a neighbour | Moot: the hook removed; blame is the thread's own call, and inside a plug-in's loop the faulting library's one instance (else nobody) | `a_neighbours_window_crashing_inside_a_dialog_is_the_neighbours` (*blame*), `a_fault_is_the_calling_plugins_and_in_a_loop_its_librarys` (*whose*) |
+| 7, 32, 55 | A library's first owner overrode the faulting thread's own instance | The thread's own instance first; a library several instances share names none (`whose`, `by_module`) | `a_fault_is_the_calling_plugins_and_in_a_loop_its_librarys` (*whose*), `a_library_two_instances_share_names_neither` |
+| 5, 17, 26, 35, 47, 57, 68 | *Show it* raised the bottom-most window, not the dialog; the path had no test | `waiting_window`: the topmost window whose owner is disabled (the modal dialog), else the topmost visible enabled one; served by the helper's reader thread at once | `show_it_picks_the_dialog_its_owner_waits_on` (*surface*) |
+| 6, 14, 22, 34, 60, 66 | Offline state loads were capped at 30 s, live at 120 s: renders lost slow samplers | Moot: the same limits live and offline; a render's instance loads with its state in one request, judged by the load limit from its start | `a_render_waits_for_a_state_that_takes_its_time`, `a_render_whose_state_never_comes_says_so` |
+| 59, 70 | A render's setup asked a busy plug-in twice, waiting each time on the interface | Moot: `render_ready` asks once and never waits | `nothing_the_interface_does_waits_on_a_helper` (its render) |
+| 24, 54 | Quitting Cantus killed every helper before its plug-ins' destructors ran | `Sandboxes::drop` waits up to `QUIT_GRACE` (3 s) for the helpers to end | `quitting_lets_the_helpers_end_their_plugins` (*quit*) |
+| 28, 44, 67 | *Stop it* counted and remembered as the plug-in's crash; neighbours told they waited; the card hid that neighbours stop too | A user's stop is never counted; the plug-in: *you stopped it*; the others: *its process was ended to stop X*; the card says how many stop with it (`isolation.waiting.body_shared`); the manual in both languages | `stopping_a_plugin_is_never_its_crash` (*userstop*) |
+| 8, 71 | A lost-race stalled mark, and a mark never cleared, could leave a helper dry for good | The mark is a count read before the look, cleared by the next finished job; never 0 at the count's wrap | `a_stalled_mark_never_outlives_a_finished_job` (*mark*), `a_stalled_helper_costs_one_deadline_not_one_per_plugin` |
+| 9, 18, 25, 42, 58, 72 | The Unix module walk did not build on macOS | Linux-only (`dl_iterate_phdr`), a no-op elsewhere | WSL clippy/test; the macOS build is CI's |
+| 73 | The abort signal was put back after every call, replacing a plug-in's reporter | Ours only from the start; the crash filter alone is put back on top | (reviewed; `a_crash_reporter_that_hands_back_changes_nothing`) |
+| 10 | Folding the carry moved a program change ahead of its bank select | A bank select a carried program was sent under stays with it | `a_program_keeps_the_bank_it_was_sent_under` (✗→✓) |
+| 16 | A repeated pedal position moved the press after carried note-offs | The newer value takes the kept event's place | `a_repeated_pedal_position_keeps_its_place` (✗→✓) |
+| 27 | Export and bake dropped a heard plug-in not loaded live, silently | A heard plug-in that could not be loaded is the render's loss (`RenderLoss::NeverLoaded`); a frozen chain's rest is not | `a_render_says_a_plugin_that_was_not_loaded` (*lost*) |
+| 29 | `words_or` logged every frame from drawing | No log there; the host logs its text where it records it | (no side effect left to test) |
+| 45 | Installed plug-ins that could not be loaded were told to be installed | *Not loaded* in the slot, the editor's card (with Reload), the inspector (Reload and *Runs*), the status line and the window's refusal | `a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed` (*45*) |
+| 46 | A bake's or bounce's stale warning was written over by its own word | Said after it: `{done} {warning}` | `a_render_from_a_state_as_last_said_says_so_after_its_own_word` (*46*) |
+| 48 | The waiting card's title left 8 letters for the name, with no hint | *X is waiting for you*; the hint names it whole with the card's words | `the_waiting_cards_hint_names_its_plugin_whole` (*48*), shots |
+| 49 | Window failures other than Busy were in the host's English | A stop as a stop, anything else in the interface's words (`isolation.why.no_window`) | `a_window_that_could_not_open_is_said_in_its_words` (*49*) |
+| 36 | The reload test's *whose* half proved nothing | The neighbour reloaded crashes by itself and becomes the culprit, each counted once | `a_reload_that_fails_says_why_now_and_whose` (rewritten) |
+| 37 | The save-behind test passed with a limit from posting | Under rule 2 the second save starts at ~3 s with a 4 s limit: from posting it would be stale, and the test asks for it fresh | `a_save_behind_a_slow_one_waits_from_its_own_start` |
+| 38 | No test that a given-up state's late answer becomes the last-good one | — | `a_state_answered_late_becomes_the_last_good_one` |
+| 39 | `rt_alloc` never reached the reset-first delivery | Its resuming block has 400 notes of its own: the 200 carried note-offs find no room | `the_audio_half_of_an_isolated_plugin_never_allocates` |
+| 40 | The long-dialog test never checked where B's unload ran | Moot (rule 3): now checked that it runs after the dialog | `an_instance_removed_during_a_dialog_is_ended_after_it` |
+| 41 | A render test checked notices nothing collected | Frames run; no crash told, none counted, the live plug-in untouched | `a_render_whose_plugin_crashes_loading_says_it_never_had_it` |
+
+`words` — a save that kept a plug-in as it was last said says so in its words
+(`a_save_names_the_plugins_it_kept_as_they_were_last_said`). The interface: saves and
+autosaves gather (`save_job.rs`, `autosave.rs`), renders wait for their plug-ins as for
+samples (`export.rs`, `modulator_bake.rs`, `freeze.rs` — one line each where the samples'
+wait already was), a fresh insert's values join its undo step (`load_key`,
+`inst_load_key`: `plugins.rs`, `swap.rs`, `hosted_inst.rs`).
+
+**Files outside my area this round** (each a few lines where an existing wait or step
+already was): `cantus-ui/src/views/export.rs` (the waiting state also waits for the render's
+plug-ins), `views/modulator_bake.rs` (the same; its warning after *baked*), `freeze.rs`
+(`units_for` asks `render_ready`; `start_next` keeps the job first in the queue while they
+load; the warning after the commit), `save_job.rs` and `autosave.rs` (the gather),
+`app.rs` (`autosave_gathering`, the `wants_sync` block removed, the not-loaded status),
+`views/plugins.rs`, `swap.rs`, `hosted_inst.rs` (`exec_merging` with the load keys; the
+not-loaded words), `views/inspector_hosted.rs` (the not-loaded branch), `views/audio_notice.rs`
+(the waiting card's hint), `tests/controllers_review3.rs` (the fault parameter's steps run
+to 24 since round four's faults), `cantus-bench/src/isolation.rs` (waits for loads), the
+manual in both languages.
+
+**Notes for the integrator.** PROTOCOL 6 (a helper of another build refuses the handshake
+as before). `MainThread` gained `ask_state_now`, `poll_state`, `state_waiting`,
+`state_current`, `loaded`, `take_audio` (all with defaults: an in-process backend is
+unchanged); `Notice` gained `Loaded` and `LoadFailed`; `Backend::load_with` (default
+`None`). A render's units now come after `PluginHost::render_ready` says yes: any new
+caller of `render_units`/`render_instruments` must ask it first, frame by frame (as the
+export, the bake and the freeze do), or isolated plug-ins are reported as never loaded.
+
+**Measured again** (`cantus-bench --full --only isolation`, release; `docs/perf/isolation.md`
+run 3), since the audio half now reads its *loaded* flags: hot round trip *Together*
+0.6 / 0.9 µs (median / p99) at 64 frames, paced 14.0 / 43.2 µs; the helpers' CPU 0.51 %
+of a core per instance *Together*, 5.7 % *Individually*; 32 Comprimo CLAP instances
+*Together* 1.16× within on this run. Bit-identity: every to-the-bit test holds (isolated
+against in process at 1/37/64/512 frames, through the engine at 64/256/1 000, the worker
+pool, the instruments, and offline renders).
+
+**The runs** (bad27bc). Windows: `cargo test -p cantus-rt -p cantus-host -p cantus-sandbox`
+251 passed, `cargo test -p cantus-ui` 1 614 passed, `cargo clippy --workspace --all-targets
+-- -D warnings` and `cargo fmt --all -- --check` clean. WSL (Ubuntu 24.04):
+`tools/wsl/check.sh r29/isolation clippy` clean, the isolation crates' tests 221 passed
+(the one test of a plug-in's own dialog is Windows'). Shots, both languages:
+`isolation-waiting`, `isolation-waiting-long` (the 43-letter name, its hint whole),
+`isolation-not-loaded` (the editor's card with Reload), with the earlier ones.

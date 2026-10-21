@@ -28,6 +28,7 @@ fn load_isolated(
     let info = info(id);
     bridged(pool, info.format, group, false)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -41,6 +42,7 @@ fn load_offline(
     let info = info(id);
     bridged(pool, info.format, group, true)
         .load(&info, setup())
+        .map(loaded)
         .expect("loads in the helper")
 }
 
@@ -493,8 +495,8 @@ fn a_crash_while_saving_keeps_the_last_good_state() {
         }],
         &mut out,
     );
-    let good = main.save_state().expect("a state");
-    assert_eq!(main.param_value(P_GAIN), Some(-6.0));
+    arrived(main.as_mut(), P_GAIN, -6.0);
+    let good = state_now(main.as_mut());
     let (mut l, mut r) = (vec![0.0; 64], vec![0.0; 64]);
     call(
         audio.as_mut(),
@@ -504,10 +506,13 @@ fn a_crash_while_saving_keeps_the_last_good_state() {
         &[],
     );
     arrived(main.as_mut(), P_FAULT, ABORT_SAVE);
-    let saved = main
-        .save_state()
-        .expect("the last-good state, not an error");
-    assert_eq!(saved, good);
+    // A save asks for its state as it is now: its helper dies answering, and what it said
+    // last is kept — said as such, never as its state now.
+    match fresh_state(main.as_mut()) {
+        cantus_host::StatePoll::Stale(saved, _) => assert_eq!(saved, good),
+        other => panic!("the last-good state, said as such: {other:?}"),
+    }
+    assert_eq!(main.save_state().expect("the last-good state"), good);
     assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
 }
 
@@ -531,7 +536,9 @@ fn a_crash_while_loading_a_state_or_activating_is_an_error_and_a_crash() {
         );
         arrived(main.as_mut(), P_FAULT, fault_value);
         let failed = if what == "load" {
-            main.load_state(&state).is_err()
+            // Sent, never waited for: the crash it causes is said by `idle`.
+            let _ = main.load_state(&state);
+            true
         } else {
             // A latency change asks for a restart: deactivate, activate.
             call(

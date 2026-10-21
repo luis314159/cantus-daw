@@ -125,6 +125,21 @@ pub trait Backend: Send + Sync {
     fn scan(&self, path: &Path) -> Result<Vec<PluginInfo>, HostError>;
     /// Load, instantiate and activate one plug-in. Main thread.
     fn load(&self, info: &PluginInfo, setup: AudioSetup) -> Result<Loaded, HostError>;
+
+    /// Load one plug-in with its state and values in one step, where the backend does that
+    /// itself — an isolated plug-in: one request to its helper, answered later (its first
+    /// job has its state; round 29, review isolation-5). `None`: the host loads, then gives
+    /// the state and the values.
+    fn load_with(
+        &self,
+        info: &PluginInfo,
+        setup: AudioSetup,
+        state: &[u8],
+        values: &[(u32, f64)],
+    ) -> Option<Result<Loaded, HostError>> {
+        let _ = (info, setup, state, values);
+        None
+    }
 }
 
 /// A loaded, activated plug-in, split by thread.
@@ -157,6 +172,13 @@ pub enum Notice {
     /// helper was busy opens once it is free (round 29, review isolation-4 #39). The host
     /// keeps it as open.
     EditorOpened,
+    /// It is loaded — an isolated plug-in, whose load is answered later: its parameters
+    /// and latency are known now, and [`MainThread::take_audio`] has its audio half (the
+    /// first one passed dry until now). Round 29, review isolation-5.
+    Loaded,
+    /// Its load failed, its helper alive (it refused, or did not load within its limit):
+    /// not a crash. The host keeps it as a plug-in that could not be loaded, with Reload.
+    LoadFailed(String),
     /// It must be deactivated and activated again (the host does it off the audio thread).
     RestartNeeded,
     /// It stopped working (round 29, ADR 0063): the process it ran in crashed, or it hung
@@ -168,6 +190,19 @@ pub enum Notice {
         /// Whether it was this plug-in that crashed or hung its process (review #49).
         blame: Blame,
     },
+}
+
+/// A state asked for ([`MainThread::poll_state`]).
+#[derive(Debug)]
+pub enum StatePoll {
+    /// Its state as it is now.
+    Fresh(Vec<u8>),
+    /// Still on its way.
+    Waiting,
+    /// Not to be had in time: what it said last, and why.
+    Stale(Vec<u8>, String),
+    /// No state at all.
+    Failed(HostError),
 }
 
 /// Who an isolated plug-in's helper's end is laid on (round 29, review #49): the plug-in
@@ -284,12 +319,43 @@ pub trait MainThread: Send {
     /// Brings the windows it waits on to the front.
     fn surface(&mut self) {}
 
-    /// Its state as it is now — or, an isolated plug-in whose helper is too busy to answer
-    /// in time, `HostError::Busy` (where [`Self::save_state`] answers with what it last
-    /// said): a render that must not start from a stale state says so (review isolation-4
-    /// #10).
-    fn fresh_state(&mut self) -> Result<Vec<u8>, HostError> {
-        self.save_state()
+    /// Asks for its state as it is now, to be collected with [`Self::poll_state`] — an
+    /// isolated plug-in, whose answer comes later (a request already under way since its
+    /// last change is the one used). In process: nothing to ask (round 29, review
+    /// isolation-5).
+    fn ask_state_now(&mut self) {}
+
+    /// The state asked for by [`Self::ask_state_now`]: in, still on its way, or not to be
+    /// had in time — then what it said last, and why (a save says which plug-in it kept
+    /// from an older state; never a stale state as a fresh one).
+    fn poll_state(&mut self) -> StatePoll {
+        match self.save_state() {
+            Ok(s) => StatePoll::Fresh(s),
+            Err(e) => StatePoll::Failed(e),
+        }
+    }
+
+    /// Whether the state asked for by [`Self::ask_state_now`] is still on its way — what
+    /// [`Self::poll_state`] says, without its bytes (a save looks each frame).
+    fn state_waiting(&mut self) -> bool {
+        false
+    }
+
+    /// Whether what [`Self::save_state`] answers is its state as it is now (an isolated
+    /// plug-in's last-good state may be older than its last change).
+    fn state_current(&self) -> bool {
+        true
+    }
+
+    /// Whether it is loaded (an isolated plug-in's load is answered later, and may fail).
+    fn loaded(&self) -> bool {
+        true
+    }
+
+    /// Its audio half made since it loaded (after [`Notice::Loaded`]), with its latency:
+    /// what replaces the first one. `None` in process.
+    fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
+        None
     }
 
     /// Ends it — its helper — at the user's word, while it waits on a window of its own

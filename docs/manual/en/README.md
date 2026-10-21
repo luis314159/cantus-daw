@@ -1145,19 +1145,28 @@ one fails, the helper stops and **Cantus keeps playing**:
   its menu — in the inspector and on the mixer strip's insert line — offers **Reload
   plug-in** whenever you want it back. Asking for its window brings its card back;
 - a plug-in that crashes while it loads is told the same way: Reload it, or choose where it
-  runs, and Cantus tries again;
-- **the project loses nothing**: saving keeps the plug-in's last good state and values, and
-  the project opens with them next time;
+  runs, and Cantus tries again. One that refuses to load, or does not load in time, is said
+  as *not loaded* — never as one to install — and offers **Reload plug-in** in its menu;
+  Cantus never tries it again by itself;
+- **Cantus never waits for a plug-in.** Loading one, its window, its state, moving it: each
+  is asked of its helper, and the window goes on meanwhile. A slot whose plug-in is still
+  loading passes the sound through, a track whose instrument is loading is silent, for the
+  moment it takes;
+- **the project loses nothing, and a save never pretends**: saving asks every plug-in for
+  its state as it is now and writes the file once they have answered. One that cannot
+  answer in time is saved with the state it gave last, and the status line names it.
+  Exports, bounces and freezes wait for their plug-ins the same way, and say so when one
+  could not give its state as it was;
 - a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
   audio never waits for it longer than a few milliseconds, and the window never waits at
-  all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung:
-  Cantus waits for you, and keeps saving and answering meanwhile;
-- a plug-in that a window of its own keeps busy longer than its calls should take gets a
-  card of its own — *"Glacier is waiting on a window of its own"* — with **Show it** (its
-  window to the front, in case it opened behind Cantus) and **Stop it** (it is ended, Cantus
-  plays on, and you can reload it). Its own window, asked for meanwhile, opens as soon as it
-  is free; a plug-in that could not be loaded because its helper was busy is tried again by
-  itself, and any plug-in that could not be loaded offers **Reload plug-in** in its menu;
+  all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung: Cantus
+  waits for you;
+- a plug-in that keeps its helper waiting — a dialog of its own, perhaps behind Cantus —
+  gets a card of its own — *"Glacier is waiting for you"*, its whole name in the card's
+  hint — with **Show it** (its dialog to the front) and **Stop it** (its helper is ended,
+  Cantus plays on, and you can reload it; the card says when other plug-ins share that
+  helper and would stop with it). What you ask of that helper meanwhile — another
+  plug-in's window, a save — is done as soon as the dialog closes;
 - notes and knob moves sent while a plug-in was late are not lost: it gets them as soon as
   it answers.
 

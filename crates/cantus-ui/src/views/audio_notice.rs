@@ -152,7 +152,7 @@ fn waiting_card(app: &CantusApp) -> Option<Card> {
             .map(|(l, a)| (l, Act::Waiting(target, a)))
             .collect(),
         close: Act::Waiting(target, plugin_notice::WaitAnswer::Dismiss),
-        tip: None,
+        tip: Some(c.tip),
         audio: None,
     })
 }

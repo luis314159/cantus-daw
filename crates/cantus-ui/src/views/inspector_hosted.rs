@@ -50,7 +50,18 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         }
     }
     let Some(h) = app.plugins.hosted_instrument(t) else {
-        let missing = sh.fmt.tr("hosted.status_missing").to_string();
+        // On this computer but not loaded (refused, or not within its limit) is said as
+        // such, with Reload and where it runs; not here at all, as missing (review
+        // isolation-5 #45).
+        let not_loaded = app.plugins.instrument_load_error(t);
+        let (word, tip_key) = match not_loaded {
+            Some(_) => (
+                "isolation.inst.status_not_loaded",
+                "isolation.inst.status_not_loaded_tip",
+            ),
+            None => ("hosted.status_missing", "hosted.status_missing_tip"),
+        };
+        let missing = sh.fmt.tr(word).to_string();
         let row = sh.text_row("hosted.status", &missing, false, true);
         let r = sh
             .ui
@@ -61,24 +72,29 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
                     .instrument_missing(t)
                     .unwrap_or("not installed on this computer"),
             );
-            let tip = tf("hosted.status_missing_tip", &[("why", &why)]);
+            let tip = tf(tip_key, &[("why", &why)]);
             hint::set_text(sh.ui.ctx(), &missing, &tip, Caps::NONE);
         }
-        // Tried and not loaded (refused, or its helper busy): it can be tried again
-        // (review isolation-4 #57).
-        if app.plugins.instrument_load_error(t).is_some()
-            && sh.led_row(
+        if not_loaded.is_some() {
+            if sh.led_row(
                 "isolation.slot.recover",
                 "isolation.reload",
                 false,
                 Function::Source,
                 false,
-            )
-        {
-            sh.acts.push(Act::Hosting(
-                target,
-                crate::views::plugin_notice::MenuAct::Reload,
-            ));
+            ) {
+                sh.acts.push(Act::Hosting(
+                    target,
+                    crate::views::plugin_notice::MenuAct::Reload,
+                ));
+            }
+            let runs = crate::i18n::t(app.plugins.effective_isolation(p.isolation).label_key());
+            sh.menu_row(
+                "isolation.slot.band",
+                &runs,
+                super::menus::MenuId::Hosting(t),
+                false,
+            );
         }
         return;
     };

@@ -40,6 +40,7 @@ fn a_frozen_chain_unloads_its_hosted_plug_in_and_plays_the_live_mix() {
         let target = FreezeTarget::Strip(strip);
         let p = rig.bus.project().clone();
         let job = prepare(&mut rig.engine, &p, target).expect("prepared");
+        rig.prepare_render(false);
         let units = rig.host.render_units(&p, SR);
         let insts = rig.host.render_instruments(&p, SR);
         assert_eq!(units.len(), 1, "the plug-in, a fresh instance");

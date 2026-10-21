@@ -1,18 +1,26 @@
 //! An isolated plug-in's main half, in Cantus (ADR 0063): every call the host makes on the
-//! main thread, answered without ever freezing the interface in steady state.
+//! main thread, answered **without ever waiting on the helper** (round 29, review
+//! isolation-5). Each request is sent and its answer lands in the instance's inbox, taken
+//! here each frame; a request that takes long shows the plug-in's waiting card.
 //!
+//! - **Loading** is one request (the plug-in, its state and its values); until it is
+//!   answered, the audio half passes dry and `idle` then says [`Notice::Loaded`] — the
+//!   host makes the plug-in's unit again with its parameters and latency.
 //! - **Values** (`param_value`, called every frame by the generic editor) come from a
-//!   mirror the helper keeps current — after every call, and whenever they change — never
-//!   from a round trip.
-//! - **Texts** (`param_text`) are cached; one not cached yet is asked for in the background
-//!   and shown from the next frame (the editor shows the number meanwhile).
-//! - **State**: a **last-good state** is kept here — taken after load, after every state
-//!   loaded, at the end of a gesture ([`MainThread::checkpoint`]), when the plug-in says
-//!   its state changed, and every ten seconds while its values move — in the background.
-//!   When the helper is gone, `save_state` answers with it, so saving the project, parking
-//!   the slot or reloading the plug-in loses nothing the user did.
-//! - **Calls** that must answer (load, a state, a flush with values, an editor, a restart)
-//!   wait with a time limit; a helper that misses one is taken for hung and killed.
+//!   mirror the helper keeps current — after every call, and whenever they change.
+//! - **Texts** (`param_text`) are cached; one not cached yet is asked for and shown from
+//!   the next frame.
+//! - **State**: a **last-good state** is kept here — the state it was loaded with, every
+//!   state given to it, its answer after load, and a refresh half a second after a change
+//!   (the end of a gesture, its own *state changed*) and every ten seconds while its values
+//!   move. Whether it is **current** (answered for a request made after the last change) is
+//!   known: a save asks for the state anew ([`MainThread::ask_state_now`]) and waits for
+//!   the answer frame by frame ([`MainThread::poll_state`]) — up to the request's own limit
+//!   from when its helper starts it; one that cannot be had is saved from what it said last,
+//!   and the save says so (never a stale state as a fresh one).
+//! - **A window** asked for opens when its helper answers (at once in steady state; when a
+//!   plug-in's dialog holds the helper, later — [`Notice::EditorOpened`]); a **restart** is
+//!   picked up by the frame that finds its answer.
 //! - **Crashes**: when the helper ends or a job stays unfinished past the hang limit,
 //!   `idle` says [`Notice::Crashed`] once, with the reason.
 //! - **The editor** is a top-level window the helper makes and owns (an owned window across
@@ -21,12 +29,12 @@
 //!   proxied.
 
 use super::audio::{BridgeAudio, Offline, Status};
-use super::proto::{Answer, Call, Described, WireNotice};
-use super::sandbox::{Inbox, Pending, Sandbox, Sandboxes, Wait, Waited};
+use super::proto::{Call, Described, WireNotice};
+use super::sandbox::{Inbox, Purpose, Sandbox, Sandboxes};
 use super::slot::Slot;
 use crate::backend::{
     AudioThread, Blame, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo,
-    ParamOut, PluginInfo,
+    ParamOut, PluginInfo, StatePoll,
 };
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
@@ -39,9 +47,9 @@ const REFRESH_AFTER: Duration = Duration::from_millis(500);
 const REFRESH_EVERY: Duration = Duration::from_secs(10);
 /// How long after a failed background state it is asked for again.
 const RETRY_AFTER: Duration = Duration::from_secs(2);
-/// How long a restart just asked for is waited for before the frame goes on (it is picked
-/// up by a later one; review isolation-4 #23).
-const RESTART_WAIT: Duration = Duration::from_millis(100);
+/// The most an interface call waits for an answer that usually comes at once (a window
+/// opened, a restart): a frame's share, never more (round 29, review isolation-5).
+pub const FRAME_WAIT: Duration = Duration::from_millis(30);
 
 /// The main half.
 pub struct BridgeMain {
@@ -59,17 +67,41 @@ pub struct BridgeMain {
     params: Vec<ParamInfo>,
     latency: usize,
     has_editor: bool,
+    /// Its load's request, and whether it was answered (and how).
+    load: u64,
+    loaded: bool,
+    load_failed: Option<String>,
+    /// `idle` has yet to say it loaded.
+    tell_loaded: bool,
+    /// Its audio half made once it loaded, for the host to take ([`MainThread::take_audio`]).
+    fresh_audio: Option<Box<dyn AudioThread>>,
     last_good: Option<Vec<u8>>,
+    /// The last-good state is the plug-in's as it is now.
+    current: bool,
+    /// Requests made before this id are older than its last change.
+    changed_at: u64,
     /// Something changed since the last-good state was taken, and when it first did.
     dirty_since: Option<Instant>,
-    asked_state: bool,
-    /// A restart asked for and not answered yet.
-    restart_pending: Option<Pending>,
+    /// The background state asked for, under way.
+    asked_state: Option<u64>,
+    /// The plug-in said its state changed: said on to the host once the new state is in.
+    tell_state_dirty: bool,
+    /// To say on at the next `idle`: its state changed (the new one is in), its parameter
+    /// list changed (the new one is in).
+    say_state_dirty: bool,
+    say_params: bool,
+    /// The state a save asked for ([`MainThread::ask_state_now`]).
+    gather: Option<u64>,
+    /// The last state answer: its request, and why it gave none.
+    last_answer: Option<(u64, Option<String>)>,
+    /// A parameter list asked for (its plug-in said they changed).
+    asked_params: bool,
+    restart_pending: Option<u64>,
     /// Its window asked for and not answered yet: opened once it is (review isolation-4
     /// #39).
-    editor_pending: Option<Pending>,
-    /// Background states answered to a request before this id are older than the last
-    /// state loaded or saved, and dropped (review #7, #50).
+    editor_pending: Option<u64>,
+    /// State answers to requests before this id are older than the last state given to it
+    /// (review #7, #50).
     state_after: u64,
     last_refresh: Instant,
     told_crash: bool,
@@ -88,18 +120,18 @@ impl std::fmt::Debug for BridgeMain {
 }
 
 impl BridgeMain {
+    /// The main half of an instance whose load (`load`, carrying `state`) was just sent.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         sandbox: Arc<Sandbox>,
         pool: Arc<Sandboxes>,
-        instance: u32,
+        (instance, load): (u32, u64),
         slot: Arc<Slot>,
-        status: Arc<Status>,
-        inbox: Arc<Inbox>,
+        (status, inbox): (Arc<Status>, Arc<Inbox>),
         (offline, cancel): (bool, Arc<AtomicBool>),
         sample_rate: f64,
-        described: Described,
-        first_state: Vec<u8>,
+        info: PluginInfo,
+        state: &[u8],
     ) -> BridgeMain {
         BridgeMain {
             sandbox,
@@ -111,14 +143,28 @@ impl BridgeMain {
             offline,
             cancel,
             sample_rate,
-            info: described.info,
-            params: described.params,
-            latency: described.latency,
-            has_editor: described.has_editor,
-            // The state it starts with is the first good one.
-            last_good: (!first_state.is_empty()).then_some(first_state),
+            has_editor: info.editor,
+            info,
+            params: Vec::new(),
+            latency: 0,
+            load,
+            loaded: false,
+            load_failed: None,
+            tell_loaded: false,
+            fresh_audio: None,
+            // The state it is given is what it holds until it says otherwise: the
+            // project's, kept if its helper dies before answering.
+            last_good: (!state.is_empty()).then(|| state.to_vec()),
+            current: true,
+            changed_at: 0,
             dirty_since: None,
-            asked_state: false,
+            asked_state: None,
+            tell_state_dirty: false,
+            say_state_dirty: false,
+            say_params: false,
+            gather: None,
+            last_answer: None,
+            asked_params: false,
             restart_pending: None,
             editor_pending: None,
             state_after: 0,
@@ -128,7 +174,8 @@ impl BridgeMain {
         }
     }
 
-    /// What an offline audio half needs to end a hung or cancelled render.
+    /// What an offline audio half needs to wait for its load, and to end a hung or
+    /// cancelled render.
     pub(crate) fn offline_parts(&self) -> Option<Offline> {
         self.offline.then(|| Offline {
             sandbox: self.sandbox.clone(),
@@ -147,77 +194,121 @@ impl BridgeMain {
         self.sandbox.is_dead() || self.status.is_dead()
     }
 
-    fn ask_state(&mut self) {
-        if !self.gone() {
-            self.sandbox.ask_state(self.instance);
-            self.asked_state = true;
-            self.last_refresh = Instant::now();
-        }
+    fn post(&self, call: Call, blob: &[u8], purpose: Purpose) -> u64 {
+        self.sandbox.post(Some(self.instance), call, blob, purpose)
     }
 
-    /// A background state, once answered: kept unless a state was loaded or saved since it
-    /// was asked for; a failure asks again a little later (review #8, #50).
-    fn take_answered_state(&mut self) {
-        let Some((id, state)) = self.inbox.data().state.take() else {
-            return;
-        };
-        self.asked_state = false;
-        if id < self.state_after {
-            return;
+    /// Something of the plug-in changed: states asked for before are older.
+    fn changed(&mut self) {
+        self.changed_at = self.sandbox.next_request();
+        self.current = false;
+    }
+
+    fn ask_state(&mut self) -> Option<u64> {
+        if self.gone() || !self.loaded {
+            return None;
         }
-        match state {
-            Ok(s) => self.last_good = Some(s),
-            Err(_) => {
-                self.dirty_since
-                    .get_or_insert(Instant::now() + RETRY_AFTER - REFRESH_AFTER);
+        let id = self.post(
+            Call::SaveState {
+                instance: self.instance,
+            },
+            &[],
+            Purpose::SaveState,
+        );
+        if id == 0 {
+            return None;
+        }
+        self.asked_state = Some(id);
+        self.last_refresh = Instant::now();
+        Some(id)
+    }
+
+    /// What the helper answered since the last look: the load, states, a parameter list.
+    /// Never waits.
+    fn take_answers(&mut self) {
+        let (loaded, state, state_loaded, params) = {
+            let mut d = self.inbox.data();
+            (
+                d.loaded.take(),
+                d.state.take(),
+                d.state_loaded.take(),
+                d.params.take(),
+            )
+        };
+        match loaded {
+            // Given up on already (past its limit): its late answer is not taken.
+            Some(Ok(_)) if self.load_failed.is_some() => {}
+            Some(Ok((described, first_state))) => {
+                self.loaded = true;
+                self.tell_loaded = true;
+                if let Some(why) = &described.refused_state {
+                    log::warn!("{}: its state was refused: {why}", self.info.name);
+                    if self.offline {
+                        // A render never runs it with another state (review isolation-4
+                        // #10, #34).
+                        self.load_failed = Some(format!("it refused its state: {why}"));
+                    }
+                }
+                self.describe(described);
+                if !first_state.is_empty() {
+                    self.last_good = Some(first_state);
+                    self.current = true;
+                }
+            }
+            Some(Err(why)) => self.load_failed = Some(why),
+            None => {}
+        }
+        if let Some((id, result)) = state {
+            if self.asked_state == Some(id) {
+                self.asked_state = None;
+            }
+            match result {
+                Ok(s) if id >= self.state_after => {
+                    self.last_good = Some(s);
+                    if id >= self.changed_at {
+                        self.current = true;
+                    }
+                    self.last_answer = Some((id, None));
+                    if self.tell_state_dirty && self.current {
+                        self.tell_state_dirty = false;
+                        self.say_state_dirty = true;
+                    }
+                }
+                Ok(_) => self.last_answer = Some((id, None)),
+                Err(why) => {
+                    self.last_answer = Some((id, Some(why)));
+                    // Asked again a little later (review #8).
+                    self.dirty_since
+                        .get_or_insert(Instant::now() + RETRY_AFTER - REFRESH_AFTER);
+                }
             }
         }
+        if let Some((_, Err(why))) = state_loaded {
+            log::warn!("{}: its state was refused: {why}", self.info.name);
+            self.changed();
+        }
+        if let Some(p) = params {
+            self.asked_params = false;
+            self.params = p;
+            // Said on now: the host reads the new list (review isolation-4 #20).
+            self.say_params = true;
+        }
     }
 
-    /// A state was just loaded or saved: background answers asked before are older.
+    fn describe(&mut self, d: Described) {
+        self.params = d.params;
+        self.latency = d.latency;
+        self.has_editor = d.has_editor;
+        self.inbox.data().latency = Some(d.latency);
+        self.info = d.info;
+    }
+
+    /// A state was just given: answers to requests before are older.
     fn state_settled(&mut self) {
         self.state_after = self.sandbox.next_request();
         self.dirty_since = None;
-        self.asked_state = false;
+        self.asked_state = None;
         self.inbox.data().state = None;
-    }
-
-    /// Whether Cantus already knows the helper is in trouble: a job unfinished, or no
-    /// heartbeat for a while.
-    /// Whether this instance is in trouble — its own job unfinished, its own request
-    /// overdue, or its helper hung — not merely a neighbour busy ahead of it (review #2,
-    /// #24).
-    fn in_trouble(&self) -> bool {
-        // SAFETY: the exchange is in the slot's mapping, which `self.slot` keeps alive.
-        let x = unsafe { &*self.slot.exchange() };
-        self.status.unfinished_for(x).is_some() || self.sandbox.troubled(self.instance)
-    }
-
-    fn call(
-        &self,
-        call: Call,
-        blob: &[u8],
-        timeout: Duration,
-    ) -> Result<(Answer, Vec<u8>), HostError> {
-        self.sandbox.call(Some(self.instance), call, blob, timeout)
-    }
-
-    /// An offline instance's call: waited for as long as its helper lives, until the
-    /// render is cancelled or the call has run the offline limit, which ends the helper —
-    /// never given up with the render going on regardless (review isolation-4 #10).
-    fn call_offline(
-        &self,
-        call: Call,
-        blob: &[u8],
-        limit: Duration,
-    ) -> Result<(Answer, Vec<u8>), HostError> {
-        let cap = self.pool.limits().offline;
-        self.sandbox.call_while_alive(
-            Some(self.instance),
-            call,
-            blob,
-            (limit, &self.cancel, limit.max(cap)),
-        )
     }
 
     fn crash_reason(&self) -> String {
@@ -241,10 +332,20 @@ impl BridgeMain {
                 self.pool.deadline_floor(),
                 self.latency,
             ),
-            Box::new(move || sandbox.tell(Call::DropAudio { instance }, &[])),
+            Box::new(move || {
+                sandbox.post(
+                    Some(instance),
+                    Call::DropAudio { instance },
+                    &[],
+                    Purpose::Ignore,
+                );
+            }),
         )))
     }
 
+    /// Why it stopped, and whose doing that was — a user's stop is no crash of anyone's:
+    /// the plug-in stopped is told so, the others in its process that they went with it
+    /// (round 29, review isolation-5 #28, #44, #67).
     fn crashed_notice(&self) -> Option<(String, Blame)> {
         if !self.gone() {
             return None;
@@ -253,7 +354,104 @@ impl BridgeMain {
         if self.sandbox.why().is_none() && self.sandbox.dead_for() < Duration::from_millis(200) {
             return None;
         }
+        if let Some((n, name)) = self.sandbox.user_stop() {
+            if n == self.instance {
+                return Some(("it was stopped by you".into(), Blame::Unknown));
+            }
+            return Some((
+                format!("its process was ended to stop {name}"),
+                Blame::Neighbour,
+            ));
+        }
         Some((self.crash_reason(), self.sandbox.blame(self.instance)))
+    }
+
+    /// Where the state a save asked for stands — `None`: still on its way; `Some(None)`:
+    /// in (or nothing to ask: never loaded, or current already); `Some(Some(why))`: not to
+    /// be had in time, so what it said last stands. Asked again it answers the same (a save
+    /// polls it each frame, then takes it).
+    fn gathered(&mut self) -> Option<Option<String>> {
+        self.take_answers();
+        let Some(g) = self.gather else {
+            // Nothing asked (never loaded, or gone): what it holds — said stale when it
+            // changed since, and why.
+            if !self.current && self.loaded {
+                return Some(Some(if self.gone() {
+                    self.crash_reason()
+                } else {
+                    "its state was not asked for".into()
+                }));
+            }
+            return Some(None);
+        };
+        if let Some((id, why)) = &self.last_answer {
+            if *id >= g {
+                return Some(why.clone());
+            }
+        }
+        if self.gone() {
+            return Some(Some(self.crash_reason()));
+        }
+        // Its own limit, from when its helper started it: a request held behind a plug-in's
+        // dialog waits with it (the card says so), never cut short (isolation-5 rule 2).
+        let late = self.sandbox.started_at(g).is_some_and(|t| {
+            t.elapsed() > self.sandbox.limit_of(g).unwrap_or(self.pool.limits().state)
+        });
+        if late {
+            return Some(Some("it did not answer in time".into()));
+        }
+        None
+    }
+
+    /// Why its load failed, if it did — asked of a render's instance too, whose answers
+    /// nobody takes: from the answer itself (an offline instance that refused its state
+    /// failed too).
+    fn load_failure(&self) -> Option<String> {
+        if let Some(why) = &self.load_failed {
+            return Some(why.clone());
+        }
+        match &self.inbox.data().loaded {
+            Some(Err(why)) => Some(why.clone()),
+            Some(Ok((d, _))) if self.offline => d
+                .refused_state
+                .as_ref()
+                .map(|w| format!("it refused its state: {w}")),
+            _ => None,
+        }
+    }
+
+    /// Its load has run past its own limit since its helper started it, and no window of
+    /// its holds the helper (a licence dialog shows the waiting card instead — live; a
+    /// render's instance has no card, and its limit holds): a failed load, never a retry
+    /// (round 29, review isolation-5 rule 4).
+    fn load_overdue(&self) -> Option<Duration> {
+        if self.loaded || self.load_failed.is_some() || self.gone() {
+            return None;
+        }
+        let limit = self
+            .sandbox
+            .limit_of(self.load)
+            .unwrap_or(self.pool.limits().load);
+        let late = self
+            .sandbox
+            .started_at(self.load)
+            .is_some_and(|t| t.elapsed() > limit);
+        (late && (self.offline || !self.sandbox.nested_on(self.instance))).then_some(limit)
+    }
+
+    /// Waits up to [`FRAME_WAIT`] for request `id`'s answer to land (it usually comes at
+    /// once); `true` when it did.
+    fn brief_wait(&self, landed: impl Fn(&Inbox) -> bool) -> bool {
+        let start = Instant::now();
+        loop {
+            if landed(&self.inbox) {
+                return true;
+            }
+            if self.gone() || start.elapsed() >= FRAME_WAIT {
+                return false;
+            }
+            std::thread::sleep(Duration::from_millis(1));
+        }
     }
 }
 
@@ -290,81 +488,79 @@ impl MainThread for BridgeMain {
         if let Some(t) = d.texts.get(&key) {
             return t.clone();
         }
-        if !self.gone() && d.asked_texts.insert(key) {
+        if !self.gone() && self.loaded && d.asked_texts.insert(key) {
             drop(d);
-            self.sandbox.ask_text(self.instance, id, value);
+            self.post(
+                Call::ParamText {
+                    instance: self.instance,
+                    id,
+                    value,
+                },
+                &[],
+                Purpose::Text(id, value.to_bits()),
+            );
         }
         None
     }
 
+    /// What it said last — at once, never a wait. Whether that is its state as it is now
+    /// is [`MainThread::state_current`]; a save asks anew ([`MainThread::ask_state_now`]).
     fn save_state(&mut self) -> Result<Vec<u8>, HostError> {
-        match self.fresh_state() {
-            // Alive but not answering in time: what it said last (review #4, #44).
-            Err(HostError::Busy(_)) if self.last_good.is_some() => {
-                Ok(self.last_good.clone().unwrap_or_default())
-            }
-            r => r,
-        }
-    }
-
-    fn fresh_state(&mut self) -> Result<Vec<u8>, HostError> {
-        self.take_answered_state();
-        if !self.gone() && self.last_good.is_some() && self.in_trouble() {
-            // Known to be in trouble: what it said last, at once, and a fresh state asked
-            // for in the background (review #51).
-            if !self.asked_state {
-                self.ask_state();
-            }
-            return Err(HostError::Busy("it is not answering".into()));
-        }
-        if !self.gone() {
-            let limit = self.pool.limits().state;
-            match self.call(
-                Call::SaveState {
-                    instance: self.instance,
-                },
-                &[],
-                limit,
-            ) {
-                Ok((Answer::State, blob)) => {
-                    self.last_good = Some(blob.clone());
-                    self.state_settled();
-                    return Ok(blob);
-                }
-                Ok(_) => {}
-                // Alive but not answering in time (its dialog is open, a slow call is ahead):
-                // busy — `save_state` answers with what it said last, or a fresher state
-                // answered meanwhile, never a frozen save (review #4, #44; isolation-4 #1).
-                // Its own answer, when it comes, becomes the last-good state.
-                Err(HostError::Busy(why)) if self.last_good.is_some() => {
-                    self.take_answered_state();
-                    return Err(HostError::Busy(why));
-                }
-                Err(e) if !self.gone() => return Err(e),
-                Err(_) => {}
-            }
-        }
-        // Gone: what it last said is what the project keeps.
+        self.take_answers();
         self.last_good
             .clone()
             .ok_or_else(|| HostError::Crashed(self.crash_reason()))
     }
 
-    /// The state asked for becomes the last-good one before the call: if the helper dies
-    /// meanwhile, or is gone already, it is what saving and reloading use — the project's
-    /// state, not the one before it (review #9, #40, #44).
+    fn ask_state_now(&mut self) {
+        self.take_answers();
+        if !self.loaded || self.gone() {
+            self.gather = None;
+            return;
+        }
+        // A background request made after the last change is the one waited for.
+        self.gather = match self.asked_state {
+            Some(id) if id >= self.changed_at => Some(id),
+            _ => self.ask_state(),
+        };
+    }
+
+    fn poll_state(&mut self) -> StatePoll {
+        let gathered = self.gathered();
+        let last = self.last_good.clone().unwrap_or_default();
+        match gathered {
+            None => StatePoll::Waiting,
+            Some(None) => StatePoll::Fresh(last),
+            Some(Some(why)) => StatePoll::Stale(last, why),
+        }
+    }
+
+    fn state_waiting(&mut self) -> bool {
+        self.gathered().is_none()
+    }
+
+    fn state_current(&self) -> bool {
+        self.current || !self.loaded
+    }
+
+    /// The state asked for becomes the last-good one at once: if the helper dies meanwhile,
+    /// or is gone already, it is what saving and reloading use (review #9, #40, #44). Sent,
+    /// never waited for.
     fn load_state(&mut self, data: &[u8]) -> Result<(), HostError> {
         self.last_good = Some(data.to_vec());
         self.state_settled();
-        let limit = self.pool.limits().state;
-        let call = Call::LoadState {
-            instance: self.instance,
-        };
-        if self.offline {
-            // A render never starts before its state is in (review isolation-4 #10).
-            return self.call_offline(call, data, limit).map(|_| ());
+        self.current = true;
+        if self.gone() {
+            return Err(HostError::Crashed(self.crash_reason()));
         }
-        self.call(call, data, limit).map(|_| ())
+        self.post(
+            Call::LoadState {
+                instance: self.instance,
+            },
+            data,
+            Purpose::LoadState,
+        );
+        Ok(())
     }
 
     fn latency(&self) -> usize {
@@ -375,51 +571,67 @@ impl MainThread for BridgeMain {
         self.has_editor
     }
 
+    /// Asks for its window; answered within a frame's share it says so, else the window
+    /// opens when its helper answers (`idle` says [`Notice::EditorOpened`]) and this says
+    /// it is busy — never a wait (review isolation-4 #39; isolation-5).
     fn open_editor(
         &mut self,
         _parent: raw_window_handle::RawWindowHandle,
     ) -> Result<EditorSize, HostError> {
-        let limit = self.pool.limits().call;
-        // One request: a window asked for while its helper was busy is not asked again,
-        // only waited for; when it opens, the host is told (review isolation-4 #39).
-        let (pending, wait) = match self.editor_pending.take() {
-            Some(p) => (p, Wait::Poll),
+        let id = match self.editor_pending {
+            Some(id) => id,
             None => {
-                let title = self.info.name.clone();
-                let p = self.sandbox.post_call(
-                    Some(self.instance),
+                let id = self.post(
                     Call::OpenEditor {
                         instance: self.instance,
-                        title,
+                        title: self.info.name.clone(),
                     },
                     &[],
-                    limit,
-                )?;
-                (p, Wait::Limit)
+                    Purpose::Editor,
+                );
+                if id == 0 {
+                    return Err(HostError::Crashed(self.crash_reason()));
+                }
+                id
             }
         };
-        let answered = match self.sandbox.wait_call(&pending, wait) {
-            Waited::Answered(r) => (*r)?,
-            Waited::Pending => {
-                let e = self.sandbox.give_up_waiting(&pending, limit);
-                self.editor_pending = Some(pending);
-                return Err(e);
+        self.brief_wait(|inbox| inbox.data().editor.as_ref().is_some_and(|(e, _)| *e == id));
+        let answer = {
+            let mut d = self.inbox.data();
+            match d.editor.take() {
+                Some((e, r)) if e == id => Some(r),
+                other => {
+                    d.editor = other;
+                    None
+                }
             }
         };
-        match answered {
-            (Answer::Editor { width, height }, _) => Ok(EditorSize { width, height }),
-            _ => Err(HostError::Editor(
-                "the plug-in sandbox did not open it".into(),
-            )),
+        match answer {
+            Some(r) => {
+                self.editor_pending = None;
+                r.map(|()| EditorSize {
+                    width: 0,
+                    height: 0,
+                })
+                .map_err(HostError::Editor)
+            }
+            None if self.gone() => Err(HostError::Crashed(self.crash_reason())),
+            None => {
+                self.editor_pending = Some(id);
+                Err(HostError::Busy("its window opens when it is free".into()))
+            }
         }
     }
 
     fn close_editor(&mut self) {
-        self.sandbox.tell(
+        // A window still on its way is not adopted when it comes (it is closed in order).
+        self.editor_pending = None;
+        self.post(
             Call::CloseEditor {
                 instance: self.instance,
             },
             &[],
+            Purpose::Ignore,
         );
     }
 
@@ -448,67 +660,106 @@ impl MainThread for BridgeMain {
                 }
             }
         }
+        self.take_answers();
+        if let Some(limit) = self.load_overdue() {
+            let secs = limit.as_secs().max(1);
+            self.load_failed = Some(format!("it did not load within {secs} s"));
+        }
+        if self.tell_loaded {
+            self.tell_loaded = false;
+            if self.load_failed.is_none() {
+                // Its audio half with its latency, for the host to put in the first one's
+                // place.
+                self.fresh_audio = self.audio_half().ok();
+                out.push(Notice::Loaded);
+            }
+        }
         if self.gone() {
             self.status.mark_dead();
-            if let Some((reason, blame)) = self.crashed_notice() {
-                if !self.told_crash {
+            if !self.told_crash {
+                if let Some((reason, blame)) = self.crashed_notice() {
                     self.told_crash = true;
-                    out.push(Notice::Crashed { reason, blame });
+                    // A helper that never started: a failed load, nobody's crash (#40).
+                    out.push(if self.loaded || self.sandbox.heard() {
+                        Notice::Crashed { reason, blame }
+                    } else {
+                        Notice::LoadFailed(reason)
+                    });
                 }
             }
             return out;
         }
-        self.take_answered_state();
-        let (notices, moved, params) = {
+        if let Some(why) = self.load_failed.clone() {
+            // Not a crash: its helper lives, and its neighbours with it.
+            self.status.fail();
+            if !self.told_crash {
+                self.told_crash = true;
+                out.push(Notice::LoadFailed(why));
+            }
+            return out;
+        }
+        if let Some(id) = self.editor_pending {
+            let answer = {
+                let mut d = self.inbox.data();
+                match d.editor.take() {
+                    Some((e, r)) if e == id => Some(r),
+                    other => {
+                        d.editor = other;
+                        None
+                    }
+                }
+            };
+            match answer {
+                Some(Ok(())) => {
+                    self.editor_pending = None;
+                    out.push(Notice::EditorOpened);
+                }
+                Some(Err(e)) => {
+                    self.editor_pending = None;
+                    log::warn!("{}: its window did not open: {e}", self.info.name);
+                }
+                None => {}
+            }
+        }
+        let (notices, moved) = {
             let mut d = self.inbox.data();
             (
                 std::mem::take(&mut d.notices),
                 std::mem::take(&mut d.values_moved),
-                d.params.take(),
             )
         };
-        if let Some(p) = params {
-            // A parameter list asked for and given up on, answered now: taken, and the
-            // host told again (review isolation-4 #20).
-            self.params = p;
-            out.push(Notice::ParamsChanged);
-        }
-        if let Some(pending) = self.editor_pending.take() {
-            match self.sandbox.wait_call(&pending, Wait::Poll) {
-                Waited::Answered(r) => match *r {
-                    Ok((Answer::Editor { .. }, _)) => out.push(Notice::EditorOpened),
-                    Ok(_) => {}
-                    Err(e) => log::warn!("{}: its window did not open: {e}", self.info.name),
-                },
-                Waited::Pending => self.editor_pending = Some(pending),
-            }
-        }
         let now = Instant::now();
-        if moved && self.dirty_since.is_none() {
-            // Values alone move with automation too: refreshed at a slower pace.
-            if self.last_refresh.elapsed() >= REFRESH_EVERY {
+        if moved {
+            self.changed();
+            if self.dirty_since.is_none() && self.last_refresh.elapsed() >= REFRESH_EVERY {
+                // Values alone move with automation too: refreshed at a slower pace.
                 self.dirty_since = Some(now - REFRESH_AFTER);
             }
         }
         for n in notices {
             match n {
                 WireNotice::ParamsChanged => {
-                    let limit = self.pool.limits().call;
-                    // Given up on (its helper busy), its answer still comes: taken then
-                    // (`Background::Params`).
-                    if let Ok((Answer::Params(p), _)) = self.call(
-                        Call::Params {
-                            instance: self.instance,
-                        },
-                        &[],
-                        limit,
-                    ) {
-                        self.params = p;
+                    // Asked for; said on once the new list is in (`take_answers`).
+                    if !self.asked_params {
+                        self.asked_params = true;
+                        self.post(
+                            Call::Params {
+                                instance: self.instance,
+                            },
+                            &[],
+                            Purpose::Params,
+                        );
                     }
+                    self.changed();
                     self.dirty_since.get_or_insert(now);
+                    continue;
                 }
                 WireNotice::StateDirty => {
+                    // Said on once the state it changed to is in (the host records it).
+                    self.changed();
+                    self.tell_state_dirty = true;
                     self.dirty_since.get_or_insert(now);
+                    continue;
                 }
                 WireNotice::LatencyChanged(l) => self.latency = l,
                 _ => {}
@@ -516,90 +767,99 @@ impl MainThread for BridgeMain {
             out.push(n.notice());
         }
         if let Some(since) = self.dirty_since {
-            if !self.asked_state && since.elapsed() >= REFRESH_AFTER {
+            if self.asked_state.is_none() && since.elapsed() >= REFRESH_AFTER {
                 self.dirty_since = None;
                 self.ask_state();
             }
         }
+        if std::mem::take(&mut self.say_params) {
+            out.push(Notice::ParamsChanged);
+        }
+        if std::mem::take(&mut self.say_state_dirty) {
+            out.push(Notice::StateDirty);
+        }
         out
     }
 
-    /// A restart is not waited for past a moment: `Ok(None)` ("not yet"), and a later call
-    /// picks its answer up — one request, never a second, and never a frozen interface
-    /// (review #11; isolation-4 #4, #23).
+    /// A restart is never waited for past a frame's share: `Ok(None)` ("not yet"), and a
+    /// later call picks its answer up — one request, never a second (review #11;
+    /// isolation-4 #4, #23; isolation-5).
     fn restart(&mut self) -> Result<Option<Box<dyn AudioThread>>, HostError> {
-        let limit = self.pool.limits().call;
-        // Asked for: waited for a moment; picked up later: only looked at — never a frame
-        // that waits a call's limit again (review isolation-4 #4, #23, #26, #51, #60).
-        let (pending, wait) = match self.restart_pending.take() {
-            Some(p) => (p, Wait::Poll),
-            None => (
-                self.sandbox.post_call(
-                    Some(self.instance),
+        if self.gone() {
+            return Err(HostError::Crashed(self.crash_reason()));
+        }
+        let id = match self.restart_pending {
+            Some(id) => id,
+            None => {
+                let id = self.post(
                     Call::Restart {
                         instance: self.instance,
                     },
                     &[],
-                    limit,
-                )?,
-                Wait::For(RESTART_WAIT),
-            ),
-        };
-        let answered = match self.sandbox.wait_call(&pending, wait) {
-            Waited::Answered(r) => (*r)?,
-            Waited::Pending => {
-                self.restart_pending = Some(pending);
-                return Ok(None);
+                    Purpose::Restart,
+                );
+                if id == 0 {
+                    return Err(HostError::Crashed(self.crash_reason()));
+                }
+                self.restart_pending = Some(id);
+                self.brief_wait(|inbox| {
+                    inbox
+                        .data()
+                        .restarted
+                        .as_ref()
+                        .is_some_and(|(r, _)| *r == id)
+                });
+                id
             }
         };
-        match answered {
-            (Answer::Restarted(None), _) => Ok(None),
-            (Answer::Restarted(Some(d)), _) => {
-                self.params = d.params;
-                self.latency = d.latency;
-                self.inbox.data().latency = Some(d.latency);
-                self.audio_half().map(Some)
+        let answer = {
+            let mut d = self.inbox.data();
+            match d.restarted.take() {
+                Some((r, a)) if r == id => Some(a),
+                other => {
+                    d.restarted = other;
+                    None
+                }
             }
-            _ => Err(HostError::Unsupported("restart")),
+        };
+        match answer {
+            None => Ok(None),
+            Some(a) => {
+                self.restart_pending = None;
+                match a {
+                    // Its old audio half was still on its way back: asked again next time.
+                    Ok(None) => Ok(None),
+                    Ok(Some(d)) => {
+                        self.describe(d);
+                        self.audio_half().map(Some)
+                    }
+                    Err(e) if e == "restart" => Err(HostError::Unsupported("restart")),
+                    Err(e) => Err(HostError::Activate(e)),
+                }
+            }
         }
     }
 
+    /// Values delivered while nothing processes: sent, never waited for — what the plug-in
+    /// reports back comes with a later empty flush, as a flush it asked for does.
     fn flush(&mut self, params: &[ParamChange], out: &mut ParamOut) -> bool {
         if params.is_empty() {
-            // What the plug-in reported outside processing, which the helper flushed when
-            // it asked: delivered here.
             for e in std::mem::take(&mut self.inbox.data().flushed) {
                 out.push(e.event());
             }
             return false;
         }
+        self.changed();
         let wire = params.iter().map(|p| (p.offset, p.id, p.value)).collect();
-        let limit = self.pool.limits().call;
-        let call = Call::Flush {
-            instance: self.instance,
-            params: wire,
-        };
-        let answer = if self.offline {
-            // A render's values are in before its first block (review isolation-4 #10).
-            self.call_offline(call, &[], limit)
-        } else {
-            self.call(call, &[], limit)
-        };
-        match answer {
-            Ok((
-                Answer::Flushed {
-                    processed,
-                    out: events,
-                },
-                _,
-            )) => {
-                for e in events {
-                    out.push(e.event());
-                }
-                processed
-            }
-            _ => false,
-        }
+        self.post(
+            Call::Flush {
+                instance: self.instance,
+                params: wire,
+            },
+            &[],
+            Purpose::Flush,
+        );
+        true
     }
 
     fn editor_is_floating(&self) -> bool {
@@ -607,17 +867,19 @@ impl MainThread for BridgeMain {
     }
 
     fn focus_editor(&mut self) -> bool {
-        self.sandbox.tell(
+        self.post(
             Call::FocusEditor {
                 instance: self.instance,
             },
             &[],
+            Purpose::Ignore,
         );
         true
     }
 
     fn checkpoint(&mut self) {
         if !self.gone() {
+            self.changed();
             self.dirty_since
                 .get_or_insert(Instant::now() - REFRESH_AFTER);
         }
@@ -651,13 +913,7 @@ impl MainThread for BridgeMain {
 
     fn stop(&mut self) {
         if !self.gone() {
-            self.sandbox.kill_blaming(
-                &format!(
-                    "{} was stopped while it waited on a window of its own",
-                    self.info.name
-                ),
-                Some(self.instance),
-            );
+            self.sandbox.stop_by_user(self.instance, &self.info.name);
         }
     }
 
@@ -665,8 +921,21 @@ impl MainThread for BridgeMain {
         self.status.late.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Loaded, and said (`idle` said [`Notice::Loaded`] as it took the answer).
+    fn loaded(&self) -> bool {
+        self.loaded && self.load_failure().is_none()
+    }
+
+    fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
+        self.fresh_audio.take()
+    }
+
+    /// A helper's end first (whose doing it was goes with it), else a failed load.
     fn stopped(&self) -> Option<(String, Blame)> {
-        self.crashed_notice()
+        if self.gone() {
+            return self.crashed_notice();
+        }
+        self.load_failure().map(|why| (why, Blame::Unknown))
     }
 }
 
