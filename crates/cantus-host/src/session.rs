@@ -1703,6 +1703,9 @@ impl PluginHost {
     /// Whether the states asked for are all in — or not to be had in time, each by its own
     /// limit from when its helper started it. A save asks each frame.
     pub fn states_in(&mut self) -> bool {
+        if self.test_hooks.hold_states {
+            return false;
+        }
         let mains = self.slots.values_mut().map(|h| &mut h.main);
         let insts = self.instruments.values_mut().map(|h| &mut h.main);
         let mut waiting = false;

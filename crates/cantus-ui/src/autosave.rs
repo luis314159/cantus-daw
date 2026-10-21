@@ -30,7 +30,7 @@ pub struct Job {
 }
 
 /// The most an autosave waits for its plug-ins' states: the state limit.
-const AUTOSAVE_GATHER: std::time::Duration = std::time::Duration::from_secs(30);
+pub(crate) const AUTOSAVE_GATHER: std::time::Duration = std::time::Duration::from_secs(30);
 
 impl CantusApp {
     /// Once a frame: collect a finished autosave, and start one when it is due and there
@@ -41,10 +41,14 @@ impl CantusApp {
             return;
         }
         // Asked for another project (New, Open meanwhile): not this one's (isolation-6 #34).
-        if self.autosave_gathering.is_some_and(|(_, epoch)| epoch != self.epoch) {
+        if self
+            .autosave_gathering
+            .is_some_and(|(_, epoch)| epoch != self.epoch)
+        {
             self.autosave_gathering = None;
         }
-        match self.autosave_gathering {
+        let asked = match self.autosave_gathering {
+            Some((asked, _)) => asked,
             None => {
                 if self.last_autosave.elapsed() < self.autosave_interval() {
                     return;
@@ -57,17 +61,16 @@ impl CantusApp {
                 // have answered, frame by frame — never waited for here (round 29, review
                 // isolation-5).
                 self.plugins.ask_states();
-                self.autosave_gathering = Some((Instant::now(), self.epoch));
+                let now = Instant::now();
+                self.autosave_gathering = Some((now, self.epoch));
+                now
             }
-            // A plug-in's dialog may hold its helper for hours: past the state limit the
-            // autosave is written with what each said last, never left undone (isolation-6
-            // #6, #27).
-            Some((asked, _)) if asked.elapsed() > AUTOSAVE_GATHER => {}
-            Some(_) => {
-                if !self.plugins.states_in() {
-                    return;
-                }
-            }
+        };
+        // A plug-in's dialog may hold its helper for hours: past the state limit the
+        // autosave is written with what each said last, never left undone (isolation-6 #6,
+        // #27).
+        if asked.elapsed() < self.autosave_gather_limit && !self.plugins.states_in() {
+            return;
         }
         self.autosave_gathering = None;
         if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {

@@ -1036,3 +1036,120 @@ fn a_save_that_kept_a_plugin_as_it_was_last_said_names_it() {
         "{text}"
     );
 }
+
+/// Why a plug-in's state was kept as it was last said, in the interface's words — never
+/// "it could not be loaded again" for a plug-in that is loaded and playing (review
+/// isolation-6 #10, #21, #31); one other plug-in in its process is said as one (#32).
+#[test]
+fn stale_reasons_and_a_single_neighbour_are_said_rightly() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let reasons = [
+        "its state was not asked for",
+        "stopped by the user",
+        "state: the plug-in refused",
+    ];
+    let words: Vec<String> = reasons
+        .iter()
+        .map(|r| plugin_notice::stale_words(r))
+        .collect();
+    let failed = cantus_ui::i18n::t("isolation.why.load_failed");
+    let one = plugin_notice::waiting_body(1);
+    let two = plugin_notice::waiting_body(2);
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    for (r, w) in reasons.iter().zip(&words) {
+        assert_ne!(w, &failed, "{r}: {w}");
+        assert!(!w.contains("asked for") && !w.contains("user"), "{r}: {w}");
+    }
+    assert!(!one.contains(" 1 "), "{one}");
+    assert!(two.contains('2'), "{two}");
+}
+
+/// A freeze asks its plug-ins for their states as they are now and waits for them, frame by
+/// frame, before it renders or keys anything (review isolation-6 #3, #15, #25).
+#[test]
+fn a_freeze_asks_its_plugins_states_first() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut a = app(cantus_ui::starter_project());
+    a.engine.frozen.set_app_dir(dir.path().join("renders"));
+    a.path = Some(dir.path().join("song.cantus"));
+    let strip = a.project().tracks[0].strip.unwrap();
+    a.plugins.hold_for_tests(false, true);
+    a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
+    let ctx = ctx();
+    for _ in 0..5 {
+        cantus_ui::freeze::tick(&mut a, &ctx);
+    }
+    assert!(a.freeze.job.is_none(), "it waits for the states");
+    assert!(
+        a.project().strip(strip).is_some_and(|s| s.frozen.is_none()),
+        "nothing keyed meanwhile"
+    );
+    a.plugins.hold_for_tests(false, false);
+    let start = std::time::Instant::now();
+    while a.project().strip(strip).is_some_and(|s| s.frozen.is_none())
+        && start.elapsed().as_secs() < 30
+    {
+        cantus_ui::freeze::tick(&mut a, &ctx);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert!(
+        a.project().strip(strip).is_some_and(|s| s.frozen.is_some()),
+        "then frozen"
+    );
+}
+
+/// An export waiting for its plug-ins, asked for a project since replaced, is dropped and
+/// said — never the new project exported under the old one's name (review isolation-6 #20).
+#[test]
+fn an_export_waiting_for_another_project_is_dropped() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut a = app(cantus_ui::starter_project());
+    a.plugins.hold_for_tests(true, false);
+    assert!(cantus_ui::views::export::start_with(
+        &mut a,
+        &dir.path().join("mix.wav"),
+        None
+    ));
+    assert!(a.export.waiting(), "it waits for its plug-ins");
+    a.replace_project(cantus_ui::starter_project());
+    a.plugins.hold_for_tests(false, false);
+    cantus_ui::views::export::poll(&mut a);
+    assert!(!a.export.busy(), "dropped");
+    assert!(matches!(a.export.last, Some(Err(_))), "and said");
+    assert!(!dir.path().join("mix.wav").exists());
+}
+
+/// An autosave waits for its plug-ins' states a while, then is written with what each
+/// said last — never left undone for as long as a dialog stays open — and one asked for a
+/// project since replaced is dropped (review isolation-6 #6, #27, #34).
+#[test]
+fn an_autosave_waits_its_while_and_belongs_to_its_project() {
+    let mut a = app(cantus_ui::starter_project());
+    a.autosave_every = Some(std::time::Duration::ZERO);
+    let track = a.project().tracks[0].id;
+    assert!(a.exec(Command::SetTrackGain {
+        id: track,
+        gain_db: -3.0
+    }));
+    a.plugins.hold_for_tests(false, true);
+    a.maybe_autosave();
+    assert!(!a.autosave_in_flight(), "it waits for the states");
+    a.autosave_gather_limit = std::time::Duration::ZERO;
+    a.maybe_autosave();
+    assert!(a.autosave_in_flight(), "written once its while is up");
+    a.poll_autosave(true);
+    // Asked, then another project: not written for it.
+    a.autosave_gather_limit = std::time::Duration::from_secs(30);
+    assert!(a.exec(Command::SetTrackGain {
+        id: track,
+        gain_db: -6.0
+    }));
+    a.maybe_autosave();
+    a.replace_project(cantus_ui::starter_project());
+    a.plugins.hold_for_tests(false, false);
+    a.maybe_autosave();
+    assert!(
+        !a.autosave_in_flight(),
+        "the new, unchanged project is not autosaved"
+    );
+}

@@ -250,6 +250,8 @@ pub struct CantusApp {
     /// An autosave waiting for its hosted plug-ins' states since when, for which project
     /// (round 29, review isolation-5; isolation-6 #6, #34).
     pub(crate) autosave_gathering: Option<(Instant, u64)>,
+    /// The most an autosave waits for its plug-ins' states (tests shorten it).
+    pub autosave_gather_limit: Duration,
     /// *Save* written on its thread (`save_job`, round 24): the save in flight, one queued
     /// behind it, and what the *Save changes?* question waits to do.
     pub saving: crate::save_job::Saving,
@@ -664,6 +666,7 @@ impl CantusApp {
             autosave_warned: false,
             autosave_job: None,
             autosave_gathering: None,
+            autosave_gather_limit: crate::autosave::AUTOSAVE_GATHER,
             saving: Default::default(),
             epoch: 0,
             session: None,

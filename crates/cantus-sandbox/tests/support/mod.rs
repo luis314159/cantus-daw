@@ -505,7 +505,12 @@ impl Rig {
     /// as an export waits for them.
     pub fn prepare_render(&mut self, stored: bool) {
         let t0 = std::time::Instant::now();
-        while !self.host.render_ready(self.bus.project(), SR, stored) {
+        while !self.host.render_ready(
+            cantus_host::RenderFor::Export,
+            self.bus.project(),
+            SR,
+            stored,
+        ) {
             assert!(
                 t0.elapsed() < std::time::Duration::from_secs(60),
                 "the render's plug-ins load in time"

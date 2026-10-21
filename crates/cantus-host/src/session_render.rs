@@ -102,6 +102,9 @@ impl PluginHost {
         sample_rate: f64,
         stored: bool,
     ) -> bool {
+        if self.test_hooks.hold_renders {
+            return false;
+        }
         let key = (sample_rate.to_bits(), stored, content_of(project, stored));
         if let Some(p) = &self.render_prep {
             if p.owner != owner {
@@ -143,10 +146,7 @@ impl PluginHost {
     /// a bake dropped): its preparation goes, its instances with it. A running render's
     /// are never touched.
     pub fn drop_render(&mut self, owner: RenderFor) {
-        if self
-            .render_prep
-            .as_ref()
-            .is_some_and(|p| p.owner == owner)
+        if self.render_prep.as_ref().is_some_and(|p| p.owner == owner)
             && self.render_mains.is_empty()
         {
             self.drop_render_prep();

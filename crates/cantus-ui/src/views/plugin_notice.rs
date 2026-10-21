@@ -88,11 +88,7 @@ pub fn waiting_card(app: &CantusApp) -> Option<WaitCard> {
         Target::Insert(e) => app.plugins.neighbours(Some(e), None),
         Target::Instrument(tr) => app.plugins.neighbours(None, Some(tr)),
     };
-    let body = match others {
-        0 => t("isolation.waiting.body"),
-        1 => t("isolation.waiting.body_shared_one"),
-        n => tf("isolation.waiting.body_shared", &[("n", &n)]),
-    };
+    let body = waiting_body(others);
     Some(WaitCard {
         target,
         tip: (name.clone(), body.clone()),
@@ -104,6 +100,16 @@ pub fn waiting_card(app: &CantusApp) -> Option<WaitCard> {
             (t("isolation.waiting.stop"), WaitAnswer::Stop),
         ],
     })
+}
+
+/// The waiting card's words: what stopping it does, with `others` plug-ins in its process
+/// (review isolation-5 #44; isolation-6 #32: one other, said as one).
+pub fn waiting_body(others: usize) -> String {
+    match others {
+        0 => t("isolation.waiting.body"),
+        1 => t("isolation.waiting.body_shared_one"),
+        n => tf("isolation.waiting.body_shared", &[("n", &n)]),
+    }
 }
 
 /// The user answered the waiting card.

@@ -255,9 +255,45 @@ unsafe extern "system" fn thread_timer(
             unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
         }
         HANG_THREAD_TIMER => hang(),
+        PUMP_ON_TIMER => pump(std::time::Duration::from_millis(3_000)),
         _ => {}
     }
 }
+
+/// What a thread timer started at activation does: a 3 s nested loop, as a nag a
+/// framework's timer opens — outside any call, from code several instances share
+/// (`CANTUS_TEST_GAIN_PUMP_ON_TIMER_ONCE`).
+#[cfg(windows)]
+const PUMP_ON_TIMER: u32 = 1_000;
+
+/// `CANTUS_TEST_GAIN_PUMP_ON_TIMER_ONCE=<file>`: the first activation (while the file is
+/// not there) starts a thread timer that, half a second on, runs a 3 s nested loop.
+pub fn pump_on_timer_once() {
+    if let Some(file) = std::env::var_os("CANTUS_TEST_GAIN_PUMP_ON_TIMER_ONCE") {
+        let file = std::path::PathBuf::from(file);
+        if !file.exists() {
+            let _ = std::fs::write(&file, b"timer");
+            start_pump_timer();
+        }
+    }
+}
+
+#[cfg(windows)]
+fn start_pump_timer() {
+    TIMER_DOES.store(PUMP_ON_TIMER, Ordering::Release);
+    // SAFETY: a thread timer (no window) on this, the main, thread, with our procedure.
+    unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::SetTimer(
+            std::ptr::null_mut(),
+            0,
+            500,
+            Some(thread_timer),
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn start_pump_timer() {}
 
 /// A hidden window of the plug-in's own — its class registered from its library, as a
 /// framework's message window is — sent a message that never returns (`HANG_HIDDEN_WINDOW`).
@@ -353,13 +389,18 @@ pub fn pump_activate_once() {
 }
 
 /// `CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE=<file>`: the first activation (while the file is
-/// not there) takes 1.5 s without pumping — a slow load, not a dialog — and makes the file.
+/// not there) takes 1.5 s — or `CANTUS_TEST_GAIN_SLOW_MS` — without pumping: a slow load,
+/// not a dialog; it makes the file.
 pub fn slow_activate_once() {
     if let Some(file) = std::env::var_os("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE") {
         let file = std::path::PathBuf::from(file);
         if !file.exists() {
             let _ = std::fs::write(&file, b"slow");
-            std::thread::sleep(std::time::Duration::from_millis(1_500));
+            let ms = std::env::var("CANTUS_TEST_GAIN_SLOW_MS")
+                .ok()
+                .and_then(|v| v.parse::<u64>().ok())
+                .unwrap_or(1_500);
+            std::thread::sleep(std::time::Duration::from_millis(ms));
         }
     }
 }

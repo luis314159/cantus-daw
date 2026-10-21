@@ -120,6 +120,9 @@ pub(crate) struct TestHooks {
     pub waiting: Vec<EffectId>,
     /// Plug-ins every save says it kept as they were last said: name, why.
     pub stale_saves: Vec<(String, String)>,
+    /// Renders' plug-ins said to be loading still, states said to be on their way.
+    pub hold_renders: bool,
+    pub hold_states: bool,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -737,16 +740,16 @@ impl PluginHost {
     /// Whether a slot's plug-in is loading still (an isolated one, its load answered
     /// later): its slot, its editor and the inspector say so (review isolation-6 #28).
     pub fn effect_loading(&self, effect: EffectId) -> bool {
-        self.slots.get(&effect).is_some_and(|h| {
-            h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
-        })
+        self.slots
+            .get(&effect)
+            .is_some_and(|h| h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none())
     }
 
     /// [`Self::effect_loading`] for a track's hosted instrument.
     pub fn instrument_loading(&self, track: TrackId) -> bool {
-        self.instruments.get(&track).is_some_and(|h| {
-            h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
-        })
+        self.instruments
+            .get(&track)
+            .is_some_and(|h| h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none())
     }
 
     /// What a slot's plug-in costs, measured over the last half second.
@@ -843,6 +846,15 @@ impl PluginHost {
                 found: true,
             },
         );
+    }
+
+    /// For the interface's tests: renders' plug-ins said to be loading (`render_ready`
+    /// false) and states said to be on their way (`states_in` false) while `hold`. The
+    /// application never calls it.
+    #[doc(hidden)]
+    pub fn hold_for_tests(&mut self, renders: bool, states: bool) {
+        self.test_hooks.hold_renders = renders;
+        self.test_hooks.hold_states = states;
     }
 
     /// For the interface's tests: every save from now on says it kept `name` as it was

@@ -355,15 +355,12 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
     let rate = app.engine.sample_rate.round() as u32;
     // The render's plug-ins loading (an isolated one in a helper of its own): the export
     // waits for them the same way, the window free (round 29, review isolation-5).
-    if !app
-        .plugins
-        .render_ready(
-            cantus_host::RenderFor::Export,
-            app.bus.project(),
-            f64::from(rate),
-            false,
-        )
-    {
+    if !app.plugins.render_ready(
+        cantus_host::RenderFor::Export,
+        app.bus.project(),
+        f64::from(rate),
+        false,
+    ) {
         app.export.waiting = Some(Waiting {
             target: target.to_path_buf(),
             plugins: true,
@@ -496,7 +493,12 @@ fn poll_waiting(app: &mut CantusApp) {
     // Take in what arrived (and send the live engine its snapshot with it).
     app.sync_engine();
     // Asked for another project (New, Open meanwhile): dropped, and said.
-    if app.export.waiting.as_ref().is_some_and(|w| w.epoch != app.epoch) {
+    if app
+        .export
+        .waiting
+        .as_ref()
+        .is_some_and(|w| w.epoch != app.epoch)
+    {
         stop(app);
         return;
     }
