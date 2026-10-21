@@ -85,7 +85,11 @@ fn a_load_held_by_its_own_dialog_waits_for_it_and_loads() {
     let rig2 = Rig::new(saved, host);
     std::env::remove_var("CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE");
     assert!(dir.path().join("pumped").exists(), "its dialog ran");
-    assert!(t.elapsed() > Duration::from_millis(1_400), "{:?}", t.elapsed());
+    assert!(
+        t.elapsed() > Duration::from_millis(1_400),
+        "{:?}",
+        t.elapsed()
+    );
     assert!(rig2.host.isolation(id).is_some(), "loaded after its dialog");
     assert!(rig2.host.crashed(id).is_none() && rig2.host.load_error(id).is_none());
     assert!(

@@ -55,7 +55,10 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         // isolation-5 #45).
         let not_loaded = app.plugins.instrument_load_error(t);
         let (word, tip_key) = match not_loaded {
-            Some(_) => ("isolation.inst.status_not_loaded", "isolation.inst.status_not_loaded_tip"),
+            Some(_) => (
+                "isolation.inst.status_not_loaded",
+                "isolation.inst.status_not_loaded_tip",
+            ),
             None => ("hosted.status_missing", "hosted.status_missing_tip"),
         };
         let missing = sh.fmt.tr(word).to_string();

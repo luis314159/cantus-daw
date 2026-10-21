@@ -118,6 +118,8 @@ pub(crate) struct TestHooks {
     pub reload_fails: Option<(String, bool)>,
     /// Inserts said to wait on a window of their own.
     pub waiting: Vec<EffectId>,
+    /// Plug-ins every save says it kept as they were last said: name, why.
+    pub stale_saves: Vec<(String, String)>,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -815,6 +817,15 @@ impl PluginHost {
         );
     }
 
+    /// For the interface's tests: every save from now on says it kept `name` as it was
+    /// last said, for `why`. The application never calls it.
+    #[doc(hidden)]
+    pub fn stale_in_saves_for_tests(&mut self, name: &str, why: &str) {
+        self.test_hooks
+            .stale_saves
+            .push((name.to_string(), why.to_string()));
+    }
+
     /// For the interface's tests: a hosted slot said to wait on a window of its own (or no
     /// longer). The application never calls it.
     #[doc(hidden)]
@@ -869,7 +880,11 @@ impl PluginHost {
             return 0;
         };
         let same = |m: &dyn MainThread| m.helper_id() == Some(helper);
-        let n = self.slots.values().filter(|h| same(h.main.as_ref())).count()
+        let n = self
+            .slots
+            .values()
+            .filter(|h| same(h.main.as_ref()))
+            .count()
             + self
                 .instruments
                 .values()

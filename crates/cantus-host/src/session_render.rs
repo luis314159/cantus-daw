@@ -379,4 +379,3 @@ fn plugins_of(project: &Project) -> u64 {
     }
     h.finish()
 }
-

@@ -195,8 +195,7 @@ impl BridgeMain {
     }
 
     fn post(&self, call: Call, blob: &[u8], purpose: Purpose) -> u64 {
-        self.sandbox
-            .post(Some(self.instance), call, blob, purpose)
+        self.sandbox.post(Some(self.instance), call, blob, purpose)
     }
 
     /// Something of the plug-in changed: states asked for before are older.
@@ -374,7 +373,16 @@ impl BridgeMain {
     fn gathered(&mut self) -> Option<Option<String>> {
         self.take_answers();
         let Some(g) = self.gather else {
-            return Some((!self.current && self.loaded).then(|| "its state was not asked for".into()));
+            // Nothing asked (never loaded, or gone): what it holds — said stale when it
+            // changed since, and why.
+            if !self.current && self.loaded {
+                return Some(Some(if self.gone() {
+                    self.crash_reason()
+                } else {
+                    "its state was not asked for".into()
+                }));
+            }
+            return Some(None);
         };
         if let Some((id, why)) = &self.last_answer {
             if *id >= g {
@@ -794,7 +802,13 @@ impl MainThread for BridgeMain {
                     return Err(HostError::Crashed(self.crash_reason()));
                 }
                 self.restart_pending = Some(id);
-                self.brief_wait(|inbox| inbox.data().restarted.as_ref().is_some_and(|(r, _)| *r == id));
+                self.brief_wait(|inbox| {
+                    inbox
+                        .data()
+                        .restarted
+                        .as_ref()
+                        .is_some_and(|(r, _)| *r == id)
+                });
                 id
             }
         };

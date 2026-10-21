@@ -813,8 +813,7 @@ impl Sandbox {
             }
         }
         self.serving().is_some_and(|(_, f)| {
-            f.instance == Some(instance)
-                && f.started.is_some_and(|s| s.elapsed() > WAIT_CARD_AFTER)
+            f.instance == Some(instance) && f.started.is_some_and(|s| s.elapsed() > WAIT_CARD_AFTER)
         })
     }
 

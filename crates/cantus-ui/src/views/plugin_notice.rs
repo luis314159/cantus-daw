@@ -468,7 +468,7 @@ pub fn menu_rows(app: &CantusApp, target: Target) -> Vec<(String, Option<bool>, 
         return Vec::new();
     };
     let mut rows = Vec::new();
-    // Stopped, or never loaded (refused, or its helper busy): it can be loaded again
+    // Stopped, or never loaded (refused, or not loaded in time): it can be loaded again
     // (review isolation-4 #57).
     let reloadable = match target {
         Target::Insert(e) => {
@@ -802,7 +802,10 @@ pub fn window_failed(app: &mut CantusApp, name: &str, e: &cantus_host::HostError
         )),
         e => app.set_error(tf(
             "host.editor.window_failed",
-            &[("error", &words_or(&e.to_string(), "isolation.why.no_window"))],
+            &[(
+                "error",
+                &words_or(&e.to_string(), "isolation.why.no_window"),
+            )],
         )),
     }
 }

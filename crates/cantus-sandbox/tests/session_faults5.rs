@@ -48,12 +48,8 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     let mut rig = Rig::new(project, patient_host());
     let mut w = Worst(Duration::ZERO, "");
     let dir = tempfile::tempdir().expect("a folder");
-    let slow = |n: &str| {
-        std::env::set_var(
-            "CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE",
-            dir.path().join(n),
-        )
-    };
+    let slow =
+        |n: &str| std::env::set_var("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE", dir.path().join(n));
     // Inserted: the slot at once, its plug-in loading in its helper.
     slow("insert");
     let info = info(GAIN_ID);
@@ -91,7 +87,11 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     assert!(rig.host.hosted(id).is_some_and(|h| !h.params.is_empty()));
     // Its values recorded — the one set meanwhile standing — in the steps there were.
     assert!(rig.plugin(id).params.len() > 1, "its values recorded");
-    assert_eq!(rig.plugin(id).params.get(&P_GAIN), Some(&-9.0), "the value set stands");
+    assert_eq!(
+        rig.plugin(id).params.get(&P_GAIN),
+        Some(&-9.0),
+        "the value set stands"
+    );
     frames(&mut rig, &mut w, &|r| {
         r.host.hosted(id).and_then(|h| h.param_value(P_GAIN)) == Some(-9.0)
     });
@@ -101,9 +101,11 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     frames(&mut rig, &mut w, &|r| r.host.states_in());
     let saved = w.time("save", || rig.host.project_for_save(rig.bus.project()));
     assert!(rig.host.saved_stale().is_empty());
-    assert!(saved
-        .all_effects()
-        .any(|(_, e)| e.id == id && e.spec.external.as_ref().is_some_and(|p| !p.state.is_empty())));
+    assert!(saved.all_effects().any(|(_, e)| e.id == id
+        && e.spec
+            .external
+            .as_ref()
+            .is_some_and(|p| !p.state.is_empty())));
     // Moved to a helper of its own, slow to start again.
     slow("move");
     rig.bus
@@ -148,12 +150,7 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     assert_eq!(units.len(), 1);
     assert!(rig.host.render_failures().is_empty());
     rig.host.finish_render();
-    assert!(
-        w.0 < Duration::from_millis(50),
-        "{} took {:?}",
-        w.1,
-        w.0
-    );
+    assert!(w.0 < Duration::from_millis(50), "{} took {:?}", w.1, w.0);
 }
 
 /// Rule 2: a save whose plug-in cannot give its state in time (its save hangs, past the
@@ -209,7 +206,11 @@ fn a_save_names_a_plugin_kept_as_it_was_last_said() {
             .find(|(_, s)| s.id == e)
             .and_then(|(_, s)| s.spec.external.as_ref().map(|x| x.state.clone()))
     };
-    assert_eq!(state_of(&saved, stuck), state_of(&good, stuck), "what it said last");
+    assert_eq!(
+        state_of(&saved, stuck),
+        state_of(&good, stuck),
+        "what it said last"
+    );
     assert!(state_of(&saved, well).is_some());
 }
 
@@ -285,7 +286,11 @@ fn a_render_says_a_plugin_that_was_not_loaded() {
     let a = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     let b = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     rig.settle();
-    assert_eq!(rig.host.neighbours(Some(a), None), 1, "one shares its process");
+    assert_eq!(
+        rig.host.neighbours(Some(a), None),
+        1,
+        "one shares its process"
+    );
     rig.host
         .mark_missing_for_tests(b, "it did not load within 30 s");
     rig.prepare_render(false);
@@ -321,7 +326,11 @@ fn stopping_a_plugin_is_never_its_crash() {
     let a = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     let b = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
     rig.settle();
-    assert_eq!(rig.host.neighbours(Some(a), None), 1, "the card says one goes with it");
+    assert_eq!(
+        rig.host.neighbours(Some(a), None),
+        1,
+        "the card says one goes with it"
+    );
     rig.host.stop(a);
     let start = Instant::now();
     while (rig.host.crashed(a).is_none() || rig.host.crashed(b).is_none())
@@ -391,7 +400,11 @@ fn a_state_answered_late_becomes_the_last_good_one() {
         std::thread::sleep(Duration::from_millis(10));
     }
     let saved = rig.host.project_for_save(rig.bus.project());
-    assert!(rig.host.saved_stale().is_empty(), "{:?}", rig.host.saved_stale());
+    assert!(
+        rig.host.saved_stale().is_empty(),
+        "{:?}",
+        rig.host.saved_stale()
+    );
     assert_eq!(gain_in(&saved), Some(-6.0));
 }
 
@@ -414,6 +427,8 @@ fn quitting_lets_the_helpers_end_their_plugins() {
     drop(audio);
     drop(main);
     drop(pool);
-    let destroyed = std::fs::read_dir(dir.path()).map(|d| d.count()).unwrap_or(0);
+    let destroyed = std::fs::read_dir(dir.path())
+        .map(|d| d.count())
+        .unwrap_or(0);
     assert_eq!(destroyed, 1, "its destructor ran before Cantus was gone");
 }

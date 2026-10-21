@@ -40,7 +40,10 @@ fn quick_pool() -> Arc<Sandboxes> {
 
 fn arrived(main: &mut dyn MainThread, id: u32, value: f64) {
     let start = Instant::now();
-    while main.param_value(id).is_none_or(|v| (v - value).abs() > 1e-6) {
+    while main
+        .param_value(id)
+        .is_none_or(|v| (v - value).abs() > 1e-6)
+    {
         assert!(
             start.elapsed() < Duration::from_secs(5),
             "parameter {id} never arrived"
@@ -388,14 +391,20 @@ fn a_plugin_windows_modal_loop_holds_its_calls_and_freezes_nothing() {
     // The dialog closed: the save asked during it is answered, as it is now.
     let start = Instant::now();
     while main.state_waiting() {
-        assert!(start.elapsed() < Duration::from_secs(3), "answered after it");
+        assert!(
+            start.elapsed() < Duration::from_secs(3),
+            "answered after it"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(matches!(
         main.poll_state(),
         cantus_host::StatePoll::Fresh(_)
     ));
-    assert_eq!(value_in(&pool, &main.save_state().unwrap(), P_GAIN), Some(-6.0));
+    assert_eq!(
+        value_in(&pool, &main.save_state().unwrap(), P_GAIN),
+        Some(-6.0)
+    );
     assert!(crashed_within(main.as_mut(), Duration::from_secs(1)).is_none());
     main.close_editor();
 }

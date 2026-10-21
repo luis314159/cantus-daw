@@ -331,7 +331,10 @@ fn dsp32(
     // Isolated plug-ins' loads are answered later: the frames run until they are in.
     let start = Instant::now();
     while host.loading() {
-        assert!(start.elapsed() < Duration::from_secs(120), "the plug-ins load");
+        assert!(
+            start.elapsed() < Duration::from_secs(120),
+            "the plug-ins load"
+        );
         host.idle(&mut bus, &mut engine);
         std::thread::sleep(Duration::from_millis(2));
     }

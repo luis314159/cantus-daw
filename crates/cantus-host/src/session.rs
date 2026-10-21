@@ -1457,6 +1457,7 @@ impl PluginHost {
             }
         }
         self.instruments_for_save(&mut out, locks.as_ref(), &mut stale);
+        stale.extend(self.test_hooks.stale_saves.iter().cloned());
         self.saved_stale = stale;
         out
     }

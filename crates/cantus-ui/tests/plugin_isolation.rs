@@ -857,7 +857,10 @@ fn a_save_names_the_plugins_it_kept_as_they_were_last_said() {
         "it did not answer in time".to_string(),
     )]);
     let many = plugin_notice::saved_stale(&[
-        ("Glacier".to_string(), "it did not answer in time".to_string()),
+        (
+            "Glacier".to_string(),
+            "it did not answer in time".to_string(),
+        ),
         ("Odin 2".to_string(), "it was still answering".to_string()),
     ]);
     let none = plugin_notice::saved_stale(&[]);
@@ -897,7 +900,9 @@ fn a_window_that_could_not_open_is_said_in_its_words() {
     let other = a.status.text.clone();
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     assert!(
-        crashed.contains("Glacier") && crashed.contains("memoria") && crashed.contains("0xC0000005"),
+        crashed.contains("Glacier")
+            && crashed.contains("memoria")
+            && crashed.contains("0xC0000005"),
         "{crashed}"
     );
     assert!(
@@ -1008,6 +1013,26 @@ fn a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed() {
     assert!(text.contains("no se cargó a tiempo"), "the reason: {text}");
     assert!(
         !text.contains("instale") && !text.contains("no está en este equipo"),
+        "{text}"
+    );
+}
+
+/// A save that kept a plug-in as it was last said lands, and the status line names it —
+/// never silently (review isolation-5 rule 2).
+#[test]
+fn a_save_that_kept_a_plugin_as_it_was_last_said_names_it() {
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    let dir = tempfile::tempdir().unwrap();
+    let (p, _, _) = hosted_project();
+    let mut a = app(p);
+    a.plugins
+        .stale_in_saves_for_tests("Glacier", "it did not answer in time");
+    a.save_to_path(&dir.path().join("song.cantus"));
+    let text = a.status.text.clone();
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    assert!(!a.bus.is_dirty(), "saved");
+    assert!(
+        text.contains("Glacier") && text.contains("no respondió a tiempo"),
         "{text}"
     );
 }

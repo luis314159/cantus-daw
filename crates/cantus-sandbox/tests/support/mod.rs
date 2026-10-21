@@ -8,7 +8,7 @@ use cantus_engine::{EngineHandle, Processor};
 use cantus_host::bridge::{BridgedBackend, Sandboxes};
 use cantus_host::db::{stamp, DbEntry, ScanStatus};
 use cantus_host::{
-    Audio, AudioSetup, AudioThread, Format, HostError, Loaded, MainThread, Notice, NoteEvent,
+    Audio, AudioSetup, AudioThread, Format, HostError, Loaded, MainThread, NoteEvent, Notice,
     ParamChange, ParamOut, PluginHost, PluginInfo, StatePoll,
 };
 use std::path::{Path, PathBuf};

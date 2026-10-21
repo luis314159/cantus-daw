@@ -979,10 +979,7 @@ mod tests {
     #[test]
     fn a_program_keeps_the_bank_it_was_sent_under() {
         let mut c = Carry::new();
-        c.keep(
-            &[],
-            &[midi(0xB0, 0, 1), midi(0xC0, 5, 0), midi(0xB0, 0, 2)],
-        );
+        c.keep(&[], &[midi(0xB0, 0, 1), midi(0xC0, 5, 0), midi(0xB0, 0, 2)]);
         let m = merged(&mut c, &[]);
         let kinds: Vec<NoteKind> = m.iter().map(|e| e.kind).collect();
         assert_eq!(
@@ -1004,7 +1001,11 @@ mod tests {
         c.keep(&[], &[midi(0xB0, 64, 127), off(60), midi(0xB0, 64, 120)]);
         let m = merged(&mut c, &[]);
         assert_eq!(m.len(), 2, "{m:?}");
-        assert_eq!(m[0].kind, midi(0xB0, 64, 120).kind, "the press, its newest value");
+        assert_eq!(
+            m[0].kind,
+            midi(0xB0, 64, 120).kind,
+            "the press, its newest value"
+        );
         assert!(matches!(m[1].kind, NoteKind::Off { .. }));
     }
 

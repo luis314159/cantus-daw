@@ -45,9 +45,9 @@ mod imp {
     use windows_sys::Win32::UI::WindowsAndMessaging::UOI_TIMERPROC_EXCEPTION_SUPPRESSION;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         BringWindowToTop, CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumThreadWindows,
-        GetWindow, IsWindowVisible, GW_OWNER, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW, RegisterClassW,
-        SetForegroundWindow, SetTimer, TranslateMessage, HWND_MESSAGE, MSG, PM_REMOVE, QS_ALLINPUT,
-        WM_APP, WM_TIMER, WNDCLASSW,
+        GetWindow, IsWindowVisible, MsgWaitForMultipleObjects, PeekMessageW, PostMessageW,
+        RegisterClassW, SetForegroundWindow, SetTimer, TranslateMessage, GW_OWNER, HWND_MESSAGE,
+        MSG, PM_REMOVE, QS_ALLINPUT, WM_APP, WM_TIMER, WNDCLASSW,
     };
 
     /// The pulse window (0 until made).
@@ -336,7 +336,11 @@ mod imp {
                 EnableWindow(editor, 1);
                 DestroyWindow(dialog);
             }
-            assert_eq!(waiting_window(thread), other, "the topmost visible, enabled one");
+            assert_eq!(
+                waiting_window(thread),
+                other,
+                "the topmost visible, enabled one"
+            );
             // SAFETY: as above.
             unsafe {
                 DestroyWindow(other);
@@ -923,8 +927,16 @@ pub mod blame {
         #[test]
         fn a_fault_is_the_calling_plugins_and_in_a_loop_its_librarys() {
             assert_eq!(whose(5, false, || 9), 5, "its own call, whatever library");
-            assert_eq!(whose(5, true, || 9), 9, "in a loop: the library's one instance");
-            assert_eq!(whose(5, true, || 0), OUTSIDE, "in a loop, no single one: nobody");
+            assert_eq!(
+                whose(5, true, || 9),
+                9,
+                "in a loop: the library's one instance"
+            );
+            assert_eq!(
+                whose(5, true, || 0),
+                OUTSIDE,
+                "in a loop, no single one: nobody"
+            );
             assert_eq!(whose(0, false, || 9), 9, "no call: the library's");
             assert_eq!(whose(0, false, || 0), OUTSIDE);
         }

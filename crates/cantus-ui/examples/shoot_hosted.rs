@@ -457,19 +457,40 @@ fn review3_shots(dir: &std::path::Path, ppp: f32, code: &str) {
     shot("three-buttons", egui::vec2(420.0, 600.0), &mut app);
     // A plug-in waiting on a window of its own (review isolation-4 #54), and a window
     // asked for while its helper is busy (#39), in a narrow window.
-    let mut app = waiting_app();
+    let mut app = waiting_app("Glacier");
     shot("waiting", egui::vec2(420.0, 600.0), &mut app);
+    // A long name: the title keeps its words, the name is shortened, its hint whole
+    // (review isolation-5 #48).
+    let mut app = waiting_app("Spectrasonics Omnisphere Orchestral Edition");
+    shot("waiting-long", egui::vec2(420.0, 600.0), &mut app);
+    // An insert on this computer that could not be loaded: its editor says so, with
+    // Reload — never "install it" (review isolation-5 #45).
+    let mut app = waiting_app("Glacier");
+    let strip = app.project().tracks[0].strip.expect("a strip");
+    let effect = app
+        .project()
+        .strip(strip)
+        .and_then(|s| s.effects.iter().find(|e| e.spec.external.is_some()))
+        .map(|e| e.id);
+    if let Some(e) = effect {
+        app.plugins.set_waiting_for_tests(e, false);
+        app.plugins
+            .mark_missing_for_tests(e, "it did not load within 30 s");
+        app.open_effect_editor(strip, e);
+    }
+    app.set_status(String::new());
+    shot("not-loaded", egui::vec2(1280.0, 760.0), &mut app);
 }
 
-/// Glacier waits on a window of its own; its window was asked for meanwhile.
-fn waiting_app() -> CantusApp {
+/// `name` waits on a window of its own; its window was asked for meanwhile.
+fn waiting_app(name: &str) -> CantusApp {
     let mut p = welcome_project();
     let strip = p.tracks[0].strip.expect("a strip");
     let mut slot = p.make_effect(cantus_core::EffectKind::External);
     slot.spec = cantus_core::EffectSpec::external(ExternalPlugin::new(
         PluginFormat::Clap,
         "org.example.glacier",
-        "Glacier",
+        name,
     ));
     let id = slot.id;
     p.strip_mut(strip).expect("the strip").effects.push(slot);
@@ -481,7 +502,7 @@ fn waiting_app() -> CantusApp {
     );
     app.plugins.set_waiting_for_tests(id, true);
     let busy = cantus_host::HostError::Busy("its own window holds it".into());
-    views::plugin_notice::window_failed(&mut app, "Glacier", &busy);
+    views::plugin_notice::window_failed(&mut app, name, &busy);
     app
 }
 

@@ -138,7 +138,10 @@ fn a_long_modal_loop_holds_the_helper_kills_nothing_and_freezes_nothing() {
     // B leaves while A's dialog is open: its unload waits for the main loop.
     drop(b_audio);
     drop(b);
-    assert!(a.load_state(&state).is_ok(), "sent, held for after the dialog");
+    assert!(
+        a.load_state(&state).is_ok(),
+        "sent, held for after the dialog"
+    );
     assert!(
         t.elapsed() < Duration::from_millis(50),
         "a call waited {:?}",

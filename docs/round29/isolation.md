@@ -395,10 +395,12 @@ is now 6.
 `Message::{Deferred, Behind}`), `Limits::{heavy, modal}`, `troubled`/`in_trouble`/
 `fresh_state`/`held_up`, synchronous `Sandbox::call` on the interface thread, the load
 retry (`Missing::retry_at`, `wants_sync`, `Failed::busy`), the audio half's offline load
-wait, the `WH_GETMESSAGE` hook. Net, the bridge and the helper are smaller than in round
-four, though they now hold the four rules; the session gained a render preparation
-(`session_render.rs`, which took the two render functions out of `session.rs` and
-`session_inst_idle.rs`).
+wait, the `WH_GETMESSAGE` hook. In lines that are not comments: the helper's serving
+(`serve.rs`) 859 → 685, the sandbox (`sandbox.rs`) 1 519 → 1 345; the main half
+(`main.rs`) 590 → 817, as it now keeps every request's state itself; the session gained
+the render preparation (`session_render.rs`, which took the two render functions out of
+`session.rs` and `session_inst_idle.rs`). The mechanisms are fewer; the rules they keep
+are written where they are kept.
 
 **Found by the tests on the way** (each seen failing in the whole-engine suite before its
 fix): a replaced audio half (the first one, made before the load was answered) sent its
@@ -454,3 +456,23 @@ autosaves gather (`save_job.rs`, `autosave.rs`), renders wait for their plug-ins
 samples (`export.rs`, `modulator_bake.rs`, `freeze.rs` — one line each where the samples'
 wait already was), a fresh insert's values join its undo step (`load_key`,
 `inst_load_key`: `plugins.rs`, `swap.rs`, `hosted_inst.rs`).
+
+**Files outside my area this round** (each a few lines where an existing wait or step
+already was): `cantus-ui/src/views/export.rs` (the waiting state also waits for the render's
+plug-ins), `views/modulator_bake.rs` (the same; its warning after *baked*), `freeze.rs`
+(`units_for` asks `render_ready`; `start_next` keeps the job first in the queue while they
+load; the warning after the commit), `save_job.rs` and `autosave.rs` (the gather),
+`app.rs` (`autosave_gathering`, the `wants_sync` block removed, the not-loaded status),
+`views/plugins.rs`, `swap.rs`, `hosted_inst.rs` (`exec_merging` with the load keys; the
+not-loaded words), `views/inspector_hosted.rs` (the not-loaded branch), `views/audio_notice.rs`
+(the waiting card's hint), `tests/controllers_review3.rs` (the fault parameter's steps run
+to 24 since round four's faults), `cantus-bench/src/isolation.rs` (waits for loads), the
+manual in both languages.
+
+**Notes for the integrator.** PROTOCOL 6 (a helper of another build refuses the handshake
+as before). `MainThread` gained `ask_state_now`, `poll_state`, `state_waiting`,
+`state_current`, `loaded`, `take_audio` (all with defaults: an in-process backend is
+unchanged); `Notice` gained `Loaded` and `LoadFailed`; `Backend::load_with` (default
+`None`). A render's units now come after `PluginHost::render_ready` says yes: any new
+caller of `render_units`/`render_instruments` must ask it first, frame by frame (as the
+export, the bake and the freeze do), or isolated plug-ins are reported as never loaded.

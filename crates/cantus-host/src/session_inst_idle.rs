@@ -123,7 +123,12 @@ impl PluginHost {
     /// An isolated instrument loaded: its parameters read, its unit made again with its
     /// audio half and latency — and, one just put on its track, its values and state
     /// recorded in the project in that undo step (review isolation-5).
-    fn on_instrument_loaded(&mut self, bus: &mut CommandBus, engine: &mut EngineHandle, track: TrackId) {
+    fn on_instrument_loaded(
+        &mut self,
+        bus: &mut CommandBus,
+        engine: &mut EngineHandle,
+        track: TrackId,
+    ) {
         let rate = self.setup.sample_rate;
         let Some(mut h) = self.instruments.remove(&track) else {
             return;
