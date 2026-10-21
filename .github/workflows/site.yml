@@ -2,7 +2,7 @@ name: Site
 
 # Builds the website (web/, ADR 0034) and publishes it to the Cloudflare Worker that serves
 # cantusdaw.com (web/wrangler.jsonc: static files from web/dist) on every push to master that
-# touches it. It needs two repository secrets, set once in
+# touches it. It needs two repository secrets, set once in luis314159/cantus-daw's
 # Settings > Secrets and variables > Actions:
 #   CLOUDFLARE_API_TOKEN   a token with "Account > Workers Scripts > Edit"
 #   CLOUDFLARE_ACCOUNT_ID  the account's id (Workers & Pages overview, right-hand side)
@@ -27,8 +27,9 @@ env:
 
 jobs:
   deploy:
-    # Runs in luis314159/cantus only (round 29: the public repository builds, tests and releases; the private one deploys the site).
-    if: github.repository == 'luis314159/cantus'
+    # Runs in luis314159/cantus-daw only: the public repository builds, tests, releases and
+    # deploys the site (its Actions minutes are free; the Cloudflare secrets are set there).
+    if: github.repository == 'luis314159/cantus-daw'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

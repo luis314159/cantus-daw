@@ -157,8 +157,9 @@ the screenshots, the RVR1960 file. So:
 - **Every public address names `cantus-daw`**: the updater (`cantus-update`'s `REPO`), the
   website's download and links, the plug-ins' and the host's URLs, `PRIVACY.md`, the issue
   templates, the manual, the notices, the installer.
-- **Each workflow runs where it belongs**: the website's deploy only in the private
-  repository; CI, the release, the null hashes, the audit, macOS and the perf runs only in
-  the public one, where GitHub's minutes are free.
+- **Every workflow runs in the public repository only** (`if: github.repository ==
+  'luis314159/cantus-daw'`): CI, the release, the null hashes, the audit, macOS, the perf
+  runs and the website's deploy (its Cloudflare secrets set there, 2026-10-20), where
+  GitHub's minutes are free. The private repository runs none.
 - Never add the public remote to the private repository: only `publish.sh`'s clone holds it.
 
