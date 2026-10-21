@@ -473,9 +473,10 @@ manual in both languages.
 as before). `MainThread` gained `ask_state_now`, `poll_state`, `state_waiting`,
 `state_current`, `loaded`, `take_audio` (all with defaults: an in-process backend is
 unchanged); `Notice` gained `Loaded` and `LoadFailed`; `Backend::load_with` (default
-`None`). A render's units now come after `PluginHost::render_ready` says yes: any new
-caller of `render_units`/`render_instruments` must ask it first, frame by frame (as the
-export, the bake and the freeze do), or isolated plug-ins are reported as never loaded.
+`None`). A render's units now come after `PluginHost::render_ready(owner, …)` says yes
+(isolation-6: an owner — `RenderFor` — and a content of its own): any new caller asks it
+first, frame by frame, as the export, the bake and the freeze do; a part not ready is
+said as a loss of the render (`RenderLoss::NeverLoaded`), never left out silently.
 
 **Measured again** (`cantus-bench --full --only isolation`, release; `docs/perf/isolation.md`
 run 3), since the audio half now reads its *loaded* flags: hot round trip *Together*
@@ -492,3 +493,59 @@ pool, the instruments, and offline renders).
 (the one test of a plug-in's own dialog is Windows'). Shots, both languages:
 `isolation-waiting`, `isolation-waiting-long` (the 43-letter name, its hint whole),
 `isolation-not-loaded` (the editor's card with Reload), with the earlier ones.
+
+## The fifth fix round (review isolation-6: 35 findings, all closed)
+
+The simplification held: 74 findings became 35, and none of them reopens a mechanism the
+fourth round removed — they are the four rules' edges. Merged `r29/integration` (5c7715f:
+warp's third round, controllers' fourth, schema 41) first. ADR 0063 §3 has an
+*isolation-6* amendment. Each fix was **seen failing**: `tmp/sabotage6.py` puts the old
+behaviour back, runs the test, and restores the file byte for byte — every test below
+failed so (its sabotage's name in the last column); one test that passed under its
+sabotage was found vacuous (the pause guard hid a slow state) and made to drive frames as
+the interface does, and then failed as it should; two sabotages that did not build were
+written again (the greeting heard as any frame; parking what was said last), and the words
+test, which passed with the old fallback (its reasons were all in a host form), now holds
+each form's words and the fallback (*words*, *reasons*). Duplicates share a row.
+
+| # | Finding | Fix | Test (sabotage) |
+|---|---|---|---|
+| 0, 12 (high) | Removing `Limits::heavy` made a slow but healthy load or state a hang: the helper and its neighbours killed at 30 s; the guarding test sent no request | `Limits::heavy` (120 s) is back for the helper's life only: a started load, state or unload, silent, is hung past it — its waiter still gives up at its own limit (a failed load, a state kept as last said); a load's overdue is judged before its helper's life in `idle` | `a_slow_silent_load_fails_at_its_limit_and_its_helper_lives`, `a_slow_silent_state_past_its_limit_is_not_a_hang` — at the shipped ratio 5 : 30 : 120 (*heavy*); the vacuous `bridge_faults4` test removed |
+| 1, 15 (high) | The render preparation was keyed by which plug-ins exist only, and outlived its render: later renders reused old states and values | Keyed by every part's values, and a freeze's states (`content_of`); owned (`RenderFor`); dropped when its owner gives up (`drop_render`: a cancelled freeze, a stopped export, a freeze with nothing to render); kept alive only by its owner (`render_waiting`), else gone after 10 s | `a_preparation_is_its_owners_and_its_contents` (*owner*, *content*) |
+| 2, 11, 22 (high ×2) | A bake that yielded a running refresh dropped its own instances, and the render then left out every hosted plug-in silently | The bake asks whether a freeze, refresh or export runs before it prepares; a part with no instance is the render's loss (`NeverLoaded`), said | `a_render_without_its_instance_says_so` (*noinst*) |
+| 4, 13, 26 | A waiting bake and a waiting freeze or bounce took the preparation from each other every frame | One owner at a time: another owner waits while it is in use (asked each frame, or rendering); the freeze queue and the export also wait for a bake waiting on its plug-ins | `a_preparation_is_its_owners_and_its_contents` (*owner*) |
+| 3, 25 | A freeze keyed and rendered from the last-said state, and an old answer read as fresh | A freeze asks its plug-ins' states and waits for them (`FreezeState::asked`), its stale ones its warnings (`Job::stale`); `poll_state` ends its request, so an old answer never reads as fresh | `a_freeze_asks_its_plugins_states_first` (*freezeask*) |
+| 18, 23 (high) | `load_state` threw away a state answer that had landed, so a save waited for ever | The answers in are taken first, and a state given no longer clears the inbox | `a_state_answer_is_never_lost` (*lost*) |
+| 5, 19, 29 | The load's first state overwrote a state given while it loaded, and was marked current | Taken only when no state was given since the load was asked; current only when nothing changed since | `a_state_given_while_it_loads_stands` (*given*) |
+| 14, 27 | A dialog nothing names (`Nested{0}`), or one of an instance that left, held its helper with no card | Every plug-in of that helper shows the card; a save starting shows a closed card again; the autosave waits at most the state limit | `a_dialog_nothing_names_shows_every_card_of_its_helper` (*owner0*) |
+| 28 | The card showed for any healthy request past 2 s, with a dialog's words | The card is for a plug-in's own loop only; a loading plug-in says *loading* (slot, editor, inspector) | `a_slow_load_shows_no_card_and_says_loading` (*card*) |
+| 24 | Parking, a device change's reload and A/B used the last-said state silently | A plug-in let go asks its state and parks it once in (its slot loads after: `take_resync`), else parks what it said last and says so (`HostNotice::StateKept`); A/B and a preset say when they may lack a change | `a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so` (*park*) |
+| 7, 17, 30 | A fresh insert's values became a stray step, and a background answer cleared the redo | Recorded only while the insert's step is on top and nothing was undone since, then sealed; else not recorded | `a_fresh_inserts_values_never_make_a_stray_step_nor_lose_a_redo` (*record*); `nothing_the_interface_does_waits_on_a_helper` asserts the history |
+| 8, 16 | Two hosted-instrument picks on one track merged into one step (in process too) | A key of each pick's own, and only for an isolated pick (`inst_load_key` → `Option`) | `two_picks_on_one_track_are_two_steps` (*instkey*) |
+| 9 | A helper speaking another protocol counted as the plug-in's crash | Started only once greeted with Cantus's protocol (`greeted`); before, a failed load | `another_builds_helper_is_a_failed_load` (*greeted*) |
+| 10, 21, 31 | Stale reasons worded *it could not be loaded again* | `stale_words`: *not asked*, *did not give its state*, a user's stop in its words; a neutral fallback | `stale_reasons_and_a_single_neighbour_are_said_rightly` (*words*, *reasons*) |
+| 6, 34 | The autosave waited for ever behind a dialog; one asked before New/Open wrote the new project | Bounded by the state limit (`autosave_gather_limit`), then written with what each said last; tied to its project | `an_autosave_waits_its_while_and_belongs_to_its_project` (*autosave*) — it caught the first version writing at once |
+| 20 | An export waiting for its plug-ins survived New/Open and exported the new project | Tied to its project: dropped and said | `an_export_waiting_for_another_project_is_dropped` (*exportepoch*) |
+| 32 | *the 1 other plug-ins* | `isolation.waiting.body_shared_one` (`waiting_body`) | `stale_reasons_and_a_single_neighbour_are_said_rightly` |
+| 33 | ES *el horneado* | *la conversión*, as everywhere else | the i18n test |
+
+Test hooks for the above (each says the application never calls it): the test gain's
+`CANTUS_TEST_GAIN_SLOW_MS` and `CANTUS_TEST_GAIN_PUMP_ON_TIMER_ONCE`, the helper's
+`CANTUS_SANDBOX_SPEAKS_PROTOCOL`, `PluginHost::{hold_for_tests,
+mark_instrument_missing_for_tests}`.
+
+**Files outside my area this round** (each a few lines where the wait already was):
+`cantus-ui/src/freeze.rs` (the states asked first, the preparation's owner, dropped on
+cancel; yields to a waiting bake), `views/export.rs` (its owner and project),
+`views/modulator_bake.rs` (its checks before it prepares; its owner), `autosave.rs` and
+`app.rs` (the bounded gather tied to its project; `take_resync`; `StateKept`),
+`save_job.rs` (a save shows a closed card again), `views/plugins.rs`,
+`views/inspector_hosted.rs` (*loading*; A/B and a preset say a possibly missing change),
+`hosted_inst.rs` (a key per pick).
+
+**Notes for the integrator (isolation-6).** `PluginHost::render_ready` takes its owner
+first (`RenderFor::{Export, Bake, Freeze, Now}`, re-exported); an owner that gives up calls
+`drop_render(owner)`, and one waiting asks `render_waiting(owner)`. `Limits` has `heavy`
+again (a literal needs it). `PluginHost::take_resync()` — true when a plug-in let go has its
+state in: the application syncs again (`app.rs` does). `HostNotice::StateKept { name,
+reason }`. `inst_load_key` returns `Option`. PROTOCOL stays 6; no schema change.

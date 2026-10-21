@@ -155,8 +155,25 @@ fn a_slow_silent_state_past_its_limit_is_not_a_hang() {
         main.idle();
         std::thread::sleep(Duration::from_millis(5));
     }
+    // Asked and waited for as the interface does — a frame every few milliseconds, so the
+    // helper's life is judged all along (no pause between frames to forgive it).
     let t = Instant::now();
-    match fresh_state(main.as_mut()) {
+    main.ask_state_now();
+    while main.state_waiting() {
+        assert!(
+            t.elapsed() < Duration::from_secs(5),
+            "given up at its limit"
+        );
+        assert!(
+            !main
+                .idle()
+                .iter()
+                .any(|n| matches!(n, Notice::Crashed { .. })),
+            "a slow state is not a hang"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    match main.poll_state() {
         cantus_host::StatePoll::Stale(_, why) => assert!(why.contains("in time"), "{why}"),
         other => panic!("given up at its limit: {other:?}"),
     }
@@ -441,6 +458,8 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     // A device change: let go, its state asked for, loaded again once it is in.
     rig.host.reload_all(SR);
     assert!(rig.host.hosted(id).is_none());
+    // The application syncs at once after a device change (its slot waits for its state).
+    rig.resync();
     let start = Instant::now();
     while rig.host.hosted(id).is_none() {
         assert!(start.elapsed() < Duration::from_secs(10), "loaded again");

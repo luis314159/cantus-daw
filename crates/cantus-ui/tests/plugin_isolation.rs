@@ -1047,17 +1047,26 @@ fn stale_reasons_and_a_single_neighbour_are_said_rightly() {
         "its state was not asked for",
         "stopped by the user",
         "state: the plug-in refused",
+        "a reason in none of the host's forms",
     ];
     let words: Vec<String> = reasons
         .iter()
         .map(|r| plugin_notice::stale_words(r))
         .collect();
-    let failed = cantus_ui::i18n::t("isolation.why.load_failed");
+    let t = cantus_ui::i18n::t;
+    let failed = t("isolation.why.load_failed");
+    let expected = [
+        t("isolation.why.not_asked"),
+        t("isolation.why.stopped_by_you"),
+        t("isolation.why.no_state"),
+        t("isolation.why.no_state"),
+    ];
     let one = plugin_notice::waiting_body(1);
     let two = plugin_notice::waiting_body(2);
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
-    for (r, w) in reasons.iter().zip(&words) {
+    for ((r, w), e) in reasons.iter().zip(&words).zip(&expected) {
         assert_ne!(w, &failed, "{r}: {w}");
+        assert_eq!(w, e, "{r}");
         assert!(!w.contains("asked for") && !w.contains("user"), "{r}: {w}");
     }
     assert!(!one.contains(" 1 "), "{one}");

@@ -297,11 +297,16 @@ on four rules, and what they made unnecessary was removed.
    replaced by a newer one over the same plug-in tells the helper nothing as it goes — no
    drop, no stop: the test that found the plug-in playing dry after its load is
    `session_faults.rs`'s worker-pool test). A fresh insert's values join its insert's
-   undo step when they come (`PluginHost::load_key`, `inst_load_key`); a value set
-   meanwhile stands. States (saved and given), reloads, moves, windows opened and closed,
-   parameter lists: requests answered later. While a request has been served for more
-   than 2 s, or the helper's main thread is in a loop of the plug-in's own code (a dialog:
-   `Message::Nested`, `Unnested`), the plug-in's **waiting card** shows — *is waiting for
+   undo step when they come — while that step is on top and nothing was undone since,
+   then sealed; otherwise they are not recorded (the plug-in holds them) and never make a
+   step of their own nor clear a redo (`PluginHost::load_key`, `inst_load_key`, a key of
+   each pick's own; isolation-6). A value set meanwhile stands. States (saved and given),
+   reloads, moves, windows opened and closed, parameter lists: requests answered later.
+   While the helper's main thread has been in a loop of the plug-in's own code for 2 s (a
+   dialog: `Message::Nested`, `Unnested` — or of code nothing names, or of an instance that
+   left: then each plug-in of that helper), the plug-in's **waiting card** shows; a request
+   merely slow shows none — its slot, its editor and the inspector say *loading*
+   (isolation-6) — *is waiting for
    you*, its whole name in the card's hint — with *Show it* (`Call::Surface`, served by
    the helper's reader thread whatever its main thread is doing: the topmost window of
    the main thread that is the dialog — modal, its owner disabled — else the topmost
@@ -339,10 +344,11 @@ on four rules, and what they made unnecessary was removed.
 
 **Removed, and why.** Serving calls from nested loops — `Here`'s re-entrant cells, the
 pulse's serving, `Message::{Deferred, Behind}` (protocol 5 → 6): rule 3, and rule 1 makes it
-unnecessary. `Limits::heavy` (120 s) and `Limits::modal` (10 min), and the trouble checks
-that cut a save short (`troubled`, `in_trouble`, `fresh_state`'s `Busy`, `held_up` and its
-1 s grace): nothing waits, so no limit needs stretching for a waiter, and a request is
-judged only by its own limit from its start. The synchronous `Sandbox::call` on the
+unnecessary. `Limits::modal` (10 min), and the trouble checks that cut a save short
+(`troubled`, `in_trouble`, `fresh_state`'s `Busy`, `held_up` and its 1 s grace): nothing
+waits, so no limit needs stretching for a waiter, and a request is judged only by its own
+limit from its start. (`Limits::heavy` went with them, and came back in isolation-6 with
+one role: the helper's life, below.) The synchronous `Sandbox::call` on the
 interface thread: rule 1. The load retry with its doubling wait (`Missing::retry_at`,
 `PluginHost::wants_sync`, the busy failure): rule 4. The offline load wait inside the audio
 half: a render's units are made once its plug-ins are in. The `WH_GETMESSAGE` hook and its
@@ -357,6 +363,36 @@ plug-in's own reporter keeps it (#73). A stalled helper's mark is cleared by the
 a processing thread finishes after it, read before the job's look, so it never stays (#8,
 #71). Cantus, quitting, gives its helpers three seconds (`QUIT_GRACE`) to end their
 plug-ins by themselves before the job object ends them (#24, #54).
+
+**Amended (review isolation-6: 35 findings, from 74).** The rules held; their edges did not:
+
+- *A slow load is no hang.* The waiter gives up at the request's own limit (a failed load,
+  a state kept as it was last said), but the helper of a load, a state or an unload, silent
+  — a sampler reading its samples without pumping — is judged hung only past
+  `Limits::heavy` (120 s, four times the limit); a load past its limit is failed before its
+  helper's life is judged in the same frame. Tested at the shipped ratio of silence to
+  limit to heavy.
+- *A render's preparation is its owner's and its content's* (`RenderFor`: an export, a
+  bake, a freeze or bounce; keyed by every part's values and, for a freeze, its states):
+  asked for other content it is made anew; another owner waits while it is in use — its
+  owner asking each frame, or its render running — instead of taking it (the bake and the
+  freeze took it from each other every frame); an owner that gives up drops it
+  (`drop_render`: a cancelled freeze, a stopped export, a freeze with nothing to render);
+  only its owner's look keeps it alive (`render_waiting`). A part whose instance was never
+  made is the render's loss, said. A bake asks whether another render runs before it
+  prepares; a freeze asks its plug-ins' states as they are now and waits for them, as a
+  save does, and says which it kept as they were last said.
+- *A state, never lost nor overwritten.* A state answer that came in is taken before a
+  state is given (a save waited for ever otherwise); the state a load came back with never
+  replaces one given while it loaded; a state taken (`poll_state`) ends its request, so an
+  old answer never reads as fresh later. A plug-in let go — its slot removed, its chain
+  frozen, every plug-in on a device change — asks its state as it is now and parks it once
+  in (the slot loads again after: `take_resync`), else parks what it said last and says so
+  (`HostNotice::StateKept`); A/B and a preset say when the state they took may lack a
+  change.
+- *A helper that greeted with another protocol* never started: a failed load, nobody's
+  crash. *The autosave* waits for its plug-ins' states at most the state limit, then writes
+  what each said last; it and a waiting export belong to the project they were asked for.
 
 ### 4. Nothing lost, nothing different
 
@@ -574,6 +610,16 @@ languages (`locales/areas/isolation.*`).
   reset first), `culprits` split per finding, a long slice is a pause. `cantus-ui`: two
   bakes never overlap; render losses, reload failures and a busy window in the interface's
   words; *Reload* for a plug-in that never loaded; the waiting card.
+- Review isolation-6 (`session_faults6.rs`): a slow silent load fails at its limit and its
+  helper and neighbour live, and a slow silent state is no hang — at the shipped ratio; a
+  preparation is its owner's and its content's; a render without its instance says so; a
+  state given while it loads stands; a state answer is never lost; another build's helper
+  is a failed load; a dialog nothing names shows every card of its helper; a slow load
+  shows no card and says *loading*; a plug-in let go parks its state as it is now or says
+  so, and a device change loads it again; a fresh insert's values make no stray step and
+  lose no redo. `cantus-ui`: two instrument picks are two steps; stale reasons in their
+  words, one neighbour said as one; a freeze asks its states first; an export waiting for
+  another project is dropped; an autosave waits its while and belongs to its project.
 - Review isolation-5 (the four rules; the table in `docs/round29/isolation.md`):
   `bridge_faults.rs` — a plug-in window's modal loop holds its calls and freezes nothing
   (every look under 50 ms, the save asked meanwhile waits and is then answered as it is,
