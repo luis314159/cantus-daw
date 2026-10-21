@@ -748,9 +748,6 @@ fn channel_eq(project: &mut Project, sid: StripId, eq: Node) -> bool {
     true
 }
 
-/// The tempo track, the metre changes and the markers from the file's arrangement (round
-/// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
-/// standing in where the automation starts later.
 /// The file's metre points as the song's metre changes: valid signatures only, two at one
 /// tick the later (review 2, finding 58), the transport's metre at tick 0 when the first is
 /// later. Empty when the file has none.
@@ -783,6 +780,9 @@ pub(crate) fn metre_list(
     ms
 }
 
+/// The tempo track, the metre changes and the markers from the file's arrangement (round
+/// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
+/// standing in where the automation starts later.
 fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
     use cantus_core::tempo::{Marker, MarkerId};
     // The tempo track as the timeline read it (its points normalised there).

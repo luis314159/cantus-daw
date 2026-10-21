@@ -140,3 +140,27 @@ fn the_rulers_editor_is_the_time_signature_at_its_bar() {
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(es.starts_with("Indicación de compás"), "{es}");
 }
+
+/// Findings 9, 14: a report line of one says it in the singular.
+#[test]
+fn one_kept_or_left_out_is_said_in_the_singular() {
+    use cantus_project::report::{ReportItem, Severity};
+    for (key, want) in [
+        ("tempo.report.tempo_kept", "One tempo change kept"),
+        ("tempo.report.metres_kept", "One metre change kept"),
+        ("tempo.report.markers_kept", "One marker kept"),
+    ] {
+        let item = ReportItem {
+            severity: Severity::Info,
+            key,
+            args: vec![("n", "1".into())],
+        };
+        assert!(views::interop::report_line(&item).starts_with(want), "{key}");
+    }
+    let far = ReportItem {
+        severity: Severity::Dropped,
+        key: "tempo.report.too_far",
+        args: vec![("n", "1".into())],
+    };
+    assert!(!views::interop::report_line(&far).starts_with('1'));
+}

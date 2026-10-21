@@ -564,13 +564,16 @@ nombre (ronda 29).
   audio el tempo no cambia — tampoco al deshacer o rehacer un cambio de tempo; grabar
   notas lo deja libre.
 - **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
-  de tempo cada semicorchea, y todos los marcadores, también los del final) y al importar —
+  de tempo cada semicorchea — una muy larga, de más de 1 024 tiempos, en menos pasos y más
+  largos, cada uno con el tempo medio de su tramo — y todos los marcadores, también los
+  del final) y al importar —
   con *Poner el proyecto a … BPM en …* se conservan los cambios de tempo, de compás y los
   marcadores del archivo: al inicio de la canción pasan a ser los suyos; soltados en un
   compás posterior empiezan ahí (en la línea de compás más cercana), y la canción conserva
   su tempo y su compás antes. Los
   archivos **DAWproject** llevan la pista de tempo, los cambios de compás y los marcadores
-  en ambos sentidos.
+  en ambos sentidos. Los puntos de tempo, cambios de compás o marcadores de un archivo
+  situados más allá del millón de tiempos se omiten, y la importación lo dice.
 
 ### El piano roll
 

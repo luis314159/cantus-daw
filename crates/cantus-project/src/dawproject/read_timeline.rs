@@ -122,8 +122,11 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     // The tempo map first (round 29, ADR 0060; review 2): every time given in seconds is
     // placed through it.
     let unit = |n: Node| attr(n, "timeUnit").map_or(ctx.seconds, |u| u == "seconds");
+    // Points, metres and markers past the song's horizon: left out, said once (review 6:
+    // a line each, every one "1 … points").
+    let mut far = 0usize;
     if let Some(t) = child(arr, "TempoAutomation") {
-        out.tempo = tempo_points(t, unit(t), bpm, report);
+        out.tempo = tempo_points(t, unit(t), bpm, report, &mut far);
     }
     let map = TempoMap::new(
         out.tempo.first().map_or(bpm, |p| p.bpm),
@@ -156,7 +159,7 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
             };
             let at = ctx_at(secs, time);
             if at > cantus_core::tempo::HORIZON {
-                report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                far += 1;
                 continue;
             }
             out.metres.push((at, n as u8, d as u8));
@@ -179,13 +182,14 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
                 let name = attr(k, "name").unwrap_or("").to_string();
                 let at = ctx_at(secs, time);
                 if at > cantus_core::tempo::HORIZON {
-                    report.dropped("tempo.report.too_far", vec![("n", "1".into())]);
+                    far += 1;
                     continue;
                 }
                 out.markers.push((at, name, parse_color(attr(k, "color"))));
             }
         }
     }
+    report.count_dropped("tempo.report.too_far", far);
     report.count_dropped("interop.report.d_audio_clips", counts.audio);
     report.count_dropped("interop.report.d_automation", counts.automation);
     report.count_dropped("interop.report.d_markers", counts.markers);
@@ -478,7 +482,13 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
 /// a jump — the later wins, as `TempoMap::new` has it, a ramp into the earlier ending a
 /// tick before (finding 58); the first at tick 0 (the transport's tempo before a later
 /// start), a ramp to the same tempo and the last holding.
-fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec<TempoPoint> {
+fn tempo_points(
+    t: Node,
+    secs: bool,
+    transport: f64,
+    report: &mut Report,
+    far: &mut usize,
+) -> Vec<TempoPoint> {
     let range = t
         .parent()
         .and_then(|arr| arr.parent())
@@ -531,7 +541,6 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
         report.info("tempo.report.seconds_ramp", Vec::new());
     }
     let mut out: Vec<TempoPoint> = Vec::with_capacity(raw.len() + 1);
-    let mut far = 0usize;
     for (&(_, bpm, ramp), &tick) in raw.iter().zip(&ticks) {
         let tick = Ticks(tick.round() as i64);
         if tick.0 < 0 {
@@ -539,7 +548,7 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
         }
         // Past the song's horizon: left out, and said (review 5).
         if tick > cantus_core::tempo::HORIZON {
-            far += 1;
+            *far += 1;
             continue;
         }
         if let Some(earlier) = out.pop_if(|l| l.tick == tick) {
@@ -556,9 +565,6 @@ fn tempo_points(t: Node, secs: bool, transport: f64, report: &mut Report) -> Vec
             }
         }
         out.push(TempoPoint { tick, bpm, ramp });
-    }
-    if far > 0 {
-        report.dropped("tempo.report.too_far", vec![("n", far.to_string())]);
     }
     if out.is_empty() {
         return out;
