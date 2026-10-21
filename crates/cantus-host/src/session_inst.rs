@@ -38,6 +38,9 @@ pub struct HostedInst {
     pub(super) gestures: Vec<u32>,
     /// Edits made in its own window or browser, counted (review 3: see `Hosted::edits`).
     pub(super) edits: u64,
+    /// What it held after the host's own last load, or said last (review 4: see
+    /// `Hosted::heard`).
+    pub(super) heard: crate::session::Echo,
     pub(super) window: Option<PluginWindow>,
     /// Where it runs, as loaded (round 29, ADR 0063).
     pub(super) isolation: PluginIsolation,
@@ -155,6 +158,7 @@ impl HostedInst {
             restarting: false,
             gestures: Vec::new(),
             edits: 0,
+            heard: crate::session::Echo::default(),
             window: None,
             isolation,
             crashed: None,
@@ -306,6 +310,8 @@ impl PluginHost {
         );
         h.synced_state = plugin.state.clone();
         h.flushed = plugin.params.clone();
+        let now = h.main.save_state().ok().map(PluginState::new);
+        h.heard.loaded(now);
         Ok(h)
     }
 
@@ -385,6 +391,8 @@ impl PluginHost {
                     }
                 }
                 h.synced_state = plugin.state.clone();
+                let now = h.main.save_state().ok().map(PluginState::new);
+                h.heard.loaded(now);
                 h.generation.fetch_add(1, Ordering::AcqRel);
             }
             if plugin.params != h.flushed {

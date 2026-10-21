@@ -403,6 +403,13 @@ fn a_solo_elsewhere_toggled_never_loads_a_frozen_strips_plug_in() {
 /// A rig with the test synth on the riff's track, its state in the project, the track
 /// frozen without its render at hand (it plays live, loaded, locked).
 fn locked_synth_rig() -> (Rig, TrackId, FreezeTarget, PluginState, tempfile::TempDir) {
+    locked_synth_rig_with(b"")
+}
+
+/// `locked_synth_rig` with the project's state carrying the tag `tag`.
+fn locked_synth_rig_with(
+    tag: &[u8],
+) -> (Rig, TrackId, FreezeTarget, PluginState, tempfile::TempDir) {
     let project = demo_project();
     let track = project.tracks[0].id;
     let mut rig = Rig::new(project, patient_host());
@@ -416,6 +423,7 @@ fn locked_synth_rig() -> (Rig, TrackId, FreezeTarget, PluginState, tempfile::Tem
     });
     rig.settle();
     let (state, params) = rig.host.capture_instrument(track).unwrap();
+    let state = PluginState::new(with_tag(state.bytes(), tag));
     rig.exec(Command::SetInstrumentPluginState {
         track,
         state: state.clone(),
@@ -550,4 +558,145 @@ fn a_locked_instrument_comes_back_as_the_project_holds_it_not_as_it_was_parked()
         !tagged(now.bytes(), b"bell"),
         "the project's state, not the parked one"
     );
+}
+
+// ---- review 4 ---------------------------------------------------------------------
+
+/// The test gain's state holds this tag: every load of it echoes (the plug-in marks its
+/// state dirty and asks for its values to be read again, as JUCE's VST3 wrapper does).
+const ECHOES: &[u8] = b"dirty";
+
+/// `locked_rig` with the project's state of the gain carrying `ECHOES`.
+fn echoing_locked_rig(iso: PluginIsolation) -> (Rig, EffectId, FreezeTarget, tempfile::TempDir) {
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, iso);
+    rig.set_param(strip, id, P_GAIN, -6.0);
+    rig.settle();
+    let (state, params) = rig.host.capture(id).unwrap();
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state: PluginState::new(with_tag(state.bytes(), ECHOES)),
+        params,
+    });
+    rig.settle();
+    let dir = tempfile::tempdir().unwrap();
+    rig.engine.frozen.set_app_dir(dir.path().to_path_buf());
+    let target = FreezeTarget::Strip(strip);
+    let p = rig.bus.project().clone();
+    rig.exec(freeze::freeze_commands(&p, target).unwrap());
+    assert!(rig.host.hosted(id).is_some(), "loaded: it plays live");
+    (rig, id, target, dir)
+}
+
+/// How many times the refusal was said.
+fn frozen_notices(rig: &Rig, target: FreezeTarget) -> usize {
+    rig.notices
+        .iter()
+        .filter(|n| **n == cantus_host::HostNotice::Frozen(target))
+        .count()
+}
+
+#[test]
+fn an_echo_of_the_hosts_own_load_is_no_edit() {
+    // The project's state loaded into the plug-in by the host (an undo, a state set): the
+    // plug-in echoes it — dirty, its values to read again. Nothing was edited (review 4:
+    // each echo counted as an edit, and a freeze rendering it was made again).
+    let _g = serial();
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Within);
+    rig.settle();
+    let before = rig.host.edits_of(&[id], &[]);
+    let (state, params) = rig.host.capture(id).unwrap();
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state: PluginState::new(with_tag(state.bytes(), ECHOES)),
+        params,
+    });
+    for _ in 0..20 {
+        rig.frame();
+    }
+    assert_eq!(rig.host.edits_of(&[id], &[]), before, "no edit counted");
+}
+
+#[test]
+fn a_locked_plug_in_that_echoes_its_give_back_is_given_back_once() {
+    // A state of its own refused: the project's given back — which the plug-in echoes.
+    // The echo is no new edit: given back once, said once (review 4: given back and said
+    // every frame, for as long as it stayed loaded).
+    let _g = serial();
+    for iso in [PluginIsolation::Within, PluginIsolation::Together] {
+        let (mut rig, id, target, _dir) = echoing_locked_rig(iso);
+        let (stored, _) = rig.host.capture(id).unwrap();
+        rig.notices.clear();
+        let before = rig.host.give_backs();
+        rig.host
+            .state_dirty_for_test(&mut rig.bus, id, &with_tag(stored.bytes(), b"kick"));
+        for _ in 0..30 {
+            rig.frame();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert_eq!(
+            rig.host.give_backs(),
+            before + 1,
+            "{iso:?}: given back once"
+        );
+        assert_eq!(frozen_notices(&rig, target), 1, "{iso:?}: said once");
+        let (now, _) = rig.host.capture(id).unwrap();
+        assert_eq!(now.bytes(), stored.bytes(), "{iso:?}: the project's state");
+    }
+}
+
+#[test]
+fn a_locked_plug_in_loaded_again_that_echoes_its_load_is_left_alone() {
+    // Unloaded while its render played, loaded again (the render gone) with the state the
+    // project holds — which it echoes: nothing is given back, nothing said (review 4).
+    let _g = serial();
+    let (mut rig, id, target, _dir) = echoing_locked_rig(PluginIsolation::Within);
+    let p = rig.bus.project().clone();
+    let job = prepare(&mut rig.engine, &p, target).expect("prepared");
+    let units = rig.host.render_units_stored(&p, SR);
+    job.run(units, Vec::new(), &RenderProgress::default())
+        .expect("rendered");
+    rig.host.finish_render();
+    rig.engine.frozen.forget_missing();
+    rig.resync();
+    assert!(rig.host.hosted(id).is_none(), "unloaded while it rests");
+    std::fs::remove_file(&job.path).unwrap();
+    rig.engine.frozen.let_go_all();
+    rig.engine.frozen.forget_missing();
+    rig.notices.clear();
+    let before = rig.host.give_backs();
+    rig.resync();
+    assert!(rig.host.hosted(id).is_some(), "back: it plays live");
+    for _ in 0..30 {
+        rig.frame();
+    }
+    assert_eq!(rig.host.give_backs(), before, "nothing given back");
+    assert_eq!(frozen_notices(&rig, target), 0, "nothing said");
+}
+
+#[test]
+fn a_locked_instrument_that_echoes_its_give_back_is_given_back_once() {
+    // The instrument's half: its state also carries what its last block heard, so the
+    // echo is not even byte for byte the project's state (review 4).
+    let _g = serial();
+    let (mut rig, track, target, stored, _dir) = locked_synth_rig_with(ECHOES);
+    rig.notices.clear();
+    let before = rig.host.give_backs();
+    rig.host.instrument_state_dirty_for_test(
+        &mut rig.bus,
+        track,
+        &with_tag(stored.bytes(), b"bell"),
+    );
+    for _ in 0..30 {
+        rig.frame();
+    }
+    assert_eq!(rig.host.give_backs(), before + 1, "given back once");
+    assert_eq!(frozen_notices(&rig, target), 1, "said once");
 }
