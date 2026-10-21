@@ -366,9 +366,10 @@ changed in the decisions:
   LFO, a mapped knob).
 - **Recording's bounds**: the pass is bounded by its record start, the loop's start only
   once a wrap was seen in this pass, and the punch; the clip ends at the punch-out and the
-  latch lets go there; a pass stopped before its start writes nothing. A tempo knob turned
-  during a take waits (ADR 0060 §4), and a gesture that turned the tempo before the take
-  sends no tempo command in it.
+  latch lets go there; a pass stopped before its start writes nothing. While audio records,
+  a tempo knob does nothing (ADR 0060 §4: the status says so; the tempo is changed before
+  or after the take), and a gesture that turned the tempo before the take sends no tempo
+  command in it.
 - **A new project starts the controllers again**: an armed learn is cancelled and the
   controllers' states, sends and gesture are cleared when the project is replaced.
 - **The global file** is read as whole, kept (the copy beside named in the status), or
@@ -378,7 +379,7 @@ changed in the decisions:
   replug; a mapping whose port is not open reads *Not connected*.
 - **NRPN and RPN** are not learnt: the learn says so instead of mapping a plain CC 99.
 - **The selected strip** may be the master; **a strip's effects switch and record arm**
-  are targets (`MappingTarget::StripFx`, `StripArm`; schema 39), learnable on the strip
+  are targets (`MappingTarget::StripFx`, `StripArm`; schema 40 — numbered 39 on the branch, renumbered at the merge after warp's 39), learnable on the strip
   and from its menu.
 - **The pane** says *Frozen* for any target a frozen sound refuses (native ones too) and
   says the refusal again after a pause; *Other plug-in* rows are named after the plug-in
@@ -398,9 +399,76 @@ changed in the decisions:
 The tests of review 3: core `controller_tests.rs` (switches, a pad on two states, a detent
 per choice, port names, sharing, the master as the selected strip, the strip switches),
 `undo_invariants` (the strip switches as targets); project
-`schema_39_keeps_the_strip_switch_mappings`; engine
+`schema_40_keeps_the_strip_switch_mappings`; engine
 `a_full_ring_keeps_order_and_the_last_bend_and_pressure` and
 `a_pedal_let_go_while_taken_reaches_the_engine_fully_up`; host
 `a_program_change_reaches_the_program_list_and_the_project`; interface
 `controllers_review3.rs`, `learn_everywhere.rs` (every stepped key of every editor, offered
 or said why not drawn), `frame_budget.rs` (`an_editors_idle_stepped_controls_cost_no_allocation`).
+
+## Amended after review 4 (round 29)
+
+A fourth review confirmed 64 findings (tabled in `docs/round29/controllers.md`). What
+changed in the decisions:
+
+- **Names before Off and On.** A target's choice names are looked up first, whatever its
+  number of steps — two named choices read and are typed by their names (a De-esser's
+  mode, a Saturator's phase, a modulation effect's sync). Off and On are the words of two
+  states only when they have no names: a mute, an LED, a unitless 0…1. A two-step number
+  (1…2 oct) keeps its number and unit.
+- **A hosted plug-in's own steps.** `ParamInfo` carries the plug-in's step count (VST3
+  `stepCount`, CLAP `max − min`): a VST3's plain values need not be step numbers (JUCE's
+  and the SDK's base parameter give a four-way choice as 0…1; another plug-in 0, 10…40).
+  A target's shape, its words (asked at each step, the pane asking one step only) and the
+  values a controller and automation send (`ParamInfo::snap`, `snap_to_steps` in the
+  host's parameter sync) are counted in those steps, never in whole plain units.
+- **An encoder steps in the target's own steps inside the mapping's range**: one choice a
+  detent however *From*, *To* and the bend narrow or bend it, up to 128 steps
+  (`MAX_DETENT_STEPS`); a stepped number with more (a seed, a plug-in's milliseconds)
+  crosses its travel in 128 detents, as a range does.
+- **The instruments' choices** come from a static table (`cantus_ui::inst_choices`), the
+  editors' labels by instrument and field — never from what an editor drew this session.
+  A test paints every editor and holds what it draws to the table; another holds the
+  effects' table (`controllers_words`) to the exported plug-ins' (`cantus_plugins::params`).
+- **14-bit halves are told by time.** A coarse half held after a fine half alone takes as
+  its own the closer fine half — the one before it (a fine-first pair; the next fine half
+  then belongs to the next pair) or the one after it (a coarse-first pair after a
+  fine-only update). Pairs a millisecond or two apart are read whole, a known fine-first
+  controller stays known at speed, and the last pair is read whole. A half left waiting
+  is judged against the burst's earliest message (bursts come port by port).
+- **NRPN and RPN** — data entry included (CC 6/38, 96/97), which many controllers send
+  alone — are passed over while learning, said, and the learn stays armed for the next
+  control moved.
+- **Recording.** A false start is judged against the start of the pass that ran (a loop's
+  later lap stopped before the record start keeps its automation). A loop's wrap is seen
+  once a frame, before anything heard in it is recorded, by the recorder's rule (back by
+  more than half the loop, playing): a stale position from before a count-in's seek is no
+  wrap. The latch is sent to the engine whenever it turns on or off — the pass beginning,
+  the punch-out crossed — so a parameter follows its clip again past the punch-out.
+- **One value of a choice.** A control that stands for one value of a choice is learnt
+  over it: a band's solo LED over none ↔ that band (its mark shows on that LED only), a
+  scale key over as the scale ↔ its click, a lamp lit at 0 (Organum's rotary) the lamp's
+  way. The learnt mapping is read as two states.
+- **A strip's record arm** is its tracks' arms in a gesture (the newest press of a strip's
+  or a track's arm wins); with no track to arm it reads *No input* and takes nothing.
+- **Learn everywhere, the inspector too**: an insert tile's lamp (bypass) and ring (mix),
+  the inserts' switch, the mini view's mix, the arm LED, the slot menu's rows, and a device
+  header's bypass lamp.
+- **Names that last.** A hosted mapping keeps the plug-in's and the parameter's names it
+  was learnt with (schema 41); a row whose plug-in was swapped out — for another plug-in
+  or one of Cantus's own — reads *Other plug-in* by those names, its range in percent,
+  sharing nothing, and the filter finds it by them.
+- **Smaller things**: an unknown action takes nothing; feedback is stamped after its
+  output opened; the master's switch is named as the master; a switch shows no takeover;
+  idle rows are all dimmed; global edits a session cannot keep are said each time; a new
+  project lets a learn go silently; the clips list and the device keyboard feed back; an
+  in-process plug-in's "no words" is its answer (only an isolated one is asked again).
+
+The tests of review 4: core `controller_tests.rs` (a narrowed choice, a 2 000-step number,
+generic ALSA ports, a dormant record arm, a plug-in's names); project
+`schema_41_keeps_a_hosted_mappings_names`; engine `a_messages_moment_is_after_its_output_opened`;
+host `a_stepped_parameter_lands_on_its_own_steps`, `values_land_on_the_plug_ins_own_steps`,
+`a_program_change_is_said_only_once_its_value_is_on_its_way` (two threads); interface
+`controllers_review4.rs`, `controllers_boot.rs` (a lossy and an unreadable global file),
+`learn_everywhere.rs` (`the_choice_table_names_choices_as_the_editors_draw_them`),
+`frame_budget.rs` (`a_hosted_choices_word_asks_for_one_step`); plug-ins `pane_words.rs`.

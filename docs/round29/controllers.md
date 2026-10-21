@@ -348,7 +348,7 @@ Numbers are the findings' places in the file, from 0, as in the earlier tables.
 | 41 | the curve test tested the parser; a typed bend under 2 % snapped to 0 | the snap is a drag's only (`CellDone::typed`) | `a_curve_is_typed_into_its_cell_as_typed` (typed through the pane) |
 | 43 | Tonus in the learn mode: a black key's right half learnt the next white key; white outlines crossed the black keys | each key outlined and covered only where it shows (`shown_parts`), white keys first | `a_black_keys_right_half_learns_the_black_key` (and the shot) |
 | 45 | Linux: ALSA's `client:port` numbers in a mapping's port | `clean_port_name` (the numbers and the client dropped) in `PortRef::of` and matching; a port not open reads *Not connected* | core `an_alsa_port_name_is_the_devices_name`; `a_port_not_open_is_not_connected` |
-| 46 | the strip's effects switch and record dot could not be learnt | `MappingTarget::StripFx` / `StripArm` (schema 39, a no-op migration, `fixtures/v39.cantus`, fuzz targets), learn spots on the strip and rows in its menu | core `a_strips_effects_and_record_arm_set_and_read`; project `schema_39_keeps_the_strip_switch_mappings`; `a_strips_effects_switch_and_record_arm_are_learnable`, `clicking_the_mixers_controls_arms_them` |
+| 46 | the strip's effects switch and record dot could not be learnt | `MappingTarget::StripFx` / `StripArm` (schema 40 after the merge — 39 on the branch; a no-op migration `migrate_39_to_40`, `fixtures/v40.cantus`, fuzz targets), learn spots on the strip and rows in its menu | core `a_strips_effects_and_record_arm_set_and_read`; project `schema_40_keeps_the_strip_switch_mappings`; `a_strips_effects_switch_and_record_arm_are_learnable`, `clicking_the_mixers_controls_arms_them` |
 | 48 | the learn mode and the show/hide toggles fed nothing back | `action_state` covers the learn mode, every pane's toggle, the instrument window and the takes | `the_learn_mode_and_the_areas_light_a_button` |
 | 49 | an unknown action read *Transport · id* | *Unknown action*, and its row *Missing* | `an_unknown_action_is_missing` |
 | 50 | Spanish *Otro plugin* | *Otro plug-in* | `the_spanish_pill_says_plug_in` |
@@ -367,8 +367,8 @@ Files outside my area touched by review 3's fixes:
 - `cantus-engine`: `midi.rs` (the overflow's order and slots; the pedals).
 - `cantus-host`: `vst3/{instance,audio_thread,main_thread}.rs` (the MIDI-only program
   flag), `session.rs` (`mark_loaded_crashed_for_tests`), `tests/vst3_backend.rs`.
-- `cantus-project`: `format.rs` (schema 39), `examples/write_fixture.rs`,
-  `fixtures/v39.cantus` (new).
+- `cantus-project`: `format.rs` (schema 40 after the merge: `migrate_39_to_40`),
+  `examples/write_fixture.rs`, `fixtures/v40.cantus` (new).
 - `cantus-ui`, app and models: `app.rs` (`GlobalLoad` at boot), `i18n.rs` (`t_in`),
   `kit/automate.rs` (the spots probe), `record_session.rs`, `swap.rs` (retargeting),
   `views/modulator_record.rs` (the pass's bounds), `views/modulator_hosted.rs`,
@@ -406,9 +406,17 @@ pair with its input — `output_for` covers the usual Windows names).
   surfaces" becomes "… control surfaces (Mackie Control / HUI)" — MIDI learn is in.
 - The top bar's MIDI cell now toggles the learn mode on a click (Settings on a
   right-click); its width is unchanged.
-- Review 3: **schema 39** (`MappingTarget::StripFx` / `StripArm`; a no-op migration
-  `migrate_38_to_39`, `fixtures/v39.cantus`, the fixture's schema-39 block). Renumber if
-  another branch took 39 (freeze took 38 before me).
+- Review 3: **schema 39** on the branch, **renumbered 40 at the merge** (d448d50: warp
+  took 39) — `MappingTarget::StripFx` / `StripArm`, `migrate_39_to_40`,
+  `fixtures/v40.cantus`, `schema_40_keeps_the_strip_switch_mappings`.
+- Review 4: **schema 41** (`PluginRef::name`, `param`: the names a hosted mapping was
+  learnt with; `migrate_40_to_41`, a no-op; `fixtures/v41.cantus`;
+  `schema_41_keeps_a_hosted_mappings_names`). Renumber if another branch took 41.
+- Review 4: `cantus_host::ParamInfo::steps` (serde default 0, so a helper of an older build
+  still reads); `step_count()` / `snap()`; `snap_to_steps`. The test VST3's pulse gained
+  `cantus_test_slow_next_process`; `PluginHost::set_param_info_for_tests` is test-only.
+- Review 4: `MidiOutputs::send_at` (the moment after the open), `OutPort`,
+  `MidiOutputs::with_connect` (a test's ports).
 - Review 3: `Mapping::read_in` / `drive_in` / `controller::detect_in` take a `Steps` (the
   target's shape); `read` / `drive` / `detect` remain, with `Steps::default()` (the old
   behaviour). The interface's `CantusApp::target_shape` computes it.

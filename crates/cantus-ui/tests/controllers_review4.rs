@@ -1060,9 +1060,26 @@ fn the_inspector_header_and_record_dot_learn() {
         }),
     });
     let fx = insert(&mut a, EffectKind::Compressor);
+    // A send and a modulator: the inspector's wired rows (#35).
+    let others: Vec<StripId> = a.project().strips.iter().map(|x| x.id).collect();
+    let to = *others.iter().find(|x| **x != s).expect("another strip");
+    a.set_strip_send(
+        s,
+        Send {
+            level: 0.5,
+            ..Send::new(to)
+        },
+    );
+    let lfo = a
+        .add_modulator(
+            cantus_core::ModHost::Strip(s),
+            cantus_core::ModKind::Lfo,
+            None,
+        )
+        .expect("a modulator");
     a.select_strip(s);
     a.selected_track = Some(t);
-    let inspector = armed_by_clicks(&mut a, egui::vec2(420.0, 1600.0), &mut |a, ui| {
+    let inspector = armed_by_clicks(&mut a, egui::vec2(420.0, 2400.0), &mut |a, ui| {
         cantus_ui::views::inspector::show(a, ui)
     });
     let inspector: Vec<MappingTarget> = inspector.into_iter().map(|(t, _)| t).collect();
@@ -1070,6 +1087,8 @@ fn the_inspector_header_and_record_dot_learn() {
         MappingTarget::EffectBypass(fx),
         MappingTarget::EffectMix(fx),
         MappingTarget::StripFx(s),
+        MappingTarget::Param(AutoTarget::Send { strip: s, to }),
+        MappingTarget::Param(AutoTarget::ModAmount(lfo)),
     ] {
         assert!(inspector.contains(&want), "{want:?}: {inspector:?}");
     }
