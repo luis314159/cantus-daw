@@ -453,3 +453,78 @@ fn a_moved_take_keeps_its_shape_in_seconds() {
         }
     }
 }
+
+/// Review 6 (findings 3, 6): a take with a linked piece that a tempo edit moved by whole
+/// ticks — met or with a gap — moved and pasted across the change still keeps its shape:
+/// the seams play on and a gap keeps its seconds (within the linked piece's half tick and
+/// a frame).
+#[test]
+fn a_take_with_a_linked_piece_moves_as_one() {
+    let pts = vec![pt(0, 120.0), pt(8, 100.0)];
+    for (w, linked) in [
+        // A pre-roll before the first window, so the edit re-anchors them.
+        (
+            vec![(1500, 1000, 1500), (2500, 1000, 2500), (3500, 1000, 3500)],
+            1usize,
+        ),
+        (vec![(1500, 1000, 1500), (4500, 1000, 4500)], 1),
+    ] {
+        for paste in [false, true] {
+            let (mut a, ta, _) = song(pts.clone(), &w, &[]);
+            let ids: Vec<ClipId> = clips(&a, ta).iter().map(|c| c.id).collect();
+            a.exec(Command::SetClipLink {
+                track: ta,
+                clip: ids[linked],
+                link: Some(LinkId(9_999)),
+            });
+            a.exec(Command::SetTempoPoint {
+                index: 0,
+                point: TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: 121.3,
+                    ramp: false,
+                },
+            });
+            let before_map = a.project().tempo_map();
+            let was = clips(&a, ta);
+            let delta = Ticks::beats(16);
+            let s = all(&a, ta);
+            if paste {
+                a.settings.link_copies = false;
+                a.set_clip_selection(s);
+                a.focus_arrangement();
+                a.run_action(Action::Copy);
+                a.seek(delta);
+                a.paste_now();
+            } else {
+                drag(&mut a, s, delta, false);
+            }
+            let map = a.project().tempo_map();
+            let landed: Vec<Clip> = clips(&a, ta)
+                .into_iter()
+                .filter(|c| c.start >= delta)
+                .collect();
+            assert_eq!(landed.len(), was.len());
+            let reach =
+                0.5 * 60.0 / (100.0 * 960.0) * RATE + 0.5 * 60.0 / (121.3 * 960.0) * RATE + 1.0;
+            for k in 1..was.len() {
+                let s0 = before_map.seconds_between(was[0].start, was[k].start);
+                let s1 = map.seconds_between(landed[0].start, landed[k].start);
+                assert!(
+                    (s0 - s1).abs() * RATE <= reach,
+                    "paste {paste}: {s0} vs {s1}"
+                );
+                let (x, y) = (
+                    frame(&map, &landed[k - 1], landed[k - 1].end().0 as f64),
+                    frame(&map, &landed[k], landed[k].start.0 as f64),
+                );
+                if landed[k - 1].end() == landed[k].start {
+                    assert!(
+                        (x - y).abs() <= reach,
+                        "paste {paste}: the seam {x} then {y}"
+                    );
+                }
+            }
+        }
+    }
+}

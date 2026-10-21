@@ -312,23 +312,42 @@ pub fn lay_chains(
             frame_at(src, m.from, o, s, m.rate, tick.0 as f64)
         }
     };
+    // A linked window sits within half a tick of its take's line (review 5) — the tick
+    // rounded at its content origin, or at its start, the longer (review 6).
+    let slack = |m: &Member| {
+        if m.clip.link.is_none() {
+            return 0.0;
+        }
+        let half = |t: f64| 0.5 * src.seconds_between_f64(t, t + 1.0) * m.rate;
+        let origin = (m.from - m.clip.offset).0.max(0) as f64;
+        half(origin).max(half(m.from.0 as f64))
+    };
     for &i in &eligible {
         let m = &members[i];
         let (row, source, reverse) = take(m);
         let end = m.from + m.clip.length;
         if let Some(next) = starts.get(&(row, source, reverse, end)) {
             for &j in next {
-                // A linked window sits within half a tick of its take's line (review 5).
-                let linked = m.clip.link.is_some() || members[j].clip.link.is_some();
-                let e = end.0 as f64;
-                let slack = if linked {
-                    0.5 * src.seconds_between_f64(e, e + 1.0) * m.rate
-                } else {
-                    0.0
-                };
-                if (frame(m, end) - frame(&members[j], end)).abs() <= 1.0 + slack {
+                let reach = 1.0 + slack(m).max(slack(&members[j]));
+                if (frame(m, end) - frame(&members[j], end)).abs() <= reach {
                     join(&mut parent, i, j);
                 }
+            }
+        }
+    }
+    // A linked window that no longer shares its take's origin exactly (a re-anchor moved
+    // it by whole ticks) joins the take whose line it reads within its reach, met or not
+    // (review 6: a take with a gap lost it).
+    let line = |m: &Member| frame(m, m.from) - src.seconds_between(Ticks::ZERO, m.from) * m.rate;
+    for &i in eligible.iter().filter(|&&i| members[i].clip.link.is_some()) {
+        let m = &members[i];
+        if take(m).2 {
+            continue;
+        }
+        for &j in &eligible {
+            let o = &members[j];
+            if j != i && take(o) == take(m) && (line(m) - line(o)).abs() <= 1.0 + slack(m) {
+                join(&mut parent, i, j);
             }
         }
     }
