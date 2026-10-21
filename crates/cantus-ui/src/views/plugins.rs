@@ -396,6 +396,19 @@ pub fn slot_title(app: &CantusApp, ui: &mut egui::Ui, slot: &EffectSlot) {
                 crate::kit::hint::Caps::NONE,
             );
         }
+    } else if app.plugins.effect_loading(slot.id) {
+        // Loading in its own process: a quiet word, never the waiting card (review
+        // isolation-6 #28).
+        let word = t("isolation.loading");
+        let r = ui.scope(|ui| controls::line(ui, &s, &word, s.t.text_dim, 80.0));
+        if r.response.hovered() {
+            crate::kit::hint::set_text(
+                ui.ctx(),
+                &word,
+                &tf("isolation.loading_tip", &[("name", &p.name)]),
+                crate::kit::hint::Caps::NONE,
+            );
+        }
     }
 }
 
@@ -792,6 +805,31 @@ fn body_ui(
         });
         return;
     }
+    // Loading in its own process: its parameters come once it is in (review isolation-6
+    // #28).
+    if app.plugins.effect_loading(effect) {
+        let name = app
+            .plugins
+            .hosted(effect)
+            .map(|h| h.info.name.clone())
+            .unwrap_or_default();
+        let rest = g.rest();
+        controls::card(
+            ui,
+            s,
+            rest,
+            Src::Key("isolation.loading_card"),
+            None,
+            |ui, cr| {
+                let w = cr.body.width() / k;
+                controls::column(ui, s, w, |ui| {
+                    let line = tf("isolation.editor.loading", &[("name", &name)]);
+                    controls::line(ui, s, &line, s.t.text_dim, w);
+                });
+            },
+        );
+        return;
+    }
     // The groups, made again only when the parameters or the filter change.
     let count = app.plugins.hosted(effect).map_or(0, |h| h.params.len());
     let typed = app.fx.hosted.filter.as_str();
@@ -1108,6 +1146,7 @@ pub(crate) fn toggle_ab(app: &mut CantusApp, strip: StripId, effect: EffectId) {
     let Some(current) = app.plugins.capture(effect) else {
         return;
     };
+    say_if_last_said(app, effect);
     let (other_state, other_params, on_b) = app
         .fx
         .hosted
@@ -1119,6 +1158,20 @@ pub(crate) fn toggle_ab(app: &mut CantusApp, strip: StripId, effect: EffectId) {
         .hosted
         .ab
         .insert(effect, (current.0, current.1, !on_b));
+}
+
+/// A state taken as the plug-in said it last — an isolated one whose newer state is still
+/// on its way — is said, never taken silently (review isolation-6 #24).
+fn say_if_last_said(app: &mut CantusApp, effect: EffectId) {
+    if app.plugins.state_current(effect) {
+        return;
+    }
+    let name = app
+        .plugins
+        .hosted(effect)
+        .map(|h| h.info.name.clone())
+        .unwrap_or_default();
+    app.set_status(tf("isolation.capture_stale", &[("name", &name)]));
 }
 
 /// The folder a plug-in's presets live in: one per plug-in id.
@@ -1181,6 +1234,7 @@ pub(crate) fn save_preset(
         .plugins
         .capture(effect)
         .ok_or_else(|| t("host.preview_missing"))?;
+    say_if_last_said(app, effect);
     let dir = preset_dir(plugin_id);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let text =

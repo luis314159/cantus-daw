@@ -29,6 +29,9 @@ pub struct Job {
     rx: Receiver<Result<SaveReport, StoreError>>,
 }
 
+/// The most an autosave waits for its plug-ins' states: the state limit.
+const AUTOSAVE_GATHER: std::time::Duration = std::time::Duration::from_secs(30);
+
 impl CantusApp {
     /// Once a frame: collect a finished autosave, and start one when it is due and there
     /// are unsaved changes.
@@ -37,26 +40,44 @@ impl CantusApp {
         if self.autosave_job.is_some() {
             return;
         }
-        if !self.autosave_gathering {
-            if self.last_autosave.elapsed() < self.autosave_interval() {
-                return;
-            }
-            self.last_autosave = Instant::now();
-            if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
-                return;
-            }
-            // Hosted plug-ins are asked for their state as it is now; written once they
-            // have answered, frame by frame — never waited for here (round 29, review
-            // isolation-5).
-            self.plugins.ask_states();
-            self.autosave_gathering = true;
+        // Asked for another project (New, Open meanwhile): not this one's (isolation-6 #34).
+        if self.autosave_gathering.is_some_and(|(_, epoch)| epoch != self.epoch) {
+            self.autosave_gathering = None;
         }
-        if !self.plugins.states_in() {
+        match self.autosave_gathering {
+            None => {
+                if self.last_autosave.elapsed() < self.autosave_interval() {
+                    return;
+                }
+                self.last_autosave = Instant::now();
+                if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
+                    return;
+                }
+                // Hosted plug-ins are asked for their state as it is now; written once they
+                // have answered, frame by frame — never waited for here (round 29, review
+                // isolation-5).
+                self.plugins.ask_states();
+                self.autosave_gathering = Some((Instant::now(), self.epoch));
+            }
+            // A plug-in's dialog may hold its helper for hours: past the state limit the
+            // autosave is written with what each said last, never left undone (isolation-6
+            // #6, #27).
+            Some((asked, _)) if asked.elapsed() > AUTOSAVE_GATHER => {}
+            Some(_) => {
+                if !self.plugins.states_in() {
+                    return;
+                }
+            }
+        }
+        self.autosave_gathering = None;
+        if !self.bus.is_dirty() || self.bus.revision() == self.autosaved_revision {
             return;
         }
-        self.autosave_gathering = false;
         let persisted = self.journal_finished_passes();
         let project = self.autosave_copy();
+        for (name, why) in self.plugins.saved_stale() {
+            log::warn!("autosave: {name} kept as it was last said: {why}");
+        }
         let (tx, rx) = mpsc::channel();
         let (path, dir) = (self.path.clone(), self.autosave_dir.clone());
         let p2 = path.clone();

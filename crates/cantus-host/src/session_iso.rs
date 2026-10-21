@@ -715,13 +715,38 @@ impl PluginHost {
         let busy = |crashed: &Option<String>, main: &dyn MainThread| {
             crashed.is_none() && !main.loaded() && main.stopped().is_none()
         };
-        self.slots
-            .values()
-            .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+        !self.leaving.is_empty()
+            || self
+                .slots
+                .values()
+                .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
             || self
                 .instruments
                 .values()
                 .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+    }
+
+    /// Whether what a slot's plug-in said last is its state as it is now (`capture` takes
+    /// that; A/B and a preset say when it may lack a change — review isolation-6 #24).
+    pub fn state_current(&self, effect: EffectId) -> bool {
+        self.slots
+            .get(&effect)
+            .is_none_or(|h| h.main.state_current())
+    }
+
+    /// Whether a slot's plug-in is loading still (an isolated one, its load answered
+    /// later): its slot, its editor and the inspector say so (review isolation-6 #28).
+    pub fn effect_loading(&self, effect: EffectId) -> bool {
+        self.slots.get(&effect).is_some_and(|h| {
+            h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
+        })
+    }
+
+    /// [`Self::effect_loading`] for a track's hosted instrument.
+    pub fn instrument_loading(&self, track: TrackId) -> bool {
+        self.instruments.get(&track).is_some_and(|h| {
+            h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
+        })
     }
 
     /// What a slot's plug-in costs, measured over the last half second.

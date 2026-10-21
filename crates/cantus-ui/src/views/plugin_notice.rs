@@ -88,10 +88,10 @@ pub fn waiting_card(app: &CantusApp) -> Option<WaitCard> {
         Target::Insert(e) => app.plugins.neighbours(Some(e), None),
         Target::Instrument(tr) => app.plugins.neighbours(None, Some(tr)),
     };
-    let body = if others == 0 {
-        t("isolation.waiting.body")
-    } else {
-        tf("isolation.waiting.body_shared", &[("n", &others)])
+    let body = match others {
+        0 => t("isolation.waiting.body"),
+        1 => t("isolation.waiting.body_shared_one"),
+        n => tf("isolation.waiting.body_shared", &[("n", &n)]),
     };
     Some(WaitCard {
         target,
@@ -671,7 +671,7 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.hung_audio"
     } else if reason.contains("stopped answering") {
         "isolation.why.hung"
-    } else if reason.contains("stopped by you") {
+    } else if reason.contains("stopped by you") || reason.contains("stopped by the user") {
         "isolation.why.stopped_by_you"
     } else if let Some(name) = reason.split("was ended to stop ").nth(1) {
         return tf("isolation.why.ended_for", &[("name", &name)]);
@@ -679,6 +679,10 @@ pub fn reason_words(reason: &str) -> String {
         "isolation.why.load_timeout"
     } else if reason.contains("still answering") {
         "isolation.why.answering"
+    } else if reason.contains("was not asked for") {
+        "isolation.why.not_asked"
+    } else if reason.starts_with("state: ") {
+        "isolation.why.no_state"
     } else if reason.contains("did not answer in")
         || reason.contains("did not start in time")
         || reason.contains("did not answer while")
@@ -734,6 +738,13 @@ pub fn words_or(reason: &str, fallback: &str) -> String {
     }
 }
 
+/// Why a plug-in's state could not be had as it is now, in the interface's words — a reason
+/// in none of the host's forms said as such, never as a failed load (review isolation-6
+/// #10, #21, #31).
+pub fn stale_words(reason: &str) -> String {
+    words_or(reason, "isolation.why.no_state")
+}
+
 /// What a save says of the plug-ins it kept as they were last said (their state as it is
 /// now not to be had in time), in the interface's words — `None` when there were none
 /// (review isolation-5 rule 2: never silently).
@@ -742,7 +753,7 @@ pub fn saved_stale(stale: &[(String, String)]) -> Option<String> {
         [] => None,
         [(name, why)] => Some(tf(
             "isolation.save.stale_one",
-            &[("name", name), ("reason", &stopped_words(why))],
+            &[("name", name), ("reason", &stale_words(why))],
         )),
         many => {
             let names: Vec<&str> = many.iter().map(|(n, _)| n.as_str()).collect();

@@ -17,6 +17,7 @@ use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::modulator::bake::bake;
 use cantus_core::{AutoTarget, Automation, Command, ModulatorId, Ticks};
+use cantus_host::RenderFor;
 use std::sync::mpsc;
 
 /// A bake waiting for its trace.
@@ -68,6 +69,21 @@ impl CantusApp {
             self.set_error(tf("isolation.render.busy", &[("job", &job)]));
             return false;
         }
+        // A freeze or a bounce rendering holds the hosted plug-ins' render instances: one
+        // set at a time (round 29, review 1 — whichever ended first let the other's go);
+        // asked before its plug-ins are prepared, so nothing drops them after (review
+        // isolation-6 #2, #11, #22).
+        if !crate::freeze::yield_refresh(self) {
+            self.set_error(t("freeze.bake_waits"));
+            return false;
+        }
+        // An export renders through the same plug-in instances: one render at a time
+        // (round 29, review isolation-3 #5, #10, #13, #48).
+        if self.export.busy() {
+            let job = t("isolation.render.export");
+            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
+            return false;
+        }
         // While renders are on their way (a warp, a pitch edit, a file loading), the bake
         // waits for them beside the window, as an export does — it never blocks the frame
         // (round 29's review); started again once they are in.
@@ -81,24 +97,11 @@ impl CantusApp {
         let rate = self.engine.sample_rate.round() as u32;
         if !self
             .plugins
-            .render_ready(self.bus.project(), f64::from(rate), false)
+            .render_ready(RenderFor::Bake, self.bus.project(), f64::from(rate), false)
         {
             self.warp.pending_bake = Some((id, target.clone(), self.epoch));
             self.set_status(t("isolation.render.loading"));
             return true;
-        }
-        // A freeze or a bounce rendering holds the hosted plug-ins' render instances: one
-        // set at a time (round 29, review 1 — whichever ended first let the other's go).
-        if !crate::freeze::yield_refresh(self) {
-            self.set_error(t("freeze.bake_waits"));
-            return false;
-        }
-        // An export renders through the same plug-in instances: one render at a time
-        // (round 29, review isolation-3 #5, #10, #13, #48).
-        if self.export.busy() {
-            let job = t("isolation.render.export");
-            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
-            return false;
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
         let before = self.engine.renders_late();

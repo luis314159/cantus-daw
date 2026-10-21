@@ -129,3 +129,15 @@ isolation.editor.not_loaded_kept = The slot passes the sound through; its state 
 isolation.inst.not_loaded_status = {name} could not be loaded ({why}). The track keeps its sound's data and plays silence until it is reloaded from its menu.
 isolation.inst.status_not_loaded = Not loaded: silent
 isolation.inst.status_not_loaded_tip = {why}. Its settings are kept in the project; Reload tries again.
+
+# --- round 29, review isolation-6 ---
+isolation.waiting.body_shared_one = One of its windows may be open behind Cantus. Answer it there, or stop it: the other plug-in in its process stops with it, and each can be reloaded.
+isolation.why.not_asked = its state was not asked for
+isolation.why.no_state = it did not give its state
+isolation.kept_stale = {name} keeps the state it gave last: {reason}.
+isolation.loading = loading
+isolation.loading_tip = {name} is loading in its own process; the slot passes the sound through meanwhile.
+isolation.loading_card = Loading
+isolation.editor.loading = {name} is loading in its own process: its parameters come once it is in.
+isolation.inst.status_loading = Loading…
+isolation.capture_stale = {name}'s state is the one it gave last: a change it made since may be missing.

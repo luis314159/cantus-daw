@@ -65,6 +65,9 @@ pub struct Job {
     /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
     /// third review).
     late: bool,
+    /// The plug-ins whose state it took as they were last said (not to be had as they are
+    /// now): said with its outcome (review isolation-6 #3, #15, #25).
+    stale: Vec<cantus_host::RenderFailure>,
 }
 
 impl std::fmt::Debug for Job {
@@ -94,6 +97,9 @@ pub struct FreezeState {
     epoch: Option<u64>,
     /// The session is closing: nothing starts any more (review 2).
     closed: bool,
+    /// The freeze whose plug-ins' states, as they are now, were asked for: it starts once
+    /// they are in (review isolation-6 #3, #15, #25).
+    asked: Option<Want>,
     /// Refreshes said to wait for a file (once each).
     said_waiting: HashSet<String>,
     /// A save's copies and prune, done when set (review 3: off the frame).
@@ -632,6 +638,9 @@ impl CantusApp {
     /// background refreshes too: those are not made again until the user freezes or
     /// unfreezes something (their targets play live).
     pub fn cancel_freeze(&mut self) {
+        // The plug-ins a waiting render had prepared go with it (review isolation-6 #1).
+        self.freeze.asked = None;
+        self.plugins.drop_render(cantus_host::RenderFor::Freeze);
         for w in std::mem::take(&mut self.freeze.queue) {
             if let Want::Refresh(target) = w {
                 if let Some(f) = self.project().frozen(target) {
@@ -740,6 +749,30 @@ pub fn refused(app: &mut CantusApp, target: FreezeTarget) {
     app.set_error(tf("freeze.refused", &[("name", &name), ("how", &how)]));
 }
 
+/// The plug-ins the last `hosted_states` took as they were last said, as a render's
+/// warnings (review isolation-6 #3, #15, #25).
+fn stale_states(app: &CantusApp) -> Vec<cantus_host::RenderFailure> {
+    app.plugins
+        .saved_stale()
+        .iter()
+        .map(|(name, why)| cantus_host::RenderFailure {
+            name: name.clone(),
+            reason: why.clone(),
+            kind: cantus_host::RenderLoss::Stale,
+        })
+        .collect()
+}
+
+/// A freeze made from a render at hand with states as they were last said: said after its
+/// own word.
+fn say_stale(app: &mut CantusApp, stale: &[cantus_host::RenderFailure], name: &str) {
+    let (_, warnings) = crate::views::plugin_notice::render_words(stale, "freeze", name);
+    if let Some(w) = warnings {
+        let done = app.status.text.clone();
+        app.set_error(format!("{done} {w}"));
+    }
+}
+
 /// The hosted plug-ins' states, as they are now, written into the project for the
 /// plug-ins of `target`'s region whose state the project does not hold yet: what the
 /// render hears, and what an unloaded plug-in comes back with.
@@ -844,7 +877,10 @@ pub(crate) fn units_for(
     // Its plug-ins' render instances loaded first (an isolated one in a helper of its own),
     // frame by frame: the render waits in the queue meanwhile (round 29, review
     // isolation-5).
-    if !app.plugins.render_ready(&only, rate, stored) {
+    if !app
+        .plugins
+        .render_ready(cantus_host::RenderFor::Freeze, &only, rate, stored)
+    {
         return Err(PLUGINS_LOADING.to_string());
     }
     // A keyed render (a freeze's) from the states the project holds — what its key says
@@ -923,7 +959,12 @@ fn wired_since_installed(app: &CantusApp, render: &Path) -> bool {
 /// let a freeze's go mid-render), and no file the render plays is still loading (the
 /// window would wait for it — review 1).
 fn start_next(app: &mut CantusApp) {
-    if app.freeze.job.is_some() || app.export_in_progress() || app.modulators.pending_bake.is_some()
+    // A bake waiting for its own plug-ins is a render too: one at a time (review
+    // isolation-6 #4, #13, #26).
+    if app.freeze.job.is_some()
+        || app.export_in_progress()
+        || app.modulators.pending_bake.is_some()
+        || app.warp.pending_bake.is_some()
     {
         return;
     }
@@ -931,24 +972,43 @@ fn start_next(app: &mut CantusApp) {
     if s.loading() || s.pitch_pending() > 0 || s.warp_pending() > 0 {
         return;
     }
-    // The render's plug-ins still loading: it starts once they are in.
-    if app.plugins.render_loading() {
+    // Its own render's plug-ins still loading: it starts once they are in.
+    if app.plugins.render_waiting(cantus_host::RenderFor::Freeze) {
         return;
     }
     while let Some(want) = app.freeze.queue.pop_front() {
+        // A freeze takes its plug-ins' states as they are now: asked first, and waited for
+        // frame by frame, as a save does (review isolation-6 #3, #15, #25).
+        if matches!(want, Want::Freeze(_)) && app.freeze.asked.as_ref() != Some(&want) {
+            app.plugins.ask_states();
+            app.freeze.asked = Some(want.clone());
+        }
+        if app.freeze.asked.as_ref() == Some(&want) && !app.plugins.states_in() {
+            app.freeze.queue.push_front(want);
+            return;
+        }
         match start(app, want.clone()) {
             Ok(Some(job)) => {
+                app.freeze.asked = None;
                 app.freeze.job = Some(job);
                 return;
             }
-            Ok(None) => {}
+            // Nothing to render after all: what it prepared goes (review isolation-6 #1).
+            Ok(None) => {
+                app.freeze.asked = None;
+                app.plugins.drop_render(cantus_host::RenderFor::Freeze);
+            }
             // Its plug-ins are loading: first in the queue again, said once.
             Err(e) if e == PLUGINS_LOADING => {
                 app.freeze.queue.push_front(want);
                 app.set_status(t("isolation.render.loading"));
                 return;
             }
-            Err(e) => app.set_error(e),
+            Err(e) => {
+                app.freeze.asked = None;
+                app.plugins.drop_render(cantus_host::RenderFor::Freeze);
+                app.set_error(e);
+            }
         }
     }
 }
@@ -1002,6 +1062,8 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                 return Ok(None);
             }
             let before = hosted_states(app, target);
+            // The states it could not have as they are now (asked first, by `start_next`).
+            let stale = stale_states(app);
             let edits = edits_in(app, app.project(), target);
             // Keyed as it will be frozen: disarmed (review 2: an armed track rendered twice).
             let (after, content) = match as_frozen(app.project(), &before, target) {
@@ -1025,10 +1087,14 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                     app.engine.frozen.forget_missing();
                 } else if app.engine.frozen.find(&content, rate).is_some() {
                     commit_freeze(app, target, before, &content, edits, false);
+                    say_stale(app, &stale, &name_of(app.project(), target));
                     return Ok(None);
                 }
             }
-            render_job(app, want, target, &after, content, before, edits).map(Some)
+            render_job(app, want, target, &after, content, before, edits).map(|mut job| {
+                job.stale = stale;
+                Some(job)
+            })
         }
         Want::Refresh(target) => {
             let Some(stored) = app.project().frozen(target).map(|f| f.content.clone()) else {
@@ -1243,6 +1309,7 @@ fn render_job(
         bounce: None,
         epoch: app.epoch,
         late,
+        stale: Vec::new(),
     })
 }
 
@@ -1287,6 +1354,7 @@ pub(crate) fn bounce_job(
         bounce: Some(prepared),
         epoch: app.epoch,
         late: false,
+        stale: Vec::new(),
     }
 }
 
@@ -1387,7 +1455,9 @@ fn collect(app: &mut CantusApp) {
     }
     // An isolated plug-in that stopped working during the render (round 29, review #6,
     // #47): the render lacks it from that point, so nothing is frozen or bounced from it.
-    let lost = app.plugins.render_failures();
+    // The states it took as they were last said are its warnings.
+    let mut lost = app.plugins.render_failures();
+    lost.extend(job.stale.iter().cloned());
     app.plugins.finish_render();
     app.engine.frozen.forget_missing();
     app.force_resync();

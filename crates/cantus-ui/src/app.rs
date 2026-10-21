@@ -247,8 +247,9 @@ pub struct CantusApp {
     pub(crate) autosave_warned: bool,
     /// The autosave being written on its thread (`autosave`).
     pub(crate) autosave_job: Option<crate::autosave::Job>,
-    /// An autosave waiting for its hosted plug-ins' states (round 29, review isolation-5).
-    pub(crate) autosave_gathering: bool,
+    /// An autosave waiting for its hosted plug-ins' states since when, for which project
+    /// (round 29, review isolation-5; isolation-6 #6, #34).
+    pub(crate) autosave_gathering: Option<(Instant, u64)>,
     /// *Save* written on its thread (`save_job`, round 24): the save in flight, one queued
     /// behind it, and what the *Save changes?* question waits to do.
     pub saving: crate::save_job::Saving,
@@ -662,7 +663,7 @@ impl CantusApp {
             autosave_every: None,
             autosave_warned: false,
             autosave_job: None,
-            autosave_gathering: false,
+            autosave_gathering: None,
             saving: Default::default(),
             epoch: 0,
             session: None,
@@ -3115,6 +3116,11 @@ impl CantusApp {
             self.inst.sampler.cut_told = true;
             self.set_status(t("smp.cut_notes"));
         }
+        // A plug-in let go a moment ago has its state as it is now: its slot loads with it
+        // (round 29, review isolation-6 #24).
+        if self.plugins.take_resync() {
+            self.synced_revision = u64::MAX;
+        }
         // An effect the last snapshot holds that the engine has no unit for: a remove and
         // its undo both went out before the engine handed the removed unit back, so the
         // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.
@@ -3267,6 +3273,14 @@ impl CantusApp {
                 | HostNotice::IsolationUnavailable => views::plugin_notice::on_notice(self, n),
                 // A plug-in window's change a freeze refused (round 29, review 2).
                 HostNotice::Frozen(target) => crate::freeze::refused(self, target),
+                // A plug-in let go kept the state it gave last: said (isolation-6 #24).
+                HostNotice::StateKept { name, reason } => self.set_error(tf(
+                    "isolation.kept_stale",
+                    &[
+                        ("name", &name),
+                        ("reason", &views::plugin_notice::stale_words(&reason)),
+                    ],
+                )),
             }
         }
     }
@@ -3935,7 +3949,8 @@ impl CantusApp {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }
         // A save or an autosave being written: look again shortly to collect it.
-        if self.autosave_job.is_some() || self.autosave_gathering || self.save_in_flight() {
+        if self.autosave_job.is_some() || self.autosave_gathering.is_some() || self.save_in_flight()
+        {
             ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.

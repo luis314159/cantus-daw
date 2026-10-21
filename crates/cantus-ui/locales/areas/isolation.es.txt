@@ -102,7 +102,7 @@ isolation.busy = {name} está ocupado: tiene abierta una ventana suya, o va por 
 isolation.export.never = No se pudo cargar {name} para la exportación — {reason}. El archivo se hizo sin él.
 isolation.export.stale = {name} no pudo dar su estado tal como estaba al empezar la exportación: el archivo usó el último que dio.
 isolation.bake.never = No se pudo cargar {name} para la conversión — {reason}. No se convirtió nada en automatización.
-isolation.bake.stale = {name} no pudo dar su estado tal como estaba al empezar el horneado: se usó el último que dio.
+isolation.bake.stale = {name} no pudo dar su estado tal como estaba al empezar la conversión: se usó el último que dio.
 isolation.freeze.never = No se pudo cargar {name} para el render — {reason}. {job} no se congeló ni se pasó a audio.
 isolation.freeze.stale = {name} no pudo dar su estado tal como estaba al empezar el render: {job} usó el último que dio.
 isolation.waiting.title = te espera
@@ -129,3 +129,15 @@ isolation.editor.not_loaded_kept = La ranura deja pasar el sonido; su estado y s
 isolation.inst.not_loaded_status = {name} no se pudo cargar ({why}). La pista conserva los datos de su sonido y suena en silencio hasta que se recargue desde su menú.
 isolation.inst.status_not_loaded = Sin cargar: en silencio
 isolation.inst.status_not_loaded_tip = {why}. Sus ajustes se guardan en el proyecto; Recargar lo intenta de nuevo.
+
+# --- ronda 29, revisión isolation-6 ---
+isolation.waiting.body_shared_one = Puede que una ventana suya esté abierta detrás de Cantus. Respóndela allí, o detenlo: el otro plug-in de su proceso se detiene con él, y cada uno puede recargarse.
+isolation.why.not_asked = no se le pidió su estado
+isolation.why.no_state = no dio su estado
+isolation.kept_stale = {name} conserva el último estado que dio: {reason}.
+isolation.loading = cargando
+isolation.loading_tip = {name} se está cargando en su propio proceso; la ranura deja pasar el sonido mientras tanto.
+isolation.loading_card = Cargando
+isolation.editor.loading = {name} se está cargando en su propio proceso: sus parámetros llegan cuando esté listo.
+isolation.inst.status_loading = Cargando…
+isolation.capture_stale = El estado de {name} es el último que dio: puede faltar un cambio que hizo después.

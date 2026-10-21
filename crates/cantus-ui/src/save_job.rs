@@ -136,8 +136,10 @@ impl CantusApp {
             return false;
         }
         // Hosted plug-ins are asked for their state as it is now; the file is written once
-        // they have answered (`continue_save`, each frame).
+        // they have answered (`continue_save`, each frame). A waiting card closed before
+        // shows again: the save may wait on that very dialog (review isolation-6 #27).
         self.plugins.ask_states();
+        self.plugin_crashes.left_waiting.clear();
         self.saving.gathering = Some(Gathering {
             path: path.to_path_buf(),
             epoch: self.epoch,

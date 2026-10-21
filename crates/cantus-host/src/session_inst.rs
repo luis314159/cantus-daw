@@ -46,9 +46,10 @@ pub struct HostedInst {
     /// Whose doing its helper's end was, while it has stopped.
     pub(super) blame: Option<crate::backend::Blame>,
     pub(super) cpu: super::iso::CpuWatch,
-    /// Just put on its track, its load answered later (an isolated plug-in): its values and
-    /// state go into the project when it loads, in that step of the undo history.
-    pub(super) fresh: bool,
+    /// Just put on its track, its load answered later (an isolated plug-in): the undo key
+    /// of the step that put it there, its own (review isolation-6 #8, #16) — its values and
+    /// state join that step when it loads, while it is on top.
+    pub(super) load_key: Option<cantus_core::MergeKey>,
     /// Where it runs changed: moved once its state as it is now is in (review isolation-5).
     pub(super) moving: bool,
 }
@@ -160,7 +161,7 @@ impl HostedInst {
             crashed: None,
             blame: None,
             cpu: super::iso::CpuWatch::default(),
-            fresh: false,
+            load_key: None,
             moving: false,
         }
     }
@@ -244,7 +245,14 @@ impl PluginHost {
         let state = main.save_state().map(PluginState::new).unwrap_or_default();
         let fresh = !main.loaded();
         let mut h = HostedInst::new(info.clone(), main, loaded.audio, runs);
-        h.fresh = fresh;
+        if fresh {
+            self.load_serial += 1;
+            h.load_key = Some(cantus_core::MergeKey::of(&(
+                "instrument-load",
+                track.0,
+                self.load_serial,
+            )));
+        }
         let values = values_of(h.main.as_ref(), &h.params);
         let mut plugin =
             ExternalPlugin::new(to_project_format(info.format), info.id.clone(), info.name);
@@ -262,8 +270,8 @@ impl PluginHost {
 
     /// The undo key the command that puts a new instrument on `track` is run under: an
     /// isolated plug-in's values, known once it loads, join that step (review isolation-5).
-    pub fn inst_load_key(track: TrackId) -> cantus_core::MergeKey {
-        cantus_core::MergeKey::of(&("instrument-load", track.0))
+    pub fn inst_load_key(&self, track: TrackId) -> Option<cantus_core::MergeKey> {
+        self.instruments.get(&track).and_then(|h| h.load_key)
     }
 
     /// Load a track's plug-in the host has not seen, from the database by format and id,
@@ -309,13 +317,13 @@ impl PluginHost {
         Ok(h)
     }
 
-    /// Unload a track's instrument, keeping its state for a track that gets it back.
+    /// Unload a track's instrument, keeping its state as it is now for a track that gets
+    /// it back (`let_go`).
     pub(crate) fn unload_instrument(&mut self, track: TrackId) {
         if let Some(mut h) = self.instruments.remove(&track) {
             h.close_window_now();
-            if let Ok(s) = h.main.save_state() {
-                self.inst_parked.insert((track, h.key), PluginState::new(s));
-            }
+            let name = h.info.name.clone();
+            self.let_go(super::Parked::Instrument(track, h.key), name, h.main);
         }
     }
 
@@ -357,6 +365,10 @@ impl PluginHost {
                 continue;
             }
             self.inst_missing.remove(&t.id);
+            // Let go a moment ago, its state still on its way: loaded once it is in.
+            if self.is_leaving(super::Parked::Instrument(t.id, key)) {
+                continue;
+            }
             if !self.instruments.contains_key(&t.id) {
                 let locked = crate::session::instrument_locked(project, t.id);
                 match self.load_instrument(t.id, plugin, key, locked) {

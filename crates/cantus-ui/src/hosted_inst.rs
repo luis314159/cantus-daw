@@ -22,14 +22,16 @@ impl CantusApp {
         match self.plugins.make_instrument(track, info) {
             Ok(spec) => {
                 self.close_inst_editor();
-                // An isolated plug-in's values, known once it loads, join this step.
-                self.exec_merging(
-                    Command::SetInstrument {
-                        track,
-                        spec: Box::new(spec),
-                    },
-                    cantus_host::PluginHost::inst_load_key(track),
-                );
+                let cmd = Command::SetInstrument {
+                    track,
+                    spec: Box::new(spec),
+                };
+                // An isolated plug-in's values, known once it loads, join this step — under
+                // a key of this pick's own; every other pick is a step of its own.
+                match self.plugins.inst_load_key(track) {
+                    Some(key) => self.exec_merging(cmd, key),
+                    None => self.exec(cmd),
+                };
                 true
             }
             Err(e) => {

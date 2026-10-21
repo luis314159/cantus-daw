@@ -12,6 +12,13 @@
 //! - **Units.** [`PluginHost::render_units`] and [`PluginHost::render_instruments`] then
 //!   make the units from those instances; their main halves stay until
 //!   [`PluginHost::finish_render`].
+//! - **One at a time, its owner's.** Each preparation belongs to who asked
+//!   ([`RenderFor`]: an export, a bake, a freeze or bounce) and to what it renders (every
+//!   part's values, and the states when they are the project's): asked for another, it is
+//!   made anew; another owner never takes it while it is in use — its owner asking each
+//!   frame, or its render running — and waits (review isolation-6 #1, #4, #13, #26). An
+//!   owner that gives up drops it ([`PluginHost::drop_render`]); one nobody asked about
+//!   for a while goes by itself.
 //! - **Losses, said.** A heard plug-in that is not loaded live (it could not be loaded, or
 //!   crashed loading), or whose render instance never loaded, is a loss of the render
 //!   ([`RenderLoss::NeverLoaded`], review isolation-5 #27); a state that could not be had
@@ -34,6 +41,21 @@ use std::time::{Duration, Instant};
 /// started after all): its instances end.
 const FORGOTTEN_AFTER: Duration = Duration::from_secs(10);
 
+/// A preparation its owner has not asked about for this long is no longer in use: another
+/// owner may take its place (its owner asks every frame while it waits).
+const ABANDONED_AFTER: Duration = Duration::from_secs(1);
+
+/// Who a render's preparation is for (review isolation-6 #4, #13, #26).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RenderFor {
+    Export,
+    Bake,
+    /// A freeze, a refresh or a bounce (one queue).
+    Freeze,
+    /// A render made at once, without asking first (tests, an in-process render).
+    Now,
+}
+
 /// What a render's plug-in is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Target {
@@ -53,8 +75,10 @@ struct Part {
     instance: Option<Instance>,
 }
 
-/// The render being prepared: for which project, rate and states, and its plug-ins.
+/// The render being prepared: for whom, for which project, rate and states, and its
+/// plug-ins.
 pub(crate) struct Prep {
+    owner: RenderFor,
     key: (u64, bool, u64),
     parts: Vec<Part>,
     /// Said with the render's outcome: states used as they were last said.
@@ -66,29 +90,67 @@ pub(crate) struct Prep {
 }
 
 impl PluginHost {
-    /// Whether the render of `project` at `sample_rate` can begin now: its plug-ins'
+    /// Whether `owner`'s render of `project` at `sample_rate` can begin now: its plug-ins'
     /// render instances are loaded, or lost — `stored`: from the states `project` holds (a
     /// freeze's keyed render), else from the live ones as they are now. Asked each frame
-    /// before a render begins; never waits (see the module documentation).
-    pub fn render_ready(&mut self, project: &Project, sample_rate: f64, stored: bool) -> bool {
-        let key = (sample_rate.to_bits(), stored, plugins_of(project));
-        if self.render_prep.as_ref().is_some_and(|p| p.key != key) {
-            self.drop_render_prep();
+    /// before a render begins; never waits. `false` too while another owner's render is
+    /// prepared or running: it waits its turn (see the module documentation).
+    pub fn render_ready(
+        &mut self,
+        owner: RenderFor,
+        project: &Project,
+        sample_rate: f64,
+        stored: bool,
+    ) -> bool {
+        let key = (sample_rate.to_bits(), stored, content_of(project, stored));
+        if let Some(p) = &self.render_prep {
+            if p.owner != owner {
+                if !self.render_mains.is_empty() || p.touched.elapsed() < ABANDONED_AFTER {
+                    return false;
+                }
+                self.drop_render_prep();
+            } else if p.key != key {
+                // Its owner asks for another render now (a state or a value changed).
+                self.drop_render_prep();
+            }
         }
         if self.render_prep.is_none() {
-            let prep = self.new_prep(project, key, stored);
+            if !self.render_mains.is_empty() {
+                return false;
+            }
+            let prep = self.new_prep(owner, project, key, stored);
             self.fresh_render_cancel();
             self.render_prep = Some(prep);
         }
         self.advance_prep(sample_rate)
     }
 
-    /// Whether a render's plug-ins are being made ready (a render waits for them).
-    pub fn render_loading(&mut self) -> bool {
-        let Some(rate) = self.render_prep.as_ref().map(|p| f64::from_bits(p.key.0)) else {
+    /// Whether `owner`'s preparation is still loading — looked at, and kept alive, by its
+    /// owner only (`false` when it has none).
+    pub fn render_waiting(&mut self, owner: RenderFor) -> bool {
+        let Some(rate) = self
+            .render_prep
+            .as_ref()
+            .filter(|p| p.owner == owner)
+            .map(|p| f64::from_bits(p.key.0))
+        else {
             return false;
         };
         !self.advance_prep(rate)
+    }
+
+    /// `owner` gave up its render before it began (a freeze cancelled, an export stopped,
+    /// a bake dropped): its preparation goes, its instances with it. A running render's
+    /// are never touched.
+    pub fn drop_render(&mut self, owner: RenderFor) {
+        if self
+            .render_prep
+            .as_ref()
+            .is_some_and(|p| p.owner == owner)
+            && self.render_mains.is_empty()
+        {
+            self.drop_render_prep();
+        }
     }
 
     pub(crate) fn drop_render_prep(&mut self) {
@@ -108,7 +170,13 @@ impl PluginHost {
         }
     }
 
-    fn new_prep(&mut self, project: &Project, key: (u64, bool, u64), stored: bool) -> Prep {
+    fn new_prep(
+        &mut self,
+        owner: RenderFor,
+        project: &Project,
+        key: (u64, bool, u64),
+        stored: bool,
+    ) -> Prep {
         let mut parts = Vec::new();
         let mut lost = Vec::new();
         for (strip, slot) in project.all_effects() {
@@ -166,6 +234,7 @@ impl PluginHost {
             }
         }
         Prep {
+            owner,
             key,
             parts,
             stale: Vec::new(),
@@ -254,7 +323,15 @@ impl PluginHost {
         self.render_lost.append(&mut prep.stale);
         let at = prep.parts.iter().position(|p| p.target == target)?;
         let part = prep.parts.swap_remove(at);
-        let mut inst = part.instance?;
+        let Some(mut inst) = part.instance else {
+            // Its instance was never made (its state still asked): a loss, said — never a
+            // render silently without it (review isolation-6 #2, #11, #22).
+            self.render_lost.push(never(
+                &part.info.name,
+                "it was still loading when the render began",
+            ));
+            return None;
+        };
         if inst.main.loaded() {
             if let Some(audio) = inst.main.take_audio() {
                 inst.audio = audio;
@@ -282,15 +359,41 @@ impl PluginHost {
         self.render_units_as(project, sample_rate, true)
     }
 
+    /// Whether the preparation at hand is this render's — made now when there is none
+    /// (in process it is ready at once; an isolated plug-in not asked for first, frame by
+    /// frame, is then said as never loaded).
+    fn prepared_for(&mut self, project: &Project, sample_rate: f64, stored: bool) -> bool {
+        let key = (sample_rate.to_bits(), stored, content_of(project, stored));
+        if !self.render_prep.as_ref().is_some_and(|p| p.key == key) {
+            self.render_ready(RenderFor::Now, project, sample_rate, stored);
+        }
+        self.render_prep.as_ref().is_some_and(|p| p.key == key)
+    }
+
+    /// A plug-in the render cannot have: another render's preparation held its place.
+    fn not_prepared(&mut self, name: &str) {
+        self.render_lost
+            .push(never(name, "another render was being prepared"));
+    }
+
     fn render_units_as(
         &mut self,
         project: &Project,
         sample_rate: f64,
         stored: bool,
     ) -> Vec<EffectUnit> {
-        self.render_ready(project, sample_rate, stored);
+        let prepared = self.prepared_for(project, sample_rate, stored);
         let mut units = Vec::new();
         for (_, slot) in project.all_effects() {
+            let Some(plugin) = slot.spec.external.as_deref() else {
+                continue;
+            };
+            if !prepared {
+                if self.slots.contains_key(&slot.id) {
+                    self.not_prepared(&plugin.name);
+                }
+                continue;
+            }
             let Some(inst) = self.take_prepared(Target::Effect(slot.id)) else {
                 continue;
             };
@@ -329,13 +432,19 @@ impl PluginHost {
         sample_rate: f64,
         stored: bool,
     ) -> Vec<NativeUnit> {
-        self.render_ready(project, sample_rate, stored);
+        let prepared = self.prepared_for(project, sample_rate, stored);
         let mut units = Vec::new();
         for t in &project.tracks {
             let Some(plugin) = t.instrument.external() else {
                 continue;
             };
             let key = hosted_key(plugin);
+            if !prepared {
+                if self.instruments.contains_key(&t.id) {
+                    self.not_prepared(&plugin.name);
+                }
+                continue;
+            }
             let Some(inst) = self.take_prepared(Target::Instrument(t.id, key)) else {
                 continue;
             };
@@ -363,18 +472,30 @@ fn never(name: &str, why: &str) -> RenderFailure {
     }
 }
 
-/// Which hosted plug-ins `project` has, and where: what a preparation is for.
-fn plugins_of(project: &Project) -> u64 {
+/// What a render of `project` is made of: which hosted plug-ins, where they run, the values
+/// it gives them — and, `stored`, the states (a freeze's render, keyed by them): what a
+/// preparation is for, so one made for other states or values is never used (review
+/// isolation-6 #1, #15).
+fn content_of(project: &Project, stored: bool) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
+    let mut one = |id: u64, p: &cantus_core::ExternalPlugin| {
+        (id, &p.id, p.isolation).hash(&mut h);
+        for (k, v) in &p.params {
+            (k, v.to_bits()).hash(&mut h);
+        }
+        if stored {
+            p.state.bytes().hash(&mut h);
+        }
+    };
     for (_, slot) in project.all_effects() {
         if let Some(p) = slot.spec.external.as_deref() {
-            (slot.id, &p.id, p.isolation).hash(&mut h);
+            one(slot.id.0, p);
         }
     }
     for t in &project.tracks {
         if let Some(p) = t.instrument.external() {
-            (t.id, hosted_key(p), p.isolation).hash(&mut h);
+            one(t.id.0 ^ hosted_key(p), p);
         }
     }
     h.finish()
