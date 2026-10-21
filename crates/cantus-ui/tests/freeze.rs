@@ -2792,6 +2792,14 @@ fn a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_ins
     // (review 3: the wire's render was kept, its latency missing).
     let ctx = support::ctx();
     let (mut app, dir) = app("wired");
+    let (content, made) = wired_render(&mut app, &ctx);
+    knows_gain(&mut app, &dir);
+    made_again(&mut app, &ctx, &content, made);
+}
+
+/// The synth's strip frozen with the test gain bypassed on it, not installed: rendered
+/// with a wire, said beside the render. Its content key and when it was made.
+fn wired_render(app: &mut CantusApp, ctx: &egui::Context) -> (String, std::time::SystemTime) {
     let strip = app.project().tracks[0].strip.unwrap();
     let mut p = app.project().clone();
     let mut slot = p.make_effect(EffectKind::External);
@@ -2807,7 +2815,7 @@ fn a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_ins
     app.bus = CommandBus::new(p);
     let target = FreezeTarget::Strip(strip);
     app.freeze_target(target);
-    settle(&mut app, &ctx);
+    settle(app, ctx);
     assert!(
         app.project().frozen(target).is_some(),
         "{}",
@@ -2819,16 +2827,24 @@ fn a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_ins
     assert!(wires.is_file(), "the wire said beside it");
     let made = std::fs::metadata(&render).unwrap().modified().unwrap();
     std::thread::sleep(Duration::from_millis(1100));
-    knows_gain(&mut app, &dir);
-    // The next scans: made again.
+    (content, made)
+}
+
+/// The next scans make the render of `content` again (newer than `made`), with no wire.
+fn made_again(
+    app: &mut CantusApp,
+    ctx: &egui::Context,
+    content: &str,
+    made: std::time::SystemTime,
+) {
     let t0 = Instant::now();
     loop {
         app.sync_engine();
-        cantus_ui::freeze::tick(&mut app, &ctx);
+        cantus_ui::freeze::tick(app, ctx);
         let again = app
             .engine
             .frozen
-            .path_of(&content, 48_000)
+            .path_of(content, 48_000)
             .and_then(|p| std::fs::metadata(p).ok())
             .and_then(|m| m.modified().ok())
             .is_some_and(|t| t > made);
@@ -2841,7 +2857,7 @@ fn a_render_made_with_a_wire_for_a_bypassed_plug_in_is_made_again_once_it_is_ins
     let now = app
         .engine
         .frozen
-        .path_of(&content, 48_000)
+        .path_of(content, 48_000)
         .expect("made again");
     assert!(std::fs::metadata(&now).unwrap().modified().unwrap() > made);
     assert!(
@@ -2869,4 +2885,381 @@ fn renders_stay_open_while_pattern_mode_plays_every_chain_live() {
         app.engine.frozen.open_count() >= 1,
         "held open while every chain plays live"
     );
+}
+
+// ---- review 4 ---------------------------------------------------------------------
+
+/// The render file of `content` at 48 kHz in `dir`.
+fn render_in(dir: &std::path::Path, content: &str) -> std::path::PathBuf {
+    dir.join(cantus_engine::freeze::file_name(
+        &cantus_engine::freeze::render_key(content, 48_000),
+    ))
+}
+
+/// Save to `file` (its copies on their thread).
+fn save_to(app: &mut CantusApp, file: &std::path::Path) {
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    app.start_save(file);
+    app.poll_save(true);
+}
+
+/// The save's thread held before its copies (`hold`), or let go.
+fn hold(app: &CantusApp, on: bool) {
+    app.freeze
+        .hold_copies
+        .store(on, std::sync::atomic::Ordering::Release);
+}
+
+#[test]
+fn a_freeze_landing_while_a_save_copies_keeps_its_render() {
+    // Saved elsewhere, its renders copying; meanwhile another target is frozen, its render
+    // written into the new folder. The save's prune never takes it (review 4: it pruned
+    // with the list from its own moment).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("save-race");
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    hold(&app, true);
+    let file = dir.join("elsewhere").join("song 2.cantus");
+    save_to(&mut app, &file);
+    app.sync_engine();
+    let bass = FreezeTarget::Track(app.project().tracks[1].id);
+    app.freeze_target(bass);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(bass).expect("frozen").content.clone();
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(
+        render_in(&there, &content).is_file(),
+        "landed in the new folder"
+    );
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    assert!(render_in(&there, &content).is_file(), "kept by the prune");
+}
+
+#[test]
+fn two_saves_in_a_row_keep_what_the_later_one_wants() {
+    // The first save's thread is slow; a second save wants a render the first did not.
+    // They run one after the other, and the first's prune never takes what the second
+    // wants (review 4).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("two-saves");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    let file = dir.join("song.cantus");
+    save_to(&mut app, &file);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    let render = render_in(&renders_of(&dir), &content);
+    assert!(render.is_file());
+    // Unfrozen, as opened (no undo wants its render).
+    let unfrozen = {
+        let mut p = app.project().clone();
+        cantus_core::freeze::unfreeze_command(target)
+            .apply(&mut p)
+            .unwrap();
+        p
+    };
+    app.bus = CommandBus::new(unfrozen);
+    hold(&app, true);
+    save_to(&mut app, &file);
+    // Frozen again (its render at hand), and saved again: wanted now.
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(target).is_some());
+    save_to(&mut app, &file);
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    assert!(
+        render.is_file(),
+        "the first save's prune left what the second wants"
+    );
+}
+
+#[test]
+fn closing_the_session_waits_for_the_renders_copy() {
+    // Saved elsewhere, then closed at once: the close waits for the copies (review 4: the
+    // process ended them halfway).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("close-copy");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    hold(&app, true);
+    let file = dir.join("elsewhere").join("song 2.cantus");
+    save_to(&mut app, &file);
+    let gate = app.freeze.hold_copies.clone();
+    let opener = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(300));
+        gate.store(false, std::sync::atomic::Ordering::Release);
+    });
+    app.close_session();
+    opener.join().unwrap();
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(
+        render_in(&there, &content).is_file(),
+        "copied before the close"
+    );
+}
+
+#[test]
+fn a_session_cut_short_while_copying_finds_the_renders_where_they_were() {
+    // Saved elsewhere and cut short before the copies (a crash): the next session looks
+    // where they came from, noted in the new folder (review 4: it made them all again).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("cut-copy");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    hold(&app, true);
+    let file = dir.join("elsewhere").join("song 2.cantus");
+    save_to(&mut app, &file);
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(!render_in(&there, &content).is_file(), "not copied yet");
+    // The next session: the project as saved, opened from there.
+    let mut next = support::app(app.project().clone());
+    next.engine.frozen.set_app_dir(dir.join("renders-next"));
+    next.path = Some(file.clone());
+    next.sync_engine();
+    assert!(
+        next.engine.frozen.find(&content, 48_000).is_some(),
+        "found where it was"
+    );
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+}
+
+#[test]
+fn a_renamed_project_finds_its_renders_and_its_save_brings_them() {
+    // Renamed outside Cantus: its renders are in its old name's folder — found there, and
+    // the next save brings them into its own and tidies the old name's (review 4: every
+    // render was made again, the old folder left for ever).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("renamed");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    let old = renders_of(&dir);
+    assert!(render_in(&old, &content).is_file());
+    // `song.cantus` renamed `final.cantus` (the test's song was never written).
+    let file = dir.join("final.cantus");
+    let mut next = support::app(app.project().clone());
+    next.engine.frozen.set_app_dir(dir.join("renders-next"));
+    next.path = Some(file.clone());
+    next.sync_engine();
+    assert!(
+        next.engine.frozen.find(&content, 48_000).is_some(),
+        "found in the old name's folder"
+    );
+    cantus_ui::freeze::tick(&mut next, &ctx);
+    assert!(!next.freeze.busy(), "nothing made again");
+    save_to(&mut next, &file);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut next,
+        Duration::from_secs(60)
+    ));
+    let own = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(render_in(&own, &content).is_file(), "brought in");
+    assert!(!old.exists(), "the old name's folder tidied");
+}
+
+#[test]
+fn a_copied_project_finds_its_renders_and_leaves_the_originals_alone() {
+    // Copied as `song v2.cantus` beside the original: found in the original's folder,
+    // copied by its save — and the original's folder untouched (review 4).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("duplicated");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    save_to(&mut app, &dir.join("song.cantus"));
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    let original = renders_of(&dir);
+    let file = dir.join("song v2.cantus");
+    let mut next = support::app(app.project().clone());
+    next.engine.frozen.set_app_dir(dir.join("renders-next"));
+    next.path = Some(file.clone());
+    next.sync_engine();
+    assert!(next.engine.frozen.find(&content, 48_000).is_some());
+    save_to(&mut next, &file);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut next,
+        Duration::from_secs(60)
+    ));
+    let own = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(render_in(&own, &content).is_file(), "copied");
+    assert!(
+        render_in(&original, &content).is_file(),
+        "the original's kept"
+    );
+}
+
+#[test]
+fn saving_elsewhere_returns_before_its_copies_and_the_old_folder_is_looked_in() {
+    // Review 4: the Save As test could not fail for what it said. Held before its copies:
+    // the frame returned without them; the render, let go of and looked for again, is
+    // found in the folder it is copied from.
+    let ctx = support::ctx();
+    let (mut app, dir) = app("save-as-held");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    hold(&app, true);
+    let file = dir.join("moved").join("song.cantus");
+    save_to(&mut app, &file);
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(
+        !render_in(&there, &content).is_file(),
+        "the frame did not copy it"
+    );
+    app.sync_engine();
+    app.engine.frozen.let_go_all();
+    app.engine.frozen.forget_missing();
+    let found = app.engine.frozen.path_of(&content, 48_000).expect("found");
+    assert_eq!(
+        found.parent(),
+        Some(renders_of(&dir).as_path()),
+        "where it was"
+    );
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    assert!(render_in(&there, &content).is_file(), "then copied");
+}
+
+#[test]
+fn a_render_made_with_a_wire_and_saved_elsewhere_is_made_again_once_it_is_installed() {
+    // The wires note travels with its render (review 4: a save copied the render alone,
+    // and it was never made again).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("wired-saved");
+    let (content, made) = wired_render(&mut app, &ctx);
+    let file = dir.join("elsewhere").join("song 2.cantus");
+    save_to(&mut app, &file);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    app.sync_engine();
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(render_in(&there, &content)
+        .with_extension("wires")
+        .is_file());
+    knows_gain(&mut app, &dir);
+    made_again(&mut app, &ctx, &content, made);
+}
+
+#[test]
+fn a_take_moved_by_saving_keeps_its_render_under_its_new_key() {
+    // Saving moves a frozen take into `Audio/`: its target's key moves, its render is the
+    // same sound — copied off the frame, named as the new key inside, the old one playing
+    // meanwhile (review 4: a plain copy on the frame kept the old key and never opened).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("rekey-save");
+    app.path = None;
+    let take = dir.join("scratch").join("take 1.wav");
+    let id = with_take(&mut app, &take);
+    let mut p = app.project().clone();
+    p.audio_pool
+        .iter_mut()
+        .find(|s| s.id == id)
+        .unwrap()
+        .recorded = true;
+    app.bus = CommandBus::new(p);
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    hold(&app, true);
+    let file = dir.join("saved").join("song.cantus");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    app.collect_audio(&file);
+    let content = app
+        .project()
+        .frozen(target)
+        .expect("frozen")
+        .content
+        .clone();
+    let there = cantus_ui::freeze::project_dir(Some(&file)).unwrap();
+    assert!(!render_in(&there, &content).is_file(), "not on the frame");
+    assert!(
+        app.engine.frozen.find(&content, 48_000).is_some(),
+        "the old render plays meanwhile"
+    );
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    let key = cantus_engine::freeze::render_key(&content, 48_000);
+    assert!(
+        cantus_engine::freeze::open(&render_in(&there, &content), &key).is_ok(),
+        "the copy opens under its new key"
+    );
+}
+
+#[test]
+fn a_save_keeps_the_render_a_waiting_freeze_of_an_armed_track_will_land_with() {
+    // A freeze waiting while another renders, of an armed track whose render is at hand
+    // (it is frozen disarmed): a save keeps that render (review 4: it kept the key of the
+    // armed track, which no render has).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("queued-armed");
+    let bass = app.project().tracks[1].id;
+    let target = FreezeTarget::Track(bass);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    let render = render_in(&renders_of(&dir), &content);
+    assert!(render.is_file());
+    // Unfrozen and armed, as opened (no undo wants the render).
+    let mut p = app.project().clone();
+    cantus_core::freeze::unfreeze_command(target)
+        .apply(&mut p)
+        .unwrap();
+    p.track_mut(bass).unwrap().armed = true;
+    app.bus = CommandBus::new(p);
+    app.sync_engine();
+    // The synth's strip renders; the bass waits behind it.
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    app.freeze_target(target);
+    assert!(app.freeze.queued() >= 1, "the bass waits");
+    hold(&app, false);
+    save_to(&mut app, &dir.join("song.cantus"));
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    assert!(render.is_file(), "kept for the waiting freeze");
 }
