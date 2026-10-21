@@ -476,3 +476,11 @@ unchanged); `Notice` gained `Loaded` and `LoadFailed`; `Backend::load_with` (def
 `None`). A render's units now come after `PluginHost::render_ready` says yes: any new
 caller of `render_units`/`render_instruments` must ask it first, frame by frame (as the
 export, the bake and the freeze do), or isolated plug-ins are reported as never loaded.
+
+**Measured again** (`cantus-bench --full --only isolation`, release; `docs/perf/isolation.md`
+run 3), since the audio half now reads its *loaded* flags: hot round trip *Together*
+0.6 / 0.9 µs (median / p99) at 64 frames, paced 14.0 / 43.2 µs; the helpers' CPU 0.51 %
+of a core per instance *Together*, 5.7 % *Individually*; 32 Comprimo CLAP instances
+*Together* 1.16× within on this run. Bit-identity: every to-the-bit test holds (isolated
+against in process at 1/37/64/512 frames, through the engine at 64/256/1 000, the worker
+pool, the instruments, and offline renders).

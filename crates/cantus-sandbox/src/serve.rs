@@ -399,7 +399,7 @@ impl Server {
                 named = Some(instance);
                 let r = self.load(
                     instance,
-                    (&info, sample_rate, max_block, &slot),
+                    (&*info, sample_rate, max_block, &slot),
                     &blob,
                     &values,
                 );

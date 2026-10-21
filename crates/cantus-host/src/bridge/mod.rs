@@ -130,7 +130,7 @@ impl BridgedBackend {
             Some(instance),
             Call::Load {
                 instance,
-                info: info.clone(),
+                info: Box::new(info.clone()),
                 sample_rate: setup.sample_rate,
                 max_block: setup.max_block,
                 slot: slot.name().to_string(),

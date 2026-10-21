@@ -33,7 +33,7 @@ pub enum Call {
     /// isolation-5).
     Load {
         instance: u32,
-        info: PluginInfo,
+        info: Box<PluginInfo>,
         sample_rate: f64,
         max_block: usize,
         slot: String,

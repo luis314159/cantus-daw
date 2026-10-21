@@ -419,6 +419,11 @@ parked between them (the first isolated job of each block). Each figure is one r
 | Comprimo CLAP *Together* | 773 (**1.30× within**) |
 | Comprimo CLAP *Individually* | 1 125 (1.90× within) |
 
+**After isolation-5** (the calls made asynchronous; the audio half reads two more flags
+per block): run again, the same order — *Together* 0.6 µs hot and 14.0 µs paced at 64
+frames (p99 43.2), 0.51 % of a core per instance; *Individually* 5.7 %; the 32-instance
+session 1.16× within on that run (`docs/perf/isolation.md`, run 3).
+
 **The design moved by the numbers.** The first build gave each instance its own helper
 thread that spun 300 µs after every job: the hot round trip was the same, but the helpers
 burned **23.7 % of a core per instance** at 64 frames (the spin, every period) and the

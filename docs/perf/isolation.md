@@ -44,3 +44,24 @@ is the first isolated job of a block, after the helper parked. ADR 0031's phase-
 (a round trip ≤ 5 % of a 64-sample period per group, 67 µs) holds for *Together* (11.7 µs
 median, 54.8 µs p99). Its 1.2× target for 32 instances is not met in the serial engine
 (1.30×): about 5.6 µs per instance per block of handing audio between cores.
+
+## Run 3 — after review isolation-5 (asynchronous calls; the audio half unchanged but for its *loaded* flags)
+
+The same command, the machine again shared with other builds. The audio path changed only
+by two flag reads per block (loaded, failed) and a half's number; the round trip and the
+helpers' CPU are where they were.
+
+| Metric | 64 | 128 | 256 |
+|---|---|---|---|
+| Within, hot round trip (µs, median / p99) | 0.3 / 0.3 | 0.5 / 0.6 | 0.8 / 1.0 |
+| Together, hot round trip | 0.6 / 0.9 | 0.9 / 1.1 | 1.1 / 1.7 |
+| Individually, hot round trip | 0.7 / 0.9 | 0.8 / 1.0 | 1.2 / 1.4 |
+| Within, paced round trip | 1.3 / 4.3 | 3.2 / 9.8 | 5.8 / 14.0 |
+| Together, paced round trip | 14.0 / 43.2 | 20.5 / 66.2 | 22.7 / 275 |
+| Individually, paced round trip | 14.7 / 47.9 | 15.3 / 73.4 | 20.5 / 103 |
+| Together, helpers' CPU per instance (% of a core) | 0.51 | 0.39 | 0.27 |
+| Individually, helpers' CPU per instance | 5.7 | 2.4 | 1.2 |
+
+32 × Comprimo CLAP at 128 frames: native 557 µs, within 560 (1.01× native), Together 649
+(1.16× within), Individually 873 (1.56×) — under run 2's 773/1 125 on a quieter moment of
+the machine; the ratio to keep is run 2's 1.30× until a quiet machine says otherwise.
