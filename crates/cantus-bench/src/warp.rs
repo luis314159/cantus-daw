@@ -271,7 +271,7 @@ pub fn suite(plan: &Plan) -> Vec<Metric> {
                 "dB",
                 Better::Lower,
                 &pre,
-                "the 25 ms before a hit against the hit",
+                "half a vocoder frame before a hit against the hit",
             ));
             out.push(metric(
                 &format!("{id}.timing"),
@@ -521,10 +521,10 @@ fn ramp_map(len_in: usize, k0: f64, k1: f64) -> (Map, usize) {
     (Map::with_soft(pts, soft).expect("a ramp"), len)
 }
 
-/// A hit's attack (added to the source's), pre-echo (the 25 ms before it against it) and
-/// timing (its place, less the source's own rise) in `y` against `x`, at every onset
-/// `map` places that stands alone (no other within 50 ms before or 25 ms after: on dense
-/// material the windows would measure the neighbours).
+/// A hit's attack (added to the source's), pre-echo (half a vocoder frame before it
+/// against it) and timing (its place, less the source's own rise) in `y` against `x`, at
+/// every onset `map` places that stands alone (no other within 50 ms before or 25 ms after:
+/// on dense material the windows would measure the neighbours).
 fn transients(x: &[f32], y: &[f32], map: &Map, onsets: &[f64]) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
     let (mut att, mut pre, mut err) = (Vec::new(), Vec::new(), Vec::new());
     for (i, &s) in onsets.iter().enumerate() {
@@ -573,7 +573,7 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
             "dB",
             Better::Lower,
             &own,
-            "the source itself: the 25 ms before a lone hit",
+            "the source itself: half a vocoder frame before a lone hit",
         ));
         for mode in [Mode::Complex, Mode::Rhythm] {
             let (mut att, mut pre, mut err) = (Vec::new(), Vec::new(), Vec::new());
@@ -593,7 +593,7 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
                 "dB",
                 Better::Lower,
                 &pre,
-                "the 25 ms before a lone hit against it, detected onsets",
+                "half a vocoder frame before a lone hit against it, detected onsets",
             ));
             // A full mix has no hit's rise to time: its pre-echo only.
             if mat.name != "mix" {
@@ -633,7 +633,7 @@ fn suite_review(plan: &Plan, out: &mut Vec<Metric>) {
                 "dB",
                 Better::Lower,
                 &p,
-                "the 25 ms before a hit against it, under a tempo ramp",
+                "half a vocoder frame before a hit against it, under a tempo ramp",
             ));
             out.push(metric(
                 &format!("{id}.timing"),

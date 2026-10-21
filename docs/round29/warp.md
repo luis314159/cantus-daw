@@ -121,6 +121,20 @@ of the source's level at ×0.5 and ×2 (hats 0.0, were +2.6 / −1.25), dense tu
 noise within 0.04 rad of the source's, a natural warp within half a frame of the tempo
 curve on ramps of 60→180 BPM over a beat.
 
+**After the third review** (the same command; pre-echo now over half a vocoder frame, the
+frame's reach, in the bench as in the tests): Complex pre-echo ×0.5 / 0.8 / 1.25 / 2
+−31.3 / −36.2 / −37.7 / −36.7 dB median, under ramps −38.3 / −37.2; a lone drum hit from
+detected onsets −19.9 against the source's own −20.0 over the same reach (its previous
+hit's tail); a held tone under hits 0.04 dB; a transposed render's level 0.03 dB (tone),
+0.06 dB (dense noise); a held chord's voices 0.44 / 0.52 dB (100 ms), 1.33 / 0.72 dB
+(40 ms); the played corpus 92.75 %; Complex ≈ 0.12 s, Melodic ≈ 0.14 s, Re-pitch 5 ms,
+Rhythm 1 ms of CPU per second; a window of a long file ≈ 0.09 s; the bridge's sketch
+≈ 2.3 ms per second. In the tests (asserted, §12 of the ADR): every Complex hit under −25
+dB of pre-echo and the median under −30 at every ratio; drum hits within 0.35 dB each,
+hats 0.05; noise hits transposed −12 … +12 st within 0.5 dB of a resampled copy (were −6.1);
+hats over a pad: each voice within 1 dB of the mix's own wander over 100 ms (the short
+frame had added 4); a vibrato 2.36 / 2.52 cents, a legato line 1.45 / 1.32.
+
 No golden hash moved; `DSP_VERSION` unchanged (nothing plays differently unless a clip is
 warped). The A/B listening set is in `F:\projects\daw-r29\shots\warp\listen\` (111 WAVs and
 `README.txt`); the screenshots (arrangement, editor, inspector, quantise dialog, both

@@ -228,8 +228,8 @@ After the review (§10); one core, stereo, 48 kHz.
 | A hit's place through markers (every mode; the source's own rise subtracted) | ≤ 12 samples | 0 (bench); ≤ 12 every mode (test) |
 | A marker's frame on its tick (engine; every mode; 44.1/48/96 kHz files at 44.1/48/96 kHz; under a ramp) | ±1 sample | ±1 |
 | Attack (10–90 %), ×0.5 … ×2; under a tempo ramp | ≤ the source + 1 ms | the source's (92 frames median); 0 added under a ramp |
-| Pre-echo before a hit (Complex), over half a vocoder frame (§12): ×0.5 / 0.8 / 1.25 / 2; under a ramp | ≤ −30 dB median, each ≤ −25 dB | −30.3 / −36.1 / −38.6 / −35.7 dB median (each ≤ −26.0); under −30 dB |
-| Pre-echo before a lone drum hit, detected onsets (the source's own −30 dB) | the source's | −29.6 dB |
+| Pre-echo before a hit (Complex), over half a vocoder frame (§12): ×0.5 / 0.8 / 1.25 / 2; under a ramp | ≤ −30 dB median, each ≤ −25 dB | −30.3 / −36.1 / −38.6 / −35.7 dB median in the test (each ≤ −26.0), −31.3 / −36.2 / −37.7 / −36.7 in the bench; under ramps −38.3 / −37.2 |
+| Pre-echo before a lone drum hit, detected onsets, over half a frame (§12; the source's own −20.0 dB there, its previous hit's tail) | the source's | −19.9 dB (over 25 ms: −29.6 against −30) |
 | A held tone's level before each hit (×0.8, ×1.25) | ≤ 1 dB | 0.03 dB |
 | A transposed render's level (−12/−5/+7/+12 st, tone and dense noise) | ≤ 0.5 dB | 0.03 dB, 0.02 dB |
 | Pitch of a shifted tone (−12 … +12 st, ×0.8 … ×1.25) | ≤ 3 cents | ≤ 0.002 cents |
