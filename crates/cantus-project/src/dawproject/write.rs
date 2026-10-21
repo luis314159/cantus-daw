@@ -781,6 +781,13 @@ fn channel_eq(w: &mut XmlWriter, ids: &mut Ids, eq: &cantus_core::StripEq) {
     w.close();
 }
 
+/// What an archive carries beside its XML: the audio files (archive path, file on disk)
+/// and the other parts (a device's state, Cantus's own warp).
+type Carried<'a> = (
+    &'a mut Vec<(String, std::path::PathBuf)>,
+    &'a mut Vec<(String, Vec<u8>)>,
+);
+
 /// One clip with its notes. Returns how many muted notes were left out (DAWproject's
 /// notes cannot be muted).
 #[allow(clippy::too_many_arguments)]
@@ -790,10 +797,7 @@ fn clip(
     c: &Clip,
     project: &Project,
     base: Option<&std::path::Path>,
-    (audio, files): (
-        &mut Vec<(String, std::path::PathBuf)>,
-        &mut Vec<(String, Vec<u8>)>,
-    ),
+    (audio, files): Carried<'_>,
     report: &mut Report,
 ) -> usize {
     let period = c.period();

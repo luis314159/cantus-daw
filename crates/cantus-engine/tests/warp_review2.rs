@@ -448,20 +448,25 @@ fn a_swap_of_a_playing_pieces_data_is_crossfaded() {
         None,
     );
     let s = Snapshot::compile(&p, 1);
-    let with = |data: Vec<f32>, from: Option<Vec<f32>>| {
+    let d = |v: Vec<f32>| {
+        Arc::new(SampleData {
+            stream: None,
+            rate: 48_000,
+            channels: 1,
+            frames: v.into(),
+        })
+    };
+    // The old data is the very data the playing snapshot holds (as the sample cache hands
+    // it over: round 29's third review finds where it was laid by it).
+    let with = |data: &Arc<SampleData>, from: Option<&Arc<SampleData>>| {
         let mut s = s.clone();
         let c = &mut s.tracks[0].audio[0];
-        let d = |v: Vec<f32>| {
-            Arc::new(SampleData {
-                stream: None,
-                rate: 48_000,
-                channels: 1,
-                frames: v.into(),
-            })
-        };
-        c.data = Some(d(data));
+        c.data = Some(data.clone());
         c.zero_at = Some((Ticks::ZERO, 0.0));
-        c.fade_from = from.map(|v| cantus_core::snapshot::FadeFrom { data: d(v), id: 1 });
+        c.fade_from = from.map(|v| cantus_core::snapshot::FadeFrom {
+            data: v.clone(),
+            id: 1,
+        });
         if c.fade_from.is_some() {
             s.swaps = vec![(0, 0)];
         }
@@ -469,6 +474,7 @@ fn a_swap_of_a_playing_pieces_data_is_crossfaded() {
     };
     // The bridge, then its render: the same tone, its phase turned half a cycle.
     let turned: Vec<f32> = x.iter().map(|v| -v).collect();
+    let (xa, ta) = (d(x.clone()), d(turned.clone()));
     let steepest = x
         .windows(2)
         .map(|w| (w[1] - w[0]).abs())
@@ -477,7 +483,7 @@ fn a_swap_of_a_playing_pieces_data_is_crossfaded() {
         let (mut tx, rx_engine) = rtrb::RingBuffer::<EngineMessage>::new(64);
         let (tx_engine, _rx) = rtrb::RingBuffer::<EngineEvent>::new(4096);
         let mut proc = Processor::without_midi(48_000.0, rx_engine, tx_engine);
-        tx.push(EngineMessage::SetSnapshot(with(x.clone(), None)))
+        tx.push(EngineMessage::SetSnapshot(with(&xa, None)))
             .unwrap();
         tx.push(EngineMessage::Play).unwrap();
         let mut out = Vec::new();
@@ -486,7 +492,7 @@ fn a_swap_of_a_playing_pieces_data_is_crossfaded() {
             proc.process(&mut buf, 2);
             out.extend(buf.chunks_exact(2).map(|f| f[0]));
         }
-        let next = with(turned.clone(), fade.then(|| x.clone()));
+        let next = with(&ta, fade.then_some(&xa));
         tx.push(EngineMessage::SetSnapshot(next)).unwrap();
         for _ in 0..20 {
             proc.process(&mut buf, 2);

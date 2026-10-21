@@ -3681,7 +3681,7 @@ fn carries_invalid_warp(cmd: &Command) -> bool {
 #[test]
 fn every_way_the_warp_arm_carries_an_invalid_warp_in_is_refused() {
     let mut bus = CommandBus::default();
-    let mut rng = Lcg(29_3);
+    let mut rng = Lcg(293);
     // A track and an audio clip for the arm to work on.
     let mut scratch = bus.project().clone();
     let track = scratch.make_track("Take");
