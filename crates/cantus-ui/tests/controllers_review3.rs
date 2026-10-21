@@ -1141,8 +1141,14 @@ fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
     let key = MappingTarget::Param(AutoTarget::Plugin { effect, id: 2 });
     assert_eq!(value_words(&a, &key, 0.0), "Off");
     assert_eq!(value_words(&a, &key, 1.0), "On");
+    // Its third step, however many the test plug-in's fault selector has now (it grows
+    // with the faults it can stage: review 4's note).
     let fault = MappingTarget::Param(AutoTarget::Plugin { effect, id: 4 });
-    assert_eq!(value_words(&a, &fault, 3.0 / 17.0), "3");
+    let steps = a
+        .hosted_param_info(&AutoTarget::Plugin { effect, id: 4 })
+        .and_then(|i| i.step_count())
+        .expect("stepped");
+    assert_eq!(value_words(&a, &fault, 3.0 / steps as f32), "3");
 }
 
 /// #57: a loaded plug-in that crashed: its mappings read *Not loaded* (they stay the map's).

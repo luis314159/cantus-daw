@@ -1229,3 +1229,17 @@ fn every_choice_key_is_in_both_languages() {
         .collect();
     assert!(missing.is_empty(), "{missing:?}");
 }
+
+/// #63: an in-process plug-in's "no words" for a value is its answer: kept, never asked
+/// again every frame (an isolated one's is "not yet", asked again: review 3's test).
+#[test]
+fn an_in_process_plug_ins_no_words_is_kept() {
+    use cantus_ui::views::plugins::ValueWords;
+    let mut w = ValueWords::default();
+    let bits = 0.42f64.to_bits();
+    assert_eq!(w.get(EffectId(1), 0, bits, false, || None), None);
+    assert_eq!(
+        w.get(EffectId(1), 0, bits, false, || panic!("asked again")),
+        None
+    );
+}
