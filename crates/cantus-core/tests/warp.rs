@@ -196,7 +196,7 @@ fn a_warped_window_takes_no_comp_seam() {
     let (mut bus, t, a, _) = setup();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
     let held = warp::held_tempo(bus.project());
-    assert!(comp::seam_window(&c, held));
+    assert!(comp::seam_window(&c, &held));
     bus.execute(
         Command::SetClipWarp {
             track: t,
@@ -208,7 +208,7 @@ fn a_warped_window_takes_no_comp_seam() {
     )
     .unwrap();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
-    assert!(!comp::seam_window(&c, held));
+    assert!(!comp::seam_window(&c, &held));
 }
 
 /// Round 29's review: a warp that does not follow the tempo and does not transpose plays
@@ -440,11 +440,14 @@ fn a_warp_that_plays_the_source_keeps_the_comp_seam() {
     .unwrap();
     let c = bus.project().track(t).unwrap().clip(a).unwrap().clone();
     let held = warp::held_tempo(bus.project());
-    assert!(comp::seam_window(&c, held));
+    assert!(comp::seam_window(&c, &held));
     w.cents = 200;
     let mut c2 = c.clone();
     c2.audio.as_mut().unwrap().warp = Some(Box::new(w));
-    assert!(!comp::seam_window(&c2, held), "a transposed window renders");
+    assert!(
+        !comp::seam_window(&c2, &held),
+        "a transposed window renders"
+    );
 }
 
 /// The content tick a clip plays at timeline tick `t` (a reversed one reads its window
@@ -564,15 +567,32 @@ fn an_identity_following_warp_keeps_the_comp_seam_under_one_tempo() {
     let p = bus.project();
     let c = p.track(t).unwrap().clip(a).unwrap().clone();
     let held = warp::held_tempo(p);
-    assert!(held.is_some());
+    assert!(held.held().is_some());
     let snap = Snapshot::compile(p, 2);
     assert!(
         snap.track(t).unwrap().audio[0].warp.is_none(),
         "it plays the source"
     );
-    assert!(comp::seam_window(&c, held), "so it takes its seam");
-    // Under a tempo that changes, the same warp renders and takes none.
-    assert!(!comp::seam_window(&c, None));
+    assert!(comp::seam_window(&c, &held), "so it takes its seam");
+    // Under a ramp across the window, the same warp renders and takes none.
+    let ramp = cantus_core::tempo::TempoMap::new(
+        90.0,
+        p.time_signature,
+        &[
+            cantus_core::tempo::TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 90.0,
+                ramp: true,
+            },
+            cantus_core::tempo::TempoPoint {
+                tick: c.end() + Ticks::beats(4),
+                bpm: 150.0,
+                ramp: false,
+            },
+        ],
+        &[],
+    );
+    assert!(!comp::seam_window(&c, warp::Hearing::new(ramp)));
 }
 
 /// Round 29's second review (finding 40): a track inserted with a clip whose warp

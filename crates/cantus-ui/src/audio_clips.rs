@@ -327,8 +327,15 @@ pub fn is_reversed(clip: &Clip) -> bool {
 /// Whether two windows' warps read their source alike, so the windows glue: the same warp,
 /// or two that do not follow the tempo and hold no markers (a transposition, a mode, made
 /// on each half apart) with the same settings — their tempo plays nothing (round 29's
-/// second review).
+/// second review); and a warp that changes nothing (not following, holding no markers,
+/// untransposed: a mode picked, a transposition dragged back to zero) is no warp (third
+/// review).
 fn warps_alike(a: Option<&cantus_core::warp::Warp>, b: Option<&cantus_core::warp::Warp>) -> bool {
+    let inert =
+        |w: Option<&cantus_core::warp::Warp>| w.is_none_or(|w| w.natural() && w.markers.is_empty());
+    if inert(a) && inert(b) {
+        return true;
+    }
     match (a, b) {
         (Some(a), Some(b))
             if !a.follow && !b.follow && a.markers.is_empty() && b.markers.is_empty() =>

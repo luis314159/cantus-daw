@@ -23,9 +23,9 @@ const PLAIN_SLOPE: f64 = 1e-12;
 const PLAIN_OFFSET: f64 = 1e-7;
 
 /// Around a transient, the percussive part is copied over this long before it…
-const HOLD_BEFORE_S: f64 = 0.004;
+pub(crate) const HOLD_BEFORE_S: f64 = 0.004;
 /// …and this long after it (the attack and the first of the decay).
-const HOLD_AFTER_S: f64 = 0.030;
+pub(crate) const HOLD_AFTER_S: f64 = 0.030;
 /// A held stretch takes at most this share of the gap to the next transient or
 /// breakpoint, so the rest can still stretch.
 const HOLD_SHARE: f64 = 0.45;
@@ -335,6 +335,20 @@ impl Map {
         }
         if !kept_soft.iter().any(|s| *s) {
             kept_soft.clear();
+        }
+        // A long hold takes most of the room from the window's start too, leaving a steep
+        // segment between output 0 and itself: the vocoder's frames before output 0 read
+        // on at the unheld map's own slope, never that segment's — which reached far before
+        // the window, past what a window's render is given (round 29's third review).
+        if share > HOLD_SHARE && before > 0.0 && kept.first().is_some_and(|p| p.0 >= 0.0) {
+            let t = kept[0].0 - 2.0 * before;
+            let s = self.source(t);
+            if s < kept[0].1 {
+                kept.insert(0, (t, s));
+                if !kept_soft.is_empty() {
+                    kept_soft.insert(0, false);
+                }
+            }
         }
         (
             Map {

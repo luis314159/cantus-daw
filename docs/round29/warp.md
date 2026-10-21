@@ -121,6 +121,20 @@ of the source's level at ×0.5 and ×2 (hats 0.0, were +2.6 / −1.25), dense tu
 noise within 0.04 rad of the source's, a natural warp within half a frame of the tempo
 curve on ramps of 60→180 BPM over a beat.
 
+**After the third review** (the same command; pre-echo now over half a vocoder frame, the
+frame's reach, in the bench as in the tests): Complex pre-echo ×0.5 / 0.8 / 1.25 / 2
+−31.3 / −36.2 / −37.7 / −36.7 dB median, under ramps −38.3 / −37.2; a lone drum hit from
+detected onsets −19.9 against the source's own −20.0 over the same reach (its previous
+hit's tail); a held tone under hits 0.04 dB; a transposed render's level 0.03 dB (tone),
+0.06 dB (dense noise); a held chord's voices 0.44 / 0.52 dB (100 ms), 1.33 / 0.72 dB
+(40 ms); the played corpus 92.75 %; Complex ≈ 0.12 s, Melodic ≈ 0.14 s, Re-pitch 5 ms,
+Rhythm 1 ms of CPU per second; a window of a long file ≈ 0.09 s; the bridge's sketch
+≈ 2.3 ms per second. In the tests (asserted, §12 of the ADR): every Complex hit under −25
+dB of pre-echo and the median under −30 at every ratio; drum hits within 0.35 dB each,
+hats 0.05; noise hits transposed −12 … +12 st within 0.5 dB of a resampled copy (were −6.1);
+hats over a pad: each voice within 1 dB of the mix's own wander over 100 ms (the short
+frame had added 4); a vibrato 2.36 / 2.52 cents, a legato line 1.45 / 1.32.
+
 No golden hash moved; `DSP_VERSION` unchanged (nothing plays differently unless a clip is
 warped). The A/B listening set is in `F:\projects\daw-r29\shots\warp\listen\` (111 WAVs and
 `README.txt`); the screenshots (arrangement, editor, inspector, quantise dialog, both
@@ -386,23 +400,104 @@ points are placed through the map from the clip's content origin — proj/audio
 clip stays a bare `<Audio>` in seconds and a following warp writes its markers, its own
 included (the natural curve's samples through the map's points and ramps).
 
+## Review 3 (`reviews/warp-3.json`): 45 findings, all fixed
+
+Each with a test seen failing first — on the code before the fix (the file stashed), or,
+where the test needs the fix's own API, with the fix undone in place (a mutation; every one
+listed was killed). A finding that was a test gap only is held by a test that fails when
+what it pins is broken (said in the row). New test files: `eng/rv3` is
+`cantus-engine/tests/warp_review3.rs`, `ui/rv3` is `cantus-ui/tests/warp_review3.rs`,
+`proj/rv3` is `cantus-project/tests/dawproject_review3.rs`; `dsp/rv` is
+`cantus-dsp/src/stretch_review_tests.rs`; the rest as before. Duplicates share a row's fix
+(18 = 11 = 27; 15 = 29; 9 = 31 with 32; 35 = 39; 25 = 41).
+
+| # | Sev. | Finding | Fix | Test (how seen failing) |
+|---|---|---|---|---|
+| 1 | M | Follow on after Follow off unlinked a linked loop under one tempo | `copies_differ` compares each copy's natural reading with the clip's over content ticks, within half a tick and a frame (tempo's re-anchoring tolerance for linked windows) | ui/rv3 `follow_off_then_on_keeps_a_linked_pair_linked_under_one_tempo` (old code: unlinked) |
+| 2 | L | An auto-warp landing mid-gesture split it | `poll_warp` holds a Ready job while another key's gesture is open (`CommandBus::open_gesture`, up to a minute); the buried import step sealed first | ui/rv3 `an_analysis_landing_mid_drag_waits_for_it` (old: landed mid-drag) |
+| 3 | L | A bounce landed after a tempo edit | `Bounce` keeps the tempo map; another one makes it stale | ui/rv3 `a_bounce_written_under_another_tempo_is_stale` (old: landed) |
+| 4 | L | A reversed following clip quantised and drawn by a tick mirror | `Reversal`: mirrored through the map in seconds, as the engine plays it — quantise, transients, markers, waveform, band presses (a knot table, `Mirror`), drags and their snap | ui/rv3 `quantise_hears_a_reversed_clip_across_a_tempo_step` (old: a hit off its line); arrangement_warp `a_reversed_clips_band_is_read_mirrored` |
+| 5 | L | A half with an inert warp would not glue | `warps_alike`: a warp that changes nothing is no warp | ui/rv3 `a_half_with_a_warp_that_changes_nothing_glues` (old: no glue) |
+| 6 | M | Transposed Complex hits lost 3–7 dB | `grains_of`: every grain reaching into a transient's hold reads from it outward (one coherent copy) | dsp/rv `transposed_hits_keep_the_level_of_a_resampled_copy` (old: −6.1 dB) |
+| 7 | M | `frame_for` gave a whole busy mix the 85 ms frame | only transients the harmonic part rises at (≥ 6 dB) count | dsp/rv `hats_over_a_pad_leave_its_voices_steady` (old: +4.1 dB at 100 ms) |
+| 8 | M | The long hold's pre-roll read far before the window | a point before the window on the unheld curve | dsp/rv `a_sped_up_window_starting_before_a_hit_reads_no_further_back_than_its_speed` (old: 0.055 from the whole file) |
+| 9 | M | Gated quality rows could not fail; claims did not match checks | = 31 and 32: absolute bounds in unit tests, pre-echo over half a frame in tests and bench, a zero baseline absolute, 0.04 rad asserted | rows 31, 32 |
+| 10 | M | A render of another project played on the same clip id | the fallback only from the piece's own file; `SampleCache::forget_project` on every project change (`poll_warp`'s epoch reset) | eng/rv3 `a_render_of_the_last_project_never_plays_on_the_next` (mutant: no path filter); eng/attach `a_fallback_is_only_ever_made_from_the_pieces_own_file` |
+| 11 | M | (= 18) | row 18 | row 18 |
+| 12 | L | A tempo drag re-laid the fallback with no crossfade | a swap also when a piece's placement or map changed; the engine lays the old data from the playing snapshot's clip under the old map | eng/rv3 `a_render_laid_again_under_an_edited_tempo_crossfades`, `a_piece_laid_again_carries_its_swap_for_a_moment` (mutants: no placement swap, same-data skipped) |
+| 13 | L | A following warp's input played unwarped at the wrong bar | input only where the warp puts it (`maps_as_unwarped`); else nothing, its bridge first in the queue | eng/rv3 `a_following_warp_with_nothing_made_never_plays_its_input_laid_unwarped` (mutant) |
+| 14 | L | A left trim played the old start's words at the new start | `zero_at: Option<(Ticks, f64)>`: a fallback laid where its content begins | eng/rv3 `a_left_trim_plays_the_last_render_where_its_content_is`; eng/attach `a_fallback_is_laid_where_its_content_begins` (mutant) |
+| 15 | L | A non-following key flipped on keep's re-anchoring | the render it plays is kept while its start frame moves ≤ ½ frame (≤ ½ tick, fine offset untouched: a linked copy) | eng/rv3 `tempo_edits_before_a_transposed_window_keep_the_render_it_plays` (44.1 kHz, offset 5 774 ticks, 20 edits, alone and linked; mutant) |
+| 16 | L | Equal-power swap swelled 3 dB | equal gain (sin², cos²) | eng/rv3 `a_swap_of_the_same_audio_never_swells` (mutant) |
+| 17 | L | A bounce could write the whole source | `rendered`: only the window's own render (`zero_at == (start, 0)`) | warp_bounce `only_the_windows_own_render_is_written` (mutant) |
+| 18 | H | The swap crossfade fired after every wrap or seek | counted on the transport's clock (never re-anchored), ended by a seek or wrap; per swap id (`Transport::arm_swap`, `Processor::arm_swaps`) | eng/rv3 `a_swap_fades_once_never_again_after_a_wrap_or_a_seek` (mutant: the old counting) |
+| 19 | M | The fade armed per install | a swap id; the next 250 ms of live compiles carry it; seen ids never re-arm | eng/rv3 `a_swap_carried_by_the_next_installs_fades_once`, `a_piece_laid_again_carries_its_swap_for_a_moment` (mutant: no carry) |
+| 20 | L | No rt_memory scenario for warped playback | `warped_playback_never_allocates` (callback and pool: render, swap, carried, seek, loop, swap in the loop, stop); ADR §6 amended (§12) | rt_memory (mutant: an allocation in the crossfade) |
+| 21 | M | A round trip made the warp's own markers the user's | `cantus/warps/<id>.json` beside each `<Warps>` (the warp, its fine offset), read back for Cantus's own files | proj/rv3 `a_round_trip_keeps_the_warps_own_markers` (mutant: side not read) |
+| 22 | M | A background import replaced the project mid-recording, mid-drag, or over another | lands only with nothing recording, no pointer down, no open gesture (30 s at most); another epoch: said, its audio let go; a quit stops it between files (`import_file_until`); drags let go on landing | ui/rv3 `a_background_import_lands_only_when_it_is_safe` (mutants: no recording hold, no epoch check) |
+| 23 | L | Cantus's following `<Warps>` came back unwarped | ours on its natural line: `Warp::natural_of`; another's collapse said (`d_warp_natural`) | proj/rv3 `a_cantus_warp_on_its_natural_line_comes_back_following` (mutants) |
+| 24 | L | The natural line checked only at the points | along every segment (tempo points inside, a ramp sampled) | proj/rv3 `a_segment_across_a_tempo_step_is_not_the_natural_line` (mutant) |
+| 25 | L | "No time-stretch" in the manuals and the notes | gone in both manuals and both halves of the notes; warping and MIDI learn in the beta | — (docs) |
+| 26 | L | The import read every non-audio part; an oversized one dropped silently | project.xml first, then only the parts it uses (`read::needed_parts`); a needed one over the limit said (`d_part_too_large`, `too_large`) | proj/rv3 `an_import_reads_only_the_parts_it_uses_and_says_one_too_large` (mutant) |
+| 27 | M | (= 18) | row 18 | row 18 |
+| 28 | M | Rhythm's last slice played the next window's hit | its source ends at the first cut at or past the window's end | dsp/rv `rhythms_last_slice_never_plays_the_next_windows_hit` (old: 0.89 peak) |
+| 29 | M | (= 15) | row 15 | row 15 |
+| 30 | M | An identity following warp on a trimmed window was rendered | `plays_source` over the window (`maps_as_unwarped`, `Hearing`) | eng/rv3 `a_following_warp_on_the_natural_line_plays_the_source_to_the_bit` (44.1/48/96 kHz, every mode; mutant); core `a_following_warp_maps_as_unwarped_where_its_line_is_the_natural_one` |
+| 31 | M | Gated rows could not fail; pre-echo held to −24 | pre-echo over half a frame: each < −25, the median < −30 per ratio; a zero baseline an absolute bound | stretch_tests `attacks_stay_sharp_and_nothing_rings_before_them`; bench `a_zero_baseline_is_an_absolute_bound` (old compare: "Same") |
+| 32 | L | ADR §11 quoted numbers the tests did not hold | asserted where they hold (each hit 0.35 / hats 0.05; dense −34; legato 1.5; stereo 0.04; windows 1e-6, Re-pitch exact); ADR corrected where not (vibrato 2.6; Rhythm windows to rounding) | dsp/rv (the tightened tests) |
+| 33 | L | The corpus told the analysis each file's metre | analysed in 4/4 as import does: 41/42 4/4 downbeats; 36/42 odd-metre files on their own bar lines (asserted ≥ 80 %) | beat_tests `the_corpus_is_within_one_bpm` |
+| 34 | L | Fallback protection unpinned | test through the attach, budget 1 byte | eng/rv3 `a_fallback_that_plays_is_kept_past_the_budget` (mutant: protection removed) |
+| 35 | L | The late warning's wiring unpinned | = 39 | row 39 |
+| 36 | L | The fuzz never checked kept comp windows | the invariant walks comp windows and asserts every invalid-warp command refused; the arm's own forms driven until each is drawn | undo_invariants `every_way_the_warp_arm_carries_an_invalid_warp_in_is_refused` (mutant: comp check removed) |
+| 37 | L | ZIP64 test did not pin streaming | a limit just above project.xml, audio larger | proj/rv3 `audio_streams_past_the_part_limit` (mutant: audio read as a part) |
+| 38 | L | First-edit app scenarios missing | a ramp and a step straddled, trimmed 3 beats 13 ticks, forwards and reversed; marker and Follow | ui/rv3 `a_first_edit_on_a_ramped_trimmed_or_reversed_clip_leaves_what_plays_alone` (mutants: a tick off in the kept offset, in the shift) |
+| 39 | M | The late warning was replaced by the job's own message | each job carries `late` to its landing (`say_done`): export (and its last word), bounce in place, freeze, comp merge, bake | ui/rv3 `a_late_render_is_said_when_an_export_lands`, `a_jobs_done_message_carries_the_late_note` (mutants) |
+| 40 | L | Edge markers under fade squares; gain on a fade | `clear_squares`: fades moved inward past a marker; the gain clear of markers and fades | arrangement_audio `no_square_sits_on_a_marker_or_on_another` (mutant) |
+| 41 | L | (= 25) | row 25 | — |
+| 42 | L | Spanish manual terms | "el panel de ayuda", "los stems", "pasar a audio en su lugar" | — (docs) |
+| 43 | L | The warp bar lost its scroll | a horizontal scroll where the widest item passes the pane | ui/rv3 `the_warp_bar_scrolls_in_a_narrow_pane` (mutant) |
+| 44 | L | "Not analysed" / "still being analysed" for a clip with no tempo | "No steady tempo"; `no_tempo` when analysed; the action off (`can_take_tempo_from`) | ui/rv3 `a_clip_with_no_steady_tempo_says_so` (mutant) |
+| 45 | L | Import errors in English; ZIP64 "not supported" | `import_error` by locale keys; `ZipError::Damaged` | ui/rv3 `an_import_error_is_said_in_the_interfaces_language` (mutant) |
+
+**Tempo's relays.** Its fifth review's finding 25 (a marker's hint against the song's first
+tempo) was fixed in my second round (`marker_speed` reads the tempo in force at the
+marker's tick, `hint()` calls it; ui/rv2 `a_markers_speed_is_read_against_the_tempo_in_force`)
+and holds on the merged tree. Its old 1/9 (the key of a non-following warp covering its
+hidden part): `warp_render::key` hashes the frame under the window's start, which the
+hidden part's tempo decides (eng/rv2 `a_tempo_edit_before_a_transposed_window_renders_it_again`);
+the render kept through a re-anchoring (row 15) is never kept past a real move —
+eng/rv3 `a_tempo_edit_in_the_hidden_part_renders_a_transposed_window_again`. My linked-copy
+tolerance is tempo's: half a tick (row 1, row 15).
+
 ## Left
 
 Nothing of mine. Owner-only: **listen** to `F:\projects\daw-r29\shots\warp\listen\`
-(`README.txt` says what each file is; written again after the second review: the
-vocoder's frame chosen by the material, the copied hits at their own level) and say which
+(`README.txt` says what each file is; written again after the third review: transposed
+hits a coherent copy at their level, the short frame only for harmonic attacks) and say which
 mode or ratio sounds worse than élastique — the numbers above are met, the ear is the
 owner's.
 
 ## Notes for the integrator
 
-- **Known-issue lines this work retires** (the integrator edits them; tempo retires the
-  rest of the same line): the manual's §14 "**No time-stretch**: audio clips keep their
-  speed when the tempo changes" (the *one tempo and one time signature* half is tempo's)
-  and "warping" in *Not in this beta*, in English and Spanish; the release notes
-  `docs/releases/v0.1.0-beta.1.md` (the same two lines in each language). Search for
-  "No time-stretch", "Sin estiramiento de tiempo" and "warping": line numbers moved with
-  the merge.
+- **Known-issue lines** (review 3, findings 25 and 41): the manual's §14 "No time-stretch"
+  bullet is gone in both languages (its *one tempo and one time signature* half with it —
+  tempo's: a tempo track exists; the crossfade and gain-envelope half kept), and the
+  release notes `docs/releases/v0.1.0-beta.1.md` lose the same bullet and name warping and
+  MIDI learn in the beta (the manual's *Not in this beta* line, word for word). If tempo
+  edits the same lines, keep neither "No time-stretch" nor "one tempo".
+- **Files outside my area, review 3** (additive): `transport.rs` (the clock and the swap
+  table replace `mark_swap`/`swapped`; `seek`, `wrap_to` and the loop wrap end swaps),
+  `processor_snap.rs` (`arm_swaps` before `set_map`), `processor_rec.rs` (`zero_of`,
+  `frame_read`, `arm_swaps`, the equal-gain fade), `snapshot.rs` (`zero_at`, `FadeFrom::id`,
+  `Snapshot::swaps`, `compile_audio` takes the `Hearing`), `comp.rs`/`comping.rs`
+  (`seam_window`/`is_seam` take `impl AsRef<Hearing>`; tempo's `tempo_keep_groups.rs`
+  compiles unchanged), `bus.rs` (`open_gesture`), `undo_invariants.rs` (comp windows
+  walked, invalid-warp commands asserted refused, one new test), `rt_memory.rs` (one
+  scenario), `compare.rs` (a zero baseline), `views/export.rs`, `bounce.rs`, `freeze.rs`,
+  `record_session.rs`, `views/modulator_bake.rs` (a `late` flag to the landing message),
+  `views/interop.rs` (`Importing`, `import_error`, `stop_import`; a conflict with tempo's
+  review 5 in `open_imported` resolved keeping both), `app.rs` (`stop_import` on quit),
+  `views/arrangement.rs` (`let_go`, `Reversal` re-exported), manuals and release notes.
 - **Schema**: mine are 34 (the warp) and 39 (the warp's own markers, review 2); the chain
   on this branch is 33 tempo, 34 warp, 35 controllers, 36 isolation, 37 freeze, 38
   freeze's lateness, 39 warp (`v39.cantus`; freeze's `v38.cantus` kept as merged, its

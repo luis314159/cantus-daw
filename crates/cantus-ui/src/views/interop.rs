@@ -25,11 +25,55 @@ pub struct Interop {
     /// and what it will say.
     pub exporting: Option<(PathBuf, std::sync::mpsc::Receiver<std::io::Result<Report>>)>,
     /// A `.dawproject` being read on its own thread (its audio copied to disk as it goes —
-    /// round 29's second review): its name, and what it read.
-    pub importing: Option<(
-        String,
-        std::sync::mpsc::Receiver<Result<dawproject::ImportedFile, String>>,
-    )>,
+    /// round 29's second review).
+    pub importing: Option<Importing>,
+}
+
+/// A `.dawproject` being read on its own thread, and — read — waiting for a moment it can
+/// land (round 29's third review: it replaced the project mid-recording, mid-drag, or
+/// over one opened since).
+pub struct Importing {
+    pub name: String,
+    rx: std::sync::mpsc::Receiver<Result<dawproject::ImportedFile, dawproject::DawProjectError>>,
+    /// The project it was asked over (`CantusApp::epoch`): another opened since, it never
+    /// replaces that one.
+    epoch: u64,
+    /// Where its audio is copied: let go with it when it never lands.
+    media: PathBuf,
+    /// Set, it stops between two files (a quit).
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    worker: Option<std::thread::JoinHandle<()>>,
+    /// Read, and since when it has waited.
+    ready: Option<(dawproject::ImportedFile, std::time::Instant)>,
+}
+
+/// How long a read import waits for a gesture left open (nothing seals it) before it
+/// lands anyway, seconds — a recording it always waits for.
+const IMPORT_HOLD_S: f64 = 30.0;
+
+/// An import's error in the interface's language: Cantus's own conditions by their keys,
+/// only the system's reason as it came (round 29's third review).
+pub fn import_error(e: &dawproject::DawProjectError) -> String {
+    use dawproject::zip::ZipError as Z;
+    use dawproject::DawProjectError as E;
+    match e {
+        E::Zip(Z::NotZip) => t("interop.error.not_zip"),
+        E::Zip(Z::Truncated) | E::Zip(Z::Damaged) => t("interop.error.damaged"),
+        E::Zip(Z::Method(part, m)) => tf(
+            "interop.error.method",
+            &[("part", part), ("method", &m.to_string())],
+        ),
+        E::Zip(Z::Crc(part)) | E::Zip(Z::Inflate(part)) => {
+            tf("interop.error.corrupt", &[("part", part)])
+        }
+        E::Zip(Z::TooLarge(part)) => tf("interop.error.too_large", &[("part", part)]),
+        E::Zip(Z::Write(file, why)) => tf("interop.error.write", &[("file", file), ("error", why)]),
+        E::NoProject => t("interop.error.no_project"),
+        E::Xml(why) => tf("interop.error.xml", &[("error", why)]),
+        E::NotDawProject(root) => tf("interop.error.not_dawproject", &[("root", root)]),
+        E::Io(why) => why.clone(),
+        E::Stopped => t("interop.status.import_stopped"),
+    }
 }
 
 /// What "Export MIDI…" writes.
@@ -884,59 +928,114 @@ pub fn import_dawproject_from(app: &mut CantusApp, path: &Path) -> bool {
     let media = crate::warp::media_dir(&name);
     let file = path.to_path_buf();
     let (tx, rx) = std::sync::mpsc::channel();
-    let started = std::thread::Builder::new()
+    let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let (dir, flag) = (media.clone(), stop.clone());
+    let worker = std::thread::Builder::new()
         .name("cantus-dawproject-read".into())
         .spawn(move || {
-            let r = dawproject::import_file(&file, &media).map_err(|e| e.to_string());
-            let _ = tx.send(r);
+            let _ = tx.send(dawproject::import_file_until(&file, &dir, &flag));
         })
-        .is_ok();
+        .ok();
+    let started = worker.is_some();
     if started {
-        app.interop.importing = Some((name.clone(), rx));
+        app.interop.importing = Some(Importing {
+            name: name.clone(),
+            rx,
+            epoch: app.epoch,
+            media,
+            stop,
+            worker,
+            ready: None,
+        });
         app.set_status(tf("interop.status.importing", &[("file", &name)]));
     }
     started
 }
 
-/// Every frame: a `.dawproject` read on its thread is opened (or said failed).
+/// Every frame: a `.dawproject` read on its thread is opened (or said failed) — once it can
+/// land: never over a project opened since it was asked (said, its copied audio let go),
+/// never while a pass records or the pointer holds a drag, nor while another gesture is
+/// open (up to [`IMPORT_HOLD_S`]); landing, every drag of the last project let go.
 pub fn poll_import(app: &mut CantusApp, ctx: Option<&egui::Context>) {
-    let Some((name, rx)) = &app.interop.importing else {
+    let repaint = |ctx: Option<&egui::Context>| {
+        if let Some(ctx) = ctx {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+    };
+    let Some(imp) = app.interop.importing.as_mut() else {
         return;
     };
-    let result = match rx.try_recv() {
-        Ok(r) => r,
-        Err(std::sync::mpsc::TryRecvError::Empty) => {
-            if let Some(ctx) = ctx {
-                ctx.request_repaint_after(std::time::Duration::from_millis(100));
+    if imp.ready.is_none() {
+        let result = match imp.rx.try_recv() {
+            Ok(r) => r,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return repaint(ctx),
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                Err(dawproject::DawProjectError::Stopped)
             }
-            return;
-        }
-        Err(std::sync::mpsc::TryRecvError::Disconnected) => Err(t("interop.status.import_stopped")),
-    };
-    let name = name.clone();
-    app.interop.importing = None;
-    match result {
-        Ok(f) => {
-            let mut report = f.report;
-            for file in f.unwritten {
-                report.dropped("interop.report.d_audio_unwritten", vec![("file", file)]);
+        };
+        match result {
+            Ok(f) => imp.ready = Some((f, std::time::Instant::now())),
+            Err(e) => {
+                let imp = app.interop.importing.take().expect("an import");
+                let _ = std::fs::remove_dir_all(&imp.media);
+                app.set_error(tf(
+                    "interop.status.import_failed",
+                    &[("file", &imp.name), ("error", &import_error(&e))],
+                ));
+                return;
             }
-            open_imported(app, f.project, report, &name);
         }
-        Err(e) => app.set_error(tf(
-            "interop.status.import_failed",
-            &[("file", &name), ("error", &e)],
-        )),
     }
+    let Some(imp) = app.interop.importing.as_ref() else {
+        return;
+    };
+    if imp.epoch != app.epoch {
+        let imp = app.interop.importing.take().expect("an import");
+        let _ = std::fs::remove_dir_all(&imp.media);
+        app.set_error(tf(
+            "interop.status.import_abandoned",
+            &[("file", &imp.name)],
+        ));
+        return;
+    }
+    let held = imp
+        .ready
+        .as_ref()
+        .is_some_and(|(_, at)| at.elapsed().as_secs_f64() < IMPORT_HOLD_S);
+    let pointer = ctx.is_some_and(|c| c.input(|i| i.pointer.any_down()));
+    if app.is_recording() || pointer || (held && app.bus.open_gesture().is_some()) {
+        return repaint(ctx);
+    }
+    let imp = app.interop.importing.take().expect("an import");
+    let Some((f, _)) = imp.ready else {
+        return;
+    };
+    let mut report = f.report;
+    for file in f.unwritten {
+        report.dropped("interop.report.d_audio_unwritten", vec![("file", file)]);
+    }
+    open_imported(app, f.project, report, &imp.name);
 }
 
-/// Wait for a `.dawproject` on its way and open it (tests, and a quit).
+/// Wait for a `.dawproject` on its way and open it (tests).
 pub fn wait_import(app: &mut CantusApp) {
     while app.interop.importing.is_some() {
         poll_import(app, None);
         if app.interop.importing.is_some() {
             std::thread::sleep(std::time::Duration::from_millis(2));
         }
+    }
+}
+
+/// A quit: an import on its way is stopped between two files, waited for, and the audio
+/// it copied let go — never left half written (round 29's third review).
+pub fn stop_import(app: &mut CantusApp) {
+    if let Some(mut imp) = app.interop.importing.take() {
+        imp.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        if let Some(w) = imp.worker.take() {
+            let _ = w.join();
+        }
+        let _ = std::fs::remove_dir_all(&imp.media);
     }
 }
 
@@ -958,7 +1057,7 @@ pub fn import_dawproject_in(
         Err(e) => {
             app.set_error(tf(
                 "interop.status.import_failed",
-                &[("file", &name), ("error", &e)],
+                &[("file", &name), ("error", &import_error(&e))],
             ));
             return false;
         }
@@ -985,11 +1084,15 @@ fn open_imported(app: &mut CantusApp, mut project: Project, report: Report, name
     let first = project.tracks.first().map(|t| t.id);
     // A save in flight writes the project being replaced: it lands first (`save_job`).
     app.wait_for_save();
-    // A pass in progress belongs to the song it was recorded into (review 5), as
-    // `replace_project` has it.
+    // A pass in progress belongs to the song it was recorded into (tempo's review 5), as
+    // `replace_project` has it; and a gesture to the project it was begun on (round 29's
+    // third review).
     if app.is_recording() {
         app.stop_recording();
     }
+    app.end_gesture();
+    app.arrangement.let_go();
+    app.warp.view.let_go();
     app.engine.stop();
     if !app.exec(Command::ReplaceProject {
         project: Box::new(project),
@@ -998,7 +1101,9 @@ fn open_imported(app: &mut CantusApp, mut project: Project, report: Report, name
     }
     // Another project: what was copied from the one before names other things here.
     app.epoch += 1;
+    app.plugin_crashes = Default::default();
     app.path = None;
+    app.sync_audio_base();
     app.selected_track = None;
     app.selected_clip = None;
     app.selected_notes.clear();

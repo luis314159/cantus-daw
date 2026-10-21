@@ -299,6 +299,8 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
                 }
             }
             (_, true) => b.push_str(&crate::i18n::t("warp.status.analysing_short")),
+            // Analysed, no steady tempo found (round 29's third review: "Not analysed").
+            (Some(_), _) => b.push_str(&crate::i18n::t("warp.inspector.no_tempo")),
             _ => b.push_str(&crate::i18n::t("warp.inspector.none")),
         },
     ));
@@ -327,7 +329,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         (
             "warp.menu.project_tempo",
             WarpAct::ProjectTempo(r),
-            ready || warp.is_some(),
+            app.can_take_tempo_from(r),
         ),
         ("warp.menu.edit", WarpAct::Edit(r), true),
         ("warp.menu.bounce", WarpAct::Bounce(r), app.can_bounce(r)),

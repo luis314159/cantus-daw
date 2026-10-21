@@ -62,6 +62,9 @@ pub struct Job {
     bounce: Option<crate::bounce::Prepared>,
     /// The project it was asked in (`CantusApp::epoch`).
     epoch: u64,
+    /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
+    /// third review).
+    late: bool,
 }
 
 impl std::fmt::Debug for Job {
@@ -1021,7 +1024,7 @@ fn start(app: &mut CantusApp, want: Want) -> Result<Option<Job>, String> {
                     let _ = std::fs::remove_file(&path);
                     app.engine.frozen.forget_missing();
                 } else if app.engine.frozen.find(&content, rate).is_some() {
-                    commit_freeze(app, target, before, &content, edits);
+                    commit_freeze(app, target, before, &content, edits, false);
                     return Ok(None);
                 }
             }
@@ -1199,7 +1202,7 @@ fn render_job(
     before: Vec<Command>,
     edits: u64,
 ) -> Result<Job, String> {
-    let late = app.engine.renders_late();
+    let before_render = app.engine.renders_late();
     let job = match cantus_engine::freeze::render::prepare(&mut app.engine, project, target) {
         Ok(j) => j,
         Err(e) => {
@@ -1211,7 +1214,8 @@ fn render_job(
             });
         }
     };
-    app.say_late(late);
+    app.say_late(before_render);
+    let late = app.late_since(before_render);
     let whole = freeze::region(project, target).whole;
     let (units, insts, wires) = match units_for(app, project, &job.snapshot, whole, true) {
         Ok(u) => u,
@@ -1238,6 +1242,7 @@ fn render_job(
         worker: Some(worker),
         bounce: None,
         epoch: app.epoch,
+        late,
     })
 }
 
@@ -1281,6 +1286,7 @@ pub(crate) fn bounce_job(
         worker: Some(worker),
         bounce: Some(prepared),
         epoch: app.epoch,
+        late: false,
     }
 }
 
@@ -1292,6 +1298,7 @@ fn commit_freeze(
     before: Vec<Command>,
     content: &str,
     edits: u64,
+    late: bool,
 ) {
     // A plug-in of its region turned while it rendered (its window, its own browser):
     // rendered again with what it holds now, never set back (review 2) — counted as edits,
@@ -1333,7 +1340,7 @@ fn commit_freeze(
         commands,
     }) {
         let key = crate::views::freeze_view::live_words(app.project(), target, "freeze.done");
-        app.set_status(tf(key, &[("name", &name)]));
+        app.say_done(tf(key, &[("name", &name)]), late);
     }
     app.force_resync();
 }
@@ -1408,7 +1415,7 @@ fn collect(app: &mut CantusApp) {
         Some(Ok(path)) => match job.want.clone() {
             Want::Freeze(target) => {
                 note_wires(&path, &job.wires);
-                commit_freeze(app, target, job.before, &job.content, job.edits)
+                commit_freeze(app, target, job.before, &job.content, job.edits, job.late)
             }
             Want::Refresh(_) => note_wires(&path, &job.wires),
             Want::Bounce(_) => {

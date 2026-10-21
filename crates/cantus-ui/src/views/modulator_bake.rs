@@ -27,6 +27,9 @@ pub struct Pending {
     span: (Ticks, Ticks),
     revision: u64,
     rx: mpsc::Receiver<Vec<(f64, f32)>>,
+    /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
+    /// third review).
+    late: bool,
 }
 
 impl CantusApp {
@@ -98,11 +101,11 @@ impl CantusApp {
             return false;
         }
         // Rendered offline over the stretch, the engine tracing this modulator.
-        let late = self.engine.renders_late();
+        let before = self.engine.renders_late();
         let snapshot = self
             .engine
             .compile_for_render(self.bus.project(), self.bus.revision());
-        self.say_late(late);
+        let late = self.late_since(before);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: span.0,
@@ -135,8 +138,11 @@ impl CantusApp {
             span,
             revision: self.bus.revision(),
             rx,
+            late,
         });
         self.set_status(t("mods.status.baking"));
+        // After "baking", so the line keeps it while the trace runs.
+        self.say_late(before);
         true
     }
 
@@ -169,6 +175,9 @@ impl CantusApp {
         // Baked from a plug-in's state as it was last said: done, and said with it — never
         // written over by the bake's own word (review isolation-5 #46).
         if self.finish_bake(p.id, &p.target, p.span, Some(&trace)) {
+            if p.late {
+                self.say_done(t("mods.status.baked"), true);
+            }
             if let Some(w) = warnings {
                 let done = self.status.text.clone();
                 self.set_error(format!("{done} {w}"));

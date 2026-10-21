@@ -6,14 +6,30 @@
 //! **What plays.** A clip piece (a clip, or one repetition of a looped clip) plays its
 //! render; while that is on its way, the render's **bridge** (`warp_render::bridge`: the
 //! right speed and pitch, made quickly on its own worker); before that, of the renders and
-//! bridges its clip has, the one **asked for most recently** — so while a marker or the
-//! tempo is dragged the clip plays the latest bridge made, and a slow final of an earlier
-//! step arriving late never brings that step back (round 29's second review); and with none
-//! at all (a clip warped for the first time), its **input** — the source, or its pitch
-//! render — laid as the unwarped rule lays it: the right time, the pitch late, never
-//! silence. A render plays from the window's first sample (`zero_at_start`); when a piece's
-//! data changes while it plays, the snapshot carries the old data, and the engine
-//! crossfades the two (`fade_from`) — never a click.
+//! bridges its clip has of the same file, the one **asked for most recently** — so while a
+//! marker or the tempo is dragged the clip plays the latest bridge made, and a slow final
+//! of an earlier step arriving late never brings that step back (round 29's second review)
+//! — laid where the content it was made for begins, so a left trim never plays the old
+//! start's words at the new start (third review); and with none at all (a clip warped for
+//! the first time), its **input** — the source, or its pitch render — laid as the unwarped
+//! rule lays it, when that is where the warp puts it: a warp that does not follow, or one
+//! whose markers lie on the natural line (the pitch late, never silence). A following warp
+//! that moves the audio plays nothing until its bridge, which goes first (third review: it
+//! played at the wrong bar). A render made for an earlier project is never played (third
+//! review: clip ids repeat between projects; [`Renders::forget_project`]).
+//!
+//! **Kept while it plays.** A warp that does not follow renders the source frame under its
+//! window's start, to the whole frame; a tempo edit before the window re-anchors the window
+//! (`tempo::keep`) to within half a frame — a linked copy to within half a tick — so the
+//! render it plays stays while the frame is that near (third review: it was re-rendered
+//! about a quarter of the time).
+//!
+//! **Swaps.** When a piece's data or its placement changes while it plays (a bridge
+//! giving way to its render, a drag step's bridge to the next, a render laid again under an
+//! edited tempo), the snapshot carries the old data with a new swap id (`fade_from`), and
+//! the engine crossfades from it once; the snapshots of the next moment carry the same id,
+//! so a swap whose snapshot never played still fades and a re-install never starts it
+//! again (third review).
 //!
 //! **Kept.** What the last live snapshot plays — whatever a foreign compile (a bounce, a
 //! freeze, a comp merge, an export) asks meanwhile — and beyond it the renders and bridges
@@ -27,10 +43,12 @@
 
 use super::{render_key, Finished, Job, Plan, WarpService};
 use cantus_core::snapshot::FadeFrom;
+use cantus_core::tempo::TempoMap;
 use cantus_core::{ClipId, SampleData, Snapshot, Ticks};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// The renders and bridges remembered per clip piece.
 pub const HISTORY: usize = 4;
@@ -38,6 +56,9 @@ pub const HISTORY: usize = 4;
 pub const KEEP_BYTES: usize = 512 << 20;
 /// Attaches a piece may be gone for before its history goes (its clip's newest stays).
 const GRACE: u64 = 64;
+/// How long the snapshots after a swap carry it (so its fade survives installs that come
+/// close together, on the interface's clock): far past the fade and a long device block.
+pub const CARRY: Duration = Duration::from_millis(250);
 
 /// What a warped clip's input is when it can be rendered: its key (the source's, or the
 /// pitch render's); `None` while the input is not the one the clip will play (a pitch
@@ -47,6 +68,50 @@ pub(crate) type InputKey<'a> = &'a dyn Fn(&cantus_core::AudioClipSnapshot, &Path
 /// A clip piece: the clip and where the piece starts.
 type Piece = (ClipId, Ticks);
 
+/// What a key's render was made for: its file, and where its frame 0 lies in the content.
+#[derive(Clone, Debug, PartialEq)]
+struct Made {
+    path: PathBuf,
+    follow: bool,
+    /// The content tick at the window's start.
+    offset: Ticks,
+    /// A warp that does not follow: the source frame under the window's start, whole.
+    head: f64,
+}
+
+impl Made {
+    fn of(plan: &Plan) -> Self {
+        Made {
+            path: plan.path.clone(),
+            follow: plan.warp.follow,
+            offset: plan.offset,
+            head: if plan.warp.follow {
+                0.0
+            } else {
+                plan.natural_start()
+            },
+        }
+    }
+}
+
+/// A piece whose warp does not follow: the key it plays, and the start frame (unrounded)
+/// and fine offset it was last seen with.
+#[derive(Copy, Clone, Debug)]
+struct Sticky {
+    base: u64,
+    frame: f64,
+    slip: f64,
+    key: u64,
+}
+
+/// What a piece played in the last live snapshot, and how it was laid.
+#[derive(Clone, Debug)]
+struct Played {
+    data: Arc<SampleData>,
+    zero_at: Option<(Ticks, f64)>,
+    map: Arc<TempoMap>,
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct Renders {
     pub service: Arc<WarpService>,
@@ -55,6 +120,8 @@ pub(crate) struct Renders {
     /// Finals on their way for keys something plays, with the file each one renders.
     pending: HashMap<u64, PathBuf>,
     failed: HashMap<u64, (PathBuf, String)>,
+    /// What each key asked for was made for.
+    made: HashMap<u64, Made>,
     /// Each piece's renders and bridges, newest asked first.
     recent: HashMap<Piece, Vec<u64>>,
     /// When each key was last asked for (an attach's count) — never when it arrived: what
@@ -62,11 +129,19 @@ pub(crate) struct Renders {
     stamp: HashMap<u64, u64>,
     /// When each piece was last in an attached snapshot.
     seen: HashMap<Piece, u64>,
+    /// The key each non-following piece plays.
+    sticky: HashMap<Piece, Sticky>,
     /// What the last live snapshot plays (renders, bridges, fallbacks): kept whatever a
     /// foreign compile asks.
     live: HashSet<u64>,
     /// Each piece's data in the last live snapshot (for a swap's crossfade).
-    played: HashMap<Piece, FadeFrom>,
+    played: HashMap<Piece, Played>,
+    /// The swaps of the last moment, carried by the next live snapshots ([`CARRY`]).
+    fading: HashMap<Piece, (FadeFrom, Instant)>,
+    /// The last swap's id.
+    swaps: u64,
+    /// Nothing (a piece that played silence, as old data to fade from).
+    silence: Option<Arc<SampleData>>,
     generation: u64,
     graveyard: Vec<Arc<SampleData>>,
     /// The budget of the kept renders, bytes ([`KEEP_BYTES`] at 0; a test lowers it).
@@ -112,18 +187,70 @@ impl Renders {
     }
 
     /// What a piece falls back on: of the renders and bridges its clip holds at `rate`,
-    /// the one asked for most recently (the piece's own first among equals: a loop's
-    /// pieces are asked together).
-    fn fallback(&self, piece: Piece, rate: u32) -> Option<(u64, Arc<SampleData>)> {
+    /// made from the file at `path`, the one asked for most recently (the piece's own first
+    /// among equals: a loop's pieces are asked together).
+    fn fallback(&self, piece: Piece, rate: u32, path: &Path) -> Option<(u64, Arc<SampleData>)> {
         self.recent
             .iter()
             .filter(|(p, _)| p.0 == piece.0)
             .flat_map(|(p, h)| h.iter().map(move |k| (*p == piece, *k)))
             .filter(|(_, k)| self.held(*k, rate).is_some())
+            .filter(|(_, k)| self.made.get(k).is_some_and(|m| m.path == path))
             .max_by_key(|(own, k)| (self.stamp_of(*k), *own, *k))
             .and_then(|(_, k)| self.held(k, rate).map(|d| (k, d.clone())))
     }
 
+    /// Where a fallback `k`'s frame 0 lies for a piece whose render would be `now`, at the
+    /// window's `start`: where the content it was made for begins — a following warp's
+    /// content ticks, a non-following warp's source frames (at the engine's `rate`).
+    fn zero_of(
+        &self,
+        k: u64,
+        now: &Made,
+        start: Ticks,
+        rate: u32,
+        source_rate: u32,
+    ) -> (Ticks, f64) {
+        match self.made.get(&k) {
+            Some(m) if m.follow && now.follow => (start - (now.offset - m.offset), 0.0),
+            Some(m) if !m.follow && !now.follow => (
+                start,
+                (now.head - m.head) * rate as f64 / source_rate.max(1) as f64,
+            ),
+            _ => (start, 0.0),
+        }
+    }
+
+    /// The key a non-following piece plays: the render it played while its start frame
+    /// moved no further than a tempo edit's re-anchoring moves it — half a frame, or, its
+    /// fine offset untouched (a linked copy), half a tick — else `key`.
+    fn stick(&mut self, piece: Piece, plan: &Plan, slip: f64, key: u64) -> u64 {
+        let frame = plan.natural_frame();
+        let base = super::render::natural_base(plan);
+        let s = plan.start.0 as f64;
+        let half_tick =
+            0.5 * plan.map.seconds_between_f64(s, s + 1.0) * plan.source_rate.max(1) as f64;
+        let kept = self.sticky.get(&piece).copied().filter(|st| {
+            let d = (frame - st.frame).abs();
+            st.base == base
+                && (self.done.contains_key(&st.key) || self.pending.contains_key(&st.key))
+                && (d <= 0.5 + 1e-9 || (st.slip == slip && d <= half_tick + 0.5))
+        });
+        let key = kept.map_or(key, |st| st.key);
+        self.sticky.insert(
+            piece,
+            Sticky {
+                base,
+                frame,
+                slip,
+                key,
+            },
+        );
+        key
+    }
+}
+
+impl Renders {
     /// Attach every warped clip's render, made here (`background` off) or queued (on).
     /// `live`: the snapshot is the one that will play (not a foreign or offline compile's).
     pub fn attach(
@@ -137,12 +264,29 @@ impl Renders {
     ) -> Vec<(PathBuf, String)> {
         self.generation += 1;
         let now = self.generation;
+        let clock = Instant::now();
         let mut errors = Vec::new();
         let mut used: HashSet<u64> = HashSet::new();
-        let mut played: HashMap<Piece, FadeFrom> = HashMap::new();
+        let mut played: HashMap<Piece, Played> = HashMap::new();
+        let mut swaps: Vec<(usize, usize)> = Vec::new();
         let map = snapshot.tempo.clone();
-        for track in &mut snapshot.tracks {
-            for clip in &mut track.audio {
+        if live {
+            self.fading
+                .retain(|_, (_, at)| clock.saturating_duration_since(*at) < CARRY);
+        }
+        let silence = self
+            .silence
+            .get_or_insert_with(|| {
+                Arc::new(SampleData {
+                    stream: None,
+                    rate,
+                    channels: 1,
+                    frames: Vec::new().into(),
+                })
+            })
+            .clone();
+        for (ti, track) in snapshot.tracks.iter_mut().enumerate() {
+            for (ci, clip) in track.audio.iter_mut().enumerate() {
                 let Some(warp) = clip.warp.clone() else {
                     continue;
                 };
@@ -152,25 +296,46 @@ impl Renders {
                 let piece = (clip.clip, clip.start);
                 self.seen.insert(piece, now);
                 let path = resolve(&clip.path);
+                let slip_frames = clip.slip * clip.source_rate as f64;
                 let plan = Plan {
-                    warp,
+                    warp: warp.clone(),
                     map: map.clone(),
                     start: clip.start,
                     end: clip.end,
                     offset: clip.offset,
-                    slip_frames: clip.slip * clip.source_rate as f64,
+                    slip_frames,
                     source_rate: clip.source_rate,
                     rate,
                     path: path.clone(),
                     input_key: input(clip, &path).unwrap_or(0),
                 };
                 let ready = input(clip, &path).is_some();
-                let key = render_key(&plan);
+                let made = Made::of(&plan);
+                let mut key = render_key(&plan);
+                if !warp.follow {
+                    key = self.stick(piece, &plan, clip.slip, key);
+                }
+                self.made.entry(key).or_insert_with(|| made.clone());
                 used.insert(key);
                 self.stamp.insert(key, now);
+                // The input is where the warp puts it: natural speed, or markers on the
+                // natural line (round 29's third review).
+                let in_time = warp.maps_as_unwarped(
+                    &map,
+                    clip.start,
+                    clip.offset,
+                    slip_frames,
+                    clip.start.0 as f64,
+                    clip.end.0 as f64,
+                );
+                let failed = self.failed.contains_key(&key);
+                let held = self.held(key, rate).is_some();
+                // Nothing to play until its bridge: the bridge goes first.
+                let silent =
+                    !held && !failed && !in_time && self.fallback(piece, rate, &path).is_none();
                 if ready
                     && !self.done.contains_key(&key)
-                    && !self.failed.contains_key(&key)
+                    && !failed
                     && !self.pending.contains_key(&key)
                 {
                     let job = Job {
@@ -182,7 +347,7 @@ impl Renders {
                     };
                     if background {
                         let bridge = !self.bridges.contains_key(&key);
-                        self.service.queue_render(job, bridge);
+                        self.service.queue_render(job, bridge, silent);
                         self.pending.insert(key, path.clone());
                     } else {
                         match self.service.render_now(&job) {
@@ -193,47 +358,65 @@ impl Renders {
                         }
                     }
                 }
-                // (the data, whether its frame 0 is the window's start)
-                let (playing, at_start) = if let Some(d) = self.held(key, rate).cloned() {
+                let (playing, zero_at) = if let Some(d) = self.held(key, rate).cloned() {
                     self.remember(piece, key);
-                    (Some(d), true)
+                    (Some(d), Some((clip.start, 0.0)))
                 } else if let Some((_, e)) = self.failed.get(&key) {
                     if !errors.iter().any(|(p, _)| *p == path) {
                         errors.push((path.clone(), e.clone()));
                     }
-                    (None, true)
-                } else if let Some((k, d)) = self.fallback(piece, rate) {
-                    // What it plays is kept while it plays (round 29's second review).
+                    (None, None)
+                } else if let Some((k, d)) = self.fallback(piece, rate, &path) {
+                    // What it plays is kept while it plays (round 29's second review), laid
+                    // where its content begins (third review).
                     used.insert(k);
-                    (Some(d), true)
-                } else {
+                    let at = self.zero_of(k, &made, clip.start, rate, clip.source_rate);
+                    (Some(d), Some(at))
+                } else if in_time {
                     // Nothing made for it yet: its input, laid as unwarped (the clip's own
                     // offset and fine offset) — never silence (round 29's second review).
-                    (Some(data), false)
+                    (Some(data), None)
+                } else {
+                    (None, None)
                 };
                 clip.data = playing;
-                clip.zero_at_start = at_start;
+                clip.zero_at = zero_at;
                 if live {
-                    if let Some(d) = clip.data.clone() {
-                        if let Some(before) = self.played.get(&piece) {
-                            if !Arc::ptr_eq(&before.data, &d) {
-                                clip.fade_from = Some(before.clone());
-                            }
-                        }
-                        played.insert(
-                            piece,
-                            FadeFrom {
-                                data: d,
-                                slip: clip.slip,
-                                zero_at_start: at_start,
-                            },
-                        );
+                    let d = clip.data.clone().unwrap_or_else(|| silence.clone());
+                    let moved = self.played.get(&piece).filter(|b| {
+                        !Arc::ptr_eq(&b.data, &d)
+                            || b.zero_at != zero_at
+                            || (!Arc::ptr_eq(&b.map, &map) && b.map.points() != map.points())
+                    });
+                    if let Some(b) = moved.filter(|_| clip.data.is_some()) {
+                        self.swaps += 1;
+                        let f = FadeFrom {
+                            data: b.data.clone(),
+                            id: self.swaps,
+                        };
+                        self.fading.insert(piece, (f.clone(), clock));
+                        clip.fade_from = Some(f);
+                    } else if let Some((f, _)) = self.fading.get(&piece) {
+                        clip.fade_from = Some(f.clone());
                     }
+                    if clip.fade_from.is_some() {
+                        swaps.push((ti, ci));
+                    }
+                    played.insert(
+                        piece,
+                        Played {
+                            data: d,
+                            zero_at,
+                            map: map.clone(),
+                        },
+                    );
                 }
             }
         }
+        snapshot.swaps = swaps;
         if live {
             self.played = played;
+            self.fading.retain(|p, _| self.played.contains_key(p));
             self.live = used.clone();
         }
         let protected: HashSet<u64> = used.union(&self.live).copied().collect();
@@ -244,10 +427,31 @@ impl Renders {
         }
         self.pending.retain(|k, _| protected.contains(k));
         self.keep(&protected);
+        self.made.retain(|k, _| {
+            protected.contains(k)
+                || self.done.contains_key(k)
+                || self.bridges.contains_key(k)
+                || self.pending.contains_key(k)
+        });
         self.sweep();
         errors
     }
 
+    /// Another project replaces the one playing: nothing of its pieces' history plays on
+    /// the new project's clips (their ids start again from 1 — round 29's third review).
+    /// The renders themselves stay, by their keys, within the budget (undo of the
+    /// replacement plays them at once).
+    pub fn forget_project(&mut self) {
+        self.recent.clear();
+        self.seen.clear();
+        self.sticky.clear();
+        self.played.clear();
+        self.fading.clear();
+        self.live.clear();
+    }
+}
+
+impl Renders {
     /// The budget of the kept renders (tests).
     pub fn set_budget(&mut self, bytes: usize) {
         self.budget = bytes.max(1);
@@ -312,6 +516,8 @@ impl Renders {
         self.seen
             .retain(|p, s| now - *s <= GRACE || recent.contains_key(p));
         self.recent = recent;
+        let seen = &self.seen;
+        self.sticky.retain(|p, _| seen.contains_key(p));
     }
 
     /// Free the renders only this store still holds.

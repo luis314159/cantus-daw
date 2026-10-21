@@ -125,6 +125,42 @@ pub fn gain_x(centre: f32, markers: &[f32], lo: f32, hi: f32, side: f32) -> f32 
         .unwrap_or(centre)
 }
 
+/// A following clip's squares clear of its markers' lines (`markers`, xs) inside
+/// `[lo, hi]` (the body less half a square each side): a fade's square on a marker (the
+/// window's edge markers lie under them when the fades are short) moved inward past it,
+/// one square clear; then the gain's square to the nearest gap that holds it among the
+/// markers and the fades' squares — nothing overlaps (round 29's third review).
+pub fn clear_squares(h: &mut Handles, markers: &[f32], lo: f32, hi: f32, side: f32) {
+    let on = |sq: &Rect| {
+        markers
+            .iter()
+            .copied()
+            .filter(|m| *m >= sq.left() - 1.0 && *m <= sq.right() + 1.0)
+            .collect::<Vec<f32>>()
+    };
+    // Inward: the fade in to the right of what it covers, the fade out to the left.
+    for _ in 0..markers.len().min(8) {
+        let hit = on(&h.fade_in);
+        let Some(m) = hit.iter().copied().reduce(f32::max) else {
+            break;
+        };
+        let x = (m + side + 1.0).min(hi);
+        h.fade_in = h.fade_in.translate(vec2(x - h.fade_in.center().x, 0.0));
+    }
+    for _ in 0..markers.len().min(8) {
+        let hit = on(&h.fade_out);
+        let Some(m) = hit.iter().copied().reduce(f32::min) else {
+            break;
+        };
+        let x = (m - side - 1.0).max(lo);
+        h.fade_out = h.fade_out.translate(vec2(x - h.fade_out.center().x, 0.0));
+    }
+    let mut taken: Vec<f32> = markers.to_vec();
+    taken.extend([h.fade_in.center().x, h.fade_out.center().x]);
+    let x = gain_x(h.gain.center().x, &taken, lo, hi, side + 1.0);
+    h.gain = h.gain.translate(vec2(x - h.gain.center().x, 0.0));
+}
+
 /// The y of the gain line: where a full-scale peak lands at this gain (the top at 0 dB
 /// and above).
 pub fn gain_y(wave: Rect, db: f32) -> f32 {
@@ -340,7 +376,14 @@ pub fn paint(
             let at = warp::Window {
                 offset: shown.offset,
                 length: shown.length,
-                reverse: shown.region.reverse,
+                start: shown.start,
+                reversal: shown.region.reverse.then(|| {
+                    warp::Reversal::new(
+                        std::sync::Arc::new(shown.map.clone()),
+                        shown.start,
+                        shown.start + shown.length,
+                    )
+                }),
                 origin: geo.x(shown.start.as_beats_f64() as f32) - shown.offset.0 as f32 * ppt,
                 ppt,
             };
@@ -349,14 +392,13 @@ pub fn paint(
                 .map(|p| p.0)
                 .collect();
             let hs = HANDLE * k;
-            let x = gain_x(
-                h.gain.center().x,
+            clear_squares(
+                &mut h,
                 &xs,
-                body.left() + hs,
-                body.right() - hs,
+                body.left() + hs * 0.5,
+                body.right() - hs * 0.5,
                 hs,
             );
-            h.gain = h.gain.translate(vec2(x - h.gain.center().x, 0.0));
         }
     }
     scratch.handles.push(((shown.track, shown.clip.id), h));
@@ -565,7 +607,9 @@ fn map_columns(
 
 #[cfg(test)]
 mod tests {
-    use super::gain_x;
+    use super::{clear_squares, gain_x, handles};
+    use cantus_core::{AudioRegion, Ticks};
+    use egui::{pos2, Rect};
 
     /// Round 29's second review (finding 54): the gain's square leaves a marker's line at
     /// the clip's centre for the nearest gap that holds it; with none near, it stays.
@@ -579,5 +623,39 @@ mod tests {
         assert!((x - 150.0).abs() < 1e-3 || (x - 250.0).abs() < 1e-3, "{x}");
         // No marker near the centre: it stays.
         assert_eq!(gain_x(200.0, &[0.0, 400.0], 7.0, 393.0, side), 200.0);
+    }
+
+    /// Round 29's third review (finding 40): on a following loop with markers on its
+    /// edges and its centre bar, short fades and the gain where the fade in ends, no
+    /// square covers a marker's line and none covers another.
+    #[test]
+    fn no_square_sits_on_a_marker_or_on_another() {
+        let side = 7.0;
+        let body = Rect::from_min_max(pos2(100.0, 0.0), pos2(500.0, 60.0));
+        let inner = body.shrink(2.0);
+        let mut a = AudioRegion::of(cantus_core::AudioSourceId(1));
+        // The fade in ends at bar 2.5 (x 250), where the gain moves to.
+        a.fade_in = Ticks(150 * 10);
+        let mut h = handles(body, inner, &a, 0.1, 1.0).unwrap();
+        let markers = [100.0, 200.0, 300.0, 400.0, 500.0];
+        clear_squares(
+            &mut h,
+            &markers,
+            100.0 + side * 0.5,
+            500.0 - side * 0.5,
+            side,
+        );
+        let squares = [h.fade_in, h.fade_out, h.gain];
+        for (i, sq) in squares.iter().enumerate() {
+            for m in markers {
+                assert!(
+                    m < sq.left() - 0.5 || m > sq.right() + 0.5,
+                    "square {i} {sq:?} on the marker at {m}"
+                );
+            }
+            for other in &squares[i + 1..] {
+                assert!(!sq.intersects(*other), "{sq:?} on {other:?}");
+            }
+        }
     }
 }

@@ -288,7 +288,29 @@ fn warp_points_on_the_natural_line_through_the_map_come_back_natural() {
     let w = Warp::natural_of(&map, c.start, c.offset, c.length, 0, 44_100);
     c.audio.as_mut().unwrap().warp = Some(Box::new(w));
     let out = dawproject::export_with(&before, "0.1.0", Some(dir.path()));
-    let back = dawproject::import(&out.bytes).unwrap();
+    // From Cantus's own file: the warp as it went (round 29's third review).
+    let own = dawproject::import(&out.bytes).unwrap();
+    assert_eq!(
+        own.project.tracks[0].clips[0].audio.as_ref().unwrap().warp,
+        before.tracks[0].clips[0].audio.as_ref().unwrap().warp
+    );
+    // From another application's (its name, no warp of ours beside the points).
+    let foreign = |files: &[(String, Vec<u8>)], xml: &str| {
+        let mut z = dawproject::zip::ZipWriter::new();
+        for (name, data) in files.iter().filter(|(n, _)| !n.starts_with("cantus/")) {
+            let data = if name == "project.xml" {
+                xml.replacen("name=\"Cantus\"", "name=\"Other\"", 1)
+                    .into_bytes()
+            } else {
+                data.clone()
+            };
+            z.add(name, &data, name.ends_with(".xml"));
+        }
+        z.finish()
+    };
+    let files = dawproject::zip::read(&out.bytes).unwrap();
+    let xml = String::from_utf8(files[0].1.clone()).unwrap();
+    let back = dawproject::import(&foreign(&files, &xml)).unwrap();
     let (a, b) = (&before.tracks[0].clips[0], &back.project.tracks[0].clips[0]);
     assert!(
         b.audio.as_ref().unwrap().warp.is_none(),
@@ -301,8 +323,6 @@ fn warp_points_on_the_natural_line_through_the_map_come_back_natural() {
     }
     // The same points timed in seconds of the clip's content (timeUnit="seconds"): placed
     // through the map from its origin, the same frames again.
-    let files = dawproject::zip::read(&out.bytes).unwrap();
-    let xml = String::from_utf8(files[0].1.clone()).unwrap();
     let doc = roxmltree::Document::parse(&xml).unwrap();
     let origin = (a.start - a.offset).0 as f64;
     let mut secs = xml.clone();
@@ -316,16 +336,7 @@ fn warp_points_on_the_natural_line_through_the_map_come_back_natural() {
         "<Warps contentTimeUnit=\"seconds\"",
         "<Warps timeUnit=\"seconds\" contentTimeUnit=\"seconds\"",
     );
-    let mut z = dawproject::zip::ZipWriter::new();
-    for (name, data) in &files {
-        let data = if name == "project.xml" {
-            secs.as_bytes().to_vec()
-        } else {
-            data.clone()
-        };
-        z.add(name, &data, name.ends_with(".xml"));
-    }
-    let back = dawproject::import(&z.finish()).unwrap();
+    let back = dawproject::import(&foreign(&files, &secs)).unwrap();
     let b = &back.project.tracks[0].clips[0];
     for k in 0..24 {
         let t = a.start + Ticks::beats(k);

@@ -19,8 +19,10 @@ pub enum ZipError {
     Crc(String),
     #[error("{0}: the data could not be inflated")]
     Inflate(String),
-    #[error("ZIP64 archives are not supported")]
-    Zip64,
+    /// A ZIP64 record (locator, end record) that is not where or what it says: the file is
+    /// damaged or cut short — ZIP64 itself is read (round 29's third review).
+    #[error("the archive's ZIP64 records are damaged")]
+    Damaged,
     #[error("{0} is too large to read into memory")]
     TooLarge(String),
     #[error("{0} could not be written: {1}")]
@@ -355,11 +357,11 @@ pub fn directory<R: Read + Seek>(r: &mut R) -> Result<Vec<Entry>, ZipError> {
             .ok_or(ZipError::Truncated)?;
         let l = read_at(r, loc, 20)?;
         if u32_at(&l, 0)? != 0x0706_4B50 {
-            return Err(ZipError::Zip64);
+            return Err(ZipError::Damaged);
         }
         let record = read_at(r, u64_at(&l, 8)?, 56)?;
         if u32_at(&record, 0)? != 0x0606_4B50 {
-            return Err(ZipError::Zip64);
+            return Err(ZipError::Damaged);
         }
         count = u64_at(&record, 32)?;
         dir_size = u64_at(&record, 40)?;

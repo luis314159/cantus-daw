@@ -27,6 +27,7 @@ use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 mod audio;
 pub use self::audio::reversed_frame;
 pub use audio::edit::CURVE_KEYS;
+pub use audio::warp::Reversal;
 pub use audio::{curve_icon, Handle as AudioHandle, Handles as AudioHandles};
 // The warp editor reads clips the way the arrangement does (round 29, ADR 0061).
 pub use audio::{warp as warp_api, Shown as AudioShown};
@@ -279,6 +280,13 @@ pub struct HeaderHit {
 }
 
 impl ArrangementView {
+    /// Let go of every clip drag and audio handle's drag (another project replaces the one
+    /// they were begun on — round 29's third review).
+    pub(crate) fn let_go(&mut self) {
+        self.drag = None;
+        self.audio.drag = None;
+    }
+
     /// Start renaming a track in place (a click on its name's letters does).
     pub fn begin_rename_track(&mut self, id: TrackId, name: String) {
         self.rename = Some((id, name));

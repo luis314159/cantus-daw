@@ -293,7 +293,7 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
         &channels,
         master.as_deref(),
         &timeline,
-        files,
+        (files, ours),
         &mut report,
     );
     report.info(
@@ -324,6 +324,37 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
     })
 }
 
+/// The parts of an archive a read of `xml` (its project.xml) takes besides it and its
+/// metadata: the states of Cantus's own devices, and — a file Cantus wrote — its warps
+/// (`cantus/…`, among `names`, the archive's entries). Every other part (a plug-in's
+/// state, which is never read) stays in the archive (round 29's third review).
+pub fn needed_parts(xml: &[u8], names: &[String]) -> Vec<String> {
+    let text = String::from_utf8_lossy(xml);
+    let Ok(doc) = roxmltree::Document::parse(&text) else {
+        return Vec::new();
+    };
+    let root = doc.root_element();
+    let ours = child(root, "Application").and_then(|a| attr(a, "name")) == Some(APPLICATION);
+    let mut out: Vec<String> = root
+        .descendants()
+        .filter(|d| attr(*d, "deviceID").is_some_and(|i| i.starts_with(DEVICE_PREFIX)))
+        .filter_map(|d| child(d, "State").and_then(|s| attr(s, "path")))
+        .map(|p| p.trim_start_matches("./").to_string())
+        .collect();
+    if ours {
+        out.extend(
+            names
+                .iter()
+                .map(|n| n.trim_start_matches("./"))
+                .filter(|n| n.starts_with("cantus/"))
+                .map(str::to_string),
+        );
+    }
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// A file of the archive, by the path the XML gives.
 fn state_file<'f>(files: &'f [(String, Vec<u8>)], path: &str) -> Option<&'f [u8]> {
     let path = path.trim_start_matches("./");
@@ -340,7 +371,7 @@ fn build(
     channels: &[ChannelInfo],
     master: Option<&str>,
     timeline: &Timeline,
-    files: &[(String, Vec<u8>)],
+    (files, ours): (&[(String, Vec<u8>)], bool),
     report: &mut Report,
 ) -> (usize, usize, usize) {
     let owner_of = |ci: usize| tracks.iter().find(|t| t.channel == Some(ci));
@@ -572,7 +603,34 @@ fn build(
                         id
                     }
                 };
-                let mut region = super::audio::region(id, au, &project.tempo_map(), c.origin);
+                // Cantus's own warp, carried beside its `<Warps>` (round 29's third review).
+                let side = au
+                    .id
+                    .as_deref()
+                    .filter(|_| ours)
+                    .and_then(|i| state_file(files, &super::audio::side_path(i)))
+                    .and_then(|b| serde_json::from_slice::<super::audio::Side>(b).ok())
+                    .filter(|s| s.warp.is_valid() && s.warp.follow);
+                let mut region = match side {
+                    Some(s) => {
+                        let mut r = cantus_core::AudioRegion::of(id);
+                        r.warp = Some(Box::new(s.warp));
+                        r.slip_frames = s.slip_frames - c.slip;
+                        r
+                    }
+                    None => {
+                        let window = ours.then_some((c.start, c.length));
+                        let map = project.tempo_map();
+                        let (r, natural) = super::audio::region(id, au, &map, c.origin, window);
+                        if natural {
+                            report.info(
+                                "interop.report.d_warp_natural",
+                                vec![("clip", c.name.clone())],
+                            );
+                        }
+                        r
+                    }
+                };
                 region.slip_frames += c.slip;
                 region.fade_in = c.fades.0;
                 region.fade_out = c.fades.1;

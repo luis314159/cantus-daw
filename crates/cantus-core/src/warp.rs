@@ -256,6 +256,52 @@ impl Warp {
         anchor.frame + (t - anchor.tick.0 as f64) * self.slope(i)
     }
 
+    /// Whether this warp maps the content shown over timeline ticks `[lo, hi]` — by a window
+    /// with content tick `offset` at `start` and fine offset `slip_frames` — exactly as the
+    /// unwarped rule does under `map` (each tick to `audio_time::frame_at`'s frame, within
+    /// [`SAME_FRAME`]). Not following the tempo, it does by definition. Following it, when
+    /// no ramp lies under that stretch and the warp's line meets the natural line at both
+    /// ends and at every marker and tempo point between: two broken lines that meet at
+    /// every corner of either are one (round 29's third review: a following warp that
+    /// plays its source untouched under a tempo map that changes, or on a window whose
+    /// start falls between frames, is no render).
+    pub fn maps_as_unwarped(
+        &self,
+        map: &crate::tempo::TempoMap,
+        start: Ticks,
+        offset: Ticks,
+        slip_frames: f64,
+        lo: f64,
+        hi: f64,
+    ) -> bool {
+        if !self.follow {
+            return true;
+        }
+        let rate = self.rate as f64;
+        let origin = (start.0 - offset.0) as f64;
+        let on = |t: f64| {
+            let natural = crate::audio_time::frame_at(map, start, offset, slip_frames, rate, t);
+            (self.frame_at(t - origin) - natural).abs() <= SAME_FRAME
+        };
+        let mut corners = vec![lo, hi];
+        corners.extend(
+            self.markers
+                .iter()
+                .map(|m| origin + m.tick.0 as f64)
+                .filter(|t| *t > lo && *t < hi),
+        );
+        let mut t = lo;
+        while let Some(n) = map.next_change_after(t).filter(|n| *n < hi) {
+            corners.push(n);
+            t = n;
+        }
+        corners.sort_by(f64::total_cmp);
+        corners
+            .windows(2)
+            .all(|w| map.held_at(0.5 * (w[0] + w[1])).is_some())
+            && corners.iter().all(|t| on(*t))
+    }
+
     /// The content tick where source frame `f` is heard (the inverse of
     /// [`Warp::frame_at`]).
     pub fn tick_at(&self, f: f64) -> f64 {
@@ -323,24 +369,87 @@ impl Warp {
     }
 }
 
-/// The tempo `project` holds throughout, when it holds one (no tempo track, or one that
-/// never changes it): under it a following warp that maps as the unwarped clip does plays
-/// its source as it is.
-pub fn held_tempo(project: &crate::Project) -> Option<f64> {
-    (project.tempo_points.len() <= 1 || project.tempo_map().is_constant())
-        .then_some(project.tempo_bpm)
+/// The tempo as a project's clip windows hear it: its map ([`held_tempo`]), what
+/// [`plays_source`] asks whether a window's warp maps as the unwarped clip does under.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Hearing {
+    map: crate::tempo::TempoMap,
 }
 
-/// Whether region `a` plays its source as it is in a project holding `held`
-/// ([`held_tempo`]): no warp, a warp that neither follows nor transposes
-/// ([`Warp::natural`]), or one that maps exactly as the unwarped clip does under the tempo
-/// held ([`Warp::is_identity`]) — nothing rendered. One rule for the snapshot and the
-/// comp seams (round 29's second review: a seam dropped its crossfade on a window that
-/// played its source).
-pub fn plays_source(a: &crate::audio::AudioRegion, held: Option<f64>) -> bool {
-    a.warp
-        .as_ref()
-        .is_none_or(|w| w.natural() || held.is_some_and(|bpm| w.is_identity(bpm, a.slip_frames)))
+impl Hearing {
+    /// Under `map`.
+    pub fn new(map: crate::tempo::TempoMap) -> Self {
+        Hearing { map }
+    }
+
+    pub fn map(&self) -> &crate::tempo::TempoMap {
+        &self.map
+    }
+
+    /// The tempo held throughout the song, when one is.
+    pub fn held(&self) -> Option<f64> {
+        self.map
+            .is_constant()
+            .then(|| self.map.points().first().map_or(0.0, |p| p.bpm))
+    }
+}
+
+impl AsRef<Hearing> for Hearing {
+    fn as_ref(&self) -> &Hearing {
+        self
+    }
+}
+
+/// How `project`'s clip windows hear the tempo (its map; see [`plays_source`]).
+pub fn held_tempo(project: &crate::Project) -> Hearing {
+    Hearing::new(project.tempo_map())
+}
+
+/// Whether clip `c` plays its source as it is, heard as `hearing` says ([`held_tempo`]):
+/// no warp, a warp that neither follows nor transposes ([`Warp::natural`]), or an
+/// untransposed one that maps as the unwarped clip does over its window
+/// ([`Warp::maps_as_unwarped`], the window widened by a comp seam's longest crossfade,
+/// which reads past it; a loop's pieces only under one tempo held across the clip) —
+/// nothing rendered, the engine plays the source to the bit. One rule for the snapshot
+/// and the comp seams (round 29's second review: a seam dropped its crossfade on a window
+/// that played its source; third review: a following warp laid as the source on a window
+/// under a tempo that changes, or whose start falls between frames, was rendered).
+pub fn plays_source(c: &crate::model::Clip, hearing: impl AsRef<Hearing>) -> bool {
+    let Some(a) = c.audio.as_ref() else {
+        return true;
+    };
+    let Some(w) = a.warp.as_ref() else {
+        return true;
+    };
+    if w.natural() {
+        return true;
+    }
+    if w.cents != 0 && w.mode.transposes() {
+        return false;
+    }
+    let map = &hearing.as_ref().map;
+    let x = crate::audio::MAX_XFADE.0 as f64;
+    let (start, end) = (c.start.0 as f64, c.end().0 as f64);
+    let shown = match c.period() {
+        Some(p) if p < c.length => {
+            let held = map
+                .held_at(start)
+                .is_some_and(|(_, from, to)| from <= start - x && to >= end + x);
+            if !held {
+                return false;
+            }
+            start + p.0 as f64
+        }
+        _ => end,
+    };
+    w.maps_as_unwarped(
+        map,
+        c.start,
+        c.offset,
+        a.slip_frames as f64,
+        start - x,
+        shown + x,
+    )
 }
 
 /// What a warp edit did, for the undo menu (`cmd.warp.<id>`) and for merging a drag into

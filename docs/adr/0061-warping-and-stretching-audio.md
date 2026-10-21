@@ -228,14 +228,14 @@ After the review (§10); one core, stereo, 48 kHz.
 | A hit's place through markers (every mode; the source's own rise subtracted) | ≤ 12 samples | 0 (bench); ≤ 12 every mode (test) |
 | A marker's frame on its tick (engine; every mode; 44.1/48/96 kHz files at 44.1/48/96 kHz; under a ramp) | ±1 sample | ±1 |
 | Attack (10–90 %), ×0.5 … ×2; under a tempo ramp | ≤ the source + 1 ms | the source's (92 frames median); 0 added under a ramp |
-| Pre-echo before a hit (Complex): ×0.5 / 0.8 / 1.25 / 2; under a ramp | ≤ −30 dB | −31 / −35 / −36 / −35 dB median; −36 … −37 dB |
-| Pre-echo before a lone drum hit, detected onsets (the source's own −30 dB) | the source's | −29.6 dB |
+| Pre-echo before a hit (Complex), over half a vocoder frame (§12): ×0.5 / 0.8 / 1.25 / 2; under a ramp | ≤ −30 dB median, each ≤ −25 dB | −30.3 / −36.1 / −38.6 / −35.7 dB median in the test (each ≤ −26.0), −31.3 / −36.2 / −37.7 / −36.7 in the bench; under ramps −38.3 / −37.2 |
+| Pre-echo before a lone drum hit, detected onsets, over half a frame (§12; the source's own −20.0 dB there, its previous hit's tail) | the source's | −19.9 dB (over 25 ms: −29.6 against −30) |
 | A held tone's level before each hit (×0.8, ×1.25) | ≤ 1 dB | 0.03 dB |
 | A transposed render's level (−12/−5/+7/+12 st, tone and dense noise) | ≤ 0.5 dB | 0.03 dB, 0.02 dB |
 | Pitch of a shifted tone (−12 … +12 st, ×0.8 … ×1.25) | ≤ 3 cents | ≤ 0.002 cents |
 | A held chord's voices, each, both channels: added level wander | ≤ 1 dB | 0.44 dB (×0.8), 0.52 dB (×1.25) |
 | A voice +5 st, formants kept (envelope distance) | Complex ≤ 4 dB, Melodic ≤ 3 dB | 2.7 dB, 0.9 dB (not kept: 9.2, 9.2) |
-| A delayed stereo pair through ×0.8 / ×1.5, +4 st | ±0.05 rad | within |
+| A delayed stereo pair through ×0.8 / ×1.5, +4 st; partials over their own noise (§12) | ±0.05 rad; ±0.04 rad | within; 0.025 / 0.040 rad |
 | Aliasing reading faster (Rhythm, grains, Re-pitch; up to +24 st) | ≤ −60 dB | below (test) |
 | Tempo within ±1 BPM, metronomic (clicks, drums, swing; 70–180 BPM) | ≥ 97 % | 100 % (69/69); the 18 outside 70–180 all their octave inside it |
 | Tempo within ±1 BPM, played (jitter, drift, a pad, a pick-up, 3/4, 6/8) | ≥ 90 % | 90.6 % (87/96) in the test; every miss an octave; 92.8 % in the bench's variant |
@@ -381,7 +381,7 @@ Amends §2, §4, §6, §7, §8 and §10 where they differ.
   of stereo in 0.2 s (was 1.4 s). An offline render compiled before its renders were in is
   said on the status line (export, bounce, freeze, comp merge, bake).
 - **The stretcher.** Rhythm and Re-pitch read only the span they play (a window of a long
-  file renders as the whole file would, to the bit). The level match holds the vocoder's
+  file renders as the whole file would: Re-pitch to the bit, Rhythm to rounding — §12). The level match holds the vocoder's
   output to its own frames' power plus the power the split's two parts shared, and the
   copied hits are added after, as they are (§10's match counted a hit again at every frame
   near it: slowed hats came out 2.6 dB louder, sped-up ones 1.3 dB quieter; now 0.0). The
@@ -412,14 +412,114 @@ Amends §2, §4, §6, §7, §8 and §10 where they differ.
   natural line through the tempo map come back natural; points timed in seconds are
   placed through the map from the clip's content origin; a loop from the play start is
   never reported dropped; an audio track's instrument is carried (`audio notes`).
-- **Measured** (tests that hold them): a natural warp within half a frame of the curve on
-  ramps of 60→180 BPM over a beat; Complex hits within 0.15 dB of the source (×0.5, ×2),
-  hats 0.0 dB; dense tuned hits ≤ −34 dB of pre-echo over half a long frame; a vibrato's
-  pitch within 2.5 cents and a legato line's within 1.5 at ×0.8 and ×1.25; a transposed
+- **Measured** (tests that hold them; corrected in §12): a natural warp within half a frame
+  of the curve on ramps of 60→180 BPM over a beat; Complex hits within 0.15 dB of the
+  source on average (×0.5, ×2 — each within 0.35, §12), hats 0.0 dB; dense tuned hits
+  ≤ −34 dB of pre-echo over half a long frame; a vibrato's pitch within 2.5 cents (2.6:
+  §12) and a legato line's within 1.5 at ×0.8 and ×1.25; a transposed
   render's level within 0.1 dB from −24 to +24 st (as claimed; the test held 0.5); the
   played corpus's beats within 35 ms and its downbeat on the bar line in 80 of 84 right
-  answers (a pick-up never taken for it). The bench's quality rows are gated (its time
-  rows reported); it measures the moving voice, 40 ms wander windows and the sketch too.
+  answers (a pick-up never taken for it — told each file's metre; analysed in 4/4 as the
+  import does: §12). The bench's quality rows are marked gated (its time rows reported),
+  but no stored baseline holds them: their bounds are the unit tests' (§12); it measures
+  the moving voice, 40 ms wander windows and the sketch too.
+
+## 12. Round 29's third review (`reviews/warp-3.json`, 45 findings): what it changed
+
+Amends §6, §9 and §11 where they differ.
+
+- **A swap fades once.** A swap's crossfade is counted on the transport's **clock** — the
+  samples played since the transport was made, never re-anchored — and ended by a seek or
+  a loop's wrap: it plays once, never again when the counter passes its sample after a
+  wrap, a seek or a Stop and Play (§11's fade, counted on the re-anchored sample counter,
+  spliced the old bridge back in on every pass). Each swap has an id
+  (`FadeFrom::id`); the live compiles of the next 250 ms carry it, so a swap whose snapshot
+  never played (two installs in one callback) still fades, and the transport, remembering
+  the swaps it has seen, never starts one again (a re-install, a copy with the previous
+  zones). The engine lays the old data from where the playing snapshot laid it — the same
+  clip holding that data, the frame it plays under the playhead, under the map playing
+  now — so a render laid again under an edited tempo (a tempo drag inside a following
+  window, the same data) crossfades too. The gains are **equal gain** (sin², cos²: the
+  two are versions of the same audio; equal power swelled 3 dB). A swap from silence fades
+  in. Arming looks only at the clips the sample cache listed (`Snapshot::swaps`);
+  allocation-free, held by `rt_memory`'s warped scenario on the callback and the pool.
+  §6's "nothing new runs on the audio thread" is amended: the placement (`zero_at`) and
+  this crossfade run in `add_clips`, allocation-free.
+- **What a piece falls back on.** Only renders made from the piece's own file (clip ids
+  start again in every project; another project also forgets every piece's history,
+  `SampleCache::forget_project`), laid where the content it was made for begins
+  (`AudioClipSnapshot::zero_at`: a following warp's by its content ticks, a non-following
+  one's by its source frames — a left trim no longer plays the old start's words at the new
+  start). Its input only where the warp puts it (a warp that does not follow, or one whose
+  line is the natural one); a following warp that moves the audio plays nothing until its
+  bridge, which goes first in the bridge queue. A non-following window keeps the render it
+  plays while a tempo edit's re-anchoring moves its start frame by up to half a frame
+  (half a tick for a linked copy, its fine offset untouched), so a tempo edit before it
+  never renders it again; a real move (a nudge of a frame, a tempo point moved in the
+  hidden part unkept) does. A fallback that plays is kept past the budget (tested through
+  the attach).
+- **A following warp that plays its source.** Untransposed and mapping as the unwarped
+  clip over its window (`Warp::maps_as_unwarped`: no ramp under it, the line meeting the
+  natural one at both ends and at every marker and tempo point — the window widened by a
+  seam's longest crossfade; a loop's pieces under one tempo held across the clip), it is no
+  warp in the snapshot or the comp seams (`warp::held_tempo` now returns the project's
+  `Hearing`): Follow pressed on a trimmed window under a tempo map that changes plays the
+  source to the bit, at 44.1, 48 and 96 kHz, in every mode.
+- **The stretcher.** A transposed hit is read from its transient outward through its whole
+  hold (4 ms before, 30 ms after): one coherent resampled copy (its noise within 0.5 dB of
+  a resampled copy's energy, hats 0.00; a drum hit's tonal body is stretched, keeping its
+  decay: within 1.5) — neighbouring grains read from their own centres had lost 2 to 6 dB.
+  The short vocoder frame is chosen only for the transients the **harmonic part** itself
+  rises at (6 dB over its 40 ms before): hats over a pad leave the pad its 170 ms frame
+  (each voice's wander over the mix's own: ≤ 0.76 dB over 100 ms windows, ≤ 2.7 over 40 ms;
+  the short frame added up to 4 and 11). The long hold's map takes a point before the
+  window on the unheld curve, so the vocoder's frames before output 0 read at the window's
+  own speed (a sped-up window whose first hit came 20–90 ms in read up to 0.8 s before
+  itself, past what a window's render is given). Rhythm's last slice ends at the first cut
+  at or past the window's end (its hard end, else the next transient), so its tail applies:
+  a slowed window never plays the next window's hit, and two halves split between hits sum
+  to the whole.
+- **Linked copies and Follow.** A first warping edit unlinks a copy only when it sits under
+  another tempo function than the edited clip (its content's natural reading differs by
+  more than half a tick and a frame, the tolerance the tempo edits' re-anchoring keeps a
+  linked window to): Follow off then on keeps a linked loop pair under one tempo linked,
+  following, with its markers.
+- **The interface.** A reversed following clip is drawn, pressed, dragged (and snapped) and
+  quantised where it is heard — mirrored through the map in seconds, as the engine plays
+  the window's render backwards (`views::arrangement::Reversal`), the tick mirror under one
+  tempo to the bit. An import's analysis that lands while another gesture is open waits for
+  it (up to a minute). A bounce stale under another tempo lands nowhere, and is written only
+  from its window's own render. Halves with a warp that changes nothing glue. The
+  late-render note is carried by each job (export, bounce in place, freeze, comp merge,
+  bake) to the message it lands with. No handle square covers a marker's line or another
+  square. The warp bar scrolls sideways in a pane narrower than its widest item. An analysis
+  that found no steady tempo says so ("No steady tempo"), and the project's tempo is not
+  offered from it.
+- **Interchange.** Cantus's own warp goes beside each `<Warps>` as
+  `cantus/warps/<id>.json` (its own markers flagged, Follow, the transposition, the fine
+  offset): a file Cantus wrote comes back exactly. A `<Warps>` of Cantus's own on its
+  natural line stays following; another application's collapses to natural speed, said.
+  The natural line is checked along every segment (tempo points inside it, a ramp sampled).
+  An import reads project.xml first and then only the parts it uses (metadata, Cantus's
+  device states and warps); a needed part over 64 MiB is left out and said; audio streams
+  past the limit (held by a test). A read import lands only when nothing records or is
+  dragged, never over a project opened since (said, its audio let go), and a quit stops it
+  between files. Its errors are in the interface's language; a damaged ZIP64 record is
+  "damaged".
+- **Measured** (tests that hold them; §9 and §11 corrected): Complex pre-echo over half a
+  vocoder frame, every hit under −25 dB and the median under −30 at ×0.5/0.8/1.25/2 (−30.3 /
+  −36.1 / −38.6 / −35.7 measured; 25 ms windows had seen a third of the frame), and under
+  −30 on tempo ramps; Complex drum hits within 0.35 dB each (0.21 / 0.31 worst peak at ×0.5
+  / ×2), hats within 0.05 (0.01); dense tuned hits under −34 dB (−34.5 worst); a vibrato
+  within 2.6 cents (2.36 / 2.52 — §11 said 2.5), a legato line within 1.5 (1.45 / 1.32); a
+  stereo image within 0.04 rad (0.025 / 0.040); a window of a long file as the whole file
+  renders it: Re-pitch to the bit, the others within 10⁻⁶ (3·10⁻⁸ to 6·10⁻⁸: rounding — §11
+  said "to the bit" for Rhythm); the played corpus analysed in 4/4 as the import does: the
+  4/4 files' downbeat on the bar line in 41 of 42, a 3/4 or 6/8 file's on one of its own bar
+  lines in 36 of 42 (§11's 80 of 84 was told each file's metre). The bench's warp rows
+  measure pre-echo over half a frame too; no stored baseline holds them yet, so their
+  absolute bounds are the unit tests' (a zero baseline is now an absolute bound, one unit
+  past it 100 % worse).
 
 ## Consequences
 

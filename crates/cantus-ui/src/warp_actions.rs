@@ -22,6 +22,9 @@ pub struct Bounce {
     /// review — a bounce never lands on a clip edited since, or on another project's).
     pub(crate) epoch: u64,
     pub(crate) clip: cantus_core::Clip,
+    /// The tempo it was rendered under (round 29's third review: a tempo edit meanwhile
+    /// leaves a following clip as it was, yet the render is laid for the old map).
+    pub(crate) tempo: cantus_core::TempoMap,
 }
 
 /// A file a bounce wrote.
@@ -279,14 +282,34 @@ impl CantusApp {
         out
     }
 
-    /// Whether a linked copy of clip `r` would not play as it plays now from `base` (the
-    /// warp a first warping edit starts from, laid at `r`'s place) once its start is kept:
-    /// another tempo under it would change its speed (round 29's second review).
-    fn copies_differ(&self, r: ClipRef, base: &Warp) -> bool {
+    /// Whether a linked copy of clip `r` sits under another tempo function than `r` does:
+    /// its content read at natural speed (each tick through the map from its own content
+    /// origin) is not `r`'s — so a first warping edit, which starts both from one warp
+    /// laid at `r`'s place, would change how the copy plays (round 29's second review).
+    /// Within half a tick (and a frame) they are one: the tempo edits' re-anchoring keeps a
+    /// linked window to that (third review: a Follow on after Follow off unlinked a loop
+    /// pair under one tempo, comparing the kept markers with natural speed).
+    fn copies_differ(&self, r: ClipRef) -> bool {
         let p = self.project();
         let map = p.tempo_map();
-        let Some(link) = p.track(r.0).and_then(|t| t.clip(r.1)).and_then(|c| c.link) else {
+        let Some(rc) = p.track(r.0).and_then(|t| t.clip(r.1)) else {
             return false;
+        };
+        let Some(link) = rc.link else {
+            return false;
+        };
+        let reading = |c: &cantus_core::Clip, t: f64| {
+            let a = c.audio.as_ref()?;
+            let rate = p.audio_source(a.source)?.sample_rate.max(1) as f64;
+            let origin = (c.start - c.offset).0 as f64;
+            Some(cantus_core::audio_time::frame_at(
+                &map,
+                c.start,
+                c.offset,
+                a.slip_frames as f64,
+                rate,
+                origin + t,
+            ))
         };
         for m in cantus_core::links::members(p, link) {
             if m == r {
@@ -295,26 +318,22 @@ impl CantusApp {
             let Some(mc) = p.track(m.0).and_then(|t| t.clip(m.1)) else {
                 continue;
             };
-            let Some(a) = mc.audio.as_ref() else {
-                continue;
-            };
-            let Some(rate) = p
-                .audio_source(a.source)
+            let Some(rate) = mc
+                .audio
+                .as_ref()
+                .and_then(|a| p.audio_source(a.source))
                 .map(|s| s.sample_rate.max(1) as f64)
             else {
                 continue;
             };
-            let slip = a.slip_frames as f64;
-            let now = |t: f64| {
-                cantus_core::audio_time::frame_at(&map, mc.start, mc.offset, slip, rate, t)
-            };
-            let start = mc.start.0 as f64;
-            let offset = base.tick_at(now(start)).round();
+            let s = mc.start.0 as f64;
+            let room = 0.5 * map.seconds_between_f64(s, s + 1.0) * rate + 1.0;
             const PROBES: usize = 64;
             for k in 0..=PROBES {
-                let dt = mc.length.0 as f64 * k as f64 / PROBES as f64;
-                if (base.frame_at(offset + dt) - now(start + dt)).abs() > 1.0 {
-                    return true;
+                let t = mc.offset.0 as f64 + mc.length.0 as f64 * k as f64 / PROBES as f64;
+                match (reading(mc, t), reading(rc, t)) {
+                    (Some(x), Some(y)) if (x - y).abs() <= room => {}
+                    _ => return true,
                 }
             }
         }
@@ -352,12 +371,7 @@ impl CantusApp {
             .and_then(|t| t.clip(r.1))
             .is_some_and(|c| c.link.is_some());
         let turning = !follows && next.as_ref().is_some_and(|w| w.follow);
-        let unlink = turning
-            && linked
-            && self
-                .warp_start(r)
-                .and_then(|s| s.base)
-                .is_some_and(|b| self.copies_differ(r, &b));
+        let unlink = turning && linked && self.copies_differ(r);
         let mut out = Vec::new();
         if unlink {
             out.push(Command::SetClipLink {
@@ -513,7 +527,7 @@ impl CantusApp {
                 let Some(s) = self.warp_start(r) else {
                     return false;
                 };
-                let alone = s.base.as_ref().is_some_and(|b| self.copies_differ(r, b));
+                let alone = s.base.is_some() && self.copies_differ(r);
                 let frames = self.start_frames(r, alone);
                 self.warp.relay = Some((r, s.warp.clone(), frames.clone()));
                 (s.warp, frames)
@@ -601,9 +615,24 @@ impl CantusApp {
 
     /// *Set the project tempo from this clip*: the tempo its source plays at
     /// ([`Self::clip_source_tempo`]), in force where the clip starts.
+    /// Whether *Set the project tempo from this clip* can do anything: a tempo the clip
+    /// has, or an analysis still on its way (it says so) — never once the analysis is in
+    /// without one (round 29's third review).
+    pub fn can_take_tempo_from(&self, r: ClipRef) -> bool {
+        self.clip_source_tempo(r).is_some()
+            || (self.warp_analysis(r).is_none()
+                && (self.clip_warp(r).is_some() || self.warp_analysing(r)))
+    }
+
     pub fn project_tempo_from_clip(&mut self, r: ClipRef) -> bool {
         let Some(bpm) = self.clip_source_tempo(r) else {
-            self.set_status(t("warp.status.analysing"));
+            // Analysed and no tempo found, or still being analysed (round 29's third
+            // review: it said "still being analysed" however long one waited).
+            self.set_status(t(if self.warp_analysis(r).is_some() {
+                "warp.status.no_tempo"
+            } else {
+                "warp.status.analysing"
+            }));
             return false;
         };
         let bpm = cantus_core::time::clamp_bpm((bpm * 100.0).round() / 100.0);
@@ -687,22 +716,24 @@ impl CantusApp {
             let reverse = c.audio.as_ref().is_some_and(|a| a.reverse);
             // The lines the user sees (counted through the metres, `views/bars.rs`), where
             // each content tick is heard: forward from the content origin, or — reversed —
-            // back from the end of what is heard.
+            // mirrored through the map inside what is heard, as the engine plays it (round
+            // 29's third review: mirrored in ticks, hits were pulled off the grid across a
+            // tempo change).
             let project = self.project();
             let grid = q.grid;
-            let start = c.start;
+            let origin = (c.start - offset).0 as f64;
+            let rev = reverse.then(|| {
+                crate::views::arrangement::Reversal::new(
+                    crate::views::bars::map(project),
+                    c.start,
+                    c.start + span,
+                )
+            });
             let line = |t: f64| {
-                let heard = if reverse {
-                    (start + offset + span).0 as f64 - t
-                } else {
-                    (start - offset).0 as f64 + t
-                };
+                let heard = rev.as_ref().map_or(origin + t, |r| r.heard(origin + t));
                 let snapped = crate::views::bars::snap(project, Ticks(heard.round() as i64), grid);
-                if reverse {
-                    (start + offset + span - snapped).0 as f64
-                } else {
-                    (snapped - (start - offset)).0 as f64
-                }
+                let s = snapped.0 as f64;
+                rev.as_ref().map_or(s - origin, |r| r.heard(s) - origin)
             };
             let next = s
                 .warp

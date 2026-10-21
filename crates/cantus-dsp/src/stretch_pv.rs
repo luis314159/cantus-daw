@@ -55,8 +55,23 @@ pub(crate) fn frame_len_short(rate: f32) -> usize {
 /// into the half frame before the next, and the hold before it cannot take its whole half
 /// either — the short one (round 29's second review: hits a sixteenth apart sped up rang
 /// 21 dB before themselves at 170 ms, 35 dB at 85; tuned hits an eighth apart, 29 dB).
-pub(crate) fn frame_for(rate: f32, map: &Map, onsets: &[f64], after: f64) -> usize {
+pub(crate) fn frame_for(
+    rate: f32,
+    map: &Map,
+    onsets: &[f64],
+    after: f64,
+    harmonic: &[&[f32]],
+) -> usize {
     let long = frame_len(rate);
+    // Only the transients the harmonic part itself rises at (a tuned hit, a chord's
+    // attack) need the short frame: hats over a pad, sent to the percussive part, leave
+    // the pad its long one (round 29's third review: they took it away from a whole mix).
+    let attacks: Vec<f64> = onsets
+        .iter()
+        .copied()
+        .filter(|s| harmonic_rise_db(harmonic, *s, rate) >= ATTACK_DB)
+        .collect();
+    let onsets = attacks.as_slice();
     let mut gaps: Vec<f64> = onsets
         .windows(2)
         .map(|w| {
@@ -76,6 +91,33 @@ pub(crate) fn frame_for(rate: f32, map: &Map, onsets: &[f64], after: f64) -> usi
     } else {
         long
     }
+}
+
+/// How far the harmonic part must rise at a transient, dB (its first 10 ms against the
+/// 40 ms before), for the transient to be its own attack.
+const ATTACK_DB: f32 = 6.0;
+
+/// The harmonic part's rise at source frame `s`: its power over the 10 ms from it against
+/// the 40 ms before it, dB (every channel together).
+fn harmonic_rise_db(harmonic: &[&[f32]], s: f64, rate: f32) -> f32 {
+    let at = s.round().max(0.0) as usize;
+    let (a, b) = ((0.010 * rate) as usize, (0.040 * rate) as usize);
+    let power = |from: usize, to: usize| -> f64 {
+        let mut e = 0.0f64;
+        for ch in harmonic {
+            let to = to.min(ch.len());
+            if from < to {
+                e += ch[from..to]
+                    .iter()
+                    .map(|v| (*v as f64) * (*v as f64))
+                    .sum::<f64>();
+            }
+        }
+        e / (to.saturating_sub(from)).max(1) as f64
+    };
+    let after = power(at, at + a);
+    let before = power(at.saturating_sub(b), at);
+    (10.0 * crate::math::log10((after + 1e-12) / (before + 1e-12))) as f32
 }
 
 pub(crate) fn princarg(x: f32) -> f32 {

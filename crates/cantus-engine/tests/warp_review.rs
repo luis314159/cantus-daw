@@ -155,7 +155,9 @@ fn every_mode_puts_a_marker_on_its_tick() {
 }
 
 /// Where the tempo changes elsewhere in the song, a warp that maps as the clip plays
-/// unwarped is kept — and rendered — yet plays the source to the bit, in every mode.
+/// unwarped plays the source to the bit, in every mode — dropped by the snapshot since
+/// round 29's third review (it maps as the unwarped clip over its window), so nothing is
+/// rendered for it.
 #[test]
 fn an_identity_warp_through_the_render_path_is_the_source_to_the_bit() {
     let dir = tempfile::tempdir().unwrap();
@@ -186,10 +188,10 @@ fn an_identity_warp_through_the_render_path_is_the_source_to_the_bit() {
             p.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(w));
             let s = Snapshot::compile(&p, 1);
             assert!(
-                s.tracks[0].audio[0].warp.is_some(),
-                "{mode:?}: kept under a tempo map that moves"
+                s.tracks[0].audio[0].warp.is_none(),
+                "{mode:?}: the source, under a tempo map that moves after the clip"
             );
-            assert_null(&want, &bounce(&p, rate), 0.0, "an identity warp, rendered");
+            assert_null(&want, &bounce(&p, rate), 0.0, "an identity warp");
         }
     }
 }

@@ -3873,6 +3873,7 @@ impl CantusApp {
         }
         if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
+            views::interop::stop_import(self);
             views::update::on_quit(self);
             self.close_session();
         }

@@ -256,13 +256,18 @@ impl WarpService {
         render_on(&self.shared, job)
     }
 
-    /// Queue the final render of `job` and its bridge (when `bridge`). Nothing else is
-    /// cancelled here: a loop's pieces may each want their own render (round 29's review);
-    /// [`Self::retain_queued`] drops what nothing plays any more.
-    pub(crate) fn queue_render(&self, job: Job, bridge: bool) {
+    /// Queue the final render of `job` and its bridge (when `bridge`; ahead of the others
+    /// when `first`: its piece plays nothing until it comes — round 29's third review).
+    /// Nothing else is cancelled here: a loop's pieces may each want their own render
+    /// (round 29's review); [`Self::retain_queued`] drops what nothing plays any more.
+    pub(crate) fn queue_render(&self, job: Job, bridge: bool, first: bool) {
         let mut g = self.shared.lock();
         if bridge && !g.bridges.iter().any(|j| j.key == job.key) {
-            g.bridges.push_back(job.clone());
+            if first {
+                g.bridges.push_front(job.clone());
+            } else {
+                g.bridges.push_back(job.clone());
+            }
         }
         // Renders before analyses: what plays comes first.
         let at = g

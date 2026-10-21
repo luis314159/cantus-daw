@@ -204,7 +204,7 @@ pub(crate) fn complex(channels: &[&[f32]], rate: f32, req: &Request, ratio: f64)
     // The harmonic part held around transients for a whole window before each (no frame
     // that reaches a transient reads it stretched) and 30 ms after.
     let after = 0.030 * rate as f64;
-    let n = pv::frame_for(rate, req.map, req.onsets, after);
+    let n = pv::frame_for(rate, req.map, req.onsets, after, &h);
     let (hmap, holds) = req.map.hold_long(req.onsets, (n / 2) as f64, after);
     let (mut out, meant) = pv::render(&h, rate, &hmap, &holds, req.len, ratio, req.formants, n);
     let p: Vec<&[f32]> = percussive.iter().map(Vec::as_slice).collect();

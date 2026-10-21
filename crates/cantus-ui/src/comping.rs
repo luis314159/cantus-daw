@@ -289,14 +289,14 @@ pub fn ms_ticks(project: &Project, ms: f64, at: Ticks) -> Ticks {
 /// Every seam of a track's playing lane: (left window, right window, where, crossfade).
 pub fn seams(project: &Project, track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
     let held = cantus_core::warp::held_tempo(project);
-    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c, held);
+    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c, &held);
     let mut out = Vec::new();
     for r in track.clips.iter().filter(audio) {
         if let Some(l) = track
             .clips
             .iter()
             .filter(audio)
-            .find(|l| cantus_core::comp::is_seam(l, r, held))
+            .find(|l| cantus_core::comp::is_seam(l, r, &held))
         {
             let x = r.audio.as_ref().map_or(Ticks::ZERO, |a| a.xfade);
             out.push((l.id, r.id, r.start, x));
