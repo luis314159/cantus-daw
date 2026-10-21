@@ -366,7 +366,11 @@ mezcla, y el de un canal para su interruptor de efectos y su armado de grabació
 bombilla FX y el punto de grabación del canal se aprenden también en el modo de
 aprendizaje); el menú de un envío las tiene para su nivel; las perillas y lámparas del rack de
 canales, y los interruptores y opciones de un dispositivo, se aprenden como cualquier
-perilla. Dentro de la ventana propia de un plug-in, mueve allí el parámetro, pulsa
+perilla. En el inspector se aprenden también la lámpara (puenteo) y el anillo (mezcla) de
+un inserto, el interruptor de los insertos y el LED de armado, y en la ventana de un
+dispositivo su lámpara de puenteo. Un control que representa un valor de una opción
+aprende ese valor: el LED *Solo* de una banda aprende esa banda (un botón la deja sola y la
+suelta), una tecla de la escala de Tonus aprende su clic. Dentro de la ventana propia de un plug-in, mueve allí el parámetro, pulsa
 `Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio;
 también en el menú **Clip** de la barra superior) y mueve el equipo.
 
@@ -378,7 +382,7 @@ suéltalo: pulsado y soltado, conmuta; un botón que se queda abajo por sí mism
 su valor máximo) pone el destino encendido o apagado según esté. Todo parámetro de dos
 estados (el encendido de un dispositivo, una lámpara) es un interruptor: un botón lo fija
 al instante, sin toma de control. Los controles NRPN y RPN no se aprenden — Cantus lo
-dice; configura el controlador para que mande CC normales.
+dice y sigue esperando otro control; configura el controlador para que mande CC normales.
 
 **Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
 `Ctrl+Shift+K`), una fila por asignación:
@@ -389,7 +393,8 @@ dice; configura el controlador para que mande CC normales.
   acción).
 - **Desde / Hasta**: la parte del recorrido del destino que cubre el control, en las
   unidades del destino (−∞ dB a +6 dB, 200 Hz a 4 kHz, 60 a 180 BPM…), una opción por sus
-  nombres (*Limpio* a *Opto*), un interruptor *No* y *Sí*; *Hasta* por debajo
+  nombres (*Limpio* a *Opto*, *Fase lineal* a *Fase mínima*; las opciones de un plug-in con
+  sus propias palabras), un interruptor sin nombres *No* y *Sí*; *Hasta* por debajo
   de *Desde* lo invierte. Arrastra una celda, o haz doble clic y escribe — un número o el
   nombre de una opción; clic derecho la restablece.
 - **Curva**: una curvatura, para que la primera mitad del giro haga menos (o más); se
@@ -397,7 +402,8 @@ dice; configura el controlador para que mande CC normales.
 - **Toma de control**, para un control que no se mueve solo cuando el valor cambia por
   otro lado: *Recoger* (por defecto: nada se mueve hasta que la perilla pasa por el valor —
   sin saltos), *Escalar* (el valor sigue a la perilla y ambos llegan juntos al final),
-  *Saltar*. La cabecera fija la toma de control de las asignaciones nuevas.
+  *Saltar*. La cabecera fija la toma de control de las asignaciones nuevas; un
+  interruptor no tiene.
 - **Retorno** (*Enviar*): el valor vuelve al controlador cada vez que cambia — para faders
   motorizados y anillos de LED, y las luces de los botones del transporte y de cada
   interruptor con estado (reproducir, grabar, bucle, metrónomo, pinchazo, cuenta previa…).
@@ -409,14 +415,17 @@ Un punto encendido a la izquierda de una fila indica que acaba de llegar un mens
 **Compartido** marca un control con varios destinos (se permite: una perilla puede abrir
 dos filtros a la vez). Una fila cuyo destino ya no existe (una pista borrada) se conserva,
 marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino. El parámetro de un
-plug-in se aprende con ese plug-in: si el instrumento o el inserto se cambia por otro, la
-fila dice **Otro plug-in**, con el nombre del plug-in con el que se aprendió, y su perilla
-queda libre (aprende el parámetro del nuevo; deshacer el cambio devuelve la vida a la fila
+plug-in se aprende con ese plug-in: si el instrumento o el inserto se cambia por otro — un
+plug-in o uno de los de Cantus —, la fila dice **Otro plug-in**, con los nombres del plug-in
+y del parámetro con los que se aprendió y su recorrido en porcentaje, y su perilla queda
+libre (aprende el parámetro del nuevo; deshacer el cambio devuelve la vida a la fila
 antigua). Un inserto cambiado por uno de los de Cantus conserva su puenteo y su mezcla, y
 un parámetro que el efecto nuevo también tenga. **Sin cargar** indica que el plug-in está
 en el proyecto pero no funciona aquí (o se detuvo); **Congelado**, que el sonido del
 destino está congelado: un movimiento se rechaza y se dice, y la perilla no llega a ningún
-otro instrumento; **No conectado**, que la entrada MIDI de la asignación no está abierta.
+otro instrumento; **No conectado**, que la entrada MIDI de la asignación no está abierta;
+**Sin entrada**, que el armado de grabación de un canal no tiene ninguna pista con entrada
+que armar.
 
 **Dos mapas.** Las asignaciones de *Este proyecto* se guardan con el proyecto, y cada
 cambio es un paso de deshacer. **En todas partes** — tus asignaciones globales, guardadas
@@ -428,7 +437,8 @@ tecla de transporte o el máster la lleva allí; **Añadir asignación** en el p
 todos, y la acción de cada atajo de teclado por su grupo (armar la pista seleccionada,
 pinchar, deshacer, guardar, las vistas…). Cuando un control está en los dos, gana la asignación del proyecto. Si el archivo global no
 se puede leer entero, se guarda una copia a su lado (el estado dice su nombre) y no se
-pierde nada.
+pierde nada; si ni siquiera se puede copiar, nunca se escribe encima, y cada cambio en las
+asignaciones globales avisa de que no se guardará.
 
 **Mientras tocas y grabas.** Una perilla asignada ya no llega al instrumento (no mueve
 además su filtro) y un pad asignado no toca ninguna nota. Un movimiento hecho con el ratón
@@ -437,8 +447,10 @@ automatización, el clip lo toca — hasta que una pasada de grabación lo mueve
 momento el parámetro sigue tu mano (el clip queda aparte el resto de la pasada), y la
 pasada escribe lo que hiciste como un clip de automatización, cada movimiento en el momento
 en que llegó su mensaje, dentro de la pasada (la cuenta previa y lo que pase del final del
-pinchazo no se escriben; Opciones de grabación ▸ *Grabar automatización*). Una perilla
-asignada al tempo espera mientras se graba una toma.
+pinchazo no se escriben, y pasado el final del pinchazo el parámetro vuelve a seguir su
+clip; Opciones de grabación ▸ *Grabar automatización*). Mientras se graba audio, una
+perilla asignada al tempo no hace nada (el estado dice por qué): cambia el tempo antes o
+después de la toma.
 
 La presión de canal y la presión de tecla llegan ahora al instrumento (de Cantus y
 alojados), y un cambio de programa llega a un instrumento alojado.

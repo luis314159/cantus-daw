@@ -3,7 +3,8 @@
 Branch `r29/controllers` (worktree `F:\projects\daw-r29\controllers`), from
 `r29/integration` at 0933835 (tempo and isolation merged), with `r29/integration` at
 5c17c80 (warp) merged in before the final runs. Item 2 of the round. ADR 0062. Schema 35
-(and 39 after review 3: the strip switches as targets). Undo-fuzz arm 45.
+(40 after review 3: the strip switches as targets — 39 on the branch, renumbered at the
+merge; 41 after review 4: a hosted mapping's names). Undo-fuzz arm 45.
 
 ## Done
 
@@ -385,6 +386,86 @@ Files outside my area touched by review 3's fixes:
   false-start fix opened: a pass that writes nothing changed no revision, so the latched
   lane was not sent back to its clip — the commit now asks for a fresh snapshot whenever a
   pass recorded anything.
+
+## Review 4 (`reviews/controllers-4.json`, 64 confirmed) — how each was fixed
+
+Merged `r29/integration` 9d4b5fb first (a fast-forward: my review 3 was in it, its schema
+renumbered 40). Every fix has a test, and each test was seen failing with its fix taken out
+again (the fixes broken on purpose, then put back):
+
+- core: 5 broken in one run, 5 tests caught them;
+- host: 2 broken (the program flag raised before its value is on its way, the sync's
+  rounding in whole units), each caught (the two-thread backend test, the unit's test);
+- engine: the echo stamped before the output opened, caught;
+- interface: 36 broken in five runs, 35 caught; the one left is the "0…1" in "a wordless
+  two-state is 0…1 and unitless", which the unitless test covers for every case the code
+  has (Gravis's 1…2 oct has its unit). One test was made sharper when a break slipped past
+  it: the two-port split pair now records, and no half-made value may be among what it
+  recorded. The plug-ins' words test caught the EQ solo's words taken out.
+
+Tests live in `crates/cantus-ui/tests/controllers_review4.rs` unless named otherwise.
+Numbers are the findings' places in the file, from 0.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| 0, 44, 59 | two named choices read Off/On and refused their names; a 1…2 number read Off/On | `value_words` / `parse_value` look the names up first (`controllers_words::word_at_pos`, `pos_named`); Off/On only for a target with no names that is a switch or a unitless 0…1 | `two_named_choices_read_their_names` (De-esser mode, Saturator phase, both languages; Comprimo's key EQ Off/On; Gravis's 1…2 oct) |
+| 1, 58 | a hosted shape and words from plain min/max (a JUCE VST3's four choices a switch; 0, 10…40 forty steps) | `ParamInfo::steps` (VST3 `stepCount`, CLAP `max − min`; serde default), `step_count()`, `snap()`: the shape, the words (at each step) and the values sent, the host's sync included, in the plug-in's own steps | `a_hosted_choice_moves_on_its_own_steps`; host `a_stepped_parameter_lands_on_its_own_steps`, `values_land_on_the_plug_ins_own_steps` |
+| 2, 23, 54 | an encoder on a narrowed or bent choice: several detents a choice, unevenly | the step counted in the target's own steps inside the mapping's range | core `an_encoder_moves_one_choice_per_detent_inside_a_narrowed_range` (bent and inverted too) |
+| 3, 40 | a big stepped number: one detent per unit (999 for a seed) | one step a detent up to `MAX_DETENT_STEPS` (128) inside the range; beyond, 1/128 of the travel | core `a_big_stepped_number_crosses_in_128_detents` |
+| 4, 11, 37 | 14-bit fine-first at speed: never latched or unlatched, read a pair off, resting at fine 0 | a coarse half held after a lone fine half takes the closer fine half — before it (fine first; the next is the next pair's, waiting for its coarse half) or after it (coarse first) | `a_fast_fine_first_fader_reads_whole_pairs` (2 ms apart, every crossing, the resting value), `a_known_fine_first_fader_stays_known_at_speed` |
+| 5 | ALSA: generic port names of two devices became one | the client kept unless the port repeats it | core `generic_alsa_port_names_keep_their_clients` |
+| 6 | a strip's arm with nothing to arm swallowed its control | `StripArm` exists only with an armable track; the pane says *No input* | core `a_record_arm_with_nothing_to_arm_is_dormant`; `a_record_arm_with_nothing_to_arm_says_so` |
+| 7, 22, 33, 45 | instrument words only after an editor drew them this session, missing for several editors, frozen by state (Gravis's *Strings*) | a static table (`cantus_ui::inst_choices`) by instrument and field, the editors' labels (Firmus's waves too); the pane reads only it | `instrument_choices_read_their_names_with_no_editor_drawn`, `every_named_instrument_choice_reads_and_types_its_names` (every kind, nothing painted); `learn_everywhere` `the_choice_table_names_choices_as_the_editors_draw_them` |
+| 8, 24 | NRPN data entry learnt as CC 6/38; the refusal cancelled the learn but said "move another control" | CC 6/38/96/97 as well as 98–101 passed over while learning, said; the learn stays armed (the burst still swallowed) | `an_nrpn_burst_is_passed_over_and_the_learn_stays_armed`; review 3's NRPN test on the new rule |
+| 9, 19, 30, 55 | the docs said schema 39 and named a test that no longer exists; "a tempo knob waits" | ADR 0062 and this file say schema 40 (`migrate_39_to_40`, `v40.cantus`, `schema_40_…`); the manual and the ADR say a tempo knob does nothing while audio records | (docs) |
+| 10, 57 | VST3: the program flag raised before the program's value reached the controller | raised in `report()` once the value's push succeeded; the idle swaps it before draining | host `a_program_change_is_said_only_once_its_value_is_on_its_way` (an idle in the middle of a slow block, two threads; the test VST3's `cantus_test_slow_next_process`) |
+| 12 | a waiting half judged against the burst's first message (port order) | against its earliest; the idle gesture sealed by it too | `a_split_pair_on_another_port_waits_for_its_fine_half` (two ports, recording: no half-made value recorded) |
+| 13 | feedback stamped before the output's open | `MidiOutputs::send_at`: the moment after the open, just before the write | engine `a_messages_moment_is_after_its_output_opened` |
+| 14 | an unknown action's mapping still took its control | `mapping_alive` false for it | `an_unknown_actions_mapping_takes_nothing` |
+| 15, 20 | a loop's later lap stopped before the record start lost its automation | the false start judged against the start of the pass that ran (`live.pass_start`) | `a_later_lap_stopped_before_the_record_start_keeps_its_automation` |
+| 16, 25, 31 | past the punch-out only the interface's latch let go; the engine kept the lane cleared | the latch's state remembered; any change sends the engine the lanes again (the pass begun, the punch-out crossed); the latch off before the pass too | `the_latch_lets_go_in_the_engine_at_the_punch_out` (the snapshot the engine holds) |
+| 17, 38 | the pass's start from a loose wrap flag, seen late in the frame | the wrap seen once a frame after the engine's poll, before anything is recorded, by the recorder's rule (more than half the loop back, playing); the pass's start moves there | `a_stale_position_after_the_count_in_is_no_wrap`, `a_move_in_the_wrap_frame_belongs_to_the_new_lap` |
+| 18 | a strip's arm and a track's arm in one gesture: a stale command won | a strip's arm is its tracks' arms in the gesture | `a_strips_arm_and_its_tracks_arm_newest_press_wins` |
+| 21 | an insert's bypass and mix learnable only from the XL chain line | learn spots on the inspector's tile (lamp, ring), the inserts' switch, the mini view's mix, the arm LED, and the device header's bypass; the inspector's slot menu has the learn rows | `the_inspector_header_and_record_dot_learn`, `the_inspectors_arm_led_learns_the_arm` |
+| 26 | the clips list and the device keyboard fed nothing back | `pane_of(ToggleClips)`; the keyboard card's state | `the_clips_list_and_the_keyboard_light_a_button` |
+| 27, 56, 63 | a hosted word cost a plug-in call per step per cell per frame; the catalogue sorted per dormant row; in-process "no words" asked every frame | the word asked for its one step; `PluginDb::find`; an in-process plug-in's "no words" kept (`ValueWords`, `Texts`: asked again only while isolated) | `frame_budget.rs` `a_hosted_choices_word_asks_for_one_step`; `an_in_process_plug_ins_no_words_is_kept`; `modulator_hosted` `an_unanswered_value_is_asked_again` |
+| 28 | the unsaved-global notice covered at once, later edits lost silently | every global edit a session cannot keep says so (`global_unsaved`) | `controllers_boot.rs` `an_unreadable_global_file_is_never_saved_over` |
+| 29 | a new project's status overwritten by "learn cancelled" | the learn let go silently | `a_new_project_lets_the_learn_go_silently` |
+| 32 | the tempo-gesture test had no audio window | over a song with trimmed audio windows; undo restores them exactly | `a_tempo_gesture_over_audio_windows_stays_small` |
+| 34 | the shared-status assertion was vacuous | the exact status, both mappings, no *Shared* on either row | `learning_beside_a_swapped_out_mapping_shares_nothing` (review 3's vacuous lines removed) |
+| 35 | learn checked by a flag that is always true | clicks: a native effect's editor (style, key EQ, threshold), an instrument's (a choice), the inspector (a tile, a send's row, a modulator's amount), the arrangement's headers | `clicking_learns_in_editors_and_the_arrangement`, `the_inspector_header_and_record_dot_learn` |
+| 36 | the record dot's learn spot never clicked | the mixer clicked with a track recording into the strip | `the_inspector_header_and_record_dot_learn` |
+| 39 | the duplicated effect table untied to the plug-ins' (the EQ solo diverged); no i18n test | the EQ solo's words (*Off*, *Band n*); a test in `cantus-plugins` holds the pane's words to the plug-ins' for every stepped key in both languages; every choice key in both locales | plug-ins `pane_words.rs`; `every_choice_key_is_in_both_languages` |
+| 41 | the swap test covered bypass and mix only | a native key the new effect has moves, one it lacks stays; a hosted parameter keeps its plug-in (#49) | `swapping_an_insert_moves_the_parameters_the_new_one_has`, `a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins` |
+| 42 | the boot's lossy and unsafe global branches untested | | `controllers_boot.rs` `a_lossy_global_file_is_kept_and_said`, `an_unreadable_global_file_is_never_saved_over` |
+| 43 | a 14-bit test stamped with `Instant::now()` | stamped 50 ms ahead | review 3's `a_pair_split_between_frames_is_never_half_made` |
+| 46 | a band's solo LED learnt the whole 0…24 choice | a control that stands for one value is learnt over it (none ↔ that band; read as two states), and its mark shows where a mapping reaches its value; the scale keys over as the scale ↔ their click | `a_bands_solo_led_is_learnt_for_that_band`, `a_scale_key_is_learnt_over_its_click` |
+| 47, 62 | dormant rows named by raw ids | the plug-in's and the parameter's names kept at learn (schema 41) and shown | `a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins`; core `a_plug_ins_names_ride_along_and_compare_by_identity`; project `schema_41_keeps_a_hosted_mappings_names` |
+| 48 | the filter matched another name than the row's | the filter reads the row's own name | `a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins` |
+| 49, 61 | a hosted mapping swapped for a native device read *Missing* | *Other plug-in* before *Missing* while its place is there | `a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins` (and undo brings it back) |
+| 50 | *Frozen* and *Not connected* rows not dimmed | every idle row dimmed | (the pane's shot) |
+| 51 | Spanish named the master two ways | `kit.mixer.master` | `the_masters_switch_is_named_as_the_master` |
+| 52 | a takeover picker on switches | "—" for a switch | `a_switch_shows_no_takeover` |
+| 53 | Organum's rotary lamp learnt inverted | a lamp lit at 0 is learnt *From* 1 *To* 0 (feedback lights it as the lamp is lit) | `a_lamp_lit_at_zero_is_learnt_the_lamps_way` |
+| 60 | a dormant row read the loaded plug-in's words and wore *Shared* | percent cells (typed as percent), no others | `a_swapped_out_row_reads_its_range_in_percent`, `learning_beside_a_swapped_out_mapping_shares_nothing` |
+
+Files outside my area touched by review 4's fixes:
+- `cantus-host`: `backend.rs` (`ParamInfo::steps`, `step_count`, `snap`, `snap_to_steps`),
+  `clap/main.rs`, `vst3/{main_thread,audio_thread}.rs`, `unit.rs`, `bridge/proto.rs` (a
+  test literal), `session.rs` (`set_param_info_for_tests`), `tests/vst3_backend.rs`.
+- `cantus-test-plugins/vst3`: `pulse.rs`, `lib.rs` (`cantus_test_slow_next_process`).
+- `cantus-engine`: `midi.rs` (`MidiOutputs::send_at`, `OutPort`, `with_connect`).
+- `cantus-project`: `format.rs` (schema 41), `examples/write_fixture.rs`,
+  `fixtures/v41.cantus` (new).
+- `cantus-plugins`: `tests/pane_words.rs` (new).
+- `cantus-ui`, app and models: `app.rs` (the wrap before the frame's recording; the unsafe
+  global path kept), `i18n.rs` (`tf_in`, `has`), `record_session.rs`,
+  `views/modulator_record.rs`, `views/modulator_hosted.rs`, `views/plugins.rs`,
+  `views/transport_menus.rs`, `views/inspector{,_sheet,_channel,_mini,_record,_menus}.rs`.
+- `cantus-ui`, editors: `views/fx/{controls,host,frame,tonus_keys}.rs`,
+  `views/eq_editor_panel.rs`, `views/inst/organ.rs`.
+- Tests: `controllers_review{2,3}.rs`, `controllers_boot.rs`, `learn_everywhere.rs`,
+  `frame_budget.rs`.
 
 ## Left
 
