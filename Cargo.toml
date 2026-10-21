@@ -48,8 +48,8 @@ version = "0.1.0-beta.1"
 edition = "2021"
 rust-version = "1.95"
 authors = ["Luis Ángel Almazán <https://lalmazan.com>"]
-repository = "https://github.com/luis314159/cantus"
-homepage = "https://github.com/luis314159/cantus"
+repository = "https://github.com/luis314159/cantus-daw"
+homepage = "https://github.com/luis314159/cantus-daw"
 
 [workspace.dependencies]
 # The transcendental functions every unit calls (cantus_dsp::math, ADR 0031 R9): pinned

@@ -12,7 +12,7 @@
 use std::path::Path;
 
 pub const LANGS: &[&str] = &["en", "es"];
-const REPO: &str = "https://github.com/luis314159/cantus/blob/master/";
+const REPO: &str = "https://github.com/luis314159/cantus-daw/blob/master/";
 
 /// Build every language into `out`; returns the files written, relative to `out`, with
 /// `/` separators.

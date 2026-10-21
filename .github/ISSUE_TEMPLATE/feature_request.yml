@@ -6,8 +6,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Tell us about the music you are making and where Cantus got in the way — that matters more than the solution. The beta's [known limitations](https://github.com/luis314159/cantus/blob/master/docs/BETA.md#not-needed-for-the-beta-known-limitations) (warping, MIDI learn, macOS and Linux…) are already planned.
-        Cuéntanos qué música haces y dónde te estorbó Cantus — eso importa más que la solución. Las [limitaciones conocidas](https://github.com/luis314159/cantus/blob/master/docs/BETA.md#not-needed-for-the-beta-known-limitations) de la beta (warping, MIDI learn, macOS y Linux…) ya están en el plan.
+        Tell us about the music you are making and where Cantus got in the way — that matters more than the solution. The beta's [known limitations](https://github.com/luis314159/cantus-daw/blob/master/docs/BETA.md#not-needed-for-the-beta-known-limitations) (warping, MIDI learn, macOS and Linux…) are already planned.
+        Cuéntanos qué música haces y dónde te estorbó Cantus — eso importa más que la solución. Las [limitaciones conocidas](https://github.com/luis314159/cantus-daw/blob/master/docs/BETA.md#not-needed-for-the-beta-known-limitations) de la beta (warping, MIDI learn, macOS y Linux…) ya están en el plan.
   - type: textarea
     id: problem
     attributes:

@@ -24,7 +24,7 @@ Linux also needs `libasound2-dev`, `libxkbcommon-dev` and `libwayland-dev`.
 ## 2. Clone and fetch the ASIO SDK
 
 ```text
-git clone https://github.com/luis314159/cantus.git
+git clone https://github.com/luis314159/cantus-daw.git
 cd cantus
 cargo run -p xtask -- asio-sdk
 ```

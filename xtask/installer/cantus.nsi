@@ -27,7 +27,7 @@ ${StrStr}
 !define CLAP_DIR "$LOCALAPPDATA\Programs\Common\CLAP\Cantus"
 !define VST3_DIR "$LOCALAPPDATA\Programs\Common\VST3\Cantus"
 !define PROGID "Cantus.Project"
-!define HOMEPAGE "https://github.com/luis314159/cantus"
+!define HOMEPAGE "https://github.com/luis314159/cantus-daw"
 !define SHCNE_ASSOCCHANGED 0x08000000
 ; The privacy page's choice, handed to Cantus in this file of its data folder (round 26).
 !define CHOICES_FILE "installer-choices.txt"

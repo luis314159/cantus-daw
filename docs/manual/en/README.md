@@ -33,7 +33,7 @@ You need Windows 11, 64-bit (Windows 10 untested), and about
 200 MB of disk.
 
 1. Download `Cantus-0.1.0-beta.1-windows-x64-setup.exe` from the
-   [releases page](https://github.com/luis314159/cantus/releases).
+   [releases page](https://github.com/luis314159/cantus-daw/releases).
 2. Run it. It installs for you alone, in `%LOCALAPPDATA%\Programs\Cantus`, and asks for no
    administrator rights. This beta is not code-signed yet, so Windows may show *"Windows
    protected your PC"*: choose *More info ▸ Run anyway*.
@@ -929,7 +929,7 @@ what you did, what you expected and what happened; give your Cantus version (*He
 About Cantus*), Windows version, audio interface, driver, rate and buffer (all in the
 audio chip); attach a small project that shows the problem if you can. Tell us about your
 audio interface even when it works, with the
-[hardware report](https://github.com/luis314159/cantus/issues/new?template=hardware_report.yml),
+[hardware report](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml),
 and send ideas with *Help ▸ Suggest a feature…*. English or Spanish, both are welcome.
 
 *Cantus is made by Luis Ángel Almazán — [lalmazan.com](https://lalmazan.com) — and is free

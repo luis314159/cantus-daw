@@ -8,7 +8,7 @@ Vital and Surge XT, their public source code and manual. Everything is paraphras
 this report only as a search-engine excerpt, without the page being read, are marked **[excerpt]**. Colours
 and contrast ratios were **measured from the official screenshots** with Pillow and the WCAG 2.x formula
 (JPEG and video frames, so ±2 per channel). The screenshots are the vendors' images, kept in
-[`screenshots/`](screenshots/) (git-ignored) for internal reference only.*
+`screenshots/` (git-ignored) for internal reference only.*
 
 *Scope note: the other reports in this folder cover each category's engines in depth (wavetable, analog,
 FM/additive/granular, sampler, drums, bass, keys) and the plug-in standards
@@ -36,9 +36,9 @@ crate `cantus-host`); §6.8 only notes what the instrument side needs from that 
    favourite, undo/redo and a master level; sources in a row across the top half (oscillators → filters);
    **modulation sources in a strip across the bottom half**, each tile drawing its own shape live; **macros
    at the left or top**; and a **keyboard along the very bottom**. Serum 2, Vital, Pigments, Phase Plant and
-   Omnisphere all follow it ([fam-01](screenshots/fam-01-serum2-main.png),
-   [fam-02](screenshots/fam-02-vital-main-frame.png), [fam-03](screenshots/fam-03-phaseplant-overview.png),
-   [fam-09](screenshots/fam-09-pigments-synth-combi-view.png)).
+   Omnisphere all follow it (fam-01,
+   fam-02, fam-03,
+   fam-09).
 4. **Drag-to-modulate has won.** Vital, Serum, Pigments, Phase Plant, Bitwig and FabFilter all connect a
    source by dragging it onto a control. The best ones **light up every valid target during the drag**,
    **preview the result before you let go** (Vital), draw the **range as an arc on the knob** and show **how
@@ -48,7 +48,7 @@ crate `cantus-host`); §6.8 only notes what the instrument side needs from that 
 5. **The newest pattern is a "Play" page:** a big preset name, 4–8 macros, the keyboard and an animated
    visual, with the full editor one tab away (Pigments 7 Play view, FLEX's Play page, Phase Plant's macro
    row, Omnisphere's Orb). Most users never leave it, and it is the right default for Cantus too
-   ([fam-07](screenshots/fam-07-pigments-play-view-dark.jpg)).
+   (fam-07).
 6. **Legibility is poor across the category.** Measured knob bodies against their panel: FLEX **1.0:1**,
    Serum 2 macros **1.1:1**, Phase Plant **1.4–1.6:1**, Vital **1.7:1**, Bitwig **1.7:1**, Omnisphere 3
    **1.9:1**, Pigments dark **2.2:1** (WCAG 1.4.11 asks 3:1). Label text mostly passes (5–13:1), but dim
@@ -70,7 +70,7 @@ crate `cantus-host`); §6.8 only notes what the instrument side needs from that 
 
 ## 1. Screenshots saved
 
-All in [`screenshots/`](screenshots/), all checked (correct PNG/JPEG signature, larger than 40 KB) and
+All in `screenshots/`, all checked (correct PNG/JPEG signature, larger than 40 KB) and
 viewed. Sibling reports in this folder have their own (`dr-`, `fm-`, `ky-`, `va-`…); they are not repeated
 here.
 
@@ -155,13 +155,13 @@ piano or EP.** Wavetable, FM, granular and physical modelling separate the top t
 
 | Instrument | What reviewers say | Why it clears the bar |
 |---|---|---|
-| **Logic Alchemy** | gearnews ranks it the stand-out of Logic's bundle for its many engines and "stunning" sound; guides call it Logic's flagship and set it beside Serum and Omnisphere **[excerpt]**. Logic 12's Synth Players load Alchemy by default (SOS). | Additive, spectral, granular, VA and sample engines in one; 3,000+ presets; **three faces** (Browse / Simple / Advanced) over one engine ([fam-17](screenshots/fam-17-logic-alchemy.jpg)). |
+| **Logic Alchemy** | gearnews ranks it the stand-out of Logic's bundle for its many engines and "stunning" sound; guides call it Logic's flagship and set it beside Serum and Omnisphere **[excerpt]**. Logic 12's Synth Players load Alchemy by default (SOS). | Additive, spectral, granular, VA and sample engines in one; 3,000+ presets; **three faces** (Browse / Simple / Advanced) over one engine (fam-17). |
 | **Logic Studio Bass / Studio Piano** | Studio Bass's articulations (slides, damped notes) are called very convincing; one user write-up says it will replace NI's equivalents much of the time **[excerpt]**. Studio Piano is a large step up from the old patches (damper noise, sympathetic resonance) but not as detailed as NI's paid pianos **[excerpt]**. | Playing-style models and a *player* (Session Players) that performs them; a playing surface that shows the instrument (a fretboard for bass). |
-| **Live Operator, Wavetable, Drift, Meld** | Ableton's stock instruments are called "first-class" **[excerpt]**. gearnews says Live strikes the best balance between DAW and instruments. SOS: Meld is smooth, rich and "surprisingly versatile given the minimal number of controls". MusicRadar compares Meld to Arturia's MiniFreak and calls Live 12's new devices "exceptionally impressive". | **Every parameter is on one strip**, with values printed ([fam-16](screenshots/fam-16-ableton-drift-device.png)). The devices are MPE-aware, they share one look, and Racks add 16 macros with variations. |
+| **Live Operator, Wavetable, Drift, Meld** | Ableton's stock instruments are called "first-class" **[excerpt]**. gearnews says Live strikes the best balance between DAW and instruments. SOS: Meld is smooth, rich and "surprisingly versatile given the minimal number of controls". MusicRadar compares Meld to Arturia's MiniFreak and calls Live 12's new devices "exceptionally impressive". | **Every parameter is on one strip**, with values printed (fam-16). The devices are MPE-aware, they share one look, and Racks add 16 macros with variations. |
 | **Live Drum Rack / Drum Sampler** | MusicRadar praises Drum Sampler's "appealing simplicity". | Any instrument or sample per pad, chokes, per-pad effects and sends: the model every drum host copies. |
 | **Live Granulator III** | SOS: "seriously enhanced", MPE-capable, and "convincingly like a native Live instrument". | Capture straight into the device; drag-drop; a visual grain display. |
-| **FL Sytrus** | Called FL's flagship FM synth and "one of the most powerful stock plugins in any DAW" **[excerpt]**. | 6 operators, 3 filters, an FM/RM **matrix of knobs**, an X/Y performance pad ([fam-14](screenshots/fam-14-fl-sytrus-main.png)). |
-| **FL Harmor, FLEX** | "Have aged surprisingly well" **[excerpt]**. FLEX was rebuilt in 2026 around its browser. | Harmor's additive resynthesis is unique in any DAW. FLEX is a fast preset player: packs, tags and 8 named macros ([fam-12](screenshots/fam-12-fl-flex-main.png)). |
+| **FL Sytrus** | Called FL's flagship FM synth and "one of the most powerful stock plugins in any DAW" **[excerpt]**. | 6 operators, 3 filters, an FM/RM **matrix of knobs**, an X/Y performance pad (fam-14). |
+| **FL Harmor, FLEX** | "Have aged surprisingly well" **[excerpt]**. FLEX was rebuilt in 2026 around its browser. | Harmor's additive resynthesis is unique in any DAW. FLEX is a fast preset player: packs, tags and 8 named macros (fam-12). |
 | **Bitwig Poly Grid / Polymer** | gearnews: a "Reaktor-like" modular environment. Polymer mixes and matches oscillators, filters and envelopes. | **Every parameter can be modulated by 40+ polyphonic modulators**, with an Inspector list of all sources and destinations (§4.5). |
 | **Bitwig 6.1 Sampler** | Synth Anatomy calls 6.1 the sampler's move to "the next sound design level"; gearnews lists Spectral, Fragments (256 grains per voice), pitch analysis and slicing in every mode. | A sampler that is also a granular and spectral instrument. It is the new bar for "stock sampler". |
 | **Studio Pro Sample One XT** | SOS: its new modulation matrix (16 slots, 14 sources, 24 destinations) is the depth you would expect from a third-party sampler. | Shows the bar moving: stock samplers now need a mod matrix. |
@@ -203,7 +203,7 @@ Products studied: Serum 2, Vital, Pigments 7, Phase Plant 2, Diva, Omnisphere 3,
 **Two sub-families.** *Page-per-section* instruments (Serum's tabs, Omnisphere's A–D layers, Sytrus's
 OP tabs, Alchemy's A–D) trade overview for size. *One-page* instruments (Vital, Phase Plant, Drift) show
 everything and rely on modulation tiles to stay compact. Reviewers praise the one-page ones for speed and
-the paged ones for depth. The **Ableton device strip** ([fam-16](screenshots/fam-16-ableton-drift-device.png))
+the paged ones for depth. The **Ableton device strip** (fam-16)
 is the extreme one-page case: a full synth in 375 px of height, every value printed, no hover needed. It is
 the best model for a Cantus inspector strip.
 
@@ -211,10 +211,10 @@ the best model for a Cantus inspector strip.
 
 | Product | Structure | Distinctive feature |
 |---|---|---|
-| **Omnisphere 3** ([fam-06](screenshots/fam-06-omnisphere3-patch-browser.jpg)) | Directory and Author menus; **four facet columns (Category, Keyword, Mood, Timbre), each with an AND/OR toggle**; a description panel (author, path); a result list with **5-dot ratings**; Sort, shuffle, ↓ ↑ step, refresh, **▶ audition** | **Sound Match** (find patches like this one), **Sound Lock** (lock layers or effects while browsing others), a browser docked permanently at the left of the main page ([fam-05](screenshots/fam-05-omnisphere3-main.jpg)). SOS: marking and rating favourites is "a vital step if you want to find them again". |
-| **Kontakt 8** ([fam-22](screenshots/fam-22-kontakt8-library-browser.png)) | tabs (Instruments, Combined, Tools, Leap, Loops, One-shots); **facets Brand / Sound Type / Character** as pill rows; artwork tiles; a user filter and a ★ | a compact Side Pane browser (SOS); library art as the primary cue |
-| **XO** ([fam-10](screenshots/fam-10-xo-space-search-filter.png)) | Search; type pills (Kick, Snare, Clap, CI HH…); favourites; **range sliders for Main Freq, Length and "Drumminess"**; date added; folder checkboxes | **Space**: every sample as a point on a 2-D map, placed by sound similarity. You browse by moving, not by reading. |
-| **FLEX** ([fam-12](screenshots/fam-12-fl-flex-main.png), [fam-13](screenshots/fam-13-fl-flex-browser.png)) | a preset list with stars beside the pack art; search with **Tags ▸**, **history (recent)**, **favourites**, a **dice (random)**; toggle between pack and preset views | every preset carries at least two tags (type and style); Shift-click an arrow to preview; Ctrl+↑/↓ steps; a "lock changes" icon keeps your edits while browsing |
+| **Omnisphere 3** (fam-06) | Directory and Author menus; **four facet columns (Category, Keyword, Mood, Timbre), each with an AND/OR toggle**; a description panel (author, path); a result list with **5-dot ratings**; Sort, shuffle, ↓ ↑ step, refresh, **▶ audition** | **Sound Match** (find patches like this one), **Sound Lock** (lock layers or effects while browsing others), a browser docked permanently at the left of the main page (fam-05). SOS: marking and rating favourites is "a vital step if you want to find them again". |
+| **Kontakt 8** (fam-22) | tabs (Instruments, Combined, Tools, Leap, Loops, One-shots); **facets Brand / Sound Type / Character** as pill rows; artwork tiles; a user filter and a ★ | a compact Side Pane browser (SOS); library art as the primary cue |
+| **XO** (fam-10) | Search; type pills (Kick, Snare, Clap, CI HH…); favourites; **range sliders for Main Freq, Length and "Drumminess"**; date added; folder checkboxes | **Space**: every sample as a point on a 2-D map, placed by sound similarity. You browse by moving, not by reading. |
+| **FLEX** (fam-12, fam-13) | a preset list with stars beside the pack art; search with **Tags ▸**, **history (recent)**, **favourites**, a **dice (random)**; toggle between pack and preset views | every preset carries at least two tags (type and style); Shift-click an arrow to preview; Ctrl+↑/↓ steps; a "lock changes" icon keeps your edits while browsing |
 | **Vital** (source code) | search, a sortable list (★ · name · **style** · author), **style filters** (Bass, Lead, Keys, Pad, Percussion, Sequence, Experimental, SFX, Template), favourites | simple, fast, fully keyboard-searchable |
 | **Phase Plant** | name, author and a **description with hashtags** ("#mpe #lead #morphing") in the header; a browse panel | the tags live in the description text |
 | **Surge XT** | text search with **field queries** (`AUTHOR=`), category arrows, ♥ favourites, middle-click for a random patch | queries typed like search operators |
@@ -238,25 +238,25 @@ project"; a diff against the factory preset.
   designer.
 - **Showing what a macro drives:**
   - Serum 2 puts a **number badge** beside each macro (1, 3, 6), the number of targets it drives
-    ([fam-01](screenshots/fam-01-serum2-main.png)).
+    (fam-01).
   - Phase Plant puts a **row of coloured dots under each macro name**, one per connection
-    ([fam-03](screenshots/fam-03-phaseplant-overview.png)).
+    (fam-03).
   - FabFilter uses source-type dots.
 
   None of these name the targets without a click.
 - **Play pages are built from macros.** Pigments' Play view is 4 macros, the preset name, a visual and a
-  summary deck ([fam-07](screenshots/fam-07-pigments-play-view-dark.jpg)); FLEX's Play page is the pack art
+  summary deck (fam-07); FLEX's Play page is the pack art
   and the macros. This is where most users stay.
 
 ### 4.4 Drag-to-modulate, and how live modulation is drawn
 
 | Product | Connecting | Drawing the depth | Drawing the live value |
 |---|---|---|---|
-| **Vital** ([fam-04](screenshots/fam-04-vital-drag-to-modulate-frames.png)) | drag a source tile; **every valid target turns teal** during the drag; a drop circle follows the pointer; hovering a target **previews the modulation** (the filter curve moves) before you release | a coloured arc on the knob (the skin has a `RotaryArc` and a `ModulationMeter`) | a **modulation meter** per control, **split left/right for stereo modulation** (skin tokens `ModulationMeterLeft/Right`) |
+| **Vital** (fam-04) | drag a source tile; **every valid target turns teal** during the drag; a drop circle follows the pointer; hovering a target **previews the modulation** (the filter curve moves) before you release | a coloured arc on the knob (the skin has a `RotaryArc` and a `ModulationMeter`) | a **modulation meter** per control, **split left/right for stereo modulation** (skin tokens `ModulationMeterLeft/Right`) |
 | **Serum 2** | drag a source onto a knob, or use the MATRIX page | a **coloured arc** around the knob; a **count badge** on every source tab | the arc moves while notes play |
-| **Pigments** ([fam-09](screenshots/fam-09-pigments-synth-combi-view.jpg)) | drag and drop, colour-coded: each **family** of sources has one hue (keyboard pink, envelopes orange, LFOs yellow, functions green, random purple, macros cyan) | selecting a source shows its depth arcs on every target; "hover quick-edit" of the depth (Arturia's page) | source tiles animate their shape |
+| **Pigments** (fam-09) | drag and drop, colour-coded: each **family** of sources has one hue (keyboard pink, envelopes orange, LFOs yellow, functions green, random purple, macros cyan) | selecting a source shows its depth arcs on every target; "hover quick-edit" of the depth (Arturia's page) | source tiles animate their shape |
 | **Phase Plant** | hover a module and a **green ⊕** appears; drag it to the parameter; **the target turns from blue to green** | an arc in the modulator's colour | coloured dots under macros |
-| **Bitwig** ([fam-20](screenshots/fam-20-bitwig6-modulators.png)) | click a modulator's **routing port** (an output jack with a cord); assigned targets turn bright and **potential targets are shaded**; click a target and drag to set the depth | **blue tint for monophonic, green for polyphonic** modulation; amounts in orange in the Inspector | the ring moves; modulation can reach past the parameter's range ("relative") |
+| **Bitwig** (fam-20) | click a modulator's **routing port** (an output jack with a cord); assigned targets turn bright and **potential targets are shaded**; click a target and drag to set the depth | **blue tint for monophonic, green for polyphonic** modulation; amounts in orange in the Inspector | the ring moves; modulation can reach past the parameter's range ("relative") |
 | **Surge XT** | select a source in the routing bar, which puts the UI in **routing mode (bright green)** | **blue depth sliders** drawn over the base controls | the Modulation List (see 4.5) |
 | **FabFilter** | drag a source's handle; valid targets light up; the slot panel pops up | an arc in the source-type colour, yellow when types mix | arcs and a decorative "source flow" (`fabfilter/family.md` §5) |
 | **Omnisphere / Alchemy / Diva** | menus and slots: source and target drop-downs ("MODULATION — Wheel → Cutoff", Alchemy's per-target rack with Depth knobs) | numbers in the slot | little or none on the knob |
@@ -279,10 +279,10 @@ project"; a diff against the factory preset.
 ### 4.5 The modulation matrix
 
 - **A grid of knobs.** Sytrus's FM/RM matrix: operators in rows, destinations in columns, a knob in every
-  cell. It is dense but readable because the grid *is* the topology ([fam-14](screenshots/fam-14-fl-sytrus-main.png)).
+  cell. It is dense but readable because the grid *is* the topology (fam-14).
 - **A spreadsheet.** Meld's expanded view: **targets in rows**, sources grouped in columns (Envelopes,
   Modulation, MIDI & MPE, Cross-modulation), the depth **typed into a cell**, and colour by engine (cyan A,
-  orange B), with "Copy to B" ([fam-15](screenshots/fam-15-ableton-meld-expanded.png)). It is the clearest
+  orange B), with "Copy to B" (fam-15). It is the clearest
   overview found. Measured: an empty cell against the grid is only 1.6:1, but values are cyan at 10:1.
 - **Slot lists.** Serum's MATRIX page and Vital's MATRIX tab: one row per connection (source, curve, amount,
   bipolar, stereo, destination). Pigments and Alchemy put the list per target.
@@ -304,7 +304,7 @@ project"; a diff against the factory preset.
 | Octave and fine tune | Pigments (Octave, Fine) |
 | Playable range, key switches in another colour | Kontakt libraries (widely documented; not verified on a page read here) |
 | Sample zones and root keys | samplers (Bitwig's "Use [keys] from C1", slice notes) |
-| The instrument's own playing surface | Logic Studio Bass's **fretboard**, which shows where on the neck the note is played ([fam-18](screenshots/fam-18-logic-studio-bass.jpg)) |
+| The instrument's own playing surface | Logic Studio Bass's **fretboard**, which shows where on the neck the note is played (fam-18) |
 | Condition, hammer and range | Pianoteq (the "Condition" slider over the keys) |
 
 **What no keyboard shows:** **voices** (how many are sounding and which are being released or stolen),
@@ -324,8 +324,8 @@ vector UIs like Vital, Pigments and Surge) or the controls only spread out (olde
 
 ### 4.8 Themes
 
-- **Pigments** ships dark and light themes ([fam-07](screenshots/fam-07-pigments-play-view-dark.jpg),
-  [fam-08](screenshots/fam-08-pigments-play-view-light.jpg)). SOS notes the Pigments 6 light mode got
+- **Pigments** ships dark and light themes (fam-07,
+  fam-08). SOS notes the Pigments 6 light mode got
   darker knobs for contrast. **It is the only mainstream instrument found with a first-class light theme.**
 - **Vital** has a real **skin system**: about 60 colour tokens (background, body, heading text, rotary arc,
   rotary body, modulation meter, and so on), per-section overrides for 30 sections (oscillator, filter,
@@ -354,7 +354,7 @@ vector UIs like Vital, Pigments and Surge) or the controls only spread out (olde
 - **FabFilter:** double-click, with a parser that takes `1k`, `A4` and `2x`.
 - **Serum 2 and Vital:** double-click or type in value fields; printed readouts are editable.
 - **Ableton:** every numeric box accepts typing; the device *is* a set of readouts.
-- **Pianoteq:** a value balloon above the touched control ([fam-11](screenshots/fam-11-pianoteq9-main.jpg)).
+- **Pianoteq:** a value balloon above the touched control (fam-11).
 
 Direct numeric entry is universal. **Note-name entry** (a filter cutoff at "A4") is FabFilter's alone
 among the products studied.
@@ -455,7 +455,7 @@ Alchemy and Studio Bass (reduced inside a laptop render) are not measured.
 - **Primary text is fine; secondary text is where they fail.** The fails are idle and unused states,
   captions, metadata labels and rating dots: exactly the text that tells you *what is not happening*.
 - **Size is the other failure.** The Kontakt 8 factory instrument's labels ("Articulation", "Legato") have a
-  cap height of about **1/85 of the instrument's width** ([fam-21](screenshots/fam-21-kontakt8-factory-instrument.png)).
+  cap height of about **1/85 of the instrument's width** (fam-21).
   At a typical 630–700 px instrument width that is 7–8 px, below the 11 px floor set in
   `fabfilter/family.md` §7.4.
 

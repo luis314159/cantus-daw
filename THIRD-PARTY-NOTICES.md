@@ -3,7 +3,7 @@
 # Third-party notices
 
 **Cantus** — a free, open-source digital audio workstation. Created by Luis Ángel
-Almazán — [lalmazan.com](https://lalmazan.com). Source: <https://github.com/luis314159/cantus>.
+Almazán — [lalmazan.com](https://lalmazan.com). Source: <https://github.com/luis314159/cantus-daw>.
 
 Cantus is built from the work of many people. This file names every part of a Cantus
 release that someone else made, the licence it is under and the notices those licences
@@ -36,7 +36,7 @@ Copyright © 2026 Luis Ángel Almazán and the Cantus contributors.
 
 The program as distributed is a combined work under the **GNU General Public License,
 version 3 or later** (ADR 0001). Its complete corresponding source is the Git tag of the
-release at <https://github.com/luis314159/cantus>, plus the two inputs that are not
+release at <https://github.com/luis314159/cantus-daw>, plus the two inputs that are not
 committed there: the Steinberg ASIO SDK (below: where it comes from and its pinned
 SHA-256) and the crates from crates.io that `Cargo.lock` names (each listed below). The
 logos, icons, the interface's drawings, the factory presets and the demo songs are

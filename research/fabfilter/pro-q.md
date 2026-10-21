@@ -4,7 +4,7 @@
 mentions Pro Tools 2025.12 and the March 2026 slope-menu change), the online help, FabFilter's news posts,
 press reviews and user forums. Everything below is paraphrased. Where the manual is silent and a value comes
 from another source or an official screenshot, the text says so. Screenshots are FabFilter's own and are in
-[`screenshots/`](screenshots/), used here for internal reference only.*
+`screenshots/`, used here for internal reference only.*
 
 ---
 
@@ -78,24 +78,24 @@ was checked to be a real JPEG with an `FFD8FF` signature and larger than 30 KB.
 
 | File | What it shows |
 |---|---|
-| [`pro-q-01-main.jpg`](screenshots/pro-q-01-main.jpg) | The full interface (2298×1380, from the product page). Six bands of several shapes. A purple dynamic bell shows its range band with ▲▼ handles, and a spectral bell shows a jagged yellow result curve. Pre and post spectra are drawn behind. The floating band panel shows "(multiple)" for a multi-selection. On the right are the yellow EQ dB scale (±12) next to the grey analyzer scale and a stereo output meter. The bottom bar shows MIDI Learn, *Natural Phase + High*, the instance button ("Guitar"), *Analyzer: Pre+Post+SC*, character, and 100% / 0.0 dB. |
-| [`pro-q-02-overview-annotated.jpg`](screenshots/pro-q-02-overview-annotated.jpg) | The same view with FabFilter's labels: undo/redo, A/B, presets, help, full screen, output meter, resize, output options, character modes, analyzer, instance list, processing mode, band controls, MIDI learn, piano and EQ Sketch buttons. |
-| [`pro-q-03-eq-display-parameter-popup.jpg`](screenshots/pro-q-03-eq-display-parameter-popup.jpg) | The hover popup next to a band: frequency, gain and Q (with a "Cmd" hint for Q-drag), power, solo (headphones) and delete, plus a row of 10 shape icons. |
-| [`pro-q-04-band-controls.jpg`](screenshots/pro-q-04-band-controls.jpg) | The floating band panel: bypass, shape (Bell) with its slope (12 dB/oct), FREQ, GAIN (with a range ring), the gain–Q interaction icon, Q (default 1), ‹ 2 › band stepper, delete, stereo placement (Stereo) and split (scissors). |
-| [`pro-q-05-dynamic-eq.jpg`](screenshots/pro-q-05-dynamic-eq.jpg) | Several dynamic bands. Each has a filled region between its static gain and gain plus range, a ▲▼ handle to drag the range, and a yellow curve showing the *current* dynamic response. |
-| [`pro-q-06-dynamic-band-controls-expanded.jpg`](screenshots/pro-q-06-dynamic-band-controls-expanded.jpg) | The expanded dynamics panel. The range ring is red and shows the live gain change in yellow. It also shows the threshold slider (A = auto) with a level meter, sidechain and audition buttons, the Free trigger with draggable low/high handles drawn as a bar above the panel, and A and R knobs. |
-| [`pro-q-07-spectral-dynamics.jpg`](screenshots/pro-q-07-spectral-dynamics.jpg) | A spectral band, green, 1–20 kHz. The result curve cuts only individual peaks. The panel adds a Spectral Density slider and a Spectral Tilt icon. |
-| [`pro-q-08-instance-list.jpg`](screenshots/pro-q-08-instance-list.jpg) | The instance list at mixed zoom. Tracks run as rows with colour tags and pins. Mini Pro-Q, Pro-C, Pro-DS and Pro-G panels sit side by side, and one Pro-Q is fully editable. A coloured minimap lists the tracks on the right. The toolbar has zoom, search, options and a pin filter. |
-| [`pro-q-09-eq-sketch.jpg`](screenshots/pro-q-09-eq-sketch.jpg) | EQ Sketch while drawing: a freehand yellow curve with a glowing pen cursor. The sketch button (bottom left) is lit. |
-| [`pro-q-10-eq-match-reference.jpg`](screenshots/pro-q-10-eq-match-reference.jpg) | The EQ Match panel in the instance list, with Input and Reference record buttons. The reference menu offers Input, Sidechain, External (other instances by track name), Load File, and Save Input As Reference Spectrum. |
-| [`pro-q-11-eq-match-result.jpg`](screenshots/pro-q-11-eq-match-result.jpg) | The match result: a white difference curve, fitted bands (8) in yellow, a NUMBER OF BANDS slider, and ‹ Analyze / Finish. |
-| [`pro-q-12-analyzer-settings.jpg`](screenshots/pro-q-12-analyzer-settings.jpg) | The analyzer panel: Pre, Post and SC toggles, with a source menu listing the sidechain and other instances. Range 120 dB, Resolution Maximum, Speed Medium, Tilt 4.5 dB/oct, plus Spectrum Grab, Collisions and Freeze buttons. |
-| [`pro-q-13-spectrum-grab.jpg`](screenshots/pro-q-13-spectrum-grab.jpg) | Spectrum Grab: a frozen spectrum tinted purple, peaks labelled (64 Hz, 281 Hz, 692 Hz, 1.5 kHz, 5.7 kHz), and the cursor frequency readout on the axis. |
-| [`pro-q-14-stereo-lr-mid-side.jpg`](screenshots/pro-q-14-stereo-lr-mid-side.jpg) | Per-band placement. Band dots carry M, L, R and S badges, and result curves are grouped per channel (white L, red R, green M, blue S). |
-| [`pro-q-15-preset-browser.jpg`](screenshots/pro-q-15-preset-browser.jpg) | The preset browser: options gear, search, favourites star, folder list, and a details pane with name, author, tags (+) and description. |
-| [`pro-q-16-piano-display.jpg`](screenshots/pro-q-16-piano-display.jpg) | The piano strip replaces the frequency axis. There is one dot per band on the keys, and a tooltip reads "Band 3 Frequency 392.00 Hz G4 +00". |
-| [`pro-q-17-surround-atmos.jpg`](screenshots/pro-q-17-surround-atmos.jpg) | The surround speaker picker (All, Center, L/R, Lss/Rss, Lsr/Rsr, LFE, plus Stereo placement). The dot is labelled "Lss/Rss" and the meters are labelled per speaker. |
-| [`pro-q-18-band-solo.jpg`](screenshots/pro-q-18-band-solo.jpg) | Band solo: a red headphone button, with the audible region shaded between two vertical lines. |
+| `pro-q-01-main.jpg` | The full interface (2298×1380, from the product page). Six bands of several shapes. A purple dynamic bell shows its range band with ▲▼ handles, and a spectral bell shows a jagged yellow result curve. Pre and post spectra are drawn behind. The floating band panel shows "(multiple)" for a multi-selection. On the right are the yellow EQ dB scale (±12) next to the grey analyzer scale and a stereo output meter. The bottom bar shows MIDI Learn, *Natural Phase + High*, the instance button ("Guitar"), *Analyzer: Pre+Post+SC*, character, and 100% / 0.0 dB. |
+| `pro-q-02-overview-annotated.jpg` | The same view with FabFilter's labels: undo/redo, A/B, presets, help, full screen, output meter, resize, output options, character modes, analyzer, instance list, processing mode, band controls, MIDI learn, piano and EQ Sketch buttons. |
+| `pro-q-03-eq-display-parameter-popup.jpg` | The hover popup next to a band: frequency, gain and Q (with a "Cmd" hint for Q-drag), power, solo (headphones) and delete, plus a row of 10 shape icons. |
+| `pro-q-04-band-controls.jpg` | The floating band panel: bypass, shape (Bell) with its slope (12 dB/oct), FREQ, GAIN (with a range ring), the gain–Q interaction icon, Q (default 1), ‹ 2 › band stepper, delete, stereo placement (Stereo) and split (scissors). |
+| `pro-q-05-dynamic-eq.jpg` | Several dynamic bands. Each has a filled region between its static gain and gain plus range, a ▲▼ handle to drag the range, and a yellow curve showing the *current* dynamic response. |
+| `pro-q-06-dynamic-band-controls-expanded.jpg` | The expanded dynamics panel. The range ring is red and shows the live gain change in yellow. It also shows the threshold slider (A = auto) with a level meter, sidechain and audition buttons, the Free trigger with draggable low/high handles drawn as a bar above the panel, and A and R knobs. |
+| `pro-q-07-spectral-dynamics.jpg` | A spectral band, green, 1–20 kHz. The result curve cuts only individual peaks. The panel adds a Spectral Density slider and a Spectral Tilt icon. |
+| `pro-q-08-instance-list.jpg` | The instance list at mixed zoom. Tracks run as rows with colour tags and pins. Mini Pro-Q, Pro-C, Pro-DS and Pro-G panels sit side by side, and one Pro-Q is fully editable. A coloured minimap lists the tracks on the right. The toolbar has zoom, search, options and a pin filter. |
+| `pro-q-09-eq-sketch.jpg` | EQ Sketch while drawing: a freehand yellow curve with a glowing pen cursor. The sketch button (bottom left) is lit. |
+| `pro-q-10-eq-match-reference.jpg` | The EQ Match panel in the instance list, with Input and Reference record buttons. The reference menu offers Input, Sidechain, External (other instances by track name), Load File, and Save Input As Reference Spectrum. |
+| `pro-q-11-eq-match-result.jpg` | The match result: a white difference curve, fitted bands (8) in yellow, a NUMBER OF BANDS slider, and ‹ Analyze / Finish. |
+| `pro-q-12-analyzer-settings.jpg` | The analyzer panel: Pre, Post and SC toggles, with a source menu listing the sidechain and other instances. Range 120 dB, Resolution Maximum, Speed Medium, Tilt 4.5 dB/oct, plus Spectrum Grab, Collisions and Freeze buttons. |
+| `pro-q-13-spectrum-grab.jpg` | Spectrum Grab: a frozen spectrum tinted purple, peaks labelled (64 Hz, 281 Hz, 692 Hz, 1.5 kHz, 5.7 kHz), and the cursor frequency readout on the axis. |
+| `pro-q-14-stereo-lr-mid-side.jpg` | Per-band placement. Band dots carry M, L, R and S badges, and result curves are grouped per channel (white L, red R, green M, blue S). |
+| `pro-q-15-preset-browser.jpg` | The preset browser: options gear, search, favourites star, folder list, and a details pane with name, author, tags (+) and description. |
+| `pro-q-16-piano-display.jpg` | The piano strip replaces the frequency axis. There is one dot per band on the keys, and a tooltip reads "Band 3 Frequency 392.00 Hz G4 +00". |
+| `pro-q-17-surround-atmos.jpg` | The surround speaker picker (All, Center, L/R, Lss/Rss, Lsr/Rsr, LFE, plus Stereo placement). The dot is labelled "Lss/Rss" and the meters are labelled per speaker. |
+| `pro-q-18-band-solo.jpg` | Band solo: a red headphone button, with the audible region shaded between two vertical lines. |
 
 Other official images were downloaded to scratch but not kept: EQ Match access menu, output options, knobs, MIDI
 learn, resize/scaling menus, processing mode menu, magnitude and phase plots, sidechain routing per DAW. They are

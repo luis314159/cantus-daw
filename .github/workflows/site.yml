@@ -27,6 +27,8 @@ env:
 
 jobs:
   deploy:
+    # Runs in luis314159/cantus only (round 29: the public repository builds, tests and releases; the private one deploys the site).
+    if: github.repository == 'luis314159/cantus'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

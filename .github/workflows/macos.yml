@@ -34,6 +34,8 @@ env:
 jobs:
   # Did code change since the commit the last successful macOS run tested? By hand: yes.
   changed:
+    # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
+    if: github.repository == 'luis314159/cantus-daw'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

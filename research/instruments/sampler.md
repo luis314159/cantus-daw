@@ -8,7 +8,7 @@ Signalsmith Stretch, MIT; ConvertWithMoss documentation, LGPL-3), the DSP litera
 forums. Everything is paraphrased; no code was copied. The session's web-search quota ran out part-way, so some
 facts come from a single search excerpt; the text says so wherever that is the case, and says "from memory" where
 a fact could not be re-checked today. Screenshots are the manufacturers' own and live in the git-ignored
-[`screenshots/`](screenshots/) folder, for internal reference only.*
+`screenshots/` folder, for internal reference only.*
 
 *House rules this report builds on: [`../fabfilter/family.md`](../fabfilter/family.md) §7 (device frame, knob and
 display rules, host-owned undo and modulation) and the report shape of [`../fabfilter/pro-q.md`](../fabfilter/pro-q.md).
@@ -92,7 +92,7 @@ A widely shared "Kontakt AI replaces Kontakt" leak was gearnews's April Fools' p
 
 ## 2. Screenshots saved
 
-All in [`screenshots/`](screenshots/) (git-ignored). Each was downloaded with `curl -L`, checked for a real
+All in `screenshots/` (git-ignored). Each was downloaded with `curl -L`, checked for a real
 PNG/JPEG signature and viewed. WebP originals were converted to PNG locally.
 
 | File | What it shows |
@@ -144,20 +144,20 @@ behind a CDN listing). Both are described from reviews and vendor text.
   (forum, Dec 2020).
 - **Round robin, keyswitches, pedal layers** are *Group Start Options*: a rule list of conditions (always, start on
   key, start on controller, cycle round robin, cycle random, slice trigger) joined with and/or
-  ([smp-05](screenshots/smp-05-kontakt-group-start-options.png)).
+  (smp-05).
 - **Voice groups:** 128 per instrument, each with a voice limit, a stealing mode (kill any, oldest, newest,
   highest, lowest), *prefer released*, a fade time in ms, and one of 16 **exclusive groups** (choke).
 - **Loops:** up to **eight loop regions per zone**, each with start, end, crossfade in ms, a tune applied after the
   first pass, a repeat count (0 = forever) and a mode: until end, until end ping-pong, until release, until release
   ping-pong, one shot. Snap-to-zero-crossing for loops and for sample start/end. The **Loop Edit view**
-  ([smp-04](screenshots/smp-04-kontakt-loop-edit-view.png)) shows the seam.
+  (smp-04) shows the seam.
 - **Release triggers** on the Source module, with a counter that measures how long the note was held and becomes a
   modulation source (to lower release-sample volume after long notes), and a "release trigger only once" option.
 - **Mapping:** drag samples onto the grid; **auto-mapping from filename tokens** (split the name into tokens and say
   which is root, low key, high key, velocity); batch key and velocity crossfades; root-key helpers
-  ([smp-01](screenshots/smp-01-kontakt-mapping-editor.png), [smp-02](screenshots/smp-02-kontakt-mapping-crossfades.png)).
+  (smp-01, smp-02).
 - **Slicing:** the Wave Editor's Grid (Fix or Auto by transient) feeds Beat Machine, Time Machine, or auto-mapping
-  slices to keys with a "drag MIDI to host" button ([smp-07](screenshots/smp-07-kontakt-sync-slice.png)).
+  slices to keys with a "drag MIDI to host" button (smp-07).
 - **Storage:** NCW, NI's lossless codec (the manual quotes 30–50 % smaller; reverse-engineered as DPCM with bit
   truncation in 512-sample blocks, optional mid/side), and NKX monoliths. Encrypted NKI/NKX for Player libraries.
 - **Scripting:** KSP (Kontakt Script Processor) on every instrument; Kontakt 8 adds the Komplete UI framework
@@ -177,7 +177,7 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 ### 3.2 UVI Falcon 2026
 
 - **Hierarchy:** Multi → Part → Program → **Layer** → **Keygroup** → **Oscillator(s)**
-  ([smp-09](screenshots/smp-09-falcon-2026-edit-view.png)). Effects, event processors (scripts) and modulators can
+  (smp-09). Effects, event processors (scripts) and modulators can
   be placed at program, layer or keygroup level; keygroups can hold several oscillators of any type.
 - **24 oscillators, 8 of them sample-based:** Sample (with crop, normalise, silence, reverse, fades and "apply an
   effect in place"), **Slice** (transient or embedded REX markers, export slices as a Falcon patch, WAVs or a MIDI
@@ -210,15 +210,15 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 
 - **Sampler** tabs: Zone, Sample, Pitch/Osc, Filter/Global, Modulation, MIDI. The Zone editor lists sample layers
   and shows **one axis at a time** — Key, Velocity, or **Sample Select** (a third, user-driven axis for articulations
-  or mic mixes) ([smp-11](screenshots/smp-11-ableton-sampler-key-zone-editor.png)). Zone fades are Lin or Pow.
+  or mic mixes) (smp-11). Zone fades are Lin or Pow.
 - **Round robin** (new in 12): a toggle, a mode (Forward and others) and a **Reset** interval such as 1 Bar
-  ([smp-13](screenshots/smp-13-ableton-sampler-round-robin.png)).
+  (smp-13).
 - Global **Interpol** Normal / Good / Best ("significant demands on your CPU" above Normal), and a **RAM mode** that
   loads the whole multisample (the default streams). Loops use **constant-power crossfades by default**. *Snap* moves
   start/end points to zero crossings **of the left channel only**, so the manual advises a small crossfade too.
 - **Simpler:** Classic (polyphonic, looping, ADSR), One-Shot (monophonic, no loop), **Slice** (by Transient with a
   sensitivity up to 64 slices, Beat, Region or Manual; Trigger/Gate; Mono/Poly), with Live's warp modes available in
-  all three ([smp-12](screenshots/smp-12-ableton-simpler-slice-mode.png)). Warped clips dropped into Simpler keep
+  all three (smp-12). Warped clips dropped into Simpler keep
   their warp markers.
 - **Drum Sampler** (Live 12): one-shot playback with nine playback effects (Stretch, Loop, Pitch Env, Punch,
   8-Bit, FM, Ring Mod, Sub Osc, Noise).
@@ -229,7 +229,7 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 
 - **Sampler**: Mapping pane with three editors — the Key Mapping Editor (zones over a keyboard, velocity editable
   graphically), Group view and Zone view (column tables) — and a Zone pane with the waveform, start/end, fades, loop
-  and crossfade ([smp-20](screenshots/smp-20-logic-sampler-mapping-zone.png)).
+  and crossfade (smp-20).
 - **Import:** drop SoundFont2, DLS or Gigasampler files into the Sampler Instruments folder and Logic converts them
   (SF2 banks become a `.bk` folder of instruments). **Streaming** ("virtual memory") keeps only the attacks in RAM.
 - **Quick Sampler**: one file, modes Classic, One Shot, Slice, Recorder; **Flex** with *Follow Tempo* for tempo-tagged
@@ -243,7 +243,7 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 ### 3.6 FL Studio: DirectWave, Slicex, FLEX
 
 - **DirectWave**: a bank of up to 16 programs; each program's zones shown both as a spreadsheet and as a grid
-  ([smp-15](screenshots/smp-15-fl-directwave-main.png)); five loop modes (Disabled, Forward, One Shot, Sustained,
+  (smp-15); five loop modes (Disabled, Forward, One Shot, Sustained,
   Bounce); mute groups; **trigger groups** with Cycle, Random and **Avoid Previous**; a *Channel Sampler* that
   auto-samples any plug-in with key zones, velocity layers and cycle layers. It **imports more formats than any other
   commercial sampler here**: Akai AKP, Battery 1–3, EXS24, Giga, Kontakt 1/2, Kurzweil, MPC (disk), Reason NN-XT,
@@ -261,7 +261,7 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 - A free player whose instruments are a folder of audio plus one XML `.dspreset`; `.dslibrary` is the same zipped,
   `.dsbundle` an unzipped folder. **Commercial libraries are encrypted** and only the plug-in can decrypt them.
 - The library author defines the whole front end (`<ui>`: images, knobs, menus, keyboard colours) and bindings from
-  controls to engine parameters ([smp-17](screenshots/smp-17-decent-sampler-player.jpg)). Since August 2026 it also
+  controls to engine parameters (smp-17). Since August 2026 it also
   has an in-app preset editor with loop tools, oscillators, a 6-operator FM engine and DX7 patch import.
 - Format details in §5.3.
 
@@ -270,9 +270,9 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
 - Free, with a Professional tier that adds time-stretch/pitch-shift modes, effects routing and trigger switching.
   Reads WAV, AIFF, Ogg, FLAC and Yamaha waves; loads SF2, SFZ, Akai and EXS.
 - 128 voices, **RAM or DFD chosen per zone** (a column in the mapping table,
-  [smp-18](screenshots/smp-18-tx16wx-keymapper.png)); two LFOs, two envelopes and three step sequencers per voice into
+  smp-18); two LFOs, two envelopes and three step sequencers per voice into
   a matrix; interactive slicer with automatic keyboard layout; wave editor with non-destructive real-time crossfade,
-  **loop overlay** ([smp-19](screenshots/smp-19-tx16wx-loop-overlay.png)) and automatic loop detection.
+  **loop overlay** (smp-19) and automatic loop detection.
 - Its sound files are a **fully documented XML format** (`.txprog`, `.txbank`, `.txperf`).
 
 ### 3.9 sforzando and sfizz (the SFZ players)
@@ -293,7 +293,7 @@ libraries only run in full Kontakt (search excerpt from a buyer's guide; the fee
   real-time **stem separation**, key and BPM detection, keyboard mode, Hold/Trigger and Mono/Poly per pad.
 - **XLN Life**: record or drop audio, and it **slices, clusters similar hits into sounds, and generates grooves**
   with Density, Syncopation and Symmetry; slices are coloured by cluster
-  ([smp-14](screenshots/smp-14-xln-life-edit.png)). Field Recorder phone app; a 30-second DAW record buffer.
+  (smp-14). Field Recorder phone app; a 30-second DAW record buffer.
 
 ---
 
@@ -628,12 +628,12 @@ as the preset's artwork, drop what we cannot map with a log line.
 
 | Product | Model | Strength | Weakness |
 |---|---|---|---|
-| **Kontakt** ([smp-01](screenshots/smp-01-kontakt-mapping-editor.png), [smp-02](screenshots/smp-02-kontakt-mapping-crossfades.png)) | A true 2D grid (keys across, velocity up), a status line for the selected zone, and a keyboard below that marks played notes with a red tick whose height is the velocity | Key and velocity visible at once; drag edges, Ctrl-drag for crossfades, rubber-band select, Alt-drag zoom; auto-map from name tokens; "Select zone via MIDI" | Names rotated 90° and unreadable in narrow zones; overlapping zones (round robins, mic layers) stack invisibly; groups are filtered by a toggle rather than shown; an icon-only control strip ("Auto", "Root", ⟷ icons); small bitmap type, grey on grey |
-| **TX16Wx** ([smp-18](screenshots/smp-18-tx16wx-keymapper.png)) | 2D grid **plus a synchronized table**; fade ranges are drawn *inside* each zone as a gradient | The best of both: shape in the grid, exact numbers in the table (Lo/Hi key, Lo/Hi vel, fade key and fade velocity, root, fine, sample, RAM/DFD, loops, level, pan) | Dark, saturated greens; names still vertical in narrow zones |
-| **DirectWave** ([smp-15](screenshots/smp-15-fl-directwave-main.png)) | A spreadsheet of zones above a grid | Sortable and exact; FL users know it | The grid is an afterthought: tiny cells, rotated labels, and the two views compete for height |
-| **Ableton Sampler** ([smp-11](screenshots/smp-11-ableton-sampler-key-zone-editor.png), [smp-13](screenshots/smp-13-ableton-sampler-round-robin.png)) | A list of layers, **one row per sample**, each a bar on a keyboard ruler; Key, Vel and Sel are three separate views | Always legible (names never rotate); scales to hundreds of layers; the Sample Select axis is a clean way to handle articulations and mic sets | You never see key and velocity together; a velocity-layered piano becomes a long list |
-| **Logic Sampler** ([smp-20](screenshots/smp-20-logic-sampler-mapping-zone.png)) | Groups list + zones as labelled columns over a keyboard, plus Group and Zone table views | Values visible at rest as "Label: value" strips; the selected zone in a contrasting colour; the waveform pane directly below | Velocity is secondary in the key view; blue on navy is low contrast for unselected zones |
-| **Falcon** ([smp-09](screenshots/smp-09-falcon-2026-edit-view.png)) | A mapping strip docked at the bottom of an editor that shows the Program/Layer/Keygroup/Oscillator hierarchy as stacked panels | The hierarchy is always visible, with FX and events at each level; "highlight played keygroups" | The mapping view is small by default; MusicTech found the muted colours make sections hard to tell apart |
+| **Kontakt** (smp-01, smp-02) | A true 2D grid (keys across, velocity up), a status line for the selected zone, and a keyboard below that marks played notes with a red tick whose height is the velocity | Key and velocity visible at once; drag edges, Ctrl-drag for crossfades, rubber-band select, Alt-drag zoom; auto-map from name tokens; "Select zone via MIDI" | Names rotated 90° and unreadable in narrow zones; overlapping zones (round robins, mic layers) stack invisibly; groups are filtered by a toggle rather than shown; an icon-only control strip ("Auto", "Root", ⟷ icons); small bitmap type, grey on grey |
+| **TX16Wx** (smp-18) | 2D grid **plus a synchronized table**; fade ranges are drawn *inside* each zone as a gradient | The best of both: shape in the grid, exact numbers in the table (Lo/Hi key, Lo/Hi vel, fade key and fade velocity, root, fine, sample, RAM/DFD, loops, level, pan) | Dark, saturated greens; names still vertical in narrow zones |
+| **DirectWave** (smp-15) | A spreadsheet of zones above a grid | Sortable and exact; FL users know it | The grid is an afterthought: tiny cells, rotated labels, and the two views compete for height |
+| **Ableton Sampler** (smp-11, smp-13) | A list of layers, **one row per sample**, each a bar on a keyboard ruler; Key, Vel and Sel are three separate views | Always legible (names never rotate); scales to hundreds of layers; the Sample Select axis is a clean way to handle articulations and mic sets | You never see key and velocity together; a velocity-layered piano becomes a long list |
+| **Logic Sampler** (smp-20) | Groups list + zones as labelled columns over a keyboard, plus Group and Zone table views | Values visible at rest as "Label: value" strips; the selected zone in a contrasting colour; the waveform pane directly below | Velocity is secondary in the key view; blue on navy is low contrast for unselected zones |
+| **Falcon** (smp-09) | A mapping strip docked at the bottom of an editor that shows the Program/Layer/Keygroup/Oscillator hierarchy as stacked panels | The hierarchy is always visible, with FX and events at each level; "highlight played keygroups" | The mapping view is small by default; MusicTech found the muted colours make sections hard to tell apart |
 
 **Conclusion for Cantus:** a **2D key × velocity grid with a synchronized table** (TX16Wx's idea), **horizontal zone
 labels that elide instead of rotating**, overlapping zones fanned out as a stack you can expand (the round-robin and
@@ -642,22 +642,22 @@ that shows **which zone each sounding voice is playing** and the round-robin pos
 
 ### 6.2 Waveform and loop editing
 
-- **Kontakt's Wave Editor** ([smp-03](screenshots/smp-03-kontakt-wave-editor-loop-tab.png)): toolbar, a numeric status
+- **Kontakt's Wave Editor** (smp-03): toolbar, a numeric status
   row, the waveform, tabs for Loop / Sync-Slice / Zone Envelopes / Sample Editor, a 2×4 grid of loop slots, and the
-  **Loop Edit seam view** ([smp-04](screenshots/smp-04-kontakt-loop-edit-view.png)). The seam view is the single most
+  **Loop Edit seam view** (smp-04). The seam view is the single most
   useful loop tool in the survey; the eight-slot grid is rarely needed.
-- **TX16Wx's loop overlay** ([smp-19](screenshots/smp-19-tx16wx-loop-overlay.png)) draws the post-end audio over the
+- **TX16Wx's loop overlay** (smp-19) draws the post-end audio over the
   loop start. Cheaper to read than the seam view for long loops.
-- **DirectWave** ([smp-16](screenshots/smp-16-fl-directwave-sample-tab.png)) draws a **spectrogram behind the waveform**
+- **DirectWave** (smp-16) draws a **spectrogram behind the waveform**
   (useful for spotting noise and tails) but sets loop points with **knobs**, which is the wrong control for a sample
   position.
 - **Logic's Zone pane** shows start, end, fade-in, fade-out and loop handles directly on the waveform with the numbers
   below: the clearest layout.
-- **Simpler** ([smp-12](screenshots/smp-12-ableton-simpler-slice-mode.png)): a big waveform, slice lines in a contrasting
+- **Simpler** (smp-12): a big waveform, slice lines in a contrasting
   colour, and every mode as a readable word ("Slice By Region", "Warp Beats"). Its type size is what a modern sampler
   should look like.
-- **Falcon's Slice oscillator** ([smp-10](screenshots/smp-10-falcon-slice-oscillator.png)) and **Life**
-  ([smp-14](screenshots/smp-14-xln-life-edit.png)) show slicing as a *performance* surface: a detection mode and a
+- **Falcon's Slice oscillator** (smp-10) and **Life**
+  (smp-14) show slicing as a *performance* surface: a detection mode and a
   sensitivity knob, then export or pattern generation. Life's colour-by-cluster is the best at-a-glance summary of
   what a slice set contains.
 
@@ -676,7 +676,7 @@ that shows **which zone each sounding voice is playing** and the round-robin pos
 - **Praised:** direct drag-and-drop mapping (all), Logic's always-visible values, Simpler's readability, Kontakt's
   seam view, Life's speed ("record a sound, get a beat").
 - **Criticised:** Kontakt's Classic view is dated and dense (the new default view hides editing; the edit rack is a
-  2,400-px column, [smp-06](screenshots/smp-06-kontakt-edit-rack-all-editors.png)); Kontakt 8 removed the option to hide
+  2,400-px column, smp-06); Kontakt 8 removed the option to hide
   instrument interfaces when stacking several libraries (MusicTech); Falcon's depth and muted palette (MusicTech);
   HALion's learning curve (SOS); sforzando has no editor at all.
 

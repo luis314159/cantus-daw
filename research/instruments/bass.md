@@ -10,7 +10,7 @@ returned HTTP 403 and were not retried or worked around. The session's web-searc
 last third of the literature was read from known URLs directly; a few secondary citations below come from the
 reference lists of papers I did read and are marked **[cited in]**.*
 
-*Screenshots are the manufacturers' own images, saved in [`screenshots/`](screenshots/) (git-ignored) for internal
+*Screenshots are the manufacturers' own images, saved in `screenshots/` (git-ignored) for internal
 reference only.*
 
 *Cantus context read first: `research/instruments/README.md`, `research/fabfilter/family.md` §0 and §7,
@@ -91,7 +91,7 @@ reference only.*
 
 ## 2. Screenshots saved
 
-All files are in [`screenshots/`](screenshots/). Each one was checked as a real JPEG or PNG and viewed.
+All files are in `screenshots/`. Each one was checked as a real JPEG or PNG and viewed.
 
 | File | What it shows | Notes on the design |
 |---|---|---|

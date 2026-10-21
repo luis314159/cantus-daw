@@ -7,14 +7,14 @@ use crate::lang::{use_lang, Lang};
 use crate::rack::Rack;
 use crate::theme::Theme;
 
-pub const GITHUB: &str = "https://github.com/luis314159/cantus";
-pub const RELEASES: &str = "https://github.com/luis314159/cantus/releases";
+pub const GITHUB: &str = "https://github.com/luis314159/cantus-daw";
+pub const RELEASES: &str = "https://github.com/luis314159/cantus-daw/releases";
 /// The newest release's installer, straight down: GitHub redirects `releases/latest/download/`
 /// to the latest release's file of that name, which every release also publishes under this
 /// stable name (ADR 0048 §7; an xtask test keeps it equal to the packager's and the release
 /// workflow's). It answers only once the repository and its releases are public.
 pub const DOWNLOAD: &str =
-    "https://github.com/luis314159/cantus/releases/latest/download/Cantus-windows-x64-setup.exe";
+    "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe";
 pub const VERSION: &str = "0.1.0-beta.1";
 
 #[function_component(Nav)]

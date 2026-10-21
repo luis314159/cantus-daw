@@ -5,7 +5,7 @@ Instruments, XLN Audio, Toontrack, Sonic Charge, Sonic Academy, D16, Roland, Abl
 (Sound on Sound, MusicRadar, MusicTech, CDM) and a few forum threads. Everything is paraphrased. Where a figure comes
 only from a search-engine excerpt, or from the literature without the paper being re-read here, the text says so.
 Gearspace and ResearchGate refused automated reads (HTTP 403) and were not worked around. Screenshots are the makers'
-own, kept in [`screenshots/`](screenshots/) (git-ignored) for internal reference only. Colour values were measured
+own, kept in `screenshots/` (git-ignored) for internal reference only. Colour values were measured
 from those screenshots with a script (JPEG and resampled PNG, so ±2 per channel).*
 
 *The Cantus side was read from `crates/cantus-dsp/src/pulsus.rs`, `crates/cantus-core/src/pads.rs`,

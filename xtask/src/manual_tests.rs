@@ -49,7 +49,7 @@ fn headings_get_github_s_anchors_and_links_find_the_installed_copies() {
     );
     assert_eq!(
         href("../../../docs/BETA.md"),
-        "https://github.com/luis314159/cantus/blob/master/docs/BETA.md"
+        "https://github.com/luis314159/cantus-daw/blob/master/docs/BETA.md"
     );
     assert_eq!(href("../es/README.md"), "../es/index.html");
     assert_eq!(href("#x"), "#x");

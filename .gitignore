@@ -11,3 +11,10 @@ Thumbs.db
 
 # A regenerated fixture's atomic-save backup (round 28 review)
 crates/cantus-project/fixtures/*.bak
+
+# Kept out of the public repository (ADR 0049): the reference screenshots of other products
+# and the RVR1960 file live only in the private repository and on the owner's disk. Already
+# tracked files stay tracked there; a new screenshot is added to the private one with
+# `git add -f`, never pushed to luis314159/cantus-daw (tools/public/publish.sh filters it).
+research/**/screenshots/
+crates/cantus-ui/locales/verses/es.txt

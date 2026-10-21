@@ -34,7 +34,7 @@ Necesitas Windows 11 de 64 bits (Windows 10 sin probar) y
 unos 200 MB de disco.
 
 1. Descarga `Cantus-0.1.0-beta.1-windows-x64-setup.exe` de la
-   [página de versiones](https://github.com/luis314159/cantus/releases).
+   [página de versiones](https://github.com/luis314159/cantus-daw/releases).
 2. Ejecútalo. Se instala solo para ti, en `%LOCALAPPDATA%\Programs\Cantus`, y no pide
    permisos de administrador. Esta beta aún no está firmada, así que Windows puede mostrar
    *"Windows protegió su PC"*: elige *Más información ▸ Ejecutar de todas formas*.
@@ -1004,7 +1004,7 @@ gratuita de GitHub). Di qué hiciste, qué esperabas y qué pasó; incluye tu ve
 Cantus (*Ayuda ▸ Acerca de Cantus*), tu versión de Windows, tu interfaz de audio, el
 controlador, la frecuencia y el búfer (todo está en el chip de audio); adjunta un proyecto
 pequeño que muestre el problema si puedes. Cuéntanos de tu interfaz de audio aunque
-funcione, con el [reporte de hardware](https://github.com/luis314159/cantus/issues/new?template=hardware_report.yml),
+funcione, con el [reporte de hardware](https://github.com/luis314159/cantus-daw/issues/new?template=hardware_report.yml),
 y manda ideas con *Ayuda ▸ Sugerir una función…*. En español o en inglés, como prefieras.
 
 *Cantus lo hace Luis Ángel Almazán — [lalmazan.com](https://lalmazan.com) — y es software

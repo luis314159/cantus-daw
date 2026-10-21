@@ -8,7 +8,7 @@ Where the documentation is silent, the text says so.*
 
 *This report covers the family as a whole. Product detail lives in the sibling reports:
 [pro-q.md](pro-q.md), [pro-c.md](pro-c.md), [pro-l.md](pro-l.md) and [pro-r.md](pro-r.md), plus Pro-MB, Pro-DS and
-Pro-G where they exist. The screenshots are FabFilter's and are kept in [`screenshots/`](screenshots/) for internal
+Pro-G where they exist. The screenshots are FabFilter's and are kept in `screenshots/` for internal
 reference only.*
 
 ---
@@ -20,7 +20,7 @@ reference only.*
    Learn at the left, global options in the middle, bypass, output and resize at the right). The same
    knob gestures, text-entry shortcuts, preset files, MIDI Learn and resize menu work everywhere. The *look*
    between these fixed points spans three visual generations inside one bundle
-   ([family-01](screenshots/family-01-lineup-side-by-side.jpg), [family-02](screenshots/family-02-top-and-bottom-bars.png)).
+   (family-01, family-02).
 2. **Each product has its own colour.** Pro-Q and Pro-C are yellow, Pro-L red on lilac, Pro-R amber on navy,
    Pro-DS lime, Pro-G blue, Saturn crimson and Timeless green. Every product still sits on near-black neutrals
    with white text.
@@ -47,7 +47,7 @@ reference only.*
 
 ## 1. Screenshots saved
 
-All in [`screenshots/`](screenshots/). Checked: correct JPEG or PNG signature, all larger than 12 KB, all viewed.
+All in `screenshots/`. Checked: correct JPEG or PNG signature, all larger than 12 KB, all viewed.
 
 | File | What it shows |
 |---|---|
@@ -127,7 +127,7 @@ Recent family-wide changes, from the news posts:
 ### 3.1 Layout grid
 
 Every product has four horizontal zones, in the same order
-([family-01](screenshots/family-01-lineup-side-by-side.jpg)):
+(family-01):
 
 1. **Top bar.** About 36–40 pt high, estimated from @2x marketing screenshots.
 2. **Display.** The large, interactive, animated area. It takes 50–85 % of the height and usually runs the full
@@ -145,7 +145,7 @@ curve is the family's signature shape. In Pro-R 2 the same curve runs along the 
 
 ### 3.2 Top bar
 
-The same order, left to right, in all nine products ([family-02](screenshots/family-02-top-and-bottom-bars.png)):
+The same order, left to right, in all nine products (family-02):
 
 | Slot | Content | Notes |
 |---|---|---|
@@ -167,7 +167,7 @@ Product extras go between Help and the preset field. Pro-L 2, for example, adds 
 | Middle (Pro-Q 4) | the **instance list button**: a coloured dot plus the track name | 4.6 |
 | Right | **bypass** icon, then the output summary (e.g. `100%  0.0 dB  0.0 dB` = mix, in, out; or `In: 0.0 dB  Out: 0.0 dB`), then a **resize** icon in the corner | hovering the output text opens the output panel; clicking makes the panel sticky |
 
-Output panel ([family-10](screenshots/family-10-output-options-popup-proc3.jpg)): large input and output level knobs,
+Output panel (family-10): large input and output level knobs,
 each with a pan ring, a mix bar that goes to 200 % in Pro-C, and numeric values underneath. You can drag the
 bottom-bar text vertically, use the mouse wheel on it, or double-click it to type, without opening the panel.
 Alt-drag moves input and output in opposite directions.
@@ -178,8 +178,8 @@ bypass. While bypassed, **the display dims and a red line appears on top of the 
 ### 3.4 Knobs: two generations
 
 **Classic** (Saturn 2, Timeless 3, Volcano 3, Twin 3, Pro-L 2, Pro-G, Pro-DS, Pro-MB;
-[family-05](screenshots/family-05-knob-classic-anatomy-saturn2.jpg),
-[family-07](screenshots/family-07-knob-modulation-ring-saturn2.jpg)):
+family-05,
+family-07):
 - **Body:** a mid-grey disc with a soft top-light gradient. The product tints it: warm grey in Saturn, lilac in
   Pro-L and Pro-G, yellow in Pro-DS.
 - **Pointer:** a **light "arrow" wedge**, a lighter segment of the rim with a short tick. It is also a handle:
@@ -191,7 +191,7 @@ bypass. While bypassed, **the display dims and a red line appears on top of the 
 - **Modulation:** a thin coloured arc just outside the ring shows the live range being applied, drawn from the
   knob's own position. Next to the label, coloured dots name the source types (see 5).
 
-**Modern** (Pro-Q 4, Pro-C 3, and in part Pro-R 2; [family-06](screenshots/family-06-knob-modern-proc3.jpg)):
+**Modern** (Pro-Q 4, Pro-C 3, and in part Pro-R 2; family-06):
 - **Body:** a near-black disc, almost the same colour as the background, with a thin lighter rim.
 - **Value:** a **thick accent-coloured arc inside the rim**, from the minimum (about 7 o'clock) clockwise to the value,
   ending in a **small dot at the tip**. There is no pointer line, and there are no min/max labels.
@@ -246,7 +246,7 @@ Tab moves to the next field in the Pro-Q parameter display.
 - **Value popup:** hovering over a knob shows its name and value. In Pro-Q 4 the band's popup doubles as a mini
   editor: you can drag, wheel or double-click the values, and it holds bypass, solo, delete and shape buttons.
 - **Hover panels:** the output and analyser settings open on hover and stay open ("sticky") if you click.
-- **Interactive help hints** ([family-13](screenshots/family-13-help-hint-timeless3.jpg)): every product page
+- **Interactive help hints** (family-13): every product page
   advertises "an extensive help file with interactive help hints". The official image shows a **large, light-grey
   rounded speech bubble with dark body text**, whose tail points at the **Help** button. It has two short
   paragraphs: what the control does, then how to operate it ("click the centre to enable, drag to change the
@@ -356,7 +356,7 @@ The common traits:
 
 - **Full screen** is a top-bar button, and Esc leaves it. The plug-in chooses a larger scaling automatically in
   full screen.
-- **Resize menu** in the bottom-right corner ([family-11](screenshots/family-11-resize-menu-proc3.jpg)):
+- **Resize menu** in the bottom-right corner (family-11):
   - fixed sizes: Small / **Medium (default)** / Large / Extra Large; Pro-C 3 has Compact / Small / Medium / Large,
     where Compact hides the displays and turns the meters horizontal;
   - the chosen size becomes the default for new instances;
@@ -380,7 +380,7 @@ There are two generations:
   - ‹ › step through presets one at a time;
   - an Options submenu: Save As Default, Open Other Preset, Change Preset Folder, Restore Factory Presets, Enable
     MIDI Program Changes.
-- **Browser** (Pro-Q 4, Pro-C 3, Pro-R 2, Twin 3; [family-09](screenshots/family-09-preset-browser-proc3.jpg)):
+- **Browser** (Pro-Q 4, Pro-C 3, Pro-R 2, Twin 3; family-09):
   - a dark panel that drops from the preset field;
   - **search field** at the top, with a gear for Options and a **star** that filters to favourites;
   - **folder column** on the left: hover a folder to open it, click a preset to load it; the current preset is
@@ -424,7 +424,7 @@ They are stored in the app-data folder, which you cannot move.
   MIDI-controlled effect, in Live only the first plug-in on a track receives MIDI. This is the plug-in wall
   (see 7.5).
 
-([family-12](screenshots/family-12-midi-learn-saturn2.jpg))
+(family-12)
 
 ### 4.4 Automation mapping
 
@@ -502,7 +502,7 @@ Twin 3 adds a **Source Level** (−200…200 %, which can itself be modulated) t
   to the target.
 - There is no menu or matrix to navigate. FabFilter's own help presents this as the point of the design.
 
-### 5.4 Slots ([family-08](screenshots/family-08-modulation-slot-panel-saturn2.jpg))
+### 5.4 Slots (family-08)
 
 - **Opening the panel:** click a target, its indicator dots or a source's drag handle. You see every slot that
   involves it, for that target or for that source.
@@ -520,7 +520,7 @@ Twin 3 adds a **Source Level** (−200…200 %, which can itself be modulated) t
 
 ### 5.5 Visualization
 
-([family-07](screenshots/family-07-knob-modulation-ring-saturn2.jpg), [family-03](screenshots/family-03-saturn2-main.jpg))
+(family-07, family-03)
 - **Target level indicator:** an arc around the knob or slider, starting at the knob's own position and showing the
   range the modulation is sweeping, in real time. It takes the source type's colour, or **yellow when several
   source types mix**.

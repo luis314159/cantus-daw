@@ -65,7 +65,7 @@ theme (all measured ≥ 4.5:1), and the header, footer and resize behaviour.
 
 ## 1. Screenshots
 
-New files are in [`screenshots/plugin-instrument-uis/`](screenshots/plugin-instrument-uis/) (git-ignored,
+New files are in `screenshots/plugin-instrument-uis/` (git-ignored,
 local only). Many more of the products studied were already saved by the instrument and FabFilter
 research; they are cited from their folders rather than downloaded again.
 
@@ -97,15 +97,15 @@ research; they are cited from their folders rather than downloaded again.
 
 | File | What it shows | Source |
 |---|---|---|
-| [`fam-01-serum2-main.png`](../instruments/screenshots/fam-01-serum2-main.png) | Serum 2 main page (2380 px) | xferrecords.com |
-| [`wt-02-serum2-wavetable-osc.png`](../instruments/screenshots/wt-02-serum2-wavetable-osc.png) | One Serum 2 oscillator section, close up | xferrecords.com |
-| [`fam-02-vital-main-frame.png`](../instruments/screenshots/fam-02-vital-main-frame.png) | Vital main page (a frame of the official video, 1600 px) | vital.audio |
-| [`fam-07`](../instruments/screenshots/fam-07-pigments-play-view-dark.jpg), [`fam-08`](../instruments/screenshots/fam-08-pigments-play-view-light.jpg), [`fam-09`](../instruments/screenshots/fam-09-pigments-synth-combi-view.jpg) | Pigments 7: Play view dark and light, Synth page | arturia.com |
-| [`va-09-arturia-mini-v4-main.jpg`](../instruments/screenshots/va-09-arturia-mini-v4-main.jpg), [`va-11`](../instruments/screenshots/va-11-arturia-jup8v-main.jpg), [`ky-10-stage73-v2-advanced.jpg`](../instruments/screenshots/ky-10-stage73-v2-advanced.jpg), [`ky-12-b3-v2-advanced-drawbar-mod.jpg`](../instruments/screenshots/ky-12-b3-v2-advanced-drawbar-mod.jpg) | Arturia V Collection: the shared shell, hardware panels, and the flat "Advanced" panels | arturia.com |
-| [`fam-21-kontakt8-factory-instrument.png`](../instruments/screenshots/fam-21-kontakt8-factory-instrument.png) | A Kontakt 8 factory instrument (Orchestral Tools) | native-instruments.com |
-| [`va-01-diva-main-layout.jpg`](../instruments/screenshots/va-01-diva-main-layout.jpg) | Diva main page (1000 px) | u-he.com |
-| [`fm-15-zebra3-main.png`](../instruments/screenshots/fm-15-zebra3-main.png), [`fm-14-zebra3-generator-rack.png`](../instruments/screenshots/fm-14-zebra3-generator-rack.png) | Zebra 3 main page and generator modules | u-he.com |
-| [`pro-q-01-main.jpg`](../fabfilter/screenshots/pro-q-01-main.jpg), [`family-06-knob-modern-proc3.jpg`](../fabfilter/screenshots/family-06-knob-modern-proc3.jpg), [`family-02-top-and-bottom-bars.png`](../fabfilter/screenshots/family-02-top-and-bottom-bars.png) | Pro-Q 4, the modern FabFilter knob, the shared bars | fabfilter.com |
+| `fam-01-serum2-main.png` | Serum 2 main page (2380 px) | xferrecords.com |
+| `wt-02-serum2-wavetable-osc.png` | One Serum 2 oscillator section, close up | xferrecords.com |
+| `fam-02-vital-main-frame.png` | Vital main page (a frame of the official video, 1600 px) | vital.audio |
+| `fam-07`, `fam-08`, `fam-09` | Pigments 7: Play view dark and light, Synth page | arturia.com |
+| `va-09-arturia-mini-v4-main.jpg`, `va-11`, `ky-10-stage73-v2-advanced.jpg`, `ky-12-b3-v2-advanced-drawbar-mod.jpg` | Arturia V Collection: the shared shell, hardware panels, and the flat "Advanced" panels | arturia.com |
+| `fam-21-kontakt8-factory-instrument.png` | A Kontakt 8 factory instrument (Orchestral Tools) | native-instruments.com |
+| `va-01-diva-main-layout.jpg` | Diva main page (1000 px) | u-he.com |
+| `fm-15-zebra3-main.png`, `fm-14-zebra3-generator-rack.png` | Zebra 3 main page and generator modules | u-he.com |
+| `pro-q-01-main.jpg`, `family-06-knob-modern-proc3.jpg`, `family-02-top-and-bottom-bars.png` | Pro-Q 4, the modern FabFilter knob, the shared bars | fabfilter.com |
 
 ---
 
@@ -134,7 +134,7 @@ hierarchy, no objects.
 
 ## 3. Product by product
 
-### 3.1 Xfer Serum 2 ([fam-01](../instruments/screenshots/fam-01-serum2-main.png), [wt-02](../instruments/screenshots/wt-02-serum2-wavetable-osc.png))
+### 3.1 Xfer Serum 2 (fam-01, wt-02)
 
 - **Structure.** Five page tabs (OSC · MIX · FX · MATRIX · GLOBAL) as tall square buttons with an LED
   dot, in the header. The OSC page is a row of sections (SUB · OSC A · OSC B · OSC C · NOISE · FILTER 1
@@ -165,7 +165,7 @@ hierarchy, no objects.
 bold caps, values in their own fields. **What not to:** the density of tiny fields and the 3.8:1 grey
 metadata ("ARTIST:").
 
-### 3.2 Vital ([fam-02](../instruments/screenshots/fam-02-vital-main-frame.png))
+### 3.2 Vital (fam-02)
 
 - **Framing.** Every section is a **rounded panel** (`#44484c`, radius ≈ 4 px at 1600 px) on a darker
   ground (`#202424`), with **3–4 px gutters**. Inside, sub-groups sit on slightly darker **rounded
@@ -189,7 +189,7 @@ metadata ("ARTIST:").
 **Take:** label plates, section hue on arcs and curves, selectors inside the display. **Not:** the rotated
 titles (hard to read), knob bodies at 1.7:1.
 
-### 3.3 Arturia: Pigments 7 and the V Collection ([fam-07](../instruments/screenshots/fam-07-pigments-play-view-dark.jpg), [fam-08](../instruments/screenshots/fam-08-pigments-play-view-light.jpg), [fam-09](../instruments/screenshots/fam-09-pigments-synth-combi-view.jpg), [pg-01](screenshots/plugin-instrument-uis/pg-01-pigments-value-popup-mod-chip.jpg), [pg-02](screenshots/plugin-instrument-uis/pg-02-pigments-shape-group-and-rules.jpg), [va-09](../instruments/screenshots/va-09-arturia-mini-v4-main.jpg), [ky-10](../instruments/screenshots/ky-10-stage73-v2-advanced.jpg), [ky-12](../instruments/screenshots/ky-12-b3-v2-advanced-drawbar-mod.jpg))
+### 3.3 Arturia: Pigments 7 and the V Collection (fam-07, fam-08, fam-09, pg-01, pg-02, va-09, ky-10, ky-12)
 
 - **One shell for every product.** Pigments, Mini V, Jup-8 V, B-3 V and Stage-73 V have the same top
   toolbar (☰ · product name in its accent · a **centred preset pill**: library icon │ ♥ │ name with "*"
@@ -228,7 +228,7 @@ source chip in the label's place, hairline pair rules, the snapping resize, the 
 the decorative visualiser (Pigments itself ships "Disable Visualizer"), the failing idle and family
 colours.
 
-### 3.4 Native Instruments Massive X ([mx-01](screenshots/plugin-instrument-uis/mx-01-massive-x-light-skin-main.png)–[mx-04](screenshots/plugin-instrument-uis/mx-04-massive-x-filter-highlight-light.png))
+### 3.4 Native Instruments Massive X (mx-01–mx-04)
 
 - **Structure.** A header row (MASSIVE X ▾ · search · bank · preset name centred · ▲▼ · save · output
   meter · NI), then a **macro strip** (PB, M, AT and **16 numbered macro knobs** with names under the
@@ -254,7 +254,7 @@ colours.
 section focus highlight, light and dark skins of one layout. **Not:** the failing dim labels, the
 underline-only menus (they look like links and have no boundary).
 
-### 3.5 Native Instruments Kontakt 8 instruments ([k8-01](screenshots/plugin-instrument-uis/k8-01-kontakt8-conflux-play-and-edit.png)–[k8-04](screenshots/plugin-instrument-uis/k8-04-kontakt8-shell-phrases-tool.png), [fam-21](../instruments/screenshots/fam-21-kontakt8-factory-instrument.png))
+### 3.5 Native Instruments Kontakt 8 instruments (k8-01–k8-04, fam-21)
 
 - **The pattern.** An instrument is a **picture** (library art, a 3-D render, a visual) taking 60–70 %
   of the panel, over **one row of 6–8 controls**: line-ring knobs (a 2-px ring with a pointer, Ø ≈ 30 px
@@ -269,7 +269,7 @@ underline-only menus (they look like links and have no boundary).
 **Take:** the Play-page grammar (one picture, one row of big controls) for Cantus's Play views.
 **Not:** 7–8-px labels at typical widths (`instruments/family.md` §4.14), library-specific looks.
 
-### 3.6 u-he Diva and Zebra 3 ([va-01](../instruments/screenshots/va-01-diva-main-layout.jpg), [fm-15](../instruments/screenshots/fm-15-zebra3-main.png), [fm-14](../instruments/screenshots/fm-14-zebra3-generator-rack.png), [uhe-01](screenshots/plugin-instrument-uis/uhe-01-zebra3-modulation-rack.png))
+### 3.6 u-he Diva and Zebra 3 (va-01, fm-15, fm-14, uhe-01)
 
 - **Diva** is two decks: a dark upper deck (`#3c3c38`, the sound path: TRIPLE VCO · MIXER · VCF |
   LADDER · ENVELOPES) and a **red lower deck** (`#843434`, LFOs · TUNING · AMPLIFIER | PAN · EFFECTS ·
@@ -294,7 +294,7 @@ underline-only menus (they look like links and have no boundary).
 value fields with a clear boundary, scale-around-the-knob for stepped values (Diva). **Not:** Zebra's dim
 labels, Diva's texture.
 
-### 3.7 FabFilter Pro-Q 4 ([pro-q-01](../fabfilter/screenshots/pro-q-01-main.jpg))
+### 3.7 FabFilter Pro-Q 4 (pro-q-01)
 
 Covered in depth in [`../fabfilter/family.md`](../fabfilter/family.md) §3 and
 [`../fabfilter/pro-q.md`](../fabfilter/pro-q.md). What matters here is **proportion**, which Cantus's
@@ -311,7 +311,7 @@ editors copied only in outline:
 
 The body itself is 1.15:1 against its panel; the arc and rim carry the knob.
 
-### 3.8 Soundtoys 5.5 ([st-01](screenshots/plugin-instrument-uis/st-01-decapitator.png)–[st-08](screenshots/plugin-instrument-uis/st-08-sie-q.png))
+### 3.8 Soundtoys 5.5 (st-01–st-08)
 
 - **One bar for every plug-in** (44 px at 1200 px): ‹ › · preset name in a **red LED field**
   (`#ca0000` on `#100000`, **3.4:1**, fails AA) · save · revert · Soundtoys menu · list · BYPASS.

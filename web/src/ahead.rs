@@ -34,22 +34,26 @@ pub fn ahead() -> Html {
                 <div class="road">
                     { col(l.t("Works today", "Funciona hoy"), vec![
                         l.t("Record, sequence, mix and export a whole song", "Grabar, secuenciar, mezclar y exportar una canción completa"),
-                        l.t("Nine instruments and twelve effects of its own", "Nueve instrumentos y doce efectos propios"),
+                        l.t("Ten instruments and twenty-five effects of its own, a modelled grand piano among them", "Diez instrumentos y veinticinco efectos propios, entre ellos un piano de cola modelado"),
+                        l.t("Pitch editing of recordings, note by note, and a real-time auto-tuner", "Edición de afinación de grabaciones, nota por nota, y un afinador automático en tiempo real"),
+                        l.t("Modulators on any parameter, and take comping", "Moduladores en cualquier parámetro, y comping de tomas"),
                         l.t("A multicore live engine; WASAPI and ASIO", "Un motor en vivo multinúcleo; WASAPI y ASIO"),
                         l.t("Hosts CLAP and VST3 plug-ins; exports WAV, FLAC, MP3 and Ogg", "Aloja plug-ins CLAP y VST3; exporta WAV, FLAC, MP3 y Ogg"),
                         l.t("Cables between mixer channels, linked clips, copy and paste", "Cables entre canales del mezclador, clips enlazados, copiar y pegar"),
                     ]) }
-                    { col(l.t("Next: making the beta solid", "Siguiente: dejar sólida la beta"), vec![
+                    { col(l.t("Next: arriving with the beta, in testing now", "Siguiente: llega con la beta, en pruebas ahora"), vec![
+                        l.t("Warping: audio that follows the tempo, with time-stretch and pitch-shift", "Warp: audio que sigue el tempo, con estiramiento de tiempo y cambio de tono"),
+                        l.t("A tempo track with ramps and metre changes, and named markers", "Una pista de tempo con rampas y cambios de compás, y marcadores con nombre"),
+                        l.t("MIDI learn for any parameter, with your own controller", "MIDI learn para cualquier parámetro, con tu propio controlador"),
+                        l.t("Plug-ins in their own process: one that crashes never takes your song down", "Plug-ins en su propio proceso: uno que falla nunca tumba tu canción"),
+                        l.t("Freeze, bounce in place and low-latency monitoring while you record", "Congelar, bounce in place y monitoreo de baja latencia al grabar"),
                         l.t("More audio interfaces tried in duplex, ten minutes live without a dropout", "Más interfaces de audio probadas en dúplex, diez minutos en vivo sin un corte"),
                         l.t("The installer, checked on clean machines", "El instalador, comprobado en máquinas limpias"),
                         l.t("Signed downloads, so you know the file is ours", "Descargas firmadas, para saber que el archivo es nuestro"),
                         l.t("Whole songs made with it, and every rough edge they find smoothed", "Canciones completas hechas con él, y cada aspereza que encuentren, pulida"),
-                        l.t("The source code and the releases public", "El código fuente y las versiones, públicos"),
                     ]) }
                     { col(l.t("Later", "Después"), vec![
-                        l.t("Audio that follows the tempo: time-stretch and warping", "Audio que sigue el tempo: estiramiento de tiempo y warping"),
-                        l.t("Pitch and time editing of recordings, and a real-time auto-tuner", "Edición de afinación y tiempo de grabaciones, y un afinador automático en tiempo real"),
-                        l.t("macOS and Linux builds to download", "Versiones para macOS y Linux listas para descargar"),
+                        l.t("Installers for Linux and macOS, next to Windows's: one Cantus on all three systems", "Instaladores para Linux y macOS junto al de Windows: un mismo Cantus en los tres sistemas"),
                         l.t("Sound packs and stand-alone plug-ins on cantusdaw.studio", "Paquetes de sonidos y plug-ins independientes en cantusdaw.studio"),
                         l.t("Assistants that can operate the DAW, with your permission", "Asistentes que puedan operar el DAW, con tu permiso"),
                     ]) }
@@ -70,8 +74,8 @@ pub fn ahead() -> Html {
                         "Any Windows audio device through WASAPI, and ASIO drivers (ASIO4ALL and the makers' own). It is a beta and has been tried on a small number of devices, so tell us what you used and how it went.",
                         "Cualquier dispositivo de audio de Windows mediante WASAPI, y drivers ASIO (ASIO4ALL y los de cada fabricante). Es una beta y se ha probado en pocos dispositivos, así que cuéntanos qué usaste y cómo te fue.") }</p> }) }
                     { faq(l.t("Is there a Mac or Linux version?", "¿Hay versión para Mac o Linux?"), html! { <p>{ l.t(
-                        "Not yet as a download. The code builds for development on both; Windows is what ships today.",
-                        "Todavía no como descarga. El código compila para desarrollo en ambos; Windows es lo que se distribuye hoy.") }</p> }) }
+                        "Cantus is made for Windows, Linux and macOS. Windows has its installer today; on Linux the code already builds and passes all its tests, and the Linux and macOS installers are the next step. Until then you can build it from source.",
+                        "Cantus está hecho para Windows, Linux y macOS. Windows tiene su instalador hoy; en Linux el código ya compila y pasa todas sus pruebas, y los instaladores de Linux y macOS son el siguiente paso. Mientras tanto puedes compilarlo desde el código.") }</p> }) }
                     { faq(l.t("Can I release the music I make?", "¿Puedo publicar la música que hago?"), html! { <p>{ l.t(
                         "Yes. The GPL covers the program, not what you create with it; your songs are yours. Each sound pack states its own licence, so check it for the samples you use.",
                         "Sí. La GPL cubre el programa, no lo que creas con él; tus canciones son tuyas. Cada paquete de sonidos indica su propia licencia, así que revísala para los samples que uses.") }</p> }) }

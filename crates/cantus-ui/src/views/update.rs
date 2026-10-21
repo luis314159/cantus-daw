@@ -626,7 +626,7 @@ pub fn demo_setup(app: &mut CantusApp, kind: &str) {
         version: "0.2.0".into(),
         title: "Cantus 0.2.0".into(),
         notes: cantus_update::notes::read(md, updater::NOTE_LINES),
-        page: "https://github.com/luis314159/cantus/releases/tag/v0.2.0".into(),
+        page: "https://github.com/luis314159/cantus-daw/releases/tag/v0.2.0".into(),
         installer: Some(cantus_update::release::Asset {
             name: cantus_update::release::installer_name("0.2.0"),
             size: 14_200_000,
