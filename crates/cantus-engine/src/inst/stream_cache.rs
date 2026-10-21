@@ -545,6 +545,39 @@ pub fn write_at(
     })
 }
 
+/// The cache-format file at `path` names `label` instead of what it named (a frozen
+/// render copied under a new key — review 4): the label is rewritten in place and the
+/// header's checksum with it. The new label must be as long as the old (keys are hashes).
+pub fn relabel(path: &Path, label: &str) -> std::io::Result<()> {
+    let bad = |why: &str| std::io::Error::other(why.to_string());
+    let mut f = File::options().read(true).write(true).open(path)?;
+    let mut h = vec![0u8; FIXED];
+    f.read_exact(&mut h)?;
+    if &h[..8] != MAGIC || u32_at(&h, 8) != VERSION {
+        return Err(bad("not a cache file"));
+    }
+    let plen = u32_at(&h, 56) as usize;
+    let blocks = u32_at(&h, 60) as usize;
+    if plen != label.len() || plen > 32_768 {
+        return Err(bad("a label of another length"));
+    }
+    let mut rest = vec![0u8; plen + blocks * 8];
+    f.read_exact(&mut rest)?;
+    let stored = u64_at(&h, 72);
+    h[72..80].fill(0);
+    let mut head = h.clone();
+    head.extend_from_slice(&rest);
+    if checksum(&head) != stored {
+        return Err(bad("a damaged header"));
+    }
+    head[FIXED..FIXED + plen].copy_from_slice(label.as_bytes());
+    let sum = checksum(&head);
+    head[72..80].copy_from_slice(&sum.to_le_bytes());
+    f.seek(SeekFrom::Start(0))?;
+    f.write_all(&head)?;
+    f.sync_all()
+}
+
 /// The cache-format file at `path`, whatever source it names (a frozen render's), when its
 /// header is whole; with that label.
 pub fn open_at(path: &Path) -> Option<(CacheFile, String)> {
