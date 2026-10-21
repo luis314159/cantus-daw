@@ -1683,9 +1683,22 @@ fn collect(app: &mut CantusApp) {
         Some(Err(RenderError::Cancelled)) => {
             app.set_status(tf("freeze.stopped", &[("name", &job.name)]));
         }
-        // Its latency moves during the song: it stays live, said (review 3).
+        // Its latency moves during the song: it stays live, said (review 3) — a bounce in
+        // a bounce's words, with its track's or strip's name (review 4).
         Some(Err(RenderError::LatencyMoved)) => {
-            let text = tf("freeze.latency_moves", &[("name", &job.name)]);
+            let text = match &job.want {
+                Want::Bounce(plan) => {
+                    let what = match plan.through {
+                        crate::bounce::Through::Strip(s) => FreezeTarget::Strip(s),
+                        _ => FreezeTarget::Track(plan.track),
+                    };
+                    tf(
+                        "bounce.latency_moves",
+                        &[("name", &name_of(app.project(), what))],
+                    )
+                }
+                _ => tf("freeze.latency_moves", &[("name", &job.name)]),
+            };
             if !job.content.is_empty() {
                 app.freeze.failed.insert(job.content.clone(), text.clone());
             }

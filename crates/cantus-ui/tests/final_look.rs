@@ -532,3 +532,37 @@ fn the_pinned_strip_never_runs_a_caption_into_its_value() {
     }
     cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
 }
+
+/// Review 4: the Delay row's tip and its key's hint read whole in the hint bar, in both
+/// languages, at 1280 × 720 and at 200 % (the tip was cut where its advice was).
+#[test]
+fn the_delay_rows_hints_read_whole() {
+    let flat = |s: &str| s.split_whitespace().collect::<Vec<_>>().join(" ");
+    for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
+        for (w, h) in [(1280.0f32, 720.0f32), (640.0, 360.0)] {
+            let mut r = Rig::new(vec2(w, h));
+            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
+            r.pointer = None;
+            r.idle(2);
+            for words in [
+                cantus_ui::i18n::tf("freeze.lateness.tip", &[("ms", &"96.0")]),
+                cantus_ui::i18n::t("freeze.lateness.clear"),
+            ] {
+                cantus_ui::kit::hint::set_text(
+                    &r.ctx,
+                    &words,
+                    "",
+                    cantus_ui::kit::hint::Caps::NONE,
+                );
+                let texts = r.frame(Vec::new());
+                let bar = hint_bar_texts(&r, &texts);
+                assert!(
+                    bar.iter().any(|s| flat(s) == flat(&words)),
+                    "{locale:?} {w}x{h}: {words:?} not whole: {bar:?}"
+                );
+            }
+        }
+    }
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+}

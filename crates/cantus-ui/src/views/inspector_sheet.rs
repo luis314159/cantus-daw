@@ -602,46 +602,44 @@ impl<'a> Sheet<'a> {
         r
     }
 
-    /// A row with a plain value and a button after it (`button_key`), `tip` on hover.
-    /// Returns a click on the button.
-    pub fn text_button_row(
+    /// A readout with a square key at its right that clears it (a bounced track's kept
+    /// delay): the figure keeps the room a word button took (review 4: it was cut at
+    /// 220 pt), and `tip` is made only while the row is pointed at (review 4: three strings
+    /// a frame). Whether the key was clicked.
+    pub fn readout_clear_row(
         &mut self,
         key: &str,
         text: &str,
-        button_key: &str,
-        f: Function,
-        tip: &str,
+        clear_key: &str,
+        tip: &dyn Fn() -> String,
     ) -> bool {
         let row = self.row();
         self.label(row.label, key, false);
-        let bw = self.s.s(64.0).min(row.value.width() * 0.4);
+        let side = row.value.height();
         let gap = self.s.s(GAP);
         let well_r = Rect::from_min_max(
             row.value.min,
-            pos2(row.value.right() - bw - gap, row.value.bottom()),
+            pos2(row.value.right() - side - gap, row.value.bottom()),
         );
-        let br = Rect::from_min_max(pos2(row.value.right() - bw, row.value.top()), row.value.max);
+        let br = Rect::from_min_max(
+            pos2(row.value.right() - side, row.value.top()),
+            row.value.max,
+        );
         well::readout(self.b, well_r, &self.s, State::REST, text, true);
         let hover = self.ui.interact(
             row.full,
-            Id::new(("insp-text-button-tip", key)),
+            Id::new(("insp-clear-row-tip", key)),
             Sense::hover(),
         );
-        if hover.hovered() {
-            hint::set_text(self.ui.ctx(), tip, "", Caps::NONE);
+        let r = self
+            .ui
+            .interact(br, Id::new(("insp-clear-row", key)), Sense::click());
+        if r.hovered() {
+            hint::set_text(self.ui.ctx(), &crate::i18n::t(clear_key), "", Caps::NONE);
+        } else if hover.hovered() {
+            hint::set_text(self.ui.ctx(), &tip(), "", Caps::NONE);
         }
-        let r = self.ui.interact(
-            br,
-            Id::new(("insp-text-button", key, button_key)),
-            Sense::click(),
-        );
-        led::button(
-            self.b,
-            br,
-            &self.s.function(f),
-            State::of(&r, false),
-            Src::Key(button_key),
-        );
+        glyph_key(self.b, br, &self.s, State::of(&r, false), Glyph::Close);
         r.clicked()
     }
 

@@ -797,6 +797,12 @@ fn saving_a_frozen_take_into_its_folder_keeps_it_frozen_and_its_render() {
         Some(f.content.clone()),
         cantus_core::freeze::content_key(p, target)
     );
+    let f = f.clone();
+    // Copied on the save's thread (review 4).
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
     let render =
         cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(&f.content, 48_000));
     assert!(
@@ -2669,13 +2675,19 @@ fn the_heard_words_name_what_is_locked_and_nothing_else() {
 
 #[test]
 fn one_render_waiting_is_said_in_good_spanish_and_english_names_the_bake() {
-    let one = std::thread::spawn(|| {
+    // Review 4: "Espera uno más." read as an order to the user; the subject first, as the
+    // plural, which says the same way.
+    let (one, two) = std::thread::spawn(|| {
         cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::Es);
-        cantus_ui::i18n::tf("freeze.card.more_one", &[("body", &"X")])
+        (
+            cantus_ui::i18n::tf("freeze.card.more_one", &[("body", &"X")]),
+            cantus_ui::i18n::tf("freeze.card.more", &[("body", &"X"), ("n", &2)]),
+        )
     })
     .join()
     .unwrap();
-    assert_eq!(one, "X Espera uno más.");
+    assert_eq!(one, "X Uno más en espera.");
+    assert_eq!(two, "X 2 más en espera.");
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(cantus_ui::i18n::t("freeze.card.waiting_body").contains("bake"));
     // The card itself: one render running, one more waiting.
@@ -3344,4 +3356,48 @@ fn a_state_of_its_own_changed_while_it_renders_renders_it_again() {
             "on the master: {on_master} — landed with what it holds now"
         );
     }
+}
+
+#[test]
+fn a_bounce_whose_latency_moves_is_said_as_a_bounce() {
+    // The lead's clipper switches its oversampling mid-song: the bounce cannot be one file,
+    // and the words say the bounce failed, naming the track (review 4: "Bouncing Synth
+    // stays live").
+    let ctx = support::ctx();
+    let (mut app, _dir) = app("bounce-latency-moves");
+    let mut p = app.project().clone();
+    let strip = p.tracks[0].strip.unwrap();
+    let clipper = p.make_effect(EffectKind::Clipper);
+    let fx = clipper.id;
+    p.strip_mut(strip).unwrap().effects.push(clipper);
+    let mut a = automation::AutoPoint::new(Ticks::ZERO, 0.0);
+    a.shape = automation::Shape::Hold;
+    let mut b = automation::AutoPoint::new(Ticks::beats(4), 1.0);
+    b.shape = automation::Shape::Hold;
+    let ride = p.make_automation_clip(
+        "os",
+        AutoTarget::Effect {
+            effect: fx,
+            key: "os".into(),
+        },
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![a, b],
+    );
+    p.tracks[0].clips.push(ride);
+    app.bus = CommandBus::new(p);
+    let synth = app.project().tracks[0].id;
+    let tracks = app.project().tracks.len();
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Inserts,
+            range: Range::Track,
+        },
+    );
+    assert_eq!(app.project().tracks.len(), tracks, "nothing laid");
+    let want = cantus_ui::i18n::tf("bounce.latency_moves", &[("name", &"Synth")]);
+    assert_eq!(app.status.text, want);
 }
