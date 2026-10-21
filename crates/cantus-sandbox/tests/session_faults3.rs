@@ -66,8 +66,8 @@ fn a_reload_that_crashes_again_is_counted() {
     assert!(rig.host.crashed(id).is_some(), "still stopped");
 }
 
-/// A render whose isolated plug-in cannot even be loaded (its helper never answers in
-/// time) is not reported done (review #6, #47).
+/// A render whose isolated plug-in cannot even be loaded in time (its render instance
+/// slow to start, past the load limit) is not reported done (review #6, #47).
 #[test]
 fn a_render_that_cannot_load_a_plugin_says_so() {
     let _g = serial();
@@ -78,11 +78,19 @@ fn a_render_that_cannot_load_a_plugin_says_so() {
     rig.settle();
     if let Some(pool) = rig.host.sandboxes() {
         pool.set_limits(Limits {
-            load: Duration::from_millis(1),
+            silence: Duration::from_secs(10),
+            load: Duration::from_millis(500),
             ..pool.limits()
         });
     }
+    // The render's helper, started now, finds its plug-in slow to start (1.5 s).
+    let dir = tempfile::tempdir().expect("a folder");
+    std::env::set_var(
+        "CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE",
+        dir.path().join("slow"),
+    );
     rig.prepare_render(false);
+    std::env::remove_var("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE");
     let units = rig.host.render_units(rig.bus.project(), SR);
     let insts = rig.host.render_instruments(rig.bus.project(), SR);
     let snapshot = std::sync::Arc::new(Snapshot::compile(rig.bus.project(), 1));

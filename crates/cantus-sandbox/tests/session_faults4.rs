@@ -56,7 +56,9 @@ fn render(rig: &mut Rig, stored: bool) -> Vec<f32> {
 
 /// A plug-in whose load shows its own licence dialog past the load limit is not given up
 /// on, nor thrown away and loaded again: it waits for the dialog (its card says so) and
-/// loads once it closes (review isolation-4 #57; isolation-5 rule 4).
+/// loads once it closes (review isolation-4 #57; isolation-5 rule 4). Windows: elsewhere no
+/// plug-in's dialog runs a loop the helper can see.
+#[cfg(windows)]
 #[test]
 fn a_load_held_by_its_own_dialog_waits_for_it_and_loads() {
     let _g = serial();
