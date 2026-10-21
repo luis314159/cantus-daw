@@ -484,3 +484,11 @@ of a core per instance *Together*, 5.7 % *Individually*; 32 Comprimo CLAP instan
 *Together* 1.16× within on this run. Bit-identity: every to-the-bit test holds (isolated
 against in process at 1/37/64/512 frames, through the engine at 64/256/1 000, the worker
 pool, the instruments, and offline renders).
+
+**The runs** (bad27bc). Windows: `cargo test -p cantus-rt -p cantus-host -p cantus-sandbox`
+251 passed, `cargo test -p cantus-ui` 1 614 passed, `cargo clippy --workspace --all-targets
+-- -D warnings` and `cargo fmt --all -- --check` clean. WSL (Ubuntu 24.04):
+`tools/wsl/check.sh r29/isolation clippy` clean, the isolation crates' tests 221 passed
+(the one test of a plug-in's own dialog is Windows'). Shots, both languages:
+`isolation-waiting`, `isolation-waiting-long` (the 43-letter name, its hint whole),
+`isolation-not-loaded` (the editor's card with Reload), with the earlier ones.
