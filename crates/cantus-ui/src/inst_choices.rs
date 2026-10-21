@@ -35,7 +35,9 @@ fn keys(list: &[&str]) -> Vec<Word> {
 
 /// `prefix.name` for each name (Unda's lists, as its editor builds them).
 fn named(prefix: &str, list: &[&str]) -> Vec<Word> {
-    list.iter().map(|n| Word::Key(format!("{prefix}.{n}"))).collect()
+    list.iter()
+        .map(|n| Word::Key(format!("{prefix}.{n}")))
+        .collect()
 }
 
 /// The words of `key`'s values from its lowest up; `None` when its values are numbers (or
@@ -55,7 +57,9 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
     }
     Some(match (kind, f.as_str()) {
         // Calor (analog_edit.rs, analog.rs).
-        (Analog, "voice.mode") => keys(&["calor.mode.poly", "calor.mode.mono", "calor.mode.legato"]),
+        (Analog, "voice.mode") => {
+            keys(&["calor.mode.poly", "calor.mode.mono", "calor.mode.legato"])
+        }
         (Analog, "voice.assign") => keys(&[
             "calor.assign.rotate",
             "calor.assign.reuse",
@@ -68,7 +72,11 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         ]),
         (Analog, "glide.mode") => keys(&["calor.glide.by_time", "calor.glide.by_rate"]),
         (Analog, "glide.curve") => keys(&["calor.glide.rc", "calor.glide.linear"]),
-        (Analog, "osc.rev") => keys(&["calor.rev.ideal", "calor.rev.vintage_a", "calor.rev.vintage_b"]),
+        (Analog, "osc.rev") => keys(&[
+            "calor.rev.ideal",
+            "calor.rev.vintage_a",
+            "calor.rev.vintage_b",
+        ]),
         (Analog, "sub.shape") => keys(&["calor.sub.sq1", "calor.sub.sq2", "calor.sub.pulse1"]),
         (Analog, "noise.color") => keys(&["calor.noise.white", "calor.noise.pink"]),
         (Analog, "hpf.pos") => keys(&["calor.hpf.pre", "calor.hpf.post", "calor.hpf.boost"]),
@@ -103,10 +111,23 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
             "calor.model.sk",
         ]),
         // From 1 (6 dB) to 4 (24 dB).
-        (Analog, "vcf.slope") => keys(&["calor.slope.6", "calor.slope.12", "calor.slope.18", "calor.slope.24"]),
+        (Analog, "vcf.slope") => keys(&[
+            "calor.slope.6",
+            "calor.slope.12",
+            "calor.slope.18",
+            "calor.slope.24",
+        ]),
         (Analog, "vcf.mid") => keys(&["calor.mid.notch", "calor.mid.band"]),
-        (Analog, "vcf.rev") => keys(&["calor.vcf.rev.clean", "calor.vcf.rev.rough", "calor.vcf.rev.pushed"]),
-        (Analog, "quality") => keys(&["calor.quality.draft", "calor.quality.good", "calor.quality.best"]),
+        (Analog, "vcf.rev") => keys(&[
+            "calor.vcf.rev.clean",
+            "calor.vcf.rev.rough",
+            "calor.vcf.rev.pushed",
+        ]),
+        (Analog, "quality") => keys(&[
+            "calor.quality.draft",
+            "calor.quality.good",
+            "calor.quality.best",
+        ]),
         (Analog, "chorus.mode") => keys(&[
             "calor.chorus.off",
             "calor.chorus.one",
@@ -118,13 +139,29 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         // All three, whichever engine the editor shows (it draws *Strings* with the
         // string engine only).
         (Bass, "mode") => keys(&["bass.mode.legato", "bass.mode.mono", "bass.mode.strings"]),
-        (Bass, "priority") => keys(&["bass.priority.last", "bass.priority.low", "bass.priority.high"]),
-        (Bass, "glide.trigger") => keys(&["bass.glide.legato", "bass.glide.always", "bass.glide.off"]),
+        (Bass, "priority") => keys(&[
+            "bass.priority.last",
+            "bass.priority.low",
+            "bass.priority.high",
+        ]),
+        (Bass, "glide.trigger") => {
+            keys(&["bass.glide.legato", "bass.glide.always", "bass.glide.off"])
+        }
         (Bass, "glide.rate") => keys(&["bass.glide.time", "bass.glide.rate"]),
         (Bass, "glide.shape") => keys(&["bass.shape.exp", "bass.shape.linear", "bass.shape.s"]),
         (Bass, "phase") => keys(&["bass.phase.reset", "bass.phase.random", "bass.phase.free"]),
-        (Bass, "lfo.shape") => keys(&["bass.lfo.sine", "bass.lfo.triangle", "bass.lfo.square", "bass.lfo.saw"]),
-        (Bass, "syn.wave") => keys(&["bass.wave.saw", "bass.wave.square", "bass.wave.pulse", "bass.wave.triangle"]),
+        (Bass, "lfo.shape") => keys(&[
+            "bass.lfo.sine",
+            "bass.lfo.triangle",
+            "bass.lfo.square",
+            "bass.lfo.saw",
+        ]),
+        (Bass, "syn.wave") => keys(&[
+            "bass.wave.saw",
+            "bass.wave.square",
+            "bass.wave.pulse",
+            "bass.wave.triangle",
+        ]),
         (Bass, "syn.filter") => keys(&[
             "bass.filter.ladder",
             "bass.filter.diode",
@@ -133,9 +170,23 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         ]),
         // From 4 strings to 6.
         (Bass, "str.strings") => keys(&["bass.strings.4", "bass.strings.5", "bass.strings.6"]),
-        (Bass, "str.tuning") => keys(&["bass.tuning.standard", "bass.tuning.drop", "bass.tuning.half"]),
-        (Bass, "str.type") => keys(&["bass.type.round", "bass.type.half", "bass.type.flat", "bass.type.tape"]),
-        (Bass, "str.technique") => keys(&["bass.tech.finger", "bass.tech.pick", "bass.tech.slap", "bass.tech.mute"]),
+        (Bass, "str.tuning") => keys(&[
+            "bass.tuning.standard",
+            "bass.tuning.drop",
+            "bass.tuning.half",
+        ]),
+        (Bass, "str.type") => keys(&[
+            "bass.type.round",
+            "bass.type.half",
+            "bass.type.flat",
+            "bass.type.tape",
+        ]),
+        (Bass, "str.technique") => keys(&[
+            "bass.tech.finger",
+            "bass.tech.pick",
+            "bass.tech.slap",
+            "bass.tech.mute",
+        ]),
         (Bass, "str.fingering") => keys(&[
             "bass.fingering.lowest",
             "bass.fingering.position",
@@ -143,15 +194,24 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         ]),
         (Bass, "str.pu_type") => keys(&["bass.pu.single", "bass.pu.humbucker"]),
         (Bass, "sub.wave") => keys(&["bass.lfo.sine", "bass.lfo.triangle", "bass.lfo.square"]),
-        (Bass, "drive.type") => keys(&["bass.drive.tube", "bass.drive.tape", "bass.drive.fold", "bass.drive.hard"]),
+        (Bass, "drive.type") => keys(&[
+            "bass.drive.tube",
+            "bass.drive.tape",
+            "bass.drive.fold",
+            "bass.drive.hard",
+        ]),
         (Bass, "duck.source") => keys(&["bass.duck.none", "bass.duck.kick", "bass.duck.sidechain"]),
         (Bass, "duck.shape") => keys(&["bass.shape.linear", "bass.shape.exp", "bass.shape.s"]),
         (Bass, "key.snap") => keys(&["bass.snap.off", "bass.snap.scale", "bass.snap.roots"]),
         // Lamina (epiano.rs).
         (ElectricPiano, "engine") => keys(&["epiano.engine_tine", "epiano.engine_reed"]),
-        (ElectricPiano, "trem.mode") => keys(&["epiano.trem_auto", "epiano.trem_pan", "epiano.trem_amp"]),
+        (ElectricPiano, "trem.mode") => {
+            keys(&["epiano.trem_auto", "epiano.trem_pan", "epiano.trem_amp"])
+        }
         (ElectricPiano, "output") => keys(&["epiano.out_direct", "epiano.out_speaker"]),
-        (ElectricPiano, "range") => keys(&["epiano.range_73", "epiano.range_64", "epiano.range_88"]),
+        (ElectricPiano, "range") => {
+            keys(&["epiano.range_73", "epiano.range_64", "epiano.range_88"])
+        }
         // Organum (organ.rs): the scanner's modes are their own names in every language.
         (Organ, "perc.harm") => keys(&["organ.perc_2nd", "organ.perc_3rd"]),
         (Organ, "perc.decay") => keys(&["organ.perc_fast_sw", "organ.perc_slow_sw"]),
@@ -173,10 +233,22 @@ pub fn words(kind: InstrumentKind, key: &str) -> Option<Vec<Word>> {
         (Fm, "env.x.mode") => keys(&["fm.env.time_mode", "fm.env.dx_mode"]),
         (Fm, "ks.x.lcurve" | "ks.x.rcurve") => keys(&fm::KS_CURVES),
         // Exemplar (sampler_cards.rs, sampler_map.rs, sampler_wave.rs).
-        (Sampler, "filter.type") => keys(&["smp.filter.off", "smp.filter.lp", "smp.filter.bp", "smp.filter.hp"]),
-        (Sampler, "lfo.shape") => keys(&["smp.shape.sine", "smp.shape.triangle", "smp.shape.square", "smp.shape.saw"]),
+        (Sampler, "filter.type") => keys(&[
+            "smp.filter.off",
+            "smp.filter.lp",
+            "smp.filter.bp",
+            "smp.filter.hp",
+        ]),
+        (Sampler, "lfo.shape") => keys(&[
+            "smp.shape.sine",
+            "smp.shape.triangle",
+            "smp.shape.square",
+            "smp.shape.saw",
+        ]),
         (Sampler, "mode") => keys(&["smp.play.poly", "smp.play.mono", "smp.play.legato"]),
-        (Sampler, "quality") => keys(&["smp.q.draft", "smp.q.standard", "smp.q.high", "smp.q.best"]),
+        (Sampler, "quality") => {
+            keys(&["smp.q.draft", "smp.q.standard", "smp.q.high", "smp.q.best"])
+        }
         (Sampler, "rr.order") => keys(&["smp.rr.by_note", "smp.rr.in_order"]),
         (Sampler, "z.mode") => keys(&[
             "smp.mode.no_loop",

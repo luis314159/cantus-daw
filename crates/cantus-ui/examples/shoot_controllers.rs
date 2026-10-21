@@ -416,9 +416,16 @@ fn main() {
             a.select_strip(strip);
             a.toggle_learn_mode();
             let out = name(&dir, "learn-inspector", dark, lang, 1.0);
-            shoot(&ctx, egui::vec2(420.0, 1100.0), 1.0, 6, Some(&out), |root| {
-                panel(root, |ui| views::inspector::show(&mut a, ui));
-            });
+            shoot(
+                &ctx,
+                egui::vec2(420.0, 1100.0),
+                1.0,
+                6,
+                Some(&out),
+                |root| {
+                    panel(root, |ui| views::inspector::show(&mut a, ui));
+                },
+            );
             println!("{}", out.display());
             // A parameter's menu: *Learn MIDI controller* again and *Forget*.
             cantus_ui::i18n::set_locale(lang);

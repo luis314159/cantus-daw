@@ -247,7 +247,8 @@ impl ParamSync {
             };
             base.and_then(|b| {
                 let norm = (b + f64::from(v.modulation)).clamp(0.0, 1.0);
-                let plain = crate::backend::snap_to_steps(k.min + norm * span, k.min, k.max, k.steps);
+                let plain =
+                    crate::backend::snap_to_steps(k.min + norm * span, k.min, k.max, k.steps);
                 k.auto = Some(plain);
                 (plain.to_bits() != k.value.to_bits()).then(|| {
                     k.value = plain;

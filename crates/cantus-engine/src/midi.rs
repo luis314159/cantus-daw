@@ -711,9 +711,7 @@ impl Default for MidiOutputs {
         MidiOutputs {
             open: Vec::new(),
             missing: Vec::new(),
-            connect: |input| {
-                MidiOutputs::connect(input).map(|c| Box::new(c) as Box<dyn OutPort>)
-            },
+            connect: |input| MidiOutputs::connect(input).map(|c| Box::new(c) as Box<dyn OutPort>),
         }
     }
 }

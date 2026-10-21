@@ -120,7 +120,10 @@ fn two_named_choices_read_their_names() {
     }
     // A wordless switch: Off and On.
     let key_eq = effect(comp, "key_eq");
-    assert_eq!(value_words(&a, &key_eq, 1.0), cantus_ui::i18n::t("ctl.value.on"));
+    assert_eq!(
+        value_words(&a, &key_eq, 1.0),
+        cantus_ui::i18n::t("ctl.value.on")
+    );
     assert_eq!(parse_value(&a, &key_eq, "off"), Some(0.0));
     // A two-step number: its number and unit.
     let track = a.project().tracks[0].id;
@@ -160,12 +163,21 @@ fn test_plugin() -> std::path::PathBuf {
     })
 }
 
-/// An app with the test plug-in inserted and its editor open: the insert's id.
-fn hosted_app() -> (CantusApp, EffectId) {
+/// The hosted tests one at a time: `plugins::demo_setup` copies the test plug-in into one
+/// shared folder, and a copy made while another test loads it can leave it unreadable.
+fn hosted_serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// An app with the test plug-in inserted and its editor open: the insert's id, and the
+/// guard that keeps the hosted tests one at a time.
+fn hosted_app() -> (std::sync::MutexGuard<'static, ()>, CantusApp, EffectId) {
+    let guard = hosted_serial();
     let mut a = keys_app();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
-    (a, effect)
+    (guard, a, effect)
 }
 
 /// #1, #58: a hosted parameter whose plain values are 0…1 with three steps (a JUCE VST3's
@@ -174,7 +186,7 @@ fn hosted_app() -> (CantusApp, EffectId) {
 /// steps.
 #[test]
 fn a_hosted_choice_moves_on_its_own_steps() {
-    let (mut a, effect) = hosted_app();
+    let (_one, mut a, effect) = hosted_app();
     let id = 2; // the test plug-in's key switch, made a four-way choice of 0…1
     let mut info = a
         .hosted_param_info(&AutoTarget::Plugin { effect, id })
@@ -191,7 +203,10 @@ fn a_hosted_choice_moves_on_its_own_steps() {
     else {
         panic!("a command");
     };
-    assert!((value - 1.0 / 3.0).abs() < 1e-9, "the second of four: {value}");
+    assert!(
+        (value - 1.0 / 3.0).abs() < 1e-9,
+        "the second of four: {value}"
+    );
     // An encoder: one choice a detent, down from where the demo left it (its top).
     add(
         &mut a,
@@ -201,9 +216,12 @@ fn a_hosted_choice_moves_on_its_own_steps() {
         MapMode::Relative(Encoding::TwosComplement),
     );
     let held = |a: &CantusApp| {
-        a.project()
-            .effect(strip(a), effect)
-            .and_then(|e| e.spec.external.as_ref().and_then(|x| x.params.get(&id).copied()))
+        a.project().effect(strip(a), effect).and_then(|e| {
+            e.spec
+                .external
+                .as_ref()
+                .and_then(|x| x.params.get(&id).copied())
+        })
     };
     let before = held(&a).unwrap_or(0.0);
     // (The session reads the plug-in's own description again as the project changes.)
@@ -229,10 +247,20 @@ fn instrument_choices_read_their_names_with_no_editor_drawn() {
     let mut a = keys_app();
     let track = a.project().tracks[0].id;
     let cases = [
-        (InstrumentKind::Analog, "vcf.model", 3.0 / 4.0, "calor.model.svf"),
+        (
+            InstrumentKind::Analog,
+            "vcf.model",
+            3.0 / 4.0,
+            "calor.model.svf",
+        ),
         (InstrumentKind::Bass, "mode", 1.0, "bass.mode.strings"),
         (InstrumentKind::Fm, "op.c.wave", 2.0 / 3.0, "fm.wave.saw"),
-        (InstrumentKind::Wavetable, "flt2.type", 0.0, "unda.flt.svf_lp12"),
+        (
+            InstrumentKind::Wavetable,
+            "flt2.type",
+            0.0,
+            "unda.flt.svf_lp12",
+        ),
         (InstrumentKind::Organ, "mod3.curve", 1.0, "mod.curve.steps"),
     ];
     for (kind, key, pos, word) in cases {
@@ -273,20 +301,23 @@ fn every_named_instrument_choice_reads_and_types_its_names() {
                 continue;
             };
             let target = instrument(track, &key);
-            let r = cantus_core::automation::range::range_of(a.project(), match &target {
-                MappingTarget::Param(p) => p,
-                _ => unreachable!(),
-            })
+            let r = cantus_core::automation::range::range_of(
+                a.project(),
+                match &target {
+                    MappingTarget::Param(p) => p,
+                    _ => unreachable!(),
+                },
+            )
             .expect("a range");
             assert_eq!(
                 words.len() as f32,
                 r.max - r.min + 1.0,
                 "{kind:?} {key}: a word for each value"
             );
-            for i in 0..words.len() {
+            for (i, word) in words.iter().enumerate() {
                 let pos = r.pos(r.min + i as f32);
                 let shown = value_words(&a, &target, pos);
-                assert_eq!(shown, words[i].show(), "{kind:?} {key}: its name");
+                assert_eq!(shown, word.show(), "{kind:?} {key}: its name");
                 let back = parse_value(&a, &target, &shown).expect("typed back");
                 assert!((back - pos).abs() < 1e-4, "{kind:?} {key} {shown}: {back}");
             }
@@ -456,7 +487,10 @@ fn an_nrpn_burst_is_passed_over_and_the_learn_stays_armed() {
     a.controller_heard(&[cc(6, 64), cc(38, 0), cc(6, 65)]);
     assert!(a.status.error, "said");
     assert!(
-        a.controllers.learning.as_ref().is_some_and(|l| l.target == pan),
+        a.controllers
+            .learning
+            .as_ref()
+            .is_some_and(|l| l.target == pan),
         "still armed"
     );
     assert!(a.project().controllers.is_empty());
@@ -581,7 +615,8 @@ fn a_later_lap_stopped_before_the_record_start_keeps_its_automation() {
     a.controller_heard(&[cc(10, 40)]);
     a.engine.set_heard_for_tests(bar(5) + Ticks::beats(2), true);
     a.controller_heard(&[cc(10, 90)]);
-    a.engine.set_heard_for_tests(bar(5) + Ticks::beats(3), false);
+    a.engine
+        .set_heard_for_tests(bar(5) + Ticks::beats(3), false);
     a.stop_recording();
     let clips = pan_clips(&a, s);
     assert_eq!(clips.len(), 1, "kept");
@@ -644,7 +679,13 @@ fn a_stale_position_after_the_count_in_is_no_wrap() {
     a.controller_heard(&[]);
     a.engine.set_heard_for_tests(bar(5) + Ticks::beats(2), true);
     a.controller_heard(&[cc(10, 100)]);
-    let points = a.modulators.rec.points.get(&AutoTarget::StripPan(s)).cloned().unwrap();
+    let points = a
+        .modulators
+        .rec
+        .points
+        .get(&AutoTarget::StripPan(s))
+        .cloned()
+        .unwrap();
     assert!(points.iter().all(|(t, _)| *t >= bar(6).0), "{points:?}");
 }
 
@@ -663,7 +704,13 @@ fn a_move_in_the_wrap_frame_belongs_to_the_new_lap() {
     a.controller_heard(&[]);
     let at = bar(4) + Ticks(20);
     a.record_point_at(AutoTarget::StripPan(s), 0.25, at.0);
-    let points = a.modulators.rec.points.get(&AutoTarget::StripPan(s)).cloned().unwrap();
+    let points = a
+        .modulators
+        .rec
+        .points
+        .get(&AutoTarget::StripPan(s))
+        .cloned()
+        .unwrap();
     assert!(points.iter().any(|(t, _)| *t == at.0), "{points:?}");
 }
 
@@ -684,8 +731,20 @@ fn a_strips_arm_and_its_tracks_arm_newest_press_wins() {
             trim_db: 0.0,
         }),
     });
-    add(&mut a, 1, Control::Note(40), MappingTarget::StripArm(s), MapMode::Toggle);
-    add(&mut a, 2, Control::Note(41), MappingTarget::TrackArm(t), MapMode::Toggle);
+    add(
+        &mut a,
+        1,
+        Control::Note(40),
+        MappingTarget::StripArm(s),
+        MapMode::Toggle,
+    );
+    add(
+        &mut a,
+        2,
+        Control::Note(41),
+        MappingTarget::TrackArm(t),
+        MapMode::Toggle,
+    );
     let press = |a: &mut CantusApp, n: u8| {
         a.controller_heard(&[msg_at(0x90, n, 100, Instant::now())]);
         a.controller_heard(&[msg_at(0x80, n, 0, Instant::now())]);
@@ -702,7 +761,9 @@ fn a_strips_arm_and_its_tracks_arm_newest_press_wins() {
 
 /// The pane painted at `size` (three frames): its painted text.
 fn paint_pane(a: &mut CantusApp, size: egui::Vec2) -> String {
-    paint(&ctx(), size, 3, |ui| cantus_ui::views::controllers::show(a, ui))
+    paint(&ctx(), size, 3, |ui| {
+        cantus_ui::views::controllers::show(a, ui)
+    })
 }
 
 fn tagged(a: &CantusApp, id: MappingId, what: &str) -> bool {
@@ -717,7 +778,7 @@ fn tagged(a: &CantusApp, id: MappingId, what: &str) -> bool {
 #[test]
 fn a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins() {
     use cantus_ui::controllers::Idle;
-    let (mut a, effect) = hosted_app();
+    let (_one, mut a, effect) = hosted_app();
     let s = a.project().effect_host(effect).expect("its strip");
     let target = MappingTarget::Param(AutoTarget::Plugin { effect, id: 0 });
     let info = a
@@ -726,7 +787,13 @@ fn a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins() {
         .expect("the parameter");
     a.learn_target(target);
     a.controller_heard(&(0..8).map(|v| cc(23, 40 + v)).collect::<Vec<_>>());
-    let m = a.project().controllers.mappings.last().cloned().expect("learnt");
+    let m = a
+        .project()
+        .controllers
+        .mappings
+        .last()
+        .cloned()
+        .expect("learnt");
     let learnt = m.plugin.clone().expect("its plug-in");
     assert_eq!(learnt.param, info.name, "the parameter's name");
     assert!(!learnt.name.is_empty(), "the plug-in's name");
@@ -736,7 +803,10 @@ fn a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins() {
         &cantus_ui::picker::PickChoice::Effect(EffectKind::Compressor)
     ));
     let now = a.project().controllers.get(m.id).cloned().expect("kept");
-    assert_eq!(a.mapping_state(Scope::Project, &now), Some(Idle::OtherPlugin));
+    assert_eq!(
+        a.mapping_state(Scope::Project, &now),
+        Some(Idle::OtherPlugin)
+    );
     let name = a.mapping_name(&now);
     assert!(
         name.contains(&learnt.name) && name.contains(&info.name),
@@ -747,8 +817,14 @@ fn a_hosted_mapping_swapped_for_a_native_insert_is_another_plug_ins() {
     let text = paint_pane(&mut a, egui::vec2(1400.0, 600.0));
     assert!(tagged(&a, m.id, "row"), "found by {}: {text}", learnt.name);
     a.undo();
+    // Its plug-in back in its slot: the mapping fits again (the plug-in itself reloads
+    // in its own time).
     let back = a.project().controllers.get(m.id).cloned().unwrap();
-    assert_eq!(a.mapping_state(Scope::Project, &back), None, "alive again");
+    assert!(back.alive(a.project()), "alive again");
+    assert_ne!(
+        a.mapping_state(Scope::Project, &back),
+        Some(Idle::OtherPlugin)
+    );
 }
 
 /// #41: an insert swapped for another native effect that has the same parameter: its
@@ -758,8 +834,20 @@ fn swapping_an_insert_moves_the_parameters_the_new_one_has() {
     let mut a = keys_app();
     let s = strip(&a);
     let fx = insert(&mut a, EffectKind::Compressor);
-    add(&mut a, 1, Control::Cc(21), effect(fx, "thr"), MapMode::Absolute);
-    add(&mut a, 2, Control::Cc(22), effect(fx, "key_eq"), MapMode::Absolute);
+    add(
+        &mut a,
+        1,
+        Control::Cc(21),
+        effect(fx, "thr"),
+        MapMode::Absolute,
+    );
+    add(
+        &mut a,
+        2,
+        Control::Cc(22),
+        effect(fx, "key_eq"),
+        MapMode::Absolute,
+    );
     assert!(a.replace_effect_with(
         s,
         fx,
@@ -773,8 +861,16 @@ fn swapping_an_insert_moves_the_parameters_the_new_one_has() {
             .map(|m| m.target.clone())
             .unwrap()
     };
-    assert_eq!(target_of(&a, 1), effect(new, "thr"), "the gate has a threshold");
-    assert_eq!(target_of(&a, 2), effect(fx, "key_eq"), "left on the compressor");
+    assert_eq!(
+        target_of(&a, 1),
+        effect(new, "thr"),
+        "the gate has a threshold"
+    );
+    assert_eq!(
+        target_of(&a, 2),
+        effect(fx, "key_eq"),
+        "left on the compressor"
+    );
     a.undo();
     assert_eq!(target_of(&a, 1), effect(fx, "thr"));
 }
@@ -826,7 +922,7 @@ fn learning_beside_a_swapped_out_mapping_shares_nothing() {
 /// plug-in's words for its own parameter of that id.
 #[test]
 fn a_swapped_out_row_reads_its_range_in_percent() {
-    let (mut a, effect) = hosted_app();
+    let (_one, mut a, effect) = hosted_app();
     let target = MappingTarget::Param(AutoTarget::Plugin { effect, id: 2 });
     let mut m = Mapping::new(
         MappingId(9),
@@ -841,7 +937,10 @@ fn a_swapped_out_row_reads_its_range_in_percent() {
     a.add_mapping(Scope::Project, m);
     let text = paint_pane(&mut a, egui::vec2(1400.0, 600.0)).replace(' ', "");
     assert!(text.contains("|100%|"), "{text}");
-    assert!(!text.contains("|On|"), "not the loaded plug-in's word: {text}");
+    assert!(
+        !text.contains("|On|"),
+        "not the loaded plug-in's word: {text}"
+    );
 }
 
 /// #51: the master's effects switch is named as the pane names the master everywhere, in
@@ -873,8 +972,20 @@ fn a_switch_shows_no_takeover() {
         MappingTarget::StripMute(s),
         MapMode::Absolute,
     );
-    add(&mut a, 2, Control::Cc(31), effect(fx, "key_eq"), MapMode::Absolute);
-    add(&mut a, 3, Control::Cc(32), effect(fx, "threshold"), MapMode::Absolute);
+    add(
+        &mut a,
+        2,
+        Control::Cc(31),
+        effect(fx, "key_eq"),
+        MapMode::Absolute,
+    );
+    add(
+        &mut a,
+        3,
+        Control::Cc(32),
+        effect(fx, "threshold"),
+        MapMode::Absolute,
+    );
     paint_pane(&mut a, egui::vec2(1400.0, 600.0));
     assert!(!tagged(&a, MappingId(1), "takeover"));
     assert!(!tagged(&a, MappingId(2), "takeover"));
@@ -888,7 +999,11 @@ fn the_clips_list_and_the_keyboard_light_a_button() {
     let before = a.action_state("toggle-clips");
     assert!(before.is_some());
     a.run_action(cantus_ui::keymap::Action::ToggleClips);
-    assert_ne!(a.action_state("toggle-clips"), before, "it follows the list");
+    assert_ne!(
+        a.action_state("toggle-clips"),
+        before,
+        "it follows the list"
+    );
     let track = a.project().tracks[0].id;
     a.set_instrument(
         track,
@@ -976,7 +1091,10 @@ fn a_bands_solo_led_is_learnt_for_that_band() {
         let (from, to) = r.expect("over its band");
         assert_eq!(from, 0.0, "none");
         let band = to * 24.0;
-        assert!((band - band.round()).abs() < 1e-4 && band >= 1.0, "a band: {band}");
+        assert!(
+            (band - band.round()).abs() < 1e-4 && band >= 1.0,
+            "a band: {band}"
+        );
     }
     let mut m = Mapping::new(
         MappingId(5),
@@ -1099,14 +1217,18 @@ fn the_inspector_header_and_record_dot_learn() {
         cantus_ui::views::fx::window(a, &ctx);
     });
     assert!(
-        header.iter().any(|(t, _)| *t == MappingTarget::EffectBypass(fx)),
+        header
+            .iter()
+            .any(|(t, _)| *t == MappingTarget::EffectBypass(fx)),
         "the header's lamp: {header:?}"
     );
     let mixer = armed_by_clicks(&mut a, egui::vec2(1600.0, 700.0), &mut |a, ui| {
         cantus_ui::views::mixer::show(a, ui)
     });
     assert!(
-        mixer.iter().any(|(tg, _)| *tg == MappingTarget::StripArm(s)),
+        mixer
+            .iter()
+            .any(|(tg, _)| *tg == MappingTarget::StripArm(s)),
         "the record dot: {mixer:?}"
     );
 }
@@ -1130,7 +1252,9 @@ fn the_inspectors_arm_led_learns_the_arm() {
         cantus_ui::views::inspector::show(a, ui)
     });
     assert!(
-        armed.iter().any(|(tg, _)| *tg == MappingTarget::TrackArm(t)),
+        armed
+            .iter()
+            .any(|(tg, _)| *tg == MappingTarget::TrackArm(t)),
         "{armed:?}"
     );
 }
@@ -1166,7 +1290,9 @@ fn clicking_learns_in_editors_and_the_arrangement() {
         cantus_ui::views::inst::window_in(a, ui)
     });
     assert!(
-        armed.iter().any(|(t, _)| *t == instrument(track, "vcf.model")),
+        armed
+            .iter()
+            .any(|(t, _)| *t == instrument(track, "vcf.model")),
         "a choice: {armed:?}"
     );
     let armed = armed_by_clicks(&mut a, egui::vec2(1400.0, 600.0), &mut |a, ui| {

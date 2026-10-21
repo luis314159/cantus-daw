@@ -58,7 +58,11 @@ fn a_lossy_global_file_is_kept_and_said() {
     .to_string();
     std::fs::write(&path, &text).unwrap();
     let app = boot(dir.path());
-    assert_eq!(app.controllers.global.mappings.len(), 1, "what could be read");
+    assert_eq!(
+        app.controllers.global.mappings.len(),
+        1,
+        "what could be read"
+    );
     assert_eq!(app.controllers.global_path.as_deref(), Some(path.as_path()));
     assert!(app.status.error, "said");
     let kept = std::fs::read_dir(dir.path())
@@ -67,7 +71,11 @@ fn a_lossy_global_file_is_kept_and_said() {
         .map(|e| e.file_name().to_string_lossy().to_string())
         .find(|n| n.ends_with(".bad"))
         .expect("kept beside");
-    assert!(app.status.text.contains(&kept), "names {kept}: {}", app.status.text);
+    assert!(
+        app.status.text.contains(&kept),
+        "names {kept}: {}",
+        app.status.text
+    );
 }
 
 /// #42, #28: a global file that can be neither read nor kept (a folder where it should

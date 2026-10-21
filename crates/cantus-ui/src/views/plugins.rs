@@ -882,8 +882,7 @@ fn body_ui(
                             }
                             // The plug-in's words for the value, asked once per value — again
                             // while not answered (an isolated plug-in answers later).
-                            let later =
-                                h.isolation() != cantus_core::PluginIsolation::Within;
+                            let later = h.isolation() != cantus_core::PluginIsolation::Within;
                             let text = texts.get(effect, p.id, value.to_bits(), later, || {
                                 h.param_text(p.id, value)
                             });

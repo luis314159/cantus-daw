@@ -432,10 +432,11 @@ impl FxHost for DawHost<'_> {
             return;
         }
         let pos = |v: f32| (v - info.min) / span;
-        let target = cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
-            effect: self.effect,
-            key: key.to_string(),
-        });
+        let target =
+            cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
+                effect: self.effect,
+                key: key.to_string(),
+            });
         self.app.set_learn_range(&target, pos(from), pos(to));
     }
 
@@ -444,10 +445,11 @@ impl FxHost for DawHost<'_> {
             return true;
         };
         let span = info.max - info.min;
-        let target = cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
-            effect: self.effect,
-            key: key.to_string(),
-        });
+        let target =
+            cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Effect {
+                effect: self.effect,
+                key: key.to_string(),
+            });
         span > 0.0 && self.app.mapping_reaches(&target, (value - info.min) / span)
     }
 

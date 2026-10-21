@@ -1380,9 +1380,8 @@ pub(crate) fn decode(
     match ev.status & 0xF0 {
         0xB0 => {
             let first = (Control::Cc(d1), u16::from(d2), true);
-            let gap = |t: Option<Instant>| {
-                t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP)
-            };
+            let gap =
+                |t: Option<Instant>| t.is_some_and(|t| at.saturating_duration_since(t) <= PAIR_GAP);
             let pair = |e: &Wide| u16::from(e.msb) << 7 | u16::from(e.lsb);
             if d1 < 32 {
                 let e = wide.entry((port, ch, d1)).or_default();

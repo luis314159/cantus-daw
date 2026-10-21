@@ -261,9 +261,18 @@ mod tests {
             w.to_string()
         };
         let fb = || "0.50".to_string();
-        assert_eq!(&*texts.get(1, 0, bits, false, || Some(ask("Saw")), fb), "Saw");
-        assert_eq!(&*texts.get(1, 0, bits, false, || Some(ask("never")), fb), "Saw");
-        assert_eq!(&*texts.get(2, 0, bits, false, || Some(ask("50 %")), fb), "50 %");
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || Some(ask("Saw")), fb),
+            "Saw"
+        );
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || Some(ask("never")), fb),
+            "Saw"
+        );
+        assert_eq!(
+            &*texts.get(2, 0, bits, false, || Some(ask("50 %")), fb),
+            "50 %"
+        );
         assert_eq!(
             &*texts.get(2, 0, 0.6f64.to_bits(), false, || Some(ask("60 %")), fb),
             "60 %"
@@ -277,14 +286,27 @@ mod tests {
     fn an_unanswered_value_is_asked_again() {
         let mut texts = super::Texts::default();
         let bits = 0.42f64.to_bits();
-        assert_eq!(&*texts.get(1, 0, bits, true, || None, || "0.42".into()), "0.42");
         assert_eq!(
-            &*texts.get(1, 0, bits, true, || Some("1.2 kHz".into()), || "0.42".into()),
+            &*texts.get(1, 0, bits, true, || None, || "0.42".into()),
+            "0.42"
+        );
+        assert_eq!(
+            &*texts.get(
+                1,
+                0,
+                bits,
+                true,
+                || Some("1.2 kHz".into()),
+                || "0.42".into()
+            ),
             "1.2 kHz"
         );
         // Review 4, #63: an in-process plug-in's "no words" is its answer: not asked again.
         let mut texts = super::Texts::default();
-        assert_eq!(&*texts.get(1, 0, bits, false, || None, || "0.42".into()), "0.42");
+        assert_eq!(
+            &*texts.get(1, 0, bits, false, || None, || "0.42".into()),
+            "0.42"
+        );
         assert_eq!(
             &*texts.get(1, 0, bits, false, || panic!("asked again"), || "x".into()),
             "0.42"

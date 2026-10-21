@@ -136,12 +136,11 @@ fn power(
     // the lamp's way: *On* lights it, as feedback does (review 4, #53).
     let now = app.learn_armed_at();
     if lit_value < 0.5 && now.is_some() && now != before {
-        let target = cantus_core::controller::MappingTarget::Param(
-            cantus_core::AutoTarget::Instrument {
+        let target =
+            cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Instrument {
                 track,
                 key: key.to_string(),
-            },
-        );
+            });
         app.set_learn_range(&target, 1.0, 0.0);
     }
     if resp.clicked() && !learning {

@@ -949,6 +949,13 @@ fn a_hovered_bus_with_many_inputs_timing() {
     );
 }
 
+/// The hosted cases one at a time: `plugins::demo_setup` copies the test plug-in into one
+/// shared folder, and a copy made while another case loads it can leave it unreadable.
+fn hosted_serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The test CLAP plug-in, built from source where the host's tests build it.
 fn test_clap() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -981,6 +988,7 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
     let (engine, _processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
     app.midi_port_names = vec!["Keys".into()];
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
     let effect = app
         .fx
@@ -1129,6 +1137,7 @@ fn a_hosted_choices_word_asks_for_one_step() {
     use cantus_core::controller::MappingTarget;
     let (engine, _processor) = EngineHandle::manual(48_000.0);
     let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
     let effect = app
         .fx
@@ -1146,5 +1155,8 @@ fn a_hosted_choices_word_asks_for_one_step() {
         counted(|| cantus_ui::views::controllers::value_words(&app, &target, 3.0 / steps as f32));
     eprintln!("a hosted choice's word: {allocs} allocations ({word})");
     assert_eq!(word, "3");
-    assert!(allocs <= 8, "{allocs} allocations: one step asked, not {steps}");
+    assert!(
+        allocs <= 8,
+        "{allocs} allocations: one step asked, not {steps}"
+    );
 }

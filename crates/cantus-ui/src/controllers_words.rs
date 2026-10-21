@@ -162,16 +162,15 @@ fn native_words(app: &CantusApp, target: &MappingTarget) -> Option<(i32, Vec<Wor
             if !info.stepped {
                 return None;
             }
-            Some((info.min.round() as i32, crate::inst_choices::words(kind, key)?))
+            Some((
+                info.min.round() as i32,
+                crate::inst_choices::words(kind, key)?,
+            ))
         }
-        MappingTarget::Param(AutoTarget::Firmus { param, .. })
-            if matches!(
-                param,
-                cantus_core::FirmusParam::Osc1Wave | cantus_core::FirmusParam::Osc2Wave
-            ) =>
-        {
-            Some((0, crate::inst_choices::firmus_waves()))
-        }
+        MappingTarget::Param(AutoTarget::Firmus {
+            param: cantus_core::FirmusParam::Osc1Wave | cantus_core::FirmusParam::Osc2Wave,
+            ..
+        }) => Some((0, crate::inst_choices::firmus_waves())),
         _ => None,
     }
 }
@@ -244,11 +243,10 @@ pub fn has_words(app: &CantusApp, target: &MappingTarget) -> bool {
     match target {
         MappingTarget::Param(
             a @ (AutoTarget::Plugin { .. } | AutoTarget::PluginInstrument { .. }),
-        ) => hosted_steps(app, a)
-            .is_some_and(|(info, id, n)| {
-                app.hosted_param_text(a, id, hosted_step_value(info, 0, n))
-                    .is_some()
-            }),
+        ) => hosted_steps(app, a).is_some_and(|(info, id, n)| {
+            app.hosted_param_text(a, id, hosted_step_value(info, 0, n))
+                .is_some()
+        }),
         _ => native_words(app, target).is_some(),
     }
 }

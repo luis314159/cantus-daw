@@ -1290,7 +1290,10 @@ fn a_plug_ins_names_ride_along_and_compare_by_identity() {
     let json = serde_json::to_string(&r).unwrap();
     assert!(json.contains("Filter 1 Cutoff"), "{json}");
     let back: PluginRef = serde_json::from_str(&json).unwrap();
-    assert_eq!((back.name.as_str(), back.param.as_str()), ("Vital", "Filter 1 Cutoff"));
+    assert_eq!(
+        (back.name.as_str(), back.param.as_str()),
+        ("Vital", "Filter 1 Cutoff")
+    );
     let bare = serde_json::to_string(&PluginRef::new(PluginFormat::Clap, "x")).unwrap();
     assert!(!bare.contains("name") && !bare.contains("param"), "{bare}");
 }

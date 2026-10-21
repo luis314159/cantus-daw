@@ -101,24 +101,28 @@ merge; 41 after review 4: a hosted mapping's names). Undo-fuzz arm 45.
 - `fx_lint` lists `views/controllers.rs`; `modulators.rs` / `shoot_modulators.rs` literals
   gained `learn: None`.
 
-## The runs (Windows, after review 3, on `r29/integration` df2cdd4 merged)
+## The runs (Windows, after review 4, on `r29/integration` 9d4b5fb merged)
 
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean;
   `cargo clippy -p cantus-plugins --no-default-features --all-targets -- -D warnings`:
   clean. `cargo fmt --all -- --check`: clean.
-- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 409 + 102
-  + 82 + 55 = 648 passed. (`bridge_faults3`'s `the_crash_handler_names_the_plugin_whose_thread_crashed`
-  failed once in the full run — `LoadLibraryExW failed` on its fresh temporary copy of the
-  test plug-in, with two other builds compiling — and passed when run again; nothing of
-  mine is on its path.)
-- `cargo test -p cantus-engine`: 797 passed.
-- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 801 passed.
-- `cargo test -p cantus-ui`: 1 567 passed, the frame budget included (a new case: a warm
-  Compressor and Wavetable editor frame, and one idle offer, allocate within their budget).
+- `cargo test -p cantus-core -p cantus-project -p cantus-host -p cantus-sandbox`: 430 + 118
+  + 103 + 96 = 747 passed.
+- `cargo test -p cantus-engine`: 821 passed.
+- `CANTUS_WORKERS=3 cargo test -p cantus-engine --features fuzz`: 825 passed.
+- `cargo test -p cantus-ui`: 1 666 passed, the frame budget included (new cases: a hosted
+  choice's word asks for one step; the editors' warm frames as before).
+- `cargo test -p cantus-plugins --test pane_words`: 1 passed (new).
+- One flaky test was found and closed: the hosted tests of one binary ran in parallel, and
+  `plugins::demo_setup` copies the test plug-in into one shared folder — a copy made while
+  another test loaded it could leave it unreadable (once in 25 runs, and every few runs
+  with six binaries side by side). The hosted tests of `controllers_review{3,4}.rs` and
+  `frame_budget.rs` now take one lock; review 4's undo check no longer waits for the
+  plug-in's reload.
 - Shots: `cargo run -p cantus-ui --example shoot_controllers -- F:\projects\daw-r29\shots\controllers`
-  (94 PNGs: the earlier ones re-shot, the pane with names, *Off*/*On*, *Not connected* and
-  a strip's effects switch; new `controllers-learn-tonus-*`, the scale keyboard in the learn
-  mode, each key outlined where it shows), looked at.
+  (98 PNGs: the earlier ones re-shot — the pane's *Other plug-in* row named by its learnt
+  names, in percent, the idle rows dimmed — and new `controllers-learn-inspector-*`, the
+  inspector in the learn mode), looked at.
 - Not run here: the Linux check in WSL (`tools/wsl/check.sh`); nothing of mine is behind
   `#[cfg(windows)]`.
 

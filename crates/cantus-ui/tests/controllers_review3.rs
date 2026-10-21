@@ -1064,6 +1064,13 @@ fn clicking_the_mixers_controls_arms_them() {
     }
 }
 
+/// The hosted tests one at a time: `plugins::demo_setup` copies the test plug-in into one
+/// shared folder, and a copy made while another test loads it can leave it unreadable.
+fn hosted_serial() -> std::sync::MutexGuard<'static, ()> {
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    ONE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 /// The test CLAP plug-in, built from source where the host's tests build it.
 fn test_plugin() -> std::path::PathBuf {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -1091,6 +1098,7 @@ fn test_plugin() -> std::path::PathBuf {
 #[test]
 fn clicking_a_hosted_editors_cells_arms_them() {
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let armed = armed_by_clicks(&mut a, egui::vec2(1600.0, 1000.0), &mut |a, ui| {
@@ -1136,6 +1144,7 @@ fn a_hosted_values_words_are_asked_until_answered() {
 fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
     use cantus_ui::views::controllers::value_words;
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let key = MappingTarget::Param(AutoTarget::Plugin { effect, id: 2 });
@@ -1156,6 +1165,7 @@ fn a_hosted_stepped_parameter_reads_the_plug_ins_words() {
 fn a_crashed_plug_ins_mapping_is_not_loaded() {
     use cantus_ui::controllers::Idle;
     let mut a = keys_app();
+    let _one = hosted_serial();
     cantus_ui::views::plugins::demo_setup(&mut a, &test_plugin(), true);
     let effect = a.fx.open.map(|(_, e, _)| e).expect("the editor");
     let target = MappingTarget::Param(AutoTarget::Plugin { effect, id: 0 });
