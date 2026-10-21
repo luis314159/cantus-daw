@@ -407,6 +407,19 @@ fn main() {
                 },
             );
             println!("{}", out.display());
+            // Review 4: the inspector in the learn mode — an insert tile's lamp and ring, the
+            // inserts' switch, the sends' and the arm's rows.
+            cantus_ui::i18n::set_locale(lang);
+            let ctx = context(dark);
+            let mut a = app();
+            let strip = a.project().tracks[0].strip.unwrap();
+            a.select_strip(strip);
+            a.toggle_learn_mode();
+            let out = name(&dir, "learn-inspector", dark, lang, 1.0);
+            shoot(&ctx, egui::vec2(420.0, 1100.0), 1.0, 6, Some(&out), |root| {
+                panel(root, |ui| views::inspector::show(&mut a, ui));
+            });
+            println!("{}", out.display());
             // A parameter's menu: *Learn MIDI controller* again and *Forget*.
             cantus_ui::i18n::set_locale(lang);
             let ctx = context(dark);
