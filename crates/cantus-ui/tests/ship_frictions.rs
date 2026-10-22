@@ -46,6 +46,8 @@ fn app() -> CantusApp {
 
 #[test]
 fn the_options_menu_opens_settings_on_its_shortcut_and_each_page() {
+    // This thread's words, whatever another test sets for the process.
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let map = Preset::Cantus.keymap();
     let options = menu::options(&map);
     let picks: Vec<Pick> = options
@@ -137,6 +139,8 @@ fn stop(app: &mut CantusApp) {
 
 #[test]
 fn play_counts_in_only_when_asked_and_says_once_that_the_count_in_waits_for_record() {
+    // This thread's words, whatever another test sets for the process.
+    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
     let mut app = app();
     let mut rs = app.project().recording.clone();
     rs.count_in_bars = 1;
