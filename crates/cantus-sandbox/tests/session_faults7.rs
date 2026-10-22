@@ -187,9 +187,20 @@ fn plugins_let_go_during_a_dialog_are_bounded_and_show_its_card() {
         frame(&mut rig);
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(card, "the plug-in in its dialog showed its card while it left");
-    assert_eq!(kept(&rig), 2, "each kept as it was last said, and said: {:?}", rig.notices);
-    assert!(rig.host.hosted(a).is_some() && rig.host.hosted(b).is_some(), "loaded again");
+    assert!(
+        card,
+        "the plug-in in its dialog showed its card while it left"
+    );
+    assert_eq!(
+        kept(&rig),
+        2,
+        "each kept as it was last said, and said: {:?}",
+        rig.notices
+    );
+    assert!(
+        rig.host.hosted(a).is_some() && rig.host.hosted(b).is_some(),
+        "loaded again"
+    );
 }
 
 /// An instrument picked again (the same plug-in, to start afresh) plays as soon as it is
@@ -252,7 +263,10 @@ fn an_instrument_picked_again_plays_while_the_one_before_it_leaves() {
         heard = peak(&out);
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(heard > 0.01, "the new one plays while the old one leaves: {heard}");
+    assert!(
+        heard > 0.01,
+        "the new one plays while the old one leaves: {heard}"
+    );
 }
 
 /// The final review's parking claim (final-B #15) is held in `session_faults6.rs`'s

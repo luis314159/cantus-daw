@@ -489,7 +489,10 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
         .and_then(|(_, e)| e.spec.external.as_deref())
         .map(|p| p.state.bytes().to_vec())
         .unwrap_or_default();
-    assert!(state.ends_with(b"heard"), "parked as it was, not as it was last said");
+    assert!(
+        state.ends_with(b"heard"),
+        "parked as it was, not as it was last said"
+    );
     // Another, removed while its save hangs: what it said last is parked, and said (its
     // own: the state just taken above would still be its answer).
     let other = rig.insert(strip, GAIN_ID, PluginIsolation::Individually);

@@ -392,10 +392,8 @@ impl PluginHost {
             // still on its way when the render began — is its loss, said (review final-B
             // #1).
             if prep.rests.insert(target) {
-                self.render_lost.push(never(
-                    name,
-                    "it was still loading when the render began",
-                ));
+                self.render_lost
+                    .push(never(name, "it was still loading when the render began"));
             }
             return None;
         };
@@ -523,8 +521,7 @@ impl PluginHost {
                 }
                 continue;
             }
-            let Some(inst) = self.take_prepared(Target::Instrument(t.id, key), &plugin.name)
-            else {
+            let Some(inst) = self.take_prepared(Target::Instrument(t.id, key), &plugin.name) else {
                 continue;
             };
             let main = inst.main;
@@ -594,10 +591,8 @@ impl PluginHost {
             } else if resting && !leaving {
                 prep.rests.insert(p.target);
             } else if prep.since.elapsed() > limit {
-                prep.lost.push(never(
-                    &p.name,
-                    "it was still loading when the render began",
-                ));
+                prep.lost
+                    .push(never(&p.name, "it was still loading when the render began"));
                 prep.rests.insert(p.target);
             } else {
                 prep.pending.push(p);
