@@ -234,11 +234,16 @@ fn isolation_section(app: &mut CantusApp, ui: &mut egui::Ui, s: &Style, width: f
         P::ByVendor => "isolation.manager.by_vendor",
         P::Individually => "isolation.manager.individually",
     });
-    controls::line(ui, s, &what, s.t.text_dim, width);
-    controls::line(ui, s, &t("isolation.manager.cost"), s.t.text_dim, width);
-    controls::line(ui, s, &t("isolation.manager.own"), s.t.text_dim, width);
+    // Whole sentences, wrapped to the page (round 30: cut with "…" in Spanish).
+    let para = |ui: &mut egui::Ui, text: &str, color| {
+        let w = (width * s.k).min(ui.available_width());
+        super::workspace_settings::wrapped(ui, text, crate::kit::text::Role::Body, color, w);
+    };
+    para(ui, &what, s.t.text_dim);
+    para(ui, &t("isolation.manager.cost"), s.t.text_dim);
+    para(ui, &t("isolation.manager.own"), s.t.text_dim);
     if !app.plugins.isolation_available() {
-        controls::line(ui, s, &t("isolation.unavailable"), s.t.danger, width);
+        para(ui, &t("isolation.unavailable"), s.t.danger);
     }
     let crashes: Vec<cantus_host::CrashRecord> = app.plugins.db.crashes.clone();
     if crashes.is_empty() {

@@ -129,6 +129,17 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
                 Pos2::new(side.right() + 12.0 * s.k, header.bottom() + 8.0 * s.k),
                 Pos2::new(rect.right() - 6.0 * s.k, rect.bottom() - 10.0 * s.k),
             );
+            // The page's panel fills the window's height beside the sidebar, flat like it,
+            // whatever the page's length (the owner's integrator, round 30: a page short of
+            // the window left the frame's shading showing under it).
+            let panel = Rect::from_min_max(
+                Pos2::new(side.right() + 6.0 * s.k, side.top()),
+                Pos2::new(rect.right() - 8.0 * s.k, side.bottom()),
+            );
+            with_brush(ui.painter(), |b| {
+                b.register(panel, "settings-page", &[crate::kit::Tok::Panel], &[]);
+                b.rrect(panel, s.r(4.0), Fill::Solid(s.t.panel));
+            });
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
             let mut area = egui::ScrollArea::vertical()
                 .id_salt(("cantus-settings-body", app.settings_page.page as u8))
@@ -294,22 +305,51 @@ pub fn title(ui: &mut Ui, rect: Rect, s: &Style, g: Glyph, key: &str) -> bool {
 /// A dim line in a box.
 pub(super) fn note(ui: &mut Ui, s: &str, warn: bool) {
     let st = Style::current();
-    let (rect, _) =
-        ui.allocate_exact_size(Vec2::new(ui.available_width(), 18.0 * st.k), Sense::hover());
-    with_brush(ui.painter(), |b| {
-        let _ = text::paint(
-            b,
-            rect,
-            &Text::new(
-                s,
-                Role::Label,
-                if warn { st.t.danger } else { st.t.text_dim },
-            )
-            .align(Align2::LEFT_CENTER)
-            .policy(Policy::Elide(Elide::End)),
-            st.tk(),
-        );
-    });
+    let color = if warn { st.t.danger } else { st.t.text_dim };
+    let width = ui.available_width();
+    wrapped(ui, s, Role::Label, color, width);
+}
+
+/// `s` broken into lines no wider than `width` points, at word boundaries, one 18-pt row
+/// each — a long note or warning reads whole at any window width (round 30: a Spanish
+/// warning in Settings ▸ Plug-ins was cut with "…"). A single word wider than the row is
+/// the only thing still elided.
+pub fn wrapped(ui: &mut Ui, s: &str, role: Role, color: egui::Color32, width: f32) {
+    let st = Style::current();
+    let tk = st.tk();
+    let fits = |t: &str| text::measure(ui.ctx(), &Text::new(t, role, color), tk).x <= width;
+    let mut lines: Vec<String> = Vec::new();
+    for para in s.split('\n') {
+        let mut cur = String::new();
+        for word in para.split_whitespace() {
+            let cand = if cur.is_empty() {
+                word.to_owned()
+            } else {
+                format!("{cur} {word}")
+            };
+            if !cur.is_empty() && !fits(&cand) {
+                lines.push(std::mem::replace(&mut cur, word.to_owned()));
+            } else {
+                cur = cand;
+            }
+        }
+        lines.push(cur);
+    }
+    for line in lines {
+        let (rect, _) = ui.allocate_exact_size(Vec2::new(width, 18.0 * st.k), Sense::hover());
+        if ui.is_rect_visible(rect) {
+            with_brush(ui.painter(), |b| {
+                let _ = text::paint(
+                    b,
+                    rect,
+                    &Text::new(&line, role, color)
+                        .align(Align2::LEFT_CENTER)
+                        .policy(Policy::Elide(Elide::End)),
+                    tk,
+                );
+            });
+        }
+    }
 }
 
 fn midi(app: &mut CantusApp, ui: &mut Ui) {
