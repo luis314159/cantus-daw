@@ -1,0 +1,9 @@
+# Área: actualizaciones en Linux y macOS (ronda 30, ship; ADR 0067). Cada clave aquí tiene su gemela en ship.en.txt.
+
+ship.ready.appimage = Descargada y verificada. Al cerrar Cantus reemplaza este AppImage; el anterior se guarda a su lado, terminado en .old, hasta que arranque el nuevo.
+ship.ready.dmg = Descargada y verificada. Al cerrar Cantus se abre la imagen de disco: arrastra Cantus a Aplicaciones y elige Reemplazar.
+ship.open_dmg_now = Cerrar y abrir la imagen de disco
+ship.open_dmg_on_quit = Abrir la imagen de disco al cerrar Cantus
+ship.notice.ready_dmg = Cantus {version} está descargado: su imagen de disco se abre al cerrar
+ship.package = Esta copia la instaló el gestor de paquetes de tu sistema o Flatpak, que la actualiza. El AppImage está en la página de la versión.
+ship.no_file = Esta versión aún no tiene un archivo para este sistema: la página de la versión tiene lo que hay.

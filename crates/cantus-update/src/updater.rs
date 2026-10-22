@@ -5,7 +5,7 @@
 use crate::install::InstallKind;
 use crate::net::{Fetch, NetError};
 use crate::notes::{self, NoteLine};
-use crate::release::{self, Asset, ParseError, Release};
+use crate::release::{self, Asset, ParseError, Release, Target};
 use crate::schedule::{self, State};
 use crate::verify::{self, VerifyError};
 use crate::version::Version;
@@ -28,6 +28,9 @@ pub struct Config {
     pub repo: String,
     pub current: Version,
     pub kind: InstallKind,
+    /// Which release file this copy updates from (`Target::current()`); `None` on a
+    /// system no release carries a file for.
+    pub target: Option<Target>,
     pub state_path: PathBuf,
     pub downloads: PathBuf,
     /// The publisher whose signature an update must carry (`verify::PUBLISHER`).
@@ -44,7 +47,8 @@ pub struct Offer {
     pub notes: Vec<NoteLine>,
     /// The release's page on GitHub.
     pub page: String,
-    /// The installer for this flavour, when this copy installs itself (an installed one).
+    /// The file this copy updates itself from — the installer, the AppImage or the disk
+    /// image for its system — when it updates itself (`InstallKind::updates_itself`).
     pub installer: Option<Asset>,
     /// Where the release's `SHA256SUMS.txt` is, when it has one.
     pub sums_url: Option<String>,
@@ -295,9 +299,11 @@ impl Updater {
                 .unwrap_or_else(|| format!("Cantus {version}")),
             notes: notes::read(r.body.as_deref().unwrap_or(""), NOTE_LINES),
             page: r.html_url.clone(),
-            installer: (self.config.kind == InstallKind::Installed)
-                .then(|| r.installer().cloned())
-                .flatten(),
+            installer: self
+                .config
+                .target
+                .filter(|_| self.config.kind.updates_itself())
+                .and_then(|t| r.update_file(t).cloned()),
             sums_url: r.sums().map(|a| a.browser_download_url.clone()),
             version,
         };
@@ -435,7 +441,14 @@ impl Updater {
                     offer: Some(offer.clone()),
                 }),
                 Ok(()) => verify::check_file(&dest, Some(asset.size), &hashes)
-                    .and_then(|()| verify::check_publisher(&dest, self.config.publisher.as_deref()))
+                    .and_then(|()| match self.config.target {
+                        // Authenticode is the installer's; the AppImage and the disk image
+                        // are held to their SHA-256 (ADR 0067 §2).
+                        Some(Target::WindowsX64) => {
+                            verify::check_publisher(&dest, self.config.publisher.as_deref())
+                        }
+                        _ => Ok(()),
+                    })
                     .map_err(|e| {
                         let _ = std::fs::remove_file(&dest);
                         if e.worth_retrying() && attempt < HELD_ATTEMPTS {

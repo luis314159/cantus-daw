@@ -1,0 +1,9 @@
+# Area: updates on Linux and macOS (round 30, ship; ADR 0067). Every key here needs its twin in ship.es.txt.
+
+ship.ready.appimage = Downloaded and verified. When you close Cantus it replaces this AppImage; the old one is kept beside it, ending in .old, until the new one starts.
+ship.ready.dmg = Downloaded and verified. When you close Cantus the disk image opens: drag Cantus onto Applications and choose Replace.
+ship.open_dmg_now = Close and open the disk image
+ship.open_dmg_on_quit = Open the disk image when I close Cantus
+ship.notice.ready_dmg = Cantus {version} is downloaded: its disk image opens when you close
+ship.package = This copy was installed by your system's package manager or Flatpak, which updates it. The AppImage is on the release page.
+ship.no_file = This release has no file for this system yet: the release page has what there is.

@@ -5,7 +5,7 @@
 use cantus_update::net::{Answer, Fetch, NetError};
 use cantus_update::release::{self, ParseError, Release};
 use cantus_update::verify::{self, Signature, VerifyError};
-use cantus_update::{Config, InstallKind, Status, Updater, Version};
+use cantus_update::{Config, InstallKind, Status, Target, Updater, Version};
 use std::collections::HashMap;
 use std::path::Path;
 #[cfg(windows)]
@@ -259,6 +259,7 @@ fn config(dir: &Path, current: &str, kind: InstallKind) -> Config {
         repo: cantus_update::REPO.into(),
         current: Version::parse(current).unwrap(),
         kind,
+        target: Some(Target::WindowsX64),
         state_path: dir.join("update.json"),
         downloads: dir.join("updates"),
         publisher: None,
@@ -673,4 +674,186 @@ fn a_beta_s_kept_answer_is_reused_on_304() {
             .as_deref(),
         Some("W/\"l1\"")
     );
+}
+
+/// A release of three systems' files, as the publish job makes it (ADR 0067): each file
+/// versioned and under its stable name, GitHub's digest on each, and the sums file.
+fn three_systems(version: &str, files: &[(&str, &[u8])]) -> (String, String) {
+    let mut assets = Vec::new();
+    let mut sums = Vec::new();
+    for (name, body) in files {
+        let hex = verify::sha256_hex(body);
+        sums.push((name.to_string(), hex.clone()));
+        assets.push(serde_json::json!({
+            "name": name,
+            "size": body.len(),
+            "browser_download_url": format!("https://github.com/luis314159/cantus-daw/releases/download/v{version}/{name}"),
+            "digest": format!("sha256:{hex}"),
+        }));
+    }
+    let sums_text = release::format_sums(&sums);
+    assets.push(serde_json::json!({
+        "name": release::SUMS_NAME,
+        "size": sums_text.len(),
+        "browser_download_url": format!("https://github.com/luis314159/cantus-daw/releases/download/v{version}/{}", release::SUMS_NAME),
+    }));
+    let json = serde_json::json!({
+        "tag_name": format!("v{version}"),
+        "html_url": format!("https://github.com/luis314159/cantus-daw/releases/tag/v{version}"),
+        "assets": assets,
+    });
+    (json.to_string(), sums_text)
+}
+
+#[test]
+fn every_system_and_architecture_asks_for_its_own_file() {
+    assert_eq!(Target::of("windows", "x86_64"), Some(Target::WindowsX64));
+    assert_eq!(Target::of("linux", "x86_64"), Some(Target::LinuxX64));
+    assert_eq!(Target::of("macos", "aarch64"), Some(Target::MacUniversal));
+    assert_eq!(Target::of("macos", "x86_64"), Some(Target::MacUniversal));
+    // No release file: the page is shown instead.
+    for (os, arch) in [
+        ("linux", "aarch64"),
+        ("windows", "aarch64"),
+        ("windows", "x86"),
+        ("freebsd", "x86_64"),
+        ("ios", "aarch64"),
+    ] {
+        assert_eq!(Target::of(os, arch), None, "{os} {arch}");
+    }
+    assert_eq!(
+        Target::current(),
+        Target::of(std::env::consts::OS, std::env::consts::ARCH)
+    );
+    assert_eq!(
+        Target::WindowsX64.file_name("0.3.0"),
+        "Cantus-0.3.0-windows-x64-setup.exe"
+    );
+    assert_eq!(
+        Target::LinuxX64.file_name("0.3.0"),
+        "Cantus-0.3.0-linux-x86_64.AppImage"
+    );
+    assert_eq!(
+        Target::MacUniversal.file_name("0.3.0-beta.2"),
+        "Cantus-0.3.0-beta.2-macos-universal.dmg"
+    );
+    // The stable names the website links (fixed by the round-30 contract).
+    let stable: Vec<_> = Target::ALL.iter().map(|t| t.stable_name()).collect();
+    assert_eq!(
+        stable,
+        [
+            "Cantus-windows-x64-setup.exe",
+            "Cantus-linux-x86_64.AppImage",
+            "Cantus-macos-universal.dmg"
+        ]
+    );
+    let names: Vec<String> = Target::ALL.iter().map(|t| t.file_name("0.3.0")).collect();
+    let files: Vec<(&str, &[u8])> = names
+        .iter()
+        .map(|n| (n.as_str(), n.as_bytes()))
+        .chain(
+            Target::ALL
+                .iter()
+                .map(|t| (t.stable_name(), t.stable_name().as_bytes())),
+        )
+        .collect();
+    let (json, _) = three_systems("0.3.0", &files);
+    let r = Release::parse(json.as_bytes()).unwrap();
+    for t in Target::ALL {
+        // The versioned file, never the stable copy beside it.
+        assert_eq!(
+            r.update_file(t).unwrap().name,
+            t.file_name("0.3.0"),
+            "{t:?}"
+        );
+    }
+    // A release made before round 30 (Windows only) has nothing for Linux or a Mac.
+    let old = Release::parse(CANTUS.as_bytes()).unwrap();
+    assert!(old.update_file(Target::WindowsX64).is_some());
+    assert!(old.update_file(Target::LinuxX64).is_none());
+    assert!(old.update_file(Target::MacUniversal).is_none());
+}
+
+/// Each kind on its target: what it is offered, and that the file is verified by its
+/// hash (a publisher set for Windows does not apply to an AppImage or a disk image).
+#[test]
+fn an_appimage_and_a_disk_image_download_and_verify_like_the_installer() {
+    let image: &[u8] = b"ELF the new AppImage";
+    let dmg: &[u8] = b"a disk image, koly";
+    let (json, sums) = three_systems(
+        "0.3.0",
+        &[
+            ("Cantus-0.3.0-linux-x86_64.AppImage", image),
+            ("Cantus-0.3.0-macos-universal.dmg", dmg),
+        ],
+    );
+    let dl = "https://github.com/luis314159/cantus-daw/releases/download/v0.3.0/";
+    for (kind, target, name, body) in [
+        (
+            InstallKind::AppImage,
+            Target::LinuxX64,
+            "Cantus-0.3.0-linux-x86_64.AppImage",
+            image,
+        ),
+        (
+            InstallKind::MacBundle,
+            Target::MacUniversal,
+            "Cantus-0.3.0-macos-universal.dmg",
+            dmg,
+        ),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let net = Arc::new(Table::default());
+        net.answer(API, 200, None, json.as_bytes());
+        net.answer(&format!("{dl}SHA256SUMS.txt"), 200, None, sums.as_bytes());
+        // A proxy's page first, then the file: held, retried, verified.
+        net.file(&format!("{dl}{name}"), &[PROXY_PAGE, body]);
+        let mut c = config(dir.path(), "0.2.0", kind);
+        c.target = Some(target);
+        c.publisher = Some("Luis Angel Almazan".into());
+        let u = Updater::new(c, net);
+        u.check_at(true, 5);
+        let Status::Available(o) = settle(&u) else {
+            panic!("{kind:?}: offered")
+        };
+        assert_eq!(o.installer.as_ref().unwrap().name, name);
+        u.download();
+        let Status::Ready { installer, .. } = settle(&u) else {
+            panic!("{kind:?}: {:?}", u.status())
+        };
+        assert_eq!(std::fs::read(&installer).unwrap(), body);
+    }
+    // A distribution's package, or Linux on ARM: told, with the page, nothing to apply.
+    for (kind, target) in [
+        (InstallKind::Package, Some(Target::LinuxX64)),
+        (InstallKind::AppImage, None),
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        let net = Arc::new(Table::default());
+        net.answer(API, 200, None, json.as_bytes());
+        let mut c = config(dir.path(), "0.2.0", kind);
+        c.target = target;
+        let u = Updater::new(c, net);
+        u.check_at(true, 5);
+        let Status::Available(o) = settle(&u) else {
+            panic!("{kind:?}")
+        };
+        assert!(o.installer.is_none(), "{kind:?} {target:?}");
+    }
+    // A Mac copy is not offered the Windows installer, nor the reverse.
+    let (win_only, _) = three_systems(
+        "0.3.0",
+        &[("Cantus-0.3.0-windows-x64-setup.exe", b"installer" as &[u8])],
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let net = Arc::new(Table::default());
+    net.answer(API, 200, None, win_only.as_bytes());
+    let mut c = config(dir.path(), "0.2.0", InstallKind::MacBundle);
+    c.target = Some(Target::MacUniversal);
+    let u = Updater::new(c, net);
+    u.check_at(true, 5);
+    let Status::Available(o) = settle(&u) else {
+        panic!()
+    };
+    assert!(o.installer.is_none());
 }

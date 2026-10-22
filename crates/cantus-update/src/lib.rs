@@ -23,6 +23,6 @@ pub mod verify;
 pub mod version;
 
 pub use install::InstallKind;
-pub use release::Release;
+pub use release::{Release, Target};
 pub use updater::{Config, Offer, Status, Updater, REPO};
 pub use version::Version;
