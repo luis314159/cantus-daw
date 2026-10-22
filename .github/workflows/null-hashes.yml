@@ -5,7 +5,9 @@ name: Null hashes
 # effect, instrument, demo song and project fixture; cantus-bench/src/hashes.rs) at v2,
 # v3 and the plain x86-64 baseline the tests' goldens come from (v4 too on a runner with
 # AVX-512), hashes each render, and fails naming any item whose bits differ. And the same
-# bits on both operating systems (R9 (4): another C runtime, another machine class).
+# bits on both operating systems (R9 (4): another C runtime, another machine class) — and
+# on macOS (Apple silicon: another instruction set, its baseline build only; ADR 0066), so
+# the three systems' lists must be equal line for line.
 #
 # It builds cantus-bench three times per system, so it runs only when what the corpus
 # renders can change (ADR 0048 §3): the DSP and engine crates, the bench, the demo songs
@@ -80,7 +82,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest]
+        os: [windows-latest, ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
       - name: Rust (the pinned toolchain)
@@ -99,9 +101,11 @@ jobs:
           name: null-hashes-${{ runner.os }}
           path: target/null-hashes/
 
-  # The v3 lists of the two runners, line for line.
+  # The v3 lists of Windows and Linux and Apple silicon's list, line for line (each list's
+  # `#` header names its build and is not compared). A difference fails the job, naming
+  # every item whose bits differ.
   across:
-    name: null hashes, Windows = Linux
+    name: null hashes, Windows = Linux = macOS
     needs: null-hashes
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -114,5 +118,20 @@ jobs:
         with:
           name: null-hashes-Linux
           path: linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: null-hashes-macOS
+          path: macos
       - name: Compare
-        run: diff <(grep -v '^#' windows/x86-64-v3.txt) <(grep -v '^#' linux/x86-64-v3.txt)
+        run: |
+          status=0
+          for other in linux/x86-64-v3.txt macos/aarch64.txt; do
+            if diff <(grep -v '^#' windows/x86-64-v3.txt) <(grep -v '^#' "$other") > diff.txt; then
+              echo "windows/x86-64-v3.txt = $other"
+            else
+              status=1
+              echo "::error::windows/x86-64-v3.txt and $other differ:"
+              grep '^[<>]' diff.txt
+            fi
+          done
+          exit $status

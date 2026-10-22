@@ -5,6 +5,8 @@
 //! null-hashes                     v2 and v3 (and v4 where this machine runs it)
 //! null-hashes --levels v2,v3,v4   these levels (one this machine cannot run is skipped)
 //! null-hashes --baseline          also the plain x86-64 build the tests' goldens come from
+//!                                 (on an Apple silicon or other ARM machine, the only build:
+//!                                 `aarch64.txt`, which CI compares with the other systems')
 //! null-hashes --no-build          compare what is built
 //! null-hashes --whole             the demo songs whole (ten minutes of audio), not 8 bars
 //! ```
@@ -21,9 +23,15 @@ use cantus_launch::Level;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// One build to compare: a level, or the plain baseline (`None`).
+/// One build to compare: a level, or the plain baseline (`None`) — named after the
+/// machine's architecture where that is not x86-64 (`aarch64` on Apple silicon).
 fn label(level: Option<Level>) -> &'static str {
-    level.map_or("x86-64", Level::name)
+    let baseline = if cfg!(target_arch = "x86_64") {
+        "x86-64"
+    } else {
+        std::env::consts::ARCH
+    };
+    level.map_or(baseline, Level::name)
 }
 
 /// The items of a hashes file (`<sha>  <samples>  <name>` per line; `#` lines are the
@@ -140,7 +148,10 @@ pub fn null_hashes(args: &[String]) {
             );
         }
     }
-    if builds.len() < 2 {
+    // An x86-64 machine compares its levels; another architecture has its baseline only,
+    // whose list CI compares with the other systems' (null-hashes.yml, ADR 0066).
+    let alone_ok = !cfg!(target_arch = "x86_64") && baseline && builds.len() == 1;
+    if builds.len() < 2 && !alone_ok {
         eprintln!("xtask null-hashes: fewer than two builds this machine can run");
         std::process::exit(2);
     }

@@ -37,8 +37,8 @@ unsafe impl Sync for SharedMemory {}
 
 impl SharedMemory {
     /// Makes a new region of `len` bytes (rounded up to a page by the OS), zero-filled,
-    /// under `name` (letters, digits, `-`, `_`, `.`; at most 200 bytes). Fails if a region
-    /// of that name exists.
+    /// under `name` (letters, digits, `-`, `_`, `.`; at most [`MAX_NAME`] bytes). Fails if a
+    /// region of that name exists.
     pub fn create(name: &str, len: usize) -> io::Result<SharedMemory> {
         check(name, len)?;
         let (ptr, os) = imp::create(name, len)?;
@@ -80,9 +80,18 @@ impl Drop for SharedMemory {
     }
 }
 
+/// The longest name a region may have here: macOS keeps POSIX shared-memory names within
+/// `PSHMNAMLEN` (31 bytes, the leading `/` included) and fails a longer one with
+/// `ENAMETOOLONG`; elsewhere 200 bytes.
+pub const MAX_NAME: usize = if cfg!(target_vendor = "apple") {
+    30
+} else {
+    200
+};
+
 fn check(name: &str, len: usize) -> io::Result<()> {
     let ok = !name.is_empty()
-        && name.len() <= 200
+        && name.len() <= MAX_NAME
         && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'));
@@ -96,7 +105,9 @@ fn check(name: &str, len: usize) -> io::Result<()> {
 }
 
 /// A name no other region of this machine uses now: `prefix`, this process's id, a
-/// counter and the clock.
+/// counter and the clock. Within [`MAX_NAME`]: on macOS the parts that make it unique are
+/// written in hexadecimal and the prefix is shortened to fit (`cantus-plugin` becomes
+/// `cantus-plu` beside them) — the prefix is only there for a person reading a listing.
 pub fn unique_name(prefix: &str) -> String {
     use std::sync::atomic::{AtomicU64, Ordering};
     static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -104,7 +115,24 @@ pub fn unique_name(prefix: &str) -> String {
     let t = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_nanos() as u64 & 0xFFFF_FFFF);
-    format!("{prefix}-{}-{n}-{t:x}", std::process::id())
+    let pid = std::process::id();
+    if !cfg!(target_vendor = "apple") {
+        return format!("{prefix}-{pid}-{n}-{t:x}");
+    }
+    let tail = format!("-{pid:x}-{n:x}-{t:x}");
+    let room = MAX_NAME.saturating_sub(tail.len());
+    let keep: String = prefix
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+        .take(room)
+        .collect();
+    let mut name = keep + &tail;
+    // Only a counter past 2^40 could leave the tail itself too long: keep its end, which
+    // holds the clock and the counter's low digits.
+    if name.len() > MAX_NAME {
+        name = name.split_off(name.len() - MAX_NAME);
+    }
+    name
 }
 
 #[cfg(windows)]
@@ -258,7 +286,9 @@ mod imp {
             libc::shm_open(
                 c.as_ptr(),
                 libc::O_CREAT | libc::O_EXCL | libc::O_RDWR,
-                0o600 as libc::mode_t,
+                // `shm_open` is variadic on macOS (its mode is promoted to an `int`) and
+                // takes a `mode_t` (also 32-bit) on Linux.
+                0o600 as libc::c_uint,
             )
         };
         if fd < 0 {

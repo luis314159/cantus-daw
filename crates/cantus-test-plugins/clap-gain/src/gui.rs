@@ -2,12 +2,17 @@
 //! child window of a fixed 320 × 200 physical pixels, made a child of whatever window the
 //! host gives it. Nothing is drawn beyond what the control draws itself.
 
-use clap_sys::ext::gui::{clap_plugin_gui, clap_window, CLAP_WINDOW_API_WIN32};
+use clap_sys::ext::gui::{
+    clap_plugin_gui, clap_window, CLAP_WINDOW_API_COCOA, CLAP_WINDOW_API_WIN32,
+};
 use clap_sys::plugin::clap_plugin;
 use std::ffi::{c_char, CStr};
 
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 200;
+/// The editor's text (macOS's label; Windows' `STATIC` says the same).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const TITLE: &str = "Cantus Test Gain";
 
 pub static GUI_EXT: clap_plugin_gui = clap_plugin_gui {
     is_api_supported: Some(is_api_supported),
@@ -32,7 +37,15 @@ unsafe extern "C" fn is_api_supported(
     api: *const c_char,
     floating: bool,
 ) -> bool {
-    cfg!(windows) && !floating && !api.is_null() && CStr::from_ptr(api) == CLAP_WINDOW_API_WIN32
+    let want = if cfg!(target_os = "macos") {
+        CLAP_WINDOW_API_COCOA
+    } else {
+        CLAP_WINDOW_API_WIN32
+    };
+    (cfg!(windows) || cfg!(target_os = "macos"))
+        && !floating
+        && !api.is_null()
+        && CStr::from_ptr(api) == want
 }
 
 unsafe extern "C" fn create(p: *const clap_plugin, api: *const c_char, floating: bool) -> bool {
@@ -156,19 +169,25 @@ mod win {
 #[cfg(windows)]
 use win::{destroy, hide, set_parent, show};
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+#[path = "gui_cocoa.rs"]
+mod cocoa;
+#[cfg(target_os = "macos")]
+use cocoa::{destroy, hide, set_parent, show};
+
+#[cfg(not(any(windows, target_os = "macos")))]
 unsafe extern "C" fn set_parent(_p: *const clap_plugin, _w: *const clap_window) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 unsafe extern "C" fn show(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 unsafe extern "C" fn hide(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 unsafe extern "C" fn destroy(p: *const clap_plugin) {
     crate::plugin::me(p).editor_created = false;
 }

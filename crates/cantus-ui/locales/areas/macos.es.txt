@@ -1,0 +1,12 @@
+# macOS (ronda 30, ADR 0066): el preajuste del teclado, la tecla de ajustes, los elementos propios de la barra de menús.
+keymap.preset.macos = macOS
+action.open-settings = Ajustes
+macos.hide = Ocultar Cantus
+macos.hide_others = Ocultar otros
+macos.show_all = Mostrar todo
+macos.quit = Salir de Cantus
+macos.window = Ventana
+macos.minimize = Minimizar
+macos.zoom = Zoom
+macos.front = Traer todo al frente
+macos.full_screen = Entrar en pantalla completa

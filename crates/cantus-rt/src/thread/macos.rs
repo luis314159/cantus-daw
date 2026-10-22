@@ -174,7 +174,44 @@ pub fn realtime_share() -> f32 {
     1.0
 }
 
+/// A pool worker: the time constraint, and the audio device's workgroup when one is
+/// registered ([`use_device`]) and the thread is a live worker — Apple's performance
+/// controller then plans the workers with the device's own I/O thread, on performance cores
+/// at the clock the deadline needs (WWDC20 10224). A cancelled workgroup (the device
+/// changed) is fetched again once, by the device's name.
 pub fn promote(
+    role: WorkerRole,
+    period: Duration,
+    share: Option<f32>,
+    revert: &mut Revert,
+) -> Promotion {
+    let Some((name, wg)) = (role == WorkerRole::Live && share.is_some())
+        .then(device)
+        .flatten()
+    else {
+        return constrain_only(role, period, share, revert);
+    };
+    let p = promote_in(&wg, role, period, share, revert);
+    match p {
+        Promotion::Refused(Refusal {
+            step: "os_workgroup_join",
+            code: libc::EINVAL,
+        }) => {
+            revert_constraint(revert);
+            match name.as_deref().and_then(lookup) {
+                Some(fresh) => {
+                    let fresh = std::sync::Arc::new(fresh);
+                    remember(name, Some(fresh.clone()));
+                    promote_in(&fresh, role, period, share, revert)
+                }
+                None => constrain_only(role, period, share, revert),
+            }
+        }
+        p => p,
+    }
+}
+
+fn constrain_only(
     role: WorkerRole,
     period: Duration,
     share: Option<f32>,
@@ -208,7 +245,7 @@ pub fn promote_in(
     share: Option<f32>,
     revert: &mut Revert,
 ) -> Promotion {
-    let p = promote(role, period, share, revert);
+    let p = constrain_only(role, period, share, revert);
     let Promotion::Granted(Grant::TimeConstraint {
         period_ns,
         computation_ns,
@@ -253,6 +290,10 @@ pub fn revert(r: &mut Revert) {
             (s.release)(raw as *mut c_void);
         }
     }
+    revert_constraint(r);
+}
+
+fn revert_constraint(r: &mut Revert) {
     if std::mem::take(&mut r.constrained) {
         let mut none: libc::integer_t = 0;
         // SAFETY: the standard policy takes no data (count 0); this thread's port.
@@ -285,4 +326,228 @@ pub fn priority() -> Option<i32> {
     // SAFETY: this thread; live out-pointers.
     let r = unsafe { libc::pthread_getschedparam(libc::pthread_self(), &mut policy, &mut param) };
     (r == 0).then_some(param.sched_priority)
+}
+
+// ---- the audio device's workgroup ----------------------------------------------------
+
+/// `AudioObjectPropertyAddress` (`<CoreAudio/AudioHardwareBase.h>`).
+#[repr(C)]
+struct Address {
+    selector: u32,
+    scope: u32,
+    element: u32,
+}
+
+#[link(name = "CoreAudio", kind = "framework")]
+extern "C" {
+    fn AudioObjectGetPropertyDataSize(
+        id: u32,
+        address: *const Address,
+        qualifier_size: u32,
+        qualifier: *const c_void,
+        size: *mut u32,
+    ) -> i32;
+    fn AudioObjectGetPropertyData(
+        id: u32,
+        address: *const Address,
+        qualifier_size: u32,
+        qualifier: *const c_void,
+        size: *mut u32,
+        data: *mut c_void,
+    ) -> i32;
+}
+
+#[link(name = "CoreFoundation", kind = "framework")]
+extern "C" {
+    fn CFStringGetCString(s: *const c_void, buf: *mut libc::c_char, size: isize, enc: u32) -> u8;
+    fn CFRelease(cf: *const c_void);
+}
+
+const fn four(code: &[u8; 4]) -> u32 {
+    u32::from_be_bytes(*code)
+}
+
+/// `kAudioObjectSystemObject`.
+const SYSTEM_OBJECT: u32 = 1;
+/// `kAudioHardwarePropertyDevices`.
+const DEVICES: u32 = four(b"dev#");
+/// `kAudioHardwarePropertyDefaultOutputDevice`.
+const DEFAULT_OUTPUT: u32 = four(b"dOut");
+/// `kAudioObjectPropertyName` (= `kAudioDevicePropertyDeviceNameCFString`, cpal's name).
+const NAME: u32 = four(b"lnam");
+/// `kAudioDevicePropertyIOThreadOSWorkgroup` (macOS 11).
+const IO_WORKGROUP: u32 = four(b"oswg");
+/// `kAudioObjectPropertyScopeGlobal`.
+const GLOBAL: u32 = four(b"glob");
+/// `kCFStringEncodingUTF8`.
+const UTF8: u32 = 0x0800_0100;
+
+fn address(selector: u32) -> Address {
+    Address {
+        selector,
+        scope: GLOBAL,
+        element: 0,
+    }
+}
+
+/// One fixed-size property of an audio object.
+///
+/// # Safety
+/// `T` must be the property's C type.
+unsafe fn property<T: Copy>(id: u32, selector: u32, zero: T) -> Option<T> {
+    let mut value = zero;
+    let mut size = std::mem::size_of::<T>() as u32;
+    // SAFETY: `value` is a live, writable `T` of `size` bytes; the caller names its type.
+    let r = unsafe {
+        AudioObjectGetPropertyData(
+            id,
+            &address(selector),
+            0,
+            std::ptr::null(),
+            &mut size,
+            (&mut value as *mut T).cast(),
+        )
+    };
+    (r == 0 && size as usize == std::mem::size_of::<T>()).then_some(value)
+}
+
+/// Every audio device's id (aggregate devices included: they are devices to CoreAudio).
+fn devices() -> Vec<u32> {
+    let mut size = 0u32;
+    // SAFETY: asks the system object for the size of its device list.
+    let r = unsafe {
+        AudioObjectGetPropertyDataSize(
+            SYSTEM_OBJECT,
+            &address(DEVICES),
+            0,
+            std::ptr::null(),
+            &mut size,
+        )
+    };
+    if r != 0 || size == 0 {
+        return Vec::new();
+    }
+    let mut ids = vec![0u32; size as usize / 4];
+    // SAFETY: `ids` holds `size` writable bytes.
+    let r = unsafe {
+        AudioObjectGetPropertyData(
+            SYSTEM_OBJECT,
+            &address(DEVICES),
+            0,
+            std::ptr::null(),
+            &mut size,
+            ids.as_mut_ptr().cast(),
+        )
+    };
+    if r != 0 {
+        return Vec::new();
+    }
+    ids.truncate(size as usize / 4);
+    ids
+}
+
+/// A device's name, as cpal reports it.
+fn device_name(id: u32) -> Option<String> {
+    // SAFETY: the name property is a `CFStringRef`, returned retained (released below).
+    let s = unsafe { property::<*const c_void>(id, NAME, std::ptr::null()) }?;
+    if s.is_null() {
+        return None;
+    }
+    let mut buf = [0 as libc::c_char; 512];
+    // SAFETY: `s` is a live CFString; `buf` holds 512 bytes; the string is released once.
+    let ok = unsafe {
+        let ok = CFStringGetCString(s, buf.as_mut_ptr(), buf.len() as isize, UTF8);
+        CFRelease(s);
+        ok
+    };
+    // SAFETY: `CFStringGetCString` wrote a NUL-terminated string when it succeeded.
+    (ok != 0).then(|| {
+        unsafe { std::ffi::CStr::from_ptr(buf.as_ptr()) }
+            .to_string_lossy()
+            .into()
+    })
+}
+
+/// The workgroup of the device called `name` (`""`: the default output device), or `None`
+/// where there is no such device or no workgroup API (macOS before 11).
+fn lookup(name: &str) -> Option<Workgroup> {
+    syms()?;
+    let id = if name.is_empty() {
+        // SAFETY: the default output device is an `AudioObjectID` (u32).
+        unsafe { property::<u32>(SYSTEM_OBJECT, DEFAULT_OUTPUT, 0) }?
+    } else {
+        devices()
+            .into_iter()
+            .find(|id| device_name(*id).as_deref() == Some(name))?
+    };
+    // SAFETY: the property is an `os_workgroup_t` the caller must release (Apple's docs).
+    let raw = unsafe { property::<*mut c_void>(id, IO_WORKGROUP, std::ptr::null_mut()) }?;
+    // SAFETY: a live workgroup; `from_raw` retains it, and the property's own reference is
+    // released here, so the value holds exactly one.
+    let wg = unsafe { Workgroup::from_raw(raw) };
+    if let Some(s) = syms() {
+        // SAFETY: balances the property's +1 (from_raw took its own).
+        unsafe { (s.release)(raw) };
+    }
+    wg
+}
+
+type Device = (Option<String>, std::sync::Arc<Workgroup>);
+
+static DEVICE: std::sync::Mutex<Option<Device>> = std::sync::Mutex::new(None);
+
+fn remember(name: Option<String>, wg: Option<std::sync::Arc<Workgroup>>) {
+    let mut d = DEVICE.lock().unwrap_or_else(|e| e.into_inner());
+    *d = wg.map(|wg| (name, wg));
+}
+
+/// The registered device's workgroup (a pool worker's start, never the audio thread's
+/// blocks: the lock is taken once per worker start).
+fn device() -> Option<Device> {
+    DEVICE.lock().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// The device the pool's workers will join: its workgroup looked up now (by the name cpal
+/// gives it; `None`: the default output device). `false` when it has none to join (no such
+/// device, or macOS before 11): the workers then get the time constraint alone.
+pub fn use_device(name: Option<&str>) -> bool {
+    let wg = lookup(name.unwrap_or("")).map(std::sync::Arc::new);
+    let found = wg.is_some();
+    remember(name.map(str::to_owned), wg);
+    found
+}
+
+/// Forget the device (its stream stopped).
+pub fn forget_device() {
+    remember(None, None);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn four_char_codes_are_big_endian() {
+        assert_eq!(DEVICES, 0x6465_7623);
+        assert_eq!(IO_WORKGROUP, 0x6f73_7767);
+        assert_eq!(GLOBAL, 0x676c_6f62);
+    }
+
+    /// The runner has no sound card, but CoreAudio always lists a device (a null or
+    /// virtual one on a headless Mac); where one has a name, the lookup finds it by that
+    /// name, and an unknown name finds nothing.
+    #[test]
+    fn devices_are_found_by_name() {
+        assert!(lookup("no such device, surely").is_none());
+        assert!(!use_device(Some("no such device, surely")));
+        assert!(device().is_none());
+        for id in devices() {
+            if let Some(name) = device_name(id) {
+                // A device's workgroup exists only while its I/O runs on some systems:
+                // the lookup may answer None, but must not crash or hang.
+                let _ = lookup(&name);
+            }
+        }
+        forget_device();
+    }
 }

@@ -1,6 +1,6 @@
 //! Finding a plug-in's binary inside its bundle, loading it once per process, and the
 //! module's entry points (`InitDll`/`ExitDll` on Windows, `ModuleEntry`/`ModuleExit` on
-//! Linux, `GetPluginFactory` everywhere).
+//! Linux, `bundleEntry`/`bundleExit` on macOS, `GetPluginFactory` everywhere).
 //!
 //! A module stays loaded while any instance or scan uses it and is unloaded when the last
 //! one lets go: the factory is released first, then `ExitDll`, then the library itself.
@@ -28,6 +28,9 @@ fn arch_dirs() -> &'static [&'static str] {
         &["aarch64-linux"]
     } else if cfg!(all(target_os = "linux", target_arch = "x86")) {
         &["i386-linux"]
+    } else if cfg!(target_os = "macos") {
+        // One universal binary for every architecture (ADR 0066).
+        &["MacOS"]
     } else {
         &[]
     }
@@ -54,6 +57,10 @@ pub fn binary_path(path: &Path) -> Result<PathBuf, HostError> {
             "{} does not exist",
             path.display()
         )));
+    }
+    #[cfg(target_os = "macos")]
+    if let Some(binary) = crate::bundle::binary(path) {
+        return Ok(binary);
     }
     let stem = path
         .file_stem()
@@ -132,7 +139,7 @@ impl Module {
         // SAFETY: the symbols are the VST3 module entry points, whose signatures the SDK
         // fixes; a missing optional one is simply not called.
         unsafe {
-            if !enter(&library) {
+            if !enter(&library, binary) {
                 return Err(err("its module entry point refused to start"));
             }
             let exit = exit_point(&library);
@@ -203,20 +210,75 @@ fn open_library(path: &Path) -> Result<libloading::Library, libloading::Error> {
 /// # Safety
 /// `library` must be a VST3 module.
 #[cfg(target_os = "windows")]
-unsafe fn enter(library: &libloading::Library) -> bool {
+unsafe fn enter(library: &libloading::Library, _binary: &Path) -> bool {
     match library.get::<EntryFn>(b"InitDll\0") {
         Ok(init) => init(),
         Err(_) => true,
     }
 }
 
-#[cfg(not(target_os = "windows"))]
-unsafe fn enter(library: &libloading::Library) -> bool {
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+unsafe fn enter(library: &libloading::Library, _binary: &Path) -> bool {
     // `ModuleEntry` takes the library handle, which the SDK's own modules only keep.
     type ModuleEntryFn = unsafe extern "system" fn(*mut std::ffi::c_void) -> bool;
     match library.get::<ModuleEntryFn>(b"ModuleEntry\0") {
         Ok(entry) => entry(std::ptr::null_mut()),
         Err(_) => true,
+    }
+}
+
+/// macOS: `bundleEntry(CFBundleRef)` with the plug-in's bundle (the SDK's macOS entry; a
+/// JUCE or iPlug plug-in finds its resources through that bundle). The bundle object is
+/// kept for the life of the process: CoreFoundation makes one per bundle path and hands the
+/// same one back, so a module loaded again costs nothing more.
+#[cfg(target_os = "macos")]
+unsafe fn enter(library: &libloading::Library, binary: &Path) -> bool {
+    type BundleEntryFn = unsafe extern "C" fn(*mut std::ffi::c_void) -> bool;
+    let Ok(entry) = library.get::<BundleEntryFn>(b"bundleEntry\0") else {
+        return true;
+    };
+    let root = bundle_root(binary).unwrap_or_else(|| binary.to_path_buf());
+    entry(cf::bundle(&root))
+}
+
+#[cfg(target_os = "macos")]
+mod cf {
+    use std::ffi::c_void;
+    use std::os::unix::ffi::OsStrExt;
+    use std::path::Path;
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    extern "C" {
+        fn CFURLCreateFromFileSystemRepresentation(
+            alloc: *const c_void,
+            buffer: *const u8,
+            len: isize,
+            is_directory: u8,
+        ) -> *const c_void;
+        fn CFBundleCreate(alloc: *const c_void, url: *const c_void) -> *mut c_void;
+        fn CFRelease(cf: *const c_void);
+    }
+
+    /// A `CFBundleRef` for the folder (null if CoreFoundation cannot make one), retained
+    /// for good.
+    pub fn bundle(path: &Path) -> *mut c_void {
+        let bytes = path.as_os_str().as_bytes();
+        // SAFETY: CoreFoundation's create rule: the URL is ours and released once; the
+        // bundle is kept (see `enter`).
+        unsafe {
+            let url = CFURLCreateFromFileSystemRepresentation(
+                std::ptr::null(),
+                bytes.as_ptr(),
+                bytes.len() as isize,
+                1,
+            );
+            if url.is_null() {
+                return std::ptr::null_mut();
+            }
+            let bundle = CFBundleCreate(std::ptr::null(), url);
+            CFRelease(url);
+            bundle
+        }
     }
 }
 
@@ -227,6 +289,8 @@ unsafe fn enter(library: &libloading::Library) -> bool {
 unsafe fn exit_point(library: &libloading::Library) -> Option<EntryFn> {
     let name: &[u8] = if cfg!(target_os = "windows") {
         b"ExitDll\0"
+    } else if cfg!(target_os = "macos") {
+        b"bundleExit\0"
     } else {
         b"ModuleExit\0"
     };
@@ -238,9 +302,6 @@ static LOADED: Mutex<Vec<(PathBuf, Weak<Module>)>> = Mutex::new(Vec::new());
 
 /// Load the module for a plug-in path (bundle or file), or share the one already loaded.
 pub fn open(path: &Path) -> Result<Arc<Module>, HostError> {
-    if cfg!(target_os = "macos") {
-        return Err(HostError::Unsupported("VST3 bundles on macOS"));
-    }
     let binary = binary_path(path)?;
     let key = std::fs::canonicalize(&binary).unwrap_or_else(|_| binary.clone());
     let mut loaded = LOADED.lock().unwrap_or_else(|p| p.into_inner());
