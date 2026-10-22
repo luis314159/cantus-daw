@@ -1,0 +1,12 @@
+# macOS (round 30, ADR 0066): the keymap preset, the settings key, the menu bar's own items.
+keymap.preset.macos = macOS
+action.open-settings = Settings
+macos.hide = Hide Cantus
+macos.hide_others = Hide Others
+macos.show_all = Show All
+macos.quit = Quit Cantus
+macos.window = Window
+macos.minimize = Minimize
+macos.zoom = Zoom
+macos.front = Bring All to Front
+macos.full_screen = Enter Full Screen

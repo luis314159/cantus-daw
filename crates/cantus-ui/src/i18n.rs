@@ -114,6 +114,7 @@ impl Locale {
                 include_str!("../locales/areas/controllers.en.txt"),
                 include_str!("../locales/areas/isolation.en.txt"),
                 include_str!("../locales/areas/freeze.en.txt"),
+                include_str!("../locales/areas/macos.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -194,6 +195,7 @@ impl Locale {
                 include_str!("../locales/areas/controllers.es.txt"),
                 include_str!("../locales/areas/isolation.es.txt"),
                 include_str!("../locales/areas/freeze.es.txt"),
+                include_str!("../locales/areas/macos.es.txt"),
             ],
         }
     }

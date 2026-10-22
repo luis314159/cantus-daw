@@ -62,11 +62,22 @@ pub fn target(doc: Doc, exe_dir: Option<&Path>, locale: Locale) -> String {
     }
 }
 
-/// The folder `cantus.exe` runs from.
+/// The folder `cantus.exe` runs from — on macOS, inside `Cantus.app`, the bundle's
+/// `Contents/Resources`, where the manual and the licences are (ADR 0066: a bundle's
+/// `Contents/MacOS` holds only code).
 pub fn exe_dir() -> Option<PathBuf> {
-    std::env::current_exe()
+    let dir = std::env::current_exe()
         .ok()
-        .and_then(|p| p.parent().map(Path::to_path_buf))
+        .and_then(|p| p.parent().map(Path::to_path_buf))?;
+    Some(bundle_resources(&dir).unwrap_or(dir))
+}
+
+/// `…/X.app/Contents/Resources` for a program in `…/X.app/Contents/MacOS`, if it exists.
+pub fn bundle_resources(exe_dir: &Path) -> Option<PathBuf> {
+    let contents = exe_dir.parent()?;
+    let in_bundle = exe_dir.file_name()? == "MacOS" && contents.file_name()? == "Contents";
+    let res = contents.join("Resources");
+    (in_bundle && res.is_dir()).then_some(res)
 }
 
 /// Open `doc` in the browser (or, for a text file, the system's viewer).
@@ -78,6 +89,18 @@ pub fn open(doc: Doc) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mac_bundle_keeps_its_documents_in_resources() {
+        let d = tempfile::tempdir().unwrap();
+        let macos = d.path().join("Cantus.app/Contents/MacOS");
+        std::fs::create_dir_all(&macos).unwrap();
+        assert_eq!(bundle_resources(&macos), None, "no Resources yet");
+        let res = d.path().join("Cantus.app/Contents/Resources");
+        std::fs::create_dir_all(&res).unwrap();
+        assert_eq!(bundle_resources(&macos), Some(res));
+        assert_eq!(bundle_resources(d.path()), None, "not a bundle");
+    }
 
     #[test]
     fn installed_copies_are_preferred_and_the_web_is_the_fallback() {

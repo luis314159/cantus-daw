@@ -78,9 +78,9 @@ impl Backend for Vst3Backend {
             }
         } else if cfg!(target_os = "macos") {
             if let Some(home) = env("HOME") {
-                out.push(home.join("Library/Audio/Plug-ins/VST3"));
+                out.push(home.join("Library/Audio/Plug-Ins/VST3"));
             }
-            out.push(PathBuf::from("/Library/Audio/Plug-ins/VST3"));
+            out.push(PathBuf::from("/Library/Audio/Plug-Ins/VST3"));
         } else {
             if let Some(home) = env("HOME") {
                 out.push(home.join(".vst3"));

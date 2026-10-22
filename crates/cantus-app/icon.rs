@@ -77,6 +77,49 @@ pub fn ico(sizes: &[u32]) -> Vec<u8> {
 /// the large ones, 256 for Explorer's tiles.
 pub const EXE_SIZES: [u32; 9] = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
+/// macOS's icon file (ADR 0066): PNG entries at every size Finder and the Dock ask for, 16
+/// to 1024 pixels (each point size at 1× and 2×). The mark sits inside the grid's margin
+/// (100 px of 1024 each side, Apple's icon template), so it stands as large in the Dock as
+/// its neighbours.
+pub fn icns() -> Vec<u8> {
+    const ENTRIES: [(&[u8; 4], u32); 10] = [
+        (b"icp4", 16),
+        (b"ic11", 32),
+        (b"icp5", 32),
+        (b"ic12", 64),
+        (b"ic07", 128),
+        (b"ic13", 256),
+        (b"ic08", 256),
+        (b"ic14", 512),
+        (b"ic09", 512),
+        (b"ic10", 1024),
+    ];
+    let mut body = Vec::new();
+    for (kind, px) in ENTRIES {
+        let inner = (px * 824).div_ceil(1024);
+        let mark = master(inner);
+        let mut tile = tiny_skia::Pixmap::new(px, px).expect("a size above zero");
+        let at = ((px - inner) / 2) as i32;
+        tile.draw_pixmap(
+            at,
+            at,
+            mark.as_ref(),
+            &tiny_skia::PixmapPaint::default(),
+            tiny_skia::Transform::identity(),
+            None,
+        );
+        let png = tile.encode_png().expect("png");
+        body.extend_from_slice(kind);
+        body.extend_from_slice(&(png.len() as u32 + 8).to_be_bytes());
+        body.extend_from_slice(&png);
+    }
+    let mut out = Vec::with_capacity(body.len() + 8);
+    out.extend_from_slice(b"icns");
+    out.extend_from_slice(&(body.len() as u32 + 8).to_be_bytes());
+    out.extend_from_slice(&body);
+    out
+}
+
 pub fn write(path: &Path, bytes: &[u8]) {
     std::fs::write(path, bytes).unwrap_or_else(|e| panic!("write {}: {e}", path.display()));
 }
