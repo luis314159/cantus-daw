@@ -203,9 +203,8 @@ pub fn footer() -> Html {
 const KOFI: &str = "https://ko-fi.com/luisalmazan314159";
 const COFFEE: &str = "https://buymeacoffee.com/angel314159";
 const PATREON: &str = "https://www.patreon.com/c/angel314159/membership";
-/// Flip to `true` once the Patreon page is launched (it answers "Not found" to visitors
-/// until then), and uncomment `patreon:` in .github/FUNDING.yml.
-const PATREON_LIVE: bool = false;
+/// Whether the Patreon page is public (launched 2026-10-22); `false` shows "Coming soon".
+const PATREON_LIVE: bool = true;
 const LIBERAPAY: &str = "https://liberapay.com/lalmazan";
 const SPONSORS: &str = "https://github.com/sponsors/luis314159";
 /// Flip to `true` when the GitHub Sponsors profile is approved (and add `github:` to FUNDING.yml).
