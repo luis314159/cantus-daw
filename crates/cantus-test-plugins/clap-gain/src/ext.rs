@@ -180,6 +180,11 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
         bytes.extend_from_slice(&me.get(id).to_le_bytes());
     }
     let tag = me.tag.lock().map(|t| t.clone()).unwrap_or_default();
+    // A state it rewrote is a heavy one: saved in 800 ms (its echo comes more than a second
+    // after the load that caused it — the final review's case).
+    if tag == b"rewritten" {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+    }
     bytes.extend_from_slice(&(tag.len() as u32).to_le_bytes());
     bytes.extend_from_slice(&tag);
     let s = &*stream;

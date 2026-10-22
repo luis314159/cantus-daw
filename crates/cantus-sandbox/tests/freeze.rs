@@ -800,6 +800,13 @@ fn an_isolated_plug_in_loaded_again_that_rewrites_its_load_is_left_alone() {
     rig.notices.clear();
     let before = rig.host.give_backs();
     rig.resync();
+    // Let go of, its state is parked once said (a heavy one: 800 ms) — then it is back.
+    let t0 = std::time::Instant::now();
+    while rig.host.hosted(id).is_none() && t0.elapsed() < Duration::from_secs(10) {
+        rig.frame();
+        rig.resync();
+        std::thread::sleep(Duration::from_millis(20));
+    }
     assert!(rig.host.hosted(id).is_some(), "back: it plays live");
     frames_for(&mut rig, 2.5);
     assert_eq!(rig.host.give_backs(), before, "nothing given back");
