@@ -41,6 +41,13 @@ windows-sys = { version = "0.61", features = [
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# The helper as a background AppKit application whose windows are the plug-ins' editors
+# (ADR 0066). MIT; already in the workspace through winit.
+objc2 = "0.6"
+objc2-foundation = "0.3"
+objc2-app-kit = "0.3"
+
 [build-dependencies]
 # The Windows version resource (ADR 0048 §9), as cantus-host's scanner has.
 winresource = "0.1"

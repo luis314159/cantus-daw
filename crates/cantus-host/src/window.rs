@@ -7,8 +7,8 @@
 //! loop runs on the same thread and dispatches this window's messages with its own.
 //!
 //! A plug-in that can only float gets no window from us: it opens its own.
-//! Elsewhere (macOS, Linux) there is no embedding yet and opening fails with
-//! `Unsupported`.
+//! On macOS: an `NSWindow` whose content view holds the plug-in's `NSView` ([`cocoa`]).
+//! Elsewhere (Linux) there is no embedding yet and opening fails with `Unsupported`.
 
 use crate::backend::{EditorSize, HostError, MainThread};
 use raw_window_handle::RawWindowHandle;
@@ -16,10 +16,15 @@ use raw_window_handle::RawWindowHandle;
 #[cfg(windows)]
 pub use win32::PluginWindow;
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+mod cocoa;
+#[cfg(target_os = "macos")]
+pub use cocoa::PluginWindow;
+
+#[cfg(not(any(windows, target_os = "macos")))]
 pub use other::PluginWindow;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 mod other {
     use super::*;
 

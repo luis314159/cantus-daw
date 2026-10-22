@@ -7,6 +7,7 @@
 //! (review #0, #48).
 
 use std::fs::File;
+#[cfg_attr(target_vendor = "apple", allow(unused_imports))]
 use std::time::Duration;
 
 /// The protocol's two ends: what Cantus writes, what it reads.
@@ -355,6 +356,7 @@ mod imp {
 mod imp {
     use super::*;
     use std::os::unix::io::FromRawFd;
+    #[cfg(not(target_vendor = "apple"))]
     use std::sync::{Condvar, Mutex};
 
     pub fn quiet_crashes() {}
@@ -425,7 +427,12 @@ mod imp {
         }
     }
 
-    pub fn init_com() {}
+    /// macOS: the helper becomes a background AppKit application, whose windows are the
+    /// plug-ins' editors (ADR 0066). Elsewhere nothing.
+    pub fn init_com() {
+        #[cfg(target_vendor = "apple")]
+        crate::platform_macos::init_app();
+    }
 
     /// No plug-in windows here, so no nested message loops: the main loop is the pulse.
     pub fn start_pulse(_on_pulse: fn()) {}
@@ -437,10 +444,16 @@ mod imp {
         0
     }
 
+    /// macOS: the wait dispatches AppKit's events (the editors' windows) while it waits.
+    #[cfg(target_vendor = "apple")]
+    pub use crate::platform_macos::Wake;
+
     /// Wakes the main thread's wait from another thread (a request arrived).
+    #[cfg(not(target_vendor = "apple"))]
     #[derive(Clone, Copy)]
     pub struct Wake(&'static (Mutex<bool>, Condvar));
 
+    #[cfg(not(target_vendor = "apple"))]
     impl Wake {
         pub fn new() -> Wake {
             Wake(Box::leak(Box::new((Mutex::new(false), Condvar::new()))))

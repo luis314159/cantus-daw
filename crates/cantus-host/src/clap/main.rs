@@ -247,11 +247,18 @@ impl MainThread for ClapMain {
         }
         let gui = *self.gui().ok_or(HostError::Unsupported("editor"))?;
         let plugin = self.plugin();
-        let handle = match parent {
-            raw_window_handle::RawWindowHandle::Win32(h) => h.hwnd.get() as *mut c_void,
+        let (api, handle) = match parent {
+            raw_window_handle::RawWindowHandle::Win32(h) => {
+                (CLAP_WINDOW_API_WIN32.as_ptr(), h.hwnd.get() as *mut c_void)
+            }
+            // macOS: the parent `NSView` (the `cocoa` member of the same pointer-sized
+            // union), ADR 0066.
+            raw_window_handle::RawWindowHandle::AppKit(h) => (
+                clap_sys::ext::gui::CLAP_WINDOW_API_COCOA.as_ptr(),
+                h.ns_view.as_ptr(),
+            ),
             _ => return Err(HostError::Unsupported("editor on this windowing system")),
         };
-        let api = CLAP_WINDOW_API_WIN32.as_ptr();
         let window = clap_window {
             api,
             specific: clap_window_handle { win32: handle },
@@ -268,8 +275,9 @@ impl MainThread for ClapMain {
                     return Err(HostError::Editor("create".into()));
                 }
                 // Win32 sizes are physical pixels: tell the editor the window's scale
-                // before it says how big it is.
-                if let Some(f) = gui.set_scale {
+                // before it says how big it is. Cocoa's are points: no scale is set there
+                // (the gui extension's rule for logical-pixel APIs).
+                if let Some(f) = gui.set_scale.filter(|_| !cfg!(target_os = "macos")) {
                     f(plugin, window_scale(handle));
                 }
                 let (mut w, mut h) = (0u32, 0u32);
