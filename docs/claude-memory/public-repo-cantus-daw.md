@@ -27,3 +27,11 @@ How it works now (ADR 0049 amended 2026-10-20):
 - New research screenshots: `git add -f` in the private repo only (ignored by .gitignore).
 
 See [[round-29]], [[decision-round30-platforms]].
+
+2026-10-22: the first public release, **v0.1.0-beta.1**, is out on cantus-daw (lightweight
+tag pushed from the publish clone after `publish.sh --push`; the Release workflow tested,
+packaged and published it as "latest"). The website's button
+(`releases/latest/download/Cantus-windows-x64-setup.exe`, web/src/top.rs; the site is a
+WASM app, so the link is not in the HTML) serves the 116 MB unsigned installer. A tag is
+never annotated here: the machine's git e-mail is a personal one. publish.sh deletes and
+re-clones the publish folder each run; the tag lives on the remote.
