@@ -139,6 +139,23 @@ the updater (ADR 0067) replaces the file in place, so the entry stays right.
 PipeWire and PulseAudio sockets, rtkit, network, home, and Flathub's
 `org.freedesktop.LinuxAudio.Plugins` extension point with `CLAP_PATH`/`VST3_PATH`.
 
+### 7. After the round's review
+
+- PipeWire is offered (and the default) only when it carries the sound: a sink of its own,
+  or `pipewire-pulse` running. Ubuntu 22.04 / Mint 21 run PipeWire for screen sharing
+  only, with PulseAudio on the card: ALSA (whose `default` reaches PulseAudio) is the
+  default there. JACK is looked at again whenever the device page lists the drivers.
+- The XDG move runs in three resumable steps (settings staged, data renamed, settings
+  renamed into place last); until it completes the old folder stays in use. Every path
+  the assembled app uses (autosaves, recordings, caches, settings) goes through
+  `config_dir()`/`data_dir()`.
+- X11 is chosen only when its server answers (socket or TCP); a stale `DISPLAY` beside a
+  working Wayland gives a Wayland window.
+- The AppImage offers its menu entry once (a flag in the configuration folder): a removed
+  entry stays removed; `Exec=` is quoted and escaped as the Desktop Entry spec says.
+- The run loop re-checks each registration before calling it; a removed VST3 editor's
+  handlers are released when the view goes (and so before the library is unloaded).
+
 ## Consequences
 
 - One Linux build has every driver; nothing to choose at download.
