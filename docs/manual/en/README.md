@@ -1296,8 +1296,12 @@ of everything Cantus is built from are in
 
 This is a beta. What we know about:
 
-- **A plug-in made by someone else that crashes closes Cantus** (plug-ins run inside the
-  program; isolating them comes later). Save often.
+- **Warping** was measured, and tuned by ear on test material: tell us how a stretch sounds
+  on your music. A plug-in that runs *Together* with many others costs a little more CPU
+  than within Cantus (about 1.3× with 32 instances); choose *Within Cantus* for a plug-in
+  you trust when the CPU is tight (§10, *When a plug-in crashes*).
+- A **frozen track that loops** plays, at the jump back to the loop's start, what led into
+  that bar rather than the loop end's tail (a freeze is one straight pass, §6).
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
 - No crossfades between separate clips (comp seams do crossfade, §4) and no clip gain
   envelopes.
@@ -1336,8 +1340,9 @@ This is a beta. What we know about:
   the buffer if the top bar counts dropouts.
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
-- **Not in this beta**: macOS and Linux, control-surface protocols (Mackie Control, HUI),
-  AI features, several arrangements per project.
+- **Not in this beta**: the macOS and Linux installers (coming soon; the code builds and
+  passes its tests on Linux), control-surface protocols (Mackie Control, HUI), AI features,
+  several arrangements per project.
 
 ## 15. Report a bug
 

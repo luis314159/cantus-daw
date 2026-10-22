@@ -73,10 +73,10 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
         empujado), Impetus y Discrimen sobre baterías reales, Speculum acoplado y flotante.
         Cómo se sienten sus editores en la mano (capturas en `F:\projects\daw-r28\shots\modfx\`
         y `…\shots\dynfx\`).
-  - [ ] **Decidir**: un efecto de modulación recién insertado no cambia nada hasta que
-        subes su *Mezcla* o *Profundidad* o eliges un preset (como Fervor). Si prefieres que
-        suene al insertarlo (como Spatium), es un valor por defecto por efecto
-        (`docs/round28/modfx.md`, notas para el integrador).
+  - [x] **Decidir**: un efecto de modulación recién insertado no cambia nada hasta que
+        subes su *Mezcla* o *Profundidad* o eliges un preset. *Decidido el 2026-10-16:
+        opción B — al insertarlo carga un preset inicial que suena; los valores por defecto
+        siguen siendo neutros (BACKLOG §3b; por implementar).*
   - [ ] **La barra superior contra la de FL**: mirar `F:\projects\daw-r28\shots\topbar\`
         (156 PNG: de 800 a 2560 px, 75–200 %, EN/ES, Noche y Papel, ⋯ abierto y cerrado) y
         `F:\projects\daw-r28\shots\fix2\topbar\` (1920 y 2560 px con un dispositivo) junto a
@@ -90,6 +90,25 @@ EN/ES, plantillas de issues, licencias (app GPL, motor MPL, CLA, marca — ADR 0
   - [ ] **Comping, de oído**: grabar tomas en bucle y combinarlas; ¿se oyen las uniones
         (fundido de 10 ms)? Mover una unión, comps alternativos (*Comp. A ▾*), *Consolidar y
         fusionar*, y dos pistas de un mismo grupo del mezclador combinadas juntas.
+- [ ] Probar a mano lo de la ronda 29:
+  - [ ] **Warp, de oído**: el juego de escucha en `F:\projects\daw-r29\shots\warp\listen\`
+        (cada modo, estirado y transpuesto); soltar un loop de otro tempo en el arreglo
+        (suena a tiempo al instante), *Cuantizar audio* en una batería, *Poner el tempo del
+        proyecto desde este clip*, Alt+arrastrar el borde de un clip.
+  - [ ] **Pista de tempo**: una rampa y un cambio de compás; marcadores (saltar, bucle,
+        *Exportar entre marcadores*); exportar MIDI y DAWproject y abrirlos en otro DAW.
+  - [ ] **MIDI learn con tu controlador**: clic derecho ▸ *Aprender controlador MIDI* en un
+        fader, una perilla de efecto y la de un plug-in; el modo relativo si tu controlador
+        lo tiene; mover una perilla grabando (queda como automatización); el panel
+        *Controladores*.
+  - [ ] **Un plug-in real en su propio proceso** (*Juntos*, el predeterminado), también uno
+        con diálogo de licencia; *Recargar* tras cerrarlo a la fuerza desde el Administrador
+        de tareas (Cantus sigue sonando).
+  - [ ] **Congelar** una pista pesada y descongelarla; *Bounce in place* con y sin efectos;
+        grabar una voz con *Escucha de baja latencia* (sin el retraso de los plug-ins).
+- [ ] **El instalador de `v0.1.0-beta.1`**: el botón de descarga de cantusdaw.com lo baja de
+      GitHub; instalarlo (Windows avisará «Windows protegió tu PC» mientras no haya firma:
+      *Más información ▸ Ejecutar de todas formas*), abrirlo, desinstalarlo.
 - [ ] **Chorda — prueba a ciegas** (ADR 0059): ≥ 20 oyentes, frases iguales en Chorda,
       Pianoteq 9 y un piano de muestras (p. ej. Salamander); que no sepan cuál es cuál.
       Anotar preferencias y comentarios en `docs/round28/sound.md`.

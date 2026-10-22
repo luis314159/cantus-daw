@@ -1407,8 +1407,13 @@ Cantus*).
 
 Esto es una beta. Lo que ya sabemos:
 
-- **Un plug-in de terceros que falla cierra Cantus** (los plug-ins se ejecutan dentro del
-  programa; aislarlos viene después). Guarda seguido.
+- **El warp** se midió y se ajustó de oído con material de prueba: cuéntanos cómo suena un
+  estiramiento con tu música. Un plug-in que corre *Juntos* con muchos otros gasta un poco
+  más de CPU que dentro de Cantus (unas 1,3 veces con 32 instancias); elige *Dentro de
+  Cantus* para un plug-in de confianza cuando la CPU vaya justa (§10, *Cuando un plug-in
+  falla*).
+- Una **pista congelada que hace bucle** suena, en el salto al inicio del bucle, lo que
+  llevaba a ese compás y no la cola del final del bucle (congelar es una sola pasada, §6).
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
 - Sin fundidos cruzados entre clips distintos (las costuras de una composición de tomas
   sí los hacen, §4) ni envolventes de ganancia por clip.
@@ -1449,8 +1454,9 @@ Esto es una beta. Lo que ya sabemos:
   sube el búfer si la barra superior cuenta cortes.
 - No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
-- **Fuera de esta beta**: macOS y Linux, los protocolos de superficies de control (Mackie
-  Control, HUI), funciones de IA, varios arreglos por proyecto.
+- **Fuera de esta beta**: los instaladores de macOS y Linux (muy pronto; el código compila
+  y pasa sus pruebas en Linux), los protocolos de superficies de control (Mackie Control,
+  HUI), funciones de IA, varios arreglos por proyecto.
 
 ## 15. Reportar un error
 
