@@ -290,7 +290,7 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
-        self.engine.stop();
+        self.stop_transport();
         let base = item
             .project_path
             .as_ref()

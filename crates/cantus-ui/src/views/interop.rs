@@ -1111,7 +1111,7 @@ fn open_imported(app: &mut CantusApp, mut project: Project, report: Report, name
     app.end_gesture();
     app.arrangement.let_go();
     app.warp.view.let_go();
-    app.engine.stop();
+    app.stop_transport();
     if !app.exec(Command::ReplaceProject {
         project: Box::new(project),
     }) {

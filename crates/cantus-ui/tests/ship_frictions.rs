@@ -170,6 +170,45 @@ fn play_counts_in_only_when_asked_and_says_once_that_the_count_in_waits_for_reco
     assert!(app.play_count_in());
     stop(&mut app);
     assert!(!app.play_count_in(), "stopped: the count-in is over");
+    // Review 1: a Stop during the count-in puts the playhead back where Play was pressed;
+    // aborted Plays never creep back, not even below bar 1.
+    assert_eq!(app.engine.position(), bar3, "back where Play was pressed");
+    for _ in 0..3 {
+        play(&mut app);
+        stop(&mut app);
+    }
+    assert_eq!(app.engine.position(), bar3, "no creeping back");
+    app.seek(Ticks::ZERO);
+    for _ in 0..3 {
+        play(&mut app);
+        stop(&mut app);
+    }
+    assert_eq!(app.engine.position(), Ticks::ZERO, "bar 1 stays bar 1");
+
+    // Review 3: once the music passes where Play was pressed, the count-in ends while it
+    // plays (its record start goes, so a loop's laps do not count in again).
+    let bar3 = at_bar_three(&mut app);
+    play(&mut app);
+    assert!(app.play_count_in());
+    app.engine.set_heard_for_tests(bar3, true);
+    app.tick_play_count_in();
+    assert!(!app.play_count_in(), "the count-in ended at the music");
+    stop(&mut app);
+    assert_eq!(
+        app.engine.position(),
+        bar3,
+        "a Stop after it leaves the playhead alone"
+    );
+
+    // Review 5: replacing the project ends a count-in under way.
+    at_bar_three(&mut app);
+    play(&mut app);
+    assert!(app.play_count_in());
+    app.replace_project(cantus_ui::welcome_project());
+    assert!(
+        !app.play_count_in(),
+        "a new project starts with no count-in under way"
+    );
 }
 
 // ---- (c) plug-ins looked for at start --------------------------------------------------
