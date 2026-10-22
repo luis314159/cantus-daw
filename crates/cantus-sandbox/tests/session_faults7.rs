@@ -187,8 +187,10 @@ fn plugins_let_go_during_a_dialog_are_bounded_and_show_its_card() {
         frame(&mut rig);
         std::thread::sleep(Duration::from_millis(10));
     }
+    // A nested loop is a Windows message loop (elsewhere the test plug-in only sleeps:
+    // nothing to show a card for); the bound holds everywhere.
     assert!(
-        card,
+        card || !cfg!(windows),
         "the plug-in in its dialog showed its card while it left"
     );
     assert_eq!(
