@@ -1470,7 +1470,21 @@ pub fn demo_setup(app: &mut CantusApp, library: &std::path::Path, open_editor: b
     let folder = std::env::temp_dir().join("cantus-shoot-plugins");
     let _ = std::fs::create_dir_all(&folder);
     let file = folder.join("Cantus Test Gain.clap");
-    let _ = std::fs::copy(library, &file);
+    // One copy and scan at a time in a process, and the copy put in place whole: tests run
+    // in parallel, and a copy written over the file while another test loads it left that
+    // test with nothing to scan (GitHub's Windows runner, 2026-10-22).
+    static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
+    let same = std::fs::read(library)
+        .ok()
+        .is_some_and(|new| std::fs::read(&file).is_ok_and(|old| old == new));
+    if !same {
+        let part = folder.join(format!("Cantus Test Gain.{}.part", std::process::id()));
+        if std::fs::copy(library, &part).is_ok() && std::fs::rename(&part, &file).is_err() {
+            // In use by another process: it is the same build's library, kept.
+            let _ = std::fs::remove_file(&part);
+        }
+    }
     let plugins = cantus_host::clap::ClapBackend
         .scan(&file)
         .unwrap_or_default();
