@@ -135,10 +135,10 @@ fn count_in(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
     // and the menu's *Before recording* band say it; *Also on play* takes the dot away.
     if bars > 0 && !on_play {
         let k = s.k;
-        let c = Pos2::new(r.left() + lw + 7.0 * k, r.center().y);
+        let c = Pos2::new(r.left() + lw + 5.0 * k, r.center().y);
         with_brush(ui.painter(), |b| {
             b.register(r, "count-in-rec", &[kit::Tok::Danger], &[]);
-            b.circle(c, 2.6 * k, kit::Fill::Solid(s.t.danger));
+            b.circle(c, 2.2 * k, kit::Fill::Solid(s.t.danger));
         });
     }
     if st.hovered {
