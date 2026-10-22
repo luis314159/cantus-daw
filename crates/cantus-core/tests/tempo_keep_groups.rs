@@ -644,3 +644,50 @@ fn a_linked_first_piece_never_drags_its_take() {
         );
     }
 }
+
+/// Final review (finding A1): laying a large selection — 4 000 windows of one take, every
+/// other one linked, as a drag preview lays it across a tempo change — stays within its
+/// budget (best of three): the linked pieces join their take by line in one sorted pass,
+/// not each against every window. The take still moves as one.
+#[test]
+fn laying_a_large_selection_keeps_to_its_budget() {
+    use cantus_core::audio_time::{lay_chains, Member};
+    let mut p = Project::new("big");
+    p.tempo_points = vec![pt(0, 120.0, false), pt(8, 100.0, false)];
+    let sid = AudioSourceId(p.alloc_id());
+    let clips: Vec<Clip> = (0..4000i64)
+        .map(|i| {
+            let mut c = p.make_audio_clip("w", sid, Ticks(1500 + i * 240), Ticks(240));
+            c.offset = Ticks(1500 + i * 240);
+            if i % 2 == 1 {
+                c.link = Some(LinkId(9_999));
+                // Off the line by a few ticks of rounding, as a re-anchor leaves it.
+                c.offset += Ticks(i % 3 - 1);
+            }
+            c
+        })
+        .collect();
+    let members: Vec<Member> = clips
+        .iter()
+        .map(|c| Member {
+            clip: c,
+            row: 0,
+            from: c.start,
+            rate: RATE,
+        })
+        .collect();
+    let map = p.tempo_map();
+    let mut best = f64::MAX;
+    let mut laid = Vec::new();
+    for _ in 0..3 {
+        let t0 = std::time::Instant::now();
+        laid = lay_chains(&map, &map, Ticks::beats(16), &members);
+        best = best.min(t0.elapsed().as_secs_f64());
+    }
+    println!("laying 4 000 windows: {:.2} ms", best * 1e3);
+    assert!(
+        laid.iter().all(Option::is_some),
+        "one take, every window laid with it"
+    );
+    assert!(best < 0.05, "{:.1} ms", best * 1e3);
+}

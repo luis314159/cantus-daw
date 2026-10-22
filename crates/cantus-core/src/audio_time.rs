@@ -338,17 +338,28 @@ pub fn lay_chains(
     // A linked window that no longer shares its take's origin exactly (a re-anchor moved
     // it by whole ticks) joins the take whose line it reads within its reach, met or not
     // (review 6: a take with a gap lost it).
-    let line = |m: &Member| frame(m, m.from) - src.seconds_between(Ticks::ZERO, m.from) * m.rate;
-    for &i in eligible.iter().filter(|&&i| members[i].clip.link.is_some()) {
-        let m = &members[i];
-        if take(m).2 {
-            continue;
-        }
-        for &j in &eligible {
-            let o = &members[j];
-            if j != i && take(o) == take(m) && (line(m) - line(o)).abs() <= 1.0 + slack(m) {
-                join(&mut parent, i, j);
-            }
+    // One sorted pass a take (final review: each linked window against every window was
+    // quadratic, on every frame a drag's landing changed): windows next to each other on
+    // the line chain when a linked one is within its reach.
+    let mut by_line: Vec<(usize, f64, f64)> = eligible
+        .iter()
+        .copied()
+        .filter(|&i| !take(&members[i]).2)
+        .map(|i| {
+            let m = &members[i];
+            let line = frame(m, m.from) - src.seconds_between(Ticks::ZERO, m.from) * m.rate;
+            (i, line, slack(m))
+        })
+        .collect();
+    by_line.sort_by(|x, y| {
+        let (a, b) = (take(&members[x.0]), take(&members[y.0]));
+        (a.0, a.1).cmp(&(b.0, b.1)).then(x.1.total_cmp(&y.1))
+    });
+    for pair in by_line.windows(2) {
+        let ((i, li, si), (j, lj, sj)) = (pair[0], pair[1]);
+        let linked = members[i].clip.link.is_some() || members[j].clip.link.is_some();
+        if linked && take(&members[i]) == take(&members[j]) && lj - li <= 1.0 + si.max(sj) {
+            join(&mut parent, i, j);
         }
     }
     let mut chains: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
