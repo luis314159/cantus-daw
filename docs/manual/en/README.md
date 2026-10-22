@@ -1390,7 +1390,7 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Ctrl+,` | Settings |
 
 **On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
-*macOS* preset is the default: the table's keys, except that the metronome is `K` (⌘M
+*macOS* preset is the default: the table's keys, except that the metronome is `Cmd+K` (or `K` while the typing keyboard is off; ⌘M
 minimises the window, as in every Mac application) and redo is `Cmd+Shift+Z`. The menu
 bar at the top of the screen holds Cantus's menus with their shortcuts, which follow any
 change you make here. On a trackpad, pinch to zoom an editor's time and swipe with two

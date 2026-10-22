@@ -1138,9 +1138,6 @@ pub mod blame {
         #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
         pub fn modules(_f: &mut dyn FnMut(usize, usize, &str)) {}
 
-        /// Each image dyld has loaded now: from its Mach-O header, the span of its
-        /// segments (`LC_SEGMENT_64`, slid; `__PAGEZERO` left out), and its file — what
-        /// `dl_iterate_phdr` gives on Linux (macOS has none, isolation-5 #9).
         /// `mach_header_64`, `load_command` and `segment_command_64`
         /// (`<mach-o/loader.h>`), and dyld's image list (`<mach-o/dyld.h>`): declared here,
         /// libc's copies being deprecated.
@@ -1187,7 +1184,7 @@ pub mod blame {
         }
 
         /// Each image dyld has loaded now: from its Mach-O header, the span of its
-        /// segments (`LC_SEGMENT_64`, slid; `__PAGEZERO` left out), and its file — what
+        /// executable segments (`LC_SEGMENT_64`, slid), and its file — what
         /// `dl_iterate_phdr` gives on Linux (macOS has none, isolation-5 #9).
         #[cfg(target_vendor = "apple")]
         pub fn modules(f: &mut dyn FnMut(usize, usize, &str)) {
@@ -1215,9 +1212,11 @@ pub mod blame {
                         let lc = &*(cmd as *const dyld::Command);
                         if lc.cmd == dyld::LC_SEGMENT_64 {
                             let seg = &*(cmd as *const dyld::Segment);
-                            // `__PAGEZERO`: reserved, never accessible.
-                            let pagezero = seg.initprot == 0 && seg.maxprot == 0;
-                            if !pagezero && seg.vmsize > 0 {
+                            // Code only (`VM_PROT_EXECUTE`: `__TEXT`). `__LINKEDIT` and the
+                            // data segments of images in the dyld shared cache point into
+                            // regions shared by many images, so their spans would overlap.
+                            let code = seg.initprot & 0x4 != 0;
+                            if code && seg.vmsize > 0 {
                                 let start = (seg.vmaddr as usize).wrapping_add(slide);
                                 lo = lo.min(start);
                                 hi = hi.max(start + seg.vmsize as usize);

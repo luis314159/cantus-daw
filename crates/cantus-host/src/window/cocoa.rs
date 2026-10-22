@@ -13,16 +13,46 @@
 
 use super::{EditorSize, HostError, MainThread, RawWindowHandle};
 use objc2::rc::Retained;
-use objc2::MainThreadMarker;
+use objc2::runtime::{AnyObject, NSObject};
+use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{
     NSApplication, NSBackingStoreType, NSFloatingWindowLevel, NSView, NSWindow, NSWindowStyleMask,
 };
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 use raw_window_handle::AppKitWindowHandle;
+use std::cell::Cell;
 use std::ptr::NonNull;
+
+define_class!(
+    // SAFETY: a plain NSObject subclass whose one instance variable is a `Cell`; no Drop.
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "CantusPluginWindowDelegate"]
+    #[ivars = Cell<bool>]
+    struct Delegate;
+
+    impl Delegate {
+        /// The user closed the window (its close button, ⌘W): the only "closed" there is.
+        /// Hiding — Cantus deactivated, ⌘H, minimising — sends no such message.
+        #[unsafe(method(windowWillClose:))]
+        fn window_will_close(&self, _note: *mut AnyObject) {
+            self.ivars().set(true);
+        }
+    }
+);
+
+impl Delegate {
+    fn new(mtm: MainThreadMarker) -> Retained<Delegate> {
+        let this = Delegate::alloc(mtm).set_ivars(Cell::new(false));
+        // SAFETY: NSObject's designated initialiser.
+        unsafe { msg_send![super(this), init] }
+    }
+}
 
 pub struct PluginWindow {
     window: Retained<NSWindow>,
+    /// Says when the user closed the window (the window holds it weakly; this keeps it).
+    delegate: Retained<Delegate>,
     /// The size last given to the editor (the content view's, in points).
     size: EditorSize,
     /// The plug-in floats a window of its own; ours stays hidden and is never shown.
@@ -102,8 +132,15 @@ impl PluginWindow {
             window.setLevel(NSFloatingWindowLevel);
             window.setHidesOnDeactivate(true);
         }
+        let delegate = Delegate::new(mtm);
+        // SAFETY: an object answering `windowWillClose:`, kept alive by the value it is
+        // stored in and taken off the window in `drop` before the window closes.
+        unsafe {
+            let _: () = msg_send![&*window, setDelegate: &*delegate];
+        }
         Ok(PluginWindow {
             window,
+            delegate,
             size: EditorSize {
                 width: 640,
                 height: 480,
@@ -145,10 +182,31 @@ impl PluginWindow {
         self.window.isKeyWindow()
     }
 
-    /// The user closed it (the close button orders it out; a minimised window is not
-    /// closed, though it is not visible either).
+    /// The user closed it — told by the window's delegate. A window that is merely not
+    /// visible is not closed: one with an owner hides while Cantus is not the active
+    /// application (`setHidesOnDeactivate`), and ⌘H and minimising hide it too.
     pub fn closed(&self) -> bool {
-        !self.floating && !self.window.isVisible() && !self.window.isMiniaturized()
+        !self.floating && self.delegate.ivars().get()
+    }
+
+    /// A window with no editor in it (the tests of the window itself), shown.
+    #[doc(hidden)]
+    pub fn empty(title: &str, owner: Option<RawWindowHandle>) -> Result<PluginWindow, HostError> {
+        let w = Self::create(title, owner)?;
+        w.window.makeKeyAndOrderFront(None);
+        Ok(w)
+    }
+
+    /// Hide it as macOS does when Cantus is deactivated (the tests).
+    #[doc(hidden)]
+    pub fn hide(&self) {
+        self.window.orderOut(None);
+    }
+
+    /// Close it as its close button does (the tests).
+    #[doc(hidden)]
+    pub fn close_as_the_user(&self) {
+        self.window.performClose(None);
     }
 
     /// A size the user dragged the window to, once (points).
@@ -175,6 +233,10 @@ impl PluginWindow {
 
 impl Drop for PluginWindow {
     fn drop(&mut self) {
+        // SAFETY: nil takes the delegate off before the window is closed here.
+        unsafe {
+            let _: () = msg_send![&*self.window, setDelegate: std::ptr::null_mut::<AnyObject>()];
+        }
         self.window.orderOut(None);
         self.window.setContentView(None);
         self.window.close();

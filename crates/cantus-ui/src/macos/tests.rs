@@ -162,3 +162,24 @@ fn data_lives_in_application_support() {
         dir.display()
     );
 }
+
+/// The project Finder or the Dock asks for: the last `.cantus` among the paths, any case;
+/// at start only when the command line names none.
+#[test]
+fn the_project_to_open_is_the_last_cantus_file() {
+    use super::open::{at_launch, project_of};
+    use std::path::PathBuf;
+    let p = |s: &str| PathBuf::from(s);
+    assert_eq!(
+        project_of(&[p("/a/song.wav"), p("/a/B.CANTUS"), p("/a/x.mid")]),
+        Some(p("/a/B.CANTUS"))
+    );
+    assert_eq!(
+        project_of(&[p("/a/One.cantus"), p("/a/Two.cantus")]),
+        Some(p("/a/Two.cantus"))
+    );
+    assert_eq!(project_of(&[p("/a/song.wav"), p("/a/cantus")]), None);
+    let mut given = Some(p("/cli/Given.cantus"));
+    at_launch(&mut given);
+    assert_eq!(given, Some(p("/cli/Given.cantus")), "the command line wins");
+}

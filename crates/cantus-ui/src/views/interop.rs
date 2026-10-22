@@ -1234,6 +1234,11 @@ fn dropped_files(app: &mut CantusApp, ctx: &egui::Context) {
         if crate::audio_files::is_audio_path(f.path()) {
             continue;
         }
+        // A Cantus project dropped on the window opens, as *Open* opens one (ADR 0066).
+        if let Some(p) = crate::macos::open::project_of(&[f.path().to_path_buf()]) {
+            app.request_open_path(p);
+            continue;
+        }
         let name = file_name(f.path());
         let lower = name.to_lowercase();
         let is_project = lower.ends_with(&format!(".{}", dawproject::EXTENSION));

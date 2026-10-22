@@ -92,6 +92,11 @@ tempfile = "3"
 # Built (as a DLL next to the test binaries) for the VST3 backend's tests; not linked.
 cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }
 
+# The macOS plug-in window on the main thread, where AppKit runs (no test harness).
+[[test]]
+name = "cocoa_window"
+harness = false
+
 [[bin]]
 name = "cantus-scan"
 path = "src/bin/cantus-scan.rs"

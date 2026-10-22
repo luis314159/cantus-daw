@@ -997,7 +997,8 @@ pub fn bitwig_keymap() -> Keymap {
 
 /// Cantus's map with macOS's conventions (round 30, ADR 0066). The command modifier is
 /// already ⌘ there (egui's `command`), so the map is Cantus's but for the chords macOS keeps
-/// for itself: ⌘M minimises (the metronome takes Logic's K), and ⌘Y is not Redo on a Mac
+/// for itself: ⌘M minimises (the metronome takes ⌘K, and Logic's K while the typing piano
+/// is off), and ⌘Y is not Redo on a Mac
 /// (⌘⇧Z is, and stays). ⌘, opens the settings, as in every Mac application (all presets).
 pub fn mac_keymap() -> Keymap {
     let mut map = cantus_keymap();
@@ -1017,8 +1018,18 @@ pub fn mac_keymap() -> Keymap {
         &mut map,
         Action::ToggleMetronome,
         Binding::cmd(Key::M),
+        Some(Binding::cmd(Key::K)),
+    );
+    // Logic's bare K too, while the typing piano is off (it owns the letters when on).
+    swap(
+        &mut map,
+        Action::ToggleMetronome,
+        Binding::cmd(Key::K),
         Some(Binding::key(Key::K)),
     );
+    if let Some(list) = map.bindings.get_mut(&Action::ToggleMetronome) {
+        list.insert(0, Binding::cmd(Key::K));
+    }
     swap(&mut map, Action::Redo, Binding::cmd(Key::Y), None);
     map
 }
@@ -1712,8 +1723,19 @@ mod tests {
         for preset in Preset::ALL {
             let map = preset.keymap();
             for action in [
-                PlayPause, Record, Save, Undo, Redo, Copy, Paste, Delete, Duplicate, Quantize,
-                ToolDraw, ToolSelect,
+                PlayPause,
+                Record,
+                Save,
+                Undo,
+                Redo,
+                Copy,
+                Paste,
+                Delete,
+                Duplicate,
+                Quantize,
+                ToolDraw,
+                ToolSelect,
+                ToggleMetronome,
             ] {
                 assert!(
                     !map.bindings_for(action).is_empty(),
@@ -1722,6 +1744,14 @@ mod tests {
                     action
                 );
             }
+            // The metronome keeps a key while the typing piano owns the bare letters.
+            assert!(
+                map.bindings_for(ToggleMetronome)
+                    .iter()
+                    .any(|b| !b.is_bare()),
+                "preset {}: the metronome has only bare keys",
+                preset.id()
+            );
         }
     }
 
@@ -2046,7 +2076,7 @@ mod tests {
         }
         assert_eq!(
             mac.bindings_for(Action::ToggleMetronome),
-            [Binding::key(Key::K)]
+            [Binding::cmd(Key::K), Binding::key(Key::K)]
         );
         assert_eq!(mac.bindings_for(Action::Redo), [Binding::cmd_shift(Key::Z)]);
         assert_eq!(
