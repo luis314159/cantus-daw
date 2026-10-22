@@ -83,7 +83,8 @@ pub fn get() -> Html {
     let guide = format!("{GITHUB}/blob/master/docs/DEVELOPING.md");
     // The card speaks to the visitor's system: Windows gets the installer itself, straight
     // down (the newest release's, under its stable name — ADR 0048 §7), with every other
-    // file a link away; macOS and Linux get the honest answer (build from source today);
+    // file a link away; macOS and Linux get the honest answer (coming soon, and building
+    // from source meanwhile);
     // phones are pointed at a computer.
     let (headline, lead, primary, primary_href) = match *os {
         Os::Windows => (
@@ -96,17 +97,17 @@ pub fn get() -> Html {
         Os::MacOs | Os::Linux => {
             let n = if *os == Os::MacOs { "macOS" } else { "Linux" };
             (
-                html! { <>{ n }</> },
-                l.t("Cantus ships as a Windows program today. On your system you can build it from source: the guide takes you from a clean machine to a running Cantus. A Windows build is also on the downloads page.",
-                    "Hoy Cantus se distribuye como programa de Windows. En tu sistema puedes compilarlo desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando. También hay una versión de Windows en la página de descargas."),
+                html! { <>{ n }{ " · " }{ l.t("Coming soon", "Muy pronto") }</> },
+                l.t("The installer for your system is coming soon; Windows has its own today. Meanwhile you can build Cantus from source: the guide takes you from a clean machine to a running Cantus.",
+                    "El instalador para tu sistema llega muy pronto; el de Windows ya está disponible. Mientras tanto puedes compilar Cantus desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando."),
                 l.t("Build from source", "Compilar desde el código"),
                 guide.clone(),
             )
         }
         Os::Mobile => (
             html! { <>{ l.t("Open this on your computer", "Ábrelo en tu computadora") }</> },
-            l.t("Cantus is a desktop program for Windows. Come back from your computer to download it, or read the source meanwhile.",
-                "Cantus es un programa de escritorio para Windows. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto."),
+            l.t("Cantus is a desktop program for Windows, with Linux and macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
+                "Cantus es un programa de escritorio para Windows, y muy pronto para Linux y macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto."),
             l.t("See the downloads", "Ver las descargas"),
             RELEASES.to_string(),
         ),
@@ -135,7 +136,7 @@ pub fn get() -> Html {
                             <dt>{ l.t("Audio", "Audio") }</dt><dd>{ l.t("Any device — WASAPI and ASIO", "Cualquier dispositivo — WASAPI y ASIO") }</dd>
                             <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ "CLAP, VST3" }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
-                            <dt>{ "macOS / Linux" }</dt><dd>{ l.t("Build from source", "Compila desde el código") }</dd>
+                            <dt>{ "macOS / Linux" }</dt><dd>{ l.t("Coming soon", "Muy pronto") }</dd>
                         </dl>
                     </aside>
                 </div>

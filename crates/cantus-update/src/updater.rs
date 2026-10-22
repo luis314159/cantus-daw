@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 /// The project's repository on GitHub.
-pub const REPO: &str = "luis314159/cantus";
+pub const REPO: &str = "luis314159/cantus-daw";
 /// How many lines of release notes the app shows (the rest is on the release page).
 pub const NOTE_LINES: usize = 80;
 /// A download a proxy holds for scanning is tried again this often, this many times —

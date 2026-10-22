@@ -8,7 +8,7 @@ feedback-FM patent, and the standard literature (Chowning 1973 onwards). Press r
 opinion. Gearspace refused automated reading (HTTP 403) and was skipped. Everything is paraphrased. Where a fact
 comes only from a search-engine excerpt, or is my own estimate, the text says so. Dexed is GPL-3: this report
 describes documented behaviour and published measurements only, never its code. Screenshots are the manufacturers'
-own, kept in [`screenshots/`](screenshots/) (git-ignored) for internal reference.*
+own, kept in `screenshots/` (git-ignored) for internal reference.*
 
 *Scope: NI FM8, Image-Line Sytrus and Harmor, Ableton Operator, Dexed, Spectrasonics Omnisphere 3, u-he Zebra 3,
 NI Absynth 6. Serum 2 and Pigments 7 appear only as comparison points; the wavetable report covers them.*
@@ -98,7 +98,7 @@ NI Absynth 6. Serum 2 and Pigments 7 appear only as comparison points; the wavet
 
 ## 2. Screenshots saved
 
-All files are official images downloaded with `curl` into [`screenshots/`](screenshots/): NI product galleries, the
+All files are official images downloaded with `curl` into `screenshots/`: NI product galleries, the
 Ableton manual, the FL Studio online manual, the u-he product page, the Spectrasonics interface tour and NI's
 Absynth tour. Every file was opened and checked. The u-he WebP images were converted to PNG. Background-only
 decoration images were discarded.

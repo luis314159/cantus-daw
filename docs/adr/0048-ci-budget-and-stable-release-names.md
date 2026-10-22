@@ -160,7 +160,7 @@ return to every push (add `ci.yml`'s `push` trigger to `macos.yml`).
   published as a pre-release; otherwise (none yet, or only betas) it is published with
   `--latest`. Only *404 Not Found* means "no latest release"; any other failure of the
   lookup (network, rate limit, outage) stops the job instead of guessing (the review's
-  finding). So `https://github.com/luis314159/cantus/releases/latest/download/Cantus-windows-x64-setup.exe`
+  finding). So `https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe`
   always answers. The updater never read the flag: a stable build refuses any version with
   a suffix (`Release::is_update_for`), and a pre-release build reads the release list
   (ADR 0032 §4) — so this changes no update offer.

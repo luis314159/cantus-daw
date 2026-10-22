@@ -9,7 +9,7 @@ is reproduced**, and nothing here should be copied into Cantus's MIT/Apache crat
 opinion and are marked as such. The web-search budget ran out part-way through; later facts come from direct fetches
 of known pages, and anything I could not re-verify says so.*
 
-*Screenshots are the manufacturers' images, saved in [`screenshots/`](screenshots/) (git-ignored) for internal
+*Screenshots are the manufacturers' images, saved in `screenshots/` (git-ignored) for internal
 reference only. Colour and contrast figures are estimates read from those PNG/JPEG files (±5 % luminance).*
 
 ---
@@ -88,7 +88,7 @@ competing with them inside Cantus.
 
 ## 2. Screenshots saved
 
-All in [`screenshots/`](screenshots/), prefix `wt-`. Every file was checked: PNG signature `89504E47` or JPEG
+All in `screenshots/`, prefix `wt-`. Every file was checked: PNG signature `89504E47` or JPEG
 `FFD8FF`, and every one was opened and viewed. The `fam-*` files were saved by the family agent and are referenced
 here read-only.
 
@@ -362,7 +362,7 @@ images are lazy-loaded and I did not script around that.
   - 6 voice LFOs + 6 scene LFOs per scene: LFO, step sequencer, **MSEG**, **formula (Lua)**;
   - filter EG and amp EG.
 
-  Across the instrument: 8 macros, 16 FX slots, and sends 1 and 2 ([wt-11](screenshots/wt-11-surge-signal-flow.png)).
+  Across the instrument: 8 macros, 16 FX slots, and sends 1 and 2 (wt-11).
 - **Oscillators.** 12 algorithms: Classic, Modern, Wavetable, Window, Sine, FM2, FM3, S&H Noise, Audio Input,
   String, Twist, Alias.
 - **Wavetables.**
@@ -373,7 +373,7 @@ images are lazy-loaded and I did not script around that.
     same `.wt` container**.
 - **Modulation UX.**
   - Select a source in the routing bar; each modulated slider shows a **second handle for depth** and a coloured
-    range bar ([wt-14](screenshots/wt-14-surgext-mod-depth-sliders.png)).
+    range bar (wt-14).
   - A modulation list view.
   - In CLAP only: **non-destructive polyphonic modulation and note expressions**.
 - **Accessibility.** An Accessibility submenu (1.2.0), and screen-reader and keyboard work across releases. **The
@@ -587,7 +587,7 @@ consistent with TPT filters and polyphase IIR oversampling.
   - Rössler: a = b = 0.2, c = 5.7 (Rössler, *Phys. Lett. A* 57, 1976).
   - Integrate with RK4 at control rate from a **fixed, seeded initial state**, normalise, and let the rate scale
     the time step. They are cheap and deterministic if seeded, and look spectacular drawn as the attractor
-    ([wt-05](screenshots/wt-05-serum2-lorenz-lfo.png)).
+    (wt-05).
 
 ### 4.8 Spectral and granular engines (Serum 2, Pigments)
 
@@ -622,7 +622,7 @@ consistent with TPT filters and polyphase IIR oversampling.
 
 ### 5.1 Layout and visual language
 
-- **Serum 2** ([wt-01](screenshots/wt-01-serum2-main.png)).
+- **Serum 2** (wt-01).
   - **Grid:** a single fixed page grid with five top tabs (OSC, MIX, FX, MATRIX, GLOBAL).
   - **Rows:** a horizontal row of equal-width module columns (SUB, A, B, C, NOISE, F1, F2). Under it the modulation
     band: a macro column, then source tabs with the selected source's editor (ENV, LFO or VELO/NOTE curve), then
@@ -638,7 +638,7 @@ consistent with TPT filters and polyphase IIR oversampling.
   - **Type:** a condensed geometric sans in caps; the numbers are not visibly tabular.
   - **Density:** high, but every section has a title.
   - **Resizing:** drag the corner or use a % menu from the logo, and set a default size.
-- **Pigments 7** ([wt-08](screenshots/wt-08-pigments-banner.png)).
+- **Pigments 7** (wt-08).
   - **Rows:** a three-band page: engines and filters on top; **the modulation strip as the spine**; the source
     editor and macros below.
   - **Colours:**
@@ -653,12 +653,12 @@ consistent with TPT filters and polyphase IIR oversampling.
   - **Colour identifies the section:** purple oscillators, orange filters, teal modulation.
   - Knob bodies ≈ #2B2D31 on panels ≈ #3B3E43, **≈ 1.3:1**. The saturated arc (≈ 5:1) carries the value.
   - A skin editor lets users recolour it, a precedent for Cantus's editable palette.
-- **Surge XT** ([wt-12](screenshots/wt-12-surgext-main.png)).
+- **Surge XT** (wt-12).
   - The densest of the seven, with **sliders rather than knobs** (handle ≈ 4.4:1 against the grey-blue panel) and
     orange for the selected state (≈ 9:1 with black text).
   - Surge's own documentation asks for labels everywhere, and gets them.
   - Skins and zoom. Documented accessibility.
-- **Hive 2** ([wt-09](screenshots/wt-09-hive2-fullui.jpg)).
+- **Hive 2** (wt-09).
   - Mirrored left and right halves around a hexagonal display. Two skins.
   - Knobs are silver on mid-grey (≈ 4:1).
   - **Small text**, about 9–10 px at 100 %.
@@ -680,8 +680,8 @@ consistent with TPT filters and polyphase IIR oversampling.
 | **Live mini-graphics of every source** | Pigments' strip | **Keep.** It is the overview FabFilter lacks. |
 | **Per-voice display: newest voice bright, others grey** | Phase Plant | **Keep** for LFO and envelope displays and the target ring dot. |
 | **Aux/"via" source and a curve per slot, with slew** | Serum matrix, Pigments sidechain | **Keep.** It is the family.md "via". |
-| **2D view shows the warp live; 3D view shows every frame, with the current one highlighted** | Serum ([wt-02](screenshots/wt-02-serum2-wavetable-osc.png)), Pigments | **Keep.** Draw interpolated frames dimmer (Serum: grey for interpolated, green for real, yellow for current). |
-| **Grains and play positions drawn live** | Serum granular ([wt-04](screenshots/wt-04-serum2-granular-osc.png)) | Keep for P2. |
+| **2D view shows the warp live; 3D view shows every frame, with the current one highlighted** | Serum (wt-02), Pigments | **Keep.** Draw interpolated frames dimmer (Serum: grey for interpolated, green for real, yellow for current). |
+| **Grains and play positions drawn live** | Serum granular (wt-04) | Keep for P2. |
 | **Filter graph editable by dragging** (cutoff × resonance) | Serum, Vital | Keep. It matches our Aequalis display grammar. |
 | **Unison field changes colour with CPU cost** | Serum | Replace with a **real measured CPU and voice readout** from the host. |
 | **Hidden right-click menus for major features** (phase legato, smooth interpolation, clean drive, ×10 rate) | Serum | **Don't copy.** Reviewers note that much of Serum 2 lives in right-click menus. Surface them as visible chips. |

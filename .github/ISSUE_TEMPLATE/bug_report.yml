@@ -7,10 +7,10 @@ body:
     attributes:
       value: |
         Thank you for testing Cantus. One problem per report, please; English or Spanish are both fine.
-        Before you write: the [known issues of the beta](https://github.com/luis314159/cantus/blob/master/docs/manual/en/README.md#14-known-issues-and-limitations) may already list it.
+        Before you write: the [known issues of the beta](https://github.com/luis314159/cantus-daw/blob/master/docs/manual/en/README.md#14-known-issues-and-limitations) may already list it.
 
         Gracias por probar Cantus. Un problema por reporte, por favor; puedes escribir en español o en inglés.
-        Antes de escribir: puede que ya esté en los [problemas conocidos de la beta](https://github.com/luis314159/cantus/blob/master/docs/manual/es/README.md#14-problemas-conocidos-y-limitaciones).
+        Antes de escribir: puede que ya esté en los [problemas conocidos de la beta](https://github.com/luis314159/cantus-daw/blob/master/docs/manual/es/README.md#14-problemas-conocidos-y-limitaciones).
   - type: textarea
     id: what
     attributes:

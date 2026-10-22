@@ -55,8 +55,9 @@ their own Bibles, and the counterpart of the Reina-Valera's "Jehová".
 > (the owner sends it). Until the answer: `verse::RVR1960_PERMITTED` is `false`, the build
 > does **not** carry `es.txt` (the text is not compiled in — checked by searching the
 > release `.exe` for its wording), Settings offers only the RV1909, a saved RVR1960 choice
-> reads the RV1909, and About credits only what is shown. `es.txt` stays in the repository
-> under its own copyright, **not under the GPL or MPL**; nobody may redistribute it without
+> reads the RV1909, and About credits only what is shown. `es.txt` stays in the private
+> repository only (never in the public `luis314159/cantus-daw`, ADR 0049), under its own
+> copyright, **not under the GPL or MPL**; nobody may redistribute it without
 > the publisher's permission. When the permission arrives, set the constant to `true`
 > (the tests cover both states) and record the permission here.
 

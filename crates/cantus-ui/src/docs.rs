@@ -6,7 +6,7 @@
 use crate::i18n::Locale;
 use std::path::{Path, PathBuf};
 
-pub const REPO: &str = "https://github.com/luis314159/cantus";
+pub const REPO: &str = "https://github.com/luis314159/cantus-daw";
 pub const SITE: &str = "https://lalmazan.com";
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

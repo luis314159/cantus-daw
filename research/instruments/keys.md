@@ -6,7 +6,7 @@ Salamander, Google Patents, press reviews (Sound On Sound, MusicTech, Bedroom Pr
 forums (KVR, Modartt), and the research literature (JASA, IEEE, DAFx, EURASIP, JOS/CCRMA). Everything is
 paraphrased. Colour and contrast values were **measured from the official screenshots** (JPEG/PNG, ±2 per
 channel; the WebP files could not be measured). Where a figure is our own calculation or estimate, the text says
-so. Screenshots are the makers' own, kept in [`screenshots/`](screenshots/) (git-ignored) for internal
+so. Screenshots are the makers' own, kept in `screenshots/` (git-ignored) for internal
 reference only.*
 
 *Limits of this round: the shared web-search quota ran out halfway through, so the later sources were found by
@@ -95,7 +95,7 @@ Modartt Organteq (a pipe organ, out of scope).
 
 ## 2. Screenshots saved
 
-All are in [`screenshots/`](screenshots/). Each was checked for a valid image signature and viewed.
+All are in `screenshots/`. Each was checked for a valid image signature and viewed.
 
 | File | What it shows |
 |---|---|

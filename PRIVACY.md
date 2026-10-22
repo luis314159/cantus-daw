@@ -18,7 +18,7 @@ copy built from source never checks by itself.
 
 | | |
 |---|---|
-| Address | `GET https://api.github.com/repos/luis314159/cantus/releases/latest` — or, in a pre-release build such as this beta, `GET https://api.github.com/repos/luis314159/cantus/releases?per_page=20` (GitHub's "latest" never names a pre-release, so a beta asks for the recent list to hear of the next beta) |
+| Address | `GET https://api.github.com/repos/luis314159/cantus-daw/releases/latest` — or, in a pre-release build such as this beta, `GET https://api.github.com/repos/luis314159/cantus-daw/releases?per_page=20` (GitHub's "latest" never names a pre-release, so a beta asks for the recent list to hear of the next beta) |
 | Headers | `User-Agent: cantus-update` (the program's name only: no version, no system, no identifier), `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, and on later checks `If-None-Match` with the tag GitHub gave the last answer (the same value for everyone who asked about the same release list) |
 | Body | none |
 
@@ -93,7 +93,7 @@ sent to any AI service.
 
 ## Questions
 
-Open an issue at <https://github.com/luis314159/cantus/issues>, or write through
+Open an issue at <https://github.com/luis314159/cantus-daw/issues>, or write through
 [lalmazan.com](https://lalmazan.com). This statement changes only with a release, and the
 release notes say so.
 
@@ -118,7 +118,7 @@ código nunca busca por sí sola.
 
 | | |
 |---|---|
-| Dirección | `GET https://api.github.com/repos/luis314159/cantus/releases/latest` — o, en una versión preliminar como esta beta, `GET https://api.github.com/repos/luis314159/cantus/releases?per_page=20` (el "latest" de GitHub nunca nombra una versión preliminar, así que una beta pide la lista reciente para enterarse de la siguiente beta) |
+| Dirección | `GET https://api.github.com/repos/luis314159/cantus-daw/releases/latest` — o, en una versión preliminar como esta beta, `GET https://api.github.com/repos/luis314159/cantus-daw/releases?per_page=20` (el "latest" de GitHub nunca nombra una versión preliminar, así que una beta pide la lista reciente para enterarse de la siguiente beta) |
 | Cabeceras | `User-Agent: cantus-update` (solo el nombre del programa: sin versión, sin sistema, sin identificador), `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28` y, en búsquedas posteriores, `If-None-Match` con la etiqueta que GitHub dio a la última respuesta (el mismo valor para todos los que preguntaron por la misma lista) |
 | Cuerpo | ninguno |
 
@@ -185,6 +185,6 @@ envía nada a ningún servicio de IA.
 
 ## Preguntas
 
-Abre un issue en <https://github.com/luis314159/cantus/issues> o escribe a través de
+Abre un issue en <https://github.com/luis314159/cantus-daw/issues> o escribe a través de
 [lalmazan.com](https://lalmazan.com). Esta declaración solo cambia con una nueva versión, y
 las notas de la versión lo dicen.

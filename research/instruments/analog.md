@@ -8,7 +8,7 @@ around: the Reveal Sound knowledge base (HTTP 403/504), discodsp.com (HTTP 999),
 (410), and Softube's model pages (404). The session's web-search budget ran out partway through. Claims that come only
 from search excerpts or forums are marked, and so are those given from memory.*
 
-*The screenshots are the manufacturers' images. They are kept in [`screenshots/`](screenshots/) (git-ignored) for
+*The screenshots are the manufacturers' images. They are kept in `screenshots/` (git-ignored) for
 internal reference only.*
 
 *Licence note: OB-Xd is GPL v3 only **up to version 2.11**. TAL-U-NO-LX is **commercial and closed**. This report
@@ -96,7 +96,7 @@ describes documented behaviour and the literature, and quotes no code from eithe
 
 ## 2. Screenshots saved
 
-All files are in [`screenshots/`](screenshots/). Each was checked to be a real JPEG or PNG and was viewed. Contrast
+All files are in `screenshots/`. Each was checked to be a real JPEG or PNG and was viewed. Contrast
 is measured as the WCAG luminance ratio between the median panel colour and the 5th-percentile dark or
 99th-percentile bright pixels in a region around the control.
 

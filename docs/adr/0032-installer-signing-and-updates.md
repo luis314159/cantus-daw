@@ -116,13 +116,13 @@ end to end without buying anything. What the owner must buy is in
 ### 4. Updates: GitHub Releases, once a day, nothing sent
 
 On start, an **installed or portable** Cantus with *Check daily* on (the default) asks
-`GET https://api.github.com/repos/luis314159/cantus/releases/latest` — at most once a day
+`GET https://api.github.com/repos/luis314159/cantus-daw/releases/latest` — at most once a day
 after an answer, at most once an hour after a failure, with `If-None-Match` so a repeat
 costs nothing against GitHub's 60-an-hour anonymous limit. A copy built from source never
 checks by itself. The request carries `User-Agent: cantus-update` and nothing else: no
 version, no machine, no identifier — **no telemetry**. Drafts and pre-releases are not
 offered to a stable build. *(Round 22, the public beta:* a pre-release build — `0.1.0-beta.1` — asks
-`GET /repos/luis314159/cantus/releases?per_page=20` instead and takes the newest non-draft
+`GET /repos/luis314159/cantus-daw/releases?per_page=20` instead and takes the newest non-draft
 release there, because `/releases/latest` never names a pre-release and a beta would never
 hear of the next beta; a release build still asks `/releases/latest`. SemVer orders
 `0.1.0-beta.1 < 0.1.0-beta.2 < 0.1.0`; `tests/check.rs` holds both.*) The release's notes (its Markdown, reduced to headings,

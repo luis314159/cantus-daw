@@ -13,18 +13,18 @@ All images are official FabFilter material: the press kit, the online help and t
 
 | File | What it shows |
 |---|---|
-| [`screenshots/pro-l-01-main-interface.png`](screenshots/pro-l-01-main-interface.png) | The full interface (press kit, 1900×1184): the real-time display with peak labels, the Advanced panel open, the output and GR meters, the loudness panel set to Short Term and a −14 LUFS "Strm" target, TP limiting on, 8x oversampling and 16-bit dither |
-| [`screenshots/pro-l-02-overview-annotated.jpg`](screenshots/pro-l-02-overview-annotated.jpg) | The help file's annotated map of every region: display, gain slider, advanced controls, MIDI Learn, TP limiting, oversampling, dither, in/out options, resize, presets, undo/A-B, help and full screen |
-| [`screenshots/pro-l-03-level-display-and-meters.jpg`](screenshots/pro-l-03-level-display-and-meters.jpg) | The output and GR meters, annotated: max peak, current peak, overall and per-channel momentary loudness, current and peak GR, and readouts you click to reset |
-| [`screenshots/pro-l-04-display-modes.jpg`](screenshots/pro-l-04-display-modes.jpg) | The Display Mode pop-up: Slow Down, Fast, Slow, Infinite and Off |
-| [`screenshots/pro-l-05-loudness-metering.jpg`](screenshots/pro-l-05-loudness-metering.jpg) | The loudness panel, annotated: max TP, max M/S, meter scale "EBU +9", target "−23 (EBU)", LRA, the M/S/I meters, the LUFS reading, the time-scale button and the loudness curve on the display |
-| [`screenshots/pro-l-06-true-peak-limiting.jpg`](screenshots/pro-l-06-true-peak-limiting.jpg) | The bottom bar: the True Peak Limiting toggle (green light), the TP metering button, the display mode, the Loudness scale, and Oversampling and Dither both Off |
-| [`screenshots/pro-l-07-advanced-panel-style.jpg`](screenshots/pro-l-07-advanced-panel-style.jpg) | The Advanced panel: the Style selector button (Modern), Lookahead 0–5 ms, Attack 0–10 s, Release 0–10 s, and Channel Linking for Transients and Release at 0–100 % |
-| [`screenshots/pro-l-08-compact-view.png`](screenshots/pro-l-08-compact-view.png) | Compact mode (press kit): Gain 0–30 dB, Output −30…0 dBTP, horizontal meters, a large loudness bar, and the DC / side-chain / 1:1 / audition icons in the bottom bar |
-| [`screenshots/pro-l-09-output-options.jpg`](screenshots/pro-l-09-output-options.jpg) | The Output pop-up: the Output Level knob plus the DC, side-chain trigger, 1:1 (Unity Gain) and headphones (Audition) buttons |
-| [`screenshots/pro-l-10-oversampling-menu.jpg`](screenshots/pro-l-10-oversampling-menu.jpg) | The oversampling menu: Off, 2x, 4x, 8x, 16x (CPU-intensive) and 32x (very CPU-intensive) |
-| [`screenshots/pro-l-11-dither-noise-shaping.jpg`](screenshots/pro-l-11-dither-noise-shaping.jpg) | The Dither pop-up: bit depth plus noise shaping, shown as "16 Bits (O)" |
-| [`screenshots/pro-l-12-surround-channel-linking.jpg`](screenshots/pro-l-12-surround-channel-linking.jpg) | Surround channel linking, with the extended "ALL" range and the +C and +LFE toggles |
+| `screenshots/pro-l-01-main-interface.png` | The full interface (press kit, 1900×1184): the real-time display with peak labels, the Advanced panel open, the output and GR meters, the loudness panel set to Short Term and a −14 LUFS "Strm" target, TP limiting on, 8x oversampling and 16-bit dither |
+| `screenshots/pro-l-02-overview-annotated.jpg` | The help file's annotated map of every region: display, gain slider, advanced controls, MIDI Learn, TP limiting, oversampling, dither, in/out options, resize, presets, undo/A-B, help and full screen |
+| `screenshots/pro-l-03-level-display-and-meters.jpg` | The output and GR meters, annotated: max peak, current peak, overall and per-channel momentary loudness, current and peak GR, and readouts you click to reset |
+| `screenshots/pro-l-04-display-modes.jpg` | The Display Mode pop-up: Slow Down, Fast, Slow, Infinite and Off |
+| `screenshots/pro-l-05-loudness-metering.jpg` | The loudness panel, annotated: max TP, max M/S, meter scale "EBU +9", target "−23 (EBU)", LRA, the M/S/I meters, the LUFS reading, the time-scale button and the loudness curve on the display |
+| `screenshots/pro-l-06-true-peak-limiting.jpg` | The bottom bar: the True Peak Limiting toggle (green light), the TP metering button, the display mode, the Loudness scale, and Oversampling and Dither both Off |
+| `screenshots/pro-l-07-advanced-panel-style.jpg` | The Advanced panel: the Style selector button (Modern), Lookahead 0–5 ms, Attack 0–10 s, Release 0–10 s, and Channel Linking for Transients and Release at 0–100 % |
+| `screenshots/pro-l-08-compact-view.png` | Compact mode (press kit): Gain 0–30 dB, Output −30…0 dBTP, horizontal meters, a large loudness bar, and the DC / side-chain / 1:1 / audition icons in the bottom bar |
+| `screenshots/pro-l-09-output-options.jpg` | The Output pop-up: the Output Level knob plus the DC, side-chain trigger, 1:1 (Unity Gain) and headphones (Audition) buttons |
+| `screenshots/pro-l-10-oversampling-menu.jpg` | The oversampling menu: Off, 2x, 4x, 8x, 16x (CPU-intensive) and 32x (very CPU-intensive) |
+| `screenshots/pro-l-11-dither-noise-shaping.jpg` | The Dither pop-up: bit depth plus noise shaping, shown as "16 Bits (O)" |
+| `screenshots/pro-l-12-surround-channel-linking.jpg` | Surround channel linking, with the extended "ALL" range and the +C and +LFE toggles |
 
 FabFilter publishes no image of the Style menu open. The Style button in #07 opens a plain list of the eight
 styles.

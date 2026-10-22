@@ -2,7 +2,7 @@ Cantus {version}
 ================
 
 Cantus is a free, open-source digital audio workstation.
-https://github.com/luis314159/cantus
+https://github.com/luis314159/cantus-daw
 
 Licence: the program is GPL-3.0-or-later (LICENSE.txt); COPYRIGHT.txt says which
 parts of the source are MIT OR Apache-2.0. THIRD-PARTY-NOTICES.txt names everything

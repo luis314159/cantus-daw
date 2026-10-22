@@ -77,6 +77,8 @@ env:
 
 jobs:
   test:
+    # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
+    if: github.repository == 'luis314159/cantus-daw'
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     # A hung test would otherwise bill up to six hours (x2 on Windows).

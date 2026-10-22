@@ -19,13 +19,13 @@ Windows shows **SignPath Foundation** as the publisher of Cantus's programs and 
 the certificate is issued to the foundation, which lends it to open-source projects that
 meet [its conditions](https://signpath.org/terms). A valid signature means the file is an
 unmodified, automated build of the source code in
-[github.com/luis314159/cantus](https://github.com/luis314159/cantus), made by GitHub
+[github.com/luis314159/cantus-daw](https://github.com/luis314159/cantus-daw), made by GitHub
 Actions and approved by the Cantus team for release.
 
 ### What is signed
 
 Every Windows release (a version tag such as `v0.1.0`) is built by the
-[release workflow](https://github.com/luis314159/cantus/blob/master/.github/workflows/release.yml)
+[release workflow](https://github.com/luis314159/cantus-daw/blob/master/.github/workflows/release.yml)
 on GitHub-hosted runners, from the tagged commit, and these files are signed:
 
 | File | What it is |
@@ -55,7 +55,7 @@ you add to Cantus are yours and are never signed by us.
 | Approvers | [Luis Ángel Almazán](https://github.com/luis314159) | approves each signing request in SignPath, release by release, after checking that it comes from the expected tag and workflow run |
 
 Every team member uses multi-factor authentication on GitHub and on SignPath. Outside
-contributions are merged under the [Cantus Contributor Licence Agreement](https://github.com/luis314159/cantus/blob/master/CLA.md)
+contributions are merged under the [Cantus Contributor Licence Agreement](https://github.com/luis314159/cantus-daw/blob/master/CLA.md)
 `[OWNER: keep this line only if the CLA is compatible with SignPath's "no commercial dual-licensing" — see docs/signing/README.md §3]`.
 
 ### Privacy
@@ -69,7 +69,7 @@ account. It connects to the internet only:
 - during installation, only if you tick the **FlexASIO** component.
 
 Every case, with exactly what is sent, is in the
-[privacy statement](https://github.com/luis314159/cantus/blob/master/PRIVACY.md). Those
+[privacy statement](https://github.com/luis314159/cantus-daw/blob/master/PRIVACY.md). Those
 requests go to GitHub (github.com, api.github.com, raw.githubusercontent.com), whose own
 [privacy statement](https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement)
 covers what GitHub keeps.

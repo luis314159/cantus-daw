@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 const RECORDED: &str = include_str!("fixtures/github-latest-recorded.json");
 const CANTUS: &str = include_str!("fixtures/cantus-latest.json");
 const SUMS: &str = include_str!("fixtures/SHA256SUMS.txt");
-const API: &str = "https://api.github.com/repos/luis314159/cantus/releases/latest";
-const DL: &str = "https://github.com/luis314159/cantus/releases/download/v0.2.0/";
+const API: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases/latest";
+const DL: &str = "https://github.com/luis314159/cantus-daw/releases/download/v0.2.0/";
 const PROXY_PAGE: &[u8] = b"<html><head><title>Internet Security by Zscaler</title></head>\
 <body>The file is being scanned. Try again in a few minutes.</body></html>";
 
@@ -515,7 +515,7 @@ fn flexasio_s_latest_release_names_its_installer() {
 // ---- Pre-releases (the public beta, round 22) ----------------------------------------
 
 /// The recent releases, as `GET /repos/{repo}/releases` lists them.
-const LIST: &str = "https://api.github.com/repos/luis314159/cantus/releases?per_page=20";
+const LIST: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases?per_page=20";
 
 /// The Cantus fixture re-tagged as `version`, a pre-release or not.
 fn release_json(version: &str, prerelease: bool) -> String {

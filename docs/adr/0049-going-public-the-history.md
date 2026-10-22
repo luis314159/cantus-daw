@@ -136,3 +136,30 @@ Measured in round 26 (2026-10-13): the original history — 480 forbidden paths,
 blobs, 0 secrets, pack 155.4 MiB; the paths-only rewrite — pack 29.7 MiB, the 6 motto blobs
 left; the full plan rehearsed on `r26/integration` squashed onto `master` (paths, the
 replacements, the mailmap, the day-of commit) — `READY`.
+
+## Amended 2026-10-20 (round 29): the owner's repositories
+
+The owner created the public repository as **`luis314159/cantus-daw`** and kept the private
+`luis314159/cantus` as the **working** repository (not renamed, not archived): it deploys
+the website (`site.yml`, its Cloudflare secrets) and keeps everything — the full history,
+the screenshots, the RVR1960 file. So:
+
+- **Publishing is a script, not a one-time move.** `tools/public/publish.sh <private-folder>
+  [--push]` clones the private `master`, rewrites it with the plan's exact rules (the three
+  path regexes, the RV1909 replacements, the mailmap to the GitHub no-reply address), runs
+  `check.sh` (which must say `READY`) and pushes to `cantus-daw` only as a fast-forward. The
+  rewrite is deterministic, so each run extends the last one; nothing is ever forced, and
+  the public repository never holds an object of the private history.
+- **The day-of tree changes are in the private `master`** (so no commit exists only in the
+  public one): the screenshots and `es.txt` are in `.gitignore` (tracked files stay tracked in
+  the private repository; a new screenshot goes in with `git add -f`), the research notes'
+  links to the screenshots are plain text, the verses README says where `es.txt` lives.
+- **Every public address names `cantus-daw`**: the updater (`cantus-update`'s `REPO`), the
+  website's download and links, the plug-ins' and the host's URLs, `PRIVACY.md`, the issue
+  templates, the manual, the notices, the installer.
+- **Every workflow runs in the public repository only** (`if: github.repository ==
+  'luis314159/cantus-daw'`): CI, the release, the null hashes, the audit, macOS, the perf
+  runs and the website's deploy (its Cloudflare secrets set there, 2026-10-20), where
+  GitHub's minutes are free. The private repository runs none.
+- Never add the public remote to the private repository: only `publish.sh`'s clone holds it.
+
