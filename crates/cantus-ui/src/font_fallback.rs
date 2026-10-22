@@ -145,9 +145,101 @@ fn candidates(script: Script) -> Vec<Face> {
     list.iter().map(|(d, f)| face(d, f, 0)).collect()
 }
 
+/// Linux (ADR 0065): what fontconfig answers first — the faces the system's own font setup
+/// gives for the script's language, whatever their file names (Fedora's variable Noto CJK,
+/// WenQuanYi, a Flatpak's `/run/host/fonts`) — then the usual files by name in the font
+/// folders, the user's own included.
 #[cfg(all(unix, not(target_os = "macos")))]
 fn candidates(script: Script) -> Vec<Face> {
-    let roots = ["/usr/share/fonts", "/usr/local/share/fonts"];
+    let mut out = fontconfig_faces(script);
+    for face in named_faces(script) {
+        if !out
+            .iter()
+            .any(|f| f.path == face.path && f.index == face.index)
+        {
+            out.push(face);
+        }
+    }
+    out
+}
+
+/// fontconfig's language for a script (`fc-list :lang=<it>`), `None` for the mixed ones.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn fontconfig_lang(script: Script) -> Option<&'static str> {
+    match script {
+        Script::Japanese => Some("ja"),
+        Script::Chinese => Some("zh-cn"),
+        Script::Hangul => Some("ko"),
+        Script::Indic => Some("hi"),
+        Script::Thai => Some("th"),
+        Script::Letters | Script::Symbols | Script::Emoji => None,
+    }
+}
+
+/// The faces `fc-match` and then `fc-list` give for the script's language (at most four).
+/// Nothing when fontconfig's tools are not installed.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn fontconfig_faces(script: Script) -> Vec<Face> {
+    let Some(lang) = fontconfig_lang(script) else {
+        return Vec::new();
+    };
+    let run = |args: &[&str]| -> String {
+        std::process::Command::new(args[0])
+            .args(&args[1..])
+            .stderr(std::process::Stdio::null())
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+            .unwrap_or_default()
+    };
+    let query = format!(":lang={lang}");
+    let mut text = run(&["fc-match", "-f", "%{file}|%{index}\n", &query]);
+    text.push_str(&run(&["fc-list", "-f", "%{file}|%{index}\n", &query]));
+    parse_fontconfig(&text, lang)
+        .into_iter()
+        .filter(|f| f.path.is_file())
+        .take(4)
+        .collect()
+}
+
+/// `file|index` lines, as `fc-match -f '%{file}|%{index}\n'` prints them, as faces (the
+/// first of each file and index kept, in order).
+pub fn parse_fontconfig(text: &str, lang: &str) -> Vec<Face> {
+    let mut out: Vec<Face> = Vec::new();
+    for line in text.lines() {
+        let Some((file, index)) = line.trim().rsplit_once('|') else {
+            continue;
+        };
+        let Ok(index) = index.trim().parse::<u32>() else {
+            continue;
+        };
+        let path = PathBuf::from(file);
+        if !path.is_absolute() || out.iter().any(|f| f.path == path && f.index == index) {
+            continue;
+        }
+        out.push(Face {
+            key: format!("fontconfig:{lang}:{file}#{index}"),
+            path,
+            index,
+        });
+    }
+    out
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn named_faces(script: Script) -> Vec<Face> {
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    let data = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| home.as_ref().map(|h| h.join(".local/share")));
+    let mut roots: Vec<PathBuf> = vec![
+        PathBuf::from("/usr/share/fonts"),
+        PathBuf::from("/usr/local/share/fonts"),
+        // A Flatpak sees the host's fonts here.
+        PathBuf::from("/run/host/fonts"),
+        PathBuf::from("/run/host/user-fonts"),
+    ];
+    roots.extend(data.map(|d| d.join("fonts")));
+    roots.extend(home.map(|h| h.join(".fonts")));
     let names: &[&str] = match script {
         Script::Japanese | Script::Chinese | Script::Hangul => &[
             "NotoSansCJK-Regular.ttc",
@@ -168,8 +260,8 @@ fn candidates(script: Script) -> Vec<Face> {
     };
     let mut out = Vec::new();
     for name in names {
-        for root in roots {
-            if let Some(p) = find(std::path::Path::new(root), name, 4) {
+        for root in &roots {
+            if let Some(p) = find(root, name, 4) {
                 out.push(Face {
                     key: format!("system:{name}#0"),
                     path: p,

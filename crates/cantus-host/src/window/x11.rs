@@ -266,7 +266,7 @@ impl PluginWindow {
             return false;
         }
         let iconic = self
-            .property32(self.window, self.atoms.WM_STATE, self.atoms.WM_STATE.into())
+            .property32(self.window, self.atoms.WM_STATE, self.atoms.WM_STATE)
             .first()
             == Some(&ICONIC_STATE);
         iconic || self.has_state(self.window, self.atoms._NET_WM_STATE_HIDDEN)
