@@ -18,6 +18,7 @@ pub mod clips;
 pub mod comping;
 /// MIDI learn and controller mapping (round 29, ADR 0062).
 pub mod controllers;
+pub mod count_in;
 pub mod controllers_feedback;
 pub mod controllers_input;
 pub mod controllers_learn;

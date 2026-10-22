@@ -2738,8 +2738,9 @@ impl CantusApp {
                 self.stop_recording();
             }
             self.engine.stop();
+            self.end_play_count_in();
         } else {
-            self.engine.play();
+            self.start_playback();
         }
     }
 
@@ -2749,6 +2750,7 @@ impl CantusApp {
         }
         if self.engine.is_playing() {
             self.engine.stop();
+            self.end_play_count_in();
         } else {
             self.seek(Ticks::ZERO);
         }

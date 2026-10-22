@@ -42,6 +42,10 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
     let value = COUNT_INS
         .iter()
         .map(|(_, k)| text::measure(ctx, &Text::key(k, Role::Value, s.t.text), tk).x)
+        // "1 bar rec": the value when the count-in plays before recording only.
+        .chain(COUNT_INS[1..].iter().map(|(b, _)| {
+            text::measure(ctx, &Text::new(&chip_value(*b, false), Role::Value, s.t.text), tk).x
+        }))
         .chain(std::iter::once(
             text::measure(
                 ctx,
@@ -126,38 +130,96 @@ fn count_in(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
     let resp = ui.interact(r, Id::new("toolbar-count-in"), Sense::click());
     let bars = app.project().recording.count_in_bars;
     let i = COUNT_INS.iter().position(|(b, _)| *b == bars).unwrap_or(0);
-    let popup = egui::Popup::default_response_id(&resp);
-    let open = egui::Popup::is_id_open(ui.ctx(), popup);
+    let open = egui::Popup::is_id_open(ui.ctx(), count_in_popup());
     let st = State::of(&resp, open);
-    let value = crate::views::clips_chrome::word(COUNT_INS[i].1);
-    row(ui, r, lw, s, st, WORDS[0], value);
+    let on_play = app.settings.count_in_on_play;
+    let value = chip_value(bars, on_play);
+    row(ui, r, lw, s, st, WORDS[0], &value);
     if st.hovered {
-        let name = tip(app, "topbar.count_in_tip", Some(Action::ToggleCountIn));
+        let name = tip(
+            app,
+            if on_play {
+                "ship.count_in.tip_play"
+            } else {
+                "ship.count_in.tip_rec"
+            },
+            Some(Action::ToggleCountIn),
+        );
         let caps = Caps {
             menu: true,
             ..Caps::NONE
         };
-        hint::set_text(ui.ctx(), &name, value, caps);
+        hint::set_text(ui.ctx(), &name, &value, caps);
     }
     if open || resp.clicked() {
         egui::Popup::menu(&resp)
+            .id(count_in_popup())
             .frame(egui::Frame::NONE)
             .show(|ui| {
-                let items: [kit::menu::Item<'_>; 4] =
-                    std::array::from_fn(|j| kit::menu::Item::Action {
-                        label: Src::Key(COUNT_INS[j].1),
+                // The bars, under the word that says when they play, and *Also on play*
+                // (round 30: the owner pressed Play and heard no count-in).
+                let mut items: Vec<kit::menu::Item<'_>> =
+                    vec![kit::menu::Item::Band(Src::Key("ship.count_in.band"))];
+                items.extend(COUNT_INS.iter().enumerate().map(|(j, (_, key))| {
+                    kit::menu::Item::Action {
+                        label: Src::Key(key),
                         check: kit::menu::Check::Radio(j == i),
                         shortcut: None,
                         submenu: false,
                         enabled: true,
-                    });
-                let (_, c) = kit::widgets::menu_list(ui, &items, 110.0);
-                if let Some(j) = c.clicked {
-                    set_count_in(app, COUNT_INS[j].0);
-                    ui.close();
+                    }
+                }));
+                items.push(kit::menu::Item::Separator);
+                items.push(kit::menu::Item::Action {
+                    label: Src::Key("ship.count_in.on_play"),
+                    check: if on_play {
+                        kit::menu::Check::On
+                    } else {
+                        kit::menu::Check::Off
+                    },
+                    shortcut: None,
+                    submenu: false,
+                    enabled: true,
+                });
+                let (_, c) = kit::widgets::menu_list(ui, &items, 170.0);
+                match c.clicked {
+                    Some(j) if (1..=COUNT_INS.len()).contains(&j) => {
+                        set_count_in(app, COUNT_INS[j - 1].0);
+                        ui.close();
+                    }
+                    Some(j) if j == items.len() - 1 => set_on_play(app, !on_play),
+                    _ => {}
                 }
             });
     }
+}
+
+/// The chip's value: the bars, and "rec" when they play before recording only.
+fn chip_value(bars: u8, on_play: bool) -> String {
+    let i = COUNT_INS.iter().position(|(b, _)| *b == bars).unwrap_or(0);
+    let word = crate::views::clips_chrome::word(COUNT_INS[i].1);
+    if bars == 0 || on_play {
+        word.to_owned()
+    } else {
+        crate::i18n::tf("ship.count_in.chip_rec", &[("bars", &word)])
+    }
+}
+
+/// *Also on play*: a global setting, saved at once.
+fn set_on_play(app: &mut CantusApp, on: bool) {
+    if app.settings.count_in_on_play != on {
+        app.settings.count_in_on_play = on;
+        app.store_settings();
+    }
+}
+
+fn count_in_popup() -> Id {
+    Id::new("toolbar-count-in-menu")
+}
+
+/// Open the count-in's menu (the screenshots).
+pub fn open_count_in(ctx: &egui::Context) {
+    egui::Popup::open_id(ctx, count_in_popup());
 }
 
 fn set_count_in(app: &mut CantusApp, bars: u8) {
@@ -344,6 +406,17 @@ fn options(app: &mut CantusApp, ui: &mut Ui) {
         let name = t("rec.count_in");
         if kit::widgets::segmented(ui, &mut i, &labels, &name, ro::CONTROL_W).changed() {
             rs.count_in_bars = COUNT_INS[i].0;
+        }
+    });
+    // Round 30: when the count-in plays — before recording, and on Play if asked.
+    ui.horizontal(|ui| {
+        ro::label(ui, "ship.count_in.on_play_label", &s);
+        let mut on = app.settings.count_in_on_play;
+        let name = t("ship.count_in.on_play");
+        if kit::widgets::led_button(ui, &mut on, Src::Key("ship.count_in.on_play"), &name, 150.0)
+            .changed()
+        {
+            set_on_play(app, on);
         }
     });
     if rs != before {

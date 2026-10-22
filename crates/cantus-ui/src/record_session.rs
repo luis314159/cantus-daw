@@ -44,6 +44,10 @@ pub struct RecSession {
     /// A count-in is under way with the metronome off (or set to click only while
     /// recording): the engine's snapshots click during the count-in anyway.
     pub count_in_click: bool,
+    /// Play from stop is counting in (*Also on play*, `crate::count_in`).
+    pub play_count_in: bool,
+    /// The status line said once this session that the count-in plays before recording.
+    pub count_in_told: bool,
 }
 
 /// A pass in progress.
