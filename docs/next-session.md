@@ -40,7 +40,11 @@ ronda; lo que reporte un constructor como «Left» se le devuelve como trabajo.
    sale del workflow `release.yml`), la web cambia «Muy pronto» por «Disponible» en Linux y
    macOS solo cuando sus releases existan, y el actualizador sabe qué archivo pedir en cada
    sistema.
-5. **Mis fricciones** (si te paso alguna al empezar, las anoto aquí).
+5. **Mis fricciones** (si te paso alguna al empezar, las anoto aquí):
+   - **Ajustes es difícil de encontrar** (2026-10-22: «¿dónde está settings?»): hoy solo
+     está en *Ver ▸ Ajustes…*, sin atajo. Hazlo evidente como en FL (un menú *Opciones*) y
+     en Ableton (`Ctrl+,`), con un acceso directo a *Ajustes ▸ Plug-ins* desde el selector
+     de dispositivos (p. ej. *Buscar más plug-ins…* cuando el estante CLAP/VST3 está vacío).
 
 Organízalo como las rondas grandes: commit de contrato, un worktree por constructor en
 `F:\projects\daw-r30\` (jobs = 3, TMP en F:; máximo tres constructores compilando a la vez),

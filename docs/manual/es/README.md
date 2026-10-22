@@ -1227,7 +1227,8 @@ soportados: cuando un plug-in ofrece varios formatos, instala su versión CLAP o
    fabricante. Déjalo en la carpeta estándar que propone el instalador
    (`C:\Program Files\Common Files\VST3` o `…\CLAP`).
 2. **Deja que Cantus lo encuentre.** Cantus lee las carpetas estándar al iniciar. Para un
-   plug-in instalado con Cantus abierto, o en otra carpeta, abre *Ajustes ▸ Plug-ins*:
+   plug-in instalado con Cantus abierto, o en otra carpeta, abre el menú **VER** (arriba a
+   la izquierda, junto al logo) ▸ *Ajustes…* y su página *Plug-ins*:
    añade la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*) y pulsa *Buscar plug-ins*
    (*Volver a leer todo* lee de nuevo todos los archivos, también los bloqueados). Lo que
    encontró aparece en *Encontrados*; un archivo que falló al leerse aparece en
