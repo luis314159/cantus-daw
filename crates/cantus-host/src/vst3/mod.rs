@@ -87,6 +87,11 @@ impl Backend for Vst3Backend {
             }
             out.push(PathBuf::from("/usr/lib/vst3"));
             out.push(PathBuf::from("/usr/local/lib/vst3"));
+            // Not the SDK's, but what Flatpak's Linux audio extensions and other hosts
+            // read (ADR 0065): more folders, `:`-separated.
+            if let Some(extra) = std::env::var_os("VST3_PATH") {
+                out.extend(std::env::split_paths(&extra).filter(|p| p.is_absolute()));
+            }
         }
         out
     }

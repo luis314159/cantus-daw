@@ -330,6 +330,17 @@ fn live_streams_report_their_latencies() {
         "callbacks (in, out) after 0.8 s: {:?}",
         h.device_callbacks()
     );
+    // What the device page says of the threads' priority (ADR 0065).
+    let report = cantus_rt::thread::priority_report();
+    println!(
+        "real time: callback {} · workers {} of {}: {:?}",
+        report
+            .callback
+            .map_or_else(|| "not yet".to_string(), |p| p.to_string()),
+        report.realtime_workers(),
+        report.workers.len(),
+        report.workers.first().map(ToString::to_string),
+    );
     assert!(h.device_callbacks().1 > 0, "the output runs");
     assert!(l.output > 0, "the output reports a latency");
     if h.input_channel_count() > 0 {

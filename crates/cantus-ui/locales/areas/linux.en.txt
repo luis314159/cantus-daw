@@ -1,0 +1,6 @@
+# Round 30 (ADR 0065): the audio threads' real-time priority, on the device page (every
+# system; the words name what the operating system granted).
+devices.realtime = Real-time priority: audio thread {callback} · {workers}
+devices.realtime.workers = workers {n} of {of} real-time
+devices.realtime.no_workers = no worker threads
+devices.realtime.waiting = audio thread not started yet

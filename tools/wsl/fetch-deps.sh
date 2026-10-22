@@ -19,7 +19,8 @@ for p in pkgconf pkgconf-bin libpkgconf3 \
          libasound2-dev=1.2.11-1build2 libasound2t64=1.2.11-1build2 \
          libssl-dev=3.0.13-0ubuntu3 libssl3t64=3.0.13-0ubuntu3 \
          libpipewire-0.3-dev=1.0.5-1 libpipewire-0.3-0t64=1.0.5-1 libspa-0.2-dev=1.0.5-1 \
-         libclang1-18 libclang-common-18-dev libllvm18 libz3-4 libedit2 libffi8; do
+         libclang1-18 libclang-common-18-dev libllvm18 libz3-4 libedit2 libffi8 \
+         libjack-jackd2-dev libjack-jackd2-0; do
   if apt-get download "$p" >/dev/null 2>&1; then echo "got $p"; else echo "MISSING $p"; fi
 done
 for d in *.deb; do dpkg -x "$d" "$HOME/linux-deps/root"; done

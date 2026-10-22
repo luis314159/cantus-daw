@@ -315,6 +315,10 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         t("status.no_audio")
     };
     indented_note(ui, &running, false);
+    if f.live {
+        let (realtime, warn) = crate::audio_setup::realtime_note();
+        indented_note(ui, &realtime, warn);
+    }
     if let Some(e) = app.audio_error().map(str::to_string) {
         indented_note(ui, &e, true);
     }
