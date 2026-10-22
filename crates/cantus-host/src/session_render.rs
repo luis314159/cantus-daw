@@ -19,6 +19,12 @@
 //!   frame, or its render running — and waits (review isolation-6 #1, #4, #13, #26). An
 //!   owner that gives up drops it ([`PluginHost::drop_render`]); one nobody asked about
 //!   for a while goes by itself.
+//! - **Waited for.** A heard plug-in not loaded live yet — let go a moment ago (a device
+//!   change), its state on its way, or not synced yet — is waited for, then made a part of
+//!   the render; only a frozen chain's resting ones are none of it (review final-B #1). A
+//!   preparation asked for again with other contents keeps each instance whose part is the
+//!   same, so a state that moves at every look in one plug-in never makes another's load
+//!   again (review final-B #10).
 //! - **Losses, said.** A heard plug-in that is not loaded live (it could not be loaded, or
 //!   crashed loading), or whose render instance never loaded, is a loss of the render
 //!   ([`RenderLoss::NeverLoaded`], review isolation-5 #27); a state that could not be had
@@ -26,13 +32,13 @@
 //!   and the render says so ([`RenderLoss::Stale`]): never a stale state as a fresh one.
 
 use super::iso::{Instance, RenderFailure, RenderLoss};
-use super::PluginHost;
+use super::{Parked, PluginHost};
 use crate::backend::{AudioSetup, PluginInfo, StatePoll};
 use crate::inst_unit::HostedInstrument;
 use crate::unit::HostedUnit;
 use cantus_core::{EffectId, PluginIsolation, PluginState, Project, TrackId};
 use cantus_engine::{hosted_key, EffectUnit, NativeUnit, MAX_BLOCK_FRAMES};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -75,12 +81,27 @@ struct Part {
     instance: Option<Instance>,
 }
 
+/// A heard plug-in not loaded live yet (leaving, or not synced yet): waited for, then made
+/// a part (review final-B #1).
+struct Pending {
+    target: Target,
+    name: String,
+    values: BTreeMap<u32, f64>,
+    /// The project's state, for a render from the stored states.
+    state: Option<PluginState>,
+}
+
 /// The render being prepared: for whom, for which project, rate and states, and its
 /// plug-ins.
 pub(crate) struct Prep {
     owner: RenderFor,
     key: (u64, bool, u64),
     parts: Vec<Part>,
+    pending: Vec<Pending>,
+    /// The plug-ins it has no part for on purpose: not loaded live and said as lost, a
+    /// frozen chain's resting ones, unheard ones, or taken already.
+    rests: HashSet<Target>,
+    since: Instant,
     /// Said with the render's outcome: states used as they were last said.
     stale: Vec<RenderFailure>,
     /// Heard plug-ins it lacks from the start.
@@ -102,10 +123,8 @@ impl PluginHost {
         sample_rate: f64,
         stored: bool,
     ) -> bool {
-        if self.test_hooks.hold_renders {
-            return false;
-        }
         let key = (sample_rate.to_bits(), stored, content_of(project, stored));
+        let mut before = None;
         if let Some(p) = &self.render_prep {
             if p.owner != owner {
                 if !self.render_mains.is_empty() || p.touched.elapsed() < ABANDONED_AFTER {
@@ -113,19 +132,34 @@ impl PluginHost {
                 }
                 self.drop_render_prep();
             } else if p.key != key {
-                // Its owner asks for another render now (a state or a value changed).
-                self.drop_render_prep();
+                // Its owner asks for another render now (a state or a value changed): made
+                // anew, keeping each instance whose part is the same (review final-B #10).
+                before = self.render_prep.take();
+                if self.render_mains.is_empty() {
+                    self.render_lost.clear();
+                }
             }
         }
         if self.render_prep.is_none() {
             if !self.render_mains.is_empty() {
                 return false;
             }
-            let prep = self.new_prep(owner, project, key, stored);
+            let mut prep = self.new_prep(owner, project, key, stored);
+            if let Some(before) = before {
+                prep.keep_from(before);
+            }
             self.fresh_render_cancel();
             self.render_prep = Some(prep);
         }
-        self.advance_prep(sample_rate)
+        // A test's hold: prepared, and said not ready.
+        self.advance_prep(sample_rate) && !self.test_hooks.hold_renders
+    }
+
+    /// For the interface's tests: whose render is being prepared, if any. The application
+    /// never calls it.
+    #[doc(hidden)]
+    pub fn render_prepared_for_tests(&self) -> Option<RenderFor> {
+        self.render_prep.as_ref().map(|p| p.owner)
     }
 
     /// Whether `owner`'s preparation is still loading — looked at, and kept alive, by its
@@ -139,7 +173,7 @@ impl PluginHost {
         else {
             return false;
         };
-        !self.advance_prep(rate)
+        !self.advance_prep(rate) || self.test_hooks.hold_renders
     }
 
     /// `owner` gave up its render before it began (a freeze cancelled, an export stopped,
@@ -179,6 +213,8 @@ impl PluginHost {
     ) -> Prep {
         let mut parts = Vec::new();
         let mut lost = Vec::new();
+        let mut pending = Vec::new();
+        let mut rests = HashSet::new();
         for (strip, slot) in project.all_effects() {
             let Some(plugin) = slot.spec.external.as_deref() else {
                 continue;
@@ -199,10 +235,24 @@ impl PluginHost {
                     });
                 }
                 // Not loaded live: lost when it should be heard (a frozen chain's plug-ins
-                // rest — the render plays what they rendered).
+                // rest — the render plays what they rendered); one let go a moment ago, or
+                // not synced yet, is waited for (review final-B #1).
                 None => {
-                    if let Some(m) = self.missing.get(&slot.id).filter(|_| heard) {
-                        lost.push(never(&plugin.name, &m.error));
+                    let target = Target::Effect(slot.id);
+                    if let Some(m) = self.missing.get(&slot.id) {
+                        if heard {
+                            lost.push(never(&plugin.name, &m.error));
+                        }
+                        rests.insert(target);
+                    } else if heard && !self.resting.contains(&slot.id) {
+                        pending.push(Pending {
+                            target,
+                            name: plugin.name.clone(),
+                            values: plugin.params.clone(),
+                            state: stored.then(|| plugin.state.clone()),
+                        });
+                    } else {
+                        rests.insert(target);
                     }
                 }
             }
@@ -227,8 +277,19 @@ impl PluginHost {
                     });
                 }
                 None => {
+                    let target = Target::Instrument(t.id, key);
                     if let Some(m) = self.inst_missing.get(&t.id) {
                         lost.push(never(&plugin.name, &m.error));
+                        rests.insert(target);
+                    } else if !self.inst_resting.contains(&t.id) {
+                        pending.push(Pending {
+                            target,
+                            name: plugin.name.clone(),
+                            values: plugin.params.clone(),
+                            state: stored.then(|| plugin.state.clone()),
+                        });
+                    } else {
+                        rests.insert(target);
                     }
                 }
             }
@@ -237,6 +298,9 @@ impl PluginHost {
             owner,
             key,
             parts,
+            pending,
+            rests,
+            since: Instant::now(),
             stale: Vec::new(),
             lost,
             made: false,
@@ -251,7 +315,8 @@ impl PluginHost {
             return true;
         };
         prep.touched = Instant::now();
-        let mut waiting = false;
+        self.resolve_pending(&mut prep);
+        let mut waiting = !prep.pending.is_empty();
         for part in prep.parts.iter_mut().filter(|p| p.state.is_none()) {
             let live = match part.target {
                 Target::Effect(e) => self.slots.get_mut(&e).map(|h| &mut h.main),
@@ -289,7 +354,8 @@ impl PluginHost {
                 sample_rate,
                 max_block: MAX_BLOCK_FRAMES,
             };
-            for part in &mut prep.parts {
+            // A part kept from the preparation before has its instance already.
+            for part in prep.parts.iter_mut().filter(|p| p.instance.is_none()) {
                 let state = part.state.clone().unwrap_or_default();
                 // One that cannot be made is in `render_lost` (review isolation-4 #24).
                 part.instance = self
@@ -316,12 +382,24 @@ impl PluginHost {
         ready
     }
 
-    /// The prepared instance of `target`, loaded — or why the render lacks it.
-    fn take_prepared(&mut self, target: Target) -> Option<Instance> {
+    /// The prepared instance of `target` (`name`), loaded — or why the render lacks it.
+    fn take_prepared(&mut self, target: Target, name: &str) -> Option<Instance> {
         let prep = self.render_prep.as_mut()?;
         self.render_lost.append(&mut prep.lost);
         self.render_lost.append(&mut prep.stale);
-        let at = prep.parts.iter().position(|p| p.target == target)?;
+        let Some(at) = prep.parts.iter().position(|p| p.target == target) else {
+            // No part for it: one it has none for on purpose is none of its; any other —
+            // still on its way when the render began — is its loss, said (review final-B
+            // #1).
+            if prep.rests.insert(target) {
+                self.render_lost.push(never(
+                    name,
+                    "it was still loading when the render began",
+                ));
+            }
+            return None;
+        };
+        prep.rests.insert(target);
         let part = prep.parts.swap_remove(at);
         let Some(mut inst) = part.instance else {
             // Its instance was never made (its state still asked): a loss, said — never a
@@ -394,7 +472,7 @@ impl PluginHost {
                 }
                 continue;
             }
-            let Some(inst) = self.take_prepared(Target::Effect(slot.id)) else {
+            let Some(inst) = self.take_prepared(Target::Effect(slot.id), &plugin.name) else {
                 continue;
             };
             let main = inst.main;
@@ -445,7 +523,8 @@ impl PluginHost {
                 }
                 continue;
             }
-            let Some(inst) = self.take_prepared(Target::Instrument(t.id, key)) else {
+            let Some(inst) = self.take_prepared(Target::Instrument(t.id, key), &plugin.name)
+            else {
                 continue;
             };
             let main = inst.main;
@@ -461,6 +540,96 @@ impl PluginHost {
             self.render_mains.push(main);
         }
         units
+    }
+}
+
+impl PluginHost {
+    /// The pending plug-ins that are loaded live now made parts; those found missing, or
+    /// resting, or waited for too long, said or let be (review final-B #1).
+    fn resolve_pending(&mut self, prep: &mut Prep) {
+        let stored = prep.key.1;
+        let limit = self.leaving_limit() + PENDING_AFTER_LEAVING;
+        for p in std::mem::take(&mut prep.pending) {
+            let live = match p.target {
+                Target::Effect(e) => self
+                    .slots
+                    .get_mut(&e)
+                    .map(|h| (&mut h.main, h.info.clone(), h.isolation)),
+                Target::Instrument(t, key) => self
+                    .instruments
+                    .get_mut(&t)
+                    .filter(|h| h.key == key)
+                    .map(|h| (&mut h.main, h.info.clone(), h.isolation)),
+            };
+            if let Some((main, info, isolation)) = live {
+                if !stored {
+                    main.ask_state_now();
+                }
+                prep.parts.push(Part {
+                    target: p.target,
+                    info,
+                    isolation,
+                    values: p.values,
+                    state: p.state,
+                    instance: None,
+                });
+                continue;
+            }
+            let (missing, of, resting) = match p.target {
+                Target::Effect(e) => (
+                    self.missing.get(&e).map(|m| m.error.clone()),
+                    Parked::Effect(e),
+                    self.resting.contains(&e),
+                ),
+                Target::Instrument(t, key) => (
+                    self.inst_missing.get(&t).map(|m| m.error.clone()),
+                    Parked::Instrument(t, key),
+                    self.inst_resting.contains(&t),
+                ),
+            };
+            let leaving = self.is_leaving(of);
+            if let Some(why) = missing {
+                prep.lost.push(never(&p.name, &why));
+                prep.rests.insert(p.target);
+            } else if resting && !leaving {
+                prep.rests.insert(p.target);
+            } else if prep.since.elapsed() > limit {
+                prep.lost.push(never(
+                    &p.name,
+                    "it was still loading when the render began",
+                ));
+                prep.rests.insert(p.target);
+            } else {
+                prep.pending.push(p);
+            }
+        }
+    }
+}
+
+/// How long past a plug-in's leaving limit a render waits for it to be loaded live again.
+const PENDING_AFTER_LEAVING: Duration = Duration::from_secs(10);
+
+impl Prep {
+    /// The instances of `before` whose part is the same in this one (the same plug-in, where
+    /// it runs, values and state), kept instead of made again (review final-B #10).
+    fn keep_from(&mut self, before: Prep) {
+        for mut old in before.parts {
+            let Some(instance) = old.instance.take() else {
+                continue;
+            };
+            if let Some(part) = self.parts.iter_mut().find(|n| {
+                n.instance.is_none()
+                    && n.target == old.target
+                    && n.info.id == old.info.id
+                    && n.info.format == old.info.format
+                    && n.isolation == old.isolation
+                    && n.values == old.values
+                    && n.state.is_some()
+                    && n.state == old.state
+            }) {
+                part.instance = Some(instance);
+            }
+        }
     }
 }
 

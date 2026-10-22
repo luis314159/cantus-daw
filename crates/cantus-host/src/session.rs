@@ -352,6 +352,11 @@ pub struct PluginHost {
     kept_stale: Vec<(String, String)>,
     /// A plug-in's state came in for its slot: the application syncs again.
     resync: bool,
+    /// The inserts and the tracks' instruments a frozen chain rests (not loaded, by
+    /// design), as the last sync found them: a render needs none of them (review final-B
+    /// #1).
+    resting: HashSet<EffectId>,
+    inst_resting: HashSet<cantus_core::TrackId>,
     /// The fresh instruments' load keys are each their own (review isolation-6 #8, #16).
     load_serial: u64,
 }
@@ -369,6 +374,9 @@ pub(crate) struct Leaving {
     of: Parked,
     name: String,
     main: Box<dyn MainThread>,
+    /// When it was asked: waited for at most the state limit from then (review final-B
+    /// #4, #11).
+    since: std::time::Instant,
 }
 
 /// The most window tweaks kept between two takes (an application that never takes them
@@ -542,6 +550,8 @@ impl PluginHost {
             leaving: Vec::new(),
             kept_stale: Vec::new(),
             resync: false,
+            resting: HashSet::new(),
+            inst_resting: HashSet::new(),
             load_serial: 0,
         }
     }
@@ -783,6 +793,11 @@ impl PluginHost {
         let dormant = engine
             .frozen
             .dormant(project, engine.sample_rate.round() as u32);
+        self.resting = project
+            .all_effects()
+            .filter(|(host, _)| dormant.effect_rests(*host))
+            .map(|(_, slot)| slot.id)
+            .collect();
         // The strips' inserts and the master's (ADR 0026).
         for (host, slot) in project.all_effects() {
             let Some(plugin) = slot.spec.external.as_deref() else {
@@ -1014,7 +1029,12 @@ impl PluginHost {
     pub(crate) fn let_go(&mut self, of: Parked, name: String, mut main: Box<dyn MainThread>) {
         main.ask_state_now();
         if main.state_waiting() {
-            self.leaving.push(Leaving { of, name, main });
+            self.leaving.push(Leaving {
+                of,
+                name,
+                main,
+                since: std::time::Instant::now(),
+            });
         } else {
             let poll = main.poll_state();
             self.park(of, &name, poll);
@@ -1048,20 +1068,67 @@ impl PluginHost {
         self.leaving.iter().any(|l| l.of == of)
     }
 
-    /// The leaving instances whose state came in: parked, and let go (`idle`).
+    /// Whether another instance plays in `of`'s place already (an instrument picked again):
+    /// a leaving one's state is then nobody's, and it holds nothing up (review final-B #4).
+    pub(crate) fn is_live(&self, of: Parked) -> bool {
+        match of {
+            Parked::Effect(id) => self.slots.contains_key(&id),
+            Parked::Instrument(t, key) => self.instruments.get(&t).is_some_and(|h| h.key == key),
+        }
+    }
+
+    /// How long a plug-in let go is waited for, from when its state was asked — started or
+    /// not (a helper held by a dialog never starts it): the state limit (review final-B #4,
+    /// #11).
+    pub(crate) fn leaving_limit(&self) -> std::time::Duration {
+        self.sandboxes()
+            .map_or(crate::bridge::sandbox::Limits::default().state, |p| {
+                p.limits().state
+            })
+    }
+
+    /// The leaving instances whose state came in: parked, and let go (`idle`). One waited
+    /// for past [`Self::leaving_limit`] is parked as it was last said, and said so; one
+    /// another instance replaced is let go with nothing parked (review final-B #4, #11).
     fn settle_leaving(&mut self) {
+        let limit = self.leaving_limit();
         let mut i = 0;
         while i < self.leaving.len() {
             let _ = self.leaving[i].main.idle();
-            if self.leaving[i].main.state_waiting() {
+            let late = self.leaving[i].since.elapsed() > limit;
+            if self.leaving[i].main.state_waiting() && !late {
                 i += 1;
                 continue;
             }
             let mut l = self.leaving.swap_remove(i);
-            let poll = l.main.poll_state();
+            if self.is_live(l.of) {
+                continue;
+            }
+            let poll = if l.main.state_waiting() {
+                StatePoll::Stale(
+                    l.main.save_state().unwrap_or_default(),
+                    "its state did not come in time".into(),
+                )
+            } else {
+                l.main.poll_state()
+            };
             self.park(l.of, &l.name, poll);
             self.resync = true;
         }
+    }
+
+    /// A leaving instance's state for a save: as it is now once in, else as it was last
+    /// said (`stale` names it); `None` when `of` is not leaving (review final-B #4).
+    pub(crate) fn leaving_state_for_save(
+        &mut self,
+        of: Parked,
+        stale: &mut Vec<(String, String)>,
+    ) -> Option<PluginState> {
+        if self.is_live(of) {
+            return None;
+        }
+        let l = self.leaving.iter_mut().find(|l| l.of == of)?;
+        Self::state_for_save(&mut l.main, &l.name, stale)
     }
 
     /// Whether a plug-in's state came in for a slot since the last look: the application
@@ -1770,10 +1837,18 @@ impl PluginHost {
         if self.test_hooks.hold_states {
             return false;
         }
+        // The plug-ins let go a moment ago too, their state on its way (review final-B #4).
+        let live: Vec<bool> = self.leaving.iter().map(|l| self.is_live(l.of)).collect();
         let mains = self.slots.values_mut().map(|h| &mut h.main);
         let insts = self.instruments.values_mut().map(|h| &mut h.main);
+        let leaving = self
+            .leaving
+            .iter_mut()
+            .zip(live)
+            .filter(|(_, live)| !live)
+            .map(|(l, _)| &mut l.main);
         let mut waiting = false;
-        for m in mains.chain(insts) {
+        for m in mains.chain(insts).chain(leaving) {
             waiting |= m.state_waiting();
         }
         !waiting
@@ -1820,8 +1895,26 @@ impl PluginHost {
         let locks = project
             .any_frozen()
             .then(|| cantus_core::freeze::Locks::of(project));
+        let locked: HashSet<EffectId> = locks.as_ref().map_or_else(HashSet::new, |l| {
+            project
+                .all_effects()
+                .filter(|(strip, _)| l.chain.contains(strip))
+                .map(|(_, e)| e.id)
+                .collect()
+        });
         for slot in out.all_effects_mut() {
             let Some(h) = self.slots.get_mut(&slot.id) else {
+                // Let go a moment ago, its state on its way: as it is now, or said
+                // (review final-B #4).
+                if !locked.contains(&slot.id) {
+                    if let Some(state) =
+                        self.leaving_state_for_save(Parked::Effect(slot.id), &mut stale)
+                    {
+                        if let Some(plugin) = slot.spec.external.as_deref_mut() {
+                            plugin.state = state;
+                        }
+                    }
+                }
                 continue;
             };
             if locks.as_ref().is_some_and(|l| l.chain.contains(&h.strip)) {

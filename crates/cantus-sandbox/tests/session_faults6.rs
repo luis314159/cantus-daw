@@ -437,7 +437,8 @@ fn a_slow_load_shows_no_card_and_says_loading() {
 
 /// A plug-in let go — its slot removed — parks its state as it is now; one whose state
 /// cannot be had in time parks what it said last and says so; a device change loads every
-/// plug-in again once its state is in (review isolation-6 #24).
+/// plug-in again once its state is in — as it is now: a state the plug-in moved without
+/// telling the host comes back with it (review isolation-6 #24; final-B #15).
 #[test]
 fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     let _g = serial();
@@ -455,6 +456,9 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     let mut rig = Rig::new(project, host);
     let id = rig.insert(strip, GAIN_ID, PluginIsolation::Individually);
     rig.settle();
+    // Its state moves; the host hears nothing of it (what it said last is older).
+    rig.set_param(strip, id, P_FAULT, TAG_QUIETLY);
+    rig.settle();
     // A device change: let go, its state asked for, loaded again once it is in.
     rig.host.reload_all(SR);
     assert!(rig.host.hosted(id).is_none());
@@ -470,10 +474,31 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
         std::thread::sleep(Duration::from_millis(5));
     }
     rig.until_loaded();
-    // Removed while its save hangs: what it said last is parked, and said.
-    rig.set_param(strip, id, P_FAULT, HANG_SAVE);
+    // The state it came back with is the one it had, not the one it said last.
+    rig.host.ask_states();
+    let start = Instant::now();
+    while !rig.host.states_in() {
+        assert!(start.elapsed() < Duration::from_secs(5), "its state comes");
+        rig.frame();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    let saved = rig.host.project_for_save(rig.bus.project());
+    let state = saved
+        .all_effects()
+        .find(|(_, e)| e.id == id)
+        .and_then(|(_, e)| e.spec.external.as_deref())
+        .map(|p| p.state.bytes().to_vec())
+        .unwrap_or_default();
+    assert!(state.ends_with(b"heard"), "parked as it was, not as it was last said");
+    // Another, removed while its save hangs: what it said last is parked, and said (its
+    // own: the state just taken above would still be its answer).
+    let other = rig.insert(strip, GAIN_ID, PluginIsolation::Individually);
+    rig.set_param(strip, other, P_FAULT, HANG_SAVE);
     rig.settle();
-    rig.exec(Command::RemoveEffect { strip, effect: id });
+    rig.exec(Command::RemoveEffect {
+        strip,
+        effect: other,
+    });
     let said = frames_until(&mut rig, Duration::from_secs(5), |r| {
         r.notices
             .iter()

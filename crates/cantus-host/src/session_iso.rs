@@ -913,6 +913,19 @@ impl PluginHost {
             .filter(|(_, h)| h.crashed.is_none() && h.main.waiting())
             .map(|(id, h)| (*id, h.info.name.clone()))
             .collect();
+        // One let go a moment ago, its state asked while its helper is held: its card too
+        // (review final-B #11).
+        for l in self.leaving.iter().filter(|l| l.main.waiting()) {
+            match l.of {
+                super::Parked::Effect(id) if !e.iter().any(|(x, _)| *x == id) => {
+                    e.push((id, l.name.clone()));
+                }
+                super::Parked::Instrument(track, _) if !t.iter().any(|(x, _)| *x == track) => {
+                    t.push((track, l.name.clone()));
+                }
+                _ => {}
+            }
+        }
         e.sort_by_key(|(id, _)| *id);
         t.sort_by_key(|(id, _)| *id);
         (e, t)
@@ -947,32 +960,60 @@ impl PluginHost {
         n.saturating_sub(1)
     }
 
+    /// The leaving instance of a slot (`Some(effect)`) or a track that waits on its helper:
+    /// the card's answers reach it (review final-B #11).
+    fn leaving_waiting(
+        &mut self,
+        effect: Option<EffectId>,
+        track: Option<TrackId>,
+    ) -> Option<&mut Box<dyn MainThread>> {
+        self.leaving
+            .iter_mut()
+            .find(|l| {
+                l.main.waiting()
+                    && match l.of {
+                        super::Parked::Effect(id) => Some(id) == effect,
+                        super::Parked::Instrument(t, _) => Some(t) == track,
+                    }
+            })
+            .map(|l| &mut l.main)
+    }
+
     /// Brings the windows a waiting insert's plug-in waits on to the front.
     pub fn surface(&mut self, effect: EffectId) {
-        if let Some(h) = self.slots.get_mut(&effect) {
+        if let Some(m) = self.leaving_waiting(Some(effect), None) {
+            m.surface();
+        } else if let Some(h) = self.slots.get_mut(&effect) {
             h.main.surface();
         }
     }
 
     /// [`Self::surface`] for a track's hosted instrument.
     pub fn surface_instrument(&mut self, track: TrackId) {
-        if let Some(h) = self.instruments.get_mut(&track) {
+        if let Some(m) = self.leaving_waiting(None, Some(track)) {
+            m.surface();
+        } else if let Some(h) = self.instruments.get_mut(&track) {
             h.main.surface();
         }
     }
 
     /// Ends a waiting insert's plug-in — its helper — at the user's word: told as its own
-    /// crash, reloadable (review isolation-4 #54).
+    /// crash, reloadable (review isolation-4 #54). One leaving: parked as it was last said,
+    /// and said, then loaded again.
     pub fn stop(&mut self, effect: EffectId) {
         self.test_hooks.waiting.retain(|e| *e != effect);
-        if let Some(h) = self.slots.get_mut(&effect) {
+        if let Some(m) = self.leaving_waiting(Some(effect), None) {
+            m.stop();
+        } else if let Some(h) = self.slots.get_mut(&effect) {
             h.main.stop();
         }
     }
 
     /// [`Self::stop`] for a track's hosted instrument.
     pub fn stop_instrument(&mut self, track: TrackId) {
-        if let Some(h) = self.instruments.get_mut(&track) {
+        if let Some(m) = self.leaving_waiting(None, Some(track)) {
+            m.stop();
+        } else if let Some(h) = self.instruments.get_mut(&track) {
             h.main.stop();
         }
     }

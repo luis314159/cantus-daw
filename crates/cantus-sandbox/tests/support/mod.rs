@@ -65,9 +65,11 @@ pub const HANG_THREAD_TIMER: f64 = 21.0;
 pub const RESCAN_SLOW: f64 = 22.0;
 pub const RAISE_HANDLED: f64 = 23.0;
 pub const HANG_HIDDEN_WINDOW: f64 = 24.0;
+/// The gain's state's tag becomes `heard`, the host told nothing.
+pub const TAG_QUIETLY: f64 = 25.0;
 /// The Fault parameter's top (`fault::LAST` in the test plug-ins): what a normalised
 /// automation value is scaled by.
-pub const FAULT_LAST: f64 = 24.0;
+pub const FAULT_LAST: f64 = 25.0;
 
 fn workspace() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))

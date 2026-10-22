@@ -51,14 +51,25 @@ impl CantusApp {
         (Ticks::ZERO, p.content_end().max(bar))
     }
 
+    /// A bake given up before it began (its project replaced, refused, or needing no
+    /// render after all): its render's preparation goes with it — unless another bake still
+    /// waits for it (review final-B #7).
+    pub(crate) fn drop_bake_prep(&mut self) {
+        if self.warp.pending_bake.is_none() && self.modulators.pending_bake.is_none() {
+            self.plugins.drop_render(RenderFor::Bake);
+        }
+    }
+
     /// Bake modulator `id`'s route into `target` (one undo step); a source that follows
     /// audio is traced first, on a worker.
     pub fn bake_route(&mut self, id: ModulatorId, target: &AutoTarget) -> bool {
         if self.project().modulator(id).is_none() {
+            self.drop_bake_prep();
             return false;
         }
         let span = self.bake_span();
         if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
+            self.drop_bake_prep();
             return self.finish_bake(id, target, span, None);
         }
         // One bake at a time: a second one while the first traces, or waits for its
@@ -74,12 +85,14 @@ impl CantusApp {
         // asked before its plug-ins are prepared, so nothing drops them after (review
         // isolation-6 #2, #11, #22).
         if !crate::freeze::yield_refresh(self) {
+            self.drop_bake_prep();
             self.set_error(t("freeze.bake_waits"));
             return false;
         }
         // An export renders through the same plug-in instances: one render at a time
         // (round 29, review isolation-3 #5, #10, #13, #48).
         if self.export.busy() {
+            self.drop_bake_prep();
             let job = t("isolation.render.export");
             self.set_error(tf("isolation.render.busy", &[("job", &job)]));
             return false;
