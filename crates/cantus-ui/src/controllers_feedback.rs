@@ -180,7 +180,11 @@ impl CantusApp {
             else {
                 continue;
             };
-            let value = m.feedback_value(pos);
+            // A one-value mapping of a choice lights at its own value only (final review).
+            let shape = self
+                .resolve_target(&m.target)
+                .map_or_else(Default::default, |t| self.target_shape(&t));
+            let value = m.feedback_value_in(pos, shape);
             if self.controllers.sent.get(&key) == Some(&value) {
                 continue;
             }

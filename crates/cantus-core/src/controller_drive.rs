@@ -239,12 +239,10 @@ impl Mapping {
                 (MapMode::Toggle, i) => self.press(i, state).then(|| {
                     let now = current.or(state.last_out).unwrap_or(self.min);
                     let (lo, hi) = (self.shape(0.0), self.shape(1.0));
-                    // To the far end from where it is.
-                    let to = if (now - hi).abs() <= (now - lo).abs() {
-                        lo
-                    } else {
-                        hi
-                    };
+                    // Off from *To*, else to it: on a choice, *To* exactly (a band's solo
+                    // learnt as that band: another band soloed is not "on", final review);
+                    // on a range, the far end from where it is.
+                    let to = if self.at_to(now, shape) { lo } else { hi };
                     Drive::Set(to)
                 }),
                 (MapMode::Momentary, Input::Press(p)) => {
@@ -345,14 +343,35 @@ impl Mapping {
         }
     }
 
+    /// Whether a target at `pos` is at the mapping's *To* — what a button's toggle turns
+    /// off and its light shows. On a stepped choice (more than two states) exactly: within
+    /// half a step of *To*, so a mapping learnt as one value of a choice (a band's solo) is
+    /// on only at that value (final review of round 29). On a range or a switch, the nearer
+    /// end.
+    pub fn at_to(&self, pos: f32, shape: Steps) -> bool {
+        let (lo, hi) = (self.shape(0.0), self.shape(1.0));
+        if hi == lo {
+            return false;
+        }
+        match shape.steps.filter(|n| *n > 1 && !shape.switch) {
+            Some(n) => (pos - hi).abs() <= 0.5 / n as f32,
+            None => (pos - hi).abs() <= (pos - lo).abs(),
+        }
+    }
+
     /// The value to send back on the control for a target at `pos` (feedback: motor
     /// faders and LED rings): a button lit when the target is on its top half.
     pub fn feedback_value(&self, pos: f32) -> u16 {
+        self.feedback_value_in(pos, Steps::default())
+    }
+
+    /// [`Self::feedback_value`] for a target of the shape `shape`: a button lit when the
+    /// target is at *To* ([`Self::at_to`]).
+    pub fn feedback_value_in(&self, pos: f32, shape: Steps) -> u16 {
         let max = self.source.control.max();
         match self.mode {
             MapMode::Toggle | MapMode::Momentary | MapMode::Trigger => {
-                let (lo, hi) = (self.shape(0.0), self.shape(1.0));
-                if (pos - hi).abs() <= (pos - lo).abs() && hi != lo {
+                if self.at_to(pos, shape) {
                     max
                 } else {
                     0

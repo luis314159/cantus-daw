@@ -1406,3 +1406,56 @@ fn an_in_process_plug_ins_no_words_is_kept() {
         None
     );
 }
+
+// ---- the final review ------------------------------------------------------------------------
+
+/// Final review of round 29: a pad learnt from band 3's solo LED (over none ↔ band 3), the
+/// EQ soloing band 6: a press solos band 3, a press again lets it go; its light is on only
+/// while band 3 is soloed (off with band 2 or band 6).
+#[test]
+fn a_bands_solo_pad_solos_its_own_band_and_lights_for_it_only() {
+    let mut a = keys_app();
+    let s = strip(&a);
+    let fx = insert(&mut a, EffectKind::Eq);
+    let solo = effect(fx, "solo");
+    let mut m = Mapping::new(
+        MappingId(7),
+        source(Control::Note(40)),
+        solo.clone(),
+        MapMode::Toggle,
+    );
+    (m.min, m.max) = (0.0, 3.0 / 24.0);
+    m.feedback = true;
+    assert!(a.add_mapping(Scope::Project, m));
+    let set_solo = |a: &mut CantusApp, band: f32| {
+        a.exec(Command::SetEffectParam {
+            strip: s,
+            effect: fx,
+            key: "solo".into(),
+            value: band,
+        });
+    };
+    let soloed = |a: &CantusApp| a.project().effect(s, fx).unwrap().spec.get("solo");
+    let press = |a: &mut CantusApp| {
+        a.controller_heard(&[msg_at(0x90, 40, 100, Instant::now())]);
+        a.controller_heard(&[msg_at(0x80, 40, 0, Instant::now())]);
+    };
+    set_solo(&mut a, 6.0);
+    press(&mut a);
+    assert_eq!(soloed(&a), 3.0, "band 3 soloed, not every solo off");
+    press(&mut a);
+    assert_eq!(soloed(&a), 0.0, "let go");
+    // Its light: the value sent back.
+    a.controllers.feedback_log = Some(Vec::new());
+    for (band, lit) in [(2.0, false), (3.0, true), (6.0, false), (0.0, false)] {
+        set_solo(&mut a, band);
+        a.controllers.activity.clear();
+        a.controller_input();
+        let sent = a
+            .controllers
+            .sent
+            .get(&(Scope::Project, MappingId(7)))
+            .copied();
+        assert_eq!(sent, Some(if lit { 127 } else { 0 }), "band {band} soloed");
+    }
+}
