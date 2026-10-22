@@ -316,6 +316,11 @@ pub struct PluginHost {
     /// crashed doing it.
     missing: HashMap<EffectId, iso::Missing>,
     scan_job: Option<mpsc::Receiver<(PluginDb, ScanReport)>>,
+    /// While a scan runs on its copy of the database: the files the user asked to read
+    /// again (*Try again*) and what loaded plug-ins taught — applied to the scan's result
+    /// when it arrives, which would otherwise undo them (review 6).
+    scan_forgotten: Vec<PathBuf>,
+    scan_learned: Vec<PluginInfo>,
     /// Instances loaded for an offline render, kept until it has finished.
     render_mains: Vec<Box<dyn MainThread>>,
     /// Plug-ins the running render could not load (review #6, #47).
@@ -547,6 +552,8 @@ impl PluginHost {
             parked: HashMap::new(),
             missing: HashMap::new(),
             scan_job: None,
+            scan_forgotten: Vec::new(),
+            scan_learned: Vec::new(),
             render_mains: Vec::new(),
             render_lost: Vec::new(),
             render_prep: None,
@@ -613,7 +620,14 @@ impl PluginHost {
 
     /// Keep what a loaded plug-in says it is, over what its scan guessed.
     fn learn(&mut self, main: &dyn MainThread) {
-        if self.db.learn(main.info()) {
+        self.learn_info(main.info());
+    }
+
+    fn learn_info(&mut self, info: &PluginInfo) {
+        if self.scan_job.is_some() {
+            self.scan_learned.push(info.clone());
+        }
+        if self.db.learn(info) {
             self.save_db();
         }
     }
@@ -676,7 +690,37 @@ impl PluginHost {
     pub fn rescan_file(&mut self, path: &std::path::Path) {
         self.db.forget(path);
         self.save_db();
+        if self.scan_job.is_some() {
+            // A scan is running on a copy made before: it is read again after it.
+            self.scan_forgotten.push(path.to_path_buf());
+        }
         self.start_scan(false);
+    }
+
+    /// A finished scan's database becomes the live one, keeping what changed meanwhile:
+    /// the folders, the crash records (review #18, #52), the files asked to be read again
+    /// — read now, in a scan of their own — and what loaded plug-ins taught (review 6).
+    fn take_scan_result(&mut self, db: PluginDb, report: ScanReport) -> HostNotice {
+        let folders = std::mem::take(&mut self.db.folders);
+        let crashes = std::mem::take(&mut self.db.crashes);
+        self.db = db;
+        self.db.folders = folders;
+        self.db.crashes = crashes;
+        let forgotten = std::mem::take(&mut self.scan_forgotten);
+        for path in &forgotten {
+            self.db.forget(path);
+        }
+        for info in std::mem::take(&mut self.scan_learned) {
+            self.db.learn(&info);
+        }
+        self.save_db();
+        self.missing.clear();
+        self.inst_missing.clear();
+        self.scan_job = None;
+        if !forgotten.is_empty() {
+            self.start_scan(false);
+        }
+        HostNotice::ScanDone(report)
     }
 
     pub fn add_folder(&mut self, folder: PathBuf) {
@@ -1210,18 +1254,8 @@ impl PluginHost {
         if let Some(rx) = &self.scan_job {
             match rx.try_recv() {
                 Ok((db, report)) => {
-                    // Folders the user changed while the scan ran are kept, and the crash
-                    // records made (or forgotten) meanwhile (review #18, #52).
-                    let folders = std::mem::take(&mut self.db.folders);
-                    let crashes = std::mem::take(&mut self.db.crashes);
-                    self.db = db;
-                    self.db.folders = folders;
-                    self.db.crashes = crashes;
-                    self.save_db();
-                    self.missing.clear();
-                    self.inst_missing.clear();
-                    self.scan_job = None;
-                    notices.push(HostNotice::ScanDone(report));
+                    let notice = self.take_scan_result(db, report);
+                    notices.push(notice);
                 }
                 Err(mpsc::TryRecvError::Disconnected) => self.scan_job = None,
                 Err(mpsc::TryRecvError::Empty) => {}
@@ -2097,5 +2131,83 @@ impl Drop for PluginHost {
         for track in tracks {
             self.close_instrument_window(track);
         }
+    }
+}
+
+#[cfg(test)]
+mod scan_merge_tests {
+    use super::*;
+    use crate::backend::{Format, PluginKind};
+    use crate::db::{DbEntry, ScanStatus};
+
+    fn info(path: &str, id: &str, name: &str) -> PluginInfo {
+        PluginInfo {
+            format: Format::Vst3,
+            id: id.into(),
+            name: name.into(),
+            vendor: "Maker".into(),
+            version: "1".into(),
+            path: PathBuf::from(path),
+            kind: PluginKind::Effect,
+            main_inputs: 2,
+            main_outputs: 2,
+            sidechain: false,
+            editor: false,
+            features: Vec::new(),
+        }
+    }
+
+    fn entry(path: &str, status: ScanStatus, plugins: Vec<PluginInfo>) -> DbEntry {
+        DbEntry {
+            path: PathBuf::from(path),
+            format: Format::Vst3,
+            modified: 1,
+            size: 1,
+            status,
+            plugins,
+        }
+    }
+
+    /// Review 6: a scan's result does not undo a *Try again* pressed while it ran (the
+    /// file is read again after it) nor what a loaded plug-in taught meanwhile.
+    #[test]
+    fn a_scan_result_keeps_what_changed_while_it_ran() {
+        let mut host = PluginHost::new(None, 48_000.0);
+        host.scanner.standard_folders = false;
+        host.db.put(entry(
+            "blocked.vst3",
+            ScanStatus::Blocked("hung".into()),
+            Vec::new(),
+        ));
+        host.db.put(entry(
+            "ok.vst3",
+            ScanStatus::Ok,
+            vec![info("ok.vst3", "A", "Guess")],
+        ));
+        // A scan starts on a copy of the database as it is now.
+        let copy = host.db.clone();
+        let (tx, rx) = mpsc::channel();
+        host.scan_job = Some(rx);
+        // Meanwhile: Try again on the blocked file, and a loaded plug-in says its name.
+        host.rescan_file(std::path::Path::new("blocked.vst3"));
+        host.learn_info(&info("ok.vst3", "A", "Real Name"));
+        // The scan ends with its old copy.
+        tx.send((copy, ScanReport::default())).unwrap();
+        let (db, report) = host.scan_job.as_ref().unwrap().recv().unwrap();
+        let notice = host.take_scan_result(db, report);
+        assert!(matches!(notice, HostNotice::ScanDone(_)));
+        assert!(
+            host.db
+                .entry(std::path::Path::new("blocked.vst3"))
+                .is_none(),
+            "Try again is kept: the file is read afresh"
+        );
+        assert!(host.scanning(), "and a scan reads it now");
+        assert_eq!(
+            host.db.plugins()[0].name,
+            "Real Name",
+            "the learned name stays"
+        );
+        assert!(host.scan_forgotten.is_empty() && host.scan_learned.is_empty());
     }
 }

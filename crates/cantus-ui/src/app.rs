@@ -2746,8 +2746,7 @@ impl CantusApp {
             if self.is_recording() {
                 self.stop_recording();
             }
-            self.engine.stop();
-            self.end_play_count_in();
+            self.stop_transport();
         } else {
             self.start_playback();
         }
@@ -2758,8 +2757,7 @@ impl CantusApp {
             self.stop_recording();
         }
         if self.engine.is_playing() {
-            self.engine.stop();
-            self.end_play_count_in();
+            self.stop_transport();
         } else {
             self.seek(Ticks::ZERO);
         }
@@ -2800,7 +2798,7 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
-        self.engine.stop();
+        self.stop_transport();
         self.bus.reset(project);
         // A crash card speaks of the project that was open (review #16).
         self.plugin_crashes = Default::default();
@@ -2986,7 +2984,7 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
-        self.engine.stop();
+        self.stop_transport();
         self.bus.reset(loaded.project);
         self.plugin_crashes = Default::default();
         self.epoch += 1;
@@ -3150,15 +3148,14 @@ impl CantusApp {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            let mut snapshot = if self.rec.count_in_click {
-                // A count-in with the metronome off: the click sounds for the count-in
-                // only (`ClickMode::CountInOnly`), and the project is not touched.
-                let mut p = self.bus.project().clone();
-                p.metronome = true;
-                p.recording.click = cantus_core::ClickMode::CountInOnly;
-                self.engine.compile(&p, rev)
-            } else if let Some(p) = views::transport::pattern::project_to_play(self) {
-                // Pattern mode (ADR 0052): the current pattern alone, looped.
+            // Pattern mode (ADR 0052): the current pattern alone, looped; a count-in's
+            // forced click over whichever plays (review 2).
+            let pattern = views::transport::pattern::project_to_play(self);
+            let mut snapshot = if let Some(p) = crate::count_in::project_to_compile(
+                pattern,
+                self.bus.project(),
+                self.rec.count_in_click,
+            ) {
                 self.engine.compile(&p, rev)
             } else {
                 self.engine.compile(self.bus.project(), rev)
@@ -3839,6 +3836,7 @@ impl CantusApp {
         // macOS: a project double-clicked in Finder or dropped on the Dock icon.
         crate::macos::open::serve(self, ctx);
         self.engine.poll();
+        self.tick_play_count_in();
         // The playhead's wrap, before anything this frame is recorded (review 4, #17).
         self.note_playhead();
         self.poll_samples(ctx);

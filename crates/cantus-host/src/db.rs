@@ -118,11 +118,14 @@ impl PluginDb {
             .into_iter()
             .map(|p| (p.format, p.id.as_str()))
             .collect();
-        self.plugins()
-            .into_iter()
-            .filter(|p| !known.contains(&(p.format, p.id.as_str())))
-            .map(|p| p.name.clone())
-            .collect()
+        // One name once: a plug-in found as CLAP and as VST3 is one new plug-in (review 4).
+        let mut out: Vec<String> = Vec::new();
+        for p in self.plugins() {
+            if !known.contains(&(p.format, p.id.as_str())) && !out.contains(&p.name) {
+                out.push(p.name.clone());
+            }
+        }
+        out
     }
 
     /// Every usable plug-in, sorted by vendor then name.
@@ -312,6 +315,25 @@ mod tests {
             vec![named("D", "Broken")],
         ));
         assert_eq!(after.newly_found(&before), ["Odin 2", "Surge XT"]);
+        // The same plug-in found as CLAP and as VST3 is named once.
+        let mut both = before.clone();
+        both.put(entry(
+            "s.vst3",
+            ScanStatus::Ok,
+            vec![named("S3", "Surge XT")],
+        ));
+        both.put(DbEntry {
+            format: Format::Clap,
+            ..entry(
+                "s.clap",
+                ScanStatus::Ok,
+                vec![PluginInfo {
+                    format: Format::Clap,
+                    ..named("org.surge", "Surge XT")
+                }],
+            )
+        });
+        assert_eq!(both.newly_found(&before), ["Surge XT"]);
         // A plug-in that moved to another file is not new.
         let mut moved = PluginDb::default();
         moved.put(entry(

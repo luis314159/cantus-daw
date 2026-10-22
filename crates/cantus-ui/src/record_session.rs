@@ -46,6 +46,8 @@ pub struct RecSession {
     pub count_in_click: bool,
     /// Play from stop is counting in (*Also on play*, `crate::count_in`).
     pub play_count_in: bool,
+    /// Where Play was pressed, while its count-in runs.
+    pub play_from: Option<cantus_core::Ticks>,
     /// The status line said once this session that the count-in plays before recording.
     pub count_in_told: bool,
 }
