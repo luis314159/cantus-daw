@@ -42,15 +42,6 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
     let value = COUNT_INS
         .iter()
         .map(|(_, k)| text::measure(ctx, &Text::key(k, Role::Value, s.t.text), tk).x)
-        // "1 bar rec": the value when the count-in plays before recording only.
-        .chain(COUNT_INS[1..].iter().map(|(b, _)| {
-            text::measure(
-                ctx,
-                &Text::new(&chip_value(*b, false), Role::Value, s.t.text),
-                tk,
-            )
-            .x
-        }))
         .chain(std::iter::once(
             text::measure(
                 ctx,
@@ -138,8 +129,18 @@ fn count_in(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
     let open = egui::Popup::is_id_open(ui.ctx(), count_in_popup());
     let st = State::of(&resp, open);
     let on_play = app.settings.count_in_on_play;
-    let value = chip_value(bars, on_play);
-    row(ui, r, lw, s, st, WORDS[0], &value);
+    let value = crate::views::clips_chrome::word(COUNT_INS[i].1);
+    row(ui, r, lw, s, st, WORDS[0], value);
+    // Before recording only (round 30): a small record dot in the value's well, the hint
+    // and the menu's *Before recording* band say it; *Also on play* takes the dot away.
+    if bars > 0 && !on_play {
+        let k = s.k;
+        let c = Pos2::new(r.left() + lw + 7.0 * k, r.center().y);
+        with_brush(ui.painter(), |b| {
+            b.register(r, "count-in-rec", &[kit::Tok::Danger], &[]);
+            b.circle(c, 2.6 * k, kit::Fill::Solid(s.t.danger));
+        });
+    }
     if st.hovered {
         let name = tip(
             app,
@@ -154,7 +155,7 @@ fn count_in(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
             menu: true,
             ..Caps::NONE
         };
-        hint::set_text(ui.ctx(), &name, &value, caps);
+        hint::set_text(ui.ctx(), &name, value, caps);
     }
     if open || resp.clicked() {
         egui::Popup::menu(&resp)
@@ -196,17 +197,6 @@ fn count_in(app: &mut CantusApp, ui: &mut Ui, r: Rect, lw: f32, s: &Style) {
                     _ => {}
                 }
             });
-    }
-}
-
-/// The chip's value: the bars, and "rec" when they play before recording only.
-fn chip_value(bars: u8, on_play: bool) -> String {
-    let i = COUNT_INS.iter().position(|(b, _)| *b == bars).unwrap_or(0);
-    let word = crate::views::clips_chrome::word(COUNT_INS[i].1);
-    if bars == 0 || on_play {
-        word.to_owned()
-    } else {
-        crate::i18n::tf("ship.count_in.chip_rec", &[("bars", &word)])
     }
 }
 

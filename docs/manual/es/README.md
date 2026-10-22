@@ -310,7 +310,7 @@ grabación**:
 
 - **Claqueta**: no, 1, 2 o 4 compases antes de la toma (`Alt+C`). La claqueta suena
   aunque el **Metrónomo** (`Ctrl+M`) esté apagado. Suena **antes de grabar** con el
-  transporte parado — el chip de la barra superior lo dice (*1 comp. grab.*) —, como en FL
+  transporte parado — el chip de la barra superior lo dice con un punto rojo, y su menú bajo *Antes de grabar* —, como en FL
   Studio y Ableton; Play solo arranca de inmediato. Para oírla también al reproducir, marca
   **También al reproducir** en el menú del chip (o en las opciones ▾ del metrónomo):
   apagado por defecto, vale para todos los proyectos.

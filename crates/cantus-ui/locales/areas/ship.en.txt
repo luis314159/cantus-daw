@@ -38,7 +38,6 @@ ship.scan.more = {list} and {n} more
 ship.count_in.band = Before recording
 ship.count_in.on_play = Also on play
 ship.count_in.on_play_label = Count-in on play
-ship.count_in.chip_rec = {bars} rec
 ship.count_in.tip_rec = Count-in, before recording from stop (Also on play: off)
 ship.count_in.tip_play = Count-in, before recording and before playing from stop
 ship.count_in.only_rec = The count-in plays before recording. To hear it on Play too, tick Also on play in its menu.

@@ -124,3 +124,42 @@ systems*; ADR 0067; a BACKLOG §2 line for the Mac's in-place update.
    copied and removed.
 3. The website sends one GitHub request per page (`shelf::Once`, shared by the download
    card and the roadmap).
+
+## The owner's frictions (item 5 of `docs/next-session.md`)
+
+**Settings easy to find.** A top-bar menu **Options** (FL's), between View and Help: *Settings…*
+on the keymap's `Ctrl+,` (macos's `Action::OpenSettings`, reused — no second action), each
+page (*Audio settings…*, *MIDI settings…*, *Appearance…*, *Saving and autosave…*, *Plug-ins
+and folders…*) and *Scan for plug-ins*. Its entries come from the menu model macos wrote
+for the Mac's bar (`macos::menu::options`, new `Pick::Settings(page)` and
+`Pick::ScanPlugins`), so the window's menu and the Mac's bar (where Options now sits beside
+View) never differ. Settings has **pages with a sidebar** (General, Audio, MIDI, Appearance,
+Saving, Sample cache, Updates, Plug-ins; `workspace_settings::SettingsPage`, `open(app,
+page)`), kit-drawn; the page last chosen stays while Cantus runs. The device picker always
+lists the **CLAP** and **VST3** shelves; empty, they say "No CLAP plug-ins found yet" with
+*Scan for plug-ins* and *Find more plug-ins…* (Settings ▸ Plug-ins).
+
+**Count-in.** The chip says when it plays: *1 bar rec* (ES *1 comp. grab.*), its menu has the
+band *Before recording* and the check **Also on play**; the metronome's options have the
+same switch. *Also on play* is a global setting (`Settings::count_in_on_play`, off by
+default; no schema bump): Play from stop then starts that many bars early with the click
+counting in (the engine's record start, as for a take), and Stop ends it
+(`crate::count_in`). With it off, the first Play from stop with a count-in set says once on
+the status line that the count-in plays before recording.
+
+**Plug-ins at start.** `CantusApp::assemble` (the boot path) starts a background scan of new
+or changed files when the plug-in database came from disk and *Look for new plug-ins at
+every start* is on (default; in Settings ▸ Plug-ins). The scanner is unchanged (each file in
+its own process; nothing on the audio thread; the folder lists untouched): the session
+fills `ScanReport::new` from `PluginDb::newly_found`, and the status line says "3 new
+plug-ins: Odin 2, Surge XT, ValhallaSupermassive" — a scan at start that found nothing says
+nothing.
+
+Tests: `crates/cantus-ui/tests/ship_frictions.rs` (6: the Options model and its picks, the
+pages' words in both languages, the empty shelf's two actions, count-in on play on and off
+and the one-time notice, the boot path's scan on/off/without a database, the found text),
+`count_in.rs` (2), `cantus-host` `db::a_scan_names_only_the_plug_ins_it_found_new`, and the
+macOS model's test updated to seven menus. Shots: `cargo run -p cantus-ui --example
+shoot_ship -- <dir>` (settings General/Audio/Plug-ins, Options, empty CLAP shelf, count-in
+menu, scan notice; Night/Paper, EN/ES). Manual EN/ES: chapter 4's count-in, chapter 10's
+plug-ins (found at start, Options ▸ Scan, the empty shelves), chapter 11's Settings.

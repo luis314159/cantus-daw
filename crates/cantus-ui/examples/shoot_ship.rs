@@ -129,7 +129,7 @@ fn main() {
                             &mut app,
                             size,
                             |_, _| {},
-                            |app, ctx| views::workspace_settings::window(app, ctx),
+                            views::workspace_settings::window,
                         );
                     }
                     "options" => shoot(
@@ -149,7 +149,7 @@ fn main() {
                             &mut app,
                             vec2(1920.0, 1080.0),
                             |_, _| {},
-                            |app, ctx| views::picker::frame(app, ctx),
+                            views::picker::frame,
                         );
                     }
                     "count-in" => {

@@ -295,7 +295,7 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 
 - **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in clicks
   whether or not the **Metronome** (`Ctrl+M`) is on. It plays **before recording** from
-  stop — the top bar's chip says so (*1 bar rec*) — as in FL Studio and Ableton; Play alone
+  stop — the top bar's chip says so with a small red dot, and its menu under *Before recording* — as in FL Studio and Ableton; Play alone
   starts at once. To hear it before playing too, tick **Also on play** in the chip's menu
   (or the metronome's options ▾): off by default, kept for every project.
 - **Punch**: record only inside a range. *From selection* takes the time selection; `Alt+P`

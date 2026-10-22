@@ -140,7 +140,7 @@ fn cmd(c: &str, shift: bool, alt: bool) -> Option<Equivalent> {
 /// FL's *Options* menu (round 30, the owner's friction "where is Settings?"): Settings on
 /// its shortcut, each of its pages, and *Scan plug-ins*. The window's own menu bar shows the
 /// same entries (`views::transport_menus`), and the Mac's bar has it beside View.
-pub fn options(keymap: &Keymap) -> Menu {
+pub fn options(_keymap: &Keymap) -> Menu {
     use crate::views::workspace_settings::SettingsPage;
     let page = |p: SettingsPage| Entry::Item {
         label: t(&format!("{}_item", p.key())),
@@ -150,10 +150,12 @@ pub fn options(keymap: &Keymap) -> Menu {
     Menu {
         title: t("ship.menu.options"),
         entries: vec![
+            // Its ⌘, belongs to the application menu's Settings (one chord, one item); the
+            // window's own Options menu shows the keymap's binding beside it.
             Entry::Item {
                 label: t("menu.settings"),
                 pick: Pick::Action(Action::OpenSettings),
-                key: key_of(keymap, Action::OpenSettings),
+                key: None,
             },
             Entry::Separator,
             page(SettingsPage::Audio),
