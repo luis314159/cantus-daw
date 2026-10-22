@@ -249,7 +249,9 @@ impl MainThread for ClapMain {
         }
         let gui = *self.gui().ok_or(HostError::Unsupported("editor"))?;
         let plugin = self.plugin();
-        // Win32 on Windows; X11 on Linux (the window of `window/x11.rs`, ADR 0065).
+        // Win32 on Windows; X11 on Linux (the window of `window/x11.rs`, ADR 0065); the
+        // parent `NSView` on macOS (the `cocoa` member of the same pointer-sized union, ADR
+        // 0066).
         let (api, specific, win32) = match parent {
             raw_window_handle::RawWindowHandle::Win32(h) => {
                 let hwnd = h.hwnd.get() as *mut c_void;
@@ -262,6 +264,13 @@ impl MainThread for ClapMain {
             raw_window_handle::RawWindowHandle::Xlib(h) => (
                 CLAP_WINDOW_API_X11.as_ptr(),
                 clap_window_handle { x11: h.window },
+                None,
+            ),
+            raw_window_handle::RawWindowHandle::AppKit(h) => (
+                clap_sys::ext::gui::CLAP_WINDOW_API_COCOA.as_ptr(),
+                clap_window_handle {
+                    cocoa: h.ns_view.as_ptr(),
+                },
                 None,
             ),
             _ => return Err(HostError::Unsupported("editor on this windowing system")),
@@ -280,7 +289,7 @@ impl MainThread for ClapMain {
                 }
                 // Win32 sizes are physical pixels: tell the editor the window's scale
                 // before it says how big it is. (X11 editors read the screen's scale
-                // themselves; CLAP leaves `set_scale` to them there.)
+                // themselves; Cocoa's sizes are points: CLAP leaves `set_scale` to them.)
                 if let (Some(f), Some(hwnd)) = (gui.set_scale, win32) {
                     f(plugin, window_scale(hwnd));
                 }

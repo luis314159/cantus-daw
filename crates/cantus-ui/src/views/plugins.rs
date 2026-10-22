@@ -1242,6 +1242,56 @@ pub(crate) fn save_preset(
     std::fs::write(dir.join(format!("{}.json", clean.trim())), text).map_err(|e| e.to_string())
 }
 
+// ---- scanning: by hand and at start (round 30) ----------------------------------------
+
+/// *Scan plug-ins* from the Options menu or an empty CLAP/VST3 shelf: new and changed files
+/// only, in the background; the status line names what it found.
+pub fn scan_now(app: &mut CantusApp) {
+    app.plugins.start_scan(false);
+    app.scan_quiet = false;
+    app.set_status(t("host.manager.scanning"));
+}
+
+/// Whether Cantus looks for new plug-ins as it starts: the setting, a real start (the plug-in
+/// database was read from disk — tests and tools hand none), and not the stress mode.
+pub fn scans_at_start(setting: bool, db_from_disk: bool, stress: bool) -> bool {
+    setting && db_from_disk && !stress
+}
+
+/// At start (the boot path, `CantusApp::assemble`): a background scan of new or changed
+/// plug-in files — each read in its own process, never on the audio thread — which says
+/// nothing unless it found something.
+pub fn scan_at_start(app: &mut CantusApp) {
+    app.plugins.start_scan(false);
+    app.scan_quiet = true;
+}
+
+/// "3 new plug-ins: Surge XT, Odin 2, ValhallaSupermassive" — the first three names, then
+/// how many more.
+pub fn found_text(names: &[String]) -> String {
+    const SHOWN: usize = 3;
+    let mut list = names
+        .iter()
+        .take(SHOWN)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join(", ");
+    if names.len() > SHOWN {
+        list = tf(
+            "ship.scan.more",
+            &[("list", &list), ("n", &(names.len() - SHOWN))],
+        );
+    }
+    if names.len() == 1 {
+        tf("ship.scan.new_one", &[("list", &list)])
+    } else {
+        tf(
+            "ship.scan.new_many",
+            &[("n", &names.len()), ("list", &list)],
+        )
+    }
+}
+
 // ---- the plug-in manager, in Settings -------------------------------------------------
 
 /// Folders, rescans, what was found, and the blocked list — in the kit's parts: action
@@ -1289,6 +1339,23 @@ pub fn manager(app: &mut CantusApp, ui: &mut egui::Ui) {
             )
         };
         controls::line(ui, &s, &status, s.t.text_dim, (width - 260.0).max(120.0));
+    });
+    // Round 30: new or changed plug-ins are looked for at every start, unless turned off.
+    ui.horizontal(|ui| {
+        let mut on = app.settings.plugin_scan_at_start;
+        let name = t("ship.scan.at_start");
+        if crate::kit::widgets::led_button(
+            ui,
+            &mut on,
+            Src::Key("ship.scan.at_start"),
+            &name,
+            260.0,
+        )
+        .changed()
+        {
+            app.settings.plugin_scan_at_start = on;
+            app.store_settings();
+        }
     });
     ui.add_space(8.0);
     isolation_section(app, ui, &s, width);

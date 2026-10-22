@@ -2,10 +2,10 @@
 //! where it is through a [`Status`] the UI reads each frame. Nothing here blocks the
 //! caller, and nothing is sent anywhere but the two GitHub requests (ADR 0032 §4).
 
-use crate::install::InstallKind;
+use crate::install::{self, InstallKind};
 use crate::net::{Fetch, NetError};
 use crate::notes::{self, NoteLine};
-use crate::release::{self, Asset, ParseError, Release};
+use crate::release::{self, Asset, ParseError, Release, Target};
 use crate::schedule::{self, State};
 use crate::verify::{self, VerifyError};
 use crate::version::Version;
@@ -28,6 +28,9 @@ pub struct Config {
     pub repo: String,
     pub current: Version,
     pub kind: InstallKind,
+    /// Which release file this copy updates from (`Target::current()`); `None` on a
+    /// system no release carries a file for.
+    pub target: Option<Target>,
     pub state_path: PathBuf,
     pub downloads: PathBuf,
     /// The publisher whose signature an update must carry (`verify::PUBLISHER`).
@@ -44,7 +47,8 @@ pub struct Offer {
     pub notes: Vec<NoteLine>,
     /// The release's page on GitHub.
     pub page: String,
-    /// The installer for this flavour, when this copy installs itself (an installed one).
+    /// The file this copy updates itself from — the installer, the AppImage or the disk
+    /// image for its system — when it updates itself (`InstallKind::updates_itself`).
     pub installer: Option<Asset>,
     /// Where the release's `SHA256SUMS.txt` is, when it has one.
     pub sums_url: Option<String>,
@@ -110,6 +114,26 @@ pub struct Updater {
     config: Config,
     fetch: Arc<dyn Fetch>,
     shared: Arc<Shared>,
+}
+
+/// Delete every file in `downloads` but `keep`: what the updater left there for versions
+/// no longer offered (installed, skipped, or cut off half way) is not kept forever.
+pub fn prune_downloads(downloads: &std::path::Path, keep: Option<&str>) {
+    let Ok(entries) = std::fs::read_dir(downloads) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let name = e.file_name();
+        if keep.is_some_and(|k| name == k) || !e.file_type().is_ok_and(|t| t.is_file()) {
+            continue;
+        }
+        if std::fs::remove_file(e.path()).is_ok() {
+            log::info!(
+                "update: removed the old download {}",
+                name.to_string_lossy()
+            );
+        }
+    }
 }
 
 /// Where the check asks. A release build asks for the latest release. A pre-release build
@@ -271,7 +295,10 @@ impl Updater {
                 }
                 self.set(status);
             }
-            Ok(None) => self.set(Status::UpToDate { checked: now }),
+            Ok(None) => {
+                prune_downloads(&self.config.downloads, None);
+                self.set(Status::UpToDate { checked: now });
+            }
             Ok(Some(r)) => self.decide(&r, force, now),
         }
     }
@@ -284,6 +311,7 @@ impl Updater {
         if !r.is_update_for(&self.config.current)
             || (!force && skipped.as_deref() == Some(&version))
         {
+            prune_downloads(&self.config.downloads, None);
             self.set(Status::UpToDate { checked: now });
             return;
         }
@@ -295,12 +323,20 @@ impl Updater {
                 .unwrap_or_else(|| format!("Cantus {version}")),
             notes: notes::read(r.body.as_deref().unwrap_or(""), NOTE_LINES),
             page: r.html_url.clone(),
-            installer: (self.config.kind == InstallKind::Installed)
-                .then(|| r.installer().cloned())
-                .flatten(),
+            installer: self
+                .config
+                .target
+                .filter(|_| self.config.kind.updates_itself())
+                .and_then(|t| r.update_file(t).cloned()),
             sums_url: r.sums().map(|a| a.browser_download_url.clone()),
             version,
         };
+        // Downloads of other versions (an update already installed, one skipped, a
+        // partial file) are not needed any more.
+        prune_downloads(
+            &self.config.downloads,
+            offer.installer.as_ref().map(|a| a.name.as_str()),
+        );
         // A download from an earlier session that still verifies is ready as it is.
         if let Some(a) = &offer.installer {
             let path = self.config.downloads.join(&a.name);
@@ -347,6 +383,19 @@ impl Updater {
         };
         if offer.installer.is_none() {
             return;
+        }
+        // An AppImage in a folder Cantus may not write to could not be replaced: say so
+        // now, with the release's page, rather than at quit (ADR 0067 §3).
+        if self.config.kind == InstallKind::AppImage {
+            if let Some(dir) = install::appimage_dir() {
+                if !install::writable_dir(&dir) {
+                    return self.set(Status::Failed {
+                        key: "ship.error.not_writable",
+                        detail: dir.display().to_string(),
+                        offer: Some(offer),
+                    });
+                }
+            }
         }
         self.shared.cancel.store(false, Ordering::Relaxed);
         self.set(Status::Downloading {
@@ -435,7 +484,14 @@ impl Updater {
                     offer: Some(offer.clone()),
                 }),
                 Ok(()) => verify::check_file(&dest, Some(asset.size), &hashes)
-                    .and_then(|()| verify::check_publisher(&dest, self.config.publisher.as_deref()))
+                    .and_then(|()| match self.config.target {
+                        // Authenticode is the installer's; the AppImage and the disk image
+                        // are held to their SHA-256 (ADR 0067 §2).
+                        Some(Target::WindowsX64) => {
+                            verify::check_publisher(&dest, self.config.publisher.as_deref())
+                        }
+                        _ => Ok(()),
+                    })
                     .map_err(|e| {
                         let _ = std::fs::remove_file(&dest);
                         if e.worth_retrying() && attempt < HELD_ATTEMPTS {

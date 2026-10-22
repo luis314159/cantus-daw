@@ -285,6 +285,20 @@ extern "system" fn ModuleExit() -> bool {
     true
 }
 
+#[cfg(target_os = "macos")]
+#[no_mangle]
+extern "C" fn bundleEntry(_bundle: *mut c_void) -> bool {
+    MODULE_ENTRIES.fetch_add(1, Ordering::SeqCst);
+    true
+}
+
+#[cfg(target_os = "macos")]
+#[no_mangle]
+extern "C" fn bundleExit() -> bool {
+    MODULE_EXITS.fetch_add(1, Ordering::SeqCst);
+    true
+}
+
 #[no_mangle]
 extern "system" fn GetPluginFactory() -> *mut IPluginFactory {
     ComWrapper::new(Factory { _live: Live::new() })

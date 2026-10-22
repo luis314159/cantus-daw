@@ -7,7 +7,10 @@
 //! run by hand without it builds it with a nested cargo.) Tests take a lock, because they
 //! share one module and read its global counters.
 
-#![cfg(all(feature = "vst3", any(target_os = "windows", target_os = "linux")))]
+#![cfg(all(
+    feature = "vst3",
+    any(target_os = "windows", target_os = "linux", target_os = "macos")
+))]
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -88,10 +91,13 @@ fn workspace() -> PathBuf {
 fn bundle() -> &'static Path {
     static BUNDLE: OnceLock<PathBuf> = OnceLock::new();
     BUNDLE.get_or_init(|| {
+        // macOS: `CantusTest.vst3/Contents/MacOS/CantusTest`, no extension (ADR 0066).
         let (built, arch, ext) = if cfg!(target_os = "windows") {
-            ("cantus_test_vst3.dll", "x86_64-win", "vst3")
+            ("cantus_test_vst3.dll", "x86_64-win", ".vst3")
+        } else if cfg!(target_os = "macos") {
+            ("libcantus_test_vst3.dylib", "MacOS", "")
         } else {
-            ("libcantus_test_vst3.so", "x86_64-linux", "so")
+            ("libcantus_test_vst3.so", "x86_64-linux", ".so")
         };
         let target = workspace().join("target").join("cantus-test-plugins");
         let beside_tests = std::env::current_exe()
@@ -102,7 +108,7 @@ fn bundle() -> &'static Path {
         let bundle = target.join("bundles").join("CantusTest.vst3");
         let dir = bundle.join("Contents").join(arch);
         std::fs::create_dir_all(&dir).expect("bundle folders");
-        std::fs::copy(&source, dir.join(format!("CantusTest.{ext}")))
+        std::fs::copy(&source, dir.join(format!("CantusTest{ext}")))
             .expect("copy the plug-in into its bundle");
         bundle
     })

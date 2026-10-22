@@ -15,7 +15,18 @@ pub const RELEASES: &str = "https://github.com/luis314159/cantus-daw/releases";
 /// workflow's). It answers only once the repository and its releases are public.
 pub const DOWNLOAD: &str =
     "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe";
-pub const VERSION: &str = "0.1.0-beta.1";
+/// Linux's AppImage and the Mac's disk image, the same way (ADR 0067). The download card
+/// links them only when the latest release holds them (`shelf.rs`).
+pub const DOWNLOAD_LINUX: &str =
+    "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-linux-x86_64.AppImage";
+pub const DOWNLOAD_MACOS: &str =
+    "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-macos-universal.dmg";
+/// The stable names those links end in, which the latest release's file list is searched for.
+pub const STABLE_APPIMAGE: &str = "Cantus-linux-x86_64.AppImage";
+pub const STABLE_DMG: &str = "Cantus-macos-universal.dmg";
+/// GitHub's API for the latest release (its files' names), asked from the visitor's browser.
+pub const LATEST_API: &str = "https://api.github.com/repos/luis314159/cantus-daw/releases/latest";
+pub const VERSION: &str = "0.1.0-beta.2";
 
 #[function_component(Nav)]
 pub fn nav() -> Html {

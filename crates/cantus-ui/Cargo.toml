@@ -46,6 +46,37 @@ egui_dock = { version = "0.21", features = ["serde"] }
 # ASIO drivers on Windows (ADR 0025 §10); see docs/round19/devices.md to build it.
 asio = ["cantus-engine/asio"]
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# The global menu bar and the clipboard's text on macOS (ADR 0066). MIT; already in the
+# workspace through winit and eframe.
+objc2 = "0.6"
+# Only the parts used: the frameworks' defaults would pull six more crates.
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSDate",
+    "NSGeometry",
+    "NSObject",
+    "NSRunLoop",
+    "NSString",
+] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSApplication",
+    "NSControl",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSMenu",
+    "NSMenuItem",
+    "NSPasteboard",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSText",
+    "NSTextField",
+    "NSView",
+    "NSWindow",
+] }
+
 [dev-dependencies]
 tempfile = "3"
 rtrb.workspace = true

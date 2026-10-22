@@ -84,6 +84,7 @@ fn ensure(app: &mut CantusApp) -> &Updater {
                 pre: Vec::new(),
             }),
             kind,
+            target: cantus_update::Target::current(),
             state_path: schedule::state_path(&config_dir()),
             downloads: install::updates_dir(&data_dir()),
             publisher: verify::PUBLISHER.map(str::to_owned),
@@ -106,6 +107,8 @@ pub fn check_now(app: &mut CantusApp) {
 pub fn frame(app: &mut CantusApp, ctx: &Context) {
     if !app.update.started {
         app.update.started = true;
+        // This copy is running: an AppImage it replaced is no longer needed (ADR 0067).
+        install::after_start(app.update.kind());
         if app.settings.updates.check_daily && app.update.kind() != InstallKind::Development {
             ensure(app).check(false);
         }
@@ -131,21 +134,26 @@ pub fn on_quit(app: &mut CantusApp) {
     }
     if let Status::Ready { installer, .. } = app.update.status() {
         app.update.launched = true;
-        if let Err(e) = install::launch(&installer, false) {
-            log::error!("update: the installer did not start: {e}");
+        if let Err(e) = install::apply(app.update.kind(), &installer, false) {
+            log::error!("update: the update was not applied: {e}");
         }
     }
 }
 
 /// *Restart and update*: run the installer now, asking it to open Cantus again, and close.
 fn install_now(app: &mut CantusApp, installer: &std::path::Path) {
-    match install::launch(installer, true) {
+    match install::apply(app.update.kind(), installer, true) {
         Ok(()) => {
             app.update.launched = true;
             app.request_quit = true;
         }
         Err(e) => {
-            app.update.launch_error = Some(tf("update.error.launch", &[("error", &e)]));
+            let key = if app.update.kind() == InstallKind::Installed {
+                "update.error.launch"
+            } else {
+                "ship.error.apply"
+            };
+            app.update.launch_error = Some(tf(key, &[("error", &e)]));
         }
     }
 }
@@ -234,11 +242,17 @@ pub fn status_line(app: &UpdateUi, status: &Status) -> (String, bool) {
             false,
         ),
         Status::Ready { .. } => {
-            let verified = match verify::PUBLISHER {
+            // Only the Windows installer carries Authenticode (ADR 0067 §2).
+            let verified = match verify::PUBLISHER.filter(|_| cfg!(windows)) {
                 Some(p) => tf("update.verified.signed", &[("publisher", &p)]),
                 None => t("update.verified"),
             };
-            (format!("{} {verified}", t("update.ready")), false)
+            let ready = match app.kind {
+                Some(InstallKind::AppImage) => t("ship.ready.appimage"),
+                Some(InstallKind::MacBundle) => t("ship.ready.dmg"),
+                _ => t("update.ready"),
+            };
+            (format!("{ready} {verified}"), false)
         }
         Status::Failed { key, .. } => (t(key), true),
     }
@@ -359,17 +373,21 @@ fn buttons(app: &mut CantusApp, ui: &mut Ui, status: &Status) -> Asked {
             a.cancel = w::button(ui, Src::Key("update.cancel"), 0.0, true).clicked();
         }
         Status::Ready { installer, offer } => {
-            if w::button(ui, Src::Key("update.install_now"), 0.0, true).clicked() {
+            let now = if kind == InstallKind::MacBundle {
+                "ship.open_dmg_now"
+            } else {
+                "update.install_now"
+            };
+            if w::button(ui, Src::Key(now), 0.0, true).clicked() {
                 a.install = Some(installer.clone());
             }
+            let on_quit_key = if kind == InstallKind::MacBundle {
+                "ship.open_dmg_on_quit"
+            } else {
+                "update.install_on_quit"
+            };
             let mut on = app.update.install_on_quit;
-            led_button(
-                ui,
-                &mut on,
-                Src::Key("update.install_on_quit"),
-                &t("update.install_on_quit"),
-                190.0,
-            );
+            led_button(ui, &mut on, Src::Key(on_quit_key), &t(on_quit_key), 190.0);
             app.update.install_on_quit = on;
             if w::button(ui, Src::Key("update.open_page"), 0.0, true).clicked() {
                 a.page = Some(offer.page.clone());
@@ -384,7 +402,15 @@ fn buttons(app: &mut CantusApp, ui: &mut Ui, status: &Status) -> Asked {
         match kind {
             InstallKind::Portable => note(ui, &t("update.portable"), false),
             InstallKind::Development => note(ui, &t("update.dev"), false),
-            InstallKind::Installed => {}
+            InstallKind::Package => note(ui, &t("ship.package"), false),
+            // An AppImage or a Mac on a system no release carries a file for (Linux on
+            // ARM), or a release without this system's file yet.
+            InstallKind::AppImage | InstallKind::MacBundle
+                if status.offer().is_some_and(|o| o.installer.is_none()) =>
+            {
+                note(ui, &t("ship.no_file"), false)
+            }
+            InstallKind::Installed | InstallKind::AppImage | InstallKind::MacBundle => {}
         }
     }
     a
@@ -437,6 +463,11 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
         .constrain(true)
         .show(ctx, |ui| {
             let rect = ui.max_rect();
+            // The window claims what it paints: its contents sit in child UIs, which
+            // leave the window's own area empty, and egui hands the wheel only to the layer
+            // whose area is under the pointer (the owner, 2026-10-22: Settings would not
+            // scroll to its Plug-ins).
+            ui.expand_to_include_rect(rect);
             window_face(ui, rect, &s);
             let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
             let closed = title(ui, header, &s, Glyph::Loop, "update.title");
@@ -484,6 +515,9 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
 fn notice(app: &mut CantusApp, ctx: &Context, status: &Status) {
     let (key, version) = match status {
         Status::Available(o) => ("update.notice", o.version.clone()),
+        Status::Ready { offer, .. } if app.update.kind() == InstallKind::MacBundle => {
+            ("ship.notice.ready_dmg", offer.version.clone())
+        }
         Status::Ready { offer, .. } => ("update.notice.ready", offer.version.clone()),
         _ => return,
     };
@@ -635,10 +669,15 @@ pub fn demo_setup(app: &mut CantusApp, kind: &str) {
         }),
         sums_url: None,
     };
-    app.update.kind = Some(InstallKind::Installed);
+    // `update-ready-mac` and `update-ready-appimage`: the same, on a Mac and an AppImage.
+    app.update.kind = Some(match kind {
+        "update-ready-mac" => InstallKind::MacBundle,
+        "update-ready-appimage" => InstallKind::AppImage,
+        _ => InstallKind::Installed,
+    });
     app.update.started = true;
     app.update.demo = Some(match kind {
-        "update-ready" => Status::Ready {
+        "update-ready" | "update-ready-mac" | "update-ready-appimage" => Status::Ready {
             offer,
             installer: std::path::PathBuf::from("Cantus-0.2.0-windows-x64-setup.exe"),
         },

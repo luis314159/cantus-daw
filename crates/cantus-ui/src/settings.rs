@@ -170,6 +170,12 @@ pub struct Settings {
     /// How a newly learnt controller takes over a parameter that moved elsewhere (round 29,
     /// ADR 0062): *pick up* unless the user chose otherwise in the mappings view.
     pub controller_takeover: cantus_core::controller::Takeover,
+    /// The count-in also before playback from stop, not only before recording (round 30,
+    /// the owner's friction: Reaper's option). Off by default, as in FL and Ableton.
+    pub count_in_on_play: bool,
+    /// Look for new or changed plug-in files in the background at start (round 30: Reaper
+    /// and Bitwig do). On by default; each file is still read in its own process.
+    pub plugin_scan_at_start: bool,
 }
 
 /// Low-latency monitoring's limit on a new installation, ms: just above Tonus's 2.7 ms (the
@@ -265,6 +271,8 @@ impl Default for Settings {
             low_latency_ms: DEFAULT_LOW_LATENCY_MS,
             bounce_removes: false,
             controller_takeover: cantus_core::controller::Takeover::Pickup,
+            count_in_on_play: false,
+            plugin_scan_at_start: true,
         }
     }
 }

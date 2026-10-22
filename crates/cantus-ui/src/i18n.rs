@@ -79,6 +79,7 @@ impl Locale {
                 include_str!("../locales/areas/hosted.en.txt"),
                 include_str!("../locales/areas/verse.en.txt"),
                 include_str!("../locales/areas/update.en.txt"),
+                include_str!("../locales/areas/ship.en.txt"),
                 include_str!("../locales/areas/perf.en.txt"),
                 include_str!("../locales/areas/about.en.txt"),
                 include_str!("../locales/areas/export_audio.en.txt"),
@@ -115,6 +116,7 @@ impl Locale {
                 include_str!("../locales/areas/controllers.en.txt"),
                 include_str!("../locales/areas/isolation.en.txt"),
                 include_str!("../locales/areas/freeze.en.txt"),
+                include_str!("../locales/areas/macos.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -160,6 +162,7 @@ impl Locale {
                 include_str!("../locales/areas/hosted.es.txt"),
                 include_str!("../locales/areas/verse.es.txt"),
                 include_str!("../locales/areas/update.es.txt"),
+                include_str!("../locales/areas/ship.es.txt"),
                 include_str!("../locales/areas/perf.es.txt"),
                 include_str!("../locales/areas/about.es.txt"),
                 include_str!("../locales/areas/export_audio.es.txt"),
@@ -196,6 +199,7 @@ impl Locale {
                 include_str!("../locales/areas/controllers.es.txt"),
                 include_str!("../locales/areas/isolation.es.txt"),
                 include_str!("../locales/areas/freeze.es.txt"),
+                include_str!("../locales/areas/macos.es.txt"),
             ],
         }
     }

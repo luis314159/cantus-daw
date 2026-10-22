@@ -21,11 +21,12 @@ thread_local! {
     static NAME: RefCell<String> = RefCell::new(String::with_capacity(64));
 }
 
-const MENUS: [&str; 5] = [
+const MENUS: [&str; 6] = [
     "menu.file",
     "menu.edit",
     "menu.clip",
     "menu.view",
+    "ship.menu.options",
     "menu.help",
 ];
 
@@ -147,6 +148,7 @@ fn menu_body(app: &mut CantusApp, ui: &mut Ui, i: usize) {
         1 => edit_menu(app, ui),
         2 => clip_menu(app, ui),
         3 => view_menu(app, ui),
+        4 => options_menu(app, ui),
         _ => help_menu(app, ui),
     }
 }
@@ -391,6 +393,54 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
     ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
     ui.checkbox(&mut app.show_stats, t("menu.stats"));
+}
+
+/// Open the top bar's menu `i` (0 File … 4 Options, 5 Help) — the screenshots.
+pub fn open_menu(ctx: &egui::Context, i: usize) {
+    egui::Popup::open_id(ctx, Id::new(("toolbar-menu", i)).with("popup"));
+}
+
+/// FL's *Options* (round 30): the entries of the menu model the Mac's bar shows too
+/// (`crate::macos::menu::options`), so the two never differ.
+fn options_menu(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::kit::menu::{Check, Item};
+    use crate::kit::text::Src;
+    use crate::macos::menu::{self as model, Entry, Pick};
+    let menu = model::options(&app.keymap);
+    // One kit menu, as the editors' (FL's light rows), each action's key at the right.
+    let keys: Vec<Option<String>> = menu
+        .entries
+        .iter()
+        .map(|e| match e {
+            Entry::Item {
+                pick: Pick::Action(a),
+                ..
+            } => app.keymap.bindings_for(*a).first().map(|b| b.display()),
+            _ => None,
+        })
+        .collect();
+    let items: Vec<Item<'_>> = menu
+        .entries
+        .iter()
+        .zip(&keys)
+        .map(|(e, k)| match e {
+            Entry::Item { label, .. } | Entry::System { label, .. } => Item::Action {
+                label: Src::Str(label),
+                check: Check::None,
+                shortcut: k.as_deref(),
+                submenu: false,
+                enabled: true,
+            },
+            Entry::Separator => Item::Separator,
+        })
+        .collect();
+    let clicked = crate::kit::widgets::menu_list(ui, &items, 230.0).1.clicked;
+    if let Some(Entry::Item { pick, .. }) = clicked.map(|i| &menu.entries[i]) {
+        let pick = *pick;
+        ui.close();
+        let ctx = ui.ctx().clone();
+        model::run(app, &ctx, pick);
+    }
 }
 
 fn help_menu(app: &mut CantusApp, ui: &mut Ui) {

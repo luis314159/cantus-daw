@@ -110,6 +110,21 @@ impl PluginDb {
         })
     }
 
+    /// The names of the usable plug-ins in `self` that `before` did not have (by format
+    /// and id), in [`Self::plugins`]' order: what a scan found new.
+    pub fn newly_found(&self, before: &PluginDb) -> Vec<String> {
+        let known: std::collections::HashSet<(Format, &str)> = before
+            .plugins()
+            .into_iter()
+            .map(|p| (p.format, p.id.as_str()))
+            .collect();
+        self.plugins()
+            .into_iter()
+            .filter(|p| !known.contains(&(p.format, p.id.as_str())))
+            .map(|p| p.name.clone())
+            .collect()
+    }
+
     /// Every usable plug-in, sorted by vendor then name.
     pub fn plugins(&self) -> Vec<&PluginInfo> {
         let mut out: Vec<&PluginInfo> = self
@@ -259,5 +274,51 @@ mod tests {
         let mut elsewhere = info(true);
         elsewhere.path = PathBuf::from("y.vst3");
         assert!(!db.learn(&elsewhere), "another file is another entry");
+    }
+
+    #[test]
+    fn a_scan_names_only_the_plug_ins_it_found_new() {
+        let entry = |path: &str, status: ScanStatus, plugins: Vec<PluginInfo>| DbEntry {
+            path: PathBuf::from(path),
+            format: Format::Vst3,
+            modified: 1,
+            size: 1,
+            status,
+            plugins,
+        };
+        let named = |id: &str, name: &str| PluginInfo {
+            id: id.into(),
+            name: name.into(),
+            ..info(false)
+        };
+        let mut before = PluginDb::default();
+        before.put(entry(
+            "a.vst3",
+            ScanStatus::Ok,
+            vec![named("A", "Valhalla")],
+        ));
+        let mut after = before.clone();
+        assert!(after.newly_found(&before).is_empty(), "nothing new");
+        after.put(entry(
+            "b.vst3",
+            ScanStatus::Ok,
+            vec![named("B", "Surge XT")],
+        ));
+        after.put(entry("c.vst3", ScanStatus::Ok, vec![named("C", "Odin 2")]));
+        // A blocked file's plug-ins are not usable: not "new".
+        after.put(entry(
+            "d.vst3",
+            ScanStatus::Blocked("crashed".into()),
+            vec![named("D", "Broken")],
+        ));
+        assert_eq!(after.newly_found(&before), ["Odin 2", "Surge XT"]);
+        // A plug-in that moved to another file is not new.
+        let mut moved = PluginDb::default();
+        moved.put(entry(
+            "elsewhere.vst3",
+            ScanStatus::Ok,
+            vec![named("A", "Valhalla")],
+        ));
+        assert!(moved.newly_found(&before).is_empty());
     }
 }

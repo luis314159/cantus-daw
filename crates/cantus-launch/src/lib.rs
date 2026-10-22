@@ -19,6 +19,10 @@
 mod appid;
 pub use appid::{current_app_id, set_app_id, APP_ID};
 pub mod taskicon;
+// macOS's global menu bar from plain data (round 30, ADR 0066).
+pub mod macmenu;
+// Files macOS asks Cantus to open: Finder, the Dock (round 30, ADR 0066).
+pub mod macopen;
 
 use std::path::{Path, PathBuf};
 

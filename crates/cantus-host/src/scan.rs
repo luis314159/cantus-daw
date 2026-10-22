@@ -90,6 +90,9 @@ pub struct ScanReport {
     pub failed: usize,
     /// Usable plug-ins in the database afterwards.
     pub plugins: usize,
+    /// The names of the plug-ins this scan found that the database did not have before
+    /// (round 30: "3 new plug-ins"), filled in by the session ([`crate::db::newly_found`]).
+    pub new: Vec<String>,
 }
 
 impl Scanner {

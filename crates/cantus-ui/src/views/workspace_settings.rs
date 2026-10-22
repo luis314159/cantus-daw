@@ -22,9 +22,62 @@ use std::fmt::Write as _;
 /// The label column's width, in points.
 pub(super) const LABEL_W: f32 = 140.0;
 
+/// Settings' pages, listed in the sidebar (round 30, the owner's friction: one long page
+/// hid *Plug-ins* at its bottom), as FL's options have them.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum SettingsPage {
+    #[default]
+    General,
+    Audio,
+    Midi,
+    Appearance,
+    Saving,
+    Cache,
+    Updates,
+    Plugins,
+}
+
+impl SettingsPage {
+    pub const ALL: [SettingsPage; 8] = [
+        SettingsPage::General,
+        SettingsPage::Audio,
+        SettingsPage::Midi,
+        SettingsPage::Appearance,
+        SettingsPage::Saving,
+        SettingsPage::Cache,
+        SettingsPage::Updates,
+        SettingsPage::Plugins,
+    ];
+
+    /// The sidebar's word.
+    pub fn key(self) -> &'static str {
+        match self {
+            SettingsPage::General => "ship.settings.general",
+            SettingsPage::Audio => "ship.settings.audio",
+            SettingsPage::Midi => "ship.settings.midi",
+            SettingsPage::Appearance => "ship.settings.appearance",
+            SettingsPage::Saving => "ship.settings.saving",
+            SettingsPage::Cache => "ship.settings.cache",
+            SettingsPage::Updates => "ship.settings.updates",
+            SettingsPage::Plugins => "ship.settings.plugins",
+        }
+    }
+}
+
+/// Open Settings on `page` (the Options menu, the picker's *Find more plug-ins…*).
+pub fn open(app: &mut CantusApp, page: SettingsPage) {
+    app.settings_page.page = page;
+    app.settings_page.body_scroll_top = true;
+    app.show_settings = true;
+}
+
 /// The window's own state.
 #[derive(Default)]
 pub struct Page {
+    /// The page the sidebar chose (kept while Cantus runs).
+    pub page: SettingsPage,
+    /// Scroll the page to its top on the next frame (a page was chosen).
+    pub(super) body_scroll_top: bool,
     /// The audio choice not yet applied.
     pub(super) pending: Option<AudioSettings>,
     pub(super) list: Option<(super::settings_audio::List, Pos2)>,
@@ -38,7 +91,7 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
     let s = Style::current();
     let screen = ctx.content_rect();
     // Below the toolbar, clear of the status bar.
-    let size = Vec2::new(600.0, 800.0).min(screen.size() - Vec2::new(40.0, 100.0));
+    let size = Vec2::new(780.0, 760.0).min(screen.size() - Vec2::new(40.0, 100.0));
     egui::Window::new("cantus-settings")
         .id(Id::new("cantus-settings"))
         .title_bar(false)
@@ -53,32 +106,41 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
         .constrain(true)
         .show(ctx, |ui| {
             let rect = ui.max_rect();
+            // The window claims what it paints: its contents sit in child UIs, which
+            // leave the window's own area empty, and egui hands the wheel only to the layer
+            // whose area is under the pointer (the owner, 2026-10-22: Settings would not
+            // scroll to its Plug-ins).
+            ui.expand_to_include_rect(rect);
             frame(ui, rect, &s);
             let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
             if title(ui, header, &s, Glyph::Gear, "settings.title") {
                 open = false;
             }
+            // The pages' sidebar at the left, the chosen page at the right (round 30).
+            let side = Rect::from_min_max(
+                Pos2::new(rect.left() + 8.0 * s.k, header.bottom() + 8.0 * s.k),
+                Pos2::new(rect.left() + SIDEBAR_W * s.k, rect.bottom() - 10.0 * s.k),
+            );
+            if let Some(p) = sidebar(ui, side, &s, app.settings_page.page) {
+                app.settings_page.page = p;
+                app.settings_page.body_scroll_top = true;
+            }
             let body = Rect::from_min_max(
-                Pos2::new(rect.left() + 12.0 * s.k, header.bottom() + 8.0 * s.k),
+                Pos2::new(side.right() + 12.0 * s.k, header.bottom() + 8.0 * s.k),
                 Pos2::new(rect.right() - 6.0 * s.k, rect.bottom() - 10.0 * s.k),
             );
             let mut child = ui.new_child(egui::UiBuilder::new().max_rect(body));
-            egui::ScrollArea::vertical()
-                .id_salt("cantus-settings-body")
-                .auto_shrink([false, false])
-                .show(&mut child, |ui| {
-                    ui.set_width(body.width() - 14.0 * s.k);
-                    ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
-                    super::verse::settings(app, ui);
-                    super::settings_audio::page(app, ui);
-                    midi(app, ui);
-                    look(app, ui);
-                    saving(app, ui);
-                    sample_cache(app, ui);
-                    super::update::settings_section(app, ui);
-                    w::band(ui, Src::Key("host.manager.title"));
-                    super::plugins::manager(app, ui);
-                });
+            let mut area = egui::ScrollArea::vertical()
+                .id_salt(("cantus-settings-body", app.settings_page.page as u8))
+                .auto_shrink([false, false]);
+            if std::mem::take(&mut app.settings_page.body_scroll_top) {
+                area = area.vertical_scroll_offset(0.0);
+            }
+            area.show(&mut child, |ui| {
+                ui.set_width(body.width() - 14.0 * s.k);
+                ui.spacing_mut().item_spacing = Vec2::new(8.0 * s.k, 6.0 * s.k);
+                page_body(app, ui);
+            });
         });
     super::settings_audio::lists(app, ctx);
     app.show_settings = open;
@@ -86,6 +148,81 @@ pub fn window(app: &mut CantusApp, ctx: &Context) {
         app.settings_page.pending = None;
         app.settings_page.list = None;
     }
+}
+
+/// The sidebar's width at 100 %.
+pub const SIDEBAR_W: f32 = 160.0;
+
+/// What one page holds.
+fn page_body(app: &mut CantusApp, ui: &mut Ui) {
+    match app.settings_page.page {
+        SettingsPage::General => super::verse::settings(app, ui),
+        SettingsPage::Audio => super::settings_audio::page(app, ui),
+        SettingsPage::Midi => midi(app, ui),
+        SettingsPage::Appearance => look(app, ui),
+        SettingsPage::Saving => saving(app, ui),
+        SettingsPage::Cache => sample_cache(app, ui),
+        SettingsPage::Updates => super::update::settings_section(app, ui),
+        SettingsPage::Plugins => {
+            w::band(ui, Src::Key("host.manager.title"));
+            super::plugins::manager(app, ui);
+        }
+    }
+}
+
+/// The pages' list, FL's options sidebar: a word per row, the chosen one lit. Returns a
+/// page clicked.
+fn sidebar(ui: &mut Ui, r: Rect, s: &Style, now: SettingsPage) -> Option<SettingsPage> {
+    use crate::kit::color::with_alpha;
+    use crate::kit::Tok;
+    let row_h = 28.0 * s.k;
+    let mut chosen = None;
+    let mut rows = Vec::with_capacity(SettingsPage::ALL.len());
+    for (i, p) in SettingsPage::ALL.iter().enumerate() {
+        let row = Rect::from_min_size(
+            Pos2::new(
+                r.left() + 4.0 * s.k,
+                r.top() + 4.0 * s.k + i as f32 * (row_h + 2.0 * s.k),
+            ),
+            Vec2::new(r.width() - 8.0 * s.k, row_h),
+        );
+        let resp = ui.interact(row, Id::new(("settings-page", i)), Sense::click());
+        if resp.clicked() {
+            chosen = Some(*p);
+        }
+        rows.push((*p, row, resp.hovered()));
+    }
+    with_brush(ui.painter(), |b| {
+        b.register(
+            r,
+            "settings-sidebar",
+            &[Tok::Strip, Tok::Text, Tok::TextDim, Tok::Selection],
+            &[],
+        );
+        b.rrect(r, s.r(4.0), Fill::Solid(s.t.strip));
+        for (p, row, hovered) in rows {
+            let on = p == now;
+            if on {
+                b.rrect(row, s.r(3.0), Fill::Solid(s.t.selection));
+            } else if hovered {
+                b.rrect(row, s.r(3.0), Fill::Solid(with_alpha(s.t.text, 0.07)));
+            }
+            let ink = if on || hovered {
+                s.t.text
+            } else {
+                s.t.text_dim
+            };
+            let _ = text::paint(
+                b,
+                row.shrink2(Vec2::new(10.0 * s.k, 0.0)),
+                &Text::key(p.key(), Role::Body, ink)
+                    .align(Align2::LEFT_CENTER)
+                    .policy(Policy::Elide(Elide::End)),
+                s.tk(),
+            );
+        }
+    });
+    chosen
 }
 
 /// A floating window's face: a soft shadow and the raised panel.

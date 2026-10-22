@@ -4,13 +4,16 @@
 //! child window of the same size (`x11gui.rs`).
 
 use clap_sys::ext::gui::{
-    clap_plugin_gui, clap_window, CLAP_WINDOW_API_WIN32, CLAP_WINDOW_API_X11,
+    clap_plugin_gui, clap_window, CLAP_WINDOW_API_COCOA, CLAP_WINDOW_API_WIN32, CLAP_WINDOW_API_X11,
 };
 use clap_sys::plugin::clap_plugin;
 use std::ffi::{c_char, CStr};
 
 pub const WIDTH: u32 = 320;
 pub const HEIGHT: u32 = 200;
+/// The editor's text (macOS's label; Windows' `STATIC` says the same).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+pub const TITLE: &str = "Cantus Test Synth";
 
 pub static GUI_EXT: clap_plugin_gui = clap_plugin_gui {
     is_api_supported: Some(is_api_supported),
@@ -41,6 +44,7 @@ unsafe extern "C" fn is_api_supported(
     let api = CStr::from_ptr(api);
     (cfg!(windows) && api == CLAP_WINDOW_API_WIN32)
         || (cfg!(target_os = "linux") && api == CLAP_WINDOW_API_X11)
+        || (cfg!(target_os = "macos") && api == CLAP_WINDOW_API_COCOA)
 }
 
 unsafe extern "C" fn create(p: *const clap_plugin, api: *const c_char, floating: bool) -> bool {
@@ -198,19 +202,25 @@ mod x11 {
 #[cfg(target_os = "linux")]
 use x11::{destroy, hide, set_parent, show};
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(target_os = "macos")]
+#[path = "../../clap-gain/src/gui_cocoa.rs"]
+mod cocoa;
+#[cfg(target_os = "macos")]
+use cocoa::{destroy, hide, set_parent, show};
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 unsafe extern "C" fn set_parent(_p: *const clap_plugin, _w: *const clap_window) -> bool {
     false
 }
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 unsafe extern "C" fn show(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 unsafe extern "C" fn hide(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 unsafe extern "C" fn destroy(p: *const clap_plugin) {
     crate::plugin::me(p).editor_created = false;
 }

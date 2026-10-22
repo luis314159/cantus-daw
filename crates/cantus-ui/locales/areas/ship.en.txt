@@ -1,0 +1,43 @@
+# Area: updates on Linux and macOS (round 30, ship; ADR 0067). Every key here needs its twin in ship.es.txt.
+
+ship.ready.appimage = Downloaded and verified. When you close Cantus it replaces this AppImage; the old one is kept beside it, ending in .old, until the new one starts.
+ship.ready.dmg = Downloaded and verified. When you close Cantus the disk image opens: drag Cantus onto Applications and choose Replace.
+ship.open_dmg_now = Close and open the disk image
+ship.open_dmg_on_quit = Open it when I close Cantus
+ship.notice.ready_dmg = Cantus {version} is downloaded: its disk image opens when you close
+ship.package = This copy was installed by your system's package manager or Flatpak, which updates it. The AppImage is on the release page.
+ship.no_file = This release has no file for this system yet: the release page has what there is.
+ship.error.not_writable = Cantus may not change the folder its AppImage is in, so it cannot replace it: download the new AppImage from the release page.
+ship.error.apply = The update was not applied: {error}. The release page has the file.
+
+# --- round 30, the owner's frictions ---
+ship.menu.options = Options
+ship.settings.general = General
+ship.settings.audio = Audio
+ship.settings.midi = MIDI
+ship.settings.appearance = Appearance
+ship.settings.saving = Saving
+ship.settings.cache = Sample cache
+ship.settings.updates = Updates
+ship.settings.plugins = Plug-ins
+ship.settings.general_item = General settings…
+ship.settings.audio_item = Audio settings…
+ship.settings.midi_item = MIDI settings…
+ship.settings.appearance_item = Appearance…
+ship.settings.saving_item = Saving and autosave…
+ship.settings.cache_item = Sample cache…
+ship.settings.updates_item = Updates…
+ship.settings.plugins_item = Plug-ins and folders…
+ship.picker.none = No {format} plug-ins found yet
+ship.picker.none_hint = Installed some? Scan for them, or add the folder they went into.
+ship.picker.find_more = Find more plug-ins…
+ship.scan.at_start = Look for new plug-ins at every start
+ship.scan.new_one = New plug-in: {list}
+ship.scan.new_many = {n} new plug-ins: {list}
+ship.scan.more = {list} and {n} more
+ship.count_in.band = Before recording
+ship.count_in.on_play = Also on play
+ship.count_in.on_play_label = Count-in on play
+ship.count_in.tip_rec = Count-in, before recording from stop (Also on play: off)
+ship.count_in.tip_play = Count-in, before recording and before playing from stop
+ship.count_in.only_rec = The count-in plays before recording. To hear it on Play too, tick Also on play in its menu.

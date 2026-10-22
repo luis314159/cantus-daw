@@ -187,6 +187,9 @@ pub struct CantusApp {
     /// Where [`Self::store_settings`] writes. Public so tests can redirect it.
     pub settings_path: PathBuf,
     pub show_settings: bool,
+    /// The running plug-in scan was started by Cantus itself at start: its end says
+    /// something only if it found new plug-ins (round 30).
+    pub scan_quiet: bool,
     /// The settings window's own state (a pending audio choice, an open list).
     pub settings_page: views::workspace_settings::Page,
     /// True while the appearance page (the colour editor) is open.
@@ -491,9 +494,14 @@ impl CantusApp {
         app.workspace.load(&app.layouts.current);
         app.keymap = keymap;
         app.keymap_path = keymap_path;
+        let db_from_disk = plugin_db.is_some();
         if let Some(db) = plugin_db {
             app.plugins.db = db;
             app.plugins.db_path = Some(data_dir().join("plugins.json"));
+        }
+        // New or changed plug-ins, looked for in the background as Cantus starts (round 30).
+        if views::plugins::scans_at_start(app.settings.plugin_scan_at_start, db_from_disk, stress) {
+            views::plugins::scan_at_start(&mut app);
         }
         // Plug-in windows are owned by the main window, so they stay above it.
         app.plugins.owner_window = owner_window;
@@ -629,6 +637,7 @@ impl CantusApp {
             settings: Settings::default(),
             settings_path: settings::settings_path(&directories_fallback()),
             show_settings: false,
+            scan_quiet: false,
             settings_page: Default::default(),
             show_theme_editor: false,
             audio_error: None,
@@ -2738,8 +2747,9 @@ impl CantusApp {
                 self.stop_recording();
             }
             self.engine.stop();
+            self.end_play_count_in();
         } else {
-            self.engine.play();
+            self.start_playback();
         }
     }
 
@@ -2749,6 +2759,7 @@ impl CantusApp {
         }
         if self.engine.is_playing() {
             self.engine.stop();
+            self.end_play_count_in();
         } else {
             self.seek(Ticks::ZERO);
         }
@@ -3239,14 +3250,21 @@ impl CantusApp {
                 HostNotice::ScanDone(r) => {
                     // Plug-ins that were missing may be there now.
                     self.synced_revision = u64::MAX;
-                    self.set_status(tf(
-                        "host.scan_done",
-                        &[
-                            ("found", &r.plugins),
-                            ("scanned", &r.scanned),
-                            ("blocked", &r.blocked),
-                        ],
-                    ));
+                    // The scan at start says something only when it found plug-ins
+                    // (round 30: "3 new plug-ins: …").
+                    let quiet = std::mem::take(&mut self.scan_quiet);
+                    if !r.new.is_empty() {
+                        self.set_status(views::plugins::found_text(&r.new));
+                    } else if !quiet {
+                        self.set_status(tf(
+                            "host.scan_done",
+                            &[
+                                ("found", &r.plugins),
+                                ("scanned", &r.scanned),
+                                ("blocked", &r.blocked),
+                            ],
+                        ));
+                    }
                 }
                 HostNotice::WindowClosed(_) | HostNotice::InstrumentWindowClosed(_) => {}
                 // A hosted instrument that is not here (ADR 0028): the track keeps its
@@ -3428,6 +3446,7 @@ impl CantusApp {
             Panic => self.engine.panic(),
             NewProject => self.request_new(),
             DemoSongs => views::demos::show(self),
+            OpenSettings => self.show_settings = true,
             Open => self.request_open(),
             Save => self.save(),
             SaveAs => self.save_as(),
@@ -3815,6 +3834,10 @@ impl CantusApp {
             self.theme_ctx = Some(ctx.clone());
         }
         let frame_start = Instant::now();
+        // macOS: the global menu bar kept in step with the keymap, its picks run (ADR 0066).
+        crate::macos::menu::serve(self, ctx);
+        // macOS: a project double-clicked in Finder or dropped on the Dock icon.
+        crate::macos::open::serve(self, ctx);
         self.engine.poll();
         // The playhead's wrap, before anything this frame is recorded (review 4, #17).
         self.note_playhead();
@@ -4245,6 +4268,11 @@ fn directories_fallback() -> PathBuf {
     // A portable copy (ADR 0032) keeps everything beside its executable.
     if let Some(dir) = cantus_update::install::portable_data_dir() {
         return dir;
+    }
+    // macOS: the system's place for an application's own files (ADR 0066).
+    #[cfg(target_os = "macos")]
+    if let Some(home) = std::env::var_os("HOME").filter(|h| !h.is_empty()) {
+        return PathBuf::from(home).join("Library/Application Support/Cantus");
     }
     std::env::var_os("LOCALAPPDATA")
         .or_else(|| std::env::var_os("XDG_DATA_HOME"))

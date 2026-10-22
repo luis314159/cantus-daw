@@ -22,6 +22,7 @@ pub mod controllers_feedback;
 pub mod controllers_input;
 pub mod controllers_learn;
 pub mod controllers_words;
+pub mod count_in;
 pub mod demos;
 pub mod design;
 pub mod docs;
@@ -39,6 +40,8 @@ pub mod layout;
 pub mod links;
 #[cfg(target_os = "linux")]
 pub mod linux_desktop;
+// macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod macos;
 pub mod perf_status;
 pub mod picker;
 pub mod picker_catalog;
@@ -168,10 +171,16 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         event_loop_builder: linux_desktop::event_loop_hook(),
         ..Default::default()
     };
+    // macOS: listen for the projects Finder and the Dock ask to open (ADR 0066).
+    cantus_launch::macopen::install();
     eframe::run_native(
         "Cantus",
         native,
         Box::new(move |cc| {
+            // One already asked for (a double-click that launched Cantus) is the project to
+            // open, as a path on the command line would be.
+            let mut options = options;
+            macos::open::at_launch(&mut options.project);
             let shell = boot::Shell::Booting(boot::Boot::new(cc, options).with_verse(verse));
             // The start-up benchmark's probe (round 20), only when asked for.
             Ok(match std::env::var_os(startup_probe::VAR) {

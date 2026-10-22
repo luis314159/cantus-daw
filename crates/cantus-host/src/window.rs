@@ -10,6 +10,7 @@
 //!
 //! On Linux: a top-level X11 window (`window/x11.rs`, ADR 0065), transient for Cantus's,
 //! the plug-in's view embedded as its child (CLAP `x11`, VST3 `X11EmbedWindowID`).
+//! On macOS: an `NSWindow` whose content view holds the plug-in's `NSView` ([`cocoa`]).
 //! Elsewhere there is no embedding yet and opening fails with `Unsupported`.
 
 use crate::backend::{EditorSize, HostError, MainThread};
@@ -23,10 +24,15 @@ mod x11;
 #[cfg(target_os = "linux")]
 pub use x11::PluginWindow;
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(target_os = "macos")]
+mod cocoa;
+#[cfg(target_os = "macos")]
+pub use cocoa::PluginWindow;
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 pub use other::PluginWindow;
 
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 mod other {
     use super::*;
 

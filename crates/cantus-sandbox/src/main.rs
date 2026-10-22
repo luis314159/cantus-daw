@@ -23,6 +23,8 @@
 //! job object ends it, on Linux the kernel's parent-death signal.
 
 mod platform;
+#[cfg(target_vendor = "apple")]
+mod platform_macos;
 mod serve;
 mod worker;
 

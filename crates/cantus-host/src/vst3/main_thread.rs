@@ -19,8 +19,8 @@ use ::vst3::Steinberg::Vst::{
     String128, UnitInfo,
 };
 use ::vst3::Steinberg::{
-    kPlatformTypeHWND, kPlatformTypeX11EmbedWindowID, FIDString, IBStream, IPlugFrame, IPlugView,
-    IPlugViewTrait, ViewRect,
+    kPlatformTypeHWND, kPlatformTypeNSView, kPlatformTypeX11EmbedWindowID, FIDString, IBStream,
+    IPlugFrame, IPlugView, IPlugViewTrait, ViewRect,
 };
 use ::vst3::{ComPtr, ComWrapper};
 use raw_window_handle::RawWindowHandle;
@@ -306,6 +306,8 @@ impl MainThread for MainHalf {
         }
         let (platform, handle): (FIDString, *mut c_void) = match parent {
             RawWindowHandle::Win32(h) => (kPlatformTypeHWND, h.hwnd.get() as *mut c_void),
+            // macOS: the content view of our NSWindow (ADR 0066).
+            RawWindowHandle::AppKit(h) => (kPlatformTypeNSView, h.ns_view.as_ptr()),
             RawWindowHandle::Xlib(h) => (kPlatformTypeX11EmbedWindowID, h.window as *mut c_void),
             RawWindowHandle::Xcb(h) => (
                 kPlatformTypeX11EmbedWindowID,

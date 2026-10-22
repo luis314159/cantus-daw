@@ -181,13 +181,16 @@ fn editor_supported(inst: &Instance) -> bool {
     let Some(supported) = gui.is_api_supported else {
         return false;
     };
-    let api = if cfg!(windows) {
+    // macOS: the `cocoa` API, into an NSWindow of ours (ADR 0066); Linux: `x11` (ADR 0065).
+    let api = if cfg!(target_os = "macos") {
+        clap_sys::ext::gui::CLAP_WINDOW_API_COCOA.as_ptr()
+    } else if cfg!(windows) {
         clap_sys::ext::gui::CLAP_WINDOW_API_WIN32.as_ptr()
     } else {
         clap_sys::ext::gui::CLAP_WINDOW_API_X11.as_ptr()
     };
     // SAFETY: the gui extension, on the main thread.
-    cfg!(any(windows, target_os = "linux"))
+    cfg!(any(windows, target_os = "linux", target_os = "macos"))
         && unsafe { supported(inst.plugin(), api, false) || supported(inst.plugin(), api, true) }
 }
 

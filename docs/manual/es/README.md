@@ -1,6 +1,6 @@
 # Cantus — manual de inicio rápido
 
-*Para Cantus 0.1.0-beta.1 en Windows · [Read in English](../en/README.md)*
+*Para Cantus 0.1.0-beta.1 y posteriores, en Windows, macOS y Linux · [Read in English](../en/README.md)*
 
 Cantus es una estación de trabajo de audio digital libre y de código abierto: graba,
 compón, mezcla y masteriza una canción, de la primera nota al archivo terminado. Este
@@ -30,8 +30,22 @@ lo dice.
 
 ## 1. Instalación
 
-Necesitas Windows 11 de 64 bits (Windows 10 sin probar) y
-unos 200 MB de disco.
+Cantus funciona en Windows, macOS y Linux; cada versión tiene un archivo para cada uno, en
+la [página de versiones](https://github.com/luis314159/cantus-daw/releases) y tras el
+botón de descarga de [cantusdaw.com](https://cantusdaw.com), que te da el de tu sistema:
+
+- **Windows 11, x64**: `Cantus-<versión>-windows-x64-setup.exe` (o el zip portátil).
+- **macOS, Apple silicon o Intel**: `Cantus-<versión>-macos-universal.dmg`.
+- **Linux x86-64**, Ubuntu 22.04 o más nuevo (o similar): `Cantus-<versión>-linux-x86_64.AppImage`.
+
+`SHA256SUMS.txt`, a su lado, te deja comprobar una descarga: `Get-FileHash <archivo>` en
+Windows, `shasum -a 256 <archivo>` en Mac, `sha256sum <archivo>` en Linux. Unos 200 MB de
+disco. Configurar el audio en cada sistema está en el
+[capítulo 2](#2-primer-inicio-configura-tu-audio).
+
+### En Windows
+
+Necesitas Windows 11 de 64 bits (Windows 10 sin probar).
 
 1. Descarga `Cantus-0.1.0-beta.1-windows-x64-setup.exe` de la
    [página de versiones](https://github.com/luis314159/cantus-daw/releases).
@@ -56,6 +70,39 @@ copia guarda sus ajustes en la carpeta `data` de al lado y no escribe nada en tu
 la caché de muestras (hasta 16 GB, ver el [capítulo 11](#11-proyectos-autoguardado-y-ajustes)) —
 solo se borran si marcas esa casilla; tus proyectos nunca se tocan.
 
+### En Mac
+
+1. Descarga `Cantus-<versión>-macos-universal.dmg` — una imagen de disco para Mac con
+   Apple silicon e Intel.
+2. Ábrela y arrastra **Cantus** a **Aplicaciones**. Expulsa la imagen de disco.
+3. Abre Cantus desde *Aplicaciones* (o Launchpad). Una versión notarizada abre sin más;
+   una que aún no lo está hace que macOS diga que *no puede verificar al desarrollador*:
+   clic derecho en Cantus ▸ *Abrir* ▸ *Abrir* una vez (o *Ajustes del Sistema ▸
+   Privacidad y seguridad ▸ Abrir igualmente*), y desde entonces abre normalmente.
+4. La primera vez que grabes, macOS pregunta si Cantus puede usar el micrófono: permíteselo
+   (después, en *Ajustes del Sistema ▸ Privacidad y seguridad ▸ Micrófono*).
+
+Cantus guarda sus ajustes, presets y autoguardados en
+`~/Library/Application Support/Cantus`. **Desinstalar**: mueve Cantus de *Aplicaciones* a
+la Papelera; esa carpeta es tuya para borrarla o conservarla.
+
+### En Linux
+
+1. Descarga `Cantus-<versión>-linux-x86_64.AppImage` — un solo archivo que funciona en la
+   mayoría de las distribuciones de los últimos años, sin instalar nada ni pedir
+   administrador.
+2. Hazlo ejecutable y ábrelo: en el gestor de archivos, *Propiedades ▸ Permisos ▸ Permitir
+   ejecutar como programa*, o en una terminal
+   `chmod +x Cantus-*.AppImage && ./Cantus-*.AppImage`. Guárdalo donde quieras (una carpeta
+   como `~/Applications` es buen lugar): Cantus actualiza ese archivo en su sitio.
+3. Si no arranca y dice que falta FUSE, instala el `libfuse2` de tu distribución (Ubuntu
+   22.04: `sudo apt install libfuse2`; 24.04: `libfuse2t64`).
+
+Cantus guarda sus ajustes en `~/.config/cantus` y sus presets, autoguardados y sonidos en
+`~/.local/share/cantus` (o donde digan `$XDG_CONFIG_HOME` y `$XDG_DATA_HOME`).
+**Desinstalar**: borra el AppImage. Un Cantus de los paquetes de tu distribución o de
+Flatpak lo instalan y actualizan ellos.
+
 ## 2. Primer inicio: configura tu audio
 
 La primera vez que Cantus arranca, se abre la ventana **Configura tu audio** sobre la
@@ -79,6 +126,15 @@ música.
 Haz clic en **Grabar en …** y Cantus añade una pista de audio en esa entrada, armada y
 lista: pulsa `R` para grabar. *Omitir* cierra la ventana; no vuelve a abrirse sola (el
 botón *Asistente…* del chip de audio la trae de vuelta).
+
+**En un Mac** el controlador es **Core Audio**, el que usa toda interfaz: no hay ASIO que
+instalar. Elige el búfer (128 muestras es un buen comienzo) y la frecuencia en la página
+del dispositivo; un *dispositivo agregado* creado en *Configuración de Audio MIDI* (dos
+interfaces como una) aparece como cualquier otro. La primera vez que grabas, macOS
+pregunta si Cantus puede usar el micrófono: permítelo, o ninguna entrada llega a Cantus
+(*Ajustes del Sistema ▸ Privacidad y seguridad ▸ Micrófono*). Los hilos de audio de
+Cantus trabajan con los de Core Audio como un solo grupo, así que Apple silicon los corre
+en sus núcleos rápidos.
 
 ### El chip de audio
 
@@ -253,7 +309,11 @@ grabación**:
 ![Opciones de grabación](../img/record-options.png)
 
 - **Claqueta**: no, 1, 2 o 4 compases antes de la toma (`Alt+C`). La claqueta suena
-  aunque el **Metrónomo** (`Ctrl+M`) esté apagado.
+  aunque el **Metrónomo** (`Ctrl+M`) esté apagado. Suena **antes de grabar** con el
+  transporte parado — el chip de la barra superior lo dice con un punto rojo, y su menú bajo *Antes de grabar* —, como en FL
+  Studio y Ableton; Play solo arranca de inmediato. Para oírla también al reproducir, marca
+  **También al reproducir** en el menú del chip (o en las opciones ▾ del metrónomo):
+  apagado por defecto, vale para todos los proyectos.
 - **Pinchazo**: graba solo dentro de un tramo. *Desde la selección* toma la selección de
   tiempo; `Alt+P` usa la selección, si no el bucle, si no dos compases desde el cursor. El
   tramo aparece como una llave roja bajo la regla: arrastra sus extremos. Todo lo tocado
@@ -1210,9 +1270,12 @@ hará el LFO en los dos ciclos siguientes, con un cabezal donde está ahora.
 **En otro DAW.** Las versiones CLAP y VST3 exportadas leen el tempo y la posición del
 anfitrión, así que un Tremor o un Fluctus al tempo siguen también la canción de ese DAW.
 
-**Tus plug-ins.** Cantus revisa las carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP`
-y `…\VST3`, `C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que añadas en *Ajustes
-▸ Plug-ins* (*Buscar plug-ins*, *Volver a leer todo*). Cada archivo se revisa en un
+**Tus plug-ins.** Al pulsar *Buscar plug-ins* (*Ajustes ▸ Plug-ins*), Cantus revisa las
+carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP` y `…\VST3`,
+`C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que hayas añadido ahí. Además busca archivos nuevos o cambiados **cada vez que
+inicia**, en segundo plano (*Buscar plug-ins nuevos en cada inicio*, activado por defecto),
+y la línea de estado dice lo que encontró — *3 plug-ins nuevos: Odin 2, Surge XT,
+ValhallaSupermassive*. Cada archivo se revisa en un
 proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
@@ -1223,12 +1286,22 @@ Cantus toca instrumentos y efectos de otros fabricantes en los formatos **CLAP**
 **VST3**, de 64 bits. Los plug-ins VST2 (un `.dll` suelto) y los AU de Apple no están
 soportados: cuando un plug-in ofrece varios formatos, instala su versión CLAP o VST3.
 
+**En un Mac** los plug-ins viven en `/Library/Audio/Plug-Ins/CLAP` y `…/VST3` (para todos
+los usuarios) o en las mismas carpetas dentro de la `Library` de tu carpeta personal (solo
+para ti); Cantus lee ambas. Ahí un plug-in es un paquete (`Nombre.clap`, `Nombre.vst3`) y
+su editor se abre en una ventana propia que queda sobre Cantus mientras trabajas en ella.
+
 1. **Instálalo** con el instalador de su fabricante, descargado de la página del propio
    fabricante. Déjalo en la carpeta estándar que propone el instalador
    (`C:\Program Files\Common Files\VST3` o `…\CLAP`).
-2. **Deja que Cantus lo encuentre.** Cantus lee las carpetas estándar al iniciar. Para un
-   plug-in instalado con Cantus abierto, o en otra carpeta, abre *Ajustes ▸ Plug-ins*:
-   añade la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*) y pulsa *Buscar plug-ins*
+2. **Haz que Cantus lo encuentre.** Reinicia Cantus: al iniciar busca plug-ins nuevos solo
+   y dice lo que encontró. Sin reiniciar, elige **OPCIONES ▸ Buscar plug-ins** (los menús de
+   la barra superior, junto al logo), o pulsa *Buscar plug-ins* en el estante **CLAP** o
+   **VST3** vacío del selector. Los ajustes están en **OPCIONES ▸ Plug-ins y carpetas…**
+   (`Ctrl+,` abre Ajustes; su página **Plug-ins** está en la barra lateral; *Buscar más
+   plug-ins…* del selector lleva también ahí). Las búsquedas siguientes solo leen archivos
+   nuevos o cambiados. Para un plug-in en otra
+   carpeta, añade antes la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*)
    (*Volver a leer todo* lee de nuevo todos los archivos, también los bloqueados). Lo que
    encontró aparece en *Encontrados*; un archivo que falló al leerse aparece en
    *Bloqueados*, con *Reintentar*.
@@ -1392,7 +1465,9 @@ plug-in esté colgado.
   paso de deshacer (`Ctrl+Z` muestra el último guardado); *Descartar* no borra nada. *Nuevo*
   y *Abrir* preguntan antes de reemplazar trabajo sin guardar.
 
-**Ajustes** (*Ver ▸ Ajustes…*): *General* (el versículo al iniciar, sí o no, y la Biblia en
+**Ajustes** (`Ctrl+,`, o el menú **Opciones**, que además abre cada página directamente;
+*Ver ▸ Ajustes…* sigue funcionando). La ventana tiene una barra lateral de páginas, como
+las opciones de FL: *General* (el versículo al iniciar, sí o no, y la Biblia en
 español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia y la corrección
 de grabación), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
 colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
@@ -1438,13 +1513,41 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Hacer único · enlazar la selección a este clip · seleccionar enlazados · enlazar a… |
 | `Ctrl+T` | El teclado del ordenador toca notas |
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
+| `Ctrl+,` | Ajustes |
+
+**En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
+*macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `Cmd+K` (o `K` con el teclado del ordenador apagado; ⌘M
+minimiza la ventana, como en toda aplicación de Mac) y rehacer es `Cmd+Shift+Z`. La barra
+de menús de arriba de la pantalla tiene los menús de Cantus con sus atajos, que siguen
+cualquier cambio que hagas aquí. En un trackpad, pellizca para hacer zoom en el tiempo de
+un editor y desliza con dos dedos para desplazarte; `Cmd` con el deslizamiento también
+hace zoom.
 
 ## 13. Privacidad y actualizaciones
 
 Cantus **no tiene telemetría**. Una copia instalada o portátil pregunta a GitHub una vez al
 día si hay una versión nueva — una petición anónima, sin versión, equipo ni datos tuyos —
 y te pregunta antes de descargar nada; *Ajustes ▸ Actualizaciones ▸ Buscar a diario* la
-apaga. Los paquetes de sonidos se descargan solo cuando haces clic en *Instalar*. Todo lo
+apaga.
+
+Cuando dices que sí, Cantus descarga el archivo de la versión nueva para tu sistema,
+comprueba su SHA-256 con el de la versión (y, en Windows, la firma del editor cuando la
+compilación está firmada) y lo aplica al cerrar Cantus — o ya, con *Reiniciar y
+actualizar*:
+
+- **Windows**: el instalador corre en silencio y conserva los componentes que elegiste.
+- **Linux (AppImage)**: el AppImage nuevo reemplaza al que usas, en el mismo lugar y con el
+  mismo nombre. El anterior se guarda a su lado, terminado en `.old`, hasta que el nuevo
+  arranca; si alguna vez el nuevo no arranca, devuélvele su nombre al `.old`. En una
+  carpeta que Cantus no puede modificar, lo dice y la página de la versión tiene el
+  archivo.
+- **macOS**: la imagen de disco nueva se abre al cerrar Cantus (*Cerrar y abrir la imagen
+  de disco* lo hace ya); arrastra Cantus a *Aplicaciones* y elige *Reemplazar*. (Que la
+  app se reemplace sola está previsto.)
+
+Una copia portátil, una de los paquetes de una distribución de Linux o de Flatpak, y un
+sistema para el que ninguna versión tiene archivo reciben el aviso de la versión nueva y
+su página. Los paquetes de sonidos se descargan solo cuando haces clic en *Instalar*. Todo lo
 demás se queda en tu equipo. Los detalles están en [PRIVACY.md](../../../PRIVACY.md); las
 licencias de todo aquello con lo que está hecho Cantus, en
 [THIRD-PARTY-NOTICES.md](../../../THIRD-PARTY-NOTICES.md) (también en *Ayuda ▸ Acerca de

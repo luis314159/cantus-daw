@@ -1,6 +1,6 @@
 # Cantus — quick-start manual
 
-*For Cantus 0.1.0-beta.1 on Windows · [Leer en español](../es/README.md)*
+*For Cantus 0.1.0-beta.1 and later, on Windows, macOS and Linux · [Leer en español](../es/README.md)*
 
 Cantus is a free, open-source digital audio workstation: record, compose, mix and master a
 song, from the first note to a finished file. This manual gets you there in an evening.
@@ -29,8 +29,21 @@ Everything it names is in the program as it is today; where the beta still has g
 
 ## 1. Install
 
-You need Windows 11, 64-bit (Windows 10 untested), and about
-200 MB of disk.
+Cantus runs on Windows, macOS and Linux; every release has one file for each, on the
+[releases page](https://github.com/luis314159/cantus-daw/releases) and behind the
+download button of [cantusdaw.com](https://cantusdaw.com), which gives you your system's:
+
+- **Windows 11, x64**: `Cantus-<version>-windows-x64-setup.exe` (or the portable zip).
+- **macOS, Apple silicon or Intel**: `Cantus-<version>-macos-universal.dmg`.
+- **Linux x86-64**, Ubuntu 22.04 or newer (or alike): `Cantus-<version>-linux-x86_64.AppImage`.
+
+`SHA256SUMS.txt` beside them lets you check a download: `Get-FileHash <file>` on Windows,
+`shasum -a 256 <file>` on a Mac, `sha256sum <file>` on Linux. About 200 MB of disk. Setting
+up your audio on each system is [chapter 2](#2-first-run-set-up-your-audio).
+
+### On Windows
+
+You need Windows 11, 64-bit (Windows 10 untested).
 
 1. Download `Cantus-0.1.0-beta.1-windows-x64-setup.exe` from the
    [releases page](https://github.com/luis314159/cantus-daw/releases).
@@ -54,6 +67,38 @@ settings in the `data` folder next to it and writes nothing to your profile.
 cache (up to 16 GB, see [chapter 11](#11-projects-autosave-and-settings)) — are removed
 only if you tick that box; your projects are never touched.
 
+### On a Mac
+
+1. Download `Cantus-<version>-macos-universal.dmg` — one disk image for Apple silicon and
+   Intel Macs.
+2. Open it and drag **Cantus** onto **Applications**. Eject the disk image.
+3. Open Cantus from *Applications* (or Launchpad). A notarised release opens straight
+   away; one that is not yet notarised makes macOS say it *cannot verify the developer*:
+   right-click Cantus ▸ *Open* ▸ *Open* once (or *System Settings ▸ Privacy & Security ▸
+   Open Anyway*), and it opens normally from then on.
+4. The first time you record, macOS asks whether Cantus may use the microphone: allow it
+   (later in *System Settings ▸ Privacy & Security ▸ Microphone*).
+
+Cantus keeps its settings, presets and autosaves in `~/Library/Application Support/Cantus`.
+**Uninstall** by moving Cantus from *Applications* to the Bin; that folder is yours to
+delete or keep.
+
+### On Linux
+
+1. Download `Cantus-<version>-linux-x86_64.AppImage` — one file that runs on most
+   distributions from the last few years, with nothing to install and no administrator.
+2. Make it executable and open it: in a file manager, *Properties ▸ Permissions ▸ Allow
+   executing as a program*, or in a terminal
+   `chmod +x Cantus-*.AppImage && ./Cantus-*.AppImage`. Keep it where you like (a folder
+   such as `~/Applications` is a good home): Cantus updates that file in place.
+3. If it does not start and says FUSE is missing, install your distribution's `libfuse2`
+   (Ubuntu 22.04: `sudo apt install libfuse2`; 24.04: `libfuse2t64`).
+
+Cantus keeps its settings in `~/.config/cantus` and its presets, autosaves and sounds in
+`~/.local/share/cantus` (or wherever `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` say).
+**Uninstall** by deleting the AppImage. A Cantus from your distribution's packages or from
+Flatpak is installed and updated by them instead.
+
 ## 2. First run: set up your audio
 
 The first time Cantus starts, the window **Set up your audio** opens over the music.
@@ -74,6 +119,14 @@ The first time Cantus starts, the window **Set up your audio** opens over the mu
 Click **Record on …** and Cantus adds an audio track on that input, armed and ready:
 press `R` to record. *Skip* closes the window; it does not open by itself again (the
 *Setup assistant…* button in the audio chip brings it back).
+
+**On a Mac** the driver is **Core Audio**, which every interface uses: there is no ASIO to
+install. Choose the buffer (128 samples is a good start) and the rate on the device page;
+an *aggregate device* made in *Audio MIDI Setup* (two interfaces as one) is listed like
+any other. The first time you record, macOS asks whether Cantus may use the microphone —
+allow it, or no input reaches Cantus (*System Settings ▸ Privacy & Security ▸
+Microphone*). Cantus's audio threads work with Core Audio's own as one group, so Apple
+silicon runs them on its fast cores.
 
 ### The audio chip
 
@@ -241,7 +294,10 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 ![Recording options](../img/record-options.png)
 
 - **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in clicks
-  whether or not the **Metronome** (`Ctrl+M`) is on.
+  whether or not the **Metronome** (`Ctrl+M`) is on. It plays **before recording** from
+  stop — the top bar's chip says so with a small red dot, and its menu under *Before recording* — as in FL Studio and Ableton; Play alone
+  starts at once. To hear it before playing too, tick **Also on play** in the chip's menu
+  (or the metronome's options ▾): off by default, kept for every project.
 - **Punch**: record only inside a range. *From selection* takes the time selection; `Alt+P`
   uses the selection, else the loop, else two bars from the playhead. The range shows as a
   red brace under the ruler: drag its ends. Everything played is kept in the file; punch
@@ -1108,9 +1164,12 @@ with a playhead where it is now.
 **In another DAW.** The exported CLAP and VST3 versions read the host's tempo and position,
 so a synced Tremor or Fluctus follows that DAW's song too.
 
-**Your plug-ins.** Cantus scans the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP`
-and `…\VST3`, `C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you add
-in *Settings ▸ Plug-ins* (*Scan for plug-ins*, *Rescan everything*). Each file is scanned
+**Your plug-ins.** When you press *Scan for plug-ins* (*Settings ▸ Plug-ins*), Cantus reads
+the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`,
+`C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you added there. It also looks for new or changed files **every time it
+starts**, in the background (*Look for new plug-ins at every start*, on by default), and
+the status line names what it found — *3 new plug-ins: Odin 2, Surge XT, ValhallaSupermassive*.
+Each file is scanned
 in a separate process, so a plug-in that crashes while being scanned is blocked, not
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
@@ -1121,12 +1180,21 @@ Cantus plays instruments and effects made by others in the **CLAP** and **VST3**
 64-bit. VST2 plug-ins (a lone `.dll`) and Apple's AU are not supported: when a plug-in
 offers several formats, install its CLAP or VST3 version.
 
+**On a Mac** plug-ins live in `/Library/Audio/Plug-Ins/CLAP` and `…/VST3` (for every user)
+or the same folders in your home's `Library` (for you); Cantus reads both. A plug-in
+there is a bundle (`Name.clap`, `Name.vst3`) and its editor opens in a window of its own
+that stays above Cantus while you work in it.
+
 1. **Install it** with its maker's installer, downloaded from the maker's own site. Leave it
    in the standard folder the installer proposes (`C:\Program Files\Common Files\VST3` or
    `…\CLAP`).
-2. **Let Cantus find it.** Cantus reads the standard folders when it starts. For a plug-in
-   installed while Cantus is open, or in another folder, open *Settings ▸ Plug-ins*: add
-   the folder under *Folders* (*Browse…*, then *Add*) and press *Scan for plug-ins*
+2. **Let Cantus find it.** Restart Cantus: at start it looks for new plug-ins by itself and
+   says what it found. Without restarting, choose **OPTIONS ▸ Scan for plug-ins** (the top
+   bar's menus, beside the logo), or press *Scan for plug-ins* on the picker's empty
+   **CLAP** or **VST3** shelf. The settings live in **OPTIONS ▸ Plug-ins and folders…**
+   (`Ctrl+,` opens Settings; its **Plug-ins** page is in the sidebar; the picker's *Find
+   more plug-ins…* goes there too). Later scans read only new and changed files. For a plug-in in another folder, first add the folder under *Folders*
+   (*Browse…*, then *Add*)
    (*Rescan everything* reads every file again, blocked ones included). What it found is
    listed under *Found*; a file that crashed while being read is listed under *Blocked*,
    with *Try again*.
@@ -1279,7 +1347,9 @@ calling it done, and *Stop* ends it even while a plug-in hangs.
   are in no saved file. *Restore* brings them back as one undo step (`Ctrl+Z` shows the last
   save); *Discard* deletes nothing. *New* and *Open* ask before replacing unsaved work.
 
-**Settings** (*View ▸ Settings…*): *General* (the verse at start, on or off, and the
+**Settings** (`Ctrl+,`, or the **Options** menu, which also opens each page directly;
+*View ▸ Settings…* still works). The window has a sidebar of pages, as FL's options:
+*General* (the verse at start, on or off, and the
 Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
 *MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
 shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
@@ -1325,13 +1395,37 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Make unique · link the selection to this clip · select linked copies · link to… |
 | `Ctrl+T` | Typing keyboard plays notes |
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
+| `Ctrl+,` | Settings |
+
+**On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
+*macOS* preset is the default: the table's keys, except that the metronome is `Cmd+K` (or `K` while the typing keyboard is off; ⌘M
+minimises the window, as in every Mac application) and redo is `Cmd+Shift+Z`. The menu
+bar at the top of the screen holds Cantus's menus with their shortcuts, which follow any
+change you make here. On a trackpad, pinch to zoom an editor's time and swipe with two
+fingers to scroll it; `Cmd` with a swipe zooms too.
 
 ## 13. Privacy and updates
 
 Cantus has **no telemetry**. An installed or portable copy asks GitHub once a day whether
 a newer version is out — an anonymous request that carries no version, machine or user
 information — and asks you before downloading anything; *Settings ▸ Updates ▸ Check daily*
-turns it off. Sound packs are downloaded only when you click *Install*. Everything else
+turns it off.
+
+When you say yes, Cantus downloads the new version's file for your system, checks its
+SHA-256 against the release (and, on Windows, the publisher's signature when the build is
+signed) and applies it when you close Cantus — or now, with *Restart and update*:
+
+- **Windows**: the installer runs silently, keeping the components you chose.
+- **Linux (AppImage)**: the new AppImage replaces the one you run, in the same place and
+  under the same name. The old one is kept beside it, ending in `.old`, until the new one
+  has started; if the new one ever fails to start, rename the `.old` back. In a folder
+  Cantus may not write to, it says so and the release page has the file.
+- **macOS**: the new disk image opens when Cantus closes (*Close and open the disk image*
+  does it now); drag Cantus onto *Applications* and choose *Replace*. (Replacing the app
+  in place by itself is planned.)
+
+A portable copy, a copy from a Linux distribution's packages or Flatpak, and a system no
+release has a file for are told about the new version and shown its page. Sound packs are downloaded only when you click *Install*. Everything else
 stays on your computer. The details are in [PRIVACY.md](../../../PRIVACY.md); the licences
 of everything Cantus is built from are in
 [THIRD-PARTY-NOTICES.md](../../../THIRD-PARTY-NOTICES.md) (also in *Help ▸ About Cantus*).

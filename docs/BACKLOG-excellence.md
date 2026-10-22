@@ -290,6 +290,17 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
       for 10 minutes, a real plug-in's editor, the microphone permission prompt, the
       `.dmg` installed and opened past Gatekeeper, the update from an older build,
       trackpad feel and Retina look, CPU measured on Apple silicon.
+    - *The updater replacing the `.app` in place* (round 30 opens the verified `.dmg` for
+      the user to drag, ADR 0067 §3): Sparkle's way — unpack, check the code signature and
+      the team, swap the bundle, relaunch — once releases are signed and a Mac can test it.
+    - **Round 30 (ADR 0066): all of the above is built** — the address wait (os_sync /
+      ulock), short shm names, the helper's kqueue watch and crash blame, workgroups by
+      device, bundles and Cocoa editors (also in the sandbox), the macOS keymap preset and
+      the global menu bar, `packaging/macos` with `build-dmg.sh`, `macos.yml` on every
+      push and the null hashes' macOS leg. The Mac-in-hand checklist is
+      `docs/mac-session.md`. A `.cantus` opens from Finder and the Dock (the
+      open-documents Apple Event, `cantus-launch/src/macopen.rs`). **Still to do:** AU
+      hosting and our effects as AU.
   - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of

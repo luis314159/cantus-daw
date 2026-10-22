@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Cantus.app's Info.plist (ADR 0066). build-dmg.sh replaces @SHORT_VERSION@ (the version
+     without its pre-release part: macOS wants up to three numbers) and @VERSION@ (the full
+     one). The microphone's reason is translated in en.lproj and es.lproj. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>es</string>
+	</array>
+	<key>CFBundleDisplayName</key>
+	<string>Cantus</string>
+	<key>CFBundleName</key>
+	<string>Cantus</string>
+	<key>CFBundleExecutable</key>
+	<string>cantus</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.cantusdaw.Cantus</string>
+	<key>CFBundleIconFile</key>
+	<string>Cantus</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleShortVersionString</key>
+	<string>@SHORT_VERSION@</string>
+	<key>CFBundleVersion</key>
+	<string>@SHORT_VERSION@</string>
+	<key>CantusVersion</key>
+	<string>@VERSION@</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.music</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cantus records from your audio interface or microphone when you arm a track.</string>
+	<!-- A .cantus project opens Cantus from Finder, the Dock and Open With (ADR 0066):
+	     the type is Cantus's own (exported), and Cantus is its owner. -->
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Cantus project</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>Cantus</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.cantusdaw.project</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.cantusdaw.project</string>
+			<key>UTTypeDescription</key>
+			<string>Cantus project</string>
+			<key>UTTypeIconFile</key>
+			<string>Cantus</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.content</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cantus</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/x-cantus</string>
+			</dict>
+		</dict>
+	</array>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © Luis Ángel Almazán. Free software under the GPL, version 3 or later.</string>
+</dict>
+</plist>

@@ -3,11 +3,28 @@
 use yew::prelude::*;
 
 use crate::lang::use_lang;
+use crate::shelf::use_shelf;
 use crate::top::GITHUB;
 
 #[function_component(Ahead)]
 pub fn ahead() -> Html {
     let l = use_lang().lang;
+    // Once the latest release carries the Linux and macOS files (shelf.rs), the roadmap
+    // and the answer below say so instead of "coming soon".
+    let shelf = use_shelf();
+    let everywhere = shelf.linux && shelf.macos;
+    let three = if everywhere {
+        l.t("Installers for Windows, Linux and macOS — one Cantus on all three systems, out now", "Instaladores para Windows, Linux y macOS — un mismo Cantus en los tres sistemas, ya disponibles")
+    } else {
+        l.t("Coming soon: installers for Linux and macOS, next to Windows's — one Cantus on all three systems", "Muy pronto: instaladores para Linux y macOS junto al de Windows — un mismo Cantus en los tres sistemas")
+    };
+    let other_systems = if everywhere {
+        l.t("Yes. Cantus runs on Windows, macOS and Linux: an installer for Windows, one disk image for Apple silicon and Intel Macs, and an AppImage for Linux — the download button gives you the one for your system.",
+            "Sí. Cantus funciona en Windows, macOS y Linux: un instalador para Windows, una imagen de disco para Mac con Apple silicon e Intel, y un AppImage para Linux — el botón de descarga te da el de tu sistema.")
+    } else {
+        l.t("Coming soon. Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS installers are next. Meanwhile you can build it from source.",
+            "Muy pronto. Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.")
+    };
 
     let col = |title: &'static str, items: Vec<&'static str>| {
         html! {
@@ -53,7 +70,7 @@ pub fn ahead() -> Html {
                         l.t("Whole songs made with it, and every rough edge they find smoothed", "Canciones completas hechas con él, y cada aspereza que encuentren, pulida"),
                     ]) }
                     { col(l.t("Later", "Después"), vec![
-                        l.t("Coming soon: installers for Linux and macOS, next to Windows's — one Cantus on all three systems", "Muy pronto: instaladores para Linux y macOS junto al de Windows — un mismo Cantus en los tres sistemas"),
+                        three,
                         l.t("Sound packs and stand-alone plug-ins on cantusdaw.studio", "Paquetes de sonidos y plug-ins independientes en cantusdaw.studio"),
                         l.t("Assistants that can operate the DAW, with your permission", "Asistentes que puedan operar el DAW, con tu permiso"),
                     ]) }
@@ -73,9 +90,7 @@ pub fn ahead() -> Html {
                     { faq(l.t("Which audio interfaces work?", "¿Qué interfaces de audio funcionan?"), html! { <p>{ l.t(
                         "Any Windows audio device through WASAPI, and ASIO drivers (ASIO4ALL and the makers' own). It is a beta and has been tried on a small number of devices, so tell us what you used and how it went.",
                         "Cualquier dispositivo de audio de Windows mediante WASAPI, y drivers ASIO (ASIO4ALL y los de cada fabricante). Es una beta y se ha probado en pocos dispositivos, así que cuéntanos qué usaste y cómo te fue.") }</p> }) }
-                    { faq(l.t("Is there a Mac or Linux version?", "¿Hay versión para Mac o Linux?"), html! { <p>{ l.t(
-                        "Coming soon. Cantus is made for Windows, Linux and macOS: Windows has its installer today, and the Linux and macOS installers are next. Meanwhile you can build it from source.",
-                        "Muy pronto. Cantus está hecho para Windows, Linux y macOS: Windows tiene su instalador hoy, y los de Linux y macOS son lo siguiente. Mientras tanto puedes compilarlo desde el código.") }</p> }) }
+                    { faq(l.t("Is there a Mac or Linux version?", "¿Hay versión para Mac o Linux?"), html! { <p>{ other_systems }</p> }) }
                     { faq(l.t("Can I release the music I make?", "¿Puedo publicar la música que hago?"), html! { <p>{ l.t(
                         "Yes. The GPL covers the program, not what you create with it; your songs are yours. Each sound pack states its own licence, so check it for the samples you use.",
                         "Sí. La GPL cubre el programa, no lo que creas con él; tus canciones son tuyas. Cada paquete de sonidos indica su propia licencia, así que revísala para los samples que uses.") }</p> }) }

@@ -508,6 +508,16 @@ pub fn open_metronome_options(ctx: &egui::Context) {
     metro::open_options(ctx);
 }
 
+/// Open the menu bar's menu `i` (the screenshots; 4 is Options).
+pub fn open_menu(ctx: &egui::Context, i: usize) {
+    menus::open_menu(ctx, i);
+}
+
+/// Open the count-in chip's menu (the screenshots).
+pub fn open_count_in(ctx: &egui::Context) {
+    metro::open_count_in(ctx);
+}
+
 pub fn open_overflow(app: &mut CantusApp) {
     more::open_overflow(app);
 }

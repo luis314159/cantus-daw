@@ -18,6 +18,10 @@ pub enum Action {
     Close,
     /// Choose the device with this key.
     Choose(String),
+    /// Look for new or changed plug-ins (an empty CLAP or VST3 shelf, round 30).
+    ScanPlugins,
+    /// Settings ▸ Plug-ins: the folders, the scan (round 30).
+    PluginSettings,
 }
 
 /// Where a key moves the selection.
@@ -208,5 +212,10 @@ pub fn act(app: &mut CantusApp, action: Action) {
         Action::None => {}
         Action::Close => super::picker::close(app),
         Action::Choose(key) => super::picker::choose(app, &key),
+        Action::ScanPlugins => super::plugins::scan_now(app),
+        Action::PluginSettings => {
+            super::picker::close(app);
+            super::workspace_settings::open(app, super::workspace_settings::SettingsPage::Plugins);
+        }
     }
 }

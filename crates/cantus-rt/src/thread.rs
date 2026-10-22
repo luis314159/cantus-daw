@@ -423,6 +423,30 @@ pub fn promote_worker_in(
     }
 }
 
+/// The audio device whose stream is about to start (by the name cpal gives it; `None`:
+/// the system's default output). On macOS its I/O workgroup is looked up now and every live
+/// pool worker that promotes itself afterwards joins it ([`promote_worker`]), so Apple's
+/// performance controller plans the workers with the device's I/O thread (ADR 0031 R4,
+/// ADR 0066). Returns whether there is a workgroup to join; elsewhere always `false` (no
+/// such thing). Call it off the audio thread, before the stream starts.
+pub fn use_device_workgroup(device: Option<&str>) -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        os::use_device(device)
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = device;
+        false
+    }
+}
+
+/// Forget the device [`use_device_workgroup`] named (its stream stopped).
+pub fn forget_device_workgroup() {
+    #[cfg(target_os = "macos")]
+    os::forget_device();
+}
+
 /// The busy share to promote with, `None` when the thread must not enter the real-time class.
 fn share(waiting: Waiting) -> Option<f32> {
     match waiting {

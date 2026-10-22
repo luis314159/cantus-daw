@@ -637,7 +637,9 @@ impl PluginHost {
     /// [`Self::start_scan`].
     pub fn scan_now(&mut self, force: bool) -> ScanReport {
         let backends = crate::backends();
-        let report = crate::scan::scan_all(&mut self.db, &backends, &self.scanner, force);
+        let before = self.db.clone();
+        let mut report = crate::scan::scan_all(&mut self.db, &backends, &self.scanner, force);
+        report.new = self.db.newly_found(&before);
         self.save_db();
         self.missing.clear();
         self.inst_missing.clear();
@@ -656,7 +658,9 @@ impl PluginHost {
             .name("cantus-plugin-scan".into())
             .spawn(move || {
                 let backends = crate::backends();
-                let report = crate::scan::scan_all(&mut db, &backends, &scanner, force);
+                let before = db.clone();
+                let mut report = crate::scan::scan_all(&mut db, &backends, &scanner, force);
+                report.new = db.newly_found(&before);
                 let _ = tx.send((db, report));
             });
         if spawned.is_ok() {
