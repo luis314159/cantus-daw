@@ -579,5 +579,20 @@ answer is taken).
 | 7 | A bake dropped on New/Open kept its preparation alive | `drop_bake_prep` where a waiting bake is dropped (another project) or given up (refused, its modulator gone, no render needed) — never while another bake waits | `a_bake_dropped_for_another_project_lets_its_preparation_go` (*bakedrop*) |
 | 15 | The parking test never checked that the state parked is the one as it is now | The test gain's `TAG_QUIETLY` (fault 25) moves its state without a word to the host; the test asserts the plug-in loaded again carries it | `a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so` (*park*); `a_quiet_tag_is_only_the_plugins_own_doing` |
 
+Also, seen on Linux only (the first WSL run of this round): `another_builds_helper_is_a_failed_load`
+(isolation-6 #9) failed there — the helper of another build answered its load before the
+kill its greeting earned took effect, and the load read as a crash. An answer before a good
+greeting is now never taken (the handshake is always the first request a helper serves).
+The dialog test's card is Windows' (a nested loop is a Windows message loop; elsewhere the
+test plug-in only sleeps), its bound holds everywhere.
+
 Test hooks (each says the application never calls it): `PluginHost::render_prepared_for_tests`,
 and `hold_for_tests`'s held render now holds a preparation (as a real wait does).
+
+**The runs** (fe7d5f9). Windows: `cargo test -p cantus-rt -p cantus-host -p cantus-sandbox`
+282 passed, `cargo test -p cantus-ui` 1 713 passed, `cargo clippy --workspace --all-targets
+-- -D warnings` and `cargo fmt --all -- --check` clean (one earlier full run had
+`a_hang_never_blocks_the_interfaces_frames_and_is_ended` see a 14 ms block under the
+machine's load — timing only; it passed three times alone and in this run). WSL (Ubuntu
+24.04): `tools/wsl/check.sh r29/isolation clippy` clean, the isolation crates' tests 251
+passed.
