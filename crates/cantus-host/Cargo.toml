@@ -50,6 +50,16 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+# The run loop plug-in editors need on Linux (CLAP timer and fd support, VST3 `IRunLoop`):
+# `poll` on the descriptors they register (ADR 0065).
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The plug-in window on Linux: a top-level X11 window the editor embeds into (ADR 0065).
+# Pure Rust, already in the workspace through winit (MIT OR Apache-2.0).
+x11rb = "0.13"
+
 [target.'cfg(target_os = "macos")'.dependencies]
 # The plug-in window on macOS (ADR 0066): an NSWindow whose content view the editor's NSView
 # goes into. MIT; already in the workspace through winit and eframe.
@@ -91,6 +101,11 @@ cantus-project.workspace = true
 tempfile = "3"
 # Built (as a DLL next to the test binaries) for the VST3 backend's tests; not linked.
 cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# The X11 editor window's picture (`CANTUS_X11_SHOT`, tests/clap_window_x11.rs); already in
+# the tree through cantus-ui.
+png = "0.18"
 
 # The macOS plug-in window on the main thread, where AppKit runs (no test harness).
 [[test]]

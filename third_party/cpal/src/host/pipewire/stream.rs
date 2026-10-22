@@ -55,10 +55,42 @@ impl PwInitGuard {
         if *count == 0 {
             // pw::init() uses a OnceCell, preventing re-init after deinit.
             unsafe { pw::sys::pw_init(std::ptr::null_mut(), std::ptr::null_mut()) }
+            HAS_REQUESTED.store(library_has_requested(), Ordering::Relaxed);
         }
         *count += 1;
         Self
     }
+}
+
+/// CANTUS PATCH: whether the running libpipewire fills `pw_buffer.requested` (0.3.49 and
+/// later). Cantus's Linux build runs on systems older than the headers it was built with
+/// (Ubuntu 22.04 has 0.3.48): there the field is past the end of the library's struct and
+/// must not be read. Set once, when PipeWire is initialised; read in the process callback.
+static HAS_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// CANTUS PATCH: `pw_get_library_version()` is at least 0.3.49.
+fn library_has_requested() -> bool {
+    // SAFETY: returns a static NUL-terminated string owned by the library.
+    let version = unsafe { pw::sys::pw_get_library_version() };
+    if version.is_null() {
+        return false;
+    }
+    let text = unsafe { std::ffi::CStr::from_ptr(version) }.to_string_lossy();
+    version_at_least(&text, (0, 3, 49))
+}
+
+/// CANTUS PATCH: "1.0.5" or "0.3.48" (anything after the third number is ignored).
+pub(crate) fn version_at_least(text: &str, want: (u32, u32, u32)) -> bool {
+    let mut parts = text
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|p| !p.is_empty())
+        .map(|p| p.parse::<u32>().unwrap_or(0));
+    let got = (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    );
+    got >= want
 }
 
 impl Drop for PwInitGuard {
@@ -732,7 +764,16 @@ where
 
             if let Some(mut buffer) = stream.dequeue_buffer() {
                 // Read the requested frame count before mutably borrowing datas_mut().
-                let requested = buffer.requested() as usize;
+                // CANTUS PATCH: only where the library has the field (0.3.49+), and 0 means
+                // "no suggestion" (the whole buffer then, as before 0.3.49).
+                let requested = if HAS_REQUESTED.load(Ordering::Relaxed) {
+                    match buffer.requested() as usize {
+                        0 => usize::MAX,
+                        n => n,
+                    }
+                } else {
+                    usize::MAX
+                };
                 let datas = buffer.datas_mut();
                 if datas.is_empty() {
                     return;
@@ -1053,4 +1094,19 @@ where
         pending_device_changed,
         invalidated,
     })
+}
+
+#[cfg(test)]
+mod cantus_patch_tests {
+    use super::version_at_least;
+
+    #[test]
+    fn library_versions_compare_by_number() {
+        assert!(version_at_least("1.0.5", (0, 3, 49)));
+        assert!(version_at_least("0.3.49", (0, 3, 49)));
+        assert!(version_at_least("0.3.65", (0, 3, 49)));
+        assert!(!version_at_least("0.3.48", (0, 3, 49)));
+        assert!(!version_at_least("0.3.9", (0, 3, 49)));
+        assert!(!version_at_least("", (0, 3, 49)));
+    }
 }

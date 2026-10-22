@@ -9,7 +9,9 @@ use crate::backend::{
     AudioThread, EditorSize, HostError, MainThread, Notice, ParamChange, ParamInfo, ParamOut,
     PluginInfo,
 };
-use clap_sys::ext::gui::{clap_window, clap_window_handle, CLAP_WINDOW_API_WIN32};
+use clap_sys::ext::gui::{
+    clap_window, clap_window_handle, CLAP_WINDOW_API_WIN32, CLAP_WINDOW_API_X11,
+};
 use clap_sys::ext::params::{
     clap_param_info, CLAP_PARAM_IS_AUTOMATABLE, CLAP_PARAM_IS_HIDDEN, CLAP_PARAM_IS_READONLY,
     CLAP_PARAM_IS_STEPPED,
@@ -247,22 +249,33 @@ impl MainThread for ClapMain {
         }
         let gui = *self.gui().ok_or(HostError::Unsupported("editor"))?;
         let plugin = self.plugin();
-        let (api, handle) = match parent {
+        // Win32 on Windows; X11 on Linux (the window of `window/x11.rs`, ADR 0065); the
+        // parent `NSView` on macOS (the `cocoa` member of the same pointer-sized union, ADR
+        // 0066).
+        let (api, specific, win32) = match parent {
             raw_window_handle::RawWindowHandle::Win32(h) => {
-                (CLAP_WINDOW_API_WIN32.as_ptr(), h.hwnd.get() as *mut c_void)
+                let hwnd = h.hwnd.get() as *mut c_void;
+                (
+                    CLAP_WINDOW_API_WIN32.as_ptr(),
+                    clap_window_handle { win32: hwnd },
+                    Some(hwnd),
+                )
             }
-            // macOS: the parent `NSView` (the `cocoa` member of the same pointer-sized
-            // union), ADR 0066.
+            raw_window_handle::RawWindowHandle::Xlib(h) => (
+                CLAP_WINDOW_API_X11.as_ptr(),
+                clap_window_handle { x11: h.window },
+                None,
+            ),
             raw_window_handle::RawWindowHandle::AppKit(h) => (
                 clap_sys::ext::gui::CLAP_WINDOW_API_COCOA.as_ptr(),
-                h.ns_view.as_ptr(),
+                clap_window_handle {
+                    cocoa: h.ns_view.as_ptr(),
+                },
+                None,
             ),
             _ => return Err(HostError::Unsupported("editor on this windowing system")),
         };
-        let window = clap_window {
-            api,
-            specific: clap_window_handle { win32: handle },
-        };
+        let window = clap_window { api, specific };
         // SAFETY: the gui extension, on the main thread, in the order `gui.h` gives.
         unsafe {
             let supported = |floating: bool| {
@@ -275,10 +288,10 @@ impl MainThread for ClapMain {
                     return Err(HostError::Editor("create".into()));
                 }
                 // Win32 sizes are physical pixels: tell the editor the window's scale
-                // before it says how big it is. Cocoa's are points: no scale is set there
-                // (the gui extension's rule for logical-pixel APIs).
-                if let Some(f) = gui.set_scale.filter(|_| !cfg!(target_os = "macos")) {
-                    f(plugin, window_scale(handle));
+                // before it says how big it is. (X11 editors read the screen's scale
+                // themselves; Cocoa's sizes are points: CLAP leaves `set_scale` to them.)
+                if let (Some(f), Some(hwnd)) = (gui.set_scale, win32) {
+                    f(plugin, window_scale(hwnd));
                 }
                 let (mut w, mut h) = (0u32, 0u32);
                 if let Some(f) = gui.get_size {
@@ -319,7 +332,7 @@ impl MainThread for ClapMain {
                     height: 0,
                 })
             } else {
-                Err(HostError::Unsupported("editor for win32"))
+                Err(HostError::Unsupported("editor for this window system"))
             }
         }
     }
@@ -345,6 +358,8 @@ impl MainThread for ClapMain {
 
     fn idle(&mut self) -> Vec<Notice> {
         super::instance::collect_garbage();
+        #[cfg(unix)]
+        self.serve_run_loop();
         let mut notices = Vec::new();
         // Everything is taken but a flush request, which `flush` serves (the host calls it
         // every frame).
@@ -501,5 +516,37 @@ impl MainThread for ClapMain {
 impl Drop for ClapMain {
     fn drop(&mut self) {
         self.close_editor();
+    }
+}
+
+#[cfg(unix)]
+impl ClapMain {
+    /// The plug-in's timers that are due and descriptors that are ready, called back
+    /// (`timer-support`, `posix-fd-support`; ADR 0065). The run loop is not locked while
+    /// the plug-in runs: it may register and unregister from inside its callback.
+    fn serve_run_loop(&mut self) {
+        let plugin = self.plugin();
+        let (timers, fds) = {
+            let host = self.inst().host();
+            let mut l = host.run_loop.lock().unwrap_or_else(|e| e.into_inner());
+            if l.is_empty() {
+                return;
+            }
+            (l.due(std::time::Instant::now()), l.ready())
+        };
+        let ext = &self.inst().ext;
+        // SAFETY: the plug-in's own extensions, on the main thread.
+        unsafe {
+            if let Some(on_timer) = ext.timer_support.as_ref().and_then(|t| t.on_timer) {
+                for (id, ()) in timers {
+                    on_timer(plugin, id);
+                }
+            }
+            if let Some(on_fd) = ext.posix_fd_support.as_ref().and_then(|f| f.on_fd) {
+                for (fd, flags, ()) in fds {
+                    on_fd(plugin, fd, flags);
+                }
+            }
+        }
     }
 }

@@ -25,6 +25,25 @@ fn enumeration_never_panics() {
     }
 }
 
+/// Linux (ADR 0065): PipeWire's native API, then JACK, then ALSA, then anything else; the
+/// list of drivers follows that order after the default. Elsewhere the rank is flat.
+#[test]
+fn linux_drivers_rank_pipewire_then_jack_then_alsa() {
+    let rank = |n: &str| devices::preference(n);
+    if cfg!(target_os = "linux") {
+        assert!(rank("PipeWire") < rank("JACK"));
+        assert!(rank("JACK") < rank("ALSA"));
+        assert!(rank("ALSA") < rank("PulseAudio"));
+        let drivers = devices::drivers();
+        let ranks: Vec<u8> = drivers.iter().skip(1).map(|d| rank(&d.name)).collect();
+        assert!(ranks.windows(2).all(|w| w[0] <= w[1]), "{drivers:?}");
+        // ALSA is always there, whatever else is running.
+        assert!(drivers.iter().any(|d| d.name == "ALSA"), "{drivers:?}");
+    } else {
+        assert_eq!(rank("WASAPI"), rank("ASIO"));
+    }
+}
+
 #[test]
 fn integer_formats_convert_exactly() {
     // i16: scaled by 1/32768, the ends and the middle land exactly.
@@ -310,6 +329,17 @@ fn live_streams_report_their_latencies() {
     println!(
         "callbacks (in, out) after 0.8 s: {:?}",
         h.device_callbacks()
+    );
+    // What the device page says of the threads' priority (ADR 0065).
+    let report = cantus_rt::thread::priority_report();
+    println!(
+        "real time: callback {} · workers {} of {}: {:?}",
+        report
+            .callback
+            .map_or_else(|| "not yet".to_string(), |p| p.to_string()),
+        report.realtime_workers(),
+        report.workers.len(),
+        report.workers.first().map(ToString::to_string),
     );
     assert!(h.device_callbacks().1 > 0, "the output runs");
     assert!(l.output > 0, "the output reports a latency");

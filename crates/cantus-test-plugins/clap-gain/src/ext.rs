@@ -29,6 +29,10 @@ pub unsafe extern "C" fn get_extension(
         return std::ptr::null();
     }
     let id = CStr::from_ptr(id);
+    #[cfg(target_os = "linux")]
+    if let Some(ext) = crate::x11gui::extension(id) {
+        return ext;
+    }
     if id == CLAP_EXT_PARAMS {
         (&PARAMS_EXT as *const clap_plugin_params).cast()
     } else if id == CLAP_EXT_STATE {

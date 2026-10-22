@@ -51,9 +51,7 @@ impl MainHalf {
         info: PluginInfo,
         from_audio: rtrb::Consumer<(ParamID, f64)>,
     ) -> MainHalf {
-        let frame = ComWrapper::new(PlugFrame {
-            requests: inst.requests.clone(),
-        });
+        let frame = ComWrapper::new(PlugFrame::new(inst.requests.clone()));
         let mut m = MainHalf {
             inst,
             info,
@@ -355,6 +353,8 @@ impl MainThread for MainHalf {
     }
 
     fn idle(&mut self) -> Vec<Notice> {
+        #[cfg(target_os = "linux")]
+        self.serve_run_loop();
         let mut notices = std::mem::take(&mut self.pending);
         self.inst.maps.collect();
         // The controller follows what the processor was told and what it reported.
@@ -456,3 +456,27 @@ pub fn load(
 
 /// Room for values going back to the controller between two `idle()` calls.
 const TO_UI_RING: usize = 4096;
+
+#[cfg(target_os = "linux")]
+impl MainHalf {
+    /// The editor's timers that are due and descriptors that are ready, called back
+    /// (`IRunLoop`, ADR 0065) with the run loop unlocked: a handler may unregister itself.
+    fn serve_run_loop(&mut self) {
+        let (timers, fds) = {
+            let mut l = super::host_objects::lock_run_loop(&self.frame);
+            if l.is_empty() {
+                return;
+            }
+            (l.due(std::time::Instant::now()), l.ready())
+        };
+        // SAFETY: the editor's own handlers, on the main thread, no lock held.
+        unsafe {
+            for (_, handler) in timers {
+                handler.call(-1);
+            }
+            for (fd, _, handler) in fds {
+                handler.call(fd);
+            }
+        }
+    }
+}

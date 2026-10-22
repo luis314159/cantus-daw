@@ -197,6 +197,28 @@ fn a_driver_owned_callback_is_left_alone() {
     .unwrap();
 }
 
+/// Linux (ADR 0065): a JACK or PipeWire callback thread their library left at normal
+/// priority — this test's thread is one — is promoted after all, or says why not; it is
+/// never reported as real-time while it is not.
+#[cfg(target_os = "linux")]
+#[test]
+fn a_linux_driver_thread_left_at_normal_priority_is_promoted() {
+    for host in [AudioHost::Jack, AudioHost::PipeWire] {
+        std::thread::spawn(move || {
+            let p = promote_callback(host, PERIOD);
+            println!("{host:?} callback: {p}");
+            assert!(!matches!(p, Promotion::LeftAsIs(_)), "{p}");
+            match p {
+                Promotion::Granted(_) => assert!(p.is_realtime()),
+                Promotion::Refused(r) => assert!(!r.step.is_empty() && !p.is_realtime()),
+                Promotion::LeftAsIs(_) => unreachable!(),
+            }
+        })
+        .join()
+        .unwrap();
+    }
+}
+
 /// The rule round 21 measured (docs/round21/rt.md §5): a spinning worker never enters a
 /// throttled real-time class; a bounded one does. Both revert on drop.
 #[test]
@@ -303,4 +325,42 @@ fn a_prefaulted_slab_is_locked_or_says_why() {
     drop(l);
     slab[12345] = 1.0;
     assert_eq!(slab[12345], 1.0);
+}
+
+/// The device page's report (ADR 0065): the callback's answer, and each live worker's —
+/// gone when its promotion is dropped.
+#[test]
+fn the_priority_report_follows_the_threads() {
+    use cantus_rt::thread::{
+        priority_report, promote_worker, worker_promotion_of, Waiting, WorkerRole,
+    };
+    std::thread::spawn(|| {
+        let p = promote_callback(AudioHost::Alsa, PERIOD);
+        // Another test's callback may have come since: the report holds one of them.
+        assert!(priority_report().callback.is_some(), "{p}");
+    })
+    .join()
+    .unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    let (done_tx, done_rx) = std::sync::mpsc::channel::<()>();
+    let worker = std::thread::spawn(move || {
+        let w = promote_worker(
+            WorkerRole::Live,
+            PERIOD,
+            Waiting::Bounded { busy_share: 0.5 },
+        );
+        tx.send((std::thread::current().id(), w.promotion)).unwrap();
+        done_rx.recv().unwrap();
+        drop(w);
+    });
+    let (id, promotion) = rx.recv().unwrap();
+    assert_eq!(worker_promotion_of(id), Some(promotion));
+    assert!(priority_report().workers.contains(&promotion));
+    done_tx.send(()).unwrap();
+    worker.join().unwrap();
+    assert_eq!(
+        worker_promotion_of(id),
+        None,
+        "a worker gone is off the report"
+    );
 }

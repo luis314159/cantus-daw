@@ -19,7 +19,15 @@ Windows 10/11 x64 is the platform Cantus ships on; Linux and macOS build for dev
 | NSIS 3 *(packaging only)* | the installer | `nsis-3.11.zip` from SourceForge, SHA-256 `c7d27f780ddb6cffb4730138cd1591e841f4b7edb155856901cdf5f214394fa1`, unzipped into `%LOCALAPPDATA%\cantus-build-tools\nsis-3.11\` (or set `CANTUS_MAKENSIS`). |
 | signtool *(signing only)* | Authenticode | comes with the Windows SDK above. |
 
-Linux also needs `libasound2-dev`, `libxkbcommon-dev` and `libwayland-dev`.
+**Linux** (Ubuntu 22.04 or 24.04; ADR 0065): `bash packaging/linux/deps.sh` installs what
+the build needs with apt — ALSA, PipeWire's headers (`libpipewire-0.3-dev`,
+`libspa-0.2-dev`), clang and `libclang-dev` (bindgen makes the
+PipeWire bindings), D-Bus, xkbcommon, Wayland, Xvfb (the plug-in window tests need an X
+server: `xvfb-run -a cargo test`) and squashfs-tools (the AppImage). On 22.04, whose
+PipeWire is 0.3.48, it also unpacks PipeWire 1.0.5's headers into
+`target/pipewire-headers` and prints the `PKG_CONFIG_PATH` to export. Other distributions:
+the same packages by their names. JACK needs nothing: it is opened at run time
+(`third_party/jack-sys` builds without its pkg-config file).
 
 ## 2. Clone and fetch the ASIO SDK
 
@@ -104,9 +112,22 @@ wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh 
 ```
 
 `fetch-deps.sh` installs rustup and unpacks the `-dev` packages (ALSA, D-Bus, OpenSSL,
-Wayland, xkbcommon, pkg-config) into `~/linux-deps/root`; `check.sh` clones the main
+Wayland, xkbcommon, pkg-config, PipeWire, libclang) into `~/linux-deps/root`, and a
+PipeWire daemon, WirePlumber and jackd2 into `~/linux-deps/rt`; `check.sh` clones the main
 repository into `~/cantus-ci`, checks out the branch and runs clippy or the tests with CI's
-flags.
+flags. WSLg is an X server (and a Wayland one), so the plug-in window tests run there.
+
+To open Cantus's PipeWire and JACK hosts in WSL (there is no sound card: a null sink and
+source, or JACK's dummy driver, run on a timer):
+
+```text
+wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh <branch> test'
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh pipewire'   # or: jack
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh run env \
+  CANTUS_TEST_DRIVER=PipeWire CANTUS_TEST_BUFFER=128 \
+  cargo test -p cantus-engine --test devices -- --ignored live_streams --nocapture'
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh stop'
+```
 
 ### macOS, from Windows (what the macOS runner compiles)
 
@@ -188,6 +209,26 @@ the environment (`APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_TEAM_ID`
 hardened runtime (`Cantus.entitlements`), notarises the app and the image and staples
 both; without them it signs ad hoc. `CANTUS_DMG_NO_BUILD=1` reuses the binaries already
 built. `docs/mac-session.md` is the checklist for a session on a real Mac.
+
+### Linux: the AppImage and the Flatpak
+
+```text
+bash packaging/linux/deps.sh                       # once (sudo; Ubuntu 22.04 for releases)
+cargo build --release
+bash packaging/linux/build-appimage.sh 0.2.0 target/dist
+bash packaging/linux/test-fallback.sh target/dist/Cantus-0.2.0-linux-x86_64.AppImage
+```
+
+`build-appimage.sh` (the interface `release.yml` calls, round 30) builds the two levels
+(`target/cpu-x86-64-v{2,3}`) and the plug-in bundles, lays out `target/appimage/Cantus.AppDir`
+(the launcher as `cantus`, both programs, `cantus-scan`, `cantus-sandbox`, the plug-ins,
+the `.desktop` file, icons, AppStream metadata, the `.cantus` MIME type, the licence and
+notices, and the libpipewire stand-in), and joins the pinned AppImage runtime (type 2,
+no FUSE 2 needed) to a zstd squashfs of it. `CANTUS_APPIMAGE_QUICK=1` packs the
+`target/release` program alone. The AppImage must be built on the oldest system it
+supports (Ubuntu 22.04, glibc 2.35). `packaging/linux/README.md` says why each piece is
+there; `packaging/linux/flatpak/` holds the Flatpak manifest (its header says how to build
+it; Flathub's submission is the owner's).
 
 ## What lives outside the clone
 

@@ -42,18 +42,67 @@ pub struct InputDeviceInfo {
     pub is_default: bool,
 }
 
-/// Driver types available on this machine. The default comes first.
+/// Driver types available on this machine, the best first: the default (on Windows the
+/// system's, WASAPI; on Linux the first of PipeWire, JACK and ALSA that is running —
+/// ADR 0065), then the others in that order. A JACK whose server is not running (or whose
+/// library is not installed) is not offered: cpal's JACK host would have no devices.
 pub fn drivers() -> Vec<DriverInfo> {
-    let default = cpal::default_host().id();
-    let mut v: Vec<DriverInfo> = cpal::available_hosts()
-        .into_iter()
-        .map(|id| DriverInfo {
+    let default = default_id();
+    let mut v: Vec<DriverInfo> = hosts()
+        .iter()
+        .filter(|(id, h)| usable(*id, h))
+        .map(|(id, _)| DriverInfo {
             name: id.name().to_string(),
-            is_default: id == default,
+            is_default: Some(*id) == default,
         })
         .collect();
-    v.sort_by_key(|d| !d.is_default);
+    v.sort_by_key(|d| (!d.is_default, preference(&d.name)));
     v
+}
+
+/// Where a driver type ranks among Linux's (ADR 0065): PipeWire's native API, then JACK,
+/// then ALSA (always there, the fallback), then anything else. Elsewhere every host ranks
+/// the same and the order stays cpal's.
+pub fn preference(name: &str) -> u8 {
+    if !cfg!(target_os = "linux") {
+        return 0;
+    }
+    match name.to_ascii_lowercase().as_str() {
+        "pipewire" => 0,
+        "jack" => 1,
+        "alsa" => 2,
+        _ => 3,
+    }
+}
+
+/// Whether a host can be opened now. JACK's always says it is available (its library is
+/// opened at run time): it counts only with a device, which needs a running server.
+fn usable(id: cpal::HostId, host: &cpal::Host) -> bool {
+    if !id.name().eq_ignore_ascii_case("JACK") {
+        return true;
+    }
+    host.devices()
+        .map(|mut d| d.next().is_some())
+        .unwrap_or(false)
+}
+
+/// The default driver type, worked out once: on Linux the best usable host by
+/// [`preference`]; elsewhere cpal's default. cpal's `default_host()` builds a new host each
+/// call (PipeWire's enumerates the graph), so it is asked at most once.
+fn default_id() -> Option<cpal::HostId> {
+    static DEFAULT: std::sync::OnceLock<Option<cpal::HostId>> = std::sync::OnceLock::new();
+    *DEFAULT.get_or_init(|| {
+        let hosts = hosts();
+        if cfg!(target_os = "linux") {
+            return hosts
+                .iter()
+                .filter(|(id, h)| usable(*id, h))
+                .min_by_key(|(id, _)| preference(id.name()))
+                .map(|(id, _)| *id);
+        }
+        let id = cpal::default_host().id();
+        hosts.iter().any(|(h, _)| *h == id).then_some(id)
+    })
 }
 
 /// Every host this machine offers, made once for the life of the process. ASIO allows one
@@ -81,14 +130,14 @@ fn hosts() -> &'static [(cpal::HostId, cpal::Host)] {
 /// `None`, unknown, or not available on this machine (built without it, say).
 pub(crate) fn host(driver: Option<&str>) -> &'static cpal::Host {
     let hosts = hosts();
-    let default = cpal::default_host().id();
+    let default = default_id();
     driver
         .and_then(|name| {
             hosts
                 .iter()
                 .find(|(id, _)| id.name().eq_ignore_ascii_case(name))
         })
-        .or_else(|| hosts.iter().find(|(id, _)| *id == default))
+        .or_else(|| hosts.iter().find(|(id, _)| Some(*id) == default))
         .or(hosts.first())
         .map(|(_, h)| h)
         .unwrap_or_else(|| {

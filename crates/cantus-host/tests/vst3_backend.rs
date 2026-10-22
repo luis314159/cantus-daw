@@ -193,7 +193,6 @@ impl Probe {
     }
 
     /// (parent window, width, height) of the newest editor.
-    #[cfg_attr(not(windows), allow(dead_code))]
     fn editor(&self) -> (usize, i32, i32) {
         let f =
             self.call::<unsafe extern "C" fn(*mut i32, *mut i32) -> usize>(b"cantus_test_editor\0");
@@ -981,6 +980,69 @@ fn the_editor_attaches_resizes_and_detaches() {
 
     main.close_editor();
     assert_eq!(probe.editor().0, 0, "removed");
+    drop((main, audio));
+}
+
+/// Linux (ADR 0065): the view attaches to an X11 window id, and the editor's timer and
+/// descriptor on the host's `IRunLoop` (asked of the frame) are served by `idle`, and
+/// unregistered when the view is removed.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_editor_attaches_to_x11_and_runs_on_the_hosts_run_loop() {
+    use raw_window_handle::{RawWindowHandle, XlibWindowHandle};
+
+    let _g = serial();
+    let probe = Probe::new();
+    let run_loop = |p: &Probe| -> (i32, i32, i32) {
+        let f =
+            p.call::<unsafe extern "C" fn(*mut i32, *mut i32) -> i32>(b"cantus_test_run_loop\0");
+        let (mut ticks, mut events) = (0, 0);
+        // SAFETY: the test plug-in's export, with live out-pointers.
+        let registered = unsafe { f(&mut ticks, &mut events) };
+        (registered, ticks, events)
+    };
+    let Loaded { mut main, audio } = load(GAIN_ID);
+    assert!(main.has_editor());
+    let (before, ticks0, events0) = run_loop(&probe);
+    // The test view never touches its parent, so any window id stands for one.
+    let parent = RawWindowHandle::Xlib(XlibWindowHandle::new(0x5150));
+    let size = main.open_editor(parent).expect("open");
+    assert_eq!((size.width, size.height), (400, 300));
+    assert_eq!(
+        probe.editor(),
+        (0x5150, 400, 300),
+        "attached to the X11 window"
+    );
+    assert_eq!(
+        run_loop(&probe).0,
+        before + 1,
+        "registered on the frame's run loop"
+    );
+    let started = std::time::Instant::now();
+    while started.elapsed() < std::time::Duration::from_millis(400) {
+        main.idle();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let (_, ticks, events) = run_loop(&probe);
+    assert!(
+        ticks - ticks0 >= 5,
+        "its 20 ms timer ran from idle: {}",
+        ticks - ticks0
+    );
+    assert_eq!(
+        events - events0,
+        1,
+        "its descriptor was served once (one byte)"
+    );
+    main.close_editor();
+    assert_eq!(probe.editor().0, 0, "removed");
+    assert_eq!(run_loop(&probe).0, before, "unregistered");
+    let (_, after, _) = run_loop(&probe);
+    for _ in 0..10 {
+        main.idle();
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(run_loop(&probe).1, after, "no timer after removal");
     drop((main, audio));
 }
 

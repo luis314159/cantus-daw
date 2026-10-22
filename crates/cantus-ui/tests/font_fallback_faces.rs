@@ -70,3 +70,31 @@ fn a_face_read_once_serves_later_characters_and_appears_once() {
     assert!(!font_fallback::resolve_among(only_icons, &order));
     assert_eq!(font_fallback::faces_read().len(), 2);
 }
+
+/// Linux (ADR 0065): fontconfig's answers (`fc-list -f '%{file}|%{index}'`) read
+/// as faces — the file and the face in a collection, each once, in order; junk skipped.
+#[cfg(unix)]
+#[test]
+fn fontconfig_lines_read_as_faces() {
+    let text = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc|2\n\
+                /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc|2\n\
+                /usr/share/fonts/wqy/wqy-microhei.ttc|0\n\
+                relative.ttf|0\n\
+                garbage\n";
+    let faces = font_fallback::parse_fontconfig(text, "ja");
+    let got: Vec<(String, u32)> = faces
+        .iter()
+        .map(|f| (f.path.display().to_string(), f.index))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc".into(),
+                2
+            ),
+            ("/usr/share/fonts/wqy/wqy-microhei.ttc".into(), 0),
+        ]
+    );
+    assert!(faces[0].key.starts_with("fontconfig:ja:"));
+}

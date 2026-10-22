@@ -88,3 +88,8 @@ png = "0.18"
 # already in the tree through cantus-host.
 [target.'cfg(windows)'.dev-dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# Cantus's window as an X11 one on Linux (`linux_desktop.rs`, ADR 0065): winit's X11
+# event loop, asked for through eframe's builder hook. Already in the tree through eframe.
+winit = { version = "0.30", default-features = false, features = ["x11"] }

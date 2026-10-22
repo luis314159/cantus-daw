@@ -11,8 +11,8 @@
 //!
 //! The crates are the dependency closure (normal and build dependencies, never dev ones)
 //! of the two things a release carries, the `cantus` program and the `cantus-plugins`
-//! library, for the one target released (Windows x64), as `cargo metadata` resolves
-//! them from `Cargo.lock`. The texts are the licence files inside each crate as published
+//! library, for every target released (Windows x64, Linux x86-64 and macOS on both
+//! architectures since round 30), as `cargo metadata` resolves them from `Cargo.lock`. The texts are the licence files inside each crate as published
 //! on crates.io (read from cargo's registry cache, where `cargo metadata` puts them). The
 //! hand-written part is `xtask/notices/head.md`; the standard texts a crate declares but
 //! does not ship are in `xtask/notices/` (and the root's `LICENSE-APACHE`).
@@ -27,8 +27,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub const FILE: &str = "THIRD-PARTY-NOTICES.md";
-/// The one target a release is built for (ADR 0032: one Windows edition).
-pub const TARGET: &str = "x86_64-pc-windows-msvc";
+/// The targets releases are built for: Windows (ADR 0032), Linux and macOS (round 30, ADR
+/// 0065 and 0066). The notices name the union: one file serves every installer.
+pub const TARGETS: &[&str] = &[
+    "x86_64-pc-windows-msvc",
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+];
 /// What a release ships: the program, the plug-in sandbox it starts beside itself
 /// (round 29, ADR 0063), and the exported plug-ins.
 pub const ROOTS: &[&str] = &["cantus", "cantus-sandbox", "cantus-plugins"];
@@ -48,13 +54,32 @@ pub struct Crate {
     pub build_only: bool,
 }
 
-/// `cargo metadata` for the released target, from `Cargo.lock` as it is.
-pub fn metadata(workspace: &Path) -> Result<Value, String> {
+/// The registry crates every released target ships ([`TARGETS`]), merged: a crate inside
+/// the program on any target is not build-only.
+pub fn shipped_everywhere(workspace: &Path) -> Result<Vec<Crate>, String> {
+    let mut all: Vec<Crate> = Vec::new();
+    for target in TARGETS {
+        for c in shipped(&metadata(workspace, target)?) {
+            match all
+                .iter_mut()
+                .find(|a| a.name == c.name && a.version == c.version)
+            {
+                Some(a) => a.build_only &= c.build_only,
+                None => all.push(c),
+            }
+        }
+    }
+    all.sort_by(|a, b| (&a.name, &a.version).cmp(&(&b.name, &b.version)));
+    Ok(all)
+}
+
+/// `cargo metadata` for one released target, from `Cargo.lock` as it is.
+pub fn metadata(workspace: &Path, target: &str) -> Result<Value, String> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".into());
     let out = Command::new(cargo)
         .current_dir(workspace)
         .args(["metadata", "--format-version", "1", "--locked"])
-        .args(["--filter-platform", TARGET])
+        .args(["--filter-platform", target])
         .output()
         .map_err(|e| format!("cargo metadata: {e}"))?;
     if !out.status.success() {
@@ -259,11 +284,10 @@ pub fn problems(text: &str, crates: &[Crate], manifest: &Manifest, expected: &st
 
 pub fn command(args: &[String]) {
     let ws = crate::workspace();
-    let meta = metadata(&ws).unwrap_or_else(|e| {
+    let crates = shipped_everywhere(&ws).unwrap_or_else(|e| {
         eprintln!("{e}");
         std::process::exit(1)
     });
-    let crates = shipped(&meta);
     let manifest = Manifest::bundled();
     let expected = crate::notices_render::render(&ws, &crates, &manifest);
     let path = ws.join(FILE);

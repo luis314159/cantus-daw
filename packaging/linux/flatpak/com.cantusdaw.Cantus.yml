@@ -1,0 +1,73 @@
+# Cantus as a Flatpak (ADR 0065). Build from the repository root:
+#
+#   python3 flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
+#   flatpak-builder --user --install-deps-from=flathub --force-clean \
+#       target/flatpak packaging/linux/flatpak/com.cantusdaw.Cantus.yml
+#
+# (flatpak-cargo-generator.py: github.com/flatpak/flatpak-builder-tools, cargo/.) For
+# Flathub the `dir` source becomes the tagged release (`type: git`, `tag`, `commit`) —
+# the submission is the owner's (docs/round30/linux.md).
+app-id: com.cantusdaw.Cantus
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.llvm18
+command: cantus
+finish-args:
+  # Cantus's window and the plug-ins' editors are X11 windows (XWayland on Wayland): an
+  # editor can only embed into one.
+  - --socket=x11
+  - --share=ipc
+  - --device=dri
+  # Audio: PipeWire (its socket), PulseAudio's for ALSA through it, JACK through PipeWire.
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0
+  # MIDI controllers and audio interfaces opened directly (ALSA).
+  - --device=all
+  # Real-time priority through rtkit.
+  - --system-talk-name=org.freedesktop.RealtimeKit1
+  # Sample packs and sounds download on demand (ADR 0030).
+  - --share=network
+  # Projects, samples and recordings where the user keeps them; plug-ins in ~/.clap and
+  # ~/.vst3.
+  - --filesystem=home
+  # Plug-ins from Flathub's Linux audio extensions.
+  - --env=CLAP_PATH=/app/extensions/Plugins/clap
+  - --env=VST3_PATH=/app/extensions/Plugins/vst3
+add-extensions:
+  org.freedesktop.LinuxAudio.Plugins:
+    directory: extensions/Plugins
+    version: '24.08'
+    add-ld-path: lib
+    merge-dirs: clap;vst3;lv2;ladspa
+    subdirectories: true
+    no-autodownload: true
+modules:
+  - name: cantus
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm18/bin
+      env:
+        CARGO_HOME: /run/build/cantus/cargo
+        CARGO_NET_OFFLINE: 'true'
+        LIBCLANG_PATH: /usr/lib/sdk/llvm18/lib
+    build-commands:
+      - cargo --offline build --release -p cantus -p cantus-host -p cantus-sandbox --bins
+      - install -Dm755 target/release/cantus /app/bin/cantus
+      - install -Dm755 target/release/cantus-scan /app/bin/cantus-scan
+      - install -Dm755 target/release/cantus-sandbox /app/bin/cantus-sandbox
+      - install -Dm644 packaging/linux/com.cantusdaw.Cantus.desktop /app/share/applications/com.cantusdaw.Cantus.desktop
+      - sed "s/@VERSION@/$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)/; s/@DATE@/$(date -u +%Y-%m-%d)/" packaging/linux/com.cantusdaw.Cantus.metainfo.xml > com.cantusdaw.Cantus.metainfo.xml
+      - install -Dm644 com.cantusdaw.Cantus.metainfo.xml /app/share/metainfo/com.cantusdaw.Cantus.metainfo.xml
+      - install -Dm644 packaging/linux/com.cantusdaw.Cantus.mime.xml /app/share/mime/packages/com.cantusdaw.Cantus.xml
+      - mkdir -p /app/share/icons && cp -r "$(ls -dt target/release/build/cantus-*/out/hicolor | head -1)" /app/share/icons/
+      - mkdir -p /app/extensions/Plugins
+    sources:
+      - type: dir
+        path: ../../..
+        skip:
+          - target
+          - .cargo
+      - cargo-sources.json

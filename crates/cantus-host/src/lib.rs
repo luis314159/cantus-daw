@@ -28,6 +28,8 @@ pub mod bundle;
 pub mod clap;
 pub mod db;
 pub mod inst_unit;
+#[cfg(unix)]
+pub mod runloop;
 pub mod scan;
 pub mod session;
 pub mod unit;

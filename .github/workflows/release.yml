@@ -179,10 +179,11 @@ jobs:
         shell: bash
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@v2
-      # Every package ci.yml's Linux job installs (an xtask test keeps this line a
-      # superset of that one), and FUSE 2, which the AppImage tools run with.
+      # The packages ci.yml's Linux job installs, by the same script (an xtask test keeps
+      # them one): on 22.04 it also points pkg-config at PipeWire 1.0.5's headers over the
+      # system's 0.3.48 library (ADR 0065). No FUSE 2: the AppImage runtime is static.
       - name: Linux audio/window deps
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev libpipewire-0.3-dev libjack-jackd2-dev libclang-dev libfuse2
+        run: bash packaging/linux/deps.sh
       - name: The tag is the workspace's version
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

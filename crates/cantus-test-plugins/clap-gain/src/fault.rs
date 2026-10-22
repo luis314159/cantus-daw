@@ -504,7 +504,7 @@ pub fn pump(long: std::time::Duration) {
 }
 
 #[cfg(not(windows))]
-fn pump(long: std::time::Duration) {
+pub fn pump(long: std::time::Duration) {
     std::thread::sleep(long);
 }
 

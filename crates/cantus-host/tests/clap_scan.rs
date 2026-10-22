@@ -27,7 +27,11 @@ fn the_scan_finds_the_plugin_and_the_database_caches_it() {
     assert_eq!(info.kind, PluginKind::Effect);
     assert_eq!((info.main_inputs, info.main_outputs), (2, 2));
     assert!(info.sidechain, "the second input port is the sidechain");
-    assert_eq!(info.editor, cfg!(windows), "a Win32 editor, on Windows");
+    assert_eq!(
+        info.editor,
+        cfg!(any(windows, target_os = "linux")),
+        "an editor: Win32 on Windows, X11 on Linux (ADR 0065)"
+    );
     assert!(info.features.iter().any(|f| f == "audio-effect"));
     assert_eq!(host.db.effects().len(), 1);
 

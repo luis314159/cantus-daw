@@ -593,6 +593,14 @@ impl PluginHost {
         self.slots.get(&effect)
     }
 
+    /// Whether any plug-in's editor window is open (an insert's or an instrument's). On
+    /// Linux the frame loop then keeps a steady pace: the editors' timers and descriptors
+    /// are served from it (`runloop.rs`, ADR 0065).
+    pub fn any_window_open(&self) -> bool {
+        self.slots.values().any(Hosted::window_open)
+            || self.instruments.values().any(|i| i.window_open())
+    }
+
     /// Why a hosted slot has no plug-in, if it has none.
     pub fn missing(&self, effect: EffectId) -> Option<&str> {
         self.missing.get(&effect).map(|m| m.error.as_str())

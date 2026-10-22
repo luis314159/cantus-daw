@@ -27,6 +27,9 @@ mod ext;
 mod fault;
 mod gui;
 mod plugin;
+#[cfg(target_os = "linux")]
+#[path = "../../clap-gain/src/x11gui.rs"]
+mod x11gui;
 
 use clap_sys::entry::clap_plugin_entry;
 use clap_sys::factory::plugin_factory::{clap_plugin_factory, CLAP_PLUGIN_FACTORY_ID};

@@ -81,31 +81,25 @@ fn every_system_s_stable_name_is_in_the_workflow_and_on_the_site() {
     assert!(wf.contains("bash packaging/macos/build-dmg.sh \"$version\" dist"));
 }
 
-/// The `apt-get install -y` packages on the first line of `yaml` that installs some.
-fn apt_packages(yaml: &str) -> Vec<String> {
-    let line = yaml
-        .lines()
-        .find(|l| l.contains("apt-get install -y"))
-        .expect("an apt-get install line");
-    line.split("apt-get install -y")
-        .nth(1)
-        .unwrap()
-        .split_whitespace()
-        .map(str::to_owned)
-        .collect()
-}
-
-/// The release's Linux job builds on the system packages CI tests with (ADR 0067): a
-/// package CI's Linux job gains is a package the release's job needs too.
+/// The release's Linux job builds on the system packages CI tests with (ADR 0067): both
+/// install them with the one script, `packaging/linux/deps.sh` (ADR 0065), which also
+/// points pkg-config at newer PipeWire headers on Ubuntu 22.04.
 #[test]
 fn the_release_s_linux_job_installs_every_package_ci_does() {
-    let ci = apt_packages(&read(".github/workflows/ci.yml"));
-    let rel = apt_packages(&read(".github/workflows/release.yml"));
-    for p in &ci {
+    for wf in [".github/workflows/ci.yml", ".github/workflows/release.yml"] {
         assert!(
-            rel.contains(p),
-            "release.yml's Linux job does not install {p}"
+            read(wf).contains("run: bash packaging/linux/deps.sh"),
+            "{wf}'s Linux job does not install through packaging/linux/deps.sh"
         );
+    }
+    let deps = read("packaging/linux/deps.sh");
+    for p in [
+        "libpipewire-0.3-dev",
+        "libclang-dev",
+        "libasound2-dev",
+        "squashfs-tools",
+    ] {
+        assert!(deps.contains(p), "deps.sh does not install {p}");
     }
 }
 

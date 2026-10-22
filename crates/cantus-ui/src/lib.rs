@@ -38,6 +38,8 @@ pub mod keymap;
 pub mod kit;
 pub mod layout;
 pub mod links;
+#[cfg(target_os = "linux")]
+pub mod linux_desktop;
 // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
 pub mod macos;
 pub mod perf_status;
@@ -158,9 +160,15 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
     if let Some(icon) = boot::icon(options.art.as_ref()) {
         viewport = viewport.with_icon(std::sync::Arc::new(icon));
     }
+    // An AppImage puts itself in the applications menu (ADR 0065).
+    #[cfg(target_os = "linux")]
+    linux_desktop::integrate_appimage();
     let native = eframe::NativeOptions {
         viewport,
         centered: true,
+        // Linux: an X11 window (XWayland on Wayland) so plug-in editors stay above it.
+        #[cfg(target_os = "linux")]
+        event_loop_builder: linux_desktop::event_loop_hook(),
         ..Default::default()
     };
     // macOS: listen for the projects Finder and the Dock ask to open (ADR 0066).

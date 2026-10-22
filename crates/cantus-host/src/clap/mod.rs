@@ -117,6 +117,8 @@ fn standard_folders() -> Vec<PathBuf> {
         out.push(PathBuf::from(home).join(".clap"));
     }
     out.push(PathBuf::from("/usr/lib/clap"));
+    // Where a plug-in built from source installs by default (`make install`'s prefix).
+    out.push(PathBuf::from("/usr/local/lib/clap"));
     out
 }
 
@@ -170,8 +172,8 @@ impl ClapBackend {
     }
 }
 
-/// Whether the plug-in offers an editor Cantus can show: embedded in a Win32 window, or
-/// floating.
+/// Whether the plug-in offers an editor Cantus can show: embedded in a Win32 window (on
+/// Windows) or an X11 one (on Linux, ADR 0065), or floating.
 fn editor_supported(inst: &Instance) -> bool {
     let Some(gui) = (unsafe { inst.ext.gui.as_ref() }) else {
         return false;
@@ -179,14 +181,16 @@ fn editor_supported(inst: &Instance) -> bool {
     let Some(supported) = gui.is_api_supported else {
         return false;
     };
-    // macOS: the `cocoa` API, into an NSWindow of ours (ADR 0066).
+    // macOS: the `cocoa` API, into an NSWindow of ours (ADR 0066); Linux: `x11` (ADR 0065).
     let api = if cfg!(target_os = "macos") {
         clap_sys::ext::gui::CLAP_WINDOW_API_COCOA.as_ptr()
-    } else {
+    } else if cfg!(windows) {
         clap_sys::ext::gui::CLAP_WINDOW_API_WIN32.as_ptr()
+    } else {
+        clap_sys::ext::gui::CLAP_WINDOW_API_X11.as_ptr()
     };
     // SAFETY: the gui extension, on the main thread.
-    (cfg!(windows) || cfg!(target_os = "macos"))
+    cfg!(any(windows, target_os = "linux", target_os = "macos"))
         && unsafe { supported(inst.plugin(), api, false) || supported(inst.plugin(), api, true) }
 }
 

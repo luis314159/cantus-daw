@@ -1,0 +1,6 @@
+# Ronda 30 (ADR 0065): la prioridad de tiempo real de los hilos de audio, en la página del
+# dispositivo (todos los sistemas; las palabras nombran lo que concedió el sistema).
+devices.realtime = Prioridad de tiempo real: hilo de audio {callback} · {workers}
+devices.realtime.workers = {n} de {of} hilos de trabajo en tiempo real
+devices.realtime.no_workers = sin hilos de trabajo
+devices.realtime.waiting = el hilo de audio aún no ha empezado

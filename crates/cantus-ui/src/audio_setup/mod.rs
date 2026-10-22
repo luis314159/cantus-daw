@@ -386,3 +386,34 @@ impl AudioSetup {
 
 mod apply;
 pub use apply::*;
+
+/// The audio threads' real-time priority as the device page says it (ADR 0065): what the
+/// callback got and how many pool workers run real-time — and whether it is a warning (the
+/// callback without real-time priority).
+pub fn realtime_note() -> (String, bool) {
+    use crate::i18n::{t, tf};
+    let report = cantus_rt::thread::priority_report();
+    let callback = match report.callback {
+        Some(p) => p.to_string(),
+        None => t("devices.realtime.waiting"),
+    };
+    let workers = if report.workers.is_empty() {
+        t("devices.realtime.no_workers")
+    } else {
+        tf(
+            "devices.realtime.workers",
+            &[
+                ("n", &report.realtime_workers()),
+                ("of", &report.workers.len()),
+            ],
+        )
+    };
+    let warn = report.callback.is_some_and(|p| !p.is_realtime());
+    (
+        tf(
+            "devices.realtime",
+            &[("callback", &callback), ("workers", &workers)],
+        ),
+        warn,
+    )
+}

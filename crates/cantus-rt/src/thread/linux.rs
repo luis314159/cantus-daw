@@ -44,6 +44,22 @@ fn current() -> Option<(i32, i32)> {
     (r == 0).then_some((policy, param.sched_priority))
 }
 
+/// Whether the calling thread runs a real-time policy now (`SCHED_FIFO` or `SCHED_RR`);
+/// `None` when it cannot be read.
+pub fn policy_now() -> Option<bool> {
+    current().map(|(policy, _)| policy == libc::SCHED_FIFO || policy == libc::SCHED_RR)
+}
+
+/// For a callback thread a driver's library made real-time: its policy, as the status line
+/// shows it ("driver-owned thread: SCHED_FIFO, left alone"); `None` when it is not real-time.
+pub fn realtime_policy_name() -> Option<&'static str> {
+    match current()?.0 {
+        libc::SCHED_FIFO => Some("driver-owned thread: SCHED_FIFO, left alone"),
+        libc::SCHED_RR => Some("driver-owned thread: SCHED_RR, left alone"),
+        _ => None,
+    }
+}
+
 fn set(policy: i32, priority: i32) -> i32 {
     // SAFETY: as above.
     let mut param: libc::sched_param = unsafe { std::mem::zeroed() };

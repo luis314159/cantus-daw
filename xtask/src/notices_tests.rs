@@ -111,7 +111,7 @@ fn a_crate_that_ships_no_licence_file_gets_the_standard_text() {
     assert!(out.contains("| bare | 1.0.0 | BSL-1.0 | declared only"));
     assert!(out.contains("Boost Software License - Version 1.0"));
     assert!(out.contains("- bare 1.0.0 — `BSL-1.0` — Copyright (c) A"));
-    let out = notices_render::render(&ws, &[fake("odd", "MIT OR Zlib")], &no_packs());
+    let out = notices_render::render(&ws, &[fake("odd", "MIT OR Unlicense")], &no_packs());
     assert!(
         out.contains(notices_render::MISSING),
         "a standard text we do not have is flagged"
@@ -122,20 +122,31 @@ fn a_crate_that_ships_no_licence_file_gets_the_standard_text() {
 #[test]
 fn the_notices_name_every_crate_a_release_ships() {
     let ws = crate::workspace();
-    let meta = notices::metadata(&ws).expect("cargo metadata");
-    let crates = notices::shipped(&meta);
+    let crates = notices::shipped_everywhere(&ws).expect("cargo metadata");
     assert!(
         crates.len() > 200,
         "the closure was found: {}",
         crates.len()
     );
+    // Linux's own (round 30, ADR 0065): the PipeWire and JACK hosts, the X11 windows.
+    for name in ["pipewire", "libspa", "jack", "x11rb", "alsa"] {
+        assert!(
+            crates.iter().any(|c| c.name == name && !c.build_only),
+            "{name}, shipped on Linux, is named"
+        );
+    }
     for name in ["egui", "libm", "ureq", "vst3", "clap-sys", "hound"] {
         assert!(crates.iter().any(|c| c.name == name), "{name} ships");
     }
     assert!(
-        crates
-            .iter()
-            .all(|c| c.name != "proptest" && c.name != "tempfile"),
+        crates.iter().all(|c| c.name != "proptest"),
+        "dev-dependencies do not ship"
+    );
+    // tempfile is a dev-dependency here, but macOS's TLS (native-tls) ships it: look at
+    // Windows alone for it.
+    let windows = notices::shipped(&notices::metadata(&ws, notices::TARGETS[0]).unwrap());
+    assert!(
+        windows.iter().all(|c| c.name != "tempfile"),
         "dev-dependencies do not ship"
     );
     assert!(
