@@ -1257,9 +1257,10 @@ hará el LFO en los dos ciclos siguientes, con un cabezal donde está ahora.
 **En otro DAW.** Las versiones CLAP y VST3 exportadas leen el tempo y la posición del
 anfitrión, así que un Tremor o un Fluctus al tempo siguen también la canción de ese DAW.
 
-**Tus plug-ins.** Cantus revisa las carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP`
-y `…\VST3`, `C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que añadas en *Ajustes
-▸ Plug-ins* (*Buscar plug-ins*, *Volver a leer todo*). Cada archivo se revisa en un
+**Tus plug-ins.** Al pulsar *Buscar plug-ins* (*Ajustes ▸ Plug-ins*), Cantus revisa las
+carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP` y `…\VST3`,
+`C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que hayas añadido ahí; no las
+revisa solo al iniciar, así que busca después de instalar un plug-in. Cada archivo se revisa en un
 proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
@@ -1273,9 +1274,12 @@ soportados: cuando un plug-in ofrece varios formatos, instala su versión CLAP o
 1. **Instálalo** con el instalador de su fabricante, descargado de la página del propio
    fabricante. Déjalo en la carpeta estándar que propone el instalador
    (`C:\Program Files\Common Files\VST3` o `…\CLAP`).
-2. **Deja que Cantus lo encuentre.** Cantus lee las carpetas estándar al iniciar. Para un
-   plug-in instalado con Cantus abierto, o en otra carpeta, abre *Ajustes ▸ Plug-ins*:
-   añade la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*) y pulsa *Buscar plug-ins*
+2. **Haz que Cantus lo encuentre — no lo busca solo.** Abre el menú **VER** (arriba a la
+   izquierda, junto al logo) ▸ *Ajustes…*, baja hasta la última sección de la ventana,
+   **PLUG-INS** (debajo de *Dispositivo de audio*, *MIDI*, *Apariencia*, *Guardado*, *Caché
+   de muestras* y *Actualizaciones*), y pulsa *Buscar plug-ins*: lee las carpetas estándar
+   (las búsquedas siguientes solo leen archivos nuevos o cambiados). Para un plug-in en otra
+   carpeta, añade antes la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*)
    (*Volver a leer todo* lee de nuevo todos los archivos, también los bloqueados). Lo que
    encontró aparece en *Encontrados*; un archivo que falló al leerse aparece en
    *Bloqueados*, con *Reintentar*.

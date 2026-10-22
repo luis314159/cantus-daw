@@ -56,6 +56,11 @@ pub fn show(app: &mut CantusApp, ctx: &egui::Context) {
         .constrain(true)
         .show(ctx, |ui| {
             let rect = Rect::from_min_size(ui.max_rect().min, size);
+            // The window claims what it paints: its contents sit in child UIs, which
+            // leave the window's own area empty, and egui hands the wheel only to the layer
+            // whose area is under the pointer (the owner, 2026-10-22: Settings would not
+            // scroll to its Plug-ins).
+            ui.expand_to_include_rect(rect);
             parts::panel(ui, rect, &s);
             let head = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * k));
             if super::workspace_settings::title(ui, head, &s, Glyph::Send, "devices.routing.title")

@@ -463,6 +463,11 @@ fn window(app: &mut CantusApp, ctx: &Context, status: &Status) {
         .constrain(true)
         .show(ctx, |ui| {
             let rect = ui.max_rect();
+            // The window claims what it paints: its contents sit in child UIs, which
+            // leave the window's own area empty, and egui hands the wheel only to the layer
+            // whose area is under the pointer (the owner, 2026-10-22: Settings would not
+            // scroll to its Plug-ins).
+            ui.expand_to_include_rect(rect);
             window_face(ui, rect, &s);
             let header = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 30.0 * s.k));
             let closed = title(ui, header, &s, Glyph::Loop, "update.title");

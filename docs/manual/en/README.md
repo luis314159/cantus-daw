@@ -1153,9 +1153,10 @@ with a playhead where it is now.
 **In another DAW.** The exported CLAP and VST3 versions read the host's tempo and position,
 so a synced Tremor or Fluctus follows that DAW's song too.
 
-**Your plug-ins.** Cantus scans the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP`
-and `…\VST3`, `C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you add
-in *Settings ▸ Plug-ins* (*Scan for plug-ins*, *Rescan everything*). Each file is scanned
+**Your plug-ins.** When you press *Scan for plug-ins* (*Settings ▸ Plug-ins*), Cantus reads
+the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`,
+`C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you added there; it
+does not look on its own when it starts, so scan after installing a plug-in. Each file is scanned
 in a separate process, so a plug-in that crashes while being scanned is blocked, not
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
@@ -1169,9 +1170,12 @@ offers several formats, install its CLAP or VST3 version.
 1. **Install it** with its maker's installer, downloaded from the maker's own site. Leave it
    in the standard folder the installer proposes (`C:\Program Files\Common Files\VST3` or
    `…\CLAP`).
-2. **Let Cantus find it.** Cantus reads the standard folders when it starts. For a plug-in
-   installed while Cantus is open, or in another folder, open *Settings ▸ Plug-ins*: add
-   the folder under *Folders* (*Browse…*, then *Add*) and press *Scan for plug-ins*
+2. **Let Cantus find it — it does not look on its own.** Open the **VIEW** menu (top left,
+   beside the logo) ▸ *Settings…*, scroll the window to its last section, **PLUG-INS**
+   (below *Audio device*, *MIDI*, *Appearance*, *Saving*, *Sample cache* and *Updates*), and
+   press *Scan for plug-ins*: it reads the standard folders (later scans read only new and
+   changed files). For a plug-in in another folder, first add the folder under *Folders*
+   (*Browse…*, then *Add*)
    (*Rescan everything* reads every file again, blocked ones included). What it found is
    listed under *Found*; a file that crashed while being read is listed under *Blocked*,
    with *Try again*.
