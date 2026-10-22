@@ -148,7 +148,12 @@ Text for the first, ready to paste:
 
 ## Round 30 (ADR 0065): Linux
 
-### cpal (`src/host/pipewire/stream.rs`)
+### cpal (`Cargo.toml`, `src/host/pipewire/stream.rs`)
+
+pipewire-rs is asked for 0.3.49's API instead of 0.3.53's: from 0.3.50 it reads the
+stream's time with `pw_stream_get_time_n`, absent from 0.3.48 (Ubuntu 22.04, which the
+release links against); with 0.3.49 it uses `pw_stream_get_time`, which every version has.
+cpal uses nothing newer.
 
 Cantus's Linux build is made on Ubuntu 22.04 (PipeWire 0.3.48) with PipeWire 1.0.5's
 headers, and runs on systems as old: `pw_buffer.requested` exists only from 0.3.49, and

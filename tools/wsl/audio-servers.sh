@@ -82,16 +82,17 @@ case "${1:-}" in
     ;;
   pipewire)
     config
-    nohup pipewire >"$XDG_RUNTIME_DIR/pipewire.log" 2>&1 &
+    # Their own sessions: WirePlumber quits on the SIGHUP of a closing shell, nohup or not.
+    setsid -f pipewire >"$XDG_RUNTIME_DIR/pipewire.log" 2>&1 </dev/null
     sleep 1
-    nohup wireplumber >"$XDG_RUNTIME_DIR/wireplumber.log" 2>&1 &
+    setsid -f wireplumber >"$XDG_RUNTIME_DIR/wireplumber.log" 2>&1 </dev/null
     sleep 2
     pw-cli info 0 | grep -E "version|name" | head -3
     wpctl status 2>/dev/null | sed -n '/Audio/,/Video/p' | head -20
     ;;
   jack)
-    nohup jackd --no-realtime -d dummy -r 48000 -p 256 -C 2 -P 2 \
-      >"$XDG_RUNTIME_DIR/jackd.log" 2>&1 &
+    setsid -f jackd --no-realtime -d dummy -r 48000 -p "${CANTUS_JACK_PERIOD:-256}" -C 2 -P 2 \
+      >"$XDG_RUNTIME_DIR/jackd.log" 2>&1 </dev/null
     sleep 2
     tail -3 "$XDG_RUNTIME_DIR/jackd.log"
     ;;

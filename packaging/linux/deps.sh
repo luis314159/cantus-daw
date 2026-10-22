@@ -5,7 +5,7 @@
 #   bash packaging/linux/deps.sh            # apt packages, and PipeWire headers if needed
 #
 # PipeWire: cpal's PipeWire host (bindgen over PipeWire's headers, so clang too) needs the
-# headers of PipeWire 0.3.53 or later. Ubuntu 22.04 has 0.3.48: there the headers of 1.0.5
+# headers of PipeWire 0.3.49 or later. Ubuntu 22.04 has 0.3.48: there the headers of 1.0.5
 # (Ubuntu 24.04's packages, pinned by SHA-256) are unpacked into target/pipewire-headers and
 # pkg-config is pointed at them, while the program still links against the system's own
 # libpipewire-0.3.so.0 — so a symbol 0.3.48 lacks fails the link, and the AppImage built on
@@ -24,7 +24,7 @@ sudo apt-get install -y -q \
 
 have=$(pkg-config --modversion libpipewire-0.3)
 newer() { [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$2" ]; }
-if newer "$have" "0.3.53"; then
+if newer "$have" "0.3.49"; then
   echo "PipeWire $have: its own headers serve"
   exit 0
 fi

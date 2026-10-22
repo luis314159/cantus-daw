@@ -230,7 +230,11 @@ version = "0.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd"))'.dependencies.pipewire]
 version = "0.10"
-features = ["v0_3_53"]
+# CANTUS PATCH: 0.3.49's API, not 0.3.53's. With 0.3.50 or later pipewire-rs reads the
+# stream's time with `pw_stream_get_time_n`, which Ubuntu 22.04's 0.3.48 does not have
+# (the release links against it); 0.3.49 keeps `pw_stream_get_time`, present in every
+# version, and `pw_buffer.requested`, which stream.rs reads only from 0.3.49+.
+features = ["v0_3_49"]
 optional = true
 
 [target.'cfg(any(target_os = "linux", target_os = "dragonfly", target_os = "freebsd", target_os = "netbsd"))'.dependencies.pulseaudio]

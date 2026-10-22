@@ -44,7 +44,7 @@ graph), so the default is worked out once.
     `packaging/linux/test-fallback.sh` proves it (CI forces the stand-in; WSL, which has no
     libpipewire, takes it by itself).
   - *The AppImage is built on Ubuntu 22.04 (glibc 2.35), whose PipeWire is 0.3.48*, older
-    than the headers cpal's host compiles against (0.3.53). `packaging/linux/deps.sh`
+    than the headers cpal's host compiles against (0.3.49: `pw_buffer.requested`). `packaging/linux/deps.sh`
     unpacks PipeWire 1.0.5's headers (Ubuntu 24.04's packages, SHA-256 pinned) and points
     pkg-config at them **with the system's 0.3.48 library** as the one linked: any symbol
     0.3.48 lacks fails the link, so the AppImage starts there. One field 0.3.48 does not
