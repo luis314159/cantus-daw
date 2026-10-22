@@ -124,9 +124,10 @@ fn trackpad_pinch_and_swipe_reach_the_views() {
             events,
             ..Default::default()
         };
-        let _ = ctx.run_ui(raw, |ui| {
+        let mut out = ctx.run_ui(raw, |ui| {
             got = Some(crate::views::clips_chrome::wheel(ui));
         });
+        out.textures_delta.clear();
         got.expect("a pass ran")
     };
     // egui folds a pass's input in at the start of the next: one pass to settle.
