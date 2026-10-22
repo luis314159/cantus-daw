@@ -41,7 +41,8 @@ macOS conventions of the interface.
 4. **The sandbox's helper** dies with Cantus through a kqueue `EVFILT_PROC`/`NOTE_EXIT`
    watch on its parent (a parent already gone ends it at once); crash blame reads the
    faulting pc from the signal's `mcontext` (stripped of pointer authentication on Apple
-   silicon) and the loaded images from dyld (`_dyld_*`, Mach-O segments) — what
+   silicon) and the loaded images from dyld (`_dyld_*`, each image's executable segments: its
+   `__TEXT`; `__LINKEDIT` and the shared cache's data overlap between images) — what
    `dl_iterate_phdr` gives on Linux.
 5. **Plug-ins**: `.clap` and `.vst3` bundles' binaries are `Contents/MacOS/<executable>`
    (the `Info.plist`'s, else the bundle's name, else the only file — `cantus_host::bundle`);
@@ -50,12 +51,15 @@ macOS conventions of the interface.
    (`cantus-host/src/window/cocoa.rs`): an `NSWindow` whose content view is the parent
    handed to CLAP's `cocoa` API or VST3's `NSView`; sizes are points (no `set_scale`, the
    gui extension's rule for logical-pixel APIs); a window with an owner floats above Cantus
-   and hides when Cantus is not active. In the sandbox the helper becomes a background
+   and hides when Cantus is not active — so *closed* is only what the window's delegate
+   hears (`windowWillClose:`, the close button or ⌘W), never "not visible", or every
+   editor would be destroyed on switching to another application. In the sandbox the helper becomes a background
    AppKit application (`Accessory`) whose main-loop wait dispatches AppKit's events, woken
    by an application-defined event a request posts. The test plug-ins get Cocoa editors.
    **AU hosting stays in BACKLOG §2** (and our effects as AU).
 6. **The interface**: a **macOS keymap preset** (Cantus's map with the system's chords left
-   alone — ⌘M minimises, so the metronome takes Logic's K; Redo only on ⌘⇧Z — and ⌘, for
+   alone — ⌘M minimises, so the metronome takes ⌘K, and Logic's K while the typing piano
+   is off; Redo only on ⌘⇧Z — and ⌘, for
    Settings, a new action in every preset), the default on a Mac; keymap file version 10
    fills ⌘, in where it is free. The **global menu bar** mirrors the app's menus with the
    keymap's own key equivalents (remapping a key moves it in the menu); its model is plain
@@ -69,7 +73,10 @@ macOS conventions of the interface.
 7. **The application** (`packaging/macos/`): `Info.plist` (`com.cantusdaw.Cantus`, macOS 11
    or later, high resolution, the microphone's reason in English and Spanish), the
    hardened runtime's entitlements (audio input, library validation off for third-party
-   plug-ins; no JIT, no unsigned executable memory), `Cantus.icns` rendered from the mark
+   plug-ins, and JIT and unsigned executable memory: a process's entitlements govern the
+   plug-ins it loads, and some compile code at run time or map writable and executable
+   memory for copy protection; no `DYLD_*` variables, which nothing needs and which would
+   let a library be injected), `Cantus.icns` rendered from the mark
    at build time (`cantus-app/icon.rs`, as the Windows `.ico`), and `build-dmg.sh <version>
    <out-dir>`: both architectures built and `lipo`ed, `cantus-scan` and `cantus-sandbox`
    beside the app in `Contents/MacOS`, signed with a Developer ID and notarised (the app,
@@ -87,9 +94,16 @@ macOS conventions of the interface.
 - What only a Mac in hand can prove is listed in `docs/mac-session.md`: duplex for ten
   minutes, a real plug-in's editor, the microphone prompt, the `.dmg` past Gatekeeper,
   an update, trackpad feel and Retina, CPU on Apple silicon.
-- Not yet: opening a `.cantus` by double-clicking it in Finder (an Apple Event winit does
-  not pass on; the bundle declares no document type until it does), AU hosting, signing
-  without the owner's Apple Developer account.
+- **Opening from Finder and the Dock** (added after the review): the bundle exports
+  `com.cantusdaw.project` (`.cantus`) and owns it as a document type. macOS sends the
+  files as an Apple Event (`kAEOpenDocuments`), which winit — the owner of the
+  application's delegate — does not pass on; `cantus-launch/src/macopen.rs` installs a
+  handler with `NSAppleEventManager` when `NSApplicationWillFinishLaunchingNotification`
+  arrives (Apple's documented moment: after AppKit's default handlers, before the launch's
+  own event is processed) and queues the paths. At start the queued project is the one to
+  open, as a command-line path is; later ones go through *Save changes?* as *Open* does
+  (`request_open_path`), and so does a `.cantus` dropped on the window.
+- Not yet: AU hosting, and signing without the owner's Apple Developer account.
 
 ## What the tests hold
 
@@ -105,7 +119,12 @@ macOS conventions of the interface.
 - `cantus-host`: bundle binaries (plist, name, only file); `tests/macos_folders.rs`: the
   standard folders and bundles as candidates; the VST3 backend's suite and the sandbox's
   run on macOS with the bundle laid out as `Contents/MacOS/<name>`.
-- `cantus-ui`: the macOS preset leaves the reserved chords free, has K, ⌘⇧Z and ⌘,, is
+- `cantus-host/tests/cocoa_window.rs` (macOS, on the main thread): a hidden window is not
+  closed, the close button closes it. `cantus-launch`: the open-documents queue (every
+  system); `tests/macos_bundle.rs`: `Info.plist`'s identity, minimum macOS, document
+  type, and the entitlements.
+- `cantus-ui`: the macOS preset leaves the reserved chords free, has ⌘K (the metronome
+  has a modified key in every preset), ⌘⇧Z and ⌘,, is
   the first-start map on a Mac and survives its file; a version-9 file gets ⌘,; the menu
   bar's model (six menus, translated labels, the keymap's keys, no duplicates, no bare
   letters), AppKit's key characters, the text edits' events, the trackpad's pinch and

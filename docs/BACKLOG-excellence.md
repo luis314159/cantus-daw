@@ -298,9 +298,9 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
       device, bundles and Cocoa editors (also in the sandbox), the macOS keymap preset and
       the global menu bar, `packaging/macos` with `build-dmg.sh`, `macos.yml` on every
       push and the null hashes' macOS leg. The Mac-in-hand checklist is
-      `docs/mac-session.md`. **Still to do:** AU hosting and our effects as AU; opening a
-      `.cantus` by double-clicking it in Finder (an Apple Event winit does not pass on, so
-      the bundle declares no document type yet).
+      `docs/mac-session.md`. A `.cantus` opens from Finder and the Dock (the
+      open-documents Apple Event, `cantus-launch/src/macopen.rs`). **Still to do:** AU
+      hosting and our effects as AU.
   - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of

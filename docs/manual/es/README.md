@@ -1506,7 +1506,7 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Ctrl+,` | Ajustes |
 
 **En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
-*macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `K` (⌘M
+*macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `Cmd+K` (o `K` con el teclado del ordenador apagado; ⌘M
 minimiza la ventana, como en toda aplicación de Mac) y rehacer es `Cmd+Shift+Z`. La barra
 de menús de arriba de la pantalla tiene los menús de Cantus con sus atajos, que siguen
 cualquier cambio que hagas aquí. En un trackpad, pellizca para hacer zoom en el tiempo de

@@ -3818,6 +3818,8 @@ impl CantusApp {
         let frame_start = Instant::now();
         // macOS: the global menu bar kept in step with the keymap, its picks run (ADR 0066).
         crate::macos::menu::serve(self, ctx);
+        // macOS: a project double-clicked in Finder or dropped on the Dock icon.
+        crate::macos::open::serve(self, ctx);
         self.engine.poll();
         // The playhead's wrap, before anything this frame is recorded (review 4, #17).
         self.note_playhead();

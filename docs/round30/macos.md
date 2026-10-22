@@ -15,7 +15,7 @@ owner's checklist for the borrowed one is `docs/mac-session.md` (Spanish).
 | Plug-ins | Bundle binaries (`Contents/MacOS`, `Info.plist`'s executable), CLAP bundles load, VST3 `bundleEntry(CFBundleRef)`/`bundleExit` (VST3 was refused on macOS before), `Plug-Ins` spelling | `cantus-host/src/bundle.rs`, `clap/library.rs`, `vst3/module.rs`, `vst3/mod.rs` |
 | | Editors in an `NSWindow` (CLAP `cocoa`, VST3 `NSView`; points, no `set_scale`; floats over Cantus) | `cantus-host/src/window/cocoa.rs`, `clap/main.rs`, `clap/mod.rs`, `vst3/main_thread.rs` |
 | | Test plug-ins: Cocoa editors (CLAP gain and synth), `bundleEntry`/`NSView` (VST3) | `cantus-test-plugins/**` |
-| Interface | macOS keymap preset (default on a Mac): ⌘M left to the system (metronome on K), Redo ⌘⇧Z only, new action *Settings* on ⌘, in every preset; keymap file **version 10**; Option shown for Alt on a Mac | `cantus-ui/src/keymap.rs` |
+| Interface | macOS keymap preset (default on a Mac): ⌘M left to the system (metronome on ⌘K, and K while the typing piano is off), Redo ⌘⇧Z only, new action *Settings* on ⌘, in every preset; keymap file **version 10**; Option shown for Alt on a Mac | `cantus-ui/src/keymap.rs` |
 | | Global menu bar: model in `cantus-ui/src/macos/menu.rs` (tested everywhere), AppKit in `cantus-launch/src/macmenu.rs` (`cantus-ui` stays `forbid(unsafe_code)`); keymap's keys as key equivalents; text edits handed to a focused field as egui events | `cantus-ui/src/macos/**`, `app.rs` (one call), `boot.rs` (`raw_input_hook`) |
 | | Data in `~/Library/Application Support/Cantus`; the manual from the bundle's `Resources` | `cantus-ui/src/app.rs`, `docs.rs` |
 | Packaging | `Info.plist` (`com.cantusdaw.Cantus`, macOS 11+, Retina, microphone reason), `InfoPlist.strings` EN/ES, hardened-runtime entitlements, `build-dmg.sh` (contract), `Cantus.icns` rendered from the mark by the app's build script | `packaging/macos/**`, `cantus-app/icon.rs`, `build.rs` |
@@ -63,6 +63,24 @@ New tests: `cantus-rt/tests/bell_shared.rs` (4), `cantus-rt` macOS unit tests (2
 - `xtask/src/null_hashes.rs`, `docs/manual/{en,es}/README.md` (paragraphs in chapters 2,
   10 and 12; ship owns chapter 1), `docs/DEVELOPING.md`, `docs/BACKLOG-excellence.md`.
 - No schema bump. Keymap version 9 → 10.
+
+## After the review (second pass)
+
+- **Open from Finder and the Dock**: `.cantus` declared and owned (`CFBundleDocumentTypes`,
+  `UTExportedTypeDeclarations`, the type's name in English and Spanish); the
+  open-documents Apple Event handled in `cantus-launch/src/macopen.rs` (installed on
+  `NSApplicationWillFinishLaunchingNotification`), its queue taken at start (as a
+  command-line path) and each frame (through *Save changes?*); a `.cantus` dropped on the
+  window opens the same way.
+- **Editors no longer die when Cantus is deactivated**: `closed()` is the window delegate's
+  `windowWillClose:`, not "not visible" (hidesOnDeactivate, ⌘H). Test:
+  `cantus-host/tests/cocoa_window.rs` (no harness: AppKit on the main thread).
+- **Entitlements**: JIT and unsigned executable memory added for plug-ins; no DYLD
+  variables. Test: `cantus-launch/tests/macos_bundle.rs`.
+- **Crash blame's image spans**: executable segments only (`__LINKEDIT` in the shared cache
+  overlapped and failed the images test on a Mac).
+- **Metronome on a Mac**: ⌘K (and K); every preset's metronome has a modified key (test).
+- `vst3_backend.rs` back to its CRLF line endings (the diff is the 14 real lines).
 
 ## Only the owner can do
 

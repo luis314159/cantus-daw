@@ -1,15 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!-- The hardened runtime's exceptions Cantus needs (ADR 0066), for the app, cantus-scan and
-     cantus-sandbox alike (all three load plug-ins):
+     cantus-sandbox alike. A process's entitlements also govern every library it loads, and
+     all three load third-party plug-ins:
      - audio input: recording (with NSMicrophoneUsageDescription, the system asks the user);
-     - library validation off: third-party plug-ins are signed by their makers, not by us.
-     No JIT and no unsigned executable memory: Cantus generates no code at run time. -->
+     - library validation off: plug-ins are signed by their makers, not by us;
+     - JIT and unsigned executable memory: Cantus generates no code, but plug-ins do —
+       script and modular engines that compile at run time, copy-protection schemes that map
+       writable and executable memory — and without these they crash or refuse to load.
+     Not granted: DYLD_* environment variables (nothing needs them; they would let anything
+     that sets the environment inject a library into Cantus). -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.device.audio-input</key>
 	<true/>
 	<key>com.apple.security.cs.disable-library-validation</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.cs.allow-unsigned-executable-memory</key>
 	<true/>
 </dict>
 </plist>

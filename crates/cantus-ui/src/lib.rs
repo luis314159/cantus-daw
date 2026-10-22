@@ -162,10 +162,16 @@ pub fn run(options: LaunchOptions) -> anyhow::Result<()> {
         centered: true,
         ..Default::default()
     };
+    // macOS: listen for the projects Finder and the Dock ask to open (ADR 0066).
+    cantus_launch::macopen::install();
     eframe::run_native(
         "Cantus",
         native,
         Box::new(move |cc| {
+            // One already asked for (a double-click that launched Cantus) is the project to
+            // open, as a path on the command line would be.
+            let mut options = options;
+            macos::open::at_launch(&mut options.project);
             let shell = boot::Shell::Booting(boot::Boot::new(cc, options).with_verse(verse));
             // The start-up benchmark's probe (round 20), only when asked for.
             Ok(match std::env::var_os(startup_probe::VAR) {
