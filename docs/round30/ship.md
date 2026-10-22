@@ -63,9 +63,10 @@ systems*; ADR 0067; a BACKLOG §2 line for the Mac's in-place update.
   AppImage replaced and kept and forgotten, a failed replacement changing nothing, the
   writable probe, the relaunch command; on Unix, the relaunch really waits for the old
   process).
-- `cargo test -p xtask ci_tests`: 6 pass (new: every system's stable name in the workflow
-  and on the site, and the scripts called by the contract; the release's Linux packages a
-  superset of CI's).
+- `cargo test -p xtask`: 36 pass (new: every system's stable name in the workflow and on
+  the site, and the scripts called by the contract; the release's Linux packages a
+  superset of CI's). `cargo test -p cantus-ui --lib -- i18n update`: pass (every English
+  key in Spanish, the `ship` area included).
 - `web`: `cargo test` (2 new), `trunk build --release`, and headless-Chrome shots of the
   card with a Linux user agent in both states (*Disponible* with *Descargar el AppImage*,
   and *Coming soon*), read.
@@ -73,8 +74,20 @@ systems*; ADR 0067; a BACKLOG §2 line for the Mac's in-place update.
   packaging and publish steps run locally with stub scripts outside the repository
   (versioned + stable names, one sorted sums file, extra files the script leaves kept out).
   `actionlint` is not installed. The workflows themselves run only on `cantus-daw`.
-- `cargo clippy --workspace --all-targets` with `-D warnings` on Windows; the Linux check
-  in WSL (`check.sh r30/ship clippy` and `test`).
+- `cargo clippy --workspace --all-targets` with `-D warnings` on Windows: clean. Linux
+  (WSL, the branch as committed): clippy clean (workspace, and the plug-ins without
+  editor). `check.sh` clones into one `~/cantus-ci` shared by all three builders, so a run
+  can mix two branches' sources (seen once: a test compiled against another branch's
+  `Config`); ship's Linux runs used a private clone (`~/cantus-ci-ship`). On Linux,
+  `cantus-update`: 17 unit (the relaunch really waits for the old process) + 19
+  integration pass. The workspace's Linux test run (sharing `~/cantus-ci/target` with the
+  other builders) showed doctests unable to find crates (the shared target being rebuilt
+  under them) and one failure of `tempo_review6_ui::one_kept_or_left_out_is_said_in_the_singular`,
+  which passes when run alone on the same commit (a pre-existing order dependence on the
+  interface language, not ship's code) — the integrator's full run is the word on it.
+- Shots: `shoot … update-ready-mac update-ready-appimage update-ready` (light and dark)
+  read; the Mac's on-quit label was cut ("OPEN THE DISK IMAGE WHEN…") and is now "Open it
+  when I close Cantus", the same length as Windows's label that fits.
 
 ## Files outside ship's list (additive)
 
