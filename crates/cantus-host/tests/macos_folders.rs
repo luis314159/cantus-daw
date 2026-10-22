@@ -4,7 +4,7 @@
 
 #![cfg(target_os = "macos")]
 
-use cantus_host::scan::Format;
+use cantus_host::Format;
 use std::path::PathBuf;
 
 fn home() -> PathBuf {

@@ -41,8 +41,32 @@ windows-sys = { version = "0.59", features = [
 # macOS's global menu bar and the pasteboard's text (macmenu.rs, ADR 0066). MIT; already in
 # the workspace through winit and eframe.
 objc2 = "0.6"
-objc2-foundation = "0.3"
-objc2-app-kit = "0.3"
+# Only the parts used: the frameworks' defaults would pull six more crates.
+objc2-foundation = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSDate",
+    "NSGeometry",
+    "NSObject",
+    "NSRunLoop",
+    "NSString",
+] }
+objc2-app-kit = { version = "0.3", default-features = false, features = [
+    "std",
+    "NSApplication",
+    "NSControl",
+    "NSEvent",
+    "NSGraphics",
+    "NSGraphicsContext",
+    "NSMenu",
+    "NSMenuItem",
+    "NSPasteboard",
+    "NSResponder",
+    "NSRunningApplication",
+    "NSText",
+    "NSTextField",
+    "NSView",
+    "NSWindow",
+] }
 
 [dev-dependencies]
 tempfile = "3"
