@@ -74,8 +74,8 @@ blocks. No golden moved; `DSP_VERSION` unchanged.
 
 See ADR 0064 §Tests for what each holds. The first run, after merging `r29/integration`
 at bef6f62 (warp and controllers), all `--no-fail-fast`, 0 failed (the runs after each
-review are in their sections; the last, after review 3: core 416, project 112, engine 819,
-fuzz 823, host 82, sandbox 64, ui 1 573):
+review are in their sections; the last, after review 4: core 427, project 122, engine 840,
+fuzz 844, host 103, sandbox 110, ui 1 666):
 
 | crate | passed |
 |---|---|
@@ -470,7 +470,13 @@ removed.
 
 ### The run after review 4
 
-RUN4_RESULTS
+Merged with `r29/integration` at 01fddb7, all `--no-fail-fast`, 0 failed: `cantus-core`
+427, `cantus-project` 122, `cantus-engine` 840, the engine fuzz (`CANTUS_WORKERS=3`) 844,
+`cantus-host` 103, `cantus-sandbox` 110 (`CANTUS_TEST_PLUGINS_PREBUILT=1`, the test plug-ins
+rebuilt with their *dirty* tag), `cantus-ui` 1 666. Clippy `-D warnings` on the workspace
+and `fmt --check` clean. Schema 38 untouched; no golden moved, `DSP_VERSION` unchanged.
+`shoot_freeze` (112 PNGs in `F:\projects\daw-r29\shots\freeze\`): the pad's *Delay* row
+shows its figure whole beside the square key, in Spanish at 75 % too.
 
 ## Left
 
