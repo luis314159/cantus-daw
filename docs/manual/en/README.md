@@ -1,6 +1,6 @@
 # Cantus — quick-start manual
 
-*For Cantus 0.1.0-beta.1 on Windows · [Leer en español](../es/README.md)*
+*For Cantus 0.1.0-beta.1 and later, on Windows, macOS and Linux · [Leer en español](../es/README.md)*
 
 Cantus is a free, open-source digital audio workstation: record, compose, mix and master a
 song, from the first note to a finished file. This manual gets you there in an evening.
@@ -29,8 +29,21 @@ Everything it names is in the program as it is today; where the beta still has g
 
 ## 1. Install
 
-You need Windows 11, 64-bit (Windows 10 untested), and about
-200 MB of disk.
+Cantus runs on Windows, macOS and Linux; every release has one file for each, on the
+[releases page](https://github.com/luis314159/cantus-daw/releases) and behind the
+download button of [cantusdaw.com](https://cantusdaw.com), which gives you your system's:
+
+- **Windows 11, x64**: `Cantus-<version>-windows-x64-setup.exe` (or the portable zip).
+- **macOS, Apple silicon or Intel**: `Cantus-<version>-macos-universal.dmg`.
+- **Linux x86-64**, Ubuntu 22.04 or newer (or alike): `Cantus-<version>-linux-x86_64.AppImage`.
+
+`SHA256SUMS.txt` beside them lets you check a download: `Get-FileHash <file>` on Windows,
+`shasum -a 256 <file>` on a Mac, `sha256sum <file>` on Linux. About 200 MB of disk. Setting
+up your audio on each system is [chapter 2](#2-first-run-set-up-your-audio).
+
+### On Windows
+
+You need Windows 11, 64-bit (Windows 10 untested).
 
 1. Download `Cantus-0.1.0-beta.1-windows-x64-setup.exe` from the
    [releases page](https://github.com/luis314159/cantus-daw/releases).
@@ -53,6 +66,38 @@ settings in the `data` folder next to it and writes nothing to your profile.
 **Uninstall** from Windows' *Apps*. Your settings, presets and autosaves — and the sample
 cache (up to 16 GB, see [chapter 11](#11-projects-autosave-and-settings)) — are removed
 only if you tick that box; your projects are never touched.
+
+### On a Mac
+
+1. Download `Cantus-<version>-macos-universal.dmg` — one disk image for Apple silicon and
+   Intel Macs.
+2. Open it and drag **Cantus** onto **Applications**. Eject the disk image.
+3. Open Cantus from *Applications* (or Launchpad). A notarised release opens straight
+   away; one that is not yet notarised makes macOS say it *cannot verify the developer*:
+   right-click Cantus ▸ *Open* ▸ *Open* once (or *System Settings ▸ Privacy & Security ▸
+   Open Anyway*), and it opens normally from then on.
+4. The first time you record, macOS asks whether Cantus may use the microphone: allow it
+   (later in *System Settings ▸ Privacy & Security ▸ Microphone*).
+
+Cantus keeps its settings, presets and autosaves in `~/Library/Application Support/Cantus`.
+**Uninstall** by moving Cantus from *Applications* to the Bin; that folder is yours to
+delete or keep.
+
+### On Linux
+
+1. Download `Cantus-<version>-linux-x86_64.AppImage` — one file that runs on most
+   distributions from the last few years, with nothing to install and no administrator.
+2. Make it executable and open it: in a file manager, *Properties ▸ Permissions ▸ Allow
+   executing as a program*, or in a terminal
+   `chmod +x Cantus-*.AppImage && ./Cantus-*.AppImage`. Keep it where you like (a folder
+   such as `~/Applications` is a good home): Cantus updates that file in place.
+3. If it does not start and says FUSE is missing, install your distribution's `libfuse2`
+   (Ubuntu 22.04: `sudo apt install libfuse2`; 24.04: `libfuse2t64`).
+
+Cantus keeps its settings in `~/.config/cantus` and its presets, autosaves and sounds in
+`~/.local/share/cantus` (or wherever `$XDG_CONFIG_HOME` and `$XDG_DATA_HOME` say).
+**Uninstall** by deleting the AppImage. A Cantus from your distribution's packages or from
+Flatpak is installed and updated by them instead.
 
 ## 2. First run: set up your audio
 
@@ -1331,7 +1376,23 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 Cantus has **no telemetry**. An installed or portable copy asks GitHub once a day whether
 a newer version is out — an anonymous request that carries no version, machine or user
 information — and asks you before downloading anything; *Settings ▸ Updates ▸ Check daily*
-turns it off. Sound packs are downloaded only when you click *Install*. Everything else
+turns it off.
+
+When you say yes, Cantus downloads the new version's file for your system, checks its
+SHA-256 against the release (and, on Windows, the publisher's signature when the build is
+signed) and applies it when you close Cantus — or now, with *Restart and update*:
+
+- **Windows**: the installer runs silently, keeping the components you chose.
+- **Linux (AppImage)**: the new AppImage replaces the one you run, in the same place and
+  under the same name. The old one is kept beside it, ending in `.old`, until the new one
+  has started; if the new one ever fails to start, rename the `.old` back. In a folder
+  Cantus may not write to, it says so and the release page has the file.
+- **macOS**: the new disk image opens when Cantus closes (*Close and open the disk image*
+  does it now); drag Cantus onto *Applications* and choose *Replace*. (Replacing the app
+  in place by itself is planned.)
+
+A portable copy, a copy from a Linux distribution's packages or Flatpak, and a system no
+release has a file for are told about the new version and shown its page. Sound packs are downloaded only when you click *Install*. Everything else
 stays on your computer. The details are in [PRIVACY.md](../../../PRIVACY.md); the licences
 of everything Cantus is built from are in
 [THIRD-PARTY-NOTICES.md](../../../THIRD-PARTY-NOTICES.md) (also in *Help ▸ About Cantus*).

@@ -48,6 +48,67 @@ fn the_stable_installer_name_is_the_same_in_the_packager_the_workflow_and_the_si
     );
 }
 
+/// The stable names of the three systems' files (ADR 0067): the release workflow checks
+/// each is there before publishing, and the website links each through
+/// `releases/latest/download/` of the repository the updater asks.
+#[test]
+fn every_system_s_stable_name_is_in_the_workflow_and_on_the_site() {
+    let wf = read(".github/workflows/release.yml");
+    let top = read("web/src/top.rs");
+    for t in release::Target::ALL {
+        let stable = t.stable_name();
+        assert!(
+            wf.contains(&format!("dist/{stable}")),
+            "release.yml does not check dist/{stable}"
+        );
+        let url = format!(
+            "https://github.com/{}/releases/latest/download/{stable}",
+            cantus_update::updater::REPO
+        );
+        assert!(
+            top.contains(&format!("\"{url}\"")),
+            "web/src/top.rs does not link {url}"
+        );
+        // The versioned name the updater asks for is the one the workflow checks.
+        let versioned = t.file_name("$v");
+        assert!(
+            wf.contains(&format!("dist/{versioned}")),
+            "release.yml does not check dist/{versioned}"
+        );
+    }
+    // The packaging scripts, called by the round-30 contract's interface.
+    assert!(wf.contains("bash packaging/linux/build-appimage.sh \"$version\" dist"));
+    assert!(wf.contains("bash packaging/macos/build-dmg.sh \"$version\" dist"));
+}
+
+/// The `apt-get install -y` packages on the first line of `yaml` that installs some.
+fn apt_packages(yaml: &str) -> Vec<String> {
+    let line = yaml
+        .lines()
+        .find(|l| l.contains("apt-get install -y"))
+        .expect("an apt-get install line");
+    line.split("apt-get install -y")
+        .nth(1)
+        .unwrap()
+        .split_whitespace()
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The release's Linux job builds on the system packages CI tests with (ADR 0067): a
+/// package CI's Linux job gains is a package the release's job needs too.
+#[test]
+fn the_release_s_linux_job_installs_every_package_ci_does() {
+    let ci = apt_packages(&read(".github/workflows/ci.yml"));
+    let rel = apt_packages(&read(".github/workflows/release.yml"));
+    for p in &ci {
+        assert!(
+            rel.contains(p),
+            "release.yml's Linux job does not install {p}"
+        );
+    }
+}
+
 /// GitHub's glob for `paths`: `*` is any run of characters but `/`, `**` any run at all,
 /// `?` one character but `/`.
 fn glob(pat: &[u8], path: &[u8]) -> bool {

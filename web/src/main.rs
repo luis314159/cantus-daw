@@ -9,6 +9,7 @@ mod lang;
 mod listen;
 mod platform;
 mod rack;
+mod shelf;
 mod theme;
 mod top;
 mod tour;

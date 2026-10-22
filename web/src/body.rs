@@ -5,7 +5,8 @@ use yew::prelude::*;
 use crate::icons;
 use crate::lang::use_lang;
 use crate::platform::Os;
-use crate::top::{DOWNLOAD, GITHUB, RELEASES, VERSION};
+use crate::shelf::use_shelf;
+use crate::top::{DOWNLOAD, DOWNLOAD_LINUX, DOWNLOAD_MACOS, GITHUB, RELEASES, VERSION};
 
 #[function_component(Engine)]
 pub fn engine() -> Html {
@@ -80,12 +81,18 @@ pub fn free() -> Html {
 pub fn get() -> Html {
     let l = use_lang().lang;
     let os = use_state(Os::detect);
+    // Which systems the latest release has a file for, asked of GitHub (shelf.rs): Linux
+    // and macOS say "Available" only when it does; "Coming soon" until then, or when the
+    // check fails.
+    let shelf = use_shelf();
     let guide = format!("{GITHUB}/blob/master/docs/DEVELOPING.md");
-    // The card speaks to the visitor's system: Windows gets the installer itself, straight
-    // down (the newest release's, under its stable name — ADR 0048 §7), with every other
-    // file a link away; macOS and Linux get the honest answer (coming soon, and building
-    // from source meanwhile);
-    // phones are pointed at a computer.
+    let soon = l.t("Coming soon", "Muy pronto");
+    let available = l.t("Available", "Disponible");
+    let state = |on: bool| if on { available } else { soon };
+    // The card speaks to the visitor's system: each gets its own file straight down (the
+    // newest release's, under its stable name — ADR 0048 §7, ADR 0067), with every other
+    // file a link away; a system whose file is not out yet gets the honest answer (coming
+    // soon, and building from source meanwhile); phones are pointed at a computer.
     let (headline, lead, primary, primary_href) = match *os {
         Os::Windows => (
             html! { <>{ icons::windows() }{ "Windows 11" }</> },
@@ -94,10 +101,24 @@ pub fn get() -> Html {
             l.t("Download the installer", "Descargar el instalador"),
             DOWNLOAD.to_string(),
         ),
+        Os::Linux if shelf.linux => (
+            html! { <>{ "Linux" }{ " · " }{ available }</> },
+            l.t("One AppImage for every distribution from Ubuntu 22.04 on: make it executable (chmod +x) and open it — nothing to install, no administrator. It updates itself. PipeWire, JACK and ALSA; the SHA-256 sums are on the downloads page.",
+                "Un AppImage para toda distribución desde Ubuntu 22.04: hazlo ejecutable (chmod +x) y ábrelo — nada que instalar, sin administrador. Se actualiza solo. PipeWire, JACK y ALSA; las sumas SHA-256 están en la página de descargas."),
+            l.t("Download the AppImage", "Descargar el AppImage"),
+            DOWNLOAD_LINUX.to_string(),
+        ),
+        Os::MacOs if shelf.macos => (
+            html! { <>{ "macOS" }{ " · " }{ available }</> },
+            l.t("One disk image for Apple silicon and Intel Macs: open it and drag Cantus onto Applications. When a new version is out, Cantus downloads its disk image, checks it and opens it for you. The SHA-256 sums are on the downloads page.",
+                "Una imagen de disco para Mac con Apple silicon e Intel: ábrela y arrastra Cantus a Aplicaciones. Cuando hay una versión nueva, Cantus descarga su imagen de disco, la comprueba y te la abre. Las sumas SHA-256 están en la página de descargas."),
+            l.t("Download the disk image", "Descargar la imagen de disco"),
+            DOWNLOAD_MACOS.to_string(),
+        ),
         Os::MacOs | Os::Linux => {
             let n = if *os == Os::MacOs { "macOS" } else { "Linux" };
             (
-                html! { <>{ n }{ " · " }{ l.t("Coming soon", "Muy pronto") }</> },
+                html! { <>{ n }{ " · " }{ soon }</> },
                 l.t("The installer for your system is coming soon; Windows has its own today. Meanwhile you can build Cantus from source: the guide takes you from a clean machine to a running Cantus.",
                     "El instalador para tu sistema llega muy pronto; el de Windows ya está disponible. Mientras tanto puedes compilar Cantus desde el código: la guía te lleva de una máquina limpia a un Cantus funcionando."),
                 l.t("Build from source", "Compilar desde el código"),
@@ -106,10 +127,48 @@ pub fn get() -> Html {
         }
         Os::Mobile => (
             html! { <>{ l.t("Open this on your computer", "Ábrelo en tu computadora") }</> },
-            l.t("Cantus is a desktop program for Windows, with Linux and macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
-                "Cantus es un programa de escritorio para Windows, y muy pronto para Linux y macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto."),
+            if shelf.linux && shelf.macos {
+                l.t("Cantus is a desktop program for Windows, macOS and Linux. Come back from your computer to download it, or read the source meanwhile.",
+                    "Cantus es un programa de escritorio para Windows, macOS y Linux. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
+            } else {
+                l.t("Cantus is a desktop program for Windows, with Linux and macOS coming soon. Come back from your computer to download it, or read the source meanwhile.",
+                    "Cantus es un programa de escritorio para Windows, y muy pronto para Linux y macOS. Vuelve desde tu computadora para descargarlo, o lee el código mientras tanto.")
+            },
             l.t("See the downloads", "Ver las descargas"),
             RELEASES.to_string(),
+        ),
+    };
+    // A file straight down: the downloads page is a link away.
+    let direct = match *os {
+        Os::Windows => true,
+        Os::Linux => shelf.linux,
+        Os::MacOs => shelf.macos,
+        Os::Mobile => false,
+    };
+    let (system, audio) = match *os {
+        Os::Linux => (
+            l.t(
+                "Linux x86-64, Ubuntu 22.04 or newer (or alike)",
+                "Linux x86-64, Ubuntu 22.04 o más nuevo (o similar)",
+            ),
+            l.t("PipeWire, JACK and ALSA", "PipeWire, JACK y ALSA"),
+        ),
+        Os::MacOs => (
+            l.t(
+                "macOS, Apple silicon or Intel",
+                "macOS, Apple silicon o Intel",
+            ),
+            l.t("Any Core Audio device", "Cualquier dispositivo Core Audio"),
+        ),
+        _ => (
+            l.t(
+                "Windows 11, x64 (Windows 10 untested)",
+                "Windows 11, x64 (Windows 10 sin probar)",
+            ),
+            l.t(
+                "Any device — WASAPI and ASIO",
+                "Cualquier dispositivo — WASAPI y ASIO",
+            ),
         ),
     };
     html! {
@@ -125,18 +184,20 @@ pub fn get() -> Html {
                             <a class="btn btn-quiet" href={GITHUB}>{ icons::github() }{ l.t("Source code", "Código fuente") }</a>
                         </div>
                         <p class="note">{ lead }</p>
-                        if *os == Os::Windows {
+                        if direct {
                             <p class="note"><a href={RELEASES}>{ l.t("All downloads, release notes and checksums", "Todas las descargas, notas de la versión y sumas") }</a></p>
                         }
                     </article>
                     <aside class="get-side">
                         <h3>{ l.t("What you need", "Lo que necesitas") }</h3>
                         <dl>
-                            <dt>{ l.t("System", "Sistema") }</dt><dd>{ l.t("Windows 11, x64 (Windows 10 untested)", "Windows 11, x64 (Windows 10 sin probar)") }</dd>
-                            <dt>{ l.t("Audio", "Audio") }</dt><dd>{ l.t("Any device — WASAPI and ASIO", "Cualquier dispositivo — WASAPI y ASIO") }</dd>
+                            <dt>{ l.t("System", "Sistema") }</dt><dd>{ system }</dd>
+                            <dt>{ l.t("Audio", "Audio") }</dt><dd>{ audio }</dd>
                             <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ "CLAP, VST3" }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
-                            <dt>{ "macOS / Linux" }</dt><dd>{ l.t("Coming soon", "Muy pronto") }</dd>
+                            <dt>{ "Windows" }</dt><dd>{ available }</dd>
+                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos) }</dd>
+                            <dt>{ "Linux" }</dt><dd>{ state(shelf.linux) }</dd>
                         </dl>
                     </aside>
                 </div>

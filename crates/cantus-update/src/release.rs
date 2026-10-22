@@ -31,6 +31,76 @@ pub fn plugins_name(version: &str) -> String {
     format!("Cantus-{version}-plugins-windows-x64.zip")
 }
 
+/// `Cantus-0.2.0-linux-x86_64.AppImage`: Linux's one file (ADR 0067), what
+/// `packaging/linux/build-appimage.sh` writes and what an AppImage's updater asks for.
+pub fn appimage_name(version: &str) -> String {
+    format!("Cantus-{version}-linux-x86_64.AppImage")
+}
+
+/// `Cantus-0.2.0-macos-universal.dmg`: one disk image for Apple silicon and Intel (both
+/// architectures `lipo`ed into one `Cantus.app`), what `packaging/macos/build-dmg.sh`
+/// writes and what a Mac's updater asks for.
+pub fn dmg_name(version: &str) -> String {
+    format!("Cantus-{version}-macos-universal.dmg")
+}
+
+/// The AppImage under the name that never changes (as [`STABLE_INSTALLER_NAME`]).
+pub const STABLE_APPIMAGE_NAME: &str = "Cantus-linux-x86_64.AppImage";
+/// The disk image under the name that never changes (as [`STABLE_INSTALLER_NAME`]).
+pub const STABLE_DMG_NAME: &str = "Cantus-macos-universal.dmg";
+
+/// The systems a release carries a file for. Anything else (Linux on ARM, a native
+/// Windows-on-ARM build, a BSD) has no file of its own: the updater then only points at
+/// the release's page.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Target {
+    /// The NSIS installer (Windows on ARM runs it emulated, as it runs the x64 program).
+    WindowsX64,
+    /// The AppImage.
+    LinuxX64,
+    /// The disk image, for both Mac architectures.
+    MacUniversal,
+}
+
+impl Target {
+    /// Every target, in the order the release lists them.
+    pub const ALL: [Target; 3] = [Target::WindowsX64, Target::LinuxX64, Target::MacUniversal];
+
+    /// The target for an operating system and architecture as Rust names them
+    /// (`std::env::consts::{OS, ARCH}`).
+    pub fn of(os: &str, arch: &str) -> Option<Target> {
+        match (os, arch) {
+            ("windows", "x86_64") => Some(Target::WindowsX64),
+            ("linux", "x86_64") => Some(Target::LinuxX64),
+            ("macos", "x86_64" | "aarch64") => Some(Target::MacUniversal),
+            _ => None,
+        }
+    }
+
+    /// This build's target.
+    pub fn current() -> Option<Target> {
+        Target::of(std::env::consts::OS, std::env::consts::ARCH)
+    }
+
+    /// The versioned file name: what the updater asks for.
+    pub fn file_name(self, version: &str) -> String {
+        match self {
+            Target::WindowsX64 => installer_name(version),
+            Target::LinuxX64 => appimage_name(version),
+            Target::MacUniversal => dmg_name(version),
+        }
+    }
+
+    /// The stable name: what the website links through `releases/latest/download/`.
+    pub fn stable_name(self) -> &'static str {
+        match self {
+            Target::WindowsX64 => STABLE_INSTALLER_NAME,
+            Target::LinuxX64 => STABLE_APPIMAGE_NAME,
+            Target::MacUniversal => STABLE_DMG_NAME,
+        }
+    }
+}
+
 /// One line per file: `<sha-256 hex>  <name>`, the format `sha256sum -c` reads.
 pub const SUMS_NAME: &str = "SHA256SUMS.txt";
 
@@ -130,6 +200,12 @@ impl Release {
     /// The installer.
     pub fn installer(&self) -> Option<&Asset> {
         self.asset(&installer_name(&self.version_text()))
+    }
+
+    /// The file a copy on `target` updates itself from: the versioned name only (the
+    /// stable copy is the same bytes, for the website).
+    pub fn update_file(&self, target: Target) -> Option<&Asset> {
+        self.asset(&target.file_name(&self.version_text()))
     }
 
     pub fn portable(&self) -> Option<&Asset> {
