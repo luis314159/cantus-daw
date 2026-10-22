@@ -884,7 +884,23 @@ fn every_dialog_renders_what_it_should_say() {
         .clear();
     let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
     out.textures_delta.clear();
-    let text = painted_text(&out.shapes);
+    let mut text = painted_text(&out.shapes);
+    // Settings has pages (round 30): each one's words, page by page.
+    {
+        use cantus_ui::views::workspace_settings::SettingsPage;
+        for page in [
+            SettingsPage::Audio,
+            SettingsPage::Saving,
+            SettingsPage::Appearance,
+        ] {
+            a.settings_page.page = page;
+            for _ in 0..2 {
+                let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
+                out.textures_delta.clear();
+                text.push_str(&painted_text(&out.shapes));
+            }
+        }
+    }
     for expected in [
         "Cantus",                   // About
         "Keyboard shortcuts",       // the editor's title

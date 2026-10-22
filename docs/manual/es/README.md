@@ -309,7 +309,11 @@ grabación**:
 ![Opciones de grabación](../img/record-options.png)
 
 - **Claqueta**: no, 1, 2 o 4 compases antes de la toma (`Alt+C`). La claqueta suena
-  aunque el **Metrónomo** (`Ctrl+M`) esté apagado.
+  aunque el **Metrónomo** (`Ctrl+M`) esté apagado. Suena **antes de grabar** con el
+  transporte parado — el chip de la barra superior lo dice con un punto rojo, y su menú bajo *Antes de grabar* —, como en FL
+  Studio y Ableton; Play solo arranca de inmediato. Para oírla también al reproducir, marca
+  **También al reproducir** en el menú del chip (o en las opciones ▾ del metrónomo):
+  apagado por defecto, vale para todos los proyectos.
 - **Pinchazo**: graba solo dentro de un tramo. *Desde la selección* toma la selección de
   tiempo; `Alt+P` usa la selección, si no el bucle, si no dos compases desde el cursor. El
   tramo aparece como una llave roja bajo la regla: arrastra sus extremos. Todo lo tocado
@@ -1268,8 +1272,10 @@ anfitrión, así que un Tremor o un Fluctus al tempo siguen también la canción
 
 **Tus plug-ins.** Al pulsar *Buscar plug-ins* (*Ajustes ▸ Plug-ins*), Cantus revisa las
 carpetas estándar — `%LOCALAPPDATA%\Programs\Common\CLAP` y `…\VST3`,
-`C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que hayas añadido ahí; no las
-revisa solo al iniciar, así que busca después de instalar un plug-in. Cada archivo se revisa en un
+`C:\Program Files\Common Files\CLAP` y `…\VST3` — y las que hayas añadido ahí. Además busca archivos nuevos o cambiados **cada vez que
+inicia**, en segundo plano (*Buscar plug-ins nuevos en cada inicio*, activado por defecto),
+y la línea de estado dice lo que encontró — *3 plug-ins nuevos: Odin 2, Surge XT,
+ValhallaSupermassive*. Cada archivo se revisa en un
 proceso aparte, así que un plug-in que falla al revisarse queda bloqueado, sin tumbar
 Cantus. Los efectos de Cantus se instalan también en tus carpetas CLAP y VST3, para otros
 DAW.
@@ -1288,11 +1294,13 @@ su editor se abre en una ventana propia que queda sobre Cantus mientras trabajas
 1. **Instálalo** con el instalador de su fabricante, descargado de la página del propio
    fabricante. Déjalo en la carpeta estándar que propone el instalador
    (`C:\Program Files\Common Files\VST3` o `…\CLAP`).
-2. **Haz que Cantus lo encuentre — no lo busca solo.** Abre el menú **VER** (arriba a la
-   izquierda, junto al logo) ▸ *Ajustes…*, baja hasta la última sección de la ventana,
-   **PLUG-INS** (debajo de *Dispositivo de audio*, *MIDI*, *Apariencia*, *Guardado*, *Caché
-   de muestras* y *Actualizaciones*), y pulsa *Buscar plug-ins*: lee las carpetas estándar
-   (las búsquedas siguientes solo leen archivos nuevos o cambiados). Para un plug-in en otra
+2. **Haz que Cantus lo encuentre.** Reinicia Cantus: al iniciar busca plug-ins nuevos solo
+   y dice lo que encontró. Sin reiniciar, elige **OPCIONES ▸ Buscar plug-ins** (los menús de
+   la barra superior, junto al logo), o pulsa *Buscar plug-ins* en el estante **CLAP** o
+   **VST3** vacío del selector. Los ajustes están en **OPCIONES ▸ Plug-ins y carpetas…**
+   (`Ctrl+,` abre Ajustes; su página **Plug-ins** está en la barra lateral; *Buscar más
+   plug-ins…* del selector lleva también ahí). Las búsquedas siguientes solo leen archivos
+   nuevos o cambiados. Para un plug-in en otra
    carpeta, añade antes la carpeta en *Carpetas* (*Examinar…* y luego *Añadir*)
    (*Volver a leer todo* lee de nuevo todos los archivos, también los bloqueados). Lo que
    encontró aparece en *Encontrados*; un archivo que falló al leerse aparece en
@@ -1457,7 +1465,9 @@ plug-in esté colgado.
   paso de deshacer (`Ctrl+Z` muestra el último guardado); *Descartar* no borra nada. *Nuevo*
   y *Abrir* preguntan antes de reemplazar trabajo sin guardar.
 
-**Ajustes** (*Ver ▸ Ajustes…*): *General* (el versículo al iniciar, sí o no, y la Biblia en
+**Ajustes** (`Ctrl+,`, o el menú **Opciones**, que además abre cada página directamente;
+*Ver ▸ Ajustes…* sigue funcionando). La ventana tiene una barra lateral de páginas, como
+las opciones de FL: *General* (el versículo al iniciar, sí o no, y la Biblia en
 español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia y la corrección
 de grabación), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
 colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB

@@ -1118,7 +1118,11 @@ fn settings_show_the_sample_cache_and_its_limit_reaches_the_cache() {
     let _slow = SLOW.lock().unwrap_or_else(|e| e.into_inner());
     let f = installed(None);
     let mut a = app_with(&f);
-    a.show_settings = true;
+    // Settings' Sample cache page (round 30: Settings has pages).
+    cantus_ui::views::workspace_settings::open(
+        &mut a,
+        cantus_ui::views::workspace_settings::SettingsPage::Cache,
+    );
     a.settings.sample_cache_gb = Some(3.0);
     a.load_beside_the_window();
     assert_eq!(
@@ -1166,7 +1170,11 @@ fn the_automatic_cache_limit_reads_whole_in_spanish() {
     let f = installed(None);
     let mut a = app_with(&f);
     cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::Es);
-    a.show_settings = true;
+    // Settings' Sample cache page (round 30: Settings has pages).
+    cantus_ui::views::workspace_settings::open(
+        &mut a,
+        cantus_ui::views::workspace_settings::SettingsPage::Cache,
+    );
     a.settings.sample_cache_gb = None;
     a.load_beside_the_window();
     let ctx = egui::Context::default();

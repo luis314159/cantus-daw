@@ -31,6 +31,10 @@ pub enum Pick {
     Bug,
     Updates,
     ImportAudio,
+    /// Settings, on one of its pages (the Options menu, round 30).
+    Settings(crate::views::workspace_settings::SettingsPage),
+    /// Look for new or changed plug-ins now (round 30).
+    ScanPlugins,
 }
 
 /// An AppKit key equivalent: its characters and the modifiers held with it.
@@ -131,6 +135,44 @@ fn cmd(c: &str, shift: bool, alt: bool) -> Option<Equivalent> {
         alt,
         control: false,
     })
+}
+
+/// FL's *Options* menu (round 30, the owner's friction "where is Settings?"): Settings on
+/// its shortcut, each of its pages, and *Scan plug-ins*. The window's own menu bar shows the
+/// same entries (`views::transport_menus`), and the Mac's bar has it beside View.
+pub fn options(_keymap: &Keymap) -> Menu {
+    use crate::views::workspace_settings::SettingsPage;
+    let page = |p: SettingsPage| Entry::Item {
+        label: t(&format!("{}_item", p.key())),
+        pick: Pick::Settings(p),
+        key: None,
+    };
+    Menu {
+        title: t("ship.menu.options"),
+        entries: vec![
+            // Its ⌘, belongs to the application menu's Settings (one chord, one item); the
+            // window's own Options menu shows the keymap's binding beside it.
+            Entry::Item {
+                label: t("menu.settings"),
+                pick: Pick::Action(Action::OpenSettings),
+                key: None,
+            },
+            Entry::Separator,
+            page(SettingsPage::Audio),
+            page(SettingsPage::Midi),
+            page(SettingsPage::Appearance),
+            page(SettingsPage::Saving),
+            page(SettingsPage::Plugins),
+            Entry::Separator,
+            Entry::Item {
+                label: t("host.manager.scan"),
+                pick: Pick::ScanPlugins,
+                key: None,
+            },
+        ],
+        windows: false,
+        help: false,
+    }
 }
 
 /// The menu bar for this keymap, in the interface's language.
@@ -268,7 +310,7 @@ pub fn model(keymap: &Keymap) -> Vec<Menu> {
             ],
         )
     };
-    vec![app, file, edit, view, window, help]
+    vec![app, file, edit, view, options(keymap), window, help]
 }
 
 /// The items a focused text field takes as keys rather than as Cantus's actions.
@@ -302,6 +344,8 @@ pub fn run(app: &mut CantusApp, ctx: &egui::Context, pick: Pick) {
         Pick::Bug => crate::docs::open(crate::docs::Doc::ReportBug),
         Pick::Updates => crate::views::update::check_now(app),
         Pick::ImportAudio => app.import_audio_dialog(),
+        Pick::Settings(page) => crate::views::workspace_settings::open(app, page),
+        Pick::ScanPlugins => crate::views::plugins::scan_now(app),
     }
 }
 

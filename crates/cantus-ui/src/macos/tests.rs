@@ -21,7 +21,11 @@ fn items(keymap: &Keymap) -> Vec<(String, Option<Equivalent>, Option<Pick>)> {
 fn the_bar_has_the_mac_menus_and_every_label_is_translated() {
     let map = Preset::Mac.keymap();
     let menus = model(&map);
-    assert_eq!(menus.len(), 6, "Cantus, File, Edit, View, Window, Help");
+    assert_eq!(
+        menus.len(),
+        7,
+        "Cantus, File, Edit, View, Options, Window, Help"
+    );
     assert!(menus.iter().filter(|m| m.windows).count() == 1);
     assert!(menus.iter().filter(|m| m.help).count() == 1);
     for (label, _, _) in items(&map) {

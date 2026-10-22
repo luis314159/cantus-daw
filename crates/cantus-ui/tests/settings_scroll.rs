@@ -1,5 +1,6 @@
-//! The Settings window scrolls to its last section, *Plug-ins* (the owner, 2026-10-22: the
-//! window would not scroll, so *Scan for plug-ins* could not be reached).
+//! The Settings window reaches *Plug-ins* (the owner, 2026-10-22: the window would not
+//! scroll, so *Scan for plug-ins* could not be reached; round 30 gave it pages), and its
+//! kit windows take the wheel.
 
 use cantus_engine::EngineHandle;
 use cantus_ui::{welcome_project, CantusApp};
@@ -74,10 +75,30 @@ fn find<'a>(texts: &'a [(String, Rect)], word: &str) -> Option<&'a Rect> {
     texts.iter().find(|(t, _)| t == word).map(|(_, r)| r)
 }
 
+fn click(w: &mut Win, at: Pos2) -> Vec<(String, Rect)> {
+    let button = |pressed| Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    w.step(vec![Event::PointerMoved(at)]);
+    w.step(vec![button(true)]);
+    w.step(vec![button(false)]);
+    let mut texts = Vec::new();
+    for _ in 0..5 {
+        texts = w.step(vec![Event::PointerMoved(at)]);
+    }
+    texts
+}
+
+/// Round 30 (the owner: "I could not find the plug-ins in Settings"): Settings has a page
+/// per subject in a sidebar; *Plug-ins* is one click away, and a page longer than the
+/// window still scrolls under the wheel.
 #[test]
 fn the_settings_window_scrolls_to_the_plug_ins() {
-    // A laptop's screen (the owner's window showed about 880 points of height).
-    let mut w = Win::new(vec2(1366.0, 900.0));
+    // A small laptop's screen: the Plug-ins page is taller than the window.
+    let mut w = Win::new(vec2(1366.0, 560.0));
     for _ in 0..30 {
         w.step(Vec::new());
     }
@@ -89,10 +110,22 @@ fn the_settings_window_scrolls_to_the_plug_ins() {
     let title = *find(&texts, "Settings").expect("the window is open");
     assert!(
         find(&texts, "Scan for plug-ins").is_none(),
-        "the plug-ins start below the window's fold"
+        "General is the first page"
     );
-    // The wheel, over the window's body (below its title, left of its scroll bar).
-    let at = pos2(title.left() + 120.0, title.bottom() + 200.0);
+    let page = *find(&texts, "Plug-ins").expect("the sidebar lists Plug-ins");
+    let texts = click(&mut w, page.center());
+    assert!(
+        find(&texts, "Scan for plug-ins").is_some(),
+        "one click shows Scan for plug-ins"
+    );
+    let last = "None: every plug-in file loaded cleanly.";
+    assert!(
+        find(&texts, last).is_none(),
+        "the page's end is below the fold"
+    );
+    // The wheel, over the page (right of the sidebar, below the title).
+    let at = pos2(title.left() + 320.0, title.bottom() + 160.0);
+    let mut texts = Vec::new();
     for _ in 0..200 {
         texts = w.step(vec![
             Event::PointerMoved(at),
@@ -103,7 +136,7 @@ fn the_settings_window_scrolls_to_the_plug_ins() {
                 phase: egui::TouchPhase::Move,
             },
         ]);
-        if find(&texts, "Scan for plug-ins").is_some() {
+        if find(&texts, last).is_some() {
             break;
         }
     }
@@ -111,8 +144,8 @@ fn the_settings_window_scrolls_to_the_plug_ins() {
         texts = w.step(vec![Event::PointerMoved(at)]);
     }
     assert!(
-        find(&texts, "Scan for plug-ins").is_some(),
-        "the wheel reaches Scan for plug-ins"
+        find(&texts, last).is_some(),
+        "the wheel reaches the page's end"
     );
 }
 

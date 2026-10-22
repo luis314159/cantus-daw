@@ -294,7 +294,10 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 ![Recording options](../img/record-options.png)
 
 - **Count-in**: off, 1, 2 or 4 bars before the take (`Alt+C`). The count-in clicks
-  whether or not the **Metronome** (`Ctrl+M`) is on.
+  whether or not the **Metronome** (`Ctrl+M`) is on. It plays **before recording** from
+  stop — the top bar's chip says so with a small red dot, and its menu under *Before recording* — as in FL Studio and Ableton; Play alone
+  starts at once. To hear it before playing too, tick **Also on play** in the chip's menu
+  (or the metronome's options ▾): off by default, kept for every project.
 - **Punch**: record only inside a range. *From selection* takes the time selection; `Alt+P`
   uses the selection, else the loop, else two bars from the playhead. The range shows as a
   red brace under the ruler: drag its ends. Everything played is kept in the file; punch
@@ -1163,8 +1166,10 @@ so a synced Tremor or Fluctus follows that DAW's song too.
 
 **Your plug-ins.** When you press *Scan for plug-ins* (*Settings ▸ Plug-ins*), Cantus reads
 the standard folders — `%LOCALAPPDATA%\Programs\Common\CLAP` and `…\VST3`,
-`C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you added there; it
-does not look on its own when it starts, so scan after installing a plug-in. Each file is scanned
+`C:\Program Files\Common Files\CLAP` and `…\VST3` — and any folder you added there. It also looks for new or changed files **every time it
+starts**, in the background (*Look for new plug-ins at every start*, on by default), and
+the status line names what it found — *3 new plug-ins: Odin 2, Surge XT, ValhallaSupermassive*.
+Each file is scanned
 in a separate process, so a plug-in that crashes while being scanned is blocked, not
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
@@ -1183,11 +1188,12 @@ that stays above Cantus while you work in it.
 1. **Install it** with its maker's installer, downloaded from the maker's own site. Leave it
    in the standard folder the installer proposes (`C:\Program Files\Common Files\VST3` or
    `…\CLAP`).
-2. **Let Cantus find it — it does not look on its own.** Open the **VIEW** menu (top left,
-   beside the logo) ▸ *Settings…*, scroll the window to its last section, **PLUG-INS**
-   (below *Audio device*, *MIDI*, *Appearance*, *Saving*, *Sample cache* and *Updates*), and
-   press *Scan for plug-ins*: it reads the standard folders (later scans read only new and
-   changed files). For a plug-in in another folder, first add the folder under *Folders*
+2. **Let Cantus find it.** Restart Cantus: at start it looks for new plug-ins by itself and
+   says what it found. Without restarting, choose **OPTIONS ▸ Scan for plug-ins** (the top
+   bar's menus, beside the logo), or press *Scan for plug-ins* on the picker's empty
+   **CLAP** or **VST3** shelf. The settings live in **OPTIONS ▸ Plug-ins and folders…**
+   (`Ctrl+,` opens Settings; its **Plug-ins** page is in the sidebar; the picker's *Find
+   more plug-ins…* goes there too). Later scans read only new and changed files. For a plug-in in another folder, first add the folder under *Folders*
    (*Browse…*, then *Add*)
    (*Rescan everything* reads every file again, blocked ones included). What it found is
    listed under *Found*; a file that crashed while being read is listed under *Blocked*,
@@ -1341,7 +1347,9 @@ calling it done, and *Stop* ends it even while a plug-in hangs.
   are in no saved file. *Restore* brings them back as one undo step (`Ctrl+Z` shows the last
   save); *Discard* deletes nothing. *New* and *Open* ask before replacing unsaved work.
 
-**Settings** (*View ▸ Settings…*): *General* (the verse at start, on or off, and the
+**Settings** (`Ctrl+,`, or the **Options** menu, which also opens each page directly;
+*View ▸ Settings…* still works). The window has a sidebar of pages, as FL's options:
+*General* (the verse at start, on or off, and the
 Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
 *MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
 shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
