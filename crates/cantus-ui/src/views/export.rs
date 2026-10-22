@@ -42,6 +42,9 @@ struct Waiting {
     target: PathBuf,
     /// What it waits for: the render's plug-ins (`true`), or samples.
     plugins: bool,
+    /// The project it was asked for (`CantusApp::epoch`): another one in its place (New,
+    /// Open) drops it, never exported under the old one's name (review isolation-6 #20).
+    epoch: u64,
     /// The choices it was asked with (the dialog's, or `export_to`'s): the export starts
     /// with them, the dialog left as it is — open or not (second review #14).
     settings: ExportSettings,
@@ -297,7 +300,7 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
     }
     // A modulator's bake renders through the same plug-in instances: one render at a time
     // (round 29, review isolation-3 #5, #10, #13, #48).
-    if app.modulators.pending_bake.is_some() {
+    if app.modulators.pending_bake.is_some() || app.warp.pending_bake.is_some() {
         let job = crate::i18n::t("isolation.render.bake");
         app.set_error(crate::i18n::tf("isolation.render.busy", &[("job", &job)]));
         return false;
@@ -341,6 +344,7 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         app.export.waiting = Some(Waiting {
             target: target.to_path_buf(),
             plugins: false,
+            epoch: app.epoch,
             settings: d,
             progress,
             shown: None,
@@ -351,13 +355,16 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
     let rate = app.engine.sample_rate.round() as u32;
     // The render's plug-ins loading (an isolated one in a helper of its own): the export
     // waits for them the same way, the window free (round 29, review isolation-5).
-    if !app
-        .plugins
-        .render_ready(app.bus.project(), f64::from(rate), false)
-    {
+    if !app.plugins.render_ready(
+        cantus_host::RenderFor::Export,
+        app.bus.project(),
+        f64::from(rate),
+        false,
+    ) {
         app.export.waiting = Some(Waiting {
             target: target.to_path_buf(),
             plugins: true,
+            epoch: app.epoch,
             settings: d,
             progress: (0, 0),
             shown: None,
@@ -466,7 +473,7 @@ pub fn stop(app: &mut CantusApp) {
     if let Some(w) = app.export.waiting.take() {
         if w.plugins {
             // The render's plug-ins it waited for go.
-            app.plugins.finish_render();
+            app.plugins.drop_render(cantus_host::RenderFor::Export);
         }
         app.export.last = Some(Err(t("export_audio.stopped")));
         app.set_status(t("export_audio.stopped"));
@@ -485,10 +492,20 @@ fn poll_waiting(app: &mut CantusApp) {
     }
     // Take in what arrived (and send the live engine its snapshot with it).
     app.sync_engine();
+    // Asked for another project (New, Open meanwhile): dropped, and said.
+    if app
+        .export
+        .waiting
+        .as_ref()
+        .is_some_and(|w| w.epoch != app.epoch)
+    {
+        stop(app);
+        return;
+    }
     let Some(w) = app.export.waiting.as_mut() else {
         return;
     };
-    if w.plugins && app.plugins.render_loading() {
+    if w.plugins && app.plugins.render_waiting(cantus_host::RenderFor::Export) {
         return;
     }
     if app.engine.samples.loading() {

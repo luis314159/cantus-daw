@@ -480,6 +480,22 @@ fn review3_shots(dir: &std::path::Path, ppp: f32, code: &str) {
     }
     app.set_status(String::new());
     shot("not-loaded", egui::vec2(1280.0, 760.0), &mut app);
+    // An insert loading in its own process: its editor says so, no waiting card (review
+    // isolation-6 #28); then the chain's slot with its quiet word.
+    let mut app = waiting_app("Glacier");
+    let strip = app.project().tracks[0].strip.expect("a strip");
+    let effect = app
+        .project()
+        .strip(strip)
+        .and_then(|s| s.effects.iter().find(|e| e.spec.external.is_some()))
+        .map(|e| e.id);
+    if let Some(e) = effect {
+        app.plugins.set_waiting_for_tests(e, false);
+        app.plugins.set_loading_for_tests(e, true);
+        app.open_effect_editor(strip, e);
+    }
+    app.set_status(String::new());
+    shot("loading", egui::vec2(1280.0, 760.0), &mut app);
 }
 
 /// `name` waits on a window of its own; its window was asked for meanwhile.

@@ -118,8 +118,13 @@ pub(crate) struct TestHooks {
     pub reload_fails: Option<(String, bool)>,
     /// Inserts said to wait on a window of their own.
     pub waiting: Vec<EffectId>,
+    /// Inserts said to be loading still.
+    pub loading: Vec<EffectId>,
     /// Plug-ins every save says it kept as they were last said: name, why.
     pub stale_saves: Vec<(String, String)>,
+    /// Renders' plug-ins said to be loading still, states said to be on their way.
+    pub hold_renders: bool,
+    pub hold_states: bool,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).
@@ -715,13 +720,39 @@ impl PluginHost {
         let busy = |crashed: &Option<String>, main: &dyn MainThread| {
             crashed.is_none() && !main.loaded() && main.stopped().is_none()
         };
-        self.slots
-            .values()
-            .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+        !self.leaving.is_empty()
+            || self
+                .slots
+                .values()
+                .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
             || self
                 .instruments
                 .values()
                 .any(|h| h.moving || busy(&h.crashed, h.main.as_ref()))
+    }
+
+    /// Whether what a slot's plug-in said last is its state as it is now (`capture` takes
+    /// that; A/B and a preset say when it may lack a change — review isolation-6 #24).
+    pub fn state_current(&self, effect: EffectId) -> bool {
+        self.slots
+            .get(&effect)
+            .is_none_or(|h| h.main.state_current())
+    }
+
+    /// Whether a slot's plug-in is loading still (an isolated one, its load answered
+    /// later): its slot, its editor and the inspector say so (review isolation-6 #28).
+    pub fn effect_loading(&self, effect: EffectId) -> bool {
+        self.test_hooks.loading.contains(&effect)
+            || self.slots.get(&effect).is_some_and(|h| {
+                h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
+            })
+    }
+
+    /// [`Self::effect_loading`] for a track's hosted instrument.
+    pub fn instrument_loading(&self, track: TrackId) -> bool {
+        self.instruments
+            .get(&track)
+            .is_some_and(|h| h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none())
     }
 
     /// What a slot's plug-in costs, measured over the last half second.
@@ -820,6 +851,15 @@ impl PluginHost {
         );
     }
 
+    /// For the interface's tests: renders' plug-ins said to be loading (`render_ready`
+    /// false) and states said to be on their way (`states_in` false) while `hold`. The
+    /// application never calls it.
+    #[doc(hidden)]
+    pub fn hold_for_tests(&mut self, renders: bool, states: bool) {
+        self.test_hooks.hold_renders = renders;
+        self.test_hooks.hold_states = states;
+    }
+
     /// For the interface's tests: every save from now on says it kept `name` as it was
     /// last said, for `why`. The application never calls it.
     #[doc(hidden)]
@@ -836,6 +876,17 @@ impl PluginHost {
         self.test_hooks.waiting.retain(|e| *e != effect);
         if waiting {
             self.test_hooks.waiting.push(effect);
+        }
+    }
+
+    /// For the interface's shots: a hosted slot said to be loading still (or no longer) —
+    /// and so not missing, as a slot loading never is. The application never calls it.
+    #[doc(hidden)]
+    pub fn set_loading_for_tests(&mut self, effect: EffectId, loading: bool) {
+        self.test_hooks.loading.retain(|e| *e != effect);
+        if loading {
+            self.test_hooks.loading.push(effect);
+            self.missing.remove(&effect);
         }
     }
 

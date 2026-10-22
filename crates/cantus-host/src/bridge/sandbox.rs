@@ -91,6 +91,11 @@ pub struct Limits {
     pub hang: Duration,
     /// An offline job unfinished this long: hung.
     pub offline: Duration,
+    /// A load, a state or an unload its helper started, with the helper silent, is taken
+    /// for hung only past this — never past its own limit, which is when the waiter gives
+    /// up: a sampler reading its samples without pumping is slow, not hung (round 29,
+    /// review isolation-4 #66; isolation-6 #0, #12).
+    pub heavy: Duration,
 }
 
 impl Default for Limits {
@@ -102,9 +107,13 @@ impl Default for Limits {
             call: CALL_TIMEOUT,
             hang: HANG_LIMIT,
             offline: OFFLINE_HANG_LIMIT,
+            heavy: HEAVY_LIMIT,
         }
     }
 }
+
+/// [`Limits::heavy`]: four times the load and state limits.
+pub const HEAVY_LIMIT: Duration = Duration::from_secs(120);
 
 /// A helper's lobby: the region its processing threads share, and the bell Cantus rings
 /// when none of them is scanning (`cantus_rt::ipc`). Made here, before the helper starts;
@@ -453,6 +462,8 @@ pub struct Sandbox {
     /// Whether any frame came from it yet: until then it is judged by its handshake's own
     /// limit, not by the silence limit (review isolation-4 #50).
     heard: AtomicBool,
+    /// It answered the handshake with Cantus's protocol.
+    greeted: AtomicBool,
     /// Requests under way, by id.
     inflight: Mutex<HashMap<u64, Flight>>,
     /// Its main thread is in a loop nested in this instance's code (0: whose, unknown),
@@ -552,6 +563,7 @@ impl Sandbox {
             started: Instant::now(),
             alive_ms: AtomicU64::new(0),
             heard: AtomicBool::new(false),
+            greeted: AtomicBool::new(false),
             inflight: Mutex::new(HashMap::new()),
             nested: Mutex::new(None),
             judged_ms: AtomicU64::new(0),
@@ -768,14 +780,27 @@ impl Sandbox {
         match self.serving() {
             Some((_, f)) => {
                 let took = f.started.map_or(Duration::ZERO, |s| s.elapsed());
-                (took > f.limit).then(|| {
+                let after = self.hang_after(&f);
+                (took > after).then(|| {
                     format!(
                         "the plug-in sandbox did not answer in {} s",
-                        f.limit.as_secs().max(1)
+                        after.as_secs().max(1)
                     )
                 })
             }
             None => Some("the plug-in sandbox stopped answering".into()),
+        }
+    }
+
+    /// How long a request its helper started may run, the helper silent, before the helper
+    /// is taken for hung: a load, a state or an unload `heavy` (a slow sampler is slow, not
+    /// hung — its waiter gives up at its own limit meanwhile), any other its own limit.
+    fn hang_after(&self, f: &Flight) -> Duration {
+        match f.purpose {
+            Purpose::Load | Purpose::SaveState | Purpose::LoadState | Purpose::Unload(_) => {
+                f.limit.max(self.limits().heavy)
+            }
+            _ => f.limit,
         }
     }
 
@@ -800,32 +825,36 @@ impl Sandbox {
         self.serving().and_then(|(_, f)| f.instance)
     }
 
-    /// Whether `instance` keeps its helper waiting — a request of its served for a while,
-    /// or the helper's main thread in a loop of its code (a dialog, perhaps behind Cantus):
-    /// its waiting card shows (round 29, review isolation-5).
+    /// Whether `instance` keeps its helper waiting for the user: the helper's main thread
+    /// has been in a loop of its code (a dialog, perhaps behind Cantus) for a while — or of
+    /// code nothing names (0) or of an instance that left: then every instance of the helper
+    /// waits on it, and each shows the card. A request merely slow is not (round 29, review
+    /// isolation-5; isolation-6 #14, #27, #28: its slot says *loading* meanwhile).
     pub(crate) fn waiting_on(&self, instance: u32) -> bool {
         if self.is_dead() {
             return false;
         }
-        if let Some((n, since)) = *lock(&self.nested) {
-            if n == instance && since.elapsed() > WAIT_CARD_AFTER {
-                return true;
-            }
-        }
-        self.serving().is_some_and(|(_, f)| {
-            f.instance == Some(instance) && f.started.is_some_and(|s| s.elapsed() > WAIT_CARD_AFTER)
-        })
+        lock(&self.nested)
+            .is_some_and(|(n, since)| since.elapsed() > WAIT_CARD_AFTER && self.owns(n, instance))
     }
 
-    /// Whether the helper ever said anything: one that ended before its handshake never
-    /// started (another build's, a missing library) — a failed load, nobody's crash.
-    pub(crate) fn heard(&self) -> bool {
-        self.heard.load(Ordering::Acquire)
+    /// Whether a loop of `n`'s code is `instance`'s to answer for: its own, or one nothing
+    /// names (0), or one of an instance that left.
+    fn owns(&self, n: u32, instance: u32) -> bool {
+        n == instance || n == 0 || n == OUTSIDE || !lock(&self.instances).contains_key(&n)
     }
 
-    /// Whether the helper's main thread is in a loop of `instance`'s code (a dialog).
+    /// Whether the helper greeted with its protocol: one that ended before, or spoke
+    /// another, never started (another build's, a missing library) — a failed load,
+    /// nobody's crash (review isolation-6 #9).
+    pub(crate) fn greeted(&self) -> bool {
+        self.greeted.load(Ordering::Acquire)
+    }
+
+    /// Whether the helper's main thread is in a loop of `instance`'s code (a dialog) — or
+    /// of code nothing names, which may be its.
     pub(crate) fn nested_on(&self, instance: u32) -> bool {
-        lock(&self.nested).is_some_and(|(n, _)| n == instance)
+        lock(&self.nested).is_some_and(|(n, _)| self.owns(n, instance))
     }
 
     /// When request `id` was started by the helper (`None`: not yet, or answered).
@@ -921,6 +950,7 @@ impl Sandbox {
                 Ok(Answer::Hello { protocol, .. }) if protocol == proto::PROTOCOL => {
                     // The helper has mapped its lobby: the name is no longer needed (#43).
                     self.lobby.mem.unlink_name();
+                    self.greeted.store(true, Ordering::Release);
                 }
                 Ok(Answer::Hello { protocol, .. }) => self.kill(&format!(
                     "the plug-in sandbox could not start: it speaks protocol {protocol}, \

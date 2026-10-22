@@ -372,7 +372,11 @@ impl Server {
         let mut named = None;
         let result = match req.call {
             Call::Hello { .. } => Ok(Answer::Hello {
-                protocol: proto::PROTOCOL,
+                // Cantus's tests: a helper of another build (review isolation-6 #9).
+                protocol: std::env::var("CANTUS_SANDBOX_SPEAKS_PROTOCOL")
+                    .ok()
+                    .and_then(|p| p.parse().ok())
+                    .unwrap_or(proto::PROTOCOL),
                 pid: std::process::id(),
             }),
             Call::Quit => {

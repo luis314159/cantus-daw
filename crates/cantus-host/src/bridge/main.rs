@@ -250,9 +250,12 @@ impl BridgeMain {
                     }
                 }
                 self.describe(described);
-                if !first_state.is_empty() {
+                // A state given while it loaded is newer than the one it loaded with, and
+                // stands; a change since the load was asked leaves it not current (review
+                // isolation-6 #5, #19, #29).
+                if !first_state.is_empty() && self.load >= self.state_after {
                     self.last_good = Some(first_state);
-                    self.current = true;
+                    self.current = self.load >= self.changed_at;
                 }
             }
             Some(Err(why)) => self.load_failed = Some(why),
@@ -303,12 +306,20 @@ impl BridgeMain {
         self.info = d.info;
     }
 
-    /// A state was just given: answers to requests before are older.
+    /// A state was just given: answers to requests before are older — still taken, as an
+    /// answer, so a save that asked one is never left waiting for it (review isolation-6
+    /// #18, #23); `take_answers` keeps the given state over them.
     fn state_settled(&mut self) {
         self.state_after = self.sandbox.next_request();
         self.dirty_since = None;
         self.asked_state = None;
-        self.inbox.data().state = None;
+    }
+
+    /// Why it is gone, in the words its end has for it (a user's stop, a neighbour's).
+    fn gone_reason(&self) -> String {
+        self.crashed_notice()
+            .map(|(why, _)| why)
+            .unwrap_or_else(|| self.crash_reason())
     }
 
     fn crash_reason(&self) -> String {
@@ -377,7 +388,7 @@ impl BridgeMain {
             // changed since, and why.
             if !self.current && self.loaded {
                 return Some(Some(if self.gone() {
-                    self.crash_reason()
+                    self.gone_reason()
                 } else {
                     "its state was not asked for".into()
                 }));
@@ -390,7 +401,7 @@ impl BridgeMain {
             }
         }
         if self.gone() {
-            return Some(Some(self.crash_reason()));
+            return Some(Some(self.gone_reason()));
         }
         // Its own limit, from when its helper started it: a request held behind a plug-in's
         // dialog waits with it (the card says so), never cut short (isolation-5 rule 2).
@@ -525,8 +536,14 @@ impl MainThread for BridgeMain {
         };
     }
 
+    /// The state asked for, taken: once in (or given up on) the request is done with, so a
+    /// later look without asking anew never reads an old answer as fresh (review
+    /// isolation-6 #3, #25).
     fn poll_state(&mut self) -> StatePoll {
         let gathered = self.gathered();
+        if gathered.is_some() {
+            self.gather = None;
+        }
         let last = self.last_good.clone().unwrap_or_default();
         match gathered {
             None => StatePoll::Waiting,
@@ -547,6 +564,8 @@ impl MainThread for BridgeMain {
     /// or is gone already, it is what saving and reloading use (review #9, #40, #44). Sent,
     /// never waited for.
     fn load_state(&mut self, data: &[u8]) -> Result<(), HostError> {
+        // Answers already in are taken first: none is lost (review isolation-6 #18, #23).
+        self.take_answers();
         self.last_good = Some(data.to_vec());
         self.state_settled();
         self.current = true;
@@ -637,6 +656,13 @@ impl MainThread for BridgeMain {
 
     fn idle(&mut self) -> Vec<Notice> {
         let mut out = Vec::new();
+        // Its load past its limit is a failed load before its helper's life is judged
+        // (review isolation-6 #0).
+        self.take_answers();
+        if let Some(limit) = self.load_overdue() {
+            let secs = limit.as_secs().max(1);
+            self.load_failed = Some(format!("it did not load within {secs} s"));
+        }
         self.sandbox.check_alive();
         let pauses = self.sandbox.pauses();
         if pauses != self.pauses_seen {
@@ -661,10 +687,6 @@ impl MainThread for BridgeMain {
             }
         }
         self.take_answers();
-        if let Some(limit) = self.load_overdue() {
-            let secs = limit.as_secs().max(1);
-            self.load_failed = Some(format!("it did not load within {secs} s"));
-        }
         if self.tell_loaded {
             self.tell_loaded = false;
             if self.load_failed.is_none() {
@@ -680,7 +702,7 @@ impl MainThread for BridgeMain {
                 if let Some((reason, blame)) = self.crashed_notice() {
                     self.told_crash = true;
                     // A helper that never started: a failed load, nobody's crash (#40).
-                    out.push(if self.loaded || self.sandbox.heard() {
+                    out.push(if self.loaded || self.sandbox.greeted() {
                         Notice::Crashed { reason, blame }
                     } else {
                         Notice::LoadFailed(reason)

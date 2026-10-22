@@ -85,8 +85,9 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     frames(&mut rig, &mut w, &|r| !r.host.loading());
     std::env::remove_var("CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE");
     assert!(rig.host.hosted(id).is_some_and(|h| !h.params.is_empty()));
-    // Its values recorded — the one set meanwhile standing — in the steps there were.
-    assert!(rig.plugin(id).params.len() > 1, "its values recorded");
+    // The value set meanwhile stands, in its own step; the insert is no longer on top, so
+    // its values are not recorded after it — no stray step (review isolation-6 #17).
+    assert_eq!(rig.bus.history().len(), 2, "the insert and the value set");
     assert_eq!(
         rig.plugin(id).params.get(&P_GAIN),
         Some(&-9.0),
@@ -134,7 +135,8 @@ fn nothing_the_interface_does_waits_on_a_helper() {
     slow("render");
     let start = Instant::now();
     while !w.time("render ready", || {
-        rig.host.render_ready(rig.bus.project(), SR, false)
+        rig.host
+            .render_ready(cantus_host::RenderFor::Export, rig.bus.project(), SR, false)
     }) {
         assert!(start.elapsed() < Duration::from_secs(20), "in time");
         w.time("frame", || rig.frame());

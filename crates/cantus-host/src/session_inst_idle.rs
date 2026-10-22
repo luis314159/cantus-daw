@@ -145,11 +145,11 @@ impl PluginHost {
                 super::inst::deliver(engine, unit);
             }
         }
-        let fresh = std::mem::take(&mut h.fresh);
+        let fresh = h.load_key.take();
         self.instruments.insert(track, h);
-        if !fresh {
+        let Some(key) = fresh else {
             return;
-        }
+        };
         let Some((state, mut params)) = self.capture_instrument(track) else {
             return;
         };
@@ -161,17 +161,17 @@ impl PluginHost {
             .map(|p| p.params.clone())
             .unwrap_or_default();
         params.extend(set);
-        if let Some(h) = self.instruments.get_mut(&track) {
-            h.synced_state = state.clone();
-            h.flushed = params.clone();
-        }
         let cmd = Command::SetInstrumentPluginState {
             track,
-            state,
-            params,
+            state: state.clone(),
+            params: params.clone(),
         };
-        if let Err(e) = bus.execute_merging(cmd, Origin::User, Self::inst_load_key(track)) {
-            log::warn!("instrument state: {e}");
+        let recorded = super::record_loaded(bus, key, cmd);
+        if let Some(h) = self.instruments.get_mut(&track) {
+            if recorded {
+                h.synced_state = state;
+            }
+            h.flushed = params;
         }
     }
 

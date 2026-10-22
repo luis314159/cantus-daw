@@ -35,6 +35,7 @@ fn limits(silence: u64, call: u64, state: u64) -> Arc<Sandboxes> {
         call: Duration::from_millis(call),
         hang: Duration::from_millis(500),
         offline: Duration::from_secs(2),
+        heavy: Duration::from_millis(state),
     });
     pool
 }
@@ -414,56 +415,9 @@ fn a_dialog_inside_a_call_holds_the_helper_and_freezes_nothing() {
     }
 }
 
-/// A state that takes longer than the state limit without pumping (a sampler reading its
-/// samples) gives the caller up, not the helper: it is not taken for hung before the
-/// heavy limit, and its answer still becomes the last-good state (review isolation-4 #66,
-/// #1, #20).
-#[test]
-fn a_slow_state_past_its_limit_is_not_a_hang() {
-    let _g = serial();
-    let pool = pool();
-    pool.set_limits(Limits {
-        silence: Duration::from_millis(500),
-        state: Duration::from_millis(1_000),
-        ..Limits::default()
-    });
-    let Loaded {
-        mut main,
-        mut audio,
-    } = load(&pool, GAIN_ID, "own-heavy");
-    noisy(
-        audio.as_mut(),
-        &[ParamChange {
-            offset: 0,
-            id: P_GAIN,
-            value: -6.0,
-        }],
-    );
-    arrived(main.as_mut(), P_GAIN, -6.0);
-    noisy(audio.as_mut(), &fault(P_FAULT, SLOW_SAVE));
-    arrived(main.as_mut(), P_FAULT, SLOW_SAVE);
-    let before = main.save_state();
-    // That save was the slow one (3 s, silent): given up, its answer kept for later.
-    let start = Instant::now();
-    while start.elapsed() < Duration::from_secs(4) {
-        assert_eq!(crashed(main.as_mut()), None, "a slow state is not a hang");
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    let fresh = main.save_state().unwrap();
-    // Gone now: what the slow save answered is what the project keeps.
-    let mut l = vec![0.0; 64];
-    let mut r = l.clone();
-    call(
-        audio.as_mut(),
-        &mut l,
-        &mut r,
-        &fault(P_FAULT, ABORT_PROCESS),
-        &[],
-    );
-    assert!(crashed_within(main.as_mut(), Duration::from_secs(5)).is_some());
-    assert_eq!(main.save_state().unwrap(), fresh);
-    drop(before);
-}
+// A slow state past its limit, no hang: `session_faults6::a_slow_silent_state_past_its_
+// limit_is_not_a_hang` holds it at the shipped ratio (review isolation-6 #12: the test here
+// had stopped sending the slow request).
 
 /// A helper slow to start (an antivirus checking it on its first run) is judged by its
 /// handshake's own limit, not by the silence limit (review isolation-4 #50).
@@ -580,6 +534,7 @@ fn a_pause_is_not_a_silence_but_a_real_silence_still_is() {
     pool.set_limits(Limits {
         silence: Duration::from_millis(300),
         state: Duration::from_millis(400),
+        heavy: Duration::from_millis(400),
         ..Limits::default()
     });
     let Loaded {

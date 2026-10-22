@@ -101,7 +101,13 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     // Working: where it runs and what it costs.
     let stopped = app.plugins.instrument_crashed(t).is_some();
     if !stopped {
-        let ok = sh.fmt.tr("hosted.status_ok").to_string();
+        // Loading in its own process: said so, quietly (review isolation-6 #28).
+        let key = if app.plugins.instrument_loading(t) {
+            "isolation.inst.status_loading"
+        } else {
+            "hosted.status_ok"
+        };
+        let ok = sh.fmt.tr(key).to_string();
         sh.text_row("hosted.status", &ok, false, false);
     }
     let runs = crate::i18n::t(h.isolation().label_key());
