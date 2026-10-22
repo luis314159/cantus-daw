@@ -332,6 +332,8 @@ pub fn trace(
     let (tx_engine, mut rx) = rtrb::RingBuffer::<EngineEvent>::new(64 + n_fx + instruments.len());
     let mut p = crate::processor::Processor::without_midi(sr, rx_engine, tx_engine);
     p.set_profiling(false);
+    // Frozen renders are read as a render reads them: waited for (review 1).
+    p.set_offline(true);
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
             Some(i) => units.swap_remove(i),
@@ -365,11 +367,7 @@ pub fn trace(
             _ => {}
         }
     }
-    let frames = ((end - opts.start)
-        .max(cantus_core::Ticks::ZERO)
-        .to_seconds(snap.tempo_bpm)
-        * sr)
-        .ceil() as usize;
+    let frames = (snap.tempo.seconds_between(opts.start, end.max(opts.start)) * sr).ceil() as usize;
     // A control point every 16 samples at most, and the jumps.
     p.trace_modulator(Some(id), frames / 16 + 64);
     tx.push(EngineMessage::Seek(opts.start)).ok();

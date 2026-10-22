@@ -117,6 +117,8 @@ enum Act {
     BrowseEffects(StripId),
     SwapEffect(StripId, EffectId),
     OpenEffect(StripId, EffectId),
+    /// A hosted insert's *Reload plug-in* and where it runs (round 29, review #17).
+    Hosting(EffectId, crate::views::plugin_notice::MenuAct),
     Bypass(StripId, EffectId, bool),
     MoveEffect(StripId, EffectId, usize),
     RemoveEffect(StripId, EffectId),
@@ -147,6 +149,19 @@ enum Act {
     CableLevels,
     CableMaster,
     CablePreset(CablePreset),
+    /// Freeze the strip, or unfreeze what holds it (round 29, ADR 0064).
+    Freeze(StripId),
+    /// Bounce the whole strip in place.
+    Bounce(StripId),
+    /// Round 29 (ADR 0062): learn a controller for a strip's (or the master's) volume (0),
+    /// pan (1), width (2), mute (3) or solo (4).
+    Learn(StripId, u8),
+    /// Learn a controller for an insert's bypass (0) or mix (1).
+    LearnSlot(EffectId, u8),
+    /// Forget every controller of the strip's (or the master's) controls.
+    ForgetStrip(StripId),
+    /// Forget the controllers of an insert's bypass and mix.
+    ForgetSlot(EffectId),
 }
 
 impl Act {
@@ -349,6 +364,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
             let s = &p.strips[index];
             e.push(Entry::act(Label::Key("mixer.menu.rename"), Act::Rename(id)));
             automate_entries(id, &mut e);
+            learn_entries(app, id, &mut e);
             e.push(Entry::sub(
                 Label::Key("mixer.menu.color"),
                 Sub::Colors(ColorOf::Strip(id)),
@@ -375,6 +391,21 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                     );
                 }
             }
+            // Freeze and bounce in place (round 29, ADR 0064).
+            e.push(Entry::band("freeze.menu.band"));
+            let held = app.freeze_holding_strip(id);
+            e.push(Entry::act(
+                Label::Key(if held.is_some() {
+                    "freeze.menu.unfreeze_strip"
+                } else {
+                    "freeze.menu.freeze_strip"
+                }),
+                Act::Freeze(id),
+            ));
+            e.push(
+                Entry::act(Label::Key("bounce.menu.strip"), Act::Bounce(id))
+                    .enabled(crate::bounce::strip_plan(app, id).is_ok()),
+            );
             e.push(Entry::band("mixer.menu.routing"));
             e.push(
                 Entry::act(Label::Key("routing.menu.where"), Act::RouteMenu(id)).shortcut(
@@ -527,6 +558,7 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
         Menu::Master => {
             let m = &p.master;
             automate_entries(StripId::MASTER, &mut e);
+            learn_entries(app, StripId::MASTER, &mut e);
             e.push(Entry::band("master.menu.effects"));
             e.push(Entry::sub(
                 Label::Key("effect.add"),
@@ -564,6 +596,19 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Entry::act(Label::Key("effect.bypass"), Act::Bypass(id, fx, !bypass))
                     .check(on(bypass)),
             );
+            // MIDI learn (round 29, ADR 0062): the insert's bypass and mix.
+            let mut mapped = false;
+            for (what, key) in [(0u8, "ctl.menu.bypass"), (1, "ctl.menu.mix")] {
+                let m = app.is_mapped(&crate::controllers::slot_learn_target(fx, what));
+                mapped |= m;
+                e.push(Entry::act(Label::Key(key), Act::LearnSlot(fx, what)).check(on(m)));
+            }
+            if mapped {
+                e.push(Entry::act(
+                    Label::Key("ctl.menu.forget"),
+                    Act::ForgetSlot(fx),
+                ));
+            }
             e.push(
                 Entry::act(
                     Label::Key("effect.up"),
@@ -580,9 +625,37 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
                 Label::Key("effect.remove"),
                 Act::RemoveEffect(id, fx),
             ));
+            // A hosted plug-in: *Reload plug-in* while it is stopped, and where it runs
+            // (round 29, review #17, #33), as the inspector's menu has them.
+            hosting_entries(app, fx, &mut e);
         }
     }
     e
+}
+
+/// A hosted insert's rows: *Reload plug-in* (under its own band) while it is stopped,
+/// then *Runs*.
+fn hosting_entries(app: &CantusApp, fx: EffectId, e: &mut Vec<Entry>) {
+    use crate::views::plugin_notice::{menu_rows, MenuAct, Target};
+    let rows = menu_rows(app, Target::Insert(fx));
+    if rows.is_empty() {
+        return;
+    }
+    e.push(Entry::separator());
+    let mut banded = false;
+    for (label, on, a) in rows {
+        if a == MenuAct::Reload {
+            e.push(Entry::band("isolation.slot.stopped_band"));
+        } else if !banded {
+            banded = true;
+            e.push(Entry::band("isolation.slot.band"));
+        }
+        let entry = Entry::act(Label::Own(label), Act::Hosting(fx, a));
+        e.push(match on {
+            Some(b) => entry.check(radio(b)),
+            None => entry,
+        });
+    }
 }
 
 /// The rows of a submenu (and of the menus made of them).
@@ -907,9 +980,13 @@ fn list(
         hovered: None,
         row_of_hovered: None,
     };
+    // Its size given: egui's first (sizing) pass would hold it to its default area size —
+    // 400 points tall — and every row below that sat behind a scroll that does not show
+    // (round 29, review 1: the strip menu ended at Mute; Freeze and Routing were below).
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
+        .default_size(vec2(width, h))
         .constrain(true)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()
@@ -1116,6 +1193,11 @@ pub(super) fn show(v: &mut MixerView, app: &mut CantusApp, ui: &mut egui::Ui) {
 fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
     let mut prefs = v.prefs.current;
     match act {
+        Act::Freeze(id) => match app.freeze_holding_strip(id) {
+            Some(h) => app.unfreeze_target(h),
+            None => app.freeze_target(cantus_core::FreezeTarget::Strip(id)),
+        },
+        Act::Bounce(id) => app.bounce_strip(id),
         Act::Rename(id) => {
             if let Some(s) = app.project().strip(id) {
                 let name = s.name.clone();
@@ -1235,6 +1317,28 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             prefs.colourful = c;
             v.prefs.set(prefs);
         }
+        Act::Learn(id, what) => {
+            if let Some(t) = crate::controllers::strip_learn_target(id, what) {
+                app.learn_target(t);
+            }
+        }
+        Act::LearnSlot(fx, what) => {
+            app.learn_target(crate::controllers::slot_learn_target(fx, what));
+        }
+        // One undo step, one status for the whole strip or insert (review 1, #51).
+        Act::ForgetStrip(id) => {
+            let all: Vec<_> = (0..7)
+                .filter_map(|w| crate::controllers::strip_learn_target(id, w))
+                .collect();
+            let name = crate::automation::target_parts(
+                app.project(),
+                &cantus_core::AutoTarget::StripGain(id),
+            )
+            .0;
+            app.forget_targets(&all, &name);
+        }
+        // The status names the insert, not one of its controls (review 2, #46).
+        Act::ForgetSlot(fx) => app.forget_slot(fx),
         Act::Automate(id, what) => app.automate(strip_target(id, what)),
         Act::Modulate(id, what) => {
             // Beside the pointer, where the menu was.
@@ -1261,6 +1365,11 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             app.open_picker(crate::picker::PickPurpose::ReplaceEffect { strip, effect });
         }
         Act::OpenEffect(id, fx) => app.open_effect_editor(id, fx),
+        Act::Hosting(fx, a) => crate::views::plugin_notice::run_menu(
+            app,
+            crate::views::plugin_notice::Target::Insert(fx),
+            a,
+        ),
         Act::Bypass(strip, effect, bypass) => {
             app.exec(Command::SetEffectBypass {
                 strip,
@@ -1470,6 +1579,40 @@ fn strip_target(id: StripId, what: u8) -> cantus_core::AutoTarget {
         (false, 0) => A::StripGain(id),
         (false, 1) => A::StripPan(id),
         (false, _) => A::StripWidth(id),
+    }
+}
+
+/// A strip's (or the master's) MIDI learn rows (round 29, ADR 0062): its volume, pan,
+/// width, mute and solo (the master has no mute or solo), each checked when mapped, and
+/// *Forget* when anything is.
+fn learn_entries(app: &CantusApp, id: StripId, e: &mut Vec<Entry>) {
+    e.push(Entry::band("ctl.menu.band"));
+    let mut mapped = false;
+    for (what, key) in [
+        (0u8, "ctl.menu.volume"),
+        (1, "ctl.menu.pan"),
+        (2, "ctl.menu.width"),
+        (3, "ctl.menu.mute"),
+        (4, "ctl.menu.solo"),
+        (5, "ctl.menu.fx"),
+        (6, "ctl.menu.arm"),
+    ] {
+        let Some(t) = crate::controllers::strip_learn_target(id, what) else {
+            continue;
+        };
+        // The record arm: a strip with tracks that record into it.
+        if what == 6 && !rec_state(app, id).0 {
+            continue;
+        }
+        let m = app.is_mapped(&t);
+        mapped |= m;
+        e.push(Entry::act(Label::Key(key), Act::Learn(id, what)).check(on(m)));
+    }
+    if mapped {
+        e.push(Entry::act(
+            Label::Key("ctl.menu.forget"),
+            Act::ForgetStrip(id),
+        ));
     }
 }
 

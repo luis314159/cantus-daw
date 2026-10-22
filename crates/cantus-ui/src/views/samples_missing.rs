@@ -136,7 +136,7 @@ pub fn pack_of(path: &str, root: &Path, known: &HashSet<String>) -> Option<(Stri
 }
 
 /// Every file path the project plays from, with what plays it and what to call it.
-fn each_path(project: &Project, f: &mut dyn FnMut(Owner, &str, &str)) {
+pub(crate) fn each_path(project: &Project, f: &mut dyn FnMut(Owner, &str, &str)) {
     for t in &project.tracks {
         match &t.instrument {
             InstrumentSpec::Native(n) if n.kind == InstrumentKind::Sampler => {
@@ -296,6 +296,18 @@ pub fn check(
     Scan { found, gone, fixes }
 }
 
+/// A relink, through the frozen targets it moves (round 29, review 1): they stay frozen,
+/// their renders made again from the files found.
+fn exec_relink(app: &mut CantusApp, cmd: Command) -> bool {
+    match cmd {
+        Command::Batch {
+            label_key,
+            commands,
+        } => crate::freeze::exec_through(app, &label_key, commands, None),
+        cmd => app.exec(cmd),
+    }
+}
+
 /// The commands that point `fixes` at their new paths, as one undo step.
 pub fn relink_commands(project: &Project, fixes: &[(Owner, String)]) -> Option<Command> {
     let mut commands = Vec::new();
@@ -356,7 +368,7 @@ pub fn relink_to(app: &mut CantusApp, pack: &str, folder: &Path) -> bool {
     let Some(cmd) = relink_commands(app.project(), &fixes) else {
         return false;
     };
-    let done = app.exec(cmd);
+    let done = exec_relink(app, cmd);
     app.samples.missing.key = None;
     done
 }
@@ -374,7 +386,7 @@ pub fn relink(app: &mut CantusApp, pack: &str) -> bool {
     let Some(cmd) = relink_commands(app.project(), &fixes) else {
         return false;
     };
-    let done = app.exec(cmd);
+    let done = exec_relink(app, cmd);
     app.samples.missing.key = None;
     done
 }

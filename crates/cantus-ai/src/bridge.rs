@@ -35,6 +35,19 @@ pub fn tool_specs() -> Vec<ToolSpec> {
             }),
         },
         ToolSpec {
+            name: "set_tempo_point".into(),
+            description: "Put a tempo change on the tempo track at a beat, 0 to 1 000 000 (a ramp when `ramp` is true: the tempo moves linearly from this point to the next; leave `ramp` out to keep an existing point's own). Beat 0 sets the song's starting tempo.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "beat": { "type": "number", "minimum": 0, "maximum": 1_000_000 },
+                    "bpm": { "type": "number" },
+                    "ramp": { "type": "boolean" }
+                },
+                "required": ["beat", "bpm"]
+            }),
+        },
+        ToolSpec {
             name: "add_track".into(),
             description: "Create a new instrument track playing the built-in Firmus synth.".into(),
             input_schema: json!({
@@ -107,6 +120,32 @@ pub fn describe_project(project: &Project) -> String {
         "<project name=\"{}\" tempo_bpm=\"{}\" time_signature=\"{}\">\n",
         project.name, project.tempo_bpm, project.time_signature
     );
+    // The tempo map (round 29, ADR 0060): every tempo point, metre change and marker.
+    for p in &project.tempo_points {
+        s.push_str(&format!(
+            "  <tempo beat=\"{}\" bpm=\"{}\" ramp=\"{}\"/>
+",
+            p.tick.as_beats_f64(),
+            p.bpm,
+            p.ramp
+        ));
+    }
+    for m in &project.metre_changes {
+        s.push_str(&format!(
+            "  <metre beat=\"{}\" signature=\"{}\"/>
+",
+            m.tick.as_beats_f64(),
+            m.signature
+        ));
+    }
+    for m in &project.markers {
+        s.push_str(&format!(
+            "  <marker beat=\"{}\" name=\"{}\"/>
+",
+            m.tick.as_beats_f64(),
+            m.name
+        ));
+    }
     for t in &project.tracks {
         let notes: usize = t.clips.iter().map(|c| c.notes.len()).sum();
         s.push_str(&format!(
@@ -129,6 +168,35 @@ pub fn to_command(call: &ToolCall, bus: &mut CommandBus) -> Result<Option<Comman
                 .and_then(Value::as_f64)
                 .ok_or(BridgeError::BadArgument("bpm"))?;
             Ok(Some(Command::SetTempo { bpm }))
+        }
+        "set_tempo_point" => {
+            let horizon = cantus_core::tempo::HORIZON.as_beats_f64();
+            let beat = a
+                .get("beat")
+                .and_then(Value::as_f64)
+                .filter(|b| b.is_finite() && *b >= 0.0 && *b <= horizon)
+                .ok_or(BridgeError::BadArgument("beat"))?;
+            let bpm = a
+                .get("bpm")
+                .and_then(Value::as_f64)
+                .filter(|b| b.is_finite())
+                .ok_or(BridgeError::BadArgument("bpm"))?;
+            let tick = Ticks::from_beats_f64(beat);
+            // Unsaid, the point's own ramp stays (review 5: a new start tempo cleared the
+            // accelerando).
+            let ramp = a.get("ramp").and_then(Value::as_bool).unwrap_or_else(|| {
+                bus.project()
+                    .tempo_points
+                    .iter()
+                    .find(|p| p.tick == tick.max(Ticks::ZERO))
+                    .is_some_and(|p| p.ramp)
+            });
+            Ok(Some(cantus_core::tempo::edit::add_tempo_point(
+                bus.project(),
+                tick,
+                bpm,
+                ramp,
+            )))
         }
         "add_track" => {
             let name = a
@@ -387,5 +455,96 @@ mod tests {
         let d = describe_project(bus.project());
         assert!(d.starts_with("<project"));
         assert!(d.contains("name=\"Keys\""));
+    }
+
+    /// Round 29 (ADR 0060): the agent sees the tempo map and can put a tempo point, an
+    /// ordinary undoable command.
+    #[test]
+    fn the_agent_sees_the_tempo_map_and_sets_a_tempo_point() {
+        let mut bus = CommandBus::default();
+        let call = ToolCall {
+            name: "set_tempo_point".into(),
+            input: json!({ "beat": 8.0, "bpm": 140.0, "ramp": false }),
+        };
+        let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+        bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
+        assert_eq!(bus.project().tempo_points.len(), 2);
+        assert_eq!(bus.project().tempo_points[1].bpm, 140.0);
+        let text = describe_project(bus.project());
+        assert!(text.contains("<tempo beat=\"8\" bpm=\"140\""), "{text}");
+        assert!(bus.undo().is_some());
+        assert!(bus.project().tempo_points.is_empty());
+    }
+
+    /// Review 2 (findings 8, 63): a ramp asked for from beat 0 ramps — an accelerando from
+    /// the top to a point already there.
+    #[test]
+    fn the_agent_can_ramp_from_the_start() {
+        let mut bus = CommandBus::default();
+        for input in [
+            json!({ "beat": 16.0, "bpm": 140.0, "ramp": false }),
+            json!({ "beat": 0.0, "bpm": 90.0, "ramp": true }),
+        ] {
+            let call = ToolCall {
+                name: "set_tempo_point".into(),
+                input,
+            };
+            let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+            bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
+        }
+        let p = bus.project();
+        assert_eq!(p.tempo_bpm, 90.0);
+        assert!(p.tempo_points[0].ramp, "{:?}", p.tempo_points);
+        let map = p.tempo_map();
+        assert!((map.bpm_at(cantus_core::Ticks::beats(8).0 as f64) - 115.0).abs() < 1e-9);
+    }
+
+    /// Review 3 (finding 55): the ramp asked for first, the point it ramps to after.
+    #[test]
+    fn the_agent_can_ramp_from_the_start_asked_first() {
+        let mut bus = CommandBus::default();
+        for input in [
+            json!({ "beat": 0.0, "bpm": 90.0, "ramp": true }),
+            json!({ "beat": 16.0, "bpm": 140.0, "ramp": false }),
+        ] {
+            let call = ToolCall {
+                name: "set_tempo_point".into(),
+                input,
+            };
+            let cmd = to_command(&call, &mut bus).unwrap().unwrap();
+            bus.execute(cmd, cantus_core::Origin::Ai).unwrap();
+        }
+        let p = bus.project();
+        assert_eq!(p.tempo_bpm, 90.0);
+        assert!(p.tempo_points[0].ramp, "{:?}", p.tempo_points);
+        let map = p.tempo_map();
+        assert!((map.bpm_at(cantus_core::Ticks::beats(8).0 as f64) - 115.0).abs() < 1e-9);
+    }
+
+    /// Review 5 (finding 28): a point past the song's horizon is refused; a call that says
+    /// nothing of the ramp keeps the point's own (a new start tempo keeps the accelerando).
+    #[test]
+    fn a_far_point_is_refused_and_an_unsaid_ramp_is_kept() {
+        let mut bus = CommandBus::default();
+        let call = |bus: &mut CommandBus, input: serde_json::Value| {
+            let call = ToolCall {
+                name: "set_tempo_point".into(),
+                input,
+            };
+            to_command(&call, bus).map(|c| {
+                bus.execute(c.unwrap(), cantus_core::Origin::Ai).unwrap();
+            })
+        };
+        assert!(call(&mut bus, json!({ "beat": 1e9, "bpm": 140.0 })).is_err());
+        call(&mut bus, json!({ "beat": 0.0, "bpm": 90.0, "ramp": true })).unwrap();
+        call(&mut bus, json!({ "beat": 16.0, "bpm": 140.0 })).unwrap();
+        call(&mut bus, json!({ "beat": 0.0, "bpm": 100.0 })).unwrap();
+        let p = bus.project();
+        assert_eq!(p.tempo_points[0].bpm, 100.0);
+        assert!(
+            p.tempo_points[0].ramp,
+            "the accelerando kept: {:?}",
+            p.tempo_points
+        );
     }
 }

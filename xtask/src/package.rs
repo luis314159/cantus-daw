@@ -27,7 +27,8 @@
 //! `.cantus` association, "Open with" and the installer's "run Cantus" all name `cantus.exe`,
 //! as before. Every program is asked its level (`--version`) and its drivers; then the
 //! launcher, laid out as released, must start one that lists ASIO. The plug-in scanner
-//! (`cantus-scan.exe`, which the app starts from beside itself) ships beside them.
+//! (`cantus-scan.exe`) and the plug-in sandbox (`cantus-sandbox.exe`, round 29), which
+//! the app starts from beside itself, ship beside them.
 //!
 //! Out: `target/package/dist/` — `Cantus-<v>-windows-x64-setup.exe` (and the same file as
 //! `Cantus-windows-x64-setup.exe`, the stable name a website links to — ADR 0048 §7),
@@ -93,6 +94,9 @@ pub struct Inputs {
     pub programs: Vec<(Level, PathBuf)>,
     /// `cantus-scan.exe`, which reads each plug-in file in a process of its own.
     pub scanner: PathBuf,
+    /// `cantus-sandbox.exe`, which runs third-party plug-ins out of Cantus's process
+    /// (round 29, ADR 0063).
+    pub sandbox: PathBuf,
     /// `target/bundled/` (`xtask bundle`).
     pub bundled: PathBuf,
     /// The plug-ins' names (`Cantus Aequalis`, …).
@@ -125,6 +129,8 @@ fn entry(dir: &Path, name: &str) -> Entry {
 pub const LAUNCHER: &str = "cantus.exe";
 /// The plug-in scanner's name (`cantus_host::Scanner::beside_this_program`).
 pub const SCANNER: &str = "cantus-scan.exe";
+/// The plug-in sandbox's name (`cantus_host::bridge::Sandboxes::default_exe`, ADR 0063).
+pub const SANDBOX: &str = "cantus-sandbox.exe";
 const TEXTS: [&str; 3] = ["LICENSE.txt", "COPYRIGHT.txt", "README.txt"];
 
 /// A level's program in the release: `cantus-x86-64-v3.exe`. The release is the Windows
@@ -141,6 +147,7 @@ pub fn app_names(levels: &[Level]) -> Vec<String> {
     sorted.sort();
     v.extend(sorted.iter().map(|l| release_program(*l)));
     v.push(SCANNER.to_owned());
+    v.push(SANDBOX.to_owned());
     v.extend(TEXTS.iter().map(|t| t.to_string()));
     v
 }
@@ -154,6 +161,7 @@ pub fn stage(inputs: &Inputs, stage: &Path, version: &str) -> Staged {
         copy_into(exe, &app.join(release_program(*level)));
     }
     copy_into(&inputs.scanner, &app.join(SCANNER));
+    copy_into(&inputs.sandbox, &app.join(SANDBOX));
     copy_into(&inputs.license, &app.join("LICENSE.txt"));
     copy_into(&inputs.copyright, &app.join("COPYRIGHT.txt"));
     let readme = std::fs::read_to_string(&inputs.readme)
@@ -448,6 +456,17 @@ fn build_scanner(level: Level, triple: &str) {
     run(levels::cargo_build(level, triple).args(["-p", "cantus-host", "--bin", "cantus-scan"]));
 }
 
+/// The plug-in sandbox (ADR 0063), built with the lowest level's flags like the scanner: it
+/// runs third-party plug-ins, whose code is theirs, and moves their audio, not ours.
+fn build_sandbox(level: Level, triple: &str) {
+    run(levels::cargo_build(level, triple).args([
+        "-p",
+        "cantus-sandbox",
+        "--bin",
+        "cantus-sandbox",
+    ]));
+}
+
 /// The launcher, in the ordinary target and with no `target-cpu`, so that it runs on any
 /// x86-64 processor and can say why one is too old.
 fn build_launcher(target: &Path) {
@@ -561,6 +580,7 @@ pub fn package(args: &[String]) {
             build_app(*level, &triple, &tools);
         }
         build_scanner(levels[0], &triple);
+        build_sandbox(levels[0], &triple);
         build_launcher(&target);
     }
     let programs: Vec<(Level, PathBuf)> = levels
@@ -571,7 +591,12 @@ pub fn package(args: &[String]) {
         .join("release")
         .join(format!("cantus-launch{}", std::env::consts::EXE_SUFFIX));
     let scanner = levels::binary(levels[0], &triple, "cantus-scan");
-    for exe in programs.iter().map(|(_, p)| p).chain([&launcher, &scanner]) {
+    let sandbox = levels::binary(levels[0], &triple, "cantus-sandbox");
+    for exe in programs
+        .iter()
+        .map(|(_, p)| p)
+        .chain([&launcher, &scanner, &sandbox])
+    {
         if !exe.is_file() {
             eprintln!("{} is not built", exe.display());
             std::process::exit(1);
@@ -588,6 +613,7 @@ pub fn package(args: &[String]) {
         launcher,
         programs,
         scanner,
+        sandbox,
         bundled: target.join("bundled"),
         plugins: cantus_plugins::desc::ALL
             .iter()

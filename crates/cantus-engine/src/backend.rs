@@ -88,12 +88,20 @@ pub struct EngineHandle {
     known_instruments: HashMap<TrackId, (UnitKind, u64)>,
     /// Every sample any snapshot has referenced, for the life of the session.
     pub samples: SampleCache,
+    /// Where frozen renders are and the ones opened (ADR 0064): every snapshot compiled
+    /// here plays the renders at hand.
+    pub frozen: crate::freeze::FrozenStore,
     /// The newest snapshot, while some Exemplar's new zone table waits for its starts to be
     /// read ([`Self::set_snapshot`]), and since when it has waited (an absolute bound).
     pending: Option<Arc<Snapshot>>,
     pending_since: Option<std::time::Instant>,
     /// Zone tables sent before their starts were read, the bound reached (counted).
     tables_late: u64,
+    /// Offline renders compiled before every pitch or warp render was in (counted).
+    renders_late: u64,
+    /// How long an offline render's compile waits for each pitch or warp render pass
+    /// (five minutes; a test shortens it).
+    render_patience: Option<std::time::Duration>,
     /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
     compiles: u64,
     note_inputs: Vec<NoteInput>,
@@ -301,9 +309,12 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            frozen: crate::freeze::FrozenStore::default(),
             pending: None,
             pending_since: None,
             tables_late: 0,
+            renders_late: 0,
+            render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: Some(capture_rx),
@@ -376,9 +387,12 @@ impl EngineHandle {
             known_effects: HashSet::new(),
             known_instruments: HashMap::new(),
             samples: SampleCache::new(),
+            frozen: crate::freeze::FrozenStore::default(),
             pending: None,
             pending_since: None,
             tables_late: 0,
+            renders_late: 0,
+            render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
             capture: None,
@@ -650,6 +664,12 @@ impl EngineHandle {
     /// Files that cannot be read are reported and the pad stays silent; a project must
     /// never fail to play because a sample moved.
     pub fn compile(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
+        self.compile_as(project, revision, false)
+    }
+
+    /// [`Self::compile`]; `render`: for an offline render (its frozen renders read with
+    /// boards of their own).
+    fn compile_as(&mut self, project: &Project, revision: u64, render: bool) -> Arc<Snapshot> {
         // A live engine loads audio sources in the background (ADR 0025 §9); a manual
         // one (tests, renders) at once.
         if self.is_live() {
@@ -661,6 +681,8 @@ impl EngineHandle {
         // Pitch renders are made on the pitch service's worker, never on this thread —
         // with a device or without (ADR 0054, review 1).
         self.samples.set_pitch_background(true);
+        // A render's compile never takes the playing snapshot's warp renders away.
+        self.samples.set_offline(render);
         let mut snapshot = Snapshot::compile(project, revision);
         for (path, err) in self.samples.attach(&mut snapshot) {
             log::warn!("sample {}: {err}", path.display());
@@ -670,6 +692,13 @@ impl EngineHandle {
         for (path, err) in self.samples.attach_audio(&mut snapshot, rate) {
             log::warn!("audio {}: {err}", path.display());
         }
+        // Frozen strips and tracks whose render is at hand play it (ADR 0064).
+        if project.any_frozen() {
+            self.frozen.attach(project, &mut snapshot, rate, render);
+        } else if !render {
+            // Nothing frozen: every render opened is let go (review 1).
+            self.frozen.let_go_all();
+        }
         Arc::new(snapshot)
     }
 
@@ -677,12 +706,54 @@ impl EngineHandle {
     /// instrument file still loading in the background, so the render plays what playing
     /// will once they are in — never the silence of a zone still on its way (ADR 0050 §7).
     pub fn compile_for_render(&mut self, project: &Project, revision: u64) -> Arc<Snapshot> {
-        let _ = self.compile(project, revision);
+        let _ = self.compile_as(project, revision, true);
         self.samples.wait_assets();
+        // And the audio sources the compile asked for in the background (review 3: a file
+        // tried again, or opened a moment ago, played as silence in a freeze or a bounce).
+        let patience_audio = self
+            .render_patience
+            .unwrap_or(std::time::Duration::from_secs(300));
+        if !self.samples.wait_audio(patience_audio) {
+            self.renders_late += 1;
+        }
         // And the pitch renders the first compile asked for (ADR 0054): the file holds the
         // edits, never the take as sung.
-        self.samples.wait_pitch(std::time::Duration::from_secs(300));
-        self.compile(project, revision)
+        let patience = self
+            .render_patience
+            .unwrap_or(std::time::Duration::from_secs(300));
+        self.samples.wait_pitch(patience);
+        let mut complete = self.samples.wait_pitch(std::time::Duration::ZERO);
+        // And the warp renders (ADR 0061), asked once the pitch renders they read are in:
+        // the file holds the full renders, never a bridge. A compile may ask for renders
+        // the one before did not (a loop's last piece, a render a foreign project's
+        // compile let go of): compiled again until one asks for nothing new.
+        for _ in 0..4 {
+            let _ = self.compile_as(project, revision, true);
+            if self.samples.warp_pending() == 0 {
+                break;
+            }
+            complete &= self.samples.wait_warp(patience);
+        }
+        let snapshot = self.compile_as(project, revision, true);
+        if !complete || self.samples.warp_pending() > 0 {
+            // Counted, and said: the render would carry a bridge or a pitch edit's source.
+            self.renders_late += 1;
+            log::warn!("an offline render compiled before every pitch or warp render was in");
+        }
+        snapshot
+    }
+
+    /// Offline renders ([`Self::compile_for_render`]) compiled before every pitch or warp
+    /// render was in (their patience ran out): every caller compares it before and after
+    /// and says so (the interface's `say_late`).
+    pub fn renders_late(&self) -> u64 {
+        self.renders_late
+    }
+
+    /// How long an offline render's compile waits for renders (tests: a short patience).
+    #[doc(hidden)]
+    pub fn set_render_patience(&mut self, patience: std::time::Duration) {
+        self.render_patience = Some(patience);
     }
 
     /// Send a snapshot, first delivering units for any effect the engine does not have. It
@@ -1033,6 +1104,15 @@ impl EngineHandle {
 
     /// Readings as if the engine had sent them, for the dummy engine's tests and screenshots
     /// (it sends none); a running engine's next report replaces them.
+    /// Where the engine is heard and whether it plays, as if it had reported it, for the
+    /// dummy engine's tests (round 29: a controller's move recorded at its message's time).
+    #[doc(hidden)]
+    pub fn set_heard_for_tests(&mut self, position: Ticks, playing: bool) {
+        self.position = position;
+        self.engine_position = position;
+        self.playing = playing;
+    }
+
     #[doc(hidden)]
     pub fn set_meters(&mut self, meters: Meters) {
         self.meters = meters;

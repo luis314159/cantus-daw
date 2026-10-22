@@ -91,10 +91,22 @@ impl CantusApp {
         self.journal_sync(true);
     }
 
-    /// Once a frame: bring the journal up to date with the project. Nothing is written
-    /// (or even formatted) unless the dirty flag, the file or the name changed.
+    /// Once a frame: bring the journal up to date with the project — and with the pass
+    /// recording (the latency its start was placed by, its wraps; review 3). Nothing is
+    /// written (or even formatted) unless something changed.
     pub fn journal_tick(&mut self) {
-        self.journal_sync(false);
+        let pass = self.engine.current_pass();
+        let mut moved = false;
+        if let (Some((latency, wraps)), Some(s)) = (pass, self.session.as_mut()) {
+            if let Some(p) = s.journal.passes.iter_mut().rev().find(|p| !p.finished) {
+                if p.latency_frames != latency.total() || p.marked_wraps != wraps {
+                    p.latency_frames = latency.total();
+                    p.marked_wraps = wraps;
+                    moved = true;
+                }
+            }
+        }
+        self.journal_sync(moved);
     }
 
     fn journal_sync(&mut self, force: bool) {
@@ -182,8 +194,12 @@ impl CantusApp {
             loop_takes: plan.loop_takes,
             mode: plan.mode,
             tempo_bpm: self.project().tempo_bpm,
+            tempo_points: self.project().tempo_points.clone(),
             sample_rate: self.engine.sample_rate.round().max(1.0) as u32,
+            // The callback's figure for now: the engine's own replaces it once the pass
+            // has started (`journal_tick`, review 3).
             latency_frames: self.engine.record_latency().total(),
+            marked_wraps: Vec::new(),
             takes: match_takes(&tracks, &new),
             finished: false,
         };
@@ -212,11 +228,23 @@ impl CantusApp {
         if self.is_recording() {
             self.stop_recording();
         }
+        // A freeze or a bounce rendering: stopped, its partial files gone (review 1).
+        crate::freeze::close(self);
         // A save being written lands first (then nothing may be unsaved at all), and an
         // autosave being written shares the file with this one: let both finish. What the
         // *Save changes?* question waited to do (open another file…) is moot now.
         self.saving.then = None;
         self.wait_for_save();
+        // Its renders copied into its folder before the process ends (review 4: a quit
+        // right after a save killed the copy halfway).
+        // Normally they are in already: the window stayed open, with its card, until they
+        // were (`keep_open_for_copies`); *Close now* skips the wait.
+        let patience = if self.freeze.skip_copies {
+            std::time::Duration::ZERO
+        } else {
+            std::time::Duration::from_secs(120)
+        };
+        crate::freeze::finish_saving(self, patience);
         self.poll_autosave(true);
         let mut unsaved = false;
         if self.bus.is_dirty() {
@@ -319,20 +347,21 @@ impl CantusApp {
                 plan.mode = j.mode;
                 plan.take_word = t("rec.take");
                 plan.audio_tracks = here.iter().map(|t| t.track).collect();
-                let fpt = f64::from(j.sample_rate) * 60.0
-                    / (j.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
                 // Where the playhead was when the pass ended: after the last wrap, from
                 // the loop's start; else from where the transport started.
                 let longest = here.iter().max_by_key(|t| t.frames);
                 plan.stop_at = match (longest, j.loop_region) {
                     (Some(t), Some((a, _))) if !t.wraps.is_empty() => {
                         let last = t.wraps.last().copied().unwrap_or(0);
-                        a + cantus_core::Ticks(((t.frames - last) as f64 / fpt).round() as i64)
+                        cantus_core::Ticks(
+                            j.tick_after(a.0 as f64, (t.frames - last) as f64, j.sample_rate)
+                                .round() as i64,
+                        )
                     }
-                    (Some(t), _) => {
-                        j.transport_start
-                            + cantus_core::Ticks((t.frames as f64 / fpt).round() as i64)
-                    }
+                    (Some(t), _) => cantus_core::Ticks(
+                        j.tick_after(j.transport_start.0 as f64, t.frames as f64, j.sample_rate)
+                            .round() as i64,
+                    ),
                     (None, _) => j.record_start,
                 };
                 if self.finish_pass_with_latency(plan, here.clone(), j.latency_frames) {
@@ -341,7 +370,7 @@ impl CantusApp {
             }
             if !gone.is_empty() {
                 let paths: Vec<PathBuf> = gone.iter().map(|t| t.path.clone()).collect();
-                n += self.import_audio(&paths, pass.journal.record_start, None);
+                n += self.import_audio_as(&paths, pass.journal.record_start, None, true);
             }
         }
         n

@@ -9,16 +9,18 @@
 //! **Alignment.** Delay compensation (ADR 0018) makes every path reach the master at the
 //! same moment, the total latency `L` after the timeline; a strip's fader output is earlier
 //! than that by what is still ahead of it. So each stem is trimmed by its own lateness — a
-//! track by nothing, a strip by the latency of everything up to and including its inserts
-//! (`Processor::strip_latency`), the master by `L` — and sample 0 of every file is the
-//! song's first tick. Then, with the master at unity, the stems of the strips that feed
+//! track by its own (its instrument's, a frozen render's, the delay a bounce keeps:
+//! `Processor::track_latency`, round 29's third review — it was trimmed by nothing), the
+//! tracks into the master by their arrival there (taken after their lines), a strip by the
+//! latency of everything up to and including its inserts (`Processor::strip_latency`), the
+//! master by `L` — and sample 0 of every file is the song's first tick. Then, with the master at unity, the stems of the strips that feed
 //! the master, plus the tracks that go to it directly, add up to the master exactly.
 
 use crate::effects::EffectUnit;
 use crate::messages::{EngineEvent, EngineMessage, MAX_STRIPS, MAX_TRACKS};
 use crate::processor::Processor;
 use crate::render::RenderOptions;
-use cantus_core::{EffectSlot, Snapshot, Ticks};
+use cantus_core::{EffectSlot, Snapshot};
 use rtrb::RingBuffer;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -93,6 +95,11 @@ pub struct StemTap {
     strips: Vec<[Vec<f32>; 2]>,
     tracks: Vec<[Vec<f32>; 2]>,
     direct: [Vec<f32>; 2],
+    /// A freeze's or a bounce's taps (round 29, ADR 0064), when asked for
+    /// ([`StemTap::with_pre`]): each strip's pair before its width, each track's source
+    /// before its level. Empty otherwise (the calls then do nothing).
+    pre_strips: Vec<[Vec<f32>; 2]>,
+    pre_tracks: Vec<[Vec<f32>; 2]>,
 }
 
 impl StemTap {
@@ -103,6 +110,53 @@ impl StemTap {
             strips: (0..MAX_STRIPS).map(|_| pair()).collect(),
             tracks: (0..MAX_TRACKS).map(|_| pair()).collect(),
             direct: pair(),
+            pre_strips: Vec::new(),
+            pre_tracks: Vec::new(),
+        }
+    }
+
+    /// A tap that also keeps every strip's pair before its width and every track's source
+    /// before its level (a freeze's or a bounce's render, ADR 0064).
+    pub fn with_pre(block_frames: usize) -> Self {
+        let pair = || [vec![0.0; block_frames], vec![0.0; block_frames]];
+        StemTap {
+            pre_strips: (0..MAX_STRIPS).map(|_| pair()).collect(),
+            pre_tracks: (0..MAX_TRACKS).map(|_| pair()).collect(),
+            ..StemTap::new(block_frames)
+        }
+    }
+
+    /// A strip's pair before its width, `at` frames into the block.
+    pub(crate) fn strip_before_width(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        if let Some([pl, pr]) = self.pre_strips.get_mut(slot) {
+            pl[at..at + n].copy_from_slice(&l[..n]);
+            pr[at..at + n].copy_from_slice(&r[..n]);
+        }
+    }
+
+    /// A track's source before its level and balance, `at` frames into the block.
+    pub(crate) fn track_source(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        if let Some([pl, pr]) = self.pre_tracks.get_mut(slot) {
+            pl[at..at + n].copy_from_slice(&l[..n]);
+            pr[at..at + n].copy_from_slice(&r[..n]);
+        }
+    }
+
+    /// Strip slot `slot`'s pair before its width this block (empty without [`Self::with_pre`]).
+    pub fn strip_pre(&self, slot: usize) -> [&[f32]; 2] {
+        match self.pre_strips.get(slot) {
+            Some([l, r]) => [&l[..self.frames], &r[..self.frames]],
+            None => [&[], &[]],
+        }
+    }
+
+    /// Track slot `slot`'s source this block (empty without [`Self::with_pre`]).
+    pub fn track_pre(&self, slot: usize) -> [&[f32]; 2] {
+        match self.pre_tracks.get(slot) {
+            Some([l, r]) => [&l[..self.frames], &r[..self.frames]],
+            None => [&[], &[]],
         }
     }
 
@@ -117,7 +171,13 @@ impl StemTap {
     pub(crate) fn begin(&mut self, frames: usize) {
         let n = frames.min(self.direct[0].len());
         self.frames = n;
-        for p in self.strips.iter_mut().chain(self.tracks.iter_mut()) {
+        for p in self
+            .strips
+            .iter_mut()
+            .chain(self.tracks.iter_mut())
+            .chain(self.pre_strips.iter_mut())
+            .chain(self.pre_tracks.iter_mut())
+        {
             Self::clear(p, n);
         }
         Self::clear(&mut self.direct, n);
@@ -126,16 +186,7 @@ impl StemTap {
     /// A track's contribution, `at` frames into the block: the same products the
     /// processor adds to the strip or the master.
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn track(
-        &mut self,
-        slot: usize,
-        to_master: bool,
-        at: usize,
-        l: &[f32],
-        r: &[f32],
-        gl: f32,
-        gr: f32,
-    ) {
+    pub(crate) fn track(&mut self, slot: usize, at: usize, l: &[f32], r: &[f32], gl: f32, gr: f32) {
         let n = l.len().min(self.frames.saturating_sub(at));
         let [tl, tr] = &mut self.tracks[slot];
         for ((t, s), g) in [(tl, l), (tr, r)].into_iter().zip([gl, gr]) {
@@ -143,12 +194,17 @@ impl StemTap {
                 *o = x * g;
             }
         }
-        if to_master {
-            let [dl, dr] = &mut self.direct;
-            for ((d, s), g) in [(dl, l), (dr, r)].into_iter().zip([gl, gr]) {
-                for (o, x) in d[at..at + n].iter_mut().zip(s) {
-                    *o += x * g;
-                }
+    }
+
+    /// What a track adds into the master, `at` frames into the block — after its line, so
+    /// every such track is as late as the master's arrival (review 3: summed before their
+    /// lines, tracks of different latencies smeared).
+    pub(crate) fn direct(&mut self, at: usize, l: &[f32], r: &[f32]) {
+        let n = l.len().min(self.frames.saturating_sub(at));
+        let [dl, dr] = &mut self.direct;
+        for (d, s) in [(dl, l), (dr, r)] {
+            for (o, x) in d[at..at + n].iter_mut().zip(s) {
+                *o += x;
             }
         }
     }
@@ -540,6 +596,8 @@ fn run(
         RingBuffer::<EngineMessage>::new(16 + effect_count + instruments.len());
     let (tx_engine, mut rx) = RingBuffer::<EngineEvent>::new(64 + effect_count + instruments.len());
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
+    // A frozen render's reader waits for its blocks (ADR 0064).
+    p.set_offline(true);
     for slot in snap.effect_slots() {
         let unit = make_unit(slot, sr as f32);
         tx.push(EngineMessage::AddEffect(Box::new(unit))).ok();
@@ -573,9 +631,9 @@ fn run(
         // A source the engine does not hold (past its limits) is silence, not an error.
         let (tapped, late, silent) = match spec.source {
             StemSource::Master => (None, latency, false),
-            StemSource::Direct => (Some(Tapped::Direct), 0, false),
+            StemSource::Direct => (Some(Tapped::Direct), p.master_arrival(), false),
             StemSource::Track(i) => match p.track_slot(i) {
-                Some(slot) => (Some(Tapped::Track(slot)), 0, false),
+                Some(slot) => (Some(Tapped::Track(slot)), p.track_latency(i), false),
                 None => (None, 0, true),
             },
             StemSource::Strip(i) => match p.strip_slot(i) {
@@ -602,16 +660,15 @@ fn run(
         });
     }
 
-    let content_seconds = (end - ro.start)
-        .max(Ticks::ZERO)
-        .to_seconds(snapshot.tempo_bpm);
+    // Through the tempo map (ADR 0060), as `render` measures it.
+    let content_seconds = snapshot.tempo.seconds_between(ro.start, end.max(ro.start));
     let total = ((content_seconds + ro.tail_seconds) * sr).ceil() as usize;
     let longest = outs.iter().map(|o| o.late).max().unwrap_or(0);
     let frames = total + longest;
     // A range that ends before the song stops there, as `render` does: the tail rings out
     // and plays nothing that starts after the range.
     let mut stop_at = ro.end.map(|e| {
-        crate::transport::sample_at(ro.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr) as usize
+        crate::transport::sample_at_map(&snapshot.tempo, ro.start.0 as f64, e.0 as f64, sr) as usize
     });
     let mut buf = vec![0f32; block * 2];
     let mut ml = vec![0f32; block];

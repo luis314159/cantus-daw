@@ -414,6 +414,9 @@ pub struct CompEditor {
     ratio_drag: Option<f32>,
     /// Ticks in a bar and in a beat, for the history's grid.
     beats: (i64, i64),
+    /// The song's tempo map while it has metre changes (Cantus; review 3): the history's
+    /// bars and beats through it. `None`: one bar length.
+    pub(super) map: Option<std::sync::Arc<cantus_core::TempoMap>>,
 }
 
 /// The editor's state on any host: [`editor`] draws it.
@@ -501,6 +504,7 @@ impl Default for CompEditor {
             band_menu: None,
             ratio_drag: None,
             beats: (4 * cantus_core::PPQ, cantus_core::PPQ),
+            map: None,
         }
     }
 }
@@ -776,7 +780,7 @@ impl CantusApp {
 
     /// A Comprimo set to duck (see [`Self::duck_strip_from`]), with a fresh id.
     pub fn ducking_compressor(&mut self) -> cantus_core::EffectSlot {
-        let bpm = self.project().tempo_bpm as f32;
+        let bpm = crate::views::bars::bpm_at(self.project(), self.engine.position()) as f32;
         let eighth_ms = (30_000.0 / bpm.max(1.0)).clamp(40.0, 600.0);
         let mut slot = self.bus.new_effect(EffectKind::Compressor);
         for (k, v) in [
@@ -1095,8 +1099,11 @@ fn pump(host: &mut dyn FxHost, st: &mut State) {
                 st.demo = None;
                 app.fx.injected = None;
             }
-            let ts = app.project().time_signature;
+            // The bar and the beat at the playhead (ADR 0060).
+            let map = crate::views::bars::map(app.project());
+            let ts = map.signature_at(app.engine.position());
             st.beats = (ts.ticks_per_bar().0.max(1), ts.ticks_per_beat().0.max(1));
+            st.map = (!map.is_one_metre()).then_some(map);
             app.engine.drain_analyser(&mut st.scratch);
             // The largest of every block since the last frame.
             app.engine.take_comp_meter()
@@ -1374,9 +1381,13 @@ fn style_card(
                 });
                 // A custom engine lights no style: clicking its base goes back to it.
                 let selected = if custom { labels.len() } else { idx };
-                pick = controls::segmented(
+                // The style is a parameter: its menu, its mark, the learn mode (round 29,
+                // review 2 of ADR 0062, #44).
+                pick = controls::segmented_key(
                     ui,
                     s,
+                    host,
+                    "style",
                     selected,
                     &labels,
                     frame::tr("fx.comp.style"),
@@ -1821,9 +1832,11 @@ fn output_card(host: &mut dyn FxHost, ui: &mut egui::Ui, s: &Style, rect: Rect, 
                         .position(|(v, _)| *v == now)
                         .unwrap_or(0);
                     let labels = LISTEN_ORDER.map(|(_, k)| Src::Key(k));
-                    if let Some(i) = controls::segmented(
+                    if let Some(i) = controls::segmented_key(
                         ui,
                         s,
+                        host,
+                        "listen",
                         sel,
                         &labels,
                         frame::tr("fx.comp.listen"),

@@ -193,9 +193,28 @@ impl HostTransport {
         SongPosition {
             playing: self.playing,
             tempo_bpm: tempo,
+            // The host's tempo is read once a block; a ramp arrives as a new tempo each
+            // block (the clock re-anchors from the beats then, ADR 0060).
+            tempo_inc: 0.0,
+            tempo_now: tempo,
             beats,
             samples,
+            project_samples: samples,
+            seconds: match self.seconds.filter(|s| s.is_finite()) {
+                Some(sec) => {
+                    sec + if self.playing {
+                        offset as f64 / sample_rate
+                    } else {
+                        0.0
+                    }
+                }
+                None => beats * 60.0 / tempo,
+            },
             bar_start_beats: host_bar.unwrap_or((beats / bar).floor() * bar),
+            bar_number: (host_bar.unwrap_or(beats) / bar).floor() as i32,
+            loop_seconds: self
+                .loop_beats
+                .map(|(a, b)| (a * 60.0 / tempo, b * 60.0 / tempo)),
             time_sig_num: num,
             time_sig_den: den,
             loop_beats: self.loop_beats,

@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(43) {
+    match rng.below(48) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -831,6 +831,16 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         // a clip made a comp window and not (refused for a clip that is not there), a comp
         // window split (both halves stay the comp's), copied and pasted (never one).
         42 if tracks > 0 => comp_command(rng, project),
+        // Round 29 (contract): one arm reserved per builder, each a helper in its own
+        // section at the end of this file — tempo (ADR 0060), warp (0061), controllers
+        // (0062), isolation (0063), freeze (0064). Until a builder fills its helper it
+        // falls through to a project rename, so the draws of every other arm keep their
+        // meaning.
+        43 => round29_tempo_command(rng, project),
+        44 if tracks > 0 => round29_warp_command(rng, project),
+        45 => round29_controller_command(rng, project),
+        46 => round29_hosting_command(rng, project),
+        47 if tracks > 0 => round29_freeze_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -1725,8 +1735,27 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // or copied.
     let mut modded = [0usize; 3];
     let mut comped = [0usize; 4];
+    // Round 29, warp (ADR 0061): a warp set, cleared, and a marker edit applied.
+    let mut warped = [0usize; 3];
+    // The tempo track, metre and markers (ADR 0060): one count per command kind.
+    let mut kept_frames = 0usize;
+    let mut gestures = 0usize;
+    let mut tempoed = [0usize; 13];
+    // Round 29, isolation (ADR 0063): an insert's isolation set, an instrument's.
+    let mut isolated = [0usize; 2];
+    // Round 29, freeze (ADR 0064): a strip frozen, a track frozen, an unfreeze, and a
+    // command some frozen target refused.
+    let mut froze = [0usize; 4];
+    // A track's kept delay set (or cleared) and refused (review 3).
+    let mut delayed = [0usize; 2];
+    // Round 29, controllers (ADR 0062): a mapping added, removed, replaced.
+    let mut mappings = [0usize; 4];
+    // Round 29's third review: the commands carrying an invalid warp in, each refused.
+    let mut refused_warps = 0usize;
     for seed in 1..=60u64 {
         let mut rng = Lcg(seed);
+        // The gestures' own draws, so the commands drawn stay the ones they were.
+        let mut grng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(17));
         let mut bus = CommandBus::default();
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
         let mut applied = 0;
@@ -1741,6 +1770,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
             }
             let origin = origins[rng.below(5) as usize];
+            let invalid_warp = carries_invalid_warp(&cmd);
             let kind = clipboard_kind(&cmd);
             let route = routing_kind(&cmd);
             let pitch = match &cmd {
@@ -1751,6 +1781,15 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 Command::InsertModulator { .. } => Some(0),
                 Command::RemoveModulator { .. } => Some(1),
                 Command::SetModulator { .. } => Some(2),
+                _ => None,
+            };
+            let warp = match &cmd {
+                Command::SetClipWarp { warp: None, .. } => Some(1),
+                Command::SetClipWarp {
+                    op: cantus_core::warp::WarpOp::AddMarker | cantus_core::warp::WarpOp::MoveMarker,
+                    ..
+                } => Some(2),
+                Command::SetClipWarp { .. } => Some(0),
                 _ => None,
             };
             let comp = match &cmd {
@@ -1770,6 +1809,18 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 _ => None,
             };
+            let mapped = match &cmd {
+                Command::InsertMapping { .. } => Some(0),
+                Command::RemoveMapping { .. } => Some(1),
+                Command::SetMapping { .. } => Some(2),
+                Command::SetModulatorAmount { .. } => Some(3),
+                _ => None,
+            };
+            let isolation = match &cmd {
+                Command::SetPluginIsolation { .. } => Some(0),
+                Command::SetInstrumentIsolation { .. } => Some(1),
+                _ => None,
+            };
             // The clips a comp window's copies batch inserts, and whether each is the comp's:
             // the split's half (the first) is, the copies are not.
             let made: Vec<(TrackId, ClipId, bool)> = match &cmd {
@@ -1787,7 +1838,107 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     .collect(),
                 _ => Vec::new(),
             };
-            let ok = bus.execute(cmd, origin).is_ok();
+            let tempo = tempo_kind(&cmd);
+            let freezing = freeze_kind(&cmd);
+            let delay = matches!(cmd, Command::SetTrackLateness { .. });
+            let shown: String = format!("{cmd:?}").chars().take(600).collect();
+            // Reviews 3-4: a tempo edit keeps every take where it comes in, its windows on
+            // one line, the windows that shared an origin sharing it still.
+            let tempo_cmd = cantus_core::tempo::keep::changes_tempo(&cmd);
+            let starts = tempo_cmd.then(|| windows_of(bus.project()));
+            let plain = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::InsertTempoPoint { .. }
+                    | Command::RemoveTempoPoint { .. }
+                    | Command::SetTempoPoint { .. }
+            );
+            let scratch = tempo_cmd.then(|| (bus.project().clone(), cmd.clone()));
+            // Review 4: a tempo command in four runs as a gesture — merged frames of it,
+            // sometimes widened by another target — which must be its last frame as one
+            // edit (measured from where it began) and one undo step.
+            let gesture = matches!(
+                cmd,
+                Command::SetTempo { .. }
+                    | Command::SetTempoTrack { .. }
+                    | Command::SetTempoPoint { .. }
+            ) && grng.below(4) == 0;
+            let result = if gesture {
+                let pre = bus.project().clone();
+                let (key, wide) = (
+                    MergeKey::of(&("fuzz", seed, 0)),
+                    MergeKey::of(&("fuzz", seed, 1)),
+                );
+                let first = bus.execute_merging(cmd.clone(), origin, key);
+                if first.is_ok() {
+                    let mut last = cmd.clone();
+                    for _ in 0..1 + grng.below(6) {
+                        let frame = jittered(&last, &mut grng);
+                        if bus.execute_merging(frame.clone(), origin, key).is_ok() {
+                            last = frame;
+                        }
+                    }
+                    if grng.below(2) == 0 {
+                        let both = Command::Batch {
+                            label_key: "cmd.controllers.move".into(),
+                            commands: vec![
+                                last.clone(),
+                                Command::SetMasterPan {
+                                    pan: grng.f32(-1.0, 1.0),
+                                },
+                            ],
+                        };
+                        if bus.widen_merging(both.clone(), origin, key, wide).is_ok() {
+                            last = both;
+                        }
+                    }
+                    bus.end_gesture();
+                    gestures += 1;
+                    let mut once = CommandBus::new(pre);
+                    once.execute(last, origin)
+                        .unwrap_or_else(|e| panic!("seed {seed}: the last frame alone: {e:?}"));
+                    assert!(
+                        once.project().tracks == bus.project().tracks
+                            && once.project().tempo_points == bus.project().tempo_points
+                            && once.project().tempo_bpm == bus.project().tempo_bpm,
+                        "seed {seed}: a gesture is not its last frame as one edit after {shown}"
+                    );
+                }
+                first
+            } else {
+                bus.execute(cmd, origin)
+            };
+            if let (Some(before), true) = (starts.as_ref(), result.is_ok()) {
+                kept_frames += takes_kept(before, &windows_of(bus.project()), bus.project(), plain)
+                    .unwrap_or_else(|e| panic!("seed {seed}: {e} after {shown}"));
+            }
+            // Review 4: a tempo edit refused is refused for itself, never for a window it
+            // would have kept.
+            if let (Some((mut p, c)), Err(e)) = (scratch, &result) {
+                assert!(
+                    c.apply(&mut p).is_err(),
+                    "seed {seed}: refused by its windows ({e:?}) after {shown}"
+                );
+            }
+            if matches!(result, Err(CommandError::Frozen(_))) {
+                froze[3] += 1;
+            }
+            if delay {
+                delayed[usize::from(result.is_err())] += 1;
+            }
+            let ok = result.is_ok();
+            // An invalid warp never comes in, by any command (round 29's third review: a
+            // kept comp window's was let in unseen when its own check was gone).
+            assert!(
+                !(invalid_warp && ok),
+                "seed {seed}: an invalid warp came in after {shown}"
+            );
+            refused_warps += usize::from(invalid_warp);
+            // Whatever was applied or refused, every frozen sound is the one frozen.
+            cantus_core::freeze::consistent(bus.project()).unwrap_or_else(|t| {
+                panic!("seed {seed}: {t:?} no longer sounds as frozen after {shown}")
+            });
             // Schema 32: a split comp window's half is the comp's; a copy or a paste is not.
             if ok {
                 for (t, c, half) in &made {
@@ -1812,8 +1963,34 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 if let Some(k) = modulator {
                     modded[k] += 1;
                 }
+                if let Some(k) = warp {
+                    warped[k] += 1;
+                }
                 if let Some(k) = comp {
                     comped[k] += 1;
+                }
+                if let Some(k) = tempo {
+                    tempoed[k] += 1;
+                }
+                if let Some(k) = isolation {
+                    isolated[k] += 1;
+                }
+                if let Some(k) = freezing {
+                    froze[k] += 1;
+                }
+                if let Some(k) = mapped {
+                    mappings[k] += 1;
+                }
+                // Every warp stays valid through whatever any command did to its clip
+                // (split, trim, glue, loops, links, comps — round 29's review), the
+                // windows alternate comps keep included (third review).
+                for t in &bus.project().tracks {
+                    let kept = t.comps.iter().flat_map(|c| c.windows.iter());
+                    for c in t.clips.iter().chain(kept) {
+                        if let Some(w) = c.audio.as_ref().and_then(|a| a.warp.as_ref()) {
+                            assert!(w.is_valid(), "seed {seed}: an invalid warp on {:?}", c.id);
+                        }
+                    }
                 }
                 // next_id bookkeeping is not undoable; normalise it out of the comparison.
                 let mut snap = bus.project().clone();
@@ -1878,8 +2055,38 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         "modulator commands never applied: {modded:?}"
     );
     assert!(
+        isolated.iter().all(|n| *n > 0),
+        "isolation choices never applied: {isolated:?}"
+    );
+    assert!(
+        froze.iter().all(|n| *n > 0),
+        "freeze commands never applied (or nothing refused): {froze:?}"
+    );
+    assert!(
+        delayed.iter().all(|n| *n > 0),
+        "kept delays never applied (or none refused): {delayed:?}"
+    );
+    assert!(
         comped.iter().all(|n| *n > 0),
         "comp commands never applied: {comped:?}"
+    );
+    assert!(
+        warped.iter().all(|n| *n > 0),
+        "warp commands never applied: {warped:?}"
+    );
+    assert!(refused_warps > 0, "no invalid warp was ever sent in");
+    assert!(
+        tempoed.iter().all(|n| *n > 0),
+        "tempo commands never applied: {tempoed:?}"
+    );
+    assert!(
+        kept_frames > 0,
+        "no tempo edit ran over an unwarped audio window"
+    );
+    assert!(gestures > 0, "no tempo gesture ran");
+    assert!(
+        mappings.iter().all(|n| *n > 0),
+        "controller mapping commands never applied: {mappings:?}"
     );
 }
 
@@ -2332,7 +2539,12 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
             }
         }
         0 => {
-            let windows: Vec<&Clip> = lane0.iter().copied().filter(|c| seam_window(c)).collect();
+            let held = cantus_core::warp::held_tempo(project);
+            let windows: Vec<&Clip> = lane0
+                .iter()
+                .copied()
+                .filter(|c| seam_window(c, &held))
+                .collect();
             let pair = windows
                 .windows(2)
                 .find(|w| w[0].start < w[1].start)
@@ -2432,11 +2644,12 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                     comp: true,
                 });
             }
+            let before = project.clone();
             let mut ids = || project.alloc_id();
             let at = w.start + Ticks(1 + rng.below((w.length.0 - 1) as u64) as i64);
             // Strictly inside the window: the split is always made (its half is the batch's
             // first clip inserted).
-            commands.extend(clipboard::split(track.id, &w, at, &mut ids).unwrap());
+            commands.extend(clipboard::split(&before, track.id, &w, at, &mut ids).unwrap());
             let copy = clipboard::copy_of(&w, w.start, &mut ids);
             commands.push(Command::InsertClip {
                 track: track.id,
@@ -2493,6 +2706,1090 @@ fn comp_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 active: if rng.below(8) == 0 { 7 } else { 0 },
                 comps,
             }
+        }
+    }
+}
+
+// --- Round 29: one section per builder (the contract's placeholders) --------------------
+
+/// Round 29, tempo (ADR 0060): tempo points, ramps, metre changes and markers — and the
+/// song's metre (no arm drew `SetTimeSignature` before).
+fn round29_tempo_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    // One draw from the shared generator, as the contract's placeholder took, so the other
+    // arms' draws stay where the coverage checks count on them; the rest from our own.
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x7e3_9a11);
+    // The model's invariant: a tempo track starts at tick 0 at the song's tempo, and the
+    // metre list at the song's metre.
+    if let Some(p) = project.tempo_points.first() {
+        assert_eq!((p.tick, p.bpm), (Ticks::ZERO, project.tempo_bpm));
+    }
+    if let Some(m) = project.metre_changes.first() {
+        assert_eq!((m.tick, m.signature), (Ticks::ZERO, project.time_signature));
+    }
+    let point = |rng: &mut Lcg, tick: i64| TempoPoint {
+        tick: Ticks(tick),
+        bpm: f64::from(rng.f32(40.0, 240.0)),
+        ramp: rng.below(2) == 0,
+    };
+    let sigs = [(4, 4), (3, 4), (7, 8), (5, 4), (6, 8), (2, 2)];
+    let sig = |rng: &mut Lcg| {
+        let (n, d) = sigs[rng.below(sigs.len() as u64) as usize];
+        TimeSignature::new(n, d)
+    };
+    let pts = project.tempo_points.clone();
+    let len = pts.len() as u64;
+    let map = project.tempo_map();
+    let changes = project.metre_changes.clone();
+    let markers = project.markers.clone();
+    // Review 5: the audio windows of a track, for `SetClipAnchors`.
+    // (track, [(clip, offset, slip, linked)])
+    type Windows = Vec<(ClipId, Ticks, i32, bool)>;
+    let audio: Vec<(TrackId, Windows)> = project
+        .tracks
+        .iter()
+        .map(|t| {
+            let w = t
+                .clips
+                .iter()
+                .filter_map(|c| {
+                    let a = c.audio.as_ref()?;
+                    Some((c.id, c.offset, a.slip_frames, c.link.is_some()))
+                })
+                .collect::<Vec<_>>();
+            (t.id, w)
+        })
+        .filter(|(_, w)| !w.is_empty())
+        .collect();
+    // Draw among the kinds the project can take now, so each is applied often enough.
+    let can = |k: u64| match k {
+        1 | 3 => !pts.is_empty(),
+        2 => pts.len() > 1,
+        5 | 6 => changes.len() > 1,
+        9 | 10 => !markers.is_empty(),
+        12 => !audio.is_empty(),
+        _ => true,
+    };
+    let open: Vec<u64> = (0..13).filter(|k| can(*k)).collect();
+    match open[rng.below(open.len() as u64) as usize] {
+        0 if pts.is_empty() || rng.below(4) != 0 => {
+            let bpm = project.tempo_bpm;
+            let mut points = vec![TempoPoint {
+                tick: Ticks::ZERO,
+                bpm,
+                ramp: rng.below(2) == 0,
+            }];
+            let mut tick = 0;
+            for _ in 0..1 + rng.below(3) {
+                tick += 960 + rng.below(30_000) as i64;
+                points.push(point(rng, tick));
+            }
+            Command::SetTempoTrack { bpm, points }
+        }
+        0 => Command::SetTempoTrack {
+            bpm: project.tempo_bpm,
+            points: Vec::new(),
+        },
+        1 => {
+            let index = 1 + rng.below(len.max(1)) as usize;
+            let prev = pts.get(index - 1).map_or(0, |p| p.tick.0);
+            let next = pts.get(index).map_or(prev + 20_000, |p| p.tick.0);
+            let tick = prev + 1 + rng.below((next - prev - 1).max(1) as u64) as i64;
+            Command::InsertTempoPoint {
+                index,
+                point: point(rng, tick),
+            }
+        }
+        2 => Command::RemoveTempoPoint {
+            index: 1 + rng.below(len.max(2) - 1) as usize,
+        },
+        3 => {
+            let index = rng.below(len.max(1)) as usize;
+            let tick = if index == 0 {
+                0
+            } else {
+                let prev = pts[index - 1].tick.0;
+                let next = pts.get(index + 1).map_or(prev + 20_000, |p| p.tick.0);
+                prev + 1 + rng.below((next - prev - 1).max(1) as u64) as i64
+            };
+            Command::SetTempoPoint {
+                index,
+                point: point(rng, tick),
+            }
+        }
+        4 => Command::SetMetreAt {
+            tick: map.bar_tick(1 + rng.below(8) as i64),
+            signature: sig(rng),
+        },
+        5 => Command::RemoveMetreAt {
+            tick: changes
+                .get(1 + rng.below(changes.len().max(2) as u64 - 1) as usize)
+                .map_or(Ticks::ZERO, |m| m.tick),
+        },
+        6 => {
+            let i = 1 + rng.below(changes.len().max(2) as u64 - 1) as usize;
+            let from = changes.get(i).map_or(Ticks::ZERO, |m| m.tick);
+            let mut without = changes.clone();
+            if i < without.len() {
+                without.remove(i);
+            }
+            let other = TempoMap::new(120.0, project.time_signature, &[], &without);
+            let (bar, _, _) = other.bbt(from);
+            Command::MoveMetre {
+                from,
+                to: other.bar_tick(bar - 1 + rng.below(3) as i64),
+            }
+        }
+        7 => Command::SetMetreTrack {
+            signature: project.time_signature,
+            metres: match rng.below(3) {
+                0 => Vec::new(),
+                1 => vec![MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: project.time_signature,
+                }],
+                // Review 2 (finding 26): a file's list, off the bar lines — a short bar
+                // before a later change — so the edits' remainder path is fuzzed.
+                _ => {
+                    let pool = [(3, 4), (7, 8), (5, 4), (6, 8)];
+                    let mut out = vec![MetreChange {
+                        tick: Ticks::ZERO,
+                        signature: project.time_signature,
+                    }];
+                    let mut at = 0i64;
+                    for _ in 0..1 + rng.below(2) {
+                        let bar = out.last().unwrap().signature.ticks_per_bar().0;
+                        at += bar * (1 + rng.below(3) as i64) + 120 * rng.below(8) as i64;
+                        let (n, d) = pool[rng.below(4) as usize];
+                        out.push(MetreChange {
+                            tick: Ticks(at),
+                            signature: TimeSignature::new(n, d),
+                        });
+                    }
+                    out
+                }
+            },
+        },
+        8 => Command::AddMarker {
+            marker: Marker {
+                id: MarkerId(project.alloc_id()),
+                tick: Ticks(rng.below(40_000) as i64),
+                name: format!("M{}", rng.below(100)),
+                color: (rng.below(2) == 0).then(|| Color::PALETTE[rng.below(8) as usize]),
+            },
+        },
+        9 => Command::RemoveMarker {
+            id: markers
+                .get(rng.below(markers.len().max(1) as u64) as usize)
+                .map_or(MarkerId(u64::MAX), |m| m.id),
+        },
+        10 => {
+            let Some(m) = markers.get(rng.below(markers.len().max(1) as u64) as usize) else {
+                return Command::RemoveMarker {
+                    id: MarkerId(u64::MAX),
+                };
+            };
+            Command::SetMarker {
+                marker: Marker {
+                    tick: Ticks(rng.below(40_000) as i64),
+                    name: format!("N{}", rng.below(100)),
+                    ..m.clone()
+                },
+            }
+        }
+        12 => {
+            // Some windows of one track re-anchored; a linked one's fine offset is kept
+            // (nine times in ten: else refused, as it must be).
+            let (track, w) = &audio[rng.below(audio.len() as u64) as usize];
+            let mut anchors = Vec::new();
+            for &(clip, offset, slip, linked) in w {
+                if rng.below(2) == 0 {
+                    continue;
+                }
+                let o = offset + Ticks(rng.below(2_000) as i64 - 1_000);
+                let s = if linked && rng.below(10) != 0 {
+                    slip
+                } else {
+                    slip + rng.below(200) as i32 - 100
+                };
+                anchors.push((clip, o, s));
+            }
+            Command::SetClipAnchors {
+                track: *track,
+                anchors,
+            }
+        }
+        _ => Command::SetTimeSignature {
+            time_signature: sig(rng),
+        },
+    }
+}
+
+/// Which tempo command a generated command is, for the coverage check (ADR 0060).
+/// A tempo command's next frame in a gesture: its tempos nudged (a drag, a knob).
+fn jittered(cmd: &Command, rng: &mut Lcg) -> Command {
+    let mut nudge = |bpm: f64| (bpm * f64::from(rng.f32(0.9, 1.1))).clamp(30.0, 300.0);
+    match cmd {
+        Command::SetTempo { bpm } => Command::SetTempo { bpm: nudge(*bpm) },
+        Command::SetTempoPoint { index, point } => Command::SetTempoPoint {
+            index: *index,
+            point: cantus_core::tempo::TempoPoint {
+                bpm: nudge(point.bpm),
+                ..*point
+            },
+        },
+        Command::SetTempoTrack { bpm, points } => Command::SetTempoTrack {
+            bpm: nudge(*bpm),
+            points: points
+                .iter()
+                .map(|q| cantus_core::tempo::TempoPoint {
+                    bpm: nudge(q.bpm),
+                    ..*q
+                })
+                .collect(),
+        },
+        other => other.clone(),
+    }
+}
+
+fn tempo_kind(cmd: &Command) -> Option<usize> {
+    Some(match cmd {
+        Command::SetTempoTrack { .. } => 0,
+        Command::InsertTempoPoint { .. } => 1,
+        Command::RemoveTempoPoint { .. } => 2,
+        Command::SetTempoPoint { .. } => 3,
+        Command::SetMetreAt { .. } => 4,
+        Command::RemoveMetreAt { .. } => 5,
+        Command::MoveMetre { .. } => 6,
+        Command::SetMetreTrack { .. } => 7,
+        Command::AddMarker { .. } => 8,
+        Command::RemoveMarker { .. } => 9,
+        Command::SetMarker { .. } => 10,
+        Command::SetTimeSignature { .. } => 11,
+        Command::SetClipAnchors { .. } => 12,
+        _ => return None,
+    })
+}
+
+/// Round 29, warp (ADR 0061): warp markers, modes and transposition on audio clips —
+/// `SetClipWarp` with every edit, cleared, and one time in nine refused (an invalid warp,
+/// or a valid one sent to a clip that is not audio).
+fn round29_warp_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::warp::{Detected, Warp, WarpMode, WarpOp, WarpTail};
+    let audio: Vec<(TrackId, Clip)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter().map(move |c| (t.id, c.clone())))
+        .filter(|(_, c)| c.audio.is_some())
+        .collect();
+    let Some((track, clip)) =
+        (!audio.is_empty()).then(|| audio[rng.below(audio.len() as u64) as usize].clone())
+    else {
+        // No audio clip yet: a loop and a clip over it, in one step.
+        let tid = project.tracks[rng.below(project.tracks.len() as u64) as usize].id;
+        let s = AudioSource {
+            id: AudioSourceId(project.alloc_id()),
+            name: "loop".into(),
+            path: "C:/loops/drums 92.wav".into(),
+            sample_rate: 44_100,
+            channels: 2,
+            frames: 44_100 * 6,
+            sha256: None,
+            recorded: false,
+        };
+        let c = project.make_audio_clip("loop", s.id, Ticks::ZERO, Ticks::beats(8));
+        return Command::Batch {
+            label_key: "fuzz.loop".into(),
+            commands: vec![
+                Command::InsertAudioSource { source: s },
+                Command::InsertClip {
+                    track: tid,
+                    clip: Box::new(c),
+                },
+            ],
+        };
+    };
+    let rate = clip
+        .audio
+        .as_ref()
+        .and_then(|a| project.audio_source(a.source))
+        .map_or(48_000, |s| s.sample_rate.max(1));
+    let slip = clip.audio.as_ref().map_or(0, |a| a.slip_frames);
+    let w = clip
+        .audio
+        .as_ref()
+        .and_then(|a| a.warp.clone())
+        .map(|b| *b)
+        .unwrap_or_else(|| Warp::identity(rate, project.tempo_bpm, slip));
+    let n = w.markers.len().max(1) as u64;
+    let i = rng.below(n) as usize;
+    let (next, op) = match rng.below(14) {
+        // A marker that could not be added (one is there) is no add: counted as a set.
+        0 => match w.add_marker(Ticks(rng.below(16 * 960) as i64)) {
+            Some(n) => (n, WarpOp::AddMarker),
+            None => (w, WarpOp::Set),
+        },
+        1 => (
+            w.move_marker(i, Ticks(rng.below(16 * 960) as i64 - 960)),
+            WarpOp::MoveMarker,
+        ),
+        2 => {
+            let f = w.markers.get(i).map_or(0.0, |m| m.frame) + rng.f32(-900.0, 900.0) as f64;
+            (w.move_content(i, f), WarpOp::MoveContent)
+        }
+        3 => (w.remove_marker(i), WarpOp::RemoveMarker),
+        4 => {
+            let hits: Vec<f64> = (0..8)
+                .map(|k| k as f64 * 15_000.0 + rng.below(900) as f64)
+                .collect();
+            (
+                w.quantise(
+                    &hits,
+                    Ticks(480),
+                    rng.f32(0.0, 1.0),
+                    Ticks::ZERO,
+                    Ticks::beats(16),
+                ),
+                WarpOp::Quantise,
+            )
+        }
+        5 => {
+            let mut v = w;
+            v.mode = WarpMode::ALL[rng.below(4) as usize];
+            (v, WarpOp::Mode)
+        }
+        6 => {
+            let mut v = w;
+            v.cents = rng.below(4_801) as i32 - 2_400;
+            (v, WarpOp::Transpose)
+        }
+        7 => {
+            let mut v = w;
+            v.formants = !v.formants;
+            v.tail = WarpTail::ALL[rng.below(3) as usize];
+            (
+                v,
+                if rng.below(2) == 0 {
+                    WarpOp::Formants
+                } else {
+                    WarpOp::Tail
+                },
+            )
+        }
+        8 => {
+            let mut v = w;
+            v.follow = !v.follow;
+            (v, WarpOp::Follow)
+        }
+        9 => (w.with_tempo(60.0 + rng.below(120) as f64), WarpOp::Tempo),
+        10 => {
+            let per = rate as f64 * 60.0 / 92.0;
+            let beats: Vec<f64> = (0..16).map(|k| 1_000.0 + k as f64 * per).collect();
+            let d = Detected {
+                bpm: 92.0,
+                confidence: rng.f32(0.0, 1.0),
+                downbeat: 1_000.0,
+                bars: Some(4),
+            };
+            (Warp::from_grid(rate, 92.0, &beats, 0, 4, d), WarpOp::Set)
+        }
+        11 => {
+            return Command::SetClipWarp {
+                track,
+                clip: clip.id,
+                warp: None,
+                op: WarpOp::Reset,
+            };
+        }
+        12 if rng.below(2) == 0 => (w.reset(), WarpOp::Reset),
+        12 => {
+            // The natural warp a first edit starts from (its own markers on the tempo
+            // points and inside ramps), then one of its user's markers dragged across them
+            // (round 29's second review).
+            let n = Warp::natural_of(
+                &project.tempo_map(),
+                clip.start,
+                clip.offset,
+                clip.length,
+                slip,
+                rate,
+            );
+            let users: Vec<usize> = (0..n.markers.len())
+                .filter(|&k| !n.markers[k].auto)
+                .collect();
+            let k = users[rng.below(users.len() as u64) as usize];
+            let to = n.markers[k].tick + Ticks(rng.below(4 * 960) as i64 - 1_920);
+            (n.move_marker(k, to), WarpOp::Set)
+        }
+        _ => {
+            // Refused: a valid warp on a clip that is not audio, or an invalid warp — set
+            // by `SetClipWarp`, or carried in by `SetClipAudio`, `InsertClip`,
+            // `InsertTrack` or a kept comp window (round 29's reviews: every way in refuses
+            // it).
+            let mut bad = w.clone();
+            bad.bpm = 0.0;
+            match rng.below(5) {
+                3 => {
+                    let mut t = project.make_track(format!("W{}", project.next_id));
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    t.clips.push(c);
+                    return Command::InsertTrack {
+                        index: 0,
+                        track: Box::new(t),
+                    };
+                }
+                4 => {
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.lane = 0;
+                    c.comp = true;
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    let t = project.track(track).unwrap();
+                    let mut comps = t.comps.clone();
+                    if comps.is_empty() {
+                        comps.push(cantus_core::comp::Comp {
+                            name: "A".into(),
+                            windows: Vec::new(),
+                        });
+                    }
+                    let active = t.active_comp.min(comps.len().saturating_sub(1) as u8);
+                    comps.push(cantus_core::comp::Comp {
+                        name: "W".into(),
+                        windows: vec![c],
+                    });
+                    return Command::SetTrackComps {
+                        track,
+                        comps,
+                        active,
+                    };
+                }
+                _ => {}
+            }
+            match rng.below(3) {
+                0 => {
+                    let mut a = clip.audio.clone().unwrap();
+                    a.warp = Some(Box::new(bad));
+                    return Command::SetClipAudio {
+                        track,
+                        clip: clip.id,
+                        audio: Some(a),
+                    };
+                }
+                1 => {
+                    let mut c = clip.clone();
+                    c.id = ClipId(project.alloc_id());
+                    c.link = None;
+                    c.start += Ticks::beats(64);
+                    c.audio.as_mut().unwrap().warp = Some(Box::new(bad));
+                    return Command::InsertClip {
+                        track,
+                        clip: Box::new(c),
+                    };
+                }
+                _ => {}
+            }
+            let other = project
+                .tracks
+                .iter()
+                .flat_map(|t| t.clips.iter().map(move |c| (t.id, c)))
+                .find(|(_, c)| c.audio.is_none())
+                .map(|(t, c)| (t, c.id));
+            let (target, warp) = match other.filter(|_| rng.below(2) == 0) {
+                Some(t) => (t, w),
+                None => {
+                    let mut v = w;
+                    v.bpm = 0.0;
+                    ((track, clip.id), v)
+                }
+            };
+            return Command::SetClipWarp {
+                track: target.0,
+                clip: target.1,
+                warp: Some(Box::new(warp)),
+                op: WarpOp::Set,
+            };
+        }
+    };
+    Command::SetClipWarp {
+        track,
+        clip: clip.id,
+        warp: Some(Box::new(next)),
+        op,
+    }
+}
+
+/// Round 29, controllers (ADR 0062): controller mappings stored in the project — added at
+/// any index, removed, replaced whole (a source learnt again, a target, a mode, a range,
+/// a bend, takeover, feedback), and the refused ones (a malformed mapping, an id taken or
+/// unknown).
+fn round29_controller_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::controller::*;
+    // One draw from the shared generator, as the contract's placeholder took; the rest
+    // from our own.
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x5c0_77e1);
+    let maps = project.controllers.mappings.clone();
+    let mut targets = vec![
+        MappingTarget::Param(AutoTarget::MasterGain),
+        MappingTarget::Tempo,
+        MappingTarget::Action("play-pause".into()),
+        MappingTarget::SelectedTrack(DeskParam::Volume),
+        MappingTarget::DeviceParam(3),
+    ];
+    for t in &project.tracks {
+        targets.push(MappingTarget::TrackMute(t.id));
+        targets.push(MappingTarget::TrackArm(t.id));
+        targets.push(MappingTarget::Param(AutoTarget::TrackPan(t.id)));
+    }
+    for s in &project.strips {
+        targets.push(MappingTarget::StripSolo(s.id));
+        targets.push(MappingTarget::Param(AutoTarget::StripGain(s.id)));
+        // Schema 40 (review 3): the strip's effects switch and record arm.
+        targets.push(MappingTarget::StripFx(s.id));
+        targets.push(MappingTarget::StripArm(s.id));
+    }
+    targets.push(MappingTarget::StripFx(cantus_core::StripId::MASTER));
+    for (_, e) in project.all_effects() {
+        targets.push(MappingTarget::EffectBypass(e.id));
+        targets.push(MappingTarget::EffectMix(e.id));
+    }
+    // A target since removed: kept dormant.
+    targets.push(MappingTarget::TrackSolo(TrackId(u64::MAX - 1)));
+    let controls = [
+        Control::Cc(21),
+        Control::Cc14(7),
+        Control::Note(36),
+        Control::PitchBend,
+        Control::Program(5),
+        Control::ChannelPressure,
+        Control::PolyPressure(60),
+    ];
+    let modes = [
+        MapMode::Absolute,
+        MapMode::Relative(Encoding::TwosComplement),
+        MapMode::Relative(Encoding::SignBit),
+        MapMode::Toggle,
+        MapMode::Momentary,
+        MapMode::Trigger,
+    ];
+    let takeovers = [Takeover::Jump, Takeover::Pickup, Takeover::Scale];
+    let make = |rng: &mut Lcg, id: MappingId| Mapping {
+        id,
+        source: MidiSource {
+            port: PortRef {
+                name: ["", "Keys", "Pads"][rng.below(3) as usize].into(),
+                ordinal: rng.below(2) as u8,
+            },
+            channel: (rng.below(3) > 0).then(|| rng.below(16) as u8),
+            control: controls[rng.below(controls.len() as u64) as usize],
+        },
+        target: targets[rng.below(targets.len() as u64) as usize].clone(),
+        mode: modes[rng.below(modes.len() as u64) as usize],
+        min: rng.f32(0.0, 1.0),
+        max: rng.f32(0.0, 1.0),
+        curve: rng.f32(-1.0, 1.0),
+        takeover: takeovers[rng.below(3) as usize],
+        feedback: rng.below(2) == 0,
+        sensitivity: rng.f32(0.25, 4.0),
+        plugin: None,
+    };
+    let pick = |rng: &mut Lcg| {
+        maps.get(rng.below(maps.len().max(1) as u64) as usize)
+            .cloned()
+    };
+    let mods: Vec<ModulatorId> = project.all_modulators().map(|(_, m)| m.id).collect();
+    match rng.below(12) {
+        // A modulator's amount alone (review 1): an amount out of range now and then.
+        10 | 11 => Command::SetModulatorAmount {
+            id: mods
+                .get(rng.below(mods.len().max(1) as u64) as usize)
+                .copied()
+                .unwrap_or(ModulatorId(u64::MAX)),
+            amount: if rng.below(8) == 0 {
+                1.5
+            } else {
+                rng.f32(0.0, 1.0)
+            },
+        },
+        // Malformed: refused, nothing changes.
+        0 => {
+            let id = MappingId(rng.below(1 << 20) + 1);
+            let mut m = make(rng, id);
+            match rng.below(3) {
+                0 => m.min = 2.0,
+                1 => m.source.channel = Some(16),
+                _ => m.sensitivity = 0.0,
+            }
+            Command::InsertMapping {
+                index: 0,
+                mapping: Box::new(m),
+            }
+        }
+        1 | 2 => match pick(rng) {
+            Some(m) => Command::RemoveMapping { id: m.id },
+            None => Command::RemoveMapping {
+                id: MappingId(u64::MAX),
+            },
+        },
+        3..=5 => match pick(rng) {
+            Some(old) => {
+                let mut m = make(rng, old.id);
+                if rng.below(2) == 0 {
+                    // Learnt again: only the source changes.
+                    m = Mapping {
+                        source: m.source,
+                        ..old
+                    };
+                }
+                Command::SetMapping {
+                    mapping: Box::new(m),
+                }
+            }
+            None => Command::SetMapping {
+                mapping: Box::new(make(rng, MappingId(u64::MAX))),
+            },
+        },
+        _ => {
+            // An id already in the map now and then: refused.
+            let id = match pick(rng) {
+                Some(m) if rng.below(6) == 0 => m.id,
+                // Not from the project's ids: the other arms' draws stay where they were.
+                _ => MappingId((1 << 40) + rng.below(1 << 30)),
+            };
+            Command::InsertMapping {
+                index: rng.below(maps.len() as u64 + 2) as usize,
+                mapping: Box::new(make(rng, id)),
+            }
+        }
+    }
+}
+
+/// Round 29, isolation (ADR 0063): where a hosted plug-in runs — an insert's choice, a
+/// track's instrument's, back to the default (`None`), and the refused ones (a native
+/// slot, a track whose instrument is not hosted).
+fn round29_hosting_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    let choices = [
+        None,
+        Some(PluginIsolation::Within),
+        Some(PluginIsolation::Together),
+        Some(PluginIsolation::ByVendor),
+        Some(PluginIsolation::Individually),
+    ];
+    let isolation = choices[rng.below(choices.len() as u64) as usize];
+    let hosted: Vec<(StripId, EffectId)> = project
+        .all_effects()
+        .filter(|(_, e)| e.spec.external.is_some())
+        .map(|(s, e)| (s, e.id))
+        .collect();
+    let instruments: Vec<TrackId> = project
+        .tracks
+        .iter()
+        .filter(|t| t.instrument.external().is_some())
+        .map(|t| t.id)
+        .collect();
+    match rng.below(8) {
+        // A refused one: a native slot, or a track that hosts no plug-in.
+        0 => match project
+            .all_effects()
+            .find(|(_, e)| e.spec.external.is_none())
+        {
+            Some((strip, e)) => Command::SetPluginIsolation {
+                strip,
+                effect: e.id,
+                isolation,
+            },
+            None => Command::SetInstrumentIsolation {
+                track: TrackId(u64::MAX),
+                isolation,
+            },
+        },
+        1..=3 if !instruments.is_empty() => Command::SetInstrumentIsolation {
+            track: instruments[rng.below(instruments.len() as u64) as usize],
+            isolation,
+        },
+        _ if !hosted.is_empty() => {
+            let (strip, effect) = hosted[rng.below(hosted.len() as u64) as usize];
+            Command::SetPluginIsolation {
+                strip,
+                effect,
+                isolation,
+            }
+        }
+        // Nothing hosted yet: a hosted insert that comes with its choice made.
+        _ => {
+            let strip = project.strips[rng.below(project.strips.len() as u64) as usize].id;
+            let mut slot = project.make_effect(EffectKind::External);
+            let mut plugin = ExternalPlugin::new(PluginFormat::Vst3, "FUZZ0001", "Fuzz VST3");
+            plugin.isolation = isolation;
+            slot.spec = EffectSpec::external(plugin);
+            let len = project.effects_of(strip).map_or(0, |e| e.len());
+            Command::InsertEffect {
+                strip,
+                index: rng.below(len as u64 + 1) as usize,
+                slot: Box::new(slot),
+            }
+        }
+    }
+}
+
+/// Round 29, freeze (ADR 0064): freezing and unfreezing a strip or a track, now and then
+/// with a key that is not the target's (refused). Every other arm then runs against the
+/// frozen regions: the driver checks after every command that each frozen target's stored
+/// key is still its content key (the edit lock's invariant).
+fn round29_freeze_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::freeze;
+    let frozen = project.frozen_targets();
+    // A frozen target stays so until this arm runs again (about 48 commands), so the
+    // other arms keep most of the project to themselves.
+    if !frozen.is_empty() {
+        return freeze::unfreeze_command(frozen[rng.below(frozen.len() as u64) as usize]);
+    }
+    let normal = round29_freeze_pick(rng, project);
+    // A track's kept delay (a bounce's, review 3) set, changed or cleared now and then in
+    // its place, with nothing frozen — drawn from a generator of its own, so every other
+    // arm's draws stay as they were (the comp arms' rare cases need them); the lock is held
+    // by freeze.rs's `a_track_delay_is_locked_inside_a_frozen_region`.
+    let mut side = Lcg(rng.0 ^ 0x9E37_79B9_7F4A_7C15);
+    if side.below(6) == 0 {
+        let id = project.tracks[side.below(project.tracks.len() as u64) as usize].id;
+        let lateness = match side.below(3) {
+            0 => None,
+            1 => Some(cantus_core::Lateness {
+                frames: side.below(9_000),
+                rate: 48_000,
+            }),
+            // Not one a bounce could keep: refused.
+            _ => Some(cantus_core::Lateness {
+                frames: u64::MAX / 2,
+                rate: 1,
+            }),
+        };
+        return Command::SetTrackLateness { id, lateness };
+    }
+    normal
+}
+
+/// The freeze arm's own pick with nothing frozen: an unfreeze of something live, a freeze,
+/// or one refused.
+fn round29_freeze_pick(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::freeze::{self, FreezeTarget};
+    // Half the time an unfreeze of something live (a command that changes nothing).
+    let pick_track = |rng: &mut Lcg| {
+        FreezeTarget::Track(project.tracks[rng.below(project.tracks.len() as u64) as usize].id)
+    };
+    if rng.below(2) == 0 {
+        return freeze::unfreeze_command(pick_track(rng));
+    }
+    // Mostly a track's source (a small lock), a strip a quarter of the time.
+    let target = if !project.strips.is_empty() && rng.below(4) == 0 {
+        FreezeTarget::Strip(project.strips[rng.below(project.strips.len() as u64) as usize].id)
+    } else {
+        pick_track(rng)
+    };
+    if rng.below(8) == 0 {
+        // A key that is not the target's: refused.
+        let frozen = Some(Frozen {
+            content: "0".repeat(64),
+        });
+        return match target {
+            FreezeTarget::Strip(strip) => Command::SetStripFrozen { strip, frozen },
+            FreezeTarget::Track(track) => Command::SetTrackFrozen { track, frozen },
+        };
+    }
+    match freeze::freeze_commands(project, target) {
+        Ok(cmd) => cmd,
+        Err(_) => freeze::unfreeze_command(target),
+    }
+}
+
+/// Which freeze command a generated one is: 0 a strip frozen, 1 a track frozen (alone or
+/// in the batch that disarms first), 2 an unfreeze.
+fn freeze_kind(cmd: &Command) -> Option<usize> {
+    let one = |c: &Command| match c {
+        Command::SetStripFrozen {
+            frozen: Some(_), ..
+        } => Some(0),
+        Command::SetTrackFrozen {
+            frozen: Some(_), ..
+        } => Some(1),
+        Command::SetStripFrozen { frozen: None, .. }
+        | Command::SetTrackFrozen { frozen: None, .. } => Some(2),
+        _ => None,
+    };
+    match cmd {
+        Command::Batch {
+            label_key,
+            commands,
+        } if label_key == "cmd.freeze" => commands.last().and_then(one),
+        c => one(c),
+    }
+}
+
+/// One unwarped, non-looping audio window whose file is in the pool: by track and where
+/// (a clip, or window `j` of alternate comp `i`).
+#[derive(Clone, Debug)]
+struct Win {
+    key: (TrackId, Option<ClipId>, usize, usize),
+    source: AudioSourceId,
+    reverse: bool,
+    linked: bool,
+    start: Ticks,
+    end: Ticks,
+    origin: Ticks,
+    slip: i32,
+    rate: f64,
+    /// The forward frame under its start (what it plays there; at its end, reversed).
+    frame: f64,
+    /// The line it reads: one number for every window of one take.
+    line: f64,
+}
+
+fn windows_of(p: &Project) -> Vec<Win> {
+    let map = p.tempo_map();
+    let mut out = Vec::new();
+    for t in &p.tracks {
+        let clips = t.clips.iter().map(|c| ((t.id, Some(c.id), 0, 0), c));
+        let comps = t.comps.iter().enumerate().flat_map(|(i, comp)| {
+            comp.windows
+                .iter()
+                .enumerate()
+                .map(move |(j, c)| ((t.id, None, i, j), c))
+        });
+        for (key, c) in clips.chain(comps) {
+            let Some(a) = c.audio.as_ref() else { continue };
+            if a.warp.as_ref().is_some_and(|w| w.follow)
+                || c.content_length.is_some_and(|q| q < c.length)
+            {
+                continue;
+            }
+            let Some(src) = p.audio_source(a.source) else {
+                continue;
+            };
+            let rate = f64::from(src.sample_rate.max(1));
+            let frame = cantus_core::audio_time::offset_seconds(&map, c.start, c.offset) * rate
+                + f64::from(a.slip_frames);
+            let entry = if a.reverse { c.end() } else { c.start };
+            let to = map.seconds_between_f64(0.0, entry.0 as f64) * rate;
+            out.push(Win {
+                key,
+                source: a.source,
+                reverse: a.reverse,
+                linked: c.link.is_some(),
+                start: c.start,
+                end: c.end(),
+                origin: c.start - c.offset,
+                slip: a.slip_frames,
+                rate,
+                frame,
+                line: if a.reverse { frame + to } else { frame - to },
+            });
+        }
+    }
+    out
+}
+
+/// The take rule (ADR 0060 §4, review 4) between the windows before a tempo edit and
+/// after: each line (one file, one direction, one line within a frame) keeps its frame
+/// where it comes in — within half a frame, or half a tick at the song's slowest tempo when
+/// linked — and every window stays on it; windows that shared an origin and a fine offset
+/// share them still (`plain`: a tempo command alone, which moves no window itself). The
+/// number of windows checked.
+fn takes_kept(before: &[Win], after: &[Win], p: &Project, plain: bool) -> Result<usize, String> {
+    let map = p.tempo_map();
+    let slowest = p
+        .tempo_points
+        .iter()
+        .map(|q| q.bpm)
+        .fold(p.tempo_bpm, f64::min);
+    let now: std::collections::HashMap<_, &Win> = after.iter().map(|w| (w.key, w)).collect();
+    // Windows the edit left in place (a window the command moved is the command's).
+    let live: Vec<(&Win, &Win)> = before
+        .iter()
+        .filter_map(|b| {
+            let a = now.get(&b.key)?;
+            (a.start == b.start && a.end == b.end && a.reverse == b.reverse).then_some((b, *a))
+        })
+        .collect();
+    let reach = |w: &Win| {
+        if w.linked {
+            0.5 * 60.0 / (slowest * 960.0) * w.rate + 1e-6
+        } else {
+            0.5 + 1e-6
+        }
+    };
+    // A linked window sits within half a tick of its take's line (review 5) — the tick
+    // rounded at its content origin, or at its entry, the longer (review 6): within that
+    // (and a frame) it is the take's.
+    let slack = |w: &Win| {
+        if w.linked {
+            let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
+            let e = if w.reverse { w.end } else { w.start }.0 as f64;
+            half(w.origin.0.max(0) as f64).max(half(e))
+        } else {
+            0.0
+        }
+    };
+    let mut checked = 0;
+    for (i, (b, a)) in live.iter().enumerate() {
+        // Its line's head: where the line comes in, among the windows left in place.
+        let head = live
+            .iter()
+            .filter(|(o, _)| {
+                o.source == b.source
+                    && o.reverse == b.reverse
+                    && (o.line - b.line).abs() <= 1.0 + slack(o).max(slack(b))
+            })
+            .min_by_key(|(o, _)| if o.reverse { -o.end.0 } else { o.start.0 })
+            .map(|(o, _)| *o)
+            .expect("itself");
+        // The frame the line plays at this window's entry now, from the head's kept entry.
+        let run = if b.reverse {
+            map.seconds_between(b.end, head.end)
+        } else {
+            map.seconds_between(head.start, b.start)
+        };
+        let want = head.frame + run * b.rate;
+        // The head and the windows that shared its origin and fine offset: exactly on its
+        // line (half a frame); the others on it within their own rounding and a frame.
+        let with_head = !b.reverse
+            && !head.reverse
+            && !b.linked
+            && !head.linked
+            && (b.origin, b.slip) == (head.origin, head.slip);
+        let tolerance = if std::ptr::eq(head, *b) {
+            // A linked head is laid on its take's exact line, which it sat off by its slack.
+            reach(a) + slack(b)
+        } else if with_head {
+            0.5 + 1e-6
+        } else {
+            reach(a) + reach(head) + 1.0 + slack(b)
+        };
+        if (a.frame - want).abs() > tolerance {
+            return Err(format!(
+                "{:?}: frame {} where its take puts {want} (was {})",
+                b.key, a.frame, b.frame
+            ));
+        }
+        if plain {
+            for (o, oa) in &live[i + 1..] {
+                let shared = !b.reverse
+                    && !o.reverse
+                    && o.source == b.source
+                    && o.linked == b.linked
+                    && (o.origin, o.slip) == (b.origin, b.slip);
+                if shared && (oa.origin, oa.slip) != (a.origin, a.slip) {
+                    return Err(format!(
+                        "{:?} and {:?} no longer share their origin",
+                        b.key, o.key
+                    ));
+                }
+            }
+        }
+        checked += 1;
+    }
+    Ok(checked)
+}
+
+/// Whether `cmd` carries an invalid warp in — set by `SetClipWarp`, or on a clip that
+/// `SetClipAudio`, `InsertClip`, `InsertTrack` or a kept comp window brings (round 29's
+/// third review): the fuzz asserts every one is refused.
+fn carries_invalid_warp(cmd: &Command) -> bool {
+    let bad = |w: &cantus_core::warp::Warp| !w.is_valid();
+    let bad_clip = |c: &Clip| {
+        c.audio
+            .as_ref()
+            .and_then(|a| a.warp.as_deref())
+            .is_some_and(bad)
+    };
+    match cmd {
+        Command::SetClipWarp { warp: Some(w), .. } => bad(w),
+        Command::SetClipAudio { audio: Some(a), .. } => a.warp.as_deref().is_some_and(bad),
+        Command::InsertClip { clip, .. } => bad_clip(clip),
+        Command::InsertTrack { track, .. } => track.clips.iter().any(bad_clip),
+        Command::SetTrackComps { comps, .. } => {
+            comps.iter().flat_map(|c| c.windows.iter()).any(bad_clip)
+        }
+        Command::Batch { commands, .. } => commands.iter().any(carries_invalid_warp),
+        _ => false,
+    }
+}
+
+/// Round 29's third review (finding 36): the warp arm's every way of carrying an invalid
+/// warp in — `SetClipWarp`, `SetClipAudio`, `InsertClip`, `InsertTrack` and a kept comp
+/// window — drawn by the arm itself until each has come several times, is refused, and
+/// leaves no invalid warp anywhere, the comps' kept windows included.
+#[test]
+fn every_way_the_warp_arm_carries_an_invalid_warp_in_is_refused() {
+    let mut bus = CommandBus::default();
+    let mut rng = Lcg(293);
+    // A track and an audio clip for the arm to work on.
+    let mut scratch = bus.project().clone();
+    let track = scratch.make_track("Take");
+    while bus.project().next_id < scratch.next_id {
+        bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    }
+    bus.execute(
+        Command::InsertTrack {
+            index: 0,
+            track: Box::new(track),
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut scratch = bus.project().clone();
+    let first = round29_warp_command(&mut rng, &mut scratch);
+    while bus.project().next_id < scratch.next_id {
+        bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+    }
+    bus.execute(first, Origin::User).unwrap();
+    let mut seen = std::collections::BTreeMap::<&'static str, usize>::new();
+    for _ in 0..200_000 {
+        let mut scratch = bus.project().clone();
+        let cmd = round29_warp_command(&mut rng, &mut scratch);
+        if !carries_invalid_warp(&cmd) {
+            continue;
+        }
+        while bus.project().next_id < scratch.next_id {
+            bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+        }
+        let kind = match &cmd {
+            Command::SetClipWarp { .. } => "SetClipWarp",
+            Command::SetClipAudio { .. } => "SetClipAudio",
+            Command::InsertClip { .. } => "InsertClip",
+            Command::InsertTrack { .. } => "InsertTrack",
+            Command::SetTrackComps { .. } => "SetTrackComps",
+            _ => "other",
+        };
+        let before = bus.project().tracks.clone();
+        assert!(
+            bus.execute(cmd, Origin::User).is_err(),
+            "{kind}: an invalid warp came in"
+        );
+        assert_eq!(
+            bus.project().tracks,
+            before,
+            "{kind}: refused, yet it changed"
+        );
+        *seen.entry(kind).or_default() += 1;
+        if seen.len() == 5 && seen.values().all(|n| *n >= 3) {
+            break;
+        }
+    }
+    assert!(
+        seen.len() == 5 && seen.values().all(|n| *n >= 3),
+        "the arm's refusals drawn: {seen:?}"
+    );
+    for t in &bus.project().tracks {
+        let kept = t.comps.iter().flat_map(|c| c.windows.iter());
+        for c in t.clips.iter().chain(kept) {
+            let w = c.audio.as_ref().and_then(|a| a.warp.as_ref());
+            assert!(
+                w.is_none_or(|w| w.is_valid()),
+                "an invalid warp on {:?}",
+                c.id
+            );
         }
     }
 }

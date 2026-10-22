@@ -1,0 +1,286 @@
+//! *Bounce warped audio* (ADR 0061): the window a warped clip plays, rendered exactly as the
+//! engine plays it (the same attach, the same render), written to a file beside the
+//! project's audio on a thread of its own; then the clip plays that file, unwarped — one
+//! undo step (the new source and the clip's new region together).
+
+use super::actions::{Bounce, Written};
+use crate::app::CantusApp;
+use crate::clips::ClipRef;
+use crate::i18n::{t, tf};
+use cantus_core::{AudioRegion, AudioSource, AudioSourceId, Command, Snapshot, Ticks};
+use std::path::{Path, PathBuf};
+
+/// Render clip `id` of `snapshot` (its first window) through a cache of its own and write
+/// it to `file` (32-bit float WAV at `rate`). Only that clip is attached — no other file
+/// decoded, no other render made (round 29's review) — and always through the warp render,
+/// even where the snapshot found its warp to play as the source: the file is the window,
+/// as the clip's offset of zero afterwards says.
+fn write(
+    mut snapshot: Snapshot,
+    dir: Option<PathBuf>,
+    id: cantus_core::ClipId,
+    warp: Option<std::sync::Arc<cantus_core::warp::Warp>>,
+    rate: u32,
+    file: &Path,
+) -> Result<Written, String> {
+    for t in &mut snapshot.tracks {
+        t.audio.retain(|c| c.clip == id);
+        if let Some(c) = t.audio.first_mut() {
+            if c.warp.is_none() {
+                c.warp = warp.clone();
+            }
+        }
+    }
+    let mut cache = cantus_engine::SampleCache::new();
+    cache.set_project_dir(dir);
+    let errors = cache.attach_audio(&mut snapshot, rate);
+    let data = snapshot
+        .tracks
+        .iter()
+        .flat_map(|t| t.audio.iter())
+        .find(|c| c.clip == id)
+        .and_then(rendered)
+        .ok_or_else(|| {
+            errors
+                .first()
+                .map(|e| e.1.clone())
+                .unwrap_or_else(|| t("warp.bounce.nothing"))
+        })?;
+    if let Some(parent) = file.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let spec = hound::WavSpec {
+        channels: data.channels.max(1) as u16,
+        sample_rate: data.rate,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(file, spec).map_err(|e| e.to_string())?;
+    for s in data.frames.iter() {
+        w.write_sample(*s).map_err(|e| e.to_string())?;
+    }
+    w.finalize().map_err(|e| e.to_string())?;
+    Ok(Written {
+        path: file.to_path_buf(),
+        rate: data.rate,
+        channels: data.channels.max(1),
+        frames: data.len_frames() as u64,
+    })
+}
+
+/// The data of a clip piece when it is the render of its own window (laid on its start):
+/// never its input, nor another window's render (round 29's third review: a clip whose
+/// input was not ready wrote the whole source as "the window").
+fn rendered(c: &cantus_core::AudioClipSnapshot) -> Option<std::sync::Arc<cantus_core::SampleData>> {
+    c.data.clone().filter(|_| c.zero_at == Some((c.start, 0.0)))
+}
+
+/// A file name not yet taken in `dir`.
+fn free_name(dir: &Path, stem: &str) -> PathBuf {
+    let clean: String = stem
+        .chars()
+        .map(|c| if "\\/:*?\"<>|".contains(c) { '_' } else { c })
+        .collect();
+    for n in 0.. {
+        let name = if n == 0 {
+            format!("{clean}.wav")
+        } else {
+            format!("{clean} {n}.wav")
+        };
+        let p = dir.join(name);
+        if !p.exists() {
+            return p;
+        }
+    }
+    unreachable!()
+}
+
+impl CantusApp {
+    /// Start bouncing warped clip `r` (one at a time).
+    pub fn bounce_warped(&mut self, r: ClipRef) -> bool {
+        if self.warp.bounce.is_some() {
+            self.set_status(t("warp.bounce.busy"));
+            return false;
+        }
+        let Some(c) = self.project().track(r.0).and_then(|t| t.clip(r.1)).cloned() else {
+            return false;
+        };
+        let Some(warp) = self.clip_warp(r).cloned() else {
+            return false;
+        };
+        let dir = match self.audio_base() {
+            Some(b) => b.join("Audio"),
+            None => crate::app::data_dir().join("bounces"),
+        };
+        let file = free_name(&dir, &tf("warp.bounce.file", &[("name", &c.name)]));
+        let snapshot = Snapshot::compile(self.project(), 0);
+        let base = self.audio_base().map(Path::to_path_buf);
+        let rate = self.engine.sample_rate.round().max(1.0) as u32;
+        let (tx, rx) = std::sync::mpsc::channel();
+        let id = c.id;
+        let spawned = std::thread::Builder::new()
+            .name("cantus-warp-bounce".into())
+            .spawn(move || {
+                let warp = Some(std::sync::Arc::new(warp));
+                let _ = tx.send(write(snapshot, base, id, warp, rate, &file));
+            });
+        if spawned.is_err() {
+            return false;
+        }
+        let tempo = self.project().tempo_map();
+        self.warp.bounce = Some(Bounce::new(
+            r,
+            c.name.clone(),
+            rx,
+            (self.epoch, tempo),
+            c.clone(),
+        ));
+        self.set_status(tf("warp.bounce.working", &[("name", &c.name)]));
+        true
+    }
+
+    /// Take in a finished bounce: the file joins the pool and the clip plays it.
+    pub(super) fn poll_bounce(&mut self) {
+        let Some(b) = self.warp.bounce.as_ref() else {
+            return;
+        };
+        let Some(result) = b.try_take() else {
+            return;
+        };
+        let b = self.warp.bounce.take().expect("a bounce");
+        match result {
+            Err(e) => self.set_error(tf("warp.bounce.failed", &[("error", &e)])),
+            Ok(w) => {
+                // Only onto the clip it was made from, as it was (round 29's second review:
+                // an edit meanwhile, or another project with the same ids, took it).
+                let Some(c) = self
+                    .project()
+                    .track(b.r.0)
+                    .and_then(|t| t.clip(b.r.1))
+                    .filter(|c| self.epoch == b.epoch && **c == b.clip)
+                    .filter(|_| self.project().tempo_map() == b.tempo)
+                    .cloned()
+                else {
+                    self.set_status(tf("warp.bounce.stale", &[("name", &b.name)]));
+                    return;
+                };
+                let Some(a) = c.audio.clone() else { return };
+                let id = AudioSourceId(self.bus.alloc_id());
+                let base = self.audio_base().map(Path::to_path_buf);
+                let source = AudioSource {
+                    id,
+                    name: tf("warp.bounce.file", &[("name", &b.name)]),
+                    path: crate::audio_files::stored_path(base.as_deref(), &w.path),
+                    sample_rate: w.rate,
+                    channels: w.channels,
+                    frames: w.frames,
+                    sha256: None,
+                    recorded: false,
+                };
+                let region = AudioRegion {
+                    source: id,
+                    slip_frames: 0,
+                    pitch: None,
+                    warp: None,
+                    ..a
+                };
+                // A linked copy is made unique first: its copies keep their own audio
+                // (round 29's review).
+                let mut commands = Vec::new();
+                if c.link.is_some() {
+                    commands.push(Command::SetClipLink {
+                        track: b.r.0,
+                        clip: b.r.1,
+                        link: None,
+                    });
+                }
+                commands.extend([
+                    Command::InsertAudioSource { source },
+                    Command::SetClipAudio {
+                        track: b.r.0,
+                        clip: b.r.1,
+                        audio: Some(region),
+                    },
+                    Command::SetClipOffset {
+                        track: b.r.0,
+                        clip: b.r.1,
+                        offset: Ticks::ZERO,
+                    },
+                ]);
+                if self.exec(Command::Batch {
+                    label_key: "cmd.warp.bounce".into(),
+                    commands,
+                }) {
+                    self.set_status(tf("warp.bounce.done", &[("name", &b.name)]));
+                }
+            }
+        }
+    }
+}
+
+impl Bounce {
+    pub(super) fn new(
+        r: ClipRef,
+        name: String,
+        rx: std::sync::mpsc::Receiver<Result<Written, String>>,
+        (epoch, tempo): (u64, cantus_core::TempoMap),
+        clip: cantus_core::Clip,
+    ) -> Self {
+        Bounce {
+            r,
+            name,
+            rx,
+            epoch,
+            clip,
+            tempo,
+        }
+    }
+
+    fn try_take(&self) -> Option<Result<Written, String>> {
+        match self.rx.try_recv() {
+            Ok(r) => Some(r),
+            Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => Some(Err(t("warp.bounce.nothing"))),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Round 29's third review (finding 17): only a piece's own render is written — its
+    /// input (laid as unwarped) or another window's render never is.
+    #[test]
+    fn only_the_windows_own_render_is_written() {
+        let mut p = cantus_core::Project::new("b");
+        let mut t = p.make_track("T");
+        let id = AudioSourceId(p.alloc_id());
+        let c = p.make_audio_clip("c", id, Ticks::beats(4), Ticks::beats(4));
+        t.clips.push(c);
+        p.audio_pool.push(AudioSource {
+            id,
+            name: "c".into(),
+            path: "c.wav".into(),
+            sample_rate: 48_000,
+            channels: 1,
+            frames: 48_000,
+            sha256: None,
+            recorded: false,
+        });
+        p.tracks.push(t);
+        let s = Snapshot::compile(&p, 1);
+        let mut c = s.tracks[0].audio[0].clone();
+        c.data = Some(std::sync::Arc::new(cantus_core::SampleData {
+            stream: None,
+            rate: 48_000,
+            channels: 1,
+            frames: vec![0.0; 10].into(),
+        }));
+        assert!(rendered(&c).is_none(), "its input");
+        c.zero_at = Some((Ticks::beats(2), 0.0));
+        assert!(rendered(&c).is_none(), "another window's render");
+        c.zero_at = Some((c.start, 0.0));
+        assert!(rendered(&c).is_some(), "its own render");
+    }
+}

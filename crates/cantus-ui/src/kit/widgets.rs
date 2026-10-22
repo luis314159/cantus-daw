@@ -199,6 +199,18 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
                 },
                 self.offer.is_some_and(|o| o.modulation.is_some()),
             );
+            super::automate::probe::note_learn(
+                if self.name.is_empty() {
+                    match self.label {
+                        Some(Src::Key(k)) => k,
+                        Some(Src::Str(t)) => t,
+                        None => "",
+                    }
+                } else {
+                    self.name
+                },
+                self.offer.and_then(|o| o.learn()).is_some(),
+            );
         }
         let s = self.style.unwrap_or_else(Style::current);
         let size = if self.label.is_some() {
@@ -304,6 +316,9 @@ impl<'a, F: Fn(f32, &mut String)> Param<'a, F> {
             if modulated {
                 with_brush(&painter, |b| super::automate::mod_mark(b, rect, &s));
             }
+            if self.offer.and_then(|o| o.learn()).is_some_and(|l| l.mapped) {
+                with_brush(&painter, |b| super::automate::learn_mark(b, rect, &s));
+            }
             if self.offer.is_some_and(|o| o.modulation.is_some())
                 && super::automate::handle_in_flight(ui.ctx())
                 && resp.contains_pointer()
@@ -389,6 +404,33 @@ pub fn led_button(ui: &mut Ui, on: &mut bool, label: Src<'_>, name: &str, width:
 }
 
 /// A choice among a few words. `selected` changes on click.
+/// [`led_button`] that can be shown disabled: dimmed, and a click changes nothing (read
+/// `changed()`).
+pub fn led_button_if(
+    ui: &mut Ui,
+    on: &mut bool,
+    label: Src<'_>,
+    name: &str,
+    width: f32,
+    enabled: bool,
+) -> Response {
+    let s = Style::current();
+    let (rect, mut resp) = allocate(ui, Vec2::new(width * s.k, s.d(20.0)), Sense::click());
+    if enabled && resp.clicked() {
+        *on = !*on;
+        resp.mark_changed();
+    }
+    let st = State {
+        disabled: !enabled,
+        ..State::of(&resp, *on)
+    };
+    if st.hovered {
+        hint::set_text(ui.ctx(), name, "", Caps::PARAM);
+    }
+    with_brush(ui.painter(), |b| led::button(b, rect, &s, st, label));
+    resp
+}
+
 pub fn segmented(
     ui: &mut Ui,
     selected: &mut usize,

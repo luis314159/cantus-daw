@@ -89,6 +89,11 @@ pub(crate) fn check(
             if project.audio_source(a.source).is_none() {
                 return Err(CommandError::AudioSourceNotFound(a.source));
             }
+            // A kept window's warp only as valid as `SetClipWarp` takes it (round 29's
+            // second review: switching to its comp brings it back through `InsertClip`).
+            if a.warp.as_ref().is_some_and(|w| !w.is_valid()) {
+                return bad("a kept window's warp");
+            }
         }
     }
     Ok(())
@@ -114,14 +119,18 @@ pub(crate) fn apply_set_comps(
 }
 
 /// Whether a clip can be one side of a comp seam (ADR 0058): a playing-lane audio window
-/// with a length, neither reversed nor looping — the windows the engine crossfades. One
-/// test for the snapshot, the seam command and the arrangement, so none of them shows or
-/// moves a seam another does not play.
-pub fn seam_window(c: &Clip) -> bool {
+/// with a length, neither reversed, looping nor warped (ADR 0061: a warped window plays a
+/// render, whose seams would need the warp map; a warp that plays the source as it is,
+/// heard as `held` says — [`crate::warp::plays_source`], the snapshot's own test — is no
+/// warp here) — the windows the engine crossfades. One test for the snapshot, the seam
+/// command and the arrangement, so none of them shows or moves a seam another does not
+/// play.
+pub fn seam_window(c: &Clip, held: impl AsRef<crate::warp::Hearing>) -> bool {
     c.lane == 0
         && c.length > Ticks::ZERO
         && c.period().is_none_or(|p| p >= c.length)
         && c.audio.as_ref().is_some_and(|a| !a.reverse)
+        && crate::warp::plays_source(c, held)
 }
 
 /// Whether `left` and `right` make a comp seam (ADR 0058): two seam windows
@@ -130,15 +139,16 @@ pub fn seam_window(c: &Clip) -> bool {
 /// the left stops), which plays as one and has nothing to cross (integration review: a
 /// split carried the window's crossfade and added a +3 dB swell at the cut). One test for
 /// the snapshot, the seam command and the arrangement.
-pub fn is_seam(left: &Clip, right: &Clip) -> bool {
+pub fn is_seam(left: &Clip, right: &Clip, held: impl AsRef<crate::warp::Hearing>) -> bool {
+    let held = held.as_ref();
     let continues = match (&left.audio, &right.audio) {
         (Some(a), Some(b)) => a.source == b.source && right.offset == left.offset + left.length,
         _ => false,
     };
     left.id != right.id
         && left.end() == right.start
-        && seam_window(left)
-        && seam_window(right)
+        && seam_window(left, held)
+        && seam_window(right, held)
         && !continues
 }
 
@@ -151,6 +161,7 @@ pub(crate) fn apply_seam(
     right: ClipId,
     at: Ticks,
 ) -> Result<Command, CommandError> {
+    let held = crate::warp::held_tempo(project);
     let t = project
         .track_mut(track)
         .ok_or(CommandError::TrackNotFound(track))?;
@@ -159,7 +170,7 @@ pub(crate) fn apply_seam(
         (None, _) => return Err(CommandError::ClipNotFound(left)),
         (_, None) => return Err(CommandError::ClipNotFound(right)),
     };
-    if !is_seam(&l, &r) {
+    if !is_seam(&l, &r, &held) {
         return Err(CommandError::InvalidValue("not a comp seam".into()));
     }
     if at <= l.start || at >= r.end() {
@@ -260,7 +271,10 @@ mod tests {
         let c = tr.clip_mut(r).unwrap();
         c.content_length = Some(Ticks::beats(1));
         c.audio.as_mut().unwrap().xfade = Ticks(20);
-        assert!(!seam_window(p.track(t).unwrap().clip(r).unwrap()));
+        assert!(!seam_window(
+            p.track(t).unwrap().clip(r).unwrap(),
+            crate::warp::held_tempo(&p)
+        ));
         let moved = Command::SetCompSeam {
             track: t,
             left: l,
@@ -410,7 +424,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(tid, &right, Ticks::beats(6), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, tid, &right, Ticks::beats(6), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {
@@ -424,7 +438,7 @@ mod tests {
         carried.audio.as_mut().unwrap().xfade = Ticks(20);
         let mut left = right.clone();
         left.length = Ticks::beats(2);
-        assert!(!is_seam(&left, &carried));
+        assert!(!is_seam(&left, &carried, crate::warp::held_tempo(&p)));
         p.track_mut(tid).unwrap().clip_mut(rid).unwrap().length = Ticks::beats(2);
         p.track_mut(tid).unwrap().clips.push(carried.clone());
         assert!(apply_seam(&mut p, tid, rid, carried.id, Ticks::beats(5)).is_err());
@@ -470,7 +484,7 @@ mod tests {
             next += 1;
             next
         };
-        let cmds = crate::clipboard::split(t, &w, Ticks::beats(2), &mut ids).unwrap();
+        let cmds = crate::clipboard::split(&p, t, &w, Ticks::beats(2), &mut ids).unwrap();
         let half = cmds
             .iter()
             .find_map(|c| match c {

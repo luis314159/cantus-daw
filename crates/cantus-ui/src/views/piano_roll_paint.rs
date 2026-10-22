@@ -162,7 +162,7 @@ pub(super) fn grid(
             Fill::Solid(with_alpha(outside, 0.7)),
         );
     }
-    ladder(b, app, geo, g, grid_ticks, s);
+    ladder(b, app, geo, g, clip, grid_ticks, s);
 }
 
 /// The vertical lines over `rect`: every grid step, every beat, every bar.
@@ -171,10 +171,16 @@ pub(super) fn ladder(
     app: &CantusApp,
     geo: &Geo<'_>,
     rect: Rect,
+    clip: &Clip,
     grid_ticks: Ticks,
     s: &Style,
 ) {
     let t = &s.t;
+    let map = crate::views::bars::map(app.project());
+    if !map.is_one_metre() {
+        metre_ladder(b, &map, geo, rect, clip, grid_ticks, s);
+        return;
+    }
     let ts = app.project().time_signature;
     let (bar, beat) = (ts.ticks_per_bar(), ts.ticks_per_beat());
     let mut step = grid_ticks.max(Ticks(1));
@@ -361,6 +367,12 @@ pub(super) fn ruler(
         b.px(),
         t.grid_bar,
     );
+    let map = crate::views::bars::map(app.project());
+    if !map.is_one_metre() {
+        metre_ruler(b, &map, geo, rect, clip, s);
+        playhead_mark(b, rect, playhead, s);
+        return;
+    }
     let ts = app.project().time_signature;
     let bar = ts.ticks_per_bar();
     let beat = ts.ticks_per_beat();
@@ -599,7 +611,7 @@ pub(super) fn velocity(
     let lane = b.snap_rect(lane);
     b.register(lane, "velocity_lane", GRID_TOKENS, &[]);
     b.rect(lane, Fill::Solid(mix(t.row_black, t.ink, 0.25)));
-    ladder(b, app, geo, lane, grid_ticks, s);
+    ladder(b, app, geo, lane, clip, grid_ticks, s);
     let (top, bottom) = (lane.top() + 8.0 * s.k, lane.bottom() - 3.0 * s.k);
     let normal = NoteInk::of(track_color, s);
     let chosen = NoteInk::selected(s);
@@ -667,5 +679,120 @@ pub(super) fn recording(b: &mut Brush, app: &CantusApp, geo: &Geo<'_>, clip: &Cl
         };
         let r = Rect::from_min_max(pos2(x0, y0 + 1.0), pos2(x1, y0 + geo.key_h - 1.0));
         b.rrect(r, s.r(2.0), Fill::Solid(with_alpha(s.t.danger, 0.8)));
+    }
+}
+
+/// The ladder under metre changes (ADR 0060): the arrangement's bars and beats over the
+/// clip's content (content tick `c` is timeline tick `c + start − offset`), and the grid's
+/// steps counted from each bar's start.
+#[allow(clippy::too_many_arguments)]
+fn metre_ladder(
+    b: &mut Brush,
+    map: &cantus_core::TempoMap,
+    geo: &Geo<'_>,
+    rect: Rect,
+    clip: &Clip,
+    grid_ticks: Ticks,
+    s: &Style,
+) {
+    let t = &s.t;
+    let to_timeline = clip.start - clip.offset;
+    let side = mix(t.grid_bar, t.row_black, 0.55);
+    let mut step = grid_ticks.max(Ticks(1));
+    while ticks_to_beats(step) * geo.px_per_beat < 6.0 {
+        step = step * 2;
+    }
+    let first = beats_to_ticks(geo.beats(rect.left()).max(0.0)) + to_timeline;
+    let last = beats_to_ticks(geo.beats(rect.right())) + to_timeline;
+    for bar in map.bar_lines(map.bar_start(first), last + Ticks(1)) {
+        let end = map.bar_end(bar);
+        let beat = map.beat_len_at(bar).max(Ticks(1));
+        let mut tick = bar;
+        while tick < end && tick <= last {
+            let x = geo.x(ticks_to_beats(tick - to_timeline));
+            if tick == bar {
+                b.vline(x, rect.top(), rect.bottom(), 3.0 * b.px(), side);
+                b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_bar);
+            } else if (tick - bar).0 % beat.0 == 0 {
+                b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid_strong);
+            } else {
+                b.vline(x, rect.top(), rect.bottom(), b.px(), t.grid);
+            }
+            tick += step;
+        }
+    }
+}
+
+/// The ruler's bar numbers and beat ticks under metre changes (ADR 0060), in the
+/// arrangement's count.
+fn metre_ruler(
+    b: &mut Brush,
+    map: &cantus_core::TempoMap,
+    geo: &Geo<'_>,
+    rect: Rect,
+    clip: &Clip,
+    s: &Style,
+) {
+    let t = &s.t;
+    let to_timeline = clip.start - clip.offset;
+    let first = beats_to_ticks(geo.beats(rect.left()).max(0.0)) + to_timeline;
+    let last = beats_to_ticks(geo.beats(rect.right())) + to_timeline;
+    let beat_px = ticks_to_beats(map.beat_len_at(first)) * geo.px_per_beat;
+    if beat_px >= 6.0 {
+        for (tick, _) in map.beat_lines(first, last + Ticks(1)) {
+            let x = geo.x(ticks_to_beats(tick - to_timeline));
+            b.vline(
+                x,
+                rect.bottom() - 4.0 * s.k,
+                rect.bottom(),
+                b.px(),
+                t.grid_strong,
+            );
+        }
+    }
+    // Thinned by the narrowest bar in view, so numbers never collide.
+    let mut narrow = f32::MAX;
+    for bar in map.bar_lines(map.bar_start(first), last + Ticks(1)) {
+        narrow = narrow.min(ticks_to_beats(map.bar_end(bar) - bar) * geo.px_per_beat);
+    }
+    let mut every = 1i64;
+    while narrow * (every as f32) < super::RULER_LABEL_GAP * s.k && every < 1024 {
+        every *= 2;
+    }
+    let mut digits = crate::views::clips_chrome::Digits::default();
+    for bar in map.bar_lines(map.bar_start(first), last + Ticks(1)) {
+        let (n, _, _) = map.bbt(bar);
+        if (n - 1).rem_euclid(every) != 0 {
+            continue;
+        }
+        let x = geo.x(ticks_to_beats(bar - to_timeline));
+        b.vline(x, rect.top() + 3.0 * s.k, rect.bottom(), b.px(), t.grid_bar);
+        let color = if (n - 1) % 4 == 0 { t.text } else { t.text_dim };
+        let label = Text::new(digits.fmt(n), Role::Label, color)
+            .align(Align2::LEFT_CENTER)
+            .policy(Policy::Elide(Elide::End));
+        let lr = Rect::from_min_max(
+            pos2(x + 3.0 * s.k, rect.top()),
+            pos2(x + narrow * every as f32 - 2.0, rect.bottom()),
+        );
+        let _ = text::paint(b, lr, &label, s.tk());
+    }
+}
+
+/// The playhead's marker on a ruler.
+fn playhead_mark(b: &mut Brush, rect: Rect, playhead: Option<f32>, s: &Style) {
+    let t = &s.t;
+    if let Some(x) = playhead {
+        if x >= rect.left() - 6.0 && x <= rect.right() + 6.0 {
+            let k = s.k;
+            b.polygon(
+                &[
+                    pos2(x - 5.0 * k, rect.bottom() - 8.0 * k),
+                    pos2(x + 5.0 * k, rect.bottom() - 8.0 * k),
+                    pos2(x, rect.bottom()),
+                ],
+                t.playhead,
+            );
+        }
     }
 }

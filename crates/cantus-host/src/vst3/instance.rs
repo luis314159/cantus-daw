@@ -203,6 +203,16 @@ pub struct Instance {
     /// (`IMidiMapping`: CC 0…127, channel pressure 128, pitch bend 129), or
     /// [`NO_MIDI_PARAM`]. Read once at activation; the audio thread only looks up.
     pub midi_map: Box<MidiMap>,
+    /// The plug-in's program list — its parameter flagged `kIsProgramChange`, the root
+    /// unit's first — and its steps (programs less one): where a MIDI program change goes,
+    /// as `program / steps` (round 29, review 1 of ADR 0062).
+    pub program_param: Option<(ParamID, i32)>,
+    /// A MIDI program change reached the program list since the main thread last looked
+    /// (set on the audio thread, no allocation): the plug-in's whole state changed, which
+    /// the project records as one state step. A value the host sent the list itself (the
+    /// project, automation, a mapped knob) is its own parameter step, never this (round
+    /// 29, review 3 of ADR 0062, #3, #21, #52).
+    pub program_changed: std::sync::atomic::AtomicBool,
     active: bool,
     /// Last: terminated after deactivation.
     pub parts: Parts,
@@ -235,6 +245,8 @@ impl Instance {
             setup,
             layout: Layout::default(),
             midi_map: Box::new([[NO_MIDI_PARAM; MIDI_CONTROLLERS]; 16]),
+            program_param: None,
+            program_changed: std::sync::atomic::AtomicBool::new(false),
             active: false,
             parts,
         };
@@ -266,6 +278,7 @@ impl Instance {
             inst.active = true;
             inst.refresh_latency();
             inst.read_midi_map();
+            inst.read_program_list();
         }
         Ok((inst, from_ui))
     }
@@ -302,6 +315,31 @@ impl Instance {
         }
     }
 
+    /// Find the program list (main thread): the parameter flagged `kIsProgramChange`, in
+    /// the root unit before any other — what Steinberg says a host sends a program change
+    /// to (`IMidiMapping` has no number for it).
+    fn read_program_list(&mut self) {
+        let Some(ctrl) = self.parts.controller.as_ref() else {
+            return;
+        };
+        let mut found = Vec::new();
+        // SAFETY: main-thread controller queries into a zeroed struct.
+        unsafe {
+            for i in 0..ctrl.getParameterCount().max(0) {
+                let mut info: ::vst3::Steinberg::Vst::ParameterInfo = std::mem::zeroed();
+                if ok(ctrl.getParameterInfo(i, &mut info)) {
+                    found.push(ProgramCandidate {
+                        id: info.id,
+                        flags: info.flags,
+                        unit: info.unitId,
+                        steps: info.stepCount,
+                    });
+                }
+            }
+        }
+        self.program_param = program_list(&found);
+    }
+
     /// The parameter a MIDI channel message drives, and its normalized value.
     pub fn midi_param(
         &self,
@@ -310,6 +348,11 @@ impl Instance {
         data1: u8,
         data2: u8,
     ) -> Option<(ParamID, f64)> {
+        // A program change chooses one of the program list's programs (round 29).
+        if status & 0xF0 == 0xC0 {
+            let (id, steps) = self.program_param?;
+            return Some((id, program_value(data1, steps)));
+        }
         let row = self.midi_map.get(usize::from(channel & 15))?;
         let (ctrl, value) = match status & 0xF0 {
             0xB0 if data1 < 128 => (usize::from(data1), f64::from(data2.min(127)) / 127.0),
@@ -370,8 +413,44 @@ fn lock_requests(r: &SharedRequests) -> std::sync::MutexGuard<'_, Requests> {
 /// CC 0…127, then channel pressure (128) and pitch bend (129), as `IMidiMapping` numbers
 /// them.
 pub const MIDI_CONTROLLERS: usize = 130;
+
+/// A parameter as far as finding the program list needs it.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ProgramCandidate {
+    pub id: ParamID,
+    pub flags: i32,
+    pub unit: i32,
+    pub steps: i32,
+}
+
+/// The program list among `params`: flagged `kIsProgramChange`, the root unit's first, else
+/// the first of any unit; with its steps.
+pub fn program_list(params: &[ProgramCandidate]) -> Option<(ParamID, i32)> {
+    use ::vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::kIsProgramChange;
+    let lists = || {
+        params
+            .iter()
+            .filter(|p| p.flags & kIsProgramChange as i32 != 0)
+    };
+    lists()
+        .find(|p| p.unit == 0)
+        .or_else(|| lists().next())
+        .map(|p| (p.id, p.steps.max(0)))
+}
 /// No parameter for this controller.
 pub const NO_MIDI_PARAM: ParamID = u32::MAX;
+
+/// The normalised value of program `program` on a program-change parameter of `steps`
+/// steps (programs less one): `program / steps`, the last for one past it; a parameter
+/// that says no steps reads the program over MIDI's 127.
+pub fn program_value(program: u8, steps: i32) -> f64 {
+    let p = f64::from(program & 127);
+    if steps > 0 {
+        p.min(f64::from(steps)) / f64::from(steps)
+    } else {
+        p / 127.0
+    }
+}
 pub type MidiMap = [[ParamID; MIDI_CONTROLLERS]; 16];
 
 /// Room for the controller's edits between two blocks.
@@ -444,5 +523,41 @@ unsafe fn arrange(component: &ComPtr<IComponent>, processor: &ComPtr<IAudioProce
         inputs,
         outputs,
         main_input,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// A program change picks one of the program list's programs (round 29, ADR 0062).
+    #[test]
+    fn a_program_change_picks_its_program() {
+        use super::program_value;
+        assert_eq!(program_value(0, 7), 0.0);
+        assert_eq!(program_value(7, 7), 1.0);
+        assert_eq!(program_value(3, 6), 0.5);
+        assert_eq!(program_value(20, 7), 1.0, "past the last: the last");
+        assert_eq!(program_value(127, 0), 1.0, "no steps said: over 127");
+    }
+
+    /// Review 1 of ADR 0062, #53: the program list is the parameter flagged
+    /// `kIsProgramChange`, the root unit's first.
+    #[test]
+    fn the_program_list_is_found_by_its_flag() {
+        use super::{program_list, ProgramCandidate};
+        use ::vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::kIsProgramChange;
+        let p = |id, flags, unit, steps| ProgramCandidate {
+            id,
+            flags,
+            unit,
+            steps,
+        };
+        let list = kIsProgramChange as i32;
+        assert_eq!(program_list(&[p(1, 0, 0, 3), p(2, 1, 0, 0)]), None);
+        assert_eq!(
+            program_list(&[p(1, 0, 0, 3), p(5, list, 2, 9), p(7, list | 1, 0, 15)]),
+            Some((7, 15)),
+            "the root unit's"
+        );
+        assert_eq!(program_list(&[p(5, list, 2, 9)]), Some((5, 9)));
     }
 }

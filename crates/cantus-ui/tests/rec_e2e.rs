@@ -161,6 +161,7 @@ fn a_command_batch_from_a_real_pass_is_one_undo_step() {
         frames: 48_000,
         start_tick: -53.48,
         wraps: vec![],
+        wrap_shifts: Vec::new(),
         dropped: 0,
     };
     let mut next = bus.project().next_id;

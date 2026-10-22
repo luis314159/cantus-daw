@@ -261,12 +261,21 @@ pub(super) fn header_input(
     id: TrackId,
     rr: &RecRects,
     s: &Style,
+    clip: Rect,
 ) {
     let k = s.k;
     let arm = ui.interact(
         Rect::from_center_size(rr.arm, egui::Vec2::splat((LED + 6.0) * k)),
         ui.id().with(("arr-arm", id.0)),
         Sense::click(),
+    );
+    // MIDI learn mode (round 29, ADR 0062): the arm lamp is learnable.
+    crate::controllers::learn_spot_in(
+        app,
+        ui,
+        arm.rect,
+        clip,
+        cantus_core::controller::MappingTarget::TrackArm(id),
     );
     if arm.hovered() {
         hint::set_text(ui.ctx(), chrome::word("rec.arm_tip"), "", Caps::NONE);
@@ -578,7 +587,7 @@ pub(super) fn punch_input(
         if free || !app.arrangement.snap {
             t
         } else {
-            t.snap(app.arrangement.grid)
+            crate::views::bars::snap(app.project(), t, app.arrangement.grid)
         }
     };
     if resp.drag_started_by(egui::PointerButton::Primary) {
@@ -661,7 +670,12 @@ fn live_span(app: &CantusApp, track: TrackId) -> Option<(Ticks, Ticks, bool)> {
             };
             let frames = take.peaks.len().saturating_sub(take.pass_from) * PEAK_FRAMES;
             let secs = frames as f64 / app.engine.sample_rate.max(1.0);
-            let end = start + Ticks::from_seconds(secs, app.project().tempo_bpm);
+            // Natural speed through the tempo map (ADR 0060).
+            let end = Ticks(
+                crate::views::bars::map(app.project())
+                    .tick_after_seconds(start.0 as f64, secs)
+                    .round() as i64,
+            );
             let end = if pos > start { end.max(pos) } else { end };
             (end > start).then_some((start, end, true))
         }
@@ -802,9 +816,11 @@ pub(super) fn paint_live_waves(
             t.peaks.len().saturating_sub(t.pass_from) * PEAK_FRAMES
         });
         let secs = frames as f64 / app.engine.sample_rate.max(1.0);
-        let x1 = geo.x(ticks_to_beats(
-            a + Ticks::from_seconds(secs, app.project().tempo_bpm),
-        ));
+        let x1 = geo.x(ticks_to_beats(Ticks(
+            crate::views::bars::map(app.project())
+                .tick_after_seconds(a.0 as f64, secs)
+                .round() as i64,
+        )));
         let _ = z;
         let body = Rect::from_min_max(
             pos2(x0, row.top + 6.0 * s.k),

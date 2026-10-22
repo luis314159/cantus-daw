@@ -726,6 +726,39 @@ pub(crate) fn choice(
     name: &str,
     width: f32,
 ) -> Option<usize> {
+    choice_resp(ui, s, selected, labels, tips, name, width).0
+}
+
+/// [`choice`] that is the stepped parameter `key`'s control (the caller sets the value the
+/// segment means): its menu, its mapped mark, the learn mode (round 29, review 2 of ADR
+/// 0062, #44). No choice while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn choice_key(
+    ui: &mut egui::Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    selected: usize,
+    labels: &[Src<'static>],
+    tips: &[&'static str],
+    name: &str,
+    width: f32,
+) -> Option<usize> {
+    let (out, resp) = choice_resp(ui, s, selected, labels, tips, name, width);
+    let learnt = controls::stepped_offer(ui, s, host, key, name, &resp);
+    out.filter(|_| !learnt)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn choice_resp(
+    ui: &mut egui::Ui,
+    s: &Style,
+    selected: usize,
+    labels: &[Src<'static>],
+    tips: &[&'static str],
+    name: &str,
+    width: f32,
+) -> (Option<usize>, egui::Response) {
     let (rect, resp) =
         ui.allocate_exact_size(vec2(width * s.k, s.d(controls::ROW)), Sense::click());
     let hovered = resp
@@ -750,7 +783,7 @@ pub(crate) fn choice(
             segmented::paint(b, rect, s, st, labels, selected, hovered)
         });
     }
-    out
+    (out, resp)
 }
 
 // ---- commands ---------------------------------------------------------------------
@@ -1306,9 +1339,11 @@ fn head_controls(
     );
     child.spacing_mut().item_spacing.x = 8.0 * k;
     let ui = &mut child;
-    if let Some(i) = choice(
+    if let Some(i) = choice_key(
         ui,
         s,
+        host,
+        "mode",
         set.mode as usize,
         &MODE_LABELS,
         &MODE_TIPS,
@@ -1318,9 +1353,11 @@ fn head_controls(
         host.set("mode", i as f32, None);
     }
     let slope = Slope::ALL.iter().position(|x| *x == set.slope).unwrap_or(2);
-    if let Some(i) = choice(
+    if let Some(i) = choice_key(
         ui,
         s,
+        host,
+        "slope",
         slope,
         &SLOPE_LABELS,
         &SLOPE_TIPS,
@@ -1329,9 +1366,11 @@ fn head_controls(
     ) {
         host.set("slope", Slope::ALL[i].db(), None);
     }
-    if let Some(i) = choice(
+    if let Some(i) = choice_key(
         ui,
         s,
+        host,
+        "listen",
         set.listen as usize,
         &LISTEN_LABELS,
         &LISTEN_TIPS,
@@ -2710,7 +2749,10 @@ fn band_led(
     if r.hovered() {
         hint::set_text(ui.ctx(), frame::tr(label), frame::tr(tip), Caps::NONE);
     }
-    if r.clicked() {
+    // The band's switch is a parameter: its menu, its mark, the learn mode (review 2 of
+    // ADR 0062, #44).
+    let learnt = controls::stepped_offer(ui, s, host, key(band, field), frame::tr(label), &r);
+    if r.clicked() && !learnt {
         flip(host, band, field, on);
     }
 }
@@ -2749,7 +2791,7 @@ fn band_card(
     let marked = s.with_hue(band_ink(b, s));
     let title = st.words.band.get(b).map_or("", String::as_str);
     let mut remove = false;
-    let (_, lamp) = controls::card(
+    let (_, lamp, lamp_resp) = controls::card_lamp(
         ui,
         &marked,
         rect,
@@ -2789,9 +2831,11 @@ fn band_card(
             );
             sw.add_space(8.0 * k);
             let place = band.placement.index();
-            if let Some(i) = choice(
+            if let Some(i) = choice_key(
                 &mut sw,
                 s,
+                host,
+                key(b, "place"),
                 place,
                 &PLACE_LABELS,
                 &PLACE_TIPS,
@@ -2801,9 +2845,11 @@ fn band_card(
                 host.set(key(b, "place"), i as f32, None);
             }
             sw.add_space(8.0 * k);
-            if let Some(i) = choice(
+            if let Some(i) = choice_key(
                 &mut sw,
                 s,
+                host,
+                key(b, "key"),
                 band.key_ext as usize,
                 &KEY_LABELS,
                 &KEY_TIPS,
@@ -2881,7 +2927,8 @@ fn band_card(
             }
         },
     );
-    if lamp {
+    let learnt = controls::card_lamp_offer(ui, s, host, key(b, "on"), lamp_resp.as_ref());
+    if lamp && !learnt {
         flip(host, b, "on", band.on);
     }
     if remove {

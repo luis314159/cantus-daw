@@ -132,10 +132,15 @@ pub struct RecordRings {
 /// What the processor tells the handle about a pass, in engine time.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum RecordMark {
-    /// The pass's first recorded frame was rendered at this engine position (ticks, f64).
-    Started { tick: f64 },
-    /// The loop wrapped after this many recorded frames (every armed track shares it).
-    Wrapped { frames: u64 },
+    /// The pass's first recorded frame was rendered at this engine position (ticks, f64),
+    /// with the plug-in delay compensation heard then and the input ring's wait (review 2:
+    /// read from the stats, they were the callback before's).
+    Started { tick: f64, plugin: u32, queue: i64 },
+    /// The loop wrapped after this many recorded frames (every armed track shares it),
+    /// with the heard latency's moves taken into the file so far (frames dropped less
+    /// silence written, review 3): the next pass was played against a backing heard that
+    /// much later than the pass's start.
+    Wrapped { frames: u64, shift: i64 },
     /// A ring was full: this many frames of this track were lost (the disk fell behind).
     Overflow { track: TrackId, frames: u64 },
     /// The pass ended after this many frames.
@@ -205,6 +210,10 @@ pub struct FinishedTake {
     /// Frame offsets in the file where the loop wrapped: pass `k` is
     /// `wraps[k-1]..wraps[k]` (`0` and `frames` at the ends).
     pub wraps: Vec<u64>,
+    /// At each wrap, how far the heard latency had moved since the pass started (frames
+    /// dropped less silence written; review 3): pass `k` is placed that much earlier. Empty
+    /// when it never moved.
+    pub wrap_shifts: Vec<i64>,
     /// Frames lost to a full ring (0 when nothing was lost).
     pub dropped: u64,
 }
@@ -223,6 +232,11 @@ pub struct HandleRecorder {
     /// The pass being recorded, from `begin_recording` to `finish_recording`.
     pass: Option<Pass>,
     record_start: Option<cantus_core::Ticks>,
+    /// The latency the last finished pass was placed by: what it was when that pass
+    /// started (round 29, ADR 0064).
+    last_pass: Option<RecordLatency>,
+    /// The devices' round trip last told the engine (`EngineMessage::SetDeviceRoundTrip`).
+    pub(crate) round_trip_sent: Option<u32>,
 }
 
 impl HandleRecorder {
@@ -256,16 +270,28 @@ impl HandleRecorder {
 
     /// A mark from the engine, folded into the pass.
     pub(crate) fn mark(&mut self, mark: RecordMark) {
+        let now = self.latency;
         let Some(pass) = self.pass.as_mut() else {
             return;
         };
         match mark {
             // The first start is the file's first frame; a later one (recording switched
-            // off and on again in one pass) continues the same file.
-            RecordMark::Started { tick } => {
+            // off and on again in one pass) continues the same file. The latency the take
+            // is placed by is the one at that start (ADR 0064): low-latency monitoring
+            // switched while the pass records must not move it.
+            RecordMark::Started {
+                tick,
+                plugin,
+                queue,
+            } => {
                 pass.started.get_or_insert(tick);
+                pass.latency.get_or_insert(RecordLatency {
+                    plugin,
+                    queue,
+                    ..now
+                });
             }
-            RecordMark::Wrapped { frames } => pass.wraps.push(frames),
+            RecordMark::Wrapped { frames, shift } => pass.wraps.push((frames, shift)),
             RecordMark::Overflow { track, frames } => {
                 match pass.dropped.iter_mut().find(|(t, _)| *t == track) {
                     Some((_, n)) => *n += frames,
@@ -307,6 +333,20 @@ impl EngineHandle {
 
     pub fn record_latency(&self) -> RecordLatency {
         self.rec.latency
+    }
+
+    /// The latency a take of the last finished pass was placed by — what it was when
+    /// that pass started recording (ADR 0064) — or, before any, the latency now.
+    pub fn pass_latency(&self) -> RecordLatency {
+        self.rec.last_pass.unwrap_or(self.rec.latency)
+    }
+
+    /// The pass recording now, as far as the engine has marked it (review 3: a crash
+    /// journal placed it by the latency of the callback before its start): the latency it
+    /// is placed by once it started, and its wraps with the latency's moves at each.
+    pub fn current_pass(&self) -> Option<(RecordLatency, Vec<(u64, i64)>)> {
+        let p = self.rec.pass.as_ref()?;
+        Some((p.latency?, p.wraps.clone()))
     }
 
     /// The user's latency correction, in frames (from the settings or a loopback test).
@@ -399,11 +439,13 @@ impl EngineHandle {
             tracks,
             rate,
             tempo_bpm: snapshot.tempo_bpm,
+            tempo: snapshot.tempo.clone(),
             stop,
             hold,
             writer: Some(writer),
             peaks: peaks_rx,
             started: None,
+            latency: None,
             wraps: Vec::new(),
             dropped: Vec::new(),
             stopped: None,
@@ -498,9 +540,23 @@ impl EngineHandle {
             return Vec::new();
         };
         let outcomes = pass.end();
-        let latency = self.rec.latency.total();
-        // Ticks per frame at the tempo the pass was recorded at.
-        let tpf = pass.tempo_bpm * cantus_core::PPQ as f64 / (60.0 * pass.rate as f64);
+        // Captured when the pass started (ADR 0064): a bypass restored on stop, or the
+        // compensation re-planned since, must not move the take.
+        let captured = pass.latency.unwrap_or(self.rec.latency);
+        self.rec.last_pass = Some(captured);
+        let latency = captured.total();
+        // Ticks per frame at the tempo the pass was recorded at (one tempo); through the
+        // tempo map it was recorded under otherwise (ADR 0060), so a take played across a
+        // ramp lands where it was played.
+        let back = |started: f64| {
+            take_start(
+                &pass.tempo,
+                pass.tempo_bpm,
+                pass.rate,
+                started,
+                latency as u64,
+            )
+        };
         let mut takes = Vec::new();
         for (o, t) in outcomes.into_iter().zip(&pass.tracks) {
             let frames = o.samples / t.channels.max(1) as u64;
@@ -518,13 +574,22 @@ impl EngineHandle {
                 sample_rate: pass.rate,
                 channels: t.channels as u8,
                 frames,
-                start_tick: started - latency as f64 * tpf,
+                start_tick: back(started),
                 wraps: pass
                     .wraps
                     .iter()
-                    .copied()
+                    .map(|(w, _)| *w)
                     .filter(|w| *w > 0 && *w < frames)
                     .collect(),
+                wrap_shifts: if pass.wraps.iter().all(|(_, s)| *s == 0) {
+                    Vec::new()
+                } else {
+                    pass.wraps
+                        .iter()
+                        .filter(|(w, _)| *w > 0 && *w < frames)
+                        .map(|(_, s)| *s)
+                        .collect()
+                },
                 dropped: pass
                     .dropped
                     .iter()
@@ -533,6 +598,25 @@ impl EngineHandle {
             });
         }
         takes
+    }
+}
+
+/// Where a take's first frame belongs on the timeline: `latency` frames (at `rate`) before
+/// the tick `started` the pass began at — at one tempo the old ticks-per-frame arithmetic,
+/// through the tempo map the pass was recorded under otherwise (ADR 0060: a take played
+/// across a ramp lands where it was played).
+pub(crate) fn take_start(
+    map: &cantus_core::TempoMap,
+    tempo_bpm: f64,
+    rate: u32,
+    started: f64,
+    latency: u64,
+) -> f64 {
+    if map.is_constant() {
+        let tpf = tempo_bpm * cantus_core::PPQ as f64 / (60.0 * rate as f64);
+        started - latency as f64 * tpf
+    } else {
+        map.tick_after_seconds(started, -(latency as f64) / f64::from(rate.max(1)))
     }
 }
 
@@ -554,6 +638,8 @@ struct Pass {
     tracks: Vec<PassTrack>,
     rate: u32,
     tempo_bpm: f64,
+    /// The tempo map the pass was recorded under (ADR 0060).
+    tempo: Arc<cantus_core::TempoMap>,
     stop: Arc<AtomicBool>,
     /// While set the writer does not drain (a test standing in for a disk that stalls).
     hold: Arc<AtomicBool>,
@@ -561,7 +647,10 @@ struct Pass {
     peaks: mpsc::Receiver<LivePeaks>,
     /// From the engine's marks.
     started: Option<f64>,
-    wraps: Vec<u64>,
+    /// The latency when it started (ADR 0064): what its takes are placed by.
+    latency: Option<RecordLatency>,
+    /// The wraps, with the latency's moves at each (review 3).
+    wraps: Vec<(u64, i64)>,
     dropped: Vec<(TrackId, u64)>,
     stopped: Option<u64>,
     /// The engine holds the rings (they have not come back yet).
@@ -821,6 +910,69 @@ fn unique_path(dir: &Path, name: &str, stamp: &str) -> PathBuf {
         n += 1;
     }
     path
+}
+
+#[cfg(test)]
+mod tempo_tests {
+    use super::*;
+
+    /// Review 1 (finding 23): a take recorded across a ramp is moved back by the latency's
+    /// seconds through the map — 4 800 frames at 48 kHz in a 60-BPM stretch are 96 ticks,
+    /// in a 120-BPM one 192 — and at one tempo the arithmetic is the old one.
+    #[test]
+    // A value by hand: std's own exponential, apart from the code under test.
+    #[allow(clippy::disallowed_methods)]
+    fn a_take_across_a_ramp_lands_where_it_was_played() {
+        use cantus_core::tempo::TempoPoint;
+        use cantus_core::{TempoMap, Ticks, TimeSignature};
+        let pt = |b: i64, bpm: f64| TempoPoint {
+            tick: Ticks::beats(b),
+            bpm,
+            ramp: false,
+        };
+        let map = TempoMap::new(
+            120.0,
+            TimeSignature::default(),
+            &[pt(0, 120.0), pt(8, 60.0)],
+            &[],
+        );
+        let at = |beats: f64| beats * 960.0;
+        assert!(
+            (take_start(&map, 120.0, 48_000, at(10.0), 4_800) - (at(10.0) - 96.0)).abs() < 1e-9
+        );
+        assert!((take_start(&map, 120.0, 48_000, at(4.0), 4_800) - (at(4.0) - 192.0)).abs() < 1e-9);
+        // Straddling the point: 0.1 s back from beat 8 + 48 ticks (0.05 s at 60) is 0.05 s
+        // more at 120: 96 ticks before beat 8.
+        let got = take_start(&map, 120.0, 48_000, at(8.0) + 48.0, 4_800);
+        assert!((got - (at(8.0) - 96.0)).abs() < 1e-9, "{got}");
+        // Review 2 (finding 29): inside a real ramp — 120 at beat 4 to 60 at beat 8 —
+        // 0.1 s back from beat 6 (90 BPM), by hand: the seconds from beat x to 6 are
+        // 4·ln(bpm(x)/90) with bpm(x) = 120 − 15·(x − 4).
+        let ramp = TempoMap::new(
+            120.0,
+            TimeSignature::default(),
+            &[
+                pt(0, 120.0),
+                TempoPoint {
+                    tick: Ticks::beats(4),
+                    bpm: 120.0,
+                    ramp: true,
+                },
+                pt(8, 60.0),
+            ],
+            &[],
+        );
+        let bpm_x = 90.0 * (0.1f64 / 4.0).exp();
+        let x = 4.0 + (120.0 - bpm_x) / 15.0;
+        let got = take_start(&ramp, 120.0, 48_000, at(6.0), 4_800);
+        assert!((got - at(x)).abs() < 1e-6, "{got} vs {}", at(x));
+        let c = TempoMap::constant(97.0, TimeSignature::default());
+        let tpf: f64 = 97.0 * 960.0 / (60.0 * 48_000.0);
+        assert_eq!(
+            take_start(&c, 97.0, 48_000, 5_000.0, 333).to_bits(),
+            (5_000.0 - 333.0 * tpf).to_bits()
+        );
+    }
 }
 
 #[cfg(test)]

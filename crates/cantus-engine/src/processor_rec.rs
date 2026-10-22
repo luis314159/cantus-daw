@@ -28,6 +28,7 @@ use crate::messages::{EngineEvent, MAX_BLOCK_FRAMES, MAX_TRACKS};
 use crate::recorder::{RecordMark, MAX_INPUTS};
 use crate::transport::Transport;
 use cantus_core::{AudioClipSnapshot, ClickMode, MonitorMode, Snapshot, TrackId};
+use std::sync::Arc;
 
 /// A track's input as the audio thread reads it, by track slot.
 #[derive(Copy, Clone, Debug, Default)]
@@ -84,6 +85,23 @@ pub(super) struct Live {
     active: bool,
     /// Frames written since the rings were attached.
     frames: u64,
+    /// How far the heard latency moved since the pass started, not yet taken into the
+    /// file (review 2): positive, frames still to drop; negative, silence still to write.
+    /// The take is placed by the latency at its start; what is played after the backing is
+    /// heard later (or sooner) moves in the file by as much, so it lands where it was
+    /// played.
+    pub shift: i64,
+    /// Moves not due yet (review 3): the input of the next round trip was played against
+    /// the backing as it was. (Input frame it is due at, by how much), oldest first.
+    due: [(u64, i64); DUE],
+    due_n: usize,
+    /// Input frames the pass has taken, written or dropped.
+    taken: u64,
+    /// The moves taken into the file so far (frames dropped less silence written): a
+    /// wrap carries it (review 3: later loop passes were placed by the start's latency).
+    applied: i64,
+    /// The devices' round trip, in frames (`EngineMessage::SetDeviceRoundTrip`).
+    pub round_trip: u32,
     /// Frames each ring lost since the last `Overflow` mark, and whose ring it is.
     dropped: [(Option<TrackId>, u64); MAX_TRACKS],
     /// The count-in's end, in ticks (`EngineMessage::SetRecordStart`).
@@ -101,6 +119,12 @@ impl Live {
             tracks: [TrackInputSlot::default(); MAX_TRACKS],
             active: false,
             frames: 0,
+            shift: 0,
+            due: [(0, 0); DUE],
+            due_n: 0,
+            taken: 0,
+            applied: 0,
+            round_trip: 0,
             dropped: [(None, 0); MAX_TRACKS],
             record_start: None,
             click: ClickMode::Always,
@@ -112,6 +136,41 @@ impl Live {
         self.frames = 0;
         self.active = false;
         self.dropped = [(None, 0); MAX_TRACKS];
+    }
+}
+
+/// Heard-latency moves a pass keeps waiting at once; more are folded into the last.
+const DUE: usize = 8;
+
+impl Live {
+    /// The heard latency moved by `by` frames: due once the input the musician played
+    /// after hearing it arrives — `wait` frames from now.
+    fn schedule(&mut self, by: i64, wait: u64) {
+        let at = self.taken + wait;
+        if self.due_n < DUE {
+            self.due[self.due_n] = (at, by);
+            self.due_n += 1;
+        } else {
+            self.due[DUE - 1].1 += by;
+        }
+    }
+
+    /// Take the moves due by input frame `self.taken` into `shift`.
+    fn take_due(&mut self) {
+        while self.due_n > 0 && self.due[0].0 <= self.taken {
+            self.shift += self.due[0].1;
+            self.due.copy_within(1..self.due_n, 0);
+            self.due_n -= 1;
+        }
+    }
+
+    /// Input frames from now to the next move that is not due yet (`room` at most).
+    fn until_due(&self, room: u64) -> u64 {
+        if self.due_n > 0 {
+            self.due[0].0.saturating_sub(self.taken).min(room)
+        } else {
+            room
+        }
     }
 }
 
@@ -188,10 +247,44 @@ pub(crate) fn add_track_audio(
 }
 
 /// The transport sample (counted from its origin) a timeline tick falls on, to the
-/// nearest sample.
+/// nearest sample — through the tempo map (ADR 0060), the constant arithmetic where the
+/// tempo holds.
 #[inline]
-fn sample_of(tick: f64, origin: f64, tps: f64) -> i64 {
-    ((tick - origin) / tps).round() as i64
+fn sample_of(tick: f64, transport: &Transport) -> i64 {
+    transport.sample_of_f64(tick).round() as i64
+}
+
+/// The transport sample clip `c`'s data's frame 0 lands on: where the sample cache placed
+/// a warp's render (`zero_at`), else the unwarped rule — the window's content origin
+/// (`start − offset`, whole ticks) through the tempo map, less the region's fine offset
+/// (ADR 0060 §4, `cantus_core::audio_time`; a tempo edit re-anchors the window,
+/// `tempo::keep`, so what plays at its start never moves). One rounding keeps the halves
+/// of a split seamless, and the fine offset puts a take where it was played to the sample
+/// (ADR 0025 §7). A render is never placed by cancelling that formula (round 29's second
+/// review).
+#[inline]
+fn zero_of(c: &AudioClipSnapshot, transport: &Transport) -> i64 {
+    match c.zero_at {
+        Some((tick, frames)) => sample_of(tick.0 as f64, transport) - frames.round() as i64,
+        None => transport.clip_zero(c.start, c.offset, c.slip),
+    }
+}
+
+/// The file frame clip `c` reads at transport sample `s`, and in which direction it reads
+/// on — `None` outside its window.
+fn frame_read(c: &AudioClipSnapshot, transport: &Transport, s: i64) -> Option<(i64, i64)> {
+    let start = sample_of(c.start.0 as f64, transport);
+    let end = sample_of(c.end.0 as f64, transport);
+    if s < start || s >= end {
+        return None;
+    }
+    let offset = start - zero_of(c, transport);
+    let j = s - start;
+    Some(if c.reverse {
+        (offset + (end - start - 1 - j), -1)
+    } else {
+        (offset + j, 1)
+    })
 }
 
 /// Add every audio clip sounding in this segment into `l`/`r` (`l.len()` frames from the
@@ -214,21 +307,18 @@ pub(super) fn add_clips(
     clear: &mut dyn FnMut(&mut [f32], &mut [f32]),
 ) -> bool {
     let n = l.len() as i64;
-    let tps = transport.ticks_per_sample();
-    if tps <= 0.0 || n == 0 {
+    if n == 0 {
         return false;
     }
-    let origin = transport.origin_tick();
-    let sr = transport.sample_rate();
     let s0 = transport.samples() as i64;
     let s1 = s0 + n;
     let mut sounded = false;
     for c in clips {
-        let start = sample_of(c.start.0 as f64, origin, tps);
+        let start = sample_of(c.start.0 as f64, transport);
         if start >= s1 {
             break; // Sorted by start: nothing later begins in this segment.
         }
-        let end = sample_of(c.end.0 as f64, origin, tps);
+        let end = sample_of(c.end.0 as f64, transport);
         let len = end - start;
         if end <= s0 || len <= 0 {
             continue;
@@ -238,15 +328,24 @@ pub(super) fn add_clips(
         };
         let stereo = data.channels >= 2;
         let frames = data.len_frames() as i64;
-        // The transport sample the file's frame 0 lands on, rounded once: the window's
-        // content origin (`start − offset`, whole ticks) less the region's fine offset.
-        // One rounding keeps the halves of a split seamless, and the fine offset puts a
-        // take where it was played to the sample (ADR 0025 §7).
-        let zero = (((c.start.0 - c.offset.0) as f64 - origin) / tps - c.slip * sr).round() as i64;
+        // The transport sample the file's frame 0 lands on, rounded once.
+        let zero = zero_of(c, transport);
         // The file frame under the window's first sample.
         let offset = start - zero;
-        let mut fade_in = (c.fade_in.0.max(0) as f64 / tps).round() as i64;
-        let mut fade_out = (c.fade_out.0.max(0) as f64 / tps).round() as i64;
+        // What the piece played before a swap, read on from where it was when the swap
+        // came (`Processor::arm_swaps`): it fades out over the swap's first samples while
+        // the new data fades in — once (round 29's third review).
+        let swap = c
+            .fade_from
+            .as_ref()
+            .and_then(|f| transport.swap(f.id).map(|w| (f.data.as_ref(), w)));
+        let (s_tick, e_tick) = (c.start.0 as f64, c.end.0 as f64);
+        let mut fade_in = transport
+            .samples_between(s_tick, s_tick + c.fade_in.0.max(0) as f64)
+            .round() as i64;
+        let mut fade_out = transport
+            .samples_between(e_tick - c.fade_out.0.max(0) as f64, e_tick)
+            .round() as i64;
         if fade_in + fade_out > len {
             let fi = (fade_in as i128 * len as i128 / (fade_in + fade_out) as i128) as i64;
             fade_out = len - fi;
@@ -254,6 +353,11 @@ pub(super) fn add_clips(
         }
         let from = start.max(s0);
         let to = end.min(s1);
+        // A swap's fade under way in this segment: the old data plays out even where the
+        // new has nothing (a piece gone silent until its bridge — round 29's final review).
+        let fading = swap
+            .as_ref()
+            .is_some_and(|(_, w)| transport.swap_live(w, from, to));
         // The first and last file frames the window reads in this segment.
         let first = if c.reverse {
             offset + (len - 1 - (from - start))
@@ -265,7 +369,7 @@ pub(super) fn add_clips(
         } else {
             offset + (to - 1 - start)
         };
-        if first.max(last) < 0 || first.min(last) >= frames {
+        if !fading && (first.max(last) < 0 || first.min(last) >= frames) {
             continue; // The window shows no part of the file here.
         }
         if !sounded {
@@ -280,8 +384,8 @@ pub(super) fn add_clips(
         let stretch = |x: Option<(cantus_core::Ticks, cantus_core::Ticks)>| {
             x.map(|(a, b)| {
                 let (a, b) = (
-                    sample_of(a.0 as f64, origin, tps),
-                    sample_of(b.0 as f64, origin, tps),
+                    sample_of(a.0 as f64, transport),
+                    sample_of(b.0 as f64, transport),
                 );
                 (a, (b - a).max(1))
             })
@@ -294,16 +398,31 @@ pub(super) fn add_clips(
             } else {
                 offset + j
             };
-            if src < 0 || src >= frames {
+            let inside = src >= 0 && src < frames;
+            if !inside && !fading {
                 continue;
             }
-            let (a, b) = if stereo {
+            let (mut a, mut b) = if !inside {
+                (0.0, 0.0)
+            } else if stereo {
                 let k = src as usize * 2;
                 (data.frames[k], data.frames[k + 1])
             } else {
                 let x = data.frames[src as usize];
                 (x, x)
             };
+            if let Some((old, w)) = &swap {
+                if let Some((u, at)) = transport.swap_fade(w, s) {
+                    let (oa, ob) = frame_of(old, at);
+                    // Equal gain: the two are versions of the same audio (a bridge and its
+                    // render, two drag steps), correlated — an equal-power law would swell
+                    // by up to 3 dB (round 29's third review).
+                    let q = cantus_dsp::math::sin(std::f32::consts::FRAC_PI_2 * u);
+                    let gi = q * q;
+                    a = a * gi + oa * (1.0 - gi);
+                    b = b * gi + ob * (1.0 - gi);
+                }
+            }
             let mut g = gain;
             if let Some((a, n)) = xin {
                 if s < a + n {
@@ -334,7 +453,67 @@ pub(super) fn add_clips(
     sounded
 }
 
+/// The frame `at` of `d` as a pair (silence outside it).
+#[inline]
+fn frame_of(d: &cantus_core::SampleData, at: i64) -> (f32, f32) {
+    let frames = d.len_frames() as i64;
+    if at < 0 || at >= frames {
+        return (0.0, 0.0);
+    }
+    if d.channels >= 2 {
+        let k = at as usize * 2;
+        (d.frames[k], d.frames[k + 1])
+    } else {
+        let x = d.frames[at as usize];
+        (x, x)
+    }
+}
+
 impl Processor {
+    /// Begin the crossfade of every swap `snapshot` carries that this transport has not
+    /// seen (warp, round 29's third review): from the old data as the playing snapshot lays
+    /// it (the same clip holding that data), from the frame it plays under the playhead —
+    /// under the map playing now, so it is called before the snapshot's map is taken (a
+    /// render laid again under an edited tempo crossfades too). A swap carried again (two
+    /// installs in one callback, a copy with the previous zones) keeps the fade it began.
+    /// Only the clips the sample cache listed are looked at; allocation-free.
+    pub(super) fn arm_swaps(&mut self, snapshot: &Snapshot) {
+        let seen = self.transport.swaps_seen();
+        let s = self.transport.samples() as i64;
+        for &(t, i) in &snapshot.swaps {
+            let Some((track, c)) = snapshot
+                .tracks
+                .get(t)
+                .and_then(|t| t.audio.get(i).map(|c| (t.id, c)))
+            else {
+                continue;
+            };
+            let Some(f) = c.fade_from.as_ref().filter(|f| f.id > seen) else {
+                continue;
+            };
+            // From silence (the piece played nothing): a fade in.
+            let silence = f.data.frames.is_empty().then_some((0, 1));
+            let old = silence.or_else(|| {
+                self.snapshot
+                    .as_deref()
+                    .and_then(|o| o.tracks.iter().find(|x| x.id == track))
+                    .and_then(|o| {
+                        o.audio
+                            .iter()
+                            .filter(|o| {
+                                o.clip == c.clip
+                                    && o.data.as_ref().is_some_and(|d| Arc::ptr_eq(d, &f.data))
+                            })
+                            .find_map(|o| frame_read(o, &self.transport, s))
+                    })
+            });
+            if let Some((at, dir)) = old {
+                self.transport.arm_swap(f.id, at, dir);
+            }
+            self.transport.see_swap(f.id);
+        }
+    }
+
     /// Copy what the snapshot says about inputs and the click into the audio thread's
     /// tables. After `track_to_slot` is built; allocates nothing.
     pub(super) fn live_install(&mut self, snapshot: &Snapshot) {
@@ -360,6 +539,10 @@ impl Processor {
                     },
                     armed: t.armed,
                 };
+            } else if t.armed {
+                // Armed with no audio input: its notes are monitored (low latency, ADR
+                // 0064 §4).
+                self.live.tracks[slot].armed = true;
             }
         }
         // And each track slot's own copy, which its node reads on whichever thread runs it.
@@ -548,16 +731,65 @@ impl Processor {
         }
     }
 
-    /// Write the segment `[done, done + n)` of every armed track's input into its ring.
+    /// Write the segment `[done, done + n)` of every armed track's input into its ring —
+    /// moved, where the heard latency moved, by as much (review 2), from the frame played
+    /// once the move was heard (review 3).
     pub(super) fn record_segment(&mut self, done: usize, n: usize) {
         if !self.should_record() {
             return;
         }
         if !self.live.active {
             self.live.active = true;
+            self.live.shift = 0;
+            self.live.due_n = 0;
+            self.live.taken = 0;
+            self.live.applied = 0;
             let tick = self.transport.position_f64();
-            self.mark(RecordMark::Started { tick });
+            let plugin = self.pdc.total.min(u32::MAX as usize) as u32;
+            let queue = self.stats.input_queue.round() as i64;
+            self.mark(RecordMark::Started {
+                tick,
+                plugin,
+                queue,
+            });
         }
+        let mut a = 0usize;
+        while a < n {
+            // The heard latency moved while recording: playing from now on is moved by as
+            // much — dropped, or silence written before it.
+            self.live.take_due();
+            if self.live.shift < 0 {
+                let pad = self.live.shift.unsigned_abs();
+                self.live.shift = 0;
+                if let Some(rings) = self.record_rings.as_mut() {
+                    for ring in rings.tracks.iter_mut() {
+                        // The writer pads a gap with silence (the file keeps its timing).
+                        ring.pending += pad;
+                    }
+                }
+                self.live.frames += pad;
+                self.live.applied -= pad as i64;
+            }
+            let until = self.live.until_due((n - a) as u64) as usize;
+            let skip = if self.live.shift > 0 {
+                (self.live.shift as usize).min(until)
+            } else {
+                0
+            };
+            self.live.shift -= skip as i64;
+            self.live.applied += skip as i64;
+            self.live.taken += skip as u64;
+            let w = until - skip;
+            if w > 0 {
+                self.record_input(done + a + skip, w);
+                self.live.taken += w as u64;
+            }
+            a += until;
+        }
+    }
+
+    /// Write `[done, done + n)` of every armed track's input into its ring.
+    fn record_input(&mut self, done: usize, n: usize) {
         let Some(rings) = self.record_rings.as_mut() else {
             return;
         };
@@ -611,11 +843,25 @@ impl Processor {
         }
     }
 
-    /// The loop wrapped: the pass's takes split here.
+    /// Whether a pass is being written.
+    pub(super) fn live_recording(&self) -> bool {
+        self.live.active
+    }
+
+    /// The heard latency moved by `by` frames while a pass records: due a round trip
+    /// later — the devices' and the input ring's wait (review 3: applied at once, it cut or
+    /// misplaced the playing in flight).
+    pub(super) fn live_shift(&mut self, by: i64) {
+        let wait = self.live.round_trip as u64 + self.stats.input_queue.max(0.0).round() as u64;
+        self.live.schedule(by, wait);
+    }
+
+    /// The loop wrapped: the pass's takes split here, with the moves taken so far.
     pub(super) fn record_wrapped(&mut self) {
         if self.live.active {
             let frames = self.live.frames;
-            self.mark(RecordMark::Wrapped { frames });
+            let shift = self.live.applied;
+            self.mark(RecordMark::Wrapped { frames, shift });
         }
     }
 }

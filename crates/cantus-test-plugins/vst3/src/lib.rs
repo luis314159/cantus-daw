@@ -14,6 +14,10 @@
 //!   or poly pressure writes its value into the right channel. It records the last
 //!   `ProcessContext` it saw.
 //!
+//! Both carry a hidden **Fault** parameter and a hidden read-only **Process** one (round 29,
+//! `fault.rs`): failures on purpose and the id of the process they run in, for the host's
+//! isolation tests.
+//!
 //! Extra C exports (`cantus_test_*`) let the tests look inside: live objects, driving the
 //! controller as a user would, the last transport.
 
@@ -23,6 +27,7 @@
 // between them and the `int32` fields are no-ops here and needed there.
 #![allow(clippy::unnecessary_cast)]
 
+mod fault;
 mod gain;
 mod pulse;
 
@@ -382,6 +387,18 @@ pub unsafe extern "C" fn cantus_test_key(silence: *mut u64) -> f64 {
 #[no_mangle]
 pub unsafe extern "C" fn cantus_test_last_context(values: *mut f64) -> u32 {
     pulse::last_context(values)
+}
+
+/// The pulse's program list's last value its processor received (NaN: none; round 29).
+#[no_mangle]
+pub extern "C" fn cantus_test_last_program() -> f64 {
+    pulse::last_program()
+}
+
+/// The pulse's next `process` sleeps `ms` first (round 29, review 4 of ADR 0062).
+#[no_mangle]
+pub extern "C" fn cantus_test_slow_next_process(ms: u32) {
+    pulse::slow_next_process(ms)
 }
 
 pub(crate) fn not_implemented() -> tresult {

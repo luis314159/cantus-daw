@@ -25,6 +25,7 @@ fn main() -> ExitCode {
         Some("table") => table_cmd(&args[1..]),
         Some("hashes") => hashes_cmd(&args[1..]),
         Some("paced") => paced_cmd(&args[1..]),
+        Some("listen") => listen_cmd(&args[1..]),
         _ => run_cmd(&args),
     }
 }
@@ -243,5 +244,23 @@ fn paced_cmd(args: &[String]) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+/// `cantus-bench listen <dir>`: the warp listening set (round 29, ADR 0061).
+fn listen_cmd(args: &[String]) -> ExitCode {
+    let Some(dir) = args.first() else {
+        eprintln!("usage: cantus-bench listen <dir>");
+        return ExitCode::from(2);
+    };
+    match cantus_bench::warp::listen(&PathBuf::from(dir)) {
+        Ok(n) => {
+            eprintln!("cantus-bench: wrote {n} files into {dir}");
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("cantus-bench: {e}");
+            ExitCode::FAILURE
+        }
     }
 }

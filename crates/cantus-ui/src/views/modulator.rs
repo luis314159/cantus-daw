@@ -175,6 +175,7 @@ impl CantusApp {
         s: &Style,
         rings: &mut [(f32, egui::Color32); MAX_RINGS],
     ) -> (ModOffer, usize) {
+        crate::kit::automate::probe::note_offer(target);
         let routes = self.mod_routes();
         let list = routes.get(target);
         let mut n = 0;
@@ -212,6 +213,12 @@ impl CantusApp {
             depth,
             mapping: mapping.is_some(),
             live: (n > 0).then_some(live.clamp(0.0, 1.0)),
+            // MIDI learn (round 29, ADR 0062).
+            learn: Some(
+                self.learn_offer(&cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                )),
+            ),
         };
         (offer, n)
     }
@@ -235,6 +242,22 @@ impl CantusApp {
     /// open *Modulate…* at `rect`, set a depth (a drag merges), end the drag, connect a
     /// dropped handle.
     pub fn modulation_choice(&mut self, target: &AutoTarget, choice: Choice, rect: egui::Rect) {
+        // MIDI learn (round 29, ADR 0062): every parameter that offers it.
+        match choice {
+            Choice::Learn => {
+                self.learn_target(cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                ));
+                return;
+            }
+            Choice::Forget => {
+                self.forget_target(&cantus_core::controller::MappingTarget::Param(
+                    target.clone(),
+                ));
+                return;
+            }
+            _ => {}
+        }
         if !self.modulatable(target) {
             return;
         }
@@ -255,7 +278,7 @@ impl CantusApp {
             Choice::Connect(id) => {
                 self.connect(ModulatorId(id), target.clone());
             }
-            Choice::Automate | Choice::Type | Choice::Reset => {}
+            Choice::Automate | Choice::Type | Choice::Reset | Choice::Learn | Choice::Forget => {}
         }
     }
 
@@ -375,8 +398,24 @@ impl CantusApp {
 
     /// Replace a modulator whole (one command; merged under `key` while a drag goes on).
     pub fn edit_modulator(&mut self, m: Modulator, key: Option<MergeKey>) -> bool {
-        let cmd = Command::SetModulator {
-            modulator: Box::new(m),
+        // Only its amount moved: the amount's own command, which a pass records and *last
+        // tweaked* names, as a controller's (round 29, review 2 of ADR 0062, #21).
+        let amount_only = self.project().modulator(m.id).is_some_and(|(_, _, old)| {
+            old.amount != m.amount && {
+                let mut same = old.clone();
+                same.amount = m.amount;
+                same == m
+            }
+        });
+        let cmd = if amount_only {
+            Command::SetModulatorAmount {
+                id: m.id,
+                amount: m.amount,
+            }
+        } else {
+            Command::SetModulator {
+                modulator: Box::new(m),
+            }
         };
         match key {
             Some(k) => self.exec_merging(cmd, k),

@@ -25,7 +25,9 @@ use std::time::Duration;
 #[path = "stream_reader.rs"]
 mod reader;
 
-pub use reader::{level0_frames_read, set_read_delay, LOOKAHEAD};
+pub use reader::{
+    inject_io_fault, inject_io_faults, level0_frames_read, set_read_delay, LOOKAHEAD,
+};
 
 /// The automatic size limit's ceiling (Settings may choose another limit).
 pub const AUTO_CACHE_CAP: u64 = 16 << 30;
@@ -851,6 +853,24 @@ fn recover(entry: &Arc<Entry>, fault: &Fault) {
         return;
     }
     let path = entry.file_path();
+    // A frozen render (ADR 0064) is its own source: there is nothing to decode it from.
+    // Damaged or gone, it fails at once and quietly — no "damaged sample" said — and the
+    // interface makes it again (review 1); a read error that may pass (a busy drive, an
+    // antivirus' lock) is read again first, its file kept (review 2).
+    if is_frozen_render(entry) && !matches!(fault, Fault::Io(..)) {
+        if let Fault::Damaged = fault {
+            let _ = std::fs::remove_file(&entry.source);
+        }
+        log::warn!("frozen render {}: {fault}", entry.source.display());
+        entry.stream.set_failed();
+        entry
+            .recovering
+            .store(false, std::sync::atomic::Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
+    }
     log::warn!(
         "stream {}: {fault}; decoding {} again",
         path.as_deref().unwrap_or(Path::new("")).display(),
@@ -908,8 +928,69 @@ pub fn recoveries() -> u64 {
     RECOVERIES.load(Ordering::Acquire)
 }
 
+/// Whether `entry` streams a frozen render (ADR 0064).
+fn is_frozen_render(entry: &Entry) -> bool {
+    entry
+        .source
+        .extension()
+        .is_some_and(|x| x == crate::freeze::EXTENSION)
+}
+
+/// Frozen renders whose reads failed for a passing reason (the disk, a lock) and failed
+/// again after waiting: not damaged — their store looks at them again later (review 3).
+static IO_FAILED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// Whether the frozen render at `path` failed only for passing read errors (taken: asked
+/// once per failure).
+pub fn take_io_failed(path: &std::path::Path) -> bool {
+    let Ok(mut v) = IO_FAILED.lock() else {
+        return false;
+    };
+    match v.iter().position(|p| p == path) {
+        Some(i) => {
+            v.swap_remove(i);
+            true
+        }
+        None => false,
+    }
+}
+
+/// How long a frozen render's passing read error is waited out, try after try (review 3:
+/// one immediate retry, once per stream, failed a good render for the session).
+const FROZEN_RETRIES: [u64; 4] = [0, 50, 200, 1_000];
+
 fn recover_now(entry: &Arc<Entry>, io: Option<usize>) {
     let st = &entry.stream;
+    // A frozen render's passing read error: read again, waiting longer each time; read, it
+    // plays on and the next error gets its tries again. Still failing: failed for now, its
+    // file kept and looked at again later — only a damaged or vanished render is made
+    // again (review 3).
+    if let (Some(block), true) = (io, is_frozen_render(entry)) {
+        for wait in FROZEN_RETRIES {
+            std::thread::sleep(std::time::Duration::from_millis(wait));
+            if reopen(entry, block) {
+                entry.reopened.store(false, Ordering::Release);
+                entry.recovering.store(false, Ordering::Release);
+                if let Some(t) = hub().reader.get() {
+                    t.unpark();
+                }
+                return;
+            }
+        }
+        log::warn!(
+            "frozen render {}: read errors, looked at again later",
+            entry.source.display()
+        );
+        if let Ok(mut v) = IO_FAILED.lock() {
+            v.push(entry.source.clone());
+        }
+        st.set_failed();
+        entry.recovering.store(false, Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
+    }
     // A read that failed for a passing reason (a busy drive): the kept file, opened again,
     // is read again — the very block that failed — before anything is decoded (third
     // review #4); once per stream: an error that comes back is the disk's, and the source
@@ -923,6 +1004,17 @@ fn recover_now(entry: &Arc<Entry>, io: Option<usize>) {
             }
             return;
         }
+    }
+    // A frozen render whose read failed again: failed, quietly, its file kept (it is made
+    // again; review 2).
+    if is_frozen_render(entry) {
+        log::warn!("frozen render {}: unreadable", entry.source.display());
+        st.set_failed();
+        entry.recovering.store(false, Ordering::Release);
+        if let Ok(mut i) = hub().inner.lock() {
+            i.by_file.remove(&(entry.source.clone(), entry.id));
+        }
+        return;
     }
     if io.is_some() {
         hub().note(LoadNote::Damaged(entry.source.clone()));
@@ -977,6 +1069,9 @@ fn reopen(entry: &Arc<Entry>, block: usize) -> bool {
     let Some(mut fresh) = Open::new(o.c.clone()) else {
         return false;
     };
+    if reader::injected_io(&fresh.c.path) {
+        return false;
+    }
     let ch = fresh.c.channels;
     let mut buf = vec![0.0f32; BLOCK * ch];
     let read = fresh.with_file(|c, f| c.read_blocks(f, block, 1, &mut buf).is_ok());
@@ -1157,6 +1252,62 @@ pub fn load(
         });
     }
     Ok(Loaded::Streamed(head))
+}
+
+/// A frozen render (round 29, ADR 0064) at `path`, a cache-format file
+/// ([`stream_cache::write_at`]): streamed from it, heads only in memory — or, when short,
+/// read whole. With the label it was written with (the caller checks it: a file is never
+/// played for another render).
+pub fn open_file(path: &Path) -> Result<(Loaded, String), String> {
+    let (c, found) = stream_cache::open_at(path).ok_or_else(|| "not a render".to_string())?;
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    let mtime = meta
+        .modified()
+        .ok()
+        .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |d| d.as_nanos().min(i64::MAX as u128) as i64);
+    let id = Identity {
+        size: meta.len(),
+        mtime,
+        print: 0,
+    };
+    if let Some(head) = existing(path, &id) {
+        return Ok((Loaded::Streamed(head), found));
+    }
+    let mut o = Open::new(c).ok_or_else(|| "cannot be opened".to_string())?;
+    let (ch, rate, frames) = (o.c.channels, o.c.rate, o.c.frames);
+    if frames <= HEAD_FRAMES + BLOCK {
+        let mut all = vec![0.0f32; frames.div_ceil(BLOCK) * BLOCK * ch];
+        o.with_file(|c, f| c.read_blocks(f, 0, frames.div_ceil(BLOCK), &mut all))
+            .unwrap_or(Err(stream_cache::ReadError::Damaged))
+            .map_err(|e| e.to_string())?;
+        all.truncate(frames * ch);
+        return Ok((
+            Loaded::Whole {
+                data: SampleData {
+                    rate,
+                    channels: ch as u8,
+                    frames: all.into(),
+                    stream: None,
+                },
+                note: None,
+            },
+            found,
+        ));
+    }
+    let need = needs(frames, levels_of(frames))[0];
+    let mut prefix = vec![0.0f32; need.next_multiple_of(BLOCK).min(frames) * ch];
+    o.with_file(|c, f| c.read_blocks(f, 0, need.div_ceil(BLOCK), &mut prefix))
+        .unwrap_or(Err(stream_cache::ReadError::Damaged))
+        .map_err(|e| e.to_string())?;
+    let (head, _) = make(
+        path,
+        id,
+        (ch, rate, frames),
+        Backing::File(o),
+        &prefix[..need * ch],
+    );
+    Ok((Loaded::Streamed(head), found))
 }
 
 /// The whole of `source` from its cache file, when one is there for the file as it is (an

@@ -2,6 +2,12 @@
 //! 120), **TAP** (the average of the last taps; a pause starts again; one undo step per
 //! run, `tap`), and the **time signature**, a well that opens its editor: the beats, the
 //! note value, the usual metres in one click (`Command::SetTimeSignature`).
+//!
+//! With a tempo track (round 29, ADR 0060) the well shows the tempo at the playhead —
+//! inside a ramp, its value there — and dragging, the wheel, a double-click and tap tempo
+//! set the point the playhead is under (`tempo::edit::set_tempo_at`); the metre well shows
+//! the metre in force and its editor edits that change, the bars after it keeping their
+//! numbers.
 
 use super::{key_in, key_rect, tip, Style, ROW_KEY, STEP};
 use crate::app::CantusApp;
@@ -11,7 +17,7 @@ use crate::kit::cap::KeyFace;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::{self, with_brush, State};
-use cantus_core::{Command, MergeKey, TimeSignature};
+use cantus_core::TimeSignature;
 use egui::{vec2, Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
 use std::cell::RefCell;
 use std::fmt::Write as _;
@@ -74,6 +80,14 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     if resp.clicked() {
         app.run_action(Action::TapTempo);
     }
+    // MIDI learn mode (round 29, ADR 0062): tap tempo and the tempo itself.
+    crate::controllers::learn_action_spot(app, ui, tap_r, Action::TapTempo);
+    crate::controllers::learn_spot(
+        app,
+        ui,
+        bpm_r,
+        cantus_core::controller::MappingTarget::Tempo,
+    );
     let metre_r = Rect::from_min_size(
         Pos2::new(tap_r.right() + STEP * k, bpm_r.top()),
         Vec2::new(metre_w(&ctx, s), well_h),
@@ -86,32 +100,72 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 fn tempo(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let k = s.k;
     let resp = ui.interact(well, Id::new("toolbar-tempo"), Sense::click_and_drag());
-    let mut bpm = app.project().tempo_bpm;
-    let before = bpm;
+    app.topbar.tempo_well = Some(well);
+    // A gesture moves the point that governs the playhead by its own amount (review 2:
+    // inside a ramp the value shown is the ramp's there, and writing it back moved the
+    // ramp's start to it); the value shown is never written back.
+    let mut by = 0.0;
+    let mut gesture = false;
     if resp.dragged() {
+        gesture = true;
         let fine = if ui.input(|i| i.modifiers.shift) {
             0.02
         } else {
             0.25
         };
-        bpm -= (resp.drag_delta().y * fine) as f64;
+        by -= (resp.drag_delta().y * fine) as f64;
     }
     if resp.hovered() {
-        let dy = ui.input(|i| i.smooth_scroll_delta.y);
-        if dy != 0.0 {
-            bpm += dy.signum() as f64;
+        // The wheel's own notches (one is one BPM), not the smoothed scroll that spreads
+        // a notch over frames (review 2: a notch moved it by five).
+        // Fractions (a touchpad, a smooth wheel) add up to a whole step (review 3); a
+        // wheel with Ctrl, Cmd or Shift is a zoom or a scroll, never the tempo.
+        let notches: f32 = ui.input(|i| {
+            i.raw
+                .events
+                .iter()
+                .filter_map(|e| match e {
+                    egui::Event::MouseWheel {
+                        unit,
+                        delta,
+                        modifiers,
+                        ..
+                    } if !(modifiers.ctrl || modifiers.command || modifiers.shift) => {
+                        Some(match unit {
+                            egui::MouseWheelUnit::Point => delta.y / 40.0,
+                            egui::MouseWheelUnit::Line => delta.y,
+                            egui::MouseWheelUnit::Page => delta.y * 8.0,
+                        })
+                    }
+                    _ => None,
+                })
+                .sum()
+        });
+        if notches != 0.0 {
+            let acc = app.topbar.tempo_notches + notches;
+            let whole = acc.trunc();
+            app.topbar.tempo_notches = acc - whole;
+            if whole != 0.0 {
+                by += f64::from(whole);
+                gesture = true;
+            }
         }
     }
     if resp.double_clicked() {
-        bpm = 120.0;
-    }
-    let bpm = ((bpm * 10.0).round() / 10.0).clamp(20.0, 999.0);
-    if (bpm - before).abs() > 1e-4 {
-        app.exec_merging(Command::SetTempo { bpm }, MergeKey::of(&"tempo"));
+        app.topbar.tempo_rest = 0.0;
+        let by = 120.0 - app.tempo_point_now();
+        if by != 0.0 {
+            app.nudge_tempo_now(by, "tempo");
+        }
+    } else if gesture && by != 0.0 {
+        let rest = app.topbar.tempo_rest;
+        app.topbar.tempo_rest = app.nudge_tempo_now(rest + by, "tempo");
     }
     if resp.drag_stopped() {
+        app.topbar.tempo_rest = 0.0;
         app.end_gesture();
     }
+    let bpm = app.tempo_now();
     let st = State::of(&resp, false);
     if st.hovered {
         hint::set(
@@ -174,16 +228,24 @@ pub fn tap(app: &mut CantusApp) {
 
 /// [`tap`] at a given time on the tap clock (tests drive the clock).
 pub fn tap_at(app: &mut CantusApp, now: f64) {
+    // While audio records the tempo holds: said from the first tap (review 6).
+    if app.audio_take_running() {
+        app.set_status(t("tempo.status.recording"));
+        return;
+    }
     if app.topbar.tap.taps() > 0 && app.topbar.tap.ended(now) {
         app.end_gesture();
     }
     let tap = app.topbar.tap.tap(now);
     if let Some(bpm) = tap.bpm {
-        app.exec_merging(Command::SetTempo { bpm }, MergeKey::of(&"tap-tempo"));
-        app.set_status(crate::i18n::tf(
-            "topbar.tapped",
-            &[("bpm", &format!("{bpm:.1}"))],
-        ));
+        // Said only when it took (review 5: a refusal while audio records was
+        // overwritten by "tapped").
+        if app.set_tempo_now(bpm, "tap-tempo") {
+            app.set_status(crate::i18n::tf(
+                "topbar.tapped",
+                &[("bpm", &format!("{bpm:.1}"))],
+            ));
+        }
     } else {
         app.set_status(t("topbar.tap_more"));
     }
@@ -225,7 +287,7 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
     let k = s.k;
     let resp = ui.interact(well, Id::new("toolbar-metre"), Sense::click());
     let open = egui::Popup::is_id_open(ui.ctx(), metre_popup());
-    let ts = app.project().time_signature;
+    let ts = app.metre_now();
     let st = State::of(&resp, open);
     WORDS.with(|v| {
         let mut v = v.borrow_mut();
@@ -261,16 +323,27 @@ fn metre(app: &mut CantusApp, ui: &mut Ui, well: Rect, s: &Style) {
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .frame(crate::views::record_options::frame_for(s))
         .gap(4.0)
-        .show(|ui| metre_editor(app, ui));
+        .show(|ui| {
+            let at = app.engine.position();
+            metre_editor(app, ui, at, false)
+        });
 }
 
-/// The time signature's editor: the beats with ‹ ›, the note value, the usual metres.
-fn metre_editor(app: &mut CantusApp, ui: &mut Ui) {
+/// The time signature's editor: the beats with ‹ ›, the note value, the usual metres —
+/// of the metre in force at `at` (the playhead's for the top bar, a metre chip's own).
+pub fn metre_editor(app: &mut CantusApp, ui: &mut Ui, at: cantus_core::Ticks, named: bool) {
     let s = Style::current();
     ui.spacing_mut().item_spacing = vec2(4.0 * s.k, 3.0 * s.k);
-    let ts = app.project().time_signature;
+    let map = crate::views::bars::map(app.project());
+    let ts = map.signature_at(at);
     let mut next = ts;
-    crate::views::record_options::band_row(ui, "topbar.metre", &s);
+    if named {
+        // Opened on the ruler, maybe for a bar out of view: it says which (review 5).
+        let title = crate::i18n::tf("tempo.metre_at_bar", &[("bar", &map.bbt(at).0.to_string())]);
+        crate::views::record_options::band_row_src(ui, Src::Str(&title), &s);
+    } else {
+        crate::views::record_options::band_row(ui, "topbar.metre", &s);
+    }
     ui.horizontal(|ui| {
         crate::views::record_options::label(ui, "topbar.metre_beats", &s);
         let mut beats = String::new();
@@ -310,8 +383,7 @@ fn metre_editor(app: &mut CantusApp, ui: &mut Ui) {
         }
     });
     if next != ts {
-        app.exec(Command::SetTimeSignature {
-            time_signature: next,
-        });
+        let cmd = cantus_core::tempo::edit::set_metre_at(app.project(), at, next);
+        app.exec(cmd);
     }
 }

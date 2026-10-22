@@ -1,6 +1,6 @@
 //! The extensions: params, state, latency, audio-ports.
 
-use crate::plugin::{me, name_bytes, PARAMS, PARAM_COUNT, P_LATENCY};
+use crate::plugin::{me, name_bytes, PARAMS, PARAM_COUNT, P_LATENCY, P_PROCESS, STATE_PARAMS};
 use clap_sys::events::{
     clap_event_param_value, clap_input_events, clap_output_events, CLAP_CORE_EVENT_SPACE_ID,
     CLAP_EVENT_PARAM_VALUE,
@@ -12,7 +12,7 @@ use clap_sys::ext::audio_ports::{
 use clap_sys::ext::latency::{clap_plugin_latency, CLAP_EXT_LATENCY};
 use clap_sys::ext::params::{
     clap_param_info, clap_plugin_params, CLAP_EXT_PARAMS, CLAP_PARAM_IS_AUTOMATABLE,
-    CLAP_PARAM_IS_HIDDEN, CLAP_PARAM_IS_STEPPED,
+    CLAP_PARAM_IS_HIDDEN, CLAP_PARAM_IS_READONLY, CLAP_PARAM_IS_STEPPED,
 };
 use clap_sys::ext::state::{clap_plugin_state, CLAP_EXT_STATE};
 use clap_sys::id::{clap_id, CLAP_INVALID_ID};
@@ -56,6 +56,7 @@ static PARAMS_EXT: clap_plugin_params = clap_plugin_params {
 };
 
 unsafe extern "C" fn params_count(_p: *const clap_plugin) -> u32 {
+    crate::fault::params_read();
     PARAM_COUNT as u32
 }
 
@@ -76,6 +77,9 @@ unsafe extern "C" fn params_info(
     }
     if *hidden {
         info.flags = CLAP_PARAM_IS_HIDDEN | if *stepped { CLAP_PARAM_IS_STEPPED } else { 0 };
+    }
+    if *id == P_PROCESS {
+        info.flags |= CLAP_PARAM_IS_READONLY;
     }
     info.cookie = std::ptr::null_mut();
     name_bytes(&mut info.name, name);
@@ -105,7 +109,7 @@ unsafe extern "C" fn params_to_text(
         0 => format!("{value:.1} dB"),
         1 => format!("{} smp", value.round()),
         2 => (if value >= 0.5 { "On" } else { "Off" }).to_string(),
-        3 => format!("{}", value.round()),
+        3..=5 => format!("{}", value.round()),
         _ => return false,
     };
     if capacity == 0 {
@@ -150,7 +154,7 @@ unsafe extern "C" fn params_flush(
             continue;
         };
         if (*h).space_id == CLAP_CORE_EVENT_SPACE_ID && (*h).type_ == CLAP_EVENT_PARAM_VALUE {
-            me.apply(&*(h as *const clap_event_param_value));
+            me.apply(&*(h as *const clap_event_param_value), false);
         }
     }
 }
@@ -166,11 +170,21 @@ static STATE_EXT: clap_plugin_state = clap_plugin_state {
 
 unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_SAVE);
+    if me.fault.refuse_save() {
+        return false;
+    }
     let mut bytes = MAGIC.to_vec();
-    for (id, ..) in PARAMS {
+    for (id, ..) in &PARAMS[..STATE_PARAMS] {
+        let id = *id;
         bytes.extend_from_slice(&me.get(id).to_le_bytes());
     }
     let tag = me.tag.lock().map(|t| t.clone()).unwrap_or_default();
+    // A state it rewrote is a heavy one: saved in 800 ms (its echo comes more than a second
+    // after the load that caused it — the final review's case).
+    if tag == b"rewritten" {
+        std::thread::sleep(std::time::Duration::from_millis(800));
+    }
     bytes.extend_from_slice(&(tag.len() as u32).to_le_bytes());
     bytes.extend_from_slice(&tag);
     let s = &*stream;
@@ -192,6 +206,8 @@ unsafe extern "C" fn state_save(p: *const clap_plugin, stream: *const clap_ostre
 
 unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istream) -> bool {
     let me = me(p);
+    me.fault.fire(crate::fault::ABORT_LOAD);
+    crate::fault::pump_load();
     let s = &*stream;
     let Some(read) = s.read else { return false };
     let mut bytes = Vec::new();
@@ -206,11 +222,12 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
         }
         bytes.extend_from_slice(&buf[..n as usize]);
     }
-    if bytes.len() < 4 + 8 * PARAM_COUNT + 4 || &bytes[..4] != MAGIC {
+    if bytes.len() < 4 + 8 * STATE_PARAMS + 4 || &bytes[..4] != MAGIC {
         return false;
     }
     let mut at = 4;
-    for (id, ..) in PARAMS {
+    for (id, ..) in &PARAMS[..STATE_PARAMS] {
+        let id = *id;
         let v = f64::from_le_bytes(bytes[at..at + 8].try_into().unwrap_or([0; 8]));
         me.set(id, v);
         at += 8;
@@ -220,6 +237,27 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     let Some(tag) = bytes.get(at..at + len) else {
         return false;
     };
+    if tag == b"dirty" || tag == b"rewrite" {
+        echo_load(me.host);
+    }
+    // Tag `rewrite`: it echoes its load and keeps its state in bytes of its own (a plug-in
+    // that re-serialises what it is given) — its echo is not the bytes it was given.
+    let tag: &[u8] = if tag == b"rewrite" { b"rewritten" } else { tag };
+    // Tag `count:<n>`: loaded, it holds `count:<n+1>` and says nothing — its state moves
+    // with no word to the host (a parked state as it is now tells from one last said).
+    let counted;
+    let tag: &[u8] = match tag
+        .strip_prefix(b"count:")
+        .and_then(|n| std::str::from_utf8(n).ok()?.parse::<u32>().ok())
+    {
+        Some(n) => {
+            counted = format!("count:{}", n + 1).into_bytes();
+            &counted
+        }
+        None => tag,
+    };
+    me.doubled
+        .store(tag == b"x2", std::sync::atomic::Ordering::Release);
     if let Ok(mut t) = me.tag.lock() {
         *t = tag.to_vec();
     }
@@ -282,4 +320,23 @@ unsafe extern "C" fn ports_get(
     info.channel_count = 2;
     info.port_type = CLAP_PORT_STEREO.as_ptr();
     true
+}
+
+/// Tag `dirty` (review 4 of round 29's freeze): every load of the state says the state
+/// changed and asks for the values to be read again — as JUCE's VST3 wrapper does from
+/// `setComponentState` — so a host that takes its own load's echo for an edit is seen.
+pub(crate) unsafe fn echo_load(host: *const clap_sys::host::clap_host) {
+    let Some(get) = (*host).get_extension else {
+        return;
+    };
+    let st = get(host, clap_sys::ext::state::CLAP_EXT_STATE.as_ptr())
+        as *const clap_sys::ext::state::clap_host_state;
+    if let Some(mark) = st.as_ref().and_then(|s| s.mark_dirty) {
+        mark(host);
+    }
+    let pr = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+        as *const clap_sys::ext::params::clap_host_params;
+    if let Some(rescan) = pr.as_ref().and_then(|e| e.rescan) {
+        rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_VALUES);
+    }
 }

@@ -109,6 +109,11 @@ impl Locale {
                 include_str!("../locales/areas/modulators.en.txt"),
                 include_str!("../locales/areas/comping.en.txt"),
                 include_str!("../locales/areas/drums.en.txt"),
+                include_str!("../locales/areas/tempo.en.txt"),
+                include_str!("../locales/areas/warp.en.txt"),
+                include_str!("../locales/areas/controllers.en.txt"),
+                include_str!("../locales/areas/isolation.en.txt"),
+                include_str!("../locales/areas/freeze.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -184,6 +189,11 @@ impl Locale {
                 include_str!("../locales/areas/modulators.es.txt"),
                 include_str!("../locales/areas/comping.es.txt"),
                 include_str!("../locales/areas/drums.es.txt"),
+                include_str!("../locales/areas/tempo.es.txt"),
+                include_str!("../locales/areas/warp.es.txt"),
+                include_str!("../locales/areas/controllers.es.txt"),
+                include_str!("../locales/areas/isolation.es.txt"),
+                include_str!("../locales/areas/freeze.es.txt"),
             ],
         }
     }
@@ -281,6 +291,31 @@ pub fn t(key: &str) -> String {
         return v.clone();
     }
     key.to_string()
+}
+
+/// Whether `locale`'s own table has `key` (no English stand-in).
+pub fn has(locale: Locale, key: &str) -> bool {
+    tables().get(&locale).is_some_and(|t| t.contains_key(key))
+}
+
+/// A key's text in `locale` (English when that language lacks it, else the key).
+pub fn t_in(locale: Locale, key: &str) -> String {
+    let tables = tables();
+    tables
+        .get(&locale)
+        .and_then(|t| t.get(key))
+        .or_else(|| tables.get(&Locale::En).and_then(|t| t.get(key)))
+        .cloned()
+        .unwrap_or_else(|| key.to_string())
+}
+
+/// [`tf`] in `locale`.
+pub fn tf_in(locale: Locale, key: &str, args: &[(&str, &dyn std::fmt::Display)]) -> String {
+    let mut s = t_in(locale, key);
+    for (name, value) in args {
+        s = s.replace(&format!("{{{name}}}"), &value.to_string());
+    }
+    s
 }
 
 /// Look up a key and substitute `{name}` placeholders.

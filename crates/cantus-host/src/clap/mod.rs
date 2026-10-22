@@ -13,6 +13,14 @@
 //! - [`events`]: fixed-capacity in/out event lists.
 
 mod audio;
+
+/// The CLAP transport event for `t` (the tests check what a plug-in is told, ADR 0060).
+#[cfg(test)]
+pub(crate) fn transport_event_for_tests(
+    t: &crate::backend::TransportInfo,
+) -> clap_sys::events::clap_event_transport {
+    audio::transport_event(t)
+}
 mod events;
 pub(crate) mod host;
 mod instance;

@@ -69,9 +69,14 @@ pub struct SampleCache {
     streaming: bool,
     /// Audio clips' pitch renders (ADR 0054): attached in place of their sources.
     pitch: crate::pitch::attach::Renders,
+    /// Warped clips' renders (ADR 0061): attached after the pitch renders.
+    warp: crate::warp::attach::Renders,
     /// Pitch renders go to the pitch service's worker even without the source loader
     /// (`EngineHandle::compile` sets it: no render on the caller's thread, device or not).
     pitch_background: bool,
+    /// The snapshots attached now are an offline or foreign compile's, not the one that
+    /// plays: warp renders it plays are kept for the live one (round 29's second review).
+    offline: bool,
     /// Instruments' files loaded in the background (with [`Self::set_background`]).
     assets: Option<AssetLoader>,
     /// The zones' starts past their heads in the last snapshot attached, the board that
@@ -185,6 +190,18 @@ impl SampleCache {
         self.failed.remove(path);
         // Its pitch analysis and renders too (ADR 0054, review 1).
         self.pitch.forget(path);
+        self.warp.forget(path);
+    }
+
+    /// Whether a file failed and is not tried again until [`Self::retry`] (or
+    /// [`Self::retry_audio`] for an audio source's stored `path`, `audio`).
+    pub fn has_failed(&self, path: &str, audio: bool) -> bool {
+        let p = if audio {
+            self.resolve(path)
+        } else {
+            PathBuf::from(path)
+        };
+        self.failed.contains_key(&p)
     }
 
     /// [`Self::retry`] for an audio source's stored path.
@@ -192,6 +209,7 @@ impl SampleCache {
         let p = self.resolve(path);
         self.failed.remove(&p);
         self.pitch.forget(&p);
+        self.warp.forget(&p);
     }
 
     pub fn status(&self, path: &Path) -> SampleStatus {
@@ -641,6 +659,8 @@ impl SampleCache {
         let mut any = !done.is_empty() || std::mem::take(&mut self.arrived);
         // Pitch renders finished on their worker (ADR 0054).
         any |= self.pitch.poll();
+        // Warp renders and bridges (ADR 0061).
+        any |= self.warp.poll();
         // A stream that failed: the next snapshot loads its file again.
         any |= self
             .streamed
@@ -678,9 +698,49 @@ impl SampleCache {
         any
     }
 
+    /// Wait for the audio sources being loaded in the background, at most `patience`: an
+    /// offline render's compile then attaches them (review 3: a source a render asked for
+    /// was still loading, and the render played its silence). Whether all came.
+    pub fn wait_audio(&mut self, patience: std::time::Duration) -> bool {
+        let t = std::time::Instant::now();
+        loop {
+            let Some(l) = self.loader.as_mut() else {
+                return true;
+            };
+            if l.pending.is_empty() {
+                l.asked = 0;
+                return true;
+            }
+            let left = patience.saturating_sub(t.elapsed());
+            if left.is_zero() {
+                return false;
+            }
+            match l
+                .done
+                .recv_timeout(left.min(std::time::Duration::from_millis(50)))
+            {
+                Ok((key, r)) => {
+                    l.pending.remove(&key);
+                    self.arrived = true;
+                    match r {
+                        Ok(d) => {
+                            self.audio.insert(key, Arc::new(d));
+                        }
+                        Err(e) => {
+                            self.failed.insert(key.0, e);
+                        }
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return false,
+            }
+        }
+    }
+
     /// Whether any source is still being loaded in the background.
     pub fn loading(&self) -> bool {
         self.pitch.pending() > 0
+            || self.warp.pending() > 0
             || self.loader.as_ref().is_some_and(|l| !l.pending.is_empty())
             || self.assets.as_ref().is_some_and(AssetLoader::busy)
     }
@@ -718,12 +778,40 @@ impl SampleCache {
             }
         };
         errors.extend(self.pitch.attach(snapshot, rate, background, &resolve));
+        // Warped clips play their render (ADR 0061), after the pitch render: the chain is
+        // source → pitch → warp. The input is ready when it is what the clip will play —
+        // the source, or its pitch render once that has arrived.
+        let pitch = &self.pitch;
+        let input = |clip: &cantus_core::AudioClipSnapshot, path: &Path| -> Option<u64> {
+            match clip.pitch.as_ref().filter(|e| e.audible()) {
+                None => Some(1),
+                Some(e) => {
+                    let k = crate::pitch::render_key(path, e, rate);
+                    let d = clip.data.as_ref()?;
+                    pitch.render_of(k).filter(|r| Arc::ptr_eq(r, d)).map(|_| k)
+                }
+            }
+        };
+        errors.extend(self.warp.attach(
+            snapshot,
+            rate,
+            background,
+            &resolve,
+            &input,
+            !self.offline,
+        ));
         errors
     }
 
     /// The pitch editor's service (ADR 0054): analyses and renders, off this thread.
     pub fn pitch(&self) -> &std::sync::Arc<crate::pitch::PitchService> {
         &self.pitch.service
+    }
+
+    /// The snapshots attached from now are an offline or foreign compile's (on), or the
+    /// one that plays (off, the default).
+    pub fn set_offline(&mut self, on: bool) {
+        self.offline = on;
     }
 
     /// Make pitch renders on the pitch service's worker (on), or here at once (off: a
@@ -754,6 +842,47 @@ impl SampleCache {
     /// Pitch renders held for playing, and those waiting to be freed.
     pub fn pitch_held(&self) -> usize {
         self.pitch.held()
+    }
+
+    /// Warping's service (ADR 0061): analyses at import and the renders of warped clips.
+    pub fn warp(&self) -> &std::sync::Arc<crate::warp::WarpService> {
+        &self.warp.service
+    }
+
+    /// Wait (at most `patience`) until no warp render is on its way, taking each in as it
+    /// arrives — an offline render plays the full renders, never a bridge.
+    pub fn wait_warp(&mut self, patience: std::time::Duration) -> bool {
+        let t = std::time::Instant::now();
+        while self.warp.pending() > 0 && t.elapsed() < patience {
+            self.warp.poll();
+            if self.warp.pending() > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(2));
+            }
+        }
+        self.warp.pending() == 0
+    }
+
+    /// Warp renders waiting or being made (an export waits for them).
+    pub fn warp_pending(&self) -> usize {
+        self.warp.pending()
+    }
+
+    /// Warp renders held for playing, kept, bridging, or waiting to be freed.
+    pub fn warp_held(&self) -> usize {
+        self.warp.held_count()
+    }
+
+    /// The bytes the kept (not playing) warp renders may hold (tests: a small budget).
+    #[doc(hidden)]
+    pub fn set_warp_budget(&mut self, bytes: usize) {
+        self.warp.set_budget(bytes);
+    }
+
+    /// Another project replaces the one playing (open, new, an import, an undo of one):
+    /// no warp render of the last one is played on its clips, whose ids start again
+    /// (round 29's third review).
+    pub fn forget_project(&mut self) {
+        self.warp.forget_project();
     }
 }
 

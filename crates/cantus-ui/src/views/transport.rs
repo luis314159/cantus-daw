@@ -19,13 +19,13 @@
 //! at rest measures nothing and allocates nothing of its own.
 
 #[path = "transport_clock.rs"]
-pub(crate) mod clock;
+pub mod clock;
 #[path = "transport_keys.rs"]
 mod keys;
 #[path = "transport_layout.rs"]
 pub mod layout;
 #[path = "transport_menus.rs"]
-mod menus;
+pub(crate) mod menus;
 #[path = "transport_meter.rs"]
 mod meter;
 #[path = "transport_metro.rs"]
@@ -41,7 +41,7 @@ mod snap;
 #[path = "transport_tap.rs"]
 pub mod tap;
 #[path = "transport_tempo.rs"]
-mod tempo;
+pub(crate) mod tempo;
 #[path = "transport_title.rs"]
 pub mod title;
 
@@ -87,6 +87,12 @@ pub const DEVICE_MAX: f32 = 320.0;
 pub struct TopBar {
     /// Tap tempo: the run of taps and when the clock it is timed by started.
     pub tap: tap::TapTempo,
+    /// Where the tempo well was drawn last frame (published geometry: tests aim with it).
+    pub tempo_well: Option<egui::Rect>,
+    /// What a drag on the tempo moved under a tenth of a BPM so far.
+    pub(crate) tempo_rest: f64,
+    /// What the wheel turned under a whole notch so far (a touchpad's fractions).
+    pub(crate) tempo_notches: f32,
     pub(crate) tap_origin: Option<std::time::Instant>,
     /// Pattern mode: what was compiled last, and where the song was.
     pub pattern: pattern::State,
@@ -173,7 +179,7 @@ fn wants_cached(app: &CantusApp, ctx: &egui::Context) -> ([Want; COUNT], usize) 
         ppp: ctx.pixels_per_point().to_bits(),
         groups,
         chip: super::audio_chip::width(app, ctx).to_bits(),
-        metre: app.project().time_signature,
+        metre: crate::views::bars::widest_metre(app.project()),
     };
     WANTS.with(|c| {
         let mut c = c.borrow_mut();
@@ -210,7 +216,11 @@ fn want_of(g: Group, app: &CantusApp, ctx: &egui::Context, s: &Style) -> Want {
         Group::Transport => fixed(keys::transport_width(s)),
         Group::Tempo => fixed(tempo::width(ctx, s)),
         Group::Metronome => fixed(metro::width(ctx, s)),
-        Group::Position => fixed(clock::width(ctx, s, app.project().time_signature)),
+        Group::Position => fixed(clock::width(
+            ctx,
+            s,
+            crate::views::bars::widest_metre(app.project()),
+        )),
         Group::Snap => fixed(snap::width(ctx, s)),
         Group::Undo => fixed(keys::undo_width(s)),
         Group::Windows => fixed(keys::windows_width(s)),

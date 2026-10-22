@@ -641,7 +641,7 @@ pub fn unpack(
         let Some(name) = entry.enclosed_name() else {
             return Err(InstallError::Archive(format!(
                 "unsafe entry name {}",
-                entry.name()
+                entry.name().as_deref().unwrap_or("(not text)")
             )));
         };
         let name = name.to_string_lossy().replace('\\', "/");

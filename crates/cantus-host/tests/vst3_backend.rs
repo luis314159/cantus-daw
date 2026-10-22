@@ -212,6 +212,19 @@ impl Probe {
         unsafe { f() }
     }
 
+    /// The pulse's program list's last value its processor received (NaN: none).
+    fn last_program(&self) -> f64 {
+        let f = self.call::<unsafe extern "C" fn() -> f64>(b"cantus_test_last_program ");
+        // SAFETY: as above.
+        unsafe { f() }
+    }
+
+    fn slow_next_process(&self, ms: u32) {
+        let f = self.call::<unsafe extern "C" fn(u32)>(b"cantus_test_slow_next_process\0");
+        // SAFETY: as above.
+        unsafe { f(ms) }
+    }
+
     /// (state flags, [tempo, music, bar, cycle start, cycle end, num, den, samples]).
     fn last_context(&self) -> (u32, [f64; 8]) {
         let f = self.call::<unsafe extern "C" fn(*mut f64) -> u32>(b"cantus_test_last_context\0");
@@ -522,7 +535,10 @@ fn a_parameter_change_lands_on_its_sample() {
         mut audio,
     } = load(GAIN_ID);
     let params = main.params();
-    assert_eq!(params.len(), 2);
+    // Gain and Latency, then the hidden Fault and Process of round 29's isolation tests.
+    assert_eq!(params.len(), 4);
+    assert!(params[2..].iter().all(|p| p.hidden), "{params:?}");
+    assert!(params[3].read_only, "Process is read-only");
     let gain = &params[0];
     assert_eq!((gain.id, gain.name.as_str()), (GAIN, "Gain"));
     assert_eq!((gain.min, gain.max, gain.default), (-48.0, 48.0, 0.0));
@@ -815,7 +831,12 @@ fn notes_and_expressions_land_on_their_samples() {
     let probe = Probe::new();
     let Loaded { main, mut audio } = load(PULSE_ID);
     assert_eq!(main.info().kind, PluginKind::Instrument);
-    assert!(main.params().is_empty());
+    // Only the hidden Fault and Process of round 29's isolation tests.
+    assert!(
+        main.params().iter().all(|p| p.hidden),
+        "{:?}",
+        main.params()
+    );
     let note = |offset, kind| NoteEvent {
         offset,
         note_id: -1,
@@ -845,12 +866,18 @@ fn notes_and_expressions_land_on_their_samples() {
         playing: true,
         recording: false,
         tempo_bpm: 128.0,
+        tempo_inc: 0.0,
         position_beats: 6.5,
         position_samples: 146_250,
+        // 6.5 beats at 128 BPM: 146 250 samples at 48 kHz.
+        position_seconds: 3.046_875,
+        project_samples: 146_250,
         bar_start_beats: 6.0,
+        bar_number: 2,
         time_sig_num: 3,
         time_sig_den: 4,
         loop_beats: Some((0.0, 12.0)),
+        loop_seconds: Some((0.0, 5.625)),
     };
     let (mut l, mut r) = (vec![9.0f32; 32], vec![9.0f32; 32]);
     let mut out = ParamOut::new();
@@ -880,6 +907,35 @@ fn notes_and_expressions_land_on_their_samples() {
     let want = 2 | 4 | 512 | 1024 | 2048 | 4096 | 8192 | 131_072;
     assert_eq!(state, want, "{state:#b}");
     assert_eq!(v, [128.0, 6.5, 6.0, 0.0, 12.0, 3.0, 4.0, 146_250.0]);
+    // Under a tempo map (round 29, ADR 0060; review 1): the song's real samples (the
+    // engine's rounding of its seconds, review 2) become `projectTimeSamples`, whatever the
+    // beats would be at the tempo now.
+    let ramp = TransportInfo {
+        tempo_bpm: 131.5,
+        tempo_inc: 1e-4,
+        position_beats: 14.0,
+        position_seconds: 7.25,
+        project_samples: 348_000,
+        bar_start_beats: 12.0,
+        bar_number: 4,
+        ..transport
+    };
+    let (mut l, mut r) = (vec![0.0f32; 32], vec![0.0f32; 32]);
+    audio.process(
+        Audio {
+            left: &mut l,
+            right: &mut r,
+            key: None,
+            transport: Some(&ramp),
+        },
+        &[],
+        &[],
+        &mut out,
+    );
+    let (_, v) = probe.last_context();
+    assert_eq!(v[0], 131.5, "the tempo");
+    assert_eq!(v[1], 14.0, "the beats");
+    assert_eq!(v[7], 348_000.0, "7.25 s at 48 kHz");
     audio.stop();
 }
 
@@ -976,4 +1032,146 @@ fn a_vst3_instrument_plays_through_the_instrument_adapter() {
     unit.process(&mut l, &mut r);
     assert_eq!(l[0], 0.5, "the note-on, then its note-off, in one instant");
     unit.stop();
+}
+
+/// Review 1 of ADR 0062, #53: a MIDI program change reaches the program list (the
+/// parameter flagged `kIsProgramChange`; the pulse has no `IMidiMapping` at all), as
+/// `program / steps`. Review 2, #52: the project keeps it as the state change it is — the
+/// next idle says the state changed (one *state* step, its inverse the state before),
+/// never as a separate parameter step besides it.
+#[test]
+fn a_program_change_reaches_the_program_list_and_the_project() {
+    let _g = serial();
+    let probe = Probe::new();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(PULSE_ID);
+    let _ = main.idle();
+    let program = main
+        .params()
+        .into_iter()
+        .find(|p| p.name == "Program")
+        .expect("the program list");
+    let (mut l, mut r) = (vec![0.0f32; 16], vec![0.0f32; 16]);
+    let mut out = ParamOut::new();
+    let change = NoteEvent {
+        offset: 0,
+        note_id: -1,
+        channel: 5,
+        key: 0,
+        kind: NoteKind::Midi {
+            status: 0xC5,
+            data1: 3,
+            data2: 0,
+        },
+    };
+    audio.process(
+        Audio {
+            left: &mut l,
+            right: &mut r,
+            key: None,
+            transport: None,
+        },
+        &[],
+        &[change],
+        &mut out,
+    );
+    assert!(
+        (probe.last_program() - 3.0 / 7.0).abs() < 1e-9,
+        "{}",
+        probe.last_program()
+    );
+    assert!(
+        !out.events()
+            .iter()
+            .any(|e| matches!(e, cantus_host::ParamEvent::Value(id, _) if *id == program.id)),
+        "no parameter step besides the state's: {:?}",
+        out.events()
+    );
+    let notices = main.idle();
+    assert!(
+        notices.contains(&cantus_host::Notice::StateDirty),
+        "{notices:?}"
+    );
+    // Review 3, #3, #21, #52: the host sending the program list a value (the project, a
+    // mapped knob, automation) is that parameter's own step — no state step besides.
+    let mut out = ParamOut::new();
+    audio.process(
+        Audio {
+            left: &mut l,
+            right: &mut r,
+            key: None,
+            transport: None,
+        },
+        &[ParamChange {
+            id: program.id,
+            offset: 0,
+            value: 5.0,
+        }],
+        &[],
+        &mut out,
+    );
+    let notices = main.idle();
+    assert!(
+        !notices.contains(&cantus_host::Notice::StateDirty),
+        "{notices:?}"
+    );
+    drop((main, audio));
+}
+
+/// Review 4 of ADR 0062, #10, #57: an idle that runs while the audio thread is still inside
+/// the block of a MIDI program change says nothing yet (the program's value has not reached
+/// the controller); the idle after the block says the state changed, so a capture reads the
+/// new program.
+#[test]
+fn a_program_change_is_said_only_once_its_value_is_on_its_way() {
+    let _g = serial();
+    let probe = Probe::new();
+    let Loaded {
+        mut main,
+        mut audio,
+    } = load(PULSE_ID);
+    let _ = main.idle();
+    probe.slow_next_process(400);
+    let worker = std::thread::spawn(move || {
+        let (mut l, mut r) = (vec![0.0f32; 16], vec![0.0f32; 16]);
+        let mut out = ParamOut::new();
+        let change = NoteEvent {
+            offset: 0,
+            note_id: -1,
+            channel: 2,
+            key: 0,
+            kind: NoteKind::Midi {
+                status: 0xC2,
+                data1: 4,
+                data2: 0,
+            },
+        };
+        audio.process(
+            Audio {
+                left: &mut l,
+                right: &mut r,
+                key: None,
+                transport: None,
+            },
+            &[],
+            &[change],
+            &mut out,
+        );
+        audio
+    });
+    std::thread::sleep(std::time::Duration::from_millis(150));
+    let during = main.idle();
+    assert!(
+        !during.contains(&cantus_host::Notice::StateDirty),
+        "said before the value was on its way: {during:?}"
+    );
+    let _audio = worker.join().expect("the block");
+    let after = main.idle();
+    assert!(
+        after.contains(&cantus_host::Notice::StateDirty),
+        "{after:?}"
+    );
+    assert!((probe.last_program() - 4.0 / 7.0).abs() < 1e-9);
 }

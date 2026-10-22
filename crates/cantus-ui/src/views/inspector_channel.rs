@@ -72,6 +72,8 @@ pub fn show(
     input(sh, app, subject, strip);
     // The track's recording input: device channels, monitor, trim, arm (ADR 0025).
     super::record::show(sh, app, subject, strip);
+    // Freeze (round 29, ADR 0064): what this track or strip freezes, and whether it is.
+    super::record::freeze_row(sh, app, subject, strip);
     match strip.and_then(|id| p.strip(id)) {
         Some(ms) => {
             let chain = Chain {
@@ -198,6 +200,15 @@ fn inserts(sh: &mut Sheet<'_>, st: &mut Chan, app: &CantusApp, ms: Chain<'_>) {
             Command::SetStripFxEnabled { id, enabled: !fx }
         }));
     }
+    // The inserts' switch is the strip's effects switch: learnable here too (round 29,
+    // review 4 of ADR 0062, #21).
+    if let Some(pr) = band.power_rect {
+        let target = cantus_core::controller::MappingTarget::StripFx(id);
+        let clip = sh.ui.clip_rect();
+        if crate::controllers::learn_spot_view(app, sh.ui, pr, clip, &target) {
+            sh.acts.push(Act::Learn(target));
+        }
+    }
     let mut rects = [Rect::NOTHING; MAX_INSERTS];
     for (i, slot) in ms.effects.iter().enumerate() {
         rects[i] = insert_tile(sh, st, app, ms, i, slot);
@@ -305,6 +316,15 @@ fn insert_tile(
         &sheet::Range::lin(0.0, 1.0, 1.0),
         false,
     );
+    // The tile's lamp is the insert's bypass, its ring its mix: learnable (review 4 of ADR
+    // 0062, #21).
+    let clip = sh.ui.clip_rect();
+    for (what, r) in [(0u8, lamp.rect), (1, ring.resp.rect)] {
+        let target = crate::controllers::slot_learn_target(e, what);
+        if crate::controllers::learn_spot_view(app, sh.ui, r, clip, &target) {
+            sh.acts.push(Act::Learn(target));
+        }
+    }
     if menu.clicked() {
         match st.open.iter().position(|x| *x == e) {
             Some(k) => {
@@ -351,6 +371,8 @@ fn insert_tile(
     }
     let hosted = slot.spec.external.as_deref();
     let missing = hosted.is_some() && app.plugins.missing(e).is_some();
+    // Stopped working (round 29, ADR 0063): drawn like a missing one, in the danger colour.
+    let stopped = hosted.is_some() && app.plugins.crashed(e).is_some();
     let open = st.open.contains(&e);
     let look = TileLook {
         name: Some(Src::Str("")),
@@ -367,12 +389,16 @@ fn insert_tile(
     let mut right = parts.name.right();
     if let Some(p) = hosted {
         let cy = rect.center().y;
-        if missing {
+        if missing || stopped {
             let w = sheet::chip(
                 sh.b,
                 pos2(right, cy),
                 &s,
-                Src::Key("host.missing"),
+                Src::Key(if missing {
+                    "host.missing"
+                } else {
+                    "isolation.stopped"
+                }),
                 Tok::Danger,
                 1.0,
             );
@@ -388,7 +414,11 @@ fn insert_tile(
         );
         right -= w + s.s(4.0);
     }
-    let ink = if missing { s.t.danger } else { s.t.text };
+    let ink = if missing || stopped {
+        s.t.danger
+    } else {
+        s.t.text
+    };
     let a = if slot.bypass || !ms.fx_enabled {
         0.6
     } else {
@@ -418,10 +448,16 @@ fn insert_tile(
             "inspector.slot_tip_plain"
         };
         let name = sh.fmt.tr(key);
+        // A hosted plug-in's tip says where it runs and what it costs (round 29).
+        let body = if hosted.is_some() && body.hovered() {
+            crate::views::plugin_notice::tip(app, crate::views::plugin_notice::Target::Insert(e))
+        } else {
+            String::new()
+        };
         hint::set_text(
             sh.ui.ctx(),
             name,
-            "",
+            &body,
             Caps {
                 menu: true,
                 ..Caps::NONE

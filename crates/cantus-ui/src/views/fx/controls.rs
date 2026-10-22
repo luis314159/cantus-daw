@@ -268,6 +268,17 @@ impl<'a> Cell<'a> {
             },
             self.offer.is_some_and(|o| o.modulation.is_some()),
         );
+        crate::kit::automate::probe::note_learn(
+            if self.name.is_empty() {
+                match self.label {
+                    Src::Key(k) => k,
+                    Src::Str(t) => t,
+                }
+            } else {
+                self.name
+            },
+            self.offer.and_then(|o| o.learn()).is_some(),
+        );
         let size = cell::size(self.size) * s.k;
         let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
         let (min, max, taper) = (self.min, self.max, self.taper);
@@ -403,6 +414,9 @@ impl<'a> Cell<'a> {
                         if m.is_some_and(|m| m.depth.is_some() && !m.mapping) {
                             crate::kit::automate::mod_mark(b, rect, s);
                         }
+                        if m.and_then(|m| m.learn).is_some_and(|l| l.mapped) {
+                            crate::kit::automate::learn_mark(b, rect, s);
+                        }
                         if m.is_some()
                             && crate::kit::automate::handle_in_flight(ui.ctx())
                             && resp.contains_pointer()
@@ -419,7 +433,11 @@ impl<'a> Cell<'a> {
             done,
             automate: choice == Some(crate::kit::automate::Choice::Automate),
             modulation: match choice {
-                Some(c @ crate::kit::automate::Choice::Modulate) => Some(c),
+                Some(
+                    c @ (crate::kit::automate::Choice::Modulate
+                    | crate::kit::automate::Choice::Learn
+                    | crate::kit::automate::Choice::Forget),
+                ) => Some(c),
                 _ => mod_choice,
             },
         }
@@ -560,17 +578,164 @@ pub fn led_param(
     ui: &mut Ui,
     s: &Style,
     host: &mut dyn FxHost,
-    key: &'static str,
+    key: &str,
     label: Src<'_>,
     width: f32,
 ) -> Response {
     let on = host.spec().get(key) >= 0.5;
     let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
     let r = led(ui, s, on, label, name, width);
-    if r.clicked() {
+    let learnt = stepped_offer(ui, s, host, key, name, &r);
+    if r.clicked() && !learnt {
         host.set(key, if on { 0.0 } else { 1.0 }, None);
     }
     r
+}
+
+/// A stepped parameter's control (an LED, a segmented choice) as a parameter (round 29,
+/// review 1 of ADR 0062): its menu — automate, modulate, *Learn MIDI controller* — its
+/// mapped mark, and the learn mode's outline and click. `true` when the click learnt.
+/// Every control that sets a stepped parameter by itself calls it with its response
+/// (review 2, #44): a row of value buttons, each.
+pub fn stepped_offer(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+) -> bool {
+    stepped_offer_marked(ui, s, host, key, name, resp, true)
+}
+
+/// [`stepped_offer`] for a control that stands for one value of `key` — a band's solo LED
+/// (none ↔ that band): a learn armed from it (its click in the learn mode, its menu) is
+/// made over `rest` … `value`, and its mark shows only where a controller reaches `value`
+/// (round 29, review 4 of ADR 0062, #46).
+#[allow(clippy::too_many_arguments)]
+pub fn stepped_offer_one(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+    rest: f32,
+    value: f32,
+) -> bool {
+    let before = host.learn_armed_at();
+    let mark = host.mapping_reaches(key, value);
+    let out = stepped_offer_marked(ui, s, host, key, name, resp, mark);
+    let now = host.learn_armed_at();
+    if now.is_some() && now != before {
+        host.set_learn_range(key, rest, value);
+    }
+    out
+}
+
+fn stepped_offer_marked(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    name: &str,
+    resp: &Response,
+    mark: bool,
+) -> bool {
+    use crate::kit::automate as a;
+    // Nothing of learn to show and no menu asked for: no offer built (review 3, #51).
+    if host.learn_idle(key)
+        && !resp.secondary_clicked()
+        && !egui::Popup::is_any_open(ui.ctx())
+        && !a::probe::noting_learn()
+    {
+        return false;
+    }
+    let Some(info) = host.spec().kind.param(key) else {
+        return false;
+    };
+    let v = host.spec().get(key);
+    let span = info.max - info.min;
+    let pos = if span > 0.0 {
+        ((v - info.min) / span).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+    let Some((m, _)) = host.modulation(key, pos, s, &mut rings) else {
+        a::probe::note_learn(name, false);
+        return false;
+    };
+    a::probe::note_learn(name, m.learn.is_some());
+    let offer = a::Offer {
+        automated: host.automated(key),
+        typing: false,
+        modulation: Some(m),
+    };
+    if let Some(l) = m.learn {
+        if l.mode {
+            if a::learn_spot(ui, resp.rect, resp.id, l) {
+                host.modulate(key, a::Choice::Learn, resp.rect);
+            }
+            return l.mode;
+        }
+        if l.mapped && mark {
+            a::learn_mark_over(ui, resp.rect, ui.clip_rect());
+        }
+    }
+    match a::menu(ui, resp, offer) {
+        Some(a::Choice::Automate) => host.automate(key),
+        Some(a::Choice::Reset) => host.set(key, info.default, None),
+        Some(c) => host.modulate(key, c, resp.rect),
+        None => {}
+    }
+    false
+}
+
+/// [`segmented`] that is the stepped parameter `key`'s control, the caller setting the
+/// value the segment means (a slope of 12, 24 or 48 dB): its menu, its mapped mark, the
+/// learn mode (round 29, review 2 of ADR 0062, #44). No choice while the learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn segmented_key(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    selected: usize,
+    labels: &[Src<'_>],
+    name: &str,
+    width: f32,
+) -> Option<usize> {
+    let (resp, r) = crate::kit::widgets::Segmented::new(selected, labels)
+        .name(name)
+        .size(width, ROW)
+        .style(*s)
+        .show(ui);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    r.filter(|_| !learnt)
+}
+
+/// [`field`] that is the stepped parameter `key`'s control (its list built by the
+/// caller): its menu, its mapped mark, the learn mode (review 2, #44). Never open while the
+/// learn mode has it.
+#[allow(clippy::too_many_arguments)]
+pub fn field_key(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    id: egui::Id,
+    value: &str,
+    name: &str,
+    width: f32,
+) -> Option<Anchor> {
+    let (at, resp) = field_resp(ui, s, id, value, name, width);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    if learnt {
+        ui.data_mut(|d| d.insert_temp(id.with("open"), false));
+        return None;
+    }
+    at
 }
 
 /// A choice among a few words (the kit's `Segmented` at the device's style). Returns
@@ -603,7 +768,13 @@ pub fn segmented_param(
     let spec = host.spec();
     let now = spec.get(key).round().max(0.0) as usize;
     let name = spec.kind.param(key).map_or("", |i| tr(i.label_key));
-    let r = segmented(ui, s, now, labels, name, width);
+    let (resp, r) = crate::kit::widgets::Segmented::new(now, labels)
+        .name(name)
+        .size(width, ROW)
+        .style(*s)
+        .show(ui);
+    let learnt = stepped_offer(ui, s, host, key, name, &resp);
+    let r = r.filter(|_| !learnt);
     if let Some(i) = r {
         host.set(key, i as f32, None);
     }
@@ -620,6 +791,18 @@ pub fn field(
     name: &str,
     width: f32,
 ) -> Option<Anchor> {
+    field_resp(ui, s, id, value, name, width).0
+}
+
+/// [`field`], with the field's response.
+fn field_resp(
+    ui: &mut Ui,
+    s: &Style,
+    id: egui::Id,
+    value: &str,
+    name: &str,
+    width: f32,
+) -> (Option<Anchor>, Response) {
     // The kit's field at the device's style; the open state is kept here, by `id`.
     let open_id = id.with("open");
     let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
@@ -634,10 +817,13 @@ pub fn field(
         ui.data_mut(|d| d.insert_temp(open_id, open));
     }
     let rect = resp.rect;
-    open.then(|| Anchor {
-        at: rect.left_bottom(),
-        field: rect,
-    })
+    (
+        open.then(|| Anchor {
+            at: rect.left_bottom(),
+            field: rect,
+        }),
+        resp,
+    )
 }
 
 /// Where an open field's list goes: under the field, a click on which closes it.
@@ -867,6 +1053,36 @@ pub fn card<R>(
     card_with(ui, s, rect, title, on, None, body)
 }
 
+/// [`card`], with its lamp's response: a band's On is its parameter's control (round 29,
+/// review 2 of ADR 0062, #44; review 3, #51: handed back, never kept in egui's memory).
+pub fn card_lamp<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: Option<bool>,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
+    card_full(ui, s, rect, title, on, None, body)
+}
+
+/// The lamp of a [`card_lamp`] as the stepped parameter `key`'s control: its menu, its
+/// mapped mark, the learn mode. `true` while the learn mode has it: the caller then does
+/// not flip it.
+pub fn card_lamp_offer(
+    ui: &mut Ui,
+    s: &Style,
+    host: &mut dyn FxHost,
+    key: &str,
+    lamp: Option<&Response>,
+) -> bool {
+    let Some(r) = lamp else {
+        return false;
+    };
+    let name = host.spec().kind.param(key).map_or("", |i| tr(i.label_key));
+    stepped_offer(ui, s, host, key, name, r)
+}
+
 /// [`card`] with a display under the title bar, `display` points tall at 100 %.
 pub fn card_with<R>(
     ui: &mut Ui,
@@ -877,6 +1093,20 @@ pub fn card_with<R>(
     display: Option<f32>,
     body: impl FnOnce(&mut Ui, &CardRects) -> R,
 ) -> (R, bool) {
+    let (r, clicked, _) = card_full(ui, s, rect, title, on, display, body);
+    (r, clicked)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn card_full<R>(
+    ui: &mut Ui,
+    s: &Style,
+    rect: Rect,
+    title: Src<'_>,
+    on: Option<bool>,
+    display: Option<f32>,
+    body: impl FnOnce(&mut Ui, &CardRects) -> R,
+) -> (R, bool, Option<Response>) {
     let look = CardLook {
         title,
         switchable: on.is_some(),
@@ -892,6 +1122,7 @@ pub fn card_with<R>(
         band::card(b, rect, s, st, &look)
     });
     let mut clicked = false;
+    let mut lamp = None;
     if let Some(led) = rects.led {
         let r = ui.interact(
             led.expand(4.0 * s.k),
@@ -903,6 +1134,7 @@ pub fn card_with<R>(
         if r.hovered() {
             hint::set_text(ui.ctx(), tr("fx.frame.section_on"), "", Caps::NONE);
         }
+        lamp = Some(r);
     }
     let inner = rects.body;
     let mut child = ui.new_child(
@@ -919,7 +1151,7 @@ pub fn card_with<R>(
         child.disable();
     }
     let r = body(&mut child, &rects);
-    (r, clicked)
+    (r, clicked, lamp)
 }
 
 /// A column of switches inside a card's body: `f` adds them top to bottom.

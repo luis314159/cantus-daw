@@ -63,12 +63,44 @@ pub struct JournalPass {
     pub loop_takes: bool,
     pub mode: TakeMode,
     pub tempo_bpm: f64,
+    /// The tempo track the pass was recorded under (ADR 0060); empty with one tempo.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tempo_points: Vec<cantus_core::TempoPoint>,
     pub sample_rate: u32,
-    /// The round-trip latency the takes are moved earlier by, in frames.
+    /// The round-trip latency the takes are moved earlier by, in frames — the engine's own
+    /// figure once the pass has started (review 3: the callback's before it, until then).
     pub latency_frames: i64,
+    /// The wraps the engine marked so far (file frame, the heard latency's moves taken in
+    /// by then — review 3): a crashed loop pass is laid out by them, not by arithmetic
+    /// alone.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub marked_wraps: Vec<(u64, i64)>,
     pub takes: Vec<JournalTake>,
     /// The pass ended and its clips are in the project (not yet in a file on disk).
     pub finished: bool,
+}
+
+impl JournalPass {
+    /// The tempo map the pass was recorded under: frames to ticks through it.
+    pub fn tempo_map(&self) -> cantus_core::TempoMap {
+        cantus_core::TempoMap::new(
+            self.tempo_bpm.max(1.0),
+            cantus_core::TimeSignature::default(),
+            &self.tempo_points,
+            &[],
+        )
+    }
+
+    /// The tick `frames` frames (at `rate`) after `from`, through the pass's map; one tempo,
+    /// the old arithmetic.
+    pub fn tick_after(&self, from: f64, frames: f64, rate: u32) -> f64 {
+        let map = self.tempo_map();
+        if map.is_constant() {
+            let fpt = f64::from(rate) * 60.0 / (self.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
+            return from + frames / fpt;
+        }
+        map.tick_after_seconds(from, frames / f64::from(rate.max(1)))
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

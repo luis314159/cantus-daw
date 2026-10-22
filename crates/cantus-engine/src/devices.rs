@@ -1083,6 +1083,17 @@ impl crate::backend::EngineHandle {
                 self.rec.set_input_latency(t.input_latency());
             }
             self.rec.set_output_latency(t.output_latency());
+            // The engine moves a take for a heard-latency change only after this much
+            // (review 3); told when it changes.
+            let trip = self
+                .rec
+                .latency
+                .input
+                .saturating_add(self.rec.latency.output);
+            if self.rec.round_trip_sent != Some(trip) {
+                self.rec.round_trip_sent = Some(trip);
+                self.send(crate::messages::EngineMessage::SetDeviceRoundTrip(trip));
+            }
         }
     }
 }

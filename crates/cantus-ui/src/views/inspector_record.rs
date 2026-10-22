@@ -15,6 +15,7 @@ use crate::record_session::{input_choices, input_label, monitor_key};
 use cantus_core::audio::{MonitorMode, TrackInput};
 use cantus_core::{Command, MergeKey, StripId, TrackId};
 use egui::{pos2, Id, Rect, Sense};
+use std::fmt::Write as _;
 
 /// The track the sheet records for: the subject's, or the strip's recording track.
 fn track_of(app: &CantusApp, subject: Subject, strip: Option<StripId>) -> Option<TrackId> {
@@ -187,6 +188,86 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option
         sh.acts.push(Act::Exec(Command::SetTrackArmed {
             id: tid,
             armed: !track.armed,
+        }));
+    }
+    // Learnable, as the track header's (round 29, review 4 of ADR 0062, #21).
+    let arm = cantus_core::controller::MappingTarget::TrackArm(tid);
+    let (led, clip) = (sh.last_led, sh.ui.clip_rect());
+    if crate::controllers::learn_spot_view(app, sh.ui, led, clip, &arm) {
+        sh.acts.push(Act::Learn(arm));
+    }
+    // Low-latency monitoring (round 29, ADR 0064 §4): on a track with an input, where it
+    // is monitored (the record options and the audio chip have it for every track).
+    if !dim
+        && sh.led_row(
+            "freeze.ll.row",
+            "freeze.ll.on",
+            app.settings.low_latency,
+            Function::Dynamics,
+            false,
+        )
+    {
+        sh.acts
+            .push(Act::Freeze(crate::views::freeze_view::InspAct::LowLatency(
+                !app.settings.low_latency,
+            )));
+    }
+    if app.settings.low_latency && !dim {
+        let off = crate::views::freeze_monitor::bypassed(app);
+        if !off.is_empty() {
+            let text = crate::i18n::tf("freeze.ll.without", &[("names", &off)]);
+            sh.text_row("freeze.ll.now", &text, false, false);
+        }
+    }
+}
+
+/// The channel sheet's *Freeze* row (round 29, ADR 0064): under the recording rows, for a
+/// track or a strip.
+pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: Option<StripId>) {
+    let track = match subject {
+        Subject::Track(t) | Subject::Clip(t, _) | Subject::Notes(t, _) => Some(t),
+        _ => None,
+    };
+    let p = app.project();
+    // The delay a bounced track keeps (`Track::lateness`, review 3): shown, and cleared.
+    if let Some((id, l)) = track.and_then(|t| p.track(t).and_then(|x| x.lateness.map(|l| (t, l)))) {
+        let ms = l.frames as f64 * 1000.0 / l.rate.max(1) as f64;
+        // Its figure from the sheet's cache, its tip made when pointed at (review 4).
+        let stamp = (l.frames << 20) | u64::from(l.rate);
+        let text = sh.fmt.get(cache::key("insp-lateness"), stamp, |b| {
+            let _ = write!(b, "{ms:.1} ms");
+        });
+        let text = sheet::name(text);
+        let tip = || crate::i18n::tf("freeze.lateness.tip", &[("ms", &format!("{ms:.1}"))]);
+        if sh.readout_clear_row("freeze.lateness.row", &text, "freeze.lateness.clear", &tip) {
+            sh.acts
+                .push(Act::Exec(Command::SetTrackLateness { id, lateness: None }));
+        }
+    }
+    let target = match (track, strip) {
+        (Some(t), _) => p.freeze_target_of_track(t),
+        (None, Some(s)) => Some(cantus_core::FreezeTarget::Strip(s)),
+        _ => None,
+    };
+    let Some(target) = target else {
+        return;
+    };
+    // What holds it: its own freeze, or a frozen strip it feeds — the row says so and a
+    // click gives that one back.
+    let holder = match (track, target) {
+        (Some(t), _) => app.freeze_holding_track(t),
+        (None, cantus_core::FreezeTarget::Strip(s)) => app.freeze_holding_strip(s),
+        _ => None,
+    };
+    let key = if holder.is_some() {
+        "freeze.frozen"
+    } else {
+        "freeze.freeze"
+    };
+    if sh.led_row("freeze.row", key, holder.is_some(), Function::Source, false) {
+        sh.acts.push(Act::Freeze(match holder {
+            Some(h) => crate::views::freeze_view::InspAct::Unfreeze(h),
+            None => crate::views::freeze_view::InspAct::Freeze(target),
         }));
     }
 }

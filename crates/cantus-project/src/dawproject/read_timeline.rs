@@ -9,6 +9,7 @@
 
 use super::read::{attr, attr_f64, child, parse_color};
 use crate::report::Report;
+use cantus_core::tempo::{TempoMap, TempoPoint};
 use cantus_core::{Color, Project, Ticks, PPQ};
 use roxmltree::Node;
 use std::collections::{HashMap, HashSet};
@@ -31,6 +32,16 @@ pub struct ClipData {
     pub period: Option<Ticks>,
     pub muted: bool,
     pub notes: Vec<NoteData>,
+    /// An audio clip's file and warp (round 29, ADR 0061).
+    pub audio: Option<super::audio::AudioData>,
+    /// An audio clip's fades (in, out).
+    pub fades: (Ticks, Ticks),
+    /// An audio clip at its natural speed: the fine offset (frames at its file's rate)
+    /// its `playStart` seconds leave after whole ticks.
+    pub slip: i32,
+    /// The timeline tick of the clip's content origin (where its content time 0 is): its
+    /// warp points' natural line is measured from there.
+    pub origin: f64,
 }
 
 /// The note clips of every track, by the track's id.
@@ -39,12 +50,48 @@ pub struct Timeline {
     pub clips: HashMap<String, Vec<ClipData>>,
     /// Tracks whose notes are all on MIDI channel 10: drum parts.
     pub drums: HashSet<String>,
+    /// The tempo automation (round 29, ADR 0060) as the tempo track: the first point at
+    /// tick 0 (the transport's tempo standing in where the automation starts later), one
+    /// point a tick, the last holding — empty with none.
+    pub tempo: Vec<TempoPoint>,
+    /// The time-signature automation: where, numerator, denominator.
+    pub metres: Vec<(Ticks, u8, u8)>,
+    /// The markers: where, the name, the colour.
+    pub markers: Vec<(Ticks, String, Option<Color>)>,
 }
 
+/// Where a time is read: the track, the unit, and — for seconds — how they reach the
+/// timeline through the tempo map (review 2, findings 6, 19 and 57: one tempo misplaced
+/// everything after a tempo change).
 #[derive(Clone)]
 struct Ctx {
     track: Option<String>,
     seconds: bool,
+    /// What this context's ticks add to be timeline ticks: 0 on the timeline, a clip's
+    /// start less its offset in its content.
+    shift: f64,
+    /// Where this context's seconds count from: the timeline tick, and its seconds there
+    /// (the song's start; a clip's start and its `playStart`).
+    origin: (f64, f64),
+}
+
+impl Ctx {
+    /// A time in this context's unit, as its ticks.
+    fn at(&self, map: &TempoMap, v: f64) -> Ticks {
+        if !self.seconds {
+            return Ticks((v * PPQ as f64).round() as i64);
+        }
+        let t = map.tick_after_seconds(self.origin.0, v - self.origin.1);
+        Ticks((t - self.shift).round() as i64)
+    }
+
+    /// A duration `d` from time `v`: beats as they are, seconds through the map.
+    fn len(&self, map: &TempoMap, v: f64, d: f64) -> Ticks {
+        if !self.seconds {
+            return Ticks((d * PPQ as f64).round() as i64);
+        }
+        self.at(map, v + d) - self.at(map, v)
+    }
 }
 
 #[derive(Default)]
@@ -61,12 +108,6 @@ struct Counts {
     channels: HashMap<String, (usize, usize)>,
 }
 
-/// A time in the file's unit as Cantus ticks.
-fn ticks(v: f64, seconds: bool, bpm: f64) -> Ticks {
-    let beats = if seconds { v * bpm / 60.0 } else { v };
-    Ticks((beats * PPQ as f64).round() as i64)
-}
-
 /// Read the arrangement.
 pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     let mut out = Timeline::default();
@@ -75,22 +116,80 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     let ctx = Ctx {
         track: attr(arr, "track").map(str::to_string),
         seconds: attr(arr, "timeUnit") == Some("seconds"),
+        shift: 0.0,
+        origin: (0.0, 0.0),
     };
-    walk(arr, &ctx, bpm, project, &mut out, &mut counts);
-    for name in ["TempoAutomation", "TimeSignatureAutomation"] {
-        let points = child(arr, name)
-            .map(|p| p.children().filter(|c| c.is_element()).count())
-            .unwrap_or(0);
-        // One point is the target, the rest are points.
-        if points > 2 {
-            let key = if name == "TempoAutomation" {
-                "interop.report.d_tempo_automation"
-            } else {
-                "interop.report.d_metre_automation"
+    // The tempo map first (round 29, ADR 0060; review 2): every time given in seconds is
+    // placed through it.
+    let unit = |n: Node| attr(n, "timeUnit").map_or(ctx.seconds, |u| u == "seconds");
+    // Points, metres and markers past the song's horizon: left out, said once (review 6:
+    // a line each, every one "1 … points").
+    let mut far = 0usize;
+    if let Some(t) = child(arr, "TempoAutomation") {
+        out.tempo = tempo_points(t, unit(t), bpm, report, &mut far);
+    }
+    let map = TempoMap::new(
+        out.tempo.first().map_or(bpm, |p| p.bpm),
+        project.time_signature,
+        &out.tempo,
+        &[],
+    );
+    let ctx_at = |secs: bool, v: f64| {
+        Ctx {
+            seconds: secs,
+            ..ctx.clone()
+        }
+        .at(&map, v)
+    };
+    // The metre before the clips (review 5): notes straight on a lane get a clip on the
+    // file's bar lines through its metre changes, so the map the clips are read with holds
+    // them (times are placed through the tempo alone either way).
+    if let Some(t) = child(arr, "TimeSignatureAutomation") {
+        let secs = unit(t);
+        for p in t
+            .children()
+            .filter(|c| c.has_tag_name("TimeSignaturePoint"))
+        {
+            let (Some(time), Some(n), Some(d)) = (
+                attr_f64(p, "time"),
+                attr_f64(p, "numerator"),
+                attr_f64(p, "denominator"),
+            ) else {
+                continue;
             };
-            report.dropped(key, vec![]);
+            let at = ctx_at(secs, time);
+            if at > cantus_core::tempo::HORIZON {
+                far += 1;
+                continue;
+            }
+            out.metres.push((at, n as u8, d as u8));
         }
     }
+    let metres = super::read::metre_list(&out.metres, project.time_signature);
+    let map = TempoMap::new(
+        out.tempo.first().map_or(bpm, |p| p.bpm),
+        metres
+            .first()
+            .map_or(project.time_signature, |m| m.signature),
+        &out.tempo,
+        &metres,
+    );
+    walk(arr, &ctx, &map, &mut out, &mut counts);
+    if let Some(m) = child(arr, "Markers") {
+        let secs = unit(m);
+        for k in m.children().filter(|c| c.has_tag_name("Marker")) {
+            if let Some(time) = attr_f64(k, "time") {
+                let name = attr(k, "name").unwrap_or("").to_string();
+                let at = ctx_at(secs, time);
+                if at > cantus_core::tempo::HORIZON {
+                    far += 1;
+                    continue;
+                }
+                out.markers.push((at, name, parse_color(attr(k, "color"))));
+            }
+        }
+    }
+    report.count_dropped("tempo.report.too_far", far);
     report.count_dropped("interop.report.d_audio_clips", counts.audio);
     report.count_dropped("interop.report.d_automation", counts.automation);
     report.count_dropped("interop.report.d_markers", counts.markers);
@@ -101,7 +200,11 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
         report.dropped("interop.report.d_loop", vec![("name", clip)]);
     }
     if counts.in_seconds {
-        report.info("interop.report.d_seconds", vec![("bpm", format!("{bpm}"))]);
+        if map.is_constant() {
+            report.info("interop.report.d_seconds", vec![("bpm", format!("{bpm}"))]);
+        } else {
+            report.info("tempo.report.seconds_map", Vec::new());
+        }
     }
     for (track, (drum, other)) in counts.channels {
         if drum > 0 && other == 0 {
@@ -111,7 +214,7 @@ pub fn read(arr: Node, project: &Project, report: &mut Report) -> Timeline {
     out
 }
 
-fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, counts: &mut Counts) {
+fn walk(n: Node, ctx: &Ctx, map: &TempoMap, out: &mut Timeline, counts: &mut Counts) {
     for c in n.children().filter(|c| c.is_element()) {
         let mut cx = ctx.clone();
         if let Some(t) = attr(c, "track") {
@@ -122,10 +225,10 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
         }
         counts.in_seconds |= cx.seconds;
         match c.tag_name().name() {
-            "Lanes" => walk(c, &cx, bpm, project, out, counts),
+            "Lanes" => walk(c, &cx, map, out, counts),
             "Clips" => {
                 for clip in c.children().filter(|x| x.has_tag_name("Clip")) {
-                    if let Some(data) = clip_of(clip, &cx, bpm, counts) {
+                    if let Some(data) = clip_of(clip, &cx, map, counts) {
                         if let Some(t) = &cx.track {
                             out.clips.entry(t.clone()).or_default().push(data);
                         }
@@ -136,19 +239,20 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
                 // Notes straight on a track's timeline, in no clip: one clip around them,
                 // from the bar before the first to the bar after the last.
                 let Some(t) = &cx.track else { continue };
-                let notes = notes_of(c, &cx, bpm, t, counts);
+                let notes = notes_of(c, &cx, map, t, counts);
                 if notes.is_empty() {
                     continue;
                 }
-                let bar = project.time_signature.ticks_per_bar().max(Ticks(1));
+                let bar = map.bar_len_at(Ticks::ZERO).max(Ticks(1));
                 let first = notes.iter().map(|n| n.start).min().unwrap_or(Ticks::ZERO);
                 let last = notes
                     .iter()
                     .map(|n| n.start + n.length)
                     .max()
                     .unwrap_or(bar);
-                let from = first.snap_floor(bar);
-                let to = Ticks((last.0 + bar.0 - 1).div_euclid(bar.0) * bar.0).max(from + bar);
+                // On the file's bar lines, through its metre changes (reviews 4–5): with one
+                // metre, whole bars of it from 0, as before.
+                let (from, to) = map.bars_around(first.max(Ticks::ZERO), last);
                 out.clips.entry(t.clone()).or_default().push(ClipData {
                     name: String::new(),
                     color: None,
@@ -158,10 +262,16 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
                     period: None,
                     muted: false,
                     notes,
+                    audio: None,
+                    fades: (Ticks::ZERO, Ticks::ZERO),
+                    slip: 0,
+                    origin: 0.0,
                 });
             }
             "Points" => counts.automation += 1,
-            "Markers" | "markers" => {
+            // The arrangement's own markers come in (round 29); markers inside a lane or
+            // a clip have nowhere to go.
+            "Markers" | "markers" if !c.parent().is_some_and(|p| p.has_tag_name("Arrangement")) => {
                 counts.markers += c.children().filter(|m| m.has_tag_name("Marker")).count()
             }
             "ClipSlot" => counts.launcher += 1,
@@ -172,7 +282,7 @@ fn walk(n: Node, ctx: &Ctx, bpm: f64, project: &Project, out: &mut Timeline, cou
 }
 
 /// The notes of a `Notes` element, in the given unit, counting drums and expressions.
-fn notes_of(n: Node, cx: &Ctx, bpm: f64, track: &str, counts: &mut Counts) -> Vec<NoteData> {
+fn notes_of(n: Node, cx: &Ctx, map: &TempoMap, track: &str, counts: &mut Counts) -> Vec<NoteData> {
     let mut notes = Vec::new();
     let chan = counts.channels.entry(track.to_string()).or_default();
     for note in n.children().filter(|x| x.has_tag_name("Note")) {
@@ -187,8 +297,8 @@ fn notes_of(n: Node, cx: &Ctx, bpm: f64, track: &str, counts: &mut Counts) -> Ve
         } else {
             chan.1 += 1;
         }
-        let start = ticks(time, cx.seconds, bpm);
-        let mut length = ticks(attr_f64(note, "duration").unwrap_or(0.0), cx.seconds, bpm);
+        let start = cx.at(map, time);
+        let mut length = cx.len(map, time, attr_f64(note, "duration").unwrap_or(0.0));
         if length <= Ticks::ZERO {
             length = crate::midi::import::MIN_NOTE;
         }
@@ -206,7 +316,7 @@ fn notes_of(n: Node, cx: &Ctx, bpm: f64, track: &str, counts: &mut Counts) -> Ve
 }
 
 /// One clip of notes. `None` for a clip of audio (counted) or of nothing we can read.
-fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipData> {
+fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<ClipData> {
     let time = attr_f64(clip, "time")?;
     if attr(clip, "reference").is_some() {
         counts.references += 1;
@@ -216,18 +326,32 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
         Some(u) => u == "seconds",
         None => cx.seconds,
     };
+    // Where the clip starts (in its context's ticks, and on the timeline), and its offset:
+    // content seconds in whole ticks at the tempo where it starts (notes count on from
+    // there; an audio clip's is re-derived below through the map, ADR 0060 §4).
+    let start = cx.at(map, time);
+    let start_tl = start.0 as f64 + cx.shift;
+    let play_start = attr_f64(clip, "playStart").unwrap_or(0.0);
+    let mut offset = if content_seconds {
+        Ticks::from_seconds(play_start, map.bpm_at(start_tl))
+    } else {
+        Ticks((play_start * PPQ as f64).round() as i64)
+    };
     let inner = Ctx {
         track: cx.track.clone(),
         seconds: content_seconds,
+        shift: start_tl - offset.0 as f64,
+        origin: (start_tl, play_start),
     };
     let track = cx.track.clone().unwrap_or_default();
     let content = clip.children().find(|c| c.is_element());
+    let mut audio = None;
     let mut notes = Vec::new();
     match content.map(|c| (c, c.tag_name().name())) {
-        Some((c, "Notes")) => notes = notes_of(c, &inner, bpm, &track, counts),
+        Some((c, "Notes")) => notes = notes_of(c, &inner, map, &track, counts),
         Some((c, "Lanes")) => {
             for part in c.descendants().filter(|d| d.has_tag_name("Notes")) {
-                notes.extend(notes_of(part, &inner, bpm, &track, counts));
+                notes.extend(notes_of(part, &inner, map, &track, counts));
             }
             counts.automation += c.descendants().filter(|d| d.has_tag_name("Points")).count();
         }
@@ -235,9 +359,13 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
             // Clips inside a clip: note clips are flattened into this one, at their own
             // place in its content; audio is counted.
             for sub in c.children().filter(|x| x.has_tag_name("Clip")) {
-                let Some(d) = clip_of(sub, &inner, bpm, counts) else {
+                let Some(d) = clip_of(sub, &inner, map, counts) else {
                     continue;
                 };
+                // Audio inside a clip of clips has nowhere to go: counted.
+                if d.audio.is_some() {
+                    counts.audio += 1;
+                }
                 for n in d.notes {
                     let at = d.start + (n.start - d.offset);
                     if at >= d.start && at < d.start + d.length {
@@ -249,7 +377,20 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
                 return None;
             }
         }
-        Some((_, "Audio" | "Warps" | "Video")) => {
+        // An audio clip (round 29, ADR 0061): its file and its warp points.
+        Some((c, "Audio" | "Warps")) => {
+            // The clip's content origin on the timeline, where its content time 0 is.
+            let origin = start_tl - offset.0 as f64;
+            let to_beats = |t: f64| (map.tick_after_seconds(origin, t) - origin) / PPQ as f64;
+            match super::audio::read(c, &to_beats, content_seconds) {
+                Some(d) => audio = Some(d),
+                None => {
+                    counts.audio += 1;
+                    return None;
+                }
+            }
+        }
+        Some((_, "Video")) => {
             counts.audio += 1;
             return None;
         }
@@ -259,31 +400,64 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
         }
         _ => {}
     }
-    let start = ticks(time, cx.seconds, bpm);
-    let offset = ticks(
-        attr_f64(clip, "playStart").unwrap_or(0.0),
-        content_seconds,
-        bpm,
-    );
+    // A bare file at its natural speed (round 29's review): its `playStart` is the second
+    // of the file at its left edge, placed through the tempo map (ADR 0060's rule), whole
+    // ticks in the offset and the rest in the fine offset.
+    let mut slip = 0;
+    if let Some(d) = audio
+        .as_ref()
+        .filter(|d| d.warps.is_empty() && content_seconds)
+    {
+        let at = Ticks(start_tl.round() as i64);
+        (offset, slip) =
+            cantus_core::audio_time::anchor(map, at, play_start.max(0.0), 0, d.rate as f64);
+    }
     let end_of_notes = notes
         .iter()
         .map(|n| n.start + n.length)
         .max()
         .unwrap_or(Ticks::ZERO);
     let length = attr_f64(clip, "duration")
-        .map(|d| ticks(d, cx.seconds, bpm))
+        .map(|d| cx.len(map, time, d))
         .unwrap_or(end_of_notes - offset)
         .max(Ticks(1));
     let name = attr(clip, "name").unwrap_or("").to_string();
     let period = match (attr_f64(clip, "loopStart"), attr_f64(clip, "loopEnd")) {
         (Some(ls), Some(le)) if le > ls => {
-            let ls = ticks(ls, content_seconds, bpm);
-            if ls != offset {
+            // Compared where both are given, in the content's own unit (review 4: an
+            // audio clip's offset is re-derived through the map above, the loop's start
+            // was not, and a loop that starts where the clip plays was reported moved).
+            let half = if content_seconds {
+                0.5 / audio
+                    .as_ref()
+                    .map_or(48_000.0, |d| f64::from(d.rate.max(1)))
+            } else {
+                0.5 / PPQ as f64
+            };
+            if (ls - play_start).abs() > half {
                 counts.loops.push(name.clone());
             }
-            Some(ticks(le, content_seconds, bpm) - ls)
+            Some(inner.at(map, le) - inner.at(map, ls))
         }
         _ => None,
+    };
+    let end_tl = start_tl + length.0 as f64;
+    let fade_secs = match attr(clip, "fadeTimeUnit") {
+        Some(u) => u == "seconds",
+        None => cx.seconds,
+    };
+    // A fade in measured from the clip's start, a fade out back from its end.
+    let fade = |k: &str, out: bool| {
+        attr_f64(clip, k).map_or(Ticks::ZERO, |v| {
+            let t = if !fade_secs {
+                v * PPQ as f64
+            } else if out {
+                end_tl - map.tick_after_seconds(end_tl, -v)
+            } else {
+                map.tick_after_seconds(start_tl, v) - start_tl
+            };
+            Ticks(t.round() as i64).max(Ticks::ZERO)
+        })
     };
     Some(ClipData {
         color: parse_color(attr(clip, "color")),
@@ -294,5 +468,122 @@ fn clip_of(clip: Node, cx: &Ctx, bpm: f64, counts: &mut Counts) -> Option<ClipDa
         muted: attr(clip, "enable") == Some("false"),
         notes,
         name,
+        audio,
+        fades: (fade("fadeInTime", false), fade("fadeOutTime", true)),
+        slip,
+        origin: start_tl - offset.0 as f64,
     })
+}
+
+/// The tempo automation as the tempo track (review 2): its unit read (BPM as is,
+/// `normalized` through the transport tempo's range, anything else dropped with a
+/// report, finding 66); points in seconds placed one after the other through the map the
+/// earlier points make (a ramp linear in beats: its log-mean tempo); two points at one time
+/// a jump — the later wins, as `TempoMap::new` has it, a ramp into the earlier ending a
+/// tick before (finding 58); the first at tick 0 (the transport's tempo before a later
+/// start), a ramp to the same tempo and the last holding.
+fn tempo_points(
+    t: Node,
+    secs: bool,
+    transport: f64,
+    report: &mut Report,
+    far: &mut usize,
+) -> Vec<TempoPoint> {
+    let range = t
+        .parent()
+        .and_then(|arr| arr.parent())
+        .and_then(|root| child(root, "Transport"))
+        .and_then(|tr| child(tr, "Tempo"))
+        .and_then(|tempo| Some((attr_f64(tempo, "min")?, attr_f64(tempo, "max")?)));
+    let value = |v: f64| -> Option<f64> {
+        match attr(t, "unit") {
+            None | Some("bpm") => Some(v),
+            Some("normalized") => range.map(|(lo, hi)| lo + v.clamp(0.0, 1.0) * (hi - lo)),
+            Some(_) => None,
+        }
+    };
+    let mut raw: Vec<(f64, f64, bool)> = Vec::new();
+    for p in t.children().filter(|c| c.has_tag_name("RealPoint")) {
+        let (Some(time), Some(v)) = (attr_f64(p, "time"), attr_f64(p, "value")) else {
+            continue;
+        };
+        let Some(bpm) = value(v) else {
+            report.dropped(
+                "tempo.report.tempo_unit",
+                vec![("unit", attr(t, "unit").unwrap_or("").to_string())],
+            );
+            return Vec::new();
+        };
+        let ramp = attr(p, "interpolation") == Some("linear");
+        raw.push((time, cantus_core::time::clamp_bpm(bpm), ramp));
+    }
+    raw.sort_by(|a, b| a.0.total_cmp(&b.0));
+    // Each point's tick: beats as they are; seconds one segment after another.
+    let ppq = PPQ as f64;
+    let mut ticks: Vec<f64> = Vec::with_capacity(raw.len());
+    for (i, &(time, bpm, _)) in raw.iter().enumerate() {
+        let tick = if !secs {
+            time * ppq
+        } else if i == 0 {
+            time * transport / 60.0 * ppq
+        } else {
+            let (t0, b0, ramp) = raw[i - 1];
+            let tempo = if ramp && (bpm - b0).abs() > 1e-9 {
+                (bpm - b0) / (bpm / b0).ln()
+            } else {
+                b0
+            };
+            ticks[i - 1] + (time - t0) * tempo / 60.0 * ppq
+        };
+        ticks.push(tick);
+    }
+    if secs && raw.windows(2).any(|w| w[0].2 && w[0].1 != w[1].1) {
+        report.info("tempo.report.seconds_ramp", Vec::new());
+    }
+    let mut out: Vec<TempoPoint> = Vec::with_capacity(raw.len() + 1);
+    for (&(_, bpm, ramp), &tick) in raw.iter().zip(&ticks) {
+        let tick = Ticks(tick.round() as i64);
+        if tick.0 < 0 {
+            continue;
+        }
+        // Past the song's horizon: left out, and said (review 5).
+        if tick > cantus_core::tempo::HORIZON {
+            *far += 1;
+            continue;
+        }
+        if let Some(earlier) = out.pop_if(|l| l.tick == tick) {
+            if let Some(prev) = out.last_mut().filter(|p| p.ramp) {
+                if prev.bpm == earlier.bpm {
+                    prev.ramp = false;
+                } else if tick.0 - 1 > prev.tick.0 {
+                    out.push(TempoPoint {
+                        tick: tick - Ticks(1),
+                        bpm: earlier.bpm,
+                        ramp: false,
+                    });
+                }
+            }
+        }
+        out.push(TempoPoint { tick, bpm, ramp });
+    }
+    if out.is_empty() {
+        return out;
+    }
+    if out[0].tick != Ticks::ZERO {
+        out.insert(
+            0,
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: transport,
+                ramp: false,
+            },
+        );
+    }
+    for i in 0..out.len() {
+        let next = out.get(i + 1).map(|n| n.bpm);
+        if next.is_none_or(|b| b == out[i].bpm) {
+            out[i].ramp = false;
+        }
+    }
+    out
 }

@@ -46,6 +46,8 @@ pub(crate) struct PassCtx {
     /// Instruments may split their voices over the pool (ADR 0038;
     /// `Processor::set_voice_split`).
     pub split_voices: bool,
+    /// An offline render: a frozen render's reader waits for its blocks (ADR 0064).
+    pub offline: bool,
 }
 
 impl PassCtx {
@@ -72,6 +74,7 @@ impl PassCtx {
             profiling: true,
             tap: false,
             split_voices: true,
+            offline: false,
         }
     }
 
@@ -119,6 +122,8 @@ pub(crate) struct TaskMap {
     /// Per task, its nodes in plan order: `task_nodes[task_start[t]..task_start[t + 1]]`.
     pub task_start: Vec<u32>,
     pub task_nodes: Vec<u16>,
+    /// Per plan node: it rests, and is not run (ADR 0064).
+    pub rest: Vec<bool>,
 }
 
 impl TaskMap {
@@ -130,6 +135,7 @@ impl TaskMap {
             inputs: Vec::with_capacity(MAX_TRACKS + MAX_STRIPS * (1 + MAX_SENDS_PER_STRIP)),
             task_start: Vec::with_capacity(MAX_NODES + 1),
             task_nodes: Vec::with_capacity(MAX_NODES),
+            rest: Vec::with_capacity(MAX_NODES),
         }
     }
 
@@ -155,6 +161,9 @@ impl TaskMap {
         strip_to_slot: &[usize],
         send_line_of: impl Fn(usize, usize) -> Option<usize>,
     ) {
+        self.rest.clear();
+        self.rest
+            .extend((0..plan.nodes().len()).map(|n| plan.rests(n)));
         self.jobs.clear();
         for r in plan.nodes() {
             self.jobs.push(match *r {

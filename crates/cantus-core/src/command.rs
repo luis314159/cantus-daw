@@ -59,6 +59,10 @@ pub enum CommandError {
     AudioSourceNotFound(AudioSourceId),
     #[error("audio source {0} is still played by a clip")]
     AudioSourceInUse(AudioSourceId),
+    /// The edit would change the sound of a frozen strip or track (ADR 0064): unfreeze it
+    /// first. Names the frozen target.
+    #[error("{0:?} is frozen: unfreeze it to change this")]
+    Frozen(crate::freeze::FreezeTarget),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -85,6 +89,81 @@ pub enum Command {
     /// FL's PAT / SONG switch (ADR 0052): `on` plays the current pattern alone, looped.
     SetPatternMode {
         on: bool,
+    },
+    // --- the tempo track, metre changes and markers (round 29, ADR 0060) -------------
+    /// The tempo at tick 0 and the whole tempo track at once: `points` empty removes the
+    /// tempo track (the song plays at `bpm`); otherwise its first point is at tick 0, at
+    /// `bpm`.
+    SetTempoTrack {
+        bpm: f64,
+        points: Vec<crate::tempo::TempoPoint>,
+    },
+    /// A tempo point between two others (never before the first).
+    InsertTempoPoint {
+        index: usize,
+        point: crate::tempo::TempoPoint,
+    },
+    RemoveTempoPoint {
+        index: usize,
+    },
+    /// A point moved, its tempo or its ramp changed; it stays between its neighbours (the
+    /// first stays at tick 0, and sets the song's tempo).
+    SetTempoPoint {
+        index: usize,
+        point: crate::tempo::TempoPoint,
+    },
+    /// The metre at tick 0 and every metre change at once (empty: one metre).
+    SetMetreTrack {
+        signature: TimeSignature,
+        metres: Vec<crate::tempo::MetreChange>,
+    },
+    /// A metre change at a bar line (added, or the one there changed); the changes after
+    /// it keep their bars.
+    SetMetreAt {
+        tick: Ticks,
+        signature: TimeSignature,
+    },
+    /// The metre change at `tick` removed; the changes after it keep their bars.
+    RemoveMetreAt {
+        tick: Ticks,
+    },
+    /// The metre change at `from` moved to the bar line `to` of the metre before it; the
+    /// changes after it keep their bars.
+    MoveMetre {
+        from: Ticks,
+        to: Ticks,
+    },
+    AddMarker {
+        marker: crate::tempo::Marker,
+    },
+    RemoveMarker {
+        id: crate::tempo::MarkerId,
+    },
+    /// A marker moved, renamed or recoloured.
+    SetMarker {
+        marker: crate::tempo::Marker,
+    },
+    // --- MIDI controller mappings (round 29, ADR 0062) ---------------------------------
+    /// A controller mapping added to the project's map at `index` (clamped to its end).
+    InsertMapping {
+        index: usize,
+        mapping: Box<crate::controller::Mapping>,
+    },
+    /// A controller mapping taken out of the project's map.
+    RemoveMapping {
+        id: crate::controller::MappingId,
+    },
+    /// A controller mapping, found by its id, replaced whole: learnt again, its target,
+    /// mode, range, bend, takeover, feedback or sensitivity changed.
+    SetMapping {
+        mapping: Box<crate::controller::Mapping>,
+    },
+    /// A modulator's amount (0…1) alone: what a controller or a script sets on
+    /// `AutoTarget::ModAmount`, read back by `AutoTarget::value_of_command` (round 29,
+    /// review 1 of ADR 0062). Its inverse is the amount it had.
+    SetModulatorAmount {
+        id: crate::model::ModulatorId,
+        amount: f32,
     },
     SetMasterGain {
         gain_db: f32,
@@ -445,6 +524,38 @@ pub enum Command {
         state: crate::external::PluginState,
         params: std::collections::BTreeMap<u32, f64>,
     },
+    /// Where a hosted insert runs (round 29, ADR 0063): `None` follows the machine's
+    /// default. Refused for a slot that holds no hosted plug-in.
+    SetPluginIsolation {
+        strip: StripId,
+        effect: EffectId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
+    /// Where a track's hosted instrument runs (round 29, ADR 0063); the instrument twin of
+    /// [`Command::SetPluginIsolation`].
+    SetInstrumentIsolation {
+        track: TrackId,
+        isolation: Option<crate::external::PluginIsolation>,
+    },
+    /// Freeze a mixer strip (round 29, ADR 0064) — `Some` with its content key now, which
+    /// is checked — or unfreeze it (`None`).
+    SetStripFrozen {
+        strip: StripId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
+    /// Freeze a track's own source (round 29, ADR 0064), or unfreeze it; the twin of
+    /// [`Command::SetStripFrozen`].
+    SetTrackFrozen {
+        track: TrackId,
+        frozen: Option<crate::freeze::Frozen>,
+    },
+    /// Set or clear the delay a track keeps before its level ([`Track::lateness`], a
+    /// bounce's — round 29's third review): `None` plays its source on time. Refused for
+    /// one that is not valid.
+    SetTrackLateness {
+        id: TrackId,
+        lateness: Option<crate::model::Lateness>,
+    },
     /// Send a track's notes into an effect ([`EffectSlot::midi_from`]), or none (`None`).
     /// Refused for a kind that takes no notes and for a track that does not exist.
     SetEffectMidiSource {
@@ -478,6 +589,15 @@ pub enum Command {
         track: TrackId,
         clip: ClipId,
         offset: Ticks,
+    },
+    /// Re-anchor audio windows of one track at once (ADR 0060 §4, review 5): each its
+    /// offset and fine offset (`slip_frames`) — what a tempo edit's window fix writes, in
+    /// one pass over the track (a command a window looked each clip up again: quadratic in
+    /// a sliced take). Refused for a clip that is missing or not audio, and for a fine
+    /// offset changed on a linked clip (it is its group's). The inverse puts them back.
+    SetClipAnchors {
+        track: TrackId,
+        anchors: Vec<(ClipId, Ticks, i32)>,
     },
     /// Turn the clip's repeat on (`Some(period)`) or off (`None`).
     SetClipLoop {
@@ -535,6 +655,16 @@ pub enum Command {
         clip: ClipId,
         pitch: Option<Box<crate::pitch::PitchEdit>>,
         op: crate::pitch::PitchOp,
+    },
+    /// Set or clear an audio clip's warp (ADR 0061): its markers, mode, transposition and
+    /// tempo, whole — a drag merges into one step (when `op` merges) and the inverse is the
+    /// warp as it was. Refused on a clip that is not audio, and for a warp that is not
+    /// valid (`Warp::is_valid`). Linked clips share it (it is content, ADR 0037).
+    SetClipWarp {
+        track: TrackId,
+        clip: ClipId,
+        warp: Option<Box<crate::warp::Warp>>,
+        op: crate::warp::WarpOp,
     },
     /// Set or clear what makes a clip an automation clip (ADR 0027): its target and its
     /// curve. Every edit of a curve — a point added, moved, bent, an articulator — is this
@@ -666,6 +796,21 @@ impl Command {
             SetProjectName { .. } => "cmd.set_project_name",
             SetTempo { .. } => "cmd.set_tempo",
             SetTimeSignature { .. } => "cmd.set_time_signature",
+            SetTempoTrack { .. } => "cmd.tempo.track",
+            InsertTempoPoint { .. } => "cmd.tempo.add_point",
+            RemoveTempoPoint { .. } => "cmd.tempo.remove_point",
+            SetTempoPoint { .. } => "cmd.tempo.set_point",
+            SetMetreTrack { .. } => "cmd.tempo.metres",
+            SetMetreAt { .. } => "cmd.tempo.set_metre",
+            RemoveMetreAt { .. } => "cmd.tempo.remove_metre",
+            MoveMetre { .. } => "cmd.tempo.move_metre",
+            InsertMapping { .. } => "cmd.controllers.add",
+            RemoveMapping { .. } => "cmd.controllers.remove",
+            SetMapping { .. } => "cmd.controllers.set",
+            SetModulatorAmount { .. } => "cmd.set_modulator",
+            AddMarker { .. } => "cmd.tempo.add_marker",
+            RemoveMarker { .. } => "cmd.tempo.remove_marker",
+            SetMarker { .. } => "cmd.tempo.set_marker",
             SetLoopRegion { .. } => "cmd.set_loop_region",
             SetLoopEnabled { .. } => "cmd.set_loop_enabled",
             SetMetronome { .. } => "cmd.set_metronome",
@@ -715,6 +860,17 @@ impl Command {
             SetPluginState { .. } => "cmd.set_plugin_state",
             SetInstrumentPluginParam { .. } => "cmd.set_plugin_param",
             SetInstrumentPluginState { .. } => "cmd.set_plugin_state",
+            SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => "cmd.set_plugin_isolation",
+            SetStripFrozen {
+                frozen: Some(_), ..
+            }
+            | SetTrackFrozen {
+                frozen: Some(_), ..
+            } => "cmd.freeze",
+            SetStripFrozen { frozen: None, .. } | SetTrackFrozen { frozen: None, .. } => {
+                "cmd.unfreeze"
+            }
+            SetTrackLateness { .. } => "cmd.set_track_lateness",
             ClearEffectParam { .. } => "cmd.set_effect_param",
             SetEffectSidechain { .. } => "cmd.set_effect_sidechain",
             SetEffectMidiSource { .. } => "cmd.set_effect_midi_source",
@@ -742,6 +898,7 @@ impl Command {
             SetClipBounds { .. } => "cmd.set_clip_bounds",
             SetClipName { .. } => "cmd.set_clip_name",
             SetClipOffset { .. } => "cmd.set_clip_offset",
+            SetClipAnchors { .. } => "cmd.set_clip_anchors",
             SetClipLoop { .. } => "cmd.set_clip_loop",
             SetClipMute { .. } => "cmd.set_clip_mute",
             SetClipColor { .. } => "cmd.set_clip_color",
@@ -760,6 +917,7 @@ impl Command {
             SetClipContent { .. } => "cmd.set_clip_content",
             SetClipAutomation { .. } => "cmd.set_clip_automation",
             SetClipPitch { op, .. } => op.label_key(),
+            SetClipWarp { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
             InsertModulator { .. } => "cmd.insert_modulator",
             RemoveModulator { .. } => "cmd.remove_modulator",
@@ -794,7 +952,14 @@ impl Command {
             | (SetMasterPhaseInvert { .. }, SetMasterPhaseInvert { .. })
             | (SetMasterFxEnabled { .. }, SetMasterFxEnabled { .. })
             | (SetPanLaw { .. }, SetPanLaw { .. })
-            | (SetRecordSettings { .. }, SetRecordSettings { .. }) => true,
+            | (SetRecordSettings { .. }, SetRecordSettings { .. })
+            | (SetTempoTrack { .. }, SetTempoTrack { .. })
+            | (SetMetreTrack { .. }, SetMetreTrack { .. }) => true,
+            (SetTempoPoint { index: a, .. }, SetTempoPoint { index: b, .. }) => a == b,
+            (SetMarker { marker: a }, SetMarker { marker: b }) => a.id == b.id,
+            (SetMapping { mapping: a }, SetMapping { mapping: b }) => a.id == b.id,
+            (SetModulatorAmount { id: a, .. }, SetModulatorAmount { id: b, .. }) => a == b,
+            (SetTrackArmed { id: a, .. }, SetTrackArmed { id: b, .. }) => a == b,
             (SetTrackInput { id: a, .. }, SetTrackInput { id: b, .. }) => a == b,
             (
                 SetClipAudio {
@@ -845,6 +1010,21 @@ impl Command {
                     ..
                 },
                 SetClipPitch {
+                    track: tb,
+                    clip: cb,
+                    op: ob,
+                    ..
+                },
+            ) => ta == tb && ca == cb && oa == ob && oa.merges(),
+            // A warp marker or the transposition dragged (ADR 0061): the newest.
+            (
+                SetClipWarp {
+                    track: ta,
+                    clip: ca,
+                    op: oa,
+                    ..
+                },
+                SetClipWarp {
                     track: tb,
                     clip: cb,
                     op: ob,
@@ -1028,6 +1208,17 @@ impl Command {
                     track: b, clip: cb, ..
                 },
             ) => a == b && ca == cb,
+            // The same windows of one track re-anchored again.
+            (
+                SetClipAnchors {
+                    track: a,
+                    anchors: xa,
+                },
+                SetClipAnchors {
+                    track: b,
+                    anchors: xb,
+                },
+            ) => a == b && xa.len() == xb.len() && xa.iter().zip(xb).all(|(x, y)| x.0 == y.0),
             (
                 SetNotes {
                     track: a,
@@ -1052,6 +1243,12 @@ impl Command {
     /// Apply to `project`, returning the inverse command. On error the project is
     /// unchanged (batches roll back).
     pub fn apply(self, project: &mut Project) -> Result<Command, CommandError> {
+        // Frozen sounds are locked (ADR 0064): an edit that would change one is refused.
+        crate::freeze::guard(self, project, Command::apply_unguarded)
+    }
+
+    /// The command's body, without the frozen lock ([`Self::apply`] is what runs it).
+    fn apply_unguarded(self, project: &mut Project) -> Result<Command, CommandError> {
         use Command::*;
         match self {
             SetProjectName { name } => {
@@ -1061,6 +1258,10 @@ impl Command {
             SetTempo { bpm } => {
                 let old = project.tempo_bpm;
                 project.tempo_bpm = clamp_bpm(bpm);
+                // With a tempo track its first point is the song's tempo (ADR 0060).
+                if let Some(p) = project.tempo_points.first_mut() {
+                    p.bpm = project.tempo_bpm;
+                }
                 Ok(SetTempo { bpm: old })
             }
             SetTimeSignature { time_signature } => {
@@ -1070,6 +1271,15 @@ impl Command {
                     return Err(CommandError::InvalidValue(format!(
                         "time signature {time_signature}"
                     )));
+                }
+                // With metre changes the song's metre is the first, and the later changes
+                // keep their bars, as `SetMetreAt` at tick 0 (ADR 0060, review 1).
+                if !project.metre_changes.is_empty() {
+                    return crate::tempo::edit::apply_set_metre_at(
+                        project,
+                        Ticks::ZERO,
+                        time_signature,
+                    );
                 }
                 let old = std::mem::replace(&mut project.time_signature, time_signature);
                 Ok(SetTimeSignature {
@@ -1137,6 +1347,10 @@ impl Command {
                 if project.track(track.id).is_some() {
                     return Err(CommandError::DuplicateId(track.id.0));
                 }
+                // A delay a bounce could not have kept (review 3).
+                if track.lateness.is_some_and(|l| !l.is_valid()) {
+                    return Err(CommandError::InvalidValue("lateness".into()));
+                }
                 crate::modulator::check_new(project, &track.modulators)?;
                 // Its alternate comps (ADR 0058): no kept window may share an id with
                 // anything the project or the track itself holds (review 1).
@@ -1150,6 +1364,9 @@ impl Command {
                     return Err(CommandError::DuplicateId(w.id.0));
                 }
                 for (i, c) in track.clips.iter().enumerate() {
+                    // Each clip as `InsertClip` takes it (round 29's second review: a warp
+                    // `SetClipWarp` refuses came in with a track).
+                    validate_clip(c)?;
                     check_joins(project, c)?;
                     // The track's own clips must agree with each other too: the project
                     // does not hold them yet, so `check_joins` cannot see them.
@@ -2033,6 +2250,52 @@ impl Command {
                     params: old_params,
                 })
             }
+            // Round 29, isolation (ADR 0063): where a hosted plug-in runs.
+            SetPluginIsolation {
+                strip,
+                effect,
+                isolation,
+            } => {
+                let plugin = external_mut(project, strip, effect)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetPluginIsolation {
+                    strip,
+                    effect,
+                    isolation: old,
+                })
+            }
+            SetInstrumentIsolation { track, isolation } => {
+                let plugin = instrument_plugin_mut(project, track)?;
+                let old = std::mem::replace(&mut plugin.isolation, isolation);
+                Ok(SetInstrumentIsolation {
+                    track,
+                    isolation: old,
+                })
+            }
+            SetStripFrozen { strip, frozen } => {
+                let s = project
+                    .strip_mut(strip)
+                    .ok_or(CommandError::StripNotFound(strip))?;
+                let old = std::mem::replace(&mut s.frozen, frozen);
+                Ok(SetStripFrozen { strip, frozen: old })
+            }
+            SetTrackFrozen { track, frozen } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.frozen, frozen);
+                Ok(SetTrackFrozen { track, frozen: old })
+            }
+            SetTrackLateness { id, lateness } => {
+                if lateness.is_some_and(|l| !l.is_valid()) {
+                    return Err(CommandError::InvalidValue("lateness".into()));
+                }
+                let t = project
+                    .track_mut(id)
+                    .ok_or(CommandError::TrackNotFound(id))?;
+                let old = std::mem::replace(&mut t.lateness, lateness);
+                Ok(SetTrackLateness { id, lateness: old })
+            }
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
                 check_joins(project, &clip)?;
@@ -2102,6 +2365,42 @@ impl Command {
                     track,
                     clip,
                     offset: old,
+                })
+            }
+            SetClipAnchors { track, anchors } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let at: std::collections::HashMap<ClipId, usize> =
+                    t.clips.iter().enumerate().map(|(i, c)| (c.id, i)).collect();
+                // Every window checked before any is moved: all or nothing.
+                let mut places = Vec::with_capacity(anchors.len());
+                for &(clip, _, slip) in &anchors {
+                    let i = *at.get(&clip).ok_or(CommandError::ClipNotFound(clip))?;
+                    let c = &t.clips[i];
+                    let a = c
+                        .audio
+                        .as_ref()
+                        .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    if c.link.is_some() && a.slip_frames != slip {
+                        return Err(CommandError::InvalidValue(
+                            "a linked clip's fine offset is its group's".into(),
+                        ));
+                    }
+                    places.push(i);
+                }
+                let mut old = Vec::with_capacity(anchors.len());
+                for (&(clip, offset, slip), i) in anchors.iter().zip(places) {
+                    let c = &mut t.clips[i];
+                    let a = c.audio.as_mut().expect("checked above");
+                    old.push((clip, c.offset, a.slip_frames));
+                    c.offset = offset;
+                    a.slip_frames = slip;
+                }
+                old.reverse();
+                Ok(SetClipAnchors {
+                    track,
+                    anchors: old,
                 })
             }
             SetClipLoop {
@@ -2183,6 +2482,8 @@ impl Command {
                         || a.fade_out < Ticks::ZERO
                         || a.xfade < Ticks::ZERO
                         || a.xfade > crate::audio::MAX_XFADE
+                        // A warp only as valid as `SetClipWarp` takes it (ADR 0061).
+                        || a.warp.as_ref().is_some_and(|w| !w.is_valid())
                     {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
@@ -2219,6 +2520,29 @@ impl Command {
                     op,
                 })
             }
+            SetClipWarp {
+                track,
+                clip,
+                warp,
+                op,
+            } => {
+                if warp.as_ref().is_some_and(|w| !w.is_valid()) {
+                    return Err(CommandError::InvalidValue("warp".into()));
+                }
+                let old = edit_shared(project, track, clip, |c| {
+                    let a = c
+                        .audio
+                        .as_mut()
+                        .ok_or_else(|| CommandError::InvalidValue("not an audio clip".into()))?;
+                    Ok(std::mem::replace(&mut a.warp, warp.clone()))
+                })?;
+                Ok(SetClipWarp {
+                    track,
+                    clip,
+                    warp: old,
+                    op,
+                })
+            }
             SetClipAutomation {
                 track,
                 clip,
@@ -2249,6 +2573,47 @@ impl Command {
                 modulator,
             } => crate::modulator::apply_insert(project, host, index, *modulator),
             RemoveModulator { id } => crate::modulator::apply_remove(project, id),
+            SetTempoTrack { bpm, points } => {
+                crate::tempo::edit::apply_set_tempo_track(project, bpm, points)
+            }
+            InsertTempoPoint { index, point } => {
+                crate::tempo::edit::apply_insert_tempo_point(project, index, point)
+            }
+            RemoveTempoPoint { index } => {
+                crate::tempo::edit::apply_remove_tempo_point(project, index)
+            }
+            SetTempoPoint { index, point } => {
+                crate::tempo::edit::apply_set_tempo_point(project, index, point)
+            }
+            SetMetreTrack { signature, metres } => {
+                crate::tempo::edit::apply_set_metre_track(project, signature, metres)
+            }
+            SetMetreAt { tick, signature } => {
+                crate::tempo::edit::apply_set_metre_at(project, tick, signature)
+            }
+            RemoveMetreAt { tick } => crate::tempo::edit::apply_remove_metre_at(project, tick),
+            MoveMetre { from, to } => crate::tempo::edit::apply_move_metre(project, from, to),
+            AddMarker { marker } => crate::tempo::edit::apply_add_marker(project, marker),
+            RemoveMarker { id } => crate::tempo::edit::apply_remove_marker(project, id),
+            SetMarker { marker } => crate::tempo::edit::apply_set_marker(project, marker),
+            InsertMapping { index, mapping } => {
+                crate::controller::apply_insert(project, index, *mapping)
+            }
+            RemoveMapping { id } => crate::controller::apply_remove(project, id),
+            SetMapping { mapping } => crate::controller::apply_set(project, *mapping),
+            SetModulatorAmount { id, amount } => {
+                if !amount.is_finite() || !(0.0..=1.0).contains(&amount) {
+                    return Err(CommandError::InvalidValue("modulator amount".into()));
+                }
+                let (host, index, _) = project.modulator(id).ok_or_else(|| {
+                    CommandError::InvalidValue(format!("modulator {id} not found"))
+                })?;
+                let list = project
+                    .modulators_mut(host)
+                    .ok_or_else(|| CommandError::InvalidValue("modulator host".into()))?;
+                let old = std::mem::replace(&mut list[index].amount, amount);
+                Ok(SetModulatorAmount { id, amount: old })
+            }
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
             SetCompSeam {
                 track,
@@ -2702,6 +3067,14 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
         .is_some_and(|a| a.xfade < Ticks::ZERO || a.xfade > crate::audio::MAX_XFADE)
     {
         return Err(CommandError::InvalidValue("seam crossfade".into()));
+    }
+    // A warp only as valid as `SetClipWarp` takes it (ADR 0061).
+    if c.audio
+        .as_ref()
+        .and_then(|a| a.warp.as_ref())
+        .is_some_and(|w| !w.is_valid())
+    {
+        return Err(CommandError::InvalidValue("clip warp".into()));
     }
     Ok(())
 }

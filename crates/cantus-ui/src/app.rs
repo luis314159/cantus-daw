@@ -137,6 +137,9 @@ pub struct CantusApp {
     /// Plug-ins made to the market's standards, hosted (ADR 0019): what the scans found,
     /// and the open project's instances.
     pub plugins: cantus_host::PluginHost,
+    /// Hosted plug-ins that stopped working, waiting for an answer on their card (round
+    /// 29, ADR 0063, `views::plugin_notice`).
+    pub plugin_crashes: views::plugin_notice::Crashes,
     /// The native instruments' editors (ADR 0023).
     pub inst: views::inst::InstEditors,
     /// Pulsus II's editor (round 17).
@@ -164,7 +167,7 @@ pub struct CantusApp {
     /// The audio chip, its popover, the first-run setup, plug-and-play (round 20).
     pub audio_setup: crate::audio_setup::AudioSetup,
     pub midi_port_names: Vec<String>,
-    midi_inputs: Option<MidiInputs>,
+    pub(crate) midi_inputs: Option<MidiInputs>,
     live_track_sent: Option<Option<TrackId>>,
     /// The look as the user set it: light and dark, a base theme for each, and every
     /// change on top (`kit::appearance`). Kept in `appearance.json`; an older `theme.json`
@@ -244,6 +247,11 @@ pub struct CantusApp {
     pub(crate) autosave_warned: bool,
     /// The autosave being written on its thread (`autosave`).
     pub(crate) autosave_job: Option<crate::autosave::Job>,
+    /// An autosave waiting for its hosted plug-ins' states since when, for which project
+    /// (round 29, review isolation-5; isolation-6 #6, #34).
+    pub(crate) autosave_gathering: Option<(Instant, u64)>,
+    /// The most an autosave waits for its plug-ins' states (tests shorten it).
+    pub autosave_gather_limit: Duration,
     /// *Save* written on its thread (`save_job`, round 24): the save in flight, one queued
     /// behind it, and what the *Save changes?* question waits to do.
     pub saving: crate::save_job::Saving,
@@ -269,6 +277,14 @@ pub struct CantusApp {
     pub merge_job: Option<crate::record_session::MergeJob>,
     /// The pitch editor's state (round 28, ADR 0054).
     pub pitch: crate::pitch::PitchUi,
+    /// Freezing and bouncing in place (round 29, ADR 0064): the renders, their queue.
+    pub freeze: crate::freeze::FreezeState,
+    /// Warping (round 29, ADR 0061): imports waiting for their analysis, the selected
+    /// marker, the quantise dialog, the warp editor, a bounce on its way.
+    pub warp: crate::warp::WarpUi,
+    /// MIDI learn and controller mapping (round 29, ADR 0062): the tap, the global map,
+    /// the learn mode.
+    pub controllers: crate::controllers::ControllerUi,
 }
 
 impl CantusApp {
@@ -416,6 +432,10 @@ impl CantusApp {
             layouts_path,
             keymap,
             keymap_path,
+            controllers,
+            controllers_path,
+            controllers_load,
+            project_path,
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
@@ -426,16 +446,34 @@ impl CantusApp {
         // Chorda's strings for this sample rate, designed beside the window (round 28,
         // ADR 0059): ready before anybody loads the piano.
         cantus_engine::inst::chorda::warm(engine.sample_rate as f32);
-        let mut app = Self::from_parts(project, engine, stress);
+        // This computer's choice of where third-party plug-ins run goes in before the
+        // first sync: a start-up project's plug-ins load there at once, never within Cantus
+        // first (review #14).
+        let mut app = Self::from_parts_at(
+            project,
+            engine,
+            stress,
+            Some(settings.plugin_isolation),
+            project_path,
+        );
         app.peaks.set_disk_cache(Some(peak_cache));
         // The pitch editor's analyses, beside the peaks (round 28, ADR 0054).
         app.engine
             .samples
             .pitch()
             .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
+        // Warping's analyses (transients, tempo, grid) beside them (round 29, ADR 0061).
+        app.engine
+            .samples
+            .warp()
+            .set_disk_cache(Some(directories_fallback().join("cache").join("warp")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
+        // Where third-party plug-ins run unless the project says (round 29, ADR 0063).
+        views::plugin_notice::apply_default(&mut app);
+        // Frozen renders' folders and low-latency monitoring (round 29, ADR 0064).
+        crate::freeze::wire(&mut app);
         app.appearance = appearance;
         app.appearance_path = appearance_path.clone();
         app.appearance_watch = views::appearance_file::Watch::new(appearance_path);
@@ -459,6 +497,30 @@ impl CantusApp {
         }
         // Plug-in windows are owned by the main window, so they stay above it.
         app.plugins.owner_window = owner_window;
+        // MIDI learn (round 29, ADR 0062): the ports' tap (the boot opened them with one
+        // that wakes this window; without ports, one is made here), the global map.
+        app.controllers.tap = match &midi {
+            Some(inputs) => inputs.tap().clone(),
+            None => crate::controllers::waking_tap(ctx),
+        };
+        app.controllers.global = controllers;
+        // A global map that lost something: said, naming where it is kept; one that could
+        // not even be kept beside is never saved over (review 3, #30).
+        match controllers_load {
+            crate::controllers::GlobalLoad::Whole => {
+                app.controllers.global_path = Some(controllers_path);
+            }
+            crate::controllers::GlobalLoad::Kept(kept) => {
+                app.controllers.global_path = Some(controllers_path);
+                let file = kept.display().to_string();
+                app.set_error(tf("ctl.status.global_damaged", &[("file", &file)]));
+            }
+            crate::controllers::GlobalLoad::Unsafe => {
+                let file = controllers_path.display().to_string();
+                app.set_error(tf("ctl.status.global_unsaved", &[("file", &file)]));
+                app.controllers.global_unsaved = Some(controllers_path);
+            }
+        }
         if let Some(inputs) = midi {
             app.midi_port_names = inputs.names.clone();
             app.midi_inputs = Some(inputs);
@@ -470,14 +532,41 @@ impl CantusApp {
     /// Build the application around an existing engine handle (headless tests use
     /// `EngineHandle::dummy()`).
     pub fn from_parts(project: Option<Project>, engine: EngineHandle, stress: bool) -> Self {
+        Self::from_parts_with(project, engine, stress, None)
+    }
+
+    /// [`Self::from_parts`], with where hosted plug-ins run unless their project says
+    /// (`None`: within Cantus), set before the project's plug-ins are first loaded.
+    pub fn from_parts_with(
+        project: Option<Project>,
+        engine: EngineHandle,
+        stress: bool,
+        isolation: Option<cantus_core::PluginIsolation>,
+    ) -> Self {
+        Self::from_parts_at(project, engine, stress, isolation, None)
+    }
+
+    /// [`Self::from_parts_with`] for a project read from `path`: the path, and the frozen
+    /// renders' folders, set before the first compile (round 29, review 2: a frozen project
+    /// opened at start loaded every plug-in its renders replace, for one frame).
+    pub fn from_parts_at(
+        project: Option<Project>,
+        engine: EngineHandle,
+        stress: bool,
+        isolation: Option<cantus_core::PluginIsolation>,
+        path: Option<PathBuf>,
+    ) -> Self {
         let audio_error = if engine.is_live() {
             None
         } else {
             Some("no device".to_string())
         };
         let autosave_dir = directories_fallback().join("autosave");
-        let plugins =
+        let mut plugins =
             cantus_host::PluginHost::new(Some(data_dir().join("plugins.json")), engine.sample_rate);
+        if let Some(mode) = isolation {
+            plugins.default_isolation = mode;
+        }
         let project = project.unwrap_or_else(|| {
             if stress {
                 stress_project()
@@ -512,6 +601,7 @@ impl CantusApp {
             samples: Default::default(),
             update: Default::default(),
             plugins,
+            plugin_crashes: Default::default(),
             inst: views::inst::InstEditors::default(),
             pulsus: views::pulsus_editor::State::default(),
             swap_keep: Default::default(),
@@ -575,6 +665,8 @@ impl CantusApp {
             autosave_every: None,
             autosave_warned: false,
             autosave_job: None,
+            autosave_gathering: None,
+            autosave_gather_limit: crate::autosave::AUTOSAVE_GATHER,
             saving: Default::default(),
             epoch: 0,
             session: None,
@@ -587,12 +679,17 @@ impl CantusApp {
             modulators: Default::default(),
             merge_job: None,
             pitch: Default::default(),
+            freeze: Default::default(),
+            warp: Default::default(),
+            controllers: Default::default(),
         };
         app.select_first();
         app.sync_live_track();
         if let Some(e) = audio_error {
             app.set_error(tf("status.audio_failed", &[("error", &e)]));
         }
+        app.path = path;
+        app.engine.frozen.set_app_dir(crate::freeze::app_dir());
         app.sync_engine();
         app
     }
@@ -605,9 +702,25 @@ impl CantusApp {
 
     /// Execute a command from the user. Returns `true` on success.
     pub fn exec(&mut self, cmd: Command) -> bool {
+        if self.tempo_held(&cmd) {
+            return false;
+        }
         self.note_tweak(&cmd);
+        // Another project in its place (an import, a recovery): what was about the last
+        // one is not about this one (review 2: the tempo lane's state).
+        let replaces = matches!(cmd, Command::ReplaceProject { .. });
         match self.bus.execute(cmd, Origin::User) {
-            Ok(()) => true,
+            Ok(()) => {
+                if replaces {
+                    self.epoch += 1;
+                }
+                true
+            }
+            // A frozen sound refused it (ADR 0064): which, and how to give it back.
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -616,9 +729,16 @@ impl CantusApp {
     }
 
     pub fn exec_merging(&mut self, cmd: Command, key: MergeKey) -> bool {
+        if self.tempo_held(&cmd) {
+            return false;
+        }
         self.note_tweak(&cmd);
         match self.bus.execute_merging(cmd, Origin::User, key) {
             Ok(()) => true,
+            Err(cantus_core::CommandError::Frozen(target)) => {
+                crate::freeze::refused(self, target);
+                false
+            }
             Err(e) => {
                 self.set_error(e.to_string());
                 false
@@ -630,7 +750,51 @@ impl CantusApp {
         self.bus.end_gesture();
     }
 
+    /// Whether an audio take is being written: what the tempo hold protects (review 5:
+    /// notes are recorded in ticks, so a notes-only pass leaves the tempo free).
+    pub fn audio_take_running(&self) -> bool {
+        self.rec.pass.as_ref().is_some_and(|l| l.audio)
+    }
+
+    /// Whether undoing (`undo`) or redoing the step on top would move the tempo map, or
+    /// put another song in place, while an audio take is written — refused, and said
+    /// (review 5: undo and redo went around the hold).
+    fn step_held(&mut self, undo: bool) -> bool {
+        let step = if undo {
+            self.bus.history().last().map(|e| &e.inverse)
+        } else {
+            self.bus.redo_history().last().map(|e| &e.command)
+        };
+        // Another song in place waits while any pass records: the pass belongs to the
+        // song it was recorded into (review 6: a notes pass finished into another song).
+        if self.is_recording() && step.is_some_and(|c| matches!(c, Command::ReplaceProject { .. }))
+        {
+            self.set_status(t("rec.status.song_held"));
+            return true;
+        }
+        let held =
+            self.audio_take_running() && step.is_some_and(cantus_core::tempo::keep::changes_tempo);
+        if held {
+            self.set_status(t("tempo.status.recording"));
+        }
+        held
+    }
+
+    /// Whether `cmd` would change the tempo map while audio records — refused, and said
+    /// (review 4): the take is laid through the map it was played under, and a take not
+    /// yet in the song cannot be kept where it was played by `tempo::keep`.
+    pub(crate) fn tempo_held(&mut self, cmd: &Command) -> bool {
+        let held = self.audio_take_running() && cantus_core::tempo::keep::changes_tempo(cmd);
+        if held {
+            self.set_status(t("tempo.status.recording"));
+        }
+        held
+    }
+
     pub fn undo(&mut self) {
+        if self.step_held(true) {
+            return;
+        }
         let replaced = self.bus.undo_label_key() == Some(REPLACE_PROJECT);
         self.bus.undo();
         if replaced {
@@ -641,6 +805,9 @@ impl CantusApp {
     }
 
     pub fn redo(&mut self) {
+        if self.step_held(false) {
+            return;
+        }
         let replaced = self.bus.redo_label_key() == Some(REPLACE_PROJECT);
         self.bus.redo();
         if replaced {
@@ -849,14 +1016,20 @@ impl CantusApp {
                 // Chorda's strings for the new rate (a rate it has met before is kept).
                 cantus_engine::inst::chorda::warm(self.engine.sample_rate as f32);
                 self.midi_inputs = None;
+                self.controllers.reopened();
                 if self.engine.is_live() {
-                    let inputs = MidiInputs::open_all(self.engine.midi_sender());
+                    let inputs = MidiInputs::open_with(
+                        self.engine.midi_sender(),
+                        self.controllers.tap.clone(),
+                    );
                     self.midi_port_names = inputs.names.clone();
                     self.midi_inputs = Some(inputs);
                 }
                 // The new engine has never seen this project.
                 self.synced_revision = u64::MAX;
                 self.live_track_sent = None;
+                // Nor its frozen renders' folders, nor low-latency monitoring (ADR 0064).
+                crate::freeze::engine_replaced(self);
                 self.sync_engine();
                 self.sync_live_track();
                 crate::audio_setup::apply_routing(self);
@@ -883,7 +1056,8 @@ impl CantusApp {
             return;
         }
         self.midi_inputs = None;
-        let inputs = MidiInputs::open_all(self.engine.midi_sender());
+        self.controllers.reopened();
+        let inputs = MidiInputs::open_with(self.engine.midi_sender(), self.controllers.tap.clone());
         self.midi_port_names = inputs.names.clone();
         self.midi_inputs = Some(inputs);
         self.set_status(tf(
@@ -1489,6 +1663,7 @@ impl CantusApp {
 
     pub fn select_track(&mut self, id: TrackId) {
         self.inspector.follow(views::inspector::Subject::Track(id));
+        self.last_selection = crate::clipboard::SelKind::Track;
         if self.selected_track != Some(id) {
             for ev in self.keyboard.release_all() {
                 self.apply_key_event(ev);
@@ -1615,7 +1790,12 @@ impl CantusApp {
             .iter()
             .filter(|n| targets.contains(&n.id))
             .map(|n| cantus_core::Note {
-                start: n.start.snap(grid),
+                start: crate::views::bars::snap_content(
+                    self.project(),
+                    n.start,
+                    grid,
+                    clip.start - clip.offset,
+                ),
                 ..n.clone()
             })
             .filter(|n| clip.note(n.id).map(|o| o.start != n.start).unwrap_or(false))
@@ -1902,13 +2082,37 @@ impl CantusApp {
 
     /// One arrow-key press: clips or notes, by the grid or by the bar.
     fn nudge(&mut self, direction: i64, by_bar: bool) {
-        let bar = self.project().time_signature.ticks_per_bar();
+        // By a bar: the bar the selection begins in, through the metre changes (review 2:
+        // the bar at the playhead put a clip off its bar lines) — the earliest item moves
+        // to the same place a bar on, the rest keep their spacing.
+        let p = self.project();
+        let bar_from = |from: Ticks| crate::views::bars::add_bars(p, from, direction) - from;
         if self.editing_clips() {
-            let step = if by_bar { bar } else { self.arrangement.grid };
-            self.nudge_clips(Ticks(step.0 * direction));
+            // The *Bar* grid steps a bar of the metre too (review 5).
+            let step = if by_bar || self.arrangement.grid == crate::views::bars::BAR_GRID {
+                let first = self
+                    .clip_selection()
+                    .iter()
+                    .filter_map(|r| clips::clip_of(p, *r).map(|c| c.start))
+                    .min()
+                    .unwrap_or(self.engine.position());
+                bar_from(first)
+            } else {
+                Ticks(self.arrangement.grid.0 * direction)
+            };
+            self.nudge_clips(step);
         } else {
-            let step = if by_bar { bar } else { self.piano_roll.grid };
-            self.nudge_selection(Ticks(step.0 * direction));
+            let step = if by_bar || self.piano_roll.grid == crate::views::bars::BAR_GRID {
+                let first = self.selected_note_values().and_then(|(t, c, sel)| {
+                    let clip = p.track(t)?.clip(c)?;
+                    let n = sel.iter().map(|n| n.start).min()?;
+                    Some(clip.start - clip.offset + n)
+                });
+                bar_from(first.unwrap_or(self.engine.position()))
+            } else {
+                Ticks(self.piano_roll.grid.0 * direction)
+            };
+            self.nudge_selection(step);
         }
     }
 
@@ -1967,7 +2171,7 @@ impl CantusApp {
                     continue;
                 };
                 select.push((*track, *id));
-                let Some(cmds) = clips::split(*track, clip, at, ids) else {
+                let Some(cmds) = clips::split(project, *track, clip, at, ids) else {
                     continue;
                 };
                 for c in &cmds {
@@ -2005,7 +2209,7 @@ impl CantusApp {
                     .iter()
                     .min_by_key(|c| (c.start, c.id.0))
                     .map(|c| c.id);
-                if let Some(cmds) = clips::glue(track, &on_track, ids) {
+                if let Some(cmds) = clips::glue_in(project, track, &on_track, ids) {
                     if let Some(k) = keep {
                         select.push((track, k));
                     }
@@ -2135,45 +2339,14 @@ impl CantusApp {
     /// Apply a finished drag from the arrangement. One batch, one undo step, whatever the
     /// pointer did on the way there.
     pub fn commit_clip_drag(&mut self, anchor: ClipRef, result: ClipDragResult) {
+        // Alt-drag of an audio clip's right edge stretches it (round 29, ADR 0061).
+        if self.warp_stretch_drag(anchor, result) {
+            return;
+        }
         let sel = self.clip_selection();
         let link = self.settings.link_copies;
         let (commands, made) = self.with_ids(|project, ids| {
-            let Some(clip) = clips::clip_of(project, anchor) else {
-                return (Vec::new(), Vec::new());
-            };
-            // A reversed audio clip maps its window backwards (ADR 0025).
-            if let Some((edit, delta)) = crate::audio_clips::reversed_drag(clip, result) {
-                return (
-                    crate::audio_clips::reversed_edit(anchor.0, clip, edit, delta),
-                    Vec::new(),
-                );
-            }
-            // A comp window's edge at a seam moves the seam: both sides (ADR 0058).
-            let seam = match result {
-                ClipDragResult::TrimStart { delta } => Some((true, delta)),
-                ClipDragResult::TrimEnd { delta } => Some((false, delta)),
-                _ => None,
-            }
-            .and_then(|(start, d)| crate::comping::seam_trim(project, anchor.0, clip, start, d));
-            if let Some(cmds) = seam.filter(|c| !c.is_empty()) {
-                return (cmds, Vec::new());
-            }
-            match result {
-                ClipDragResult::Move { delta, rows, copy } => {
-                    clips::transpose_selection(project, &sel, delta, rows, copy, link, ids)
-                }
-                ClipDragResult::TrimStart { delta } => (
-                    clips::set_window(anchor.0, clip, clip.start + delta, clip.length - delta),
-                    Vec::new(),
-                ),
-                ClipDragResult::TrimEnd { delta } => (
-                    clips::set_window(anchor.0, clip, clip.start, clip.length + delta),
-                    Vec::new(),
-                ),
-                // Dragging the content to the right moves the music later, which means
-                // the window starts *earlier* in the content.
-                ClipDragResult::Slip { delta } => (clips::slip(anchor.0, clip, -delta), Vec::new()),
-            }
+            clips::drag_commands(project, &sel, anchor, result, link, ids)
         });
         let label = match result {
             ClipDragResult::Move { copy: true, .. } => "cmd.duplicate_clips",
@@ -2424,7 +2597,26 @@ impl CantusApp {
         let end = sel.iter().map(|n| n.end()).max().unwrap_or(Ticks::ZERO);
         let grid = self.piano_roll.grid;
         let span = end - start;
-        let offset = Ticks(((span.0 + grid.0 - 1) / grid.0).max(1) * grid.0);
+        let offset = if grid == crate::views::bars::BAR_GRID {
+            // Whole bars of the metre where the notes are, through its changes (review 5):
+            // the fewest that hold the span, the copy at the same place in its bar.
+            let p = self.project();
+            let to_tl = p
+                .track(t)
+                .and_then(|tr| tr.clip(c))
+                .map_or(Ticks::ZERO, |clip| clip.start - clip.offset);
+            let from = to_tl + start;
+            let mut k = 1;
+            loop {
+                let o = crate::views::bars::add_bars(p, from, k) - from;
+                if o >= span || k >= 4096 {
+                    break o;
+                }
+                k += 1;
+            }
+        } else {
+            Ticks(((span.0 + grid.0 - 1) / grid.0).max(1) * grid.0)
+        };
         let copies: Vec<_> = sel
             .iter()
             .map(|n| {
@@ -2599,6 +2791,8 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(project);
+        // A crash card speaks of the project that was open (review #16).
+        self.plugin_crashes = Default::default();
         self.epoch += 1;
         self.path = None;
         self.sync_audio_base();
@@ -2783,6 +2977,7 @@ impl CantusApp {
         }
         self.engine.stop();
         self.bus.reset(loaded.project);
+        self.plugin_crashes = Default::default();
         self.epoch += 1;
         self.path = Some(path.to_path_buf());
         self.sync_audio_base();
@@ -2793,6 +2988,14 @@ impl CantusApp {
         self.seek(Ticks::ZERO);
         if loaded.links_repaired > 0 {
             self.set_error(crate::links::repaired_text(loaded.links_repaired));
+        } else if loaded.warps_repaired > 0 {
+            self.set_error(crate::warp::repaired_text(loaded.warps_repaired));
+        } else if loaded.lateness_repaired > 0 {
+            // Track delays a bounce could not have kept (review 3).
+            self.set_error(tf(
+                "freeze.lateness_repaired",
+                &[("n", &loaded.lateness_repaired)],
+            ));
         } else if let Some(from) = loaded.migrated_from {
             self.set_status(tf("status.migrated", &[("from", &from)]));
         } else if !self.status.error {
@@ -2901,6 +3104,9 @@ impl CantusApp {
 
     pub fn sync_engine(&mut self) {
         self.sync_audio_base();
+        // The frozen renders' folder follows the project before anything is compiled for
+        // it (round 29, review 1).
+        crate::freeze::follow_path(self);
         // A snapshot held back for its zones' starts: sent once they are read (third
         // review #6) — never a wait on this thread.
         self.engine.flush_pending();
@@ -2915,6 +3121,11 @@ impl CantusApp {
             self.inst.sampler.cut_told = true;
             self.set_status(t("smp.cut_notes"));
         }
+        // A plug-in let go a moment ago has its state as it is now: its slot loads with it
+        // (round 29, review isolation-6 #24).
+        if self.plugins.take_resync() {
+            self.synced_revision = u64::MAX;
+        }
         // An effect the last snapshot holds that the engine has no unit for: a remove and
         // its undo both went out before the engine handed the removed unit back, so the
         // undo's snapshot found it missing (round 22, soak). Send again: the unit goes too.
@@ -2928,7 +3139,7 @@ impl CantusApp {
         let rev = self.bus.revision();
         if rev != self.synced_revision {
             self.synced_revision = rev;
-            let snapshot = if self.rec.count_in_click {
+            let mut snapshot = if self.rec.count_in_click {
                 // A count-in with the metronome off: the click sounds for the count-in
                 // only (`ClickMode::CountInOnly`), and the project is not touched.
                 let mut p = self.bus.project().clone();
@@ -2941,6 +3152,8 @@ impl CantusApp {
             } else {
                 self.engine.compile(self.bus.project(), rev)
             };
+            // A parameter a recording pass has moved follows its controller (ADR 0062).
+            self.latch_recorded(&mut snapshot);
             self.sent_effects.clear();
             self.sent_effects
                 .extend(snapshot.effect_slots().map(|s| s.id));
@@ -3014,11 +3227,15 @@ impl CantusApp {
             match n {
                 HostNotice::LoadFailed { name, error, .. } => self.set_error(tf(
                     "host.load_failed",
-                    &[("name", &name), ("error", &error)],
+                    &[
+                        ("name", &name),
+                        ("error", &views::plugin_notice::load_words(&error)),
+                    ],
                 )),
-                HostNotice::RestartFailed { error, .. } => {
-                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
-                }
+                HostNotice::RestartFailed { error, .. } => self.set_error(tf(
+                    "host.restart_failed",
+                    &[("error", &views::plugin_notice::load_words(&error))],
+                )),
                 HostNotice::ScanDone(r) => {
                     // Plug-ins that were missing may be there now.
                     self.synced_revision = u64::MAX;
@@ -3034,13 +3251,41 @@ impl CantusApp {
                 HostNotice::WindowClosed(_) | HostNotice::InstrumentWindowClosed(_) => {}
                 // A hosted instrument that is not here (ADR 0028): the track keeps its
                 // data and plays silence, and the status line says so.
-                HostNotice::InstrumentLoadFailed { name, error, .. } => self.set_error(tf(
-                    "hosted.missing_status",
-                    &[("name", &name), ("why", &error)],
-                )),
-                HostNotice::InstrumentRestartFailed { error, .. } => {
-                    self.set_error(tf("host.restart_failed", &[("error", &error)]))
+                // On this computer but not loaded: Reload, never "install it" (review
+                // isolation-5 #45).
+                HostNotice::InstrumentLoadFailed { track, name, error } => {
+                    let key = if self.plugins.instrument_load_error(track).is_some() {
+                        "isolation.inst.not_loaded_status"
+                    } else {
+                        "hosted.missing_status"
+                    };
+                    self.set_error(tf(
+                        key,
+                        &[
+                            ("name", &name),
+                            ("why", &views::plugin_notice::load_words(&error)),
+                        ],
+                    ))
                 }
+                HostNotice::InstrumentRestartFailed { error, .. } => self.set_error(tf(
+                    "host.restart_failed",
+                    &[("error", &views::plugin_notice::load_words(&error))],
+                )),
+                // A plug-in that stopped working, and isolation without its helper (round
+                // 29, ADR 0063): the crash card and the status line.
+                HostNotice::PluginCrashed { .. }
+                | HostNotice::InstrumentCrashed { .. }
+                | HostNotice::IsolationUnavailable => views::plugin_notice::on_notice(self, n),
+                // A plug-in window's change a freeze refused (round 29, review 2).
+                HostNotice::Frozen(target) => crate::freeze::refused(self, target),
+                // A plug-in let go kept the state it gave last: said (isolation-6 #24).
+                HostNotice::StateKept { name, reason } => self.set_error(tf(
+                    "isolation.kept_stale",
+                    &[
+                        ("name", &name),
+                        ("reason", &views::plugin_notice::stale_words(&reason)),
+                    ],
+                )),
             }
         }
     }
@@ -3132,7 +3377,30 @@ impl CantusApp {
         if self.pitch_action(action) {
             return;
         }
+        // A selected warp marker takes Del (round 29, ADR 0061).
+        if self.warp_action(action) {
+            return;
+        }
+        // Round 29 (ADR 0060): markers and the tempo track.
+        if self.tempo_action(action) {
+            return;
+        }
+        // Round 29 (ADR 0064): freezing, bouncing in place, low-latency monitoring.
+        if views::freeze_view::action(self, action) {
+            return;
+        }
+        // Round 29 (ADR 0062): MIDI learn, *Link to controller*, the mappings pane.
+        if self.controllers_action(action) {
+            return;
+        }
         match action {
+            // Handled by `controllers_action` above.
+            MidiLearnMode | LinkLastTweaked | ViewControllers => {}
+            // Handled by `tempo_action` above.
+            AddMarker | PreviousMarker | NextMarker | LoopBetweenMarkers | SelectBetweenMarkers
+            | ToggleTempoTrack => {}
+            // Handled by `freeze_view::action` above.
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => {}
             PlayPause => self.toggle_play(),
             Stop => self.stop(),
             Record => {
@@ -3548,12 +3816,16 @@ impl CantusApp {
         }
         let frame_start = Instant::now();
         self.engine.poll();
+        // The playhead's wrap, before anything this frame is recorded (review 4, #17).
+        self.note_playhead();
         self.poll_samples(ctx);
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
         // What their windows moved: last tweaked, and recorded automation (ADR 0057).
         self.host_tweaks();
+        // MIDI controllers (round 29, ADR 0062): what the tap heard since the last frame.
+        self.controller_input();
         self.host_notices(notices);
         self.pump_capture();
         self.pump_analyser();
@@ -3603,6 +3875,7 @@ impl CantusApp {
         views::verse::frame(self, ctx);
         views::picker::frame(self, ctx);
         views::link_picker::frame(self, ctx);
+        views::warp_quantise::frame(self, ctx);
         views::modulator::popup::frame(self, ctx);
         views::samples_browser::frame(self, ctx);
         views::audio_setup::frame(self, ctx);
@@ -3620,8 +3893,15 @@ impl CantusApp {
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if ctx.input(|i| i.viewport().close_requested()) {
+        if ctx.input(|i| i.viewport().close_requested())
+            && crate::freeze::keep_open_for_copies(self)
+        {
+            // Renders still copying into the project's folder: the window stays, its card
+            // says so, and it closes when they are in (final review).
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        } else if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
+            views::interop::stop_import(self);
             views::update::on_quit(self);
             self.close_session();
         }
@@ -3670,11 +3950,18 @@ impl CantusApp {
         // them on, and collect them when their worker is done, even with nothing else
         // moving.
         self.poll_merge();
+        // Freezes and bounces rendering (round 29, ADR 0064).
+        crate::freeze::tick(self, ctx);
+        // Imports waiting for their analysis, a warped bounce being written (ADR 0061).
+        if self.poll_warp() {
+            ticker::wake_after(ctx, Duration::from_millis(50));
+        }
         if self.modulators.pending_bake.is_some() || self.merge_job.is_some() {
             ticker::wake_after(ctx, Duration::from_millis(50));
         }
         // A save or an autosave being written: look again shortly to collect it.
-        if self.autosave_job.is_some() || self.save_in_flight() {
+        if self.autosave_job.is_some() || self.autosave_gathering.is_some() || self.save_in_flight()
+        {
             ticker::wake_after(ctx, Duration::from_millis(100));
         }
         // An autosave that falls due: one wake-up at that moment, not a steady tick.
@@ -3801,6 +4088,16 @@ pub struct Files {
     pub layouts_path: PathBuf,
     pub keymap: Keymap,
     pub keymap_path: PathBuf,
+    /// The global controller map (round 29, ADR 0062), beside the keymap.
+    pub controllers: cantus_core::controller::ControllerMap,
+    pub controllers_path: PathBuf,
+    /// What reading the global controller map's file found (kept beside as `.bad`, or not
+    /// safe to save over).
+    pub controllers_load: crate::controllers::GlobalLoad,
+    /// The file the start-up project was read from, when it was one (round 29, review 2):
+    /// known before the first compile, so its frozen renders are found then and the
+    /// plug-ins they replace are never loaded.
+    pub project_path: Option<PathBuf>,
 }
 
 impl Files {
@@ -3831,6 +4128,9 @@ impl Files {
                 log::warn!("cannot write keymap file: {e}");
             }
         }
+        let controllers_path = crate::controllers::global_path(dir);
+        let (controllers, controllers_load) =
+            crate::controllers::load_global_report(&controllers_path);
         Files {
             settings,
             settings_path,
@@ -3840,6 +4140,10 @@ impl Files {
             layouts_path,
             keymap,
             keymap_path,
+            controllers,
+            controllers_path,
+            controllers_load,
+            project_path: None,
         }
     }
 }

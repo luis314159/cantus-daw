@@ -65,6 +65,18 @@ pub(super) fn show(
     let last_gr = st.history.back().map_or(0.0, |h| h.gr);
     let step = if range <= 36.0 { 6.0 } else { 12.0 };
     let (bar_len, beat_len) = st.beats;
+    // Bar and beat (0-based) at a tick: through the metre changes when the song has them
+    // (review 3), else one bar length from tick 0.
+    let map = st.map.clone();
+    let bar_beat = move |t: i64| -> (i64, i64) {
+        match &map {
+            Some(m) => {
+                let (bar, beat, _) = m.bbt(cantus_core::Ticks(t));
+                (bar - 1, beat - 1)
+            }
+            None => (t.div_euclid(bar_len), t.rem_euclid(bar_len) / beat_len),
+        }
+    };
     // What the history is doing, when it is not simply running.
     let lang = crate::i18n::locale();
     let state_text: Option<&str> = if st.frozen {
@@ -105,7 +117,8 @@ pub(super) fn show(
         // Bars and beats from the transport, behind everything.
         let bar_at = |i: usize| -> Option<i64> {
             let (p0, p1) = (history[a + i - 1].tick?, history[a + i].tick?);
-            (p1.div_euclid(bar_len) != p0.div_euclid(bar_len)).then_some(p1.div_euclid(bar_len))
+            let (b0, b1) = (bar_beat(p0).0, bar_beat(p1).0);
+            (b1 != b0).then_some(b1)
         };
         if grid {
             for i in 1..cols {
@@ -113,9 +126,10 @@ pub(super) fn show(
                     continue;
                 };
                 let x = b.snap_mid(x_of(i));
-                if p1.div_euclid(bar_len) != p0.div_euclid(bar_len) {
+                let (q0, q1) = (bar_beat(p0), bar_beat(p1));
+                if q1.0 != q0.0 {
                     b.vline(x, plot.top(), plot.bottom(), px, ink.grid_strong);
-                } else if p1.div_euclid(beat_len) != p0.div_euclid(beat_len) {
+                } else if q1 != q0 {
                     b.vline(x, plot.top(), plot.bottom(), px, ink.grid);
                 }
             }
@@ -291,8 +305,8 @@ pub(super) fn show(
                         format_args!(
                             "{w_in} {inp:.1}  {w_out} {out:.1}  {w_gr} {:.1} dB  \u{b7}  {}.{}",
                             c.gr,
-                            t.div_euclid(bar_len) + 1,
-                            t.rem_euclid(bar_len) / beat_len + 1,
+                            bar_beat(t).0 + 1,
+                            bar_beat(t).1 + 1,
                         ),
                     ),
                     None => canvas::putf(

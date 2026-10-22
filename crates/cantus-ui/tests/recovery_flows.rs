@@ -270,12 +270,33 @@ fn a_recovered_loop_pass_wraps_where_the_engine_would_have() {
         loop_takes: true,
         mode: TakeMode::Stack,
         tempo_bpm: 120.0,
+        tempo_points: vec![],
         sample_rate: 48_000,
         latency_frames: 0,
+        marked_wraps: Vec::new(),
         takes: vec![],
         finished: false,
     };
     assert_eq!(wraps(&pass, 130_000), vec![48_000, 96_000]);
+    // Under a tempo track (ADR 0060): 60 BPM from beat 2, so the loop (beats 1–3) is a
+    // half second at 120 and a second at 60 — 72 000 frames — and its first end is 72 000
+    // frames after beat 1.
+    let mapped = JournalPass {
+        tempo_points: vec![
+            cantus_core::TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: 120.0,
+                ramp: false,
+            },
+            cantus_core::TempoPoint {
+                tick: Ticks::beats(2),
+                bpm: 60.0,
+                ramp: false,
+            },
+        ],
+        ..pass.clone()
+    };
+    assert_eq!(wraps(&mapped, 200_000), vec![72_000, 144_000]);
     // With a bar of count-in (4 beats before), the first wrap comes a bar later.
     let counted = JournalPass {
         transport_start: Ticks::beats(1) - Ticks::beats(4),
@@ -369,4 +390,92 @@ fn a_read_only_folder_refuses_the_save_in_words() {
     assert_eq!(a.project(), &before);
     assert!(a.bus.is_dirty());
     assert_eq!(a.path, None);
+}
+
+// ---- round 29, freeze's third review ---------------------------------------------------
+
+#[test]
+fn the_journal_keeps_the_figures_the_engine_marked_for_the_pass() {
+    // A crashed pass is placed by the latency the engine marked at its start (not the
+    // callback's before it) and by the wraps it marked (review 3).
+    let dir = tempfile::tempdir().unwrap();
+    let data = dir.path().join("data");
+    let mut p = Project::new("Rec");
+    let mut t = p.make_track("Voice");
+    t.input = Some(cantus_core::audio::TrackInput::mono(0));
+    t.armed = true;
+    p.tracks.push(t);
+    let (engine, mut proc) = EngineHandle::manual(48_000.0);
+    let (mut ring, consumer) = rtrb::RingBuffer::<f32>::new(48_000);
+    proc.attach_input(consumer, 1);
+    cantus_ui::i18n::default_thread_locale(cantus_ui::i18n::Locale::En);
+    let mut a = CantusApp::from_parts(Some(p), engine, false);
+    harness::isolate(&mut a, &data);
+    a.start_session(&data);
+    a.sync_engine();
+    // A pass journaled as recording starts: with a figure that is not the engine's.
+    if let Some(s) = a.session.as_mut() {
+        s.journal.passes.push(JournalPass {
+            record_start: Ticks::ZERO,
+            transport_start: Ticks::ZERO,
+            punch: None,
+            loop_region: None,
+            loop_takes: false,
+            mode: TakeMode::Stack,
+            tempo_bpm: 120.0,
+            tempo_points: vec![],
+            sample_rate: 48_000,
+            latency_frames: 987_654,
+            marked_wraps: Vec::new(),
+            takes: vec![],
+            finished: false,
+        });
+    }
+    a.engine.begin_recording(&dir.path().join("takes")).unwrap();
+    a.engine.set_recording(true);
+    a.engine.play();
+    let mut buf = vec![0f32; 512];
+    for _ in 0..8 {
+        for _ in 0..256 {
+            let _ = ring.push(0.0);
+        }
+        proc.process(&mut buf, 2);
+        a.engine.poll();
+    }
+    a.journal_tick();
+    let (figure, _) = a.engine.current_pass().expect("the pass started");
+    let got = a
+        .session
+        .as_ref()
+        .unwrap()
+        .journal
+        .passes
+        .last()
+        .unwrap()
+        .latency_frames;
+    assert_eq!(got, figure.total());
+}
+
+#[test]
+fn a_recovered_loop_pass_is_laid_by_the_wraps_the_engine_marked() {
+    // The engine marked the first wrap 300 frames later in the file (the heard latency
+    // moved: silence written): the recovery lays every later pass by it.
+    let mut pass = JournalPass {
+        record_start: Ticks::beats(1),
+        transport_start: Ticks::beats(1),
+        punch: None,
+        loop_region: Some((Ticks::beats(1), Ticks::beats(3))),
+        loop_takes: true,
+        mode: TakeMode::Stack,
+        tempo_bpm: 120.0,
+        tempo_points: vec![],
+        sample_rate: 48_000,
+        latency_frames: 0,
+        marked_wraps: Vec::new(),
+        takes: vec![],
+        finished: false,
+    };
+    assert_eq!(wraps(&pass, 150_000), vec![48_000, 96_000, 144_000]);
+    pass.marked_wraps = vec![(48_300, -300)];
+    assert_eq!(wraps(&pass, 150_000), vec![48_300, 96_300, 144_300]);
 }

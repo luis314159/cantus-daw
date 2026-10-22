@@ -198,7 +198,7 @@ fn tick_at(app: &CantusApp, geo: &TimelineGeometry, x: f32, free: bool) -> Ticks
     if free || !app.arrangement.snap {
         t
     } else {
-        t.snap(app.arrangement.grid)
+        crate::views::bars::snap(app.project(), t, app.arrangement.grid)
     }
 }
 

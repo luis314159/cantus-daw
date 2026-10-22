@@ -120,6 +120,7 @@ impl TabViewer for Viewer<'_> {
             Pane::Browser => super::samples_browser::show(app, ui),
             Pane::Clips => super::clip_browser::show(app, ui),
             Pane::Routing => super::routing::show(app, ui),
+            Pane::Controllers => super::controllers::show(app, ui),
             Pane::Device(key) => device::record_body(ui.ctx(), key, ui),
         }
     }

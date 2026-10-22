@@ -5,6 +5,10 @@
 //! the project's folder (its commands change the project), the hosted plug-ins' state as it
 //! is now (a plug-in answers only on its main thread) — both inside
 //! [`project_for_save`](crate::plugins), which hands back the project as an owned copy.
+//! Before that, every hosted plug-in is asked for its state as it is now: an isolated one
+//! answers later, and the save waits for the answers frame by frame — never on this thread
+//! — until each is in or has passed its own limit; one kept as it was last said is named
+//! when the save lands (round 29, review isolation-5 rule 2).
 //! Everything else — the JSON, its hash, the atomic write beside the file, the `.bak`, the
 //! `fsync`, reading it back and verifying it (ADR 0006) — runs on a thread; the next frames
 //! collect the outcome. Measured (`save_async.rs`, ignored): the copy is a small fraction
@@ -50,6 +54,16 @@ pub struct Job {
     /// The recording passes finished when the copy was taken: their takes are in it.
     persisted: Vec<JournalPass>,
     rx: Receiver<Result<SaveReport, StoreError>>,
+    /// Plug-ins saved as they were last said (not to be had as they are now), and why.
+    stale: Vec<(String, String)>,
+}
+
+/// A save waiting for its plug-ins' states (asked when it began; looked at each frame).
+#[derive(Debug)]
+pub struct Gathering {
+    path: PathBuf,
+    epoch: u64,
+    started: Instant,
 }
 
 /// A save asked for while one ran, and the project's epoch it was asked for.
@@ -63,6 +77,8 @@ pub struct Queued {
 #[derive(Debug, Default)]
 pub struct Saving {
     pub(crate) job: Option<Job>,
+    /// A save waiting for its plug-ins' states.
+    pub(crate) gathering: Option<Gathering>,
     /// A save asked for while one ran.
     pub(crate) queued: Option<Queued>,
     /// What the *Save changes?* question waits to do once the save lands.
@@ -91,6 +107,12 @@ impl Saving {
                     .filter(|j| j.epoch == epoch)
                     .map(|j| j.path.clone())
             })
+            .or_else(|| {
+                self.gathering
+                    .as_ref()
+                    .filter(|g| g.epoch == epoch)
+                    .map(|g| g.path.clone())
+            })
     }
 }
 
@@ -105,7 +127,7 @@ impl CantusApp {
     /// save is already running (this one is queued behind it). The status line says
     /// "Saving…" and then how it went.
     pub fn start_save(&mut self, path: &Path) -> bool {
-        if self.saving.job.is_some() {
+        if self.saving.job.is_some() || self.saving.gathering.is_some() {
             self.saving.queued = Some(Queued {
                 path: path.to_path_buf(),
                 epoch: self.epoch,
@@ -113,11 +135,48 @@ impl CantusApp {
             self.set_status(tf("save.queued", &[("file", &file_name(path))]));
             return false;
         }
-        let t0 = Instant::now();
+        // Hosted plug-ins are asked for their state as it is now; the file is written once
+        // they have answered (`continue_save`, each frame). A waiting card closed before
+        // shows again: the save may wait on that very dialog (review isolation-6 #27).
+        self.plugins.ask_states();
+        self.plugin_crashes.left_waiting.clear();
+        self.saving.gathering = Some(Gathering {
+            path: path.to_path_buf(),
+            epoch: self.epoch,
+            started: Instant::now(),
+        });
+        self.set_status(tf("save.saving", &[("file", &file_name(path))]));
+        self.continue_save(false);
+        true
+    }
+
+    /// A save whose plug-ins' states are in — or, `now` (New, Open, the close, a test
+    /// waiting), as each was last said, which the save then names: written on a thread.
+    fn continue_save(&mut self, now: bool) {
+        let Some(g) = self.saving.gathering.as_ref() else {
+            return;
+        };
+        if g.epoch != self.epoch {
+            // Another project came in meanwhile: not this one's to write.
+            self.saving.gathering = None;
+            return;
+        }
+        if !now && !self.plugins.states_in() {
+            return;
+        }
+        if let Some(g) = self.saving.gathering.take() {
+            self.write_save(&g.path, g.started);
+        }
+    }
+
+    /// Writes the project to `path` on a thread; the outcome is collected by `poll_save`.
+    fn write_save(&mut self, path: &Path, t0: Instant) {
+        let frame = Instant::now();
         // The audio comes home first, so the file is written with its new paths.
         self.collect_audio(path);
-        // Hosted plug-ins are asked for their state as it is now.
+        // The hosted plug-ins' states asked for when the save began.
         let project = self.plugins.project_for_save(self.bus.project());
+        let stale = self.plugins.saved_stale().to_vec();
         let revision = self.bus.revision();
         let persisted = self.journal_finished_passes();
         let (tx, rx) = mpsc::channel();
@@ -144,11 +203,12 @@ impl CantusApp {
                 started: t0,
                 persisted,
                 rx: rx2,
+                stale,
             });
             self.poll_save(true);
-            return true;
+            return;
         }
-        self.saving.last_frame_ms = t0.elapsed().as_secs_f64() * 1e3;
+        self.saving.last_frame_ms = frame.elapsed().as_secs_f64() * 1e3;
         self.saving.job = Some(Job {
             revision,
             epoch: self.epoch,
@@ -156,19 +216,20 @@ impl CantusApp {
             started: t0,
             persisted,
             rx,
+            stale,
         });
-        self.set_status(tf("save.saving", &[("file", &file_name(path))]));
-        true
     }
 
-    /// Whether a save is being written.
+    /// Whether a save is being written (or waits for its plug-ins' states).
     pub fn save_in_flight(&self) -> bool {
-        self.saving.job.is_some()
+        self.saving.job.is_some() || self.saving.gathering.is_some()
     }
 
-    /// Wait until no save is in flight or queued (New, Open, the close; tests).
+    /// Wait until no save is in flight or queued (New, Open, the close; tests). A save
+    /// still waiting for plug-ins' states takes what each said last, and names them: the
+    /// interface never waits on a plug-in (round 29, review isolation-5).
     pub fn wait_for_save(&mut self) {
-        while self.saving.job.is_some() {
+        while self.save_in_flight() {
             self.poll_save(true);
         }
     }
@@ -176,6 +237,7 @@ impl CantusApp {
     /// Collect the save in flight, if it finished (or wait for it, with `wait`); then
     /// start the queued one, or carry out what the *Save changes?* question waited for.
     pub fn poll_save(&mut self, wait: bool) {
+        self.continue_save(wait);
         let Some(job) = self.saving.job.as_ref() else {
             return;
         };
@@ -204,8 +266,14 @@ impl CantusApp {
                 self.path = Some(job.path.clone());
                 self.sync_audio_base();
                 self.bus.mark_saved_at(job.revision);
+                // Its renders beside it, and only those it may want (round 29, review 2).
+                crate::freeze::saved(self);
                 self.autosaved_revision = self.autosaved_revision.max(job.revision);
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
+                // Never silently: a plug-in kept as it was last said is named.
+                if let Some(said) = crate::views::plugin_notice::saved_stale(&job.stale) {
+                    self.set_error(said);
+                }
                 self.journal_persisted(None, &job.persisted);
             }
             Ok(r) => log::info!("saved {} (a project since replaced)", r.path.display()),

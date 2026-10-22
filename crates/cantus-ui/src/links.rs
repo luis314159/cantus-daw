@@ -215,13 +215,12 @@ pub struct PickList {
 impl PickList {
     pub fn build(project: &Project, sel: &[ClipRef]) -> PickList {
         let summary = links::Selection::of(project, sel);
-        let ts = project.time_signature;
         let untitled = t("links.picker.unnamed");
         let rows = links::groups(project)
             .into_iter()
             .filter_map(|g| {
                 let track = project.tracks.get(g.track_index)?;
-                let (bar, beat, _) = ts.bbt(g.start);
+                let (bar, beat, _) = crate::views::bars::bbt(project, g.start);
                 let name = if g.name.is_empty() {
                     untitled.clone()
                 } else {

@@ -525,6 +525,51 @@ pub struct Track {
     /// Which of `comps` plays (its windows are lane 0's).
     #[serde(default, skip_serializing_if = "is_zero_u8")]
     pub active_comp: u8,
+    /// Frozen on its own (schema 37, ADR 0064): the instrument and the clips play from a
+    /// render — the track's level, balance, mute and solo stay live. `None` plays live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen: Option<crate::freeze::Frozen>,
+    /// How long this track delays its source before its level (schema 38, ADR 0064 §6): a
+    /// bounce in place writes its audio on the grid and keeps here the latency what it
+    /// replaced was heard with, so the track plays everything it holds — the bounce, any
+    /// clip or take put on it later — that much later and reports it as its own: its
+    /// level, its strip's fader, sends and keys meet the audio as late as they did before
+    /// (review 2), while the audio itself moves, pastes and exports on the grid (review 3:
+    /// the latency was in the bounce's file, and every other path missed it). `None`: no
+    /// delay.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lateness: Option<Lateness>,
+}
+
+/// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
+/// its own rate).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Lateness {
+    pub frames: u64,
+    pub rate: u32,
+}
+
+impl Lateness {
+    /// The longest delay a track keeps, in seconds (compensation's own ceiling is 2¹⁹
+    /// samples: 10.9 s at 48 kHz).
+    pub const MAX_SECONDS: f64 = 10.0;
+    /// The rates it can be counted at.
+    pub const RATES: std::ops::RangeInclusive<u32> = 8_000..=768_000;
+
+    /// Whether a bounce can have kept it: a rate a device runs at, at most
+    /// [`Self::MAX_SECONDS`] (review 3: a hand-edited file's went into the plan unchecked).
+    pub fn is_valid(&self) -> bool {
+        Self::RATES.contains(&self.rate)
+            && self.frames as f64 <= Self::MAX_SECONDS * self.rate as f64
+    }
+
+    /// In frames at `rate`; 0 for one that is not valid.
+    pub fn at(&self, rate: f64) -> usize {
+        if !self.is_valid() || !rate.is_finite() || rate <= 0.0 {
+            return 0;
+        }
+        (self.frames as f64 * rate / self.rate as f64).round() as usize
+    }
 }
 
 fn is_true(x: &bool) -> bool {
@@ -836,6 +881,11 @@ pub struct MixerStrip {
     /// The strip's modulators (ADR 0057, schema 28).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulators: Vec<crate::modulator::Modulator>,
+    /// Frozen (schema 37, ADR 0064): everything the strip gathers and its chain up to the
+    /// width play from a render — width, pan, fader, mute, solo and the sends stay live.
+    /// `None` plays live.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frozen: Option<crate::freeze::Frozen>,
 }
 
 impl MixerStrip {
@@ -1024,6 +1074,24 @@ pub struct Project {
     /// written while it says *song*.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pattern_mode: bool,
+    /// The tempo track (schema 33, ADR 0060): empty without one — the song plays at
+    /// `tempo_bpm` throughout. With one, the first point is at tick 0 and agrees with
+    /// `tempo_bpm`; each point holds its tempo or ramps to the next.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tempo_points: Vec<crate::tempo::TempoPoint>,
+    /// The metre changes (schema 33, ADR 0060): empty with one metre throughout. With
+    /// some, the first is at tick 0 and agrees with `time_signature`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metre_changes: Vec<crate::tempo::MetreChange>,
+    /// The named markers (schema 33, ADR 0060), sorted by position, then id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub markers: Vec<crate::tempo::Marker>,
+    /// The project's MIDI controller mappings (schema 35, ADR 0062): empty without any.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::controller::ControllerMap::is_empty"
+    )]
+    pub controllers: crate::controller::ControllerMap,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1064,6 +1132,10 @@ impl Project {
             audio_pool: Vec::new(),
             recording: crate::audio::RecordSettings::default(),
             pattern_mode: false,
+            tempo_points: Vec::new(),
+            metre_changes: Vec::new(),
+            markers: Vec::new(),
+            controllers: crate::controller::ControllerMap::default(),
             next_id: 1,
         }
     }
@@ -1390,6 +1462,19 @@ impl Project {
     }
 
     /// Whether the track is audible given mute/solo state.
+    /// Drop every track delay a bounce could not have kept (a hand-edited or damaged file,
+    /// `Lateness::is_valid`); how many went (review 3).
+    pub fn repair_lateness(&mut self) -> usize {
+        let mut n = 0;
+        for t in &mut self.tracks {
+            if t.lateness.is_some_and(|l| !l.is_valid()) {
+                t.lateness = None;
+                n += 1;
+            }
+        }
+        n
+    }
+
     pub fn track_audible(&self, track: &Track) -> bool {
         if track.muted {
             return false;
@@ -1427,6 +1512,8 @@ impl Project {
             modulators: Vec::new(),
             comps: Vec::new(),
             active_comp: 0,
+            frozen: None,
+            lateness: None,
         }
     }
 
@@ -1450,6 +1537,7 @@ impl Project {
             dock: Dock::Middle,
             group: None,
             modulators: Vec::new(),
+            frozen: None,
         }
     }
 

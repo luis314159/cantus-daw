@@ -19,7 +19,13 @@ pub const P_GAIN: u32 = 0;
 pub const P_LATENCY: u32 = 1;
 pub const P_KEY: u32 = 2;
 pub const P_GESTURE: u32 = 3;
-pub const PARAM_COUNT: usize = 4;
+/// Hidden: a failure on purpose (`crate::fault`, round 29).
+pub const P_FAULT: u32 = 4;
+/// Hidden and read-only: the id of the process this instance runs in (round 29).
+pub const P_PROCESS: u32 = 5;
+pub const PARAM_COUNT: usize = 6;
+/// The parameters the state carries (the ones before Fault and Process).
+pub const STATE_PARAMS: usize = 4;
 
 /// One parameter: (id, name, module, min, max, default, stepped, hidden).
 pub type ParamRow = (u32, &'static str, &'static str, f64, f64, f64, bool, bool);
@@ -31,6 +37,17 @@ pub const PARAMS: [ParamRow; PARAM_COUNT] = [
     ),
     (P_KEY, "Key", "Sidechain", 0.0, 1.0, 0.0, true, false),
     (P_GESTURE, "Gesture", "Test", 0.0, 100.0, 0.0, true, true),
+    (
+        P_FAULT,
+        "Fault",
+        "Test",
+        0.0,
+        crate::fault::LAST,
+        0.0,
+        true,
+        true,
+    ),
+    (P_PROCESS, "Process", "Test", 0.0, 4.0e9, 0.0, true, true),
 ];
 
 pub struct Plugin {
@@ -41,7 +58,12 @@ pub struct Plugin {
     pub active_latency: AtomicU32,
     /// A tag carried in the state that is not a parameter.
     pub tag: Mutex<Vec<u8>>,
+    /// The tag says `x2`: the output is doubled — what only the state, never the values,
+    /// carries (the isolation tests: a render that starts before its state is in).
+    pub doubled: AtomicBool,
     pub processing: AtomicBool,
+    /// A failure armed by the Fault parameter (round 29).
+    pub fault: crate::fault::Fault,
     /// The editor: created (`gui.create`), and its window once it has a parent.
     pub editor_created: bool,
     #[cfg_attr(not(windows), allow(dead_code))]
@@ -57,10 +79,16 @@ pub struct Plugin {
 
 impl Plugin {
     pub fn get(&self, id: u32) -> f64 {
+        if id == P_PROCESS {
+            return crate::fault::process_id();
+        }
         f64::from_bits(self.values[id as usize].load(Ordering::Acquire))
     }
 
     pub fn set(&self, id: u32, v: f64) {
+        if id == P_PROCESS {
+            return; // read-only
+        }
         if let Some((_, _, _, min, max, _, stepped, _)) = PARAMS.iter().find(|p| p.0 == id) {
             let v = v.clamp(*min, *max);
             let v = if *stepped { v.round() } else { v };
@@ -69,9 +97,24 @@ impl Plugin {
     }
 
     /// Apply a parameter event from the host; a latency change that differs from the one
-    /// in force asks for a restart.
-    pub unsafe fn apply(&mut self, e: &clap_event_param_value) {
+    /// in force asks for a restart. `processing`: it came in `process`, where a Fault value
+    /// arms its failure (a flush or a state never does).
+    pub unsafe fn apply(&mut self, e: &clap_event_param_value, processing: bool) {
         self.set(e.param_id, e.value);
+        if processing && e.param_id == P_FAULT {
+            self.fault.arm(e.value);
+            // Its state moves without a word to the host (a test plug-in's own doing).
+            if e.value.round() as u32 == crate::fault::TAG_QUIETLY {
+                if let Ok(mut t) = self.tag.try_lock() {
+                    *t = b"heard".to_vec();
+                }
+            }
+            if crate::fault::Fault::wants_main_thread(e.value) {
+                if let Some(f) = (*self.host).request_callback {
+                    f(self.host);
+                }
+            }
+        }
         if e.param_id == P_LATENCY
             && self.get(P_LATENCY) as u32 != self.active_latency.load(Ordering::Acquire)
         {
@@ -109,7 +152,9 @@ pub unsafe fn create(
         values: std::array::from_fn(|i| AtomicU64::new(PARAMS[i].5.to_bits())),
         active_latency: AtomicU32::new(0),
         tag: Mutex::new(Vec::new()),
+        doubled: AtomicBool::new(false),
         processing: AtomicBool::new(false),
+        fault: crate::fault::Fault::default(),
         editor_created: false,
         editor: 0,
         delay_l: Vec::new(),
@@ -128,15 +173,26 @@ pub unsafe fn me<'a>(plugin: *const clap_plugin) -> &'a mut Plugin {
 }
 
 unsafe extern "C" fn init(_plugin: *const clap_plugin) -> bool {
+    crate::fault::chain_filter();
     true
 }
 
 unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
+    me(plugin).fault.on_destroy();
     drop(Box::from_raw((*plugin).plugin_data as *mut Plugin));
 }
 
 unsafe extern "C" fn activate(plugin: *const clap_plugin, _sr: f64, _min: u32, _max: u32) -> bool {
     let p = me(plugin);
+    p.fault.fire(crate::fault::ABORT_ACTIVATE);
+    crate::fault::pump_activate_once();
+    crate::fault::slow_activate_once();
+    crate::fault::pump_on_timer_once();
+    // For the isolation tests: a plug-in that crashes every time it is loaded (the helper
+    // inherits Cantus's environment).
+    if std::env::var_os("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE").is_some() {
+        std::process::abort();
+    }
     let latency = p.get(P_LATENCY) as usize;
     p.active_latency.store(latency as u32, Ordering::Release);
     p.delay_l = vec![0.0; latency + 1];
@@ -162,7 +218,19 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     p.delay_r.fill(0.0);
 }
 
-unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {}
+unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
+    crate::fault::on_main_thread();
+    if crate::fault::take_rescan() {
+        let host = me(plugin).host;
+        if let Some(get) = (*host).get_extension {
+            let ext = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+                as *const clap_sys::ext::params::clap_host_params;
+            if let Some(rescan) = ext.as_ref().and_then(|e| e.rescan) {
+                rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_INFO);
+            }
+        }
+    }
+}
 
 fn header<T>(type_: u16) -> clap_event_header {
     clap_event_header {
@@ -278,7 +346,7 @@ unsafe extern "C" fn process(
                 && (*h).space_id == CLAP_CORE_EVENT_SPACE_ID
                 && (*h).type_ == CLAP_EVENT_PARAM_VALUE
             {
-                p.apply(&*(h as *const clap_event_param_value));
+                p.apply(&*(h as *const clap_event_param_value), true);
             }
         }
     }
@@ -297,6 +365,11 @@ fn run(
     out_r: &mut [f32],
 ) {
     let gain = 10f64.powf(p.get(P_GAIN) / 20.0) as f32;
+    let gain = if p.doubled.load(Ordering::Acquire) {
+        gain * 2.0
+    } else {
+        gain
+    };
     let key_on = p.get(P_KEY) >= 0.5;
     let len = p.delay_l.len().max(1);
     for i in 0..in_l.len() {

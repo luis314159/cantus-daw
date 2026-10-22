@@ -466,6 +466,9 @@ impl Reader {
             }
             o.used = self.tick;
             let (b0, b1) = (lo / BLOCK, hi.div_ceil(BLOCK));
+            if injected_io(&o.c.path) {
+                return Err(Fault::Io("an injected read error (a test)".into(), b0));
+            }
             let mut buf = vec![0.0f32; (b1 - b0) * BLOCK * ch];
             let f = o.f.as_mut().expect("opened above");
             if let Err(err) = o.c.read_blocks(f, b0, b1 - b0, &mut buf) {
@@ -500,6 +503,49 @@ impl Reader {
         halve_span(&src, slo as i64, below as i64, ch, lo, &mut out);
         Ok(out)
     }
+}
+
+/// A read error a test asks for, once, on the next block read from `path` (round 29,
+/// review 2: a frozen render's passing read error). Off, one relaxed load per read.
+#[doc(hidden)]
+pub fn inject_io_fault(path: &std::path::Path) {
+    inject_io_faults(path, 1);
+}
+
+/// `n` read errors in a row on `path`, the reads that try it again included (review 3: a
+/// lock that outlasts the first try).
+#[doc(hidden)]
+pub fn inject_io_faults(path: &std::path::Path, n: u32) {
+    if let Ok(mut v) = INJECT_PATHS.lock() {
+        v.retain(|(p, _)| p != path);
+        if n > 0 {
+            v.push((path.to_path_buf(), n));
+        }
+        INJECT.store(!v.is_empty(), Ordering::Release);
+    }
+}
+
+static INJECT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Per file, so tests running side by side never take each other's.
+static INJECT_PATHS: std::sync::Mutex<Vec<(std::path::PathBuf, u32)>> =
+    std::sync::Mutex::new(Vec::new());
+
+pub(super) fn injected_io(path: &std::path::Path) -> bool {
+    if !INJECT.load(Ordering::Relaxed) {
+        return false;
+    }
+    let Ok(mut v) = INJECT_PATHS.lock() else {
+        return false;
+    };
+    let Some(i) = v.iter().position(|(p, _)| p == path) else {
+        return false;
+    };
+    v[i].1 -= 1;
+    if v[i].1 == 0 {
+        v.swap_remove(i);
+    }
+    INJECT.store(!v.is_empty(), Ordering::Release);
+    true
 }
 
 /// A file error as the reader's fault: a file that is not there any more, or another.

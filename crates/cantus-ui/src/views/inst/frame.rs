@@ -49,6 +49,22 @@ fn body(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpe
     }
 }
 
+/// For the tests: the Edit view's body in `ui` whole — every card drawn, none scrolled
+/// out of a window (round 29, review 3 of ADR 0062: what each card offers is counted).
+#[doc(hidden)]
+pub fn edit_body_for_tests(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId) {
+    let Some(spec) = app
+        .project()
+        .track(track)
+        .and_then(|t| t.instrument.native())
+        .cloned()
+    else {
+        return;
+    };
+    let s = Style::current().function(hue(spec.kind));
+    body(app, ui, track, &spec, &s);
+}
+
 fn play(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, spec: &NativeSpec, s: &Style) {
     match spec.kind {
         InstrumentKind::Wavetable => wavetable::play(app, ui, track, spec, s),
@@ -926,7 +942,12 @@ pub fn wired(
     match choice {
         Some(Choice::Automate) => app.automate(w.target.clone()),
         Some(
-            c @ (Choice::Modulate | Choice::Depth(_) | Choice::DepthDone | Choice::Connect(_)),
+            c @ (Choice::Modulate
+            | Choice::Depth(_)
+            | Choice::DepthDone
+            | Choice::Connect(_)
+            | Choice::Learn
+            | Choice::Forget),
         ) => app.modulation_choice(&w.target, c, rect),
         _ => {}
     }
@@ -1232,7 +1253,7 @@ pub fn matrix(
             if r.drag_stopped() || r.double_clicked() {
                 app.end_gesture();
             }
-            let (_, c) = menu_field(
+            let (cresp, c) = menu_field(
                 ui,
                 &t(CURVES[curve.min(4)]),
                 true,
@@ -1240,12 +1261,17 @@ pub fn matrix(
                 &t("mod.curve"),
                 130.0,
             );
-            if c.prev || c.next || c.open {
+            // The slot's curve and switch are parameters: their menus, their marks, the
+            // learn mode (round 29, review 2 of ADR 0062, #44).
+            let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.curve, &cresp);
+            if (c.prev || c.next || c.open) && !learning {
                 let i = (curve as i32 + if c.prev { -1 } else { 1 }).rem_euclid(5);
                 app.set_inst_value(track, k.curve, i as f32, false);
             }
             let mut live = on;
-            if led_button(ui, &mut live, Src::Key("mod.on"), &t("mod.on"), 56.0).changed() {
+            let lresp = led_button(ui, &mut live, Src::Key("mod.on"), &t("mod.on"), 56.0);
+            let learning = crate::controllers::stepped_inst(app, ui, track, spec, k.on, &lresp);
+            if lresp.changed() && !learning {
                 app.set_inst_value(track, k.on, if live { 1.0 } else { 0.0 }, false);
             }
             if readout(ui, "\u{d7}", false, &t("mod.remove"), 24.0).clicked() {

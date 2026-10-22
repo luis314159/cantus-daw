@@ -27,7 +27,7 @@ fn drive(fid: crate::EffectId) -> AutoTarget {
     }
 }
 
-fn t(beats: f64) -> ModTime {
+fn t(beats: f64) -> ModTime<'static> {
     ModTime::at_beats(beats, 0.0, 120.0)
 }
 
@@ -630,4 +630,85 @@ fn new_random_sources_do_not_move_in_step() {
         seq(&a),
         seq(&Modulator::new(ModulatorId(41), ModKind::Random))
     );
+}
+
+/// Review 1 (finding 20): under a tempo map that moves, an envelope from notes counts its
+/// gates in song seconds through the map, and a retriggered LFO in Hz counts its seconds
+/// since the note-on through it — at one tempo, both exactly as before.
+#[test]
+fn modulators_read_time_through_a_moving_tempo_map() {
+    use crate::tempo::{TempoMap, TempoPoint};
+    let env = EnvSource {
+        attack_ms: 400.0,
+        decay_ms: 300.0,
+        sustain: 0.5,
+        release_ms: 2000.0,
+        trigger: EnvTrigger::Notes { track: None },
+    };
+    let gates = Gates {
+        gates: vec![Gate { on: 1.0, off: 5.0 }, Gate { on: 6.0, off: 7.0 }],
+        levels: None,
+    };
+    // 120 BPM, then a ramp to 60 from beat 2 to beat 6.
+    let pt = |b: i64, bpm: f64, ramp: bool| TempoPoint {
+        tick: crate::Ticks::beats(b),
+        bpm,
+        ramp,
+    };
+    let map = TempoMap::new(
+        120.0,
+        crate::TimeSignature::default(),
+        &[pt(0, 120.0, false), pt(2, 120.0, true), pt(6, 60.0, false)],
+        &[],
+    );
+    let ppq = crate::PPQ as f64;
+    let compiled = gates.with_levels_in(&env, &map);
+    // Review 2 (finding 25): the release (2 s) outlasts the gap between the gates (beats
+    // 5 to 6, ~0.93 s through the ramp), so the second gate starts from the first's
+    // release level — computed here by hand in the map's seconds, not read from the code.
+    let s = |beat: f64| map.seconds_at(beat * ppq);
+    let first = Gate {
+        on: 0.0,
+        off: s(5.0) - s(1.0),
+    };
+    let by_hand = super::eval::gate_level(&env, 0.0, first, s(6.0) - s(1.0));
+    let levels = compiled.levels.as_ref().unwrap();
+    assert_eq!(levels.from[0], 0.0);
+    assert!(by_hand > 0.05, "the release is still sounding: {by_hand}");
+    assert!(
+        (levels.from[1] - by_hand).abs() < 1e-6,
+        "the second gate starts from {} (by hand {by_hand})",
+        levels.from[1]
+    );
+    // At one tempo's seconds (0.5 s a beat) it would start elsewhere.
+    let constant = super::eval::gate_level(&env, 0.0, Gate { on: 0.0, off: 2.0 }, 2.5);
+    assert!((constant - by_hand).abs() > 1e-3);
+    for beat in [1.2, 2.5, 4.0, 5.5, 6.3, 6.9, 7.4] {
+        let t = ModTime::at_beats_in(beat, 0.0, &map);
+        // By hand: the gate in seconds, from the map.
+        let i = gates.at(beat).unwrap();
+        let g = gates.gates[i];
+        let on = map.seconds_at(g.on * ppq);
+        let off = map.seconds_at(g.off * ppq);
+        let from = compiled.levels.as_ref().unwrap().from[i];
+        let want = super::eval::gate_level(
+            &env,
+            from,
+            Gate {
+                on: 0.0,
+                off: off - on,
+            },
+            map.seconds_at(beat * ppq) - on,
+        );
+        assert_eq!(compiled.level_at(&env, &t), want, "beat {beat}");
+    }
+    // A retrigger 1.5 beats back, at a rate of 1 Hz: the seconds through the map.
+    let t = ModTime::at_beats_in(5.0, 0.0, &map);
+    let secs = map.seconds_between_f64(3.5 * ppq, 5.0 * ppq);
+    assert!((t.seconds_since(3.5) - secs).abs() < 1e-12);
+    // One tempo: the old arithmetic, to the bit.
+    let c = TempoMap::constant(120.0, crate::TimeSignature::default());
+    let t = ModTime::at_beats_in(5.0, 1.0, &c);
+    assert_eq!(t, ModTime::at_beats(5.0, 1.0, 120.0));
+    assert_eq!(gates.with_levels_in(&env, &c), gates.with_levels(&env, 0.5));
 }

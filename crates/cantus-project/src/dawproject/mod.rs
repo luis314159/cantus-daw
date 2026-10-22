@@ -12,6 +12,7 @@
 //!   [`Report`], everything it held that Cantus cannot (audio clips, automation, plug-ins,
 //!   the clip launcher…). A Cantus file comes back whole.
 
+pub mod audio;
 pub mod read;
 pub mod read_timeline;
 pub mod write;
@@ -44,6 +45,17 @@ pub enum DawProjectError {
     Xml(String),
     #[error("project.xml is not a DAWproject (its root is <{0}>)")]
     NotDawProject(String),
+    #[error("{0}")]
+    Io(String),
+    /// Stopped by the caller before it was done (a quit — round 29's third review).
+    #[error("stopped before it was done")]
+    Stopped,
+}
+
+impl From<std::io::Error> for DawProjectError {
+    fn from(e: std::io::Error) -> Self {
+        DawProjectError::Io(e.to_string())
+    }
 }
 
 /// What [`export`] made.
@@ -61,22 +73,100 @@ pub struct Parts {
     pub metadata_xml: String,
     /// Device states and any other file the XML references, by path in the archive.
     pub files: Vec<(String, Vec<u8>)>,
+    /// The audio files the archive carries: (path in the archive, file on disk), each
+    /// once — read one at a time as the archive is written, never all held at once.
+    pub audio: Vec<(String, std::path::PathBuf)>,
     pub report: Report,
 }
 
 /// Write a project as a `.dawproject`.
 pub fn export(project: &Project, app_version: &str) -> Exported {
-    let parts = write::parts(project, app_version);
-    let mut z = zip::ZipWriter::new();
-    z.add("project.xml", parts.project_xml.as_bytes(), true);
-    z.add("metadata.xml", parts.metadata_xml.as_bytes(), true);
-    for (path, data) in &parts.files {
-        z.add(path, data, true);
-    }
+    export_with(project, app_version, None)
+}
+
+/// [`export`], the audio clips' files read from `base` (the project's folder) and carried
+/// in the archive (round 29, ADR 0061) — in memory (tests, small projects; a file is
+/// written by [`export_to`]). A file that cannot be read is left out and said.
+pub fn export_with(
+    project: &Project,
+    app_version: &str,
+    base: Option<&std::path::Path>,
+) -> Exported {
+    let mut parts = write::parts_with(project, app_version, base);
+    let mut z = zip::ZipStream::new(std::io::Cursor::new(Vec::new()));
+    let bytes = write_parts(&mut z, &mut parts)
+        .and_then(|()| z.finish())
+        .map(std::io::Cursor::into_inner)
+        .unwrap_or_default();
     Exported {
-        bytes: z.finish(),
+        bytes,
         report: parts.report,
     }
+}
+
+/// [`export_with`] streamed to `dest`: the archive written as it is made, one audio file
+/// in memory at a time, ZIP64 past 4 GiB, through a temporary file renamed into place (a
+/// failed export leaves no half file). Returns what could not be carried.
+pub fn export_to(
+    project: &Project,
+    app_version: &str,
+    base: Option<&std::path::Path>,
+    dest: &std::path::Path,
+) -> std::io::Result<Report> {
+    export_to_within(project, app_version, base, dest, u32::MAX as u64)
+}
+
+/// [`export_to`] with ZIP64 records past `limit` bytes (tests: a small one).
+#[doc(hidden)]
+pub fn export_to_within(
+    project: &Project,
+    app_version: &str,
+    base: Option<&std::path::Path>,
+    dest: &std::path::Path,
+    limit: u64,
+) -> std::io::Result<Report> {
+    let mut parts = write::parts_with(project, app_version, base);
+    let tmp = dest.with_extension("dawproject.part");
+    let out = std::io::BufWriter::new(std::fs::File::create(&tmp)?);
+    let mut z = zip::ZipStream::with_limit(out, limit);
+    let done = write_parts(&mut z, &mut parts).and_then(|()| z.finish());
+    match done.and_then(|w| w.into_inner().map_err(|e| e.into_error())) {
+        Ok(f) => {
+            f.sync_all()?;
+            drop(f);
+            std::fs::rename(&tmp, dest)?;
+            Ok(parts.report)
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            Err(e)
+        }
+    }
+}
+
+/// Write the parts' entries: the XML and device states deflated, the audio stored (read
+/// one file at a time).
+fn write_parts<W: std::io::Write + std::io::Seek>(
+    z: &mut zip::ZipStream<W>,
+    parts: &mut Parts,
+) -> std::io::Result<()> {
+    z.add("project.xml", parts.project_xml.as_bytes(), true)?;
+    z.add("metadata.xml", parts.metadata_xml.as_bytes(), true)?;
+    for (path, data) in &parts.files {
+        z.add(path, data, true)?;
+    }
+    // Each audio file streamed from disk into the archive (round 29's second review).
+    for (path, file) in &parts.audio {
+        let opened = std::fs::File::open(file).and_then(|f| Ok((f.metadata()?.len(), f)));
+        match opened {
+            Ok((len, f)) => z.add_stored_from(path, std::io::BufReader::new(f), len)?,
+            Err(_) => parts.report.dropped(
+                "interop.report.x_audio_unread",
+                vec![("file", file.to_string_lossy().into_owned())],
+            ),
+        }
+    }
+    Ok(())
 }
 
 /// A project read from a `.dawproject`, and what it could not keep.
@@ -84,12 +174,255 @@ pub fn export(project: &Project, app_version: &str) -> Exported {
 pub struct Imported {
     pub project: Project,
     pub report: Report,
+    /// The audio files the archive carries (path in the archive, bytes): the project's
+    /// sources name them by that path until the caller writes them to disk.
+    pub media: Vec<(String, Vec<u8>)>,
 }
 
 /// Read a `.dawproject` into a new project.
 pub fn import(bytes: &[u8]) -> Result<Imported, DawProjectError> {
+    import_from(bytes, None)
+}
+
+/// [`import`] of a `.dawproject` in `folder`: a file it references outside the archive by
+/// a relative path is found against that folder (DAWproject's rule) and named by its
+/// absolute path; one that is neither in the archive nor on disk is said (round 29's
+/// review).
+pub fn import_from(
+    bytes: &[u8],
+    folder: Option<&std::path::Path>,
+) -> Result<Imported, DawProjectError> {
     let files = zip::read(bytes)?;
-    read::project(&files)
+    let mut imported = read::project(&files)?;
+    let carried: Vec<String> = imported.media.iter().map(|(p, _)| p.clone()).collect();
+    find_external(
+        &mut imported.project,
+        &mut imported.report,
+        &carried,
+        folder,
+    );
+    Ok(imported)
+}
+
+/// The most a part of an archive read into memory may hold — the project's XML, its
+/// metadata, a device's state — bytes: a larger project.xml refuses the file; a larger
+/// metadata or device state is left in the archive and said (the title stays "Imported",
+/// the device is replaced as any other application's is).
+pub const PART_LIMIT: u64 = 64 << 20;
+
+/// A `.dawproject` read from a file ([`import_file`]).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImportedFile {
+    pub project: Project,
+    pub report: Report,
+    /// The archive's audio files that could not be written into the media folder.
+    pub unwritten: Vec<String>,
+    /// The parts it needed that were too large to read ([`PART_LIMIT`]), left out.
+    pub too_large: Vec<String>,
+}
+
+/// Where archive entry `inner` is written under `dir`: its folders kept, every part that
+/// would leave `dir` (a root, a drive, `..`) dropped, and a name another entry of this import
+/// already took (by the letters alone: the Windows file system does not tell their cases
+/// apart) numbered — two entries never write one file (round 29's second review: every
+/// entry was flattened to its name). `taken` holds the names written so far.
+pub fn media_path(
+    dir: &std::path::Path,
+    inner: &str,
+    taken: &mut std::collections::HashSet<String>,
+) -> std::path::PathBuf {
+    let parts: Vec<&str> = inner
+        .split(['/', '\\'])
+        .filter(|p| !p.is_empty() && *p != "." && *p != ".." && !p.contains(':'))
+        .collect();
+    let (folders, file) = match parts.split_last() {
+        Some((f, rest)) => (rest.to_vec(), (*f).to_string()),
+        None => (Vec::new(), "audio.wav".to_string()),
+    };
+    let mut base = dir.to_path_buf();
+    for f in folders {
+        base.push(f);
+    }
+    let p = std::path::Path::new(&file);
+    let stem = p
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = p.extension().map(|e| e.to_string_lossy().into_owned());
+    for n in 1.. {
+        let name = match (n, &ext) {
+            (1, _) => file.clone(),
+            (n, Some(e)) => format!("{stem} {n}.{e}"),
+            (n, None) => format!("{stem} {n}"),
+        };
+        let path = base.join(&name);
+        if taken.insert(path.to_string_lossy().to_lowercase()) {
+            return path;
+        }
+    }
+    unreachable!()
+}
+
+/// Read the `.dawproject` at `path` into a new project: its project.xml first, then only the
+/// parts that read takes — its metadata and Cantus's own device states and warps
+/// ([`read::needed_parts`]), each at most [`PART_LIMIT`] — every audio file it carries
+/// copied straight from the archive into `media` ([`media_path`]), its checksum checked,
+/// the sources pointed at it; a file it references outside the archive found against its
+/// folder. Neither the archive nor any audio file is ever held whole in memory (round 29's
+/// second review: a ZIP64 project was read three times over), and no part it never reads
+/// (a plug-in's state) is read at all (third review).
+pub fn import_file(
+    path: &std::path::Path,
+    media: &std::path::Path,
+) -> Result<ImportedFile, DawProjectError> {
+    import_file_within(path, media, PART_LIMIT)
+}
+
+/// [`import_file`] that stops (`DawProjectError::Stopped`) once `stop` is set, between two
+/// files it copies — a quit never leaves it writing (round 29's third review).
+pub fn import_file_until(
+    path: &std::path::Path,
+    media: &std::path::Path,
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<ImportedFile, DawProjectError> {
+    import_file_inner(path, media, PART_LIMIT, Some(stop))
+}
+
+/// [`import_file`] with parts of at most `limit` bytes (tests: a small one).
+#[doc(hidden)]
+pub fn import_file_within(
+    path: &std::path::Path,
+    media: &std::path::Path,
+    limit: u64,
+) -> Result<ImportedFile, DawProjectError> {
+    import_file_inner(path, media, limit, None)
+}
+
+fn import_file_inner(
+    path: &std::path::Path,
+    media: &std::path::Path,
+    limit: u64,
+    stop: Option<&std::sync::atomic::AtomicBool>,
+) -> Result<ImportedFile, DawProjectError> {
+    let stopped = || stop.is_some_and(|s| s.load(std::sync::atomic::Ordering::Relaxed));
+    let mut r = std::io::BufReader::new(std::fs::File::open(path)?);
+    let entries = zip::directory(&mut r)?;
+    let named = |want: &str| {
+        entries
+            .iter()
+            .find(|e| e.name.trim_start_matches("./").eq_ignore_ascii_case(want))
+    };
+    // The project's XML first: what it takes decides what else is read.
+    let xml = match named("project.xml") {
+        Some(e) => zip::read_entry(&mut r, e, limit)?,
+        None => return Err(DawProjectError::NoProject),
+    };
+    let names: Vec<String> = entries.iter().map(|e| e.name.clone()).collect();
+    let mut wanted = read::needed_parts(&xml, &names);
+    wanted.push("metadata.xml".into());
+    let mut parts: Vec<(String, Vec<u8>)> = vec![("project.xml".into(), xml)];
+    let mut too_large = Vec::new();
+    for want in &wanted {
+        let Some(e) = named(want) else {
+            continue;
+        };
+        if e.size > limit {
+            too_large.push(e.name.clone());
+            continue;
+        }
+        parts.push((e.name.clone(), zip::read_entry(&mut r, e, limit)?));
+    }
+    // The rest by name only (the audio, copied below).
+    for e in &entries {
+        if !parts.iter().any(|(n, _)| *n == e.name) {
+            parts.push((e.name.clone(), Vec::new()));
+        }
+    }
+    let imported = read::project(&parts)?;
+    drop(parts);
+    let (mut project, mut report) = (imported.project, imported.report);
+    let carried: Vec<String> = imported.media.into_iter().map(|(p, _)| p).collect();
+    let mut taken = std::collections::HashSet::new();
+    let mut unwritten = Vec::new();
+    for inner in &carried {
+        if stopped() {
+            return Err(DawProjectError::Stopped);
+        }
+        let Some(e) = entries
+            .iter()
+            .find(|e| e.name.trim_start_matches("./") == inner)
+        else {
+            unwritten.push(inner.clone());
+            continue;
+        };
+        let dest = media_path(media, inner, &mut taken);
+        let written = dest
+            .parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .map_err(|err| zip::ZipError::Write(inner.clone(), err.to_string()))
+            .and_then(|()| {
+                let f = std::fs::File::create(&dest)
+                    .map_err(|err| zip::ZipError::Write(inner.clone(), err.to_string()))?;
+                let mut w = std::io::BufWriter::new(f);
+                zip::copy_entry(&mut r, e, &mut w)?;
+                std::io::Write::flush(&mut w)
+                    .map_err(|err| zip::ZipError::Write(inner.clone(), err.to_string()))
+            });
+        match written {
+            Ok(()) => {
+                let at = dest.to_string_lossy().into_owned();
+                for s in project.audio_pool.iter_mut().filter(|s| s.path == *inner) {
+                    s.path.clone_from(&at);
+                }
+            }
+            Err(_) => {
+                let _ = std::fs::remove_file(&dest);
+                unwritten.push(inner.clone());
+            }
+        }
+    }
+    find_external(&mut project, &mut report, &carried, path.parent());
+    for part in &too_large {
+        report.dropped(
+            "interop.report.d_part_too_large",
+            vec![("file", part.clone())],
+        );
+    }
+    Ok(ImportedFile {
+        project,
+        report,
+        unwritten,
+        too_large,
+    })
+}
+
+/// The sources a `.dawproject` references outside its archive (`carried`: the ones it holds)
+/// found against `folder`, the archive's own (DAWproject's rule), and named by their
+/// absolute path; one neither in the archive nor on disk is said.
+fn find_external(
+    project: &mut Project,
+    report: &mut Report,
+    carried: &[String],
+    folder: Option<&std::path::Path>,
+) {
+    for s in &mut project.audio_pool {
+        if carried.contains(&s.path) {
+            continue;
+        }
+        let p = std::path::Path::new(&s.path);
+        let found = match folder {
+            Some(f) if p.is_relative() => f.join(p),
+            _ => p.to_path_buf(),
+        };
+        if found.is_file() {
+            s.path = found.to_string_lossy().into_owned();
+        } else {
+            report.dropped(
+                "interop.report.d_audio_missing",
+                vec![("file", s.path.clone())],
+            );
+        }
+    }
 }
 
 /// The name a Cantus effect goes by in another application's device list.

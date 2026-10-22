@@ -450,7 +450,14 @@ fn tempo_map_file() -> Vec<u8> {
 fn the_tempo_map_is_honoured_by_beats_or_by_seconds_and_never_in_silence() {
     let bytes = tempo_map_file();
     // By beats: the note stays on beat 6 and the report says a change was not kept.
-    let by_beats = midi::read(&bytes, &ImportOptions::default()).unwrap();
+    let by_beats = midi::read(
+        &bytes,
+        &ImportOptions {
+            tempo_mode: midi::TempoMode::Beats,
+            target_bpm: None,
+        },
+    )
+    .unwrap();
     assert_eq!(by_beats.tempo_bpm, 120.0);
     let n = by_beats.tracks[0].notes[0];
     assert_eq!((n.start, n.length), (Ticks::beats(6), Ticks::beats(1)));
@@ -526,10 +533,91 @@ fn an_import_is_one_step_of_the_undo_history() {
     )
     .unwrap();
     assert_eq!(bus.project().tracks.len(), 2);
-    assert_eq!(bus.project().tempo_bpm, 100.0);
+    // Dropped at bar 3 keeping the file's map (review 2, finding 62): the song's start
+    // keeps its tempo, the file's 100 BPM plays from the bar the file starts at.
+    assert_eq!(bus.project().tempo_bpm, 120.0);
+    let map = bus.project().tempo_map();
+    assert_eq!(map.bpm_at(Ticks::beats(8).0 as f64), 100.0);
     assert_eq!(bus.project().tracks[0].clips[0].start, Ticks::beats(8));
     bus.undo();
     let mut after = bus.project().clone();
     after.next_id = before.next_id;
     assert_eq!(after, before, "one undo takes the whole import back");
+}
+
+/// Round 29 (ADR 0060): the whole tempo map goes out and comes back — every tempo point (a
+/// ramp in sixteenths, each lasting exactly as long as it plays), every metre change, every
+/// marker — and a file's map imported into an empty project plays its notes at the
+/// seconds the file does.
+#[test]
+fn the_tempo_map_round_trips_through_a_midi_file() {
+    use cantus_core::tempo::{Marker, MarkerId, MetreChange, TempoPoint};
+    let mut p = awkward_project(&[(0, 480), (9_600, 960), (20_000, 240)]);
+    p.tempo_bpm = 90.0;
+    p.time_signature = TimeSignature::new(4, 4);
+    let pt = |tick: i64, bpm: f64, ramp: bool| TempoPoint {
+        tick: Ticks(tick),
+        bpm,
+        ramp,
+    };
+    p.tempo_points = vec![
+        pt(0, 90.0, true),
+        pt(7680, 140.0, false),
+        pt(15_360, 110.0, false),
+    ];
+    p.metre_changes = vec![
+        MetreChange {
+            tick: Ticks::ZERO,
+            signature: TimeSignature::new(4, 4),
+        },
+        MetreChange {
+            tick: Ticks(7680),
+            signature: TimeSignature::new(7, 8),
+        },
+        MetreChange {
+            tick: Ticks(7680 + 3360),
+            signature: TimeSignature::new(3, 4),
+        },
+    ];
+    for (i, (tick, name)) in [(0, "Intro"), (7680, "Verse"), (11_040, "Chorus")]
+        .iter()
+        .enumerate()
+    {
+        p.markers.push(Marker {
+            id: MarkerId(900 + i as u64),
+            tick: Ticks(*tick),
+            name: name.to_string(),
+            color: None,
+        });
+    }
+    let bytes = midi::export(&p, &ExportOptions::default()).unwrap();
+    let back = import_into_empty(&bytes, &ImportOptions::default(), true);
+    let (a, b) = (p.tempo_map(), back.tempo_map());
+    // On the sixteenths the ramp is written in (between them a step holds its average).
+    for tick in [0.0, 960.0, 3_120.0, 7_680.0, 9_000.0, 15_360.0, 20_000.0] {
+        let (x, y) = (a.seconds_at(tick), b.seconds_at(tick));
+        assert!((x - y).abs() < 1e-4, "{tick}: {x} vs {y}");
+    }
+    // The ramp is in sixteenths: 32 steps over its 8 beats.
+    assert!(back.tempo_points.len() >= 32, "{}", back.tempo_points.len());
+    assert_eq!(back.metre_changes, p.metre_changes);
+    let names: Vec<(Ticks, &str)> = back
+        .markers
+        .iter()
+        .map(|m| (m.tick, m.name.as_str()))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            (Ticks(0), "Intro"),
+            (Ticks(7680), "Verse"),
+            (Ticks(11_040), "Chorus")
+        ]
+    );
+    assert_eq!(played(&back), played(&p), "every note where it was");
+    // The file of `tempo_map_file`, imported keeping its map: the note on beat 6 sounds
+    // 4 s in, as in the file.
+    let file = import_into_empty(&tempo_map_file(), &ImportOptions::default(), true);
+    let m = file.tempo_map();
+    assert!((m.seconds_at(Ticks::beats(6).0 as f64) - 4.0).abs() < 1e-9);
 }

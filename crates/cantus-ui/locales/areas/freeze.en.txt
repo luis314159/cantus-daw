@@ -1,0 +1,122 @@
+# freeze — round 29: freeze, bounce in place and low-latency monitoring. Every key here needs its twin in freeze.es.txt.
+
+# Undo labels (cmd.*)
+cmd.freeze = freeze
+cmd.unfreeze = unfreeze
+cmd.bounce_in_place = bounce in place
+cmd.set_track_lateness = set the track's kept delay
+
+# Actions (the keymap)
+action.freeze-track = Freeze or unfreeze the track
+action.bounce-in-place = Bounce in place (with the inserts)
+action.bounce-source = Bounce in place (source only)
+action.toggle-low-latency = Low-latency monitoring on or off
+
+# --- freezing ---
+freeze.strip_n = Strip {n}
+freeze.done = {name} is frozen: it plays its render, its CPU is free. Its mix stays live: fader, pan, mute, solo and sends.
+freeze.unfrozen = {name} plays live again.
+freeze.already = {name} is frozen already.
+freeze.cannot_monitoring = {name} cannot be frozen while {track} monitors its input always: set its monitoring to Auto or Off first.
+freeze.cannot_solo = {name} cannot be frozen while {what} is soloed inside it: its render holds all of it. Unsolo {what} first.
+freeze.gone = What was to be frozen is not there any more.
+freeze.no_folder = There is no folder to keep frozen renders in.
+freeze.plugin_missing = {plugin} is not loaded, and the render needs it: load it first (or unfreeze what uses it).
+freeze.bake_waits = A freeze or a bounce is rendering: bake when it is done, or stop it.
+freeze.file_missing = {file} is not there: freeze it when it is (a sound pack still downloading, a drive not connected).
+freeze.file_missing_any = A file it plays is not there: freeze it when it is.
+freeze.master = The master is not frozen or bounced: choose a track or a strip.
+freeze.done_heard = {name} is frozen: it plays its render, its CPU is free. A modulator in it hears its mix, so its fader, pan, width, mute, solo, sends and output are part of its sound: unfreeze it to change them.
+freeze.done_heard_track = {name} is frozen: its instrument plays a render, its CPU is free. A modulator in it hears what it plays, so its level, balance, mute and solo, and its strip's mix, are part of its sound: unfreeze it to change them.
+freeze.waits_for_file = {name} plays live: {file} is not there; its render is made when it is.
+freeze.latency_moves = {name} stays live: its latency changes during the song (a look-ahead or a mode automated, a plug-in reporting another), which one render cannot hold.
+freeze.lateness_repaired = Track delays out of range were dropped from the file: {n}.
+freeze.lateness.row = Delay
+freeze.lateness.clear = Clear the delay: it plays on time.
+freeze.lateness.tip = Plays {ms} ms late, as its source was heard, so its rides keep time.
+freeze.done_track = {name} is frozen: its instrument plays a render, its CPU is free. Its level, balance, mute and solo stay live.
+freeze.stopped = Stopped: {name} was not changed.
+freeze.failed = {name} could not be rendered: {error}
+freeze.refused = {name} is frozen: {how}
+freeze.how_track = unfreeze it to change this (the track's menu: Unfreeze).
+freeze.how_strip = unfreeze it to change this (the strip's menu: Unfreeze).
+freeze.unfreeze = Unfreeze
+freeze.row = Freeze
+freeze.freeze = Freeze
+freeze.frozen = Frozen
+
+freeze.export_waits = A freeze or a bounce is rendering: export when it is done, or stop it.
+
+# --- the corner card ---
+freeze.card.freezing = Freezing {name}
+freeze.card.freezing_body = {pct} % rendered. The song plays on; nothing changes until it is done.
+freeze.card.refreshing = Preparing {name}'s render
+freeze.card.refreshing_body = {pct} % rendered. It plays live until its render is ready.
+freeze.card.bouncing_body = {pct} % rendered. The song plays on; the audio track comes when it is done.
+freeze.card.stop = Stop
+freeze.card.refused = {name} is frozen
+freeze.card.refused_body = Its sound is a render: unfreeze it to change it. Its fader, pan, mute, solo and sends stay live.
+freeze.card.refused_body_heard = Its sound is a render, and a modulator in it hears its mix: its fader, pan, width, mute, solo, sends and output are part of it. Unfreeze it to change them.
+freeze.card.refused_body_heard_track = Its sound is a render, and a modulator in it hears what it plays: its level, balance, mute and solo, and its strip's mix, are part of it. Unfreeze it to change them.
+freeze.card.refused_body_track = Its sound is a render: unfreeze it to change it. Its level, balance, mute and solo stay live.
+freeze.card.waiting = {name} waits
+freeze.card.waiting_body = It starts when the export, the bake or the files loading are done.
+freeze.card.waiting_states_body = It waits for its plug-ins to say their states as they are now.
+freeze.card.closing = Closing
+freeze.card.closing_body = Copying the frozen renders into the project's folder: Cantus closes when they are in.
+freeze.card.close_now = Close now
+freeze.card.more = {body} {n} more waiting.
+freeze.card.more_one = {body} One more waiting.
+freeze.card.ok = OK
+
+# --- menus ---
+freeze.menu.band = Freeze
+freeze.menu.freeze = Freeze track
+freeze.menu.unfreeze = Unfreeze
+freeze.menu.freeze_strip = Freeze strip
+freeze.menu.unfreeze_strip = Unfreeze
+bounce.menu.inserts = Bounce in place
+bounce.menu.source = Bounce in place (source only)
+bounce.menu.removes = Remove the original after a bounce
+bounce.menu.strip = Bounce strip in place
+bounce.clips = Bounce clips in place
+bounce.clips_source = Bounce clips in place (source only)
+
+# --- bouncing ---
+bounce.job = Bouncing {name}
+bounce.track_name = {name} (bounce)
+bounce.done = {name} bounced to audio, on the track below it.
+bounce.frozen = {name} is frozen: unfreeze it to bounce it.
+bounce.nothing = {name} has nothing to bounce.
+bounce.no_track = Select a track, its clips or a time range first.
+bounce.unreadable = The bounce's file could not be read: {file}
+bounce.gone = The track to bounce is not there any more.
+bounce.muted = {name} is muted: unmute it to bounce it.
+bounce.key = {name} keys another insert or a modulator follows it: bounce the source only, or the whole strip.
+bounce.again = The song changed while it was bouncing: bouncing it again.
+bounce.kept_for_notes = {name} is muted, not removed: something still hears its notes.
+bounce.done_kept = {name} bounced to audio, on the track below it. {track} is muted, not removed: something still hears its notes.
+bounce.live_input = {name} plays a live input (armed, or monitoring always): disarm it or set its monitoring to Auto or Off first.
+bounce.soloed = {what} is soloed inside it: its bounce holds all of it. Unsolo {what} first.
+bounce.notes_heard = Something hears {name}'s notes: muting its clips would silence it. Bounce the whole track instead.
+bounce.strip_source = A strip bounces with its inserts: Bounce strip in place.
+bounce.latency_moves = {name} was not bounced: its latency changes during the song (a look-ahead or a mode automated, a plug-in reporting another), which one file cannot hold.
+bounce.seam = {name}'s chosen clips cross-fade with a take they leave out: choose both, a time range, or the whole track.
+
+# --- low-latency monitoring ---
+freeze.ll.band = Low-latency monitoring
+freeze.ll.row = Low latency
+freeze.ll.on = On
+freeze.ll.tip = Low-latency monitoring ({key}): what you monitor is not held back for other tracks' latency, and its inserts over the limit are bypassed while it is on.
+freeze.ll.limit = Limit
+freeze.ll.limit_tip = Inserts on a monitored path whose latency is above this are bypassed
+freeze.ll.ms = {ms} ms
+freeze.ll.now = Bypassed
+freeze.ll.none_off = Nothing over the limit
+freeze.ll.without = Monitoring without: {names}
+freeze.ll.more = {names} and {n} more
+freeze.ll.heard = You hear
+freeze.ll.round_trip = {ms} ms round trip
+freeze.ll.now_on = Low-latency monitoring on: what you monitor is heard without waiting for other tracks.
+freeze.ll.now_off = Low-latency monitoring off: everything is aligned again.
+freeze.chip.monitored = {ms} ms monitored

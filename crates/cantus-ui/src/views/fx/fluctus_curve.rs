@@ -403,7 +403,9 @@ pub fn point_card(
                 let labels = SHAPE_KEYS.map(Src::Key);
                 let now = host.spec().get(keys[4]).round().max(0.0) as usize;
                 let name = frame::tr("fx.fluctus.p.s");
-                if let Some(i) = controls::segmented(ui, s, now, &labels, name, width) {
+                if let Some(i) =
+                    controls::segmented_key(ui, s, host, keys[4], now, &labels, name, width)
+                {
                     host.set(keys[4], i as f32, None);
                 }
             });

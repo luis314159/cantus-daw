@@ -70,6 +70,18 @@ pub struct TrackSnapshot {
     /// The track's input, and whether it is armed: what the engine monitors and records.
     pub input: Option<crate::audio::TrackInput>,
     pub armed: bool,
+    /// Frozen on its own (ADR 0064): its instrument and clips play from this render when
+    /// the engine has attached it (`FrozenPlay::audio`), else live.
+    pub frozen: Option<crate::freeze::FrozenPlay>,
+    /// Resting (ADR 0064): its sound only reaches a frozen strip that plays its render, and
+    /// nothing live needs it — the engine does not run it. Set by the engine's attach.
+    pub rest: bool,
+    /// Resting but for its notes (ADR 0064, review 2): an insert or a modulator that runs
+    /// hears them, so its events go on to them; its instrument is not played and its sound
+    /// goes nowhere.
+    pub notes_only: bool,
+    /// How late its audio arrives at its level (`Track::lateness`, schema 38).
+    pub lateness: Option<crate::model::Lateness>,
 }
 
 impl TrackSnapshot {
@@ -114,6 +126,41 @@ pub struct AudioClipSnapshot {
     pub xin: Option<(Ticks, Ticks)>,
     /// The seam's crossfade out of this window into the next.
     pub xout: Option<(Ticks, Ticks)>,
+    /// The clip's warp (ADR 0061), unless it plays as the source: the sample cache
+    /// attaches its render — laid out so frame `k` is content time `k / rate` at the
+    /// project's tempo from the window's content origin, its fine offset inside — and sets
+    /// `slip` to 0.
+    pub warp: Option<std::sync::Arc<crate::warp::Warp>>,
+    /// The source file's own rate (the warp's frames count at it).
+    pub source_rate: u32,
+    /// Where the data's frame 0 lies, when the sample cache placed it (a warp's render or
+    /// bridge): on tick `.0`, less `.1` frames at the engine's rate — the window's start
+    /// for the render made for this window, or where the content it was made for begins (a
+    /// render of the window before a trim, played while the new one is made: round 29's
+    /// third review). `None`: the unwarped rule (`Transport::clip_zero`, from the content
+    /// origin with the fine offset) — never by cancelling that formula (second review).
+    pub zero_at: Option<(Ticks, f64)>,
+    /// What this piece played before its data or its placement changed (a bridge giving way
+    /// to its render, one drag step's bridge to the next, a render laid again under an
+    /// edited tempo): the engine crossfades from it, laid as the playing snapshot laid it,
+    /// into the new over [`SWAP_FADE_S`] — once per swap, never again after a wrap or a seek
+    /// (round 29's third review).
+    pub fade_from: Option<FadeFrom>,
+}
+
+/// How long a piece's old data fades into its new one when a snapshot swaps them, seconds.
+pub const SWAP_FADE_S: f64 = 0.005;
+
+/// A piece's data before a swap (see [`AudioClipSnapshot::fade_from`]): the engine finds
+/// where it was laid in the snapshot playing when the swap arrives (the same clip holding
+/// this data), and fades it out from the frame it was playing.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FadeFrom {
+    pub data: std::sync::Arc<crate::pads::SampleData>,
+    /// The swap: one id per change (the sample cache counts them up). The snapshots after
+    /// it carry the same id for a moment, so a swap whose snapshot never played (two
+    /// installs in one callback) still fades, and a re-install never starts it again.
+    pub id: u64,
 }
 
 /// One mixer strip, resolved for the audio thread.
@@ -144,6 +191,12 @@ pub struct StripSnapshot {
     /// existed — or `Pre`, after the inserts, the EQ, width and swap and before the fader
     /// and the pan law. Mute and solo (`muted`) silence both.
     pub sends: Vec<(usize, f32, crate::SendTap)>,
+    /// Frozen (ADR 0064): when the engine has attached its render (`FrozenPlay::audio`)
+    /// the strip gathers nothing and plays the render into its width, pan and fader;
+    /// otherwise it plays live.
+    pub frozen: Option<crate::freeze::FrozenPlay>,
+    /// Resting (ADR 0064): see [`TrackSnapshot::rest`].
+    pub rest: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -151,6 +204,10 @@ pub struct Snapshot {
     pub revision: u64,
     pub tempo_bpm: f64,
     pub time_signature: TimeSignature,
+    /// The tempo map (ADR 0060): the tempo and metre along the song, compiled here once;
+    /// the engine's transport plays through it. A project without a tempo track has the
+    /// constant map of `tempo_bpm` and `time_signature`.
+    pub tempo: std::sync::Arc<crate::tempo::TempoMap>,
     pub loop_region: Option<LoopRegion>,
     pub loop_enabled: bool,
     pub metronome: bool,
@@ -183,11 +240,15 @@ pub struct Snapshot {
     /// files: nothing plays them, but the sample cache keeps their renders, so a switch
     /// back plays the edits at once (integration review).
     pub kept_pitch: Vec<(String, std::sync::Arc<crate::pitch::PitchEdit>)>,
+    /// The audio clips (track index, clip index) whose `fade_from` the sample cache set:
+    /// what the engine looks at when it installs this snapshot, never every clip.
+    pub swaps: Vec<(usize, usize)>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
         let mut automation = crate::automation::compile::compile(project);
+        let hearing = crate::warp::held_tempo(project);
         let tracks = project
             .tracks
             .iter()
@@ -203,9 +264,22 @@ impl Snapshot {
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
                 assets: Vec::new(),
-                audio: compile_audio(project, t),
+                audio: compile_audio(project, t, &hearing),
                 input: t.input.clone(),
                 armed: t.armed,
+                // Played live while a solo silences part of what made its render (review 2),
+                // its render kept attached (review 3). A track is never silenced here: its
+                // own level is.
+                frozen: t.frozen.as_ref().map(|f| {
+                    use crate::freeze::{solo_play, FreezeTarget, FrozenPlay, SoloPlay};
+                    match solo_play(project, FreezeTarget::Track(t.id)) {
+                        SoloPlay::Live => FrozenPlay::of(f, SoloPlay::Live),
+                        _ => FrozenPlay::of(f, SoloPlay::Render),
+                    }
+                }),
+                rest: false,
+                notes_only: false,
+                lateness: t.lateness,
             })
             .collect::<Vec<_>>();
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
@@ -214,6 +288,7 @@ impl Snapshot {
             revision,
             tempo_bpm: project.tempo_bpm,
             time_signature: project.time_signature,
+            tempo: std::sync::Arc::new(project.tempo_map()),
             loop_region: if project.loop_enabled {
                 project.loop_region.clone()
             } else {
@@ -260,6 +335,14 @@ impl Snapshot {
                                     .map(|i| (i, x.effective_level(), x.tap))
                             })
                             .collect(),
+                        // A solo elsewhere (or its only input's mute) silences what the
+                        // render holds; one that silences part of it plays it live, its render kept
+                        // attached (review 3).
+                        frozen: s.frozen.as_ref().map(|f| {
+                            use crate::freeze::{solo_play, FreezeTarget, FrozenPlay};
+                            FrozenPlay::of(f, solo_play(project, FreezeTarget::Strip(s.id)))
+                        }),
+                        rest: false,
                     })
                     .collect()
             },
@@ -271,6 +354,7 @@ impl Snapshot {
             automation,
             modulators,
             kept_pitch: kept_pitch(project),
+            swaps: Vec::new(),
         }
     }
 
@@ -322,7 +406,11 @@ const MAX_AUDIO_REPEATS: i64 = 4096;
 /// every piece the way it plays a plain clip. The clip's fade in belongs to its first
 /// piece and its fade out to its last (each limited to its piece); the pieces between are
 /// unfaded, so a loop sounds continuous.
-fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
+fn compile_audio(
+    project: &Project,
+    track: &Track,
+    hearing: &crate::warp::Hearing,
+) -> Vec<AudioClipSnapshot> {
     let mut out: Vec<AudioClipSnapshot> = Vec::new();
     for c in track.clips.iter().filter(|c| !c.muted && c.lane == 0) {
         let Some(a) = c.audio.as_ref() else {
@@ -368,6 +456,17 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
+            // A warp that plays as the source (ADR 0061) is no warp: the bits of today. One
+            // that does not follow (and does not transpose) does, whatever the tempo map;
+            // one that follows, where it maps as the unwarped clip over its window.
+            warp: a
+                .warp
+                .as_ref()
+                .filter(|_| !crate::warp::plays_source(c, hearing))
+                .map(|w| std::sync::Arc::new((**w).clone())),
+            source_rate: src.sample_rate,
+            zero_at: None,
+            fade_from: None,
         };
         match c.period() {
             Some(period) if period < c.length => {
@@ -381,7 +480,7 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
             _ => out.push(piece(c.start, c.end(), true, true)),
         }
     }
-    seams(project, track, &mut out);
+    seams(project, track, hearing, &mut out);
     out.sort_by_key(|c| c.start);
     out
 }
@@ -390,8 +489,13 @@ fn compile_audio(project: &Project, track: &Track) -> Vec<AudioClipSnapshot> {
 /// exactly where another ends, the two overlap by the crossfade, centred on the seam — the
 /// left reads on past it, the right starts before it (each into its own source) — and are
 /// told the stretch they cross over. A looped or reversed window takes no seam.
-fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
-    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c);
+fn seams(
+    project: &Project,
+    track: &Track,
+    hearing: &crate::warp::Hearing,
+    out: &mut [AudioClipSnapshot],
+) {
+    let plays = |c: &&Clip| !c.muted && crate::comp::seam_window(c, hearing);
     for right in track.clips.iter().filter(plays) {
         let x = right
             .audio
@@ -404,7 +508,7 @@ fn seams(project: &Project, track: &Track, out: &mut [AudioClipSnapshot]) {
             .clips
             .iter()
             .filter(plays)
-            .find(|l| crate::comp::is_seam(l, right))
+            .find(|l| crate::comp::is_seam(l, right, hearing))
         else {
             continue;
         };
@@ -446,14 +550,27 @@ fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
         return (Ticks::ZERO, Ticks::ZERO);
     };
     let rate = f64::from(src.sample_rate.max(1));
-    let bpm = project.tempo_bpm.max(1e-9);
-    let frame = |t: Ticks| t.to_seconds(bpm) * rate + f64::from(a.slip_frames);
-    let ticks = |frames: f64| {
-        Ticks(((frames.max(0.0) / rate) * bpm / 60.0 * crate::time::PPQ as f64).floor() as i64)
-    };
+    let map = project.tempo_map();
+    if map.is_constant() {
+        let bpm = project.tempo_bpm.max(1e-9);
+        let frame = |t: Ticks| t.to_seconds(bpm) * rate + f64::from(a.slip_frames);
+        let ticks = |frames: f64| {
+            Ticks(((frames.max(0.0) / rate) * bpm / 60.0 * crate::time::PPQ as f64).floor() as i64)
+        };
+        return (
+            ticks(frame(c.offset)),
+            ticks(src.frames as f64 - frame(c.offset + c.length)),
+        );
+    }
+    // Through the tempo map (ADR 0060, `crate::audio_time`): the ticks from the source's
+    // first frame to the window's start, and from its end to the source's last frame.
+    let slip = f64::from(a.slip_frames);
+    let at =
+        |frame: f64| crate::audio_time::tick_at_frame(&map, c.start, c.offset, slip, rate, frame);
+    let (start, end) = (c.start.0 as f64, (c.start + c.length).0 as f64);
     (
-        ticks(frame(c.offset)),
-        ticks(src.frames as f64 - frame(c.offset + c.length)),
+        Ticks((start - at(0.0)).max(0.0).floor() as i64),
+        Ticks((at(src.frames as f64) - end).max(0.0).floor() as i64),
     )
 }
 

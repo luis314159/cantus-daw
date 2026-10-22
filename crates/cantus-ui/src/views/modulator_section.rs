@@ -474,6 +474,7 @@ pub fn wired_value(
     };
     let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
     let (m, n) = app.mod_offer(&target, base, &sh.s, &mut rings);
+    crate::kit::automate::probe::note_learn(probe, m.learn.is_some());
     let offer = crate::kit::automate::Offer {
         automated: app.is_automated(&target),
         typing: false,
@@ -490,6 +491,10 @@ pub fn wired_value(
     let s = sh.s;
     if offer.automated {
         crate::kit::automate::mark(sh.b, rect, &s);
+    }
+    // Mapped to a controller (round 29, review 1 of ADR 0062).
+    if m.learn.is_some_and(|l| l.mapped) {
+        crate::kit::automate::learn_mark(sh.b, rect, &s);
     }
     if n > 0 {
         crate::kit::automate::mod_mark(sh.b, rect, &s);

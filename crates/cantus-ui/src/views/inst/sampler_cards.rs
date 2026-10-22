@@ -167,11 +167,15 @@ fn section(
     };
     let cr = parts::card(ui, rect, s, &look, true);
     if let (Some((key, names)), Some(i)) = (sec.selector, current) {
-        let step = parts::selector_step(
+        let step = parts::selector_step_key(
+            app,
             ui,
             &cr,
             s,
             &t(spec.kind.param(key).map_or(key, |p| p.label_key)),
+            track,
+            spec,
+            key,
         );
         if step != 0 {
             let n = names.len() as i32;
@@ -318,7 +322,8 @@ fn group_card(
         display: None,
     };
     let cr = parts::card(ui, rect, s, &look, !muted);
-    if parts::card_led(ui, &cr, &t("smp.mute")) {
+    let mute_key = format!("g{m}.mute");
+    if parts::card_led_key(app, ui, &cr, &t("smp.mute"), track, spec, &mute_key) {
         app.set_inst_value(
             track,
             &format!("g{m}.mute"),
@@ -481,7 +486,7 @@ fn tools(
         "smp.q.best_tip",
     ];
     let hint = format!("{} \u{b7} {}", t("smp.quality"), t(tips[q]));
-    if let Some(i) = parts::seg(ui, qr, s, q, &names, &hint) {
+    if let Some(i) = parts::seg_key(app, ui, qr, s, q, &names, &hint, track, spec, "quality") {
         app.set_inst_value(track, "quality", i as f32, false);
     }
     // Round robin's order (round 28): in order by each note's place in the song, or drawn
@@ -497,7 +502,9 @@ fn tools(
         let names = [Src::Key("smp.rr.by_note"), Src::Key("smp.rr.in_order")];
         let tips = ["smp.rr.by_note_tip", "smp.rr.in_order_tip"];
         let hint = format!("{} \u{b7} {}", t("smp.rr_order"), t(tips[order]));
-        if let Some(i) = parts::seg(ui, rr, s, order, &names, &hint) {
+        if let Some(i) = parts::seg_key(
+            app, ui, rr, s, order, &names, &hint, track, spec, "rr.order",
+        ) {
             app.set_inst_value(track, "rr.order", i as f32, false);
         }
         left = rr.left();
@@ -511,7 +518,9 @@ fn tools(
     if kr.left() > x {
         let on = spec.get("kit") >= 0.5;
         let tip = format!("{} \u{b7} {}", t("smp.kit"), t("smp.kit_tip"));
-        if parts::led(ui, kr, s, on, Src::Key("smp.kit"), &tip).clicked() {
+        let r = parts::led(ui, kr, s, on, Src::Key("smp.kit"), &tip);
+        let learning = crate::controllers::stepped_inst(app, ui, track, spec, "kit", &r);
+        if r.clicked() && !learning {
             app.set_inst_value(track, "kit", if on { 0.0 } else { 1.0 }, false);
         }
         left = kr.left();

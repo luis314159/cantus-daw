@@ -1,0 +1,146 @@
+# warp — round 29: warping, time-stretch and pitch-shift of audio clips. Every key here needs its twin in warp.es.txt.
+
+# The undo menu (ADR 0061).
+cmd.warp.set = Warp the clip
+cmd.warp.auto = Warp the loop to the tempo
+cmd.warp.add_marker = Add warp marker
+cmd.warp.move_marker = Move warp marker
+cmd.warp.move_content = Slide audio under a warp marker
+cmd.warp.remove_marker = Remove warp marker
+cmd.warp.quantise = Quantise audio
+cmd.warp.mode = Warp mode
+cmd.warp.transpose = Transpose audio
+cmd.warp.formants = Keep formants
+cmd.warp.tail = Slice ends
+cmd.warp.follow = Follow the project tempo
+cmd.warp.tempo = Clip tempo
+cmd.warp.reset = Reset warp
+cmd.warp.bounce = Bounce warped audio
+cmd.warp.stretch = Stretch the clip
+
+# The modes.
+warp.mode.complex = Complex
+warp.mode.rhythm = Rhythm
+warp.mode.melodic = Melodic
+warp.mode.repitch = Re-pitch
+warp.badge.complex = Warp
+warp.badge.rhythm = Warp: Rhythm
+warp.badge.melodic = Warp: Melodic
+warp.badge.repitch = Warp: Re-pitch
+
+# On the clip.
+warp.marker = Warp marker
+warp.transient = Transient
+warp.transient.tip = Double-click to pin it with a warp marker; drag to pin it and move it
+warp.band = Warp markers
+warp.band.tip = Double-click to add a warp marker here; drag to add one and move it
+
+# The clip's menu.
+warp.menu.band = Warp
+warp.menu.follow = Follow the project tempo
+warp.menu.quantise = Quantise audio…
+warp.menu.quantise_short = Quantise…
+warp.menu.detect = Detect tempo
+warp.menu.from_here = Warp from here
+warp.menu.project_tempo = Set the project tempo from this clip
+warp.menu.edit = Edit warp
+warp.menu.bounce = Bounce warped audio
+warp.menu.reset = Reset warp
+warp.menu.remove_marker = Remove warp marker
+
+# The inspector.
+warp.inspector.band = Warp
+warp.inspector.follow = Follow tempo
+warp.inspector.follow_short = Follow
+warp.inspector.mode = Mode
+warp.inspector.transpose = Transpose
+warp.inspector.formants = Formants
+warp.inspector.formants_on = Keep
+warp.inspector.tail = Slice ends
+warp.inspector.tempo = Clip tempo
+warp.inspector.detected = Detected
+warp.inspector.bars = {n} bars
+warp.inspector.bars_one = 1 bar
+warp.inspector.sure = Confidence
+warp.inspector.none = Not analysed
+warp.tail.fade = Fade
+warp.tail.loop = Loop
+warp.tail.pingpong = Mirror
+
+# The clip editor.
+warp.tab.pitch = Pitch
+warp.tab.warp = Warp
+warp.tempo.half = ½
+warp.tempo.double = ×2
+
+# Quantise audio.
+warp.quantise.title = Quantise audio
+warp.quantise.grid = Grid
+warp.quantise.strength = Strength
+warp.quantise.threshold = Transients over
+warp.quantise.note = Pulls the transients of {n} clips toward the grid; the files are never changed
+warp.quantise.note_one = Pulls the clip's transients toward the grid; its file is never changed
+warp.quantise.apply = Quantise
+warp.quantise.cancel = Cancel
+
+# The status line.
+warp.status.analysing = The clip's file is still being analysed: try again in a moment
+warp.status.analysing_short = Analysing…
+warp.status.no_tempo = No steady tempo was found in this clip
+warp.status.detected = Warped at {bpm} BPM
+warp.status.quantised = Quantised {n} clips
+warp.status.quantised_one = Quantised 1 clip
+warp.bounce.file = {name} (warped)
+warp.bounce.busy = A bounce is already being written
+warp.bounce.working = Bouncing {name}…
+warp.bounce.done = {name} now plays its bounced audio
+warp.bounce.failed = The bounce could not be written: {error}
+warp.bounce.nothing = Nothing to bounce: the clip's file cannot be read
+warp.status.late = A warped clip's render was not ready in time: what was written holds its quick version
+warp.bounce.stale = The bounce of {name} was not applied: the clip changed while it was written
+
+# DAWproject (ADR 0061): audio clips travel with their warps.
+interop.report.x_audio_external = An audio file that could not be read is referenced where it was, not carried: {file}
+interop.report.x_warp_transpose = A transposition (DAWproject has none): {clip}
+interop.report.x_pitch_edits = Pitch edits (the file carries the take as sung): {clip}
+interop.report.x_reverse = A reversed clip (it plays forwards): {clip}
+
+# On load (a hand-edited or damaged file).
+warp.status.repaired_one = A clip's warp in this file was damaged: the clip plays at its natural speed
+warp.status.repaired = {n} clips' warps in this file were damaged: they play at their natural speed
+
+# DAWproject (round 29's review): what an audio clip loses on the way out, and in.
+interop.report.x_takes = {n} takes of {track} (only the comp is heard; DAWproject has no take lanes)
+interop.report.x_takes_one = One take of {track} (only the comp is heard; DAWproject has no take lanes)
+interop.report.x_track_input = The audio input of {track} (set it again after opening the file)
+interop.report.x_clip_gain = The clip gain of {clip}
+interop.report.x_fade_curve = The fade shapes of {clip} (they come back straight)
+interop.report.x_warp_tail = The slice ends of {clip} (Rhythm: they come back faded)
+interop.report.x_warp_formants = Formants not kept on {clip}
+interop.report.x_warp_markers = The warp markers of {clip} (it plays at natural speed, as written)
+interop.report.x_audio_unread = An audio file that could not be read while writing: {file}
+interop.report.d_audio_missing = An audio file found neither in the .dawproject package nor on disk: {file}
+warp.status.outside = That place is outside the clip: right-click inside it, or put the playhead there
+warp.grid = Grid
+warp.grid.off = Off
+interop.report.d_audio_unwritten = An audio file of the .dawproject package that could not be written to disk: {file}
+interop.status.exporting = Writing {file}…
+interop.status.export_stopped = the export stopped before it was done
+interop.status.importing = Reading {file}…
+interop.status.import_busy = A DAWproject file is already being read
+interop.status.import_stopped = the import stopped before it was done
+interop.status.export_busy = A DAWproject file is already being written
+warp.status.bake_waiting = Baked to automation once the renders on their way are in…
+interop.report.d_part_too_large = A part of the .dawproject package too large to read, left out (a device's state: the device is replaced): {file}
+interop.report.d_warp_natural = The warp points of {clip} lie on its natural speed: it plays unwarped
+interop.status.import_abandoned = {file} was read after another project was opened, so it was not opened: import it again to open it
+interop.error.not_zip = it is not a ZIP archive (a .dawproject package is one)
+interop.error.damaged = the file is damaged or cut short
+interop.error.method = {part} is compressed in a way Cantus does not read (method {method})
+interop.error.corrupt = {part} is damaged (its data does not match its checksum)
+interop.error.too_large = {part} is too large to read
+interop.error.write = {file} could not be written: {error}
+interop.error.no_project = the package has no project.xml
+interop.error.xml = its project.xml is not well-formed: {error}
+interop.error.not_dawproject = its project.xml is not a DAWproject (its root is <{root}>)
+warp.inspector.no_tempo = No steady tempo

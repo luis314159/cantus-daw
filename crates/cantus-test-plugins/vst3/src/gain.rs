@@ -9,7 +9,7 @@ use vst3::Steinberg::Vst::BusDirections_::{kInput, kOutput};
 use vst3::Steinberg::Vst::BusInfo_::BusFlags_::kDefaultActive;
 use vst3::Steinberg::Vst::BusTypes_::{kAux, kMain};
 use vst3::Steinberg::Vst::MediaTypes_::kAudio;
-use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::kCanAutomate;
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kCanAutomate, kIsHidden, kIsReadOnly};
 use vst3::Steinberg::Vst::RestartFlags_::kLatencyChanged;
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::{
@@ -36,6 +36,10 @@ pub const CONTROLLER_CID: TUID = uid(0x43414E54, 0x55535447, 0x41494E43, 0x544C5
 
 pub const GAIN: u32 = 0;
 pub const LATENCY: u32 = 1;
+/// Hidden: a failure on purpose (`crate::fault`, round 29).
+pub const FAULT: u32 = 2;
+/// Hidden and read-only: the id of the process this instance runs in.
+pub const PROCESS: u32 = 3;
 pub const MAX_LATENCY: u32 = 4096;
 const DELAY_LEN: usize = 8192;
 
@@ -208,6 +212,7 @@ impl IComponentTrait for Processor {
 
     unsafe fn setActive(&self, state: TBool) -> tresult {
         if state != 0 {
+            crate::fault::fire(crate::fault::ABORT_ACTIVATE);
             let d = &mut *self.delay.get();
             for line in &mut d.lines {
                 line.fill(0.0);
@@ -218,6 +223,7 @@ impl IComponentTrait for Processor {
     }
 
     unsafe fn setState(&self, state: *mut IBStream) -> tresult {
+        crate::fault::fire(crate::fault::ABORT_LOAD);
         let (Some(magic), Some(g), Some(l)) = (
             bytes::read::<4>(state),
             bytes::read_f64(state),
@@ -234,6 +240,7 @@ impl IComponentTrait for Processor {
     }
 
     unsafe fn getState(&self, state: *mut IBStream) -> tresult {
+        crate::fault::fire(crate::fault::ABORT_SAVE);
         let latency = f64::from(self.latency.load(Ordering::SeqCst)) / f64::from(MAX_LATENCY);
         let ok = bytes::write(state, b"CTGS")
             && bytes::write(state, &load(&self.gain).to_le_bytes())
@@ -320,6 +327,8 @@ impl IAudioProcessorTrait for Processor {
                         count += 1;
                     } else if id == LATENCY {
                         self.latency.store(latency_samples(value), Ordering::SeqCst);
+                    } else if id == FAULT {
+                        crate::fault::arm(value);
                     }
                 }
             }
@@ -436,6 +445,8 @@ pub struct Controller {
     _live: Live,
     gain: AtomicU64,
     latency: AtomicU64,
+    /// The Fault parameter's normalised value, as the controller was told it.
+    fault: AtomicU64,
     zoom: AtomicU64,
     handler: Mutex<Option<ComPtr<IComponentHandler>>>,
 }
@@ -450,6 +461,7 @@ impl Controller {
             _live: Live::new(),
             gain: AtomicU64::new(0.5f64.to_bits()),
             latency: AtomicU64::new(0.0f64.to_bits()),
+            fault: AtomicU64::new(0.0f64.to_bits()),
             zoom: AtomicU64::new(1.0f64.to_bits()),
             handler: Mutex::new(None),
         }
@@ -479,9 +491,11 @@ impl IPluginBaseTrait for Controller {
     }
 }
 
-const PARAMS: [(u32, &str, &str, i32, f64); 2] = [
+const PARAMS: [(u32, &str, &str, i32, f64); 4] = [
     (GAIN, "Gain", "dB", 0, 0.5),
     (LATENCY, "Latency", "samples", MAX_LATENCY as i32, 0.0),
+    (FAULT, "Fault", "", crate::fault::STEPS, 0.0),
+    (PROCESS, "Process", "", 0, 0.0),
 ];
 
 impl IEditControllerTrait for Controller {
@@ -535,7 +549,11 @@ impl IEditControllerTrait for Controller {
         info.stepCount = steps;
         info.defaultNormalizedValue = default;
         info.unitId = 0;
-        info.flags = kCanAutomate as i32;
+        info.flags = match id {
+            FAULT => kIsHidden as i32,
+            PROCESS => (kIsHidden | kIsReadOnly) as i32,
+            _ => kCanAutomate as i32,
+        };
         kResultOk
     }
 
@@ -543,6 +561,7 @@ impl IEditControllerTrait for Controller {
         let text = match id {
             GAIN => format!("{:.1}", gain_db(norm)),
             LATENCY => format!("{}", latency_samples(norm)),
+            FAULT | PROCESS => format!("{}", self.normalizedParamToPlain(id, norm).round()),
             _ => return kInvalidArgument,
         };
         copy_wstring(&text, &mut *string);
@@ -566,6 +585,8 @@ impl IEditControllerTrait for Controller {
         match id {
             GAIN => gain_db(norm),
             LATENCY => f64::from(latency_samples(norm)),
+            FAULT => (norm * f64::from(crate::fault::STEPS)).round(),
+            PROCESS => norm * crate::fault::PROCESS_RANGE,
             _ => norm,
         }
     }
@@ -574,6 +595,8 @@ impl IEditControllerTrait for Controller {
         match id {
             GAIN => ((plain + 48.0) / 96.0).clamp(0.0, 1.0),
             LATENCY => (plain / f64::from(MAX_LATENCY)).clamp(0.0, 1.0),
+            FAULT => (plain / f64::from(crate::fault::STEPS)).clamp(0.0, 1.0),
+            PROCESS => (plain / crate::fault::PROCESS_RANGE).clamp(0.0, 1.0),
             _ => plain,
         }
     }
@@ -582,6 +605,8 @@ impl IEditControllerTrait for Controller {
         match id {
             GAIN => load(&self.gain),
             LATENCY => load(&self.latency),
+            FAULT => load(&self.fault),
+            PROCESS => crate::fault::process_norm(),
             _ => 0.0,
         }
     }
@@ -599,6 +624,9 @@ impl IEditControllerTrait for Controller {
                     }
                 }
             }
+            // The controller only keeps it: a fault arms in `process`.
+            FAULT => store(&self.fault, value),
+            PROCESS => {}
             _ => return kInvalidArgument,
         }
         kResultOk
@@ -613,6 +641,7 @@ impl IEditControllerTrait for Controller {
         if name.is_null() || CStr::from_ptr(name) != c"editor" {
             return std::ptr::null_mut();
         }
+        crate::fault::fire(crate::fault::ABORT_EDITOR);
         let view = ComWrapper::new(View::new());
         VIEWS.add(&*view as *const View as usize);
         match view.to_com_ptr::<IPlugView>() {

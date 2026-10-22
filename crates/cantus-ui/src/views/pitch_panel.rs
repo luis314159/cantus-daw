@@ -277,17 +277,19 @@ pub fn quantise(
                 .into_iter()
                 .map(|t| tm.frame(t))
                 .collect();
-            let reach = cantus_core::Ticks::QUARTER.to_seconds(app.project().tempo_bpm)
+            let reach = cantus_core::Ticks::QUARTER.to_seconds(tm.map.bpm_at(tm.start.0 as f64))
                 * 0.5
                 * tm.rate as f64;
             edit::quantise_to(&mut e, ids, &onsets, reach, tm.reverse)
         }
         None => {
-            let grid = app.pitch.view.grid.0.max(1);
+            let grid = cantus_core::Ticks(app.pitch.view.grid.0.max(1));
+            // The grid the ladder draws: through the metre changes (review 2: counted from
+            // tick 0, a quarter after a bar of 7/8 fell between the lines drawn).
+            let snapper = crate::views::bars::Snapper::of(app.project());
             let snap = |f: u64| -> i64 {
-                let t = tm.tick(f as f64).0;
-                let q = (t as f64 / grid as f64).round() as i64 * grid;
-                tm.frame(cantus_core::Ticks(q)).round().max(0.0) as i64
+                let q = snapper.tick(tm.tick(f as f64), grid);
+                tm.frame(q).round().max(0.0) as i64
             };
             edit::quantise_by(&mut e, ids, |n| snap(edge(n)) - edge(n) as i64)
         }

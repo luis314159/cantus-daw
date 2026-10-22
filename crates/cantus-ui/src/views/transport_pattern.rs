@@ -160,7 +160,10 @@ pub fn follow(app: &mut CantusApp) {
     // any place outside it is the pattern's top (the engine wraps only inside the loop).
     let (start, end) = match &app.topbar.pattern.region {
         Some(r) => (r.start, r.end()),
-        None => (Ticks::ZERO, app.project().time_signature.ticks_per_bar()),
+        None => (
+            Ticks::ZERO,
+            crate::views::bars::bar_len(app.project(), Ticks::ZERO),
+        ),
     };
     let pos = app.engine.engine_position();
     if should_seek(&mut app.topbar.pattern.sought, entered, pos, start, end) {

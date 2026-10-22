@@ -265,6 +265,33 @@ grabación**:
 - El clic —su nivel, su sonido, su acento y cuándo suena— es del metrónomo, en la
   [barra superior](#la-barra-superior).
 
+### Escuchar con baja latencia
+
+La compensación de retardo mantiene cada pista a tiempo con la más lenta: con un EQ de fase
+lineal en alguna parte de la canción, todo —**también la entrada que escuchas**— lo
+espera, y quien canta puede oírse 96 ms tarde. La **escucha con baja latencia**
+(`Alt+Shift+R`, o su interruptor en las opciones de grabación, en el menú del chip de
+audio y en las filas de grabación del inspector) lo cambia mientras está activa:
+
+- Lo que escuchas (la entrada de una pista armada con su **Escucha** en *Auto*, cualquier
+  entrada con la Escucha en *Sí*, o una pista de instrumento armada que tocas) llega a tus
+  oídos **sin esperar a las otras pistas**: una voz por Tonus se oye 2,7 ms tarde en vez de
+  96 ms. La base sigue a tiempo consigo misma.
+- Una inserción del camino escuchado con más latencia que el **límite** (3 ms por
+  omisión; 5, 10 o 20 ms en las mismas filas) se **salta** — la lista dice cuáles:
+  *Escucha sin: Aequalis, Culmen* (y cuántas más, pasadas ocho). Vuelven en cuanto la
+  apagas, sin nada de antes.
+- El chip de audio muestra el viaje de ida y vuelta de lo que escuchas —el del driver,
+  la espera de la entrada (para una entrada de audio: las notas que tocas solo salen) y la
+  cadena escuchada— mientras está activa.
+- Tu toma queda exactamente donde quedaría con ella apagada: lo que se graba es la entrada
+  tal cual, colocada según la latencia que había cuando empezó la toma. Si la latencia del
+  acompañamiento cambia durante la toma (cambias el modo, una anticipación automatizada),
+  lo que tocas después se coloca según la nueva: cada parte queda donde la tocaste.
+
+Para el menor retardo, escúchate por un canal propio: un bus que mezcla tu voz con otras
+pistas grabadas las mantiene a tiempo, y tu voz las espera ahí.
+
 ### Tomas y comping
 
 Cada toma se guarda en un **carril de tomas** bajo la pista: ábrelos con el pequeño
@@ -314,6 +341,119 @@ seleccionada. ¿Sin teclado?
 `Ctrl+T` activa el **teclado del ordenador**: `A`–`L` tocan notas, `Z`/`X` cambian de
 octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan — usa
 `Espacio` o la tecla de grabar.
+
+### Controladores MIDI
+
+Cualquier perilla, fader, botón o pad de un controlador MIDI puede mover cualquier cosa
+que Cantus pueda ajustar: un parámetro de cualquier dispositivo (de Cantus o de un plug-in
+alojado), un fader, un panorama, una anchura, un envío, la cantidad de un modulador, un
+silencio, un solo, un armado de grabación, el puenteo o la mezcla de un inserto, el tempo y
+el transporte (reproducir, detener, grabar, bucle, el metrónomo, el tempo por pulsación,
+los marcadores, PAT / SONG — todo lo que puede hacer una tecla).
+
+**Aprender en dos clics.** Clic derecho en un control ▸ **Aprender controlador MIDI** y
+mueve un control de tu equipo: listo. O haz clic en la casilla **MIDI** de la barra
+superior (o pulsa `Ctrl+Shift+M`; con clic derecho abre los ajustes MIDI) para el **modo de
+aprendizaje**: se marcan todos los controles
+que se pueden aprender; haz clic en uno, mueve un control del equipo, haz clic en el
+siguiente. Un control asignado lleva un puntito abajo a la derecha; en el modo de
+aprendizaje se marca con el color de resalte, y el que espera a tu equipo se enciende. `Esc`
+cancela un aprendizaje (también 15 segundos sin mover nada). Sin ninguna entrada MIDI
+abierta, un clic en la casilla abre los ajustes MIDI. **Cambiar controlador MIDI** y **Olvidar el controlador MIDI** están
+en el mismo menú. Los menús de canal e inserto del mezclador y el de la cabecera de pista
+tienen filas *Aprender* para volumen, panorama, anchura, silencio, solo, armado, puenteo y
+mezcla, y el de un canal para su interruptor de efectos y su armado de grabación (la
+bombilla FX y el punto de grabación del canal se aprenden también en el modo de
+aprendizaje); el menú de un envío las tiene para su nivel; las perillas y lámparas del rack de
+canales, y los interruptores y opciones de un dispositivo, se aprenden como cualquier
+perilla. En el inspector se aprenden también la lámpara (puenteo) y el anillo (mezcla) de
+un inserto, el interruptor de los insertos y el LED de armado, y en la ventana de un
+dispositivo su lámpara de puenteo. Un control que representa un valor de una opción
+aprende ese valor: el LED *Solo* de una banda aprende esa banda (un botón la deja sola y la
+suelta), una tecla de la escala de Tonus aprende su clic. Dentro de la ventana propia de un plug-in, mueve allí el parámetro, pulsa
+`Alt+Shift+A` (**Vincular el último parámetro movido a un controlador**, como en FL Studio;
+también en el menú **Clip** de la barra superior) y mueve el equipo.
+
+Cantus distingue lo que moviste: una perilla normal, un **fader de 14 bits** (llegó también
+su controlador fino), un **codificador sin fin** (y cuál de las tres codificaciones usa),
+un botón, un pad (en un interruptor conmuta; en una perilla su velocidad fija el valor) o un
+cambio de programa (sin la selección de banco que un teclado manda antes). Pulsa un botón y
+suéltalo: pulsado y soltado, conmuta; un botón que se queda abajo por sí mismo (solo manda
+su valor máximo) pone el destino encendido o apagado según esté. Todo parámetro de dos
+estados (el encendido de un dispositivo, una lámpara) es un interruptor: un botón lo fija
+al instante, sin toma de control. Los controles NRPN y RPN no se aprenden — Cantus lo
+dice y sigue esperando otro control; configura el controlador para que mande CC normales.
+
+**Cómo lee una asignación su control** — en el panel **Controladores** (menú Ver, o
+`Ctrl+Shift+K`), una fila por asignación:
+
+- **Modo**: *Absoluto* (donde está el control, está el destino), *Relativo* (un
+  codificador: cada paso mueve el destino — en una opción, una opción por paso), *Conmutar* (cada pulsación lo invierte),
+  *Momentáneo* (pulsado: activo; suelto: inactivo), *Disparo* (cada pulsación lanza una
+  acción).
+- **Desde / Hasta**: la parte del recorrido del destino que cubre el control, en las
+  unidades del destino (−∞ dB a +6 dB, 200 Hz a 4 kHz, 60 a 180 BPM…), una opción por sus
+  nombres (*Limpio* a *Opto*, *Fase lineal* a *Fase mínima*; las opciones de un plug-in con
+  sus propias palabras), un interruptor sin nombres *No* y *Sí*; *Hasta* por debajo
+  de *Desde* lo invierte. Arrastra una celda, o haz doble clic y escribe — un número o el
+  nombre de una opción; clic derecho la restablece.
+- **Curva**: una curvatura, para que la primera mitad del giro haga menos (o más); se
+  escribe en porcentaje (−100 a 100) y se guarda tal cual.
+- **Toma de control**, para un control que no se mueve solo cuando el valor cambia por
+  otro lado: *Recoger* (por defecto: nada se mueve hasta que la perilla pasa por el valor —
+  sin saltos), *Escalar* (el valor sigue a la perilla y ambos llegan juntos al final),
+  *Saltar*. La cabecera fija la toma de control de las asignaciones nuevas; un
+  interruptor no tiene.
+- **Retorno** (*Enviar*): el valor vuelve al controlador cada vez que cambia — para faders
+  motorizados y anillos de LED, y las luces de los botones del transporte y de cada
+  interruptor con estado (reproducir, grabar, bucle, metrónomo, pinchazo, cuenta previa…).
+  Desactivado por defecto; una acción sin estado (detener, deshacer) no tiene *Enviar*. Lo
+  que un controlador o un puerto de bucle devuelve al instante se reconoce como el eco que
+  es.
+
+Un punto encendido a la izquierda de una fila indica que acaba de llegar un mensaje.
+**Compartido** marca un control con varios destinos (se permite: una perilla puede abrir
+dos filtros a la vez). Una fila cuyo destino ya no existe (una pista borrada) se conserva,
+marcada **Falta**, y vuelve a funcionar si deshacer recupera el destino. El parámetro de un
+plug-in se aprende con ese plug-in: si el instrumento o el inserto se cambia por otro — un
+plug-in o uno de los de Cantus —, la fila dice **Otro plug-in**, con los nombres del plug-in
+y del parámetro con los que se aprendió y su recorrido en porcentaje, y su perilla queda
+libre (aprende el parámetro del nuevo; deshacer el cambio devuelve la vida a la fila
+antigua). Un inserto cambiado por uno de los de Cantus conserva su puenteo y su mezcla, y
+un parámetro que el efecto nuevo también tenga. **Sin cargar** indica que el plug-in está
+en el proyecto pero no funciona aquí (o se detuvo); **Congelado**, que el sonido del
+destino está congelado: un movimiento se rechaza y se dice, y la perilla no llega a ningún
+otro instrumento; **No conectado**, que la entrada MIDI de la asignación no está abierta;
+**Sin entrada**, que el armado de grabación de un canal no tiene ninguna pista con entrada
+que armar.
+
+**Dos mapas.** Las asignaciones de *Este proyecto* se guardan con el proyecto, y cada
+cambio es un paso de deshacer. **En todas partes** — tus asignaciones globales, guardadas
+junto a tus atajos de teclado — reúne lo que significa lo mismo en cualquier canción: el
+transporte, el tempo, el máster, **la pista seleccionada** y **el canal seleccionado**
+(volumen, panorama, silencio, solo, armado — los del máster cuando está seleccionado) y las ocho primeras perillas del **dispositivo
+enfocado** (la ventana de dispositivo en la que hiciste clic por última vez). Aprender una
+tecla de transporte o el máster la lleva allí; **Añadir asignación** en el panel los ofrece
+todos, y la acción de cada atajo de teclado por su grupo (armar la pista seleccionada,
+pinchar, deshacer, guardar, las vistas…). Cuando un control está en los dos, gana la asignación del proyecto. Si el archivo global no
+se puede leer entero, se guarda una copia a su lado (el estado dice su nombre) y no se
+pierde nada; si ni siquiera se puede copiar, nunca se escribe encima, y cada cambio en las
+asignaciones globales avisa de que no se guardará.
+
+**Mientras tocas y grabas.** Una perilla asignada ya no llega al instrumento (no mueve
+además su filtro) y un pad asignado no toca ninguna nota. Un movimiento hecho con el ratón
+o con un controlador es un paso de deshacer por gesto. Con un parámetro bajo un clip de
+automatización, el clip lo toca — hasta que una pasada de grabación lo mueve: desde ese
+momento el parámetro sigue tu mano (el clip queda aparte el resto de la pasada), y la
+pasada escribe lo que hiciste como un clip de automatización, cada movimiento en el momento
+en que llegó su mensaje, dentro de la pasada (la cuenta previa y lo que pase del final del
+pinchazo no se escriben, y pasado el final del pinchazo el parámetro vuelve a seguir su
+clip; Opciones de grabación ▸ *Grabar automatización*). Mientras se graba audio, una
+perilla asignada al tempo no hace nada (el estado dice por qué): cambia el tempo antes o
+después de la toma.
+
+La presión de canal y la presión de tecla llegan ahora al instrumento (de Cantus y
+alojados), y un cambio de programa llega a un instrumento alojado.
 
 ## 5. Editar: clips, piano roll, automatización
 
@@ -387,6 +527,65 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
 
 La **rejilla** (barra del arreglo) empieza en un compás; elige valores más finos para el
 detalle. Desplázate con la rueda, `Shift+rueda` en el tiempo, `Ctrl+rueda` para el zoom.
+
+### La pista de tempo y los marcadores
+
+Una canción puede cambiar de tempo y de compás a lo largo de ella y llevar marcadores con
+nombre (ronda 29).
+
+- **La pista de tempo** es una franja bajo la regla (*Ver ▸ Pista de tempo*, o el menú de
+  la regla): cada punto es un tempo, que se mantiene plano hasta el siguiente o hace una
+  **rampa** recta hasta él. Doble clic en la franja para añadir un punto (en la rejilla, al
+  tempo donde hiciste clic); arrastra un punto para moverlo (`Mayús` para pasos finos de
+  tempo, `Ctrl` fuera de la rejilla); `Alt+clic` activa o quita la rampa de un punto;
+  doble clic en un punto para escribir su tempo; clic derecho para *Rampa hasta el punto
+  siguiente*, *Quitar el punto* y *Quitar la pista de tempo*. La cabecera junto a la franja
+  muestra el tempo en el cursor de reproducción.
+- **El tempo de la barra superior** muestra el tempo en el cursor (dentro de una rampa, su
+  valor ahí). Arrastrarlo y la rueda (un paso, un BPM) mueven en esa cantidad el punto bajo
+  el que está el cursor — dentro de una rampa, su inicio; un doble clic (120) o **TAP** lo
+  fijan — el tempo de la canción cuando no hay pista de tempo.
+- **Los cambios de compás** son fichas en la regla antes del número del compás ("7/8").
+  Clic derecho en la franja de marcadores o en la regla ▸ *Añadir un cambio de compás aquí*
+  (en el compás 1 abre el compás propio de la canción); clic en una ficha para editar su
+  compás, arrástrala por las líneas de compás entre sus vecinas, clic derecho para quitarla. Los compases que siguen a un cambio conservan su
+  número; las notas nunca se mueven. El compás de la barra superior edita el que rige en el
+  cursor.
+- **Los marcadores** aparecen en una franja bajo la del bucle. `Alt+M` añade uno en el
+  cursor (o doble clic en la franja, o clic derecho en la regla ▸ *Añadir un marcador
+  aquí*); clic en un marcador para llevar el cursor ahí; **doble clic** para renombrarlo;
+  arrástralo por la rejilla; los marcadores de un mismo tick quedan uno junto a otro; clic
+  derecho para *Cambiar el nombre…*, *Color…*, *Bucle hasta el marcador siguiente*, *Seleccionar hasta el marcador
+  siguiente*, *Exportar hasta el marcador siguiente…* y *Quitar el marcador*. `Alt+,` y `Alt+.` van al
+  marcador anterior y al siguiente; `Alt+Mayús+O` hace un bucle entre los marcadores que
+  rodean el cursor. El menú de la franja lista todos los marcadores bajo *Ir a*.
+- **Exportar entre marcadores**: *Archivo ▸ Exportar audio…* ▸ *Qué* ▸ *Marcadores*, y
+  elige los dos marcadores por su nombre (dos en lugares distintos: si no, el diálogo lo
+  dice, y nunca exporta la canción entera en su lugar).
+- Todo sigue al tempo: las notas, los clips de audio, la automatización, los moduladores,
+  los efectos sincronizados, el metrónomo (acentúa el primer tiempo de cada compás; un
+  compás de 7/8 se cuenta en corcheas) y los plug-ins de otros. Un clip de audio sin warp
+  suena a su velocidad natural a partir del punto de su archivo que cae en su inicio:
+  divídelo, recórtalo o haz comping donde sea y cada trozo sigue sonando donde estaba;
+  mueve o copia clips a otro lugar y cada uno cae en su propio compás con la misma parte
+  de su archivo (los trozos de una misma toma movidos juntos siguen tocándose). Un cambio
+  de tempo nunca cambia lo que suena donde entra una toma, y los trozos de una toma se
+  mueven juntos, así que una división nunca salta; un cambio *dentro* de una toma deja
+  que el resto siga a su propia velocidad — aplícale warp para que siga los compases. Un
+  clip invertido conserva el punto de su archivo que suena en su final. Mientras se graba
+  audio el tempo no cambia — tampoco al deshacer o rehacer un cambio de tempo; grabar
+  notas lo deja libre.
+- **Los archivos MIDI** llevan todo el mapa de tempo al exportar (una rampa como un cambio
+  de tempo cada semicorchea — una muy larga, de más de 1 024 tiempos, en menos pasos y más
+  largos, cada uno con el tempo medio de su tramo — y todos los marcadores, también los
+  del final) y al importar —
+  con *Poner el proyecto a … BPM en …* se conservan los cambios de tempo, de compás y los
+  marcadores del archivo: al inicio de la canción pasan a ser los suyos; soltados en un
+  compás posterior empiezan ahí (en la línea de compás más cercana), y la canción conserva
+  su tempo y su compás antes. Los
+  archivos **DAWproject** llevan la pista de tempo, los cambios de compás y los marcadores
+  en ambos sentidos. Los puntos de tempo, cambios de compás o marcadores de un archivo
+  situados más allá del millón de tiempos se omiten, y la importación lo dice.
 
 ### El piano roll
 
@@ -468,6 +667,97 @@ el editor.
 Los formantes se conservan al mover una nota (medido: dentro de 3 dB a ±3 semitonos).
 Trabaja sobre una voz o una línea de instrumento a la vez; los acordes no se separan en
 notas.
+
+### Warp y estiramiento del audio
+
+El **warp** hace que un clip de audio suene al tiempo del proyecto: más rápido o más lento
+de lo que se grabó, sin cambiar su tono, y siguiendo cada cambio de la pista de tempo. El
+archivo nunca cambia: el clip reproduce un render hecho junto a la ventana.
+
+- **Los loops se ajustan solos.** Importa un loop (desde *Archivo ▸ Importar audio…*,
+  soltándolo desde Windows o desde el explorador) y Cantus encuentra su tempo, sus pulsos
+  y su primer tiempo fuerte; un archivo de un número entero de compases (o uno cuyo WAV
+  lleva su tempo) se ajusta al momento al tempo del proyecto, en el mismo paso de
+  deshacer que la importación (un solo paso para todos los archivos que sueltes). Los
+  archivos más largos, cada toma que grabas y cada toma recuperada tras un cierre
+  inesperado suenan a su velocidad natural hasta que los ajustes: una grabación suena tal
+  como se tocó.
+- **Ajusta tú un clip**: clic derecho ▸ *Warp* ▸ **Seguir el tempo del proyecto** (o
+  *Seguir* en el inspector o en el editor) — nada se mueve hasta que muevas un marcador,
+  ni bajo una rampa de tempo —, **Detectar el tempo** (marcadores en cada compás
+  encontrado) o **Ajustar desde aquí** (su tempo contado desde el pulso donde hiciste clic
+  derecho; en el inspector, desde el cursor de reproducción). Quitar *Seguir* devuelve el
+  clip a su velocidad natural y guarda sus marcadores para cuando lo vuelvas a poner;
+  quitarlo, restablecer el warp o volver a ajustarlo nunca mueve lo que el clip suena al
+  empezar (ni en sus copias enlazadas). Una copia enlazada bajo otro tempo que el de sus
+  copias se vuelve única la primera vez que la ajustas, para que sigan sonando igual.
+  *Usar su tempo en el proyecto* va al revés: el tempo del clip (el que encontró el
+  análisis, mientras no sigue el tempo) pasa a ser el tempo donde empieza.
+- Los **marcadores de warp** fijan un instante del audio a un pulso. Cualquier clip de
+  audio bajo el puntero o seleccionado muestra sus **transitorios** (los golpes que
+  contiene) como marcas en una banda en su parte superior; un clip que sigue el tempo
+  muestra además sus marcadores como banderas doradas — también los de sus dos extremos —
+  y su banda acepta clics. **Doble clic en la banda**
+  añade un marcador (sobre un transitorio, cae sobre él); arrastrar en la banda añade uno y
+  lo mueve a la vez. **Arrastra un marcador** para llevar ese instante del audio a otro
+  pulso — se ajusta a la rejilla (mantén `Ctrl` para moverlo libre) y el audio entre sus
+  vecinos se estira para encajar. Mantén **`Alt`** al arrastrar para deslizar en cambio el
+  audio *bajo* el marcador. Doble clic en un marcador, o clic derecho ▸ *Quitar marcador de
+  warp*, o un clic en él y `Supr`, para quitarlo. En un clip que no sigue el tempo la
+  banda no responde: arrastrar cerca de su borde superior mueve el clip, como en
+  cualquier otro punto de él.
+- **Estira un clip entero**: mantén `Alt` y arrastra su **borde derecho** (`Mayús` sigue
+  desplazando el contenido). Una copia enlazada se estira sola (sale de su grupo).
+- **La pestaña Warp del editor del clip**: doble clic en el clip (o *Editar el warp*) — el
+  editor tiene dos pestañas, **Afinación** y **Warp**, y se abre en la última que usaste.
+  La pestaña Warp muestra el clip en grande sobre una regla de compases, con los mismos
+  gestos en cualquier clip de audio, y una barra con el modo, su propia **rejilla** (de
+  1/4 a 1/32, o libre), la transposición, *Formantes*, *Seguir*, el tempo del clip (**½**,
+  **×2** cuando se contó a la mitad o al doble), *Detectar el tempo*, *Cuantizar…* y
+  *Restablecer warp* — lo que no hace nada en el modo del clip aparece atenuado; en una
+  ventana estrecha la barra ocupa una segunda fila. `Ctrl` y la rueda (o pellizcar)
+  acercan el clip alrededor del puntero, la rueda (o la barra de abajo) lo desplaza, y `Q`
+  abre *Cuantizar audio*.
+- **Modos** (la sección *Warp* del inspector, o la barra) — elegir uno no ajusta el clip:
+  - **Complejo** — cualquier cosa: mezclas completas, pads, acordes. Mantiene los ataques
+    nítidos, las voces de un acorde estables y la imagen estéreo en su sitio.
+  - **Ritmo** — baterías y loops percusivos: cada golpe suena exactamente como se grabó,
+    solo desplazado; **Final de cortes** elige qué llena el hueco tras un golpe cuando se
+    ralentiza (*Fundir*, *Bucle*, *Espejo*: de ida y vuelta).
+  - **Melódico** — una voz o una línea de instrumento: el más limpio para un solo, con el
+    color de la voz conservado al transponer.
+  - **Varispeed** — como un tocadiscos: la velocidad y el tono cambian juntos (sin
+    artefactos de procesado; *Transponer* queda desactivado).
+- **Transponer** desplaza el clip en semitonos y cents sin cambiar su tiempo (un clip que
+  no sigue el tempo conserva su velocidad natural); **Formantes ▸ Conservar** mantiene el
+  color de una voz al transponerla (sin efecto "ardilla"). El nivel queda como estaba.
+- **Detectado** y **Certeza** en el inspector: el tempo y los compases que encontró el
+  análisis, y lo seguro que está. Sobre un marcador, el panel de ayuda da la velocidad a
+  la que suena el audio tras él, frente al tempo vigente allí.
+- **Cuantizar audio…** (el menú del clip o el inspector, sobre cada clip de audio
+  seleccionado junto al que elegiste): acerca los transitorios a una rejilla con una
+  *Intensidad*, solo los más fuertes si lo eliges (*Transitorios desde*) — un paso de
+  deshacer para todos los clips; solo se mueven los golpes que se oyen (el periodo propio
+  de un loop; los de un clip invertido, en las líneas donde suenan), el resto conserva su
+  velocidad.
+- **Renderizar el audio ajustado** escribe la ventana del clip tal como suena ahora en un
+  archivo nuevo junto al audio del proyecto, y el clip pasa a reproducir ese archivo, sin
+  warp (un paso de deshacer). **Restablecer warp** devuelve el clip a su velocidad
+  natural.
+
+Mientras llega un render (una fracción de segundo para un loop, unos segundos para un
+archivo largo) oyes una vista previa rápida con el tiempo y el tono correctos — un clip
+transpuesto por primera vez suena entretanto con su propio audio; uno cuyos marcadores
+mueven su audio espera un momento a su vista previa, nunca suena en el compás que no es —
+y el paso de una a otra se funde una vez. La exportación, los stems, la congelación, pasar a
+audio en su lugar y la conversión de un modulador en automatización esperan al render
+completo; si alguna vez tarda demasiado, la línea de estado lo dice al terminar. Los clips
+ajustados viajan en los archivos DAWproject con sus marcadores y su modo (un archivo que
+escribió Cantus vuelve con su warp tal como estaba); un clip a su velocidad natural viaja
+como un archivo colocado en segundos, así conserva su velocidad en cualquier aplicación.
+Abrir o soltar un `.dawproject` lo lee en segundo plano (su audio copiado al disco sobre
+la marcha, un archivo referido a su lado encontrado allí); se abre cuando nada se graba
+ni se arrastra, y nunca sobre otro proyecto abierto entretanto.
 
 ### Automatización
 
@@ -576,6 +866,100 @@ inspector).
 
 **El solo** sigue el ruteo: un canal en solo se oye con lo que lo alimenta y aquello a lo
 que alimenta.
+
+### Congelar y pasar a audio en su lugar
+
+**Congelar** convierte una pista pesada en una grabación de sí misma, para que su
+instrumento y sus efectos dejen de usar el procesador — y la devuelve, exacta, al
+descongelarla.
+
+- **Congelar una pista**: clic derecho en su cabecera ▸ *Congelar pista*, `Alt+Shift+F`,
+  o la fila *Congelar* del inspector. Una pista con canal propio se congela con su canal:
+  su instrumento, sus clips y las inserciones y el EQ del canal. Una pista que comparte su
+  canal congela su propio instrumento y sus clips. **Congela un canal** (un bus, un
+  retorno) desde el menú del canal: se congela con todo lo que recoge.
+- Primero se hace el render (una tarjeta en la esquina dice cuánto falta, con
+  **Detener**); la canción sigue sonando y nada cambia hasta que termina. Entonces la pista
+  queda congelada en un solo paso de deshacer: un **copo de nieve** en su cabecera y en su
+  canal, sus clips escarchados.
+- Una pista o un canal congelado se sigue **mezclando**: su fader, su paneo, su anchura,
+  su silencio, su solo y el nivel de sus envíos —y su automatización— siguen en vivo, y
+  también el silencio y el solo de la cabecera de una pista congelada con su canal propio
+    (su nivel y su balance están dentro del render: mézclala con el fader del canal). Salvo
+  que un modulador dentro de lo que congela lo siga (o siga al bus al que suena): entonces
+  su mezcla es parte de su sonido y también queda fija —la tarjeta lo dice—. Lo que
+  cambiaría su sonido (sus notas, su instrumento, sus inserciones, el tempo, mover un canal
+  entre los que recoge) se rechaza, y la tarjeta dice cómo devolverlo: **Descongelar** (las
+  mismas entradas de menú, la misma tecla). Una perilla girada en la ventana propia de un
+  plug-in congelado vuelve a donde estaba, con la misma tarjeta, y también un preset o una
+  muestra cargados desde su propio navegador. Descongelado, vuelve a sonar en vivo,
+  idéntico.
+- Lo que también suena en otra parte sigue sonando: congelar un bus no calla un canal que
+  hace de clave de su compresor y suena al máster, ni congelar un retorno el canal que le
+  envía. El solo sigue siendo una ayuda para escuchar —se congela como si nada estuviera en
+  solo—; con algo en solo **dentro** de lo que congelas, quítale antes el solo. Un solo que
+  calla una parte de aquello con lo que suena un canal congelado (una de las pistas o de
+  los canales que se oyen por él) hace sonar ese canal en vivo mientras dura; un solo que
+    lo calla entero —un solo en otra parte— solo lo silencia, sin despertar sus plug-ins.
+  Guardar un proyecto mueve una toma congelada a su carpeta *Audio* y la deja congelada.
+- Sus plug-ins se descargan mientras está congelado y vuelven con sus ajustes. Congelar
+  necesita los plug-ins de lo que se congela (uno en bypass no hace falta): si uno no está
+  cargado, se nombra y no se congela nada. Lo mismo con un archivo que suena y aún no está
+  (un paquete de sonidos descargándose, un disco desconectado; una toma en un carril de
+  comp de abajo, o un clip en silencio, no cuenta): se nombra, y una pista congelada espera
+    a sus archivos antes de rehacer su render. Una pista cuyos plug-ins cambian su latencia
+  durante la canción (una anticipación o un sobremuestreo automatizados) no se puede
+  congelar ni pasar a audio en su lugar: la línea de estado lo dice.
+- Los renders se guardan en la carpeta propia del proyecto dentro de una carpeta *Freeze*
+  junto a él (*Freeze/Canción* para *Canción.cantus*; en la caché de Cantus si el proyecto
+  aún no se ha guardado), con el nombre de lo que contienen: volver a congelar lo que no
+  cambió es instantáneo, y un proyecto abierto sin ellos (en otra computadora, a otra
+  frecuencia de muestreo) suena en vivo mientras se rehacen en segundo plano. *Guardar
+  como* se los lleva —copiados en segundo plano; al cerrar Cantus mientras copia, la ventana sigue abierta con una tarjeta hasta que
+  termine (*Cerrar ya* no espera; lo que no se copió se encuentra donde estaba la próxima
+  vez)—. Un
+  proyecto renombrado o copiado junto al original encuentra sus renders en la carpeta del
+  original, y al guardarlo los trae a la suya. Al guardar se quitan de la carpeta del
+  proyecto los renders que ningún deshacer puede traer de vuelta; los de otros proyectos
+  junto a él nunca se tocan.
+- Con el bucle activo, una pista congelada toca su grabación de corrido: en el salto al
+  inicio del bucle oyes lo que llevaba a ese compás, no la cola de una reverberación del
+  final del bucle (como en otros DAW; descongélala para oír el salto exacto).
+
+**Pasar a audio en su lugar** hace un render a un clip de audio, en una **pista nueva
+justo debajo de la original**, en el mismo lugar:
+
+- *Pasar a audio en su lugar* (menú de la pista, `Alt+Shift+B`): esta pista por las
+  inserciones de su canal; la pista nueva tiene un canal propio con el fader, el paneo, la
+  anchura y los envíos del anterior.
+- *Pasar a audio (solo la fuente)*: el instrumento y los clips antes del nivel de la
+  pista; la pista nueva suena por el mismo canal, por las mismas inserciones.
+- *Pasar los clips a audio en su lugar* (el menú del clip): solo los clips elegidos (en
+  varias pistas, uno por pista); con una selección de tiempo —elegida después de los clips,
+  o sin clips elegidos— las teclas pasan a audio lo que suena dentro de ella, con sus bordes
+  llevados hasta las notas que la cruzan. Con la cabecera de una pista elegida al final,
+  las teclas pasan a audio la pista entera; con un canal elegido en el mezclador, el canal
+  entero; el máster nunca se congela ni se pasa a audio. No se pueden pasar clips ni un
+  tramo de tiempo mientras algo oye las notas de la pista (pasa la pista entera), y las
+    ventanas de un comp unidas por un fundido cruzado se pasan juntas o no se pasan. Las
+  entradas del menú del clip actúan sobre clips, nunca sobre un canal o el máster elegidos
+  antes: el clip sobre el que hiciste clic derecho, con los clips elegidos con él.
+- *Pasar el canal a audio en su lugar* (el menú del canal): todo lo que el canal recoge; lo
+  que tenía su clave en él, o lo seguía, sigue al canal nuevo. Quita antes el solo de lo
+  que esté en solo dentro de él.
+- La original queda **en silencio** —o se quita, si marcas *Quitar el original al pasar a
+  audio* en el menú de la pista (Cantus recuerda tu elección; una pista cuyas notas algo
+  sigue oyendo queda en silencio en su lugar, y el resultado lo dice). Su automatización
+  de nivel, de fader y de envíos va con el audio, y también su solo. Por un plug-in con
+  latencia, el audio del clip nuevo queda en la cuadrícula y la pista nueva conserva el
+    retardo (la fila *Retardo* del inspector; la tecla a su derecha lo quita), así que esa
+  automatización y lo que tenga su clave en ella siguen a tiempo, y el clip suena a tiempo
+  dondequiera que lo muevas, lo copies o lo exportes. La cola (la de una reverberación) se
+  conserva hasta que se apaga. Un solo paso de deshacer. Si editas lo que se pasa a audio mientras
+  se hace el render, se vuelve a pasar desde tu edición (una edición en otra parte no lo
+  reinicia); **Detener** mientras se escribe su archivo no deja nada. Una pista que
+  escucha una entrada en vivo —o una que hace de clave o le manda notas— no se pasa a audio
+  (apaga antes su escucha).
 
 ## 7. Masterizar: la cadena del máster, Fervor, Latitudo, Culmen
 
@@ -872,6 +1256,76 @@ hasta que lo tocas.
 
 Páginas: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
 
+### Cuando un plug-in falla
+
+Un plug-in de terceros — un efecto o instrumento CLAP o VST3 — puede fallar o colgarse.
+Cantus ejecuta esos plug-ins **en un proceso ayudante propio** (`cantus-sandbox`), así que
+cuando uno falla, el ayudante se detiene y **Cantus sigue sonando**:
+
+- un efecto detenido deja pasar el sonido intacto, a tiempo con el resto de la mezcla
+  (como si estuviera en bypass); un instrumento detenido se queda en silencio;
+- una tarjeta en la esquina inferior derecha lo dice — *"Glacier dejó de funcionar. Cantus
+  siguió sonando sin él."* — con **Recargar** y **Dejarlo apagado**, y qué pasó en una línea
+  propia. Señala cualquier punto de la tarjeta para leer el relato entero;
+- **Recargar** vuelve a cargar el plug-in con lo que tenías: su último estado bueno y todos
+  los valores del proyecto. Varios plug-ins que se detuvieron juntos comparten una tarjeta
+  y **Recargar todos**;
+- *Dejarlo apagado* lo deja detenido: su ranura muestra *detenido* en rojo (la pista de un
+  instrumento muestra la señal en su icono y el botón de canal con borde; señálalos para
+  saber por qué), y su menú — en el inspector y en la línea de inserciones de la tira del
+  mezclador — ofrece **Recargar plug-in** cuando quieras recuperarlo. Pedir su ventana
+  vuelve a mostrar su tarjeta;
+- un plug-in que falla mientras se carga se avisa igual: recárgalo, o elige dónde se
+  ejecuta, y Cantus lo intenta de nuevo. Uno que se niega a cargarse, o no se carga a
+  tiempo, se dice *sin cargar* — nunca como uno que haya que instalar — y ofrece **Recargar
+  plug-in** en su menú; Cantus nunca vuelve a intentarlo solo;
+- **Cantus nunca espera a un plug-in.** Cargarlo, su ventana, su estado, moverlo: cada cosa
+  se le pide a su ayudante, y la ventana sigue mientras tanto. Una ranura cuyo plug-in aún
+  se carga deja pasar el sonido, y una pista cuyo instrumento se carga calla, el momento que
+  tarde;
+- **el proyecto no pierde nada, y guardar nunca finge**: al guardar se pide a cada plug-in
+  su estado tal como está y el archivo se escribe cuando han respondido. Uno que no puede
+  responder a tiempo se guarda con el último estado que dio, y la línea de estado lo
+  nombra. Las exportaciones, los bounces y las congelaciones esperan a sus plug-ins igual,
+  y lo dicen cuando uno no pudo dar su estado tal como estaba;
+- un plug-in colgado tiene dos segundos; después su ayudante se termina; mientras está
+  colgado, el audio nunca lo espera más de unos milisegundos, y la ventana no lo espera
+  nunca. Un plug-in que muestra un diálogo propio (un archivo que abrir, una licencia) no
+  está colgado: Cantus te espera;
+- un plug-in que hace esperar a su ayudante — un diálogo suyo, quizá detrás de Cantus —
+  tiene una tarjeta propia — *"Glacier te espera"*, su nombre entero en la pista de la
+  tarjeta — con **Mostrarlo** (su diálogo al frente) y **Detenerlo** (su ayudante se
+  termina, Cantus sigue sonando y puedes recargarlo; la tarjeta avisa cuando otros
+  plug-ins comparten ese ayudante y se detendrían con él). Lo que pidas a ese ayudante
+  entretanto — la ventana de otro plug-in, un guardado — se hace en cuanto el diálogo se
+  cierra;
+- las notas y los movimientos de mandos enviados mientras un plug-in iba tarde no se
+  pierden: le llegan en cuanto responde.
+
+**Dónde se ejecuta un plug-in.** Ajustes ▸ Plug-ins ▸ *Dónde se ejecutan los plug-ins de
+terceros* fija el valor de este equipo: **Juntos** (un ayudante para todos; el
+predeterminado), **Por fabricante** (uno por fabricante), **Por separado** (un ayudante
+para cada uno: un fallo detiene solo ese plug-in) o **Dentro de Cantus** (sin ayudante: lo
+más rápido, y un fallo cierra Cantus). Cada plug-in puede ser distinto: clic derecho en su
+ranura (o *Se ejecuta* en la fila de un instrumento alojado del inspector) y elige. La
+elección se guarda con el proyecto; cambiarla mueve el plug-in en el acto, con su sonido.
+A un plug-in que falla tres veces en una sesión su tarjeta le ofrece **Ejecutar por
+separado** — con su nombre, cuando la tarjeta lista los plug-ins que arrastró consigo, que
+se recargan donde estaban. Solo se cuenta el plug-in que falló. El gestor de plug-ins lista
+los que alguna vez se detuvieron en este equipo
+(*Olvidar* borra uno). Los efectos e instrumentos propios de Cantus siempre se ejecutan
+dentro.
+
+**Lo que cuesta.** Un plug-in en un ayudante añade una ida y vuelta por bloque de audio:
+unos microsegundos mientras los plug-ins se suceden, unas decenas tras una pausa (la ADR
+0063 tiene las medidas). Señala una ranura alojada para ver dónde se ejecuta y su
+**CPU**; la barra de estado cuenta *Plug-ins tarde* cuando un ayudante no respondió a
+tiempo (el sonido siguió sin el plug-in un momento; un búfer mayor le da más tiempo). Las
+exportaciones, las pistas por separado, los congelados y los bounces esperan cada bloque,
+así que siempre son exactamente lo que hace el plug-in; si un plug-in deja de funcionar
+durante uno, Cantus lo dice en vez de darlo por terminado, y *Detener* lo acaba aunque un
+plug-in esté colgado.
+
 ## 11. Proyectos, autoguardado y ajustes
 
 - *Archivo ▸ Nuevo proyecto* (`Ctrl+N`), *Abrir…* (`Ctrl+O`), *Guardar* (`Ctrl+S`),
@@ -926,6 +1380,9 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `P` `B` `E` `D` `T` `C` `Y` o `1`–`7` | Herramientas del piano roll; en el arreglo, `B` o `2` es la herramienta de pintar |
 | `Shift+L` · `Z` | Bucle en la selección de tiempo · ampliarla |
 | `Alt+A` | Automatizar el último parámetro que moviste |
+| `Alt+Shift+A` | Vincular el último parámetro que moviste a un controlador MIDI |
+| `Ctrl+Shift+M` | Modo de aprendizaje MIDI |
+| `Ctrl+Shift+K` | Mostrar las asignaciones de controladores |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arreglo, rack de canales, piano roll, mezclador · explorador · inspector |
 | `Alt+F5` | Navegador de clips |
 | `F8` · `F12` | El instrumento de la pista seleccionada · cerrar los dispositivos flotantes |
@@ -950,13 +1407,16 @@ Cantus*).
 
 Esto es una beta. Lo que ya sabemos:
 
-- **Un plug-in de terceros que falla cierra Cantus** (los plug-ins se ejecutan dentro del
-  programa; aislarlos viene después). Guarda seguido.
+- **El warp** se midió y se ajustó de oído con material de prueba: cuéntanos cómo suena un
+  estiramiento con tu música. Un plug-in que corre *Juntos* con muchos otros gasta un poco
+  más de CPU que dentro de Cantus (unas 1,3 veces con 32 instancias); elige *Dentro de
+  Cantus* para un plug-in de confianza cuando la CPU vaya justa (§10, *Cuando un plug-in
+  falla*).
+- Una **pista congelada que hace bucle** suena, en el salto al inicio del bucle, lo que
+  llevaba a ese compás y no la cola del final del bucle (congelar es una sola pasada, §6).
 - **No se pueden importar MP3** (sí WAV, AIFF, FLAC y Ogg).
-- **Sin estiramiento de tiempo**: los clips de audio no siguen los cambios de tempo; un
-  tempo y un compás por proyecto. Sin fundidos cruzados entre clips distintos (las
-  costuras de una composición de tomas sí los hacen, §4) ni envolventes de ganancia por
-  clip.
+- Sin fundidos cruzados entre clips distintos (las costuras de una composición de tomas
+  sí los hacen, §4) ni envolventes de ganancia por clip.
 - La automatización grabada escribe cada movimiento hecho mientras graba una pasada
   (todavía sin modos latch ni touch). En los stems exportados *a través de la cadena del
   máster*, un efecto de terceros en el máster no entra en los stems (la mezcla completa sí
@@ -994,8 +1454,9 @@ Esto es una beta. Lo que ya sabemos:
   sube el búfer si la barra superior cuenta cortes.
 - No se puede cambiar el dispositivo de audio mientras grabas; el explorador aún no se navega con el teclado; los proyectos
   guardan las muestras de los paquetes con su ruta completa.
-- **Fuera de esta beta**: macOS y Linux, warping, MIDI learn y superficies de control,
-  funciones de IA, varios arreglos por proyecto.
+- **Fuera de esta beta**: los instaladores de macOS y Linux (muy pronto; el código compila
+  y pasa sus pruebas en Linux), los protocolos de superficies de control (Mackie Control,
+  HUI), funciones de IA, varios arreglos por proyecto.
 
 ## 15. Reportar un error
 

@@ -33,7 +33,7 @@ use super::canvas::{self, Ink};
 use super::controls::{self, Size};
 use super::frame;
 use super::host::{DawHost, FxHost, KeySource, KeyTarget};
-use super::multiband::{choice, with_fmt};
+use super::multiband::{choice, choice_key, with_fmt};
 use super::FactoryPreset;
 use crate::app::CantusApp;
 use crate::design::space;
@@ -758,9 +758,11 @@ fn style_card(
         let w = cr.body.width() / k;
         controls::column(ui, s, w, |ui| {
             let now = view.s.style.index();
-            if let Some(i) = choice(
+            if let Some(i) = choice_key(
                 ui,
                 s,
+                host,
+                "style",
                 now,
                 &STYLE_LABELS,
                 &STYLE_TIPS,
@@ -896,9 +898,11 @@ fn predelay_card(
         }
         controls::column(ui, s, 100.0, |ui| {
             let id = ui.id().with("space-sync");
-            let at = controls::field(
+            let at = controls::field_key(
                 ui,
                 s,
+                host,
+                "sync",
                 id,
                 frame::tr(SYNC_KEYS[sync]),
                 frame::tr("fx.space.sync"),
@@ -1253,142 +1257,152 @@ fn band_card(
         Function::Space
     });
     let mut remove = false;
-    let (_, lamp) = controls::card(ui, &marked, rect, Src::Str(title), Some(on), |ui, _| {
-        controls::column(ui, s, 120.0, |ui| {
-            let (keys, name): (&[&'static str], _) = match curve {
-                Curve::Decay => (&DSHAPE_KEYS, frame::tr("fx.space.band.shape")),
-                Curve::Post => (&PSHAPE_KEYS, frame::tr("fx.space.band.shape")),
-            };
-            let id = ui.id().with(("space-shape", curve == Curve::Post, n));
-            let value = frame::tr(keys[shape.min(keys.len() - 1)]);
-            if let Some(at) = controls::field(ui, s, id, value, name, 120.0) {
-                let items: Vec<crate::kit::menu::Item<'_>> = keys
-                    .iter()
-                    .enumerate()
-                    .map(|(i, key)| frame::radio(Src::Key(key), i == shape))
-                    .collect();
-                if let Some(i) = controls::list(ui, s, id, at, 140.0, &items) {
-                    host.set(skey(curve, n, "shape"), i as f32, None);
+    let (_, lamp, lamp_resp) =
+        controls::card_lamp(ui, &marked, rect, Src::Str(title), Some(on), |ui, _| {
+            controls::column(ui, s, 120.0, |ui| {
+                let (keys, name): (&[&'static str], _) = match curve {
+                    Curve::Decay => (&DSHAPE_KEYS, frame::tr("fx.space.band.shape")),
+                    Curve::Post => (&PSHAPE_KEYS, frame::tr("fx.space.band.shape")),
+                };
+                let id = ui.id().with(("space-shape", curve == Curve::Post, n));
+                let value = frame::tr(keys[shape.min(keys.len() - 1)]);
+                let shape_key = skey(curve, n, "shape");
+                if let Some(at) =
+                    controls::field_key(ui, s, host, shape_key, id, value, name, 120.0)
+                {
+                    let items: Vec<crate::kit::menu::Item<'_>> = keys
+                        .iter()
+                        .enumerate()
+                        .map(|(i, key)| frame::radio(Src::Key(key), i == shape))
+                        .collect();
+                    if let Some(i) = controls::list(ui, s, id, at, 140.0, &items) {
+                        host.set(skey(curve, n, "shape"), i as f32, None);
+                    }
                 }
-            }
-            match curve {
-                Curve::Post => {
-                    let place =
-                        (host.spec().get(skey(curve, n, "place")).round().max(0.0) as usize).min(4);
-                    let id = ui.id().with(("space-place", n));
-                    if let Some(at) = controls::field(
-                        ui,
-                        s,
-                        id,
-                        frame::tr(PLACE_KEYS[place]),
-                        frame::tr("fx.space.band.place"),
-                        120.0,
-                    ) {
-                        let items: Vec<crate::kit::menu::Item<'_>> = PLACE_KEYS
-                            .iter()
-                            .enumerate()
-                            .map(|(i, key)| frame::radio(Src::Key(key), i == place))
-                            .collect();
-                        if let Some(i) = controls::list(ui, s, id, at, 140.0, &items) {
-                            host.set(skey(curve, n, "place"), i as f32, None);
+                match curve {
+                    Curve::Post => {
+                        let place = (host.spec().get(skey(curve, n, "place")).round().max(0.0)
+                            as usize)
+                            .min(4);
+                        let id = ui.id().with(("space-place", n));
+                        if let Some(at) = controls::field_key(
+                            ui,
+                            s,
+                            host,
+                            skey(curve, n, "place"),
+                            id,
+                            frame::tr(PLACE_KEYS[place]),
+                            frame::tr("fx.space.band.place"),
+                            120.0,
+                        ) {
+                            let items: Vec<crate::kit::menu::Item<'_>> = PLACE_KEYS
+                                .iter()
+                                .enumerate()
+                                .map(|(i, key)| frame::radio(Src::Key(key), i == place))
+                                .collect();
+                            if let Some(i) = controls::list(ui, s, id, at, 140.0, &items) {
+                                host.set(skey(curve, n, "place"), i as f32, None);
+                            }
+                        }
+                    }
+                    Curve::Decay => {
+                        let r = controls::readout(
+                            ui,
+                            s,
+                            now_short,
+                            true,
+                            frame::tr("space.band_now_name"),
+                            120.0,
+                        );
+                        if r.hovered() {
+                            hint::set_text(
+                                ui.ctx(),
+                                frame::tr("space.band_now_name"),
+                                now_long,
+                                Caps::NONE,
+                            );
                         }
                     }
                 }
-                Curve::Decay => {
-                    let r = controls::readout(
-                        ui,
-                        s,
-                        now_short,
-                        true,
-                        frame::tr("space.band_now_name"),
-                        120.0,
-                    );
-                    if r.hovered() {
-                        hint::set_text(
-                            ui.ctx(),
-                            frame::tr("space.band_now_name"),
-                            now_long,
-                            Caps::NONE,
-                        );
-                    }
+                if controls::key(
+                    ui,
+                    s,
+                    Src::Key("space.remove_band"),
+                    frame::tr("space.remove_band"),
+                    120.0,
+                    false,
+                )
+                .clicked()
+                {
+                    remove = true;
                 }
-            }
-            if controls::key(
+            });
+            let freq_r = controls::param(ui, &cells_s, host, skey(curve, n, "freq"), Size::M);
+            tip(
                 ui,
-                s,
-                Src::Key("space.remove_band"),
-                frame::tr("space.remove_band"),
-                120.0,
-                false,
-            )
-            .clicked()
-            {
-                remove = true;
+                &freq_r,
+                frame::tr("fx.space.band.freq"),
+                "space.band.freq_tip",
+            );
+            match curve {
+                Curve::Decay if shape != 3 => {
+                    let r = controls::param_with(
+                        ui,
+                        &cells_s,
+                        host,
+                        skey(curve, n, "mult"),
+                        Size::M,
+                        Some(&mult_pill),
+                    );
+                    tip(
+                        ui,
+                        &r,
+                        frame::tr("fx.space.band.mult"),
+                        "space.band.mult_tip",
+                    );
+                }
+                Curve::Post if shape < 3 => {
+                    let r = controls::param(ui, &cells_s, host, skey(curve, n, "gain"), Size::M);
+                    tip(
+                        ui,
+                        &r,
+                        frame::tr("fx.space.band.gain"),
+                        "space.band.gain_tip",
+                    );
+                }
+                _ => {}
             }
-        });
-        let freq_r = controls::param(ui, &cells_s, host, skey(curve, n, "freq"), Size::M);
-        tip(
-            ui,
-            &freq_r,
-            frame::tr("fx.space.band.freq"),
-            "space.band.freq_tip",
-        );
-        match curve {
-            Curve::Decay if shape != 3 => {
+            if curve == Curve::Post && shape >= 3 {
                 let r = controls::param_with(
                     ui,
                     &cells_s,
                     host,
-                    skey(curve, n, "mult"),
+                    skey(curve, n, "slope"),
                     Size::M,
-                    Some(&mult_pill),
+                    Some(&slope_pill),
                 );
                 tip(
                     ui,
                     &r,
-                    frame::tr("fx.space.band.mult"),
-                    "space.band.mult_tip",
+                    frame::tr("fx.space.band.slope"),
+                    "space.band.slope_tip",
                 );
-            }
-            Curve::Post if shape < 3 => {
-                let r = controls::param(ui, &cells_s, host, skey(curve, n, "gain"), Size::M);
-                tip(
+            } else {
+                let r = controls::param_with(
                     ui,
-                    &r,
-                    frame::tr("fx.space.band.gain"),
-                    "space.band.gain_tip",
+                    &cells_s,
+                    host,
+                    skey(curve, n, "q"),
+                    Size::M,
+                    Some(&q_pill),
                 );
+                tip(ui, &r, frame::tr("fx.space.band.q"), "space.band.q_tip");
             }
-            _ => {}
-        }
-        if curve == Curve::Post && shape >= 3 {
-            let r = controls::param_with(
-                ui,
-                &cells_s,
-                host,
-                skey(curve, n, "slope"),
-                Size::M,
-                Some(&slope_pill),
-            );
-            tip(
-                ui,
-                &r,
-                frame::tr("fx.space.band.slope"),
-                "space.band.slope_tip",
-            );
-        } else {
-            let r = controls::param_with(
-                ui,
-                &cells_s,
-                host,
-                skey(curve, n, "q"),
-                Size::M,
-                Some(&q_pill),
-            );
-            tip(ui, &r, frame::tr("fx.space.band.q"), "space.band.q_tip");
-        }
-    });
-    if lamp {
+        });
+    // The band's On is a parameter: its menu, its mark, the learn mode (review 2 of ADR
+    // 0062, #44).
+    let learnt = controls::card_lamp_offer(ui, s, host, skey(curve, n, "on"), lamp_resp.as_ref());
+    if lamp && !learnt {
         host.set(skey(curve, n, "on"), if on { 0.0 } else { 1.0 }, None);
     }
     if remove {
@@ -1687,7 +1701,7 @@ pub fn preview(ui: &mut egui::Ui, spec: &EffectSpec) -> egui::Response {
 /// The settings `--editor space` and the screenshot tool open it with: a hall with a
 /// drawn curve, a post EQ, a synced pre-delay and some ducking.
 pub fn demo_setup(app: &mut CantusApp, strip: StripId, effect: EffectId) {
-    let bpm = app.project().tempo_bpm;
+    let bpm = crate::views::bars::bpm_at(app.project(), app.engine.position());
     let fields: Vec<(String, f32)> = [
         ("space", 0.62),
         ("decay", 2.4),

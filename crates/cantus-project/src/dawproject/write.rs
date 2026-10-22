@@ -71,9 +71,17 @@ struct StripPlan {
 
 /// The XML, the metadata and the device states of a project.
 pub fn parts(project: &Project, app_version: &str) -> Parts {
+    parts_with(project, app_version, None)
+}
+
+/// [`parts`], the audio clips' files read from `base` (the project's folder: a stored path
+/// is relative to it) and carried in the archive (round 29, ADR 0061).
+pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path::Path>) -> Parts {
     let mut report = Report::default();
     let mut ids = Ids(0);
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    // The audio files the archive carries: (path in the archive, file on disk), each once.
+    let mut audio: Vec<(String, std::path::PathBuf)> = Vec::new();
 
     // Plan the mixer first: which strips are written, and which fold into their track.
     let mut plans: HashMap<StripId, StripPlan> = HashMap::new();
@@ -125,6 +133,8 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         &[("name", a(APPLICATION)), ("version", a(app_version))],
     );
     w.open("Transport", &[]);
+    let tempo_id = ids.next();
+    let metre_id = ids.next();
     w.empty(
         "Tempo",
         &[
@@ -132,7 +142,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
             ("min", a(num(cantus_core::time::MIN_BPM))),
             ("unit", a("bpm")),
             ("value", a(num(project.tempo_bpm))),
-            ("id", a(ids.next())),
+            ("id", a(tempo_id.clone())),
             ("name", a("Tempo")),
         ],
     );
@@ -141,7 +151,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         &[
             ("denominator", a(project.time_signature.denominator)),
             ("numerator", a(project.time_signature.numerator)),
-            ("id", a(ids.next())),
+            ("id", a(metre_id.clone())),
         ],
     );
     w.close();
@@ -156,10 +166,34 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
             .strip
             .and_then(|s| plans.get(&s).map(|p| (s, p)))
             .filter(|(_, p)| p.merged_into == Some(ti));
+        // What the track holds (round 29's review): audio clips, notes, or both — a track
+        // of audio only is no instrument's.
+        let heard = || {
+            t.clips
+                .iter()
+                .filter(|c| c.lane == 0 && c.automation.is_none())
+        };
+        let has_audio = heard().any(|c| c.audio.is_some());
+        // An instrument set up on a track of audio (for its take lanes, to play live) is
+        // carried as its notes' would be (round 29's second review: it was left out
+        // unsaid).
+        let has_notes = heard().any(|c| c.audio.is_none())
+            || t.instrument != cantus_core::InstrumentSpec::default();
+        let content = match (has_audio, has_notes) {
+            (true, false) => "audio",
+            (true, true) => "audio notes",
+            _ => "notes",
+        };
+        if t.input.is_some() {
+            report.info(
+                "interop.report.x_track_input",
+                vec![("track", t.name.clone())],
+            );
+        }
         w.open(
             "Track",
             &[
-                ("contentType", a("notes")),
+                ("contentType", a(content)),
                 ("loaded", a("true")),
                 ("id", a(&track_id)),
                 ("name", a(&t.name)),
@@ -169,7 +203,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         match merged {
             Some((sid, plan)) => {
                 let strip = project.strip(sid).expect("planned from the project");
-                let inst = instrument_device(&mut ids, &mut files, t);
+                let inst = (content != "audio").then(|| instrument_device(&mut ids, &mut files, t));
                 devices += strip.effects.len();
                 channel(
                     &mut w,
@@ -187,14 +221,14 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
                         pan: strip.pan,
                         mute: strip.muted,
                         solo: strip.soloed,
-                        instrument: Some(inst),
+                        instrument: inst,
                         strip: Some(strip),
                     },
                     &plans,
                 );
             }
             None => {
-                let inst = instrument_device(&mut ids, &mut files, t);
+                let inst = (content != "audio").then(|| instrument_device(&mut ids, &mut files, t));
                 let own = ids.next();
                 channel(
                     &mut w,
@@ -212,7 +246,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
                         pan: t.pan,
                         mute: t.muted,
                         solo: t.soloed,
-                        instrument: Some(inst),
+                        instrument: inst,
                         strip: None,
                     },
                     &plans,
@@ -308,13 +342,31 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
     for (t, track_id) in project.tracks.iter().zip(&track_ids) {
         w.open("Lanes", &[("track", a(track_id)), ("id", a(ids.next()))]);
         w.open("Clips", &[("id", a(ids.next()))]);
-        for c in &t.clips {
-            muted_notes += clip(&mut w, &mut ids, c);
+        // The playing lane only: a take lane is never heard (ADR 0058), and DAWproject's
+        // one lane per track would play every take at once (round 29's review).
+        for c in t.clips.iter().filter(|c| c.lane == 0) {
+            muted_notes += clip(
+                &mut w,
+                &mut ids,
+                c,
+                project,
+                base,
+                (&mut audio, &mut files),
+                &mut report,
+            );
+        }
+        let takes = t.clips.iter().filter(|c| c.lane != 0).count();
+        if takes > 0 {
+            report.dropped(
+                "interop.report.x_takes",
+                vec![("track", t.name.clone()), ("n", takes.to_string())],
+            );
         }
         w.close();
         w.close();
     }
     w.close();
+    tempo_map(&mut w, &mut ids, project, &tempo_id, &metre_id);
     w.close();
     w.open("Scenes", &[]);
     w.close();
@@ -335,6 +387,7 @@ pub fn parts(project: &Project, app_version: &str) -> Parts {
         project_xml: w.finish(),
         metadata_xml: m.finish(),
         files,
+        audio,
         report,
     }
 }
@@ -728,23 +781,79 @@ fn channel_eq(w: &mut XmlWriter, ids: &mut Ids, eq: &cantus_core::StripEq) {
     w.close();
 }
 
+/// What an archive carries beside its XML: the audio files (archive path, file on disk)
+/// and the other parts (a device's state, Cantus's own warp).
+type Carried<'a> = (
+    &'a mut Vec<(String, std::path::PathBuf)>,
+    &'a mut Vec<(String, Vec<u8>)>,
+);
+
 /// One clip with its notes. Returns how many muted notes were left out (DAWproject's
 /// notes cannot be muted).
-fn clip(w: &mut XmlWriter, ids: &mut Ids, c: &Clip) -> usize {
+#[allow(clippy::too_many_arguments)]
+fn clip(
+    w: &mut XmlWriter,
+    ids: &mut Ids,
+    c: &Clip,
+    project: &Project,
+    base: Option<&std::path::Path>,
+    (audio, files): Carried<'_>,
+    report: &mut Report,
+) -> usize {
     let period = c.period();
+    let fades = c
+        .audio
+        .as_ref()
+        .filter(|a| a.fade_in > Ticks::ZERO || a.fade_out > Ticks::ZERO);
+    // A clip at its natural speed counts its content in seconds of its file (round 29's
+    // review): where it starts in the file, and where its loop ends.
+    let natural = c
+        .audio
+        .as_ref()
+        .filter(|a| super::audio::natural(a))
+        .and_then(|a| Some((a, project.audio_source(a.source)?.sample_rate)))
+        .map(|(a, rate)| super::audio::seconds_of(project, c, a, rate));
+    let (play_start, loop_start, loop_end) = match natural {
+        Some((s, end)) => (num(s), end.map(|_| num(s)), end.map(num)),
+        None => (
+            beats(c.offset),
+            period.map(|_| beats(c.offset)),
+            period.map(|p| beats(c.offset + p)),
+        ),
+    };
     w.open(
         "Clip",
         &[
             ("time", a(beats(c.start))),
             ("duration", a(beats(c.length))),
-            ("playStart", a(beats(c.offset))),
-            ("loopStart", period.map(|_| beats(c.offset))),
-            ("loopEnd", period.map(|p| beats(c.offset + p))),
+            ("contentTimeUnit", natural.map(|_| "seconds".to_string())),
+            ("playStart", a(play_start)),
+            ("loopStart", loop_start),
+            ("loopEnd", loop_end),
+            ("fadeTimeUnit", fades.map(|_| "beats".to_string())),
+            ("fadeInTime", fades.map(|a| beats(a.fade_in))),
+            ("fadeOutTime", fades.map(|a| beats(a.fade_out))),
             ("enable", c.muted.then(|| "false".to_string())),
             ("name", a(&c.name)),
             ("color", c.color.map(color)),
         ],
     );
+    // An audio clip (round 29, ADR 0061): its file and its warp.
+    if let Some(au) = &c.audio {
+        super::audio::write(
+            w,
+            &mut || ids.next(),
+            project,
+            c,
+            au,
+            base,
+            audio,
+            files,
+            report,
+        );
+        w.close();
+        return 0;
+    }
     w.open("Notes", &[("id", a(ids.next()))]);
     let mut muted = 0;
     let mut notes: Vec<_> = c.notes.iter().collect();
@@ -768,4 +877,66 @@ fn clip(w: &mut XmlWriter, ids: &mut Ids, c: &Clip) -> usize {
     w.close();
     w.close();
     muted
+}
+
+/// The arrangement's markers, tempo automation and time-signature automation (round 29,
+/// ADR 0060), in beats: every marker with its name and colour; every tempo point, a ramp
+/// as a linear point (the tempo moves linearly in beats to the next, as DAWproject's
+/// `linear` interpolation draws it), a held one as `hold`; every metre change.
+fn tempo_map(w: &mut XmlWriter, ids: &mut Ids, project: &Project, tempo_id: &str, metre_id: &str) {
+    let beats = |t: cantus_core::Ticks| num(t.as_beats_f64());
+    if !project.markers.is_empty() {
+        w.open(
+            "Markers",
+            &[("timeUnit", a("beats")), ("id", a(ids.next()))],
+        );
+        for m in &project.markers {
+            let mut at = vec![("time", a(beats(m.tick))), ("name", a(m.name.clone()))];
+            if let Some(c) = m.color {
+                at.push(("color", a(color(c))));
+            }
+            w.empty("Marker", &at);
+        }
+        w.close();
+    }
+    if !project.tempo_points.is_empty() {
+        w.open(
+            "TempoAutomation",
+            &[
+                ("unit", a("bpm")),
+                ("timeUnit", a("beats")),
+                ("id", a(ids.next())),
+            ],
+        );
+        w.empty("Target", &[("parameter", a(tempo_id))]);
+        for p in &project.tempo_points {
+            w.empty(
+                "RealPoint",
+                &[
+                    ("time", a(beats(p.tick))),
+                    ("value", a(num(p.bpm))),
+                    ("interpolation", a(if p.ramp { "linear" } else { "hold" })),
+                ],
+            );
+        }
+        w.close();
+    }
+    if !project.metre_changes.is_empty() {
+        w.open(
+            "TimeSignatureAutomation",
+            &[("timeUnit", a("beats")), ("id", a(ids.next()))],
+        );
+        w.empty("Target", &[("parameter", a(metre_id))]);
+        for m in &project.metre_changes {
+            w.empty(
+                "TimeSignaturePoint",
+                &[
+                    ("time", a(beats(m.tick))),
+                    ("numerator", a(m.signature.numerator)),
+                    ("denominator", a(m.signature.denominator)),
+                ],
+            );
+        }
+        w.close();
+    }
 }

@@ -216,6 +216,10 @@ pub struct Loaded {
     /// Clips taken out of a link group on load because they did not match it (ADR 0037):
     /// the app says so, since editing such a clip no longer changes its old copies.
     pub links_repaired: usize,
+    /// Warps dropped on load because they were not valid (ADR 0061).
+    pub warps_repaired: usize,
+    /// Track delays dropped on load because they were out of range (ADR 0064, review 3).
+    pub lateness_repaired: usize,
 }
 
 pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
@@ -227,6 +231,8 @@ pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
         integrity_verified: r.integrity_verified,
         app_version: r.file.app_version,
         links_repaired: r.links_repaired,
+        warps_repaired: r.warps_repaired,
+        lateness_repaired: r.lateness_repaired,
     })
 }
 

@@ -7,6 +7,27 @@ use super::*;
 /// Not in the order.
 const NOWHERE: u16 = u16::MAX;
 
+/// Whether two frozen handles are the same render.
+fn same_handle(
+    a: &Option<Arc<crate::freeze::FrozenHandle>>,
+    b: &Option<Arc<crate::freeze::FrozenHandle>>,
+) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+/// The render frame of the snapshot's loop start, when it loops: a frozen reader keeps it
+/// ready (ADR 0064).
+fn loop_frame(snapshot: &Snapshot, rate: f64) -> Option<i64> {
+    snapshot
+        .loop_region
+        .as_ref()
+        .map(|l| crate::freeze::frame_of_tick(&snapshot.tempo, l.start, rate))
+}
+
 impl Processor {
     pub(super) fn install_snapshot(
         &mut self,
@@ -68,6 +89,49 @@ impl Processor {
                 s.pan = t.pan;
                 s.audible = t.audible;
                 apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                // Freezing (ADR 0064): the render it plays, if any (an `Arc` clone; the
+                // one it replaces is still the old snapshot's) — or the one it keeps at the
+                // playhead while it plays live (review 3) — and whether it rests.
+                let h = crate::freeze::handle_of(t.frozen.as_ref());
+                let parked = crate::freeze::parked_of(t.frozen.as_ref());
+                let held = s.frozen.clone().or_else(|| s.parked.clone());
+                let holds = h.clone().or_else(|| parked.clone());
+                if !same_handle(&held, &holds) {
+                    s.frozen_place.block = None;
+                    if let Some(old) = held.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                }
+                // Frozen or resting, the instrument is not played: on either change its
+                // voices go (review 1 — a note held when it froze sounded again, its
+                // note-off long passed, when it thawed during playback).
+                let quiet = |frozen: bool, rest: bool, notes: bool| frozen || rest || notes;
+                let was = quiet(s.frozen.is_some(), s.rest, s.notes_only);
+                // A render kept while the node stops reading it — it starts resting, or
+                // running for its notes only — is read by nobody: its board lets its
+                // blocks go (review 2, 3).
+                let stops = (t.rest && !s.rest) || (t.notes_only && !s.notes_only);
+                if stops && same_handle(&held, &holds) {
+                    if let Some(old) = held.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                }
+                drop((held, holds));
+                s.frozen = h;
+                s.parked = parked;
+                s.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
+                s.rest = t.rest;
+                s.notes_only = t.notes_only;
+                // Bounded (review 3): never past what a line can hold.
+                s.lateness = t
+                    .lateness
+                    .map_or(0, |l| l.at(self.sample_rate).min(crate::pdc::MAX_DELAY));
+                if was != quiet(s.frozen.is_some(), s.rest, s.notes_only) {
+                    s.reset();
+                }
+            }
+            if t.rest {
+                nodes.track_peak[slot].store(0, std::sync::atomic::Ordering::Relaxed);
             }
         }
         // Slots whose track vanished: silence them and free them.
@@ -77,6 +141,12 @@ impl Processor {
                 let native = nodes.track(i).and_then(|mut s| {
                     s.all_notes_off();
                     s.id = None;
+                    // Its render let go while the old snapshot still holds it (never the
+                    // last owner on this thread).
+                    if let Some(h) = s.frozen.take().or_else(|| s.parked.take()) {
+                        crate::freeze::release(&h);
+                    }
+                    s.parked = None;
                     s.native.take()
                 });
                 if let Some(u) = native {
@@ -134,6 +204,42 @@ impl Processor {
                     ss.eq_l.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                     ss.eq_r.set_band(i, sr, b.freq_hz, b.gain_db, b.q);
                 }
+                let h = crate::freeze::handle_of(st.frozen.as_ref());
+                // Played live while frozen: its render kept at the playhead (review 3).
+                let parked = crate::freeze::parked_of(st.frozen.as_ref());
+                // Playing a render or live: the other's state is from another time.
+                let swapped = ss.frozen.is_some() != h.is_some();
+                let held = ss.frozen.clone().or_else(|| ss.parked.clone());
+                let holds = h.clone().or_else(|| parked.clone());
+                if !same_handle(&held, &holds) {
+                    ss.frozen_place.block = None;
+                    if let Some(old) = held.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                } else if st.rest && !ss.rest {
+                    // Kept while it starts resting: read by nobody (review 2).
+                    if let Some(old) = held.as_ref() {
+                        crate::freeze::release(old);
+                    }
+                }
+                drop((held, holds));
+                ss.frozen = h;
+                ss.parked = parked;
+                ss.frozen_place.loop_frame = loop_frame(&snapshot, self.sample_rate);
+                // A strip that starts or stops resting — or playing its render — comes back
+                // empty: its inserts and EQ hold nothing from before (review 1, 2).
+                if ss.rest != st.rest || swapped {
+                    for e in &mut ss.effects {
+                        e.reset();
+                    }
+                    ss.eq_l.reset();
+                    ss.eq_r.reset();
+                }
+                ss.rest = st.rest;
+            }
+            if st.rest {
+                nodes.strip_peak[slot].store(0, std::sync::atomic::Ordering::Relaxed);
+                nodes.strip_gr[slot].store(0, std::sync::atomic::Ordering::Relaxed);
             }
         }
         // Routing is resolved to slot indices once, here — outputs and sends alike.
@@ -184,6 +290,11 @@ impl Processor {
                     s.output = None;
                     s.send_count = 0;
                     s.has_pre = false;
+                    s.rest = false;
+                    if let Some(h) = s.frozen.take().or_else(|| s.parked.take()) {
+                        crate::freeze::release(&h);
+                    }
+                    s.parked = None;
                     while let Some(e) = s.effects.pop() {
                         // `dispose_effect` needs `&mut self`: the unit goes through the
                         // scratch list, which never holds more than one chain.
@@ -208,14 +319,24 @@ impl Processor {
         self.metronome = snapshot.metronome;
         self.compensate();
         self.request_memory();
-        self.transport.set_bpm(snapshot.tempo_bpm);
+        // The swaps this snapshot carries (warp's renders) crossfade from the old data as
+        // the playing snapshot lays it, under the map playing now (round 29's third review).
+        self.arm_swaps(&snapshot);
+        // The tempo map (ADR 0060): an edit of the tempo re-anchors at the playhead; the
+        // old map is the old snapshot's, freed with it off this thread.
+        self.transport.set_map(snapshot.tempo.clone());
         self.transport.set_loop(snapshot.loop_region.clone());
         self.auto_install(&snapshot);
 
         // The nodes read the snapshot through the pass's frame; its old copy goes before
         // the processor's, which goes back to the UI thread to be freed.
         match nodes.frame.try_borrow_mut() {
-            Some(mut f) => f.ctx.snapshot = Some(snapshot.clone()),
+            Some(mut f) => {
+                f.ctx.snapshot = Some(snapshot.clone());
+                // The pass's copy of the transport lets go of the old map here too, while
+                // the old snapshot still holds it (never the last owner on this thread).
+                f.ctx.transport.clone_from(&self.transport);
+            }
             None => nodes.conflict(),
         }
         let old = self.snapshot.replace(snapshot);
@@ -288,6 +409,12 @@ impl Processor {
             return;
         };
         self.scratch_effects.clear();
+        // The hard bypass of low-latency monitoring goes with its unit, not its place
+        // (review 2: a chain edit made another insert "come back" and reset its tail).
+        let mut was_off = [(EffectId(u64::MAX), false); MAX_EFFECTS_PER_TRACK];
+        for (i, e) in s.effects.iter().enumerate().take(MAX_EFFECTS_PER_TRACK) {
+            was_off[i] = (e.id, s.ll_off[i]);
+        }
         while let Some(e) = s.effects.pop() {
             self.scratch_effects.push(e);
         }
@@ -311,6 +438,7 @@ impl Processor {
                     s.mix[idx] = want.mix.clamp(0.0, 1.0);
                     s.key_id[idx] = want.sidechain;
                     s.midi_id[idx] = want.midi_from;
+                    s.ll_off[idx] = was_off.iter().any(|(id, off)| *off && *id == unit.id);
                     s.effects.push(unit);
                 }
                 // Unit not delivered yet (or dropped): skip it this snapshot.
@@ -335,6 +463,11 @@ impl Processor {
         let mut post = [0usize; MAX_STRIPS];
         let mut master = 0usize;
         let mut own = [0usize; MAX_STRIPS];
+        // Freezing (ADR 0064): a resting strip or track is not run and delays nothing; a
+        // strip playing its render gathers nothing, so nothing arrives into it (its render
+        // is on the timeline: its own lateness is none).
+        let mut rest_s = [false; MAX_STRIPS];
+        let mut deaf = [false; MAX_STRIPS];
         // Soft bypass (ADR 0022): a bypassed insert — or a chain switched off — keeps its
         // latency, delaying its dry signal by it, so bypassing re-plans nothing.
         for (slot, own) in own.iter_mut().enumerate() {
@@ -342,9 +475,43 @@ impl Processor {
                 continue;
             }
             if let Some(st) = nodes.strip(slot) {
-                *own = st.effects.iter().map(|e| e.latency()).sum();
+                rest_s[slot] = st.rest;
+                deaf[slot] = st.rest || st.frozen.is_some();
+                if let Some(h) = st.frozen.as_ref() {
+                    // The latency the render was made with: everything it gathered and
+                    // its chain, kept (the render's frames arrive after it).
+                    *own = h.latency;
+                } else if !st.rest {
+                    *own = st.effects.iter().map(|e| e.latency()).sum();
+                }
             }
         }
+        // Low-latency monitoring (ADR 0064 §4): the monitored path, its hard bypasses.
+        let mon = self.monitor_plan(&rest_s);
+        if mon.on {
+            for (slot, own) in own.iter_mut().enumerate() {
+                if self.strip_ids[slot].is_none() || rest_s[slot] {
+                    continue;
+                }
+                if let Some(st) = nodes.strip(slot) {
+                    if st.frozen.is_none() {
+                        *own = st
+                            .effects
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, _)| !st.ll_off[*i])
+                            .map(|(_, e)| e.latency())
+                            .sum();
+                    }
+                }
+            }
+        }
+        // A monitored track into a strip carrying monitored input only (or into the
+        // master) is not held back.
+        let quick = |slot: usize, feeds: Option<usize>| {
+            mon.track[slot] && feeds.is_none_or(|d| mon.pure[d])
+        };
+        let mut rest_t = [false; MAX_TRACKS];
         // A track leaves at its instrument's latency (a hosted synth's lookahead, ADR 0028),
         // so what it feeds arrives no earlier and every other path waits for it.
         let mut leave = [0usize; MAX_TRACKS];
@@ -354,30 +521,73 @@ impl Processor {
             let Some(s) = nodes.track(slot) else {
                 continue;
             };
+            rest_t[slot] = s.rest;
+            if s.rest {
+                continue;
+            }
             let latency = s.latency();
             leave[slot] = latency;
             feeds[slot] = s.strip;
             match s.strip {
+                Some(d) if deaf[d] => {}
+                // Not held back — but a strip of monitored input only knows how late it
+                // really comes (review 2: its instrument's latency was left out).
+                Some(d) if quick(slot, s.strip) => arrive[d] = arrive[d].max(latency),
+                None if quick(slot, None) => {}
                 Some(d) => arrive[d] = arrive[d].max(latency),
                 None => master = master.max(latency),
             }
         }
+        // A render's floor (review 3): a bounce through a strip's inserts waits there as
+        // long as the strip's other inputs, left out of the render, made it wait live.
+        if let Some((i, floor)) = self.arrive_floor {
+            if let Some(&slot) = self.strip_to_slot.get(i) {
+                arrive[slot] = arrive[slot].max(floor);
+            }
+        }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
+            if rest_s[slot] {
+                post[slot] = 0;
+                continue;
+            }
             let p = arrive[slot] + own[slot];
             post[slot] = p;
             let Some(st) = nodes.strip(slot) else {
                 continue;
             };
+            // A strip carrying monitored input only is not waited for (ADR 0064 §4) —
+            // but where it is mixed with backing, it waits with the backing there (review
+            // 1: it arrived early, against what the ADR and the chip said).
+            if mon.pure[slot] {
+                let dests = st
+                    .output
+                    .into_iter()
+                    .chain(st.sends.iter().take(st.send_count).map(|(d, _)| *d));
+                // Its arrival reaches the next strip too — a strip of monitored input only
+                // is still not held back by it (its line wants nothing), but it knows how
+                // late what it carries is (review 2: two pure hops arrived early).
+                for d in dests {
+                    if !deaf[d] {
+                        arrive[d] = arrive[d].max(p);
+                    }
+                }
+                continue;
+            }
             match st.output {
+                Some(d) if deaf[d] => {}
                 Some(d) => arrive[d] = arrive[d].max(p),
                 None => master = master.max(p),
             }
             for (d, _) in st.sends.iter().take(st.send_count) {
-                arrive[*d] = arrive[*d].max(p);
+                if !deaf[*d] {
+                    arrive[*d] = arrive[*d].max(p);
+                }
             }
         }
         self.strip_post = post;
+        self.strip_arrive = arrive;
+        self.master_arrive = master;
         // Effects hearing a track's notes (ADR 0022): each note waits as long as the audio
         // reaching its slot does — the strip's arrival plus the latency of the inserts
         // before it — so note and sound meet at the effect.
@@ -402,9 +612,12 @@ impl Processor {
             let mut ahead = arrive[slot] as u64;
             let mut inserts = [(EffectId(0), 0usize, None); MAX_EFFECTS_PER_TRACK];
             let count = match nodes.strip(slot) {
+                // A resting strip's inserts do not run: they hear no notes.
+                Some(st) if st.rest => 0,
                 Some(st) => {
                     for (i, e) in st.effects.iter().enumerate() {
-                        inserts[i] = (e.id, e.latency(), st.midi_id[i]);
+                        let latency = if st.ll_off[i] { 0 } else { e.latency() };
+                        inserts[i] = (e.id, latency, st.midi_id[i]);
                     }
                     st.effects.len()
                 }
@@ -423,9 +636,25 @@ impl Processor {
         // The master chain delays every path equally: it moves what is heard, not the mix.
         let heard = master + self.master.latency();
         let mut kept = self.pdc.begin();
+        // The delay a track keeps before its level (a bounce's, review 3): its own line.
+        for ti in 0..self.track_to_slot.len() {
+            let slot = self.track_to_slot[ti];
+            let keeps = match nodes.track(slot) {
+                Some(s) if !s.rest && !s.notes_only && s.frozen.is_none() => s.lateness,
+                _ => 0,
+            };
+            if keeps > 0 {
+                self.pdc.want(&mut kept, Edge::Source(slot), keeps);
+            }
+        }
         for ti in 0..self.track_to_slot.len() {
             let slot = self.track_to_slot[ti];
             let want = match feeds[slot] {
+                // Gathered by nobody: no line.
+                _ if rest_t[slot] => continue,
+                Some(d) if deaf[d] => continue,
+                // Monitored, not held back (ADR 0064 §4).
+                f if quick(slot, f) => leave[slot],
                 Some(d) => arrive[d],
                 None => master,
             };
@@ -434,14 +663,20 @@ impl Processor {
         }
         for oi in 0..self.strip_play_order.len() {
             let slot = self.strip_play_order[oi];
+            if rest_s[slot] {
+                continue;
+            }
             let Some(st) = nodes.strip(slot) else {
                 continue;
             };
+            let pure = mon.pure[slot];
             let target = match st.output {
-                Some(d) => arrive[d],
-                None => master,
+                Some(d) if deaf[d] => None,
+                Some(d) if pure && !mon.pure[d] => Some(arrive[d]),
+                _ if pure => Some(post[slot]),
+                Some(d) => Some(arrive[d]),
+                None => Some(master),
             };
-            let out_delay = target - post[slot];
             let sends = st.sends;
             let send_count = st.send_count;
             // Every latent insert has a dry line of its latency, always running, so its
@@ -449,13 +684,23 @@ impl Processor {
             // step with the effect — switching them re-plans nothing and nothing jumps.
             let mut dry = [0usize; MAX_EFFECTS_PER_TRACK];
             for (i, e) in st.effects.iter().enumerate() {
-                dry[i] = e.latency();
+                // Bypassed hard for monitoring: no dry line (ADR 0064 §4).
+                dry[i] = if st.ll_off[i] { 0 } else { e.latency() };
             }
             drop(st);
-            self.pdc.want(&mut kept, Edge::Out(slot), out_delay);
-            for (k, (d, _)) in sends.iter().take(send_count).enumerate() {
+            if let Some(target) = target {
                 self.pdc
-                    .want(&mut kept, Edge::Send(slot, k), arrive[*d] - post[slot]);
+                    .want(&mut kept, Edge::Out(slot), target - post[slot]);
+            }
+            for (k, (d, _)) in sends.iter().take(send_count).enumerate() {
+                if !deaf[*d] {
+                    let want = if pure && mon.pure[*d] {
+                        0
+                    } else {
+                        arrive[*d] - post[slot]
+                    };
+                    self.pdc.want(&mut kept, Edge::Send(slot, k), want);
+                }
             }
             for (i, delay) in dry.iter().enumerate() {
                 self.pdc.want(&mut kept, Edge::Dry(slot, i), *delay);
@@ -476,6 +721,7 @@ impl Processor {
             if self.track_ids[slot].is_some() {
                 if let Some(mut s) = nodes.track(slot) {
                     s.line = None;
+                    s.source_line = None;
                     s.listened = self.listened[slot];
                 }
             }
@@ -499,6 +745,11 @@ impl Processor {
                         t.line = Some(i);
                     }
                 }
+                Some(Edge::Source(s)) => {
+                    if let Some(mut t) = nodes.track(s) {
+                        t.source_line = Some(i);
+                    }
+                }
                 Some(Edge::Out(s)) => {
                     if let Some(mut st) = nodes.strip(s) {
                         st.out_line = Some(i);
@@ -519,6 +770,25 @@ impl Processor {
                 Some(Edge::MasterDry(k)) => self.master.dry_line[k] = Some(i),
                 None => {}
             }
+        }
+        self.monitored_wait(
+            &mon,
+            &super::monitor::Arrivals {
+                arrive: &arrive,
+                post: &post,
+                own: &own,
+                master,
+                leave: &leave,
+                feeds: &feeds,
+                deaf: &deaf,
+                rest_s: &rest_s,
+                rest_t: &rest_t,
+            },
+        );
+        // A pass recording: playing from now on follows a backing heard this much later
+        // (or sooner); the recorder moves it in the file by as much (review 2).
+        if self.live_recording() {
+            self.live_shift(heard as i64 - self.pdc.total as i64);
         }
         self.pdc.total = heard;
         self.stats.latency_samples = heard as u64;
@@ -580,11 +850,18 @@ impl Processor {
         // integration review); a watched Speculum dates its frames by it.
         let mut out = [0usize; crate::fx::speculum::MAX_SCOPES];
         let mut lates = std::mem::take(&mut self.lates);
-        let mut n = 0usize;
-        let mut keep = |l: usize| {
+        let mut follow = std::mem::take(&mut self.follow_lates);
+        let (mut n, mut f) = (0usize, 0usize);
+        // Every insert's lateness (its own wrap after a loop's), and the ones that follow
+        // the song apart (their tempo steps, review 2).
+        let mut keep = |l: usize, follows: bool| {
             if l > 0 && n < lates.len() {
                 lates[n] = l;
                 n += 1;
+            }
+            if l > 0 && follows && f < follow.len() {
+                follow[f] = l;
+                f += 1;
             }
         };
         let scoped = self.scoped;
@@ -595,40 +872,47 @@ impl Processor {
                 continue;
             }
             if let Some(mut st) = nodes.strip(slot) {
-                let own: usize = st.effects.iter().map(|e| e.latency()).sum();
+                // An insert bypassed hard for monitoring delays nothing (review 1).
+                let StripSlot {
+                    effects, ll_off, ..
+                } = &mut *st;
+                let latency = |i: usize, e: &crate::effects::EffectUnit| {
+                    if ll_off[i] {
+                        0
+                    } else {
+                        e.latency()
+                    }
+                };
+                let own: usize = effects.iter().enumerate().map(|(i, e)| latency(i, e)).sum();
                 let mut ahead = self.strip_post[slot].saturating_sub(own);
-                for e in st.effects.iter_mut() {
+                for (i, e) in effects.iter_mut().enumerate() {
                     e.late = ahead;
-                    keep(ahead);
+                    keep(ahead, e.follows_song() || at(e.id).is_some());
                     if let Some(k) = at(e.id) {
                         out[k] = ahead;
                     }
-                    ahead += e.latency();
+                    ahead += latency(i, e);
                 }
             }
         }
         let mut ahead = self.pdc.total.saturating_sub(self.master.latency());
-        for e in self.master.effects.iter_mut() {
+        let master_off = self.master.ll_off;
+        for (i, e) in self.master.effects.iter_mut().enumerate() {
             e.late = ahead;
-            keep(ahead);
+            keep(ahead, e.follows_song() || at(e.id).is_some());
             if let Some(k) = at(e.id) {
                 out[k] = ahead;
             }
-            ahead += e.latency();
+            if !master_off[i] {
+                ahead += e.latency();
+            }
         }
         self.scoped_delay = out;
         // Distinct, ascending (in place: no allocation).
-        let got = &mut lates[..n];
-        got.sort_unstable();
-        let mut d = 0;
-        for i in 0..got.len() {
-            if d == 0 || got[i] != got[d - 1] {
-                got[d] = got[i];
-                d += 1;
-            }
-        }
+        self.late_n = distinct(&mut lates[..n]);
+        self.follow_n = distinct(&mut follow[..f]);
         self.lates = lates;
-        self.late_n = d;
+        self.follow_lates = follow;
     }
 
     /// Plan compensation again when a latency moved without an edit — automation or a
@@ -823,6 +1107,13 @@ impl Processor {
     /// Position each track's event cursor at the current playhead and reset the metronome.
     pub(super) fn reseek_events(&mut self) {
         let pos = self.transport.position_f64();
+        self.reseek_events_from(pos);
+    }
+
+    /// [`Self::reseek_events`] from `pos` (ticks): after a loop's wrap, the loop's start —
+    /// the playhead sits a fraction of a sample past it (the overshoot carried), and what
+    /// lies exactly on the start is due now, on every pass (round 29: it was skipped).
+    pub(super) fn reseek_events_from(&mut self, pos: f64) {
         let tick = cantus_core::Ticks(pos.ceil() as i64);
         if let Some(snap) = &self.snapshot {
             for (ti, t) in snap
@@ -836,8 +1127,13 @@ impl Processor {
                     s.next_event = t.first_event_at_or_after(tick);
                 }
             }
-            let beat = snap.time_signature.ticks_per_beat().0 as f64;
-            self.next_beat_tick = (pos / beat).ceil() * beat;
+            self.next_beat_tick = if snap.tempo.is_one_metre() {
+                let beat = snap.time_signature.ticks_per_beat().0 as f64;
+                (pos / beat).ceil() * beat
+            } else {
+                // Through every metre change (ADR 0060): the first beat line from here.
+                snap.tempo.next_beat(pos).0
+            };
         }
         self.auto_reseek();
     }
@@ -859,4 +1155,17 @@ impl Processor {
             }
         }
     }
+}
+
+/// Sort `v` and keep each value once at its front, in place (no allocation): how many.
+fn distinct(v: &mut [usize]) -> usize {
+    v.sort_unstable();
+    let mut d = 0;
+    for i in 0..v.len() {
+        if d == 0 || v[i] != v[d - 1] {
+            v[d] = v[i];
+            d += 1;
+        }
+    }
+    d
 }

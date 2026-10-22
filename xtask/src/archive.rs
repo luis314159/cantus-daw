@@ -72,7 +72,10 @@ pub fn zip(out: &Path, top: &str, entries: &[Entry]) {
 pub fn names(path: &Path) -> Vec<String> {
     let f = std::fs::File::open(path).unwrap();
     let z = zip::ZipArchive::new(f).expect("a zip");
-    let mut v: Vec<String> = z.file_names().map(str::to_owned).collect();
+    let mut v: Vec<String> = z
+        .file_names()
+        .map(|n| n.expect("a name in UTF-8").into_owned())
+        .collect();
     v.sort();
     v
 }

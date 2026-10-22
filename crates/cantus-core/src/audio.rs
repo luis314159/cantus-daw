@@ -10,7 +10,9 @@
 //! splitting, trimming, slipping, muting, colour, moving between tracks — works for audio
 //! unchanged. The content timeline of an audio clip is the source file itself: content
 //! tick `t` is the source at `seconds(t)` at the project's tempo, so content tick zero is
-//! the file's first frame.
+//! the file's first frame — unless the clip is **warped** (`AudioRegion::warp`, ADR 0061):
+//! then its warp markers say which source frame each content tick hears
+//! (`crate::warp::source_frame`).
 //!
 //! **Any track can hold audio clips** next to note clips (a hybrid track, as Bitwig does
 //! it): the instrument's output and the clips' audio are summed before the channel's own
@@ -141,6 +143,11 @@ pub struct AudioRegion {
     /// start has no seam, and the length waits there unused.
     #[serde(default, skip_serializing_if = "Ticks::is_zero")]
     pub xfade: Ticks,
+    /// The clip's warp (schema 34, ADR 0061): its markers, mode and transposition — the
+    /// clip follows the project's tempo through them. `None` — every clip before, and
+    /// every clip never warped — plays the source at its natural speed (ADR 0025 §1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warp: Option<Box<crate::warp::Warp>>,
 }
 
 /// The longest seam crossfade a window takes (a beat at any tempo is far more than a comp
@@ -164,6 +171,7 @@ impl AudioRegion {
             slip_frames: 0,
             pitch: None,
             xfade: Ticks::ZERO,
+            warp: None,
         }
     }
 }

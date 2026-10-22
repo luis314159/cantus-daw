@@ -148,51 +148,7 @@ impl ClapAudio {
     }
 
     fn fill_transport(&mut self, t: &TransportInfo) {
-        let beats = |b: f64| (b * CLAP_BEATTIME_FACTOR as f64).round() as i64;
-        let seconds = |s: f64| (s * CLAP_SECTIME_FACTOR as f64).round() as i64;
-        let mut flags = CLAP_TRANSPORT_HAS_TEMPO
-            | CLAP_TRANSPORT_HAS_BEATS_TIMELINE
-            | CLAP_TRANSPORT_HAS_SECONDS_TIMELINE
-            | CLAP_TRANSPORT_HAS_TIME_SIGNATURE;
-        if t.playing {
-            flags |= CLAP_TRANSPORT_IS_PLAYING;
-        }
-        if t.recording {
-            flags |= CLAP_TRANSPORT_IS_RECORDING;
-        }
-        let (loop_start, loop_end) = t.loop_beats.unwrap_or((0.0, 0.0));
-        if t.loop_beats.is_some() {
-            flags |= CLAP_TRANSPORT_IS_LOOP_ACTIVE;
-        }
-        let spb = if t.tempo_bpm > 0.0 {
-            60.0 / t.tempo_bpm
-        } else {
-            0.0
-        };
-        let beats_per_bar =
-            f64::from(t.time_sig_num.max(1)) * 4.0 / f64::from(t.time_sig_den.max(1));
-        self.transport = clap_event_transport {
-            header: clap_event_header {
-                size: size_of::<clap_event_transport>() as u32,
-                time: 0,
-                space_id: CLAP_CORE_EVENT_SPACE_ID,
-                type_: CLAP_EVENT_TRANSPORT,
-                flags: 0,
-            },
-            flags,
-            song_pos_beats: beats(t.position_beats),
-            song_pos_seconds: seconds(t.position_beats * spb),
-            tempo: t.tempo_bpm,
-            tempo_inc: 0.0,
-            loop_start_beats: beats(loop_start),
-            loop_end_beats: beats(loop_end),
-            loop_start_seconds: seconds(loop_start * spb),
-            loop_end_seconds: seconds(loop_end * spb),
-            bar_start: beats(t.bar_start_beats),
-            bar_number: (t.bar_start_beats / beats_per_bar).round() as i32,
-            tsig_num: t.time_sig_num,
-            tsig_denom: t.time_sig_den,
-        };
+        self.transport = transport_event(t);
     }
 
     /// One call of at most `max_block` frames.
@@ -391,5 +347,50 @@ impl Drop for ClapAudio {
             self.stop();
         }
         self.inst.audio_alive.store(false, Ordering::Release);
+    }
+}
+
+/// The CLAP transport event for the host's transport (ADR 0060: the song's real seconds,
+/// the tempo's slope inside a ramp, the bar counted through the metre changes).
+pub(crate) fn transport_event(t: &TransportInfo) -> clap_event_transport {
+    let beats = |b: f64| (b * CLAP_BEATTIME_FACTOR as f64).round() as i64;
+    let seconds = |s: f64| (s * CLAP_SECTIME_FACTOR as f64).round() as i64;
+    let mut flags = CLAP_TRANSPORT_HAS_TEMPO
+        | CLAP_TRANSPORT_HAS_BEATS_TIMELINE
+        | CLAP_TRANSPORT_HAS_SECONDS_TIMELINE
+        | CLAP_TRANSPORT_HAS_TIME_SIGNATURE;
+    if t.playing {
+        flags |= CLAP_TRANSPORT_IS_PLAYING;
+    }
+    if t.recording {
+        flags |= CLAP_TRANSPORT_IS_RECORDING;
+    }
+    let (loop_start, loop_end) = t.loop_beats.unwrap_or((0.0, 0.0));
+    if t.loop_beats.is_some() {
+        flags |= CLAP_TRANSPORT_IS_LOOP_ACTIVE;
+    }
+    // Real time through the tempo map (ADR 0060): the song's seconds, the loop's.
+    let (loop_start_s, loop_end_s) = t.loop_seconds.unwrap_or((0.0, 0.0));
+    clap_event_transport {
+        header: clap_event_header {
+            size: size_of::<clap_event_transport>() as u32,
+            time: 0,
+            space_id: CLAP_CORE_EVENT_SPACE_ID,
+            type_: CLAP_EVENT_TRANSPORT,
+            flags: 0,
+        },
+        flags,
+        song_pos_beats: beats(t.position_beats),
+        song_pos_seconds: seconds(t.position_seconds),
+        tempo: t.tempo_bpm,
+        tempo_inc: t.tempo_inc,
+        loop_start_beats: beats(loop_start),
+        loop_end_beats: beats(loop_end),
+        loop_start_seconds: seconds(loop_start_s),
+        loop_end_seconds: seconds(loop_end_s),
+        bar_start: beats(t.bar_start_beats),
+        bar_number: t.bar_number,
+        tsig_num: t.time_sig_num,
+        tsig_denom: t.time_sig_den,
     }
 }

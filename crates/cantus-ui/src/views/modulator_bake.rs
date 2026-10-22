@@ -17,6 +17,7 @@ use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::modulator::bake::bake;
 use cantus_core::{AutoTarget, Automation, Command, ModulatorId, Ticks};
+use cantus_host::RenderFor;
 use std::sync::mpsc;
 
 /// A bake waiting for its trace.
@@ -27,6 +28,9 @@ pub struct Pending {
     span: (Ticks, Ticks),
     revision: u64,
     rx: mpsc::Receiver<Vec<(f64, f32)>>,
+    /// A warped clip's render was late at its compile: said as it lands (warp, round 29's
+    /// third review).
+    late: bool,
 }
 
 impl CantusApp {
@@ -43,25 +47,81 @@ impl CantusApp {
         {
             return (l.start, l.end);
         }
-        let bar = p.time_signature.ticks_per_bar();
+        let bar = crate::views::bars::bar_len(p, Ticks::ZERO);
         (Ticks::ZERO, p.content_end().max(bar))
+    }
+
+    /// A bake given up before it began (its project replaced, refused, or needing no
+    /// render after all): its render's preparation goes with it — unless another bake still
+    /// waits for it (review final-B #7).
+    pub(crate) fn drop_bake_prep(&mut self) {
+        if self.warp.pending_bake.is_none() && self.modulators.pending_bake.is_none() {
+            self.plugins.drop_render(RenderFor::Bake);
+        }
     }
 
     /// Bake modulator `id`'s route into `target` (one undo step); a source that follows
     /// audio is traced first, on a worker.
     pub fn bake_route(&mut self, id: ModulatorId, target: &AutoTarget) -> bool {
         if self.project().modulator(id).is_none() {
+            self.drop_bake_prep();
             return false;
         }
         let span = self.bake_span();
         if !cantus_core::modulator::bake::needs_trace(self.project(), id) {
+            self.drop_bake_prep();
             return self.finish_bake(id, target, span, None);
         }
-        // Rendered offline over the stretch, the engine tracing this modulator.
+        // One bake at a time: a second one while the first traces, or waits for its
+        // samples, would throw the first away and end its render instances under it
+        // (round 29, review isolation-4 #5, #21).
+        if self.modulators.pending_bake.is_some() || self.warp.pending_bake.is_some() {
+            let job = t("isolation.render.bake");
+            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
+            return false;
+        }
+        // A freeze or a bounce rendering holds the hosted plug-ins' render instances: one
+        // set at a time (round 29, review 1 — whichever ended first let the other's go);
+        // asked before its plug-ins are prepared, so nothing drops them after (review
+        // isolation-6 #2, #11, #22).
+        if !crate::freeze::yield_refresh(self) {
+            self.drop_bake_prep();
+            self.set_error(t("freeze.bake_waits"));
+            return false;
+        }
+        // An export renders through the same plug-in instances: one render at a time
+        // (round 29, review isolation-3 #5, #10, #13, #48).
+        if self.export.busy() {
+            self.drop_bake_prep();
+            let job = t("isolation.render.export");
+            self.set_error(tf("isolation.render.busy", &[("job", &job)]));
+            return false;
+        }
+        // While renders are on their way (a warp, a pitch edit, a file loading), the bake
+        // waits for them beside the window, as an export does — it never blocks the frame
+        // (round 29's review); started again once they are in.
+        if self.engine.samples.loading() {
+            self.warp.pending_bake = Some((id, target.clone(), self.epoch));
+            self.set_status(crate::i18n::t("warp.status.bake_waiting"));
+            return true;
+        }
+        // Its hosted plug-ins' render instances, loading (an isolated one in a helper of
+        // its own): waited for the same way, frame by frame (round 29, review isolation-5).
         let rate = self.engine.sample_rate.round() as u32;
+        if !self
+            .plugins
+            .render_ready(RenderFor::Bake, self.bus.project(), f64::from(rate), false)
+        {
+            self.warp.pending_bake = Some((id, target.clone(), self.epoch));
+            self.set_status(t("isolation.render.loading"));
+            return true;
+        }
+        // Rendered offline over the stretch, the engine tracing this modulator.
+        let before = self.engine.renders_late();
         let snapshot = self
             .engine
             .compile_for_render(self.bus.project(), self.bus.revision());
+        let late = self.late_since(before);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: span.0,
@@ -94,8 +154,11 @@ impl CantusApp {
             span,
             revision: self.bus.revision(),
             rx,
+            late,
         });
         self.set_status(t("mods.status.baking"));
+        // After "baking", so the line keeps it while the trace runs.
+        self.say_late(before);
         true
     }
 
@@ -112,12 +175,30 @@ impl CantusApp {
         let Some(p) = self.modulators.pending_bake.take() else {
             return;
         };
+        // A plug-in that stopped working while the modulator was traced: the trace lacks
+        // it, so nothing is baked (round 29, review #6).
+        let lost = self.plugins.render_failures();
         self.plugins.finish_render();
+        let (losses, warnings) = crate::views::plugin_notice::render_words(&lost, "bake", "");
+        if let Some(text) = losses {
+            self.set_error(text);
+            return;
+        }
         if trace.is_empty() || p.revision != self.bus.revision() {
             self.set_error(t("mods.status.bake_moved"));
             return;
         }
-        self.finish_bake(p.id, &p.target, p.span, Some(&trace));
+        // Baked from a plug-in's state as it was last said: done, and said with it — never
+        // written over by the bake's own word (review isolation-5 #46).
+        if self.finish_bake(p.id, &p.target, p.span, Some(&trace)) {
+            if p.late {
+                self.say_done(t("mods.status.baked"), true);
+            }
+            if let Some(w) = warnings {
+                let done = self.status.text.clone();
+                self.set_error(format!("{done} {w}"));
+            }
+        }
     }
 
     /// The bake itself: the curve, the clips it plays over, the route gone — one step.

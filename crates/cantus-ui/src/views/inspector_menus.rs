@@ -30,6 +30,8 @@ pub enum MenuId {
     AddPad(TrackId),
     /// A linked clip's link row (round 26): select the copies, make unique, link to….
     ClipLink(TrackId, cantus_core::ClipId),
+    /// Where a track's hosted instrument runs (round 29, ADR 0063).
+    Hosting(TrackId),
 }
 
 /// What a row of a list does.
@@ -59,6 +61,12 @@ enum Choice {
     Browse,
     /// The link row's actions (round 26, ADR 0037).
     Link(super::track::LinkAct),
+    /// Where a hosted plug-in runs, and reloading one that stopped (round 29, ADR 0063).
+    Hosting(crate::views::plugin_notice::MenuAct),
+    /// MIDI learn of the insert's bypass (0) or mix (1), and forgetting them (round 29,
+    /// review 4 of ADR 0062, #21).
+    LearnSlot(u8),
+    ForgetSlot,
 }
 
 /// One row, owning its words until the list closes.
@@ -102,6 +110,25 @@ fn band(key: &'static str) -> Entry {
 
 fn radio(on: bool) -> Check {
     Check::Radio(on)
+}
+
+/// A hosted plug-in's rows: *Reload plug-in* under its own band while it is stopped, then
+/// where it runs under *Runs* (round 29, review #32).
+fn hosting_rows(
+    rows: Vec<(String, Option<bool>, crate::views::plugin_notice::MenuAct)>,
+    out: &mut Vec<Entry>,
+) {
+    let mut banded = false;
+    for (label, on, a) in rows {
+        if a == crate::views::plugin_notice::MenuAct::Reload {
+            out.push(band("isolation.slot.stopped_band"));
+        } else if !banded {
+            banded = true;
+            out.push(band("isolation.slot.band"));
+        }
+        let check = on.map_or(Check::None, radio);
+        out.push(act(Label::Text(label), check, Choice::Hosting(a)));
+    }
 }
 
 /// "3 · Reverb", or "Strip 3" for a strip with no name.
@@ -226,6 +253,13 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 ));
             }
         }
+        MenuId::Hosting(t) => {
+            let rows = crate::views::plugin_notice::menu_rows(
+                app,
+                crate::views::plugin_notice::Target::Instrument(t),
+            );
+            hosting_rows(rows, &mut out);
+        }
         MenuId::Slot(strip, e) => {
             let Some(s) = p.effects_of(strip) else {
                 return out;
@@ -257,6 +291,30 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 Check::None,
                 Choice::Remove,
             ));
+            // MIDI learn: the insert's bypass and mix, as the mixer's menu offers them.
+            let mut mapped = false;
+            for (what, key) in [(0u8, "ctl.menu.bypass"), (1, "ctl.menu.mix")] {
+                let m = app.is_mapped(&crate::controllers::slot_learn_target(e, what));
+                mapped |= m;
+                out.push(act(
+                    Label::Key(key),
+                    if m { Check::On } else { Check::Off },
+                    Choice::LearnSlot(what),
+                ));
+            }
+            if mapped {
+                out.push(act(
+                    Label::Key("ctl.menu.forget"),
+                    Check::None,
+                    Choice::ForgetSlot,
+                ));
+            }
+            // A hosted plug-in: where it runs (round 29, ADR 0063).
+            let rows = crate::views::plugin_notice::menu_rows(
+                app,
+                crate::views::plugin_notice::Target::Insert(e),
+            );
+            hosting_rows(rows, &mut out);
         }
         MenuId::Send(me, to) => {
             let on = p
@@ -475,6 +533,11 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         (MenuId::AddInsert(strip), Choice::Browse) => {
             app.open_picker(crate::picker::PickPurpose::AddEffect { strip })
         }
+        (MenuId::Hosting(t), Choice::Hosting(a)) => crate::views::plugin_notice::run_menu(
+            app,
+            crate::views::plugin_notice::Target::Instrument(t),
+            a,
+        ),
         (MenuId::Slot(strip, e), c) => {
             let i = app
                 .project()
@@ -509,6 +572,15 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                     });
                 }
                 Choice::Remove => app.remove_effect(strip, e),
+                Choice::LearnSlot(what) => {
+                    app.learn_target(crate::controllers::slot_learn_target(e, what));
+                }
+                Choice::ForgetSlot => app.forget_slot(e),
+                Choice::Hosting(a) => crate::views::plugin_notice::run_menu(
+                    app,
+                    crate::views::plugin_notice::Target::Insert(e),
+                    a,
+                ),
                 _ => {}
             }
         }

@@ -1,0 +1,79 @@
+# tempo — round 29: the tempo track, metre changes and markers. Every key here needs its twin in tempo.es.txt.
+
+# Undo labels (cmd.*)
+cmd.tempo.track = tempo track change
+cmd.tempo.add_point = tempo point added
+cmd.tempo.remove_point = tempo point removed
+cmd.tempo.set_point = tempo point change
+cmd.tempo.metres = metre changes
+cmd.tempo.set_metre = metre change
+cmd.tempo.remove_metre = metre change removed
+cmd.tempo.move_metre = metre change moved
+cmd.tempo.add_marker = marker added
+cmd.tempo.remove_marker = marker removed
+cmd.tempo.set_marker = marker change
+cmd.tempo.loop_markers = loop between markers
+
+# Actions (the keymap)
+action.add-marker = Add a marker at the playhead
+action.previous-marker = Go to the previous marker
+action.next-marker = Go to the next marker
+action.loop-between-markers = Loop between markers
+action.select-between-markers = Select between markers
+action.toggle-tempo-track = Show the tempo track
+
+# The tempo track, the metre changes and the markers
+tempo.lane = Tempo
+tempo.marker_lane = Markers
+tempo.marker = Marker
+tempo.metre_change = Metre change
+tempo.view_menu = Tempo track
+tempo.marker_name = Marker {n}
+tempo.status.at_marker = At marker {name}
+tempo.status.no_marker = No marker there
+tempo.status.recording = The tempo stays as it is while audio records: change it before or after the take
+rec.status.song_held = Undo and redo of another song wait while a take records: stop the take first
+interop.status.import_waits = {file} is read: it opens when the take ends
+tempo.metre_at_bar = Time signature at bar {bar}
+tempo.menu.ramp = Ramp to the next point
+tempo.menu.type = Type the tempo…
+tempo.menu.remove_point = Remove the point
+tempo.menu.hide = Hide the tempo track
+tempo.menu.add_point = Add a tempo point here
+tempo.menu.remove_track = Remove the tempo track
+tempo.menu.edit_metre = Edit the metre…
+tempo.menu.remove_metre = Remove the metre change
+tempo.menu.rename_marker = Rename…
+tempo.menu.colour = Colour…
+tempo.menu.loop_next = Loop to the next marker
+tempo.menu.select_next = Select to the next marker
+tempo.menu.export_next = Export to the next marker…
+tempo.menu.remove_marker = Remove the marker
+tempo.menu.add_marker = Add a marker here
+tempo.menu.add_metre = Add a metre change here
+tempo.menu.add_marker_playhead = Add a marker at the playhead
+tempo.menu.add_metre_playhead = Add a metre change at the playhead
+tempo.menu.loop_markers = Loop between the markers here
+tempo.menu.select_markers = Select between the markers here
+tempo.menu.go_to = Go to
+tempo.export.markers = Markers
+tempo.export.no_markers = Add two markers to export between them.
+tempo.export.two_markers = Pick two markers at different places: they make no range now.
+tempo.export.from = From marker
+tempo.export.to = To marker
+
+# Interchange reports
+tempo.report.tempo_kept = {n} tempo changes kept in the tempo track
+tempo.report.metres_kept = {n} metre changes kept
+tempo.report.markers_kept = {n} markers kept
+tempo.report.seconds_map = Times given in seconds were placed through the file's tempo track
+tempo.report.seconds_ramp = A tempo ramp written in seconds became a ramp in beats: its points keep their times, the tempo between them bends slightly differently
+tempo.report.tempo_unit = The tempo automation in "{unit}" could not be read: the song keeps its first tempo
+tempo.report.too_far = {n} tempo points, metre changes or markers lay past a million beats and were left out
+tempo.report.tempo_kept_one = One tempo change kept in the tempo track
+tempo.report.metres_kept_one = One metre change kept
+tempo.report.markers_kept_one = One marker kept
+tempo.report.too_far_one = A tempo point, metre change or marker lay past a million beats and was left out
+tempo.report.map_at = The file's tempo and metre start at bar {bar}; the song keeps its own before it
+tempo.midi.map_kept = The file's tempo changes, metre changes and markers go into the tempo track, the ruler and the marker lane.
+tempo.midi.map_at = The file's tempo and metre start at bar {bar}: the song keeps its own before it, and the file's markers join the marker lane.

@@ -140,9 +140,7 @@ pub fn compile(
             // An envelope reads the level each gate starts from, computed here, off the
             // audio thread, for its own settings at the project's tempo.
             match &m.source {
-                ModSource::Envelope(e) => {
-                    Arc::new(shared.with_levels(e, 60.0 / project.tempo_bpm.max(1e-9)))
-                }
+                ModSource::Envelope(e) => Arc::new(shared.with_levels_in(e, &project.tempo_map())),
                 _ => shared,
             }
         });

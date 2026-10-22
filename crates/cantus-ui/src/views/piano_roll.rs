@@ -584,6 +584,11 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             app.selected_clip = None;
             return;
         }
+        // An audio clip in its Warp mode (round 29, ADR 0061).
+        Some(c) if c.audio.is_some() && app.warp.view.open => {
+            super::warp::show(app, ui, track_id, clip_id);
+            return;
+        }
         // An audio clip: its notes in the pitch editor (round 28, ADR 0054); its fades,
         // gain and file stay in the inspector (ADR 0025 §1).
         Some(c) if c.audio.is_some() => {
@@ -922,7 +927,12 @@ fn content_beats(app: &CantusApp) -> f32 {
         .selected_track
         .zip(app.selected_clip)
         .and_then(|(t, c)| clip_of(app, t, c));
-    let bar = ticks_to_beats(app.project().time_signature.ticks_per_bar());
+    // The bar where the clip's content starts, through the metre changes (ADR 0060).
+    let bar = ticks_to_beats(
+        clip.map_or(app.project().time_signature.ticks_per_bar(), |c| {
+            crate::views::bars::bar_len(app.project(), c.start - c.offset)
+        }),
+    );
     let end = clip
         .map(|c| {
             let notes = c.notes.last().map(|n| n.end()).unwrap_or(Ticks::ZERO);
@@ -1347,14 +1357,23 @@ fn interact(
     let ctrl = mods.command;
     let grid_ticks = app.piano_roll.grid;
     let snapping = app.piano_roll.snap && !mods.alt;
+    // Content ticks, snapped through the timeline's bars when the metre changes (ADR 0060).
+    let to_tl = hits.to_timeline;
+    let snapper = crate::views::bars::Snapper::of(app.project());
     let snap_floor = |t: Ticks| {
         if snapping {
-            t.snap_floor(grid_ticks)
+            snapper.content_floor(t, grid_ticks, to_tl)
         } else {
             t
         }
     };
-    let snap_round = |t: Ticks| if snapping { t.snap(grid_ticks) } else { t };
+    let snap_round = |t: Ticks| {
+        if snapping {
+            snapper.content(t, grid_ticks, to_tl)
+        } else {
+            t
+        }
+    };
     let tool = app.piano_roll.tool;
     let (hover_hit, press_hit) = (hits.hover, hits.press);
     let pitch_of = |app: &CantusApp, id: NoteId| {
@@ -1365,11 +1384,10 @@ fn interact(
 
     if ruler_resp.clicked() {
         if let Some(pos) = ruler_resp.interact_pointer_pos() {
-            let tick = geo
-                .tick_at(pos.x)
-                .max(Ticks::ZERO)
-                .snap_floor(Ticks::QUARTER)
-                + hits.to_timeline;
+            let tick = geo.tick_at(pos.x).max(Ticks::ZERO);
+            // The beat under the click, through the metre changes (ADR 0060).
+            let tick = crate::views::bars::map(app.project())
+                .snap_floor(tick + hits.to_timeline, Ticks::QUARTER);
             app.seek(tick);
         }
     }
@@ -1420,7 +1438,7 @@ fn interact(
                         let length = drawn_note_length(
                             geo.axis,
                             snapping,
-                            grid_ticks,
+                            crate::views::bars::grid_len(app.project(), grid_ticks, to_tl + start),
                             app.piano_roll.last_note_length,
                         );
                         let note = app.bus.new_note(start, length, pitch, 100);
@@ -1561,7 +1579,15 @@ fn interact(
                                 .iter()
                                 .map(|n| {
                                     let end = snap_round(n.end() + raw);
-                                    let min_len = if snapping { grid_ticks } else { Ticks(10) };
+                                    let min_len = if snapping {
+                                        crate::views::bars::grid_len(
+                                            app.project(),
+                                            grid_ticks,
+                                            to_tl + n.start,
+                                        )
+                                    } else {
+                                        Ticks(10)
+                                    };
                                     Note {
                                         length: (end - n.start).max(min_len),
                                         ..n.clone()
@@ -1679,8 +1705,9 @@ fn paint_cell(
     grid_ticks: Ticks,
 ) {
     let raw = geo.tick_at(pos.x);
+    let to_tl = clip_of(app, track, clip_id).map_or(Ticks::ZERO, |c| c.start - c.offset);
     let start = if snapping {
-        raw.snap_floor(grid_ticks)
+        crate::views::bars::snap_content_floor(app.project(), raw, grid_ticks, to_tl)
     } else {
         raw
     }
@@ -1698,7 +1725,8 @@ fn paint_cell(
     if occupied {
         return;
     }
-    let length = drawn_note_length(geo.axis, snapping, grid_ticks, grid_ticks);
+    let grid_here = crate::views::bars::grid_len(app.project(), grid_ticks, to_tl + start);
+    let length = drawn_note_length(geo.axis, snapping, grid_here, grid_here);
     let note = app.bus.new_note(start, length, pitch, 100);
     let key = MergeKey::of(&("paint", app.piano_roll.stroke));
     app.exec_merging(

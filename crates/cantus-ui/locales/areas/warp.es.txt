@@ -1,0 +1,146 @@
+# warp — ronda 29: warp, estiramiento de tiempo y cambio de tono de los clips de audio. Cada clave de warp.en.txt tiene aquí su gemela.
+
+# El menú de deshacer (ADR 0061).
+cmd.warp.set = Ajustar el clip al tempo
+cmd.warp.auto = Ajustar el loop al tempo
+cmd.warp.add_marker = Añadir marcador de warp
+cmd.warp.move_marker = Mover marcador de warp
+cmd.warp.move_content = Deslizar el audio bajo un marcador
+cmd.warp.remove_marker = Quitar marcador de warp
+cmd.warp.quantise = Cuantizar audio
+cmd.warp.mode = Modo de warp
+cmd.warp.transpose = Transponer audio
+cmd.warp.formants = Conservar formantes
+cmd.warp.tail = Final de los cortes
+cmd.warp.follow = Seguir el tempo del proyecto
+cmd.warp.tempo = Tempo del clip
+cmd.warp.reset = Restablecer warp
+cmd.warp.bounce = Renderizar el audio ajustado
+cmd.warp.stretch = Estirar el clip
+
+# Los modos.
+warp.mode.complex = Complejo
+warp.mode.rhythm = Ritmo
+warp.mode.melodic = Melódico
+warp.mode.repitch = Varispeed
+warp.badge.complex = Warp
+warp.badge.rhythm = Warp: Ritmo
+warp.badge.melodic = Warp: Melódico
+warp.badge.repitch = Warp: Varispeed
+
+# Sobre el clip.
+warp.marker = Marcador de warp
+warp.transient = Transitorio
+warp.transient.tip = Doble clic para fijarlo con un marcador; arrastra para fijarlo y moverlo
+warp.band = Marcadores de warp
+warp.band.tip = Doble clic para añadir aquí un marcador; arrastra para añadirlo y moverlo
+
+# El menú del clip.
+warp.menu.band = Warp
+warp.menu.follow = Seguir el tempo del proyecto
+warp.menu.quantise = Cuantizar audio…
+warp.menu.quantise_short = Cuantizar…
+warp.menu.detect = Detectar el tempo
+warp.menu.from_here = Ajustar desde aquí
+warp.menu.project_tempo = Usar su tempo en el proyecto
+warp.menu.edit = Editar el warp
+warp.menu.bounce = Renderizar el audio ajustado
+warp.menu.reset = Restablecer warp
+warp.menu.remove_marker = Quitar marcador de warp
+
+# El inspector.
+warp.inspector.band = Warp
+warp.inspector.follow = Seguir el tempo
+warp.inspector.follow_short = Seguir
+warp.inspector.mode = Modo
+warp.inspector.transpose = Transponer
+warp.inspector.formants = Formantes
+warp.inspector.formants_on = Conservar
+warp.inspector.tail = Final de cortes
+warp.inspector.tempo = Tempo del clip
+warp.inspector.detected = Detectado
+warp.inspector.bars = {n} compases
+warp.inspector.bars_one = 1 compás
+warp.inspector.sure = Certeza
+warp.inspector.none = Sin analizar
+warp.tail.fade = Fundir
+warp.tail.loop = Bucle
+warp.tail.pingpong = Espejo
+
+# El editor del clip.
+warp.tab.pitch = Afinación
+warp.tab.warp = Warp
+warp.tempo.half = ½
+warp.tempo.double = ×2
+
+# Cuantizar audio.
+warp.quantise.title = Cuantizar audio
+warp.quantise.grid = Rejilla
+warp.quantise.strength = Intensidad
+warp.quantise.threshold = Transitorios desde
+warp.quantise.note = Acerca a la rejilla los transitorios de {n} clips; los archivos nunca cambian
+warp.quantise.note_one = Acerca a la rejilla los transitorios del clip; su archivo nunca cambia
+warp.quantise.apply = Cuantizar
+warp.quantise.cancel = Cancelar
+
+# La línea de estado.
+warp.status.analysing = El archivo del clip aún se está analizando: inténtalo en un momento
+warp.status.analysing_short = Analizando…
+warp.status.no_tempo = No se encontró un tempo estable en este clip
+warp.status.detected = Ajustado a {bpm} BPM
+warp.status.quantised = {n} clips cuantizados
+warp.status.quantised_one = 1 clip cuantizado
+warp.bounce.file = {name} (ajustado)
+warp.bounce.busy = Ya se está renderizando otro clip
+warp.bounce.working = Renderizando {name}…
+warp.bounce.done = {name} reproduce ahora su audio renderizado
+warp.bounce.failed = No se pudo escribir el render: {error}
+warp.bounce.nothing = Nada que renderizar: no se puede leer el archivo del clip
+warp.status.late = El render de un clip ajustado no estuvo a tiempo: lo escrito lleva su versión rápida
+warp.bounce.stale = No se aplicó el render de {name}: el clip cambió mientras se escribía
+
+# DAWproject (ADR 0061): los clips de audio viajan con su warp.
+interop.report.x_audio_external = Un archivo de audio que no se pudo leer queda referido donde estaba, sin incluirse: {file}
+interop.report.x_warp_transpose = Una transposición (DAWproject no la tiene): {clip}
+interop.report.x_pitch_edits = Ediciones de afinación (el archivo lleva la toma tal como se cantó): {clip}
+interop.report.x_reverse = Un clip invertido (suena hacia delante): {clip}
+
+# Al abrir (un archivo editado a mano o dañado).
+warp.status.repaired_one = El warp de un clip de este archivo estaba dañado: el clip suena a su velocidad natural
+warp.status.repaired = El warp de {n} clips de este archivo estaba dañado: suenan a su velocidad natural
+
+# DAWproject (revisión de la ronda 29): lo que un clip de audio pierde al salir, y al entrar.
+interop.report.x_takes = {n} tomas de {track} (solo suena la composición; DAWproject no tiene carriles de tomas)
+interop.report.x_takes_one = Una toma de {track} (solo suena la composición; DAWproject no tiene carriles de tomas)
+interop.report.x_track_input = La entrada de audio de {track} (vuelve a elegirla al abrir el archivo)
+interop.report.x_clip_gain = La ganancia del clip {clip}
+interop.report.x_fade_curve = La forma de los fundidos de {clip} (vuelven rectos)
+interop.report.x_warp_tail = El final de los cortes de {clip} (Ritmo: vuelven con fundido)
+interop.report.x_warp_formants = Formantes sin conservar en {clip}
+interop.report.x_warp_markers = Los marcadores de warp de {clip} (suena a su velocidad natural, como se escribió)
+interop.report.x_audio_unread = Un archivo de audio que no se pudo leer al escribir: {file}
+interop.report.d_audio_missing = Un archivo de audio que no está ni en el paquete .dawproject ni en el disco: {file}
+warp.status.outside = Ese punto está fuera del clip: haz clic derecho dentro de él, o pon ahí el cursor de reproducción
+warp.grid = Rejilla
+warp.grid.off = Libre
+interop.report.d_audio_unwritten = Un archivo de audio del paquete .dawproject que no se pudo escribir en el disco: {file}
+interop.status.exporting = Escribiendo {file}…
+interop.status.export_stopped = la exportación se detuvo antes de terminar
+interop.status.importing = Leyendo {file}…
+interop.status.import_busy = Ya se está leyendo un archivo DAWproject
+interop.status.import_stopped = la importación se detuvo antes de terminar
+interop.status.export_busy = Ya se está escribiendo un archivo DAWproject
+warp.status.bake_waiting = Se convertirá en automatización en cuanto lleguen los renders en camino…
+interop.report.d_part_too_large = Una parte del paquete .dawproject demasiado grande para leerla, omitida (el estado de un dispositivo: el dispositivo se reemplaza): {file}
+interop.report.d_warp_natural = Los puntos de warp de {clip} siguen su velocidad natural: suena sin warp
+interop.status.import_abandoned = {file} se leyó después de abrir otro proyecto, así que no se abrió: impórtalo de nuevo para abrirlo
+interop.error.not_zip = no es un archivo ZIP (un paquete .dawproject lo es)
+interop.error.damaged = el archivo está dañado o incompleto
+interop.error.method = {part} está comprimido de una forma que Cantus no lee (método {method})
+interop.error.corrupt = {part} está dañado (sus datos no coinciden con su suma de comprobación)
+interop.error.too_large = {part} es demasiado grande para leerlo
+interop.error.write = No se pudo escribir {file}: {error}
+interop.error.no_project = el paquete no tiene project.xml
+interop.error.xml = su project.xml no está bien formado: {error}
+interop.error.not_dawproject = su project.xml no es un DAWproject (su raíz es <{root}>)
+warp.inspector.no_tempo = Sin tempo estable

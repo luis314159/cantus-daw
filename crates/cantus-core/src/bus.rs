@@ -26,6 +26,10 @@ pub struct HistoryEntry {
     pub inverse: Command,
     pub origin: Origin,
     merge_key: Option<MergeKey>,
+    /// A tempo gesture still merging (review 4): its own commands so far, without the
+    /// window edits `tempo::keep` added — what each later frame rebuilds the step from,
+    /// so every frame is measured from where the gesture began.
+    gesture: Option<Command>,
 }
 
 #[derive(Clone, Debug)]
@@ -175,6 +179,174 @@ impl CommandBus {
     pub fn end_gesture(&mut self) {
         if let Some(top) = self.undo.last_mut() {
             top.merge_key = None;
+            top.gesture = None;
+        }
+    }
+
+    /// The gesture whose step is on top, still open (a drag going on), if any.
+    pub fn open_gesture(&self) -> Option<MergeKey> {
+        self.undo.last().and_then(|top| top.merge_key)
+    }
+
+    /// Whether the step on top is `key`'s gesture, still open (a drag going on).
+    pub fn merging(&self, key: MergeKey) -> bool {
+        self.undo
+            .last()
+            .is_some_and(|top| top.merge_key == Some(key))
+    }
+
+    /// Seal `key`'s gesture only: a gesture that ends on its own clock (a controller's)
+    /// never seals another's (a mouse drag going on). Its step is sealed wherever it is —
+    /// buried under another step, an undo bringing it back to the top must not let a later
+    /// gesture with the same key merge into it (review 2, #53).
+    pub fn end_gesture_if(&mut self, key: MergeKey) {
+        if let Some(e) = self
+            .undo
+            .iter_mut()
+            .rev()
+            .find(|e| e.merge_key == Some(key))
+        {
+            e.merge_key = None;
+            e.gesture = None;
+        }
+    }
+
+    /// Widen the gesture on top: `command` (a batch over every target the gesture moves now,
+    /// more than before) is applied, and if the step on top is `from`'s it becomes that
+    /// step — its command the new one (which sets every target it moves from scratch), its
+    /// inverse the new inverse then the old (which restore the joining targets, then the
+    /// earlier ones, to where they were before the gesture) — under the key `to`. Otherwise
+    /// it is [`Self::execute_merging`] under `to`. One gesture, one undo step, however its
+    /// targets join (a controller's knobs, ADR 0062 review 1).
+    pub fn widen_merging(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        from: MergeKey,
+        to: MergeKey,
+    ) -> Result<(), CommandError> {
+        let widen = self
+            .undo
+            .last()
+            .is_some_and(|top| top.merge_key == Some(from) && top.origin == origin);
+        if !widen {
+            return self.execute_inner(command, origin, Some(to));
+        }
+        // A gesture that moves the tempo is rebuilt from where it began (review 4): the
+        // widened command sets every target from scratch, the windows kept from there.
+        let tempo = self.undo.last().is_some_and(|top| top.gesture.is_some())
+            || crate::tempo::keep::changes_tempo(&command);
+        if tempo {
+            let label_key = command.label_key().to_string();
+            return self.rebase(command, origin, Some(to), label_key, true);
+        }
+        let label_key = command.label_key().to_string();
+        let (command, inverse) = match self.apply_keeping_audio(command, &label_key) {
+            Ok(both) => both,
+            Err(e) => {
+                self.audit_push(origin, label_key, AuditKind::Rejected);
+                return Err(e);
+            }
+        };
+        self.revision += 1;
+        self.redo.clear();
+        let top = self.undo.last_mut().expect("checked above");
+        let placeholder = Command::SetMetronome { enabled: false };
+        let old_inv = std::mem::replace(&mut top.inverse, placeholder);
+        top.inverse = compose(&label_key, old_inv, inverse, true);
+        top.command = command;
+        top.label_key = label_key.clone();
+        top.merge_key = Some(to);
+        self.audit_push(origin, label_key, AuditKind::Execute);
+        Ok(())
+    }
+
+    /// Merge `command` into the tempo gesture on top by rebuilding it from where the gesture
+    /// began (review 4): the step's inverse takes the song back there (exactly), the
+    /// gesture's own commands — the earlier ones and this, or this alone when it sets every
+    /// target from scratch (`replace`, or it supersedes them) — run again, and the window
+    /// edits that keep the audio are measured once, from that state. A hundred frames are
+    /// one edit, a drag back to its start leaves every window as it was, and the step holds
+    /// one fix however long the gesture.
+    fn rebase(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        merge_key: Option<MergeKey>,
+        label_key: String,
+        replace: bool,
+    ) -> Result<(), CommandError> {
+        let top = self.undo.last().expect("a step to merge into");
+        let earlier = top.gesture.clone().unwrap_or_else(|| top.command.clone());
+        let step_label = if replace {
+            label_key.clone()
+        } else {
+            top.label_key.clone()
+        };
+        let raw = if replace || command.supersedes(&earlier) {
+            command
+        } else {
+            compose(&step_label, earlier, command, false)
+        };
+        let back = top.inverse.clone();
+        if let Err(e) = back.apply(&mut self.project) {
+            // The step's inverse always applies (undo relies on it); if not, nothing moved.
+            self.audit_push(origin, label_key, AuditKind::Rejected);
+            return Err(e);
+        }
+        let (command, inverse) = match self.apply_keeping_audio(raw.clone(), &step_label) {
+            Ok(both) => both,
+            Err(e) => {
+                // Put the gesture back as it stood.
+                let again = self.undo.last().expect("checked").command.clone();
+                let _ = again.apply(&mut self.project);
+                self.audit_push(origin, label_key, AuditKind::Rejected);
+                return Err(e);
+            }
+        };
+        self.revision += 1;
+        self.redo.clear();
+        let top = self.undo.last_mut().expect("checked");
+        top.command = command;
+        top.inverse = inverse;
+        top.gesture = Some(raw);
+        top.label_key = step_label;
+        top.merge_key = merge_key;
+        self.audit_push(origin, label_key, AuditKind::Execute);
+        Ok(())
+    }
+
+    /// Apply `command` and, when it changed the tempo map, the window edits that keep
+    /// every unwarped audio window's source frame at its start (`tempo::keep`, ADR 0060
+    /// §4): the command and its inverse, the edits composed into both. Undo and redo
+    /// replay the stored pair, so nothing is derived twice.
+    fn apply_keeping_audio(
+        &mut self,
+        command: Command,
+        label_key: &str,
+    ) -> Result<(Command, Command), CommandError> {
+        let kept = crate::tempo::keep::before(&self.project, &command);
+        let inverse = command.clone().apply(&mut self.project)?;
+        let fix = kept
+            .map(|k| crate::tempo::keep::after(&k, &self.project))
+            .filter(|f| !f.is_empty());
+        let Some(fix) = fix else {
+            return Ok((command, inverse));
+        };
+        let fix = Command::Batch {
+            label_key: label_key.to_string(),
+            commands: fix,
+        };
+        match fix.clone().apply(&mut self.project) {
+            Ok(fix_inverse) => Ok((
+                compose(label_key, command, fix, false),
+                compose(label_key, inverse, fix_inverse, true),
+            )),
+            Err(e) => {
+                // Never half an edit: the command is taken back.
+                let _ = inverse.apply(&mut self.project);
+                Err(e)
+            }
         }
     }
 
@@ -185,8 +357,19 @@ impl CommandBus {
         merge_key: Option<MergeKey>,
     ) -> Result<(), CommandError> {
         let label_key = command.label_key().to_string();
-        let inverse = match command.clone().apply(&mut self.project) {
-            Ok(inv) => inv,
+        let tempo = crate::tempo::keep::changes_tempo(&command);
+        if let (Some(key), Some(top)) = (merge_key, self.undo.last()) {
+            if top.merge_key == Some(key)
+                && top.origin == origin
+                && (top.gesture.is_some() || tempo)
+            {
+                return self.rebase(command, origin, merge_key, label_key, false);
+            }
+        }
+        // A tempo gesture's own commands, for its later frames.
+        let gesture = (merge_key.is_some() && tempo).then(|| command.clone());
+        let (command, inverse) = match self.apply_keeping_audio(command, &label_key) {
+            Ok(both) => both,
             Err(e) => {
                 self.audit_push(origin, label_key, AuditKind::Rejected);
                 return Err(e);
@@ -222,6 +405,7 @@ impl CommandBus {
                 inverse,
                 origin,
                 merge_key,
+                gesture,
             });
             if self.undo.len() > self.max_history {
                 let excess = self.undo.len() - self.max_history;
@@ -264,6 +448,7 @@ impl CommandBus {
                     inverse: re_inverse,
                     origin: entry.origin,
                     merge_key: None,
+                    gesture: None,
                 });
                 Some(label)
             }
@@ -287,6 +472,7 @@ impl CommandBus {
                     inverse,
                     origin: entry.origin,
                     merge_key: None,
+                    gesture: None,
                 });
                 Some(label)
             }
@@ -299,6 +485,11 @@ impl CommandBus {
 
     pub fn history(&self) -> &[HistoryEntry] {
         &self.undo
+    }
+
+    /// What redo would apply, the next first last.
+    pub fn redo_history(&self) -> &[HistoryEntry] {
+        &self.redo
     }
 
     pub fn audit_log(&self) -> &[AuditEntry] {
@@ -354,6 +545,77 @@ fn compose(label: &str, old: Command, new: Command, prepend: bool) -> Command {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A gesture that widens (a second knob joins a turning one) is one undo step: undo
+    /// takes both back to where they were before it; redo sets both; and another gesture's
+    /// step is not sealed by this one's clock.
+    #[test]
+    fn a_widened_gesture_is_one_step_and_seals_only_itself() {
+        let mut bus = CommandBus::default();
+        let m = bus.project().master.clone();
+        let (a, b) = (MergeKey::of(&"a"), MergeKey::of(&"ab"));
+        bus.execute_merging(Command::SetMasterPan { pan: 0.2 }, Origin::User, a)
+            .unwrap();
+        bus.execute_merging(Command::SetMasterPan { pan: 0.3 }, Origin::User, a)
+            .unwrap();
+        let both = |pan: f32, width: f32| Command::Batch {
+            label_key: "cmd.controllers.gesture".into(),
+            commands: vec![
+                Command::SetMasterPan { pan },
+                Command::SetMasterWidth { width },
+            ],
+        };
+        bus.widen_merging(both(0.4, 1.5), Origin::User, a, b)
+            .unwrap();
+        bus.execute_merging(both(0.5, 1.7), Origin::User, b)
+            .unwrap();
+        assert_eq!(bus.history().len(), 1, "one step");
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (0.5, 1.7)
+        );
+        bus.undo();
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (m.pan, m.width)
+        );
+        bus.redo();
+        assert_eq!(
+            (bus.project().master.pan, bus.project().master.width),
+            (0.5, 1.7)
+        );
+        // Sealing by another key leaves the step open; by its own, closes it.
+        let c = MergeKey::of(&"c");
+        bus.execute_merging(both(0.6, 1.8), Origin::User, c)
+            .unwrap();
+        bus.end_gesture_if(MergeKey::of(&"mouse"));
+        bus.execute_merging(both(0.65, 1.8), Origin::User, c)
+            .unwrap();
+        assert_eq!(bus.history().len(), 2);
+        bus.end_gesture_if(c);
+        bus.execute_merging(both(0.7, 1.9), Origin::User, c)
+            .unwrap();
+        assert_eq!(bus.history().len(), 3);
+    }
+    /// Review 2, #20/#53: a gesture sealed while another step is on top is sealed all the
+    /// same — an undo that brings it back to the top never lets a later turn merge into it.
+    #[test]
+    fn a_buried_gesture_is_sealed_by_its_key() {
+        let mut bus = CommandBus::default();
+        let k = MergeKey::of(&"knob");
+        bus.execute_merging(Command::SetMasterPan { pan: 0.2 }, Origin::User, k)
+            .unwrap();
+        bus.execute(Command::SetMetronome { enabled: true }, Origin::User)
+            .unwrap();
+        bus.end_gesture_if(k);
+        bus.undo();
+        bus.execute_merging(Command::SetMasterPan { pan: 0.4 }, Origin::User, k)
+            .unwrap();
+        assert_eq!(bus.history().len(), 2, "two separate turns");
+        bus.undo();
+        assert_eq!(bus.project().master.pan, 0.2);
+    }
+
     use crate::model::TrackId;
 
     #[test]

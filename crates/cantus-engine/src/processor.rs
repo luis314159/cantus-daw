@@ -65,6 +65,9 @@ mod master;
 #[path = "graph/master_run.rs"]
 mod master_run;
 /// Messages, MIDI and live notes.
+#[path = "processor_monitor.rs"]
+pub(crate) mod monitor;
+
 #[path = "processor_msg.rs"]
 mod msg;
 /// The block: passes, the pool, and what is folded back after each.
@@ -100,7 +103,7 @@ use strip::{StripOut, StripSlot};
 use track::{TrackOut, TrackSlot};
 
 /// Tag used for live (keyboard/MIDI) notes so they never collide with sequenced note ids.
-const LIVE_TAG: u64 = u64::MAX;
+pub(crate) const LIVE_TAG: u64 = u64::MAX;
 /// How many snapshots we can hold back when the garbage queue is full.
 const PENDING_GARBAGE: usize = 8;
 /// MIDI events drained per block at most.
@@ -182,6 +185,10 @@ pub struct Processor {
     /// Instruments may split their voices over the pool (ADR 0038); `CANTUS_VOICE_SPLIT=0`
     /// or [`Processor::set_voice_split`] turns it off (the same bits either way).
     split_voices: bool,
+    /// An offline render: frozen renders' readers wait for their blocks (ADR 0064).
+    offline: bool,
+    /// Low-latency monitoring (ADR 0064 §4): the insert limit in samples, when on.
+    low_latency: Option<usize>,
     click: Click,
     /// The browser's audition voice, mixed after the master strip like the click.
     preview: crate::preview::Preview,
@@ -210,6 +217,11 @@ pub struct Processor {
     /// every block size (review of fix3). Allocated once, filled on the audio thread.
     lates: Box<[usize]>,
     late_n: usize,
+    /// The same for the inserts that follow the song (`EffectUnit::follows_song`, and a
+    /// watched Speculum, which dates its frames): only their steps cut passes inside a
+    /// ramp (review 2, finding 10), the first `follow_n`.
+    follow_lates: Box<[usize]>,
+    follow_n: usize,
     /// Delay compensation (`crate::pdc`): the planner of the lines the nodes run.
     pdc: crate::pdc::Compensation,
     /// Scratch for the callback's own delayed edges (the click, a silent take).
@@ -220,6 +232,13 @@ pub struct Processor {
     /// How late each strip slot's fader output is against the timeline, in samples: the
     /// compensation it waits for plus its own inserts' latency (ADR 0018's `P`).
     strip_post: [usize; MAX_STRIPS],
+    /// Each strip slot's input arrival, as planned (ADR 0018's `A`).
+    strip_arrive: [usize; MAX_STRIPS],
+    /// A render's floor under one snapshot strip's arrival (index, frames): a bounce
+    /// through its inserts enters the chain as late as it did live (review 3).
+    arrive_floor: Option<(usize, usize)>,
+    /// What reaches the master arrives this late, as planned (before its chain).
+    master_arrive: usize,
     /// The inserts' and instruments' latencies when compensation was last planned, as one
     /// number (`Self::latency_signature`): a pass that finds another re-plans (ADR 0056).
     latency_sig: u64,
@@ -306,6 +325,8 @@ impl Processor {
             pool_wakes: 0,
             shuffle: None,
             split_voices: std::env::var("CANTUS_VOICE_SPLIT").map_or(true, |v| v.trim() != "0"),
+            offline: false,
+            low_latency: None,
             click: Click::new(sr),
             preview: crate::preview::Preview::new(sample_rate),
             metronome: false,
@@ -327,11 +348,17 @@ impl Processor {
             lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
                 .into_boxed_slice(),
             late_n: 0,
+            follow_lates: vec![0; (MAX_STRIPS + 1) * crate::messages::MAX_EFFECTS_PER_TRACK]
+                .into_boxed_slice(),
+            follow_n: 0,
             pdc,
             master_loud: master_run::MasterLoud::new(sr),
             edge_l: vec![0.0; PASS_FRAMES],
             edge_r: vec![0.0; PASS_FRAMES],
             strip_post: [0; MAX_STRIPS],
+            strip_arrive: [0; MAX_STRIPS],
+            arrive_floor: None,
+            master_arrive: 0,
             latency_sig: 0,
             click_line: None,
             capture_line: None,
@@ -395,6 +422,12 @@ impl Processor {
     /// it off). Off, no node is blamed; the block histogram is kept either way.
     pub fn set_profiling(&mut self, on: bool) {
         self.prof.set_on(on);
+    }
+
+    /// An offline render (round 29, ADR 0064): a frozen render's reader waits for its
+    /// blocks instead of playing silence where one is late. Never in real time.
+    pub fn set_offline(&mut self, on: bool) {
+        self.offline = on;
     }
 
     /// Let the heavy instruments split their voices over the pool's threads (ADR 0038; on
@@ -478,10 +511,11 @@ impl Processor {
         if let Some(x) = t.position_back(back) {
             return x;
         }
-        // The playhead wrapped (or the tempo changed) within the last `back` samples.
-        let x = t.position_f64() - back as f64 * t.ticks_per_sample();
+        // The playhead wrapped (or was moved) within the last `back` samples: back through
+        // the map (ADR 0060), the constant arithmetic where the tempo holds.
+        let x = t.tick_before(t.position_f64(), back);
         match t.wraps_played().and_then(|w| w.locate(back)) {
-            Some((r, end)) => end * cantus_core::PPQ as f64 - r as f64 * t.ticks_per_sample(),
+            Some((r, end)) => t.tick_before(end * cantus_core::PPQ as f64, r),
             None => x,
         }
     }
@@ -519,11 +553,49 @@ impl Processor {
         self.strip_to_slot.get(index).copied()
     }
 
+    /// How many samples a snapshot track's source lags the timeline: its instrument's
+    /// latency (ADR 0028; none while it plays a frozen render).
+    pub fn track_latency(&self, index: usize) -> usize {
+        self.track_slot(index)
+            .and_then(|s| self.nodes.track(s).map(|t| t.latency()))
+            .unwrap_or(0)
+    }
+
+    /// How late an insert's audio is against the transport (`EffectUnit::late`: what a
+    /// tempo-synced unit and a watched Speculum are dated by), if it is on a strip.
+    pub fn effect_late(&self, id: EffectId) -> Option<usize> {
+        (0..MAX_STRIPS).find_map(|slot| {
+            let st = self.nodes.strip(slot)?;
+            st.effects.iter().find(|e| e.id == id).map(|e| e.late)
+        })
+    }
+
     /// How many samples a snapshot strip's fader output lags the timeline.
     pub fn strip_latency(&self, index: usize) -> usize {
         self.strip_slot(index)
             .map(|s| self.strip_post[s])
             .unwrap_or(0)
+    }
+
+    /// How many samples what enters a snapshot strip's chain lags the timeline: the
+    /// compensation it waits for (ADR 0018's `A`).
+    pub fn strip_arrival(&self, index: usize) -> usize {
+        self.strip_slot(index)
+            .map(|s| self.strip_arrive[s])
+            .unwrap_or(0)
+    }
+
+    /// How late what reaches the master is, before its chain (the stems' Direct sum is
+    /// trimmed by it).
+    pub fn master_arrival(&self) -> usize {
+        self.master_arrive
+    }
+
+    /// An offline render's floor under snapshot strip `index`'s arrival (`None`: none),
+    /// planned with the next snapshot: what enters its chain waits at least `frames`
+    /// (a bounce through a strip's inserts whose other inputs it left out, review 3).
+    pub fn set_arrive_floor(&mut self, floor: Option<(usize, usize)>) {
+        self.arrive_floor = floor;
     }
 
     /// Give the processor the producer end of the analyser's ring (see
@@ -694,6 +766,12 @@ impl Processor {
 
     /// Handle every pending message now, outside a block — for an offline render, which
     /// must have its delay lines before the first sample it keeps.
+    /// The passes run so far (every pass is a whole graph run): the measurements' and the
+    /// tests' count of what cutting passes costs.
+    pub fn passes_run(&self) -> u64 {
+        self.pass
+    }
+
     pub fn settle(&mut self) {
         while !self.rx.is_empty() {
             self.drain_messages();
@@ -707,8 +785,35 @@ pub(crate) fn song_position_of(
     snapshot: &Option<Arc<Snapshot>>,
     sample_rate: f64,
 ) -> crate::fx::SongPosition {
-    let tempo = transport.bpm();
     let ppq = cantus_core::PPQ as f64;
+    let loop_beats = transport
+        .loop_region()
+        .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq));
+    let map = transport.map();
+    if !(map.is_constant() && map.is_one_metre()) {
+        // Through the tempo map (ADR 0060): the step's tempo, real seconds, the bar of the
+        // metre in force.
+        let tick = transport.position_f64();
+        return crate::fx::SongPosition {
+            loop_beats,
+            loop_seconds: transport.loop_region().map(|l| {
+                (
+                    map.seconds_at(l.start.0 as f64),
+                    map.seconds_at(l.end.0 as f64),
+                )
+            }),
+            wrap: transport.wraps_played(),
+            ..crate::fx::position_at_step(
+                map,
+                tick,
+                transport.step_tick(),
+                transport.is_playing(),
+                sample_rate,
+            )
+        };
+    }
+    // One tempo and one metre: the arithmetic every project before round 29 played by.
+    let tempo = transport.bpm();
     let beats = transport.position_f64() / ppq;
     let (num, den) = snapshot
         .as_ref()
@@ -718,14 +823,20 @@ pub(crate) fn song_position_of(
     crate::fx::SongPosition {
         playing: transport.is_playing(),
         tempo_bpm: tempo,
+        tempo_inc: 0.0,
+        tempo_now: tempo,
         beats,
         samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
+        // A host's sample clock (VST3's `projectTimeSamples`) is the one it was before
+        // round 29 (review 1), and CLAP's seconds round 28's expression (review 2).
+        project_samples: (beats * 60.0 / tempo.max(1e-9) * sample_rate).round() as i64,
+        seconds: beats * (60.0 / tempo),
         bar_start_beats: (beats / bar).floor() * bar,
+        bar_number: (beats / bar).floor() as i32,
         time_sig_num: u16::from(num),
         time_sig_den: u16::from(den),
-        loop_beats: transport
-            .loop_region()
-            .map(|l| (l.start.0 as f64 / ppq, l.end.0 as f64 / ppq)),
+        loop_seconds: loop_beats.map(|(a, b)| (a * (60.0 / tempo), b * (60.0 / tempo))),
+        loop_beats,
         wrap: transport.wraps_played(),
     }
 }
@@ -760,6 +871,8 @@ fn controller_of(ev: &MidiEvent) -> Option<(Controller, f32)> {
             let raw = ((ev.data2 as i32) << 7 | ev.data1 as i32) - 8192;
             Some((Controller::PitchBend, raw as f32 / 8192.0 * 2.0))
         }
+        // Channel pressure (round 29): one data byte.
+        0xD0 => Some((Controller::Pressure, f32::from(ev.data1) / 127.0)),
         0xB0 => {
             let v = ev.data2 as f32 / 127.0;
             Some(match ev.data1 {

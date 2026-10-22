@@ -22,10 +22,16 @@ impl CantusApp {
         match self.plugins.make_instrument(track, info) {
             Ok(spec) => {
                 self.close_inst_editor();
-                self.exec(Command::SetInstrument {
+                let cmd = Command::SetInstrument {
                     track,
                     spec: Box::new(spec),
-                });
+                };
+                // An isolated plug-in's values, known once it loads, join this step — under
+                // a key of this pick's own; every other pick is a step of its own.
+                match self.plugins.inst_load_key(track) {
+                    Some(key) => self.exec_merging(cmd, key),
+                    None => self.exec(cmd),
+                };
                 true
             }
             Err(e) => {
@@ -71,12 +77,18 @@ impl CantusApp {
         }) else {
             return;
         };
+        if self.window_of_stopped(crate::views::plugin_notice::Target::Instrument(track)) {
+            return;
+        }
         if let Some(why) = self.plugins.instrument_missing(track) {
-            let why = why.to_string();
-            self.set_error(tf(
-                "hosted.missing_status",
-                &[("name", &plugin), ("why", &why)],
-            ));
+            let why = crate::views::plugin_notice::load_words(why);
+            // On this computer but not loaded: Reload, never "install it" (isolation-5 #45).
+            let key = if self.plugins.instrument_load_error(track).is_some() {
+                "isolation.inst.not_loaded_status"
+            } else {
+                "hosted.missing_status"
+            };
+            self.set_error(tf(key, &[("name", &plugin), ("why", &why)]));
             return;
         }
         let has_editor = self
@@ -90,7 +102,7 @@ impl CantusApp {
         let title = format!("{plugin} \u{2014} {track_name}");
         let owner = self.plugins.owner_window;
         if let Err(e) = self.plugins.open_instrument_window(track, &title, owner) {
-            self.set_error(tf("host.editor.window_failed", &[("error", &e)]));
+            crate::views::plugin_notice::window_failed(self, &plugin, &e);
         }
     }
 

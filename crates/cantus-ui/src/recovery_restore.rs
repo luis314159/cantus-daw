@@ -64,18 +64,61 @@ fn referenced(project: &Project, base: Option<&Path>) -> HashSet<String> {
 /// what the engine would have marked (the takes then fall onto their lanes as a finished
 /// pass's do).
 pub fn wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
+    // The engine's own marks first (file frames, moves included — review 3); past the
+    // last, the loop's arithmetic, moved by the last move.
+    let computed = computed_wraps(pass, frames);
+    if pass.marked_wraps.is_empty() {
+        return computed;
+    }
+    let (last_f, last_s) = pass.marked_wraps.last().copied().unwrap_or((0, 0));
+    let mut out: Vec<u64> = pass
+        .marked_wraps
+        .iter()
+        .map(|(f, _)| *f)
+        .filter(|f| *f > 0 && *f < frames)
+        .collect();
+    let marked = pass.marked_wraps.len();
+    for w in computed.into_iter().skip(marked) {
+        let f = (w as i64 - last_s).max(last_f as i64 + 1) as u64;
+        if f < frames {
+            out.push(f);
+        }
+    }
+    out
+}
+
+/// The frames where the loop wrapped, from the loop's arithmetic alone.
+fn computed_wraps(pass: &JournalPass, frames: u64) -> Vec<u64> {
     let Some((a, b)) = pass.loop_region else {
         return Vec::new();
     };
     if b <= a || pass.tempo_bpm <= 0.0 {
         return Vec::new();
     }
-    let fpt = f64::from(pass.sample_rate) * 60.0 / (pass.tempo_bpm * cantus_core::PPQ as f64);
     let first = (b - pass.transport_start).0;
     if first <= 0 {
         return Vec::new();
     }
+    let map = pass.tempo_map();
     let mut out = Vec::new();
+    if !map.is_constant() {
+        // Through the tempo map (ADR 0060): the first wrap at the loop's end, then a loop's
+        // length of seconds each.
+        let sr = f64::from(pass.sample_rate);
+        let lead = map.seconds_between(pass.transport_start, b) * sr;
+        let len = map.seconds_between(a, b) * sr;
+        let mut k = 0.0;
+        loop {
+            let f = (lead + k * len).round() as u64;
+            if f >= frames {
+                break;
+            }
+            out.push(f);
+            k += 1.0;
+        }
+        return out;
+    }
+    let fpt = f64::from(pass.sample_rate) * 60.0 / (pass.tempo_bpm * cantus_core::PPQ as f64);
     let mut at = first as f64;
     loop {
         let f = (at * fpt).round() as u64;
@@ -100,18 +143,33 @@ pub fn finished_take(
         return None;
     }
     let spec = hound::WavReader::open(path).ok()?.spec();
-    let fpt =
-        f64::from(spec.sample_rate) * 60.0 / (pass.tempo_bpm.max(1.0) * cantus_core::PPQ as f64);
     Some(FinishedTake {
         track,
         path: path.to_path_buf(),
         sample_rate: spec.sample_rate,
         channels: spec.channels as u8,
         frames,
-        start_tick: pass.transport_start.0 as f64 - pass.latency_frames as f64 / fpt,
+        start_tick: pass.tick_after(
+            pass.transport_start.0 as f64,
+            -(pass.latency_frames as f64),
+            spec.sample_rate,
+        ),
         wraps: wraps(pass, frames),
+        wrap_shifts: wrap_shifts(pass, frames),
         dropped: 0,
     })
+}
+
+/// The heard latency's moves at each wrap of `wraps(pass, frames)`: the engine's marks,
+/// and past the last one the last move (review 3). Empty when it never moved.
+fn wrap_shifts(pass: &JournalPass, frames: u64) -> Vec<i64> {
+    if pass.marked_wraps.iter().all(|(_, s)| *s == 0) {
+        return Vec::new();
+    }
+    let last = pass.marked_wraps.last().map_or(0, |(_, s)| *s);
+    (0..wraps(pass, frames).len())
+        .map(|k| pass.marked_wraps.get(k).map_or(last, |(_, s)| *s))
+        .collect()
 }
 
 /// What a gone session left to offer: its autosave when it had unsaved changes, and the

@@ -37,6 +37,7 @@ unsafe extern "C" fn is_api_supported(
 
 unsafe extern "C" fn create(p: *const clap_plugin, api: *const c_char, floating: bool) -> bool {
     let me = crate::plugin::me(p);
+    me.fault.fire(crate::fault::ABORT_EDITOR);
     if !is_api_supported(p, api, floating) || me.editor_created {
         return false;
     }
@@ -69,8 +70,24 @@ mod win {
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DestroyWindow, ShowWindow, SW_HIDE, SW_SHOW, WS_CHILD, WS_VISIBLE,
+        CreateWindowExW, DestroyWindow, SetTimer, ShowWindow, SW_HIDE, SW_SHOW, WS_CHILD,
+        WS_VISIBLE,
     };
+
+    /// The editor's timer: runs the nested loop the Fault parameter asked for (12), from
+    /// inside the window's own message — as a plug-in's file dialog does.
+    unsafe extern "system" fn on_timer(_hwnd: HWND, _msg: u32, id: usize, _time: u32) {
+        // The timer's id is its instance (its window, and so the timer, goes before it).
+        let fault = &(*(id as *const crate::plugin::Plugin)).fault;
+        let secs = fault.take_window_pump();
+        if secs > 0 {
+            crate::fault::pump(std::time::Duration::from_secs(u64::from(secs)));
+        }
+        if fault.take_window_segv() {
+            // SAFETY: none — a write to an address no process maps, on purpose.
+            unsafe { std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(16), 1) }
+        }
+    }
 
     fn wide(s: &str) -> Vec<u16> {
         s.encode_utf16().chain(std::iter::once(0)).collect()
@@ -108,6 +125,12 @@ mod win {
             return false;
         }
         ShowWindow(me.editor as HWND, SW_SHOW);
+        SetTimer(
+            me.editor as HWND,
+            me as *const crate::plugin::Plugin as usize,
+            20,
+            Some(on_timer),
+        );
         true
     }
 

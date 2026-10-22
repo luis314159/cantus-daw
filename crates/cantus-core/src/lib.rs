@@ -10,13 +10,16 @@
 #![warn(missing_debug_implementations)]
 
 pub mod audio;
+pub mod audio_time;
 pub mod automation;
 pub mod bus;
 pub mod clipboard;
 pub mod command;
 pub mod comp;
+pub mod controller;
 pub mod effect;
 pub mod external;
+pub mod freeze;
 pub mod fx;
 pub mod inst;
 pub mod instrument;
@@ -28,7 +31,9 @@ pub mod pattern;
 pub mod pitch;
 pub mod routing;
 pub mod snapshot;
+pub mod tempo;
 pub mod time;
+pub mod warp;
 
 pub use audio::{
     AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,
@@ -41,6 +46,8 @@ pub use effect::{
     eq_key, EffectKind, EffectParamInfo, EffectSlot, EffectSpec, ExternalPlugin, PluginFormat,
     PluginState, EQ_BANDS, EQ_BAND_FIELDS,
 };
+pub use external::PluginIsolation;
+pub use freeze::{FreezeTarget, Frozen};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,
@@ -48,8 +55,8 @@ pub use instrument::{
 pub use model::{
     apply_width, balance_gains, db_to_linear, linear_to_db, pan_gains, pitch_name, pitch_to_hz,
     AudioSourceId, Clip, ClipId, ClipWindow, Color, Dock, EffectId, EqBand, EqField, GroupId,
-    LinkId, LoopRegion, Master, MixerStrip, ModulatorId, Note, NoteId, PanLaw, Pitch, Project,
-    Send, SendTap, StripEq, StripGroup, StripId, Track, TrackIcon, TrackId, Velocity,
+    Lateness, LinkId, LoopRegion, Master, MixerStrip, ModulatorId, Note, NoteId, PanLaw, Pitch,
+    Project, Send, SendTap, StripEq, StripGroup, StripId, Track, TrackIcon, TrackId, Velocity,
     DEFAULT_RIGHT_DOCK, DEFAULT_STRIPS, EQ_MAX_GAIN_DB, EQ_MAX_HZ, EQ_MAX_Q, EQ_MIN_HZ, EQ_MIN_Q,
     MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MAX_TRACK_HEIGHT, MAX_WIDTH, MIN_GAIN_DB,
     MIN_TRACK_HEIGHT,
@@ -60,4 +67,5 @@ pub use pads::{
     PulsusParams, RoundRobin, SampleData, StreamRef, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
 pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
+pub use tempo::{Marker, MarkerId, MetreChange, TempoMap, TempoPoint};
 pub use time::{Ticks, TimeSignature, PPQ};

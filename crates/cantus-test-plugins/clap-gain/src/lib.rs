@@ -10,8 +10,16 @@
 //!   output, so a test can hear that the key arrived;
 //! - **Gesture** (hidden): setting it to *n* makes the plug-in perform a gesture on Gain
 //!   over its next five blocks — begin, −n, −n−1, −n−2 dB, end — as its own editor would;
-//! - a state that carries every parameter and a free *tag* that is not a parameter, so a
-//!   test can tell the state travelled and not only the values.
+//! - a state that carries Gain, Latency, Key and Gesture and a free *tag* that is not a
+//!   parameter, so a test can tell the state travelled and not only the values; the tag
+//!   `dirty` makes every load of that state mark it dirty and ask for the values to be
+//!   read again, as JUCE's VST3 wrapper does, and `rewrite` does the same and keeps the
+//!   state in bytes of its own (its tag becomes `rewritten`), saved in 800 ms; `count:<n>`
+//!   loads as `count:<n+1>` and says nothing (its state moves with no word to the host);
+//! - **Fault** (hidden, round 29): a failure on purpose — an abort or a hang in `process`,
+//!   an abort in `save_state`, `load_state`, `activate` or the editor (`fault.rs`) — and
+//!   **Process** (hidden, read-only): the id of the process the instance runs in, so the
+//!   host's isolation tests see it really lived elsewhere.
 //!
 //! Its behaviour at load follows its **file name**: a copy whose name contains `crash`
 //! aborts inside `clap_entry.init`, one whose name contains `hang` never returns from it.
@@ -20,6 +28,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 mod ext;
+mod fault;
 mod gui;
 mod plugin;
 

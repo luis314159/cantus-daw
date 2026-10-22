@@ -58,7 +58,8 @@ pub fn bake(
             .map(|v| range.pos(v))
     })?;
     let amount_lane = lane_for(project, &AutoTarget::ModAmount(id));
-    let bpm = project.tempo_bpm;
+    // Through the tempo map (ADR 0060): at one tempo the old arithmetic.
+    let map = project.tempo_map();
     let gates = notes_gates(project, host, &m.source);
     // One level of nesting, as the engine plays it: every modulator moving this one's
     // amount, with its own gates and its own amount (automation in, unmodulated).
@@ -91,7 +92,7 @@ pub fn bake(
         let out = match trace {
             Some(tr) => traced(tr, at),
             None => {
-                let time = ModTime::at_beats(at / PPQ as f64, play, bpm);
+                let time = ModTime::at_beats_in(at / PPQ as f64, play, &map);
                 let mut amount = amount_lane
                     .as_ref()
                     .and_then(|l| l.pos_at(at))
@@ -171,7 +172,7 @@ fn notes_gates(project: &Project, host: super::ModHost, src: &ModSource) -> Opti
     let t = snap.track(track)?;
     let gates = Gates::of_events(&t.events);
     Some(match src {
-        ModSource::Envelope(e) => gates.with_levels(e, 60.0 / project.tempo_bpm.max(1e-9)),
+        ModSource::Envelope(e) => gates.with_levels_in(e, &project.tempo_map()),
         _ => gates,
     })
 }

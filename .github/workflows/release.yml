@@ -45,6 +45,13 @@ jobs:
     # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
     if: github.repository == 'luis314159/cantus-daw'
     runs-on: windows-latest
+    # As in ci.yml: a hung test would otherwise bill up to six hours, and 360 test binaries
+    # with full debug info can fill a runner's disk.
+    timeout-minutes: 120
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable

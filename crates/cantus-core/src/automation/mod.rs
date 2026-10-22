@@ -24,6 +24,7 @@ use serde::{Deserialize, Serialize};
 pub mod compile;
 pub mod edit;
 pub mod range;
+pub mod set;
 
 pub use compile::{AutoLane, AutoSeg};
 pub use range::{AutoRange, Taper};
@@ -152,6 +153,7 @@ impl AutoTarget {
                 track: *track,
                 id: *id,
             },
+            C::SetModulatorAmount { id, .. } => AutoTarget::ModAmount(*id),
             C::Batch { commands, .. } => return commands.iter().rev().find_map(Self::of_command),
             _ => return None,
         })
@@ -180,6 +182,7 @@ impl AutoTarget {
             C::SetInstrumentParam { value, .. } => f64::from(*value),
             C::SetPluginParam { value: Some(v), .. } => *v,
             C::SetInstrumentPluginParam { value: Some(v), .. } => *v,
+            C::SetModulatorAmount { amount, .. } => f64::from(*amount),
             C::Batch { commands, .. } => {
                 return commands.iter().rev().find_map(Self::value_of_command)
             }

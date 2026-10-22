@@ -222,12 +222,16 @@ fn merged_pitch(
     });
     let (_, first) = edits.next()?;
     let mut out = (**first).clone();
-    let bpm = project.tempo_bpm.max(1e-9);
+    let map = crate::views::bars::map(project);
     for (c, e) in edits {
         let rate = f64::from(e.rate.max(1));
         let slip = c.audio.as_ref().map_or(0.0, |a| f64::from(a.slip_frames));
-        let frame = |t: Ticks| (t.to_seconds(bpm) * rate + slip).max(0.0) as u64;
-        let (s0, s1) = (frame(c.offset), frame(c.offset + c.length));
+        // The window's frames, through the tempo map (ADR 0060, `audio_time`).
+        let frame = |t: Ticks| {
+            cantus_core::audio_time::frame_at(&map, c.start, c.offset, slip, rate, t.0 as f64)
+                .max(0.0) as u64
+        };
+        let (s0, s1) = (frame(c.start), frame(c.start + c.length));
         let incoming: Vec<_> = e
             .notes
             .iter()
@@ -263,23 +267,36 @@ fn merged_pitch(
     }
 }
 
-/// The project's seam crossfade, in ticks at its tempo (ADR 0058).
-pub fn xfade_ticks(project: &Project) -> Ticks {
+/// The project's seam crossfade, in ticks at its tempo (ADR 0058) — at `at`, through the
+/// tempo map when it changes (ADR 0060).
+pub fn xfade_ticks(project: &Project, at: Ticks) -> Ticks {
     let ms = f64::from(project.recording.comp_xfade_ms.max(0.0));
-    let t = (ms / 1000.0 * project.tempo_bpm / 60.0 * cantus_core::PPQ as f64).round() as i64;
+    ms_ticks(project, ms, at)
+}
+
+/// `ms` milliseconds as ticks at `at` (the old arithmetic at one tempo).
+pub fn ms_ticks(project: &Project, ms: f64, at: Ticks) -> Ticks {
+    let map = crate::views::bars::map(project);
+    let t = if map.is_constant() {
+        (ms / 1000.0 * project.tempo_bpm / 60.0 * cantus_core::PPQ as f64).round() as i64
+    } else {
+        let a = at.0 as f64;
+        (map.tick_after_seconds(a, ms / 1000.0) - a).round() as i64
+    };
     Ticks(t).min(cantus_core::audio::MAX_XFADE)
 }
 
 /// Every seam of a track's playing lane: (left window, right window, where, crossfade).
-pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
-    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c);
+pub fn seams(project: &Project, track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
+    let held = cantus_core::warp::held_tempo(project);
+    let audio = |c: &&Clip| !c.muted && cantus_core::comp::seam_window(c, &held);
     let mut out = Vec::new();
     for r in track.clips.iter().filter(audio) {
         if let Some(l) = track
             .clips
             .iter()
             .filter(audio)
-            .find(|l| cantus_core::comp::is_seam(l, r))
+            .find(|l| cantus_core::comp::is_seam(l, r, &held))
         {
             let x = r.audio.as_ref().map_or(Ticks::ZERO, |a| a.xfade);
             out.push((l.id, r.id, r.start, x));
@@ -291,14 +308,14 @@ pub fn seams(track: &Track) -> Vec<(ClipId, ClipId, Ticks, Ticks)> {
 
 /// The seams at `at` that have no crossfade yet get the project's.
 fn seam_defaults(project: &Project, tid: TrackId, at: &[Ticks]) -> Vec<Command> {
-    let x = xfade_ticks(project);
+    let x = xfade_ticks(project, at.first().copied().unwrap_or(Ticks::ZERO));
     let Some(track) = project.track(tid) else {
         return Vec::new();
     };
     if x <= Ticks::ZERO {
         return Vec::new();
     }
-    seams(track)
+    seams(project, track)
         .into_iter()
         .filter(|(_, _, s, xf)| at.contains(s) && *xf == Ticks::ZERO)
         .filter_map(|(_, r, _, _)| {
@@ -336,7 +353,7 @@ pub fn set_seam_xfade(
             continue;
         };
         out.extend(
-            seams(track)
+            seams(project, track)
                 .into_iter()
                 .filter(|(_, _, s, xf)| at.is_none_or(|a| a == *s) && *xf != x)
                 .filter_map(|(_, r, _, _)| {
@@ -380,7 +397,7 @@ pub fn move_seam(
         let Some(track) = project.track(g) else {
             continue;
         };
-        if let Some((l, r, _, _)) = seams(track).into_iter().find(|s| s.2 == was) {
+        if let Some((l, r, _, _)) = seams(project, track).into_iter().find(|s| s.2 == was) {
             let fits = match (track.clip(l), track.clip(r)) {
                 (Some(lc), Some(rc)) => at > lc.start && at < rc.end(),
                 _ => false,
@@ -835,7 +852,7 @@ pub fn seam_trim(
     if clip.lane != 0 || !track.clips.iter().any(|c| c.lane > 0) {
         return None;
     }
-    let (l, r, at, _) = seams(track).into_iter().find(|(l, r, _, _)| {
+    let (l, r, at, _) = seams(project, track).into_iter().find(|(l, r, _, _)| {
         if start_edge {
             *r == clip.id
         } else {

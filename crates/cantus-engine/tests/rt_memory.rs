@@ -856,3 +856,455 @@ fn streaming_voices_never_allocate() {
         );
     }
 }
+
+/// The tempo map (ADR 0060) on the audio thread: a ramp, a step and metre changes played
+/// through — passes cut at the steps, the click counted through the metres, a synced
+/// tremolo and automation following, a loop over the tempo change wrapping — then the map
+/// edited while it plays (the transport re-anchors and lets go of the old map, which the
+/// old snapshot still holds), a seek before the song (the count-in), a stop. Serially and
+/// with the pool. Not one allocation, not one free.
+#[test]
+fn a_tempo_map_never_allocates() {
+    use cantus_core::tempo::{MetreChange, TempoPoint};
+    for workers in [None, Some(Workers::parallel(3))] {
+        let mut p = demo_project();
+        p.tempo_bpm = 90.0;
+        let pt = |beats: i64, bpm: f64, ramp: bool| TempoPoint {
+            tick: Ticks::beats(beats),
+            bpm,
+            ramp,
+        };
+        p.tempo_points = vec![pt(0, 90.0, true), pt(4, 140.0, false), pt(6, 100.0, false)];
+        p.metre_changes = vec![
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: TimeSignature::new(4, 4),
+            },
+            MetreChange {
+                tick: Ticks::beats(4),
+                signature: TimeSignature::new(7, 8),
+            },
+        ];
+        p.metronome = true;
+        p.loop_region = Some(LoopRegion {
+            start: Ticks::beats(2),
+            end: Ticks::beats(7),
+        });
+        p.loop_enabled = true;
+        let s0 = p.tracks[0].strip.unwrap();
+        let trem = p.make_effect(EffectKind::Tremolo);
+        p.strip_mut(s0).unwrap().effects.push(trem);
+        let points = vec![
+            AutoPoint::new(Ticks::ZERO, 0.2),
+            AutoPoint::new(Ticks::beats(6), 0.9),
+        ];
+        let c = p.make_automation_clip(
+            "a",
+            AutoTarget::StripGain(s0),
+            Ticks::ZERO,
+            Ticks::beats(8),
+            points,
+        );
+        p.tracks[0].clips.push(c);
+        let mut rig = Rig::with(workers);
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("tempo map: the ramp, the loop", 400);
+        p.tempo_points[1].bpm = 150.0;
+        rig.snapshot(&p);
+        rig.play("tempo map: edited while playing", 40);
+        rig.tx.push(EngineMessage::Seek(Ticks(-3840))).unwrap();
+        rig.play("tempo map: the count-in", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("tempo map: stopped", 8);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "the tempo map allocated or freed: {:?} (the first of the last phase: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+impl Rig {
+    /// Send a snapshot made elsewhere (frozen renders attached by an `EngineHandle`).
+    fn send(&mut self, snap: Arc<Snapshot>) {
+        for slot in snap.effect_slots() {
+            if self.known.insert(slot.id) {
+                let unit = Box::new(EffectUnit::new(slot, 48_000.0));
+                self.tx.push(EngineMessage::AddEffect(unit)).unwrap();
+            }
+        }
+        self.tx
+            .push(EngineMessage::Automation(AutomationRuntime::build(&snap)))
+            .unwrap();
+        self.tx.push(EngineMessage::SetSnapshot(snap)).unwrap();
+    }
+}
+
+/// Frozen playback (round 29, ADR 0064) on the audio thread and the pool: a frozen strip
+/// and a frozen track streaming their renders from disk, their regions resting; a seek, a
+/// loop (its start kept ready), an unfreeze (the chain back, the render let go — never the
+/// last holder: the old snapshot still is), a freeze again, a stop. Not one allocation, not
+/// one free.
+#[test]
+fn frozen_playback_never_allocates() {
+    use cantus_core::freeze::{self, FreezeTarget};
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = demo_project();
+    let mut delay = p.make_effect(EffectKind::Delay);
+    delay.spec.set("feedback", 0.6).unwrap();
+    let s0 = p.tracks[0].strip.unwrap();
+    p.strip_mut(s0).unwrap().effects.push(delay);
+    // Keyed from the bass's strip: a desk solo of it thaws it (review 3).
+    let s1 = p.tracks[1].strip.unwrap();
+    let mut comp = p.make_effect(EffectKind::Compressor);
+    comp.sidechain = Some(s1);
+    p.strip_mut(s0).unwrap().effects.push(comp);
+    let (mut h, _) = EngineHandle::manual(48_000.0);
+    h.frozen.set_app_dir(dir.path().to_path_buf());
+    let bass = p.tracks[1].id;
+    for target in [FreezeTarget::Strip(s0), FreezeTarget::Track(bass)] {
+        let job = cantus_engine::freeze::render::prepare(&mut h, &p, target).unwrap();
+        job.run(Vec::new(), Vec::new(), &RenderProgress::default())
+            .unwrap();
+        h.frozen.forget_missing();
+        freeze::freeze_commands(&p, target)
+            .unwrap()
+            .apply(&mut p)
+            .unwrap();
+    }
+    let frozen = h.compile(&p, 1);
+    assert!(frozen
+        .strips
+        .iter()
+        .any(|s| s.frozen.as_ref().is_some_and(|f| f.plays())));
+    assert!(frozen
+        .tracks
+        .iter()
+        .any(|t| t.frozen.as_ref().is_some_and(|f| f.plays())));
+    let mut live = p.clone();
+    freeze::thaw(&mut live);
+    // The review-3 states, compiled here, off the audio thread: the strip silenced by a
+    // solo elsewhere, played live under its own (its render kept at the playhead), the
+    // bass running for its notes only and resting with its render, a track's kept delay.
+    let mut silenced = p.clone();
+    silenced.strips[3].soloed = true;
+    let silenced = h.compile(&silenced, 3);
+    let mut solo = p.clone();
+    solo.strip_mut(s0).unwrap().soloed = true;
+    let parked = h.compile(&solo, 4);
+    assert!(parked
+        .strips
+        .iter()
+        .any(|s| s.frozen.as_ref().is_some_and(|f| f.live)));
+    let mut notes = (*frozen).clone();
+    notes.tracks[1].notes_only = true;
+    let notes = Arc::new(notes);
+    let mut rests = (*frozen).clone();
+    rests.tracks[1].rest = true;
+    let rests = Arc::new(rests);
+    let mut late = p.clone();
+    freeze::thaw(&mut late);
+    late.tracks[0].lateness = Some(Lateness {
+        frames: 3_000,
+        rate: 48_000,
+    });
+    let late = h.compile(&late, 5);
+    let live = h.compile(&live, 2);
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(frozen.clone());
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("frozen", 200);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+        rig.play("seek", 40);
+        let mut looped = (*frozen).clone();
+        looped.loop_region = Some(LoopRegion {
+            start: Ticks::beats(1),
+            end: Ticks::beats(3),
+        });
+        rig.send(Arc::new(looped));
+        rig.play("loop", 200);
+        rig.send(live.clone());
+        rig.play("unfrozen", 40);
+        rig.send(frozen.clone());
+        rig.play("frozen again", 40);
+        // Review 3: Render, Silenced, Live (parked) and back, while playing.
+        for _ in 0..2 {
+            rig.send(silenced.clone());
+            rig.play("silenced", 20);
+            rig.send(parked.clone());
+            rig.play("live, render kept", 20);
+            rig.send(frozen.clone());
+            rig.play("render again", 20);
+        }
+        rig.send(notes.clone());
+        rig.play("notes only", 20);
+        rig.send(rests.clone());
+        rig.play("rests with its render", 20);
+        rig.send(frozen.clone());
+        rig.play("frozen once more", 20);
+        rig.send(late.clone());
+        rig.play("a kept delay", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "frozen playback allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+/// Low-latency monitoring (round 29, ADR 0064 §4) on the audio thread and the pool: an
+/// armed track monitored through a strip with a latent insert while another strip and
+/// the master have theirs — the mode switched on (the path re-planned, the inserts over
+/// the limit bypassed hard, their lines given back), played, recording started and
+/// stopped, switched off and on again. Not one allocation, not one free.
+#[test]
+fn low_latency_monitoring_never_allocates() {
+    let mut p = demo_project();
+    let s0 = p.tracks[0].strip.unwrap();
+    let s1 = p.tracks[1].strip.unwrap();
+    let mut input = TrackInput::mono(0);
+    input.monitor = MonitorMode::Auto;
+    p.tracks[0].input = Some(input);
+    p.tracks[0].armed = true;
+    for s in [s0, s1] {
+        let eq = eq_slot(&mut p, &[("mode", 2.0), ("b0.used", 1.0), ("b0.gain", 3.0)]);
+        p.strip_mut(s).unwrap().effects.push(eq);
+    }
+    let mut lim = p.make_effect(EffectKind::Limiter);
+    lim.spec.set("look", 5.0).unwrap();
+    p.master.effects.push(lim);
+    let mut without_eq = p.clone();
+    without_eq.strip_mut(s1).unwrap().effects.clear();
+    let rec_track = p.tracks[0].id;
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        // The take's ring, made here (it would be the writer's).
+        let (rec_ring, _rec_reader) = rtrb::RingBuffer::<f32>::new(48_000 * 4);
+        let mut rig = Rig::with(workers);
+        rig.snapshot(&p);
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 20);
+        rig.allocations.clear();
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("low latency on", 40);
+        rig.tx.push(EngineMessage::SetRecording(true)).unwrap();
+        rig.play("recording", 40);
+        // Review 3: the heard latency moved while a pass records (the mode switched, a
+        // latent insert gone and back), the take moved a round trip later — into rings.
+        rig.tx
+            .push(EngineMessage::AttachRecorder(Box::new(RecordRings {
+                tracks: vec![cantus_engine::recorder::TrackRing::new(
+                    rec_track, 1, rec_ring,
+                )],
+            })))
+            .unwrap();
+        rig.tx.push(EngineMessage::SetDeviceRoundTrip(600)).unwrap();
+        rig.play("recording into rings", 20);
+        rig.tx.push(EngineMessage::SetLowLatency(None)).unwrap();
+        rig.play("mode off while recording", 20);
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("mode on while recording", 20);
+        rig.snapshot(&without_eq);
+        rig.play("a latent insert gone while recording", 20);
+        rig.snapshot(&p);
+        rig.play("and back", 20);
+        rig.tx.push(EngineMessage::SetRecording(false)).unwrap();
+        rig.tx.push(EngineMessage::SetLowLatency(None)).unwrap();
+        rig.play("off", 40);
+        rig.tx
+            .push(EngineMessage::SetLowLatency(Some(144)))
+            .unwrap();
+        rig.play("on again", 40);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "low-latency monitoring allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}
+
+/// Round 29 (ADR 0062): what live MIDI now routes that it used to drop — channel
+/// pressure, key pressure on a held key, program changes — on a native instrument whose
+/// unit reads pressure, while it plays: not one allocation.
+#[test]
+fn live_pressure_and_program_changes_never_allocate() {
+    let mut p = Project::new("live");
+    let mut tr = p.make_track("Wave");
+    tr.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Wavetable));
+    let track = tr.id;
+    p.tracks.push(tr);
+    let mut rig = Rig::new();
+    let snap = Snapshot::compile(&p, 1);
+    for unit in cantus_engine::inst::units_for(&snap, 48_000.0, |_, _| false) {
+        rig.tx.push(EngineMessage::AddInstrument(unit)).unwrap();
+    }
+    rig.snapshot(&p);
+    rig.tx
+        .push(EngineMessage::SetLiveTrack(Some(track)))
+        .unwrap();
+    rig.play("warm", 4);
+    rig.allocations.clear();
+    let ev = |status: u8, data1: u8, data2: u8| {
+        EngineMessage::Midi(cantus_engine::MidiEvent {
+            status,
+            data1,
+            data2,
+        })
+    };
+    for i in 0..40u8 {
+        rig.tx.push(ev(0x90, 48 + i % 12, 100)).unwrap();
+        rig.tx.push(ev(0xD0, i * 3, 0)).unwrap();
+        rig.tx.push(ev(0xA0, 48 + i % 12, i * 2)).unwrap();
+        rig.tx.push(ev(0xC0, i % 8, 0)).unwrap();
+        rig.play("live pressure and programs", 1);
+        rig.tx.push(ev(0x80, 48 + i % 12, 0)).unwrap();
+    }
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "live MIDI allocated: {:?}",
+        rig.allocations
+    );
+}
+
+/// Review 1 of ADR 0062, #13: what a MIDI port's callback runs for a mapped message — the
+/// filter, the interface's ring, the wake (a flag and an unpark: never egui's lock) — and
+/// for a release it must still hand the engine: not one allocation.
+#[test]
+fn the_midi_callback_never_allocates() {
+    use cantus_engine::midi::{route, FilterSet, Heard, MidiTap, PortState};
+    let woken = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    let w = woken.clone();
+    let tap = MidiTap::new(Some(std::sync::Arc::new(move || {
+        w.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    })));
+    let mut set = FilterSet::default();
+    set.take(0, None, cantus_core::controller::Control::Cc(74));
+    tap.filter().publish(&set);
+    let (p, mut engine) = rtrb::RingBuffer::<cantus_engine::MidiEvent>::new(256);
+    let sender = cantus_engine::MidiSender::new(p);
+    let (mut ui, mut heard) = rtrb::RingBuffer::<Heard>::new(256);
+    let mut held = PortState::default();
+    let ev = |status: u8, data1: u8, data2: u8| cantus_engine::MidiEvent {
+        status,
+        data1,
+        data2,
+    };
+    for i in 0..50u8 {
+        let ((), n) = armed(|| {
+            route(ev(0xB0, 74, i), 0, &tap, &sender, &mut ui, &mut held);
+            route(ev(0x90, 60, 100), 0, &tap, &sender, &mut ui, &mut held);
+            tap.filter().set_learning(true);
+            route(ev(0x80, 60, 0), 0, &tap, &sender, &mut ui, &mut held);
+            tap.filter().set_learning(false);
+        });
+        assert_eq!(n, 0, "the callback allocated");
+        while engine.pop().is_ok() {}
+        while heard.pop().is_ok() {}
+        tap.rearm();
+    }
+}
+
+/// Warped playback (round 29's third review, ADR 0061 §12) on the audio thread and the
+/// pool: audio clips playing renders the sample cache laid (`zero_at`), forwards and
+/// reversed, their data swapped while they play (the crossfade armed, carried by the next
+/// install, done), a seek, a loop's wraps and a swap inside the loop, a stop. Not one
+/// allocation, not one free.
+#[test]
+fn warped_playback_never_allocates() {
+    use cantus_core::snapshot::FadeFrom;
+    let mut p = demo_project();
+    let source = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: source,
+        name: "take".into(),
+        path: "C:/nowhere/take.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000 * 8,
+        sha256: None,
+        recorded: false,
+    });
+    let mut t = p.make_track("Take");
+    for (k, reverse) in [(0i64, false), (1, true)] {
+        let mut c = p.make_audio_clip("take", source, Ticks::beats(8 * k), Ticks::beats(8));
+        c.audio.as_mut().unwrap().reverse = reverse;
+        t.clips.push(c);
+    }
+    p.tracks.push(t);
+    let tone = |sign: f32| {
+        let frames: Vec<f32> = (0..48_000 * 8)
+            .map(|i| sign * 0.3 * math::sin(i as f32 * 0.03))
+            .collect();
+        Arc::new(SampleData {
+            stream: None,
+            rate: 48_000,
+            channels: 1,
+            frames: frames.into(),
+        })
+    };
+    let (a, b) = (tone(1.0), tone(-1.0));
+    let snap = |data: &Arc<SampleData>, from: Option<(&Arc<SampleData>, u64)>, looped: bool| {
+        let mut s = Snapshot::compile(&p, 1);
+        let ti = s.tracks.len() - 1;
+        let mut swaps = Vec::new();
+        for (ci, c) in s.tracks[ti].audio.iter_mut().enumerate() {
+            c.data = Some(data.clone());
+            c.zero_at = Some((c.start, 0.0));
+            if let Some((d, id)) = from {
+                c.fade_from = Some(FadeFrom {
+                    data: d.clone(),
+                    id: id + ci as u64,
+                });
+                swaps.push((ti, ci));
+            }
+        }
+        s.swaps = swaps;
+        if looped {
+            s.loop_region = Some(LoopRegion {
+                start: Ticks::beats(8),
+                end: Ticks::beats(10),
+            });
+        }
+        Arc::new(s)
+    };
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(snap(&a, None, false));
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("render", 200);
+        rig.send(snap(&b, Some((&a, 1)), false));
+        rig.play("swap", 10);
+        rig.send(snap(&b, Some((&a, 1)), false));
+        rig.play("carried", 10);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(8))).unwrap();
+        rig.play("seek to the reversed", 100);
+        rig.send(snap(&b, None, true));
+        rig.play("loop", 200);
+        rig.send(snap(&a, Some((&b, 10)), true));
+        rig.play("swap in the loop", 200);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "warped playback allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

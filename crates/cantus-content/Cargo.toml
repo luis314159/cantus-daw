@@ -22,7 +22,7 @@ thiserror.workspace = true
 # the roots come from the platform verifier (round 26, docs/signing/README.md §2).
 ureq = { version = "3", default-features = false, features = ["rustls-no-provider", "_ring", "platform-verifier"] }
 # Archives: deflate through flate2's pure-Rust backend (miniz_oxide, already in the tree).
-zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
 flate2 = "1"
 # Reading a DrumGizmo kit's XML (round 28): already in the tree for DAWproject.
 roxmltree = "0.20"

@@ -72,7 +72,7 @@ fn setup(app: &mut CantusApp) -> TrackId {
     app.comp_swipe(vocal, 2, bars(4), bars(5));
     // A wider crossfade on the second seam, and a second comp playing.
     if let Some((_, r, _, _)) =
-        cantus_ui::comping::seams(app.project().track(vocal).unwrap()).get(1)
+        cantus_ui::comping::seams(app.project(), app.project().track(vocal).unwrap()).get(1)
     {
         let r = *r;
         app.set_seam_xfade(vocal, Some(r), Ticks(240));

@@ -1,0 +1,143 @@
+# isolation — ronda 29: plug-ins de terceros alojados fuera del proceso. Cada clave de isolation.en.txt tiene aquí su gemela.
+cmd.set_plugin_isolation = dónde se ejecuta un plug-in
+
+# --- dónde se ejecuta un plug-in (ADR 0063) ---
+isolation.within = Dentro de Cantus
+isolation.together = Juntos
+isolation.by_vendor = Por fabricante
+isolation.individually = Por separado
+
+# --- un plug-in que dejó de funcionar: la tarjeta de la esquina ---
+isolation.crashed.one = {name} dejó de funcionar
+isolation.crashed.many = {n} plug-ins dejaron de funcionar
+isolation.crashed.body_one = Cantus siguió sonando sin él. Recargar lo devuelve tal como lo dejaste.
+isolation.crashed.body_many = Cantus siguió sonando sin ellos. Recargar los devuelve tal como los dejaste.
+isolation.reload = Recargar
+isolation.reload_all = Recargar todos
+isolation.keep_off = Dejarlo apagado
+isolation.keep_off_many = Dejarlos apagados
+isolation.run_individually = Ejecutar por separado
+isolation.reason = {name}: {reason}
+isolation.reloaded = {name} ha vuelto, tal como lo dejaste.
+isolation.reload_failed = No se pudo recargar {name}: {error}
+isolation.unavailable = Los plug-ins se ejecutan dentro de Cantus: el ayudante que los separa (cantus-sandbox) no está instalado. Instala Cantus de nuevo para recuperarlo.
+
+# --- el menú y la ayuda de una ranura ---
+isolation.slot.band = Se ejecuta
+isolation.slot.default = Como diga este equipo ({mode})
+isolation.slot.reload = Recargar plug-in
+isolation.stopped = detenido
+isolation.tip.runs = Se ejecuta: {mode}
+isolation.tip.cpu = CPU: {share} de un núcleo
+isolation.tip.own = De ello, en su propio proceso: {share}
+isolation.tip.late = Veces que llegó tarde: {n}
+isolation.tip.stopped = Dejó de funcionar: {reason}. Recárgalo desde su menú.
+isolation.short.default = Predeterminado
+isolation.short.within = Dentro
+isolation.short.together = Juntos
+isolation.short.by_vendor = Por fabricante
+isolation.short.individually = Aparte
+
+# --- el editor genérico ---
+isolation.stopped_card = Dejó de funcionar
+isolation.editor.stopped = {name} dejó de funcionar: {reason}.
+isolation.editor.kept = Cantus siguió sonando sin él, y sus ajustes se conservan y se guardan con el proyecto.
+
+# --- el gestor de plug-ins de Ajustes ---
+isolation.manager.band = Dónde se ejecutan los plug-ins de terceros
+isolation.manager.within = Dentro de Cantus: sin ida y vuelta, y un plug-in que falla se lleva Cantus con él.
+isolation.manager.together = Juntos: un ayudante para todos; el que falla detiene solo ese ayudante, nunca Cantus.
+isolation.manager.by_vendor = Por fabricante: un ayudante por fabricante; un fallo detiene solo los de ese fabricante.
+isolation.manager.individually = Por separado: un ayudante para cada uno; un fallo detiene solo ese plug-in.
+isolation.manager.cost = Cada plug-in puede separarse desde el menú de su ranura.
+isolation.manager.own = Los efectos e instrumentos propios de Cantus siempre se ejecutan dentro.
+isolation.manager.crashed = Plug-ins que dejaron de funcionar en este equipo
+isolation.manager.times = {n} veces
+isolation.manager.times_one = una vez
+isolation.manager.forget = Olvidar
+isolation.manager.forget_tip = Olvidar que dejó de funcionar (ya se arregló)
+isolation.cpu = CPU
+
+# --- la barra de estado ---
+isolation.status.late = Plug-ins tarde: {n}
+isolation.status.late_tip = {n} veces un plug-in aislado no respondió a tiempo, y el sonido siguió sin él un momento. Lo explica un plug-in pesado o un equipo ocupado; un búfer mayor le da más tiempo.
+isolation.status.late_tip_one = Una vez un plug-in aislado no respondió a tiempo, y el sonido siguió sin él un momento. Lo explica un plug-in pesado o un equipo ocupado; un búfer mayor le da más tiempo.
+
+# --- por qué se detuvo un plug-in ---
+isolation.why.access = falló: tocó memoria que no era suya
+isolation.why.abort = falló: se abortó
+isolation.why.stack = falló: se desbordó su pila
+isolation.why.illegal = falló: una instrucción que el procesador rechazó
+isolation.why.division = falló: una división por cero
+isolation.why.crashed = falló
+isolation.why.hung_audio = dejó de responder mientras procesaba audio
+isolation.why.hung = su ayudante dejó de responder
+isolation.why.timeout = no respondió a tiempo
+isolation.why.protocol = su ayudante envió algo que Cantus no pudo leer
+isolation.why.ended = su ayudante terminó
+
+# --- review fixes (round 29, isolation-2) ---
+isolation.crashed.suffix = dejó de funcionar
+isolation.run_name_individually = Ejecutar {name} por separado
+isolation.slot.stopped_band = Plug-in
+isolation.window.stopped = {name} dejó de funcionar — {reason}. Recárgalo para abrir su ventana.
+isolation.export.stopped = {name} dejó de funcionar durante la exportación — {reason}. Al archivo le falta desde ese punto.
+isolation.bake.stopped = {name} dejó de funcionar mientras se convertía el modulador — {reason}. No se convirtió nada en automatización.
+isolation.freeze.stopped = {name} dejó de funcionar durante el render — {reason}. {job} no se congeló ni se pasó a audio.
+isolation.why.signal = señal {n}
+isolation.why.exit = código de salida {code}
+isolation.why.load_failed = no se pudo volver a cargar
+isolation.render.busy = Espera a que termine {job}: un render a la vez.
+isolation.render.export = la exportación
+isolation.render.bake = la conversión
+isolation.slot.recover = Recuperar
+isolation.tip.reload_menu = Recárgalo desde su menú.
+
+# --- review fixes (round 29, isolation-4) ---
+isolation.why.busy = estaba ocupado: tenía abierta una ventana suya, o iba por delante una petición lenta
+isolation.why.no_helper = su ayudante no pudo arrancar
+isolation.why.no_restart = no pudo arrancar de nuevo después de cargar su estado
+isolation.why.not_loaded = no se pudo cargar
+isolation.busy = {name} está ocupado: tiene abierta una ventana suya, o va por delante una petición lenta. Su ventana se abre cuando quede libre.
+isolation.export.never = No se pudo cargar {name} para la exportación — {reason}. El archivo se hizo sin él.
+isolation.export.stale = {name} no pudo dar su estado tal como estaba al empezar la exportación: el archivo usó el último que dio.
+isolation.bake.never = No se pudo cargar {name} para la conversión — {reason}. No se convirtió nada en automatización.
+isolation.bake.stale = {name} no pudo dar su estado tal como estaba al empezar la conversión: se usó el último que dio.
+isolation.freeze.never = No se pudo cargar {name} para el render — {reason}. {job} no se congeló ni se pasó a audio.
+isolation.freeze.stale = {name} no pudo dar su estado tal como estaba al empezar el render: {job} usó el último que dio.
+isolation.waiting.title = te espera
+isolation.waiting.body = Puede que una ventana suya esté abierta detrás de Cantus. Respóndela allí, o detenlo: Cantus sigue sonando sin él, y Recargar lo trae de vuelta.
+isolation.waiting.show = Mostrarlo
+isolation.waiting.stop = Detenerlo
+isolation.why.not_installed = no está instalado en este equipo
+
+# --- ronda 29, revisión isolation-5: nada espera a un plug-in ---
+isolation.waiting.body_shared = Puede que una ventana suya esté abierta detrás de Cantus. Respóndela allí, o detenlo: los otros {n} plug-ins de su proceso se detienen con él, y cada uno puede recargarse.
+isolation.why.stopped_by_you = lo detuviste tú
+isolation.why.ended_for = su proceso se cerró para detener {name}
+isolation.why.load_timeout = no se cargó a tiempo
+isolation.why.answering = aún estaba respondiendo
+isolation.why.no_window = no se pudo crear su ventana
+isolation.save.stale_one = {name} se guardó con el último estado que dio: {reason}.
+isolation.save.stale_many = {n} plug-ins se guardaron con el último estado que dieron: {names}.
+isolation.render.loading = Cargando los plug-ins para el render…
+isolation.not_loaded = sin cargar
+isolation.not_loaded_tip = Está en este equipo, pero no se pudo cargar ({why}). La ranura deja pasar el sonido intacto, y su configuración se conserva y se guarda con el proyecto. Recárgalo desde su menú.
+isolation.not_loaded_card = Sin cargar
+isolation.editor.not_loaded = {name} no se pudo cargar: {why}.
+isolation.editor.not_loaded_kept = La ranura deja pasar el sonido; su estado y sus valores se conservan en el proyecto y se guardan con él.
+isolation.inst.not_loaded_status = {name} no se pudo cargar ({why}). La pista conserva los datos de su sonido y suena en silencio hasta que se recargue desde su menú.
+isolation.inst.status_not_loaded = Sin cargar: en silencio
+isolation.inst.status_not_loaded_tip = {why}. Sus ajustes se guardan en el proyecto; Recargar lo intenta de nuevo.
+
+# --- ronda 29, revisión isolation-6 ---
+isolation.waiting.body_shared_one = Puede que una ventana suya esté abierta detrás de Cantus. Respóndela allí, o detenlo: el otro plug-in de su proceso se detiene con él, y cada uno puede recargarse.
+isolation.why.not_asked = no se le pidió su estado
+isolation.why.no_state = no dio su estado
+isolation.kept_stale = {name} conserva el último estado que dio: {reason}.
+isolation.loading = cargando
+isolation.loading_tip = {name} se está cargando en su propio proceso; la ranura deja pasar el sonido mientras tanto.
+isolation.loading_card = Cargando
+isolation.editor.loading = {name} se está cargando en su propio proceso: sus parámetros llegan cuando esté listo.
+isolation.inst.status_loading = Cargando…
+isolation.capture_stale = El estado de {name} es el último que dio: puede faltar un cambio que hizo después.

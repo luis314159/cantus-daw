@@ -55,8 +55,10 @@ fn takes(n: usize) -> RecoveredPass {
         loop_takes: false,
         mode: TakeMode::Stack,
         tempo_bpm: 120.0,
+        tempo_points: Vec::new(),
         sample_rate: 48_000,
         latency_frames: 0,
+        marked_wraps: Vec::new(),
         takes: Vec::new(),
         finished: false,
     };
@@ -69,6 +71,7 @@ fn takes(n: usize) -> RecoveredPass {
             frames: 480_000,
             start_tick: 0.0,
             wraps: Vec::new(),
+            wrap_shifts: Vec::new(),
             dropped: 0,
         })
         .collect();

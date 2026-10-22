@@ -19,24 +19,109 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
         sh.text_row("hosted.vendor", &p.vendor, false, false);
     }
     sh.text_row("hosted.format", p.format.badge(), false, false);
+    let target = crate::views::plugin_notice::Target::Instrument(t);
+    // Stopped working (round 29, ADR 0063; review #32) — loaded, or crashed while it
+    // loaded: said in the danger colour with its reason as the tip, and *Reload* under a
+    // band of its own.
+    if let Some(why) = app.plugins.instrument_crashed(t) {
+        stopped_row(sh, t, why);
+        // Its own label, not the name row's *Plug-in* (review #28).
+        if sh.led_row(
+            "isolation.slot.recover",
+            "isolation.reload",
+            false,
+            Function::Source,
+            false,
+        ) {
+            sh.acts.push(Act::Hosting(
+                target,
+                crate::views::plugin_notice::MenuAct::Reload,
+            ));
+        }
+        if app.plugins.hosted_instrument(t).is_none() {
+            let runs = crate::i18n::t(app.plugins.effective_isolation(p.isolation).label_key());
+            sh.menu_row(
+                "isolation.slot.band",
+                &runs,
+                super::menus::MenuId::Hosting(t),
+                false,
+            );
+            return;
+        }
+    }
     let Some(h) = app.plugins.hosted_instrument(t) else {
-        let missing = sh.fmt.tr("hosted.status_missing").to_string();
+        // On this computer but not loaded (refused, or not within its limit) is said as
+        // such, with Reload and where it runs; not here at all, as missing (review
+        // isolation-5 #45).
+        let not_loaded = app.plugins.instrument_load_error(t);
+        let (word, tip_key) = match not_loaded {
+            Some(_) => (
+                "isolation.inst.status_not_loaded",
+                "isolation.inst.status_not_loaded_tip",
+            ),
+            None => ("hosted.status_missing", "hosted.status_missing_tip"),
+        };
+        let missing = sh.fmt.tr(word).to_string();
         let row = sh.text_row("hosted.status", &missing, false, true);
         let r = sh
             .ui
             .interact(row.full, Id::new(("hosted-missing", t)), Sense::hover());
         if r.hovered() {
-            let why = app
-                .plugins
-                .instrument_missing(t)
-                .unwrap_or("not installed on this computer");
-            let tip = tf("hosted.status_missing_tip", &[("why", &why)]);
+            let why = crate::views::plugin_notice::load_words(
+                app.plugins
+                    .instrument_missing(t)
+                    .unwrap_or("not installed on this computer"),
+            );
+            let tip = tf(tip_key, &[("why", &why)]);
             hint::set_text(sh.ui.ctx(), &missing, &tip, Caps::NONE);
+        }
+        if not_loaded.is_some() {
+            if sh.led_row(
+                "isolation.slot.recover",
+                "isolation.reload",
+                false,
+                Function::Source,
+                false,
+            ) {
+                sh.acts.push(Act::Hosting(
+                    target,
+                    crate::views::plugin_notice::MenuAct::Reload,
+                ));
+            }
+            let runs = crate::i18n::t(app.plugins.effective_isolation(p.isolation).label_key());
+            sh.menu_row(
+                "isolation.slot.band",
+                &runs,
+                super::menus::MenuId::Hosting(t),
+                false,
+            );
         }
         return;
     };
-    let ok = sh.fmt.tr("hosted.status_ok").to_string();
-    sh.text_row("hosted.status", &ok, false, false);
+    // Working: where it runs and what it costs.
+    let stopped = app.plugins.instrument_crashed(t).is_some();
+    if !stopped {
+        // Loading in its own process: said so, quietly (review isolation-6 #28).
+        let key = if app.plugins.instrument_loading(t) {
+            "isolation.inst.status_loading"
+        } else {
+            "hosted.status_ok"
+        };
+        let ok = sh.fmt.tr(key).to_string();
+        sh.text_row("hosted.status", &ok, false, false);
+    }
+    let runs = crate::i18n::t(h.isolation().label_key());
+    sh.menu_row(
+        "isolation.slot.band",
+        &runs,
+        super::menus::MenuId::Hosting(t),
+        false,
+    );
+    // A stopped plug-in costs nothing: its last reading is not shown.
+    if let Some(c) = h.cpu().filter(|_| !stopped) {
+        let cpu = crate::views::plugin_notice::percent(c.share);
+        sh.text_row("isolation.cpu", &cpu, true, false);
+    }
     let latency = tf("hosted.latency_value", &[("n", &h.latency())]);
     sh.text_row("hosted.latency", &latency, true, false);
     sh.text_row("hosted.params", &h.params.len().to_string(), true, false);
@@ -45,13 +130,27 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     // (it closes with its own close box, F8, or the rack's channel button); and *Close*
     // for a plug-in that floats a window of its own, which Cantus cannot bring forward.
     let (key, close) = window_row(h.window_open(), h.window_floating());
-    if sh.led_row(
+    // A stopped plug-in has no window until it is reloaded: the row is off, and says why
+    // (review #34).
+    let top = sh.ui.cursor().top();
+    let clicked = sh.led_row(
         "hosted.window",
         key,
         h.window_open(),
         Function::Source,
-        !h.has_editor(),
-    ) {
+        !h.has_editor() || stopped,
+    );
+    if let Some(why) = app.plugins.instrument_crashed(t) {
+        let span = sh.ui.max_rect();
+        let row = egui::Rect::from_x_y_ranges(span.x_range(), top..=sh.ui.cursor().top());
+        if sh.ui.rect_contains_pointer(row) {
+            let why = crate::views::plugin_notice::stopped_words(why);
+            let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
+            let heading = sh.fmt.tr("hosted.window").to_string();
+            hint::set_text(sh.ui.ctx(), &heading, &tip, Caps::NONE);
+        }
+    }
+    if clicked {
         sh.acts.push(if close {
             Act::CloseInstrument(t)
         } else {
@@ -68,6 +167,36 @@ fn window_row(open: bool, floating: bool) -> (&'static str, bool) {
         (false, _) => ("hosted.open_window", false),
         (true, false) => ("hosted.show_window", false),
         (true, true) => ("hosted.close_window", true),
+    }
+}
+
+/// The status row of a stopped plug-in: its label as any row's, its value in the danger
+/// colour with a dot, why it stopped as the tip.
+fn stopped_row(sh: &mut Sheet<'_>, t: TrackId, why: &str) {
+    let stopped = super::sheet::name(sh.fmt.tr("isolation.stopped_card"));
+    let row = sh.row();
+    sh.label(row.label, "hosted.status", false);
+    let s = sh.s.hue_of(crate::kit::Tok::Danger);
+    crate::kit::well::readout(
+        sh.b,
+        row.value,
+        &s,
+        crate::kit::State::REST,
+        &stopped,
+        false,
+    );
+    sh.b.dot(
+        egui::pos2(row.value.right() - s.s(10.0), row.value.center().y),
+        s.s(3.0),
+        s.t.danger,
+    );
+    let r = sh
+        .ui
+        .interact(row.full, Id::new(("hosted-stopped", t)), Sense::hover());
+    if r.hovered() {
+        let why = crate::views::plugin_notice::stopped_words(why);
+        let tip = tf("isolation.tip.stopped", &[("reason", &why)]);
+        hint::set_text(sh.ui.ctx(), &stopped, &tip, Caps::NONE);
     }
 }
 

@@ -76,9 +76,13 @@ pub fn body(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
 pub fn range_note(app: &CantusApp, scope: Scope) -> Option<String> {
     let (from, to) = super::export::range(app, scope)?;
     let p = app.project();
-    let secs = (to - from).to_seconds(p.tempo_bpm);
+    // Through the tempo map and the metre changes (ADR 0060).
+    let secs = crate::views::bars::seconds_between(p, from, to);
     let last = (to - cantus_core::Ticks(1)).max(from);
-    let (a, b) = (p.time_signature.bbt(from).0, p.time_signature.bbt(last).0);
+    let (a, b) = (
+        crate::views::bars::bbt(p, from).0,
+        crate::views::bars::bbt(p, last).0,
+    );
     let key = if scope == Scope::Loop {
         "export_audio.loop"
     } else {
@@ -92,14 +96,30 @@ pub fn range_note(app: &CantusApp, scope: Scope) -> Option<String> {
 
 fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
     band_row(ui, "export_audio.band.what");
-    let scopes = [Scope::Song, Scope::Selection, Scope::Loop, Scope::Stems];
+    // Between markers (round 29, ADR 0060): the markers around the playhead, until two
+    // are picked below.
+    let markers_scope = match d.scope {
+        Scope::Markers { .. } => d.scope,
+        _ => default_markers(app),
+    };
+    let scopes = [
+        Scope::Song,
+        Scope::Selection,
+        Scope::Loop,
+        markers_scope,
+        Scope::Stems,
+    ];
     let labels = [
         Src::Key("export_audio.scope.song"),
         Src::Key("export_audio.scope.selection"),
         Src::Key("export_audio.scope.loop"),
+        Src::Key("tempo.export.markers"),
         Src::Key("export_audio.scope.stems"),
     ];
-    let at = scopes.iter().position(|s| *s == d.scope).unwrap_or(0);
+    let at = scopes
+        .iter()
+        .position(|s| std::mem::discriminant(s) == std::mem::discriminant(&d.scope))
+        .unwrap_or(0);
     if let Some(i) = row(ui, "export_audio.row.what", |ui| {
         seg(ui, at, &labels, "export_audio.row.what")
     }) {
@@ -117,7 +137,23 @@ fn what(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings) {
             super::workspace_settings::note(ui, &t("export_audio.no_selection"), true)
         }
         Some(Scope::Loop) => super::workspace_settings::note(ui, &t("export_audio.no_loop"), true),
+        Some(Scope::Markers { .. }) => {
+            // Fewer than two markers, or two that make no range (review 2).
+            let key = if app.project().markers.len() < 2 {
+                "tempo.export.no_markers"
+            } else {
+                "tempo.export.two_markers"
+            };
+            super::workspace_settings::note(ui, &t(key), true)
+        }
         _ => {}
+    }
+    if let Scope::Markers { from, to } = d.scope {
+        marker_rows(app, ui, d, from, to);
+        // A marker of the pair gone while the dialog is open: said, never the song.
+        if !super::export::available(app, d.scope) && app.export.asked.is_none() {
+            super::workspace_settings::note(ui, &t("tempo.export.two_markers"), true);
+        }
     }
     if let Some(text) = range_note(app, d.scope) {
         super::workspace_settings::note(ui, &text, false);
@@ -444,4 +480,66 @@ pub fn summary(app: &CantusApp, d: &ExportSettings) -> String {
         ));
     }
     line
+}
+
+/// The markers around the playhead as an export range: the one at or before it (the first
+/// otherwise) and the next on a later tick — past markers sharing a tick, which make no
+/// range (review 3); before the end, the last two that do.
+pub fn default_markers(app: &CantusApp) -> Scope {
+    let p = app.project();
+    let at = app.engine.position();
+    let ms = &p.markers;
+    let pair = |a: usize| {
+        let b = ms[a + 1..].iter().position(|m| m.tick > ms[a].tick)? + a + 1;
+        Some((a, b))
+    };
+    let i = ms.iter().rposition(|m| m.tick <= at).unwrap_or(0);
+    let found = (i..ms.len())
+        .find_map(pair)
+        .or_else(|| (0..i).rev().find_map(pair));
+    let pick = |k: usize| ms.get(k).map_or(0, |m| m.id.0);
+    let (a, b) = found.unwrap_or((i.saturating_sub(1), i));
+    Scope::Markers {
+        from: pick(a),
+        to: pick(b),
+    }
+}
+
+/// The two markers of a *between markers* export, each picked from the project's markers
+/// by name.
+fn marker_rows(app: &mut CantusApp, ui: &mut Ui, d: &mut ExportSettings, from: u64, to: u64) {
+    let options: Vec<(u64, String)> = app
+        .project()
+        .markers
+        .iter()
+        .map(|m| (m.id.0, m.name.clone()))
+        .collect();
+    let name = |id: u64| {
+        options
+            .iter()
+            .find(|(i, _)| *i == id)
+            .map_or_else(String::new, |(_, n)| n.clone())
+    };
+    // A pair that makes no range (one marker twice, two on one tick) is not taken: the
+    // pick stays as it was and the note says why (review 2: it exported the whole song).
+    let mut choose = |app: &mut CantusApp, want: Scope| {
+        if super::export::available(app, want) {
+            d.scope = want;
+            app.export.asked = None;
+        } else {
+            app.export.asked = Some(want);
+        }
+    };
+    let f = row(ui, "tempo.export.from", |ui| {
+        field(ui, &name(from), "tempo.export.from")
+    });
+    if let Some(v) = pick(&f, &options, from) {
+        choose(app, Scope::Markers { from: v, to });
+    }
+    let f = row(ui, "tempo.export.to", |ui| {
+        field(ui, &name(to), "tempo.export.to")
+    });
+    if let Some(v) = pick(&f, &options, to) {
+        choose(app, Scope::Markers { from, to: v });
+    }
 }

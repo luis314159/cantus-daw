@@ -78,6 +78,8 @@ struct Read {
     integrity_warning: bool,
     /// It opened, with this many clips taken out of link groups they did not match.
     links_repaired: usize,
+    warps_repaired: usize,
+    lateness_repaired: usize,
     plugins: cantus_host::PluginDb,
 }
 
@@ -183,6 +185,8 @@ impl Boot {
                     let mut refused = None;
                     let mut integrity_warning = false;
                     let mut links_repaired = 0;
+                    let mut warps_repaired = 0;
+                    let mut lateness_repaired = 0;
                     let project = path.and_then(|p| {
                         let first = cantus_project::load(&p, true);
                         // As *Open* does: a hash that does not match opens with a warning.
@@ -198,6 +202,8 @@ impl Boot {
                         match loaded {
                             Ok(l) => {
                                 links_repaired = l.links_repaired;
+                                warps_repaired = l.warps_repaired;
+                                lateness_repaired = l.lateness_repaired;
                                 Some((l.project, p))
                             }
                             Err(e) => {
@@ -215,6 +221,8 @@ impl Boot {
                         refused,
                         integrity_warning,
                         links_repaired,
+                        warps_repaired,
+                        lateness_repaired,
                         plugins,
                     });
                     ctx2.request_repaint();
@@ -242,8 +250,11 @@ impl Boot {
                     let (tx, rx) = channel();
                     let sender = engine.midi_sender();
                     let ctx2 = ctx.clone();
+                    // The controller tap (round 29, ADR 0062): mapped messages wake the
+                    // window; `assemble` keeps the tap for rescans and restarts.
+                    let tap = crate::controllers::waking_tap(ctx);
                     std::thread::spawn(move || {
-                        let _ = tx.send(MidiInputs::open_all(sender));
+                        let _ = tx.send(MidiInputs::open_with(sender, tap));
                         ctx2.request_repaint();
                     });
                     self.midi = Some(rx);
@@ -274,9 +285,12 @@ impl Boot {
                     None if !self.options.stress => (Some(crate::demos::startup_project()), None),
                     None => (None, None),
                 };
+                // Its file known before the first compile (round 29, review 2).
+                let mut files = read.files;
+                files.project_path = path.clone();
                 let mut app = CantusApp::assemble(
                     ctx,
-                    read.files,
+                    files,
                     project,
                     engine,
                     midi,
@@ -293,6 +307,13 @@ impl Boot {
                     app.set_error(crate::i18n::t("status.integrity"));
                 } else if read.links_repaired > 0 {
                     app.set_error(crate::links::repaired_text(read.links_repaired));
+                } else if read.warps_repaired > 0 {
+                    app.set_error(crate::warp::repaired_text(read.warps_repaired));
+                } else if read.lateness_repaired > 0 {
+                    app.set_error(crate::i18n::tf(
+                        "freeze.lateness_repaired",
+                        &[("n", &read.lateness_repaired)],
+                    ));
                 }
                 // The journal of this session, after reading what gone ones left (round 22).
                 app.start_session(&app::data_dir());

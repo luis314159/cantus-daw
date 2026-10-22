@@ -46,6 +46,9 @@ struct Key {
     stream_late: u64,
     /// Notes that played their streamed sample's start only (third review #9).
     stream_cut: u64,
+    /// Blocks that played without an isolated plug-in because it was late (round 29,
+    /// ADR 0063): with the other drops.
+    plugins_late: u64,
     locale: Locale,
     tk: u32,
     ppp: u32,
@@ -92,6 +95,20 @@ fn rebuild(app: &CantusApp, ctx: &egui::Context, key: Key, gap: f32, tk: f32, c:
             Some(crate::i18n::tf_count(
                 "smp.stream_late_tip",
                 key.stream_late as usize,
+                &[],
+            )),
+            4,
+        );
+    }
+    // Isolated plug-ins that missed their deadline: those blocks played without them
+    // (round 29, ADR 0063).
+    if key.plugins_late > 0 {
+        push(
+            tf("isolation.status.late", &[("n", &key.plugins_late)]),
+            true,
+            Some(crate::i18n::tf_count(
+                "isolation.status.late_tip",
+                key.plugins_late as usize,
                 &[],
             )),
             4,
@@ -197,6 +214,7 @@ pub fn show(app: &mut CantusApp, ui: &mut Ui) {
         loading: app.engine.samples.progress(),
         stream_late: stats.stream_late,
         stream_cut: stats.stream_cut,
+        plugins_late: app.plugins.late_blocks(),
         locale: crate::i18n::locale(),
         tk: tk.to_bits(),
         ppp: ctx.pixels_per_point().to_bits(),

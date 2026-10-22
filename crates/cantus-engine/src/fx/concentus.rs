@@ -72,6 +72,10 @@ impl FxUnit for Unit {
         telemetry_of(|t| self.dsp.telemetry(t))
     }
 
+    fn follows_song(&self) -> bool {
+        true
+    }
+
     fn set_position(&mut self, position: &SongPosition) {
         self.dsp.set_transport(&transport_of(position));
     }

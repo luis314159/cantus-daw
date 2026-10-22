@@ -45,6 +45,27 @@ pub enum Action {
     /// FL's PAT / SONG switch (round 28, ADR 0052).
     TogglePatternMode,
     Panic,
+    /// A marker at the playhead (round 29, ADR 0060).
+    AddMarker,
+    /// The playhead to the marker before it / after it.
+    PreviousMarker,
+    NextMarker,
+    /// The loop from the marker at or before the playhead to the next.
+    LoopBetweenMarkers,
+    /// The time selection from the marker at or before the playhead to the next.
+    SelectBetweenMarkers,
+    /// The arrangement's tempo track shown or hidden.
+    ToggleTempoTrack,
+    /// Freeze the selected track (its own strip, or its source), or unfreeze what holds it
+    /// (round 29, ADR 0064).
+    FreezeTrack,
+    /// Bounce in place with the strip's inserts: the selected clips, the time selection or
+    /// the whole selected track.
+    BounceInPlace,
+    /// Bounce in place, the source only (before the track's level).
+    BounceSource,
+    /// Low-latency monitoring on or off.
+    ToggleLowLatency,
     // File
     NewProject,
     Open,
@@ -151,6 +172,13 @@ pub enum Action {
     /// Open or close the selected track's instrument window, or bring it back from the
     /// device tray (F8; round 20).
     ToggleInstrumentWindow,
+    // MIDI controllers (round 29, ADR 0062)
+    /// The learn mode (Ableton's MIDI Map mode): every learnable control outlined.
+    MidiLearnMode,
+    /// FL's *Link to controller* for the last tweaked parameter.
+    LinkLastTweaked,
+    /// Show or hide the controller mappings.
+    ViewControllers,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -196,7 +224,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 82] = [
+    pub const ALL: [Action; 95] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -205,6 +233,12 @@ impl Action {
         Action::ToggleMetronome,
         Action::TapTempo,
         Action::TogglePatternMode,
+        Action::AddMarker,
+        Action::PreviousMarker,
+        Action::NextMarker,
+        Action::LoopBetweenMarkers,
+        Action::SelectBetweenMarkers,
+        Action::ToggleTempoTrack,
         Action::Panic,
         Action::NewProject,
         Action::Open,
@@ -279,6 +313,14 @@ impl Action {
         Action::ShowTakes,
         Action::AutomateLastTweaked,
         Action::ToggleInstrumentWindow,
+        // Round 29 (ADR 0064).
+        Action::FreezeTrack,
+        Action::BounceInPlace,
+        Action::BounceSource,
+        Action::ToggleLowLatency,
+        Action::MidiLearnMode,
+        Action::LinkLastTweaked,
+        Action::ViewControllers,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -292,6 +334,16 @@ impl Action {
             Action::ToggleMetronome => "toggle-metronome",
             Action::TapTempo => "tap-tempo",
             Action::TogglePatternMode => "toggle-pattern-mode",
+            Action::AddMarker => "add-marker",
+            Action::PreviousMarker => "previous-marker",
+            Action::NextMarker => "next-marker",
+            Action::LoopBetweenMarkers => "loop-between-markers",
+            Action::SelectBetweenMarkers => "select-between-markers",
+            Action::ToggleTempoTrack => "toggle-tempo-track",
+            Action::FreezeTrack => "freeze-track",
+            Action::BounceInPlace => "bounce-in-place",
+            Action::BounceSource => "bounce-source",
+            Action::ToggleLowLatency => "toggle-low-latency",
             Action::Panic => "panic",
             Action::NewProject => "new-project",
             Action::DemoSongs => "demo-songs",
@@ -366,6 +418,9 @@ impl Action {
             Action::ShowTakes => "show-takes",
             Action::AutomateLastTweaked => "automate-last-tweaked",
             Action::ToggleInstrumentWindow => "toggle-instrument-window",
+            Action::MidiLearnMode => "midi-learn-mode",
+            Action::LinkLastTweaked => "link-last-tweaked",
+            Action::ViewControllers => "view-controllers",
         }
     }
 
@@ -382,7 +437,13 @@ impl Action {
         use Action::*;
         match self {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
-            | TogglePatternMode | Panic => Category::Transport,
+            | TogglePatternMode | Panic | AddMarker | PreviousMarker | NextMarker
+            | LoopBetweenMarkers => Category::Transport,
+            SelectBetweenMarkers => Category::Arrangement,
+            ToggleTempoTrack => Category::View,
+            // Freezing and bouncing are the track's; low-latency monitoring the recording's
+            // (round 29, ADR 0064).
+            FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
             NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
@@ -412,7 +473,10 @@ impl Action {
             | ToggleBrowser
             | ToggleClips
             | ViewRouting
-            | ToggleInstrumentWindow => Category::View,
+            | ToggleInstrumentWindow
+            | ViewControllers => Category::View,
+            MidiLearnMode => Category::Tools,
+            LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
             | ToggleMeterWave | RouteMenu => Category::Mixer,
         }
@@ -653,6 +717,68 @@ fn common() -> Vec<(Action, Binding)> {
         // the tempo (FL has no key for it; Shift keeps it clear of the tools' T).
         (TogglePatternMode, Binding::key(Key::L)),
         (TapTempo, Binding::shift(Key::T)),
+        // Markers (round 29, ADR 0060): Alt and a key, so the typing piano never takes
+        // them — M for marker; Alt+, and Alt+. step to the one before and after (Logic's
+        // keys, with Alt); Alt+Shift+O loops between the markers around the playhead — a
+        // letter, the same key on every layout (review 3: Shift+, is ';' on a Spanish or
+        // German keyboard, and Alt+Shift+L is Select linked's in every preset).
+        (AddMarker, Binding::alt(Key::M)),
+        (PreviousMarker, Binding::alt(Key::Comma)),
+        (NextMarker, Binding::alt(Key::Period)),
+        (
+            LoopBetweenMarkers,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::O)
+            },
+        ),
+        // Alt+Shift+M selects between them; Alt+Shift+T shows the tempo track.
+        (
+            SelectBetweenMarkers,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::M)
+            },
+        ),
+        (
+            ToggleTempoTrack,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::T)
+            },
+        ),
+        // Freeze (round 29, ADR 0064): Alt+Shift+F freezes the selected track or thaws it,
+        // Alt+Shift+B bounces it in place; Alt+Shift+R switches low-latency monitoring (R
+        // as recording: Alt+R arms).
+        (
+            FreezeTrack,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::F)
+            },
+        ),
+        (
+            BounceInPlace,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
+        // Ctrl+Alt+B bounces the source only (the same gesture, one modifier more).
+        (
+            BounceSource,
+            Binding {
+                command: true,
+                ..Binding::alt(Key::B)
+            },
+        ),
+        (
+            ToggleLowLatency,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::R)
+            },
+        ),
         (ToggleTypingPiano, Binding::cmd(Key::T)),
         // FL's function keys for the three central views. They are the most widely known
         // — every preset gets them, because arriving from anywhere else they are simply
@@ -728,6 +854,18 @@ fn common() -> Vec<(Action, Binding)> {
         (ShowTakes, Binding::alt(Key::T)),
         // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
         (AutomateLastTweaked, Binding::alt(Key::A)),
+        // MIDI controllers (round 29, ADR 0062): Ctrl+Shift+M for the learn mode (Live's
+        // Cmd+M, which is our metronome), Alt+Shift+A links the last tweaked parameter
+        // beside Alt+A's automation clip, Ctrl+Shift+K shows the mappings (K for knobs).
+        (MidiLearnMode, Binding::cmd_shift(Key::M)),
+        (
+            LinkLastTweaked,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::A)
+            },
+        ),
+        (ViewControllers, Binding::cmd_shift(Key::K)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
     ]
 }
@@ -1018,6 +1156,9 @@ impl Keymap {
         if file.version.unwrap_or(1) < 8 {
             map.fill_in(&NEW_IN_V8);
         }
+        if file.version.unwrap_or(1) < 9 {
+            map.fill_in(&NEW_IN_V9);
+        }
         Ok(map)
     }
 
@@ -1091,8 +1232,29 @@ struct KeymapFile {
 /// recording, demo, sample-browser and automation actions (rounds 19–20); version 4 the
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
 /// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26);
-/// version 8 tap tempo and PAT / SONG (round 28).
-pub const FILE_VERSION: u32 = 8;
+/// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
+/// track's actions (round 29).
+pub const FILE_VERSION: u32 = 9;
+
+/// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
+/// 0060); the other round-29 builders append theirs here.
+const NEW_IN_V9: [Action; 13] = [
+    Action::AddMarker,
+    Action::PreviousMarker,
+    Action::NextMarker,
+    Action::LoopBetweenMarkers,
+    Action::SelectBetweenMarkers,
+    Action::ToggleTempoTrack,
+    // Freeze (round 29, ADR 0064).
+    Action::FreezeTrack,
+    Action::BounceInPlace,
+    Action::BounceSource,
+    Action::ToggleLowLatency,
+    // The controllers builder's (ADR 0062).
+    Action::MidiLearnMode,
+    Action::LinkLastTweaked,
+    Action::ViewControllers,
+];
 
 /// Actions added in version 8: the top bar's tap tempo (Shift+T) and PAT / SONG (L), round
 /// 28, ADR 0052.
@@ -1223,6 +1385,60 @@ pub fn keymap_path(dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Review 2 (findings 5, 14, 31): every action new in version 9 has a key in every
+    /// shipped preset — a later binding of the same chord (Select linked) once took Loop
+    /// between markers' away in all four.
+    /// Review 3 (findings 12, 23, 38): *Loop between markers* fires from the event a
+    /// Spanish (or German, or French) keyboard sends — a letter is the same key there.
+    #[test]
+    fn loop_between_markers_fires_on_every_layout() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            let ctx = egui::Context::default();
+            let mods = egui::Modifiers {
+                alt: true,
+                shift: true,
+                ..Default::default()
+            };
+            let input = egui::RawInput {
+                events: vec![
+                    egui::Event::ModifiersChanged(mods),
+                    egui::Event::Key {
+                        key: Key::O,
+                        physical_key: Some(Key::O),
+                        pressed: true,
+                        repeat: false,
+                        modifiers: mods,
+                    },
+                ],
+                ..Default::default()
+            };
+            let mut fired = Vec::new();
+            ctx.run_ui(input, |ui| fired = map.pressed(ui.ctx(), false, false))
+                .textures_delta
+                .clear();
+            assert!(
+                fired.contains(&Action::LoopBetweenMarkers),
+                "{}: {fired:?}",
+                preset.id()
+            );
+        }
+    }
+
+    #[test]
+    fn every_new_action_has_a_key_in_every_preset() {
+        for preset in Preset::ALL {
+            let map = preset.keymap();
+            for a in NEW_IN_V9 {
+                assert!(
+                    !map.bindings_for(a).is_empty(),
+                    "{a:?} has no key in {}",
+                    preset.id()
+                );
+            }
+        }
+    }
 
     #[test]
     fn every_action_has_a_stable_id_and_a_category() {

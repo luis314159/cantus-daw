@@ -252,6 +252,33 @@ The ▾ beside the record key (or right-click it) opens **Recording options**:
 - The click — its level, sound, accent and when it plays — is the metronome's, in the
   [top bar](#the-top-bar).
 
+### Monitoring with low latency
+
+Delay compensation keeps every track in time with the slowest one: with a linear-phase EQ
+somewhere in the song, everything — **the input you monitor included** — waits for it, and
+a singer can hear themself 96 ms late. **Low-latency monitoring** (`Alt+Shift+R`, or its
+switch in the record options, in the audio chip's popover and in the inspector's
+recording rows) changes that while it is on:
+
+- What you monitor (an armed track's input in *Auto*, any input set to *On*, or an armed
+  instrument track you play) reaches your ears **without waiting for the other tracks**: a
+  voice through Tonus is heard 2.7 ms late instead of 96 ms. The backing stays in time with
+  itself.
+- An insert on the monitored path whose latency is above the **limit** (3 ms by default;
+  5, 10 or 20 ms in the same rows) is **bypassed** — the list says which: *Monitoring
+  without: Aequalis, Culmen* (and how many more, past eight). They come back the moment
+  you switch it off, with nothing left over from before.
+- The audio chip shows the round trip of what you monitor — the driver's, the input's
+  wait (for an audio input: notes you play only go out) and the monitored chain's — while
+  it is on.
+- Your take is placed exactly where it would be with it off: what is recorded is the raw
+  input, placed by the latency in force when the take started. If the backing's latency
+  changes during the take (you switch the mode, an automated look-ahead), what you play
+  after is placed by the new one: every part lands where you played it.
+
+For the lowest delay, monitor through a strip of your own: a bus that mixes your voice
+with other recorded tracks keeps those in time, and your voice waits there with them.
+
 ### Takes and comping
 
 Every take is kept on a **take lane** under the track: open them with the small disclosure
@@ -295,6 +322,109 @@ the inputs) are recorded into a clip.
 With nothing armed, `R` records into the selected track. No keyboard? `Ctrl+T` turns the
 **typing keyboard** on: `A`–`L` play notes, `Z`/`X` change octave. While it is on, letter
 shortcuts (including `R`) are off — use `Space` or the record key.
+
+### MIDI controllers
+
+Any knob, fader, button or pad of a MIDI controller can drive anything Cantus can set: a
+parameter of any device (Cantus's own or a hosted plug-in's), a fader, a pan, a width, a
+send, a modulator's amount, a mute, a solo, a record arm, an insert's bypass or mix, the
+tempo, and the transport (play, stop, record, loop, the metronome, tap tempo, the markers,
+PAT / SONG — anything a key can do).
+
+**Learn in two clicks.** Right-click a control ▸ **Learn MIDI controller**, then move a
+control on your hardware: done. Or click the top bar's **MIDI** cell (or press
+`Ctrl+Shift+M`; a right-click on it opens the MIDI settings) for the **learn mode**: every control that can be learnt is outlined; click
+one, move a hardware control, click the next. A mapped control wears a small dot at its
+lower right; in the learn mode it is outlined in the highlight's colour, and the one
+waiting for your hardware is lit. `Esc` lets go of a learn (so do 15 seconds without a
+move). With no MIDI input open, a click on the cell opens the MIDI settings instead.
+**Change MIDI controller** and
+**Forget MIDI controller** are in the same menu. The mixer's strip and insert menus and the
+track header's menu have *Learn* rows for the volume, pan, width, mute, solo, arm, bypass
+and mix, and a strip's for its effects switch and record arm (the strip's FX bulb and
+record dot learn in the learn mode too); a send's menu has them for its level; the channel rack's knobs and lamps, and a
+device's switches and choices, learn like any knob. In the inspector an insert's lamp
+(bypass) and ring (mix), the inserts' switch and the arm LED learn too, and so does a device
+window's bypass lamp. A control that stands for one value of a choice learns that value: a
+band's *Solo* LED learns that band (a button then solos it and lets it go), a key of
+Tonus's scale learns its click. Inside a plug-in's own window, move
+the parameter there, then press `Alt+Shift+A` (**Link the last tweaked parameter to a
+controller**, FL Studio's way — also in the top bar's **Clip** menu) and move the hardware.
+
+Cantus tells what you moved: a plain knob, a **14-bit fader** (its fine controller came
+too), an **endless encoder** (and which of the three encodings it speaks), a button, a pad
+(on a switch it toggles; on a knob its velocity sets the value) or a program change (the
+bank select a keyboard sends before it is passed over). Press a button and let it go:
+pressed and released it toggles; a button that stays down by itself (it sends its top
+value only) sets the target on and off as it is. Any parameter with two states (a
+device's on/off, a lamp) is a switch: a button sets it at once, with no takeover. NRPN and
+RPN controls are not learnt — Cantus says so and keeps waiting for another control; set
+the controller to send plain CCs.
+
+**How a mapping reads its control** — in the **Controllers** pane (View menu, or
+`Ctrl+Shift+K`), one row per mapping:
+
+- **Mode**: *Absolute* (where the control is, the target is), *Relative* (an encoder: each
+  step moves the target — on a choice, one choice per step), *Toggle* (each press flips it), *Momentary* (held: on; let go:
+  off), *Trigger* (each press fires an action).
+- **From / To**: the part of the target's travel the control covers, in the target's own
+  units (−∞ dB to +6 dB, 200 Hz to 4 kHz, 60 to 180 BPM…), a choice by its names (*Clean*
+  to *Opto*, *Linear phase* to *Minimum phase*; a plug-in's choices by the plug-in's own
+  words), a switch with no names *Off* and *On*; *To* below *From* turns it round. Drag a
+  cell, or double-click it and type — a number, or a choice's name; right-click resets it.
+- **Curve**: a bend, so the first half of the turn does less (or more); typed in percent
+  (−100 to 100), kept as typed.
+- **Takeover**, for a control that does not move itself when the value changes elsewhere:
+  *Pick up* (the default: nothing moves until the knob passes the value — no jumps),
+  *Scale* (the value moves with the knob, so both reach the end together), *Jump*. The
+  header sets the takeover new mappings get; a switch has none.
+- **Feedback** (*Send*): the value goes back to the controller whenever it changes — for
+  motor faders and LED rings, and the lights of the transport's buttons and every switch
+  with a state (play, record, loop, the metronome, punch, count-in…). Off by default; an
+  action that has no state (stop, undo) has no *Send*. What a controller or a loopback port
+  sends straight back is recognised as the echo it is.
+
+A lit dot at the left of a row shows a message just came. **Shared** marks one control
+on several targets (allowed: one knob can open two filters at once). A row whose target is
+gone (a deleted track) is kept, marked **Missing**, and works again if undo brings the
+target back. A plug-in's parameter is learnt with that plug-in: after the instrument or the
+insert is swapped for another — a plug-in, or one of Cantus's own — the row says **Other
+plug-in**, still named after the plug-in and the parameter it was learnt on, its range in
+percent, and its knob is free (learn the new one's parameter; an undo of the swap brings
+the old row back to life). An insert swapped for one of Cantus's own keeps its bypass and
+mix, and a parameter the new effect also has. **Not loaded** says the
+plug-in is in the project but not running here (or it stopped); **Frozen**, that the
+target's sound is frozen — a move is refused and said, and the knob reaches no other
+instrument; **Not connected**, that the mapping's MIDI input is not open; **No input**,
+that a strip's record arm has no track with an input to arm.
+
+**Two maps.** *This project*'s mappings are saved with the project, and every change is
+one undo step. **Everywhere** — your global mappings, kept beside your keyboard shortcuts
+— holds what means the same in every song: the transport, the tempo, the master, **the
+selected track** and **the selected channel** (volume, pan, mute, solo, arm — the master's
+when the master is selected) and **the
+focused device**'s first eight knobs (the device window you clicked last). Learning a
+transport key or the master puts it there; **Add a mapping** in the pane offers all of them,
+and every keyboard shortcut's action by its group (arm the selected track, punch, undo,
+save, the views…).
+When one control is in both, the project's mapping wins. If the global file cannot be read
+whole, a copy is kept beside it (the status says its name) and nothing is lost; if not even
+a copy can be made, it is never written over, and each change to the global mappings says
+it will not be kept.
+
+**While you play and record.** A mapped knob no longer reaches the instrument (it does
+not also bend its filter), and a mapped pad plays no note. A move made with the mouse or a
+controller is one undo step per gesture. With a parameter under an automation clip, the
+clip plays it — until a recording pass moves it: from that moment the parameter follows
+your hand (the clip is set aside for the rest of the pass), and the pass writes what you
+did as an automation clip, each move at the moment its message arrived, inside the pass
+(the count-in and anything past the punch-out are not written, and past the punch-out the
+parameter follows its clip again; Record options ▸ *Record automation*). While audio
+records, a knob mapped to the tempo does nothing (the status says why): change the tempo
+before or after the take.
+
+Channel pressure and key pressure now reach the instrument (Cantus's and hosted ones), and
+a program change reaches a hosted instrument.
 
 ## 5. Edit: clips, piano roll, automation
 
@@ -360,6 +490,57 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
 
 The **grid** (the arrangement's toolbar) starts at one bar; choose finer values for
 detail. Scroll with the wheel, `Shift+wheel` for time, `Ctrl+wheel` to zoom.
+
+### The tempo track and markers
+
+A song can change tempo and metre as it goes, and carry named markers (round 29).
+
+- **The tempo track** is a lane under the ruler (*View ▸ Tempo track*, or the ruler's
+  menu): each point is a tempo, held flat to the next point or **ramping** straight to
+  it. Double-click the lane to add a point (on the grid, at the tempo where you clicked);
+  drag a point to move it (`Shift` for fine tempo steps, `Ctrl` off the grid); `Alt+click`
+  turns a point's ramp on or off; double-click a point to type its tempo; right-click for
+  *Ramp to the next point*, *Remove the point* and *Remove the tempo track*. The header
+  beside the lane shows the tempo at the playhead.
+- **The top bar's tempo** shows the tempo at the playhead (inside a ramp, its value
+  there). Dragging it and the wheel (a notch, one BPM) move the point the playhead is
+  under by that much — inside a ramp, the ramp's start; a double-click (120) or **TAP**
+  set it — the song's tempo when there is no tempo track.
+- **Metre changes** are chips on the ruler before a bar's number ("7/8"). Right-click the
+  marker lane or the ruler ▸ *Add a metre change here* (at bar 1 it opens the song's own
+  metre); click a chip to edit its signature, drag it along the bar lines between its
+  neighbours, right-click to remove it. The bars after a change
+  keep their numbers; notes never move. The top bar's metre edits the metre in force at the
+  playhead.
+- **Markers** appear in a lane under the loop lane. `Alt+M` adds one at the playhead (or
+  double-click the lane, or right-click the ruler ▸ *Add a marker here*); click a marker
+  to put the playhead there; **double-click** it to rename it; drag it along the grid;
+  markers on one tick sit side by side; right-click for *Rename…*, *Colour…*, *Loop to the next
+  marker*, *Select to the next marker*, *Export to the next marker…* and *Remove the marker*.
+  `Alt+,` and `Alt+.` go to the previous and next marker; `Alt+Shift+O` loops between the
+  markers around the playhead. The lane's menu lists every marker under *Go to*.
+- **Export between markers**: *File ▸ Export audio…* ▸ *What* ▸ *Markers*, then pick the
+  two markers by name (two at different places: the dialog says so otherwise, and never
+  exports the whole song instead).
+- Everything follows the tempo: notes, audio clips, automation, modulators, synced
+  effects, the click (the first beat of every bar accented; a bar of 7/8 counted in
+  eighths) and plug-ins made by others. An unwarped audio clip plays at its natural speed
+  from the point of its file at its start: split it, trim it or comp it anywhere and every
+  piece plays on where it was; move or copy clips elsewhere and each lands on its own bar,
+  playing the same part of its file (the pieces of one take moved together still meet).
+  A tempo change never changes what a take plays where it comes in, and the pieces of one
+  take move together, so a split never jumps; a change *inside* a take lets the rest of
+  it run on at its own speed — warp it to keep it on its bars. A reversed clip keeps the
+  point of its file it lands on, at its end. While audio records the tempo stays as it
+  is — undo and redo of a tempo change too; recording notes leaves it free.
+- **MIDI files** carry the whole tempo map out (a ramp as a tempo change every sixteenth
+  note — a very long one, over 1 024 beats, in fewer, longer steps, each its stretch's
+  average — and every marker, those at the end too) and in — importing with *Set the project
+  to … BPM in …* keeps the file's tempo changes, metre changes and markers: at the song's
+  start they are the song's; dropped at a later bar they start there (the bar line nearest
+  the drop), the song keeping its own tempo and metre before it. **DAWproject** files carry the tempo
+  track, the metre changes and the markers both ways. A file's tempo points, metre
+  changes or markers past a million beats are left out, and the import says so.
 
 ### The piano roll
 
@@ -432,6 +613,90 @@ pull it onto its note — for small fixes without opening the editor.
 
 Formants are kept when a note moves (measured within 3 dB at ±3 semitones). It works on
 one voice or one instrument line at a time; chords are not split into notes.
+
+### Warping and stretching audio
+
+**Warping** makes an audio clip play in the project's time: faster or slower than it was
+recorded, without changing its pitch, and following every tempo change of the tempo track.
+The file is never changed: the clip plays a render made beside the window.
+
+- **Loops warp themselves.** Import a loop (from *File ▸ Import audio…*, a drop from Windows or
+  from the browser) and Cantus finds its tempo, its beats and its first downbeat; a file
+  of a whole number of bars (or one whose WAV carries its tempo) is warped at once to the
+  project's tempo, in the same undo step as the import (one step for every file of a
+  drop). Longer files, every take you record and every take brought back after a crash
+  play at their natural speed until you warp them: a recording plays as it was played.
+- **Warp a clip yourself**: right-click it ▸ *Warp* ▸ **Follow the project tempo** (or
+  *Follow* in the inspector or the editor) — nothing moves until you move a marker, even
+  under a tempo ramp — **Detect tempo** (markers on every bar it found), or **Warp from
+  here** (its tempo counted from the beat where you right-clicked; in the inspector, from
+  the playhead). Turning *Follow* off plays the clip at its natural speed and keeps its
+  markers for when you turn it on again; turning it off, resetting the warp or laying it
+  again never moves what the clip plays at its start (nor on its linked copies). A linked
+  copy under another tempo than its copies' is made unique when you first warp it, so
+  they keep playing as they did. *Set the project tempo from this clip* goes the other
+  way: the clip's tempo (what the analysis found, while it does not follow) becomes the
+  tempo where it starts.
+- **Warp markers** pin a moment of the audio to a beat. Any audio clip under the pointer
+  or selected shows its **transients** (the hits found in it) as ticks along a band at
+  its top; a clip that follows the tempo also shows its markers as gold flags — the ones
+  on its two ends too — and takes clicks on the band. **Double-click the band** to add a marker (on a transient, it
+  lands on it); drag in the band to add one and move it at once. **Drag a marker** to move
+  that moment of the audio to another beat — it snaps to the grid (hold `Ctrl` for free)
+  and the audio between its neighbours stretches to fit. Hold **`Alt`** while dragging to
+  slide the audio *under* the marker instead. Double-click a marker, or right-click it ▸
+  *Remove warp marker*, or click it and press `Del`, to remove it. On a clip that does not
+  follow the tempo the band takes no click: dragging near its top moves the clip, as
+  anywhere else on it.
+- **Stretch a whole clip**: hold `Alt` and drag its **right edge** (`Shift` still slips).
+  A linked copy stretches on its own (it leaves its group).
+- **The clip editor's Warp tab**: double-click the clip (or *Edit warp*) — the editor has
+  two tabs, **Pitch** and **Warp**, and opens in the one you used last. The Warp tab shows
+  the clip large on a bar ruler, with the same gestures on any audio clip, and a bar with
+  the mode, its own **snap grid** (1/4 to 1/32, or free), the transposition, *Formants*,
+  *Follow*, the clip's tempo (**½**, **×2** when it was counted at half or double),
+  *Detect tempo*, *Quantise…* and *Reset warp* — what does nothing in the clip's mode is
+  shown greyed; in a narrow window the bar takes a second row. `Ctrl`+wheel (or a pinch)
+  zooms in on the clip about the pointer, the wheel (or the bar under it) scrolls, and `Q`
+  opens *Quantise audio*.
+- **Modes** (the inspector's *Warp* section, or the bar) — choosing one does not warp the
+  clip:
+  - **Complex** — anything: full mixes, pads, chords. Keeps the attacks sharp, a chord's
+    voices steady and the stereo image in place.
+  - **Rhythm** — drums and percussive loops: each hit is played exactly as recorded, only
+    moved; **Slice ends** chooses what fills the gap after a hit when it is slowed down
+    (*Fade*, *Loop*, *Mirror*: back and forth).
+  - **Melodic** — one voice or one instrument line: the cleanest for a solo, with the
+    voice's colour kept when transposed.
+  - **Re-pitch** — like a turntable: the speed and the pitch change together (no
+    processing artefacts; *Transpose* is then off).
+- **Transpose** shifts the clip by semitones and cents without changing its time (a clip
+  that does not follow the tempo keeps its natural speed); **Formants ▸ Keep** keeps a
+  voice's colour when it is transposed (no "chipmunk"). The level stays as it was.
+- **Detected** and **Confidence** in the inspector: the tempo and bars the analysis
+  found, and how sure it is. A marker's hint gives the speed the audio plays at after it,
+  against the tempo in force there.
+- **Quantise audio…** (the clip menu or the inspector, on every audio clip selected with
+  the one you chose): pulls the transients toward a grid with a *Strength*, only the
+  stronger ones if you choose (*Transients over*) — one undo step for every clip; only
+  the hits you hear move (a loop's own period; a reversed clip's on the lines where they
+  play), the rest keeps its speed.
+- **Bounce warped audio** writes the clip's window as it sounds now to a new file beside
+  the project's audio, and the clip then plays that file, unwarped (one undo step).
+  **Reset warp** puts the clip back to its natural speed.
+
+While a render is on its way (a fraction of a second for a loop, a few seconds for a long
+file) you hear a quick preview at the right timing and pitch — a clip transposed for the
+first time plays its own audio meanwhile; one whose markers move its audio waits a moment
+for its preview, never playing at the wrong bar — and the change from one to the next is
+crossfaded once. Export, stems, freezing, bouncing and a modulator's bake wait for the
+full render; if one ever takes too long, the status line says so when the job is done.
+Warped clips travel in DAWproject files with their markers and mode (a file Cantus wrote
+comes back with its warp exactly as it was); a clip at its natural speed travels as a file
+placed in seconds, so it keeps its speed in any application. Opening or dropping a
+`.dawproject` reads it in the background (its audio copied to disk as it goes, a file
+referenced beside it found there); it opens once nothing is being recorded or dragged, and
+never over another project opened meanwhile.
 
 ### Automation
 
@@ -528,6 +793,90 @@ of its chain (click it to open the inspector).
   `F12` closes every floating one.
 
 **Solo** follows the routing: a soloed strip is heard with what feeds it and what it feeds.
+
+### Freeze and bounce in place
+
+**Freeze** turns a heavy track into a recording of itself, so its instrument and effects
+stop using the processor — and gives it back, exactly, when you unfreeze it.
+
+- **Freeze a track**: right-click its header ▸ *Freeze track*, `Alt+Shift+F`, or the
+  inspector's *Freeze* row. A track on a strip of its own freezes with the strip: its
+  instrument, clips and the strip's inserts and EQ. A track that shares its strip freezes
+  its own instrument and clips. **Freeze a strip** (a bus, a return) from the strip's menu:
+  it freezes with everything it gathers.
+- It renders first (a card at the corner shows how far, with **Stop**); the song keeps
+  playing and nothing changes until it is done. Then the track is frozen in one undo step:
+  a **snowflake** on its header and its strip, its clips frosted.
+- A frozen track or strip is still **mixed**: its fader, pan, width, mute, solo and send
+  levels — and their automation — stay live, and so do the mute and solo on the header of
+  a track frozen with its own strip (its level and balance are inside the render: mix it
+  with the strip's fader). Unless a modulator inside what it freezes follows it (or the
+  bus it plays into): then its mix is part of its sound and is locked too — the card says
+  so. Anything that would change its sound (its notes, its instrument, its inserts, the
+  tempo, a strip moved among the ones it gathers) is refused, and the card says how to give
+  it back: **Unfreeze** (the same menu entries, the same key). A knob turned in a frozen
+  plug-in's own window goes back where it was, with the same card — so does a preset or a
+  sample loaded from its own browser. Unfrozen, it plays live again, to the bit.
+- What also plays somewhere else keeps playing: freezing a bus does not silence a strip
+  that keys its compressor and plays to the master, nor a return the strip that sends to
+  it. Solo stays a listening aid — a freeze is made as if nothing were soloed; with
+  something soloed **inside** what you freeze, unsolo it first. A solo that silences part of
+  what a frozen strip sounds with (one of the tracks or strips heard through it) plays that
+  strip live while it lasts; a solo that silences all of it — a solo elsewhere — only mutes
+  it, without waking its plug-ins. Saving a project moves a frozen take into its *Audio*
+  folder and keeps it frozen.
+- Its plug-ins are unloaded while it is frozen and come back with their settings. A
+  freeze needs the plug-ins it renders (a bypassed one is not needed): one that is not
+  loaded is named, and nothing is frozen. So does a file it plays that is not there yet (a
+  sound pack downloading, a drive unplugged; a take on a comp lane below, or a muted clip,
+  does not count): the freeze names it, and a frozen track waits for its files before its
+  render is made again. A track whose plug-ins change their latency during the song (an
+  automated look-ahead or oversampling) cannot be frozen nor bounced in place: the status
+  line says so.
+- Renders are kept in the project's own folder inside a *Freeze* folder beside it
+  (*Freeze/Song* for *Song.cantus*; in Cantus's own cache for a project not saved yet),
+  named by what they hold: freezing again what did not change is instant, and a project
+  opened without them (on another computer, at another sample rate) plays live while they
+  are made again in the background. *Save as* takes them along — copied in the background;
+  closing Cantus while it copies keeps the window open, with a card, until the copy is
+  done (*Close now* skips it; what was not copied is found where it was next time). A project renamed or copied beside the original finds
+  its renders in the original's folder, and its next save brings them into its own.
+  Renders no undo can bring back are removed from the project's folder when you save;
+  other projects' renders beside it are never touched.
+- With the loop on, a frozen track plays its recording straight through: at the jump back
+  to the loop's start you hear what led into that bar, not a reverb's tail from the loop's
+  end (as in other DAWs; unfreeze it to hear the jump exactly).
+
+**Bounce in place** renders to an audio clip, on a **new track right under the original**,
+at the same place:
+
+- *Bounce in place* (track menu, `Alt+Shift+B`): this track through its strip's inserts;
+  the new track gets a strip of its own with the old one's fader, pan, width and sends.
+- *Bounce in place (source only)*: the instrument and clips before the track's level; the
+  new track plays into the same strip, through the same inserts.
+- *Bounce clips in place* (the clip menu): only the selected clips (on several tracks, one
+  bounce each); with a time selection — chosen after the clips, or with none selected —
+  the keys bounce what plays inside it, its edges moved out to the notes held across them.
+  A track header chosen last makes the keys bounce the whole track, a strip chosen in the
+  mixer the whole strip; the master is never frozen nor bounced. Clips or a time range
+  cannot be bounced while something hears the track's notes (bounce the whole track), and
+  comp windows joined by a crossfade are bounced together or not at all. The clip menu's
+  entries act on clips, never on a strip or the master chosen before: the clip you
+  right-clicked, with the clips selected with it.
+- *Bounce strip in place* (the strip menu): everything the strip gathers; what was keyed
+  from it, or followed it, follows the new strip. Unsolo what is soloed inside it first.
+- The original is **muted** — or removed, if you tick *Remove the original after a
+  bounce* in the track menu (Cantus remembers your choice; a track whose notes something
+  still hears is muted instead, and the result says so). Its level, fader and send rides
+  go with the bounce, and so does its solo. Through a plug-in with latency, the new clip's
+  audio sits on the grid and the new track keeps the delay (the inspector's *Delay* row;
+  the key at its right takes it away), so those rides and anything keyed from it stay in time — and the
+  clip plays in time wherever you move, copy or export it. The tail (a
+  reverb's) is kept until it rings out. One undo step. If you edit what it renders while
+  it renders, it is bounced again from your edit (an edit elsewhere does not restart it);
+  **Stop** while its file is written leaves nothing. A track that monitors a live input
+  — or one that keys it or plays notes into it — is not bounced (switch its monitoring off
+  first).
 
 ## 7. Master: the master chain, Fervor, Latitudo, Culmen
 
@@ -802,6 +1151,72 @@ are inserted **doing nothing**, so a fresh one changes no sample until you turn 
 
 Pages: `docs/plugins/tonsor.md`, `impetus.md`, `discrimen.md`, `speculum.md`.
 
+### When a plug-in crashes
+
+A plug-in made by someone else — a CLAP or VST3 effect or instrument — can crash or hang.
+Cantus runs those plug-ins **in a helper process of their own** (`cantus-sandbox`), so when
+one fails, the helper stops and **Cantus keeps playing**:
+
+- an effect that stopped passes the sound through untouched, in time with the rest of the
+  mix (as if it were bypassed); an instrument that stopped falls silent;
+- a card in the bottom-right corner says so — *"Glacier stopped working. Cantus kept
+  playing without it."* — with **Reload** and **Keep it off**, and what happened in a line
+  of its own. Point anywhere on the card to read the whole account;
+- **Reload** loads the plug-in again with what you had set: its last good state and every
+  value of the project. Several plug-ins that stopped together share one card and
+  **Reload all**;
+- *Keep it off* leaves it stopped: its slot shows *stopped* in red (an instrument's track
+  shows the sign on its icon and an outlined channel button; point at them for why), and
+  its menu — in the inspector and on the mixer strip's insert line — offers **Reload
+  plug-in** whenever you want it back. Asking for its window brings its card back;
+- a plug-in that crashes while it loads is told the same way: Reload it, or choose where it
+  runs, and Cantus tries again. One that refuses to load, or does not load in time, is said
+  as *not loaded* — never as one to install — and offers **Reload plug-in** in its menu;
+  Cantus never tries it again by itself;
+- **Cantus never waits for a plug-in.** Loading one, its window, its state, moving it: each
+  is asked of its helper, and the window goes on meanwhile. A slot whose plug-in is still
+  loading passes the sound through, a track whose instrument is loading is silent, for the
+  moment it takes;
+- **the project loses nothing, and a save never pretends**: saving asks every plug-in for
+  its state as it is now and writes the file once they have answered. One that cannot
+  answer in time is saved with the state it gave last, and the status line names it.
+  Exports, bounces and freezes wait for their plug-ins the same way, and say so when one
+  could not give its state as it was;
+- a plug-in that hangs is given two seconds, then its helper is ended; while it hangs, the
+  audio never waits for it longer than a few milliseconds, and the window never waits at
+  all. A plug-in showing a dialog of its own (a file to open, a licence) is not hung: Cantus
+  waits for you;
+- a plug-in that keeps its helper waiting — a dialog of its own, perhaps behind Cantus —
+  gets a card of its own — *"Glacier is waiting for you"*, its whole name in the card's
+  hint — with **Show it** (its dialog to the front) and **Stop it** (its helper is ended,
+  Cantus plays on, and you can reload it; the card says when other plug-ins share that
+  helper and would stop with it). What you ask of that helper meanwhile — another
+  plug-in's window, a save — is done as soon as the dialog closes;
+- notes and knob moves sent while a plug-in was late are not lost: it gets them as soon as
+  it answers.
+
+**Where a plug-in runs.** Settings ▸ Plug-ins ▸ *Where third-party plug-ins run* sets the
+default for this computer: **Together** (one helper for all of them; the default), **By
+maker** (one per maker), **Individually** (a helper each: a crash stops only that plug-in)
+or **Within Cantus** (no helper: the fastest, and a crash closes Cantus). Each plug-in can
+differ: right-click its slot (or open *Runs* on a hosted instrument's row in the inspector)
+and choose. The choice is saved with the project; changing it moves the plug-in at once,
+with its sound. A plug-in that crashes three times in a session is offered **Run
+individually** on its card — by name, when the card lists the plug-ins it took down with it,
+which are reloaded where they were. Only the plug-in that crashed is counted. The plug-in
+manager lists the plug-ins that ever stopped on
+this computer (*Forget* clears one). Cantus's own effects and instruments always run
+within.
+
+**What it costs.** A plug-in in a helper adds a round trip per audio block: a few
+microseconds while plug-ins follow one another, a few tens of microseconds after a pause
+(ADR 0063 has the measurements). Point at a hosted slot to see where it runs and its
+**CPU**; the status bar counts *Plug-ins late* each time a helper did not answer in time
+(the sound went on without the plug-in for a moment; a larger buffer gives it more time).
+Exports, stems, freezes and bounces wait for every block, so they are always exactly what
+the plug-in makes; if a plug-in stops working during one, Cantus says so instead of
+calling it done, and *Stop* ends it even while a plug-in hangs.
+
 ## 11. Projects, autosave and settings
 
 - *File ▸ New project* (`Ctrl+N`), *Open…* (`Ctrl+O`), *Save* (`Ctrl+S`), *Save as…*
@@ -855,6 +1270,9 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `P` `B` `E` `D` `T` `C` `Y` or `1`–`7` | Piano roll tools; in the arrangement, `B` or `2` is the paint tool |
 | `Shift+L` · `Z` | Loop the time selection · zoom to it |
 | `Alt+A` | Automate the last parameter you moved |
+| `Alt+Shift+A` | Link the last parameter you moved to a MIDI controller |
+| `Ctrl+Shift+M` | MIDI learn mode |
+| `Ctrl+Shift+K` | Show the controller mappings |
 | `F5` `F6` `F7` `F9` · `Alt+F8` · `I` | Arrangement, channel rack, piano roll, mixer · browser · inspector |
 | `Alt+F5` | Clip browser |
 | `F8` · `F12` | The selected track's instrument · close floating devices |
@@ -878,12 +1296,15 @@ of everything Cantus is built from are in
 
 This is a beta. What we know about:
 
-- **A plug-in made by someone else that crashes closes Cantus** (plug-ins run inside the
-  program; isolating them comes later). Save often.
+- **Warping** was measured, and tuned by ear on test material: tell us how a stretch sounds
+  on your music. A plug-in that runs *Together* with many others costs a little more CPU
+  than within Cantus (about 1.3× with 32 instances); choose *Within Cantus* for a plug-in
+  you trust when the CPU is tight (§10, *When a plug-in crashes*).
+- A **frozen track that loops** plays, at the jump back to the loop's start, what led into
+  that bar rather than the loop end's tail (a freeze is one straight pass, §6).
 - **MP3 files cannot be imported** (WAV, AIFF, FLAC and Ogg can).
-- **No time-stretch**: audio clips keep their speed when the tempo changes; one tempo and
-  one time signature per project. No crossfades between separate clips (comp seams do
-  crossfade, §4) and no clip gain envelopes.
+- No crossfades between separate clips (comp seams do crossfade, §4) and no clip gain
+  envelopes.
 - Recorded automation writes every move made while a pass records (no latch or touch
   modes yet). In stems exported *through the master chain*, a hosted effect on the master
   is left out of the stems (the full mix has it).
@@ -919,8 +1340,9 @@ This is a beta. What we know about:
   the buffer if the top bar counts dropouts.
 - The audio device cannot be changed while recording; the sample browser has no keyboard navigation yet; projects refer to
   sound-pack samples by their full path.
-- **Not in this beta**: macOS and Linux, warping, MIDI learn and control surfaces, AI
-  features, several arrangements per project.
+- **Not in this beta**: the macOS and Linux installers (coming soon; the code builds and
+  passes its tests on Linux), control-surface protocols (Mackie Control, HUI), AI features,
+  several arrangements per project.
 
 ## 15. Report a bug
 

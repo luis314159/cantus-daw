@@ -347,3 +347,16 @@ fn a_hosted_row_double_clicked_while_a_modulator_maps_resets() {
         p.name
     );
 }
+
+/// Two hosted instruments picked one after the other on one track are two undo steps: the
+/// first can be had back (review isolation-6 #8, #16 — a key per track merged them).
+#[test]
+fn two_picks_on_one_track_are_two_steps() {
+    let mut a = app(cantus_ui::starter_project());
+    let info = knows_synth(&mut a);
+    let track = a.project().tracks[0].id;
+    let before = a.bus.history().len();
+    assert!(a.set_hosted_instrument(track, &info));
+    assert!(a.set_hosted_instrument(track, &info));
+    assert_eq!(a.bus.history().len(), before + 2, "two steps");
+}

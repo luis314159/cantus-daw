@@ -1,9 +1,18 @@
 //! Writes a fixture for the *current* schema version so future migrations are tested
-//! against a real file: `cargo run -p cantus-project --example write_fixture`.
+//! against a real file: `cargo run -p cantus-project --example write_fixture`. With a
+//! number (`… --example write_fixture 35`), the fixture of that schema: the blocks up to it,
+//! saved as that version — for a schema whose round ended at a later one (round 29 wrote
+//! 35, 36 and 37 together).
 use cantus_core::*;
 use std::path::Path;
 
 fn main() {
+    let upto: u32 = std::env::args()
+        .nth(1)
+        .and_then(|a| a.parse().ok())
+        .unwrap_or(cantus_project::SCHEMA_VERSION)
+        .min(cantus_project::SCHEMA_VERSION);
+    assert!(upto >= 35, "the blocks before schema 35 always run");
     let mut p = Project::new("Fixture");
     p.tempo_bpm = 96.0;
     p.loop_enabled = true;
@@ -681,11 +690,284 @@ fn main() {
             vocal.clips.sort_by_key(|c| (c.start, c.id));
         }
     }
-    let name = format!("v{}.cantus", cantus_project::SCHEMA_VERSION);
+    // Schema 33 (round 29, tempo — ADR 0060): a tempo track — a ramp from the song's tempo
+    // to 140 over four bars, holding at 140, then 100 from bar 9 — a bar of 7/8 at bar 3
+    // and 3/4 from bar 4, and three markers.
+    {
+        use cantus_core::tempo::{Marker, MarkerId, MetreChange, TempoPoint};
+        use cantus_core::TimeSignature;
+        p.tempo_points = vec![
+            TempoPoint {
+                tick: Ticks::ZERO,
+                bpm: p.tempo_bpm,
+                ramp: true,
+            },
+            TempoPoint {
+                tick: Ticks::beats(16),
+                bpm: 140.0,
+                ramp: false,
+            },
+            TempoPoint {
+                tick: Ticks::beats(32),
+                bpm: 100.0,
+                ramp: false,
+            },
+        ];
+        p.metre_changes = vec![
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: p.time_signature,
+            },
+            MetreChange {
+                tick: Ticks(7680),
+                signature: TimeSignature::new(7, 8),
+            },
+            MetreChange {
+                tick: Ticks(7680 + 3360),
+                signature: TimeSignature::new(3, 4),
+            },
+        ];
+        for (name, tick) in [("Intro", 0), ("Verse", 7680), ("Chorus", 11_040)] {
+            let id = MarkerId(next_id(&mut p.next_id));
+            p.markers.push(Marker {
+                id,
+                tick: Ticks(tick),
+                name: name.into(),
+                color: None,
+            });
+        }
+    }
+    // Schema 34 (round 29, warp — ADR 0061): the vocal's first playing window warped —
+    // Melodic, three semitones down, its formants kept, a marker on beat 2 moved a little
+    // late (the take slowed into it) — so a v34 file holds every warp field but the tail.
+    {
+        let tempo = p.tempo_bpm;
+        let rates: Vec<(cantus_core::AudioSourceId, u32)> =
+            p.audio_pool.iter().map(|s| (s.id, s.sample_rate)).collect();
+        let vocal = &mut p.tracks[vocal_index];
+        if let Some(a) = vocal
+            .clips
+            .iter_mut()
+            .filter(|c| c.lane == 0)
+            .find_map(|c| c.audio.as_mut())
+        {
+            let rate = rates
+                .iter()
+                .find(|(id, _)| *id == a.source)
+                .map_or(48_000, |r| r.1);
+            let mut w = cantus_core::warp::Warp::identity(rate, tempo, a.slip_frames);
+            if let Some(m) = w.add_marker(Ticks::beats(2)) {
+                w = m.move_marker(1, Ticks::beats(2) + Ticks(120));
+            }
+            w.mode = cantus_core::warp::WarpMode::Melodic;
+            w.cents = -300;
+            w.detected = Some(cantus_core::warp::Detected {
+                bpm: tempo,
+                confidence: 0.4,
+                downbeat: 0.0,
+                bars: None,
+            });
+            a.warp = Some(Box::new(w));
+        }
+    }
+    // Schema 35 (round 29, controllers — ADR 0062): seven controller mappings — a knob on
+    // the delay's mix with a range and a bend, a 14-bit fader on strip 1 picking up with
+    // feedback, a sign-bit encoder on the tempo, a pad (the second port of its name)
+    // toggling the track's mute, a button firing *play*, one whose target is gone, and a
+    // knob on the hosted synth's parameter, learnt on that plug-in (review 2 of ADR 0062).
+    {
+        use cantus_core::controller::*;
+        let keys = |ordinal| PortRef {
+            name: "Keystation 49".into(),
+            ordinal,
+        };
+        let delay = p.strip(strip1).unwrap().effects[0].id;
+        let track = p.tracks[0].id;
+        let src = |port, channel, control| MidiSource {
+            port,
+            channel,
+            control,
+        };
+        let mut knob = Mapping::new(
+            MappingId(1),
+            src(keys(0), Some(0), Control::Cc(74)),
+            MappingTarget::Param(AutoTarget::Effect {
+                effect: delay,
+                key: "mix".into(),
+            }),
+            MapMode::Absolute,
+        );
+        knob.min = 0.1;
+        knob.max = 0.9;
+        knob.curve = 0.4;
+        let mut fader = Mapping::new(
+            MappingId(2),
+            src(keys(0), Some(0), Control::Cc14(7)),
+            MappingTarget::Param(AutoTarget::StripGain(strip1)),
+            MapMode::Absolute,
+        );
+        fader.feedback = true;
+        let mut tempo = Mapping::new(
+            MappingId(3),
+            src(PortRef::any(), None, Control::Cc(16)),
+            MappingTarget::Tempo,
+            MapMode::Relative(Encoding::SignBit),
+        );
+        tempo.sensitivity = 0.5;
+        tempo.takeover = Takeover::Jump;
+        let pad = Mapping::new(
+            MappingId(4),
+            src(keys(1), Some(9), Control::Note(36)),
+            MappingTarget::TrackMute(track),
+            MapMode::Toggle,
+        );
+        let play = Mapping::new(
+            MappingId(5),
+            src(keys(0), Some(0), Control::Cc(41)),
+            MappingTarget::Action("play-pause".into()),
+            MapMode::Trigger,
+        );
+        let gone = Mapping::new(
+            MappingId(6),
+            src(keys(0), Some(0), Control::Cc(75)),
+            MappingTarget::TrackSolo(TrackId(999_999)),
+            MapMode::Toggle,
+        );
+        let synth = p
+            .tracks
+            .iter()
+            .find(|t| t.instrument.external().is_some())
+            .expect("the hosted synth of schema 20");
+        let hosted_target = MappingTarget::Param(AutoTarget::PluginInstrument {
+            track: synth.id,
+            id: 1,
+        });
+        let mut hosted = Mapping::new(
+            MappingId(7),
+            src(keys(0), Some(0), Control::Cc(71)),
+            hosted_target.clone(),
+            MapMode::Absolute,
+        );
+        hosted.plugin = hosted_target.plugin_of(&p);
+        assert!(hosted.plugin.is_some());
+        // The names a learnt plug-in carries came with schema 41.
+        if let Some(r) = hosted.plugin.as_mut() {
+            if upto >= 41 {
+                r.param = "Cutoff".into();
+            } else {
+                r.name.clear();
+            }
+        }
+        p.controllers.mappings = vec![knob, fader, tempo, pad, play, gone, hosted];
+    }
+    // Schema 36 (round 29, isolation, ADR 0063): where a hosted plug-in runs — the absent
+    // insert of schema 14 *Individually*, the hosted synth of schema 20 *Within Cantus*.
+    for slot in p.all_effects_mut().filter(|_| upto >= 36) {
+        if let Some(plugin) = slot.spec.external.as_deref_mut() {
+            plugin.isolation = Some(cantus_core::PluginIsolation::Individually);
+        }
+    }
+    for t in p.tracks.iter_mut().filter(|_| upto >= 36) {
+        if let Some(plugin) = t.instrument.external_mut() {
+            plugin.isolation = Some(cantus_core::PluginIsolation::Within);
+        }
+    }
+    // Schema 38 (round 29, review 2 — ADR 0064 §6): the second track's audio arrives 4 608
+    // frames late (a bounce in place through a linear-phase EQ keeps that in its file).
+    if let Some(t) = p.tracks.get_mut(1).filter(|_| upto >= 38) {
+        t.lateness = Some(cantus_core::Lateness {
+            frames: 4_608,
+            rate: 48_000,
+        });
+    }
+    // Schema 39 (round 29, warp's second review — ADR 0061 §11): an audio window under the
+    // tempo ramp warped to follow from the natural warp — the warp's own markers on the
+    // ramp and the tempo points — with a user's marker dragged across them.
+    if upto >= 39 {
+        let map = p.tempo_map();
+        let rates: Vec<(cantus_core::AudioSourceId, u32)> =
+            p.audio_pool.iter().map(|s| (s.id, s.sample_rate)).collect();
+        let clip = p
+            .tracks
+            .iter_mut()
+            .flat_map(|t| t.clips.iter_mut())
+            .filter(|c| c.lane == 0 && c.link.is_none())
+            .find(|c| c.audio.as_ref().is_some_and(|a| a.warp.is_none()))
+            .expect("an unwarped audio window");
+        // (The vocal at bar 3: under the ramp.)
+        let a = clip.audio.as_mut().unwrap();
+        let rate = rates
+            .iter()
+            .find(|(id, _)| *id == a.source)
+            .map_or(48_000, |r| r.1);
+        let mut w = cantus_core::warp::Warp::natural_of(
+            &map,
+            clip.start,
+            clip.offset,
+            clip.length,
+            a.slip_frames,
+            rate,
+        );
+        assert!(w.markers.iter().any(|m| m.auto), "the ramp's own markers");
+        if let Some(n) = w.add_marker(Ticks::beats(1)) {
+            let i = n.marker_at(Ticks::beats(1)).unwrap();
+            w = n.move_marker(i, Ticks::beats(2));
+        }
+        a.warp = Some(Box::new(w));
+    }
+    // Schema 40 (round 29, ADR 0062 review 3): a pad on strip 1's effects switch and one on
+    // its record arm (the mixer's FX bulb and record dot).
+    if upto >= 40 {
+        use cantus_core::controller::*;
+        let pad = |id, note, target| {
+            Mapping::new(
+                MappingId(id),
+                MidiSource {
+                    port: PortRef {
+                        name: "Keystation 49".into(),
+                        ordinal: 0,
+                    },
+                    channel: Some(9),
+                    control: Control::Note(note),
+                },
+                target,
+                MapMode::Toggle,
+            )
+        };
+        p.controllers
+            .mappings
+            .push(pad(8, 40, MappingTarget::StripFx(strip1)));
+        p.controllers
+            .mappings
+            .push(pad(9, 41, MappingTarget::StripArm(strip1)));
+    }
+    // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
+    // gathers and its chain up to the width) and the last track's own source, each with
+    // the content key of what it holds — computed last, after every block above.
+    if upto >= 37 {
+        use cantus_core::freeze::{content_key, FreezeTarget, Frozen};
+        if let Some(s) = p.strips.first().map(|s| s.id) {
+            let content = content_key(&p, FreezeTarget::Strip(s)).expect("a strip");
+            p.strip_mut(s).unwrap().frozen = Some(Frozen { content });
+        }
+        if let Some(t) = p.tracks.last().map(|t| t.id) {
+            let content = content_key(&p, FreezeTarget::Track(t)).expect("a track");
+            p.track_mut(t).unwrap().frozen = Some(Frozen { content });
+        }
+    }
+    let name = format!("v{upto}.cantus");
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("fixtures")
         .join(name);
     cantus_project::save(&p, &path, "fixture").expect("save fixture");
+    if upto < cantus_project::SCHEMA_VERSION {
+        // Saved as that schema: what its build wrote (the later blocks left out above).
+        let text = std::fs::read_to_string(&path).expect("read back");
+        let from = format!("\"schema_version\": {}", cantus_project::SCHEMA_VERSION);
+        assert!(text.contains(&from));
+        let text = text.replacen(&from, &format!("\"schema_version\": {upto}"), 1);
+        std::fs::write(&path, text).expect("write back");
+    }
     println!("wrote {}", path.display());
 }
 

@@ -48,6 +48,8 @@ pub(super) struct MasterChain {
     pub(super) dry_r: Vec<f32>,
     /// The deepest reduction of the chain's dynamics over the last block, dB.
     pub(super) gr: f32,
+    /// Per insert: bypassed hard for low-latency monitoring (ADR 0064 §4).
+    pub(super) ll_off: [bool; MAX_EFFECTS_PER_TRACK],
 }
 
 impl MasterChain {
@@ -67,21 +69,26 @@ impl MasterChain {
             dry_l: vec![0.0; PASS_FRAMES],
             dry_r: vec![0.0; PASS_FRAMES],
             gr: 0.0,
+            ll_off: [false; MAX_EFFECTS_PER_TRACK],
         }
     }
 
     /// The chain's latency: every insert's, bypassed or not (soft bypass keeps it).
     pub(super) fn latency(&self) -> usize {
-        self.effects.iter().map(|e| e.latency()).sum()
-    }
-
-    /// Whether the chain has anything to do to the mix this pass: an insert that runs, or
-    /// a latent one whose dry line must keep time.
-    pub(super) fn runs(&self) -> bool {
         self.effects
             .iter()
             .enumerate()
-            .any(|(i, e)| (self.fx_enabled && !self.bypass[i]) || e.latency() > 0)
+            .filter(|(i, _)| !self.ll_off[*i])
+            .map(|(_, e)| e.latency())
+            .sum()
+    }
+
+    /// Whether the chain has anything to do to the mix this pass: an insert that runs, or
+    /// a latent one whose dry line must keep time (not one bypassed hard for monitoring).
+    pub(super) fn runs(&self) -> bool {
+        self.effects.iter().enumerate().any(|(i, e)| {
+            !self.ll_off[i] && ((self.fx_enabled && !self.bypass[i]) || e.latency() > 0)
+        })
     }
 }
 
@@ -103,6 +110,17 @@ impl Processor {
     /// keys are resolved, before unclaimed units are thrown away.
     pub(super) fn install_master(&mut self, snapshot: &Snapshot) {
         self.scratch_effects.clear();
+        // The hard bypass goes with its unit (review 2), as on a strip.
+        let mut was_off = [(cantus_core::EffectId(u64::MAX), false); MAX_EFFECTS_PER_TRACK];
+        for (i, e) in self
+            .master
+            .effects
+            .iter()
+            .enumerate()
+            .take(MAX_EFFECTS_PER_TRACK)
+        {
+            was_off[i] = (e.id, self.master.ll_off[i]);
+        }
         while let Some(e) = self.master.effects.pop() {
             self.scratch_effects.push(e);
         }
@@ -127,6 +145,7 @@ impl Processor {
                     m.mix[idx] = want.mix.clamp(0.0, 1.0);
                     m.key_id[idx] = want.sidechain;
                     m.midi_id[idx] = want.midi_from;
+                    m.ll_off[idx] = was_off.iter().any(|(id, off)| *off && *id == unit.id);
                     m.effects.push(unit);
                 }
                 // Not delivered yet (or dropped): skipped this snapshot, as on a strip.
@@ -166,7 +185,15 @@ impl Processor {
         for i in 0..self.master.effects.len() {
             let (effect, latency) = {
                 let e = &self.master.effects[i];
-                (e.id, e.latency())
+                // Bypassed hard for monitoring: no latency, no dry line (ADR 0064 §4).
+                (
+                    e.id,
+                    if self.master.ll_off[i] {
+                        0
+                    } else {
+                        e.latency()
+                    },
+                )
             };
             self.pdc.want(kept, Edge::MasterDry(i), latency);
             let track = self.master.midi_id[i].and_then(|id| self.slot_for(id));

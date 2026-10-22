@@ -60,13 +60,17 @@ pub fn compare(current: &Report, baseline: &Report, threshold_pct: f64) -> Vec<V
             continue;
         };
         let (c, s) = (&m.summary, &b.summary);
-        let worse_pct = if s.median.abs() < f64::EPSILON {
-            0.0
+        // A baseline of zero (a hit's place through markers: 0 frames) is an absolute
+        // bound: one unit past it is 100 % worse — it could never regress before (round
+        // 29's third review).
+        let scale = if s.median.abs() < f64::EPSILON {
+            1.0
         } else {
-            match m.better {
-                Better::Lower => (c.median - s.median) / s.median.abs() * 100.0,
-                Better::Higher => (s.median - c.median) / s.median.abs() * 100.0,
-            }
+            s.median.abs()
+        };
+        let worse_pct = match m.better {
+            Better::Lower => (c.median - s.median) / scale * 100.0,
+            Better::Higher => (s.median - c.median) / scale * 100.0,
         };
         // The runs are apart when even the current best run is past the baseline's worst
         // (and the other way round for an improvement).

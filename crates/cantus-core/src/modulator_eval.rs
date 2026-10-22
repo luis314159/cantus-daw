@@ -18,26 +18,70 @@ use cantus_dsp::modfx_lfo::{wave, Shape as Wave};
 
 /// When a modulator is asked.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct ModTime {
+pub struct ModTime<'a> {
     /// The song position, in beats.
     pub beats: f64,
     /// Seconds since playback started.
     pub since_play: f64,
-    /// Seconds per beat at the project's tempo.
+    /// Seconds per beat at the tempo there.
     pub spb: f64,
     /// The sequenced notes are playing (stopped, only live notes open an envelope).
     pub playing: bool,
+    /// The tempo map when the tempo changes along the song (ADR 0060): beats become
+    /// seconds through it (an envelope's gates, a retriggered LFO in Hz). `None` at one
+    /// tempo — `spb` is exact then.
+    pub map: Option<&'a crate::tempo::TempoMap>,
 }
 
-impl ModTime {
+impl ModTime<'static> {
     /// Where the song is at `beats`, with playback started at `play_beats`, at `bpm`.
-    pub fn at_beats(beats: f64, play_beats: f64, bpm: f64) -> ModTime {
+    pub fn at_beats(beats: f64, play_beats: f64, bpm: f64) -> ModTime<'static> {
         let spb = 60.0 / bpm.max(1e-9);
         ModTime {
             beats,
             since_play: ((beats - play_beats) * spb).max(0.0),
             spb,
             playing: true,
+            map: None,
+        }
+    }
+}
+
+impl<'a> ModTime<'a> {
+    /// Where the song is at `beats` through `map`, playback started at `play_beats`: at
+    /// one tempo exactly [`ModTime::at_beats`].
+    pub fn at_beats_in(beats: f64, play_beats: f64, map: &'a crate::tempo::TempoMap) -> Self {
+        if map.is_constant() {
+            return ModTime::at_beats(beats, play_beats, map.bpm_at(0.0));
+        }
+        let ppq = crate::PPQ as f64;
+        ModTime {
+            beats,
+            since_play: map
+                .seconds_between_f64(play_beats * ppq, beats * ppq)
+                .max(0.0),
+            spb: 60.0 / map.bpm_at(beats * ppq).max(1e-9),
+            playing: true,
+            map: Some(map),
+        }
+    }
+
+    /// The map when the tempo changes along it.
+    #[inline]
+    fn moving_map(&self) -> Option<&'a crate::tempo::TempoMap> {
+        self.map.filter(|m| !m.is_constant())
+    }
+
+    /// Seconds from beat `from` to this time, never negative: through the map when the
+    /// tempo changes, at `spb` otherwise.
+    #[inline]
+    pub fn seconds_since(&self, from: f64) -> f64 {
+        match self.moving_map() {
+            Some(m) => {
+                let ppq = crate::PPQ as f64;
+                m.seconds_between_f64(from * ppq, self.beats * ppq).max(0.0)
+            }
+            None => (self.beats - from).max(0.0) * self.spb,
         }
     }
 }
@@ -60,6 +104,9 @@ pub struct Levels {
     pub env: EnvSource,
     pub spb: f64,
     pub from: Vec<f32>,
+    /// Under a tempo map that changes (ADR 0060): the gates in song seconds, which the
+    /// levels were computed on.
+    pub secs: Option<Vec<Gate>>,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -117,8 +164,68 @@ impl Gates {
                 env: env.clone(),
                 spb,
                 from,
+                secs: None,
             })),
         }
+    }
+
+    /// [`Gates::with_levels`] through a tempo map (ADR 0060): at one tempo exactly that;
+    /// when the tempo changes, every gate in song seconds and the levels computed on them.
+    pub fn with_levels_in(&self, env: &EnvSource, map: &crate::tempo::TempoMap) -> Gates {
+        if map.is_constant() {
+            return self.with_levels(env, 60.0 / map.bpm_at(0.0).max(1e-9));
+        }
+        let ppq = crate::PPQ as f64;
+        let sec = |b: f64| {
+            if b.is_finite() {
+                map.seconds_at(b * ppq)
+            } else {
+                b
+            }
+        };
+        let secs: Vec<Gate> = self
+            .gates
+            .iter()
+            .map(|g| Gate {
+                on: sec(g.on),
+                off: sec(g.off),
+            })
+            .collect();
+        let mut from = Vec::with_capacity(secs.len());
+        let mut level = 0f32;
+        for i in 0..secs.len() {
+            from.push(level);
+            if let Some(next) = secs.get(i + 1) {
+                level = secs_level(env, level, secs[i], next.on);
+            }
+        }
+        Gates {
+            gates: self.gates.clone(),
+            levels: Some(Box::new(Levels {
+                env: env.clone(),
+                spb: 0.0,
+                from,
+                secs: Some(secs),
+            })),
+        }
+    }
+
+    /// The envelope's level at `t`: through the gates in seconds when they were computed
+    /// for this envelope under the moving tempo map `t` carries; otherwise
+    /// [`Gates::level`].
+    pub fn level_at(&self, env: &EnvSource, t: &ModTime) -> f32 {
+        if let (Some(map), Some(l)) = (t.moving_map(), &self.levels) {
+            if let Some(secs) = l.secs.as_ref().filter(|s| s.len() == self.gates.len()) {
+                if l.env == *env && l.from.len() == self.gates.len() {
+                    let Some(i) = self.at(t.beats) else {
+                        return 0.0;
+                    };
+                    let now = map.seconds_at(t.beats * crate::PPQ as f64);
+                    return secs_level(env, l.from[i], secs[i], now);
+                }
+            }
+        }
+        self.level(env, t.beats, t.spb)
     }
 
     /// The gate playing at beat `t`: the last one opened at or before it.
@@ -166,6 +273,16 @@ impl Gates {
         };
         gate_level(env, from, secs, (t - g.on) * spb)
     }
+}
+
+/// A gate's level at song second `now`, the gate `g` in song seconds, started from
+/// `from`.
+fn secs_level(env: &EnvSource, from: f32, g: Gate, now: f64) -> f32 {
+    let secs = Gate {
+        on: 0.0,
+        off: g.off - g.on,
+    };
+    gate_level(env, from, secs, now - g.on)
 }
 
 /// An ADSR's level `t` seconds into gate `g` (in seconds, `g.on` its start) that started
@@ -227,7 +344,7 @@ fn cycles(rate: ModRate, t: &ModTime, since: Option<f64>) -> f64 {
         }
         ModRate::Hz { hz } => {
             let secs = match since {
-                Some(b) => (t.beats - b).max(0.0) * t.spb,
+                Some(b) => t.seconds_since(b),
                 None => t.since_play,
             };
             secs * f64::from(hz.clamp(ModRate::MIN_HZ, ModRate::MAX_HZ))
@@ -296,7 +413,7 @@ pub fn output(src: &ModSource, t: &ModTime, gates: Option<&Gates>, live_on: Opti
             polar(v, r.unipolar)
         }
         ModSource::Envelope(e) => match (&e.trigger, gates) {
-            (super::EnvTrigger::Notes { .. }, Some(g)) if t.playing => g.level(e, t.beats, t.spb),
+            (super::EnvTrigger::Notes { .. }, Some(g)) if t.playing => g.level_at(e, t),
             _ => 0.0,
         },
         ModSource::Follower(_) => 0.0,

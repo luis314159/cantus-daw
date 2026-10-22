@@ -73,6 +73,44 @@ pub struct ParamInfo {
     pub automatable: bool,
     pub hidden: bool,
     pub read_only: bool,
+    /// How many steps a stepped parameter has from `min` to `max`, as the plug-in counts
+    /// them (VST3 `stepCount`; CLAP `max − min`); 0 when continuous or not said (review 4
+    /// of ADR 0062, #1, #58). A VST3's plain values need not be step numbers: JUCE's and
+    /// the SDK's base parameter give a four-way choice as 0…1, another plug-in 0, 10…40.
+    #[serde(default)]
+    pub steps: u32,
+}
+
+impl ParamInfo {
+    /// The steps from `min` to `max` of a stepped parameter (`None` for a continuous one):
+    /// the plug-in's count, or the whole units between the ends when it said none.
+    pub fn step_count(&self) -> Option<u32> {
+        if !self.stepped {
+            return None;
+        }
+        if self.steps > 0 {
+            return Some(self.steps);
+        }
+        let n = (self.max - self.min).abs().round();
+        (n >= 1.0 && n < f64::from(u32::MAX)).then_some(n as u32)
+    }
+
+    /// `plain` on the parameter's nearest step (counted in its own steps, never in whole
+    /// plain units); a continuous parameter's value as it is.
+    pub fn snap(&self, plain: f64) -> f64 {
+        snap_to_steps(plain, self.min, self.max, self.step_count().unwrap_or(0))
+    }
+}
+
+/// `plain` on the nearest of `steps` steps from `min` to `max` (0: continuous).
+pub fn snap_to_steps(plain: f64, min: f64, max: f64, steps: u32) -> f64 {
+    let span = max - min;
+    if steps == 0 || span == 0.0 || !plain.is_finite() {
+        return plain;
+    }
+    let n = f64::from(steps);
+    let k = ((plain - min) / span * n).round().clamp(0.0, n);
+    min + k / n * span
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -91,6 +129,17 @@ pub enum HostError {
     State(String),
     #[error("editor: {0}")]
     Editor(String),
+    /// The plug-in's process ended or stopped answering (an isolated plug-in, ADR 0063).
+    #[error("the plug-in stopped working: {0}")]
+    Crashed(String),
+    /// Its helper ended while it loaded, and whose doing that was (round 29, review #40):
+    /// a neighbour's crash is no crash of this plug-in's.
+    #[error("the plug-in stopped working: {why}")]
+    Ended { why: String, blame: Blame },
+    /// Its helper lives but has not answered yet (a plug-in's dialog is open, a slow call
+    /// is ahead of this one): the call is given up, not the helper (round 29, review #4).
+    #[error("the plug-in is busy: {0}")]
+    Busy(String),
 }
 
 /// How the engine will run the plug-in.
@@ -114,6 +163,21 @@ pub trait Backend: Send + Sync {
     fn scan(&self, path: &Path) -> Result<Vec<PluginInfo>, HostError>;
     /// Load, instantiate and activate one plug-in. Main thread.
     fn load(&self, info: &PluginInfo, setup: AudioSetup) -> Result<Loaded, HostError>;
+
+    /// Load one plug-in with its state and values in one step, where the backend does that
+    /// itself — an isolated plug-in: one request to its helper, answered later (its first
+    /// job has its state; round 29, review isolation-5). `None`: the host loads, then gives
+    /// the state and the values.
+    fn load_with(
+        &self,
+        info: &PluginInfo,
+        setup: AudioSetup,
+        state: &[u8],
+        values: &[(u32, f64)],
+    ) -> Option<Result<Loaded, HostError>> {
+        let _ = (info, setup, state, values);
+        None
+    }
 }
 
 /// A loaded, activated plug-in, split by thread.
@@ -142,8 +206,54 @@ pub enum Notice {
     EditorResized(EditorSize),
     /// The user closed its window (floating editors).
     EditorClosed,
+    /// Its window opened after all: an isolated plug-in's editor asked for while its
+    /// helper was busy opens once it is free (round 29, review isolation-4 #39). The host
+    /// keeps it as open.
+    EditorOpened,
+    /// It is loaded — an isolated plug-in, whose load is answered later: its parameters
+    /// and latency are known now, and [`MainThread::take_audio`] has its audio half (the
+    /// first one passed dry until now). Round 29, review isolation-5.
+    Loaded,
+    /// Its load failed, its helper alive (it refused, or did not load within its limit):
+    /// not a crash. The host keeps it as a plug-in that could not be loaded, with Reload.
+    LoadFailed(String),
     /// It must be deactivated and activated again (the host does it off the audio thread).
     RestartNeeded,
+    /// It stopped working (round 29, ADR 0063): the process it ran in crashed, or it hung
+    /// and was ended. Its audio half passes the sound through (an effect) or stays silent
+    /// (an instrument) until it is reloaded; its last-good state is what `save_state`
+    /// answers from now on. Said once.
+    Crashed {
+        reason: String,
+        /// Whether it was this plug-in that crashed or hung its process (review #49).
+        blame: Blame,
+    },
+}
+
+/// A state asked for ([`MainThread::poll_state`]).
+#[derive(Debug)]
+pub enum StatePoll {
+    /// Its state as it is now.
+    Fresh(Vec<u8>),
+    /// Still on its way.
+    Waiting,
+    /// Not to be had in time: what it said last, and why.
+    Stale(Vec<u8>, String),
+    /// No state at all.
+    Failed(HostError),
+}
+
+/// Who an isolated plug-in's helper's end is laid on (round 29, review #49): the plug-in
+/// that crashed or hung it, so a neighbour that merely shared its process is neither
+/// counted nor remembered for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Blame {
+    /// This instance was running when its helper died.
+    This,
+    /// Another instance of its helper was.
+    Neighbour,
+    /// Nothing says which.
+    Unknown,
 }
 
 /// Everything called on the main (UI) thread.
@@ -206,6 +316,101 @@ pub trait MainThread: Send {
     /// Whether the editor can be resized by the host window.
     fn editor_can_resize(&self) -> bool {
         false
+    }
+
+    // ---- Additions (round 29, ADR 0063: plug-ins out of process). Defaults again. ----
+
+    /// Bring the plug-in's own editor window forward, when the window is its own (an
+    /// isolated plug-in's lives in its helper process). `false`: the host's window serves.
+    fn focus_editor(&mut self) -> bool {
+        false
+    }
+
+    /// A good moment to remember the plug-in's state (a gesture ended): an isolated
+    /// plug-in refreshes the last-good state it keeps for a crash. Nothing in process.
+    fn checkpoint(&mut self) {}
+
+    /// The time the plug-in itself spent processing, in nanoseconds, and the frames it
+    /// covered, since it was loaded — measured in its helper process. `None` in process
+    /// (the host measures the call there).
+    fn own_time(&self) -> Option<(u64, u64)> {
+        None
+    }
+
+    /// The id of the helper process it runs in; `None` within Cantus.
+    fn isolated_in(&self) -> Option<u32> {
+        None
+    }
+
+    /// A number of its helper's own, never reused as a process id may be: what a helper's
+    /// death is counted once by (review isolation-4 #35, #53, #59). `None` within Cantus.
+    fn helper_id(&self) -> Option<u64> {
+        None
+    }
+
+    /// Whether it waits on a window of its own — a call of its served past its limit while
+    /// its helper lives: a dialog, perhaps behind Cantus (review isolation-4 #54).
+    fn waiting(&self) -> bool {
+        false
+    }
+
+    /// Brings the windows it waits on to the front.
+    fn surface(&mut self) {}
+
+    /// Asks for its state as it is now, to be collected with [`Self::poll_state`] — an
+    /// isolated plug-in, whose answer comes later (a request already under way since its
+    /// last change is the one used). In process: nothing to ask (round 29, review
+    /// isolation-5).
+    fn ask_state_now(&mut self) {}
+
+    /// The state asked for by [`Self::ask_state_now`]: in, still on its way, or not to be
+    /// had in time — then what it said last, and why (a save says which plug-in it kept
+    /// from an older state; never a stale state as a fresh one).
+    fn poll_state(&mut self) -> StatePoll {
+        match self.save_state() {
+            Ok(s) => StatePoll::Fresh(s),
+            Err(e) => StatePoll::Failed(e),
+        }
+    }
+
+    /// Whether the state asked for by [`Self::ask_state_now`] is still on its way — what
+    /// [`Self::poll_state`] says, without its bytes (a save looks each frame).
+    fn state_waiting(&mut self) -> bool {
+        false
+    }
+
+    /// Whether what [`Self::save_state`] answers is its state as it is now (an isolated
+    /// plug-in's last-good state may be older than its last change).
+    fn state_current(&self) -> bool {
+        true
+    }
+
+    /// Whether it is loaded (an isolated plug-in's load is answered later, and may fail).
+    fn loaded(&self) -> bool {
+        true
+    }
+
+    /// Its audio half made since it loaded (after [`Notice::Loaded`]), with its latency:
+    /// what replaces the first one. `None` in process.
+    fn take_audio(&mut self) -> Option<Box<dyn AudioThread>> {
+        None
+    }
+
+    /// Ends it — its helper — at the user's word, while it waits on a window of its own
+    /// that never answers. Told as a crash of its own.
+    fn stop(&mut self) {}
+
+    /// Blocks that passed without it because it was late (an isolated plug-in past its
+    /// deadline), since it was loaded.
+    fn late_blocks(&self) -> u64 {
+        0
+    }
+
+    /// Whether it has stopped working (an isolated plug-in whose helper ended), why, and
+    /// whether that was its own doing — asked any time, so a crash during a load or a
+    /// state that no `idle` reported is seen too (review #45). `None` while it works.
+    fn stopped(&self) -> Option<(String, Blame)> {
+        None
     }
 }
 
@@ -338,17 +543,33 @@ impl Default for ParamOut {
 pub struct TransportInfo {
     pub playing: bool,
     pub recording: bool,
+    /// The tempo at the block's first sample (inside a ramp, its step's: ADR 0060).
     pub tempo_bpm: f64,
+    /// How the tempo moves inside a ramp, BPM per sample (CLAP's `tempo_inc`); 0 when it
+    /// holds.
+    pub tempo_inc: f64,
     /// Position at the block's first sample, in quarter notes from the song start.
     pub position_beats: f64,
-    /// Position at the block's first sample, in samples from the song start.
+    /// Position at the block's first sample, in samples from the song start at the tempo
+    /// now (the synced-phase clock; see `position_seconds` for real time).
     pub position_samples: i64,
+    /// Position at the block's first sample, in seconds from the song start through the
+    /// tempo map: real time (CLAP's seconds timeline).
+    pub position_seconds: f64,
+    /// Position at the block's first sample, in real samples from the song start through
+    /// the tempo map, rounded once (VST3's `projectTimeSamples`; at one tempo exactly the
+    /// value every project before round 29 told — review 2).
+    pub project_samples: i64,
     /// Start of the current bar, in quarter notes.
     pub bar_start_beats: f64,
+    /// The current bar's 0-based index, counted through every metre change.
+    pub bar_number: i32,
     pub time_sig_num: u16,
     pub time_sig_den: u16,
     /// The loop, in quarter notes, when looping.
     pub loop_beats: Option<(f64, f64)>,
+    /// The loop in song seconds, when looping.
+    pub loop_seconds: Option<(f64, f64)>,
 }
 
 /// The audio buffers of one call: the main stereo pair processed in place, and the
@@ -379,4 +600,19 @@ pub trait AudioThread: Send {
     /// Stop processing. Called on the audio thread before the half is handed back to the
     /// UI thread to be dropped; `process` is not called again.
     fn stop(&mut self);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::snap_to_steps;
+
+    /// Review 4 of ADR 0062, #1, #58: a value lands on the plug-in's own steps.
+    #[test]
+    fn values_land_on_the_plug_ins_own_steps() {
+        assert_eq!(snap_to_steps(0.4, 0.0, 1.0, 3), 1.0 / 3.0);
+        assert_eq!(snap_to_steps(0.9, 0.0, 1.0, 3), 1.0);
+        assert_eq!(snap_to_steps(13.0, 0.0, 40.0, 4), 10.0);
+        assert_eq!(snap_to_steps(2.6, 1.0, 16.0, 15), 3.0);
+        assert_eq!(snap_to_steps(0.37, 0.0, 1.0, 0), 0.37, "continuous");
+    }
 }

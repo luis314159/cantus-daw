@@ -272,6 +272,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
     };
     let take = drawn.take.clone();
     let edit = drawn.edit.clone();
+    // The clip editor's two modes, Pitch and Warp (round 29, ADR 0061).
+    super::warp::tabs(app, ui);
     bar::show(app, ui, track, clip, &take, edit.as_deref());
     let full = ui.available_rect_before_wrap();
     if full.height() < 120.0 || full.width() < 200.0 {

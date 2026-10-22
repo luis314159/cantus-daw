@@ -38,16 +38,20 @@ pub struct PitchUi {
     pub lane: crate::views::pitch_lane::LaneState,
 }
 
-/// Where a clip's source frames sit on the timeline: content tick `c` reads source frame
-/// `seconds(c) · rate + slip` (ADR 0025 §7), at the project's tempo — mirrored inside the
+/// Where a clip's source frames sit on the timeline — through `cantus_core::audio_time`,
+/// the one mapping the engine plays by: an unwarped clip at natural speed from its start
+/// (ADR 0060), a warped clip through its warp markers (ADR 0061) — mirrored inside the
 /// window when the clip plays backwards, as the engine reads it.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ClipTime {
     pub start: Ticks,
     pub offset: Ticks,
     pub slip: i32,
     pub rate: u32,
-    pub bpm: f64,
+    /// The project's tempo map.
+    pub map: Arc<cantus_core::tempo::TempoMap>,
+    /// The clip's warp, when it is warped.
+    pub warp: Option<Arc<cantus_core::warp::Warp>>,
     /// Played backwards over the window that ends at `end`.
     pub reverse: bool,
     pub end: Ticks,
@@ -60,20 +64,40 @@ impl ClipTime {
             offset: clip.offset,
             slip: clip.audio.as_ref().map_or(0, |a| a.slip_frames),
             rate: source.sample_rate.max(1),
-            bpm: project.tempo_bpm,
+            map: crate::views::bars::map(project),
+            warp: clip
+                .audio
+                .as_ref()
+                .and_then(|a| a.warp.as_deref())
+                .map(|w| Arc::new(w.clone())),
             reverse: clip.audio.as_ref().is_some_and(|a| a.reverse),
             end: clip.end(),
         }
     }
 
     fn forward_frame(&self, t: Ticks) -> f64 {
-        let content = t - self.start + self.offset;
-        content.to_seconds(self.bpm) * self.rate as f64 + self.slip as f64
+        cantus_core::audio_time::frame_through(
+            &self.map,
+            self.start,
+            self.offset,
+            self.warp.as_deref(),
+            self.slip as f64,
+            self.rate as f64,
+            t.0 as f64,
+        )
     }
 
     fn forward_tick(&self, f: f64) -> Ticks {
-        let content = Ticks::from_seconds((f - self.slip as f64) / self.rate as f64, self.bpm);
-        content + self.start - self.offset
+        let t = cantus_core::audio_time::tick_through(
+            &self.map,
+            self.start,
+            self.offset,
+            self.warp.as_deref(),
+            self.slip as f64,
+            self.rate as f64,
+            f,
+        );
+        Ticks(t.round() as i64)
     }
 
     /// The source frame under timeline tick `t`.
@@ -232,9 +256,15 @@ impl CantusApp {
         ) else {
             return None;
         };
-        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
-        let start = first.snap_floor(bar).max(Ticks::ZERO);
-        let length = Ticks(((last - start).0 + bar.0 - 1) / bar.0 * bar.0).max(bar);
+        // Whole bars around the notes, through the metre changes (ADR 0060).
+        let map = crate::views::bars::map(self.project());
+        let start = map.bar_start(first).max(Ticks::ZERO);
+        let end = if map.bar_start(last) == last {
+            last
+        } else {
+            map.bar_end(last)
+        };
+        let length = (end - start).max(map.bar_end(start) - start);
         let name = self
             .project()
             .track(track)
@@ -338,8 +368,11 @@ impl CantusApp {
     /// The pitch editor is what the edit keys act on: the piano roll's place has the focus
     /// and shows an audio clip.
     pub fn pitch_editing(&self) -> Option<(TrackId, ClipId)> {
+        // Not while the clip editor shows *Warp*: its keys are the warp editor's (round
+        // 29's review: Q quantised a pitch edit no one could see).
         if self.focus != crate::app::EditFocus::PianoRoll
             || !self.workspace.is_visible(Pane::PianoRoll)
+            || self.warp.view.open
         {
             return None;
         }
@@ -432,7 +465,7 @@ impl CantusApp {
         };
         let at = match first {
             Some(t) => {
-                let beat = self.project().time_signature.ticks_per_beat();
+                let beat = crate::views::bars::map(self.project()).beat_len_at(t);
                 (t - beat).max(Ticks::ZERO)
             }
             None => self
@@ -554,5 +587,8 @@ impl CantusApp {
     /// [`Self::analyse_take_soon`] for a file by its path and rate (a finished take).
     pub fn analyse_file_soon(&self, path: &std::path::Path, rate: u32) {
         let _ = self.engine.samples.pitch().lookup(path, rate);
+        // And its transients and tempo (round 29, ADR 0061): a take is never warped by
+        // itself, but the warp editor and *Quantise audio* find them ready.
+        let _ = self.engine.samples.warp().lookup(path, rate);
     }
 }

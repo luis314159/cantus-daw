@@ -24,6 +24,10 @@ pub enum RenderError {
     /// short where it could not, so there is none.
     #[error("a sample could not be read: {0}")]
     Unreadable(String),
+    /// A frozen or bounced sound's latency moved during the song (an automated look-ahead
+    /// or mode): one render cannot hold it (round 29, review 3); it stays live.
+    #[error("its latency changes during the song")]
+    LatencyMoved,
 }
 
 /// A render's progress, for a dialog that shows it and may stop it
@@ -184,6 +188,8 @@ pub fn render_with_progress(
     let mut p = Processor::without_midi(sr, rx_engine, tx_engine);
     // Nobody reads an offline render's blame; the clock stamps are export time saved.
     p.set_profiling(false);
+    // A frozen render's reader waits for its blocks (ADR 0064).
+    p.set_offline(true);
 
     for slot in snap.effect_slots() {
         let unit = match units.iter().position(|u| u.id == slot.id) {
@@ -224,9 +230,10 @@ pub fn render_with_progress(
     tx.push(EngineMessage::Seek(opts.start)).ok();
     tx.push(EngineMessage::Play).ok();
 
-    let content_seconds = (end - opts.start)
-        .max(Ticks::ZERO)
-        .to_seconds(snapshot.tempo_bpm);
+    // Through the tempo map (ADR 0060); one tempo, `(end − start).to_seconds(bpm)`.
+    let content_seconds = snapshot
+        .tempo
+        .seconds_between(opts.start, end.max(opts.start));
     let total_frames = ((content_seconds + opts.tail_seconds) * sr).ceil() as usize;
     // With `compensate_latency`, sample 0 is the range's first tick: the master's lateness
     // is rendered on and dropped from the front.
@@ -242,7 +249,7 @@ pub fn render_with_progress(
     // The stop falls on the sample the transport reaches `end` at (its own arithmetic: a
     // note starting exactly there must not fire before the stop).
     let mut stop_at = opts.end.map(|e| {
-        crate::transport::sample_at(opts.start.0 as f64, e.0 as f64, snapshot.tempo_bpm, sr)
+        crate::transport::sample_at_map(&snapshot.tempo, opts.start.0 as f64, e.0 as f64, sr)
             as usize
     });
     let mut out = vec![0f32; total_frames * channels];

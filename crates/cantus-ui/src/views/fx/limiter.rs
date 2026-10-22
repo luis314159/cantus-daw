@@ -415,9 +415,37 @@ impl State {
     /// are the momentary windows every 100 ms of song time; the range uses the short-term
     /// ones — BS.1770's and Tech 3342's own blocks, taken from the history.
     pub fn measure(&mut self, from: Option<i64>, to: Option<i64>, bpm: f64, bar: i64) -> Summary {
+        let secs_per_bucket = BUCKET as f64 / PPQ as f64 * 60.0 / bpm.max(1.0);
+        let bar = bar.max(1);
+        self.measure_with(from, to, |_| secs_per_bucket, |t| t.div_euclid(bar) + 1)
+    }
+
+    /// [`Self::measure`] through a song's tempo map (review 2): each bucket the seconds it
+    /// lasts there — the loudness gated over real time — and the bars counted through the
+    /// metre changes.
+    pub fn measure_in(
+        &mut self,
+        from: Option<i64>,
+        to: Option<i64>,
+        map: &cantus_core::TempoMap,
+    ) -> Summary {
+        self.measure_with(
+            from,
+            to,
+            |b| map.seconds_between(Ticks(b * BUCKET), Ticks((b + 1) * BUCKET)),
+            |t| map.bbt(Ticks(t)).0,
+        )
+    }
+
+    fn measure_with(
+        &mut self,
+        from: Option<i64>,
+        to: Option<i64>,
+        bucket_secs: impl Fn(i64) -> f64,
+        bar_of: impl Fn(i64) -> i64,
+    ) -> Summary {
         self.gate.clear();
         self.range.clear();
-        let secs_per_bucket = BUCKET as f64 / PPQ as f64 * 60.0 / bpm.max(1.0);
         let lo = from.map(|t| t.div_euclid(BUCKET)).unwrap_or(i64::MIN);
         let hi = to.map(|t| t.div_euclid(BUCKET)).unwrap_or(i64::MAX);
         let mut out = Summary {
@@ -428,6 +456,7 @@ impl State {
         let mut first = None;
         let mut last = 0;
         for (&b, (c, _)) in self.song.range(lo..hi) {
+            let secs_per_bucket = bucket_secs(b);
             clock += secs_per_bucket;
             out.seconds += secs_per_bucket;
             if clock >= 0.1 {
@@ -446,32 +475,37 @@ impl State {
         out.integrated = self.gate.integrated();
         out.range = self.range.range();
         if let Some(f) = first {
-            out.bars = (
-                (f * BUCKET).div_euclid(bar) + 1,
-                (last * BUCKET).div_euclid(bar) + 1,
-            );
+            out.bars = (bar_of(f * BUCKET), bar_of(last * BUCKET));
         }
         out
     }
 
-    fn song_summary(&mut self, bpm: f64, bar: i64) -> Summary {
+    /// Measure through the song's map when it has one, else at its tempo.
+    fn measure_song(&mut self, from: Option<i64>, to: Option<i64>, song: &SongCtx) -> Summary {
+        match &song.map {
+            Some(map) => self.measure_in(from, to, map),
+            None => self.measure(from, to, song.bpm, song.bar),
+        }
+    }
+
+    fn song_summary(&mut self, song: &SongCtx) -> Summary {
         if let Some((rev, s)) = self.song_sum {
             if rev == self.song_rev {
                 return s;
             }
         }
-        let s = self.measure(None, None, bpm, bar);
+        let s = self.measure_song(None, None, song);
         self.song_sum = Some((self.song_rev, s));
         s
     }
 
-    fn selection_summary(&mut self, sel: (i64, i64), bpm: f64, bar: i64) -> Summary {
+    fn selection_summary(&mut self, sel: (i64, i64), song: &SongCtx) -> Summary {
         if let Some((rev, at, s)) = self.sel_sum {
             if rev == self.song_rev && at == sel {
                 return s;
             }
         }
-        let s = self.measure(Some(sel.0), Some(sel.1), bpm, bar);
+        let s = self.measure_song(Some(sel.0), Some(sel.1), song);
         self.sel_sum = Some((self.song_rev, sel, s));
         s
     }
@@ -858,7 +892,7 @@ fn lanes(rect: Rect, k: f32) -> Lanes {
 
 /// Where the song is, for the song view: the playhead, the arrangement's time selection
 /// (Cantus only), the bar and beat, the tempo.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 struct SongCtx {
     playhead: f64,
     sel: Option<(i64, i64)>,
@@ -867,20 +901,87 @@ struct SongCtx {
     bpm: f64,
     /// A peak label can move the playhead (Cantus owns the timeline; a plug-in does not).
     can_seek: bool,
+    /// The song's tempo map while it has more than one tempo or metre (Cantus; review 2):
+    /// the bars, their lines and the seconds through it. `None`: one tempo, one bar.
+    map: Option<std::sync::Arc<cantus_core::TempoMap>>,
+}
+
+impl SongCtx {
+    /// Each bar line in `[a, b]`: its 0-based number and its tick.
+    fn bar_lines(&self, a: f64, b: f64, mut f: impl FnMut(i64, f64)) {
+        match &self.map {
+            Some(m) => {
+                let from = m.bar_start(Ticks(a.floor() as i64));
+                for line in m.bar_lines(from, Ticks(b.ceil() as i64 + 1)) {
+                    f(m.bbt(line).0 - 1, line.0 as f64);
+                }
+            }
+            None => {
+                let first = (a as i64).div_euclid(self.bar);
+                let last = (b as i64).div_euclid(self.bar) + 1;
+                for bar in first..=last {
+                    f(bar, (bar * self.bar) as f64);
+                }
+            }
+        }
+    }
+
+    /// The beat lines inside the bar starting at `line` (not the bar line itself).
+    fn beat_lines(&self, line: f64, mut f: impl FnMut(f64)) {
+        match &self.map {
+            Some(m) => {
+                let at = Ticks(line as i64);
+                let end = m.bar_end(at);
+                crate::views::bars::lines(m, at, end, true, |t, is_bar| {
+                    if !is_bar && t > at {
+                        f(t.0 as f64);
+                    }
+                });
+            }
+            None => {
+                for n in 1..(self.bar / self.beat) {
+                    f(line + (n * self.beat) as f64);
+                }
+            }
+        }
+    }
+
+    /// Bar and beat (1-based) at `tick`.
+    fn bar_beat(&self, tick: i64) -> (i64, i64) {
+        match &self.map {
+            Some(m) => {
+                let (bar, beat, _) = m.bbt(Ticks(tick));
+                (bar, beat)
+            }
+            None => (
+                tick.div_euclid(self.bar) + 1,
+                tick.rem_euclid(self.bar) / self.beat + 1,
+            ),
+        }
+    }
 }
 
 fn song_ctx(host: &mut dyn FxHost, st: &State) -> SongCtx {
     let tr = host.transport();
     let bpm = tr.ticks_per_second / PPQ as f64 * 60.0;
     if let Some((app, _, _)) = host.daw() {
-        let ts = app.project().time_signature;
         return SongCtx {
             playhead: app.engine.position().0 as f64,
             sel: app.time_selection.map(|(a, b)| (a.0, b.0)),
-            bar: ts.ticks_per_bar().0.max(1),
-            beat: ts.ticks_per_beat().0.max(1),
+            // The bar at the playhead, through the metre changes (ADR 0060).
+            bar: crate::views::bars::bar_len(app.project(), app.engine.position())
+                .0
+                .max(1),
+            beat: crate::views::bars::map(app.project())
+                .beat_len_at(app.engine.position())
+                .0
+                .max(1),
             bpm,
             can_seek: true,
+            map: {
+                let m = crate::views::bars::map(app.project());
+                (!(m.is_constant() && m.is_one_metre())).then_some(m)
+            },
         };
     }
     SongCtx {
@@ -890,6 +991,7 @@ fn song_ctx(host: &mut dyn FxHost, st: &State) -> SongCtx {
         beat: (tr.ticks_per_bar / 4).max(1),
         bpm,
         can_seek: false,
+        map: None,
     }
 }
 
@@ -1359,11 +1461,10 @@ fn history(
         let key = (sp.x0.to_bits(), sp.x1.to_bits(), lang);
         if st.words.hover != Some(key) {
             let when = match sp.col.tick {
-                Some(tick) => format!(
-                    "{}.{}",
-                    tick.div_euclid(song.bar) + 1,
-                    tick.rem_euclid(song.bar) / song.beat + 1
-                ),
+                Some(tick) => {
+                    let (bar, beat) = song.bar_beat(tick);
+                    format!("{bar}.{beat}")
+                }
                 None => format!(
                     "\u{2212}{:.2} s",
                     (lv.right() - h.x) / lv.width() * st.span_s
@@ -1446,12 +1547,11 @@ fn history(
             }
             let px_per_bar = song.bar as f32 / song_len as f32 * lv.width();
             let every = (60.0 * k / px_per_bar.max(1.0)).ceil().max(1.0) as i64;
-            let first = (song_start as i64).div_euclid(song.bar);
-            let last = ((song_start + song_len) as i64).div_euclid(song.bar) + 1;
-            for bar in first..=last {
-                let x = x_of_tick((bar * song.bar) as f64);
+            // Through the metre changes when the song has them (review 2).
+            song.bar_lines(song_start, song_start + song_len, |bar, at| {
+                let x = x_of_tick(at);
                 if x < lv.left() || x > lv.right() {
-                    continue;
+                    return;
                 }
                 let strong = bar % every == 0;
                 b.vline(
@@ -1462,8 +1562,8 @@ fn history(
                     if strong { ink.grid_strong } else { ink.grid },
                 );
                 if px_per_bar > 80.0 * k {
-                    for n in 1..(song.bar / song.beat) {
-                        let xb = x_of_tick((bar * song.bar + n * song.beat) as f64);
+                    song.beat_lines(at, |t| {
+                        let xb = x_of_tick(t);
                         b.vline(
                             b.snap_mid(xb),
                             lv.bottom(),
@@ -1471,9 +1571,9 @@ fn history(
                             px,
                             ink.grid_strong,
                         );
-                    }
+                    });
                 }
-            }
+            });
         } else {
             let span = st.span_s;
             let step = live_step(span);
@@ -1704,20 +1804,18 @@ fn history(
         if view == View::Song {
             let px_per_bar = song.bar as f32 / song_len as f32 * lv.width();
             let every = (60.0 * k / px_per_bar.max(1.0)).ceil().max(1.0) as i64;
-            let first = (song_start as i64).div_euclid(song.bar);
-            let last = ((song_start + song_len) as i64).div_euclid(song.bar) + 1;
-            for bar in first..=last {
-                let x = x_of_tick((bar * song.bar) as f64);
+            song.bar_lines(song_start, song_start + song_len, |bar, tick| {
+                let x = x_of_tick(tick);
                 if x < lv.left() || x > lv.right() - 12.0 * k || bar % every != 0 {
-                    continue;
+                    return;
                 }
                 let at = pos2(x + 2.0 * k, axis.center().y);
                 if !ruler.fits(at.x, 6.0 * k) {
-                    continue;
+                    return;
                 }
                 let r = micro(b, at, Align2::LEFT_CENTER, format_args!("{}", bar + 1));
                 ruler.placed(r);
-            }
+            });
         } else {
             let span = st.span_s;
             let step = live_step(span);
@@ -2654,10 +2752,10 @@ fn loudness(
         // The song as last heard, and the time selection — from the history in song time.
         if !st.song.is_empty() {
             let ceiling = ls.ceiling_db;
-            let sum = st.song_summary(song.bpm, song.bar);
+            let sum = st.song_summary(song);
             summary_rows(ui, s, w, "lim.song", &sum, ceiling);
             if let Some(sel) = song.sel {
-                let sum = st.selection_summary(sel, song.bpm, song.bar);
+                let sum = st.selection_summary(sel, song);
                 summary_rows(ui, s, w, "lim.selection", &sum, ceiling);
             }
         }
@@ -2765,8 +2863,10 @@ fn style_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = STYLE_KEYS.map(Src::Key);
-            let r = ui
-                .scope(|ui| controls::segmented(ui, s, idx, &labels, frame::tr("fx.lim.style"), w));
+            let r = ui.scope(|ui| {
+                let name = frame::tr("fx.lim.style");
+                controls::segmented_key(ui, s, host, "style", idx, &labels, name, w)
+            });
             if let Some(i) = r.inner {
                 host.set("style", i as f32, None);
             }
@@ -2902,7 +3002,8 @@ fn output_card(
                 // Dither: off, or a word length.
                 let id = ui.id().with("lim-dither");
                 let r = ui.scope(|ui| {
-                    controls::field(ui, s, id, &st.words.dither, frame::tr("fx.lim.dither"), dw)
+                    let name = frame::tr("fx.lim.dither");
+                    controls::field_key(ui, s, host, "dither", id, &st.words.dither, name, dw)
                 });
                 if let Some(at) = r.inner {
                     let names: Vec<String> = (0..DITHER_BITS.len()).map(bits).collect();
@@ -2925,7 +3026,8 @@ fn output_card(
                 ui.add_enabled_ui(ls.dither > 0, |ui| {
                     let id = ui.id().with("lim-shape");
                     let r = ui.scope(|ui| {
-                        controls::field(ui, s, id, &st.words.shape, frame::tr("fx.lim.shape"), sw)
+                        let name = frame::tr("fx.lim.shape");
+                        controls::field_key(ui, s, host, "shape", id, &st.words.shape, name, sw)
                     });
                     if let Some(at) = r.inner {
                         let items: [_; 3] = std::array::from_fn(|i| {
@@ -3383,7 +3485,7 @@ pub fn demo_feed(app: &mut CantusApp) {
     let Some(spec) = app.project().effect(strip, effect).map(|e| e.spec.clone()) else {
         return;
     };
-    let bpm = app.project().tempo_bpm;
+    let bpm = crate::views::bars::bpm_at(app.project(), Ticks::ZERO);
     // Twelve bars of the project's tempo.
     let beats = 4.0 * 12.0;
     let (l, r) = demo_signal(beats * 60.0 / bpm as f32, bpm as f32);
@@ -3417,7 +3519,9 @@ pub fn demo_feed(app: &mut CantusApp) {
     // can draw.
     st.view = View::Song;
     app.fx.injected = Some(last);
-    let bar = app.project().time_signature.ticks_per_bar().0;
-    app.set_time_selection(Ticks(4 * bar), Ticks(8 * bar));
-    app.engine.seek(Ticks(11 * bar + bar / 2));
+    let map = crate::views::bars::map(app.project());
+    let (b5, b9, b12) = (map.bar_tick(5), map.bar_tick(9), map.bar_tick(12));
+    let half = (map.bar_tick(13) - b12).0 / 2;
+    app.set_time_selection(b5, b9);
+    app.engine.seek(b12 + Ticks(half));
 }

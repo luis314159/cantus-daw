@@ -341,7 +341,8 @@ pub fn merge_hits(hits: &[(i64, f32)], ticks_per_second: f64) -> Vec<(i64, f32)>
 }
 
 fn ticks_per_second(app: &CantusApp) -> f64 {
-    app.project().tempo_bpm / 60.0 * cantus_core::PPQ as f64
+    crate::views::bars::bpm_at(app.project(), app.engine.position()) / 60.0
+        * cantus_core::PPQ as f64
 }
 
 /// The pad the hits are written to: the chosen one, or the kit's first.
@@ -437,10 +438,12 @@ impl CantusApp {
             return false;
         }
         let kit = PulsusParams::default();
-        let bar = self.project().time_signature.ticks_per_bar().0.max(1);
-        let first = notes[0].0.div_euclid(bar) * bar;
+        // Whole bars around the hits, through the metre changes (ADR 0060).
+        let first = crate::views::bars::bar_start(self.project(), cantus_core::Ticks(notes[0].0)).0;
         let last = notes[notes.len() - 1].0;
-        let end = (last.div_euclid(bar) + 1) * bar;
+        let end = crate::views::bars::map(self.project())
+            .bar_end(cantus_core::Ticks(last))
+            .0;
         let name = tf(
             "gate.hits_track",
             &[(
@@ -779,7 +782,16 @@ fn style_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = STYLE_KEYS.map(Src::Key);
-            let r = controls::segmented(ui, s, idx, &labels, frame::tr("fx.gate.style"), w);
+            let r = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "style",
+                idx,
+                &labels,
+                frame::tr("fx.gate.style"),
+                w,
+            );
             if let Some(i) = r {
                 host.set("style", i as f32, None);
             }
@@ -811,9 +823,11 @@ fn trigger_card(
         let w = cr.body.width() / s.k;
         controls::column(ui, s, w, |ui| {
             let labels = [Src::Key("gate.trig.0"), Src::Key("gate.trig.1")];
-            if let Some(i) = controls::segmented(
+            if let Some(i) = controls::segmented_key(
                 ui,
                 s,
+                host,
+                "trig",
                 gs.midi as usize,
                 &labels,
                 frame::tr("fx.gate.trig"),
@@ -1031,6 +1045,15 @@ fn history(
     let swing = gs.swing_db().max(1.0);
     let gy = |g: f32| plot.top() + (g.abs() / swing).clamp(0.0, 1.0) * plot.height() * 0.33;
     let bar = host.transport().ticks_per_bar.max(1);
+    // In Cantus, the bars through the song's metre changes (review 2).
+    let map = host
+        .daw()
+        .map(|(app, _, _)| crate::views::bars::map(app.project()))
+        .filter(|m| !m.is_one_metre());
+    let new_bar = |a: i64, b: i64| match &map {
+        Some(m) => m.bar_start(cantus_core::Ticks(a)) != m.bar_start(cantus_core::Ticks(b)),
+        None => a.div_euclid(bar) != b.div_euclid(bar),
+    };
     let mut pts = [Pos2::ZERO; HISTORY];
     let n = hist.len().min(HISTORY);
     with_brush(&ui.painter_at(rect), |b| {
@@ -1048,7 +1071,7 @@ fn history(
         let mut prev: Option<i64> = None;
         for (i, c) in hist.iter().enumerate() {
             if let (Some(tk_), Some(pt)) = (c.tick, prev) {
-                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                if new_bar(tk_, pt) && tk_ > pt {
                     b.vline(
                         b.snap_mid(x_of(i)),
                         plot.top(),
@@ -1160,12 +1183,17 @@ fn history(
         let mut prev: Option<i64> = None;
         for (i, c) in hist.iter().enumerate() {
             if let (Some(tk_), Some(pt)) = (c.tick, prev) {
-                if tk_.div_euclid(bar) != pt.div_euclid(bar) && tk_ > pt {
+                if new_bar(tk_, pt) && tk_ > pt {
+                    // Numbered through the metre changes too (review 3).
+                    let number = match &map {
+                        Some(m) => m.bbt(cantus_core::Ticks(tk_)).0,
+                        None => tk_.div_euclid(bar) + 1,
+                    };
                     micro(
                         b,
                         pos2(x_of(i) + 2.0 * k, plot.top() + 2.0 * k),
                         Align2::LEFT_TOP,
-                        format_args!("{}", tk_.div_euclid(bar) + 1),
+                        format_args!("{number}"),
                     );
                 }
             }
@@ -1971,9 +1999,16 @@ fn key_card(
                 .iter()
                 .position(|v| (gs.key_slope - v).abs() < 0.5)
                 .unwrap_or(1);
-            if let Some(i) =
-                controls::segmented(ui, s, now, &slopes, frame::tr("gate.slope_tip"), w)
-            {
+            if let Some(i) = controls::segmented_key(
+                ui,
+                s,
+                host,
+                "key_slope",
+                now,
+                &slopes,
+                frame::tr("gate.slope_tip"),
+                w,
+            ) {
                 host.set("key_slope", [12.0, 24.0, 48.0][i], None);
             }
         });

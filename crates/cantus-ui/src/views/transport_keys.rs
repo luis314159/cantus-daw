@@ -12,7 +12,7 @@ use crate::kit::glyph::Glyph;
 use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Src, Text};
 use crate::kit::tokens::Tok;
-use crate::kit::{led, light, with_brush, State};
+use crate::kit::{led, light, with_brush, Fill, State};
 use crate::views;
 use crate::views::workspace::Pane;
 use egui::{Align2, Id, Pos2, Rect, Sense, Ui, Vec2};
@@ -40,6 +40,7 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let well = Rect::from_center_size(r.center(), Vec2::new(r.width(), 36.0 * k));
     let resp = ui.interact(well, Id::new("toolbar-mode"), Sense::click());
     let pattern = app.project().pattern_mode;
+    crate::controllers::learn_action_spot(app, ui, well, Action::TogglePatternMode);
     if resp.clicked() {
         app.run_action(Action::TogglePatternMode);
     }
@@ -110,11 +111,14 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         (stop, "transport.stop", Action::Stop),
     ];
     for (resp, key, action) in keys {
+        // MIDI learn mode (round 29, ADR 0062): every key here is learnable.
+        crate::controllers::learn_action_spot(app, ui, resp.rect, action);
         let resp = strip_tip(ui, resp, || tip(app, key, Some(action)));
         if resp.clicked() {
             app.run_action(action);
         }
     }
+    crate::controllers::learn_action_spot(app, ui, record.rect, Action::Record);
     let record = strip_tip(ui, record, || {
         tip(app, "transport.record", Some(Action::Record))
     });
@@ -144,6 +148,7 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     {
         app.run_action(Action::ToggleLoop);
     }
+    crate::controllers::learn_action_spot(app, ui, lr, Action::ToggleLoop);
 }
 
 // ---- undo ----------------------------------------------------------------------------
@@ -342,6 +347,10 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
     let m = ui.interact(mr, Id::new("toolbar-midi"), Sense::click());
     let a = ui.interact(ar, Id::new("toolbar-armed"), Sense::click());
     let (m_clicked, a_clicked) = (m.clicked(), a.clicked());
+    // The MIDI cell is also Live's *MIDI* key (round 29, ADR 0062): a click turns the
+    // learn mode on and off, a right-click opens the MIDI settings.
+    let m_settings = m.secondary_clicked();
+    let learning = app.controllers.learn_mode;
     WORDS.with(|words| {
         let mut words = words.borrow_mut();
         let (mv, av) = &mut *words;
@@ -352,6 +361,16 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         let (word0, _) = lamp_parts(ui.ctx(), s, 0);
         let (word1, _) = lamp_parts(ui.ctx(), s, 1);
         lamp_cell(ui, mr, s, midi_lit, Tok::Led, LAMP_WORDS[0], mv, word0);
+        if learning {
+            with_brush(ui.painter(), |b| {
+                b.rrect(
+                    mr.shrink(b.px()),
+                    s.r(3.0),
+                    Fill::Solid(s.t.highlight.gamma_multiply(0.2)),
+                );
+                b.rrect_stroke(mr.shrink(b.px()), s.r(3.0), s.s(1.5), s.t.highlight);
+            });
+        }
         lamp_cell(ui, ar, s, armed > 0, Tok::Danger, LAMP_WORDS[1], av, word1);
     });
     if m.hovered() {
@@ -364,10 +383,24 @@ pub fn inputs(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
                 &[("ports", &app.midi_port_names.join(", "))],
             )
         };
+        // With a port open the cell is Live's MIDI key: a click learns, a right-click
+        // opens the settings; with none, a click opens the settings (review 1, #29, #47).
+        let tip = if ports == 0 {
+            tip
+        } else {
+            let learn = match app.keymap.bindings_for(Action::MidiLearnMode).first() {
+                Some(b) => tf("ctl.topbar.lamp_tip_key", &[("key", &b.display())]),
+                None => t("ctl.topbar.lamp_tip"),
+            };
+            format!("{tip}. {learn}")
+        };
         hint::set_text(ui.ctx(), &tip, "", Caps::NONE);
         let _ = m.on_hover_text(tip);
     }
-    if m_clicked {
+    if m_clicked && ports > 0 {
+        app.run_action(Action::MidiLearnMode);
+    }
+    if m_settings || (m_clicked && ports == 0) {
         app.show_settings = true;
     }
     if a.hovered() {

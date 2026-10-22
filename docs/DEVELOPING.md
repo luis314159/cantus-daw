@@ -48,7 +48,10 @@ cargo run --release -p cantus -- --locale es     # in Spanish
 
 Hosted plug-ins are scanned by a separate program the app starts from beside itself; build
 it once with `cargo build --release -p cantus-host --bin cantus-scan` (the release package
-ships it). The first release build takes 10–15 minutes. `target\release\cantus.exe` is self-contained
+ships it). Third-party plug-ins run in another one, the plug-in sandbox (ADR 0063): build it
+beside the app with `cargo build --release -p cantus-sandbox` (a plain `cargo build` at the
+root builds both). Without it, isolated plug-ins run inside Cantus and the status line says
+so; `CANTUS_SANDBOX_EXE` points Cantus (and the tests) at another build of it. The first release build takes 10–15 minutes. `target\release\cantus.exe` is self-contained
 (fonts, themes, icons, demo songs are inside); copy it anywhere.
 
 A low-latency driver for testing: ASIO4ALL or FlexASIO (the app links both from
@@ -118,7 +121,8 @@ cargo run -p xtask -- manual                    # the manual as HTML into target
 
 Output goes to `target/package/dist/`. A release holds a small `cantus.exe` launcher
 (`crates/cantus-launch`) that starts `cantus-x86-64-v3.exe` or `cantus-x86-64-v2.exe` by
-the processor, plus `cantus-scan.exe` (the plug-in scanner); each level builds in
+the processor, plus `cantus-scan.exe` (the plug-in scanner) and `cantus-sandbox.exe` (the
+plug-in sandbox, ADR 0063); each level builds in
 `target/cpu-<level>`. `cargo run -p xtask -- null-hashes` proves the levels give the same
 bits. A development build (`cargo build -p cantus`) is a single plain program. The real signing certificate (SignPath) is not set
 up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a pushed

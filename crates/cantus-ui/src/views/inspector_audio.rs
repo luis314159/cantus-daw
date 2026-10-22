@@ -12,7 +12,7 @@ use crate::kit::hint::{self, Caps};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{cache, well, Function, State};
 use crate::waveform::Lookup;
-use cantus_core::{AudioSourceId, ClipId, MergeKey, Ticks, TrackId};
+use cantus_core::{AudioSourceId, ClipId, MergeKey, TrackId};
 use egui::{pos2, Align2, Id, Sense, Vec2};
 use std::fmt::Write as _;
 
@@ -124,7 +124,10 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
     }
 
     // How the clip plays it.
-    let bpm = app.project().tempo_bpm;
+    // Durations where the clip lies, through the tempo map (ADR 0060): a fade in from the
+    // clip's start, a fade out back from its end, as the engine plays them (review 2).
+    let map = crate::views::bars::map(app.project());
+    let (from, to) = (clip.start, clip.end());
     let gain = a.gain_db;
     let at = a.clone();
     sh.param_row(
@@ -140,7 +143,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         false,
         |v| Act::Merge(ac::set(t, clip, ac::with_gain(&at, v)), key(t, c)),
     );
-    let most = clip.length.to_seconds(bpm) as f32;
+    let most = crate::views::bars::seconds_between(app.project(), clip.start, clip.end()) as f32;
     for fade in [Fade::In, Fade::Out] {
         let (label, now, curve) = match fade {
             Fade::In => ("audioclips.fade_in", a.fade_in, a.fade_in_curve),
@@ -150,7 +153,7 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
         sh.param_row(
             label,
             Id::new(("insp-audio-fade", c, fade == Fade::In)),
-            now.to_seconds(bpm) as f32,
+            crate::audio_clips::fade_seconds(&map, from, to, now, fade == Fade::Out) as f32,
             &Range::lin(0.0, most.max(0.001), 0.0),
             false,
             |v, b| {
@@ -163,7 +166,8 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, c: ClipId) {
             Function::Source,
             false,
             |v| {
-                let len = Ticks::from_seconds(v as f64, bpm);
+                let len =
+                    crate::audio_clips::fade_ticks(&map, from, to, v as f64, fade == Fade::Out);
                 let next = match fade {
                     Fade::In => ac::with_fade_in(clip, &at, len),
                     Fade::Out => ac::with_fade_out(clip, &at, len),

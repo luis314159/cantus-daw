@@ -79,6 +79,7 @@ mod meters;
 mod paint;
 #[path = "mixer_parts.rs"]
 mod parts;
+pub use parts::chain_hint;
 #[path = "mixer_routehere.rs"]
 mod routehere;
 #[path = "mixer_strip.rs"]
@@ -635,6 +636,15 @@ pub fn set_width_mode(app: &mut CantusApp, mode: WidthMode) {
     app.mixer.prefs.by_layout.insert(layout, p);
 }
 
+/// Screenshots and tests: show or hide a family of the desk's rows.
+pub fn set_row(app: &mut CantusApp, row: layout::Row, on: bool) {
+    let mut p = app.mixer.prefs.current;
+    p.rows.set(row, on);
+    app.mixer.prefs.current = p;
+    let layout = app.mixer.prefs.layout.clone();
+    app.mixer.prefs.by_layout.insert(layout, p);
+}
+
 /// Screenshots and tests: open a strip's menu (`None`: the desk's) with its pointer at
 /// `at`, and optionally one of its submenus by row.
 pub fn open_menu(app: &mut CantusApp, strip: Option<StripId>, at: egui::Pos2) {
@@ -644,6 +654,17 @@ pub fn open_menu(app: &mut CantusApp, strip: Option<StripId>, at: egui::Pos2) {
         None => menu::Menu::Desk,
     };
     app.mixer.popups.open(m, at);
+}
+
+/// Screenshots and tests: open an insert's menu (as a right-click on its name in the
+/// strip's chain line does) with its pointer at `at`.
+pub fn open_slot_menu(
+    app: &mut CantusApp,
+    strip: StripId,
+    effect: cantus_core::EffectId,
+    at: egui::Pos2,
+) {
+    app.mixer.popups.open(menu::Menu::Slot(strip, effect), at);
 }
 
 /// Screenshots and tests: open the cable view's options menu under its title-row key

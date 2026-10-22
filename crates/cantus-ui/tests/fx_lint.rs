@@ -11,6 +11,12 @@ use std::path::PathBuf;
 /// elsewhere goes here.
 const ON_THE_KIT: &[&str] = &[
     "views/comp_editor.rs",
+    // Round 29, warp (ADR 0061).
+    "views/warp.rs",
+    "views/warp_bar.rs",
+    "views/warp_quantise.rs",
+    "views/inspector_warp.rs",
+    "views/arrangement_warp.rs",
     "views/comp_editor/desk.rs",
     "views/comp_editor/history.rs",
     "views/comp_editor/key.rs",
@@ -61,13 +67,23 @@ const ON_THE_KIT: &[&str] = &[
     "views/fx/translatio.rs",
     "views/fx/tremor.rs",
     "views/fx/vibrans.rs",
+    "views/arrangement_markers.rs",
+    "views/arrangement_tempo.rs",
+    "views/bars.rs",
     "views/pitch.rs",
     "views/pitch_bar.rs",
     "views/pitch_input.rs",
     "views/pitch_lane.rs",
     "views/pitch_paint.rs",
     "views/pitch_panel.rs",
+    "views/plugin_notice.rs",
+    // Round 29, freeze (ADR 0064).
+    "views/freeze_view.rs",
+    "views/freeze_monitor.rs",
     "views/plugins.rs",
+    "views/audio_notice.rs",
+    // Round 29, controllers (ADR 0062): the mappings pane.
+    "views/controllers.rs",
 ];
 
 /// What a file on the kit never says.

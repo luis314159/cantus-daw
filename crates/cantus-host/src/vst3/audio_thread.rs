@@ -109,6 +109,9 @@ pub struct AudioHalf {
     /// controller hears them as it hears the host's changes.
     midi_ids: [ParamID; MIDI_IDS],
     midi_len: usize,
+    /// The program list heard a MIDI program change this block: once its value is on its
+    /// way to the controller (`report`), the main thread is told the state changed.
+    midi_program: Option<ParamID>,
 }
 
 /// Distinct MIDI-mapped parameters reported to the controller per block.
@@ -144,6 +147,7 @@ impl AudioHalf {
             has_event_input,
             midi_ids: [0; MIDI_IDS],
             midi_len: 0,
+            midi_program: None,
             inst,
         }
     }
@@ -168,7 +172,8 @@ impl AudioHalf {
                 c.projectTimeSamples = self.frames;
             }
             Some(t) => {
-                c.projectTimeSamples = t.position_samples;
+                // Real samples through the tempo map (ADR 0060), rounded once by the engine.
+                c.projectTimeSamples = t.project_samples;
                 c.projectTimeMusic = t.position_beats;
                 c.barPositionMusic = t.bar_start_beats;
                 c.tempo = t.tempo_bpm;
@@ -222,6 +227,7 @@ impl AudioHalf {
         self.in_events.clear();
         self.out_events.clear();
         self.midi_len = 0;
+        self.midi_program = None;
         for n in notes {
             if let NoteKind::Midi {
                 status,
@@ -230,7 +236,13 @@ impl AudioHalf {
             } = n.kind
             {
                 // A controller travels as the parameter the controller maps it to.
+                // A program change reaches the program list; the controller hears it (below),
+                // and the main thread reports the plug-in's state changed — the project keeps
+                // the program as the state step it is (round 29, review 2 of ADR 0062, #52).
                 if let Some((id, norm)) = self.inst.midi_param(n.channel, status, data1, data2) {
+                    if status & 0xF0 == 0xC0 {
+                        self.midi_program = Some(id);
+                    }
                     self.in_changes
                         .add(id, n.offset.min(last as u32) as i32, norm);
                     let seen = self.midi_ids[..self.midi_len].contains(&id);
@@ -257,7 +269,15 @@ impl AudioHalf {
             let midi = self.midi_ids[..self.midi_len].contains(&q.id());
             if midi || params.iter().any(|c| c.id == q.id()) {
                 if let Some(&(_, v)) = q.points().last() {
-                    let _ = self.to_ui.push((q.id(), v));
+                    let sent = self.to_ui.push((q.id(), v)).is_ok();
+                    // The state change is said only once the program's value is in the
+                    // ring: an idle that sees the flag finds the value too, and a capture
+                    // reads the new program (review 4 of ADR 0062, #10, #57).
+                    if sent && self.midi_program == Some(q.id()) {
+                        self.inst
+                            .program_changed
+                            .store(true, std::sync::atomic::Ordering::Release);
+                    }
                 }
             }
         }

@@ -1,0 +1,228 @@
+//! The render store's bookkeeping (round 29's second review): what a piece falls back on,
+//! and what the budget keeps.
+
+use super::*;
+
+fn data(frames: usize) -> SampleData {
+    SampleData {
+        stream: None,
+        rate: 48_000,
+        channels: 1,
+        frames: vec![0.0f32; frames].into(),
+    }
+}
+
+const C: ClipId = ClipId(7);
+
+/// Key `k` was made from `a.wav` (a following warp's, content from tick 0).
+fn made(r: &mut Renders, k: u64) {
+    made_from(r, k, "a.wav");
+}
+
+fn made_from(r: &mut Renders, k: u64, path: &str) {
+    r.made.insert(
+        k,
+        Made {
+            path: PathBuf::from(path),
+            follow: true,
+            offset: Ticks::ZERO,
+            head: 0.0,
+        },
+    );
+}
+
+fn a() -> &'static Path {
+    Path::new("a.wav")
+}
+
+/// Findings 20: a final asked for at an earlier drag step arriving after the bridges of
+/// later steps is filed behind them — the piece falls back on the newest asked.
+#[test]
+fn a_late_final_never_comes_back_over_a_newer_bridge() {
+    let mut r = Renders::default();
+    let p = (C, Ticks::ZERO);
+    // Step 1 asks K1, steps 2 and 3 ask K2 and K3 (their bridges arrive).
+    for (g, k) in [(1, 1u64), (2, 2), (3, 3)] {
+        r.generation = g;
+        r.stamp.insert(k, g);
+        made(&mut r, k);
+    }
+    r.put_bridge(2, data(10));
+    r.remember(p, 2);
+    r.put_bridge(3, data(10));
+    r.remember(p, 3);
+    // K1's final lands last.
+    r.put_done(1, data(10));
+    r.remember(p, 1);
+    assert_eq!(r.fallback(p, 48_000, a()).map(|x| x.0), Some(3));
+    assert_eq!(r.recent[&p], vec![3, 2, 1]);
+}
+
+/// Finding 20: a clip moved back to where it was edited before falls back on its newest
+/// renders, not on what that place had.
+#[test]
+fn a_piece_moved_back_falls_back_on_its_clips_newest() {
+    let mut r = Renders::default();
+    let (s1, s2) = ((C, Ticks::ZERO), (C, Ticks::beats(8)));
+    made(&mut r, 1);
+    made(&mut r, 2);
+    r.stamp.insert(1, 1);
+    r.put_done(1, data(10));
+    r.remember(s1, 1);
+    r.stamp.insert(2, 5);
+    r.put_done(2, data(10));
+    r.remember(s2, 2);
+    assert_eq!(r.fallback(s1, 48_000, a()).map(|x| x.0), Some(2));
+    // A loop's pieces asked together: each its own.
+    r.stamp.insert(1, 5);
+    assert_eq!(r.fallback(s1, 48_000, a()).map(|x| x.0), Some(1));
+    assert_eq!(r.fallback(s2, 48_000, a()).map(|x| x.0), Some(2));
+}
+
+/// Findings 23, 42: past the budget the oldest asked go first; what plays (protected) is
+/// kept whatever its age; what goes waits in the graveyard while a snapshot holds it.
+#[test]
+fn the_budget_keeps_what_plays_and_the_newest() {
+    let mut r = Renders {
+        budget: 3 * 400,
+        ..Default::default()
+    };
+    let p = (C, Ticks::ZERO);
+    for k in 1..=5u64 {
+        r.stamp.insert(k, k);
+        r.put_done(k, data(100));
+        r.remember(p, k);
+    }
+    let playing = r.done[&1].clone();
+    let protected: HashSet<u64> = [1].into_iter().collect();
+    r.keep(&protected);
+    let mut held: Vec<u64> = r.done.keys().copied().collect();
+    held.sort();
+    assert_eq!(held, vec![1, 3, 4, 5], "the oldest unplayed went");
+    // Nothing protected now: 1 goes too, into the graveyard while the snapshot holds it.
+    r.keep(&HashSet::new());
+    assert!(!r.done.contains_key(&1));
+    r.sweep();
+    assert_eq!(
+        r.graveyard.len(),
+        1,
+        "2 freed, 1 waits while the snapshot holds it"
+    );
+    drop(playing);
+    r.sweep();
+    assert!(r.graveyard.is_empty());
+}
+
+/// Round 29's third review (finding 10): clip ids start again in every project, so a
+/// render held for another file's clip of the same id is never a fallback — and another
+/// project forgets every piece's history.
+#[test]
+fn a_fallback_is_only_ever_made_from_the_pieces_own_file() {
+    let mut r = Renders::default();
+    let p = (C, Ticks::ZERO);
+    r.stamp.insert(1, 1);
+    made_from(&mut r, 1, "project-a/vocal.wav");
+    r.put_done(1, data(10));
+    r.remember(p, 1);
+    assert_eq!(
+        r.fallback(p, 48_000, Path::new("project-b/drums.wav")),
+        None
+    );
+    assert!(r
+        .fallback(p, 48_000, Path::new("project-a/vocal.wav"))
+        .is_some());
+    r.forget_project();
+    assert_eq!(
+        r.fallback(p, 48_000, Path::new("project-a/vocal.wav")),
+        None
+    );
+    assert!(
+        r.done.contains_key(&1),
+        "the render itself stays, by its key"
+    );
+}
+
+/// Finding 14: a fallback made for the window before a left trim is laid where the
+/// content it was made for begins — a following warp's by content ticks, a non-following
+/// one's by source frames.
+#[test]
+fn a_fallback_is_laid_where_its_content_begins() {
+    let mut r = Renders::default();
+    made(&mut r, 1);
+    let now = Made {
+        path: PathBuf::from("a.wav"),
+        follow: true,
+        offset: Ticks::beats(4),
+        head: 0.0,
+    };
+    // Trimmed by four beats: the old render's frame 0 lies four beats before the start.
+    assert_eq!(
+        r.zero_of(1, &now, Ticks::beats(12), 48_000, 48_000),
+        (Ticks::beats(8), 0.0)
+    );
+    r.made.insert(
+        2,
+        Made {
+            path: PathBuf::from("a.wav"),
+            follow: false,
+            offset: Ticks::ZERO,
+            head: 1_000.0,
+        },
+    );
+    let now = Made {
+        follow: false,
+        head: 25_000.0,
+        ..now
+    };
+    // A non-following window 24 000 source frames on (at 24 kHz), played at 48 kHz.
+    assert_eq!(
+        r.zero_of(2, &now, Ticks::beats(12), 48_000, 24_000),
+        (Ticks::beats(12), 48_000.0)
+    );
+}
+
+/// Round 29's final review (item 3): a non-following piece whose start frame edits walk
+/// away, each step within half a frame, keeps its render only while the frame stays within
+/// half a frame of the one that render was made for — the allowance never re-measured from
+/// the last attach.
+#[test]
+fn a_kept_render_is_measured_from_its_own_frame() {
+    let mut r = Renders::default();
+    let map = Arc::new(TempoMap::constant(
+        120.0,
+        cantus_core::TimeSignature::default(),
+    ));
+    let mut w = cantus_core::warp::Warp::new(48_000, 120.0);
+    w.follow = false;
+    w.cents = 200;
+    let plan = |slip: f64| Plan {
+        warp: Arc::new(w.clone()),
+        map: map.clone(),
+        start: Ticks::beats(8),
+        end: Ticks::beats(12),
+        offset: Ticks::beats(4),
+        slip_frames: slip,
+        source_rate: 48_000,
+        rate: 48_000,
+        path: PathBuf::from("a.wav"),
+        input_key: 1,
+    };
+    let p = (C, Ticks::beats(8));
+    let at = |slip: f64| (slip / 48_000.0, Ticks::beats(8));
+    let k0 = render_key(&plan(0.0));
+    r.put_done(k0, data(10));
+    assert_eq!(r.stick(p, &plan(0.0), at(0.0), k0), k0);
+    let k1 = render_key(&plan(0.4));
+    assert_eq!(
+        r.stick(p, &plan(0.4), at(0.4), k1),
+        k0,
+        "0.4 frame off: kept"
+    );
+    let k2 = render_key(&plan(0.8));
+    assert_ne!(k2, k0);
+    assert_eq!(
+        r.stick(p, &plan(0.8), at(0.8), k2),
+        k2,
+        "0.8 frame off its own frame: made again"
+    );
+}

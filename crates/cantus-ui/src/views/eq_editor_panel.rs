@@ -28,9 +28,13 @@ const RANGE_WORDS: [&str; 5] = [
 ];
 
 /// What was clicked on a card's title bar.
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 struct CardHits {
     led: bool,
+    /// The lamp's and the selector name's responses: a band's On and its shape are
+    /// parameters (their menus, the learn mode — round 29, review 2 of ADR 0062, #44).
+    led_resp: Option<egui::Response>,
+    name_resp: Option<egui::Response>,
     prev: bool,
     next: bool,
     /// The selector's name: where its list opens.
@@ -69,21 +73,26 @@ fn card<R>(
     });
     let id = ui.id().with(("eq-card", salt));
     let mut hits = CardHits::default();
-    let sense = |ui: &mut Ui, r: Rect, part: &str, name: &str, caps: Caps| -> bool {
+    let sense_resp = |ui: &mut Ui, r: Rect, part: &str, name: &str, caps: Caps| {
         let resp = ui.interact(r, id.with(part), Sense::click());
         if resp.hovered() {
             hint::set_text(ui.ctx(), name, "", caps);
         }
-        resp.clicked()
+        resp
+    };
+    let sense = |ui: &mut Ui, r: Rect, part: &str, name: &str, caps: Caps| -> bool {
+        sense_resp(ui, r, part, name, caps).clicked()
     };
     if let Some(led) = rects.led {
-        hits.led = sense(
+        let r = sense_resp(
             ui,
             led.expand(4.0 * s.k),
             "led",
             frame::tr("fx.frame.section_on"),
             Caps::NONE,
         );
+        hits.led = r.clicked();
+        hits.led_resp = Some(r);
     }
     if let (Some(sel), Some((_, name))) = (rects.selector, selector) {
         let w = 14.0 * s.k;
@@ -99,9 +108,11 @@ fn card<R>(
             menu: true,
             ..Caps::NONE
         };
-        if sense(ui, mid, "name", name, menu_caps) {
+        let r = sense_resp(ui, mid, "name", name, menu_caps);
+        if r.clicked() {
             hits.name = Some(mid);
         }
+        hits.name_resp = Some(r);
     }
     if let Some(m) = rects.menu {
         if sense(
@@ -213,7 +224,16 @@ pub(super) fn head(
     if mode == Mode::LinearPhase {
         let id = ui.id().with("eq-res");
         let value = frame::tr(RES_KEYS[res.index().min(3)]);
-        if let Some(at) = controls::field(ui, s, id, value, frame::tr("eq.res_tip"), 100.0) {
+        if let Some(at) = controls::field_key(
+            ui,
+            s,
+            host,
+            "lp_res",
+            id,
+            value,
+            frame::tr("eq.res_tip"),
+            100.0,
+        ) {
             // The rows name each resolution's latency: built only while the list is open.
             let sr = host.sample_rate();
             let rows: Vec<String> = Resolution::ALL
@@ -460,64 +480,95 @@ pub(super) fn band_card(
             controls::column(ui, &bs, COLUMN, |ui| {
                 let labels = PLACE_KEYS.map(Src::Key);
                 let place = band.placement.index().min(4);
-                if let Some(i) =
-                    controls::segmented(ui, &bs, place, &labels, frame::tr("fx.eq.place"), COLUMN)
-                {
+                if let Some(i) = controls::segmented_key(
+                    ui,
+                    &bs,
+                    host,
+                    bkey(b, "place"),
+                    place,
+                    &labels,
+                    frame::tr("fx.eq.place"),
+                    COLUMN,
+                ) {
                     set_band(host, b, &[("place", i as f32)], None);
                 }
                 let soloed = host.spec().get("solo").round() as usize == b + 1;
-                if controls::led(
+                let r = controls::led(
                     ui,
                     &bs,
                     soloed,
                     Src::Key("eq.solo_led"),
                     frame::tr("eq.solo_tip"),
                     COLUMN,
-                )
-                .clicked()
-                {
+                );
+                // The solo is a parameter (which band, or none): its menu, its mark, the
+                // learn mode (round 29, review 3 of ADR 0062, #35).
+                // The band's own value of the solo choice (none ↔ this band, review 4, #46).
+                let learnt = controls::stepped_offer_one(
+                    ui,
+                    &bs,
+                    host,
+                    "solo",
+                    frame::tr("eq.solo_tip"),
+                    &r,
+                    0.0,
+                    (b + 1) as f32,
+                );
+                if r.clicked() && !learnt {
                     set_solo(host, (!soloed).then_some(b));
                 }
-                if band.shape.has_gain()
-                    && controls::led(
+                if band.shape.has_gain() {
+                    let r = controls::led(
                         ui,
                         &bs,
                         band.dynamic,
                         Src::Key("fx.eq.dyn"),
                         frame::tr("eq.dyn_tip"),
                         COLUMN,
-                    )
-                    .clicked()
-                {
-                    set_band(
-                        host,
-                        b,
-                        &[("dyn", if band.dynamic { 0.0 } else { 1.0 })],
-                        None,
                     );
+                    let name = frame::tr("eq.dyn_tip");
+                    let learnt = controls::stepped_offer(ui, &bs, host, bkey(b, "dyn"), name, &r);
+                    if r.clicked() && !learnt {
+                        set_band(
+                            host,
+                            b,
+                            &[("dyn", if band.dynamic { 0.0 } else { 1.0 })],
+                            None,
+                        );
+                    }
                 }
                 if band.shape == EqShape::Bell {
                     let gq = host.spec().get(bkey(b, "gq")) >= 0.5;
-                    if controls::led(
+                    let r = controls::led(
                         ui,
                         &bs,
                         gq,
                         Src::Key("fx.eq.gq"),
                         frame::tr("eq.gq_tip"),
                         COLUMN,
-                    )
-                    .clicked()
-                    {
+                    );
+                    let name = frame::tr("eq.gq_tip");
+                    let learnt = controls::stepped_offer(ui, &bs, host, bkey(b, "gq"), name, &r);
+                    if r.clicked() && !learnt {
                         set_band(host, b, &[("gq", if gq { 0.0 } else { 1.0 })], None);
                     }
                 }
             });
         },
     );
-    if hits.led {
+    // The band's On and its shape are parameters (round 29, review 2 of ADR 0062, #44).
+    let s_on = frame::tr("fx.frame.section_on");
+    let led_learnt = hits
+        .led_resp
+        .as_ref()
+        .is_some_and(|r| controls::stepped_offer(ui, &bs, host, bkey(b, "on"), s_on, r));
+    let shape_learnt = hits.name_resp.as_ref().is_some_and(|r| {
+        controls::stepped_offer(ui, &bs, host, bkey(b, "shape"), frame::tr("fx.eq.shape"), r)
+    });
+    if hits.led && !led_learnt {
         set_band(host, b, &[("on", if on { 0.0 } else { 1.0 })], None);
     }
-    if hits.prev || hits.next {
+    if (hits.prev || hits.next) && !shape_learnt {
         let n = SHAPE_KEYS.len();
         let to = if hits.next {
             (shape + 1) % n

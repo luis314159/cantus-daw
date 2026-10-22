@@ -454,6 +454,137 @@ fn header(path: &Path) -> Option<(CacheFile, PathBuf, Identity)> {
     ))
 }
 
+/// A cache-format file written at `path` from what `fill` gives — a frozen render (round
+/// 29, ADR 0064), never the whole of it in memory: `fill` is called for each block of
+/// [`BLOCK`] frames in order (interleaved, `channels` per frame), stored as `f32` (exact)
+/// with its checksum. `label` stands where a cache file names its source. Written beside
+/// its name and renamed into place, like [`write`].
+pub fn write_at(
+    path: &Path,
+    label: &str,
+    channels: usize,
+    rate: u32,
+    frames: usize,
+    mut fill: impl FnMut(&mut [f32]) -> std::io::Result<()>,
+) -> std::io::Result<CacheFile> {
+    let channels = channels.clamp(1, 2);
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let depth = Depth::F32;
+    let src = label.as_bytes().to_vec();
+    if src.len() > 32_768 {
+        return Err(std::io::Error::other("the label is too long"));
+    }
+    let blocks = frames.div_ceil(BLOCK);
+    let data_at = (FIXED + src.len() + blocks * 8) as u64;
+    let part = path.with_extension(format!("part{}", std::process::id()));
+    let written = (|| -> std::io::Result<Vec<u64>> {
+        let mut f = std::io::BufWriter::new(File::create(&part)?);
+        f.write_all(&vec![0u8; data_at as usize])?;
+        let mut sums = Vec::with_capacity(blocks);
+        let mut buf = vec![0f32; BLOCK * channels];
+        let mut bytes = Vec::with_capacity(BLOCK * channels * 4);
+        for b in 0..blocks {
+            let n = (frames - b * BLOCK).min(BLOCK);
+            let chunk = &mut buf[..n * channels];
+            fill(chunk)?;
+            bytes.clear();
+            encode(chunk, depth, &mut bytes);
+            sums.push(checksum(&bytes));
+            f.write_all(&bytes)?;
+        }
+        let mut f = f.into_inner().map_err(|e| e.into_error())?;
+        let mut head = Vec::with_capacity(data_at as usize);
+        head.extend_from_slice(MAGIC);
+        head.extend_from_slice(&VERSION.to_le_bytes());
+        head.extend_from_slice(&0u64.to_le_bytes());
+        head.extend_from_slice(&0u64.to_le_bytes());
+        head.extend_from_slice(&0u64.to_le_bytes());
+        head.extend_from_slice(&(channels as u32).to_le_bytes());
+        head.extend_from_slice(&rate.to_le_bytes());
+        head.extend_from_slice(&(frames as u64).to_le_bytes());
+        head.extend_from_slice(&depth.code().to_le_bytes());
+        head.extend_from_slice(&(src.len() as u32).to_le_bytes());
+        head.extend_from_slice(&(blocks as u32).to_le_bytes());
+        head.extend_from_slice(&data_at.to_le_bytes());
+        head.resize(FIXED, 0);
+        head.extend_from_slice(&src);
+        for s in &sums {
+            head.extend_from_slice(&s.to_le_bytes());
+        }
+        let hsum = checksum(&head);
+        head[72..80].copy_from_slice(&hsum.to_le_bytes());
+        f.seek(SeekFrom::Start(0))?;
+        f.write_all(&head)?;
+        f.sync_all()?;
+        Ok(sums)
+    })();
+    let sums = match written {
+        Ok(s) => s,
+        Err(e) => {
+            let _ = std::fs::remove_file(&part);
+            return Err(e);
+        }
+    };
+    if let Err(e) = std::fs::rename(&part, path) {
+        let _ = std::fs::remove_file(&part);
+        if !path.is_file() {
+            return Err(e);
+        }
+    }
+    Ok(CacheFile {
+        path: path.to_path_buf(),
+        channels,
+        rate,
+        frames,
+        depth,
+        whole: 0,
+        data: data_at,
+        sums,
+    })
+}
+
+/// The cache-format file at `path` names `label` instead of what it named (a frozen
+/// render copied under a new key — review 4): the label is rewritten in place and the
+/// header's checksum with it. The new label must be as long as the old (keys are hashes).
+pub fn relabel(path: &Path, label: &str) -> std::io::Result<()> {
+    let bad = |why: &str| std::io::Error::other(why.to_string());
+    let mut f = File::options().read(true).write(true).open(path)?;
+    let mut h = vec![0u8; FIXED];
+    f.read_exact(&mut h)?;
+    if &h[..8] != MAGIC || u32_at(&h, 8) != VERSION {
+        return Err(bad("not a cache file"));
+    }
+    let plen = u32_at(&h, 56) as usize;
+    let blocks = u32_at(&h, 60) as usize;
+    if plen != label.len() || plen > 32_768 {
+        return Err(bad("a label of another length"));
+    }
+    let mut rest = vec![0u8; plen + blocks * 8];
+    f.read_exact(&mut rest)?;
+    let stored = u64_at(&h, 72);
+    h[72..80].fill(0);
+    let mut head = h.clone();
+    head.extend_from_slice(&rest);
+    if checksum(&head) != stored {
+        return Err(bad("a damaged header"));
+    }
+    head[FIXED..FIXED + plen].copy_from_slice(label.as_bytes());
+    let sum = checksum(&head);
+    head[72..80].copy_from_slice(&sum.to_le_bytes());
+    f.seek(SeekFrom::Start(0))?;
+    f.write_all(&head)?;
+    f.sync_all()
+}
+
+/// The cache-format file at `path`, whatever source it names (a frozen render's), when its
+/// header is whole; with that label.
+pub fn open_at(path: &Path) -> Option<(CacheFile, String)> {
+    let (c, src, _) = header(path)?;
+    Some((c, src.to_string_lossy().into_owned()))
+}
+
 /// The cache file for `source` as it is now (`id`), when one was written for it — touched,
 /// so the size limit removes the least recently used first.
 pub fn open(dir: &Path, source: &Path, id: &Identity) -> Option<CacheFile> {

@@ -174,6 +174,9 @@ pub enum Scope {
     Loop,
     /// Every strip (or track) as a file of its own (ADR 0021 §3).
     Stems,
+    /// Between two markers (round 29, ADR 0060), by their ids (`cantus_core::MarkerId`):
+    /// from the earlier to the later.
+    Markers { from: u64, to: u64 },
 }
 
 /// What a stems export takes (ADR 0021 §3, ADR 0026); everything off by default.

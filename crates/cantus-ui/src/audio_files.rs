@@ -52,10 +52,15 @@ pub fn read(path: &Path) -> Result<ImportFile, String> {
     })
 }
 
-/// The timeline length of `frames` at `rate`, at the project's tempo.
-pub fn length_ticks(project: &Project, frames: u64, rate: u32) -> Ticks {
+/// The timeline length of `frames` at `rate` played from `at` at natural speed: at the
+/// project's tempo, through the tempo map when it changes (ADR 0060).
+pub fn length_ticks(project: &Project, at: Ticks, frames: u64, rate: u32) -> Ticks {
     let seconds = frames as f64 / rate.max(1) as f64;
-    Ticks::from_seconds(seconds, project.tempo_bpm)
+    let map = crate::views::bars::map(project);
+    if map.is_constant() {
+        return Ticks::from_seconds(seconds, project.tempo_bpm);
+    }
+    cantus_core::audio_time::length_ticks(&map, at, frames as f64, rate.max(1) as f64)
 }
 
 /// The project file's folder: what relative source paths are relative to.
@@ -144,11 +149,10 @@ impl CantusApp {
         else {
             return;
         };
-        let bar = self.project().time_signature.ticks_per_bar().max(Ticks(1));
         let at = if self.project().content_end() == Ticks::ZERO {
             Ticks::ZERO
         } else {
-            self.engine.position().snap_floor(bar).max(Ticks::ZERO)
+            crate::views::bars::bar_start(self.project(), self.engine.position()).max(Ticks::ZERO)
         };
         self.import_audio(&paths, at, None);
     }
@@ -158,6 +162,19 @@ impl CantusApp {
     /// becomes a source (not recorded) and a clip as long as the file at the project's
     /// tempo; the whole import is one undo step. Returns how many files were imported.
     pub fn import_audio(&mut self, paths: &[PathBuf], at: Ticks, onto: Option<usize>) -> usize {
+        self.import_audio_as(paths, at, onto, false)
+    }
+
+    /// [`Self::import_audio`] of recordings (`recorded`: a recovered take whose track is
+    /// gone): their sources say so, and they are analysed, never warped by the import rule —
+    /// a recording plays as it was played (ADR 0061, round 29's review).
+    pub fn import_audio_as(
+        &mut self,
+        paths: &[PathBuf],
+        at: Ticks,
+        onto: Option<usize>,
+        recorded: bool,
+    ) -> usize {
         let mut files = Vec::new();
         for p in paths {
             match read(p) {
@@ -177,13 +194,34 @@ impl CantusApp {
         if files.is_empty() {
             return 0;
         }
-        let commands = self.import_commands(&files, at, onto);
+        let mut commands = self.import_commands(&files, at, onto);
+        if recorded {
+            for c in &mut commands.0 {
+                if let Command::InsertAudioSource { source } = c {
+                    source.recorded = true;
+                }
+            }
+        }
         let made = commands.1;
-        if !self.exec(Command::Batch {
-            label_key: "cmd.import_audio".into(),
-            commands: commands.0,
-        }) {
+        // Its own undo step, kept open for the warp a loop gets when its analysis lands
+        // (round 29, ADR 0061: the import rule, `crate::warp`).
+        let key = cantus_core::MergeKey::of(&("import", self.project().next_id, made.len()));
+        if !self.exec_merging(
+            Command::Batch {
+                label_key: "cmd.import_audio".into(),
+                commands: commands.0,
+            },
+            key,
+        ) {
             return 0;
+        }
+        if recorded {
+            self.end_gesture();
+            for f in &files {
+                self.analyse_file_soon(&f.path, f.data.rate);
+            }
+        } else {
+            self.warp_after_import(&made, key);
         }
         for f in &files {
             self.peaks.insert_data(&f.path, f.data.clone());
@@ -225,7 +263,7 @@ impl CantusApp {
                 sha256: None,
                 recorded: false,
             };
-            let length = length_ticks(self.project(), frames, f.data.rate).max(Ticks(1));
+            let length = length_ticks(self.project(), at, frames, f.data.rate).max(Ticks(1));
             let row = onto.map(|r| r + i).filter(|r| *r < existing);
             let track: TrackId = match row {
                 Some(r) => self.project().tracks[r].id,
@@ -289,11 +327,17 @@ impl CantusApp {
                 }
             })
             .collect();
+        // Through the frozen targets whose key the paths are in (round 29, review 1: the
+        // path change was refused after the files had moved): frozen still, their renders
+        // copied under their new keys beside the project. Refused all the same, the files
+        // go back where they were.
         if !commands.is_empty() {
-            self.exec(Command::Batch {
-                label_key: "cmd.collect_audio".into(),
-                commands,
-            });
+            let renders = crate::freeze::project_dir(Some(file));
+            if !crate::freeze::exec_through(self, "cmd.collect_audio", commands, renders.as_deref())
+            {
+                cantus_project::collect::undo(&plan, &out);
+                return;
+            }
         }
         for (before, after) in follow {
             self.peaks.follow(&before, &after);
@@ -344,7 +388,14 @@ impl CantusApp {
             }
         };
         let path = stored_path(self.audio_base(), file);
-        if !self.exec(Command::SetAudioSourcePath { id, path }) {
+        // Through a freeze that plays it (round 29, review 1): frozen still, its render made
+        // again from the file found.
+        if !crate::freeze::exec_through(
+            self,
+            "cmd.set_audio_source_path",
+            vec![Command::SetAudioSourcePath { id, path }],
+            None,
+        ) {
             return false;
         }
         self.peaks.forget(&old);
@@ -376,16 +427,15 @@ pub fn drop_audio(app: &mut CantusApp, paths: &[PathBuf], pos: Option<egui::Pos2
         (Some(g), Some(p)) if p.x >= g.left && p.x <= g.left + g.width && p.y >= g.ruler_top => {
             let mut at = crate::views::beats_to_ticks(g.beats(p.x)).max(Ticks::ZERO);
             if app.arrangement.snap {
-                at = at.snap_floor(app.arrangement.grid.max(Ticks(1)));
+                at = crate::views::bars::snap_floor(app.project(), at, app.arrangement.grid);
             }
             (at, g.row_at(p.y))
         }
         _ => {
-            let bar = app.project().time_signature.ticks_per_bar().max(Ticks(1));
             let at = if app.project().content_end() == Ticks::ZERO {
                 Ticks::ZERO
             } else {
-                app.engine.position().snap_floor(bar).max(Ticks::ZERO)
+                crate::views::bars::bar_start(app.project(), app.engine.position()).max(Ticks::ZERO)
             };
             (at, None)
         }

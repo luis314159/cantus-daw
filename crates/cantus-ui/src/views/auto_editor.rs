@@ -128,6 +128,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId
         bottom: canvas.bottom() - pad,
         clip_left: canvas.left(),
         clip_right: canvas.right(),
+        origin: window.start - window.offset,
     };
     paint(app, ui, &auto, window, f, canvas, ruler, axis, &s);
     let st = &mut app.automation.editor;
@@ -458,10 +459,19 @@ fn paint(
     let range = cantus_core::automation::range::range_of(project, &auto.target);
     let st = &app.automation.editor;
     let painter = ui.painter().with_clip_rect(canvas.union(ruler).union(axis));
-    let ts = project.time_signature;
-    let bar = ts.ticks_per_bar().0.max(1);
-    let beat = ts.ticks_per_beat().0.max(1);
+    // The bars and beats through the metre changes (ADR 0060); the step chosen by the
+    // metre at the window's left.
+    // Content ticks here; the bars are the timeline's where the clip lies (review 2).
+    let map = crate::views::bars::map(project);
+    // With one metre the lines are the content's own, as the snapping is (review 3).
+    let shift = if map.is_one_metre() {
+        Ticks::ZERO
+    } else {
+        f.origin
+    };
     let lo = f.tick(canvas.left()).floor() as i64;
+    let bar = map.bar_len_at(Ticks(lo) + shift).0.max(1);
+    let beat = map.beat_len_at(Ticks(lo) + shift).0.max(1);
     let hi = f.tick(canvas.right()).ceil() as i64;
     let pointer = ui.input(|i| i.pointer.hover_pos());
     kit::with_brush(&painter, |b| {
@@ -496,19 +506,23 @@ fn paint(
         } else {
             bar
         };
-        let mut tick = (lo.div_euclid(step)) * step;
-        while tick <= hi {
-            let x = f.x(tick as f64);
-            let is_bar = tick.rem_euclid(bar) == 0;
-            b.vline(
-                x,
-                canvas.top(),
-                canvas.bottom(),
-                b.px() * if is_bar { 1.5 } else { 1.0 },
-                if is_bar { t.grid_bar } else { t.grid_strong },
-            );
-            tick += step;
-        }
+        // Through the metre changes (ADR 0060).
+        crate::views::bars::lines(
+            &map,
+            Ticks(lo) + shift,
+            Ticks(hi + 1) + shift,
+            step == beat,
+            |tick, is_bar| {
+                let x = f.x((tick - shift).0 as f64);
+                b.vline(
+                    x,
+                    canvas.top(),
+                    canvas.bottom(),
+                    b.px() * if is_bar { 1.5 } else { 1.0 },
+                    if is_bar { t.grid_bar } else { t.grid_strong },
+                );
+            },
+        );
         // Value lines at quarters, the middle stronger.
         for q in 1..4 {
             let y = f.y(q as f32 * 0.25);
@@ -529,9 +543,10 @@ fn paint(
         if brace.width() > 0.0 {
             b.rrect(brace, 1.5 * k, Fill::Solid(with_alpha(t.selection, 0.8)));
         }
-        let mut barn = lo.div_euclid(bar);
-        while barn * bar <= hi {
-            let x = f.x((barn * bar) as f64);
+        let from = map.bar_start(Ticks(lo) + shift);
+        for line in map.bar_lines(from, Ticks(hi + 1) + shift) {
+            let barn = map.bbt(line).0 - 1;
+            let x = f.x((line - shift).0 as f64);
             if x >= ruler.left() - 1.0 && x <= ruler.right() {
                 b.vline(x, ruler.top() + 6.0 * k, ruler.bottom(), b.px(), t.text_dim);
                 let label = Rect::from_min_size(
@@ -546,7 +561,6 @@ fn paint(
                     s.tk(),
                 );
             }
-            barn += 1;
         }
         // The value axis: the top, the middle and the bottom of the range, in its units.
         b.rect(b.snap_rect(axis), Fill::Solid(t.panel));
@@ -702,7 +716,12 @@ fn input(
     let snap = |app: &CantusApp, tick: f64, free: bool| -> Ticks {
         let t = Ticks(tick.max(0.0).round() as i64);
         if app.arrangement.snap && !free {
-            t.snap(app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)))
+            curve::snap_point(
+                app.project(),
+                f.origin,
+                t,
+                app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)),
+            )
         } else {
             t
         }
@@ -770,7 +789,12 @@ fn input(
                     mut painted,
                 }) => {
                     let grid = draw_grid(app);
-                    let at = Ticks(f.tick(pos.x).max(0.0).round() as i64).snap(grid);
+                    let at = curve::snap_point(
+                        app.project(),
+                        f.origin,
+                        Ticks(f.tick(pos.x).max(0.0).round() as i64),
+                        grid,
+                    );
                     paint_at(&mut painted, at, f.value(pos.y), grid);
                     let a = drawn(&at_press, &painted, app.automation.editor.step);
                     app.automation.editor.gesture = Some(Gesture::Draw { at_press, painted });
@@ -911,7 +935,12 @@ fn moved(
     let raw = p0.tick.0 as f64 + ((pos.x - press.x) / f.px_per_tick) as f64;
     let mut land = Ticks(raw.max(0.0).round() as i64);
     if app.arrangement.snap && !free {
-        land = land.snap(app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)));
+        land = curve::snap_point(
+            app.project(),
+            f.origin,
+            land,
+            app.arrangement.grid.min(Ticks::beats(1)).max(Ticks(1)),
+        );
     }
     let dt = land - p0.tick;
     let dv = f.value(pos.y) - f.value(press.y);

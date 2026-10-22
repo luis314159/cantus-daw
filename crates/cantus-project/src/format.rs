@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 32;
+pub const SCHEMA_VERSION: u32 = 41;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -105,6 +105,12 @@ pub struct LoadReport {
     /// Clips taken out of a link group whose other members they did not match (ADR 0037):
     /// a file edited by hand. Zero for every file Cantus wrote.
     pub links_repaired: usize,
+    /// Warps dropped because they were not valid (ADR 0061: a hand-edited or damaged
+    /// file); their clips play at their natural speed. Zero for every file Cantus wrote.
+    pub warps_repaired: usize,
+    /// Track delays dropped because a bounce could not have kept them (ADR 0064, review 3:
+    /// a hand-edited or damaged file). Zero for every file Cantus wrote.
+    pub lateness_repaired: usize,
 }
 
 /// Parse JSON text into a project, migrating older schemas. `verify_integrity = false`
@@ -170,12 +176,29 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     }
 
     let mut file: ProjectFile = serde_json::from_value(value)?;
+    // Warps a command would refuse (a hand edit) go first (round 29's second review): the
+    // links and the frozen keys below are checked against what each clip then holds.
+    let warps_repaired = cantus_core::warp::repair(&mut file.project);
+    // A track delay out of range never reaches the plan (review 3); before the frozen
+    // keys, which hold it.
+    let lateness_repaired = file.project.repair_lateness();
     let links_repaired = cantus_core::links::repair(&mut file.project);
+    // A frozen target whose key is not what it holds (a hand edit): re-keyed, its render
+    // made again (ADR 0064). After the links' repair, which may change what one holds.
+    cantus_core::freeze::repair(&mut file.project);
+    // Controller mappings a command would refuse (a hand edit): dropped, so every edit of
+    // the map has an exact inverse (ADR 0062, review 1).
+    let dropped = file.project.controllers.repair();
+    if dropped > 0 {
+        log::warn!("{dropped} malformed controller mapping(s) dropped");
+    }
     Ok(LoadReport {
         file,
         migrated_from,
         integrity_verified,
         links_repaired,
+        warps_repaired,
+        lateness_repaired,
     })
 }
 
@@ -215,6 +238,15 @@ static MIGRATIONS: &[Migration] = &[
     migrate_29_to_30,
     migrate_30_to_31,
     migrate_31_to_32,
+    migrate_32_to_33,
+    migrate_33_to_34,
+    migrate_34_to_35,
+    migrate_35_to_36,
+    migrate_36_to_37,
+    migrate_37_to_38,
+    migrate_38_to_39,
+    migrate_39_to_40,
+    migrate_40_to_41,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -735,6 +767,15 @@ fn migrate_30_to_31(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
+/// Schema 33 (round 29, tempo — ADR 0060): the tempo track (`Project::tempo_points`, each
+/// point holding or ramping), the metre changes (`metre_changes`) and the named markers
+/// (`markers`). A file without them has one tempo, one metre and no markers — what every
+/// older file meant — so the step writes nothing; the number makes an older build refuse a
+/// file whose tempo changes it would play at one tempo.
+fn migrate_32_to_33(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
 /// Schema 32 (round 28, fix4 of ADR 0058): a comp window says it is one (`Clip::comp`)
 /// instead of being recognised by where it lies — a copy pasted over its takes was taken
 /// for a window. The step writes the flag on every clip schema 31 counted as a comp
@@ -773,6 +814,76 @@ fn migrate_31_to_32(value: &mut Value) -> Result<(), String> {
             }
         }
     }
+    Ok(())
+}
+
+/// Schema 34 (round 29, ADR 0061): an audio clip may carry a warp (`AudioRegion::warp`:
+/// its markers, mode, transposition and tempo). An older build must refuse such a file,
+/// not play the clip at its natural speed; no older project holds one, so the step writes
+/// nothing — a clip without a warp plays as it always did.
+fn migrate_33_to_34(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 35 (round 29, controllers — ADR 0062): the project keeps its MIDI controller
+/// mappings (`Project::controllers`: each a port by name and ordinal, a channel, a
+/// control; a target; a mode, a range, a bend, a takeover, feedback). A file without them
+/// had none, so the step writes nothing; the number makes an older build refuse a file
+/// whose knobs it would silently forget.
+fn migrate_34_to_35(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 36 (round 29, ADR 0063): a hosted plug-in records where it runs —
+/// `ExternalPlugin::isolation`, *Within Cantus*, *Together*, *By vendor* or
+/// *Individually*, absent while it follows the machine's default. Nothing to write: a v35
+/// plug-in follows the default, as it did. An older build must refuse a v36 file, or a
+/// plug-in the user moved out of process would load back into Cantus's own.
+fn migrate_35_to_36(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 37 (round 29, ADR 0064): a mixer strip or a track may be frozen —
+/// `MixerStrip::frozen` / `Track::frozen`, the content key its render was made for, absent
+/// while it plays live. Nothing to write: a v36 strip or track plays live, as it did. An
+/// older build must refuse a v37 file, or it would play a frozen strip's chain live and let
+/// edits through that the render no longer matches.
+fn migrate_36_to_37(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 38 (round 29, ADR 0064 §6, review 2): a track may carry the latency its audio
+/// was rendered with — `Track::lateness`, set by a bounce in place, which keeps its source's
+/// or its chain's latency in its file so the level, the fader, the sends and the keys meet
+/// the audio as late as before. Nothing to write: a v37 track's audio is on time. An older
+/// build must refuse a v38 file, or it would play a bounced track early.
+fn migrate_37_to_38(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 39 (round 29, warp's second review — ADR 0061 §11): a warp marker may be the
+/// warp's own (`WarpMarker::auto`: a sample of the tempo curve a first warp edit keeps the
+/// clip on — never drawn or grabbed, soft for the stretcher). Nothing to write: every v38
+/// marker is the user's, as it was. An older build must refuse a v39 file, or it would show
+/// a ramp's samples as markers to drag and pin the stretcher to them.
+fn migrate_38_to_39(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 40 (round 29, ADR 0062 review 3): a controller mapping may drive a strip's
+/// effects switch (`MappingTarget::StripFx`) or its record arm (`StripArm`) — the mixer's FX
+/// bulb and record dot. Nothing to write: a v39 map has neither. An older build must
+/// refuse a v40 file, or it would drop those mappings as unreadable. (Numbered 39 on the
+/// controllers branch; renumbered at the merge after warp's 39.)
+fn migrate_39_to_40(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 41 (round 29, ADR 0062 review 4, #47): a hosted mapping's plug-in carries the
+/// names it had when learnt (`PluginRef::name`, `param`), so a row whose plug-in was
+/// swapped out or is not scanned here reads as the plug-in and parameter it drove. Nothing
+/// to write: a v40 mapping has none, and its row is named as before (by the catalogue).
+fn migrate_40_to_41(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -929,6 +1040,84 @@ mod tests {
     /// Schema 26 (round 28, ADR 0052): the fixture's metronome has the woodblock voice and
     /// no accent, and the song is saved in pattern mode; an older file (25) opens with the
     /// classic accented click in song mode — what it always played.
+    /// Schema 33 (round 29, ADR 0060): the fixture's tempo track (a ramp from the song's
+    /// tempo to 140 over four bars, then 100), its metre changes (a bar of 7/8 at bar 3,
+    /// 3/4 from bar 4) and its markers come back as they were; an older file (32) opens
+    /// with one tempo, one metre and no markers, and its map is the constant one.
+    #[test]
+    fn schema_33_keeps_the_tempo_track_metres_and_markers() {
+        use cantus_core::{Ticks, TimeSignature};
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        assert_eq!(p.tempo_points.len(), 3);
+        assert!(p.tempo_points[0].ramp);
+        assert_eq!(p.tempo_points[0].bpm, p.tempo_bpm);
+        assert_eq!(p.tempo_points[1].bpm, 140.0);
+        let map = p.tempo_map();
+        assert!(!map.is_constant());
+        assert_eq!(map.signature_at(Ticks(7680)), TimeSignature::new(7, 8));
+        assert_eq!(map.signature_at(Ticks(11_040)), TimeSignature::new(3, 4));
+        let names: Vec<&str> = p.markers.iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["Intro", "Verse", "Chorus"]);
+        let old = std::fs::read_to_string(dir.join("v32.cantus")).unwrap();
+        let p = parse(&old, true).unwrap().file.project;
+        assert!(p.tempo_points.is_empty() && p.metre_changes.is_empty() && p.markers.is_empty());
+        assert!(p.tempo_map().is_constant() && p.tempo_map().is_one_metre());
+    }
+
+    /// Schema 35 (round 29, ADR 0062): the fixture's controller mappings come back whole —
+    /// a knob on a filter with its range and bend, a 14-bit fader picking up with
+    /// feedback, an encoder in sign-bit on the tempo, a pad toggling a mute, a button
+    /// firing *play*, one whose target is gone (kept dormant); an older file (33) has none.
+    /// (The tree's newest fixture holds them: the integrator regenerates `v35.cantus` once
+    /// the round's schemas are chained.)
+    #[test]
+    fn schema_35_keeps_the_controller_mappings() {
+        use cantus_core::controller::*;
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let newest = format!("v{SCHEMA_VERSION}.cantus");
+        let text = std::fs::read_to_string(dir.join(newest)).unwrap();
+        let p = parse(&text, true).unwrap().file.project;
+        let maps = &p.controllers.mappings;
+        // Seven since schema 35 (later schemas add their own after them).
+        assert!(maps.len() >= 7, "{}", maps.len());
+        let knob = &maps[0];
+        assert_eq!(knob.source.port.name, "Keystation 49");
+        assert_eq!(knob.source.control, Control::Cc(74));
+        assert_eq!((knob.min, knob.max, knob.curve), (0.1, 0.9, 0.4));
+        assert!(matches!(
+            knob.target,
+            MappingTarget::Param(cantus_core::AutoTarget::Effect { .. })
+        ));
+        assert!(knob.target.exists(&p));
+        let fader = &maps[1];
+        assert_eq!(fader.source.control, Control::Cc14(7));
+        assert!(fader.feedback);
+        assert_eq!(fader.takeover, Takeover::Pickup);
+        assert_eq!(maps[2].mode, MapMode::Relative(Encoding::SignBit));
+        assert_eq!(maps[2].target, MappingTarget::Tempo);
+        assert_eq!(maps[2].sensitivity, 0.5);
+        assert_eq!(maps[3].mode, MapMode::Toggle);
+        assert_eq!(maps[3].source.port.ordinal, 1);
+        assert_eq!(maps[4].target, MappingTarget::Action("play-pause".into()));
+        assert!(!maps[5].target.exists(&p), "the dormant one stays");
+        // Review 2, #42: a hosted mapping keeps the plug-in it was learnt on, and the
+        // schema-35 file itself reads the same mappings.
+        assert!(maps[6].plugin.is_some(), "{:?}", maps[6]);
+        assert!(maps[6].fits(&p));
+        let v35 = std::fs::read_to_string(dir.join("v35.cantus")).unwrap();
+        let p35 = parse(&v35, true).unwrap().file.project;
+        assert_eq!(p35.controllers.mappings[..], p.controllers.mappings[..7]);
+        let old = std::fs::read_to_string(dir.join("v33.cantus")).unwrap();
+        assert!(parse(&old, true)
+            .unwrap()
+            .file
+            .project
+            .controllers
+            .is_empty());
+    }
+
     #[test]
     fn schema_26_keeps_the_metronome_voice_and_the_pattern_mode() {
         use cantus_core::ClickSound;
@@ -1115,6 +1304,62 @@ mod tests {
             new.contains(&("Exemplar in order".to_string(), 1.0)),
             "{new:?}"
         );
+    }
+
+    /// Schema 34 (round 29, ADR 0061): the vocal's window keeps its warp — markers, mode,
+    /// transposition, what was detected — and an older file's clips have none.
+    #[test]
+    fn schema_34_keeps_the_warp() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let warp = |name: &str| {
+            let text = std::fs::read_to_string(dir.join(name)).unwrap();
+            let p = parse(&text, true).unwrap().file.project;
+            let vocal = p.tracks.iter().find(|t| t.name == "Vocal").unwrap().clone();
+            vocal
+                .clips
+                .iter()
+                .filter(|c| c.lane == 0)
+                .find_map(|c| c.audio.as_ref().and_then(|a| a.warp.clone()))
+        };
+        let w = warp("v34.cantus").expect("a warped window");
+        assert!(w.is_valid());
+        assert_eq!(w.mode, cantus_core::warp::WarpMode::Melodic);
+        assert_eq!(w.cents, -300);
+        assert_eq!(w.markers.len(), 2);
+        assert_eq!(w.markers[1].tick, Ticks::beats(2) + Ticks(120));
+        assert!(w.detected.is_some() && w.formants && w.follow);
+        assert!(warp("v32.cantus").is_none());
+    }
+
+    /// Round 29's review: a file whose warp is not valid (a hand edit) opens with the warp
+    /// dropped — its clip at natural speed — and says how many.
+    #[test]
+    fn a_file_with_an_invalid_warp_opens_without_it() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures");
+        let text = std::fs::read_to_string(dir.join("v34.cantus")).unwrap();
+        let mut p = parse(&text, true).unwrap().file.project;
+        let mut broken = 0;
+        for t in &mut p.tracks {
+            for c in &mut t.clips {
+                if let Some(w) = c.audio.as_mut().and_then(|a| a.warp.as_mut()) {
+                    w.markers.reverse();
+                    broken += 1;
+                }
+            }
+        }
+        assert!(broken > 0);
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, true).unwrap();
+        assert_eq!(r.warps_repaired, broken);
+        let left = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .filter(|c| c.audio.as_ref().is_some_and(|a| a.warp.is_some()))
+            .count();
+        assert_eq!(left, 0);
     }
 
     /// Schema 31 (round 28, review 2): the vocal's second note was set by *Correct pitch*
@@ -1683,5 +1928,300 @@ mod send_tap_tests {
             "only the pre send writes it"
         );
         assert!(again.contains("\"tap\": \"Pre\""));
+    }
+}
+
+#[cfg(test)]
+mod isolation_tests {
+    use super::*;
+
+    fn hosted(
+        file: &str,
+    ) -> (
+        Option<cantus_core::PluginIsolation>,
+        Option<cantus_core::PluginIsolation>,
+    ) {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(file);
+        let text = std::fs::read_to_string(&path).expect("the fixture");
+        let p = parse(&text, true).expect("opens").file.project;
+        let insert = p
+            .all_effects()
+            .find_map(|(_, e)| e.spec.external.as_deref())
+            .expect("a hosted insert")
+            .isolation;
+        let inst = p
+            .tracks
+            .iter()
+            .find_map(|t| t.instrument.external())
+            .expect("a hosted instrument")
+            .isolation;
+        (insert, inst)
+    }
+
+    /// Schema 36 (round 29, ADR 0063): the fixture's hosted insert runs *Individually* and
+    /// its hosted instrument *Within Cantus*, as chosen; the v32 file's follow the default.
+    #[test]
+    fn schema_36_keeps_where_a_hosted_plugin_runs() {
+        use cantus_core::PluginIsolation::*;
+        assert_eq!(hosted("v36.cantus"), (Some(Individually), Some(Within)));
+        assert_eq!(hosted("v32.cantus"), (None, None));
+    }
+}
+
+#[cfg(test)]
+mod freeze_tests {
+    use super::*;
+    use cantus_core::freeze::{self, FreezeTarget};
+
+    fn fixture(file: &str) -> Project {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("fixtures")
+            .join(file);
+        let text = std::fs::read_to_string(&path).expect("the fixture");
+        parse(&text, true).expect("opens").file.project
+    }
+
+    /// Schema 37 (round 29, ADR 0064): the fixture's first strip is frozen and so is one
+    /// track's source, each with the key of what it holds; a v36 file has nothing frozen.
+    #[test]
+    fn schema_37_keeps_frozen_strips_and_tracks() {
+        let p = fixture("v37.cantus");
+        let targets = p.frozen_targets();
+        assert_eq!(targets.len(), 2, "{targets:?}");
+        assert!(matches!(targets[0], FreezeTarget::Strip(_)));
+        assert!(matches!(targets[1], FreezeTarget::Track(_)));
+        // Re-keyed on load when its subject was an older one's: what it holds now.
+        assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
+        assert!(!fixture("v36.cantus").any_frozen());
+    }
+
+    /// Schema 41 (round 29, ADR 0062 review 4): a hosted mapping keeps the plug-in's and
+    /// the parameter's names it was learnt with; a v40 mapping has none.
+    #[test]
+    fn schema_41_keeps_a_hosted_mappings_names() {
+        let p = fixture("v41.cantus");
+        let named = p
+            .controllers
+            .mappings
+            .iter()
+            .filter_map(|m| m.plugin.as_ref())
+            .find(|r| !r.param.is_empty())
+            .expect("a hosted mapping with its names");
+        assert_eq!(
+            (named.name.as_str(), named.param.as_str()),
+            ("Cantus Test Synth", "Cutoff")
+        );
+        assert!(fixture("v40.cantus")
+            .controllers
+            .mappings
+            .iter()
+            .filter_map(|m| m.plugin.as_ref())
+            .all(|r| r.name.is_empty() && r.param.is_empty()));
+    }
+
+    /// Schema 40 (round 29, ADR 0062 review 3): the strip's effects switch and record arm
+    /// are mapped; a v39 map has neither.
+    #[test]
+    fn schema_40_keeps_the_strip_switch_mappings() {
+        use cantus_core::controller::MappingTarget;
+        let p = fixture("v40.cantus");
+        let targets: Vec<&MappingTarget> =
+            p.controllers.mappings.iter().map(|m| &m.target).collect();
+        assert!(targets
+            .iter()
+            .any(|t| matches!(t, MappingTarget::StripFx(_))));
+        assert!(targets
+            .iter()
+            .any(|t| matches!(t, MappingTarget::StripArm(_))));
+        assert!(!fixture("v39.cantus")
+            .controllers
+            .mappings
+            .iter()
+            .any(|m| matches!(
+                m.target,
+                MappingTarget::StripFx(_) | MappingTarget::StripArm(_)
+            )));
+    }
+
+    /// Schema 38 (round 29, review 2): a bounced track keeps its lateness; a v37 track has
+    /// none. And the current fixture's frozen keys, as written, need no repair (review 1:
+    /// a check after loading holds after any repair) — the subject did not move under it.
+    #[test]
+    fn schema_38_keeps_a_tracks_lateness_and_its_keys_as_written() {
+        let p = fixture("v38.cantus");
+        let late: Vec<_> = p.tracks.iter().filter_map(|t| t.lateness).collect();
+        assert_eq!(
+            late,
+            vec![cantus_core::Lateness {
+                frames: 4_608,
+                rate: 48_000
+            }]
+        );
+        assert!(fixture("v37.cantus")
+            .tracks
+            .iter()
+            .all(|t| t.lateness.is_none()));
+        let targets = p.frozen_targets();
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/v38.cantus"),
+        )
+        .unwrap();
+        let raw: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let stored: Vec<String> = ["strips", "tracks"]
+            .iter()
+            .flat_map(|k| raw["project"][k].as_array().cloned().unwrap_or_default())
+            .filter_map(|x| x["frozen"]["content"].as_str().map(str::to_string))
+            .collect();
+        let keys: Vec<String> = targets
+            .iter()
+            .map(|t| freeze::content_key(&p, *t).unwrap())
+            .collect();
+        assert_eq!(stored, keys, "the fixture's keys need no repair");
+    }
+
+    /// A frozen key that is not what the target holds (a hand edit) is re-keyed on load.
+    #[test]
+    fn a_hand_edited_frozen_key_is_repaired_on_load() {
+        let mut p = fixture("v37.cantus");
+        let FreezeTarget::Strip(s) = p.frozen_targets()[0] else {
+            panic!("a strip first");
+        };
+        p.strip_mut(s).unwrap().frozen.as_mut().unwrap().content = "a".repeat(64);
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let back = parse(&text, false).unwrap().file.project;
+        assert!(freeze::consistent(&back).is_ok());
+        assert!(back.strip(s).unwrap().frozen.is_some(), "still frozen");
+    }
+
+    /// Round 29's third review (finding 46): a track delay a bounce could not have kept (a
+    /// hand edit) is dropped on load and counted, never planned with.
+    #[test]
+    fn an_out_of_range_track_delay_is_dropped_on_load() {
+        let mut p = fixture("v37.cantus");
+        p.tracks[0].lateness = Some(cantus_core::Lateness {
+            frames: 1_000_000_000_000_000,
+            rate: 1,
+        });
+        p.tracks[1].lateness = Some(cantus_core::Lateness {
+            frames: 4_608,
+            rate: 48_000,
+        });
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, false).unwrap();
+        assert_eq!(r.lateness_repaired, 1);
+        assert_eq!(r.file.project.tracks[0].lateness, None);
+        assert!(r.file.project.tracks[1].lateness.is_some());
+        assert!(freeze::consistent(&r.file.project).is_ok());
+    }
+
+    /// Round 29's second review (finding 33): a warp dropped on load goes before the links
+    /// and the frozen keys are checked — a frozen target holding it keeps a key that is
+    /// what it holds, and a linked copy whose warp alone was bad stays linked. Kept comp
+    /// windows are repaired too (finding 40).
+    #[test]
+    fn an_invalid_warp_is_dropped_before_links_and_frozen_keys_are_checked() {
+        use cantus_core::comp::Comp;
+        let mut p = fixture("v37.cantus");
+        let mut bad = cantus_core::warp::Warp::new(48_000, 120.0);
+        bad.rate = 0;
+        let mut broken = 0;
+        for t in &mut p.tracks {
+            for c in t.clips.iter_mut().filter(|c| c.link.is_none()) {
+                if let Some(a) = c.audio.as_mut() {
+                    a.warp = Some(Box::new(bad.clone()));
+                    broken += 1;
+                }
+            }
+        }
+        // A linked pair whose second copy alone carries the bad warp.
+        let (ti, first) = p
+            .tracks
+            .iter()
+            .enumerate()
+            .find_map(|(i, t)| {
+                t.clips
+                    .iter()
+                    .find(|c| c.audio.is_some() && c.lane == 0)
+                    .map(|c| (i, c.clone()))
+            })
+            .expect("an audio clip");
+        let link = cantus_core::LinkId(p.next_id + 900);
+        let mut a = first.clone();
+        a.id = cantus_core::ClipId(p.next_id + 901);
+        a.start = first.start + cantus_core::Ticks::beats(400);
+        a.link = Some(link);
+        a.audio.as_mut().unwrap().warp = None;
+        let mut b = a.clone();
+        b.id = cantus_core::ClipId(p.next_id + 902);
+        b.start = a.start + cantus_core::Ticks::beats(40);
+        b.audio.as_mut().unwrap().warp = Some(Box::new(bad.clone()));
+        broken += 1;
+        // A kept window of a second comp with one too.
+        let mut kept = a.clone();
+        kept.id = cantus_core::ClipId(p.next_id + 903);
+        kept.link = None;
+        kept.comp = true;
+        kept.audio.as_mut().unwrap().warp = Some(Box::new(bad.clone()));
+        broken += 1;
+        p.next_id += 1_000;
+        let t = &mut p.tracks[ti];
+        t.clips.push(a.clone());
+        t.clips.push(b.clone());
+        t.clips.sort_by_key(|c| (c.start, c.id));
+        if t.comps.is_empty() {
+            t.comps.push(Comp {
+                name: "A".into(),
+                windows: Vec::new(),
+            });
+            t.active_comp = 0;
+        }
+        t.comps.push(Comp {
+            name: "B".into(),
+            windows: vec![kept],
+        });
+        let text = ProjectFile::wrap(p, "test").unwrap().to_json().unwrap();
+        let r = parse(&text, false).unwrap();
+        assert_eq!(r.warps_repaired, broken);
+        let back = r.file.project;
+        assert!(
+            freeze::consistent(&back).is_ok(),
+            "each frozen key is what it holds"
+        );
+        let t = &back.tracks[ti];
+        assert_eq!(t.clip(a.id).unwrap().link, Some(link));
+        assert_eq!(t.clip(b.id).unwrap().link, Some(link), "still linked");
+        assert!(t
+            .comps
+            .iter()
+            .flat_map(|c| &c.windows)
+            .all(|w| w.audio.as_ref().is_none_or(|a| a.warp.is_none())));
+    }
+
+    /// Schema 39 (round 29, warp's second review): a warp that started from the natural
+    /// warp under the tempo ramp keeps its own markers (the ramp's samples) apart from the
+    /// user's; a v38 file's markers are all the user's.
+    #[test]
+    fn schema_39_keeps_the_warps_own_markers() {
+        let markers = |name: &str| -> Vec<cantus_core::warp::WarpMarker> {
+            fixture(name)
+                .tracks
+                .iter()
+                .flat_map(|t| &t.clips)
+                .filter_map(|c| c.audio.as_ref()?.warp.as_ref())
+                .flat_map(|w| w.markers.clone())
+                .collect()
+        };
+        let now = markers("v39.cantus");
+        assert!(now.iter().any(|m| m.auto) && now.iter().filter(|m| !m.auto).count() >= 4);
+        assert!(markers("v38.cantus").iter().all(|m| !m.auto));
+        let p = fixture("v39.cantus");
+        assert!(p
+            .tracks
+            .iter()
+            .flat_map(|t| &t.clips)
+            .filter_map(|c| c.audio.as_ref()?.warp.as_ref())
+            .all(|w| w.is_valid()));
     }
 }

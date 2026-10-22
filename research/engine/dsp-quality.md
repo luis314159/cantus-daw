@@ -79,7 +79,7 @@ pitch-shifter"; https://github.com/Signalsmith-Audio/signalsmith-stretch **[fetc
 Bungee (Parabola Research, MPL-2.0; https://github.com/bungee-audio-stretch/bungee
 **[fetched]**).
 
-**For Cantus.** Cantus is GPL, so Rubber Band R3 is usable as the quality reference and
+**For Cantus.** (Superseded by ADR 0061 §1: since ADR 0047 the engine crates are MPL-2.0, so GPL code such as Rubber Band can only be *heard* as a reference; Cantus has its own stretcher.) Rubber Band R3 is the quality reference to listen to and
 Signalsmith Stretch (MIT) as the light, embeddable default. The engine-level rule matters
 more than the library: **warped clips are rendered into the render cache (ADR 0031 §4) and
 played as audio**; the real-time stretcher runs only for what is being edited (preview),

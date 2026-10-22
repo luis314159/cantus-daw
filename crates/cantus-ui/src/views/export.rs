@@ -40,6 +40,11 @@ pub struct ExportUi {
 
 struct Waiting {
     target: PathBuf,
+    /// What it waits for: the render's plug-ins (`true`), or samples.
+    plugins: bool,
+    /// The project it was asked for (`CantusApp::epoch`): another one in its place (New,
+    /// Open) drops it, never exported under the old one's name (review isolation-6 #20).
+    epoch: u64,
     /// The choices it was asked with (the dialog's, or `export_to`'s): the export starts
     /// with them, the dialog left as it is — open or not (second review #14).
     settings: ExportSettings,
@@ -56,6 +61,8 @@ struct Job {
     settings: ExportSettings,
     /// The percentage last shown in the status line.
     shown: Option<u32>,
+    /// A warped clip's render was late at its compile: said when it lands.
+    late: bool,
 }
 
 impl ExportUi {
@@ -72,6 +79,9 @@ impl ExportUi {
     /// phase reports it, the render included; `None` is kept for a phase that cannot).
     pub fn progress(&self) -> Option<(&'static str, Option<f32>)> {
         if let Some(w) = &self.waiting {
+            if w.plugins {
+                return Some(("isolation.render.loading", None));
+            }
             let (done, total) = w.progress;
             // Nothing counted (yet): a bar without a fraction, never "0 %".
             return Some((
@@ -95,6 +105,10 @@ pub fn range(app: &CantusApp, scope: Scope) -> Option<(Ticks, Ticks)> {
             .as_ref()
             .filter(|l| l.end > l.start)
             .map(|l| (l.start, l.end)),
+        Scope::Markers { from, to } => app.span_between(
+            cantus_core::tempo::MarkerId(from),
+            cantus_core::tempo::MarkerId(to),
+        ),
         Scope::Song | Scope::Stems => None,
     }
 }
@@ -102,7 +116,7 @@ pub fn range(app: &CantusApp, scope: Scope) -> Option<(Ticks, Ticks)> {
 /// Whether `scope` can be exported now (a range needs to be there).
 pub fn available(app: &CantusApp, scope: Scope) -> bool {
     match scope {
-        Scope::Selection | Scope::Loop => range(app, scope).is_some(),
+        Scope::Selection | Scope::Loop | Scope::Markers { .. } => range(app, scope).is_some(),
         Scope::Song | Scope::Stems => true,
     }
 }
@@ -146,7 +160,8 @@ pub fn close(app: &mut CantusApp) {
 pub fn remember(app: &mut CantusApp, d: &ExportSettings) {
     let mut keep = d.clone();
     keep.tags.title.clear();
-    if keep.scope == Scope::Loop {
+    // The project's markers are the project's: kept as the song (round 29).
+    if matches!(keep.scope, Scope::Loop | Scope::Markers { .. }) {
         keep.scope = Scope::Song;
     }
     if app.settings.export != keep {
@@ -186,11 +201,28 @@ fn stems_in_the_way(app: &CantusApp, d: &ExportSettings, folder: &Path) -> Vec<S
         .collect()
 }
 
+/// Say why a range cannot be exported, in the dialog's note and on the status line.
+fn refuse(app: &mut CantusApp, scope: Scope) {
+    let key = match scope {
+        Scope::Selection => "export_audio.no_selection",
+        Scope::Loop => "export_audio.no_loop",
+        _ if app.project().markers.len() < 2 => "tempo.export.no_markers",
+        _ => "tempo.export.two_markers",
+    };
+    app.export.asked = Some(scope);
+    app.set_error(t(key));
+}
+
 /// Ask where, then start. Stems ask for a folder; a mix for a file.
 pub fn choose_and_start(app: &mut CantusApp) {
     let Some(d) = app.export.dialog.clone() else {
         return;
     };
+    // Nothing to ask a file name for when the range is not there.
+    if !available(app, d.scope) {
+        refuse(app, d.scope);
+        return;
+    }
     let mut picker = rfd::FileDialog::new();
     if let Some(dir) = d.folder.as_ref().filter(|f| f.is_dir()) {
         picker = picker.set_directory(dir);
@@ -259,6 +291,20 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
     if app.export.busy() {
         return false;
     }
+    // A freeze or a bounce rendering holds the hosted plug-ins' render instances (round 29,
+    // ADR 0064): one set at a time — the export waits for it. A background refresh gives
+    // way (review 1: it blocked every export); it is made again after.
+    if !crate::freeze::yield_refresh(app) {
+        app.set_error(crate::i18n::t("freeze.export_waits"));
+        return false;
+    }
+    // A modulator's bake renders through the same plug-in instances: one render at a time
+    // (round 29, review isolation-3 #5, #10, #13, #48).
+    if app.modulators.pending_bake.is_some() || app.warp.pending_bake.is_some() {
+        let job = crate::i18n::t("isolation.render.bake");
+        app.set_error(crate::i18n::tf("isolation.render.busy", &[("job", &job)]));
+        return false;
+    }
     let from_dialog = choices.is_none();
     let mut d = match choices.or_else(|| app.export.dialog.clone()) {
         Some(d) => d,
@@ -268,8 +314,11 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
             d
         }
     };
+    // A range the project does not have is refused with a word, never turned into the
+    // whole song under a name meant for a part of it (review 2).
     if !available(app, d.scope) {
-        d.scope = Scope::Song;
+        refuse(app, d.scope);
+        return false;
     }
     let stems = d.scope == Scope::Stems;
     let target = if stems {
@@ -294,6 +343,8 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         let progress = app.engine.samples.progress().unwrap_or((0, 0));
         app.export.waiting = Some(Waiting {
             target: target.to_path_buf(),
+            plugins: false,
+            epoch: app.epoch,
             settings: d,
             progress,
             shown: None,
@@ -302,9 +353,31 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         return true;
     }
     let rate = app.engine.sample_rate.round() as u32;
+    // The render's plug-ins loading (an isolated one in a helper of its own): the export
+    // waits for them the same way, the window free (round 29, review isolation-5).
+    if !app.plugins.render_ready(
+        cantus_host::RenderFor::Export,
+        app.bus.project(),
+        f64::from(rate),
+        false,
+    ) {
+        app.export.waiting = Some(Waiting {
+            target: target.to_path_buf(),
+            plugins: true,
+            epoch: app.epoch,
+            settings: d,
+            progress: (0, 0),
+            shown: None,
+        });
+        app.export.last = None;
+        app.set_status(t("isolation.render.loading"));
+        return true;
+    }
+    let before = app.engine.renders_late();
     let snapshot = app
         .engine
         .compile_for_render(app.bus.project(), app.bus.revision());
+    let late = app.late_since(before);
     let mut render = RenderOptions {
         sample_rate: rate,
         tail_seconds: d.tail_seconds.max(0.0) as f64,
@@ -372,9 +445,12 @@ pub fn start_with(app: &mut CantusApp, target: &Path, choices: Option<ExportSett
         target: target.to_path_buf(),
         settings: asked,
         shown: None,
+        late,
     });
     app.export.last = None;
     app.set_status(t("status.exporting"));
+    // Said after "exporting", so its quiet keeps it on the line meanwhile.
+    app.say_late(before);
     true
 }
 
@@ -394,12 +470,18 @@ fn error_text(e: cantus_export::ExportError) -> String {
 
 /// Ask the running export to stop.
 pub fn stop(app: &mut CantusApp) {
-    if app.export.waiting.take().is_some() {
+    if let Some(w) = app.export.waiting.take() {
+        if w.plugins {
+            // The render's plug-ins it waited for go.
+            app.plugins.drop_render(cantus_host::RenderFor::Export);
+        }
         app.export.last = Some(Err(t("export_audio.stopped")));
         app.set_status(t("export_audio.stopped"));
     }
     if let Some(j) = &app.export.job {
         j.ctl.cancel();
+        // An isolated plug-in hung in the render is not waited for (review #1).
+        app.plugins.cancel_render();
     }
 }
 
@@ -410,9 +492,22 @@ fn poll_waiting(app: &mut CantusApp) {
     }
     // Take in what arrived (and send the live engine its snapshot with it).
     app.sync_engine();
+    // Asked for another project (New, Open meanwhile): dropped, and said.
+    if app
+        .export
+        .waiting
+        .as_ref()
+        .is_some_and(|w| w.epoch != app.epoch)
+    {
+        stop(app);
+        return;
+    }
     let Some(w) = app.export.waiting.as_mut() else {
         return;
     };
+    if w.plugins && app.plugins.render_waiting(cantus_host::RenderFor::Export) {
+        return;
+    }
     if app.engine.samples.loading() {
         let now = app.engine.samples.progress().unwrap_or(w.progress);
         w.progress = now;
@@ -476,14 +571,34 @@ fn finish(app: &mut CantusApp, result: Result<Done, String>) {
     let Some(j) = app.export.job.take() else {
         return;
     };
+    // A plug-in that stopped working during the render (round 29, review #6, #47): the
+    // file lacks it from that point, so the export is not reported done.
+    let lost = app.plugins.render_failures();
     // The render is over: the plug-in instances it used go, on this thread.
     app.plugins.finish_render();
+    // One never loaded for it lacks it throughout; one begun from its last-saved state is
+    // said, not failed (review isolation-4 #10, #41).
+    let (losses, warnings) = super::plugin_notice::render_words(&lost, "export", "");
     match result {
+        Ok(_) if losses.is_some() => {
+            let text = losses.unwrap_or_default();
+            app.export.last = Some(Err(text.clone()));
+            app.set_error(text);
+        }
         Ok(done) => {
-            let text = summary(&done, &j.target, &j.settings);
+            let mut text = summary(&done, &j.target, &j.settings);
+            if let Some(w) = &warnings {
+                text = format!("{text} {w}");
+            }
+            // A warped clip's quick version in the file, said (round 29's third review).
+            if j.late {
+                text = format!("{text} {}", t("warp.status.late"));
+            }
             app.export.last = Some(Ok(text.clone()));
             if done.unaligned {
                 app.set_error(format!("{text} {}", t("interop.stems.unaligned")));
+            } else if warnings.is_some() || j.late {
+                app.set_error(text);
             } else {
                 app.set_status(text);
             }

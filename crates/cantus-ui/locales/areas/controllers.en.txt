@@ -1,0 +1,136 @@
+# controllers — round 29: MIDI learn and controller mapping. Every key here needs its twin in controllers.es.txt.
+
+# Undo labels (cmd.*)
+cmd.controllers.add = controller mapping added
+cmd.controllers.remove = controller mapping removed
+cmd.controllers.set = controller mapping change
+cmd.controllers.gesture = controller move
+
+# Actions (the keymap)
+action.midi-learn-mode = MIDI learn mode
+action.link-last-tweaked = Link the last tweaked parameter to a controller
+action.view-controllers = Show the controller mappings
+
+# A parameter's menu
+ctl.param.learn = Learn MIDI controller
+ctl.param.relearn = Change MIDI controller
+ctl.param.forget = Forget MIDI controller
+
+# Menus of the mixer and the track header
+ctl.menu.band = MIDI controller
+ctl.menu.volume = Learn volume
+ctl.menu.pan = Learn pan
+ctl.menu.width = Learn stereo width
+ctl.menu.mute = Learn mute
+ctl.menu.solo = Learn solo
+ctl.menu.fx = Learn effects on
+ctl.menu.arm = Learn record arm
+ctl.menu.bypass = Learn bypass
+ctl.menu.mix = Learn mix
+ctl.menu.forget = Forget these controllers
+
+# What a control is
+ctl.src.cc = CC {n}
+ctl.src.cc14 = CC {n} (14-bit)
+ctl.src.note = Note {n}
+ctl.src.bend = Pitch bend
+ctl.src.program = Program {n}
+ctl.src.pressure = Pressure
+ctl.src.key_pressure = Key pressure {n}
+ctl.src.channel = Ch {n}
+ctl.src.any_channel = Any channel
+ctl.src.any_port = Any port
+
+# Modes and takeover
+ctl.mode.absolute = Absolute
+ctl.mode.rel_twos = Relative (2's comp.)
+ctl.mode.rel_offset = Relative (offset 64)
+ctl.mode.rel_sign = Relative (sign bit)
+ctl.mode.toggle = Toggle
+ctl.mode.momentary = Momentary
+ctl.mode.trigger = Trigger
+ctl.takeover.jump = Jump
+ctl.takeover.pickup = Pick up
+ctl.takeover.scale = Scale
+
+# Targets
+ctl.desk.volume = Volume
+ctl.desk.pan = Pan
+ctl.desk.mute = Mute
+ctl.desk.solo = Solo
+ctl.desk.arm = Record arm
+ctl.target.bypass = Bypass
+ctl.target.mix = Mix
+ctl.target.tempo = Tempo
+ctl.target.action = Transport
+ctl.target.unknown_action = Unknown action
+ctl.target.plugin_param = Parameter {n}
+ctl.desk.fx = Effects on
+ctl.target.selected_track = Selected track
+ctl.target.selected_strip = Selected channel
+ctl.target.device_param = Focused device · Knob {n}
+ctl.value.on = On
+ctl.value.off = Off
+
+# The status line
+ctl.status.armed = Move a control on your MIDI controller for {name} (Esc cancels)
+ctl.status.cancelled = MIDI learn cancelled
+ctl.status.learnt = {source} now drives {name}
+ctl.status.learnt_shared = {source} now drives {name}, and also {others}
+ctl.status.forgot = {name} has no controller now
+ctl.status.mode_on = MIDI learn: click a control, then move a control on your MIDI controller
+ctl.status.mode_off = MIDI learn off
+ctl.status.not_a_value = Not a value for this control
+ctl.status.global_damaged = Some of your global controller mappings could not be read: the file is kept as {file}
+ctl.status.global_unsaved = Your global controller mappings could not be read or kept aside, so nothing is saved over them until Cantus starts again: {file}
+ctl.status.nrpn = NRPN and RPN controls cannot be learnt: move another control
+ctl.status.save_failed = Could not save the controller mappings: {error}
+
+# The mappings pane
+ctl.pane = Controllers
+ctl.toggle = Show the controller mappings
+ctl.view.learn = Learn
+ctl.view.learn_tip = MIDI learn mode: every control that can be learnt is outlined
+ctl.view.add = Add a mapping
+ctl.view.filter = Filter
+ctl.view.new_takeover = Takeover for new mappings
+ctl.view.ports = MIDI in: {names}
+ctl.view.no_ports = No MIDI input. Plug one in, then Settings → MIDI → Rescan ports
+ctl.view.armed = Waiting for a control: move a knob, fader, button or pad for {name}. Esc cancels
+ctl.view.global = Everywhere (your global mappings)
+ctl.view.global_empty = Nothing here yet: Add a mapping for the transport, the master, the selected track or the focused device
+ctl.view.project = This project
+ctl.view.project_empty = Nothing here yet: right-click any knob → Learn MIDI controller, or turn Learn on and click a control
+ctl.view.no_match = No mapping matches the filter
+ctl.view.shared = Shared
+ctl.view.shared_tip = This control also drives
+ctl.view.missing = Missing
+ctl.view.other_plugin = Other plug-in
+ctl.view.not_loaded = Not loaded
+ctl.view.frozen = Frozen
+ctl.view.not_connected = Not connected
+ctl.view.no_input = No input
+ctl.menu.send_learn = Learn the send's level
+ctl.menu.send_relearn = Change the send level's controller
+ctl.menu.send_forget = Forget the send level's controller
+ctl.view.send = Send
+ctl.view.send_tip = Feedback: send the value back to the controller (motor faders, LED rings)
+ctl.view.relearn = Learn this control again
+ctl.view.remove = Remove this mapping
+ctl.col.control = Control
+ctl.col.target = Drives
+ctl.col.mode = Mode
+ctl.col.from = From
+ctl.col.to = To
+ctl.col.curve = Curve
+ctl.col.takeover = Takeover
+ctl.col.feedback = Feedback
+ctl.add.master = Master
+ctl.add.selected_track = Selected track
+ctl.add.selected_strip = Selected channel
+ctl.add.device = Focused device
+
+# The top bar
+ctl.topbar.learn_tip = MIDI learn: click a control, then move a knob, fader, button or pad on your controller
+ctl.topbar.lamp_tip = Click: MIDI learn mode. Right-click: MIDI settings
+ctl.topbar.lamp_tip_key = Click: MIDI learn mode ({key}). Right-click: MIDI settings

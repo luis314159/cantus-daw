@@ -622,6 +622,7 @@ impl PinMod {
     fn input(&self, st: &mut Inspector, ui: &Ui, resp: &Response, probe: &str) -> bool {
         use crate::kit::automate as a;
         a::probe::note(probe, true);
+        a::probe::note_learn(probe, self.offer.learn().is_some());
         let choice = a::modulation_choice(ui, resp, Some(self.offer))
             .or_else(|| a::menu(ui, resp, self.offer));
         if let Some(c) = choice {
@@ -662,6 +663,10 @@ impl PinMod {
         use crate::kit::automate as a;
         if self.offer.automated {
             a::mark(b, rect, s);
+        }
+        // Mapped to a controller (round 29, review 1 of ADR 0062).
+        if self.offer.learn().is_some_and(|l| l.mapped) {
+            a::learn_mark(b, rect, s);
         }
         if self.n > 0 {
             a::mod_mark(b, rect, s);

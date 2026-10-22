@@ -15,7 +15,9 @@ autoguardado y recuperación probados con fallos reales; (4) el uso real del due
 canciones completas y sus fricciones resueltas; (5) firma de código; (6) legal — búsqueda de
 marca "Cantus", avisos de terceros, RVR1960, privacidad. Muy recomendables: exportar MP3,
 nivelar Lamina y Exemplar, un manual de inicio rápido EN/ES, plantillas de issues, versión y
-notas. No hace falta para la beta: warp, MIDI learn, IA, macOS/Linux, aislar plug-ins.
+notas. No hace falta para la beta: IA, superficies de control, los instaladores de macOS y
+Linux (ronda 30). Warp, MIDI learn, la pista de tempo, congelar y aislar plug-ins llegaron
+en la ronda 29.
 
 ## Blockers
 
@@ -63,8 +65,10 @@ notas. No hace falta para la beta: warp, MIDI learn, IA, macOS/Linux, aislar plu
 
 ## Not needed for the beta (known limitations)
 
-Warping/time-stretch, MIDI learn and control surfaces, AI features, macOS and Linux builds,
-hosted plug-in crash isolation, multiple arrangements. Exemplar in Draft quality plays only
+Control-surface protocols (Mackie Control, HUI), AI features, the macOS and Linux installers
+(round 30), multiple arrangements. Warping and time-stretch, MIDI learn, the tempo track,
+freeze and bounce, and running hosted plug-ins in their own process arrived in round 29
+(ADRs 0060–0064). Exemplar in Draft quality plays only
 the start of a long sample streamed from disk when a note reads it faster than streaming
 serves (its file's rate over the output's, times the pitch: over 64 at 48 kHz — about 72
 semitones up at equal rates, 48 for a 192 kHz file at 48 kHz); the status line and the

@@ -121,25 +121,21 @@ impl Processor {
     /// ends at the next one.
     fn run_click(&mut self, snap: Option<&Snapshot>, out: &mut [f32], channels: usize, n: usize) {
         let beats = match snap {
-            Some(s) if self.click_on() && self.transport.is_playing() => Some((
-                s.time_signature.ticks_per_beat().0 as f64,
-                s.time_signature.ticks_per_bar().0 as f64,
-            )),
+            Some(s) if self.click_on() && self.transport.is_playing() => Some(s),
             _ => None,
         };
         let mut c0 = 0usize;
         while c0 < n {
             let mut c1 = n;
-            if let Some((beat_len, bar_len)) = beats {
+            if let Some(s) = beats {
                 let until = |p: &Self| {
                     (p.transport.samples_until(p.next_beat_tick) as usize).saturating_sub(c0)
                 };
                 if until(self) == 0 {
-                    let in_bar = self.next_beat_tick.rem_euclid(bar_len);
+                    let accent = self.click_beat(s);
                     if self.click_allowed_at(self.transport.samples() + c0 as u64) {
-                        self.click.trigger(in_bar.abs() < 0.5);
+                        self.click.trigger(accent);
                     }
-                    self.next_beat_tick += beat_len;
                 }
                 c1 = n.min(c0 + until(self).max(1));
             }
@@ -232,6 +228,7 @@ impl Processor {
                         &self.scoped,
                         &self.scoped_delay,
                         position,
+                        self.transport.map(),
                         self.sample_rate,
                         e.id,
                         l,
@@ -290,7 +287,8 @@ impl Processor {
             // dry line, the effect still running) when it has.
             let off = m.bypass[i] || !m.fx_enabled;
             let latent = e.latency() > 0;
-            if off && !latent {
+            // Bypassed hard for low-latency monitoring (ADR 0064 §4).
+            if (off && !latent) || m.ll_off[i] {
                 if let Some(a) = ana.as_mut() {
                     analyse(a, l, r);
                 }
@@ -299,6 +297,7 @@ impl Processor {
                     &self.scoped,
                     &self.scoped_delay,
                     position,
+                    self.transport.map(),
                     self.sample_rate,
                     e.id,
                     l,
@@ -313,7 +312,13 @@ impl Processor {
                 Some(b) if b.pass == pass => (&b.l[..n], &b.r[..n]),
                 _ => (&SILENCE[..n], &SILENCE[..n]),
             });
-            e.set_position(&position.earlier(e.late, self.sample_rate));
+            if e.follows_song() {
+                e.set_position(&position.earlier_in(
+                    e.late,
+                    self.sample_rate,
+                    self.transport.map(),
+                ));
+            }
             if mix >= 1.0 && !latent {
                 e.process_keyed(l, r, key);
             } else {
@@ -357,6 +362,7 @@ impl Processor {
                 &self.scoped,
                 &self.scoped_delay,
                 position,
+                self.transport.map(),
                 self.sample_rate,
                 e.id,
                 l,

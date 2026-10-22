@@ -19,7 +19,7 @@ use crate::backend::{
     Audio, AudioThread, NoteEvent, NoteExpression as HostExpression, NoteKind, ParamInfo,
     TransportInfo,
 };
-use crate::unit::{transport_of, ParamSync};
+use crate::unit::{transport_of, CpuMeter, ParamSync};
 use cantus_core::{ExternalPlugin, NativeSpec};
 use cantus_engine::fx::{FxParamEvent, SongPosition};
 use cantus_engine::inst::{Assets, Controller, InstrumentUnit, NoteExpression, NoteOn};
@@ -49,6 +49,7 @@ pub struct HostedInstrument {
     held: Vec<Held>,
     /// Events that did not fit, since the unit was made.
     pub dropped: usize,
+    meter: Option<Arc<CpuMeter>>,
 }
 
 impl std::fmt::Debug for HostedInstrument {
@@ -90,7 +91,14 @@ impl HostedInstrument {
             notes: Vec::with_capacity(NOTE_CAPACITY),
             held: Vec::with_capacity(HELD_CAPACITY),
             dropped: 0,
+            meter: None,
         }
+    }
+
+    /// Measures what its calls cost into `meter` (round 29).
+    pub fn metered(mut self, meter: Arc<CpuMeter>) -> Self {
+        self.meter = Some(meter);
+        self
     }
 
     fn push(&mut self, channel: u8, key: u8, note_id: i32, kind: NoteKind) {
@@ -212,6 +220,12 @@ impl InstrumentUnit for HostedInstrument {
         }
     }
 
+    /// A live program change (round 29, ADR 0062): the plug-in hears it as MIDI, as from
+    /// the keyboard itself.
+    fn program(&mut self, program: u8) {
+        self.midi(0xC0, program & 127, 0);
+    }
+
     fn all_notes_off(&mut self) {
         while let Some(h) = self.held.pop() {
             self.push(h.channel, h.key, h.id, NoteKind::Off { velocity: 0.0 });
@@ -235,17 +249,25 @@ impl InstrumentUnit for HostedInstrument {
         // The caller zeroed both: the plug-in's output written over them is its output
         // added, as the contract asks.
         self.sync.merge();
-        self.audio.process(
-            Audio {
-                left: &mut left[..frames],
-                right: &mut right[..frames],
-                key: None,
-                transport: self.transport.as_ref(),
-            },
-            &self.sync.merged,
+        let (audio, sync, notes, transport) = (
+            &mut self.audio,
+            &mut self.sync,
             &self.notes,
-            &mut self.sync.out,
+            self.transport.as_ref(),
         );
+        CpuMeter::time(self.meter.as_deref(), frames, || {
+            audio.process(
+                Audio {
+                    left: &mut left[..frames],
+                    right: &mut right[..frames],
+                    key: None,
+                    transport,
+                },
+                &sync.merged,
+                notes,
+                &mut sync.out,
+            )
+        });
         // A plug-in may leave MXCSR changed (ADR 0031 R9; a no-op outside a `DenormalGuard`).
         cantus_rt::fpenv::reassert();
         self.notes.clear();

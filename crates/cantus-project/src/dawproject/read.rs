@@ -21,7 +21,8 @@ use super::{effect_kind_of, DawProjectError, Imported, APPLICATION, DEVICE_PREFI
 use crate::report::Report;
 use cantus_core::{
     linear_to_db, Color, Dock, EffectId, EffectSlot, InstrumentSpec, Project, Send, SendTap,
-    StripId, TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS, MIN_GAIN_DB,
+    StripId, Ticks, TimeSignature, DEFAULT_STRIPS, MAX_GAIN_DB, MAX_INSERTS, MAX_SENDS,
+    MIN_GAIN_DB,
 };
 use roxmltree::Node;
 use std::collections::HashMap;
@@ -280,6 +281,7 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
     let timeline = child(root, "Arrangement")
         .map(|arr| read_timeline::read(arr, &project, &mut report))
         .unwrap_or_default();
+    tempo_map(&mut project, &timeline, &mut report);
     if let Some(scenes) = child(root, "Scenes") {
         let n = scenes.children().filter(|c| c.is_element()).count();
         report.count_dropped("interop.report.d_scenes", n);
@@ -291,7 +293,7 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
         &channels,
         master.as_deref(),
         &timeline,
-        files,
+        (files, ours),
         &mut report,
     );
     report.info(
@@ -306,7 +308,51 @@ pub fn project(files: &[(String, Vec<u8>)]) -> Result<Imported, DawProjectError>
     if !ours {
         report.info("interop.report.d_foreign", vec![]);
     }
-    Ok(Imported { project, report })
+    // The audio files the archive carries, for the caller to put on disk (round 29).
+    let media: Vec<(String, Vec<u8>)> = files
+        .iter()
+        .filter(|(p, _)| {
+            let p = p.trim_start_matches("./");
+            project.audio_pool.iter().any(|s| s.path == p)
+        })
+        .map(|(p, d)| (p.trim_start_matches("./").to_string(), d.clone()))
+        .collect();
+    Ok(Imported {
+        project,
+        report,
+        media,
+    })
+}
+
+/// The parts of an archive a read of `xml` (its project.xml) takes besides it and its
+/// metadata: the states of Cantus's own devices, and — a file Cantus wrote — its warps
+/// (`cantus/…`, among `names`, the archive's entries). Every other part (a plug-in's
+/// state, which is never read) stays in the archive (round 29's third review).
+pub fn needed_parts(xml: &[u8], names: &[String]) -> Vec<String> {
+    let text = String::from_utf8_lossy(xml);
+    let Ok(doc) = roxmltree::Document::parse(&text) else {
+        return Vec::new();
+    };
+    let root = doc.root_element();
+    let ours = child(root, "Application").and_then(|a| attr(a, "name")) == Some(APPLICATION);
+    let mut out: Vec<String> = root
+        .descendants()
+        .filter(|d| attr(*d, "deviceID").is_some_and(|i| i.starts_with(DEVICE_PREFIX)))
+        .filter_map(|d| child(d, "State").and_then(|s| attr(s, "path")))
+        .map(|p| p.trim_start_matches("./").to_string())
+        .collect();
+    if ours {
+        out.extend(
+            names
+                .iter()
+                .map(|n| n.trim_start_matches("./"))
+                .filter(|n| n.starts_with("cantus/"))
+                .map(str::to_string),
+        );
+    }
+    out.sort();
+    out.dedup();
+    out
 }
 
 /// A file of the archive, by the path the XML gives.
@@ -325,7 +371,7 @@ fn build(
     channels: &[ChannelInfo],
     master: Option<&str>,
     timeline: &Timeline,
-    files: &[(String, Vec<u8>)],
+    (files, ours): (&[(String, Vec<u8>)], bool),
     report: &mut Report,
 ) -> (usize, usize, usize) {
     let owner_of = |ci: usize| tracks.iter().find(|t| t.channel == Some(ci));
@@ -500,6 +546,16 @@ fn build(
         let clips = timeline.clips.get(&key).map(Vec::as_slice).unwrap_or(&[]);
         let drums = timeline.drums.contains(&key);
         track.instrument = instrument(ch, &t.name, drums, clips, files, report);
+        // A track of audio records audio (round 29's review): an input, as a new audio
+        // track has.
+        if t.content.iter().any(|c| c == "audio") {
+            track.input = Some(cantus_core::audio::TrackInput {
+                first: 0,
+                stereo: true,
+                monitor: Default::default(),
+                trim_db: 0.0,
+            });
+        }
         match ch {
             Some(c) if c.track_channel => {
                 track.strip = target(c);
@@ -524,6 +580,62 @@ fn build(
             clip.content_length = c.period;
             clip.muted = c.muted;
             clip.color = c.color;
+            // An audio clip (round 29, ADR 0061): its file in the pool (once), its warp.
+            if let Some(au) = &c.audio {
+                let id = match project.audio_pool.iter().find(|s| s.path == au.path) {
+                    Some(s) => s.id,
+                    None => {
+                        let id = cantus_core::AudioSourceId(project.alloc_id());
+                        let name = std::path::Path::new(&au.path)
+                            .file_stem()
+                            .map(|s| s.to_string_lossy().into_owned())
+                            .unwrap_or_else(|| c.name.clone());
+                        project.audio_pool.push(cantus_core::AudioSource {
+                            id,
+                            name,
+                            path: au.path.clone(),
+                            sample_rate: au.rate,
+                            channels: au.channels,
+                            frames: (au.seconds * au.rate as f64).round() as u64,
+                            sha256: None,
+                            recorded: false,
+                        });
+                        id
+                    }
+                };
+                // Cantus's own warp, carried beside its `<Warps>` (round 29's third review).
+                let side = au
+                    .id
+                    .as_deref()
+                    .filter(|_| ours)
+                    .and_then(|i| state_file(files, &super::audio::side_path(i)))
+                    .and_then(|b| serde_json::from_slice::<super::audio::Side>(b).ok())
+                    .filter(|s| s.warp.is_valid() && s.warp.follow);
+                let mut region = match side {
+                    Some(s) => {
+                        let mut r = cantus_core::AudioRegion::of(id);
+                        r.warp = Some(Box::new(s.warp));
+                        r.slip_frames = s.slip_frames - c.slip;
+                        r
+                    }
+                    None => {
+                        let window = ours.then_some((c.start, c.length));
+                        let map = project.tempo_map();
+                        let (r, natural) = super::audio::region(id, au, &map, c.origin, window);
+                        if natural {
+                            report.info(
+                                "interop.report.d_warp_natural",
+                                vec![("clip", c.name.clone())],
+                            );
+                        }
+                        r
+                    }
+                };
+                region.slip_frames += c.slip;
+                region.fade_in = c.fades.0;
+                region.fade_out = c.fades.1;
+                clip.audio = Some(region);
+            }
             for n in &c.notes {
                 let note = project.make_note(n.start, n.length, n.pitch, n.velocity);
                 clip.notes.push(note);
@@ -692,4 +804,82 @@ fn channel_eq(project: &mut Project, sid: StripId, eq: Node) -> bool {
     }
     project.strip_mut(sid).expect("made").eq = out;
     true
+}
+
+/// The file's metre points as the song's metre changes: valid signatures only, two at one
+/// tick the later (review 2, finding 58), the transport's metre at tick 0 when the first is
+/// later. Empty when the file has none.
+pub(crate) fn metre_list(
+    points: &[(Ticks, u8, u8)],
+    transport: TimeSignature,
+) -> Vec<cantus_core::tempo::MetreChange> {
+    use cantus_core::tempo::{valid_signature, MetreChange};
+    let mut ms: Vec<MetreChange> = points
+        .iter()
+        .map(|(tick, n, d)| MetreChange {
+            tick: *tick,
+            signature: TimeSignature::new(*n, *d),
+        })
+        .filter(|m| m.tick.0 >= 0 && valid_signature(m.signature))
+        .collect();
+    ms.sort_by_key(|m| m.tick);
+    ms.reverse();
+    ms.dedup_by_key(|m| m.tick);
+    ms.reverse();
+    if ms.first().is_some_and(|m| m.tick != Ticks::ZERO) {
+        ms.insert(
+            0,
+            MetreChange {
+                tick: Ticks::ZERO,
+                signature: transport,
+            },
+        );
+    }
+    ms
+}
+
+/// The tempo track, the metre changes and the markers from the file's arrangement (round
+/// 29, ADR 0060): the first tempo and metre at tick 0 become the song's, the transport's
+/// standing in where the automation starts later.
+fn tempo_map(project: &mut Project, t: &Timeline, report: &mut Report) {
+    use cantus_core::tempo::{Marker, MarkerId};
+    // The tempo track as the timeline read it (its points normalised there).
+    let pts = t.tempo.clone();
+    if !pts.is_empty() {
+        project.tempo_bpm = pts[0].bpm;
+        if pts.len() > 1 {
+            report.info(
+                "tempo.report.tempo_kept",
+                vec![("n", (pts.len() - 1).to_string())],
+            );
+            project.tempo_points = pts;
+        }
+    }
+    let ms = metre_list(&t.metres, project.time_signature);
+    if !ms.is_empty() {
+        project.time_signature = ms[0].signature;
+        if ms.len() > 1 {
+            report.info(
+                "tempo.report.metres_kept",
+                vec![("n", (ms.len() - 1).to_string())],
+            );
+            project.metre_changes = ms;
+        }
+    }
+    for (tick, name, color) in &t.markers {
+        let id = MarkerId(project.alloc_id());
+        project.markers.push(Marker {
+            id,
+            tick: (*tick).max(Ticks::ZERO),
+            name: name.clone(),
+            color: *color,
+        });
+    }
+    project.markers.sort_by_key(|m| (m.tick, m.id));
+    if !t.markers.is_empty() {
+        report.info(
+            "tempo.report.markers_kept",
+            vec![("n", t.markers.len().to_string())],
+        );
+    }
 }

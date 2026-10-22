@@ -120,6 +120,10 @@ pub(crate) enum Pick {
     AutomateLevel(StripId, StripId),
     /// *Modulate the level…*: the modulators' list beside the menu (ADR 0057, review 2).
     ModulateLevel(StripId, StripId),
+    /// *Learn MIDI controller* for the level (round 29, review 1 of ADR 0062).
+    LearnLevel(StripId, StripId),
+    /// *Forget MIDI controller* of the level.
+    ForgetLevel(StripId, StripId),
 }
 
 /// The open menu of one owner, kept in the egui context between frames.
@@ -602,6 +606,28 @@ fn route_rows(app: &CantusApp, r: Route, e: &mut Vec<Row>) {
                 Label::Key("mods.menu.send"),
                 Pick::ModulateLevel(r.from, r.to),
             ));
+            // MIDI learn (round 29, review 1 of ADR 0062).
+            let level =
+                cantus_core::controller::MappingTarget::Param(cantus_core::AutoTarget::Send {
+                    strip: r.from,
+                    to: r.to,
+                });
+            let mapped = app.is_mapped(&level);
+            // Named for the level: the menu has several controls (review 2, #47).
+            e.push(Row::pick(
+                Label::Key(if mapped {
+                    "ctl.menu.send_relearn"
+                } else {
+                    "ctl.menu.send_learn"
+                }),
+                Pick::LearnLevel(r.from, r.to),
+            ));
+            if mapped {
+                e.push(Row::pick(
+                    Label::Key("ctl.menu.send_forget"),
+                    Pick::ForgetLevel(r.from, r.to),
+                ));
+            }
             e.push(
                 Row::pick(
                     Label::Key("routing.menu.send_on"),
@@ -920,9 +946,11 @@ fn list(
         clicked: None,
         hovered: None,
     };
+    // Its size given, not egui's default area size (400 points tall): see `mixer_menu`.
     let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
+        .default_size(egui::vec2(width, h))
         .constrain(true)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical()
@@ -1207,6 +1235,16 @@ fn apply(app: &mut CantusApp, ctx: &Context, pick: Pick) {
         }
         Pick::AutomateLevel(strip, to) => {
             app.automate(cantus_core::AutoTarget::Send { strip, to });
+        }
+        Pick::LearnLevel(strip, to) => {
+            app.learn_target(cantus_core::controller::MappingTarget::Param(
+                cantus_core::AutoTarget::Send { strip, to },
+            ));
+        }
+        Pick::ForgetLevel(strip, to) => {
+            app.forget_target(&cantus_core::controller::MappingTarget::Param(
+                cantus_core::AutoTarget::Send { strip, to },
+            ));
         }
         Pick::ModulateLevel(strip, to) => {
             // Beside the pointer, where the menu was.

@@ -71,6 +71,16 @@ fn scene(a: &mut CantusApp) -> (cantus_core::StripId, cantus_core::StripId) {
     a.set_strip_send(strip, Send::new(ids[0]));
     a.set_strip_send(strip, Send::new(ids[1]));
     a.end_gesture();
+    // The first track a bounce through latency: its *Delay* row shows (review 4: no
+    // inspector test drew it).
+    let keys = a.project().tracks[0].id;
+    a.exec(Command::SetTrackLateness {
+        id: keys,
+        lateness: Some(cantus_core::Lateness {
+            frames: 4_608,
+            rate: 48_000,
+        }),
+    });
     (strip, ids[2])
 }
 
@@ -316,4 +326,64 @@ fn a_still_frame_allocates_nothing_of_its_own() {
     );
     // egui's own bookkeeping for the widgets the rows sense is all that may remain.
     assert!(n <= 40, "a still inspector frame allocated {n} times");
+}
+
+/// The allocations of a still frame of the inspector (the eighth on), counted.
+fn still_allocs(a: &mut CantusApp) -> usize {
+    let ctx = ctx();
+    let run = |a: &mut CantusApp, count: bool| {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(300.0, 2400.0),
+            )),
+            ..Default::default()
+        };
+        let mut n = 0;
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::NONE)
+                .show(ui, |ui| {
+                    THIS_THREAD.with(|t| t.set(true));
+                    ALLOCS.with(|c| c.set(0));
+                    COUNTING.with(|c| c.set(count));
+                    inspector::show(a, ui);
+                    COUNTING.with(|c| c.set(false));
+                    THIS_THREAD.with(|t| t.set(false));
+                    n = ALLOCS.try_with(|c| c.get()).unwrap_or_default();
+                });
+        });
+        out.textures_delta.clear();
+        n
+    };
+    for _ in 0..8 {
+        run(a, false);
+    }
+    run(a, true)
+}
+
+#[test]
+fn the_delay_row_allocates_nothing_of_its_own() {
+    // A bounced track's *Delay* row in a still frame: its figure from the sheet's cache,
+    // its tip made only when it is pointed at (review 4: three strings a frame).
+    let count = |late: bool| {
+        let mut a = app(welcome_project());
+        scene(&mut a);
+        let keys = a.project().tracks[0].id;
+        if !late {
+            a.exec(Command::SetTrackLateness {
+                id: keys,
+                lateness: None,
+            });
+        }
+        a.select_track(keys);
+        still_allocs(&mut a)
+    };
+    let (with, without) = (count(true), count(false));
+    eprintln!("the delay row: {with} allocations with it, {without} without");
+    assert!(
+        with <= without,
+        "the row allocated {} times",
+        with - without
+    );
 }

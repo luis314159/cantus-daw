@@ -84,7 +84,11 @@ pub(super) fn show(
     let keys = layout(kb);
     let editable = ss.source == Source::Scale;
     let resp = ui.interact(kb, ui.id().with("tonus-keys"), Sense::click());
-    if editable {
+    // Each note of the scale is a parameter: in the learn mode each key is outlined and a
+    // click learns it; a mapped one wears the mark — the right-click stays the note's own
+    // cycle (round 29, review 2 of ADR 0062, #44).
+    let learning = learn_keys(host, ui, s, &keys, ss);
+    if editable && !learning {
         let right = resp.secondary_clicked();
         if resp.clicked() || right {
             if let Some(pc) = resp.interact_pointer_pos().and_then(|p| hit(&keys, p)) {
@@ -260,4 +264,81 @@ fn glyph(b: &mut Brush, s: &Style, _ink: &Ink, c: egui::Pos2, which: usize, colo
         }
         _ => b.circle_stroke(c, 3.5 * k, 1.5 * k, color),
     }
+}
+
+/// The parts of key `pc` that show: a black key whole; a white key below the black keys,
+/// and above them between its black neighbours (round 29, review 3 of ADR 0062, #43).
+fn shown_parts(keys: &[Rect; 12], pc: usize) -> [Rect; 2] {
+    let r = keys[pc];
+    if BLACKS.iter().any(|b| b.0 == pc) {
+        return [r, Rect::NOTHING];
+    }
+    let black_bottom = keys[BLACKS[0].0].bottom();
+    let lower = Rect::from_min_max(pos2(r.left(), black_bottom), r.max);
+    let mut left = r.left();
+    let mut right = r.right();
+    for (b, _) in BLACKS {
+        let k = keys[b];
+        if k.right() > r.left() && k.left() < r.right() {
+            if k.center().x < r.center().x {
+                left = left.max(k.right());
+            } else {
+                right = right.min(k.left());
+            }
+        }
+    }
+    [
+        lower,
+        Rect::from_min_max(pos2(left, r.top()), pos2(right, black_bottom)),
+    ]
+}
+
+/// The keys as their notes' parameters for MIDI learn: `true` while the learn mode is on.
+fn learn_keys(
+    host: &mut dyn FxHost,
+    ui: &mut egui::Ui,
+    s: &Style,
+    keys: &[Rect; 12],
+    ss: &TonusSettings,
+) -> bool {
+    use crate::kit::automate as a;
+    let mut mode = false;
+    // The white keys first, the black keys over them. Each key is outlined and covered
+    // only where it shows, so a black key's right half is its own, never the next white
+    // key's, and no white key's outline crosses a black one (review 3, #43).
+    const ORDER: [usize; 12] = [0, 2, 4, 5, 7, 9, 11, 1, 3, 6, 8, 10];
+    for pc in ORDER {
+        let r = &keys[pc];
+        let key = NOTE_KEYS[pc];
+        let pos = host.spec().get(key) / 3.0;
+        let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
+        let Some((m, _)) = host.modulation(key, pos, s, &mut rings) else {
+            continue;
+        };
+        let Some(l) = m.learn else {
+            continue;
+        };
+        if l.mode {
+            mode = true;
+            let mut clicked = false;
+            for (i, part) in shown_parts(keys, pc).into_iter().enumerate() {
+                if part.is_positive() {
+                    let id = ui.id().with(("tonus-learn", pc, i));
+                    clicked |= a::learn_spot_clipped(ui, *r, part, id, l);
+                }
+            }
+            if clicked {
+                host.modulate(key, a::Choice::Learn, *r);
+                // The key stands for its click: as the scale ↔ removed (a note of the
+                // scale) or a target (one outside it) — what the learnt control toggles
+                // (review 4, #46).
+                let other = after_click(ss, pc, false).index() as f32;
+                let other = if other == 0.0 { 2.0 } else { other };
+                host.set_learn_range(key, 0.0, other);
+            }
+        } else if l.mapped {
+            a::learn_mark_over(ui, *r, ui.clip_rect());
+        }
+    }
+    mode
 }

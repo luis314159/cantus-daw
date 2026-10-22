@@ -1,0 +1,143 @@
+# isolation — round 29: third-party plug-ins hosted out of process. Every key here needs its twin in isolation.es.txt.
+cmd.set_plugin_isolation = where a plug-in runs
+
+# --- where a plug-in runs (ADR 0063) ---
+isolation.within = Within Cantus
+isolation.together = Together
+isolation.by_vendor = By maker
+isolation.individually = Individually
+
+# --- a plug-in that stopped working: the corner card ---
+isolation.crashed.one = {name} stopped working
+isolation.crashed.many = {n} plug-ins stopped working
+isolation.crashed.body_one = Cantus kept playing without it. Reload brings it back as you left it.
+isolation.crashed.body_many = Cantus kept playing without them. Reload brings them back as you left them.
+isolation.reload = Reload
+isolation.reload_all = Reload all
+isolation.keep_off = Keep it off
+isolation.keep_off_many = Keep them off
+isolation.run_individually = Run individually
+isolation.reason = {name}: {reason}
+isolation.reloaded = {name} is back, as you left it.
+isolation.reload_failed = {name} could not be reloaded: {error}
+isolation.unavailable = Plug-ins run inside Cantus: the helper that keeps them apart (cantus-sandbox) is not installed. Install Cantus again to bring it back.
+
+# --- a slot's menu and tip ---
+isolation.slot.band = Runs
+isolation.slot.default = As this computer says ({mode})
+isolation.slot.reload = Reload plug-in
+isolation.stopped = stopped
+isolation.tip.runs = Runs: {mode}
+isolation.tip.cpu = CPU: {share} of a core
+isolation.tip.own = Of which in its own process: {share}
+isolation.tip.late = Times it was late: {n}
+isolation.tip.stopped = Stopped working: {reason}. Reload it from its menu.
+isolation.short.default = Default
+isolation.short.within = Within
+isolation.short.together = Together
+isolation.short.by_vendor = By maker
+isolation.short.individually = Alone
+
+# --- the generic editor ---
+isolation.stopped_card = Stopped working
+isolation.editor.stopped = {name} stopped working: {reason}.
+isolation.editor.kept = Cantus kept playing without it, and its settings are kept and saved with the project.
+
+# --- Settings' plug-in manager ---
+isolation.manager.band = Where third-party plug-ins run
+isolation.manager.within = Within Cantus: no round trip, and a plug-in that crashes takes Cantus with it.
+isolation.manager.together = Together: one helper for all of them; one that crashes stops only that helper, never Cantus.
+isolation.manager.by_vendor = By maker: one helper per maker; a crash stops only that maker's plug-ins.
+isolation.manager.individually = Individually: a helper each; a crash stops only that plug-in.
+isolation.manager.cost = Each plug-in can be set apart in its slot's menu.
+isolation.manager.own = Cantus's own effects and instruments always run within.
+isolation.manager.crashed = Plug-ins that stopped working on this computer
+isolation.manager.times = {n} times
+isolation.manager.times_one = once
+isolation.manager.forget = Forget
+isolation.manager.forget_tip = Forget that it stopped working (it was fixed)
+isolation.cpu = CPU
+
+# --- the status bar ---
+isolation.status.late = Plug-ins late: {n}
+isolation.status.late_tip = {n} times an isolated plug-in did not answer in time, and the sound went on without it for a moment. A heavy plug-in or a busy computer explains it; a larger buffer size gives it more time.
+isolation.status.late_tip_one = Once an isolated plug-in did not answer in time, and the sound went on without it for a moment. A heavy plug-in or a busy computer explains it; a larger buffer size gives it more time.
+
+# --- why a plug-in stopped ---
+isolation.why.access = it crashed: it touched memory that was not its own
+isolation.why.abort = it crashed: it aborted
+isolation.why.stack = it crashed: its stack overflowed
+isolation.why.illegal = it crashed: an instruction the processor refused
+isolation.why.division = it crashed: a division by zero
+isolation.why.crashed = it crashed
+isolation.why.hung_audio = it stopped responding while it processed audio
+isolation.why.hung = its helper stopped answering
+isolation.why.timeout = it did not answer in time
+isolation.why.protocol = its helper sent something Cantus could not read
+isolation.why.ended = its helper ended
+
+# --- review fixes (round 29, isolation-2) ---
+isolation.crashed.suffix = stopped working
+isolation.run_name_individually = Run {name} individually
+isolation.slot.stopped_band = Plug-in
+isolation.window.stopped = {name} stopped working — {reason}. Reload it to open its window.
+isolation.export.stopped = {name} stopped working during the export — {reason}. The file is missing it from that point on.
+isolation.bake.stopped = {name} stopped working while the modulation was baked — {reason}. Nothing was baked.
+isolation.freeze.stopped = {name} stopped working during the render — {reason}. {job} was not frozen or bounced.
+isolation.why.signal = signal {n}
+isolation.why.exit = exit code {code}
+isolation.why.load_failed = it could not be loaded again
+isolation.render.busy = Wait for the {job} to finish: one render at a time.
+isolation.render.export = export
+isolation.render.bake = bake
+isolation.slot.recover = Recover
+isolation.tip.reload_menu = Reload it from its menu.
+
+# --- review fixes (round 29, isolation-4) ---
+isolation.why.busy = it was busy: a window of its own was open, or a slow request was ahead
+isolation.why.no_helper = its helper could not start
+isolation.why.no_restart = it could not start again after its state was loaded
+isolation.why.not_loaded = it could not be loaded
+isolation.busy = {name} is busy: a window of its own is open, or a slow request is ahead. Its window opens when it is free.
+isolation.export.never = {name} could not be loaded for the export — {reason}. The file was made without it.
+isolation.export.stale = {name} could not give its state as it was when the export began: the file used the state it gave last.
+isolation.bake.never = {name} could not be loaded for the bake — {reason}. Nothing was baked.
+isolation.bake.stale = {name} could not give its state as it was when the bake began: the bake used the state it gave last.
+isolation.freeze.never = {name} could not be loaded for the render — {reason}. {job} was not frozen or bounced.
+isolation.freeze.stale = {name} could not give its state as it was when the render began: {job} used the state it gave last.
+isolation.waiting.title = is waiting for you
+isolation.waiting.body = One of its windows may be open behind Cantus. Answer it there, or stop it: Cantus keeps playing without it, and Reload brings it back.
+isolation.waiting.show = Show it
+isolation.waiting.stop = Stop it
+isolation.why.not_installed = it is not installed on this computer
+
+# --- round 29, review isolation-5: nothing waits on a plug-in ---
+isolation.waiting.body_shared = One of its windows may be open behind Cantus. Answer it there, or stop it: the {n} other plug-ins in its process stop with it, and each can be reloaded.
+isolation.why.stopped_by_you = you stopped it
+isolation.why.ended_for = its process was ended to stop {name}
+isolation.why.load_timeout = it did not load in time
+isolation.why.answering = it was still answering
+isolation.why.no_window = its window could not be made
+isolation.save.stale_one = {name} was saved with the state it gave last: {reason}.
+isolation.save.stale_many = {n} plug-ins were saved with the state they gave last: {names}.
+isolation.render.loading = Loading the plug-ins for the render…
+isolation.not_loaded = not loaded
+isolation.not_loaded_tip = On this computer, but it could not be loaded ({why}). The slot passes the sound through untouched, and its settings are kept and saved with the project. Reload it from its menu.
+isolation.not_loaded_card = Not loaded
+isolation.editor.not_loaded = {name} could not be loaded: {why}.
+isolation.editor.not_loaded_kept = The slot passes the sound through; its state and values are kept in the project and saved with it.
+isolation.inst.not_loaded_status = {name} could not be loaded ({why}). The track keeps its sound's data and plays silence until it is reloaded from its menu.
+isolation.inst.status_not_loaded = Not loaded: silent
+isolation.inst.status_not_loaded_tip = {why}. Its settings are kept in the project; Reload tries again.
+
+# --- round 29, review isolation-6 ---
+isolation.waiting.body_shared_one = One of its windows may be open behind Cantus. Answer it there, or stop it: the other plug-in in its process stops with it, and each can be reloaded.
+isolation.why.not_asked = its state was not asked for
+isolation.why.no_state = it did not give its state
+isolation.kept_stale = {name} keeps the state it gave last: {reason}.
+isolation.loading = loading
+isolation.loading_tip = {name} is loading in its own process; the slot passes the sound through meanwhile.
+isolation.loading_card = Loading
+isolation.editor.loading = {name} is loading in its own process: its parameters come once it is in.
+isolation.inst.status_loading = Loading…
+isolation.capture_stale = {name}'s state is the one it gave last: a change it made since may be missing.

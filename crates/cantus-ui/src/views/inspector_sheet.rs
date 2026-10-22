@@ -395,6 +395,8 @@ pub struct Row {
 #[derive(Copy, Clone, Debug, Default)]
 pub struct BandClicks {
     pub power: bool,
+    /// Where the power LED is (a learn spot goes over it).
+    pub power_rect: Option<Rect>,
     pub plus: bool,
     pub plus_rect: Option<Rect>,
 }
@@ -410,6 +412,8 @@ pub struct Sheet<'a> {
     pub s: Style,
     /// The label column's width.
     pub col: f32,
+    /// Where the last LED row's key is (a learn spot goes over it).
+    pub last_led: Rect,
 }
 
 impl<'a> Sheet<'a> {
@@ -444,6 +448,7 @@ impl<'a> Sheet<'a> {
                 .ui
                 .interact(lr, Id::new(("insp-band-power", key)), Sense::click());
             out.power = r.clicked();
+            out.power_rect = Some(lr);
             if r.hovered() {
                 let name = self.fmt.tr(key);
                 hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
@@ -602,6 +607,47 @@ impl<'a> Sheet<'a> {
         r
     }
 
+    /// A readout with a square key at its right that clears it (a bounced track's kept
+    /// delay): the figure keeps the room a word button took (review 4: it was cut at
+    /// 220 pt), and `tip` is made only while the row is pointed at (review 4: three strings
+    /// a frame). Whether the key was clicked.
+    pub fn readout_clear_row(
+        &mut self,
+        key: &str,
+        text: &str,
+        clear_key: &str,
+        tip: &dyn Fn() -> String,
+    ) -> bool {
+        let row = self.row();
+        self.label(row.label, key, false);
+        let side = row.value.height();
+        let gap = self.s.s(GAP);
+        let well_r = Rect::from_min_max(
+            row.value.min,
+            pos2(row.value.right() - side - gap, row.value.bottom()),
+        );
+        let br = Rect::from_min_max(
+            pos2(row.value.right() - side, row.value.top()),
+            row.value.max,
+        );
+        well::readout(self.b, well_r, &self.s, State::REST, text, true);
+        let hover = self.ui.interact(
+            row.full,
+            Id::new(("insp-clear-row-tip", key)),
+            Sense::hover(),
+        );
+        let r = self
+            .ui
+            .interact(br, Id::new(("insp-clear-row", key)), Sense::click());
+        if r.hovered() {
+            hint::set_text(self.ui.ctx(), &crate::i18n::t(clear_key), "", Caps::NONE);
+        } else if hover.hovered() {
+            hint::set_text(self.ui.ctx(), &tip(), "", Caps::NONE);
+        }
+        glyph_key(self.b, br, &self.s, State::of(&r, false), Glyph::Close);
+        r.clicked()
+    }
+
     /// A row holding an on/off: an LED button across the value column. Returns a click.
     pub fn led_row(
         &mut self,
@@ -644,6 +690,7 @@ impl<'a> Sheet<'a> {
             hint::set_text(self.ui.ctx(), name, "", Caps::NONE);
         }
         led::button(self.b, br, &self.s.function(f), st, Src::Key(button_key));
+        self.last_led = br;
         r.clicked() && !dim
     }
 

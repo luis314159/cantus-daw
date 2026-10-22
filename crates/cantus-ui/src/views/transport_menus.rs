@@ -289,13 +289,34 @@ fn edit_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
 }
 
+/// The area a View menu key shows or hides (what its check says), for a controller's
+/// light (round 29, review 3 of ADR 0062, #48).
+pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
+    use crate::keymap::Action;
+    Some(match action {
+        Action::ViewArrangement => Pane::Arrangement,
+        Action::ViewChannelRack => Pane::ChannelRack,
+        Action::ViewPianoRoll => Pane::PianoRoll,
+        Action::ViewMixer => Pane::Mixer,
+        Action::ToggleBrowser => Pane::Browser,
+        Action::ViewRouting => Pane::Routing,
+        Action::ViewControllers => Pane::Controllers,
+        Action::ToggleInspector => Pane::Inspector,
+        // The clips list, which the View menu checks too (review 4, #26).
+        Action::ToggleClips => Pane::Clips,
+        _ => return None,
+    })
+}
+
 fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     use crate::keymap::Action;
     // Every area, with its key: the same toggles as the toolbar's window keys, and the
     // Routing tab after the mixer (round 25).
     let areas = std::iter::once(Pane::Browser)
         .chain(Pane::ZONES)
-        .chain(std::iter::once(Pane::Routing));
+        .chain(std::iter::once(Pane::Routing))
+        // The controller mappings (round 29, ADR 0062).
+        .chain(std::iter::once(Pane::Controllers));
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -304,6 +325,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Mixer => Action::ViewMixer,
             Pane::Browser => Action::ToggleBrowser,
             Pane::Routing => Action::ViewRouting,
+            Pane::Controllers => Action::ViewControllers,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);
@@ -320,6 +342,8 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             app.toggle_pane(pane);
         }
     }
+    // The arrangement's tempo track (round 29, ADR 0060).
+    crate::tempo_ui::view_menu_entry(app, ui);
     // The devices panel (round 20) and the full device picker.
     let mut shown = app.workspace.contains(Pane::Devices);
     if ui
@@ -470,6 +494,16 @@ fn clip_menu(app: &mut CantusApp, ui: &mut Ui) {
             ui,
             Action::AutomateLastTweaked,
             "auto.menu.last_tweaked",
+        ) {
+            ui.close();
+        }
+        // FL's *Link to controller* for the same parameter (round 29, review 1 of ADR
+        // 0062): the way into a hosted plug-in's own window from the mouse.
+        if views::arrangement::action_item(
+            app,
+            ui,
+            Action::LinkLastTweaked,
+            "action.link-last-tweaked",
         ) {
             ui.close();
         }

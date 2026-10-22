@@ -41,6 +41,7 @@ pub(crate) fn scope(
     scoped: &[Option<EffectId>],
     delays: &[usize],
     position: &crate::fx::SongPosition,
+    map: &cantus_core::TempoMap,
     sample_rate: f64,
     id: EffectId,
     l: &[f32],
@@ -61,18 +62,29 @@ pub(crate) fn scope(
         tap.pending = ScopeChunk::EMPTY;
         tap.lost = 0;
     }
-    let per_frame = position.tempo_bpm / 60.0 / sample_rate.max(1.0);
-    let late = delays.get(i).copied().unwrap_or(0) as f64;
-    let first = position
-        .playing
-        .then_some(position.beats - late * per_frame);
+    let late = delays.get(i).copied().unwrap_or(0);
+    // Where the audio reaching the scope is, and its tempo: through the tempo map when it
+    // moves (review 1: across a point the constant arithmetic misplaced late audio; review
+    // 2: its frames counted at the tempo they were played at, not the transport's). The
+    // passes are cut at the scope's late steps, so that tempo holds over this one.
+    let heard = (!map.is_constant()).then(|| position.earlier_in(late, sample_rate, map));
+    let (bpm, inc) = heard.map_or((position.tempo_bpm, position.tempo_inc), |h| {
+        (h.tempo_bpm, h.tempo_inc)
+    });
+    let per_frame = bpm / 60.0 / sample_rate.max(1.0);
+    let first = position.playing.then_some(match heard {
+        Some(h) => h.beats,
+        None => position.beats - late as f64 * per_frame,
+    });
     // Does this pass carry on from the chunk being filled?
     let p = &tap.pending;
     if p.frames > 0 {
         let on = match (p.beat, first) {
             (Some(b), Some(f)) => {
-                p.tempo_bpm == position.tempo_bpm
-                    && (b + f64::from(p.frames) * per_frame - f).abs() < 1e-6
+                // Inside a ramp's step (ADR 0060) the beats bend away from the step's
+                // straight line by far less than a frame: carrying on is no jump.
+                let tol = if inc != 0.0 { 1e-3 } else { 1e-6 };
+                p.tempo_bpm == bpm && (b + f64::from(p.frames) * per_frame - f).abs() < tol
             }
             (None, None) => true,
             _ => false,
@@ -87,7 +99,7 @@ pub(crate) fn scope(
         if p.frames == 0 {
             p.owner = id;
             p.beat = first.map(|b| b + k as f64 * per_frame);
-            p.tempo_bpm = position.tempo_bpm;
+            p.tempo_bpm = bpm;
         }
         let at = p.frames as usize;
         p.l[at] = l[k];
@@ -196,6 +208,7 @@ pub(crate) fn strip_chain(
         key_before,
         listener,
         dry_line,
+        ll_off,
         ..
     } = st;
     for (i, e) in effects.iter_mut().enumerate() {
@@ -233,7 +246,8 @@ pub(crate) fn strip_chain(
         // line — the input delayed by exactly its latency.
         let off = bypass[i] || !*fx_enabled;
         let latent = e.latency() > 0;
-        if off && !latent {
+        // Bypassed hard for low-latency monitoring (ADR 0064 §4): a wire, its latency gone.
+        if (off && !latent) || ll_off[i] {
             if let Some(a) = ana.as_mut() {
                 analyse(a, l, r);
             }
@@ -242,6 +256,7 @@ pub(crate) fn strip_chain(
                 &ctx.scoped,
                 &ctx.scoped_delay,
                 &ctx.position,
+                ctx.transport.map(),
                 ctx.sample_rate,
                 e.id,
                 l,
@@ -261,8 +276,13 @@ pub(crate) fn strip_chain(
             _ => (&SILENCE[..n], &SILENCE[..n]),
         });
         // A unit that follows the song (a hosted plug-in) hears where it is before each
-        // call.
-        e.set_position(&ctx.position.earlier(e.late, ctx.sample_rate));
+        // call; the others are not told (review 2: nothing to work out for them).
+        if e.follows_song() {
+            e.set_position(
+                &ctx.position
+                    .earlier_in(e.late, ctx.sample_rate, ctx.transport.map()),
+            );
+        }
         if wet >= 1.0 && !latent {
             e.process_keyed(l, r, keyed);
         } else {
@@ -315,6 +335,7 @@ pub(crate) fn strip_chain(
             &ctx.scoped,
             &ctx.scoped_delay,
             &ctx.position,
+            ctx.transport.map(),
             ctx.sample_rate,
             e.id,
             l,
@@ -327,6 +348,18 @@ pub(crate) fn strip_chain(
     if !st.eq_flat {
         st.eq_l.process(l);
         st.eq_r.process(r);
+    }
+    // A freeze's or a bounce's render is taken here, before the width (ADR 0064): what
+    // follows stays live on a frozen strip.
+    if ctx.tap {
+        match nodes.tap.try_borrow_mut() {
+            Some(mut tap) => {
+                if let Some(tap) = tap.as_mut() {
+                    tap.strip_before_width(slot, ctx.p0, l, r);
+                }
+            }
+            None => nodes.conflict(),
+        }
     }
     // Width, then pan: narrowing a stereo reverb has to happen before the channel is
     // placed, or the placement is what gets narrowed.

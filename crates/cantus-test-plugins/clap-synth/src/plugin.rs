@@ -23,7 +23,13 @@ pub const P_LATENCY: u32 = 1;
 pub const P_TEMPO: u32 = 2;
 pub const P_PLAYING: u32 = 3;
 pub const P_GESTURE: u32 = 4;
-pub const PARAM_COUNT: usize = 5;
+/// Hidden: a failure on purpose (`crate::fault`, round 29).
+pub const P_FAULT: u32 = 5;
+/// Hidden and read-only: the id of the process this instance runs in (round 29).
+pub const P_PROCESS: u32 = 6;
+pub const PARAM_COUNT: usize = 7;
+/// The parameters the state carries (the ones before Fault and Process).
+pub const STATE_PARAMS: usize = 5;
 
 /// One parameter: (id, name, module, min, max, default, stepped, hidden, read-only).
 pub type ParamRow = (
@@ -70,6 +76,20 @@ pub const PARAMS: [ParamRow; PARAM_COUNT] = [
     (
         P_GESTURE, "Gesture", "Test", 0.0, 100.0, 0.0, true, true, false,
     ),
+    (
+        P_FAULT,
+        "Fault",
+        "Test",
+        0.0,
+        crate::fault::LAST,
+        0.0,
+        true,
+        true,
+        false,
+    ),
+    (
+        P_PROCESS, "Process", "Test", 0.0, 4.0e9, 0.0, true, true, true,
+    ),
 ];
 
 pub const VOICES: usize = 32;
@@ -99,6 +119,8 @@ pub struct Plugin {
     /// A tag carried in the state that is not a parameter.
     pub tag: Mutex<Vec<u8>>,
     pub processing: AtomicBool,
+    /// A failure armed by the Fault parameter (round 29).
+    pub fault: crate::fault::Fault,
     pub editor_created: bool,
     #[cfg_attr(not(windows), allow(dead_code))]
     pub editor: isize,
@@ -115,6 +137,9 @@ pub struct Plugin {
 
 impl Plugin {
     pub fn get(&self, id: u32) -> f64 {
+        if id == P_PROCESS {
+            return crate::fault::process_id();
+        }
         f64::from_bits(self.values[id as usize].load(Ordering::Acquire))
     }
 
@@ -126,12 +151,21 @@ impl Plugin {
         }
     }
 
-    /// A parameter event from the host; a latency change asks for a restart.
-    pub unsafe fn apply(&mut self, e: &clap_event_param_value) {
+    /// A parameter event from the host; a latency change asks for a restart. `processing`:
+    /// it came in `process`, where a Fault value arms its failure (round 29).
+    pub unsafe fn apply(&mut self, e: &clap_event_param_value, processing: bool) {
         if PARAMS.get(e.param_id as usize).is_some_and(|p| p.8) {
             return; // read-only
         }
         self.set(e.param_id, e.value);
+        if processing && e.param_id == P_FAULT {
+            self.fault.arm(e.value);
+            if crate::fault::Fault::wants_main_thread(e.value) {
+                if let Some(f) = (*self.host).request_callback {
+                    f(self.host);
+                }
+            }
+        }
         if e.param_id == P_LATENCY
             && self.get(P_LATENCY) as u32 != self.active_latency.load(Ordering::Acquire)
         {
@@ -213,7 +247,7 @@ impl Plugin {
             return;
         }
         match (*h).type_ {
-            CLAP_EVENT_PARAM_VALUE => self.apply(&*(h as *const clap_event_param_value)),
+            CLAP_EVENT_PARAM_VALUE => self.apply(&*(h as *const clap_event_param_value), true),
             CLAP_EVENT_NOTE_ON => {
                 let n = &*(h as *const clap_event_note);
                 self.note_on(n.note_id, n.channel, n.key, n.velocity);
@@ -307,6 +341,7 @@ pub unsafe fn create(
         active_latency: AtomicU32::new(0),
         tag: Mutex::new(Vec::new()),
         processing: AtomicBool::new(false),
+        fault: crate::fault::Fault::default(),
         editor_created: false,
         editor: 0,
         sample_rate: 48_000.0,
@@ -328,15 +363,19 @@ pub unsafe fn me<'a>(plugin: *const clap_plugin) -> &'a mut Plugin {
 }
 
 unsafe extern "C" fn init(_plugin: *const clap_plugin) -> bool {
+    crate::fault::chain_filter();
     true
 }
 
 unsafe extern "C" fn destroy(plugin: *const clap_plugin) {
+    me(plugin).fault.on_destroy();
     drop(Box::from_raw((*plugin).plugin_data as *mut Plugin));
 }
 
 unsafe extern "C" fn activate(plugin: *const clap_plugin, sr: f64, _min: u32, _max: u32) -> bool {
     let p = me(plugin);
+    p.fault.fire(crate::fault::ABORT_ACTIVATE);
+    crate::fault::pump_activate_once();
     let latency = p.get(P_LATENCY) as usize;
     p.active_latency.store(latency as u32, Ordering::Release);
     p.sample_rate = sr;
@@ -369,7 +408,19 @@ unsafe extern "C" fn reset(plugin: *const clap_plugin) {
     p.mod_wheel = 0.0;
 }
 
-unsafe extern "C" fn on_main_thread(_plugin: *const clap_plugin) {}
+unsafe extern "C" fn on_main_thread(plugin: *const clap_plugin) {
+    crate::fault::on_main_thread();
+    if crate::fault::take_rescan() {
+        let host = me(plugin).host;
+        if let Some(get) = (*host).get_extension {
+            let ext = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+                as *const clap_sys::ext::params::clap_host_params;
+            if let Some(rescan) = ext.as_ref().and_then(|e| e.rescan) {
+                rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_INFO);
+            }
+        }
+    }
+}
 
 fn header<T>(type_: u16) -> clap_event_header {
     clap_event_header {

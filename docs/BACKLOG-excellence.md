@@ -103,7 +103,77 @@ product side.
 **Done when** the scorecard, re-run on a release, shows Cantus first or tied-first in every
 dimension against every leader — and anyone can re-run it and get the same answer.
 
+### 0.4 The order after round 29 (requested 2026-10-20)
+
+*The owner asked where Cantus stands against the market once round 29 lands, and what it
+needs next, in order. The answer, in short: at the level of FL Studio Producer / Ableton
+Standard in what people use every day (recording and comping, the arrangement, the piano
+roll and channel rack, an FL-class mixer, automation and modulators, warp and a tempo map,
+MIDI learn, freeze, isolated plug-ins), ahead in openness, price and a few built-in tools
+(the pitch editor and Tonus, our effects exported as plug-ins, published exactness tests),
+and behind in platforms, Ableton's session workflow, professional studio integration,
+content and maturity. Nothing of that is measured yet: until the scorecard (§0.1) runs it
+is an impression. The order below is the integrator's recommendation; the owner decides.*
+
+1. **The public beta** (`docs/BETA.md`, `docs/beta-checklist.md`): the owner's hardware
+   tests (UMC in duplex, ≥ 3 interfaces), complete songs, code signing, the public
+   repository, the tag. Real users find the gaps no review can — nothing replaces it.
+2. **Know where we stand, measured** (§0.1, §4b, §4e): the feature matrix against every
+   leader (have / better / missing, from their current manuals), and the first measured
+   runs on the owner's machine — a DAWbench-style comparison with REAPER and FL Studio,
+   load and start-up times, a long soak. The performance work of §4b follows what it shows.
+3. **The daily gaps an FL or Ableton user hits first** (one round): automation write /
+   touch / latch and the piano roll's CC, pitch-bend, velocity and release lanes (§3
+   *Automation*); arpeggiator, chord and scale tools as note effects, scale highlighting
+   and snap, groove templates (§3 *MIDI*, §3e item 2); crossfades between overlapping clips
+   and clip gain envelopes (§3 *Editing*); a command palette, an undo history panel,
+   project and track templates (§3 *Workflow*); effects that sound on insert (§3b, option
+   B, decided 2026-10-16).
+4. **Other platforms** (§2): Linux first, then macOS (the owner, 2026-10-10) — macOS is
+   where most Ableton, Logic and Bitwig users are, so it is what the market notices most;
+   testing it needs a Mac (the owner's, or a CI runner and a tester). **Decided
+   2026-10-20: round 30 is the platform round** — releases for Windows, Linux and macOS at
+   its end. Round 29 ships Windows as planned. For macOS the owner can borrow a Mac, and
+   will buy the Apple developer licence (signing, notarisation) and more GitHub Actions
+   minutes (a subscription, or making the repository public) if they are needed.
+5. **Ableton's core and live work** (§0.2): session view (clips and scenes, follow
+   actions, recorded into the arrangement), Ableton Link, MIDI clock and MTC in and out,
+   MPE end to end, then MIDI 2.0.
+6. **The professional studio** (§1, §0.2, §3, §3c, §4c): ARA 2 hosting (Melodyne and
+   others inside Cantus), Mackie Control / HUI surfaces, external instruments and effects
+   with an automatic latency ping, the recording mode (§4c step 3), an audio editor
+   (Edison-class: destructive edits, spectral view, noise reduction), mixer snapshots and
+   VCA faders.
+7. **Content and instruments** (§3e, §5): Chorda's sound by ear first (decided 2026-10-16),
+   then §3e's order (the slicer, Pulsus's per-pad outputs and chains, spectral and granular
+   Exemplar, physical modelling…), a larger free sound library and presets — the leaders'
+   biggest visible advantage after platforms.
+8. **Extensibility and safety of work** (§0.2): a sandboxed scripting API with a package
+   manager, project versions and snapshots, bundled export, then collaboration.
+9. **Assistive intelligence** (§7): the MCP server (phase B, with the demo builder's
+   wishlist), stem separation, a mastering assistant, players that follow chords.
+10. **The wider professional field** (§0.2): video, notation, surround and Atmos,
+    AAF/OMF and loudness reports, microtonal tuning, a touch mode, a modular environment.
+
 ## Resumen (español)
+
+**El orden después de la ronda 29 (§0.4, pedido el 2026-10-20).** Tras la ronda 29 Cantus
+queda al nivel de FL Producer / Ableton Standard en lo diario, por delante en apertura,
+precio y algunas herramientas integradas, y por detrás en plataformas, el flujo de sesión
+de Ableton, integración de estudio profesional, contenido y madurez — sin medir aún. Lo que
+falta, en orden recomendado (tú decides): **(1)** la beta pública (tus pruebas de hardware,
+canciones completas, firma, repositorio público); **(2)** saber dónde estamos, medido: la
+matriz de funciones contra cada líder y la comparación de rendimiento con REAPER y FL;
+**(3)** los huecos diarios: modos de automatización escribir/tocar/enganchar y carriles de
+CC en el piano roll, arpegiador/acordes/escalas, crossfades entre clips y envolventes de
+ganancia, paleta de comandos, historial de deshacer, plantillas, efectos que suenan al
+insertarlos; **(4)** Linux y luego macOS — decidido el 2026-10-20: la ronda 30 es la de plataformas, con releases de Windows, Linux y macOS al final; **(5)** vista de sesión (clips y escenas), Ableton
+Link, reloj MIDI/MTC, MPE; **(6)** estudio profesional: ARA 2, superficies Mackie/HUI,
+hardware externo con medición de latencia, el modo de grabación (§4c paso 3), un editor de
+audio, snapshots y VCA; **(7)** el sonido de Chorda, más instrumentos y una librería de
+sonidos mayor; **(8)** scripting, versiones del proyecto, colaboración; **(9)** IA: servidor
+MCP, separación de stems, asistente de masterización; **(10)** video, partitura, surround y
+Atmos, AAF/OMF, microtonalidad, modo táctil, entorno modular.
 
 **La meta final (§0)**: ser, sin discusión, el mejor DAW del mundo —entre los gratuitos y
 los comerciales— en lo objetivo: una tabla de puntaje pública y reproducible contra FL,
@@ -187,10 +257,58 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
     Intel**, AU hosting (listed in `idea.md`), window handling, a **signed and notarised**
     build (an Apple developer account, a yearly fee) and a `.dmg`; it needs Apple hardware to
     test on, so it waits for the first Linux release and a machine.
+    **Prepared without a Mac, so the borrowed one only verifies (asked 2026-10-20; round
+    30).** Everything below compiles and tests on GitHub's macOS runners (`macos.yml`
+    exists and runs the suite by hand; minutes cost 10× while the repository is private):
+    - *The app as a Mac app:* an `.app` bundle (Info.plist, `.icns` icon,
+      `NSMicrophoneUsageDescription` or input is silently refused), a universal binary
+      (aarch64 + x86_64 through `lipo`), `cantus-scan` and `cantus-sandbox` inside the
+      bundle, a `.dmg` built in CI, data under `~/Library/Application Support/Cantus`.
+    - *Signing in CI:* hardened runtime with the entitlements a DAW needs (audio input,
+      `disable-library-validation` so third-party plug-ins load), `codesign` and
+      `notarytool` steps with the secrets as placeholders, the auto-updater's macOS path.
+      The Apple Developer account and its certificate can be set up before the Mac arrives
+      (the certificate request can be made without one).
+    - *Audio and real time:* CoreAudio through cpal (buffer size and rate, the device page
+      without ASIO, aggregate devices listed), the pool workers joined to the device's
+      **audio workgroup** and Mach time-constraint threads in `cantus-rt`.
+    - *Isolation on macOS:* `cantus-rt`'s exchange uses a Linux futex — macOS needs its
+      own wait (`os_sync_wait_on_address` on 14.4+, a Mach or named semaphore before),
+      POSIX shared-memory names within 31 characters, the helper dying with Cantus (a
+      kqueue `NOTE_EXIT` or a pipe), crash blame through signals and Mach exceptions.
+    - *Plug-ins:* scanning `/Library/Audio/Plug-Ins/{CLAP,VST3}` and the user's, `.clap`
+      and `.vst3` bundles, and **editor windows in Cocoa** (`window.rs` is Windows-only
+      today: an `NSWindow` owning the plug-in's `NSView`, created by the helper when
+      isolated); AU hosting and our effects as AU (through a CLAP-to-AU wrapper) — many
+      Logic users' plug-ins are AU-first.
+    - *The interface:* a macOS keymap preset (⌘ for Ctrl, ⌥ for Alt, the standard
+      shortcuts), the global menu bar, trackpad pinch and two-finger scroll, Retina
+      scaling checked in the shots, the system's fallback fonts for CJK, Finder drops.
+    - *Proof:* the whole suite and the fuzz green on the macOS runner, and the golden
+      hashes **identical** to Windows and Linux.
+    - *Left for the Mac in hand (a checklist for that session):* an interface in duplex
+      for 10 minutes, a real plug-in's editor, the microphone permission prompt, the
+      `.dmg` installed and opened past Gatekeeper, the update from an older build,
+      trackpad feel and Retina look, CPU measured on Apple silicon.
   - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of
     distributions and interfaces tried, kept like the Windows one.
+  - **iOS / iPadOS, after macOS (asked 2026-10-20):** iPad first — a DAW needs the screen;
+    the iPhone later as a sketchpad or a remote for the desktop (FL Studio Mobile, Logic Pro
+    for iPad and Cubasis are the references). What it takes: macOS done first (the same
+    CoreAudio, Apple silicon, signing and an Apple developer account, and a Mac with Xcode to
+    build); `aarch64-apple-ios` builds of the engine (MPL, portable) with AVAudioSession and
+    real-time workgroups; a **touch mode** for the kit (§0.2: large targets, gestures, no
+    hover, no right-click — the desktop's density does not carry over); **AUv3** in place
+    of CLAP/VST3 — hosting AUv3 instruments and effects (iOS forbids child processes, so
+    isolation becomes AUv3's own out-of-process model) and **exporting our effects and
+    instruments as AUv3**, which also puts them inside GarageBand, Cubasis and Logic for
+    iPad; files through the document picker and iCloud; background audio and the memory
+    limits of iPadOS; projects that open on the desktop unchanged. **Licence:** the App
+    Store's terms conflict with the GPL as published; the owner holds the application's
+    copyright and the CLA's grant, so an App Store exception (an additional permission in
+    the licence) is needed before any upload — a lawyer's check, like the CLA's.
 
 ## 3. Features every top DAW has
 

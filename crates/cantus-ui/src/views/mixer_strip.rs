@@ -570,12 +570,17 @@ fn head(
     }
     v.buf.clear();
     let _ = write!(v.buf, "{}", sn.index + 1);
+    // Beside the snowflake of a frozen strip, never under it (round 29, review 2).
+    let room = crate::views::freeze_view::strip_mark_room(app, sn.id, cr, s);
+    let nr = egui::Rect::from_min_max(cr.min, egui::pos2(cr.right() - room, cr.bottom()));
     let _ = text::paint(
         b,
-        cr,
+        nr,
         &Text::new(&v.buf, Role::Label, on_fill(fill)),
         s.tk(),
     );
+    // Frozen, or held by a frozen strip (round 29, ADR 0064).
+    crate::views::freeze_view::paint_strip_mark(b, cr, app, sn.id, s);
     let renaming = matches!(v.rename, Some((Renaming::Strip(r), _)) if r == sn.id);
     if renaming {
         v.rename_at = Some(cell);
@@ -889,6 +894,21 @@ fn controls(
         let hit = |c: Pos2| Rect::from_center_size(c, vec2(11.0, 13.0));
         let m = sense(ui, pass, hit(mc), pid(Some(id), Part::Mute), Sense::click());
         let so = sense(ui, pass, hit(sc), pid(Some(id), Part::Solo), Sense::click());
+        // MIDI learn mode (round 29, ADR 0062): the lamps are learnable.
+        crate::controllers::learn_spot_in(
+            app,
+            ui,
+            hit(mc),
+            pass.clip,
+            cantus_core::controller::MappingTarget::StripMute(id),
+        );
+        crate::controllers::learn_spot_in(
+            app,
+            ui,
+            hit(sc),
+            pass.clip,
+            cantus_core::controller::MappingTarget::StripSolo(id),
+        );
         let mh = m.as_ref().is_some_and(|r| r.hovered());
         let sh = so.as_ref().is_some_and(|r| r.hovered());
         lamp(b, s, mc, !sn.muted, Tok::Led, mh);
@@ -1278,6 +1298,14 @@ pub(super) fn fx_rec(
         let br = Rect::from_center_size(pos2(cx - dx, fy), vec2(12.0, 12.0));
         let fx_id = if master { None } else { Some(sn.id) };
         let resp = sense(ui, pass, br, pid(fx_id, Part::Fx), Sense::click());
+        // The effects switch is learnable (round 29, review 3 of ADR 0062, #46).
+        crate::controllers::learn_spot_in(
+            app,
+            ui,
+            br,
+            pass.clip,
+            cantus_core::controller::MappingTarget::StripFx(fx_id.unwrap_or(StripId::MASTER)),
+        );
         let hovered = resp.as_ref().is_some_and(|r| r.hovered());
         let c = if sn.effects == 0 {
             with_alpha(t.text_dim, if hovered { 0.6 } else { 0.35 })
@@ -1321,6 +1349,14 @@ pub(super) fn fx_rec(
         super::menu::rec_state(app, sn.id)
     };
     if inputs {
+        // The record arm is learnable (review 3, #46).
+        crate::controllers::learn_spot_in(
+            app,
+            ui,
+            rr,
+            pass.clip,
+            cantus_core::controller::MappingTarget::StripArm(sn.id),
+        );
         let live = app.rec.pass.as_ref().is_some_and(|l| {
             app.project()
                 .tracks_on_strip(sn.id)
@@ -1403,6 +1439,9 @@ impl DeskMod {
     ) -> Self {
         let mut rings = [(0.0, egui::Color32::TRANSPARENT); crate::views::modulator::MAX_RINGS];
         let (m, n) = app.mod_offer(&target, pos, s, &mut rings);
+        if crate::kit::automate::probe::noting_learn() {
+            crate::kit::automate::probe::note_learn(&format!("desk:{target:?}"), m.learn.is_some());
+        }
         DeskMod {
             target,
             offer: Some(crate::kit::automate::Offer {
@@ -1443,6 +1482,11 @@ impl DeskMod {
             && resp.is_some_and(|r| r.contains_pointer())
         {
             crate::kit::automate::drop_target(b, rect, s);
+        }
+        // Mapped to a controller (round 29, review 1 of ADR 0062): the mapped mark.
+        let learn = self.offer.and_then(|o| o.learn());
+        if learn.is_some_and(|l| l.mapped && !l.mode) {
+            crate::kit::automate::learn_mark(b, rect, s);
         }
     }
 

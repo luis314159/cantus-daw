@@ -34,7 +34,9 @@ struct Known {
     id: u32,
     min: f64,
     max: f64,
-    stepped: bool,
+    /// A stepped parameter's steps from `min` to `max` (0: continuous): values land on
+    /// them, counted in the plug-in's own steps (review 4 of ADR 0062, #1, #58).
+    steps: u32,
     /// What the plug-in holds, as far as the host knows; NaN when unknown.
     value: f64,
     /// The plug-in's own gesture on it is under way.
@@ -137,7 +139,7 @@ impl ParamSync {
                 id: p.id,
                 min: p.min.min(p.max),
                 max: p.max.max(p.min),
-                stepped: p.stepped,
+                steps: p.step_count().unwrap_or(0),
                 value: values(p.id).unwrap_or(f64::NAN),
                 gesture: false,
                 settle: None,
@@ -205,7 +207,7 @@ impl ParamSync {
                 continue;
             }
             let value = v.clamp(k.min, k.max);
-            k.wanted = if k.stepped { value.round() } else { value };
+            k.wanted = crate::backend::snap_to_steps(value, k.min, k.max, k.steps);
             if k.settle
                 .is_some_and(|t| !k.gesture && t.to_bits() == k.wanted.to_bits())
             {
@@ -245,10 +247,8 @@ impl ParamSync {
             };
             base.and_then(|b| {
                 let norm = (b + f64::from(v.modulation)).clamp(0.0, 1.0);
-                let mut plain = k.min + norm * span;
-                if k.stepped {
-                    plain = plain.round();
-                }
+                let plain =
+                    crate::backend::snap_to_steps(k.min + norm * span, k.min, k.max, k.steps);
                 k.auto = Some(plain);
                 (plain.to_bits() != k.value.to_bits()).then(|| {
                     k.value = plain;
@@ -362,11 +362,52 @@ impl ParamSync {
 /// Automation's timed changes one block holds at most (the engine's own queue is as long).
 const TIMED_CAPACITY: usize = cantus_engine::modulator::HOSTED_QUEUE;
 
+/// What a hosted plug-in costs the thread that calls it (round 29, ADR 0063): the
+/// nanoseconds spent in its calls and the frames they covered, summed on the audio thread
+/// (relaxed atomics, no allocation) and read by the interface for the plug-in's CPU figure.
+/// For an isolated plug-in this is its whole cost to Cantus, the round trip included.
+#[derive(Debug, Default)]
+pub struct CpuMeter {
+    nanos: AtomicU64,
+    frames: AtomicU64,
+}
+
+impl CpuMeter {
+    #[inline]
+    pub fn add(&self, nanos: u64, frames: u64) {
+        self.nanos.fetch_add(nanos, Ordering::Relaxed);
+        self.frames.fetch_add(frames, Ordering::Relaxed);
+    }
+
+    /// Nanoseconds and frames since it was made.
+    pub fn read(&self) -> (u64, u64) {
+        (
+            self.nanos.load(Ordering::Relaxed),
+            self.frames.load(Ordering::Relaxed),
+        )
+    }
+
+    /// Times one call of `frames` frames.
+    #[inline]
+    pub(crate) fn time<R>(meter: Option<&CpuMeter>, frames: usize, f: impl FnOnce() -> R) -> R {
+        match meter {
+            Some(m) => {
+                let t = std::time::Instant::now();
+                let r = f();
+                m.add(t.elapsed().as_nanos() as u64, frames as u64);
+                r
+            }
+            None => f(),
+        }
+    }
+}
+
 pub struct HostedUnit {
     audio: Box<dyn AudioThread>,
     sync: ParamSync,
     latency: usize,
     transport: Option<TransportInfo>,
+    meter: Option<Arc<CpuMeter>>,
 }
 
 impl std::fmt::Debug for HostedUnit {
@@ -394,7 +435,14 @@ impl HostedUnit {
             sync: ParamSync::new(params, values, sample_rate, generation),
             latency,
             transport: None,
+            meter: None,
         }
+    }
+
+    /// Measures what its calls cost into `meter` (round 29).
+    pub fn metered(mut self, meter: Arc<CpuMeter>) -> Self {
+        self.meter = Some(meter);
+        self
     }
 }
 
@@ -403,13 +451,20 @@ pub(crate) fn transport_of(p: &SongPosition) -> TransportInfo {
     TransportInfo {
         playing: p.playing,
         recording: false,
-        tempo_bpm: p.tempo_bpm,
+        // The tempo exactly here, which `tempo_inc` moves on from (review 1: the step's
+        // start tempo with a slope told a sawtooth).
+        tempo_bpm: p.tempo_now,
+        tempo_inc: p.tempo_inc,
         position_beats: p.beats,
         position_samples: p.samples,
+        position_seconds: p.seconds,
+        project_samples: p.project_samples,
         bar_start_beats: p.bar_start_beats,
+        bar_number: p.bar_number,
         time_sig_num: p.time_sig_num,
         time_sig_den: p.time_sig_den,
         loop_beats: p.loop_beats,
+        loop_seconds: p.loop_seconds,
     }
 }
 
@@ -423,17 +478,20 @@ impl FxUnit for HostedUnit {
     fn process(&mut self, left: &mut [f32], right: &mut [f32], key: Option<(&[f32], &[f32])>) {
         let frames = left.len();
         self.sync.merge();
-        self.audio.process(
-            crate::backend::Audio {
-                left,
-                right,
-                key,
-                transport: self.transport.as_ref(),
-            },
-            &self.sync.merged,
-            &[],
-            &mut self.sync.out,
-        );
+        let (audio, sync, transport) = (&mut self.audio, &mut self.sync, self.transport.as_ref());
+        CpuMeter::time(self.meter.as_deref(), frames, || {
+            audio.process(
+                crate::backend::Audio {
+                    left,
+                    right,
+                    key,
+                    transport,
+                },
+                &sync.merged,
+                &[],
+                &mut sync.out,
+            )
+        });
         // A plug-in may leave MXCSR changed: the next native unit renders with FTZ/DAZ as
         // the engine set them (ADR 0031 R9; a no-op outside a `DenormalGuard`).
         cantus_rt::fpenv::reassert();
@@ -451,6 +509,10 @@ impl FxUnit for HostedUnit {
 
     fn take_dropped(&mut self) -> u64 {
         std::mem::take(&mut self.sync.dropped)
+    }
+
+    fn follows_song(&self) -> bool {
+        true
     }
 
     fn set_position(&mut self, p: &SongPosition) {
@@ -482,6 +544,70 @@ impl FxUnit for HostedUnit {
 mod tests {
     use super::*;
 
+    /// ADR 0060: a hosted plug-in hears the song through the tempo map — under a ramp from
+    /// 90 to 140 BPM over 32 beats, then a bar of 7/8 — the real seconds (CLAP's
+    /// `song_pos_seconds`, VST3's `projectTimeSamples`), the tempo of the step and how fast
+    /// it moves (`tempo_inc`), the bar's start and number counted through the metre.
+    #[test]
+    fn a_hosted_plug_in_hears_the_tempo_map() {
+        use cantus_core::tempo::{MetreChange, TempoPoint};
+        use cantus_core::{TempoMap, Ticks, TimeSignature};
+        let map = TempoMap::new(
+            90.0,
+            TimeSignature::default(),
+            &[
+                TempoPoint {
+                    tick: Ticks::ZERO,
+                    bpm: 90.0,
+                    ramp: true,
+                },
+                TempoPoint {
+                    tick: Ticks::beats(32),
+                    bpm: 140.0,
+                    ramp: false,
+                },
+            ],
+            &[
+                MetreChange {
+                    tick: Ticks::ZERO,
+                    signature: TimeSignature::default(),
+                },
+                MetreChange {
+                    tick: Ticks::beats(36),
+                    signature: TimeSignature::new(7, 8),
+                },
+            ],
+        );
+        let sr = 48_000.0;
+        // Inside the ramp, at beat 10.3.
+        let tick = 10.3 * 960.0;
+        let p = cantus_engine::fx::position_at_tick(&map, tick, true, sr);
+        let t = transport_of(&p);
+        assert!((t.position_seconds - map.seconds_at(tick)).abs() < 1e-12);
+        assert_eq!(t.tempo_bpm, map.bpm_at(tick), "the tempo exactly there");
+        let inc = 50.0 / (32.0 * 960.0) * map.bpm_at(tick) * 960.0 / (60.0 * sr);
+        assert!(
+            (t.tempo_inc - inc).abs() < 1e-15,
+            "{} vs {inc}",
+            t.tempo_inc
+        );
+        assert_eq!((t.bar_start_beats, t.bar_number), (8.0, 2));
+        let e = crate::clap::transport_event_for_tests(&t);
+        let secs = map.seconds_at(tick);
+        assert_eq!(
+            e.song_pos_seconds,
+            (secs * (1u64 << 31) as f64).round() as i64
+        );
+        assert_eq!(e.tempo_inc, t.tempo_inc);
+        assert_eq!(e.bar_number, 2);
+        // In the bar of 7/8 after the ramp: bar 10 (index 9), its start at beat 36.
+        let p = cantus_engine::fx::position_at_tick(&map, 36.5 * 960.0, true, sr);
+        let t = transport_of(&p);
+        assert_eq!((t.time_sig_num, t.time_sig_den), (7, 8));
+        assert_eq!((t.bar_start_beats, t.bar_number), (36.0, 9));
+        assert_eq!((t.tempo_bpm, t.tempo_inc), (140.0, 0.0));
+    }
+
     fn info(id: u32) -> ParamInfo {
         ParamInfo {
             id,
@@ -494,6 +620,7 @@ mod tests {
             automatable: true,
             hidden: false,
             read_only: false,
+            steps: 0,
         }
     }
 
@@ -538,6 +665,37 @@ mod tests {
         let sent = sync.merged.iter().map(|c| c.value).collect();
         sync.after_process(64);
         sent
+    }
+
+    /// Review 4 of ADR 0062, #1, #58: a four-way choice whose plain values run 0…1 (a JUCE
+    /// VST3's) lands on its thirds, automated or set by the project — never on 0 or 1 only
+    /// (whole plain units); one of 0, 10…40 on its tens.
+    #[test]
+    fn a_stepped_parameter_lands_on_its_own_steps() {
+        let mut p = info(3);
+        (p.min, p.max, p.stepped, p.steps) = (0.0, 1.0, true, 3);
+        let mut sync = ParamSync::new(&[p], |_| Some(0.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::new());
+        sync.automate(
+            0,
+            3,
+            HostedValue {
+                pos: 0.4,
+                modulation: 0.0,
+            },
+        );
+        sync.merge();
+        let sent: Vec<f64> = sync.merged.iter().map(|c| c.value).collect();
+        assert_eq!(sent.len(), 1, "{sent:?}");
+        assert!((sent[0] - 1.0 / 3.0).abs() < 1e-12, "{sent:?}");
+        sync.after_process(64);
+        let mut p = info(4);
+        (p.min, p.max, p.stepped, p.steps) = (0.0, 40.0, true, 4);
+        let mut sync = ParamSync::new(&[p], |_| Some(0.0), 48_000.0, Default::default());
+        sync.configure(&BTreeMap::from([(4, 13.0)]));
+        sync.merge();
+        let sent: Vec<f64> = sync.merged.iter().map(|c| c.value).collect();
+        assert_eq!(sent, vec![10.0], "the project's value on its step");
     }
 
     #[test]

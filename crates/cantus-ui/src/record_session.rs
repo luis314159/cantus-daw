@@ -416,11 +416,11 @@ impl CantusApp {
         if let Some(l) = self.project().loop_region.clone() {
             return l;
         }
-        let bar = self.project().time_signature.ticks_per_bar();
-        let a = self.engine.position().snap_floor(bar);
+        // Two bars from the playhead's bar, through the metre changes (ADR 0060).
+        let a = crate::views::bars::bar_start(self.project(), self.engine.position());
         cantus_core::LoopRegion {
             start: a,
-            end: a + bar * 2,
+            end: crate::views::bars::bars_from(self.project(), a, 2),
         }
     }
 
@@ -541,10 +541,11 @@ impl CantusApp {
         // The count-in: start that many bars early; the take begins where the playhead was.
         let bars = rs.count_in_bars as i64;
         let transport_start = if bars > 0 && !self.engine.is_playing() {
-            let bar = self.project().time_signature.ticks_per_bar();
             // Before bar 1 the transport pre-rolls into negative time, so the whole
-            // count-in is heard; the take still starts at `pos`.
-            let from = pos - bar * bars;
+            // count-in is heard; the take still starts at `pos`. The bars counted are the
+            // ones before `pos` (ADR 0060: through the metre changes; before tick 0 the
+            // first metre).
+            let from = crate::views::bars::add_bars(self.project(), pos, -bars);
             self.engine.seek(from);
             self.engine.set_record_start(Some(pos));
             // A count-in clicks whatever the metronome switch says (round 22): the engine
@@ -641,9 +642,17 @@ impl CantusApp {
         let mut plan = live.plan;
         plan.stop_at = at;
         plan.last_pass = self.recorder.pass();
+        // The pass's own stretch: from the punch-in, or where the pass that ran began — the
+        // loop's start once it came round (review 4, #15, #20: a loop's later lap stopped
+        // before the record start is no false start) — to the punch-out.
+        let window = (
+            plan.punch
+                .map_or(live.pass_start.min(plan.record_start), |p| p.0),
+            plan.punch.map(|p| p.1),
+        );
         self.finish_pass(plan, takes, notes);
         // The parameters moved while it recorded, as automation clips (ADR 0057).
-        self.commit_recorded_automation(at);
+        self.commit_recorded_automation_in(at, window.0, window.1);
         if live.audio {
             self.journal_pass_finished();
         }
@@ -666,7 +675,8 @@ impl CantusApp {
         takes: Vec<FinishedTake>,
         notes: Vec<RecordedNote>,
     ) -> bool {
-        let latency = self.engine.record_latency().total();
+        // The latency when the pass started (ADR 0064), not now.
+        let latency = self.engine.pass_latency().total();
         self.finish_pass_at(plan, takes, notes, latency)
     }
 
@@ -932,7 +942,11 @@ impl CantusApp {
             rs.comp_xfade_ms = ms;
             let mut after = p.clone();
             after.recording.comp_xfade_ms = ms;
-            let x = crate::comping::xfade_ticks(&after);
+            let at = after
+                .track(track)
+                .and_then(|t| t.clips.iter().find(|c| c.comp).map(|c| c.start))
+                .unwrap_or(Ticks::ZERO);
+            let x = crate::comping::xfade_ticks(&after, at);
             let mut out = Vec::new();
             if p.recording != rs {
                 out.push(Command::SetRecordSettings { settings: rs });
@@ -1121,7 +1135,7 @@ impl CantusApp {
         });
         self.drop_missing_clips();
         if ok {
-            self.set_status(t("rec.merged"));
+            self.say_done(t("rec.merged"), run.late);
         }
         ok
     }
@@ -1151,6 +1165,9 @@ impl CantusApp {
         let mut alone = cantus_core::Project::empty(self.project().name.clone());
         alone.tempo_bpm = self.project().tempo_bpm;
         alone.time_signature = self.project().time_signature;
+        // The comp plays under the song's tempo map (ADR 0060).
+        alone.tempo_points = self.project().tempo_points.clone();
+        alone.metre_changes = self.project().metre_changes.clone();
         alone.audio_pool = self.project().audio_pool.clone();
         alone.loop_enabled = false;
         let mut lone = alone.make_track("comp");
@@ -1158,11 +1175,16 @@ impl CantusApp {
         lone.clips = windows.clone();
         alone.tracks.push(lone);
         let rate = self.engine.sample_rate.round() as u32;
+        let before = self.engine.renders_late();
         let snapshot = self.engine.compile_for_render(&alone, 1);
         if self.engine.samples.loading() {
-            // What it plays started loading just now: wait for it.
+            // What it plays started loading just now (a file, a render on its way): wait
+            // for it — the merge is never written from a render's quick version, so nothing
+            // is said late while it waits (round 29's final review).
             return false;
         }
+        self.say_late(before);
+        let late = self.late_since(before);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: from,
@@ -1204,6 +1226,7 @@ impl CantusApp {
                 from,
                 to,
                 windows: windows.iter().map(|c| c.id).collect(),
+                late,
             });
         }
         false
@@ -1247,4 +1270,7 @@ struct MergeRun {
     from: Ticks,
     to: Ticks,
     windows: Vec<cantus_core::ClipId>,
+    /// A warped window's render was late at its compile: said as it lands (warp, round
+    /// 29's third review).
+    late: bool,
 }

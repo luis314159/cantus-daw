@@ -4,6 +4,7 @@
 //! landed in the dialog's settings. `export_files.rs` then checks that each choice
 //! reaches the file.
 
+use cantus_core::Ticks;
 use cantus_engine::EngineHandle;
 use cantus_export::{Channels, Depth, Dither, Format, Mp3Mode, Rate, Scope};
 use cantus_ui::i18n::{self, Locale};
@@ -234,7 +235,14 @@ fn the_loudness_target_ceiling_and_limit_choose() {
 fn the_scope_and_stems_choices_choose() {
     let _l = language();
     let mut u = Ui::open();
+    // Song, Selection, Loop, Markers (round 29: refused without markers), Stems.
+    let before = u.d().scope;
     u.click("export_audio.row.what#3");
+    // Review 2 (finding 23): refused — the scope stays, the note asks for markers.
+    assert_eq!(u.d().scope, before, "no markers to export between");
+    assert!(!matches!(u.d().scope, Scope::Markers { .. }));
+    assert!(matches!(u.a.export.asked, Some(Scope::Markers { .. })));
+    u.click("export_audio.row.what#4");
     assert_eq!(u.d().scope, Scope::Stems);
     u.click("export_audio.row.stems#1");
     assert!(u.d().stems.tracks);
@@ -433,4 +441,18 @@ fn enter_in_a_tag_field_confirms_the_tag_and_does_not_export() {
         "the Enter that confirmed the tag did not export"
     );
     assert!(u.a.export.dialog.is_some());
+}
+
+/// Review 2 (finding 23): with two markers the segment chooses *between markers*, the
+/// markers around the playhead.
+#[test]
+fn the_markers_scope_takes_the_markers_around_the_playhead() {
+    let _l = language();
+    let mut u = Ui::open();
+    let a = u.a.add_marker(Ticks::beats(4)).unwrap();
+    let b = u.a.add_marker(Ticks::beats(12)).unwrap();
+    u.a.seek(Ticks::beats(6));
+    u.click("export_audio.row.what#3");
+    assert_eq!(u.d().scope, Scope::Markers { from: a.0, to: b.0 });
+    assert_eq!(u.a.export.asked, None);
 }
