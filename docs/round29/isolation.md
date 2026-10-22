@@ -559,3 +559,25 @@ not-loaded card does (never blank), and `PluginHost::set_loading_for_tests` (the
 application never calls it); clippy, fmt and the isolation UI tests again clean. Shots,
 both languages (`shoot_hosted`): `isolation-loading` — the editor's *Loading* card, no
 waiting card.
+
+## The final round (review final-B: six findings, all closed)
+
+Merged `r29/integration` (e8f867c, with freeze's fourth round) first. ADR 0063 §3 has a
+*final-B* amendment. Each fix was **seen failing**: the new tests failed against the code
+before the fix, and `tmp/sabotage7.py` puts each fix's old behaviour back alone, runs its
+test, and restores the file byte for byte — every one failed so (its sabotage's name in the
+last column). The echo rule for isolated plug-ins (#2, #8) is the freeze builder's;
+`on_loaded` still leaves the load's first state where it was (`save_state` after the
+answer is taken).
+
+| # | Finding | Fix | Test (sabotage) |
+|---|---|---|---|
+| 1 (high) | A plug-in *leaving* (a device change's `reload_all`, an undone removal) was in neither `slots` nor `missing`: an export or bake rendered without it and said nothing, a freeze failed as *missing* for the session | A heard plug-in leaving or not synced yet is a pending part, made a part once loaded live (`resolve_pending`); a frozen chain's resting ones (`resting`, from the last sync) are none of the render's; a part the render lacks is its loss, said (`take_prepared`); a save waits for a plug-in leaving and saves its state as it is now (`leaving_state_for_save`) | `a_render_waits_for_a_plugin_that_is_leaving_and_never_lacks_it_silently` (*pending*, *savewait*) |
+| 4 | A leaving instance blocked its slot with no bound and no card; an instrument picked again stayed silent behind the one before | Waited for at most the state limit from the ask, then parked as last said and said (`StateKept`); its card when its helper waits on a window, *Show it* / *Stop it* reaching it; an instrument with a live instance in its place is not held up, and the old one's state is nobody's (`is_live`) | `plugins_let_go_during_a_dialog_are_bounded_and_show_its_card` (*bound*, *card*), `an_instrument_picked_again_plays_while_the_one_before_it_leaves` (*repick*) |
+| 11 | A plug-in let go while its helper was in a dialog waited for ever, with no card | The same bound and card | `plugins_let_go_during_a_dialog_are_bounded_and_show_its_card` (*bound*, *card*) |
+| 10 | A freeze's preparation, keyed by states, was made anew whenever an in-process plug-in's state moved, loading the isolated render instance again and again | A preparation asked anew keeps each instance whose part is the same (plug-in, where it runs, values, state: `keep_from`) | `a_moving_state_never_keeps_a_freeze_from_its_render` (*keep*) |
+| 7 | A bake dropped on New/Open kept its preparation alive | `drop_bake_prep` where a waiting bake is dropped (another project) or given up (refused, its modulator gone, no render needed) — never while another bake waits | `a_bake_dropped_for_another_project_lets_its_preparation_go` (*bakedrop*) |
+| 15 | The parking test never checked that the state parked is the one as it is now | The test gain's `TAG_QUIETLY` (fault 25) moves its state without a word to the host; the test asserts the plug-in loaded again carries it | `a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so` (*park*); `a_quiet_tag_is_only_the_plugins_own_doing` |
+
+Test hooks (each says the application never calls it): `PluginHost::render_prepared_for_tests`,
+and `hold_for_tests`'s held render now holds a preparation (as a real wait does).

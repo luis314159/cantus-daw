@@ -394,6 +394,26 @@ plug-ins by themselves before the job object ends them (#24, #54).
   crash. *The autosave* waits for its plug-ins' states at most the state limit, then writes
   what each said last; it and a waiting export belong to the project they were asked for.
 
+**Amended (the final review, final-B: six findings).** A plug-in *leaving* — let go, its
+state as it is now on its way — is still the project's:
+
+- *A render waits for it.* A heard plug-in that is leaving, or not synced yet, is a
+  pending part of the preparation, made a part once it is loaded live again; only a frozen
+  chain's resting plug-ins (as the last sync found them) are none of the render's. A
+  render that begins without one it should have says so (`NeverLoaded`) — never an export
+  without an insert reported done, nor a freeze failed as *missing* for the session.
+- *It is waited for at most the state limit*, from when it was asked — started or not, so
+  a helper held by a dialog never keeps it for ever: then it is parked as it was last said,
+  said (`StateKept`), and loaded again. Meanwhile its card shows when its helper waits on a
+  window, and *Show it* / *Stop it* reach it; a save waits for its state and saves it as it
+  is now, or says so. An instrument picked again plays as soon as it is loaded: the one
+  before it holds nothing up, and its state is nobody's.
+- *A preparation asked anew* (a state that moves at every look, in process) keeps each
+  instance whose part is the same — the same plug-in, where it runs, its values and state —
+  so another plug-in's render instance is never loaded again for it: the freeze begins.
+- *A bake given up* — its project replaced, refused, or needing no render after all —
+  drops its preparation, as an export and a freeze do.
+
 ### 4. Nothing lost, nothing different
 
 - **The same bits.** The helper runs the same backends on the same block splits, with the
@@ -610,6 +630,13 @@ languages (`locales/areas/isolation.*`).
   reset first), `culprits` split per finding, a long slice is a pause. `cantus-ui`: two
   bakes never overlap; render losses, reload failures and a busy window in the interface's
   words; *Reload* for a plug-in that never loaded; the waiting card.
+- The final review, final-B (`session_faults7.rs`): a render waits for a plug-in leaving
+  and never lacks one silently, and a save waits for it; a state that moves at every look
+  never keeps a freeze's render from beginning; plug-ins let go during a dialog are bounded
+  and show its card; an instrument picked again plays while the one before it leaves; the
+  test gain's quiet tag (`TAG_QUIETLY`) is its own doing — and `session_faults6.rs`'s
+  parking test now holds its claim with it. `cantus-ui`: a bake dropped for another project
+  lets its preparation go.
 - Review isolation-6 (`session_faults6.rs`): a slow silent load fails at its limit and its
   helper and neighbour live, and a slow silent state is no hang — at the shipped ratio; a
   preparation is its owner's and its content's; a render without its instance says so; a
