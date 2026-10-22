@@ -67,7 +67,7 @@ test, as on Windows.
 that run were fixed and re-run green (the VST3 test read another builder's test plug-in
 through a shared target folder; the Japanese-font test met `fc-match`'s any-face answer —
 now `fc-list` only; the notices tests; `frame_budget`'s hover allocations, 18 against 16,
-once, under load — green re-run). Windows: see the report's counts.
+once, under load — green re-run). Windows (the crates touched: rt, engine, host, sandbox, ui, xtask): 2 891 passed, 40 ignored; the two that failed were fixed or flaky (the fontconfig test's Unix paths now run on Unix only; a tempo-report test that reads the locale passed alone). Clippy `-D warnings` clean on both, also after merging r30/integration (after the merge, in a private target on Linux: rt, host and engine 1 010 passed, 0 failed, the X11 window tests included).
 
 **AppImage.** `build-appimage.sh` in WSL (Ubuntu 24.04 there; CI builds it on 22.04):
 the full one — launcher, `cantus-x86-64-v2` and `-v3`, scanner, sandbox, 23 effects as
@@ -102,16 +102,15 @@ AppImage now carries it (and `libxcb-xkb`) as a fallback the same way as libpipe
 
 ## For the integrator
 
-- **release.yml's Linux job** (ship's): run `bash packaging/linux/deps.sh` before `cargo
-  build --release` on ubuntu-22.04 — it installs the packages (`pkg-config clang
+- **release.yml's Linux job** (ship's) now runs `bash packaging/linux/deps.sh` (changed
+  in the merge of r30/integration; the xtask test now checks both workflows use the
+  script) — it installs the packages (`pkg-config clang
   libclang-dev libasound2-dev libdbus-1-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
   libpipewire-0.3-dev libspa-0.2-dev libxkbcommon-x11-0 libxcb-xkb1 squashfs-tools xvfb
   xauth`) **and** on 22.04 points pkg-config at PipeWire 1.0.5's headers (exported through
   `$GITHUB_ENV`); without it cpal's host does not compile there. `libjack-jackd2-dev` and
   `libfuse2` are not needed (JACK builds without its `-dev`; the type-2 runtime is static
-  and no appimagetool is used). ci.yml's Linux deps are now that script, not an apt line —
-  the xtask test that compares ci.yml's and release.yml's packages should read
-  `deps.sh`.
+  and no appimagetool is used).
 - Merge `xtask/src/notices.rs` with the macOS builder's if it touched the target list.
 - The shared `~/cantus-ci` target folder mixes builders' `cdylib`s (their names have no
   hash): my VST3 test once loaded another branch's test plug-in. I used a private clone
