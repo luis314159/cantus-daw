@@ -15,8 +15,10 @@ yew = { version = "0.21", features = ["csr"] }
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 gloo-timers = "0.3"
+# Already in the build through Yew: the release check awaits `fetch` (shelf.rs).
+wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = [
-  "Window", "Document", "MediaQueryList", "DomTokenList", "HtmlInputElement", "HtmlAudioElement", "HtmlMediaElement", "HtmlElement", "Navigator", "Element", "HtmlElement", "Storage",
+  "Window", "Document", "Response", "MediaQueryList", "DomTokenList", "HtmlInputElement", "HtmlAudioElement", "HtmlMediaElement", "HtmlElement", "Navigator", "Element", "HtmlElement", "Storage",
   "AudioContext", "AudioContextState", "AudioDestinationNode", "AudioNode", "AudioParam", "AudioBuffer",
   "AudioBufferSourceNode", "OscillatorNode", "OscillatorType", "GainNode", "BiquadFilterNode",
   "BiquadFilterType", "DynamicsCompressorNode", "AudioScheduledSourceNode",

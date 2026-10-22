@@ -1,4 +1,9 @@
-# Builds, tests and publishes a Windows release (ADR 0032).
+# Builds, tests and publishes a release of Cantus for Windows, Linux and macOS (ADR 0032;
+# three systems since round 30, ADR 0067): each system's job tests the workspace on that
+# system first, then builds its file — the NSIS installer (`xtask package`), the AppImage
+# (`packaging/linux/build-appimage.sh`, on Ubuntu 22.04 so its glibc floor is old enough)
+# and the universal disk image (`packaging/macos/build-dmg.sh`) — and one job publishes
+# them all, with one SHA256SUMS.txt.
 #
 # Runs when the owner pushes a version tag (`git tag v0.2.0 && git push origin v0.2.0`);
 # the tag must equal the workspace version in Cargo.toml. Run by hand (Actions → Release
@@ -14,9 +19,15 @@
 # See docs/round20/signing.md. SignPath Foundation (free for open source) needs a different,
 # two-request flow — drafted, inert, in docs/signing/signpath-release.draft.yml (ADR 0048 §8).
 #
-# The installer is published twice: versioned (what the app's updater asks for) and as
-# Cantus-windows-x64-setup.exe, the stable name the website's button links through
-# releases/latest/download/ (ADR 0048 §7).
+# macOS signing and notarisation need no change here either, only these secrets (absent,
+# the disk image is ad-hoc signed and Gatekeeper asks the user to allow it once):
+#   APPLE_CERT_P12_BASE64 (the "Developer ID Application" certificate and key, base64),
+#   APPLE_CERT_PASSWORD (its password), APPLE_TEAM_ID, APPLE_ID (the Apple account's
+#   e-mail) and APPLE_APP_PASSWORD (an app-specific password for notarytool).
+#
+# Every file is published twice: versioned (what the app's updater asks for) and under a
+# stable name the website links through releases/latest/download/ (ADR 0048 §7):
+# Cantus-windows-x64-setup.exe, Cantus-linux-x86_64.AppImage, Cantus-macos-universal.dmg.
 
 name: Release
 
@@ -150,8 +161,109 @@ jobs:
           path: target/package/dist/
           if-no-files-found: error
 
+  linux:
+    # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
+    if: github.repository == 'luis314159/cantus-daw'
+    name: linux (AppImage)
+    # 22.04, not latest: an AppImage runs on systems at least as new as the one it was
+    # built on (its glibc), so the oldest supported LTS builds it (ADR 0067 §1).
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # Every package ci.yml's Linux job installs (an xtask test keeps this line a
+      # superset of that one), and FUSE 2, which the AppImage tools run with.
+      - name: Linux audio/window deps
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev libpipewire-0.3-dev libjack-jackd2-dev libclang-dev libfuse2
+      - name: The tag is the workspace's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="$(cargo run -q -p xtask -- version)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME but Cargo.toml says $version"; exit 1
+          fi
+      - run: cargo clippy --workspace --all-targets
+        env:
+          RUSTFLAGS: -D warnings
+      - run: cargo test --workspace
+      - name: Build (the app, the plug-in scanner, the sandbox)
+        run: cargo build --release -p cantus -p cantus-host -p cantus-sandbox
+      - name: The AppImage
+        run: |
+          version="$(cargo run -q -p xtask -- version)"
+          bash packaging/linux/build-appimage.sh "$version" dist
+          test -s "dist/Cantus-$version-linux-x86_64.AppImage"
+          cp "dist/Cantus-$version-linux-x86_64.AppImage" dist/Cantus-linux-x86_64.AppImage
+          cd dist && sha256sum -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cantus-linux
+          path: dist/
+          if-no-files-found: error
+
+  macos:
+    # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
+    if: github.repository == 'luis314159/cantus-daw'
+    name: macos (disk image)
+    runs-on: macos-latest
+    timeout-minutes: 150
+    env:
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain, both Mac architectures)
+        shell: bash
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - name: The tag is the workspace's version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version="$(cargo run -q -p xtask -- version)"
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME but Cargo.toml says $version"; exit 1
+          fi
+      - run: cargo clippy --workspace --all-targets
+        env:
+          RUSTFLAGS: -D warnings
+      - run: cargo test --workspace
+      # build-dmg.sh builds both architectures, lipos them, makes Cantus.app, and signs
+      # with the hardened runtime and notarises only when every secret below is set;
+      # otherwise it signs ad hoc (the round-30 contract, docs/round30/BUILDING.md).
+      - name: The disk image
+        env:
+          APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          version="$(cargo run -q -p xtask -- version)"
+          bash packaging/macos/build-dmg.sh "$version" dist
+          test -s "dist/Cantus-$version-macos-universal.dmg"
+          cp "dist/Cantus-$version-macos-universal.dmg" dist/Cantus-macos-universal.dmg
+          cd dist && shasum -a 256 -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cantus-macos
+          path: dist/
+          if-no-files-found: error
+
   publish:
-    needs: package
+    # A release is the three systems' files or nothing: a job that failed is re-run
+    # (Actions → the run → Re-run failed jobs) before anything is published.
+    needs: [package, linux, macos]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -161,13 +273,44 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: cantus-windows
-          path: dist
-      - name: Check the sums
-        run: cd dist && sha256sum -c SHA256SUMS.txt
-      # The website's button links releases/latest/download/<this name> (ADR 0048 §7;
-      # xtask's test keeps the name here, in the packager and in web/src/top.rs equal).
-      - name: The installer under its stable name
-        run: test -s dist/Cantus-windows-x64-setup.exe
+          path: parts/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: cantus-linux
+          path: parts/linux
+      - uses: actions/download-artifact@v4
+        with:
+          name: cantus-macos
+          path: parts/macos
+      # Each system's files arrive as its job hashed them; then one SHA256SUMS.txt for the
+      # release, `<hex>  <name>` sorted by name (what the app's updater and `sha256sum -c`
+      # read).
+      - name: Check the sums, and one sums file for the release
+        run: |
+          for sys in windows linux macos; do (cd "parts/$sys" && sha256sum -c SHA256SUMS.txt); done
+          mkdir dist
+          for sys in windows linux macos; do
+            for f in parts/$sys/*; do
+              name="$(basename "$f")"
+              [ "$name" = SHA256SUMS.txt ] && continue
+              if [ -e "dist/$name" ]; then echo "two systems publish $name"; exit 1; fi
+              cp "$f" "dist/$name"
+            done
+          done
+          (cd dist && sha256sum -- * | LC_ALL=C sort -k2 > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt)
+          cat dist/SHA256SUMS.txt
+      # The website's buttons link releases/latest/download/<these names> (ADR 0048 §7,
+      # ADR 0067; xtask's test keeps the names here, in cantus-update and in web/src/top.rs
+      # equal), and the updater asks for the versioned ones.
+      - name: Every system's file, versioned and under its stable name
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          test -s dist/Cantus-windows-x64-setup.exe
+          test -s dist/Cantus-linux-x86_64.AppImage
+          test -s dist/Cantus-macos-universal.dmg
+          test -s "dist/Cantus-$v-windows-x64-setup.exe"
+          test -s "dist/Cantus-$v-linux-x86_64.AppImage"
+          test -s "dist/Cantus-$v-macos-universal.dmg"
       # GitHub's "latest" release (what releases/latest/download/... follows) can never be
       # a pre-release. So a beta is published as the latest release while no stable
       # release exists — otherwise the download button would find nothing — and as a
