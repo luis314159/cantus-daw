@@ -52,7 +52,14 @@ impl Library {
         // SAFETY: loading a library runs its initialisers. That is what hosting a plug-in
         // is; the scanner does it first in a separate process, and a file that crashed
         // there is never loaded here.
-        let lib = unsafe { libloading::Library::new(path) }.map_err(|e| fail(&e.to_string()))?;
+        // A macOS `.clap` is a bundle folder: its binary is inside, and `init` still gets the
+        // bundle's path (the entry header's rule).
+        let binary = if path.is_dir() {
+            crate::bundle::binary(path).ok_or_else(|| fail("no binary in the bundle"))?
+        } else {
+            path.to_path_buf()
+        };
+        let lib = unsafe { libloading::Library::new(&binary) }.map_err(|e| fail(&e.to_string()))?;
         // SAFETY: `clap_entry` is a data symbol of type `clap_plugin_entry`; asking for a
         // pointer type yields its address.
         let entry: *const clap_plugin_entry = unsafe {

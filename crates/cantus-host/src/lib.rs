@@ -24,6 +24,7 @@
 
 pub mod backend;
 pub mod bridge;
+pub mod bundle;
 pub mod clap;
 pub mod db;
 pub mod inst_unit;
