@@ -69,5 +69,64 @@ through a shared target folder; the Japanese-font test met `fc-match`'s any-face
 now `fc-list` only; the notices tests; `frame_budget`'s hover allocations, 18 against 16,
 once, under load — green re-run). Windows: see the report's counts.
 
-**AppImage.** `build-appimage.sh` in WSL, quick and full (two levels, launcher, plug-ins):
-see the sizes below; `--version` and `--audio-drivers` run from the image.
+**AppImage.** `build-appimage.sh` in WSL (Ubuntu 24.04 there; CI builds it on 22.04):
+the full one — launcher, `cantus-x86-64-v2` and `-v3`, scanner, sandbox, 23 effects as
+CLAP + VST3, stand-in, xkb fallback — is **60.5 MB**; the quick one (one program) 73 MB
+before debug info was stripped. From the image: `--version` → `cantus 0.1.0-beta.1
+(x86-64-v3)` (the launcher chose v3), `--audio-drivers` → `ALSA`. Started on WSLg it opens
+its window as an X11 one through XWayland, runs (15 s, then stopped), and wrote its menu
+entry (`Exec="<the AppImage>" %f`, icons 16–512, MIME). That start found a real gap:
+WSL's bare Ubuntu has no `libxkbcommon-x11`, which winit needs for an X11 window — the
+AppImage now carries it (and `libxcb-xkb`) as a fallback the same way as libpipewire.
+
+## Files outside my list (all additive)
+
+- `Cargo.toml` (`[patch.crates-io] jack-sys`), `Cargo.lock`, `.gitattributes` (AppRun LF).
+- `crates/cantus-engine/Cargo.toml` (cpal features on Linux), `tests/devices.rs` (driver
+  order test, the priority line in the live test).
+- `crates/cantus-host`: `clap/{host,instance,main,mod}.rs` (x11 API, timer/fd
+  extensions), `vst3/{host_objects,main_thread,mod}.rs` (`IRunLoop`, `VST3_PATH`),
+  `runloop.rs` (new), `session.rs` (`any_window_open`), `lib.rs`, `Cargo.toml`, tests
+  (`clap_window_x11.rs`, `linux_folders.rs` new; `clap_scan.rs` expects an editor on
+  Linux; `vst3_backend.rs` Linux editor test).
+- `crates/cantus-rt/src/thread.rs` (`AudioHost::PipeWire`, the report), tests.
+- `crates/cantus-ui`: `app.rs` (Linux branches of `config_dir`/`data_dir`, 15 ms pace
+  while an editor is open), `lib.rs` (X11 hook, AppImage menu entry), `i18n.rs` (the
+  `linux` area), `views/settings_audio.rs` (one note line), `font_fallback.rs` (Linux
+  part), `linux_desktop.rs` (new), `Cargo.toml` (winit on Linux).
+- `crates/cantus-app/build.rs` (hicolor icons on Linux).
+- `xtask/src/notices*.rs`, `xtask/notices/{head.md,Zlib.txt}`, `THIRD-PARTY-NOTICES.md`
+  (every released target — the macOS builder's crates are in it too).
+- `.github/workflows/null-hashes.yml` (its Linux leg runs `packaging/linux/deps.sh`).
+- `docs/DEVELOPING.md` (Linux paragraphs).
+
+## For the integrator
+
+- **release.yml's Linux job** (ship's): run `bash packaging/linux/deps.sh` before `cargo
+  build --release` on ubuntu-22.04 — it installs the packages (`pkg-config clang
+  libclang-dev libasound2-dev libdbus-1-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
+  libpipewire-0.3-dev libspa-0.2-dev libxkbcommon-x11-0 libxcb-xkb1 squashfs-tools xvfb
+  xauth`) **and** on 22.04 points pkg-config at PipeWire 1.0.5's headers (exported through
+  `$GITHUB_ENV`); without it cpal's host does not compile there. `libjack-jackd2-dev` and
+  `libfuse2` are not needed (JACK builds without its `-dev`; the type-2 runtime is static
+  and no appimagetool is used). ci.yml's Linux deps are now that script, not an apt line —
+  the xtask test that compares ci.yml's and release.yml's packages should read
+  `deps.sh`.
+- Merge `xtask/src/notices.rs` with the macOS builder's if it touched the target list.
+- The shared `~/cantus-ci` target folder mixes builders' `cdylib`s (their names have no
+  hash): my VST3 test once loaded another branch's test plug-in. I used a private clone
+  sharing only the target; run the final suites one builder at a time.
+- Disks: F: and C: were at 0.5–6 GB free during the round (F: holds `daw-r30/macos/target`
+  at 38 GB); I removed my own incremental cache and stale (> 6 h) artifacts in WSL's
+  `~/cantus-ci/target`.
+
+## What only the owner can do
+
+- **A real Linux machine** (or a borrowed one) for an hour: an audio interface in duplex on
+  PipeWire at 64–128 frames (the latency figure with a real device delay — WSL's null sink
+  has none), a real plug-in with its editor (Surge XT, Vital, a JUCE VST3) on an X11 and a
+  Wayland desktop, and the real-time line granted by rtkit (the "as root" row shows the
+  grant path works; a desktop's rtkit is the normal one).
+- **Flathub**: submitting `packaging/linux/flatpak/com.cantusdaw.Cantus.yml` (an account,
+  their review, a `type: git` source at the tag). The CI job (*Run workflow* on CI) builds
+  it first.
