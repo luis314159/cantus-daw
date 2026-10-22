@@ -118,6 +118,8 @@ pub(crate) struct TestHooks {
     pub reload_fails: Option<(String, bool)>,
     /// Inserts said to wait on a window of their own.
     pub waiting: Vec<EffectId>,
+    /// Inserts said to be loading still.
+    pub loading: Vec<EffectId>,
     /// Plug-ins every save says it kept as they were last said: name, why.
     pub stale_saves: Vec<(String, String)>,
     /// Renders' plug-ins said to be loading still, states said to be on their way.
@@ -740,9 +742,10 @@ impl PluginHost {
     /// Whether a slot's plug-in is loading still (an isolated one, its load answered
     /// later): its slot, its editor and the inspector say so (review isolation-6 #28).
     pub fn effect_loading(&self, effect: EffectId) -> bool {
-        self.slots
-            .get(&effect)
-            .is_some_and(|h| h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none())
+        self.test_hooks.loading.contains(&effect)
+            || self.slots.get(&effect).is_some_and(|h| {
+                h.crashed.is_none() && !h.main.loaded() && h.main.stopped().is_none()
+            })
     }
 
     /// [`Self::effect_loading`] for a track's hosted instrument.
@@ -873,6 +876,17 @@ impl PluginHost {
         self.test_hooks.waiting.retain(|e| *e != effect);
         if waiting {
             self.test_hooks.waiting.push(effect);
+        }
+    }
+
+    /// For the interface's shots: a hosted slot said to be loading still (or no longer) —
+    /// and so not missing, as a slot loading never is. The application never calls it.
+    #[doc(hidden)]
+    pub fn set_loading_for_tests(&mut self, effect: EffectId, loading: bool) {
+        self.test_hooks.loading.retain(|e| *e != effect);
+        if loading {
+            self.test_hooks.loading.push(effect);
+            self.missing.remove(&effect);
         }
     }
 

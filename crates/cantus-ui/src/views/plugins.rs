@@ -809,10 +809,10 @@ fn body_ui(
     // #28).
     if app.plugins.effect_loading(effect) {
         let name = app
-            .plugins
-            .hosted(effect)
-            .map(|h| h.info.name.clone())
-            .unwrap_or_default();
+            .project()
+            .effect(strip, effect)
+            .and_then(|e| e.spec.external.as_deref())
+            .map_or(String::new(), |p| p.name.clone());
         let rest = g.rest();
         controls::card(
             ui,

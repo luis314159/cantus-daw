@@ -549,3 +549,13 @@ first (`RenderFor::{Export, Bake, Freeze, Now}`, re-exported); an owner that giv
 again (a literal needs it). `PluginHost::take_resync()` — true when a plug-in let go has its
 state in: the application syncs again (`app.rs` does). `HostNotice::StateKept { name,
 reason }`. `inst_load_key` returns `Option`. PROTOCOL stays 6; no schema change.
+
+**The runs** (19278a4). Windows: `cargo test -p cantus-rt -p cantus-host -p cantus-sandbox`
+273 passed, `cargo test -p cantus-ui` 1 691 passed, `cargo clippy --workspace --all-targets
+-- -D warnings` and `cargo fmt --all -- --check` clean. WSL (Ubuntu 24.04):
+`tools/wsl/check.sh r29/isolation clippy` clean, the isolation crates' tests 242 passed.
+After it, for the shots only: the loading card takes its name from the project, as the
+not-loaded card does (never blank), and `PluginHost::set_loading_for_tests` (the
+application never calls it); clippy, fmt and the isolation UI tests again clean. Shots,
+both languages (`shoot_hosted`): `isolation-loading` — the editor's *Loading* card, no
+waiting card.
