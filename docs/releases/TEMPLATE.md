@@ -23,7 +23,7 @@ audio workstation for Windows, macOS and Linux, made by Luis Ángel Almazán
 | System | File | |
 |---|---|---|
 | Windows 11, x64 | `Cantus-{version}-windows-x64-setup.exe` | Run it; no administrator rights. Also a portable zip. |
-| macOS, Apple silicon and Intel | `Cantus-{version}-macos-universal.dmg` | Open it and drag Cantus onto *Applications*. |
+| macOS 11 or newer, Apple silicon and Intel | `Cantus-{version}-macos-universal.dmg` | Open it and drag Cantus onto *Applications*. |
 | Linux x86-64 (Ubuntu 22.04 or newer, or alike) | `Cantus-{version}-linux-x86_64.AppImage` | `chmod +x` it and open it; nothing to install. |
 
 Each file is also published under a name without the version (`Cantus-windows-x64-setup.exe`,
@@ -69,7 +69,7 @@ you expected and what happened, and your system.
 | Sistema | Archivo | |
 |---|---|---|
 | Windows 11, x64 | `Cantus-{version}-windows-x64-setup.exe` | Ejecútalo; sin permisos de administrador. También hay un zip portátil. |
-| macOS, Apple silicon e Intel | `Cantus-{version}-macos-universal.dmg` | Ábrelo y arrastra Cantus a *Aplicaciones*. |
+| macOS 11 o más nuevo, Apple silicon e Intel | `Cantus-{version}-macos-universal.dmg` | Ábrelo y arrastra Cantus a *Aplicaciones*. |
 | Linux x86-64 (Ubuntu 22.04 o más nuevo, o similar) | `Cantus-{version}-linux-x86_64.AppImage` | Hazlo ejecutable (`chmod +x`) y ábrelo; nada que instalar. |
 
 Cada archivo se publica también con un nombre sin la versión
