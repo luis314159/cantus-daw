@@ -620,7 +620,14 @@ fn a_later_lap_stopped_before_the_record_start_keeps_its_automation() {
     a.stop_recording();
     let clips = pan_clips(&a, s);
     assert_eq!(clips.len(), 1, "kept");
-    assert_eq!(clips[0].start, bar(4) + Ticks::beats(2));
+    // From 4.5, less the message's real age (the time between `cc` and its reading: a
+    // tick or so on a loaded machine — Linux under two suites read 17 279 for 17 280).
+    let from = bar(4) + Ticks::beats(2);
+    let start = clips[0].start;
+    assert!(
+        start <= from && from - start <= Ticks(PPQ / 64),
+        "kept from 4.5: {start:?}"
+    );
 }
 
 /// Whether the lane the engine was last sent for `target` plays its clip (not latched).
