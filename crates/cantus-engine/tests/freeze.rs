@@ -1701,3 +1701,30 @@ fn a_render_copied_under_a_new_key_opens_under_it_and_its_alias_plays_meanwhile(
     );
     assert!(!to.with_extension("copy.part").exists());
 }
+
+#[test]
+fn the_other_projects_folders_are_looked_in_through_their_listing() {
+    // A sibling project's folder is read when the folders are set or looked at again, not
+    // at each lookup (final review: the scan looked in every one twice a second).
+    let mut h = handle("listing");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let from = h.frozen.path_of(&content, 48_000).unwrap();
+    let sibling = folder("listing-sibling");
+    h.frozen.set_also(vec![sibling.clone()]);
+    let before = h.frozen.probes();
+    for _ in 0..100 {
+        let _ = h.frozen.paths_of("no such sound", 48_000);
+    }
+    assert_eq!(h.frozen.probes(), before, "no disk touched there");
+    std::fs::copy(&from, sibling.join(from.file_name().unwrap())).unwrap();
+    assert_eq!(
+        h.frozen.paths_of(&content, 48_000).len(),
+        1,
+        "not listed yet"
+    );
+    h.frozen.forget_missing();
+    assert_eq!(h.frozen.paths_of(&content, 48_000).len(), 2, "listed again");
+}
