@@ -268,6 +268,16 @@ logos: [TRADEMARKS.md](TRADEMARKS.md). The bundled fonts
 under the [SIL Open Font License 1.1](crates/cantus-ui/assets/fonts/LICENSE-OFL.txt) and
 shipped unmodified — "IBM Plex" is a Reserved Font Name.
 
+## Support
+
+Cantus is free and stays free; everyone gets the same program, whatever they give, or
+nothing at all. If it helps you make music, you can help keep it growing:
+[Ko-fi](https://ko-fi.com/luisalmazan314159) ·
+[Buy Me a Coffee](https://buymeacoffee.com/angel314159) ·
+[Liberapay](https://liberapay.com/lalmazan). Donations unlock nothing; the best help is
+still to make a song and [tell us](https://github.com/luis314159/cantus-daw/issues) what
+got in your way.
+
 ## Author
 
 Cantus is designed and built by **Luis Ángel Almazán** — [lalmazan.com](https://lalmazan.com).
