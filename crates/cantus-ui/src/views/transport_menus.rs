@@ -403,30 +403,43 @@ pub fn open_menu(ctx: &egui::Context, i: usize) {
 /// FL's *Options* (round 30): the entries of the menu model the Mac's bar shows too
 /// (`crate::macos::menu::options`), so the two never differ.
 fn options_menu(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::kit::menu::{Check, Item};
+    use crate::kit::text::Src;
     use crate::macos::menu::{self as model, Entry, Pick};
     let menu = model::options(&app.keymap);
-    for entry in menu.entries {
-        match entry {
+    // One kit menu, as the editors' (FL's light rows), each action's key at the right.
+    let keys: Vec<Option<String>> = menu
+        .entries
+        .iter()
+        .map(|e| match e {
             Entry::Item {
                 pick: Pick::Action(a),
                 ..
-            } => {
-                if views::arrangement::action_item(app, ui, a, "menu.settings") {
-                    ui.close();
-                }
-            }
-            Entry::Item { label, pick, .. } => {
-                if ui.button(label).clicked() {
-                    ui.close();
-                    let ctx = ui.ctx().clone();
-                    model::run(app, &ctx, pick);
-                }
-            }
-            Entry::System { .. } => {}
-            Entry::Separator => {
-                ui.separator();
-            }
-        }
+            } => app.keymap.bindings_for(*a).first().map(|b| b.display()),
+            _ => None,
+        })
+        .collect();
+    let items: Vec<Item<'_>> = menu
+        .entries
+        .iter()
+        .zip(&keys)
+        .map(|(e, k)| match e {
+            Entry::Item { label, .. } | Entry::System { label, .. } => Item::Action {
+                label: Src::Str(label),
+                check: Check::None,
+                shortcut: k.as_deref(),
+                submenu: false,
+                enabled: true,
+            },
+            Entry::Separator => Item::Separator,
+        })
+        .collect();
+    let clicked = crate::kit::widgets::menu_list(ui, &items, 230.0).1.clicked;
+    if let Some(Entry::Item { pick, .. }) = clicked.map(|i| &menu.entries[i]) {
+        let pick = *pick;
+        ui.close();
+        let ctx = ui.ctx().clone();
+        model::run(app, &ctx, pick);
     }
 }
 
