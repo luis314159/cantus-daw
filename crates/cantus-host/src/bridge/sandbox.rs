@@ -961,6 +961,13 @@ impl Sandbox {
             }
             return;
         }
+        // The handshake is the first request it serves: an answer before a good greeting is
+        // from a helper that never started (another build's, killed as it greeted) — never
+        // taken, so its load is a failed one, nobody's crash, however the kill and the
+        // answers race (review isolation-6 #9; seen on Linux).
+        if !self.greeted() {
+            return;
+        }
         if let Purpose::Unload(n) = f.purpose {
             lock(&self.ending.infos).remove(&n);
             return;

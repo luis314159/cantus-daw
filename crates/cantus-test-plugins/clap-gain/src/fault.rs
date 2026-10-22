@@ -31,6 +31,7 @@
 //! | 22 | it asks the host to rescan its parameters, and the second list read takes 2 s |
 //! | 23 | this `process` raises an exception its own crash filter handles (it goes on) |
 //! | 24 | a hidden window of its own (a message-only one, as JUCE's) never returns from a message |
+//! | 25 | its state's tag becomes `heard`, and it tells the host nothing (a state moved quietly) |
 //!
 //! And, read from the environment (the helper inherits Cantus's, so a test sets them before
 //! the helper that must see them starts): `CANTUS_TEST_GAIN_DESTROY_MARKER=<folder>` writes
@@ -67,8 +68,9 @@ pub const HANG_THREAD_TIMER: u32 = 21;
 pub const RESCAN_SLOW: u32 = 22;
 pub const RAISE_HANDLED: u32 = 23;
 pub const HANG_HIDDEN_WINDOW: u32 = 24;
+pub const TAG_QUIETLY: u32 = 25;
 /// The parameter's range: 0 (none) … this.
-pub const LAST: f64 = 24.0;
+pub const LAST: f64 = 25.0;
 
 /// The exception `RAISE_HANDLED` raises, which the plug-in's own crash filter
 /// (`CANTUS_TEST_GAIN_CHAIN_FILTER`) resumes, as a licence check's trick does.

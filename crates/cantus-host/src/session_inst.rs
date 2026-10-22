@@ -347,6 +347,12 @@ impl PluginHost {
         let dormant = engine
             .frozen
             .dormant(project, engine.sample_rate.round() as u32);
+        self.inst_resting = project
+            .tracks
+            .iter()
+            .filter(|t| dormant.instrument_rests(t.id))
+            .map(|t| t.id)
+            .collect();
         for t in &project.tracks {
             let Some(plugin) = t.instrument.external() else {
                 continue;
@@ -372,8 +378,11 @@ impl PluginHost {
                 continue;
             }
             self.inst_missing.remove(&t.id);
-            // Let go a moment ago, its state still on its way: loaded once it is in.
-            if self.is_leaving(super::Parked::Instrument(t.id, key)) {
+            // Let go a moment ago, its state still on its way: loaded once it is in — unless
+            // another instance plays in its place already (picked again: review final-B #4).
+            if !self.instruments.contains_key(&t.id)
+                && self.is_leaving(super::Parked::Instrument(t.id, key))
+            {
                 continue;
             }
             if !self.instruments.contains_key(&t.id) {

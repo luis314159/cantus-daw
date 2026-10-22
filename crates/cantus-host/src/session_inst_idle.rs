@@ -578,13 +578,21 @@ impl PluginHost {
         stale: &mut Vec<(String, String)>,
     ) {
         for t in &mut project.tracks {
-            let Some(h) = self.instruments.get_mut(&t.id) else {
-                continue;
-            };
             // In a frozen region: the state its render holds (review 2).
             if locks.is_some_and(|l| l.source.contains(&t.id)) {
                 continue;
             }
+            let Some(h) = self.instruments.get_mut(&t.id) else {
+                // Let go a moment ago, its state on its way: as it is now, or said
+                // (review final-B #4).
+                if let Some(plugin) = t.instrument.external_mut() {
+                    let of = super::Parked::Instrument(t.id, cantus_engine::hosted_key(plugin));
+                    if let Some(state) = self.leaving_state_for_save(of, stale) {
+                        plugin.state = state;
+                    }
+                }
+                continue;
+            };
             let Some(plugin) = t.instrument.external_mut() else {
                 continue;
             };

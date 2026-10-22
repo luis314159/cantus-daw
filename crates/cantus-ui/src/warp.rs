@@ -230,6 +230,8 @@ impl CantusApp {
                 .is_some_and(|p| p.2 != self.epoch)
             {
                 self.warp.pending_bake = None;
+                // Its render's preparation with it (review final-B #7).
+                self.drop_bake_prep();
             }
         }
         self.poll_bounce();

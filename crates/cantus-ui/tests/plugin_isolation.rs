@@ -1167,3 +1167,28 @@ fn an_autosave_waits_its_while_and_belongs_to_its_project() {
         "the new, unchanged project is not autosaved"
     );
 }
+
+/// A bake waiting for its plug-ins, dropped for another project, lets its render's
+/// preparation go with it — never kept alive for the project that replaced it (review
+/// final-B #7).
+#[test]
+fn a_bake_dropped_for_another_project_lets_its_preparation_go() {
+    let (p, mid, target) = follower_project();
+    let mut a = app(p);
+    a.plugins.hold_for_tests(true, false);
+    assert!(a.bake_route(mid, &target), "it waits for its plug-ins");
+    assert!(a.warp.pending_bake.is_some());
+    assert_eq!(
+        a.plugins.render_prepared_for_tests(),
+        Some(cantus_host::RenderFor::Bake)
+    );
+    a.replace_project(cantus_ui::starter_project());
+    a.plugins.hold_for_tests(false, false);
+    a.poll_warp();
+    assert!(a.warp.pending_bake.is_none(), "dropped");
+    assert_eq!(
+        a.plugins.render_prepared_for_tests(),
+        None,
+        "its preparation with it"
+    );
+}

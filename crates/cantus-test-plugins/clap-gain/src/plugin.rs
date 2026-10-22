@@ -103,6 +103,12 @@ impl Plugin {
         self.set(e.param_id, e.value);
         if processing && e.param_id == P_FAULT {
             self.fault.arm(e.value);
+            // Its state moves without a word to the host (a test plug-in's own doing).
+            if e.value.round() as u32 == crate::fault::TAG_QUIETLY {
+                if let Ok(mut t) = self.tag.try_lock() {
+                    *t = b"heard".to_vec();
+                }
+            }
             if crate::fault::Fault::wants_main_thread(e.value) {
                 if let Some(f) = (*self.host).request_callback {
                     f(self.host);
