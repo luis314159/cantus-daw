@@ -54,6 +54,12 @@ ronda; lo que reporte un constructor como «Left» se le devuelve como trabajo.
      (como FL y Ableton), pero nada en la interfaz lo dice al pulsar Play. Haz que se
      entienda (p. ej. que el chip diga «antes de grabar», o un aviso la primera vez) y
      ofrece una opción *También al reproducir* (como Reaper), apagada por defecto.
+   - **Instalé plug-ins (Surge XT, Odin 2, Valhalla) y no me salían** (2026-10-22): Cantus
+     no busca plug-ins solo; hay que pulsar *Buscar plug-ins* al fondo de Ajustes. Que al
+     iniciar busque en segundo plano los archivos nuevos o cambiados (como Reaper y
+     Bitwig; cada archivo ya se lee en un proceso aparte), que avise «3 plug-ins nuevos»,
+     y que el selector de dispositivos ofrezca *Buscar plug-ins* en sus estantes CLAP/VST3
+     cuando estén vacíos.
 
 Organízalo como las rondas grandes: commit de contrato, un worktree por constructor en
 `F:\projects\daw-r30\` (jobs = 3, TMP en F:; máximo tres constructores compilando a la vez),
