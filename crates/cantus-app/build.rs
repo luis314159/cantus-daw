@@ -58,4 +58,9 @@ pub const ART: cantus_ui::boot::Art = cantus_ui::boot::Art {{
     write(&out.join("baked.rs"), baked.as_bytes());
 
     icon::embed_exe_icon(&out, "Cantus");
+    // macOS: the bundle's icon, which `packaging/macos/build-dmg.sh` takes from here
+    // (ADR 0066).
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        write(&out.join("Cantus.icns"), &icon::icns());
+    }
 }

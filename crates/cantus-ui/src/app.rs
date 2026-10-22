@@ -3428,6 +3428,7 @@ impl CantusApp {
             Panic => self.engine.panic(),
             NewProject => self.request_new(),
             DemoSongs => views::demos::show(self),
+            OpenSettings => self.show_settings = true,
             Open => self.request_open(),
             Save => self.save(),
             SaveAs => self.save_as(),
@@ -3815,6 +3816,8 @@ impl CantusApp {
             self.theme_ctx = Some(ctx.clone());
         }
         let frame_start = Instant::now();
+        // macOS: the global menu bar kept in step with the keymap, its picks run (ADR 0066).
+        crate::macos::menu::serve(self, ctx);
         self.engine.poll();
         // The playhead's wrap, before anything this frame is recorded (review 4, #17).
         self.note_playhead();
@@ -4223,6 +4226,11 @@ fn directories_fallback() -> PathBuf {
     // A portable copy (ADR 0032) keeps everything beside its executable.
     if let Some(dir) = cantus_update::install::portable_data_dir() {
         return dir;
+    }
+    // macOS: the system's place for an application's own files (ADR 0066).
+    #[cfg(target_os = "macos")]
+    if let Some(home) = std::env::var_os("HOME").filter(|h| !h.is_empty()) {
+        return PathBuf::from(home).join("Library/Application Support/Cantus");
     }
     std::env::var_os("LOCALAPPDATA")
         .or_else(|| std::env::var_os("XDG_DATA_HOME"))

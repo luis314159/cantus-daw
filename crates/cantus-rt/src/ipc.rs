@@ -452,7 +452,9 @@ pub fn serve(
 ///
 /// Windows: a named auto-reset event beside the word (a stale ring makes one wait return
 /// early, which the loops absorb). Linux: a futex on the word itself (shared, not
-/// process-private). Other Unix: a short sleep loop on the word.
+/// process-private). macOS: a wait on the word's address, shared between processes
+/// (`os_sync_wait_on_address` on 14.4 and later, `__ulock_wait` before; [`wait_kind`]).
+/// Other Unix: a short sleep loop on the word.
 #[derive(Debug)]
 pub struct Bell {
     word: *const AtomicU32,
@@ -728,7 +730,220 @@ mod bell {
     }
 }
 
-#[cfg(all(unix, not(target_os = "linux")))]
+/// How a [`Bell`] sleeps on this system: `"futex"` (Linux), `"event"` (Windows),
+/// `"os_sync"` (macOS 14.4+), `"ulock"` (macOS before 14.4), or `"sleep"` (a 50 µs sleep
+/// loop: another Unix, or a macOS where neither address wait was found).
+pub fn wait_kind() -> &'static str {
+    #[cfg(windows)]
+    {
+        "event"
+    }
+    #[cfg(target_os = "linux")]
+    {
+        "futex"
+    }
+    #[cfg(target_vendor = "apple")]
+    {
+        bell::kind()
+    }
+    #[cfg(not(any(windows, target_os = "linux", target_vendor = "apple")))]
+    {
+        "sleep"
+    }
+}
+
+/// macOS has no futex; it has two waits on an address that other processes mapping the
+/// same pages can wake — `os_sync_wait_on_address` with `OS_SYNC_WAIT_ON_ADDRESS_SHARED`
+/// (public, macOS 14.4+) and, before it, the kernel call it wraps, `__ulock_wait` with
+/// `UL_COMPARE_AND_WAIT_SHARED` (macOS 10.12+; Rust's standard library falls back to the
+/// same family). Both are looked up once at run time (`dlsym`), so one binary starts on
+/// every supported macOS and takes the public call where it exists (ADR 0066). POSIX named
+/// semaphores were the other candidate and lose: macOS has no `sem_timedwait`, and a
+/// caller's wait has a deadline.
+#[cfg(target_vendor = "apple")]
+mod bell {
+    use std::ffi::{c_int, c_void};
+    use std::io;
+    use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::OnceLock;
+    use std::time::{Duration, Instant};
+
+    /// `os_sync_wait_on_address_with_timeout(addr, value, size, flags, clock, timeout_ns)`.
+    type OsWaitFor = unsafe extern "C" fn(*mut c_void, u64, usize, u32, u32, u64) -> c_int;
+    /// `os_sync_wait_on_address(addr, value, size, flags)`.
+    type OsWait = unsafe extern "C" fn(*mut c_void, u64, usize, u32) -> c_int;
+    /// `os_sync_wake_by_address_all(addr, size, flags)`.
+    type OsWake = unsafe extern "C" fn(*mut c_void, usize, u32) -> c_int;
+    /// `__ulock_wait(operation, addr, value, timeout_us)` (0: no timeout).
+    type UlWait = unsafe extern "C" fn(u32, *mut c_void, u64, u32) -> c_int;
+    /// `__ulock_wake(operation, addr, wake_value)`.
+    type UlWake = unsafe extern "C" fn(u32, *mut c_void, u64) -> c_int;
+
+    /// `OS_SYNC_WAIT_ON_ADDRESS_SHARED` and `OS_SYNC_WAKE_BY_ADDRESS_SHARED`.
+    const OS_SHARED: u32 = 1;
+    /// `OS_CLOCK_MACH_ABSOLUTE_TIME` (`<os/clock.h>`).
+    const OS_CLOCK_MACH_ABSOLUTE_TIME: u32 = 32;
+    /// `UL_COMPARE_AND_WAIT_SHARED` (`<sys/ulock.h>`).
+    const UL_COMPARE_AND_WAIT_SHARED: u32 = 3;
+    /// `ULF_WAKE_ALL`.
+    const ULF_WAKE_ALL: u32 = 0x100;
+
+    enum Api {
+        OsSync {
+            wait: OsWait,
+            wait_for: OsWaitFor,
+            wake: OsWake,
+        },
+        Ulock {
+            wait: UlWait,
+            wake: UlWake,
+        },
+        Sleep,
+    }
+
+    fn api() -> &'static Api {
+        static API: OnceLock<Api> = OnceLock::new();
+        API.get_or_init(|| {
+            let f = |name: &std::ffi::CStr| {
+                // SAFETY: a NUL-terminated name; RTLD_DEFAULT searches the loaded images
+                // (libSystem is always among them).
+                let p = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };
+                (!p.is_null()).then_some(p)
+            };
+            if let (Some(w), Some(t), Some(k)) = (
+                f(c"os_sync_wait_on_address"),
+                f(c"os_sync_wait_on_address_with_timeout"),
+                f(c"os_sync_wake_by_address_all"),
+            ) {
+                // SAFETY: each pointer is the named libSystem function, whose C signature
+                // the type spells out (`<os/os_sync_wait_on_address.h>`).
+                return unsafe {
+                    Api::OsSync {
+                        wait: std::mem::transmute::<*mut c_void, OsWait>(w),
+                        wait_for: std::mem::transmute::<*mut c_void, OsWaitFor>(t),
+                        wake: std::mem::transmute::<*mut c_void, OsWake>(k),
+                    }
+                };
+            }
+            if let (Some(w), Some(k)) = (f(c"__ulock_wait"), f(c"__ulock_wake")) {
+                // SAFETY: as above (`<sys/ulock.h>`, the kernel's own declarations).
+                return unsafe {
+                    Api::Ulock {
+                        wait: std::mem::transmute::<*mut c_void, UlWait>(w),
+                        wake: std::mem::transmute::<*mut c_void, UlWake>(k),
+                    }
+                };
+            }
+            Api::Sleep
+        })
+    }
+
+    pub fn kind() -> &'static str {
+        match api() {
+            Api::OsSync { .. } => "os_sync",
+            Api::Ulock { .. } => "ulock",
+            Api::Sleep => "sleep",
+        }
+    }
+
+    /// The word itself is what both sides wait on: nothing to make or open. The lookup is
+    /// made here, off the audio thread, so no wait ever runs `dlsym`.
+    #[derive(Debug)]
+    pub struct Os;
+
+    /// The waits' own timeouts are exact: nothing more.
+    #[derive(Debug)]
+    pub struct Timer;
+
+    impl Timer {
+        pub fn make() -> Timer {
+            Timer
+        }
+    }
+
+    impl Os {
+        pub fn create(_name: &str) -> io::Result<Os> {
+            let _ = api();
+            Ok(Os)
+        }
+
+        pub fn open(_name: &str) -> io::Result<Os> {
+            let _ = api();
+            Ok(Os)
+        }
+
+        pub fn wake(&self, word: &AtomicU32) {
+            let addr = word.as_ptr().cast::<c_void>();
+            match api() {
+                // SAFETY: wakes the sleepers on an aligned 32-bit word of a shared mapping;
+                // "no one waiting" (ENOENT) is not an error here.
+                Api::OsSync { wake, .. } => unsafe {
+                    wake(addr, 4, OS_SHARED);
+                },
+                // SAFETY: as above, through the kernel call.
+                Api::Ulock { wake, .. } => unsafe {
+                    wake(UL_COMPARE_AND_WAIT_SHARED | ULF_WAKE_ALL, addr, 0);
+                },
+                Api::Sleep => {}
+            }
+        }
+
+        pub fn wait_with(
+            &self,
+            word: &AtomicU32,
+            epoch: u32,
+            timeout: Option<Duration>,
+            _timer: &Timer,
+        ) -> bool {
+            self.wait(word, epoch, timeout)
+        }
+
+        /// Sleeps while the word holds `epoch`; `false` on a timeout. An interrupted or
+        /// early return is a spurious wake-up, which the callers' loops absorb.
+        pub fn wait(&self, word: &AtomicU32, epoch: u32, timeout: Option<Duration>) -> bool {
+            let addr = word.as_ptr().cast::<c_void>();
+            let r = match (api(), timeout) {
+                // SAFETY: compares the word with `epoch` and sleeps atomically; the word is
+                // an aligned 4-byte atomic in a mapping both processes keep.
+                (Api::OsSync { wait, .. }, None) => unsafe {
+                    wait(addr, u64::from(epoch), 4, OS_SHARED)
+                },
+                // SAFETY: as above, with a relative timeout in nanoseconds (at least 1).
+                (Api::OsSync { wait_for, .. }, Some(t)) => unsafe {
+                    let ns = t.as_nanos().clamp(1, u128::from(u64::MAX)) as u64;
+                    wait_for(
+                        addr,
+                        u64::from(epoch),
+                        4,
+                        OS_SHARED,
+                        OS_CLOCK_MACH_ABSOLUTE_TIME,
+                        ns,
+                    )
+                },
+                // SAFETY: as above; the timeout in microseconds (0 means none: at least 1).
+                (Api::Ulock { wait, .. }, t) => unsafe {
+                    let us = t.map_or(0, |t| t.as_micros().clamp(1, u128::from(u32::MAX)) as u32);
+                    wait(UL_COMPARE_AND_WAIT_SHARED, addr, u64::from(epoch), us)
+                },
+                (Api::Sleep, t) => return sleep_loop(word, epoch, t),
+            };
+            !(r < 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ETIMEDOUT))
+        }
+    }
+
+    fn sleep_loop(word: &AtomicU32, epoch: u32, timeout: Option<Duration>) -> bool {
+        let start = Instant::now();
+        while word.load(Ordering::SeqCst) == epoch {
+            if timeout.is_some_and(|t| start.elapsed() >= t) {
+                return false;
+            }
+            std::thread::sleep(Duration::from_micros(50));
+        }
+        true
+    }
+}
+
+#[cfg(all(unix, not(target_os = "linux"), not(target_vendor = "apple")))]
 mod bell {
     use std::io;
     use std::sync::atomic::{AtomicU32, Ordering};

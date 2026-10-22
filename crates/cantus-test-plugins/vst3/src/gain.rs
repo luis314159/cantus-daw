@@ -749,7 +749,7 @@ impl IPlugViewTrait for View {
             return kInvalidArgument;
         }
         let kind = CStr::from_ptr(kind);
-        if kind == c"HWND" || kind == c"X11EmbedWindowID" {
+        if kind == c"HWND" || kind == c"X11EmbedWindowID" || kind == c"NSView" {
             kResultTrue
         } else {
             kResultFalse

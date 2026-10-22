@@ -481,6 +481,12 @@ pub fn paint_splash_with(
 }
 
 impl eframe::App for Shell {
+    /// macOS: a text edit chosen in the menu bar while a field had the focus, handed to egui
+    /// as the events its key makes (ADR 0066). Nothing is queued elsewhere.
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        crate::macos::menu::inject(raw_input);
+    }
+
     fn ui(&mut self, root: &mut egui::Ui, frame: &mut eframe::Frame) {
         let ctx = root.ctx().clone();
         match self {

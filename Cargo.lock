@@ -927,6 +927,9 @@ dependencies = [
  "clap-sys",
  "libloading 0.8.9",
  "log",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "raw-window-handle",
  "rtrb",
  "serde",
@@ -942,6 +945,9 @@ dependencies = [
 name = "cantus-launch"
 version = "0.1.0-beta.1"
 dependencies = [
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "resvg",
  "tempfile",
  "tiny-skia",
@@ -1010,6 +1016,9 @@ dependencies = [
  "cantus-test-vst3",
  "libc",
  "log",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "raw-window-handle",
  "serde_json",
  "tempfile",
@@ -1022,6 +1031,9 @@ name = "cantus-test-clap"
 version = "0.1.0-beta.1"
 dependencies = [
  "clap-sys",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "windows-sys 0.61.2",
 ]
 
@@ -1030,6 +1042,9 @@ name = "cantus-test-clap-synth"
 version = "0.1.0-beta.1"
 dependencies = [
  "clap-sys",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "windows-sys 0.61.2",
 ]
 
@@ -1061,6 +1076,9 @@ dependencies = [
  "egui_dock",
  "hound",
  "log",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-foundation 0.3.2",
  "png",
  "raw-window-handle",
  "resvg",

@@ -158,10 +158,13 @@ pub fn clap_folder() -> &'static Path {
 pub fn vst3_bundle() -> &'static Path {
     static BUNDLE: OnceLock<PathBuf> = OnceLock::new();
     BUNDLE.get_or_init(|| {
+        // macOS: `Contents/MacOS/CantusIsolationTest`, no extension (ADR 0066).
         let (lib, arch, ext) = if cfg!(windows) {
-            ("cantus_test_vst3.dll", "x86_64-win", "vst3")
+            ("cantus_test_vst3.dll", "x86_64-win", ".vst3")
+        } else if cfg!(target_os = "macos") {
+            ("libcantus_test_vst3.dylib", "MacOS", "")
         } else {
-            ("libcantus_test_vst3.so", "x86_64-linux", "so")
+            ("libcantus_test_vst3.so", "x86_64-linux", ".so")
         };
         let beside = std::env::current_exe()
             .ok()
@@ -175,7 +178,7 @@ pub fn vst3_bundle() -> &'static Path {
             .join("CantusIsolationTest.vst3");
         let dir = bundle.join("Contents").join(arch);
         std::fs::create_dir_all(&dir).expect("bundle folders");
-        std::fs::copy(&beside, dir.join(format!("CantusIsolationTest.{ext}")))
+        std::fs::copy(&beside, dir.join(format!("CantusIsolationTest{ext}")))
             .expect("copy the VST3 test plug-in");
         bundle
     })

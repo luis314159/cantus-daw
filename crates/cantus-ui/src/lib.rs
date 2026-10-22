@@ -37,6 +37,8 @@ pub mod keymap;
 pub mod kit;
 pub mod layout;
 pub mod links;
+// macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod macos;
 pub mod perf_status;
 pub mod picker;
 pub mod picker_catalog;

@@ -1,0 +1,3 @@
+/* Cantus.app, español (ADR 0066). */
+CFBundleDisplayName = "Cantus";
+NSMicrophoneUsageDescription = "Cantus graba desde tu interfaz de audio o tu micrófono cuando armas una pista.";

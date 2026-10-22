@@ -7,6 +7,7 @@
 //! (review #0, #48).
 
 use std::fs::File;
+#[cfg_attr(target_vendor = "apple", allow(unused_imports))]
 use std::time::Duration;
 
 /// The protocol's two ends: what Cantus writes, what it reads.
@@ -355,6 +356,7 @@ mod imp {
 mod imp {
     use super::*;
     use std::os::unix::io::FromRawFd;
+    #[cfg(not(target_vendor = "apple"))]
     use std::sync::{Condvar, Mutex};
 
     pub fn quiet_crashes() {}
@@ -364,6 +366,43 @@ mod imp {
         // SAFETY: asks the kernel to send SIGKILL to this process when its parent dies.
         unsafe {
             libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
+        }
+        #[cfg(target_vendor = "apple")]
+        watch_parent();
+    }
+
+    /// macOS has no parent-death signal: a thread waits in a kqueue for the parent's
+    /// `NOTE_EXIT` and ends this process at once (ADR 0066). A parent already gone — the
+    /// helper re-parented to launchd before the watch was set — ends it too.
+    #[cfg(target_vendor = "apple")]
+    fn watch_parent() {
+        // SAFETY: plain system calls on this process's own ids and a kqueue it owns; the
+        // event list is a live, zeroed array of one.
+        unsafe {
+            let parent = libc::getppid();
+            let kq = libc::kqueue();
+            if kq < 0 {
+                return;
+            }
+            let mut change: libc::kevent = std::mem::zeroed();
+            change.ident = parent as usize;
+            change.filter = libc::EVFILT_PROC;
+            change.flags = libc::EV_ADD | libc::EV_ONESHOT;
+            change.fflags = libc::NOTE_EXIT;
+            let r = libc::kevent(kq, &change, 1, std::ptr::null_mut(), 0, std::ptr::null());
+            if r < 0 || parent == 1 || libc::getppid() != parent {
+                // ESRCH: the parent ended before the watch was set.
+                libc::_exit(1);
+            }
+            let _ = std::thread::Builder::new()
+                .name("parent-watch".into())
+                .spawn(move || loop {
+                    let mut ev: libc::kevent = std::mem::zeroed();
+                    let n = libc::kevent(kq, std::ptr::null(), 0, &mut ev, 1, std::ptr::null());
+                    if n > 0 || (n < 0 && *libc::__error() != libc::EINTR) {
+                        libc::_exit(1);
+                    }
+                });
         }
     }
 
@@ -388,7 +427,12 @@ mod imp {
         }
     }
 
-    pub fn init_com() {}
+    /// macOS: the helper becomes a background AppKit application, whose windows are the
+    /// plug-ins' editors (ADR 0066). Elsewhere nothing.
+    pub fn init_com() {
+        #[cfg(target_vendor = "apple")]
+        crate::platform_macos::init_app();
+    }
 
     /// No plug-in windows here, so no nested message loops: the main loop is the pulse.
     pub fn start_pulse(_on_pulse: fn()) {}
@@ -400,10 +444,16 @@ mod imp {
         0
     }
 
+    /// macOS: the wait dispatches AppKit's events (the editors' windows) while it waits.
+    #[cfg(target_vendor = "apple")]
+    pub use crate::platform_macos::Wake;
+
     /// Wakes the main thread's wait from another thread (a request arrived).
+    #[cfg(not(target_vendor = "apple"))]
     #[derive(Clone, Copy)]
     pub struct Wake(&'static (Mutex<bool>, Condvar));
 
+    #[cfg(not(target_vendor = "apple"))]
     impl Wake {
         pub fn new() -> Wake {
             Wake(Box::leak(Box::new((Mutex::new(false), Condvar::new()))))
@@ -983,9 +1033,36 @@ pub mod blame {
                 let uc = unsafe { &*(ctx as *const libc::ucontext_t) };
                 uc.uc_mcontext.pc as usize
             }
-            #[cfg(not(all(
-                target_os = "linux",
-                any(target_arch = "x86_64", target_arch = "aarch64")
+            #[cfg(all(target_vendor = "apple", target_arch = "x86_64"))]
+            {
+                // SAFETY: as above; on macOS `uc_mcontext` points to the saved state.
+                let uc = unsafe { &*(ctx as *const libc::ucontext_t) };
+                if uc.uc_mcontext.is_null() {
+                    return 0;
+                }
+                // SAFETY: the kernel's saved state for this signal, live during the handler.
+                unsafe { (*uc.uc_mcontext).__ss.__rip as usize }
+            }
+            #[cfg(all(target_vendor = "apple", target_arch = "aarch64"))]
+            {
+                // SAFETY: as above.
+                let uc = unsafe { &*(ctx as *const libc::ucontext_t) };
+                if uc.uc_mcontext.is_null() {
+                    return 0;
+                }
+                // SAFETY: as above. Pointer authentication may sign the saved pc: strip it
+                // to the 47-bit user address space before it is compared with images.
+                unsafe { ((*uc.uc_mcontext).__ss.__pc & 0x0000_7FFF_FFFF_FFFF) as usize }
+            }
+            #[cfg(not(any(
+                all(
+                    target_os = "linux",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                ),
+                all(
+                    target_vendor = "apple",
+                    any(target_arch = "x86_64", target_arch = "aarch64")
+                )
             )))]
             {
                 0
@@ -1056,10 +1133,107 @@ pub mod blame {
             }
         }
 
-        /// Each shared object loaded now: its address range and file (Linux; none
-        /// elsewhere — macOS has no `dl_iterate_phdr`, isolation-5 #9).
-        #[cfg(not(target_os = "linux"))]
+        /// Each shared object loaded now: its address range and file (none on a Unix
+        /// other than Linux and macOS).
+        #[cfg(not(any(target_os = "linux", target_vendor = "apple")))]
         pub fn modules(_f: &mut dyn FnMut(usize, usize, &str)) {}
+
+        /// Each image dyld has loaded now: from its Mach-O header, the span of its
+        /// segments (`LC_SEGMENT_64`, slid; `__PAGEZERO` left out), and its file — what
+        /// `dl_iterate_phdr` gives on Linux (macOS has none, isolation-5 #9).
+        /// `mach_header_64`, `load_command` and `segment_command_64`
+        /// (`<mach-o/loader.h>`), and dyld's image list (`<mach-o/dyld.h>`): declared here,
+        /// libc's copies being deprecated.
+        #[cfg(target_vendor = "apple")]
+        mod dyld {
+            #[repr(C)]
+            pub struct Header {
+                pub magic: u32,
+                pub cputype: i32,
+                pub cpusubtype: i32,
+                pub filetype: u32,
+                pub ncmds: u32,
+                pub sizeofcmds: u32,
+                pub flags: u32,
+                pub reserved: u32,
+            }
+            #[repr(C)]
+            pub struct Command {
+                pub cmd: u32,
+                pub cmdsize: u32,
+            }
+            #[repr(C)]
+            pub struct Segment {
+                pub cmd: u32,
+                pub cmdsize: u32,
+                pub segname: [u8; 16],
+                pub vmaddr: u64,
+                pub vmsize: u64,
+                pub fileoff: u64,
+                pub filesize: u64,
+                pub maxprot: i32,
+                pub initprot: i32,
+                pub nsects: u32,
+                pub flags: u32,
+            }
+            pub const MH_MAGIC_64: u32 = 0xfeed_facf;
+            pub const LC_SEGMENT_64: u32 = 0x19;
+            extern "C" {
+                pub fn _dyld_image_count() -> u32;
+                pub fn _dyld_get_image_header(i: u32) -> *const Header;
+                pub fn _dyld_get_image_vmaddr_slide(i: u32) -> isize;
+                pub fn _dyld_get_image_name(i: u32) -> *const libc::c_char;
+            }
+        }
+
+        /// Each image dyld has loaded now: from its Mach-O header, the span of its
+        /// segments (`LC_SEGMENT_64`, slid; `__PAGEZERO` left out), and its file — what
+        /// `dl_iterate_phdr` gives on Linux (macOS has none, isolation-5 #9).
+        #[cfg(target_vendor = "apple")]
+        pub fn modules(f: &mut dyn FnMut(usize, usize, &str)) {
+            // SAFETY: dyld's image list read on this thread; each header and its load
+            // commands are mapped for as long as the image is loaded, and the command
+            // sizes bound the walk.
+            unsafe {
+                for i in 0..dyld::_dyld_image_count() {
+                    let header = dyld::_dyld_get_image_header(i);
+                    if header.is_null() || (*header).magic != dyld::MH_MAGIC_64 {
+                        continue;
+                    }
+                    let slide = dyld::_dyld_get_image_vmaddr_slide(i) as usize;
+                    let name = dyld::_dyld_get_image_name(i);
+                    let name = if name.is_null() {
+                        String::new()
+                    } else {
+                        std::ffi::CStr::from_ptr(name)
+                            .to_string_lossy()
+                            .into_owned()
+                    };
+                    let (mut lo, mut hi) = (usize::MAX, 0usize);
+                    let mut cmd = header.add(1).cast::<u8>();
+                    for _ in 0..(*header).ncmds {
+                        let lc = &*(cmd as *const dyld::Command);
+                        if lc.cmd == dyld::LC_SEGMENT_64 {
+                            let seg = &*(cmd as *const dyld::Segment);
+                            // `__PAGEZERO`: reserved, never accessible.
+                            let pagezero = seg.initprot == 0 && seg.maxprot == 0;
+                            if !pagezero && seg.vmsize > 0 {
+                                let start = (seg.vmaddr as usize).wrapping_add(slide);
+                                lo = lo.min(start);
+                                hi = hi.max(start + seg.vmsize as usize);
+                            }
+                        }
+                        if lc.cmdsize == 0 {
+                            break;
+                        }
+                        cmd = cmd.add(lc.cmdsize as usize);
+                    }
+                    if lo < hi {
+                        f(lo, hi, &name);
+                    }
+                }
+            }
+        }
 
         /// Each shared object loaded now: its address range and file.
         #[cfg(target_os = "linux")]
@@ -1104,6 +1278,39 @@ pub mod blame {
                     &mut f as *mut &mut dyn FnMut(usize, usize, &str) as *mut libc::c_void,
                 );
             }
+        }
+    }
+
+    /// The loaded images, as the crash blame reads them (Linux: `dl_iterate_phdr`; macOS:
+    /// dyld's list): this program's own code lies in exactly one listed span, named after
+    /// this program's file, and the C library's in another.
+    #[cfg(all(test, any(target_os = "linux", target_vendor = "apple")))]
+    mod unix_tests {
+        #[test]
+        fn the_images_cover_this_program_and_the_c_library() {
+            let mut spans = Vec::new();
+            super::imp::modules(&mut |lo, hi, file: &str| spans.push((lo, hi, file.to_owned())));
+            let here = the_images_cover_this_program_and_the_c_library as *const () as usize;
+            let libc_fn = libc::malloc as *const () as usize;
+            let mine: Vec<_> = spans
+                .iter()
+                .filter(|(lo, hi, _)| (*lo..*hi).contains(&here))
+                .collect();
+            assert_eq!(mine.len(), 1, "{spans:?}");
+            let exe = std::env::current_exe().unwrap();
+            let exe_name = exe.file_name().unwrap().to_string_lossy().to_string();
+            // Linux names the main program "" in `dl_iterate_phdr`; dyld gives its path.
+            assert!(
+                mine[0].2.is_empty() || mine[0].2.ends_with(&exe_name),
+                "{:?}",
+                mine[0]
+            );
+            let theirs: Vec<_> = spans
+                .iter()
+                .filter(|(lo, hi, _)| (*lo..*hi).contains(&libc_fn))
+                .collect();
+            assert_eq!(theirs.len(), 1, "{spans:?}");
+            assert_ne!(mine[0], theirs[0]);
         }
     }
 }

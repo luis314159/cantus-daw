@@ -108,6 +108,23 @@ Wayland, xkbcommon, pkg-config) into `~/linux-deps/root`; `check.sh` clones the 
 repository into `~/cantus-ci`, checks out the branch and runs clippy or the tests with CI's
 flags.
 
+### macOS, from Windows (what the macOS runner compiles)
+
+There is no Mac to build on, but every line of Rust a Mac compiles can be checked here
+(ADR 0066). `rustup target add aarch64-apple-darwin x86_64-apple-darwin` once; then
+`cargo clippy --target aarch64-apple-darwin -p <crate>` works for crates whose build
+scripts compile no C (`cantus-rt`, `cantus-host`, `cantus-sandbox`…). For the whole
+workspace, `tools/macos/xcheck.sh` (Git Bash, LLVM installed) stands in for the C compiler
+of ring, ogg and LAME:
+
+```text
+tools/macos/xcheck.sh aarch64-apple-darwin --workspace --all-targets
+tools/macos/xcheck.sh x86_64-apple-darwin --workspace --all-targets
+```
+
+It proves the code compiles, not that it runs: `macos.yml` runs the suite on GitHub's
+`macos-latest` (Apple silicon) on every push to master, and builds the `.dmg`.
+
 ## 5. Package a release
 
 ```text
@@ -152,6 +169,25 @@ files are kept as the run's artifacts). Secrets, all optional: Windows signing a
 workflow's header lists; macOS `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`,
 `APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_PASSWORD` (without them the disk image is signed
 ad hoc and not notarised: Gatekeeper asks the user to allow it once).
+
+### macOS: `packaging/macos/build-dmg.sh`
+
+On a Mac (Xcode's command-line tools, `rustup target add aarch64-apple-darwin
+x86_64-apple-darwin`), from the repository's root:
+
+```text
+packaging/macos/build-dmg.sh 0.1.0-beta.2 target/dmg-out
+```
+
+It builds `cantus`, `cantus-scan` and `cantus-sandbox` for both architectures, joins them
+with `lipo`, lays out `Cantus.app` (`packaging/macos/Info.plist`, the icon its build
+script renders, `InfoPlist.strings` in English and Spanish, the manual and the licences in
+`Resources`) and writes `Cantus-<version>-macos-universal.dmg`. With the five secrets in
+the environment (`APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`, `APPLE_TEAM_ID`,
+`APPLE_ID`, `APPLE_APP_PASSWORD`) it signs with the Developer ID certificate and the
+hardened runtime (`Cantus.entitlements`), notarises the app and the image and staples
+both; without them it signs ad hoc. `CANTUS_DMG_NO_BUILD=1` reuses the binaries already
+built. `docs/mac-session.md` is the checklist for a session on a real Mac.
 
 ## What lives outside the clone
 

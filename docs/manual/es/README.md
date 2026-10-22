@@ -127,6 +127,15 @@ Haz clic en **Grabar en …** y Cantus añade una pista de audio en esa entrada,
 lista: pulsa `R` para grabar. *Omitir* cierra la ventana; no vuelve a abrirse sola (el
 botón *Asistente…* del chip de audio la trae de vuelta).
 
+**En un Mac** el controlador es **Core Audio**, el que usa toda interfaz: no hay ASIO que
+instalar. Elige el búfer (128 muestras es un buen comienzo) y la frecuencia en la página
+del dispositivo; un *dispositivo agregado* creado en *Configuración de Audio MIDI* (dos
+interfaces como una) aparece como cualquier otro. La primera vez que grabas, macOS
+pregunta si Cantus puede usar el micrófono: permítelo, o ninguna entrada llega a Cantus
+(*Ajustes del Sistema ▸ Privacidad y seguridad ▸ Micrófono*). Los hilos de audio de
+Cantus trabajan con los de Core Audio como un solo grupo, así que Apple silicon los corre
+en sus núcleos rápidos.
+
 ### El chip de audio
 
 El chip de la barra superior (o de su menú ⋯ cuando la ventana es estrecha) muestra el
@@ -1271,6 +1280,11 @@ Cantus toca instrumentos y efectos de otros fabricantes en los formatos **CLAP**
 **VST3**, de 64 bits. Los plug-ins VST2 (un `.dll` suelto) y los AU de Apple no están
 soportados: cuando un plug-in ofrece varios formatos, instala su versión CLAP o VST3.
 
+**En un Mac** los plug-ins viven en `/Library/Audio/Plug-Ins/CLAP` y `…/VST3` (para todos
+los usuarios) o en las mismas carpetas dentro de la `Library` de tu carpeta personal (solo
+para ti); Cantus lee ambas. Ahí un plug-in es un paquete (`Nombre.clap`, `Nombre.vst3`) y
+su editor se abre en una ventana propia que queda sobre Cantus mientras trabajas en ella.
+
 1. **Instálalo** con el instalador de su fabricante, descargado de la página del propio
    fabricante. Déjalo en la carpeta estándar que propone el instalador
    (`C:\Program Files\Common Files\VST3` o `…\CLAP`).
@@ -1489,6 +1503,15 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Hacer único · enlazar la selección a este clip · seleccionar enlazados · enlazar a… |
 | `Ctrl+T` | El teclado del ordenador toca notas |
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
+| `Ctrl+,` | Ajustes |
+
+**En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
+*macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `K` (⌘M
+minimiza la ventana, como en toda aplicación de Mac) y rehacer es `Cmd+Shift+Z`. La barra
+de menús de arriba de la pantalla tiene los menús de Cantus con sus atajos, que siguen
+cualquier cambio que hagas aquí. En un trackpad, pellizca para hacer zoom en el tiempo de
+un editor y desliza con dos dedos para desplazarte; `Cmd` con el deslizamiento también
+hace zoom.
 
 ## 13. Privacidad y actualizaciones
 

@@ -73,6 +73,8 @@ pub enum Action {
     SaveAs,
     ExportWav,
     DemoSongs,
+    /// The Settings window (round 30, ADR 0066): macOS's ⌘, — and Ctrl+, elsewhere.
+    OpenSettings,
     // Edit
     Undo,
     Redo,
@@ -224,7 +226,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 95] = [
+    pub const ALL: [Action; 96] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -321,6 +323,8 @@ impl Action {
         Action::MidiLearnMode,
         Action::LinkLastTweaked,
         Action::ViewControllers,
+        // Round 30 (ADR 0066).
+        Action::OpenSettings,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -421,6 +425,7 @@ impl Action {
             Action::MidiLearnMode => "midi-learn-mode",
             Action::LinkLastTweaked => "link-last-tweaked",
             Action::ViewControllers => "view-controllers",
+            Action::OpenSettings => "open-settings",
         }
     }
 
@@ -444,7 +449,9 @@ impl Action {
             // Freezing and bouncing are the track's; low-latency monitoring the recording's
             // (round 29, ADR 0064).
             FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
-            NewProject | DemoSongs | Open | Save | SaveAs | ExportWav => Category::File,
+            NewProject | DemoSongs | Open | Save | SaveAs | ExportWav | OpenSettings => {
+                Category::File
+            }
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
             // Recording sits with the arrangement, where its tracks and lanes are.
@@ -569,7 +576,12 @@ impl Binding {
             s.push_str("Shift+");
         }
         if self.alt {
-            s.push_str("Alt+");
+            // The key is labelled Option on a Mac keyboard.
+            s.push_str(if cfg!(target_os = "macos") {
+                "Option+"
+            } else {
+                "Alt+"
+            });
         }
         s.push_str(self.key.name());
         s
@@ -624,14 +636,17 @@ pub enum Preset {
     FlStudio,
     Live,
     Bitwig,
+    /// Cantus's own map with macOS's conventions (round 30, ADR 0066): the default there.
+    Mac,
 }
 
 impl Preset {
-    pub const ALL: [Preset; 4] = [
+    pub const ALL: [Preset; 5] = [
         Preset::Cantus,
         Preset::FlStudio,
         Preset::Live,
         Preset::Bitwig,
+        Preset::Mac,
     ];
 
     pub fn id(self) -> &'static str {
@@ -640,6 +655,7 @@ impl Preset {
             Preset::FlStudio => "fl-studio",
             Preset::Live => "live",
             Preset::Bitwig => "bitwig",
+            Preset::Mac => "macos",
         }
     }
 
@@ -653,6 +669,7 @@ impl Preset {
             Preset::FlStudio => "keymap.preset.fl",
             Preset::Live => "keymap.preset.live",
             Preset::Bitwig => "keymap.preset.bitwig",
+            Preset::Mac => "keymap.preset.macos",
         }
     }
 
@@ -662,6 +679,7 @@ impl Preset {
             Preset::FlStudio => fl_keymap(),
             Preset::Live => live_keymap(),
             Preset::Bitwig => bitwig_keymap(),
+            Preset::Mac => mac_keymap(),
         }
     }
 }
@@ -696,6 +714,7 @@ fn common() -> Vec<(Action, Binding)> {
         (ToStart, Binding::key(Key::Home)),
         (NewProject, Binding::cmd(Key::N)),
         (DemoSongs, Binding::cmd_shift(Key::N)),
+        (OpenSettings, Binding::cmd(Key::Comma)),
         (Open, Binding::cmd(Key::O)),
         (Save, Binding::cmd(Key::S)),
         (SaveAs, Binding::cmd_shift(Key::S)),
@@ -976,6 +995,57 @@ pub fn bitwig_keymap() -> Keymap {
     build(Preset::Bitwig, extra)
 }
 
+/// Cantus's map with macOS's conventions (round 30, ADR 0066). The command modifier is
+/// already ⌘ there (egui's `command`), so the map is Cantus's but for the chords macOS keeps
+/// for itself: ⌘M minimises (the metronome takes Logic's K), and ⌘Y is not Redo on a Mac
+/// (⌘⇧Z is, and stays). ⌘, opens the settings, as in every Mac application (all presets).
+pub fn mac_keymap() -> Keymap {
+    let mut map = cantus_keymap();
+    map.preset = Preset::Mac.id().to_string();
+    let swap = |map: &mut Keymap, action: Action, old: Binding, new: Option<Binding>| {
+        if let Some(list) = map.bindings.get_mut(&action) {
+            list.retain(|b| *b != old);
+            if let Some(new) = new {
+                if !list.contains(&new) {
+                    list.push(new);
+                }
+            }
+        }
+        map.bindings.retain(|_, v| !v.is_empty());
+    };
+    swap(
+        &mut map,
+        Action::ToggleMetronome,
+        Binding::cmd(Key::M),
+        Some(Binding::key(Key::K)),
+    );
+    swap(&mut map, Action::Redo, Binding::cmd(Key::Y), None);
+    map
+}
+
+/// The chords macOS keeps for itself (its menus and the system's own shortcuts): a binding
+/// on one of them never reaches Cantus on a Mac. ⌘, is the settings' own, so it is not here.
+pub fn mac_reserved() -> [Binding; 12] {
+    let cmd_alt = |key| Binding {
+        alt: true,
+        ..Binding::cmd(key)
+    };
+    [
+        Binding::cmd(Key::Q),
+        Binding::cmd(Key::H),
+        Binding::cmd(Key::M),
+        Binding::cmd(Key::W),
+        Binding::cmd(Key::Tab),
+        Binding::cmd(Key::Space),
+        Binding::cmd(Key::Backtick),
+        cmd_alt(Key::H),
+        cmd_alt(Key::M),
+        cmd_alt(Key::Escape),
+        Binding::cmd_shift(Key::Num3),
+        Binding::cmd_shift(Key::Num4),
+    ]
+}
+
 // ---- the map ------------------------------------------------------------------------
 
 #[derive(Clone, Debug, PartialEq)]
@@ -988,6 +1058,17 @@ pub struct Keymap {
 impl Default for Keymap {
     fn default() -> Self {
         cantus_keymap()
+    }
+}
+
+impl Keymap {
+    /// The map a first start writes: the macOS preset on a Mac, Cantus's elsewhere.
+    pub fn for_this_system() -> Keymap {
+        if cfg!(target_os = "macos") {
+            mac_keymap()
+        } else {
+            cantus_keymap()
+        }
     }
 }
 
@@ -1101,9 +1182,9 @@ impl Keymap {
         match std::fs::read_to_string(path) {
             Ok(text) => Keymap::from_toml(&text).unwrap_or_else(|e| {
                 log::warn!("keymap.toml is not usable ({e}); falling back to the default");
-                Keymap::default()
+                Keymap::for_this_system()
             }),
-            Err(_) => Keymap::default(),
+            Err(_) => Keymap::for_this_system(),
         }
     }
 
@@ -1158,6 +1239,9 @@ impl Keymap {
         }
         if file.version.unwrap_or(1) < 9 {
             map.fill_in(&NEW_IN_V9);
+        }
+        if file.version.unwrap_or(1) < 10 {
+            map.fill_in(&NEW_IN_V10);
         }
         Ok(map)
     }
@@ -1233,8 +1317,11 @@ struct KeymapFile {
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
 /// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26);
 /// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
-/// track's actions (round 29).
-pub const FILE_VERSION: u32 = 9;
+/// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066).
+pub const FILE_VERSION: u32 = 10;
+
+/// Actions added in version 10 (round 30): ⌘, / Ctrl+, opens the settings (ADR 0066).
+const NEW_IN_V10: [Action; 1] = [Action::OpenSettings];
 
 /// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
 /// 0060); the other round-29 builders append theirs here.
@@ -1826,13 +1913,13 @@ mod tests {
         let path = keymap_path(dir.path());
         assert_eq!(
             Keymap::load(&path),
-            Keymap::default(),
+            Keymap::for_this_system(),
             "a missing file is fine"
         );
         std::fs::write(&path, "{{{ not toml").unwrap();
         assert_eq!(
             Keymap::load(&path),
-            Keymap::default(),
+            Keymap::for_this_system(),
             "a broken file is fine"
         );
     }
@@ -1937,5 +2024,77 @@ mod tests {
         assert!(!is_letter(Key::Num1), "numbers stay available");
         // Modified letters are never the piano's.
         assert!(!Binding::cmd(Key::S).is_bare());
+    }
+
+    /// The macOS preset (round 30, ADR 0066): Cantus's map, but nothing on a chord macOS
+    /// keeps for itself, the metronome on Logic's K, Redo only on ⌘⇧Z, and ⌘, for the
+    /// settings; it is what a first start writes on a Mac.
+    #[test]
+    fn the_mac_preset_leaves_the_system_its_chords() {
+        let mac = Preset::Mac.keymap();
+        assert_eq!(mac.preset, "macos");
+        assert_eq!(Preset::from_id("macos"), Some(Preset::Mac));
+        for reserved in mac_reserved() {
+            let taken: Vec<Action> = Action::ALL
+                .into_iter()
+                .filter(|a| mac.bindings_for(*a).contains(&reserved))
+                .collect();
+            assert!(
+                taken.is_empty(),
+                "{reserved:?} is macOS's, yet bound to {taken:?}"
+            );
+        }
+        assert_eq!(
+            mac.bindings_for(Action::ToggleMetronome),
+            [Binding::key(Key::K)]
+        );
+        assert_eq!(mac.bindings_for(Action::Redo), [Binding::cmd_shift(Key::Z)]);
+        assert_eq!(
+            mac.bindings_for(Action::OpenSettings),
+            [Binding::cmd(Key::Comma)]
+        );
+        assert!(mac.conflicts().is_empty(), "{:?}", mac.conflicts());
+        // Everything else is Cantus's own.
+        let cantus = Preset::Cantus.keymap();
+        for a in Action::ALL {
+            if !matches!(a, Action::ToggleMetronome | Action::Redo) {
+                assert_eq!(mac.bindings_for(a), cantus.bindings_for(a), "{a:?}");
+            }
+        }
+        let expected = if cfg!(target_os = "macos") {
+            mac.clone()
+        } else {
+            cantus
+        };
+        assert_eq!(Keymap::for_this_system(), expected);
+        // A round-trip through the file keeps it.
+        assert_eq!(Keymap::from_toml(&mac.to_toml()).unwrap(), mac);
+    }
+
+    /// A version-9 file (round 29) gets the settings' key where it is free (version 10).
+    #[test]
+    fn a_version_9_file_gets_the_settings_key() {
+        let old = "preset = \"cantus\"
+version = 9
+
+[bindings]
+save = [\"Ctrl+S\"]
+";
+        let map = Keymap::from_toml(old).unwrap();
+        assert_eq!(
+            map.bindings_for(Action::OpenSettings),
+            [Binding::cmd(Key::Comma)]
+        );
+        let taken = "preset = \"cantus\"
+version = 9
+
+[bindings]
+save = [\"Ctrl+Comma\"]
+";
+        let map = Keymap::from_toml(taken).unwrap();
+        assert!(
+            map.bindings_for(Action::OpenSettings).is_empty(),
+            "the key was taken"
+        );
     }
 }
