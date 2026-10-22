@@ -236,6 +236,23 @@ pub struct FrozenStore {
     /// renders copied over in the background), the shared folder of an older layout
     /// (review 3).
     also: Vec<PathBuf>,
+    /// The render files in each of `also`, listed when they were set and when renders are
+    /// looked for again (`forget_missing`): the periodic lookups never touch those folders
+    /// (final review: every sibling project's folder was looked in twice a second).
+    also_names: Vec<std::collections::HashSet<String>>,
+    /// Lookups that touched the disk in an `also` folder (tests).
+    probes: std::sync::atomic::AtomicU64,
+}
+
+/// The render files in `dir`, by name.
+fn render_names(dir: &Path) -> std::collections::HashSet<String> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == EXTENSION))
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect()
 }
 
 /// A file's modification time.
@@ -272,12 +289,43 @@ impl FrozenStore {
         }
     }
 
-    /// The folders looked in, the one written to first.
-    fn dirs(&self) -> impl Iterator<Item = &Path> {
-        [self.project_dir.as_deref(), self.app_dir.as_deref()]
+    /// Where the render file `name` is, the folders written to first: the project's and the
+    /// application's looked at on disk, the others in their listing (final review).
+    fn copies<'a>(&'a self, name: &'a str) -> impl Iterator<Item = PathBuf> + 'a {
+        let own = [self.project_dir.as_deref(), self.app_dir.as_deref()]
             .into_iter()
             .flatten()
-            .chain(self.also.iter().map(PathBuf::as_path))
+            .map(move |d| d.join(name))
+            .filter(|p| p.is_file());
+        let also = self
+            .also
+            .iter()
+            .zip(&self.also_names)
+            .filter(move |(_, names)| names.contains(name))
+            .map(move |(d, _)| {
+                self.probes
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                d.join(name)
+            })
+            .filter(|p| p.is_file());
+        own.chain(also)
+    }
+
+    /// Lookups that touched an `also` folder on disk (tests).
+    #[doc(hidden)]
+    pub fn probes(&self) -> u64 {
+        self.probes.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// The file the render of `content` at `rate` was opened from, if it is open.
+    pub fn opened_path(&self, content: &str, rate: u32) -> Option<PathBuf> {
+        let a = self.open.get(&render_key(content, rate))?.as_ref().ok()?;
+        a.reader
+            .0
+            .clone()
+            .downcast::<FrozenHandle>()
+            .ok()
+            .map(|h| h.path.clone())
     }
 
     pub fn project_dir(&self) -> Option<&Path> {
@@ -292,21 +340,21 @@ impl FrozenStore {
     /// Look again at once for the renders believed missing (a render was just made).
     pub fn forget_missing(&mut self) {
         self.open.retain(|_, v| v.is_ok());
+        self.also_names = self.also.iter().map(|d| render_names(d)).collect();
     }
 
     /// Where the render of `content` at `rate` is, if anywhere (the first copy).
     pub fn path_of(&self, content: &str, rate: u32) -> Option<PathBuf> {
         let name = file_name(&render_key(content, rate));
-        self.dirs().map(|d| d.join(&name)).find(|p| p.is_file())
+        let first = self.copies(&name).next();
+        first
     }
 
     /// Every copy of the render of `content` at `rate`, in the order they are looked in.
     pub fn paths_of(&self, content: &str, rate: u32) -> Vec<PathBuf> {
         let name = file_name(&render_key(content, rate));
-        self.dirs()
-            .map(|d| d.join(&name))
-            .filter(|p| p.is_file())
-            .collect()
+        let all = self.copies(&name).collect();
+        all
     }
 
     /// Whether the copy at `p` of render `key` is set aside (damaged, or wired).
@@ -508,7 +556,11 @@ impl FrozenStore {
     /// folder to its size: `cantus_ui::freeze::prune`).
     pub fn files(&self) -> Vec<PathBuf> {
         let mut out = Vec::new();
-        for d in self.dirs() {
+        let dirs = [self.project_dir.as_deref(), self.app_dir.as_deref()]
+            .into_iter()
+            .flatten()
+            .chain(self.also.iter().map(PathBuf::as_path));
+        for d in dirs {
             if let Ok(rd) = std::fs::read_dir(d) {
                 out.extend(
                     rd.flatten()

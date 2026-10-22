@@ -14,7 +14,8 @@
 //!   parameter, so a test can tell the state travelled and not only the values; the tag
 //!   `dirty` makes every load of that state mark it dirty and ask for the values to be
 //!   read again, as JUCE's VST3 wrapper does, and `rewrite` does the same and keeps the
-//!   state in bytes of its own (its tag becomes `rewritten`), saved in 800 ms;
+//!   state in bytes of its own (its tag becomes `rewritten`), saved in 800 ms; `count:<n>`
+//!   loads as `count:<n+1>` and says nothing (its state moves with no word to the host);
 //! - **Fault** (hidden, round 29): a failure on purpose — an abort or a hang in `process`,
 //!   an abort in `save_state`, `load_state`, `activate` or the editor (`fault.rs`) — and
 //!   **Process** (hidden, read-only): the id of the process the instance runs in, so the

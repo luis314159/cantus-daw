@@ -242,7 +242,20 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     }
     // Tag `rewrite`: it echoes its load and keeps its state in bytes of its own (a plug-in
     // that re-serialises what it is given) — its echo is not the bytes it was given.
-    let tag: &[u8] = if tag == b"rewrite" { b"rewritten" } else { tag };
+        let tag: &[u8] = if tag == b"rewrite" { b"rewritten" } else { tag };
+    // Tag `count:<n>`: loaded, it holds `count:<n+1>` and says nothing — its state moves
+    // with no word to the host (a parked state as it is now tells from one last said).
+    let counted;
+    let tag: &[u8] = match tag
+        .strip_prefix(b"count:")
+        .and_then(|n| std::str::from_utf8(n).ok()?.parse::<u32>().ok())
+    {
+        Some(n) => {
+            counted = format!("count:{}", n + 1).into_bytes();
+            &counted
+        }
+        None => tag,
+    };
     me.doubled
         .store(tag == b"x2", std::sync::atomic::Ordering::Release);
     if let Ok(mut t) = me.tag.lock() {

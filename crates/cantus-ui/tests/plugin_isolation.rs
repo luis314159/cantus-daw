@@ -1077,34 +1077,39 @@ fn stale_reasons_and_a_single_neighbour_are_said_rightly() {
 /// frame, before it renders or keys anything (review isolation-6 #3, #15, #25).
 #[test]
 fn a_freeze_asks_its_plugins_states_first() {
+    // A hosted insert and instrument in its region: their states asked for, and waited
+    // for (final review: the test had no hosted plug-in, and held the wait by a hook
+    // alone — it passed with the asking taken out).
     let dir = tempfile::tempdir().unwrap();
-    let mut a = app(cantus_ui::starter_project());
+    let (p, strip, id) = hosted_project();
+    let track = p.tracks[0].id;
+    let mut a = app(p);
     a.engine.frozen.set_app_dir(dir.path().join("renders"));
     a.path = Some(dir.path().join("song.cantus"));
-    let strip = a.project().tracks[0].strip.unwrap();
     a.plugins.hold_for_tests(false, true);
+    let asks = a.plugins.asks_for_test();
     a.freeze_target(cantus_core::FreezeTarget::Strip(strip));
     let ctx = ctx();
     for _ in 0..5 {
         cantus_ui::freeze::tick(&mut a, &ctx);
     }
+    assert_eq!(a.plugins.asks_for_test(), asks + 1, "asked once");
+    let (fx, tracks) = a.plugins.asked_of_for_test();
+    assert!(fx.contains(&id), "its insert asked: {fx:?}");
+    assert!(tracks.contains(&track), "its instrument asked: {tracks:?}");
     assert!(a.freeze.job.is_none(), "it waits for the states");
     assert!(
         a.project().strip(strip).is_some_and(|s| s.frozen.is_none()),
         "nothing keyed meanwhile"
     );
     a.plugins.hold_for_tests(false, false);
+    // Its states in, it goes on (here to say its plug-ins are not installed).
     let start = std::time::Instant::now();
-    while a.project().strip(strip).is_some_and(|s| s.frozen.is_none())
-        && start.elapsed().as_secs() < 30
-    {
+    while a.freeze.busy() && start.elapsed().as_secs() < 30 {
         cantus_ui::freeze::tick(&mut a, &ctx);
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    assert!(
-        a.project().strip(strip).is_some_and(|s| s.frozen.is_some()),
-        "then frozen"
-    );
+    assert!(!a.freeze.busy(), "then it went on");
 }
 
 /// An export waiting for its plug-ins, asked for a project since replaced, is dropped and

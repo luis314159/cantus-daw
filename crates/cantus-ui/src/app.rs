@@ -3893,7 +3893,13 @@ impl CantusApp {
         if self.request_quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        if ctx.input(|i| i.viewport().close_requested()) {
+        if ctx.input(|i| i.viewport().close_requested())
+            && crate::freeze::keep_open_for_copies(self)
+        {
+            // Renders still copying into the project's folder: the window stays, its card
+            // says so, and it closes when they are in (final review).
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        } else if ctx.input(|i| i.viewport().close_requested()) {
             self.store_layouts(ctx);
             views::interop::stop_import(self);
             views::update::on_quit(self);

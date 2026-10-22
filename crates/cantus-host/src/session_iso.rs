@@ -125,6 +125,10 @@ pub(crate) struct TestHooks {
     /// Renders' plug-ins said to be loading still, states said to be on their way.
     pub hold_renders: bool,
     pub hold_states: bool,
+    /// What the last `ask_states_of` asked: inserts and tracks (a freeze's region).
+    pub asked: (Vec<EffectId>, Vec<cantus_core::TrackId>),
+    /// How many times `ask_states_of` asked.
+    pub asks: u64,
 }
 
 /// What a plug-in costs, for its slot's tooltip (BACKLOG §3's per-plug-in meter).

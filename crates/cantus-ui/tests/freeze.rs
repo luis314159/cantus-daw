@@ -3396,3 +3396,175 @@ fn a_bounce_whose_latency_moves_is_said_as_a_bounce() {
     let want = cantus_ui::i18n::tf("bounce.latency_moves", &[("name", &"Synth")]);
     assert_eq!(app.status.text, want);
 }
+
+// ---- the final review -------------------------------------------------------------
+
+#[test]
+fn saving_another_project_keeps_a_slower_saves_renders() {
+    // Song saved, its copies slow; another project opened and saved meanwhile: the first
+    // save's prune keeps the first song's renders (final review: one protect set for the
+    // session, and the first song lost every render the second did not use).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("protect-by-folder");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let synth = FreezeTarget::Strip(strip);
+    app.freeze_target(synth);
+    settle(&mut app, &ctx);
+    let a = app.project().frozen(synth).unwrap().content.clone();
+    let render_a = render_in(&renders_of(&dir), &a);
+    assert!(render_a.is_file());
+    hold(&app, true);
+    save_to(&mut app, &dir.join("song.cantus"));
+    // Another project, beside it: the bass frozen there and saved.
+    let mut other = app.project().clone();
+    cantus_core::freeze::unfreeze_command(synth)
+        .apply(&mut other)
+        .unwrap();
+    app.replace_project(other);
+    let file = dir.join("other.cantus");
+    app.path = Some(file.clone());
+    app.sync_engine();
+    cantus_ui::freeze::tick(&mut app, &ctx);
+    let bass = FreezeTarget::Track(app.project().tracks[1].id);
+    app.freeze_target(bass);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(bass).is_some());
+    save_to(&mut app, &file);
+    hold(&app, false);
+    assert!(cantus_ui::freeze::finish_saving(
+        &mut app,
+        Duration::from_secs(60)
+    ));
+    assert!(render_a.is_file(), "the first song keeps its render");
+}
+
+#[test]
+fn a_freeze_asks_its_regions_plugins_only_and_a_new_project_asks_again() {
+    // A hosted insert on the synth's strip (its region) and one on the bass's: freezing
+    // the synth's strip asks for the first's state only, and waits for it with a card that
+    // says so; in another project, a like-numbered strip's freeze asks again (final
+    // review: every plug-in was asked and waited for, and the old wait was kept).
+    let (mut app, _dir) = app("region-asks");
+    let mut p = app.project().clone();
+    let synth = p.tracks[0].strip.unwrap();
+    let bass = p.tracks[1].strip.unwrap();
+    let mut ids = Vec::new();
+    for s in [synth, bass] {
+        let mut slot = p.make_effect(EffectKind::External);
+        slot.spec.external = Some(Box::new(cantus_core::ExternalPlugin::new(
+            cantus_core::PluginFormat::Clap,
+            "org.example.glacier".to_string(),
+            "Glacier",
+        )));
+        ids.push(slot.id);
+        p.strip_mut(s).unwrap().effects.push(slot);
+    }
+    app.bus = CommandBus::new(p.clone());
+    let ctx = support::ctx();
+    app.plugins.hold_for_tests(false, true);
+    app.freeze_target(FreezeTarget::Strip(synth));
+    for _ in 0..3 {
+        cantus_ui::freeze::tick(&mut app, &ctx);
+    }
+    assert!(app.freeze.job.is_none(), "it waits for the states");
+    let (asked, _) = app.plugins.asked_of_for_test();
+    assert!(asked.contains(&ids[0]), "its region's plug-in asked");
+    assert!(!asked.contains(&ids[1]), "never another's");
+    let (_, body, ..) = cantus_ui::views::freeze_view::card(&app).expect("a card");
+    assert_eq!(body, cantus_ui::i18n::t("freeze.card.waiting_states_body"));
+    let asks = app.plugins.asks_for_test();
+    app.replace_project(p);
+    cantus_ui::freeze::tick(&mut app, &ctx);
+    app.freeze_target(FreezeTarget::Strip(synth));
+    for _ in 0..3 {
+        cantus_ui::freeze::tick(&mut app, &ctx);
+    }
+    assert!(
+        app.plugins.asks_for_test() > asks,
+        "asked again in the new project"
+    );
+    app.plugins.hold_for_tests(false, false);
+}
+
+#[test]
+fn closing_while_renders_copy_keeps_the_window_with_its_card() {
+    // Asked to close while a save's renders copy: the window stays, its card says so, and
+    // it closes once they are in — or at once with *Close now* (final review: the window
+    // hung up to two minutes with no word).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("closing-card");
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    hold(&app, true);
+    save_to(&mut app, &dir.join("elsewhere").join("song 2.cantus"));
+    assert!(
+        cantus_ui::freeze::keep_open_for_copies(&mut app),
+        "kept open"
+    );
+    let (title, ..) = cantus_ui::views::freeze_view::card(&app).expect("a card");
+    assert_eq!(title, cantus_ui::i18n::t("freeze.card.closing"));
+    assert!(!app.request_quit);
+    hold(&app, false);
+    let t0 = Instant::now();
+    while !app.request_quit && t0.elapsed() < Duration::from_secs(30) {
+        cantus_ui::freeze::tick(&mut app, &ctx);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(app.request_quit, "closed once they were in");
+    assert!(!cantus_ui::freeze::keep_open_for_copies(&mut app));
+    // *Close now* while they copy: closed at once.
+    let (mut app, dir) = crate::app("closing-now");
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.freeze_target(FreezeTarget::Strip(strip));
+    settle(&mut app, &ctx);
+    hold(&app, true);
+    save_to(&mut app, &dir.join("elsewhere").join("song 2.cantus"));
+    assert!(cantus_ui::freeze::keep_open_for_copies(&mut app));
+    cantus_ui::views::freeze_view::answer(
+        &mut app,
+        cantus_ui::views::freeze_view::Answer::CloseNow,
+    );
+    assert!(app.request_quit);
+    assert!(
+        !cantus_ui::freeze::keep_open_for_copies(&mut app),
+        "not kept open"
+    );
+    hold(&app, false);
+}
+
+#[test]
+fn the_scan_never_looks_in_the_sibling_projects_folders() {
+    // Forty projects beside it hold its render too: the scan, twice a second, reads none
+    // of their folders (final review: every one was looked in on the frame).
+    let ctx = support::ctx();
+    let (mut app, dir) = app("sibling-scan");
+    let strip = app.project().tracks[0].strip.unwrap();
+    let target = FreezeTarget::Strip(strip);
+    app.freeze_target(target);
+    settle(&mut app, &ctx);
+    let content = app.project().frozen(target).unwrap().content.clone();
+    let render = render_in(&renders_of(&dir), &content);
+    for k in 0..40 {
+        let other = dir.join("Freeze").join(format!("other {k}"));
+        std::fs::create_dir_all(&other).unwrap();
+        std::fs::copy(&render, other.join(render.file_name().unwrap())).unwrap();
+    }
+    // The folders looked at again (a new path), the render open.
+    app.path = Some(dir.join("song again.cantus"));
+    app.sync_engine();
+    app.path = Some(dir.join("song.cantus"));
+    app.sync_engine();
+    app.engine.frozen.forget_missing();
+    assert!(app.engine.frozen.find(&content, 48_000).is_some());
+    let before = app.engine.frozen.probes();
+    for _ in 0..3 {
+        std::thread::sleep(Duration::from_millis(550));
+        cantus_ui::freeze::tick(&mut app, &ctx);
+    }
+    assert_eq!(
+        app.engine.frozen.probes(),
+        before,
+        "no sibling folder looked in"
+    );
+}

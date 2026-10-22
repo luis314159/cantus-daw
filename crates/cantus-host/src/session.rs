@@ -1813,6 +1813,56 @@ impl PluginHost {
         !waiting
     }
 
+    /// Ask the plug-ins of `effects` and of `tracks`' instruments for their states as they
+    /// are now — a freeze's region (final review: every plug-in of the project was asked,
+    /// and one behind a dialog held a freeze it was no part of).
+    pub fn ask_states_of(&mut self, effects: &[EffectId], tracks: &[cantus_core::TrackId]) {
+        self.test_hooks.asked = (effects.to_vec(), tracks.to_vec());
+        self.test_hooks.asks += 1;
+        for id in effects {
+            if let Some(h) = self.slots.get_mut(id) {
+                h.main.ask_state_now();
+            }
+        }
+        for t in tracks {
+            if let Some(h) = self.instruments.get_mut(t) {
+                h.main.ask_state_now();
+            }
+        }
+    }
+
+    /// Whether the states of `effects` and `tracks`' instruments asked for are in (or not
+    /// to be had in time, each by its own limit).
+    pub fn states_in_of(&mut self, effects: &[EffectId], tracks: &[cantus_core::TrackId]) -> bool {
+        if self.test_hooks.hold_states {
+            return false;
+        }
+        let mut waiting = false;
+        for id in effects {
+            if let Some(h) = self.slots.get_mut(id) {
+                waiting |= h.main.state_waiting();
+            }
+        }
+        for t in tracks {
+            if let Some(h) = self.instruments.get_mut(t) {
+                waiting |= h.main.state_waiting();
+            }
+        }
+        !waiting
+    }
+
+        /// How many times [`Self::ask_states_of`] asked (tests).
+    #[doc(hidden)]
+    pub fn asks_for_test(&self) -> u64 {
+        self.test_hooks.asks
+    }
+
+    /// What the last [`Self::ask_states_of`] asked (tests).
+    #[doc(hidden)]
+    pub fn asked_of_for_test(&self) -> (&[EffectId], &[cantus_core::TrackId]) {
+        (&self.test_hooks.asked.0, &self.test_hooks.asked.1)
+    }
+
     /// The plug-ins the last [`Self::project_for_save`] saved as they were last said (not
     /// to be had as they are now), and why: the save says so (never silently).
     pub fn saved_stale(&self) -> &[(String, String)] {

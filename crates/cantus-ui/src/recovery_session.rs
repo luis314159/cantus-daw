@@ -237,7 +237,14 @@ impl CantusApp {
         self.wait_for_save();
         // Its renders copied into its folder before the process ends (review 4: a quit
         // right after a save killed the copy halfway).
-        crate::freeze::finish_saving(self, std::time::Duration::from_secs(120));
+        // Normally they are in already: the window stayed open, with its card, until they
+        // were (`keep_open_for_copies`); *Close now* skips the wait.
+        let patience = if self.freeze.skip_copies {
+            std::time::Duration::ZERO
+        } else {
+            std::time::Duration::from_secs(120)
+        };
+        crate::freeze::finish_saving(self, patience);
         self.poll_autosave(true);
         let mut unsaved = false;
         if self.bus.is_dirty() {
