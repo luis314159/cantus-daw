@@ -123,7 +123,7 @@ fn a_moving_state_never_keeps_a_freeze_from_its_render() {
     let start = Instant::now();
     let mut n = 0u32;
     loop {
-        let p = with(if n % 2 == 0 { b"a" } else { b"b" });
+        let p = with(if n.is_multiple_of(2) { b"a" } else { b"b" });
         if rig.host.render_ready(RenderFor::Freeze, &p, SR, true) {
             break;
         }
