@@ -93,6 +93,12 @@ mod win {
         let fault = &(*(id as *const crate::plugin::Plugin)).fault;
         let secs = fault.take_window_pump();
         if secs > 0 {
+            // `CANTUS_TEST_PUMP_MARKER=<file>` (read by the helper it was set for): written
+            // as the loop starts, so a test waits for the dialog instead of guessing when
+            // the timer comes.
+            if let Some(file) = std::env::var_os("CANTUS_TEST_PUMP_MARKER") {
+                let _ = std::fs::write(file, b"pumping");
+            }
             crate::fault::pump(std::time::Duration::from_secs(u64::from(secs)));
         }
         if fault.take_window_segv() {

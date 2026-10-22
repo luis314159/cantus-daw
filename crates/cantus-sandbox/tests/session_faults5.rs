@@ -224,7 +224,10 @@ fn a_save_names_a_plugin_kept_as_it_was_last_said() {
 fn an_instance_removed_during_a_dialog_is_ended_after_it() {
     let _g = serial();
     let dir = tempfile::tempdir().expect("a folder");
+    let pumping = tempfile::tempdir().expect("a folder");
+    let pump_marker = pumping.path().join("pumping");
     std::env::set_var("CANTUS_TEST_GAIN_DESTROY_MARKER", dir.path());
+    std::env::set_var("CANTUS_TEST_PUMP_MARKER", &pump_marker);
     let pool = pool();
     let load = |id: &str| {
         let info = info(id);
@@ -242,6 +245,7 @@ fn an_instance_removed_during_a_dialog_is_ended_after_it() {
         audio: b_audio,
     } = load(GAIN_ID);
     std::env::remove_var("CANTUS_TEST_GAIN_DESTROY_MARKER");
+    std::env::remove_var("CANTUS_TEST_PUMP_MARKER");
     let parent = raw_window_handle::RawWindowHandle::Win32(
         raw_window_handle::Win32WindowHandle::new(std::num::NonZeroIsize::new(1).unwrap()),
     );
@@ -254,7 +258,17 @@ fn an_instance_removed_during_a_dialog_is_ended_after_it() {
         &fault(S_FAULT, PUMP_WINDOW),
         &[],
     );
-    std::thread::sleep(Duration::from_millis(300));
+    // A's dialog starts at its editor's next timer: wait for it (on a loaded machine the
+    // helper may take longer than any fixed guess), then a moment inside it.
+    let asked = Instant::now();
+    while !pump_marker.exists() {
+        assert!(
+            asked.elapsed() < Duration::from_secs(20),
+            "A's dialog never started"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    std::thread::sleep(Duration::from_millis(100));
     // B leaves while A's dialog runs (3 s).
     drop(b_audio);
     drop(b);
