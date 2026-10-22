@@ -45,9 +45,9 @@ impl PluginHost {
                         if let Some(h) = self.instruments.get_mut(&track) {
                             h.params = h.main.params();
                         }
-                        self.capture_instrument_changes(bus, track);
+                        self.capture_instrument_changes(bus, track, false);
                     }
-                    Notice::StateDirty => self.capture_instrument_changes(bus, track),
+                    Notice::StateDirty => self.capture_instrument_changes(bus, track, true),
                     Notice::Loaded => self.on_instrument_loaded(bus, engine, track),
                     Notice::LoadFailed(why) => {
                         notices.extend(self.on_instrument_load_failed(bus.project(), track, why))
@@ -145,6 +145,9 @@ impl PluginHost {
                 super::inst::deliver(engine, unit);
             }
         }
+        // Its own bytes once its load is answered (final review, as for inserts).
+        let own = h.main.save_state().ok().map(PluginState::new);
+        h.heard.answered(own);
         let fresh = h.load_key.take();
         self.instruments.insert(track, h);
         let Some(key) = fresh else {
@@ -356,12 +359,12 @@ impl PluginHost {
         state: &[u8],
     ) {
         self.load_instrument_state_for_test(track, state);
-        self.capture_instrument_changes(bus, track);
+        self.capture_instrument_changes(bus, track, true);
     }
 
     /// The plug-in changed its values by itself (its own preset browser): its state and
     /// values become one step.
-    fn capture_instrument_changes(&mut self, bus: &mut CommandBus, track: TrackId) {
+    fn capture_instrument_changes(&mut self, bus: &mut CommandBus, track: TrackId, of_state: bool) {
         let Some(same) = bus
             .project()
             .track(track)
@@ -380,11 +383,12 @@ impl PluginHost {
         };
         let locked = cantus_core::freeze::refuses(bus.project(), &probe);
         // The echo of the host's own load: nothing of its own (review 4, as for inserts).
+        let values = same == params;
         let echo = self.instruments.get_mut(&track).is_some_and(|h| {
             let synced = h.synced_state.clone();
-            h.heard.echoes(&synced, &state)
+            h.heard.echoes(&synced, &state, values, of_state)
         });
-        if echo && (locked.is_some() || same == params) {
+        if echo && (locked.is_some() || values) {
             return;
         }
         if same == params {
@@ -395,6 +399,7 @@ impl PluginHost {
                 self.instrument_refused_by_freeze(bus.project(), track, &e);
             } else if let Some(h) = self.instruments.get_mut(&track) {
                 h.edits += 1;
+                h.heard.counted(&state);
             }
             return;
         }
@@ -469,7 +474,8 @@ impl PluginHost {
             h.flushed = plugin.params.clone();
             h.synced_state = plugin.state.clone();
             let now = h.main.save_state().ok().map(PluginState::new);
-            h.heard.gave_back(now);
+            let window = h.isolation != cantus_core::PluginIsolation::Within;
+            h.heard.loaded(now, window);
             self.give_backs += 1;
         }
     }

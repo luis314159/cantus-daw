@@ -568,17 +568,32 @@ const ECHOES: &[u8] = b"dirty";
 
 /// `locked_rig` with the project's state of the gain carrying `ECHOES`.
 fn echoing_locked_rig(iso: PluginIsolation) -> (Rig, EffectId, FreezeTarget, tempfile::TempDir) {
+    echoing_locked_rig_with(iso, ECHOES)
+}
+
+/// `locked_rig`, the gain running as `iso`, the project's state of it carrying `tag`.
+fn echoing_locked_rig_with(
+    iso: PluginIsolation,
+    tag: &[u8],
+) -> (Rig, EffectId, FreezeTarget, tempfile::TempDir) {
     let project = demo_project();
     let strip = strip_of(&project, 0);
     let mut rig = Rig::new(project, patient_host());
     let id = rig.insert(strip, GAIN_ID, iso);
     rig.set_param(strip, id, P_GAIN, -6.0);
     rig.settle();
+    // Its state as it is now (an isolated one's is asked for: the values just set).
+    rig.host.ask_states();
+    let t0 = std::time::Instant::now();
+    while !rig.host.states_in() && t0.elapsed() < Duration::from_secs(10) {
+        rig.frame();
+        std::thread::sleep(Duration::from_millis(10));
+    }
     let (state, params) = rig.host.capture(id).unwrap();
     rig.exec(Command::SetPluginState {
         strip,
         effect: id,
-        state: PluginState::new(with_tag(state.bytes(), ECHOES)),
+        state: PluginState::new(with_tag(state.bytes(), tag)),
         params,
     });
     rig.settle();
@@ -632,6 +647,11 @@ fn a_locked_plug_in_that_echoes_its_give_back_is_given_back_once() {
     let _g = serial();
     for iso in [PluginIsolation::Within, PluginIsolation::Together] {
         let (mut rig, id, target, _dir) = echoing_locked_rig(iso);
+        // An isolated plug-in's echo of its load comes a refresh later: the edit after it
+        // (one before it, with the same values, would be taken for it — final review).
+        if iso != PluginIsolation::Within {
+            frames_for(&mut rig, 2.5);
+        }
         let (stored, _) = rig.host.capture(id).unwrap();
         rig.notices.clear();
         let before = rig.host.give_backs();
@@ -699,4 +719,111 @@ fn a_locked_instrument_that_echoes_its_give_back_is_given_back_once() {
     }
     assert_eq!(rig.host.give_backs(), before + 1, "given back once");
     assert_eq!(frozen_notices(&rig, target), 1, "said once");
+}
+
+// ---- the final review ---------------------------------------------------------------
+
+/// The test gain's state holds this tag: every load of it echoes, and the plug-in keeps the
+/// state in bytes of its own — its echo is not the bytes it was given.
+const REWRITES: &[u8] = b"rewrite";
+
+/// Frames for `secs` seconds, a little apart (an isolated plug-in's echo comes a refresh
+/// and a state's round trip after its load).
+fn frames_for(rig: &mut Rig, secs: f64) {
+    let t0 = std::time::Instant::now();
+    while t0.elapsed().as_secs_f64() < secs {
+        rig.frame();
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn a_second_edit_soon_after_a_give_back_is_refused_too() {
+    // A preset chosen in a locked plug-in's own browser, refused and given back; another
+    // chosen within the second: refused too, never taken for the give-back's echo (final
+    // review: it was swallowed, and the plug-in played it unheard).
+    let _g = serial();
+    let (mut rig, id, target, _dir) = locked_rig();
+    let (stored, _) = rig.host.capture(id).unwrap();
+    rig.notices.clear();
+    let before = rig.host.give_backs();
+    rig.host
+        .state_dirty_for_test(&mut rig.bus, id, &with_gain(stored.bytes(), -12.0));
+    rig.frame();
+    rig.host
+        .state_dirty_for_test(&mut rig.bus, id, &with_gain(stored.bytes(), -9.0));
+    rig.frame();
+    assert_eq!(rig.host.give_backs(), before + 2, "both given back");
+    assert_eq!(frozen_notices(&rig, target), 2, "both said");
+    let (_, live) = rig.host.capture(id).unwrap();
+    assert_eq!(live.get(&P_GAIN), Some(&-6.0));
+}
+
+#[test]
+fn an_isolated_plug_in_that_rewrites_its_give_back_is_given_back_once() {
+    // Isolated (the default), it echoes its give-back a refresh and a state's round trip
+    // later, in bytes of its own: given back once, said once (final review: refused and
+    // given back for ever).
+    let _g = serial();
+    let (mut rig, id, target, _dir) = echoing_locked_rig_with(PluginIsolation::Together, REWRITES);
+    frames_for(&mut rig, 2.5);
+    let (stored, _) = rig.host.capture(id).unwrap();
+    rig.notices.clear();
+    let before = rig.host.give_backs();
+    rig.host
+        .state_dirty_for_test(&mut rig.bus, id, &with_tag(stored.bytes(), b"kick"));
+    frames_for(&mut rig, 2.5);
+    assert_eq!(rig.host.give_backs(), before + 1, "given back once");
+    assert_eq!(frozen_notices(&rig, target), 1, "said once");
+}
+
+#[test]
+fn an_isolated_plug_in_loaded_again_that_rewrites_its_load_is_left_alone() {
+    // Its render gone, an isolated locked plug-in loads again with the project's state and
+    // echoes it in bytes of its own: nothing given back, nothing said (final review).
+    let _g = serial();
+    let (mut rig, id, target, _dir) = echoing_locked_rig_with(PluginIsolation::Together, REWRITES);
+    frames_for(&mut rig, 1.0);
+    let p = rig.bus.project().clone();
+    let job = prepare(&mut rig.engine, &p, target).expect("prepared");
+    let units = rig.host.render_units_stored(&p, SR);
+    job.run(units, Vec::new(), &RenderProgress::default())
+        .expect("rendered");
+    rig.host.finish_render();
+    rig.engine.frozen.forget_missing();
+    rig.resync();
+    frames_for(&mut rig, 0.5);
+    assert!(rig.host.hosted(id).is_none(), "unloaded while it rests");
+    std::fs::remove_file(&job.path).unwrap();
+    rig.engine.frozen.let_go_all();
+    rig.engine.frozen.forget_missing();
+    rig.notices.clear();
+    let before = rig.host.give_backs();
+    rig.resync();
+    assert!(rig.host.hosted(id).is_some(), "back: it plays live");
+    frames_for(&mut rig, 2.5);
+    assert_eq!(rig.host.give_backs(), before, "nothing given back");
+    assert_eq!(frozen_notices(&rig, target), 0, "nothing said");
+}
+
+#[test]
+fn an_isolated_echo_of_the_hosts_own_load_is_no_edit() {
+    // The project's state set into an isolated plug-in that rewrites it: its echo, a
+    // refresh later, is no edit (final review: counted, and a freeze made again).
+    let _g = serial();
+    let project = demo_project();
+    let strip = strip_of(&project, 0);
+    let mut rig = Rig::new(project, patient_host());
+    let id = rig.insert(strip, GAIN_ID, PluginIsolation::Together);
+    frames_for(&mut rig, 1.0);
+    let before = rig.host.edits_of(&[id], &[]);
+    let (state, params) = rig.host.capture(id).unwrap();
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state: PluginState::new(with_tag(state.bytes(), REWRITES)),
+        params,
+    });
+    frames_for(&mut rig, 2.5);
+    assert_eq!(rig.host.edits_of(&[id], &[]), before, "no edit counted");
 }

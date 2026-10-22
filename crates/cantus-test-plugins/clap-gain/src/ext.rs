@@ -232,9 +232,12 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     let Some(tag) = bytes.get(at..at + len) else {
         return false;
     };
-    if tag == b"dirty" {
+    if tag == b"dirty" || tag == b"rewrite" {
         echo_load(me.host);
     }
+    // Tag `rewrite`: it echoes its load and keeps its state in bytes of its own (a plug-in
+    // that re-serialises what it is given) — its echo is not the bytes it was given.
+    let tag: &[u8] = if tag == b"rewrite" { b"rewritten" } else { tag };
     me.doubled
         .store(tag == b"x2", std::sync::atomic::Ordering::Release);
     if let Ok(mut t) = me.tag.lock() {
