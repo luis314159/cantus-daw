@@ -915,7 +915,9 @@ descongelarla.
   aún no se ha guardado), con el nombre de lo que contienen: volver a congelar lo que no
   cambió es instantáneo, y un proyecto abierto sin ellos (en otra computadora, a otra
   frecuencia de muestreo) suena en vivo mientras se rehacen en segundo plano. *Guardar
-  como* se los lleva —copiados en segundo plano; cerrar Cantus espera a la copia—. Un
+  como* se los lleva —copiados en segundo plano; al cerrar Cantus mientras copia, la ventana sigue abierta con una tarjeta hasta que
+  termine (*Cerrar ya* no espera; lo que no se copió se encuentra donde estaba la próxima
+  vez)—. Un
   proyecto renombrado o copiado junto al original encuentra sus renders en la carpeta del
   original, y al guardarlo los trae a la suya. Al guardar se quitan de la carpeta del
   proyecto los renders que ningún deshacer puede traer de vuelta; los de otros proyectos

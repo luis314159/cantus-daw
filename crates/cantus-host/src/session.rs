@@ -1851,7 +1851,7 @@ impl PluginHost {
         !waiting
     }
 
-        /// How many times [`Self::ask_states_of`] asked (tests).
+    /// How many times [`Self::ask_states_of`] asked (tests).
     #[doc(hidden)]
     pub fn asks_for_test(&self) -> u64 {
         self.test_hooks.asks

@@ -478,6 +478,30 @@ and `fmt --check` clean. Schema 38 untouched; no golden moved, `DSP_VERSION` unc
 `shoot_freeze` (112 PNGs in `F:\projects\daw-r29\shots\freeze\`): the pad's *Delay* row
 shows its figure whole beside the square key, in Spanish at 75 % too.
 
+## The final review (round 29's last, `reviews/final-B.json`) — mine
+
+Merged with `r29/integration` at e8f867c first (isolation's sixth round: `render_ready`
+with `RenderFor`, parking on let-go). The numbers are the review's; each fix was seen
+failing with it taken out (`sabfb_ui.py` and in-place reverts), but where said.
+
+| # | Sev | Finding | Fix | Test |
+|---|---|---|---|---|
+| 0, 9 | H | One session-wide `protect`: saving another project made a slower save's prune delete the first one's renders | `protect` by renders folder; each prune keeps its own save's set and what the session wants now in *that* folder | ui `saving_another_project_keeps_a_slower_saves_renders` |
+| 2, 8 | M / H | The echo fix missed isolated plug-ins | Their own post-load bytes recorded when the load is answered (`on_loaded`, `on_instrument_loaded`); after a host load an isolated plug-in's first state report within 3 s (a refresh plus a state's round trip) with the project's values is the echo; a values report never ends the window. The test gain's `rewrite` tag: echoes its load, keeps the state in bytes of its own, saves it in 800 ms | sandbox `an_isolated_plug_in_that_rewrites_its_give_back_is_given_back_once`, `an_isolated_echo_of_the_hosts_own_load_is_no_edit`; `an_isolated_plug_in_loaded_again_that_rewrites_its_load_is_left_alone` passes on the old host too (the helper's load at instantiation raises no notice — kept as the guard) |
+| 3 | M | "The first report after a give-back, whatever it says" swallowed a real edit | A report of other values is never an echo; in process no window at all (its own bytes are read at once) | sandbox `a_second_edit_soon_after_a_give_back_is_refused_too` |
+| 5, 13 | L / M | A freeze asked, waited on and named every plug-in in the project; an epoch kept the old wait | `ask_states_of` / `states_in_of` over the region (the master's when whole); stale names filtered to the region; the card says it waits for the states (`freeze.card.waiting_states_body`); a new project resets `asked` and drops the Freeze preparation | ui `a_freeze_asks_its_regions_plugins_only_and_a_new_project_asks_again` |
+| 6 | L | An earlier copy thread deleted the whole `copying-from.txt` | Each copy adds and takes off only its own lines, under one lock (`note_from`) | ui unit `a_copy_takes_only_its_own_sources_off_the_note` |
+| 12 | M | The scan looked in every sibling project's folder twice a second | The scan reads the wires note of the copy it plays (`FrozenStore::opened_path`); `also` folders are looked up through a listing made when they are set or looked at again | ui `the_scan_never_looks_in_the_sibling_projects_folders`; engine `the_other_projects_folders_are_looked_in_through_their_listing` |
+| 14 | L | Closing blocked up to two minutes with no word | The close is cancelled while copies run: a card (*Closing* — *Close now*), and the window closes itself when they are in (`keep_open_for_copies`) | ui `closing_while_renders_copy_keeps_the_window_with_its_card` |
+| 15 | L | The parking test could not tell (isolation's test, made able to) | The test gain's `count:` tag moves its state with no word to the host; the reloaded instance must hold the state asked at the let-go | sandbox `a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so` (fails when the let-go parks what it said last) |
+| 16 | L | The freeze-asks-states test had no hosted plug-in | Hosted insert and instrument in the region; asserts what was asked, once | ui `a_freeze_asks_its_plugins_states_first` (fails with the asking taken out) |
+
+Left by design and written in ADR 0064: within an isolated plug-in's echo window, a change
+of its own state that moves no value is taken for the echo (its bytes cannot be told from
+the echo's). Findings 1, 4, 7, 10 and 11 are isolation's.
+
+RUNFB_RESULTS
+
 ## Left
 
 Nothing of mine (review 1: all 62 closed; review 2: all 58 closed — #14 by decision,
