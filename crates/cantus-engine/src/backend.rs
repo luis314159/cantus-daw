@@ -147,6 +147,8 @@ impl EngineHandle {
         let device = crate::devices::pick_output(host, config.device_name.as_deref())
             .map_err(EngineError::Config)?;
         let device_name = crate::devices::name_of(&device).unwrap_or_default();
+        // macOS: the pool's workers join this device's I/O workgroup (ADR 0066); else nothing.
+        cantus_rt::thread::use_device_workgroup(Some(&device_name));
         let default = device
             .default_output_config()
             .map_err(|e| EngineError::Config(crate::devices::describe_error(&e)))?;
