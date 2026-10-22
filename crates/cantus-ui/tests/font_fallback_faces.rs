@@ -73,6 +73,7 @@ fn a_face_read_once_serves_later_characters_and_appears_once() {
 
 /// Linux (ADR 0065): fontconfig's answers (`fc-list -f '%{file}|%{index}'`) read
 /// as faces — the file and the face in a collection, each once, in order; junk skipped.
+#[cfg(unix)]
 #[test]
 fn fontconfig_lines_read_as_faces() {
     let text = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc|2\n\
