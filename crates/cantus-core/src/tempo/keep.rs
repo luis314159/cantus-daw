@@ -223,9 +223,17 @@ fn linked_slack(map: &TempoMap, w: &Window) -> f64 {
     if w.link.is_none() {
         return 0.0;
     }
-    let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * w.rate;
-    let origin = (w.start - w.offset).0.max(0) as f64;
-    half(origin).max(half(w.entry().0 as f64))
+    linked_reach(map, w.start - w.offset, w.entry(), w.rate)
+}
+
+/// How far a linked window's frame may move when a tempo edit keeps it (frames at
+/// `rate`): half a tick at its content origin `origin` (where `offset_for` rounds it) or
+/// at its entry `entry`, the longer. One measure for this module and for whatever keeps
+/// something by a linked window's frame (the warp renders, `cantus_engine`'s
+/// `warp_attach`; a linked copy's first warping edit) — round 29's final review.
+pub fn linked_reach(map: &TempoMap, origin: Ticks, entry: Ticks, rate: f64) -> f64 {
+    let half = |t: f64| 0.5 * map.seconds_between_f64(t, t + 1.0) * rate;
+    half(origin.0.max(0) as f64).max(half(entry.0 as f64))
 }
 
 /// The window edits that keep, after the edit ran, every take's frame where it comes in

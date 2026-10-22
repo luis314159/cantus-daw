@@ -282,13 +282,16 @@ impl CantusApp {
         out
     }
 
-    /// Whether a linked copy of clip `r` sits under another tempo function than `r` does:
-    /// its content read at natural speed (each tick through the map from its own content
-    /// origin) is not `r`'s — so a first warping edit, which starts both from one warp
-    /// laid at `r`'s place, would change how the copy plays (round 29's second review).
-    /// Within half a tick (and a frame) they are one: the tempo edits' re-anchoring keeps a
-    /// linked window to that (third review: a Follow on after Follow off unlinked a loop
-    /// pair under one tempo, comparing the kept markers with natural speed).
+    /// Whether a linked copy of clip `r` sits under another tempo function than `r` does —
+    /// so a first warping edit, which starts both from one warp laid at `r`'s place and
+    /// keeps each window on the frame it starts on, would change how the copy plays (round
+    /// 29's second review). Each copy is read at natural speed over its window and against
+    /// `r`'s own natural reading laid from the same frame (the content `r` would play
+    /// there): within the reach tempo's keep allows the two (`tempo::keep::linked_reach`,
+    /// at each one's content origin or entry) and a frame, they are one take. Aligned by
+    /// the frame each window starts on, never by content tick: a tempo edit re-anchors a
+    /// linked window by its offset (round 29's final review: copies kept as one take were
+    /// unlinked; third review: the kept markers were compared with natural speed).
     fn copies_differ(&self, r: ClipRef) -> bool {
         let p = self.project();
         let map = p.tempo_map();
@@ -298,19 +301,20 @@ impl CantusApp {
         let Some(link) = rc.link else {
             return false;
         };
-        let reading = |c: &cantus_core::Clip, t: f64| {
+        // A clip's natural reading: the frame under timeline tick `t`, and back.
+        let parts = |c: &cantus_core::Clip| {
             let a = c.audio.as_ref()?;
             let rate = p.audio_source(a.source)?.sample_rate.max(1) as f64;
-            let origin = (c.start - c.offset).0 as f64;
-            Some(cantus_core::audio_time::frame_at(
-                &map,
-                c.start,
-                c.offset,
-                a.slip_frames as f64,
-                rate,
-                origin + t,
-            ))
+            Some((a.slip_frames as f64, rate, a.reverse))
         };
+        let Some((r_slip, r_rate, r_rev)) = parts(rc) else {
+            return false;
+        };
+        let reach = |c: &cantus_core::Clip, rate: f64, rev: bool| {
+            let entry = if rev { c.end() } else { c.start };
+            cantus_core::tempo::keep::linked_reach(&map, c.start - c.offset, entry, rate)
+        };
+        let r_reach = reach(rc, r_rate, r_rev);
         for m in cantus_core::links::members(p, link) {
             if m == r {
                 continue;
@@ -318,22 +322,36 @@ impl CantusApp {
             let Some(mc) = p.track(m.0).and_then(|t| t.clip(m.1)) else {
                 continue;
             };
-            let Some(rate) = mc
-                .audio
-                .as_ref()
-                .and_then(|a| p.audio_source(a.source))
-                .map(|s| s.sample_rate.max(1) as f64)
-            else {
+            let Some((slip, rate, rev)) = parts(mc) else {
                 continue;
             };
+            let room = reach(mc, rate, rev) + r_reach + 1.0;
+            let at = |t: f64| {
+                cantus_core::audio_time::frame_at(&map, mc.start, mc.offset, slip, rate, t)
+            };
             let s = mc.start.0 as f64;
-            let room = 0.5 * map.seconds_between_f64(s, s + 1.0) * rate + 1.0;
+            // Where `r`'s content plays the frame this copy starts on.
+            let from = cantus_core::audio_time::tick_at_frame(
+                &map,
+                rc.start,
+                rc.offset,
+                r_slip,
+                r_rate,
+                at(s),
+            );
             const PROBES: usize = 64;
             for k in 0..=PROBES {
-                let t = mc.offset.0 as f64 + mc.length.0 as f64 * k as f64 / PROBES as f64;
-                match (reading(mc, t), reading(rc, t)) {
-                    (Some(x), Some(y)) if (x - y).abs() <= room => {}
-                    _ => return true,
+                let dt = mc.length.0 as f64 * k as f64 / PROBES as f64;
+                let theirs = cantus_core::audio_time::frame_at(
+                    &map,
+                    rc.start,
+                    rc.offset,
+                    r_slip,
+                    r_rate,
+                    from + dt,
+                );
+                if (theirs - at(s + dt)).abs() > room {
+                    return true;
                 }
             }
         }

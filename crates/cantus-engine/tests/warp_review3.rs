@@ -560,10 +560,13 @@ fn a_left_trim_plays_the_last_render_where_its_content_is() {
     }
 }
 
-/// Findings 15 and 29: tempo edits before a transposed window that does not follow (a
-/// 44.1 kHz take whose start falls between frames), the bus re-anchoring it each time, keep
-/// the render it plays — a window alone, and a linked pair whose offsets move by up to
-/// half a tick.
+/// Findings 15 and 29: a tempo edit before a transposed window that does not follow (a
+/// 44.1 kHz take whose start falls between frames), the bus re-anchoring it, keeps the
+/// render it plays — twenty edits at random tempos, each from the same song, a window
+/// alone and a linked pair (keep moves a linked one by up to its reach). Edits in a row
+/// walk the frame: the render is measured from its own frame and goes once the walk passes
+/// the allowance (round 29's final review; `warp_attach_tests`'s
+/// `a_kept_render_is_measured_from_its_own_frame`).
 #[test]
 fn tempo_edits_before_a_transposed_window_keep_the_render_it_plays() {
     let dir = tempfile::tempdir().unwrap();
@@ -590,8 +593,8 @@ fn tempo_edits_before_a_transposed_window_keep_the_render_it_plays() {
             p.tracks[0].clips.push(c);
         }
         let mut cache = SampleCache::new();
-        let mut bus = CommandBus::new(p);
-        let mut s = Snapshot::compile(bus.project(), 1);
+        let base = CommandBus::new(p);
+        let mut s = Snapshot::compile(base.project(), 1);
         cache.attach_audio(&mut s, 48_000);
         let first: Vec<_> = s.tracks[0]
             .audio
@@ -602,6 +605,7 @@ fn tempo_edits_before_a_transposed_window_keep_the_render_it_plays() {
         for k in 0..20 {
             seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             let bpm = 60.0 + (seed >> 8) as f64 / (1u32 << 24) as f64 * 120.0;
+            let mut bus = CommandBus::new(base.project().clone());
             bus.execute(
                 Command::SetTempoTrack {
                     bpm: 120.0,
@@ -751,4 +755,137 @@ fn a_tempo_edit_in_the_hidden_part_renders_a_transposed_window_again() {
         "the render of the frame it played before"
     );
     assert_eq!(c.zero_at, Some((c.start, 0.0)), "its own render");
+}
+
+/// Round 29's final review (item 1): a playing clip that plays its source, edited so its
+/// following warp moves the audio before anything is rendered for it, fades out — never a
+/// cut to silence — and its bridge, when it comes, fades in: no step anywhere.
+#[test]
+fn a_first_warping_edit_on_a_playing_clip_fades_out_and_back_in() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("tone.wav");
+    let x = sine(48_000, 220.0, 20.0);
+    write_wav(&path, &x, 48_000);
+    let mut p = project(
+        &path,
+        48_000,
+        x.len(),
+        Ticks::ZERO,
+        Ticks::ZERO,
+        Ticks::beats(32),
+        None,
+    );
+    let mut cache = live_cache();
+    cache.warp().hold_finals(true);
+    let s1 = attach_loaded(&mut cache, &p);
+    assert!(s1.tracks[0].audio[0].data.is_some(), "the source");
+    let (mut tx, mut proc) = processor();
+    tx.push(EngineMessage::SetSnapshot(Arc::new(s1))).unwrap();
+    tx.push(EngineMessage::Play).unwrap();
+    let mut out = Vec::new();
+    play(&mut proc, 40, 256, &mut out);
+    let tone = steepest(&out, 100);
+    // The first marker dragged: a following warp that moves the audio, nothing made yet.
+    p.tracks[0].clips[0].audio.as_mut().unwrap().warp = Some(Box::new(at_97(48_000)));
+    let mut s2 = Snapshot::compile(&p, 2);
+    cache.attach_audio(&mut s2, 48_000);
+    let c = &s2.tracks[0].audio[0];
+    assert!(
+        c.data.as_ref().is_some_and(|d| d.frames.is_empty()) && c.fade_from.is_some(),
+        "silence, fading from the source"
+    );
+    tx.push(EngineMessage::SetSnapshot(Arc::new(s2))).unwrap();
+    play(&mut proc, 40, 256, &mut out);
+    let step = steepest(&out, 100);
+    assert!(
+        step <= 2.0 * tone,
+        "cut at the edit: a step of {step} (the tone's own {tone})"
+    );
+    // Its bridge comes: it fades in from silence.
+    let t = std::time::Instant::now();
+    let s3 = loop {
+        cache.poll_loaded();
+        let mut s = Snapshot::compile(&p, 3);
+        cache.attach_audio(&mut s, 48_000);
+        if s.tracks[0].audio[0]
+            .data
+            .as_ref()
+            .is_some_and(|d| !d.frames.is_empty())
+            || t.elapsed().as_secs() > 30
+        {
+            break s;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    };
+    assert!(
+        s3.tracks[0].audio[0].fade_from.is_some(),
+        "a swap from silence"
+    );
+    tx.push(EngineMessage::SetSnapshot(Arc::new(s3))).unwrap();
+    play(&mut proc, 40, 256, &mut out);
+    let step = steepest(&out, 100);
+    assert!(
+        step <= 2.0 * tone,
+        "the bridge came in with a step of {step}"
+    );
+    cache.warp().hold_finals(false);
+}
+
+/// Round 29's final review (items 2, 3): one tempo edit to 63 BPM before a linked
+/// transposed window whose content origin lies under it keeps its render (tempo's keep
+/// moves a linked window by up to half a tick at its origin, ~15 frames here, past half
+/// a tick at its start); and edits that walk a window's start frame away measure from the
+/// frame its render was made for, so the render goes once it is more than half a frame
+/// off — never kept further and further away.
+#[test]
+fn a_linked_window_keeps_its_render_by_keeps_own_reach_and_never_walks_away() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("take.wav");
+    let x = sine(44_100, 220.0, 10.0);
+    write_wav(&path, &x, 44_100);
+    let mut p = project(
+        &path,
+        44_100,
+        x.len(),
+        Ticks::beats(16),
+        Ticks(5_774),
+        Ticks::beats(4),
+        Some(transposed(44_100)),
+    );
+    let mut c = p.tracks[0].clips[0].clone();
+    c.id = ClipId(p.alloc_id());
+    c.start = Ticks::beats(24);
+    let link = LinkId(p.alloc_id());
+    c.link = Some(link);
+    p.tracks[0].clips[0].link = Some(link);
+    p.tracks[0].clips.push(c);
+    let mut cache = SampleCache::new();
+    let mut bus = CommandBus::new(p);
+    let mut s = Snapshot::compile(bus.project(), 1);
+    cache.attach_audio(&mut s, 48_000);
+    let first: Vec<_> = s.tracks[0]
+        .audio
+        .iter()
+        .map(|c| c.data.clone().unwrap())
+        .collect();
+    bus.execute(
+        Command::SetTempoTrack {
+            bpm: 120.0,
+            points: vec![
+                point(Ticks::ZERO, 120.0),
+                point(Ticks::beats(4), 63.0),
+                point(Ticks::beats(12), 120.0),
+            ],
+        },
+        Origin::User,
+    )
+    .unwrap();
+    let mut s = Snapshot::compile(bus.project(), 2);
+    cache.attach_audio(&mut s, 48_000);
+    for (c, f) in s.tracks[0].audio.iter().zip(&first) {
+        assert!(
+            Arc::ptr_eq(c.data.as_ref().unwrap(), f),
+            "rendered again after one edit to 63 BPM"
+        );
+    }
 }

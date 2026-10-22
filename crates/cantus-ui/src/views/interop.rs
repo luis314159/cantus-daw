@@ -45,6 +45,8 @@ pub struct Importing {
     worker: Option<std::thread::JoinHandle<()>>,
     /// Read, and since when it has waited.
     ready: Option<(dawproject::ImportedFile, std::time::Instant)>,
+    /// Its wait for a take to end said (once).
+    said: bool,
 }
 
 /// How long a read import waits for a gesture left open (nothing seals it) before it
@@ -951,6 +953,7 @@ pub fn import_dawproject_from(app: &mut CantusApp, path: &Path) -> bool {
             stop,
             worker,
             ready: None,
+            said: false,
         });
         app.set_status(tf("interop.status.importing", &[("file", &name)]));
     }
@@ -1008,7 +1011,17 @@ pub fn poll_import(app: &mut CantusApp, ctx: Option<&egui::Context>) {
         .as_ref()
         .is_some_and(|(_, at)| at.elapsed().as_secs_f64() < IMPORT_HOLD_S);
     let pointer = ctx.is_some_and(|c| c.input(|i| i.pointer.any_down()));
-    if app.is_recording() || pointer || (held && app.bus.open_gesture().is_some()) {
+    let recording = app.is_recording();
+    if recording || pointer || (held && app.bus.open_gesture().is_some()) {
+        // Held by a take: said once, so the song's replacement at its end comes as no
+        // surprise (round 29's final review: tempo's notice was lost in the merge).
+        if recording && !imp.said {
+            let text = tf("interop.status.import_waits", &[("file", &imp.name)]);
+            if let Some(imp) = app.interop.importing.as_mut() {
+                imp.said = true;
+            }
+            app.set_status(text);
+        }
         return repaint(ctx);
     }
     let imp = app.interop.importing.take().expect("an import");

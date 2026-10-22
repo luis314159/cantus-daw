@@ -15,14 +15,19 @@
 //! rule lays it, when that is where the warp puts it: a warp that does not follow, or one
 //! whose markers lie on the natural line (the pitch late, never silence). A following warp
 //! that moves the audio plays nothing until its bridge, which goes first (third review: it
-//! played at the wrong bar). A render made for an earlier project is never played (third
+//! played at the wrong bar) — what it played before fading out into that silence, an empty
+//! data with the old as its `fade_from`, and the bridge fading in from it; a clip that plays
+//! its source is remembered for this (final review: a first edit cut it to silence). A render made for an earlier project is never played (third
 //! review: clip ids repeat between projects; [`Renders::forget_project`]).
 //!
 //! **Kept while it plays.** A warp that does not follow renders the source frame under its
 //! window's start, to the whole frame; a tempo edit before the window re-anchors the window
-//! (`tempo::keep`) to within half a frame — a linked copy to within half a tick — so the
-//! render it plays stays while the frame is that near (third review: it was re-rendered
-//! about a quarter of the time).
+//! (`tempo::keep`) to within half a frame — a linked copy to within keep's own reach,
+//! `tempo::keep::linked_reach` (half a tick at its content origin or at its entry, the
+//! longer) — so the render it plays stays while the frame is that near the frame the render
+//! was made for (third review: it was re-rendered about a quarter of the time; final
+//! review: measured from the last attach, edits walked it away, and half a tick at the
+//! start fell short of keep's reach).
 //!
 //! **Swaps.** When a piece's data or its placement changes while it plays (a bridge
 //! giving way to its render, a drag step's bridge to the next, a render laid again under an
@@ -221,32 +226,40 @@ impl Renders {
         }
     }
 
-    /// The key a non-following piece plays: the render it played while its start frame
-    /// moved no further than a tempo edit's re-anchoring moves it — half a frame, or, its
-    /// fine offset untouched (a linked copy), half a tick — else `key`.
-    fn stick(&mut self, piece: Piece, plan: &Plan, slip: f64, key: u64) -> u64 {
+    /// The key a non-following piece plays: the render it played while its start frame is
+    /// no further from the frame that render was made for than a tempo edit's re-anchoring
+    /// moves it — half a frame, or, its fine offset untouched (a linked copy), the reach
+    /// tempo's keep allows a linked window (`tempo::keep::linked_reach`: half a tick at its
+    /// content origin or at its entry, the longer) — else `key`. Measured from the render's
+    /// own frame, never the last attach's, so edits never walk it away (round 29's final
+    /// review).
+    fn stick(&mut self, piece: Piece, plan: &Plan, (slip, entry): (f64, Ticks), key: u64) -> u64 {
         let frame = plan.natural_frame();
         let base = super::render::natural_base(plan);
-        let s = plan.start.0 as f64;
-        let half_tick =
-            0.5 * plan.map.seconds_between_f64(s, s + 1.0) * plan.source_rate.max(1) as f64;
+        let reach = cantus_core::tempo::keep::linked_reach(
+            &plan.map,
+            plan.start - plan.offset,
+            entry,
+            plan.source_rate.max(1) as f64,
+        );
         let kept = self.sticky.get(&piece).copied().filter(|st| {
             let d = (frame - st.frame).abs();
             st.base == base
                 && (self.done.contains_key(&st.key) || self.pending.contains_key(&st.key))
-                && (d <= 0.5 + 1e-9 || (st.slip == slip && d <= half_tick + 0.5))
+                && (d <= 0.5 + 1e-9 || (st.slip == slip && d <= reach + 0.5))
         });
-        let key = kept.map_or(key, |st| st.key);
-        self.sticky.insert(
-            piece,
-            Sticky {
+        let st = match kept {
+            // The frame its render was made for stays the measure.
+            Some(st) => st,
+            None => Sticky {
                 base,
                 frame,
                 slip,
                 key,
             },
-        );
-        key
+        };
+        self.sticky.insert(piece, st);
+        st.key
     }
 }
 
@@ -288,6 +301,19 @@ impl Renders {
         for (ti, track) in snapshot.tracks.iter_mut().enumerate() {
             for (ci, clip) in track.audio.iter_mut().enumerate() {
                 let Some(warp) = clip.warp.clone() else {
+                    // A clip playing its source (no warp, or one that plays it as it is):
+                    // what it plays is remembered, so a first warping edit fades from it
+                    // (round 29's final review: it was cut to silence).
+                    if let Some(d) = clip.data.clone().filter(|_| live) {
+                        played.insert(
+                            (clip.clip, clip.start),
+                            Played {
+                                data: d,
+                                zero_at: None,
+                                map: map.clone(),
+                            },
+                        );
+                    }
                     continue;
                 };
                 let Some(data) = clip.data.clone() else {
@@ -313,7 +339,8 @@ impl Renders {
                 let made = Made::of(&plan);
                 let mut key = render_key(&plan);
                 if !warp.follow {
-                    key = self.stick(piece, &plan, clip.slip, key);
+                    let entry = if clip.reverse { clip.end } else { clip.start };
+                    key = self.stick(piece, &plan, (clip.slip, entry), key);
                 }
                 self.made.entry(key).or_insert_with(|| made.clone());
                 used.insert(key);
@@ -379,6 +406,12 @@ impl Renders {
                 } else {
                     (None, None)
                 };
+                // Nothing to play now, a piece that played before: an empty data, so the
+                // engine fades what it played out (`fade_from` below) — never a cut to
+                // silence on a first edit or a tempo edit (round 29's final review).
+                let playing = playing.or_else(|| {
+                    (live && self.played.contains_key(&piece)).then(|| silence.clone())
+                });
                 clip.data = playing;
                 clip.zero_at = zero_at;
                 if live {
@@ -388,7 +421,7 @@ impl Renders {
                             || b.zero_at != zero_at
                             || (!Arc::ptr_eq(&b.map, &map) && b.map.points() != map.points())
                     });
-                    if let Some(b) = moved.filter(|_| clip.data.is_some()) {
+                    if let Some(b) = moved {
                         self.swaps += 1;
                         let f = FadeFrom {
                             data: b.data.clone(),

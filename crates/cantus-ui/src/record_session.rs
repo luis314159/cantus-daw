@@ -1177,12 +1177,14 @@ impl CantusApp {
         let rate = self.engine.sample_rate.round() as u32;
         let before = self.engine.renders_late();
         let snapshot = self.engine.compile_for_render(&alone, 1);
-        self.say_late(before);
-        let late = self.late_since(before);
         if self.engine.samples.loading() {
-            // What it plays started loading just now: wait for it.
+            // What it plays started loading just now (a file, a render on its way): wait
+            // for it — the merge is never written from a render's quick version, so nothing
+            // is said late while it waits (round 29's final review).
             return false;
         }
+        self.say_late(before);
+        let late = self.late_since(before);
         let opts = cantus_engine::RenderOptions {
             sample_rate: rate,
             start: from,

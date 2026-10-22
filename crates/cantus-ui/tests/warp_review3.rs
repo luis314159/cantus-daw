@@ -360,6 +360,14 @@ fn a_background_import_lands_only_when_it_is_safe() {
     read_through(&mut a, &first);
     assert_eq!(a.project().name, first, "replaced mid-recording");
     assert!(a.is_recording());
+    // Said: it opens when the take ends (round 29's final review).
+    assert_eq!(
+        a.status.text,
+        cantus_ui::i18n::tf(
+            "interop.status.import_waits",
+            &[("file", &"Imported one.dawproject")]
+        )
+    );
     a.stop_recording();
     read_through(&mut a, &first);
     assert_eq!(
@@ -631,4 +639,255 @@ fn a_first_edit_on_a_ramped_trimmed_or_reversed_clip_leaves_what_plays_alone() {
             }
         }
     }
+}
+
+/// Round 29's final review (item 2): a linked pair of transposed windows whose content
+/// origin lies under a slow tempo, re-anchored by a tempo edit (keep holds a linked window
+/// to half a tick at its origin), turns to follow together: Follow on unlinks neither.
+#[test]
+fn follow_on_keeps_a_linked_pair_re_anchored_at_its_origin_linked() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("take.wav");
+    let x: Vec<f32> = (0..44_100 * 12)
+        .map(|i| 0.4 * (i as f32 * 0.031).sin())
+        .collect();
+    wav(&path, 44_100, &x);
+    for bpm in [63.0, 65.0, 66.0, 72.0, 90.0] {
+        let mut a = app(project(120.0));
+        a.import_audio(std::slice::from_ref(&path), Ticks::beats(16), None);
+        settle(&mut a);
+        let (ra, rb) = linked(&mut a, Ticks::beats(16), Ticks::beats(24));
+        for r in [ra, rb] {
+            a.exec(Command::SetClipOffset {
+                track: r.0,
+                clip: r.1,
+                offset: Ticks(5_774),
+            });
+        }
+        assert!(a.set_warp_cents(ra, 200, false));
+        a.exec(Command::SetTempoTrack {
+            bpm: 120.0,
+            points: vec![
+                point(Ticks::ZERO, 120.0, false),
+                point(Ticks::beats(4), bpm, false),
+                point(Ticks::beats(12), 120.0, false),
+            ],
+        });
+        assert!(a.set_warp_follow(ra, true));
+        for r in [ra, rb] {
+            assert!(clip(&a, r).link.is_some(), "{bpm} BPM: {r:?} unlinked");
+            assert!(a.clip_warp(r).is_some_and(|w| w.follow), "{bpm} BPM");
+        }
+    }
+}
+
+// ---- Round 29's final review (item 5): the late-render note through every job ----------
+
+/// Frames until the live engine holds every file the song plays.
+fn loaded(a: &mut CantusApp) {
+    let t0 = Instant::now();
+    loop {
+        a.engine.samples.poll_loaded();
+        a.sync_engine();
+        if !a.engine.samples.loading() || t0.elapsed() > Duration::from_secs(60) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+/// An app whose audio clip of clicks, its file loaded, is transposed (its render held
+/// back) with a short patience, the live engine not told yet (nothing loading, so a job
+/// starts at once): what the job compiles meets a render that is late.
+fn late_app(dir: &Path) -> (CantusApp, (TrackId, ClipId)) {
+    let path = dir.join("clicks.wav");
+    wav(&path, 48_000, &click_track(48_000.0, 100.0, 4, 0.25).audio);
+    let mut a = app(cantus_ui::starter_project());
+    a.path = Some(dir.join("song.cantus"));
+    a.engine.frozen.set_app_dir(dir.join("renders"));
+    a.import_audio(&[path], Ticks::ZERO, None);
+    settle(&mut a);
+    loaded(&mut a);
+    let (t, c) = audio_clips(&a).remove(0);
+    a.engine.samples.warp().hold_finals(true);
+    a.engine.set_render_patience(Duration::from_millis(20));
+    assert!(a.set_warp_cents((t, c.id), 300, false));
+    (a, (t, c.id))
+}
+
+/// The landed message: a warning ending with the late note.
+fn landed_late(a: &CantusApp, what: &str) {
+    let late = cantus_ui::i18n::t("warp.status.late");
+    assert!(
+        a.status.error && a.status.text.ends_with(&late),
+        "{what}: {:?} (error {})",
+        a.status.text,
+        a.status.error
+    );
+}
+
+/// Frames of the freeze queue until its job is done.
+fn run_freeze(a: &mut CantusApp) {
+    let ctx = support::ctx();
+    let t0 = Instant::now();
+    loop {
+        cantus_ui::freeze::tick(a, &ctx);
+        if !a.freeze.busy() || t0.elapsed() > Duration::from_secs(120) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    cantus_ui::freeze::tick(a, &ctx);
+}
+
+#[test]
+fn a_late_render_is_said_when_a_bounce_in_place_lands() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut a, r) = late_app(dir.path());
+    a.bounce(cantus_ui::bounce::Plan {
+        track: r.0,
+        through: cantus_ui::bounce::Through::Source,
+        range: cantus_ui::bounce::Range::Track,
+    });
+    run_freeze(&mut a);
+    a.engine.samples.warp().hold_finals(false);
+    assert!(
+        a.project().tracks.len() >= 2,
+        "the bounce landed: {}",
+        a.status.text
+    );
+    landed_late(&a, "bounce in place");
+}
+
+#[test]
+fn a_late_render_is_said_when_a_freeze_lands() {
+    let dir = tempfile::tempdir().unwrap();
+    let (mut a, r) = late_app(dir.path());
+    a.freeze_target(cantus_core::freeze::FreezeTarget::Track(r.0));
+    run_freeze(&mut a);
+    a.engine.samples.warp().hold_finals(false);
+    assert!(
+        a.project().track(r.0).unwrap().frozen.is_some(),
+        "frozen: {}",
+        a.status.text
+    );
+    landed_late(&a, "freeze");
+}
+
+#[test]
+fn a_late_render_is_said_when_a_bake_lands() {
+    use cantus_core::modulator::{ModHost, ModKind};
+    let dir = tempfile::tempdir().unwrap();
+    let (mut a, r) = late_app(dir.path());
+    let s = a.project().track(r.0).unwrap().strip;
+    let target = cantus_core::AutoTarget::StripPan(s.expect("the starter track has a strip"));
+    let id = a
+        .add_modulator(ModHost::Track(r.0), ModKind::Follower, Some(target.clone()))
+        .unwrap();
+    a.set_time_selection(Ticks::ZERO, Ticks::beats(4));
+    assert!(a.bake_route(id, &target));
+    let t0 = Instant::now();
+    while a.modulators.pending_bake.is_some() && t0.elapsed() < Duration::from_secs(60) {
+        a.poll_bake();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    a.engine.samples.warp().hold_finals(false);
+    assert!(
+        a.modulators.pending_bake.is_none(),
+        "the bake never came back"
+    );
+    landed_late(&a, "bake");
+}
+
+/// A stereo WAV of `frames` frames holding `l`, `r`.
+fn constant_wav(path: &Path, frames: usize, l: f32, r: f32) {
+    let spec = hound::WavSpec {
+        channels: 2,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(path, spec).unwrap();
+    for _ in 0..frames {
+        w.write_sample(l).unwrap();
+        w.write_sample(r).unwrap();
+    }
+    w.finalize().unwrap();
+}
+
+/// A comp merge waits for a render on its way (it never writes its quick version): nothing
+/// said late while it waits, and it lands, once the render is in, with no late note.
+#[test]
+fn a_comp_merge_waits_for_a_render_on_its_way_and_says_nothing_late() {
+    use cantus_core::{AudioSource, AudioSourceId};
+    let dir = tempfile::tempdir().unwrap();
+    let mut p = Project {
+        tempo_bpm: 120.0,
+        ..Default::default()
+    };
+    let t = p.make_track("Vox");
+    let tid = t.id;
+    p.tracks.push(t);
+    let frames = 8 * 24_000;
+    let mut srcs = Vec::new();
+    for (name, l, r) in [("A", 0.5, 0.0), ("B", 0.0, 0.5)] {
+        let path = dir.path().join(format!("Vox {name}.wav"));
+        constant_wav(&path, frames, l, r);
+        let id = AudioSourceId(p.alloc_id());
+        p.audio_pool.push(AudioSource {
+            id,
+            name: format!("Vox {name}"),
+            path: path.to_string_lossy().into_owned(),
+            sample_rate: 48_000,
+            channels: 2,
+            frames: frames as u64,
+            sha256: None,
+            recorded: true,
+        });
+        srcs.push(id);
+    }
+    for (src, lane) in [(srcs[0], 1u8), (srcs[1], 2), (srcs[1], 0)] {
+        let mut c = p.make_audio_clip("take", src, Ticks::ZERO, Ticks::beats(8));
+        c.lane = lane;
+        c.comp = lane == 0;
+        p.track_mut(tid).unwrap().clips.push(c);
+    }
+    p.track_mut(tid).unwrap().takes_open = true;
+    let mut a = app(p);
+    a.path = Some(dir.path().join("song.cantus"));
+    a.comp_swipe(tid, 1, Ticks::ZERO, Ticks::beats(4));
+    loaded(&mut a);
+    a.engine.samples.warp().hold_finals(true);
+    a.engine.set_render_patience(Duration::from_millis(20));
+    let window = a
+        .project()
+        .track(tid)
+        .unwrap()
+        .clips
+        .iter()
+        .find(|c| c.lane == 0 && c.audio.is_some())
+        .map(|c| c.id)
+        .unwrap();
+    assert!(a.set_warp_cents((tid, window), 300, false));
+    assert!(a.merge_comp(tid));
+    for _ in 0..100 {
+        a.poll_merge();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(a.merging(), "written from the quick version");
+    assert!(
+        !a.status.error,
+        "said late while it waits: {}",
+        a.status.text
+    );
+    a.engine.samples.warp().hold_finals(false);
+    let t0 = Instant::now();
+    while a.merging() && t0.elapsed() < Duration::from_secs(60) {
+        a.engine.samples.poll_loaded();
+        a.poll_merge();
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!a.merging(), "the merge never finished");
+    assert!(!a.status.error, "{}", a.status.text);
+    assert_eq!(a.status.text, cantus_ui::i18n::t("rec.merged"));
 }

@@ -180,3 +180,49 @@ fn a_fallback_is_laid_where_its_content_begins() {
         (Ticks::beats(12), 48_000.0)
     );
 }
+
+/// Round 29's final review (item 3): a non-following piece whose start frame edits walk
+/// away, each step within half a frame, keeps its render only while the frame stays within
+/// half a frame of the one that render was made for — the allowance never re-measured from
+/// the last attach.
+#[test]
+fn a_kept_render_is_measured_from_its_own_frame() {
+    let mut r = Renders::default();
+    let map = Arc::new(TempoMap::constant(
+        120.0,
+        cantus_core::TimeSignature::default(),
+    ));
+    let mut w = cantus_core::warp::Warp::new(48_000, 120.0);
+    w.follow = false;
+    w.cents = 200;
+    let plan = |slip: f64| Plan {
+        warp: Arc::new(w.clone()),
+        map: map.clone(),
+        start: Ticks::beats(8),
+        end: Ticks::beats(12),
+        offset: Ticks::beats(4),
+        slip_frames: slip,
+        source_rate: 48_000,
+        rate: 48_000,
+        path: PathBuf::from("a.wav"),
+        input_key: 1,
+    };
+    let p = (C, Ticks::beats(8));
+    let at = |slip: f64| (slip / 48_000.0, Ticks::beats(8));
+    let k0 = render_key(&plan(0.0));
+    r.put_done(k0, data(10));
+    assert_eq!(r.stick(p, &plan(0.0), at(0.0), k0), k0);
+    let k1 = render_key(&plan(0.4));
+    assert_eq!(
+        r.stick(p, &plan(0.4), at(0.4), k1),
+        k0,
+        "0.4 frame off: kept"
+    );
+    let k2 = render_key(&plan(0.8));
+    assert_ne!(k2, k0);
+    assert_eq!(
+        r.stick(p, &plan(0.8), at(0.8), k2),
+        k2,
+        "0.8 frame off its own frame: made again"
+    );
+}

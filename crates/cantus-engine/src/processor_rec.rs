@@ -353,6 +353,11 @@ pub(super) fn add_clips(
         }
         let from = start.max(s0);
         let to = end.min(s1);
+        // A swap's fade under way in this segment: the old data plays out even where the
+        // new has nothing (a piece gone silent until its bridge — round 29's final review).
+        let fading = swap
+            .as_ref()
+            .is_some_and(|(_, w)| transport.swap_live(w, from, to));
         // The first and last file frames the window reads in this segment.
         let first = if c.reverse {
             offset + (len - 1 - (from - start))
@@ -364,7 +369,7 @@ pub(super) fn add_clips(
         } else {
             offset + (to - 1 - start)
         };
-        if first.max(last) < 0 || first.min(last) >= frames {
+        if !fading && (first.max(last) < 0 || first.min(last) >= frames) {
             continue; // The window shows no part of the file here.
         }
         if !sounded {
@@ -393,10 +398,13 @@ pub(super) fn add_clips(
             } else {
                 offset + j
             };
-            if src < 0 || src >= frames {
+            let inside = src >= 0 && src < frames;
+            if !inside && !fading {
                 continue;
             }
-            let (mut a, mut b) = if stereo {
+            let (mut a, mut b) = if !inside {
+                (0.0, 0.0)
+            } else if stereo {
                 let k = src as usize * 2;
                 (data.frames[k], data.frames[k + 1])
             } else {

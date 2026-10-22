@@ -193,6 +193,15 @@ impl Transport {
             .then(|| ((d as f32 + 0.5) / n as f32, w.old + w.dir * d))
     }
 
+    /// Whether swap `w`'s crossfade reaches into transport samples `[from, to)`.
+    #[inline]
+    pub fn swap_live(&self, w: &Swap, from: i64, to: i64) -> bool {
+        let n = self.swap_len() as i64;
+        let d0 = self.clock as i64 + (from - self.samples as i64) - w.at as i64;
+        let d1 = d0 + (to - from);
+        d1 > 0 && d0 < n
+    }
+
     /// End every crossfade under way: a seek or a loop's wrap leaves the place the old data
     /// was read at (the new data plays on from there alone).
     fn end_swaps(&mut self) {

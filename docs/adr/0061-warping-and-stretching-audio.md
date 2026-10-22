@@ -452,9 +452,10 @@ Amends §6, §9 and §11 where they differ.
   one's by its source frames — a left trim no longer plays the old start's words at the new
   start). Its input only where the warp puts it (a warp that does not follow, or one whose
   line is the natural one); a following warp that moves the audio plays nothing until its
-  bridge, which goes first in the bridge queue. A non-following window keeps the render it
-  plays while a tempo edit's re-anchoring moves its start frame by up to half a frame
-  (half a tick for a linked copy, its fine offset untouched), so a tempo edit before it
+  bridge, which goes first in the bridge queue (faded out to, §13). A non-following window
+  keeps the render it plays while a tempo edit's re-anchoring moves its start frame by up to
+  half a frame (a linked copy, its fine offset untouched: keep's reach, §13), so a tempo
+  edit before it
   never renders it again; a real move (a nudge of a frame, a tempo point moved in the
   hidden part unkept) does. A fallback that plays is kept past the budget (tested through
   the attach).
@@ -520,6 +521,26 @@ Amends §6, §9 and §11 where they differ.
   measure pre-echo over half a frame too; no stored baseline holds them yet, so their
   absolute bounds are the unit tests' (a zero baseline is now an absolute bound, one unit
   past it 100 % worse).
+
+## 13. Round 29's final review (`reviews/final-A.json`, five findings of mine): what it changed
+
+- **Never a cut to silence.** A following warp that moves the audio and has nothing made
+  plays an empty data whose `fade_from` is what the piece played (its source too: a clip
+  playing its source is remembered by the render store), so the engine fades it out over
+  5 ms — the swap mix runs where the new data has nothing — and the bridge fades in from
+  the silence (§12 cut it on a first edit and on a tempo edit inside the window).
+- **One reach for a linked window.** `tempo::keep::linked_reach` (half a tick at the content
+  origin or at the entry, the longer — keep's `linked_slack`) is what the render store
+  allows a linked window's start frame and what a linked copy's first warping edit allows
+  each copy. That edit now compares each copy's natural reading with the edited clip's laid
+  from the frame the copy starts on (keep moves a linked window by its offset, so content
+  ticks no longer line copies up). §12's half a tick at the window's start is amended.
+- **Measured from the render's own frame.** A kept render is kept while the start frame
+  stays within the allowance of the frame it was made for, never of the last attach.
+- **Said.** A read import held by a take says it opens when the take ends
+  (`interop.status.import_waits`). A comp merge waits for a render on its way (it never
+  writes a quick version) and says nothing late while it waits; the late note of a bounce
+  in place, a freeze and a bake is held by tests through each job.
 
 ## Consequences
 

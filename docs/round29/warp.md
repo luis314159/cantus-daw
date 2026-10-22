@@ -469,6 +469,19 @@ the render kept through a re-anchoring (row 15) is never kept past a real move �
 eng/rv3 `a_tempo_edit_in_the_hidden_part_renders_a_transposed_window_again`. My linked-copy
 tolerance is tempo's: half a tick (row 1, row 15).
 
+## Final review (`reviews/final-A.json`): five items, all fixed
+
+Each with a test seen failing — on the code before (the new copies test failed on the third
+review's comparison), or with the fix undone in place (every mutant killed). ADR 0061 §13.
+
+| # | Sev. | Finding | Fix | Test (how seen failing) |
+|---|---|---|---|---|
+| 1 | M | A playing clip with no render history cut to silence on its first edit or a tempo edit | an empty data with `fade_from` = what it played (a new swap id); the swap mix runs where the new data has nothing; a source-played piece remembered in `played` | eng/rv3 `a_first_warping_edit_on_a_playing_clip_fades_out_and_back_in` (mutants: no silence swap; no mix outside the data) |
+| 2 | M | The linked allowance was half a tick at the window's start, keep's is at the content origin | `tempo::keep::linked_reach` (keep's `linked_slack` built on it) in `Renders::stick` and `copies_differ`; copies compared from the frame each starts on (keep moves a linked window by its offset) | eng/rv3 `a_linked_window_keeps_its_render_by_keeps_own_reach_and_never_walks_away` (one edit to 63 BPM; mutant: reach at the start); ui/rv3 `follow_on_keeps_a_linked_pair_re_anchored_at_its_origin_linked` (63/65/66/72/90 BPM; failed on the third review's comparison) |
+| 3 | L | `stick` re-measured from the last attach: drift walked a render away | the kept Sticky keeps the frame its render was made for | eng/attach `a_kept_render_is_measured_from_its_own_frame` (mutant: frame overwritten); eng/rv3's twenty-edit test now edits from one song each time |
+| 4 | L | A read import held by a take said nothing | `interop.status.import_waits` once (tempo's key); tempo.md row 7 names the merged hold | ui/rv3 `a_background_import_lands_only_when_it_is_safe` asserts it (mutant) |
+| 5 | L | The late note was pinned for export only | tests through bounce in place, freeze and bake; a comp merge waits for its renders (never a quick version), so its warning while waiting was false: said only when it proceeds | ui/rv3 `a_late_render_is_said_when_a_bounce_in_place_lands`, `…_a_freeze_lands`, `…_a_bake_lands`, `a_comp_merge_waits_for_a_render_on_its_way_and_says_nothing_late` (mutants: each flag dropped; the merge's early warning) |
+
 ## Left
 
 Nothing of mine. Owner-only: **listen** to `F:\projects\daw-r29\shots\warp\listen\`
