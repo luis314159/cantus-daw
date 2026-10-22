@@ -121,7 +121,8 @@ fn the_settings_window_scrolls_to_the_plug_ins() {
 /// Updates, Channels & routing.
 #[test]
 fn every_kit_window_claims_what_it_paints() {
-    let cases: [(&str, fn(&mut CantusApp)); 5] = [
+    type Open = fn(&mut CantusApp);
+    let cases: [(&str, Open); 5] = [
         ("cantus-settings", |a| a.show_settings = true),
         ("cantus-appearance", |a| a.show_theme_editor = true),
         ("cantus-content", |a| a.samples.window.open = true),
