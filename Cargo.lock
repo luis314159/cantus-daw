@@ -803,7 +803,7 @@ dependencies = [
 
 [[package]]
 name = "cantus"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "anyhow",
  "cantus-launch",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-ai"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "async-trait",
  "cantus-core",
@@ -828,7 +828,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-bench"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "cantus-dsp",
@@ -848,7 +848,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-content"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-dsp",
  "cantus-rt",
@@ -866,7 +866,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-core"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-dsp",
  "serde",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-dsp"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "hound",
  "libm",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-engine"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "cantus-dsp",
@@ -907,7 +907,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-export"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "cantus-dsp",
@@ -928,7 +928,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-host"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "cantus-engine",
@@ -957,7 +957,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-launch"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "objc2 0.6.4",
  "objc2-app-kit 0.3.2",
@@ -971,7 +971,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-plugins"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "baseview",
  "cantus-core",
@@ -996,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-project"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "flate2",
@@ -1011,7 +1011,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-rt"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "audio_thread_priority",
  "libc",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-sandbox"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-core",
  "cantus-engine",
@@ -1042,7 +1042,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-test-clap"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "clap-sys",
  "objc2 0.6.4",
@@ -1054,7 +1054,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-test-clap-synth"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "clap-sys",
  "objc2 0.6.4",
@@ -1066,14 +1066,14 @@ dependencies = [
 
 [[package]]
 name = "cantus-test-vst3"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "vst3",
 ]
 
 [[package]]
 name = "cantus-ui"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "anyhow",
  "cantus-ai",
@@ -1112,7 +1112,7 @@ dependencies = [
 
 [[package]]
 name = "cantus-update"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "log",
  "serde",
@@ -6192,7 +6192,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.1.0-beta.2"
+version = "0.1.0-beta.3"
 dependencies = [
  "cantus-content",
  "cantus-launch",

@@ -262,6 +262,10 @@ pub fn footer() -> Html {
 }
 
 const KOFI: &str = "https://ko-fi.com/luisalmazan314159";
+const COFFEE: &str = "https://buymeacoffee.com/angel314159";
+const PATREON: &str = "https://www.patreon.com/c/angel314159/membership";
+/// Whether the Patreon page is public (launched 2026-10-22); `false` shows "Coming soon".
+const PATREON_LIVE: bool = true;
 const LIBERAPAY: &str = "https://liberapay.com/lalmazan";
 const SPONSORS: &str = "https://github.com/sponsors/luis314159";
 /// Flip to `true` when the GitHub Sponsors profile is approved (and add `github:` to FUNDING.yml).
@@ -299,6 +303,12 @@ pub fn support() -> Html {
                 </div>
                 <ul class="ways">
                     { way("Ko-fi", l.t("One-time or monthly, by card or PayPal.", "Una vez o cada mes, con tarjeta o PayPal."), KOFI, l.t("Support on Ko-fi", "Apoyar en Ko-fi"), true) }
+                    { way("Buy Me a Coffee", l.t("A coffee now and then, or a monthly membership.", "Un café de vez en cuando, o una membresía mensual."), COFFEE, l.t("Buy me a coffee", "Invítame un café"), false) }
+                    { if PATREON_LIVE {
+                        way("Patreon", l.t("A monthly membership.", "Una membresía mensual."), PATREON, l.t("Join on Patreon", "Unirme en Patreon"), false)
+                    } else {
+                        html! { <li class="way soon-way"><div><strong>{ "Patreon" }</strong><span>{ l.t("Coming soon.", "Muy pronto.") }</span></div></li> }
+                    } }
                     { way("Liberapay", l.t("Recurring and built for open source; the platform takes no cut of your gift (payment processors still charge their fees).", "Recurrente y pensado para el código abierto; la plataforma no se queda con una parte (los procesadores de pago sí cobran su comisión)."), LIBERAPAY, l.t("Give on Liberapay", "Dar en Liberapay"), false) }
                     { if SPONSORS_LIVE {
                         way("GitHub Sponsors", l.t("Monthly, from your GitHub account.", "Cada mes, desde tu cuenta de GitHub."), SPONSORS, l.t("Sponsor on GitHub", "Patrocinar en GitHub"), false)

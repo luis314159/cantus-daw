@@ -454,8 +454,11 @@ fn a_plugin_that_hangs_never_holds_the_audio_thread_past_the_deadline() {
     }
     assert!(dry > 0);
     let floor = cantus_host::bridge::audio::DEADLINE_FLOOR;
+    // Bounded by the deadline, not by the hang (half a second here). A shared machine can
+    // preempt this ordinary-priority thread inside the wait: GitHub's Windows runner once
+    // measured 15.5 ms (2026-10-22), so the bound allows a preemption, never the hang.
     assert!(
-        worst < deadline(128, SR, floor) + Duration::from_millis(5),
+        worst < deadline(128, SR, floor) + Duration::from_millis(40),
         "the audio thread waited {worst:?}"
     );
     // The late job is never waited for again: every block after it passes at once (#20),
