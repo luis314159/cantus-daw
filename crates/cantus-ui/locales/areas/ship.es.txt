@@ -41,3 +41,5 @@ ship.count_in.on_play_label = Claqueta al reproducir
 ship.count_in.tip_rec = Claqueta, antes de grabar con el transporte parado (También al reproducir: no)
 ship.count_in.tip_play = Claqueta, antes de grabar y antes de reproducir con el transporte parado
 ship.count_in.only_rec = La claqueta suena antes de grabar. Para oírla también al pulsar Play, marca También al reproducir en su menú.
+
+ship.proxy.placeholder = http://servidor:puerto

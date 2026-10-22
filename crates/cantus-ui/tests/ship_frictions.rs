@@ -228,3 +228,49 @@ fn a_scan_names_what_it_found_new() {
         "5 new plug-ins: A, B, C and 2 more"
     );
 }
+
+/// Every Settings page reads whole in English and Spanish at a laptop's size: long notes
+/// and warnings wrap to the page, nothing is cut with "…" (round 30, the integrator's
+/// review of the Spanish Plug-ins page).
+#[test]
+fn every_settings_page_reads_whole_in_both_languages() {
+    use cantus_ui::i18n::Locale;
+    fn walk(shape: &egui::Shape, out: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(t) if t.galley.elided => out.push(t.galley.text().to_owned()),
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    for locale in [Locale::En, Locale::Es] {
+        cantus_ui::i18n::set_locale(locale);
+        let mut a = app();
+        // An interface open, as the owner's: the Audio page's longest lines.
+        cantus_ui::views::settings_audio::demo_setup(&mut a);
+        let ctx = egui::Context::default();
+        cantus_ui::design::install_fonts(&ctx);
+        cantus_ui::design::install_style(&ctx);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1366.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        for page in SettingsPage::ALL {
+            workspace_settings::open(&mut a, page);
+            let mut cut = Vec::new();
+            for frame in 0..3 {
+                let mut out = ctx.run_ui(input.clone(), |ui| a.dialogs(ui.ctx()));
+                out.textures_delta.clear();
+                if frame == 2 {
+                    for c in &out.shapes {
+                        walk(&c.shape, &mut cut);
+                    }
+                }
+            }
+            assert!(cut.is_empty(), "{locale:?} {page:?} cut: {cut:?}");
+        }
+    }
+    cantus_ui::i18n::set_locale(Locale::En);
+}

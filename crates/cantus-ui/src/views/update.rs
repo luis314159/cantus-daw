@@ -615,7 +615,8 @@ pub fn settings_section(app: &mut CantusApp, ui: &mut Ui) {
             .unwrap_or_else(|| app.settings.updates.proxy.clone().unwrap_or_default());
         let width = (ui.available_width() / Style::current().k - 8.0).max(160.0);
         let id = egui::Id::new("update-proxy");
-        let resp = w::text_field(ui, id, &mut text, "update.settings.proxy.hint", width);
+        // The address's shape in the field; what it is for, wrapped under it (round 30).
+        let resp = w::text_field(ui, id, &mut text, "ship.proxy.placeholder", width);
         if resp.changed() {
             app.update.proxy = Some(text.clone());
         }
@@ -630,6 +631,7 @@ pub fn settings_section(app: &mut CantusApp, ui: &mut Ui) {
             }
         }
     });
+    note(ui, &t("update.settings.proxy.hint"), false);
     ui.horizontal(|ui| {
         w::row_label(ui, "", LABEL_W, 24.0);
         let busy = app.update.status().busy();
