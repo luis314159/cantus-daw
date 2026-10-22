@@ -65,11 +65,13 @@ pub struct Menu {
 /// The characters of a key as AppKit's key equivalents spell them (`NSF5FunctionKey` and
 /// the arrows are private-use code points). `None` for keys a menu should not take.
 fn chars(key: Key) -> Option<String> {
+    // AppKit's `NSUpArrowFunctionKey`… (private-use code points, written as numbers).
+    let arrow = |n: u32| char::from_u32(0xF700 + n);
     let c = match key {
-        Key::ArrowUp => '\u{F700}',
-        Key::ArrowDown => '\u{F701}',
-        Key::ArrowLeft => '\u{F702}',
-        Key::ArrowRight => '\u{F703}',
+        Key::ArrowUp => arrow(0)?,
+        Key::ArrowDown => arrow(1)?,
+        Key::ArrowLeft => arrow(2)?,
+        Key::ArrowRight => arrow(3)?,
         Key::Comma => ',',
         Key::Period => '.',
         Key::Minus => '-',
@@ -99,7 +101,7 @@ fn chars(key: Key) -> Option<String> {
     Some(c.to_string())
 }
 
-/// The key equivalent for a binding: one with ⌘ (or ⌥), or a bare function key. A bare
+/// The key equivalent for a binding: one with Command (or Option), or a bare function key. A bare
 /// letter, digit or arrow belongs to the views (the typing piano, the faders) and is
 /// never taken by the menu bar.
 pub fn equivalent(b: &Binding) -> Option<Equivalent> {

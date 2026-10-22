@@ -61,7 +61,7 @@ fn items_show_the_keymaps_own_keys_and_move_with_them() {
         .collect();
     for (i, a) in all.iter().enumerate() {
         assert!(
-            a.command || a.alt || a.chars.chars().all(|c| c > '\u{F700}'),
+            a.command || a.alt || a.chars.chars().all(|c| c as u32 >= 0xF700),
             "{a:?}"
         );
         assert!(!all[i + 1..].contains(a), "{a:?} twice");
@@ -71,14 +71,14 @@ fn items_show_the_keymaps_own_keys_and_move_with_them() {
 #[test]
 fn key_equivalents_are_appkits_characters() {
     let f5 = equivalent(&Binding::key(Key::F5)).expect("a bare function key");
-    assert_eq!(f5.chars, "\u{F708}");
+    assert_eq!(f5.chars, char::from_u32(0xF708).unwrap().to_string());
     let left = equivalent(&Binding::cmd(Key::ArrowLeft)).expect("⌘←");
-    assert_eq!(left.chars, "\u{F702}");
+    assert_eq!(left.chars, char::from_u32(0xF702).unwrap().to_string());
     assert_eq!(equivalent(&Binding::cmd(Key::Plus)).unwrap().chars, "=");
     assert_eq!(equivalent(&Binding::key(Key::K)), None, "the views' own");
     assert_eq!(equivalent(&Binding::key(Key::ArrowLeft)), None);
     assert_eq!(equivalent(&Binding::cmd(Key::Escape)), None);
-    let alt = equivalent(&Binding::alt(Key::M)).expect("⌥M");
+    let alt = equivalent(&Binding::alt(Key::M)).expect("Option+M");
     assert!(alt.alt && !alt.command);
 }
 
