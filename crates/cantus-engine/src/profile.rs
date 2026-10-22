@@ -544,18 +544,27 @@ mod tests {
 
     #[test]
     fn every_nanosecond_goes_to_one_node_and_the_longest_is_blamed() {
+        // Spun, not slept: Windows rounds a sleep to its 15.6 ms timer, which made 3 ms and
+        // 12 ms alike on GitHub's runner (Track(2) blamed). 1 ms against 30 ms leaves room
+        // for a preemption inside the first.
+        let spin = |ms: u64| {
+            let t = Instant::now();
+            while t.elapsed() < std::time::Duration::from_millis(ms) {
+                std::hint::spin_loop();
+            }
+        };
         let mut p = Profiler::new();
         let t0 = Instant::now();
         p.begin(t0);
         p.enter(Node::Track(2));
-        std::thread::sleep(std::time::Duration::from_millis(3));
+        spin(1);
         p.enter(Node::Insert(1, 4));
-        std::thread::sleep(std::time::Duration::from_millis(12));
+        spin(30);
         p.enter(Node::Engine);
         let end = Instant::now();
         let (node, ns) = p.end(end, true).expect("blamed");
         assert_eq!(node, Node::Insert(1, 4));
-        assert!(ns >= 12_000_000, "{ns}");
+        assert!(ns >= 30_000_000, "{ns}");
         let sum: u64 = p.totals().map(|(_, ns)| ns).sum();
         assert_eq!(
             sum,
