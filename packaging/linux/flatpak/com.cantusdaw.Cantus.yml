@@ -54,7 +54,7 @@ modules:
         CARGO_NET_OFFLINE: 'true'
         LIBCLANG_PATH: /usr/lib/sdk/llvm18/lib
     build-commands:
-      - cargo --offline build --release -p cantus -p cantus-host --bin cantus-scan -p cantus-sandbox
+      - cargo --offline build --release -p cantus -p cantus-host -p cantus-sandbox --bins
       - install -Dm755 target/release/cantus /app/bin/cantus
       - install -Dm755 target/release/cantus-scan /app/bin/cantus-scan
       - install -Dm755 target/release/cantus-sandbox /app/bin/cantus-sandbox

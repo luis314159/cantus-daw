@@ -33,7 +33,8 @@ root="$(pwd)"
 here="$root/packaging/linux"
 cargo="${CARGO:-cargo}"
 triple=x86_64-unknown-linux-gnu
-work="$root/target/appimage"
+tgt="${CARGO_TARGET_DIR:-$root/target}"
+work="$tgt/appimage"
 app="$work/Cantus.AppDir"
 quick="${CANTUS_APPIMAGE_QUICK:-0}"
 
@@ -41,7 +42,7 @@ quick="${CANTUS_APPIMAGE_QUICK:-0}"
 runtime_url=https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
 runtime_sha=2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
 
-for tool in mksquashfs gcc nm curl sha256sum; do
+for tool in mksquashfs gcc nm strip curl sha256sum; do
   command -v "$tool" >/dev/null || {
     echo "missing $tool (packaging/linux/deps.sh installs it)"
     exit 1
@@ -52,11 +53,10 @@ rm -rf "$work"
 mkdir -p "$app/usr/bin" "$app/usr/lib/fallback" "$app/usr/share/doc/cantus" "$out"
 
 # --- the programs ---------------------------------------------------------------------
-release="$root/target/release"
+release="$tgt/release"
 for bin in cantus cantus-launch cantus-scan cantus-sandbox; do
   if [ ! -x "$release/$bin" ]; then
-    "$cargo" build --release -p cantus -p cantus-launch -p cantus-host --bin cantus-scan \
-      -p cantus-sandbox
+    "$cargo" build --release -p cantus -p cantus-launch -p cantus-host -p cantus-sandbox --bins
     break
   fi
 done
@@ -66,9 +66,9 @@ if [ "$quick" = 1 ]; then
 else
   install -m755 "$release/cantus-launch" "$app/usr/bin/cantus"
   for level in x86-64-v2 x86-64-v3; do
-    CARGO_TARGET_DIR="$root/target/cpu-$level" RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=$level" \
+    CARGO_TARGET_DIR="$tgt/cpu-$level" RUSTFLAGS="${RUSTFLAGS:-} -C target-cpu=$level" \
       "$cargo" build --release --target "$triple" -p cantus
-    exe="$root/target/cpu-$level/$triple/release/cantus"
+    exe="$tgt/cpu-$level/$triple/release/cantus"
     # The program must say the level it was built for (as `xtask package` checks).
     "$exe" --version | tee /dev/stderr | grep -q "($level)" || {
       echo "$exe does not say $level: refusing to package it"
@@ -78,12 +78,16 @@ else
   done
 fi
 
+# Debug information off (the release profile keeps it for profiling); the symbols stay, so
+# a crash's backtrace still names functions.
+strip --strip-debug "$app"/usr/bin/*
+
 # --- Cantus's effects as plug-ins for other hosts ------------------------------------
 if [ "$quick" != 1 ]; then
   "$cargo" run --release -p xtask -- bundle
   mkdir -p "$app/usr/share/cantus/plugins/clap" "$app/usr/share/cantus/plugins/vst3"
-  cp -a "$root"/target/bundled/*.clap "$app/usr/share/cantus/plugins/clap/"
-  cp -a "$root"/target/bundled/*.vst3 "$app/usr/share/cantus/plugins/vst3/"
+  cp -a "$tgt"/bundled/*.clap "$app/usr/share/cantus/plugins/clap/"
+  cp -a "$tgt"/bundled/*.vst3 "$app/usr/share/cantus/plugins/vst3/"
 fi
 
 # --- the desktop: .desktop, icons, AppStream, MIME ------------------------------------
@@ -125,7 +129,7 @@ bash "$here/stub/make-stub.sh" "$pwlib" "$app/usr/lib/fallback/libpipewire-0.3.s
 install -m755 "$here/AppRun" "$app/AppRun"
 
 # --- the image: runtime + squashfs ----------------------------------------------------
-runtime="$root/target/appimage-runtime-x86_64"
+runtime="$tgt/appimage-runtime-x86_64"
 if ! echo "$runtime_sha  $runtime" | sha256sum -c - >/dev/null 2>&1; then
   curl -fsSL --retry 3 -o "$runtime" "$runtime_url"
   echo "$runtime_sha  $runtime" | sha256sum -c - || {

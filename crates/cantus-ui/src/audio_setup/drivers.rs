@@ -260,6 +260,10 @@ pub fn report() -> String {
         .into_iter()
         .map(|d| d.name)
         .collect();
+    // ASIO is Windows's alone: elsewhere the drivers are all there is to say.
+    if !cfg!(windows) {
+        return format!("audio drivers: {}", names.join(", "));
+    }
     format!(
         "audio drivers: {}\nasio sdk: {}\nasio drivers installed: {}",
         names.join(", "),

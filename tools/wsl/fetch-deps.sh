@@ -31,7 +31,7 @@ cd "$HOME/linux-deps/rt-debs"
 for p in pipewire=1.0.5-1 pipewire-bin=1.0.5-1 libpipewire-0.3-modules=1.0.5-1 \
          libspa-0.2-modules=1.0.5-1 pipewire-jack=1.0.5-1 libpipewire-0.3-common=1.0.5-1 \
          libpipewire-0.3-0t64=1.0.5-1 wireplumber libwireplumber-0.4-0 liblua5.4-0 \
-         jackd2 libjack-jackd2-0 libsamplerate0 libwebrtc-audio-processing1; do
+         jackd2 libjack-jackd2-0 libopus0 libsamplerate0 libwebrtc-audio-processing1; do
   if apt-get download "$p" >/dev/null 2>&1; then echo "got $p"; else echo "MISSING $p"; fi
 done
 for d in *.deb; do dpkg -x "$d" "$HOME/linux-deps/rt"; done
