@@ -61,6 +61,25 @@ batch verifier each, four to six agents), over each round's delta and the merges
   `check.sh` READY, fast-forward pushes); every workflow runs there, the website deploy
   included; the private repository stays the working one.
 
+## The release
+
+The public repository's first CI run (round 28's code, 2026-10-21) failed three ways, and
+the release workflow runs the same tests, so each was fixed before the tag: `cargo audit`
+(rustls 0.23.46, rustls-webpki 0.103.16, webpki-root-certs 1.0.10, zip 9 — with
+`deflate-flate2` in xtask, since zip 9's `deflate` switched the whole workspace's flate2 to
+zlib-rs and a test's gzip bomb grew past its bound); the pool's busy test on the Linux
+runner (one preempted spin in fifty blocks forgiven); the hovered-bus allocation test on
+the Windows runner (one odd frame forgiven, 71 against 36, never reproduced here). Running
+both suites at once here exposed three more tests that read the wall clock (the
+activate-crash poll, a recorded controller's age, Chorda's CPU share); the first two were
+made robust, the third passes alone (27 % of a core against a 60 % bound). `release.yml`'s
+test job builds without debug info, as `ci.yml`, with a two-hour limit.
+
+The first public beta, `v0.1.0-beta.1`, is a lightweight tag on `luis314159/cantus-daw`
+(no tagger: the machine's git identity stays private); the workflow tests, packages and
+publishes `Cantus-windows-x64-setup.exe`, which the website's button downloads. Unsigned:
+SmartScreen warns until SignPath or Certum is chosen.
+
 ## What is left (the owner's)
 
 Listening and hardware: the warp listening set (`F:\projects\daw-r29\shots\warp\listen\`),

@@ -24,3 +24,7 @@
 - [Round 27: quick gestures](round-27.md) — §6g done, master 445a44c (2026-10-14); test build daw-r27/builds; round-28 prompt = BACKLOG 3–6
 - [Round 28: top bar, voice, 12 effects, Chorda+drums, modulators+comping](round-28.md) — done 2026-10-16, pushed to master (owner pre-approved); Win 3 362 + Linux 3 345; schema 32
 - [Decision: effects sound on insert; Chorda sounds bad](decision-effects-sound-on-insert.md) — owner 2026-10-16: insert loads a starting preset (defaults stay null); improve Chorda by ear first
+- [Round 29: competitive beta](round-29.md) — warp, MIDI learn, isolation, tempo track, freeze; schema 41; Win 4 422 + Linux 4 339; first public release v0.1.0-beta.1 (lightweight tag on cantus-daw)
+- [Decision: round 30 = platforms](decision-round30-platforms.md) — releases Windows+Linux+macOS at its end; owner can borrow a Mac, buy Apple dev licence and Actions minutes; iOS noted in BACKLOG §2
+- [Reviews: few agents](feedback-review-cost.md) — owner 2026-10-20: a 77-agent review cost too much; ≤ ~6 agents per review (3 merged-lens finders + batch verifiers)
+- [Public repo: cantus-daw](public-repo-cantus-daw.md) — publish via tools/public/publish.sh (deterministic rewrite, fast-forward only); private cantus stays the working repo + site deploy; never push private refs to public
