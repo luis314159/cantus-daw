@@ -5,10 +5,15 @@
 # by its timer, "Dummy-Driver"), JACK its dummy driver; the callbacks and the latency are
 # real, the sound goes nowhere.
 #
-#   source tools/wsl/audio-servers.sh env       # this shell can reach them (clients)
 #   bash tools/wsl/audio-servers.sh pipewire    # start PipeWire + WirePlumber
 #   bash tools/wsl/audio-servers.sh jack        # start jackd (dummy, 48 kHz, 256 frames)
+#   bash tools/wsl/audio-servers.sh run <cmd>   # <cmd> in ~/cantus-ci (check.sh's build
+#                                               # environment), able to reach them
 #   bash tools/wsl/audio-servers.sh stop
+#
+# For example, after `check.sh <branch> test` checked the branch out:
+#   bash tools/wsl/audio-servers.sh run env CANTUS_TEST_DRIVER=PipeWire CANTUS_TEST_BUFFER=128 \
+#     cargo test -p cantus-engine --test devices -- --ignored live_streams --nocapture
 rt="$HOME/linux-deps/rt"
 root="$HOME/linux-deps/root"
 lib="$rt/usr/lib/x86_64-linux-gnu"
@@ -59,8 +64,22 @@ context.objects = [
 CONF
 }
 
-case "${1:-env}" in
-  env) ;;
+case "${1:-}" in
+  run)
+    shift
+    # check.sh's build environment (the -dev packages in ~/linux-deps/root).
+    export PATH="$HOME/.cargo/bin:$root/usr/bin:$PATH"
+    export PKG_CONFIG_PATH="$root/usr/lib/x86_64-linux-gnu/pkgconfig:$root/usr/share/pkgconfig"
+    export PKG_CONFIG_SYSROOT_DIR="$root"
+    export OPENSSL_DIR="$root/usr" OPENSSL_LIB_DIR="$root/usr/lib/x86_64-linux-gnu"
+    export OPENSSL_INCLUDE_DIR="$root/usr/include"
+    export LIBCLANG_PATH="$root/usr/lib/llvm-18/lib"
+    export BINDGEN_EXTRA_CLANG_ARGS="-I$root/usr/lib/llvm-18/lib/clang/18/include"
+    export RUSTFLAGS="-D warnings" CARGO_INCREMENTAL=0
+    export CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0
+    cd "${CANTUS_CI_DIR:-$HOME/cantus-ci}" || exit 1
+    exec "$@"
+    ;;
   pipewire)
     config
     nohup pipewire >"$XDG_RUNTIME_DIR/pipewire.log" 2>&1 &
@@ -86,7 +105,7 @@ case "${1:-env}" in
     true
     ;;
   *)
-    echo "usage: audio-servers.sh env|pipewire|jack|stop"
+    echo "usage: audio-servers.sh pipewire|jack|run <command>|stop"
     exit 1
     ;;
 esac

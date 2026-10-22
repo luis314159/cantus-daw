@@ -151,9 +151,22 @@ under the GPL.
 1999–2025 NSIS Contributors); its LZMA decompressor, which the installer contains, is
 under the Common Public License 1.0, and NSIS's source code is available from that site.
 
+## The Linux AppImage
+
+`Cantus-<version>-linux-x86_64.AppImage` begins with the **AppImage type 2 runtime**
+(<https://github.com/AppImage/type2-runtime>, MIT licence), a separate, statically linked
+program that mounts the image and starts Cantus; it is not linked with Cantus. It is built
+with musl (MIT), squashfuse (BSD-2-Clause), libfuse 3 (its library under the LGPL-2.1: the
+runtime's source and build scripts are at that address, so it can be rebuilt with a
+modified libfuse), zstd (BSD) and zlib (zlib licence). The image's
+`usr/lib/fallback/libpipewire-0.3.so.0` is Cantus's own stand-in and holds no PipeWire
+code. On Linux Cantus uses the system's own libraries, none of them bundled: the GNU C
+library (LGPL-2.1), ALSA's libasound (LGPL-2.1), libpipewire (MIT), and libjack (LGPL-2.1)
+when it is installed — opened at run time.
+
 ## The Rust toolchain
 
 `cantus.exe` and the plug-ins contain the Rust standard library (`std`, `core`, `alloc`),
 Copyright © The Rust Project Developers, under MIT OR Apache-2.0
 (<https://github.com/rust-lang/rust>), and link to the Microsoft C runtime that Windows
-provides.
+provides (on Linux, the system's C library).

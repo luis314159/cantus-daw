@@ -1,14 +1,18 @@
 # third_party — patched crates
 
-Two crates from crates.io, vendored **with a small patch** and wired in through
-`[patch.crates-io]` in the workspace `Cargo.toml`. Both are Apache-2.0 (`LICENSE` in each
-folder; asio-sys's crate ships without the file, so the Apache-2.0 text from cpal, the same
-project, is copied beside it). Every change is marked `CANTUS PATCH` in the source.
+Three crates from crates.io, vendored **with a small patch** and wired in through
+`[patch.crates-io]` in the workspace `Cargo.toml`. cpal and asio-sys are Apache-2.0
+(`LICENSE` in each folder; asio-sys's crate ships without the file, so the Apache-2.0 text
+from cpal, the same project, is copied beside it); jack-sys (round 30) is MIT OR
+Apache-2.0. Every change is marked `CANTUS PATCH` in the source. jack-sys's first commit
+(`third_party/jack-sys: … unchanged`) holds it as published, as the first commit of this
+folder does for the other two.
 
 | Crate | Version | Upstream |
 |---|---|---|
 | `cpal` | 0.18.2 (crates.io, checksum `6f02e8d0…681f1`) | <https://github.com/RustAudio/cpal> |
 | `asio-sys` | 0.4.0 (crates.io, checksum `477f1cf5…021b9`) | same repository, `asio-sys/` |
+| `jack-sys` | 0.5.1 (crates.io, checksum `6013b761…fc86ab`; MIT OR Apache-2.0, both files in its folder) | <https://github.com/RustAudio/rust-jack>, `jack-sys/` (round 30) |
 
 The first commit that added this folder holds both crates **unchanged**, so
 `git diff <that commit> -- third_party/` is exactly the patch. Drop the folder and the
@@ -141,3 +145,22 @@ Text for the first, ready to paste:
 > the driver once. Adding a direction to a running driver still rebuilds it, but the driver
 > is now stopped before the streams mutex is taken, since the buffer callback takes that
 > mutex and `ASIOStop` waits for the callback in flight.
+
+## Round 30 (ADR 0065): Linux
+
+### cpal (`src/host/pipewire/stream.rs`)
+
+Cantus's Linux build is made on Ubuntu 22.04 (PipeWire 0.3.48) with PipeWire 1.0.5's
+headers, and runs on systems as old: `pw_buffer.requested` exists only from 0.3.49, and
+reading it from an older library reads past its struct. The patch reads it only when
+`pw_get_library_version()` is 0.3.49 or later (checked once, when PipeWire is initialised),
+and takes 0 — "no suggestion", as PipeWire documents it — as the whole buffer rather than
+an empty one (upstream wrote no samples then).
+
+### jack-sys (`build.rs`)
+
+Upstream's build script asks pkg-config for `jack` and fails the build on Linux without
+it — also with `dynamic_loading`, where JACK is `dlopen`ed and nothing links it (and the
+pkg-config answer would add `-ljack` to the link). The patch asks only when
+`dynamic_loading` is off. With it, building Cantus needs no JACK package at all; the
+binary has no `NEEDED libjack` (`readelf -d`).

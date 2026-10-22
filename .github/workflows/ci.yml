@@ -135,7 +135,7 @@ jobs:
   # links against 22.04's libraries and the image starts, with and without libpipewire.
   # Quick mode (one program, no plug-ins); release.yml builds the full one at each tag.
   appimage:
-    if: github.repository == 'luis314159/cantus-daw' && github.event_name == 'push'
+    if: github.repository == 'luis314159/cantus-daw' && github.event_name != 'pull_request'
     name: appimage (ubuntu-22.04, quick)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
@@ -155,3 +155,30 @@ jobs:
       # Without libpipewire: the stand-in in usr/lib/fallback lets it start.
       - name: starts without libpipewire
         run: bash packaging/linux/test-fallback.sh target/appimage-out/Cantus-0.0.0-ci-linux-x86_64.AppImage
+
+  # The Flatpak manifest builds (ADR 0065; Flathub's submission is the owner's). By hand
+  # (Actions ▸ CI ▸ Run workflow): it builds the whole program inside the SDK, ~40 min.
+  # cargo-sources.json (every crate of Cargo.lock, for an offline build) is generated here
+  # by flatpak-builder-tools' generator, pinned.
+  flatpak:
+    if: github.repository == 'luis314159/cantus-daw' && github.event_name == 'workflow_dispatch'
+    name: flatpak (the manifest builds)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v4
+      - name: cargo sources
+        run: |
+          python3 -m pip install --break-system-packages aiohttp tomlkit pyyaml \
+            || python3 -m pip install aiohttp tomlkit pyyaml
+          curl -fsSLo /tmp/flatpak-cargo-generator.py \
+            https://raw.githubusercontent.com/flatpak/flatpak-builder-tools/41c20aa10819cdb2a4f3ca171758a96d1955c018/cargo/flatpak-cargo-generator.py
+          python3 /tmp/flatpak-cargo-generator.py Cargo.lock -o packaging/linux/flatpak/cargo-sources.json
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: Cantus.flatpak
+          manifest-path: packaging/linux/flatpak/com.cantusdaw.Cantus.yml
+          cache-key: flatpak-builder-${{ hashFiles('Cargo.lock') }}

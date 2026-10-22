@@ -20,14 +20,14 @@ Windows 10/11 x64 is the platform Cantus ships on; Linux and macOS build for dev
 | signtool *(signing only)* | Authenticode | comes with the Windows SDK above. |
 
 **Linux** (Ubuntu 22.04 or 24.04; ADR 0065): `bash packaging/linux/deps.sh` installs what
-the build needs with apt — ALSA, PipeWire and JACK's headers (`libpipewire-0.3-dev`,
-`libspa-0.2-dev`, `libjack-jackd2-dev`), clang and `libclang-dev` (bindgen makes the
+the build needs with apt — ALSA, PipeWire's headers (`libpipewire-0.3-dev`,
+`libspa-0.2-dev`), clang and `libclang-dev` (bindgen makes the
 PipeWire bindings), D-Bus, xkbcommon, Wayland, Xvfb (the plug-in window tests need an X
 server: `xvfb-run -a cargo test`) and squashfs-tools (the AppImage). On 22.04, whose
 PipeWire is 0.3.48, it also unpacks PipeWire 1.0.5's headers into
 `target/pipewire-headers` and prints the `PKG_CONFIG_PATH` to export. Other distributions:
-the same packages by their names. JACK is opened at run time, but `jack-sys`'s build script
-asks pkg-config for `jack.pc`, so its `-dev` package is a build need.
+the same packages by their names. JACK needs nothing: it is opened at run time
+(`third_party/jack-sys` builds without its pkg-config file).
 
 ## 2. Clone and fetch the ASIO SDK
 
@@ -112,7 +112,7 @@ wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh 
 ```
 
 `fetch-deps.sh` installs rustup and unpacks the `-dev` packages (ALSA, D-Bus, OpenSSL,
-Wayland, xkbcommon, pkg-config, PipeWire, JACK, libclang) into `~/linux-deps/root`, and a
+Wayland, xkbcommon, pkg-config, PipeWire, libclang) into `~/linux-deps/root`, and a
 PipeWire daemon, WirePlumber and jackd2 into `~/linux-deps/rt`; `check.sh` clones the main
 repository into `~/cantus-ci`, checks out the branch and runs clippy or the tests with CI's
 flags. WSLg is an X server (and a Wayland one), so the plug-in window tests run there.
@@ -121,10 +121,12 @@ To open Cantus's PipeWire and JACK hosts in WSL (there is no sound card: a null 
 source, or JACK's dummy driver, run on a timer):
 
 ```text
-bash tools/wsl/audio-servers.sh pipewire          # or: jack; and: stop
-source tools/wsl/audio-servers.sh env             # then, in that shell:
-CANTUS_TEST_DRIVER=PipeWire CANTUS_TEST_BUFFER=256 \
-  cargo test -p cantus-engine --test devices -- --ignored live_streams --nocapture
+wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh <branch> test'
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh pipewire'   # or: jack
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh run env \
+  CANTUS_TEST_DRIVER=PipeWire CANTUS_TEST_BUFFER=128 \
+  cargo test -p cantus-engine --test devices -- --ignored live_streams --nocapture'
+wsl -d Ubuntu-24.04 -- bash -lc 'bash ~/cantus-ci/tools/wsl/audio-servers.sh stop'
 ```
 
 ## 5. Package a release

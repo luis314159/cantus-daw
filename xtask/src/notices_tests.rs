@@ -122,13 +122,19 @@ fn a_crate_that_ships_no_licence_file_gets_the_standard_text() {
 #[test]
 fn the_notices_name_every_crate_a_release_ships() {
     let ws = crate::workspace();
-    let meta = notices::metadata(&ws).expect("cargo metadata");
-    let crates = notices::shipped(&meta);
+    let crates = notices::shipped_everywhere(&ws).expect("cargo metadata");
     assert!(
         crates.len() > 200,
         "the closure was found: {}",
         crates.len()
     );
+    // Linux's own (round 30, ADR 0065): the PipeWire and JACK hosts, the X11 windows.
+    for name in ["pipewire", "libspa", "jack", "x11rb", "alsa"] {
+        assert!(
+            crates.iter().any(|c| c.name == name && !c.build_only),
+            "{name}, shipped on Linux, is named"
+        );
+    }
     for name in ["egui", "libm", "ureq", "vst3", "clap-sys", "hound"] {
         assert!(crates.iter().any(|c| c.name == name), "{name} ships");
     }
