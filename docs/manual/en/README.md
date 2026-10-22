@@ -75,6 +75,14 @@ Click **Record on …** and Cantus adds an audio track on that input, armed and 
 press `R` to record. *Skip* closes the window; it does not open by itself again (the
 *Setup assistant…* button in the audio chip brings it back).
 
+**On a Mac** the driver is **Core Audio**, which every interface uses: there is no ASIO to
+install. Choose the buffer (128 samples is a good start) and the rate on the device page;
+an *aggregate device* made in *Audio MIDI Setup* (two interfaces as one) is listed like
+any other. The first time you record, macOS asks whether Cantus may use the microphone —
+allow it, or no input reaches Cantus (*System Settings ▸ Privacy & Security ▸
+Microphone*). Cantus's audio threads work with Core Audio's own as one group, so Apple
+silicon runs them on its fast cores.
+
 ### The audio chip
 
 The chip in the top bar (or in its ⋯ menu when the window is narrow) shows the device,
@@ -1121,6 +1129,11 @@ Cantus plays instruments and effects made by others in the **CLAP** and **VST3**
 64-bit. VST2 plug-ins (a lone `.dll`) and Apple's AU are not supported: when a plug-in
 offers several formats, install its CLAP or VST3 version.
 
+**On a Mac** plug-ins live in `/Library/Audio/Plug-Ins/CLAP` and `…/VST3` (for every user)
+or the same folders in your home's `Library` (for you); Cantus reads both. A plug-in
+there is a bundle (`Name.clap`, `Name.vst3`) and its editor opens in a window of its own
+that stays above Cantus while you work in it.
+
 1. **Install it** with its maker's installer, downloaded from the maker's own site. Leave it
    in the standard folder the installer proposes (`C:\Program Files\Common Files\VST3` or
    `…\CLAP`).
@@ -1325,6 +1338,14 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Alt+U` · `Alt+L` · `Shift+Alt+L` · `Alt+N` | Make unique · link the selection to this clip · select linked copies · link to… |
 | `Ctrl+T` | Typing keyboard plays notes |
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
+| `Ctrl+,` | Settings |
+
+**On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
+*macOS* preset is the default: the table's keys, except that the metronome is `K` (⌘M
+minimises the window, as in every Mac application) and redo is `Cmd+Shift+Z`. The menu
+bar at the top of the screen holds Cantus's menus with their shortcuts, which follow any
+change you make here. On a trackpad, pinch to zoom an editor's time and swipe with two
+fingers to scroll it; `Cmd` with a swipe zooms too.
 
 ## 13. Privacy and updates
 
