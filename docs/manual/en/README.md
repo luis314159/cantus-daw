@@ -1126,7 +1126,8 @@ offers several formats, install its CLAP or VST3 version.
    `…\CLAP`).
 2. **Let Cantus find it.** Cantus reads the standard folders when it starts. For a plug-in
    installed while Cantus is open, or in another folder, open the **VIEW** menu (top left,
-   beside the logo) ▸ *Settings…* and its *Plug-ins* page: add
+   beside the logo) ▸ *Settings…* and scroll the window to its last section, **PLUG-INS**
+   (below *Audio device*, *MIDI*, *Appearance*, *Saving*, *Sample cache* and *Updates*): add
    the folder under *Folders* (*Browse…*, then *Add*) and press *Scan for plug-ins*
    (*Rescan everything* reads every file again, blocked ones included). What it found is
    listed under *Found*; a file that crashed while being read is listed under *Blocked*,

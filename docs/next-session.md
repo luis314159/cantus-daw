@@ -45,6 +45,10 @@ ronda; lo que reporte un constructor como «Left» se le devuelve como trabajo.
      está en *Ver ▸ Ajustes…*, sin atajo. Hazlo evidente como en FL (un menú *Opciones*) y
      en Ableton (`Ctrl+,`), con un acceso directo a *Ajustes ▸ Plug-ins* desde el selector
      de dispositivos (p. ej. *Buscar más plug-ins…* cuando el estante CLAP/VST3 está vacío).
+     Y dentro de Ajustes no encontré los plug-ins: la ventana es una sola página larga y
+     *Plug-ins* es la última sección, muy abajo. Dale páginas con una barra lateral (General,
+     Audio, MIDI, Apariencia, Guardado, Caché, Actualizaciones, Plug-ins), como las opciones
+     de FL, o al menos un índice que salte a cada sección.
 
 Organízalo como las rondas grandes: commit de contrato, un worktree por constructor en
 `F:\projects\daw-r30\` (jobs = 3, TMP en F:; máximo tres constructores compilando a la vez),
