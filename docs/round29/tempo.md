@@ -456,3 +456,16 @@ test named below was seen failing before its fix, except where the row says othe
 host, export, ai and plugins 2 321 passed; UI 1 645 passed; the engine with `fuzz`
 (`CANTUS_WORKERS=3`) 824 passed; `cargo clippy --workspace --all-targets -D warnings` and
 `cantus-plugins --no-default-features` clean; `cargo fmt --check` clean.
+
+## Final review (`final-A.json`, two lows)
+
+Merged `r29/integration` (1b1d98f; warp's `tempo::keep::linked_reach` kept) first.
+
+| # | Finding | Fix | Test |
+|---|---|---|---|
+| A1 | review 6's line join in `lay_chains` was quadratic (each linked window against every window), on every frame a drag's landing changed | one sorted pass a take: the windows ordered by their line, neighbours chained when a linked one is within its reach (`audio_time::lay_chains`) | `tempo_keep_groups::laying_a_large_selection_keeps_to_its_budget` (4 000 windows of one take, every other linked, laid across the change: 946.9 ms before, 3.0 ms now; budget 50 ms, best of three; the take still moves as one); `tempo_review4::a_take_with_a_linked_piece_moves_as_one` still holds |
+| A2 | Spanish: the ruler's editor "Indicación de compás en el compás N", the top bar's same editor "Compás" | the top bar's title is "Indicación de compás" too (EN was already "Time signature" in both) | `tempo_review6_ui::the_rulers_editor_and_the_top_bars_share_their_name` (both languages; failed with "Compás"). The review-6 title tests now switch the language with `set_locale` (`default_thread_locale` kept the thread's first choice, so they had read English) |
+
+**Run (this branch, `r29/integration` 1b1d98f in):** `cantus-core` 435 passed; `cantus-ui`
+1 718 passed; `cargo clippy -p cantus-core -p cantus-ui --all-targets -D warnings` clean;
+`cargo fmt --check` clean.
