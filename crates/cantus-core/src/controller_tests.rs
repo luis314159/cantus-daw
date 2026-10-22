@@ -1297,3 +1297,56 @@ fn a_plug_ins_names_ride_along_and_compare_by_identity() {
     let bare = serde_json::to_string(&PluginRef::new(PluginFormat::Clap, "x")).unwrap();
     assert!(!bare.contains("name") && !bare.contains("param"), "{bare}");
 }
+
+/// Final review of round 29: a toggle learnt as one value of a choice (band 3's solo LED:
+/// *From* none, *To* band 3 of 24) goes between those two values exactly: pressed with
+/// another band soloed it solos its own, pressed with its own soloed it lets go; and its
+/// light is on only while its own band is soloed.
+#[test]
+fn a_toggle_on_one_value_of_a_choice_goes_between_its_two_values() {
+    let mut m = Mapping::new(
+        MappingId(1),
+        src(Control::Note(40)),
+        MappingTarget::Param(AutoTarget::MasterPan),
+        MapMode::Toggle,
+    );
+    (m.min, m.max) = (0.0, 3.0 / 24.0);
+    let shape = Steps {
+        switch: false,
+        steps: Some(24),
+    };
+    let press = |now: f32| {
+        let mut st = DriveState::default();
+        match m.read_in(127, true, Some(now), &mut st, shape) {
+            Drive::Set(p) => p,
+            other => panic!("{other:?}"),
+        }
+    };
+    assert!(
+        (press(6.0 / 24.0) - 3.0 / 24.0).abs() < 1e-6,
+        "band 6 soloed: band 3"
+    );
+    assert!(
+        (press(2.0 / 24.0) - 3.0 / 24.0).abs() < 1e-6,
+        "band 2 soloed: band 3"
+    );
+    assert_eq!(press(3.0 / 24.0), 0.0, "its own band: none");
+    assert!((press(0.0) - 3.0 / 24.0).abs() < 1e-6, "none: band 3");
+    for (band, lit) in [(0, false), (2, false), (3, true), (6, false), (24, false)] {
+        let pos = band as f32 / 24.0;
+        assert_eq!(
+            m.feedback_value_in(pos, shape) == 127,
+            lit,
+            "band {band} soloed"
+        );
+    }
+    // A switch keeps its two ends.
+    let switch = Steps {
+        switch: true,
+        steps: Some(1),
+    };
+    let mut mute = m.clone();
+    (mute.min, mute.max) = (0.0, 1.0);
+    assert_eq!(mute.feedback_value_in(1.0, switch), 127);
+    assert_eq!(mute.feedback_value_in(0.0, switch), 0);
+}
