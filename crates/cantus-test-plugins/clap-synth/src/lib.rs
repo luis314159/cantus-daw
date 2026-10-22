@@ -15,7 +15,9 @@
 //!   can tell the song's position arrived;
 //! - **Gesture** (hidden): setting it to *n* makes the plug-in perform a gesture on Gain,
 //!   as its own editor would (begin, −n, −n−1, −n−2 dB, end);
-//! - a state carrying the parameters before Fault and a free *tag*;
+//! - a state carrying the parameters before Fault and a free *tag* (`dirty`: every load
+//!   marks the state dirty and asks for the values to be read again, as JUCE's VST3
+//!   wrapper does);
 //! - **Fault** (hidden, round 29): a failure on purpose (`fault.rs`), and **Process**
 //!   (hidden, read-only): the id of the process the instance runs in.
 

@@ -232,6 +232,9 @@ unsafe extern "C" fn state_load(p: *const clap_plugin, stream: *const clap_istre
     let Some(tag) = bytes.get(at..at + len) else {
         return false;
     };
+    if tag == b"dirty" {
+        echo_load(me.host);
+    }
     me.doubled
         .store(tag == b"x2", std::sync::atomic::Ordering::Release);
     if let Ok(mut t) = me.tag.lock() {
@@ -296,4 +299,23 @@ unsafe extern "C" fn ports_get(
     info.channel_count = 2;
     info.port_type = CLAP_PORT_STEREO.as_ptr();
     true
+}
+
+/// Tag `dirty` (review 4 of round 29's freeze): every load of the state says the state
+/// changed and asks for the values to be read again — as JUCE's VST3 wrapper does from
+/// `setComponentState` — so a host that takes its own load's echo for an edit is seen.
+pub(crate) unsafe fn echo_load(host: *const clap_sys::host::clap_host) {
+    let Some(get) = (*host).get_extension else {
+        return;
+    };
+    let st = get(host, clap_sys::ext::state::CLAP_EXT_STATE.as_ptr())
+        as *const clap_sys::ext::state::clap_host_state;
+    if let Some(mark) = st.as_ref().and_then(|s| s.mark_dirty) {
+        mark(host);
+    }
+    let pr = get(host, clap_sys::ext::params::CLAP_EXT_PARAMS.as_ptr())
+        as *const clap_sys::ext::params::clap_host_params;
+    if let Some(rescan) = pr.as_ref().and_then(|e| e.rescan) {
+        rescan(host, clap_sys::ext::params::CLAP_PARAM_RESCAN_VALUES);
+    }
 }

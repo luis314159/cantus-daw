@@ -1523,3 +1523,181 @@ fn an_offline_compile_waits_for_the_audio_it_asked_for_in_the_background() {
         "there once waited for"
     );
 }
+
+// ---- review 4 ---------------------------------------------------------------------
+
+/// A short mono WAV at `path`.
+fn wav_at(path: &std::path::Path) {
+    let spec = hound::WavSpec {
+        channels: 1,
+        sample_rate: 48_000,
+        bits_per_sample: 32,
+        sample_format: hound::SampleFormat::Float,
+    };
+    let mut w = hound::WavWriter::create(path, spec).unwrap();
+    for i in 0..4_800 {
+        w.write_sample(if i % 100 == 0 { 0.5f32 } else { 0.0 })
+            .unwrap();
+    }
+    w.finalize().unwrap();
+}
+
+/// A kit on its own strip: a sample pad whose file is there, and `gone`, a pad whose file
+/// is not — its own sample, or (`layer`) a layer's.
+fn kit_with_a_file_gone(dir: &std::path::Path, layer: bool) -> Project {
+    let wav = dir.join("hit.wav");
+    wav_at(&wav);
+    let gone_file = dir.join("gone.wav").to_string_lossy().into_owned();
+    let mut p = Project::new("kit");
+    let mut t = p.make_track("Kit");
+    let mut pad = DrumPad::snare();
+    pad.voice = PadVoice::Sample;
+    pad.sample = Some(wav.to_string_lossy().into_owned());
+    let mut gone = DrumPad::rim();
+    gone.voice = PadVoice::Sample;
+    if layer {
+        gone.sample = Some(wav.to_string_lossy().into_owned());
+        gone.layers.push(PadLayer::new(gone_file));
+    } else {
+        gone.sample = Some(gone_file);
+    }
+    t.instrument = InstrumentSpec::Pulsus(PulsusParams::of(vec![pad, gone]));
+    let mut clip = p.make_clip("c", Ticks::ZERO, Ticks::beats(2));
+    for (k, pitch) in [38u8, 37].iter().enumerate() {
+        clip.notes
+            .push(p.make_note(Ticks::beats(k as i64), Ticks::SIXTEENTH, *pitch, 110));
+    }
+    t.clips.push(clip);
+    p.tracks.push(t);
+    p
+}
+
+/// Mute (or not) the kit's pad whose file is gone (the rim, 37).
+fn mute_gone(p: &mut Project, muted: bool) {
+    if let InstrumentSpec::Pulsus(k) = &mut p.tracks[0].instrument {
+        for pad in k.pads.iter_mut().filter(|pad| pad.pitch == 37) {
+            pad.muted = muted;
+        }
+    }
+}
+
+#[test]
+fn a_muted_pads_missing_file_refuses_no_render() {
+    // A muted pad does not sound: its file gone refuses nothing; unmuted, it does
+    // (review 4: the engine refused what the interface let through, and a refresh asked
+    // again every half second).
+    let mut h = handle("muted-pad");
+    let mut p = kit_with_a_file_gone(&folder("muted-pad-src"), false);
+    let s = p.tracks[0].strip.unwrap();
+    mute_gone(&mut p, true);
+    assert!(
+        prepare(&mut h, &p, FreezeTarget::Strip(s)).is_ok(),
+        "a muted pad's file is not needed"
+    );
+    mute_gone(&mut p, false);
+    let e = prepare(&mut h, &p, FreezeTarget::Strip(s)).expect_err("refused");
+    assert!(e.starts_with("missing:"), "{e}");
+}
+
+#[test]
+fn a_layers_missing_file_refuses_a_render() {
+    // A kit with layers: the pads' files and the layers' are all looked at (review 4: a
+    // kit with any layer was never looked at).
+    let mut h = handle("layer-gone");
+    let mut p = kit_with_a_file_gone(&folder("layer-gone-src"), true);
+    let s = p.tracks[0].strip.unwrap();
+    let e = prepare(&mut h, &p, FreezeTarget::Strip(s)).expect_err("refused");
+    assert!(e.contains("gone.wav"), "{e}");
+    mute_gone(&mut p, true);
+    assert!(prepare(&mut h, &p, FreezeTarget::Strip(s)).is_ok(), "muted");
+}
+
+#[test]
+fn a_read_error_on_one_copy_never_sets_a_good_copy_aside() {
+    // Opened from the application's folder; a first save then copies it into the
+    // project's. The copy that was opened fails to be read for longer than every try: the
+    // error is that file's — the project's copy is never set aside, and opens (review 4:
+    // the first copy found was blamed and set aside, and the render made again).
+    let mut h = handle("io-two-copies");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let opened = h.frozen.path_of(&content, 48_000).unwrap();
+    assert!(h.frozen.find(&content, 48_000).is_some());
+    let project = folder("io-two-copies-project");
+    std::fs::copy(&opened, project.join(opened.file_name().unwrap())).unwrap();
+    h.frozen.set_project_dir(Some(project.clone()));
+    cantus_engine::inst::stream::inject_io_faults(&opened, 50);
+    let snap = h.compile_for_render(&p, 1);
+    let _ = render(
+        snap,
+        &RenderOptions {
+            tail_seconds: 0.2,
+            ..Default::default()
+        },
+    );
+    cantus_engine::inst::stream::inject_io_faults(&opened, 0);
+    let t0 = std::time::Instant::now();
+    while h.frozen.find(&content, 48_000).is_some() && t0.elapsed().as_secs() < 10 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    assert!(h.frozen.find(&content, 48_000).is_none(), "failed for now");
+    h.frozen.forget_missing();
+    assert!(
+        h.frozen.find(&content, 48_000).is_some(),
+        "the project's copy opens: never set aside"
+    );
+}
+
+#[test]
+fn a_damaged_copy_is_passed_over_for_a_good_one() {
+    // Two copies of one render: the first damaged. The good one plays (review 4: the key
+    // was set aside whole, every copy with it).
+    let mut h = handle("two-copies-app");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let content = p.frozen(target).unwrap().content.clone();
+    let good = h.frozen.path_of(&content, 48_000).unwrap();
+    let project = folder("two-copies-project");
+    let bad = project.join(good.file_name().unwrap());
+    std::fs::write(&bad, b"not a render").unwrap();
+    h.frozen.set_project_dir(Some(project));
+    h.frozen.let_go_all();
+    h.frozen.forget_missing();
+    assert!(h.frozen.find(&content, 48_000).is_some(), "the good copy");
+}
+
+#[test]
+fn a_render_copied_under_a_new_key_opens_under_it_and_its_alias_plays_meanwhile() {
+    // A file moved by saving gives a frozen target a new key; its render is the same
+    // sound. Meanwhile the old render plays under the new key; the copy, named as the new
+    // key inside, opens under it (review 4: a plain copy kept the old key inside, never
+    // opened, and was made on the frame).
+    let mut h = handle("rekey");
+    let mut p = song();
+    let target = lead_strip(&p);
+    freeze_now(&mut h, &mut p, target);
+    let old = p.frozen(target).unwrap().content.clone();
+    let from = h.frozen.path_of(&old, 48_000).unwrap();
+    let new = "b".repeat(old.len());
+    assert!(h.frozen.find(&new, 48_000).is_none(), "no render of it yet");
+    h.frozen.alias(&new, &old, 48_000);
+    assert!(
+        h.frozen.find(&new, 48_000).is_some(),
+        "the old one plays meanwhile"
+    );
+    let key = cantus_engine::freeze::render_key(&new, 48_000);
+    let to = folder("rekey-to").join(cantus_engine::freeze::file_name(&key));
+    // A plain copy does not open under the new key.
+    std::fs::copy(&from, &to).unwrap();
+    assert!(cantus_engine::freeze::open(&to, &key).is_err());
+    std::fs::remove_file(&to).unwrap();
+    cantus_engine::freeze::copy_as(&from, &to, &key).unwrap();
+    assert!(
+        cantus_engine::freeze::open(&to, &key).is_ok(),
+        "opens as itself"
+    );
+    assert!(!to.with_extension("copy.part").exists());
+}

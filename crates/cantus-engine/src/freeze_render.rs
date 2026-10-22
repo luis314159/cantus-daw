@@ -485,10 +485,20 @@ pub fn missing_file(snap: &Snapshot) -> Option<String> {
             return Some(k.clone());
         }
         if let Some(kit) = t.instrument.pulsus() {
-            if t.samples.len() == kit.pads.len() {
-                for (pad, data) in kit.pads.iter().zip(&t.samples) {
-                    if let (Some(path), None) = (&pad.sample, data) {
-                        return Some(path.clone());
+            // One per pad, then every pad's layers in pad order (`SampleCache::attach`);
+            // a muted pad does not sound (review 4: its file refused a freeze the interface
+            // let through, and a kit with layers was never looked at).
+            let mut data = t.samples.iter();
+            for pad in &kit.pads {
+                let d = data.next();
+                if let (false, Some(path), Some(None)) = (pad.muted, &pad.sample, d) {
+                    return Some(path.clone());
+                }
+            }
+            for pad in &kit.pads {
+                for layer in pad.layers.iter().take(cantus_core::pads::MAX_LAYERS) {
+                    if let (false, Some(None)) = (pad.muted, data.next()) {
+                        return Some(layer.sample.clone());
                     }
                 }
             }

@@ -810,32 +810,38 @@ stop using the processor — and gives it back, exactly, when you unfreeze it.
 - A frozen track or strip is still **mixed**: its fader, pan, width, mute, solo and send
   levels — and their automation — stay live, and so do the mute and solo on the header of
   a track frozen with its own strip (its level and balance are inside the render: mix it
-  with the strip's fader). Anything that would change its sound (its notes, its
-  instrument, its inserts, the tempo, a strip moved among the ones it gathers) is refused,
-  and the card says how to give it back: **Unfreeze** (the same menu entries, the same key).
-  A knob turned in a frozen plug-in's own window goes back where it was, with the same
-  card — so does a preset or a sample loaded from its own browser. Unfrozen, it plays live again, to the bit.
+  with the strip's fader). Unless a modulator inside what it freezes follows it (or the
+  bus it plays into): then its mix is part of its sound and is locked too — the card says
+  so. Anything that would change its sound (its notes, its instrument, its inserts, the
+  tempo, a strip moved among the ones it gathers) is refused, and the card says how to give
+  it back: **Unfreeze** (the same menu entries, the same key). A knob turned in a frozen
+  plug-in's own window goes back where it was, with the same card — so does a preset or a
+  sample loaded from its own browser. Unfrozen, it plays live again, to the bit.
 - What also plays somewhere else keeps playing: freezing a bus does not silence a strip
   that keys its compressor and plays to the master, nor a return the strip that sends to
   it. Solo stays a listening aid — a freeze is made as if nothing were soloed; with
   something soloed **inside** what you freeze, unsolo it first. A solo that silences part of
   what a frozen strip sounds with (one of the tracks or strips heard through it) plays that
   strip live while it lasts; a solo that silences all of it — a solo elsewhere — only mutes
-  it, without waking its plug-ins. Saving a project moves a frozen take into its *Audio* folder and keeps it
-  frozen.
+  it, without waking its plug-ins. Saving a project moves a frozen take into its *Audio*
+  folder and keeps it frozen.
 - Its plug-ins are unloaded while it is frozen and come back with their settings. A
   freeze needs the plug-ins it renders (a bypassed one is not needed): one that is not
   loaded is named, and nothing is frozen. So does a file it plays that is not there yet (a
   sound pack downloading, a drive unplugged; a take on a comp lane below, or a muted clip,
   does not count): the freeze names it, and a frozen track waits for its files before its
-  render is made again. A track whose plug-ins change their latency during the song
-  cannot be frozen, and the card says so.
+  render is made again. A track whose plug-ins change their latency during the song (an
+  automated look-ahead or oversampling) cannot be frozen nor bounced in place: the status
+  line says so.
 - Renders are kept in the project's own folder inside a *Freeze* folder beside it
-  (*Freeze/Song* for *Song.cantus*; in Cantus's own cache for a project not saved yet), named by what they hold: freezing again what did not change is
-  instant, and a project opened without them (on another computer, at another sample
-  rate) plays live while they are made again in the background. *Save as* takes them
-  along (copied in the background); renders no undo can bring back are removed from the
-  project's folder when you save — other projects' renders beside it are never touched.
+  (*Freeze/Song* for *Song.cantus*; in Cantus's own cache for a project not saved yet),
+  named by what they hold: freezing again what did not change is instant, and a project
+  opened without them (on another computer, at another sample rate) plays live while they
+  are made again in the background. *Save as* takes them along — copied in the background;
+  closing Cantus waits for the copy. A project renamed or copied beside the original finds
+  its renders in the original's folder, and its next save brings them into its own.
+  Renders no undo can bring back are removed from the project's folder when you save;
+  other projects' renders beside it are never touched.
 - With the loop on, a frozen track plays its recording straight through: at the jump back
   to the loop's start you hear what led into that bar, not a reverb's tail from the loop's
   end (as in other DAWs; unfreeze it to hear the jump exactly).
@@ -854,7 +860,8 @@ at the same place:
   mixer the whole strip; the master is never frozen nor bounced. Clips or a time range
   cannot be bounced while something hears the track's notes (bounce the whole track), and
   comp windows joined by a crossfade are bounced together or not at all. The clip menu's
-  entries bounce the clip you right-clicked.
+  entries act on clips, never on a strip or the master chosen before: the clip you
+  right-clicked, with the clips selected with it.
 - *Bounce strip in place* (the strip menu): everything the strip gathers; what was keyed
   from it, or followed it, follows the new strip. Unsolo what is soloed inside it first.
 - The original is **muted** — or removed, if you tick *Remove the original after a
@@ -862,7 +869,7 @@ at the same place:
   still hears is muted instead, and the result says so). Its level, fader and send rides
   go with the bounce, and so does its solo. Through a plug-in with latency, the new clip's
   audio sits on the grid and the new track keeps the delay (the inspector's *Delay* row;
-  *Clear* takes it away), so those rides and anything keyed from it stay in time — and the
+  the key at its right takes it away), so those rides and anything keyed from it stay in time — and the
   clip plays in time wherever you move, copy or export it. The tail (a
   reverb's) is kept until it rings out. One undo step. If you edit what it renders while
   it renders, it is bounced again from your edit (an edit elsewhere does not restart it);

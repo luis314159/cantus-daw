@@ -97,6 +97,47 @@ pub enum HostNotice {
     Frozen(cantus_core::freeze::FreezeTarget),
 }
 
+/// How long after the host gives a plug-in back what the project holds its next report is
+/// taken for the echo of that load, whatever it says (review 4).
+pub(crate) const ECHO: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// What a plug-in said back after the host's own loads: its echoes are no edits of its own.
+#[derive(Debug, Default)]
+pub(crate) struct Echo {
+    /// The state it last reported, or held just after the host's last load.
+    state: Option<PluginState>,
+    /// After a give-back: until when its next report is that load's echo.
+    until: Option<std::time::Instant>,
+}
+
+impl Echo {
+    /// The host loaded a state into it; `now` is what it holds after (its own bytes: a
+    /// plug-in may add what it hears, as a tempo).
+    pub(crate) fn loaded(&mut self, now: Option<PluginState>) {
+        self.state = now;
+    }
+
+    /// The host gave it back what the project holds: as `loaded`, and its next report
+    /// within `ECHO` is that load's echo however it reads (a plug-in whose state moves
+    /// as it plays would be given back for ever).
+    pub(crate) fn gave_back(&mut self, now: Option<PluginState>) {
+        self.state = now;
+        self.until = Some(std::time::Instant::now() + ECHO);
+    }
+
+    /// Whether `state`, just reported, is nothing new: the project's (`synced`), the one
+    /// it held or said last, or the first report after a give-back. Heard, either way.
+    pub(crate) fn echoes(&mut self, synced: &PluginState, state: &PluginState) -> bool {
+        let after_give_back = self
+            .until
+            .take()
+            .is_some_and(|t| std::time::Instant::now() < t);
+        let echo = synced == state || self.state.as_ref() == Some(state) || after_give_back;
+        self.state = Some(state.clone());
+        echo
+    }
+}
+
 /// One loaded plug-in in a slot.
 pub struct Hosted {
     pub strip: StripId,
@@ -118,6 +159,10 @@ pub struct Hosted {
     /// own), counted: a freeze rendering its region compares them, never its state's
     /// bytes, which automation and modulators move (review 3).
     pub(crate) edits: u64,
+    /// What it held after the host's own last load, or said last: a report of that, or of
+    /// the project's state, is no edit and nothing refused (review 4: a plug-in that says
+    /// *dirty* as it loads was given back, and said refused, every frame).
+    pub(crate) heard: Echo,
     pub(crate) window: Option<PluginWindow>,
     /// Where it runs, as loaded (round 29, ADR 0063).
     pub(crate) isolation: PluginIsolation,
@@ -154,6 +199,7 @@ impl Hosted {
             restarting: false,
             gestures: Vec::new(),
             edits: 0,
+            heard: Echo::default(),
             window: None,
             isolation,
             crashed: None,
@@ -649,6 +695,8 @@ impl PluginHost {
         let mut h = Hosted::new(strip, info, inst.main, inst.audio, inst.isolation);
         h.synced_state = plugin.state.clone();
         h.flushed = plugin.params.clone();
+        let now = h.main.save_state().ok().map(PluginState::new);
+        h.heard.loaded(now);
         Ok(h)
     }
 
@@ -733,6 +781,8 @@ impl PluginHost {
                     }
                 }
                 h.synced_state = plugin.state.clone();
+                let now = h.main.save_state().ok().map(PluginState::new);
+                h.heard.loaded(now);
                 h.generation.fetch_add(1, Ordering::AcqRel);
             }
             // Values the project changed, delivered here while nothing processes (no
@@ -1109,6 +1159,8 @@ impl PluginHost {
             h.main.flush(&changes(&plugin.params), &mut out);
             h.flushed = plugin.params.clone();
             h.synced_state = plugin.state.clone();
+            let now = h.main.save_state().ok().map(PluginState::new);
+            h.heard.gave_back(now);
             h.generation.fetch_add(1, Ordering::AcqRel);
             self.give_backs += 1;
         }
@@ -1422,17 +1474,29 @@ impl PluginHost {
         let Some((state, params)) = self.capture(effect) else {
             return;
         };
+        let probe = Command::SetPluginParam {
+            strip,
+            effect,
+            id: 0,
+            value: None,
+        };
+        let locked = cantus_core::freeze::refuses(bus.project(), &probe);
+        // The echo of the host's own load (a plug-in that says *dirty* or asks for its
+        // values to be read as it loads, a params answer the host asked for): nothing of
+        // its own (review 4). A locked one keeps what it was given; an unlocked one's
+        // values still go into the project, uncounted.
+        let echo = self.slots.get_mut(&effect).is_some_and(|h| {
+            let synced = h.synced_state.clone();
+            h.heard.echoes(&synced, &state)
+        });
+        if echo && (locked.is_some() || same.as_ref() == Some(&params)) {
+            return;
+        }
         if same.as_ref() == Some(&params) {
             // A state of its own that moved no value (a sample it loaded): kept for the
             // save — unless a freeze holds it: then given back and said, as an edit of a
             // value is (review 3: the change went unheard, and an unload kept it).
-            let probe = Command::SetPluginParam {
-                strip,
-                effect,
-                id: 0,
-                value: None,
-            };
-            if let Some(target) = cantus_core::freeze::refuses(bus.project(), &probe) {
+            if let Some(target) = locked {
                 let e = cantus_core::CommandError::Frozen(target);
                 self.refused_by_freeze(bus.project(), effect, &e);
             } else if let Some(h) = self.slots.get_mut(&effect) {
@@ -1452,7 +1516,7 @@ impl PluginHost {
         };
         match bus.execute(cmd, Origin::User) {
             Ok(_) => {
-                if let Some(h) = self.slots.get_mut(&effect) {
+                if let Some(h) = self.slots.get_mut(&effect).filter(|_| !echo) {
                     h.edits += 1;
                 }
             }

@@ -29,12 +29,11 @@ freeze.master = The master is not frozen or bounced: choose a track or a strip.
 freeze.done_heard = {name} is frozen: it plays its render, its CPU is free. A modulator in it hears its mix, so its fader, pan, width, mute, solo, sends and output are part of its sound: unfreeze it to change them.
 freeze.done_heard_track = {name} is frozen: its instrument plays a render, its CPU is free. A modulator in it hears what it plays, so its level, balance, mute and solo, and its strip's mix, are part of its sound: unfreeze it to change them.
 freeze.waits_for_file = {name} plays live: {file} is not there; its render is made when it is.
-freeze.latency_moves = {name} stays live: its latency changes during the song (an automated look-ahead or mode), which one render cannot hold.
+freeze.latency_moves = {name} stays live: its latency changes during the song (a look-ahead or a mode automated, a plug-in reporting another), which one render cannot hold.
 freeze.lateness_repaired = Track delays out of range were dropped from the file: {n}.
 freeze.lateness.row = Delay
-freeze.lateness.value = {ms} ms
-freeze.lateness.clear = Clear
-freeze.lateness.tip = This track plays everything it holds {ms} ms later, as what it was bounced from was heard, so its rides and keys meet it as before. Clear it to play it on time.
+freeze.lateness.clear = Clear the delay: it plays on time.
+freeze.lateness.tip = Plays {ms} ms late, as its source was heard, so its rides keep time.
 freeze.done_track = {name} is frozen: its instrument plays a render, its CPU is free. Its level, balance, mute and solo stay live.
 freeze.stopped = Stopped: {name} was not changed.
 freeze.failed = {name} could not be rendered: {error}
@@ -97,6 +96,7 @@ bounce.live_input = {name} plays a live input (armed, or monitoring always): dis
 bounce.soloed = {what} is soloed inside it: its bounce holds all of it. Unsolo {what} first.
 bounce.notes_heard = Something hears {name}'s notes: muting its clips would silence it. Bounce the whole track instead.
 bounce.strip_source = A strip bounces with its inserts: Bounce strip in place.
+bounce.latency_moves = {name} was not bounced: its latency changes during the song (a look-ahead or a mode automated, a plug-in reporting another), which one file cannot hold.
 bounce.seam = {name}'s chosen clips cross-fade with a take they leave out: choose both, a time range, or the whole track.
 
 # --- low-latency monitoring ---

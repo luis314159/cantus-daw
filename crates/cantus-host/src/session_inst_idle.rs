@@ -373,15 +373,24 @@ impl PluginHost {
         let Some((state, params)) = self.capture_instrument(track) else {
             return;
         };
+        let probe = Command::SetInstrumentPluginParam {
+            track,
+            id: 0,
+            value: None,
+        };
+        let locked = cantus_core::freeze::refuses(bus.project(), &probe);
+        // The echo of the host's own load: nothing of its own (review 4, as for inserts).
+        let echo = self.instruments.get_mut(&track).is_some_and(|h| {
+            let synced = h.synced_state.clone();
+            h.heard.echoes(&synced, &state)
+        });
+        if echo && (locked.is_some() || same == params) {
+            return;
+        }
         if same == params {
             // A state of its own that moved no value (a sample it loaded): kept for the
             // save — unless a freeze holds it: given back and said (review 3).
-            let probe = Command::SetInstrumentPluginParam {
-                track,
-                id: 0,
-                value: None,
-            };
-            if let Some(target) = cantus_core::freeze::refuses(bus.project(), &probe) {
+            if let Some(target) = locked {
                 let e = cantus_core::CommandError::Frozen(target);
                 self.instrument_refused_by_freeze(bus.project(), track, &e);
             } else if let Some(h) = self.instruments.get_mut(&track) {
@@ -400,7 +409,7 @@ impl PluginHost {
         };
         match bus.execute(cmd, Origin::User) {
             Ok(_) => {
-                if let Some(h) = self.instruments.get_mut(&track) {
+                if let Some(h) = self.instruments.get_mut(&track).filter(|_| !echo) {
                     h.edits += 1;
                 }
             }
@@ -459,6 +468,8 @@ impl PluginHost {
                 .flush(&crate::session::changes(&plugin.params), &mut out);
             h.flushed = plugin.params.clone();
             h.synced_state = plugin.state.clone();
+            let now = h.main.save_state().ok().map(PluginState::new);
+            h.heard.gave_back(now);
             self.give_backs += 1;
         }
     }

@@ -85,11 +85,18 @@ The **render key** (`cantus_engine::freeze::render_key`) adds the rate, `DSP_VER
 the file format: the same sound at the same rate from the same build is the same file,
 for any project. Files are `<render key>.cfrz` — ADR 0050's cache-file layout (every block
 checksummed; a damaged block is never played), labelled with the key and the latency the
-frames arrive after — in the **project's own folder of renders** (`Freeze/<file name>`
-beside its file; review 3: one `Freeze` folder served every project in a directory, and
-saving one pruned the others' renders — a project's renders in that older shared folder
-are still found, never pruned) when it has one, else **Cantus's cache**
-(`<data>/cache/freeze`), and looked up in both.
+frames arrive after — in the **project's own folder of renders** (`Freeze/<file stem>`
+beside its file: `Freeze/Song` for `Song.cantus`; review 3: one `Freeze` folder served
+every project in a directory, and saving one pruned the others' renders — a project's
+renders in that older shared folder are still found, never pruned) when it has one, else
+**Cantus's cache** (`<data>/cache/freeze`), and looked up in both. Looked up, never
+written to, too (review 4): **the other projects' folders beside it** — a render's name is
+its sound, so a project renamed or copied outside Cantus finds its renders in its old
+name's folder, and its next save brings them into its own (then the copies in the folder of
+a project no longer there go, and the folder when emptied; a folder whose project is there
+is never touched) — and the folders its own notes it is still copying from
+(`copying-from.txt`, below). A copy that fails is set aside alone: another copy of the same
+render may be good (`FrozenStore::damaged` by copy, review 4).
 They are **regenerable**: *Collect* does not copy them; a project opened without them (on
 another computer, at another rate, after the format changed) plays **live** while they are
 made again in the background (`freeze::scan`, one at a time), then plays them.
@@ -101,7 +108,10 @@ newer than it (review 1). **Where a file lives** is in the key, so saving — wh
 recorded take into `Audio/` — and finding a missing file again run **through** the frozen
 targets they move (`freeze::rekeyed`): unfrozen and frozen again with the new key in the
 same undo step; saving copies each render under its new key beside the project (it is the
-same file's sound); finding a file makes the render again. A refused collection puts the
+same file's sound) — on the save's thread, named as the new key inside (`freeze::copy_as`,
+the cache header relabelled: review 4 found a plain copy kept the old key and never
+opened), the old render playing under the new key meanwhile (`FrozenStore::alias`);
+finding a file makes the render again. A refused collection puts the
 files back (`collect::undo`).
 
 **A file missing at render time** (a pack still downloading, a drive unplugged) is never
@@ -110,7 +120,9 @@ background refresh waits until every file of the region is there (it is not mark
 the engine's `prepare` refuses a missing file of its own (`missing_file`); a file back on
 disk is read again (`SampleCache::has_failed` is asked, the cache's failure forgotten).
 Only a file that plays counts (review 3): a take on a comp lane below, a muted clip or a
-muted pad refuses nothing; the waiting is said once (`freeze.waits_for_file`).
+muted pad refuses nothing — in the engine's check too, a kit's layers included (review 4:
+the engine refused a muted pad's file, and never looked at a kit with layers); the waiting
+is said once (`freeze.waits_for_file`).
 
 **Saving** (reviews 2 and 3): the project's folder of renders gets the renders its frozen
 targets play — saved somewhere else (*Save as*), they come along, copied, instead of being
@@ -121,10 +133,16 @@ frozen track or strip, and a replaced project's frozen targets, were missed) and
 freeze running or waiting to land will want (`wanted_by_jobs`, review 3: a save while a
 freeze was landing pruned its render): before, every freeze, edit and freeze again left a
 whole render there. The copies and the prune run on a thread of their own
-(`cantus-freeze-save`; each copy written as `.copy.part` and renamed when whole;
-`FreezeState::copying`), never on the frame (review 3: a first save copied gigabytes
-there); meanwhile the store looks in the old folder too (`FrozenStore::set_also`), and no
-folder is made when there is nothing to copy. A
+(`cantus-freeze-save`; each copy written as a part file and renamed when whole, its wires
+note with it), never on the frame (review 3: a first save copied gigabytes there); no
+folder is made when there is nothing to copy. Review 4 made it safe: **one such thread at
+a time** (a later save's waits behind the one before); its prune removes only renders the
+folder held when its save began — a render landing while it copies is never among them —
+and none the session wants *now* (`FreezeState::protect`, renewed by each save and by
+each render started); a queued freeze is kept by the key it will be frozen with
+(`as_frozen`: disarmed, the plug-ins' states in). Until its copies are in, the folder notes
+where they come from (`copying-from.txt`), so a session cut short looks there; and the
+session's close waits for them (`freeze::finish_saving`, up to two minutes). A
 project opened at start (the boot path) has its path and its folders set before the first
 compile (`Files::project_path`, `CantusApp::from_parts_at`): its renders are found at once,
 no frozen plug-in loaded meanwhile.
@@ -177,7 +195,13 @@ counted as an edit where nothing locks it; the give-back is made **once per fram
 the end of the plug-in's own gesture** while one is open (`give_back_now`: a drag reloaded
 the whole state for every value); and a locked plug-in that loads again (it rested, its
 render is gone) loads **the state the project holds**, never one parked when it was
-unloaded (`load_for` / `load_instrument` with `locked`).
+unloaded (`load_for` / `load_instrument` with `locked`). Review 4: **the echo of the
+host's own load is no edit** — a plug-in that says *dirty*, or asks for its values to be
+read again, as it loads (JUCE's VST3 wrapper does) was given back, and the refusal said,
+every frame. What it reports is nothing of its own when it is the project's state, what it
+held just after the host's last load, what it said last, or its first report after a
+give-back (`session::Echo`); and a whole-mix region's master plug-ins have their states
+written into the project at the freeze like the region's own (`hosted_states`).
 
 **Solo.** Solo is no part of a frozen sound: renders (and bounces) are made **unsoloed**
 (`freeze::neutral`; review 1: a solo elsewhere rendered silence under the unsoloed key, and
@@ -244,8 +268,9 @@ snapshot (`freeze::settle`):
   it). Freeze frees CPU, not latency; §4c's recording mode may trade that later. One render
   holds one latency: a region whose latency **moves during the song** (an automated
   look-ahead, a plug-in reporting a new figure, a delay line the plan could not serve)
-  fails its render (`RenderError::LatencyMoved`, said: `freeze.latency_moves`) — review 3:
-  it kept the first figure, and played off after the move.
+  fails its render (`RenderError::LatencyMoved`, said on the status line:
+  `freeze.latency_moves`, or for a bounce `bounce.latency_moves` with its track's name —
+  review 4) — review 3: it kept the first figure, and played off after the move.
 - **Streaming** (ADR 0050): a render is a stream (its head in memory, its blocks in the
   shared pool); a frozen node's board points the reader at the block it reads with the most
   a cursor asks ahead (sixteen blocks, about 1.4 s at 48 kHz) and keeps the loop's start
@@ -257,8 +282,9 @@ snapshot (`freeze::settle`):
   thread); a render whose stream failed (a damaged file) is missing — made again, never
   opened again while the file is that one, and said nowhere as a damaged sample. A
   **passing read error** (`Io`: a network drive's hiccup, a file held by a scanner) is read
-  again — four tries, waiting 0, 50, 200 and 1 000 ms (review 3: one immediate try) —
-  before the render is given up; given up, the next scan looks at it again as a file that
+    again — four tries, waiting 0, 50, 200 and 1 000 ms (review 3: one immediate try) —
+  before the render is given up, the error the copy's that was opened (review 4: the
+  first copy found was blamed, and a good one set aside); given up, the next scan looks at it again as a file that
   may come back, never making it again; and the file is kept: only a damaged or vanished file
   fails it, the store never deletes a file it finds, and a render that fails asks for a new
   snapshot at once (`FrozenStore::take_lost`) so its target plays live meanwhile (review 2:
@@ -306,7 +332,8 @@ render behind). An armed track is keyed and rendered as it will be frozen — di
 inserts are off, is not heard: its plug-in is not required — the render keeps a wire in its
 place, and notes it beside the render (`<render>.wires`, the plug-ins not installed then):
 once one is installed, the render is made again (review 3: live and frozen differed by its
-latency). A target resting inside
+latency) — whichever copy's note says so, every copy then set aside (review 4: a save's
+copy had no note, and was played for ever). A target resting inside
 another's playing render is not refreshed until it wakes. A render waiting (behind an
 export, a bake, files loading) shows its card, with **Stop** and how many more wait; Stop
 pressed while its file is written commits nothing (the writers look within a block); and
@@ -518,7 +545,7 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   written, are the content keys), a hand-edited key repaired; `collect::undo`;
   `schema_38_keeps_a_tracks_lateness_and_its_keys_as_written` (fixture v38);
   `an_out_of_range_track_delay_is_dropped_on_load` (review 3).
-- `cantus-engine/tests/freeze.rs` (39): the frozen mix is the live mix to the bit with its
+- `cantus-engine/tests/freeze.rs` (44): the frozen mix is the live mix to the bit with its
   fader ride, pan, width, send level and mute moved after freezing; unfreezing gives the
   live chain back to the bit; block sizes 1, 37, 64, 512; a frozen track's source with its
   level and balance live; a latent insert frozen away (compensated and not); no render →
@@ -539,7 +566,10 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   no render; a solo that thaws a frozen strip while it plays drops nothing when lifted; a
   read error that outlasts its first try keeps the render playing, and one that outlasts
   every try is looked at again, not made again; a notes-only track lets its blocks go and
-  plays no voice; an offline compile waits for audio loading in the background.
+    plays no voice; an offline compile waits for audio loading in the background. Review 4:
+  a muted pad's missing file refuses no render, a layer's does; a read error on one copy
+  never sets a good copy aside; a damaged copy is passed over for a good one; a render
+  copied under a new key opens under it, and its alias plays meanwhile.
 - `cantus-engine/tests/low_latency.rs` (14: review 3 adds a loop pass after a heard
   latency move landing where it was played, a move felt only a round trip later, the
   input's and the notes' monitored figures apart; review 2 adds an insert after a hard-bypassed
@@ -552,14 +582,17 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
 - `cantus-sandbox/tests/freeze.rs`: a frozen chain with the hosted test gain (in process and
   isolated) renders through `render_units`, is unloaded, plays the live mix to the bit, and
   comes back thawed; a change in a locked plug-in's window is given back and said. Review 3
-  (10 more): a change the host never heard of is neither saved nor rendered (the state's
+  (9 more): a change the host never heard of is neither saved nor rendered (the state's
   bytes); a render's instances hold the project's states (`render_states_for_test`); a
   state of its own in a locked insert or instrument is given back and said, never saved nor
   rendered; a locked insert or instrument comes back with the project's state, not a parked
   one (a tag no value covers tells); a drag a freeze refuses gives back once, at its end;
-  edits count what windows do, never what automation does; a solo elsewhere toggled never
-  loads a frozen strip's plug-in.
-- `cantus-ui/tests/freeze.rs` (74): Freeze renders then freezes in one step, the mix equal;
+    edits count what windows do, never what automation does; a solo elsewhere toggled never
+  loads a frozen strip's plug-in. Review 4 (4 more, with the test plug-ins' *dirty* tag): an
+  echo of the host's own load is no edit; a locked insert (in process and isolated) or
+  instrument that echoes its give-back is given back once and said once; a locked one
+  loaded again is left alone.
+- `cantus-ui/tests/freeze.rs` (86): Freeze renders then freezes in one step, the mix equal;
   a refused edit's card with Unfreeze; Stop changes nothing; an edit during the render is
   rendered again; reopened elsewhere it plays live and remakes its render; both bounces
   lay the audio under the original and the song is the same to the bit; selected clips;
@@ -591,7 +624,18 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   the clip menu's bounce takes its clip; the heard words name what is locked; one render
   waiting said in good Spanish, English naming the bake; a freeze lands though a plug-in's
   state moved without an edit; a render made with a wire is made again once the plug-in is
-  installed; renders stay open while pattern mode plays.
+    installed; renders stay open while pattern mode plays. Review 4 (12 more): a freeze
+  landing while a save copies keeps its render; two saves in a row keep what the later one
+  wants; the close waits for the copy; a session cut short mid-copy finds the renders where
+  they were; a renamed project finds its renders and its save brings them (the old folder
+  tidied), a copied one leaves the original's alone; a Save As returns before its copies,
+  the old folder looked in; a wired render saved elsewhere is made again once installed; a
+  take moved by saving keeps its render under its new key, off the frame; a save keeps the
+  render a waiting freeze of an armed track will land with; a state of its own changed
+  while it renders renders it again (on a strip, and on the master of a whole-mix
+  region); a bounce whose latency moves is said as a bounce. `tests/inspector.rs`: the
+  *Delay* row drawn with every other (no collision, its figure whole at 220 pt) and
+  allocating nothing of its own; `tests/final_look.rs`: its hints read whole in the hint bar.
   `tests/freeze_boot.rs` (2): the boot path (`assemble`) sets the folder and tells the
   engine; a frozen project opened at start finds its renders at once.
 

@@ -75,6 +75,9 @@ pub struct FrozenHandle {
     /// The latency its frames arrive after: what the frozen strip or track reports as its
     /// own (its chain's, kept, so the mix is the live mix to the bit).
     pub latency: usize,
+    /// The file it was opened from: a read error is that file's (review 4: the first
+    /// copy found was blamed, and a good one set aside).
+    pub path: std::path::PathBuf,
 }
 
 impl std::fmt::Debug for FrozenHandle {
@@ -95,9 +98,36 @@ impl Drop for FrozenHandle {
 
 /// Open the render at `path` made for `key`.
 pub fn open(path: &Path, key: &str) -> Result<Arc<FrozenAudio>, String> {
+    open_as(path, key, key)
+}
+
+/// A copy at `to` of the render at `from`, named as the render `key` (its content moved to
+/// a new key: a file moved by saving — review 4: a plain copy kept the old key inside and
+/// never opened). Written beside, then renamed.
+pub fn copy_as(from: &Path, to: &Path, key: &str) -> std::io::Result<()> {
+    use crate::inst::stream_cache;
+    let other = |why: &str| std::io::Error::other(why.to_string());
+    let (_, found) = stream_cache::open_at(from).ok_or_else(|| other("not a render"))?;
+    let latency: usize = found
+        .split_once('#')
+        .and_then(|(_, l)| l.parse().ok())
+        .ok_or_else(|| other("no latency in its label"))?;
+    let part = to.with_extension("copy.part");
+    let done = std::fs::copy(from, &part)
+        .and_then(|_| stream_cache::relabel(&part, &label(key, latency)))
+        .and_then(|_| std::fs::rename(&part, to));
+    if done.is_err() {
+        let _ = std::fs::remove_file(&part);
+    }
+    done
+}
+
+/// The render at `path`, labelled `label_key`, opened as the render `key` (the same sound
+/// under the key it moved to — a file moved by saving — while its copy is made: review 4).
+fn open_as(path: &Path, label_key: &str, key: &str) -> Result<Arc<FrozenAudio>, String> {
     use crate::inst::stream::{self, Loaded};
     let (loaded, found) = stream::open_file(path)?;
-    let latency = latency_in(&found, key).ok_or("another render")?;
+    let latency = latency_in(&found, label_key).ok_or("another render")?;
     let head = match loaded {
         Loaded::Streamed(h) => h,
         Loaded::Whole { data, .. } => Arc::new(data),
@@ -117,6 +147,7 @@ pub fn open(path: &Path, key: &str) -> Result<Arc<FrozenAudio>, String> {
         board,
         frames,
         latency,
+        path: path.to_path_buf(),
     };
     Ok(Arc::new(FrozenAudio {
         key: key.to_string(),
@@ -146,6 +177,7 @@ fn with_own_board(a: &Arc<FrozenAudio>) -> Arc<FrozenAudio> {
             board,
             frames: h.frames,
             latency: h.latency,
+            path: h.path.clone(),
         })),
     })
 }
@@ -186,9 +218,14 @@ pub struct FrozenStore {
     app_dir: Option<PathBuf>,
     /// By render key: opened, or known missing since then.
     open: HashMap<String, Result<Arc<FrozenAudio>, Instant>>,
-    /// Renders found damaged, by key, with their file's time then: never opened again
-    /// while the file is that one (a render made again replaces it).
-    damaged: HashMap<String, Option<std::time::SystemTime>>,
+    /// Copies set aside, by key — found damaged, or made with a wire for a plug-in installed
+    /// since — with their file's time then: never opened again while the file is that one
+    /// (a render made again replaces it). By copy, not by key: another copy of the same
+    /// render may be good (review 4).
+    damaged: HashMap<String, Vec<(PathBuf, Option<std::time::SystemTime>)>>,
+    /// A render's new key, while its copy under it is made (a file moved by saving): the
+    /// old key's render plays meanwhile (review 4: the copy was made on the frame).
+    aliases: HashMap<String, String>,
     /// A render the live snapshot may still hold failed: compile again so its target
     /// plays live meanwhile (review 2: it played silence until the render was made).
     lost: bool,
@@ -257,10 +294,45 @@ impl FrozenStore {
         self.open.retain(|_, v| v.is_ok());
     }
 
-    /// Where the render of `content` at `rate` is, if anywhere.
+    /// Where the render of `content` at `rate` is, if anywhere (the first copy).
     pub fn path_of(&self, content: &str, rate: u32) -> Option<PathBuf> {
         let name = file_name(&render_key(content, rate));
         self.dirs().map(|d| d.join(&name)).find(|p| p.is_file())
+    }
+
+    /// Every copy of the render of `content` at `rate`, in the order they are looked in.
+    pub fn paths_of(&self, content: &str, rate: u32) -> Vec<PathBuf> {
+        let name = file_name(&render_key(content, rate));
+        self.dirs()
+            .map(|d| d.join(&name))
+            .filter(|p| p.is_file())
+            .collect()
+    }
+
+    /// Whether the copy at `p` of render `key` is set aside (damaged, or wired).
+    fn aside(&self, key: &str, p: &Path) -> bool {
+        self.damaged
+            .get(key)
+            .is_some_and(|v| v.iter().any(|(q, t)| q == p && mtime(p) == *t))
+    }
+
+    /// Set every copy of the render of `content` at `rate` there is now aside — it was
+    /// made with a wire for a plug-in installed since (review 4: a copy elsewhere was
+    /// found again) — and let go of it: it is made again.
+    pub fn set_aside(&mut self, content: &str, rate: u32) {
+        let key = render_key(content, rate);
+        for p in self.paths_of(content, rate) {
+            let t = mtime(&p);
+            self.damaged.entry(key.clone()).or_default().push((p, t));
+        }
+        self.open.remove(&key);
+    }
+
+    /// The render of `new` (its content key moved: a file moved by saving) is the render of
+    /// `old` until its own copy is there (review 4).
+    pub fn alias(&mut self, new: &str, old: &str, rate: u32) {
+        self.aliases.insert(render_key(new, rate), old.to_string());
+        self.open.remove(&render_key(new, rate));
     }
 
     /// The render of `content` at `rate`, opened (once), or `None` when it is not there
@@ -272,7 +344,14 @@ impl FrozenStore {
             // Its file is never deleted here (review 2: a passing read error destroyed a
             // good render; the reader deletes a damaged one itself).
             Some(Ok(a)) if failed(a) => {
-                let path = self.path_of(content, rate);
+                // The file it was opened from (review 4: the first copy found was asked).
+                let path = a
+                    .reader
+                    .0
+                    .clone()
+                    .downcast::<FrozenHandle>()
+                    .ok()
+                    .map(|h| h.path.clone());
                 // Read errors that outlasted their tries (a long lock): played live for
                 // now, looked at again after a moment — not made again (review 3).
                 if path
@@ -280,10 +359,10 @@ impl FrozenStore {
                     .is_some_and(crate::inst::stream::take_io_failed)
                 {
                     log::warn!("frozen render {key}: read errors, tried again later");
-                } else {
-                    log::warn!("frozen render {key}: unreadable, made again");
-                    let time = path.as_deref().and_then(mtime);
-                    self.damaged.insert(key.clone(), time);
+                } else if let Some(p) = path {
+                    log::warn!("frozen render {key}: {} unreadable", p.display());
+                    let time = mtime(&p);
+                    self.damaged.entry(key.clone()).or_default().push((p, time));
                 }
                 self.open.insert(key, Err(Instant::now()));
                 self.lost = true;
@@ -293,16 +372,24 @@ impl FrozenStore {
             Some(Err(at)) if at.elapsed() < RECHECK => return None,
             _ => {}
         }
-        let damaged = self.damaged.get(&key).copied();
+        // The first copy that is not set aside and opens; else, while its copy is made, the
+        // render it moved from (review 4).
         let found = self
-            .path_of(content, rate)
-            .filter(|p| damaged.is_none_or(|t| mtime(p) != t))
-            .and_then(|p| match open(&p, &key) {
+            .paths_of(content, rate)
+            .into_iter()
+            .filter(|p| !self.aside(&key, p))
+            .find_map(|p| match open(&p, &key) {
                 Ok(a) => Some(a),
                 Err(e) => {
                     log::warn!("frozen render {}: {e}", p.display());
                     None
                 }
+            })
+            .or_else(|| {
+                let old = self.aliases.get(&key)?;
+                let old_key = render_key(old, rate);
+                let p = self.path_of(old, rate)?;
+                open_as(&p, &old_key, &key).ok()
             });
         match &found {
             Some(a) => self.open.insert(key, Ok(a.clone())),

@@ -235,6 +235,9 @@ impl CantusApp {
         // *Save changes?* question waited to do (open another file…) is moot now.
         self.saving.then = None;
         self.wait_for_save();
+        // Its renders copied into its folder before the process ends (review 4: a quit
+        // right after a save killed the copy halfway).
+        crate::freeze::finish_saving(self, std::time::Duration::from_secs(120));
         self.poll_autosave(true);
         let mut unsaved = false;
         if self.bus.is_dirty() {

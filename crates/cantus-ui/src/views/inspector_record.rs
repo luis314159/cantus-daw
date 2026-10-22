@@ -15,6 +15,7 @@ use crate::record_session::{input_choices, input_label, monitor_key};
 use cantus_core::audio::{MonitorMode, TrackInput};
 use cantus_core::{Command, MergeKey, StripId, TrackId};
 use egui::{pos2, Id, Rect, Sense};
+use std::fmt::Write as _;
 
 /// The track the sheet records for: the subject's, or the strip's recording track.
 fn track_of(app: &CantusApp, subject: Subject, strip: Option<StripId>) -> Option<TrackId> {
@@ -231,16 +232,14 @@ pub fn freeze_row(sh: &mut Sheet<'_>, app: &CantusApp, subject: Subject, strip: 
     // The delay a bounced track keeps (`Track::lateness`, review 3): shown, and cleared.
     if let Some((id, l)) = track.and_then(|t| p.track(t).and_then(|x| x.lateness.map(|l| (t, l)))) {
         let ms = l.frames as f64 * 1000.0 / l.rate.max(1) as f64;
-        let ms = format!("{ms:.1}");
-        let value = crate::i18n::tf("freeze.lateness.value", &[("ms", &ms)]);
-        let tip = crate::i18n::tf("freeze.lateness.tip", &[("ms", &ms)]);
-        if sh.text_button_row(
-            "freeze.lateness.row",
-            &value,
-            "freeze.lateness.clear",
-            Function::Source,
-            &tip,
-        ) {
+        // Its figure from the sheet's cache, its tip made when pointed at (review 4).
+        let stamp = (l.frames << 20) | u64::from(l.rate);
+        let text = sh.fmt.get(cache::key("insp-lateness"), stamp, |b| {
+            let _ = write!(b, "{ms:.1} ms");
+        });
+        let text = sheet::name(text);
+        let tip = || crate::i18n::tf("freeze.lateness.tip", &[("ms", &format!("{ms:.1}"))]);
+        if sh.readout_clear_row("freeze.lateness.row", &text, "freeze.lateness.clear", &tip) {
             sh.acts
                 .push(Act::Exec(Command::SetTrackLateness { id, lateness: None }));
         }

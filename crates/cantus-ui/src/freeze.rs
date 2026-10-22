@@ -15,7 +15,7 @@
 use crate::app::CantusApp;
 use crate::i18n::{t, tf};
 use cantus_core::freeze::{self, CannotFreeze, FreezeTarget};
-use cantus_core::{Command, Project, Snapshot};
+use cantus_core::{Command, Project, Snapshot, StripId};
 use cantus_engine::render::{RenderError, RenderProgress};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
@@ -98,9 +98,15 @@ pub struct FreezeState {
     said_waiting: HashSet<String>,
     /// A save's copies and prune, done when set (review 3: off the frame).
     pub copying: Option<Arc<std::sync::atomic::AtomicBool>>,
-    /// Project folders this session saved away from: looked in still (their renders are
-    /// copied over in the background, review 3).
-    left: Vec<PathBuf>,
+    /// The thread copying and pruning: one at a time, a later save's queued behind it, and
+    /// waited for when the session closes (`finish_saving`, review 4).
+    saver: Option<JoinHandle<()>>,
+    /// The renders the session wants now, by file name: a save's prune never removes one
+    /// (review 4: a prune made with its save's list removed what a later save wanted).
+    protect: Arc<std::sync::Mutex<HashSet<String>>>,
+    /// Tests: the save's thread waits before its copies while this is set.
+    #[doc(hidden)]
+    pub hold_copies: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl FreezeState {
@@ -224,7 +230,7 @@ pub(crate) fn saved(app: &mut CantusApp) {
     }
     keep.extend(wanted_by_jobs(app));
     // Where each wanted render is now, if not in its folder yet.
-    let copies: Vec<(PathBuf, PathBuf)> = keep
+    let copies: Vec<Copy> = keep
         .iter()
         .filter_map(|content| {
             let name =
@@ -233,10 +239,12 @@ pub(crate) fn saved(app: &mut CantusApp) {
             if to.is_file() {
                 return None;
             }
-            app.engine
-                .frozen
-                .path_of(content, rate)
-                .map(|from| (from, to))
+            let from = app.engine.frozen.path_of(content, rate)?;
+            Some(Copy {
+                from,
+                to,
+                key: None,
+            })
         })
         .collect();
     let wanted: HashSet<String> = keep
@@ -252,23 +260,234 @@ pub(crate) fn saved(app: &mut CantusApp) {
     if copies.is_empty() && !dir.is_dir() {
         return;
     }
-    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    app.freeze.copying = Some(done.clone());
-    let spawned = std::thread::Builder::new()
-        .name("cantus-freeze-save".into())
-        .spawn(move || {
-            copy_and_prune(&dir, &copies, &wanted);
-            done.store(true, std::sync::atomic::Ordering::Release);
-        });
-    if spawned.is_err() {
-        app.freeze.copying = None;
+    // What the session wants is what no prune removes — this save's, and a slower one
+    // still running behind it (review 4).
+    if let Ok(mut p) = app.freeze.protect.lock() {
+        *p = wanted;
     }
+    // The prune removes only what the folder holds now: a render landing while the copies
+    // run is never in it (review 4).
+    let seen = listed(&dir);
+    run_copies(app, dir, copies, Some(seen));
     app.engine.frozen.forget_missing();
 }
 
+/// A render to copy into a project's folder: under its own key, or (`key`) under the key
+/// its sound moved to (a file moved by saving).
+#[derive(Debug)]
+struct Copy {
+    from: PathBuf,
+    to: PathBuf,
+    key: Option<String>,
+}
+
+/// The renders and their wires notes in `dir` now, by file name.
+fn listed(dir: &Path) -> Vec<String> {
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    rd.flatten()
+        .filter(|e| {
+            e.path()
+                .extension()
+                .is_some_and(|x| x == cantus_engine::freeze::EXTENSION || x == "wires")
+        })
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Beside a project's renders while they are copied in: the folders they come from, one a
+/// line — a session cut short looks there (review 4: a quit killed the copy, and the next
+/// session made every render again).
+fn from_note(dir: &Path) -> PathBuf {
+    dir.join("copying-from.txt")
+}
+
+/// The folders a project's renders folder notes it is copying from.
+fn noted_from(dir: &Path) -> Vec<PathBuf> {
+    std::fs::read_to_string(from_note(dir))
+        .map(|t| {
+            t.lines()
+                .filter(|l| !l.trim().is_empty())
+                .map(PathBuf::from)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// `copies` into `dir` and then (`prune`: the folder's listing at the save) every render
+/// listed there that the session does not want removed — on a thread of its own, behind
+/// the one before it (review 4: two ran at once on one folder), the source folders noted
+/// until the copies are in.
+fn run_copies(app: &mut CantusApp, dir: PathBuf, copies: Vec<Copy>, prune: Option<Vec<String>>) {
+    let app_dir = app.engine.frozen.app_dir().map(Path::to_path_buf);
+    let mut from: Vec<PathBuf> = copies
+        .iter()
+        .filter_map(|c| c.from.parent().map(Path::to_path_buf))
+        .filter(|d| *d != dir && Some(d) != app_dir.as_ref())
+        .collect();
+    from.sort();
+    from.dedup();
+    if !from.is_empty() {
+        let _ = std::fs::create_dir_all(&dir);
+        let mut text: String = noted_from(&dir)
+            .into_iter()
+            .filter(|d| !from.contains(d))
+            .map(|d| format!("{}\n", d.display()))
+            .collect();
+        for d in &from {
+            text.push_str(&format!("{}\n", d.display()));
+        }
+        let _ = std::fs::write(from_note(&dir), text);
+    }
+    let done = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = done.clone();
+    let before = app.freeze.saver.take();
+    let protect = app.freeze.protect.clone();
+    let hold = app.freeze.hold_copies.clone();
+    let project_file = app.path.clone();
+    let spawned = std::thread::Builder::new()
+        .name("cantus-freeze-save".into())
+        .spawn(move || {
+            if let Some(b) = before {
+                let _ = b.join();
+            }
+            while hold.load(std::sync::atomic::Ordering::Acquire) {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            copy_all(&dir, &copies);
+            if let Some(seen) = prune {
+                prune_seen(&dir, &seen, &protect);
+                if let Some(file) = project_file.as_deref() {
+                    tidy_orphans(&dir, file);
+                }
+            }
+            if copies.iter().all(|c| c.to.is_file()) {
+                let _ = std::fs::remove_file(from_note(&dir));
+            }
+            flag.store(true, std::sync::atomic::Ordering::Release);
+        });
+    match spawned {
+        Ok(h) => {
+            app.freeze.saver = Some(h);
+            app.freeze.copying = Some(done);
+        }
+        Err(e) => log::warn!("the renders' copy: {e}"),
+    }
+}
+
+/// Copy each render in (written beside, then renamed: never a half file under a render's
+/// name), and its wires note with it (review 4: it stayed behind, and the render was never
+/// made again once the plug-in was installed).
+fn copy_all(dir: &Path, copies: &[Copy]) {
+    for c in copies {
+        if c.to.is_file() {
+            continue;
+        }
+        let _ = std::fs::create_dir_all(dir);
+        let copied = match &c.key {
+            Some(key) => cantus_engine::freeze::copy_as(&c.from, &c.to, key).is_ok(),
+            None => copy_part(&c.from, &c.to),
+        };
+        let wires = wires_file(&c.from);
+        if copied && wires.is_file() {
+            copy_part(&wires, &wires_file(&c.to));
+        }
+    }
+}
+
+/// `from` copied to `to` through a part file renamed when whole.
+fn copy_part(from: &Path, to: &Path) -> bool {
+    let part = to.with_extension(format!(
+        "{}.copy.part",
+        to.extension().and_then(|x| x.to_str()).unwrap_or("")
+    ));
+    let ok = std::fs::copy(from, &part).is_ok() && std::fs::rename(&part, to).is_ok();
+    if !ok {
+        let _ = std::fs::remove_file(&part);
+    }
+    ok
+}
+
+/// The renders `seen` in `dir` at the save that the session does not want now, removed,
+/// with their wires notes; a wires note whose render is gone, too.
+fn prune_seen(dir: &Path, seen: &[String], protect: &std::sync::Mutex<HashSet<String>>) {
+    let wanted = protect.lock().map(|p| p.clone()).unwrap_or_default();
+    let ext = format!(".{}", cantus_engine::freeze::EXTENSION);
+    for name in seen.iter().filter(|n| n.ends_with(&ext)) {
+        if !wanted.contains(name) {
+            let path = dir.join(name);
+            let _ = std::fs::remove_file(&path);
+            let _ = std::fs::remove_file(wires_file(&path));
+        }
+    }
+    for name in seen.iter().filter(|n| n.ends_with(".wires")) {
+        let path = dir.join(name);
+        if !path
+            .with_extension(cantus_engine::freeze::EXTENSION)
+            .is_file()
+        {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// The renders folders beside `dir` (in the same `Freeze` folder) of projects no longer
+/// there — renamed, moved: what `dir` now holds too goes from them, and an emptied one
+/// goes (review 4: they stayed for ever). A folder whose project is there is never
+/// touched.
+fn tidy_orphans(dir: &Path, project_file: &Path) {
+    let (Some(root), Some(beside), Some(ext)) = (
+        dir.parent(),
+        project_file.parent(),
+        project_file.extension().and_then(|x| x.to_str()),
+    ) else {
+        return;
+    };
+    let Ok(rd) = std::fs::read_dir(root) else {
+        return;
+    };
+    for e in rd.flatten() {
+        let other = e.path();
+        if !other.is_dir() || other == dir {
+            continue;
+        }
+        let name = e.file_name().to_string_lossy().into_owned();
+        if beside.join(format!("{name}.{ext}")).exists() {
+            continue;
+        }
+        for f in std::fs::read_dir(&other).into_iter().flatten().flatten() {
+            if dir.join(f.file_name()).is_file() {
+                let _ = std::fs::remove_file(f.path());
+            }
+        }
+        let _ = std::fs::remove_dir(&other);
+    }
+}
+
+/// Wait up to `patience` for the save's copies to be in (the session closing: a quit
+/// would end them halfway — review 4). Whether they are.
+pub fn finish_saving(app: &mut CantusApp, patience: Duration) -> bool {
+    let t0 = Instant::now();
+    while let Some(h) = app.freeze.saver.as_ref() {
+        if h.is_finished() {
+            if let Some(h) = app.freeze.saver.take() {
+                let _ = h.join();
+            }
+            return true;
+        }
+        if t0.elapsed() >= patience {
+            log::warn!("the frozen renders were still being copied at the close");
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    true
+}
+
 /// The renders the running and the waiting freezes will want (a save must not prune them:
-/// review 3).
-fn wanted_by_jobs(app: &CantusApp) -> Vec<String> {
+/// review 3) — keyed as each will be frozen (disarmed, the plug-ins' states in: review 4).
+fn wanted_by_jobs(app: &mut CantusApp) -> Vec<String> {
     let mut out: Vec<String> = app
         .freeze
         .job
@@ -276,39 +495,23 @@ fn wanted_by_jobs(app: &CantusApp) -> Vec<String> {
         .map(|j| j.content.clone())
         .filter(|c| !c.is_empty())
         .collect();
-    for w in &app.freeze.queue {
-        if let Want::Freeze(t) | Want::Refresh(t) = w {
-            out.extend(freeze::content_key(app.project(), *t));
+    let queue: Vec<Want> = app.freeze.queue.iter().cloned().collect();
+    for w in queue {
+        match w {
+            Want::Freeze(t) => {
+                let before = hosted_states(app, t);
+                if let Ok((_, c)) = as_frozen(app.project(), &before, t) {
+                    out.push(c);
+                }
+            }
+            Want::Refresh(t) => {
+                out.extend(app.project().frozen(t).map(|f| f.content.clone()));
+                out.extend(freeze::content_key(app.project(), t));
+            }
+            Want::Bounce(_) => {}
         }
     }
     out
-}
-
-/// Copy each render into the project's folder (written beside, then renamed: never a
-/// half file under a render's name) and remove every render there that is not wanted.
-fn copy_and_prune(dir: &Path, copies: &[(PathBuf, PathBuf)], wanted: &HashSet<String>) {
-    if !copies.is_empty() {
-        let _ = std::fs::create_dir_all(dir);
-    }
-    for (from, to) in copies {
-        let part = to.with_extension("copy.part");
-        if std::fs::copy(from, &part).is_ok() && std::fs::rename(&part, to).is_err() {
-            let _ = std::fs::remove_file(&part);
-        }
-    }
-    let Ok(rd) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for e in rd.flatten() {
-        let name = e.file_name().to_string_lossy().into_owned();
-        let render = e
-            .path()
-            .extension()
-            .is_some_and(|x| x == cantus_engine::freeze::EXTENSION);
-        if render && !wanted.contains(&name) {
-            let _ = std::fs::remove_file(e.path());
-        }
-    }
 }
 
 /// A bounce's half-written files left in an audio folder by a session cut short (review 2:
@@ -391,14 +594,6 @@ pub fn prune(dir: &Path, limit: u64) {
 pub(crate) fn follow_path(app: &mut CantusApp) {
     // Compared as it is: nothing is allocated while the path stays.
     if app.freeze.dir_for.as_ref() != Some(&app.path) {
-        // The folder left (a *Save as*): looked in still while its renders are copied.
-        if let Some(Some(old)) = app.freeze.dir_for.as_ref() {
-            if let Some(d) = project_dir(Some(old)) {
-                if !app.freeze.left.contains(&d) {
-                    app.freeze.left.push(d);
-                }
-            }
-        }
         let dir = project_dir(app.path.as_deref());
         if let Some(d) = &dir {
             tidy(d);
@@ -406,13 +601,36 @@ pub(crate) fn follow_path(app: &mut CantusApp) {
         if let Some(audio) = app.path.as_deref().map(|p| p.with_file_name("Audio")) {
             tidy_bounces(&audio);
         }
-        let mut also = app.freeze.left.clone();
-        also.extend(shared_dir(app.path.as_deref()));
-        app.engine.frozen.set_also(also);
+        app.engine.frozen.set_also(also_dirs(app.path.as_deref()));
         app.engine.frozen.set_project_dir(dir);
         app.freeze.dir_for = Some(app.path.clone());
         app.force_resync();
     }
+}
+
+/// The folders a project's renders are also looked for in, never written to (review 4):
+/// those its folder notes it is still copying from (a *Save as* a quit cut short); the
+/// renders folders of the other projects beside it — a render's name is its sound, so a
+/// project renamed or copied finds its renders in its old name's folder, and its next save
+/// brings them in; and the folder an older layout shared.
+fn also_dirs(path: Option<&Path>) -> Vec<PathBuf> {
+    let Some(dir) = project_dir(path) else {
+        return Vec::new();
+    };
+    let mut also = noted_from(&dir);
+    if let Some(root) = dir.parent() {
+        let mut siblings: Vec<PathBuf> = std::fs::read_dir(root)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir() && *p != dir)
+            .collect();
+        siblings.sort();
+        also.extend(siblings);
+    }
+    also.extend(shared_dir(path));
+    also
 }
 
 /// Tell the engine what low-latency monitoring the settings ask for, when it changed (or
@@ -510,14 +728,26 @@ fn scan(app: &mut CantusApp) {
             continue;
         };
         // Made with a wire for a bypassed plug-in installed since: its latency is
-        // missing from it — made again (review 3).
-        if let Some(path) = app.engine.frozen.path_of(&content, rate) {
-            if wired_since_installed(app, &path) {
-                let _ = std::fs::remove_file(wires_file(&path));
-                let _ = std::fs::remove_file(&path);
-                app.engine.frozen.forget(&content, rate);
-                app.force_resync();
+        // missing from it — made again (review 3), whichever copy says so: every copy set
+        // aside, those in its own folders removed (review 4: a save's copy had no note).
+        let copies = app.engine.frozen.paths_of(&content, rate);
+        if copies.iter().any(|p| wired_since_installed(app, p)) {
+            app.engine.frozen.set_aside(&content, rate);
+            let own = [
+                app.engine.frozen.project_dir().map(Path::to_path_buf),
+                app.engine.frozen.app_dir().map(Path::to_path_buf),
+            ];
+            for p in &copies {
+                if own
+                    .iter()
+                    .flatten()
+                    .any(|d| p.parent() == Some(d.as_path()))
+                {
+                    let _ = std::fs::remove_file(wires_file(p));
+                    let _ = std::fs::remove_file(p);
+                }
             }
+            app.force_resync();
         }
         if app.freeze.failed.contains_key(&content)
             || app.freeze.stopped.contains(&content)
@@ -715,13 +945,27 @@ pub fn exec_through(
     }
     let rate = app.engine.sample_rate.round() as u32;
     if let Some(dir) = keep {
+        // Copied on the save's thread, named as the new key inside (review 4: a plain
+        // copy on the frame kept the old key and never opened); the old render plays under
+        // the new key meanwhile.
+        let mut copies = Vec::new();
         for (_, old, new) in &moved {
             if let Some(from) = app.engine.frozen.path_of(old, rate) {
-                let name =
-                    cantus_engine::freeze::file_name(&cantus_engine::freeze::render_key(new, rate));
-                let _ = std::fs::create_dir_all(dir);
-                let _ = std::fs::copy(&from, dir.join(name));
+                let key = cantus_engine::freeze::render_key(new, rate);
+                let name = cantus_engine::freeze::file_name(&key);
+                app.engine.frozen.alias(new, old, rate);
+                if let Ok(mut p) = app.freeze.protect.lock() {
+                    p.insert(name.clone());
+                }
+                copies.push(Copy {
+                    from,
+                    to: dir.join(name),
+                    key: Some(key),
+                });
             }
+        }
+        if !copies.is_empty() {
+            run_copies(app, dir.to_path_buf(), copies, None);
         }
         app.engine.frozen.forget_missing();
     }
@@ -749,7 +993,10 @@ fn hosted_states(app: &mut CantusApp, target: FreezeTarget) -> Vec<Command> {
     let saved = app.plugins.project_for_save(&project);
     let mut out = Vec::new();
     for (strip, slot) in project.all_effects() {
-        if !r.strips.contains(&strip) {
+        // The master's too when the whole mix is in the region (review 4: its live state
+        // never reached the project, and the render was made from the stored one).
+        let inside = r.strips.contains(&strip) || (r.whole && strip == StripId::MASTER);
+        if !inside {
             continue;
         }
         let (Some(was), Some(now)) = (
@@ -1225,6 +1472,15 @@ fn render_job(
             return Err(why);
         }
     };
+    // A save's prune never takes what this render writes (review 4).
+    if let (Some(name), Ok(mut p)) = (
+        job.path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned()),
+        app.freeze.protect.lock(),
+    ) {
+        p.insert(name);
+    }
     let progress = Arc::new(RenderProgress::default());
     let p = progress.clone();
     let worker = std::thread::Builder::new()
@@ -1427,9 +1683,22 @@ fn collect(app: &mut CantusApp) {
         Some(Err(RenderError::Cancelled)) => {
             app.set_status(tf("freeze.stopped", &[("name", &job.name)]));
         }
-        // Its latency moves during the song: it stays live, said (review 3).
+        // Its latency moves during the song: it stays live, said (review 3) — a bounce in
+        // a bounce's words, with its track's or strip's name (review 4).
         Some(Err(RenderError::LatencyMoved)) => {
-            let text = tf("freeze.latency_moves", &[("name", &job.name)]);
+            let text = match &job.want {
+                Want::Bounce(plan) => {
+                    let what = match plan.through {
+                        crate::bounce::Through::Strip(s) => FreezeTarget::Strip(s),
+                        _ => FreezeTarget::Track(plan.track),
+                    };
+                    tf(
+                        "bounce.latency_moves",
+                        &[("name", &name_of(app.project(), what))],
+                    )
+                }
+                _ => tf("freeze.latency_moves", &[("name", &job.name)]),
+            };
             if !job.content.is_empty() {
                 app.freeze.failed.insert(job.content.clone(), text.clone());
             }
