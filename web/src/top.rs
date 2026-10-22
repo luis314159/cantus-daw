@@ -15,7 +15,7 @@ pub const RELEASES: &str = "https://github.com/luis314159/cantus-daw/releases";
 /// workflow's). It answers only once the repository and its releases are public.
 pub const DOWNLOAD: &str =
     "https://github.com/luis314159/cantus-daw/releases/latest/download/Cantus-windows-x64-setup.exe";
-pub const VERSION: &str = "0.1.0-beta.2";
+pub const VERSION: &str = "0.1.0-beta.3";
 
 #[function_component(Nav)]
 pub fn nav() -> Html {
