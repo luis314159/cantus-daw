@@ -113,3 +113,14 @@ systems*; ADR 0067; a BACKLOG §2 line for the Mac's in-place update.
   a system's job if its runner fails.
 - The Apple secrets (Developer ID certificate, team id, Apple ID, app-specific password)
   for a notarised disk image; until then it is signed ad hoc.
+
+## After the review (integrator, 2026-10-22)
+
+1. `$APPIMAGE` is trusted only when the executable lies inside `$CANTUS_APPDIR`/`$APPDIR`
+   and is not a cargo build (`install::own_appimage`, in detection, apply, the writable
+   check and the `.old` clean-up); test with `$APPIMAGE` set and the program outside.
+2. The updates folder keeps only the offered version's download (pruned when a check
+   decides); the AppImage's download is renamed into place on one file system, else
+   copied and removed.
+3. The website sends one GitHub request per page (`shelf::Once`, shared by the download
+   card and the roadmap).

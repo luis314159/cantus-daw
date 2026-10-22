@@ -84,23 +84,91 @@ async fn ask() -> Option<Shelf> {
     Some(Shelf::from_names(names.iter().map(String::as_str)))
 }
 
-/// The shelf, kept or asked for once per visit; "nothing but Windows" until known.
+/// One request per page, however many components want the answer: the first asks, the
+/// others wait for the same answer, and later ones get it at once.
+#[derive(Debug)]
+pub struct Once<T> {
+    asked: bool,
+    waiting: Vec<T>,
+    answer: Option<Shelf>,
+}
+
+/// What a component joining [`Once`] does.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Join {
+    /// Send the request (it is the first).
+    Ask,
+    /// A request is on its way: wait for it.
+    Wait,
+    /// The answer is known.
+    Known(Shelf),
+}
+
+impl<T> Default for Once<T> {
+    fn default() -> Self {
+        Once {
+            asked: false,
+            waiting: Vec::new(),
+            answer: None,
+        }
+    }
+}
+
+impl<T> Once<T> {
+    pub fn join(&mut self, who: T) -> Join {
+        if let Some(s) = self.answer {
+            return Join::Known(s);
+        }
+        self.waiting.push(who);
+        if self.asked {
+            Join::Wait
+        } else {
+            self.asked = true;
+            Join::Ask
+        }
+    }
+
+    /// The answer came (`None`: the request failed — "Coming soon" stays, and it is not
+    /// asked again this visit). Returns who to tell.
+    pub fn answer(&mut self, s: Option<Shelf>) -> Vec<T> {
+        self.answer = Some(s.unwrap_or_default());
+        let told = std::mem::take(&mut self.waiting);
+        if s.is_some() {
+            told
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+thread_local! {
+    static ONCE: std::cell::RefCell<Once<UseStateSetter<Shelf>>> =
+        std::cell::RefCell::new(Once::default());
+}
+
+/// The shelf, kept or asked for once per visit (one request for the whole page);
+/// "nothing but Windows" until known.
 #[hook]
 pub fn use_shelf() -> Shelf {
     let now = js_sys::Date::now();
     let shelf = use_state(|| kept(now).unwrap_or_default());
     {
-        let shelf = shelf.clone();
+        let setter = shelf.setter();
         use_effect_with((), move |_| {
             if kept(now).is_none() {
-                wasm_bindgen_futures::spawn_local(async move {
-                    if let Some(s) = ask().await {
-                        if let Some(store) = storage() {
+                match ONCE.with(|o| o.borrow_mut().join(setter.clone())) {
+                    Join::Known(s) => setter.set(s),
+                    Join::Wait => {}
+                    Join::Ask => wasm_bindgen_futures::spawn_local(async move {
+                        let got = ask().await;
+                        if let (Some(s), Some(store)) = (got, storage()) {
                             let _ = store.set_item(KEY, &s.encode(js_sys::Date::now()));
                         }
-                        shelf.set(s);
-                    }
-                });
+                        for who in ONCE.with(|o| o.borrow_mut().answer(got)) {
+                            who.set(got.unwrap_or_default());
+                        }
+                    }),
+                }
             }
             || ()
         });
@@ -134,6 +202,25 @@ mod tests {
                 macos: true
             }
         );
+    }
+
+    #[test]
+    fn the_page_asks_github_once_however_many_cards_want_to_know() {
+        let mut once: Once<&str> = Once::default();
+        assert_eq!(once.join("get"), Join::Ask);
+        assert_eq!(once.join("ahead"), Join::Wait);
+        let yes = Shelf {
+            linux: true,
+            macos: true,
+        };
+        assert_eq!(once.answer(Some(yes)), ["get", "ahead"]);
+        // A card drawn later is told at once, with no request.
+        assert_eq!(once.join("late"), Join::Known(yes));
+        // A failed request: nobody is told anything new, and it is not asked again.
+        let mut failed: Once<&str> = Once::default();
+        assert_eq!(failed.join("get"), Join::Ask);
+        assert!(failed.answer(None).is_empty());
+        assert_eq!(failed.join("ahead"), Join::Known(Shelf::default()));
     }
 
     #[test]

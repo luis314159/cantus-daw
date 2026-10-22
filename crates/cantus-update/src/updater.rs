@@ -116,6 +116,26 @@ pub struct Updater {
     shared: Arc<Shared>,
 }
 
+/// Delete every file in `downloads` but `keep`: what the updater left there for versions
+/// no longer offered (installed, skipped, or cut off half way) is not kept forever.
+pub fn prune_downloads(downloads: &std::path::Path, keep: Option<&str>) {
+    let Ok(entries) = std::fs::read_dir(downloads) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let name = e.file_name();
+        if keep.is_some_and(|k| name == k) || !e.file_type().is_ok_and(|t| t.is_file()) {
+            continue;
+        }
+        if std::fs::remove_file(e.path()).is_ok() {
+            log::info!(
+                "update: removed the old download {}",
+                name.to_string_lossy()
+            );
+        }
+    }
+}
+
 /// Where the check asks. A release build asks for the latest release. A pre-release build
 /// (a beta) asks for the recent releases instead: GitHub's `/releases/latest` never names
 /// a pre-release, so a beta asking it would never hear of the next beta (round 22).
@@ -275,7 +295,10 @@ impl Updater {
                 }
                 self.set(status);
             }
-            Ok(None) => self.set(Status::UpToDate { checked: now }),
+            Ok(None) => {
+                prune_downloads(&self.config.downloads, None);
+                self.set(Status::UpToDate { checked: now });
+            }
             Ok(Some(r)) => self.decide(&r, force, now),
         }
     }
@@ -288,6 +311,7 @@ impl Updater {
         if !r.is_update_for(&self.config.current)
             || (!force && skipped.as_deref() == Some(&version))
         {
+            prune_downloads(&self.config.downloads, None);
             self.set(Status::UpToDate { checked: now });
             return;
         }
@@ -307,6 +331,12 @@ impl Updater {
             sums_url: r.sums().map(|a| a.browser_download_url.clone()),
             version,
         };
+        // Downloads of other versions (an update already installed, one skipped, a
+        // partial file) are not needed any more.
+        prune_downloads(
+            &self.config.downloads,
+            offer.installer.as_ref().map(|a| a.name.as_str()),
+        );
         // A download from an earlier session that still verifies is ready as it is.
         if let Some(a) = &offer.installer {
             let path = self.config.downloads.join(&a.name);

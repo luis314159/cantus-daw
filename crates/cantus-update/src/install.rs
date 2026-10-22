@@ -52,7 +52,7 @@ impl InstallKind {
     }
 
     /// The kind of the copy at `exe` on `os` (`std::env::consts::OS`), given the
-    /// AppImage runtime's `$APPIMAGE` and whether `$FLATPAK_ID` is set.
+    /// AppImage this process runs from ([`own_appimage`]) and whether `$FLATPAK_ID` is set.
     pub fn detect_on(os: &str, exe: &Path, appimage: Option<&Path>, flatpak: bool) -> InstallKind {
         match os {
             "windows" => exe
@@ -61,10 +61,10 @@ impl InstallKind {
             "linux" => {
                 if flatpak {
                     InstallKind::Package
-                } else if appimage.is_some_and(Path::is_file) {
-                    InstallKind::AppImage
                 } else if built_from_source(exe) {
                     InstallKind::Development
+                } else if appimage.is_some() {
+                    InstallKind::AppImage
                 } else {
                     InstallKind::Package
                 }
@@ -79,7 +79,7 @@ impl InstallKind {
         let Ok(exe) = std::env::current_exe() else {
             return InstallKind::Development;
         };
-        let appimage = std::env::var_os("APPIMAGE").map(PathBuf::from);
+        let appimage = current_appimage();
         let flatpak = std::env::var_os("FLATPAK_ID").is_some();
         InstallKind::detect_on(std::env::consts::OS, &exe, appimage.as_deref(), flatpak)
     }
@@ -92,6 +92,41 @@ impl InstallKind {
             InstallKind::Installed | InstallKind::AppImage | InstallKind::MacBundle
         )
     }
+}
+
+/// The AppImage this process runs from, or `None`. `$APPIMAGE` alone is not enough: every
+/// child of any AppImage program inherits it (a terminal inside an AppImage editor), so a
+/// Cantus started from there would take that other program's file for its own. It counts
+/// only when this executable lies inside the AppImage's mounted folder (`$CANTUS_APPDIR`,
+/// which Cantus's AppRun exports, or the runtime's `$APPDIR`), is not a cargo build, and
+/// `$APPIMAGE` names a file.
+pub fn own_appimage(
+    exe: &Path,
+    appimage: Option<&Path>,
+    appdirs: &[Option<&Path>],
+) -> Option<PathBuf> {
+    let image = appimage.filter(|p| p.is_file())?;
+    if built_from_source(exe) {
+        return None;
+    }
+    let exe = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+    let inside = appdirs.iter().flatten().any(|d| {
+        let d = d.canonicalize().unwrap_or_else(|_| d.to_path_buf());
+        !d.as_os_str().is_empty() && exe.starts_with(&d)
+    });
+    inside.then(|| image.to_path_buf())
+}
+
+/// [`own_appimage`] for this process, from its environment.
+pub fn current_appimage() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let var = |k: &str| std::env::var_os(k).map(PathBuf::from);
+    let (image, cantus_dir, dir) = (var("APPIMAGE"), var("CANTUS_APPDIR"), var("APPDIR"));
+    own_appimage(
+        &exe,
+        image.as_deref(),
+        &[cantus_dir.as_deref(), dir.as_deref()],
+    )
 }
 
 /// `…/target/debug/cantus`, `…/target/x86_64-unknown-linux-gnu/release/cantus`: a cargo
@@ -178,9 +213,8 @@ pub fn apply(kind: InstallKind, file: &Path, relaunch: bool) -> std::io::Result<
     match kind {
         InstallKind::Installed => launch(file, relaunch),
         InstallKind::AppImage => {
-            let current = std::env::var_os("APPIMAGE")
-                .map(PathBuf::from)
-                .ok_or_else(|| std::io::Error::other("$APPIMAGE is not set"))?;
+            let current = current_appimage()
+                .ok_or_else(|| std::io::Error::other("not running from an AppImage"))?;
             replace_appimage(&current, file)?;
             if relaunch {
                 detached(relaunch_after_exit(&current, std::process::id()))?;
@@ -226,8 +260,9 @@ pub fn previous_appimage(current: &Path) -> PathBuf {
     current.with_file_name(name)
 }
 
-/// Put the verified `new` AppImage where `current` is, atomically: the new file is copied
-/// beside the old one (the same file system), made executable, flushed, the old one is
+/// Put the verified `new` AppImage where `current` is, atomically: the new file is moved
+/// beside the old one (renamed when both are on one file system, else copied and the
+/// download removed — it is not left in the updates folder), made executable, flushed, the old one is
 /// kept as [`previous_appimage`] (a hard link, or a copy where links are refused), and a
 /// rename swaps the new one in — at no moment is there no Cantus at that path. The running
 /// program keeps its own (old) file open, so nothing changes under it. The old copy is
@@ -240,8 +275,13 @@ pub fn replace_appimage(current: &Path, new: &Path) -> std::io::Result<()> {
         .ok_or_else(|| std::io::Error::other("the AppImage has no folder"))?;
     let name = current.file_name().unwrap_or_default().to_string_lossy();
     let staged = dir.join(format!(".{name}.new-{}", std::process::id()));
+    let mut moved = false;
     let result = (|| {
-        std::fs::copy(new, &staged)?;
+        if std::fs::rename(new, &staged).is_ok() {
+            moved = true;
+        } else {
+            std::fs::copy(new, &staged)?;
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -258,8 +298,20 @@ pub fn replace_appimage(current: &Path, new: &Path) -> std::io::Result<()> {
         }
         std::fs::rename(&staged, current)
     })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&staged);
+    match &result {
+        // Nothing changed: the download is put back where it was, for another try.
+        Err(_) if moved => {
+            if std::fs::rename(&staged, new).is_err() {
+                let _ = std::fs::remove_file(&staged);
+            }
+        }
+        Err(_) => {
+            let _ = std::fs::remove_file(&staged);
+        }
+        Ok(()) if !moved => {
+            let _ = std::fs::remove_file(new);
+        }
+        Ok(()) => {}
     }
     result
 }
@@ -276,8 +328,7 @@ pub fn writable_dir(dir: &Path) -> bool {
 
 /// The folder of the AppImage this process runs from, when it runs from one.
 pub fn appimage_dir() -> Option<PathBuf> {
-    let p = PathBuf::from(std::env::var_os("APPIMAGE")?);
-    p.parent().map(Path::to_path_buf)
+    current_appimage()?.parent().map(Path::to_path_buf)
 }
 
 /// The new AppImage has started: the old one it replaced is no longer needed. Returns
@@ -289,8 +340,8 @@ pub fn forget_previous_appimage(current: &Path) -> bool {
 /// At start, for this process: an AppImage that replaced an older one removes it.
 pub fn after_start(kind: InstallKind) {
     if kind == InstallKind::AppImage {
-        if let Some(p) = std::env::var_os("APPIMAGE") {
-            if forget_previous_appimage(Path::new(&p)) {
+        if let Some(p) = current_appimage() {
+            if forget_previous_appimage(&p) {
                 log::info!("update: the previous AppImage was removed; this one started");
             }
         }
@@ -332,15 +383,15 @@ mod tests {
             InstallKind::detect_on("linux", mounted, Some(image.as_path()), true),
             InstallKind::Package
         );
-        // A stale $APPIMAGE naming no file is not an AppImage.
+        // Even with $APPIMAGE set, a cargo build is a development copy.
         assert_eq!(
             InstallKind::detect_on(
                 "linux",
-                p("/usr/bin/cantus"),
-                Some(d.join("gone").as_path()),
+                p("/home/a/cantus/target/debug/cantus"),
+                Some(image.as_path()),
                 false
             ),
-            InstallKind::Package
+            InstallKind::Development
         );
         for dev in [
             "/home/a/cantus/target/debug/cantus",
@@ -411,16 +462,68 @@ mod tests {
         );
     }
 
+    /// `$APPIMAGE` is inherited by every child of any AppImage program: it names this
+    /// Cantus's file only when the executable lies inside the mounted AppImage.
+    #[test]
+    fn only_the_appimage_this_program_runs_from_is_its_own() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = dir.path();
+        let image = d.join("Other.AppImage");
+        std::fs::write(&image, b"ELF").unwrap();
+        let mount = d.join(".mount_OtherX");
+        let inside = mount.join("usr/bin/cantus");
+        let img = Some(image.as_path());
+        // Run from its own AppImage, through either variable.
+        assert_eq!(
+            own_appimage(&inside, img, &[None, Some(mount.as_path())]),
+            Some(image.clone())
+        );
+        assert_eq!(
+            own_appimage(&inside, img, &[Some(mount.as_path()), None]),
+            Some(image.clone())
+        );
+        // A distribution's or /opt Cantus started from another AppImage's terminal.
+        for outside in ["/usr/bin/cantus", "/opt/cantus/cantus"] {
+            assert_eq!(
+                own_appimage(Path::new(outside), img, &[None, Some(mount.as_path())]),
+                None,
+                "{outside}"
+            );
+            let kind = InstallKind::detect_on(
+                "linux",
+                Path::new(outside),
+                own_appimage(Path::new(outside), img, &[None, Some(mount.as_path())]).as_deref(),
+                false,
+            );
+            assert_eq!(kind, InstallKind::Package, "{outside}");
+        }
+        // No mounted folder named, or an empty one: not ours.
+        assert_eq!(own_appimage(&inside, img, &[None, None]), None);
+        assert_eq!(own_appimage(&inside, img, &[Some(Path::new(""))]), None);
+        // A cargo build run from that terminal.
+        let built = d.join(".mount_OtherX/target/debug/cantus");
+        assert_eq!(own_appimage(&built, img, &[Some(mount.as_path())]), None);
+        // A stale $APPIMAGE naming no file.
+        let gone = d.join("gone");
+        assert_eq!(
+            own_appimage(&inside, Some(gone.as_path()), &[Some(mount.as_path())]),
+            None
+        );
+    }
+
     #[test]
     fn an_appimage_is_replaced_whole_and_the_old_one_kept_until_the_new_one_starts() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
         let current = d.join("Cantus.AppImage");
-        let new = d.join("download.AppImage");
+        std::fs::create_dir(d.join("updates")).unwrap();
+        let new = d.join("updates").join("download.AppImage");
         std::fs::write(&current, b"old program").unwrap();
         std::fs::write(&new, b"new program").unwrap();
         replace_appimage(&current, &new).unwrap();
         assert_eq!(std::fs::read(&current).unwrap(), b"new program");
+        // The download was moved, not copied: nothing is left in the updates folder.
+        assert!(!new.exists());
         let old = previous_appimage(&current);
         assert_eq!(old, d.join("Cantus.AppImage.old"));
         assert_eq!(std::fs::read(&old).unwrap(), b"old program");

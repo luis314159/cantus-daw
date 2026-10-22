@@ -857,3 +857,42 @@ fn an_appimage_and_a_disk_image_download_and_verify_like_the_installer() {
     };
     assert!(o.installer.is_none());
 }
+
+/// Downloads of versions no longer offered are deleted when the check decides; the
+/// offered one is kept (it may be ready to install).
+#[test]
+fn old_downloads_are_deleted_and_the_offered_one_kept() {
+    let dir = tempfile::tempdir().unwrap();
+    let downloads = dir.path().join("updates");
+    std::fs::create_dir_all(downloads.join("a folder")).unwrap();
+    for f in [
+        "Cantus-0.1.0-windows-x64-setup.exe",
+        "Cantus-0.2.0-windows-x64-setup.part",
+        "Cantus-0.2.0-windows-x64-setup.exe",
+    ] {
+        std::fs::write(downloads.join(f), b"bytes").unwrap();
+    }
+    let names = || {
+        let mut v: Vec<String> = std::fs::read_dir(&downloads)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        v.sort();
+        v
+    };
+    let u = Updater::new(
+        config(dir.path(), "0.1.0", InstallKind::Installed),
+        net_with_release(),
+    );
+    u.check_at(true, 5);
+    assert!(matches!(settle(&u), Status::Available(_)));
+    assert_eq!(names(), ["Cantus-0.2.0-windows-x64-setup.exe", "a folder"]);
+    // Up to date (the update was installed): nothing is kept.
+    let u = Updater::new(
+        config(dir.path(), "0.2.0", InstallKind::Installed),
+        net_with_release(),
+    );
+    u.check_at(true, 6);
+    assert!(matches!(settle(&u), Status::UpToDate { .. }));
+    assert_eq!(names(), ["a folder"]);
+}
