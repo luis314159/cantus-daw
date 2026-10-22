@@ -128,6 +128,31 @@ bits. A development build (`cargo build -p cantus`) is a single plain program. T
 up yet (`docs/BETA.md`). `.github/workflows/release.yml` does the same on a pushed
 `v*.*.*` tag.
 
+### A release: one tag, three systems (ADR 0067)
+
+1. Set the version in the workspace's `Cargo.toml` (and `web/src/top.rs`'s `VERSION`),
+   write `docs/releases/v<version>.md` from `docs/releases/TEMPLATE.md`, commit, publish
+   to `cantus-daw` (`tools/public/publish.sh`).
+2. `git tag v<version> && git push origin v<version>` in `cantus-daw`. `release.yml` runs
+   three jobs at once — Windows (`windows-latest`: fmt, clippy, the suite, then
+   `xtask package`), Linux (`ubuntu-22.04`: clippy, the suite, `cargo build --release`,
+   then `packaging/linux/build-appimage.sh <version> dist`) and macOS (`macos-latest`:
+   clippy, the suite, then `packaging/macos/build-dmg.sh <version> dist`) — each checking
+   that the tag is the workspace's version. A tag publishes only when all three pass; a
+   job that failed for the runner's sake is re-run from the run's page.
+3. The publish job checks each system's sums, joins every file into one release with one
+   `SHA256SUMS.txt`, checks the three versioned files and their stable names
+   (`Cantus-windows-x64-setup.exe`, `Cantus-linux-x86_64.AppImage`,
+   `Cantus-macos-universal.dmg`) and creates the release. Within an hour the website's
+   download card says *Available* for Linux and macOS (it asks GitHub which files the
+   latest release holds), and every copy's updater finds its own file.
+
+*Run workflow* on the Actions page builds and tests all three without publishing (the
+files are kept as the run's artifacts). Secrets, all optional: Windows signing as the
+workflow's header lists; macOS `APPLE_CERT_P12_BASE64`, `APPLE_CERT_PASSWORD`,
+`APPLE_TEAM_ID`, `APPLE_ID`, `APPLE_APP_PASSWORD` (without them the disk image is signed
+ad hoc and not notarised: Gatekeeper asks the user to allow it once).
+
 ## What lives outside the clone
 
 | What | Where | Where it comes from |

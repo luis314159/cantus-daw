@@ -148,7 +148,12 @@ fn install_now(app: &mut CantusApp, installer: &std::path::Path) {
             app.request_quit = true;
         }
         Err(e) => {
-            app.update.launch_error = Some(tf("update.error.launch", &[("error", &e)]));
+            let key = if app.update.kind() == InstallKind::Installed {
+                "update.error.launch"
+            } else {
+                "ship.error.apply"
+            };
+            app.update.launch_error = Some(tf(key, &[("error", &e)]));
         }
     }
 }
@@ -659,10 +664,15 @@ pub fn demo_setup(app: &mut CantusApp, kind: &str) {
         }),
         sums_url: None,
     };
-    app.update.kind = Some(InstallKind::Installed);
+    // `update-ready-mac` and `update-ready-appimage`: the same, on a Mac and an AppImage.
+    app.update.kind = Some(match kind {
+        "update-ready-mac" => InstallKind::MacBundle,
+        "update-ready-appimage" => InstallKind::AppImage,
+        _ => InstallKind::Installed,
+    });
     app.update.started = true;
     app.update.demo = Some(match kind {
-        "update-ready" => Status::Ready {
+        "update-ready" | "update-ready-mac" | "update-ready-appimage" => Status::Ready {
             offer,
             installer: std::path::PathBuf::from("Cantus-0.2.0-windows-x64-setup.exe"),
         },

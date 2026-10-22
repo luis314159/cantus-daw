@@ -7,3 +7,5 @@ ship.open_dmg_on_quit = Open the disk image when I close Cantus
 ship.notice.ready_dmg = Cantus {version} is downloaded: its disk image opens when you close
 ship.package = This copy was installed by your system's package manager or Flatpak, which updates it. The AppImage is on the release page.
 ship.no_file = This release has no file for this system yet: the release page has what there is.
+ship.error.not_writable = Cantus may not change the folder its AppImage is in, so it cannot replace it: download the new AppImage from the release page.
+ship.error.apply = The update was not applied: {error}. The release page has the file.

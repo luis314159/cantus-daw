@@ -7,3 +7,5 @@ ship.open_dmg_on_quit = Abrir la imagen de disco al cerrar Cantus
 ship.notice.ready_dmg = Cantus {version} está descargado: su imagen de disco se abre al cerrar
 ship.package = Esta copia la instaló el gestor de paquetes de tu sistema o Flatpak, que la actualiza. El AppImage está en la página de la versión.
 ship.no_file = Esta versión aún no tiene un archivo para este sistema: la página de la versión tiene lo que hay.
+ship.error.not_writable = Cantus no puede modificar la carpeta donde está su AppImage, así que no puede reemplazarlo: descarga el AppImage nuevo desde la página de la versión.
+ship.error.apply = La actualización no se aplicó: {error}. La página de la versión tiene el archivo.

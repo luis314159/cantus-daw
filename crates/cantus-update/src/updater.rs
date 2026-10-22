@@ -2,7 +2,7 @@
 //! where it is through a [`Status`] the UI reads each frame. Nothing here blocks the
 //! caller, and nothing is sent anywhere but the two GitHub requests (ADR 0032 §4).
 
-use crate::install::InstallKind;
+use crate::install::{self, InstallKind};
 use crate::net::{Fetch, NetError};
 use crate::notes::{self, NoteLine};
 use crate::release::{self, Asset, ParseError, Release, Target};
@@ -353,6 +353,19 @@ impl Updater {
         };
         if offer.installer.is_none() {
             return;
+        }
+        // An AppImage in a folder Cantus may not write to could not be replaced: say so
+        // now, with the release's page, rather than at quit (ADR 0067 §3).
+        if self.config.kind == InstallKind::AppImage {
+            if let Some(dir) = install::appimage_dir() {
+                if !install::writable_dir(&dir) {
+                    return self.set(Status::Failed {
+                        key: "ship.error.not_writable",
+                        detail: dir.display().to_string(),
+                        offer: Some(offer),
+                    });
+                }
+            }
         }
         self.shared.cancel.store(false, Ordering::Relaxed);
         self.set(Status::Downloading {

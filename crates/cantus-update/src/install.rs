@@ -183,7 +183,7 @@ pub fn apply(kind: InstallKind, file: &Path, relaunch: bool) -> std::io::Result<
                 .ok_or_else(|| std::io::Error::other("$APPIMAGE is not set"))?;
             replace_appimage(&current, file)?;
             if relaunch {
-                detached(std::process::Command::new(&current))?;
+                detached(relaunch_after_exit(&current, std::process::id()))?;
             }
             Ok(())
         }
@@ -199,6 +199,17 @@ pub fn apply(kind: InstallKind, file: &Path, relaunch: bool) -> std::io::Result<
             ))
         }
     }
+}
+
+/// Start `program` once process `pid` has exited: the new AppImage opens after this Cantus
+/// has closed, never beside it (two would contend for the audio device and the autosave).
+pub fn relaunch_after_exit(program: &Path, pid: u32) -> std::process::Command {
+    let mut cmd = std::process::Command::new("sh");
+    cmd.arg("-c")
+        .arg("while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; exec \"$0\"")
+        .arg(program)
+        .arg(pid.to_string());
+    cmd
 }
 
 fn detached(mut cmd: std::process::Command) -> std::io::Result<()> {
@@ -251,6 +262,22 @@ pub fn replace_appimage(current: &Path, new: &Path) -> std::io::Result<()> {
         let _ = std::fs::remove_file(&staged);
     }
     result
+}
+
+/// Whether Cantus may write in `dir` (where its AppImage is): checked before an update is
+/// downloaded, so a copy in a folder it may not change (a system-wide `/opt`) is told at
+/// once, not at quit.
+pub fn writable_dir(dir: &Path) -> bool {
+    let probe = dir.join(format!(".cantus-write-test-{}", std::process::id()));
+    let ok = std::fs::write(&probe, b"").is_ok();
+    let _ = std::fs::remove_file(&probe);
+    ok
+}
+
+/// The folder of the AppImage this process runs from, when it runs from one.
+pub fn appimage_dir() -> Option<PathBuf> {
+    let p = PathBuf::from(std::env::var_os("APPIMAGE")?);
+    p.parent().map(Path::to_path_buf)
 }
 
 /// The new AppImage has started: the old one it replaced is no longer needed. Returns
@@ -421,6 +448,14 @@ mod tests {
     }
 
     #[test]
+    fn a_folder_is_writable_or_not_and_the_probe_leaves_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(writable_dir(dir.path()));
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+        assert!(!writable_dir(&dir.path().join("no such folder")));
+    }
+
+    #[test]
     fn a_failed_replacement_changes_nothing() {
         let dir = tempfile::tempdir().unwrap();
         let d = dir.path();
@@ -431,6 +466,51 @@ mod tests {
         assert_eq!(std::fs::read(&current).unwrap(), b"old program");
         assert!(!previous_appimage(&current).exists());
         assert_eq!(std::fs::read_dir(d).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn the_new_appimage_starts_after_this_cantus_has_closed() {
+        let cmd = relaunch_after_exit(Path::new("/home/a/Cantus.AppImage"), 4242);
+        assert_eq!(cmd.get_program(), "sh");
+        let args: Vec<_> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(args[0], "-c");
+        assert!(args[1].starts_with("while kill -0 \"$1\""), "{}", args[1]);
+        assert!(args[1].ends_with("exec \"$0\""), "{}", args[1]);
+        assert_eq!(args[2..], ["/home/a/Cantus.AppImage", "4242"]);
+    }
+
+    /// The wait really waits: run where there is a POSIX shell (Linux, macOS).
+    #[cfg(unix)]
+    #[test]
+    fn the_relaunch_waits_for_the_process_then_runs_the_program() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("started");
+        let program = dir.path().join("program.sh");
+        std::fs::write(
+            &program,
+            format!(
+                "#!/bin/sh
+touch '{}'
+",
+                marker.display()
+            ),
+        )
+        .unwrap();
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mut sleeper = std::process::Command::new("sleep")
+            .arg("0.6")
+            .spawn()
+            .unwrap();
+        let mut waiter = relaunch_after_exit(&program, sleeper.id()).spawn().unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        assert!(!marker.exists(), "started while the old process lived");
+        sleeper.wait().unwrap();
+        assert!(waiter.wait().unwrap().success());
+        assert!(marker.exists(), "started after it exited");
     }
 
     #[test]

@@ -290,6 +290,9 @@ macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual q
       for 10 minutes, a real plug-in's editor, the microphone permission prompt, the
       `.dmg` installed and opened past Gatekeeper, the update from an older build,
       trackpad feel and Retina look, CPU measured on Apple silicon.
+    - *The updater replacing the `.app` in place* (round 30 opens the verified `.dmg` for
+      the user to drag, ADR 0067 §3): Sparkle's way — unpack, check the code signature and
+      the team, swap the bundle, relaunch — once releases are signed and a Mac can test it.
   - **Both:** a CI matrix (Windows, Ubuntu, later macOS) that builds, runs the tests and
     produces the installers; one ADR for the platform layer (`cantus-rt` is the only crate
     with OS code — `cantus-engine` stays `forbid(unsafe_code)`); a compatibility table of

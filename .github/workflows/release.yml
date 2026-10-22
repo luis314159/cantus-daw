@@ -201,12 +201,16 @@ jobs:
           version="$(cargo run -q -p xtask -- version)"
           bash packaging/linux/build-appimage.sh "$version" dist
           test -s "dist/Cantus-$version-linux-x86_64.AppImage"
-          cp "dist/Cantus-$version-linux-x86_64.AppImage" dist/Cantus-linux-x86_64.AppImage
-          cd dist && sha256sum -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
+          # Only the file, versioned and under its stable name (whatever else the script
+          # leaves in dist stays out of the release), with their sums.
+          mkdir upload
+          cp "dist/Cantus-$version-linux-x86_64.AppImage" upload/
+          cp "dist/Cantus-$version-linux-x86_64.AppImage" upload/Cantus-linux-x86_64.AppImage
+          cd upload && sha256sum -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cantus-linux
-          path: dist/
+          path: upload/
           if-no-files-found: error
 
   macos:
@@ -252,12 +256,16 @@ jobs:
           version="$(cargo run -q -p xtask -- version)"
           bash packaging/macos/build-dmg.sh "$version" dist
           test -s "dist/Cantus-$version-macos-universal.dmg"
-          cp "dist/Cantus-$version-macos-universal.dmg" dist/Cantus-macos-universal.dmg
-          cd dist && shasum -a 256 -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
+          # Only the file, versioned and under its stable name (whatever else the script
+          # leaves in dist stays out of the release), with their sums.
+          mkdir upload
+          cp "dist/Cantus-$version-macos-universal.dmg" upload/
+          cp "dist/Cantus-$version-macos-universal.dmg" upload/Cantus-macos-universal.dmg
+          cd upload && shasum -a 256 -- * > "$RUNNER_TEMP/sums" && mv "$RUNNER_TEMP/sums" SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cantus-macos
-          path: dist/
+          path: upload/
           if-no-files-found: error
 
   publish:
