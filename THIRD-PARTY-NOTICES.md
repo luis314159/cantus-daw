@@ -306,7 +306,7 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 
 ## Rust crates
 
-269 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 27 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
+270 crates from crates.io are compiled into `cantus.exe` and the Cantus plug-ins (Windows x64); 27 more are used only to build them (marked *build*). Each is listed with the licence its author declared and the licence files it ships, printed once each under [Licence texts](#licence-texts). Where a crate offers a choice (`MIT OR Apache-2.0`), Cantus takes it under either, as its author allows. The patched `cpal` and `asio-sys` are under [Patched crates](#patched-crates-cpal-and-asio-sys) above.
 
 | Crate | Version | Licence | Texts |
 |---|---|---|---|
@@ -566,7 +566,8 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 | vst3 | 0.3.0 | MIT OR Apache-2.0 | [T2](#t2) [T3](#t3) |
 | walkdir | 2.5.0 | Unlicense/MIT *build* | [T5](#t5) [T6](#t6) [T7](#t7) |
 | web-time | 1.1.0 | MIT OR Apache-2.0 | [T159](#t159) [T160](#t160) |
-| weezl | 0.1.12 | MIT OR Apache-2.0 | [T2](#t2) [T161](#t161) |
+| webpki-root-certs | 1.0.10 | CDLA-Permissive-2.0 | [T161](#t161) |
+| weezl | 0.1.12 | MIT OR Apache-2.0 | [T2](#t2) [T162](#t162) |
 | wgpu | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
 | wgpu-core | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
 | wgpu-core-deps-windows-linux-android | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
@@ -574,38 +575,38 @@ The list, with every file's URL and SHA-256, is `crates/cantus-content/manifest/
 | wgpu-naga-bridge | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
 | wgpu-types | 30.0.1 | MIT OR Apache-2.0 | [T2](#t2) [T101](#t101) |
 | winapi-util | 0.1.11 | Unlicense OR MIT *build* | [T5](#t5) [T128](#t128) [T7](#t7) |
-| windows | 0.62.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-collections | 0.3.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-core | 0.62.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-future | 0.3.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-implement | 0.60.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-interface | 0.59.3 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-link | 0.2.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-result | 0.4.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-strings | 0.5.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-sys | 0.52.0 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-sys | 0.59.0 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-sys | 0.60.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-sys | 0.61.2 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-targets | 0.52.6 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-targets | 0.53.5 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows-threading | 0.2.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
-| windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 | [T162](#t162) [T163](#t163) |
+| windows | 0.62.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-collections | 0.3.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-core | 0.62.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-future | 0.3.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-implement | 0.60.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-interface | 0.59.3 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-link | 0.2.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-numerics | 0.3.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-result | 0.4.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-strings | 0.5.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-sys | 0.52.0 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-sys | 0.59.0 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-sys | 0.60.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-sys | 0.61.2 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-targets | 0.52.6 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-targets | 0.53.5 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows-threading | 0.2.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows_x86_64_msvc | 0.52.6 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
+| windows_x86_64_msvc | 0.53.1 | MIT OR Apache-2.0 | [T163](#t163) [T164](#t164) |
 | winit | 0.30.13 | Apache-2.0 | [T2](#t2) |
 | winnow | 0.7.15 | MIT | [T3](#t3) |
 | winnow | 1.0.4 | MIT | [T3](#t3) |
-| winresource | 0.1.31 | MIT *build* | [T164](#t164) |
-| xml-rs | 0.8.29 | MIT *build* | [T165](#t165) |
-| zerocopy | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T166](#t166) [T167](#t167) [T168](#t168) |
-| zerocopy-derive | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T166](#t166) [T167](#t167) [T168](#t168) |
-| zeroize | 1.9.0 | Apache-2.0 OR MIT | [T2](#t2) [T169](#t169) |
-| zip | 9.0.5 | MIT | [T170](#t170) |
-| zlib-rs | 0.6.7 | Zlib | [T171](#t171) |
+| winresource | 0.1.31 | MIT *build* | [T165](#t165) |
+| xml-rs | 0.8.29 | MIT *build* | [T166](#t166) |
+| zerocopy | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T167](#t167) [T168](#t168) [T169](#t169) |
+| zerocopy-derive | 0.8.56 | BSD-2-Clause OR Apache-2.0 OR MIT | [T167](#t167) [T168](#t168) [T169](#t169) |
+| zeroize | 1.9.0 | Apache-2.0 OR MIT | [T2](#t2) [T170](#t170) |
+| zip | 9.0.5 | MIT | [T171](#t171) |
+| zlib-rs | 0.6.7 | Zlib | [T172](#t172) |
 | zmij | 1.0.23 | MIT | [T3](#t3) |
-| zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T172](#t172) [T173](#t173) |
-| zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T172](#t172) [T173](#t173) |
+| zune-core | 0.5.3 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T173](#t173) [T174](#t174) |
+| zune-jpeg | 0.5.15 | MIT OR Apache-2.0 OR Zlib | [T2](#t2) [T173](#t173) [T174](#t174) |
 
 ## Licence texts
 
@@ -6900,6 +6901,76 @@ SOFTWARE.
 
 ### T161
 
+In: webpki-root-certs 1.0.10 (`LICENSE`).
+
+```text
+# Community Data License Agreement - Permissive - Version 2.0
+
+This is the Community Data License Agreement - Permissive, Version
+2.0 (the "agreement"). Data Provider(s) and Data Recipient(s) agree
+as follows:
+
+## 1. Provision of the Data
+
+1.1. A Data Recipient may use, modify, and share the Data made
+available by Data Provider(s) under this agreement if that Data
+Recipient follows the terms of this agreement.
+
+1.2. This agreement does not impose any restriction on a Data
+Recipient's use, modification, or sharing of any portions of the
+Data that are in the public domain or that may be used, modified,
+or shared under any other legal exception or limitation.
+
+## 2. Conditions for Sharing Data
+
+2.1. A Data Recipient may share Data, with or without modifications, so
+long as the Data Recipient makes available the text of this agreement
+with the shared Data.
+
+## 3. No Restrictions on Results
+
+3.1. This agreement does not impose any restriction or obligations
+with respect to the use, modification, or sharing of Results.
+
+## 4. No Warranty; Limitation of Liability
+
+4.1. All Data Recipients receive the Data subject to the following
+terms:
+
+THE DATA IS PROVIDED ON AN "AS IS" BASIS, WITHOUT REPRESENTATIONS,
+WARRANTIES OR CONDITIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED
+INCLUDING, WITHOUT LIMITATION, ANY WARRANTIES OR CONDITIONS OF TITLE,
+NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+
+NO DATA PROVIDER SHALL HAVE ANY LIABILITY FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING
+WITHOUT LIMITATION LOST PROFITS), HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE DATA OR RESULTS,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+## 5. Definitions
+
+5.1. "Data" means the material received by a Data Recipient under
+this agreement.
+
+5.2. "Data Provider" means any person who is the source of Data
+provided under this agreement and in reliance on a Data Recipient's
+agreement to its terms.
+
+5.3. "Data Recipient" means any person who receives Data directly
+or indirectly from a Data Provider and agrees to the terms of this
+agreement.
+
+5.4. "Results" means any outcome obtained by computational analysis
+of Data, including for example machine learning models and models'
+insights.
+```
+
+<a id="t162"></a>
+
+### T162
+
 In: weezl 0.1.12 (`LICENSE-MIT`).
 
 ```text
@@ -6926,9 +6997,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t162"></a>
+<a id="t163"></a>
 
-### T162
+### T163
 
 In: windows 0.62.2 (`license-apache-2.0`), windows-collections 0.3.2 (`license-apache-2.0`), windows-core 0.62.2 (`license-apache-2.0`), windows-future 0.3.2 (`license-apache-2.0`), windows-implement 0.60.2 (`license-apache-2.0`), windows-interface 0.59.3 (`license-apache-2.0`), windows-link 0.2.1 (`license-apache-2.0`), windows-numerics 0.3.1 (`license-apache-2.0`), windows-result 0.4.1 (`license-apache-2.0`), windows-strings 0.5.1 (`license-apache-2.0`), windows-sys 0.52.0 (`license-apache-2.0`), windows-sys 0.59.0 (`license-apache-2.0`), windows-sys 0.60.2 (`license-apache-2.0`), windows-sys 0.61.2 (`license-apache-2.0`), windows-targets 0.52.6 (`license-apache-2.0`), windows-targets 0.53.5 (`license-apache-2.0`), windows-threading 0.2.1 (`license-apache-2.0`), windows_x86_64_msvc 0.52.6 (`license-apache-2.0`), windows_x86_64_msvc 0.53.1 (`license-apache-2.0`).
 
@@ -6961,9 +7032,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t163"></a>
+<a id="t164"></a>
 
-### T163
+### T164
 
 In: windows 0.62.2 (`license-mit`), windows-collections 0.3.2 (`license-mit`), windows-core 0.62.2 (`license-mit`), windows-future 0.3.2 (`license-mit`), windows-implement 0.60.2 (`license-mit`), windows-interface 0.59.3 (`license-mit`), windows-link 0.2.1 (`license-mit`), windows-numerics 0.3.1 (`license-mit`), windows-result 0.4.1 (`license-mit`), windows-strings 0.5.1 (`license-mit`), windows-sys 0.52.0 (`license-mit`), windows-sys 0.59.0 (`license-mit`), windows-sys 0.60.2 (`license-mit`), windows-sys 0.61.2 (`license-mit`), windows-targets 0.52.6 (`license-mit`), windows-targets 0.53.5 (`license-mit`), windows-threading 0.2.1 (`license-mit`), windows_x86_64_msvc 0.52.6 (`license-mit`), windows_x86_64_msvc 0.53.1 (`license-mit`).
 
@@ -6991,9 +7062,9 @@ MIT License
     SOFTWARE
 ```
 
-<a id="t164"></a>
+<a id="t165"></a>
 
-### T164
+### T165
 
 In: winresource 0.1.31 (`LICENSE`).
 
@@ -7025,9 +7096,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t165"></a>
+<a id="t166"></a>
 
-### T165
+### T166
 
 In: xml-rs 0.8.29 (`LICENSE`).
 
@@ -7055,9 +7126,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t166"></a>
+<a id="t167"></a>
 
-### T166
+### T167
 
 In: zerocopy 0.8.56 (`LICENSE-APACHE`), zerocopy-derive 0.8.56 (`LICENSE-APACHE`).
 
@@ -7090,9 +7161,9 @@ APPENDIX: How to apply the Apache License to your work.
    limitations under the License.
 ```
 
-<a id="t167"></a>
+<a id="t168"></a>
 
-### T167
+### T168
 
 In: zerocopy 0.8.56 (`LICENSE-BSD`), zerocopy-derive 0.8.56 (`LICENSE-BSD`).
 
@@ -7123,9 +7194,9 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-<a id="t168"></a>
+<a id="t169"></a>
 
-### T168
+### T169
 
 In: zerocopy 0.8.56 (`LICENSE-MIT`), zerocopy-derive 0.8.56 (`LICENSE-MIT`).
 
@@ -7157,9 +7228,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t169"></a>
+<a id="t170"></a>
 
-### T169
+### T170
 
 In: zeroize 1.9.0 (`LICENSE-MIT`).
 
@@ -7191,9 +7262,9 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-<a id="t170"></a>
+<a id="t171"></a>
 
-### T170
+### T171
 
 In: zip 9.0.5 (`LICENSE`).
 
@@ -7221,9 +7292,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t171"></a>
+<a id="t172"></a>
 
-### T171
+### T172
 
 In: zlib-rs 0.6.7 (`LICENSE`).
 
@@ -7249,9 +7320,9 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-<a id="t172"></a>
+<a id="t173"></a>
 
-### T172
+### T173
 
 In: zune-core 0.5.3 (`LICENSE-MIT`), zune-jpeg 0.5.15 (`LICENSE-MIT`).
 
@@ -7279,9 +7350,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-<a id="t173"></a>
+<a id="t174"></a>
 
-### T173
+### T174
 
 In: zune-core 0.5.3 (`LICENSE-ZLIB`), zune-jpeg 0.5.15 (`LICENSE-ZLIB`).
 
