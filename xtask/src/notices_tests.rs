@@ -111,7 +111,7 @@ fn a_crate_that_ships_no_licence_file_gets_the_standard_text() {
     assert!(out.contains("| bare | 1.0.0 | BSL-1.0 | declared only"));
     assert!(out.contains("Boost Software License - Version 1.0"));
     assert!(out.contains("- bare 1.0.0 — `BSL-1.0` — Copyright (c) A"));
-    let out = notices_render::render(&ws, &[fake("odd", "MIT OR Zlib")], &no_packs());
+    let out = notices_render::render(&ws, &[fake("odd", "MIT OR Unlicense")], &no_packs());
     assert!(
         out.contains(notices_render::MISSING),
         "a standard text we do not have is flagged"
@@ -139,9 +139,14 @@ fn the_notices_name_every_crate_a_release_ships() {
         assert!(crates.iter().any(|c| c.name == name), "{name} ships");
     }
     assert!(
-        crates
-            .iter()
-            .all(|c| c.name != "proptest" && c.name != "tempfile"),
+        crates.iter().all(|c| c.name != "proptest"),
+        "dev-dependencies do not ship"
+    );
+    // tempfile is a dev-dependency here, but macOS's TLS (native-tls) ships it: look at
+    // Windows alone for it.
+    let windows = notices::shipped(&notices::metadata(&ws, notices::TARGETS[0]).unwrap());
+    assert!(
+        windows.iter().all(|c| c.name != "tempfile"),
         "dev-dependencies do not ship"
     );
     assert!(

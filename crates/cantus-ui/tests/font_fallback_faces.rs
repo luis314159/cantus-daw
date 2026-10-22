@@ -71,7 +71,7 @@ fn a_face_read_once_serves_later_characters_and_appears_once() {
     assert_eq!(font_fallback::faces_read().len(), 2);
 }
 
-/// Linux (ADR 0065): fontconfig's answers (`fc-match`/`fc-list -f '%{file}|%{index}'`) read
+/// Linux (ADR 0065): fontconfig's answers (`fc-list -f '%{file}|%{index}'`) read
 /// as faces — the file and the face in a collection, each once, in order; junk skipped.
 #[test]
 fn fontconfig_lines_read_as_faces() {

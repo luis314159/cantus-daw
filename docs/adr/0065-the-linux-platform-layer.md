@@ -112,7 +112,7 @@ The frame loop keeps a 15 ms pace while any editor window is open
   `CANTUS_DATA_DIR` and a portable copy still put everything in one folder.
 - **File dialogs**: `rfd`'s XDG desktop portal backend, which falls back to `zenity` (a GTK
   dialog) where there is no portal.
-- **Fonts**: the CJK, Indic and Thai fallback asks fontconfig first (`fc-match`, `fc-list`
+- **Fonts**: the CJK, Indic and Thai fallback asks fontconfig first (`fc-list`, the faces
   for the script's language), then looks for the usual files by name in the system's,
   the user's and a Flatpak's font folders.
 - **Plug-in folders**: CLAP `~/.clap`, `/usr/lib/clap`, `/usr/local/lib/clap`, `CLAP_PATH`;

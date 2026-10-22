@@ -176,32 +176,30 @@ fn fontconfig_lang(script: Script) -> Option<&'static str> {
     }
 }
 
-/// The faces `fc-match` and then `fc-list` give for the script's language (at most four).
-/// Nothing when fontconfig's tools are not installed.
+/// The faces `fc-list` names as covering the script's language (at most four; Noto first,
+/// as the desktops' own settings prefer it). Not `fc-match`: it always answers with some
+/// face, covering the language or not. Nothing when fontconfig's tools are not installed.
 #[cfg(all(unix, not(target_os = "macos")))]
 fn fontconfig_faces(script: Script) -> Vec<Face> {
     let Some(lang) = fontconfig_lang(script) else {
         return Vec::new();
     };
-    let run = |args: &[&str]| -> String {
-        std::process::Command::new(args[0])
-            .args(&args[1..])
-            .stderr(std::process::Stdio::null())
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-            .unwrap_or_default()
-    };
-    let query = format!(":lang={lang}");
-    let mut text = run(&["fc-match", "-f", "%{file}|%{index}\n", &query]);
-    text.push_str(&run(&["fc-list", "-f", "%{file}|%{index}\n", &query]));
-    parse_fontconfig(&text, lang)
+    let text = std::process::Command::new("fc-list")
+        .args(["-f", "%{file}|%{index}\n", &format!(":lang={lang}")])
+        .stderr(std::process::Stdio::null())
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    let mut faces: Vec<Face> = parse_fontconfig(&text, lang)
         .into_iter()
         .filter(|f| f.path.is_file())
-        .take(4)
-        .collect()
+        .collect();
+    faces.sort_by_key(|f| !f.path.to_string_lossy().contains("Noto"));
+    faces.truncate(4);
+    faces
 }
 
-/// `file|index` lines, as `fc-match -f '%{file}|%{index}\n'` prints them, as faces (the
+/// `file|index` lines, as `fc-list -f '%{file}|%{index}\n'` prints them, as faces (the
 /// first of each file and index kept, in order).
 pub fn parse_fontconfig(text: &str, lang: &str) -> Vec<Face> {
     let mut out: Vec<Face> = Vec::new();
