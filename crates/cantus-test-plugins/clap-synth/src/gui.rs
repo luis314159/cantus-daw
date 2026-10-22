@@ -1,8 +1,11 @@
 //! A minimal editor, so the host's plug-in window can be tested: on Windows, a `STATIC`
 //! child window of a fixed 320 × 200 physical pixels, made a child of whatever window the
-//! host gives it. Nothing is drawn beyond what the control draws itself.
+//! host gives it. Nothing is drawn beyond what the control draws itself. On Linux, an X11
+//! child window of the same size (`x11gui.rs`).
 
-use clap_sys::ext::gui::{clap_plugin_gui, clap_window, CLAP_WINDOW_API_WIN32};
+use clap_sys::ext::gui::{
+    clap_plugin_gui, clap_window, CLAP_WINDOW_API_WIN32, CLAP_WINDOW_API_X11,
+};
 use clap_sys::plugin::clap_plugin;
 use std::ffi::{c_char, CStr};
 
@@ -32,7 +35,12 @@ unsafe extern "C" fn is_api_supported(
     api: *const c_char,
     floating: bool,
 ) -> bool {
-    cfg!(windows) && !floating && !api.is_null() && CStr::from_ptr(api) == CLAP_WINDOW_API_WIN32
+    if floating || api.is_null() {
+        return false;
+    }
+    let api = CStr::from_ptr(api);
+    (cfg!(windows) && api == CLAP_WINDOW_API_WIN32)
+        || (cfg!(target_os = "linux") && api == CLAP_WINDOW_API_X11)
 }
 
 unsafe extern "C" fn create(p: *const clap_plugin, api: *const c_char, floating: bool) -> bool {
@@ -156,19 +164,53 @@ mod win {
 #[cfg(windows)]
 use win::{destroy, hide, set_parent, show};
 
-#[cfg(not(windows))]
+/// Linux: an X11 child window (`x11gui.rs`, ADR 0065).
+#[cfg(target_os = "linux")]
+mod x11 {
+    use super::*;
+    use crate::plugin::me;
+
+    pub unsafe extern "C" fn set_parent(p: *const clap_plugin, window: *const clap_window) -> bool {
+        let me = me(p);
+        if !me.editor_created || me.editor != 0 || window.is_null() {
+            return false;
+        }
+        me.editor = crate::x11gui::open(me.host, window, "Cantus Test Synth");
+        me.editor != 0
+    }
+
+    pub unsafe extern "C" fn show(p: *const clap_plugin) -> bool {
+        crate::x11gui::show(me(p).editor, true)
+    }
+
+    pub unsafe extern "C" fn hide(p: *const clap_plugin) -> bool {
+        crate::x11gui::show(me(p).editor, false)
+    }
+
+    pub unsafe extern "C" fn destroy(p: *const clap_plugin) {
+        let me = me(p);
+        crate::x11gui::close(me.host, me.editor);
+        me.editor = 0;
+        me.editor_created = false;
+    }
+}
+
+#[cfg(target_os = "linux")]
+use x11::{destroy, hide, set_parent, show};
+
+#[cfg(not(any(windows, target_os = "linux")))]
 unsafe extern "C" fn set_parent(_p: *const clap_plugin, _w: *const clap_window) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 unsafe extern "C" fn show(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 unsafe extern "C" fn hide(_p: *const clap_plugin) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 unsafe extern "C" fn destroy(p: *const clap_plugin) {
     crate::plugin::me(p).editor_created = false;
 }

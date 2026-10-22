@@ -58,4 +58,17 @@ pub const ART: cantus_ui::boot::Art = cantus_ui::boot::Art {{
     write(&out.join("baked.rs"), baked.as_bytes());
 
     icon::embed_exe_icon(&out, "Cantus");
+
+    // Linux (ADR 0065): the desktop's icon theme sizes, for the AppImage, the Flatpak and
+    // any package (`packaging/linux/`, which takes them from `OUT_DIR/hicolor`).
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        for px in [16u32, 24, 32, 48, 64, 128, 256, 512] {
+            let dir = out.join(format!("hicolor/{px}x{px}/apps"));
+            std::fs::create_dir_all(&dir).expect("the icon folder");
+            write(
+                &dir.join("com.cantusdaw.Cantus.png"),
+                &master(px).encode_png().expect("png"),
+            );
+        }
+    }
 }

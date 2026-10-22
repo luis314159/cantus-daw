@@ -50,6 +50,16 @@ windows-sys = { version = "0.61", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+[target.'cfg(unix)'.dependencies]
+# The run loop plug-in editors need on Linux (CLAP timer and fd support, VST3 `IRunLoop`):
+# `poll` on the descriptors they register (ADR 0065).
+libc = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The plug-in window on Linux: a top-level X11 window the editor embeds into (ADR 0065).
+# Pure Rust, already in the workspace through winit (MIT OR Apache-2.0).
+x11rb = "0.13"
+
 [build-dependencies]
 # The Windows version resource (build.rs, ADR 0048 §9): product name and version on the
 # binaries a release signs. MIT; already in the workspace through cantus-app.

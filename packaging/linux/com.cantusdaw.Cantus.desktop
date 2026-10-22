@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Cantus
+GenericName=Digital Audio Workstation
+GenericName[es]=Estación de trabajo de audio digital
+Comment=Make music: record, arrange, mix and master
+Comment[es]=Haz música: graba, arregla, mezcla y masteriza
+Exec=cantus %f
+Icon=com.cantusdaw.Cantus
+Terminal=false
+Categories=AudioVideo;Audio;Midi;Music;Recorder;Mixer;Sequencer;
+Keywords=DAW;music;audio;MIDI;recording;mixing;mastering;synthesizer;CLAP;VST3;
+Keywords[es]=DAW;música;audio;MIDI;grabación;mezcla;masterización;sintetizador;CLAP;VST3;
+MimeType=application/x-cantus-project;
+StartupNotify=true
+StartupWMClass=cantus
+SingleMainWindow=true

@@ -7,8 +7,10 @@
 //! loop runs on the same thread and dispatches this window's messages with its own.
 //!
 //! A plug-in that can only float gets no window from us: it opens its own.
-//! Elsewhere (macOS, Linux) there is no embedding yet and opening fails with
-//! `Unsupported`.
+//!
+//! On Linux: a top-level X11 window (`window/x11.rs`, ADR 0065), transient for Cantus's,
+//! the plug-in's view embedded as its child (CLAP `x11`, VST3 `X11EmbedWindowID`).
+//! Elsewhere there is no embedding yet and opening fails with `Unsupported`.
 
 use crate::backend::{EditorSize, HostError, MainThread};
 use raw_window_handle::RawWindowHandle;
@@ -16,10 +18,15 @@ use raw_window_handle::RawWindowHandle;
 #[cfg(windows)]
 pub use win32::PluginWindow;
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+mod x11;
+#[cfg(target_os = "linux")]
+pub use x11::PluginWindow;
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub use other::PluginWindow;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 mod other {
     use super::*;
 

@@ -45,6 +45,11 @@ pub(crate) struct Extensions {
     pub audio_ports: *const clap_plugin_audio_ports,
     pub note_ports: *const clap_plugin_note_ports,
     pub gui: *const clap_plugin_gui,
+    /// What the host's run loop calls back (Linux's editors, ADR 0065).
+    #[cfg(unix)]
+    pub timer_support: *const clap_sys::ext::timer_support::clap_plugin_timer_support,
+    #[cfg(unix)]
+    pub posix_fd_support: *const clap_sys::ext::posix_fd_support::clap_plugin_posix_fd_support,
 }
 
 /// One audio port as the plug-in describes it.
@@ -186,6 +191,11 @@ impl Instance {
                 audio_ports: get(CLAP_EXT_AUDIO_PORTS).cast(),
                 note_ports: get(CLAP_EXT_NOTE_PORTS).cast(),
                 gui: get(CLAP_EXT_GUI).cast(),
+                #[cfg(unix)]
+                timer_support: get(clap_sys::ext::timer_support::CLAP_EXT_TIMER_SUPPORT).cast(),
+                #[cfg(unix)]
+                posix_fd_support: get(clap_sys::ext::posix_fd_support::CLAP_EXT_POSIX_FD_SUPPORT)
+                    .cast(),
             }
         };
         Ok(Instance {

@@ -18,6 +18,8 @@ export LD_LIBRARY_PATH="$root/usr/lib/x86_64-linux-gnu"
 export PKG_CONFIG_PATH="$root/usr/lib/x86_64-linux-gnu/pkgconfig:$root/usr/share/pkgconfig"
 export PKG_CONFIG_SYSROOT_DIR="$root"
 export OPENSSL_DIR="$root/usr"
+# bindgen (pipewire-sys, libspa-sys: the PipeWire host, ADR 0065) loads libclang from here.
+export LIBCLANG_PATH="$root/usr/lib/llvm-18/lib"
 export OPENSSL_LIB_DIR="$root/usr/lib/x86_64-linux-gnu"
 export OPENSSL_INCLUDE_DIR="$root/usr/include"
 export RUSTFLAGS="-D warnings"

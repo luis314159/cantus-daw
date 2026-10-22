@@ -99,15 +99,19 @@ jobs:
           # Pull requests read master's cache but do not write their own: the 10 GB
           # cache budget stays with the branch every run starts from.
           save-if: ${{ github.ref == 'refs/heads/master' }}
+      # ALSA, PipeWire (and clang for its bindings), X11/Wayland, Xvfb (ADR 0065).
       - name: Linux audio/window deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libxkbcommon-dev libwayland-dev libgtk-3-dev
+        run: bash packaging/linux/deps.sh
       # Formatting does not depend on the system: once, on the cheaper runner.
       - name: fmt
         if: runner.os == 'Linux'
         run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets
-      - run: cargo test --workspace
+      # On Linux under Xvfb: the plug-in editor windows' tests need an X server (ADR 0065).
+      - name: test
+        shell: bash
+        run: ${{ runner.os == 'Linux' && 'xvfb-run -a ' || '' }}cargo test --workspace
       # The engine on a three-worker pool with the schedule fuzz's stalls (ADR 0031 R13,
       # round 22; ADR 0038's forked voices): every test binary of the engine, parallel =
       # serial to the bit, with stalls inside the voice forks too.
@@ -125,3 +129,29 @@ jobs:
       - name: release build
         if: runner.os == 'Linux'
         run: cargo build --release -p cantus
+
+  # The AppImage's packaging on the system it is built on for releases (Ubuntu 22.04, with
+  # PipeWire 1.0's headers over its 0.3.48 library — packaging/linux/deps.sh): the program
+  # links against 22.04's libraries and the image starts, with and without libpipewire.
+  # Quick mode (one program, no plug-ins); release.yml builds the full one at each tag.
+  appimage:
+    if: github.repository == 'luis314159/cantus-daw' && github.event_name == 'push'
+    name: appimage (ubuntu-22.04, quick)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust (the pinned toolchain)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/master' }}
+      - run: bash packaging/linux/deps.sh
+      - run: cargo build --release -p cantus -p cantus-launch -p cantus-host --bin cantus-scan -p cantus-sandbox
+      - name: AppImage
+        env:
+          CANTUS_APPIMAGE_QUICK: "1"
+        run: bash packaging/linux/build-appimage.sh 0.0.0-ci target/appimage-out
+      # Without libpipewire: the stand-in in usr/lib/fallback lets it start.
+      - name: starts without libpipewire
+        run: bash packaging/linux/test-fallback.sh target/appimage-out/Cantus-0.0.0-ci-linux-x86_64.AppImage

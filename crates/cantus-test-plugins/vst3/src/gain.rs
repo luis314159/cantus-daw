@@ -719,6 +719,9 @@ pub struct View {
     parent: AtomicUsize,
     size: Mutex<(i32, i32)>,
     frame: Mutex<Option<ComPtr<IPlugFrame>>>,
+    /// The host's run loop, while attached (Linux, `run_loop.rs`).
+    #[cfg(target_os = "linux")]
+    run: Mutex<Option<crate::run_loop::Registered>>,
 }
 
 impl View {
@@ -729,6 +732,8 @@ impl View {
             parent: AtomicUsize::new(0),
             size: Mutex::new((400, 300)),
             frame: Mutex::new(None),
+            #[cfg(target_os = "linux")]
+            run: Mutex::new(None),
         }
     }
 }
@@ -761,11 +766,19 @@ impl IPlugViewTrait for View {
             return kInvalidArgument;
         }
         self.parent.store(parent as usize, Ordering::SeqCst);
+        // On Linux an editor hangs its timer and its toolkit's descriptor on the host's
+        // run loop, which the SDK has it ask the frame for.
+        #[cfg(target_os = "linux")]
+        if let Some(frame) = lock(&self.frame).clone() {
+            *lock(&self.run) = crate::run_loop::Registered::on(&frame);
+        }
         kResultOk
     }
 
     unsafe fn removed(&self) -> tresult {
         self.parent.store(0, Ordering::SeqCst);
+        #[cfg(target_os = "linux")]
+        drop(lock(&self.run).take());
         kResultOk
     }
 

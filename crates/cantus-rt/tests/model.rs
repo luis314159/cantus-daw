@@ -175,6 +175,9 @@ fn driver_names_map_to_hosts() {
     );
     assert_eq!(AudioHost::from_driver_name("jack"), AudioHost::Jack);
     assert_eq!(AudioHost::from_driver_name("ALSA"), AudioHost::Alsa);
+    assert_eq!(AudioHost::from_driver_name("PipeWire"), AudioHost::PipeWire);
+    assert!(AudioHost::PipeWire.driver_owns_priority());
+    assert!(!AudioHost::Alsa.driver_owns_priority());
     assert_eq!(AudioHost::from_driver_name("PulseAudio"), AudioHost::Other);
     assert!(AudioHost::from_driver_name("ASIO").driver_owns_priority());
     assert!(!AudioHost::from_driver_name("WASAPI").driver_owns_priority());

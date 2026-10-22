@@ -3822,6 +3822,12 @@ impl CantusApp {
         crate::audio_setup::tick(self);
         // Hosted plug-ins: their requests, restarts, and what their windows did.
         let notices = self.plugins.idle(&mut self.bus, &mut self.engine);
+        // Linux: an open editor's timers and X connection are served from these frames
+        // (ADR 0065), so they keep coming while one is open, idle or not.
+        #[cfg(target_os = "linux")]
+        if self.plugins.any_window_open() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(15));
+        }
         // What their windows moved: last tweaked, and recorded automation (ADR 0057).
         self.host_tweaks();
         // MIDI controllers (round 29, ADR 0062): what the tap heard since the last frame.
@@ -4165,7 +4171,19 @@ pub fn start_engine(settings: &Settings) -> EngineHandle {
 
 /// Where the application keeps the user's files: settings, look, layouts, keymap.
 pub fn config_dir() -> PathBuf {
+    #[cfg(target_os = "linux")]
+    if !linux_overridden() {
+        return crate::linux_desktop::config_dir();
+    }
     directories_fallback()
+}
+
+/// Linux keeps configuration and data in the XDG places (ADR 0065) unless
+/// `CANTUS_DATA_DIR` or a portable copy puts everything in one folder.
+#[cfg(target_os = "linux")]
+fn linux_overridden() -> bool {
+    std::env::var_os("CANTUS_DATA_DIR").is_some_and(|d| !d.is_empty())
+        || cantus_update::install::portable_data_dir().is_some()
 }
 
 /// Show a file in the platform's file manager, selecting it where that is supported.
@@ -4211,6 +4229,10 @@ fn captured_binding(ctx: &egui::Context) -> Option<crate::keymap::Binding> {
 /// Where the app keeps what is the user's and not a project's: presets, recordings with no
 /// project, autosaves.
 pub fn data_dir() -> PathBuf {
+    #[cfg(target_os = "linux")]
+    if !linux_overridden() {
+        return crate::linux_desktop::data_dir();
+    }
     directories_fallback()
 }
 

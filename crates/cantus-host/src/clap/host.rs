@@ -97,6 +97,11 @@ pub(crate) struct HostData {
     pub flags: AtomicU32,
     /// The editor's requested size, `width << 32 | height`.
     pub gui_size: AtomicU64,
+    /// The timers and descriptors the plug-in registered (`timer-support`,
+    /// `posix-fd-support`; Linux's editors need them, ADR 0065), served by `idle`. Locked
+    /// only on the main thread, and never while the plug-in is called.
+    #[cfg(unix)]
+    pub run_loop: std::sync::Mutex<crate::runloop::RunLoop<()>>,
 }
 
 const NAME: &CStr = c"Cantus";
@@ -126,6 +131,8 @@ impl HostData {
             },
             flags: AtomicU32::new(0),
             gui_size: AtomicU64::new(0),
+            #[cfg(unix)]
+            run_loop: Default::default(),
         });
         let ptr: *mut HostData = &mut *data;
         data.clap.host_data = ptr.cast();
@@ -196,6 +203,8 @@ unsafe extern "C" fn get_extension(_host: *const clap_host, id: *const c_char) -
         (&GUI as *const clap_host_gui).cast()
     } else if id == CLAP_EXT_LOG {
         (&LOG as *const clap_host_log).cast()
+    } else if let Some(ext) = run_loop::extension(id) {
+        ext
     } else {
         std::ptr::null()
     };
@@ -348,5 +357,114 @@ unsafe extern "C" fn host_log(
         0 | 1 => log::debug!("plug-in: {text}"),
         2 => log::info!("plug-in: {text}"),
         _ => log::warn!("plug-in: {text}"),
+    }
+}
+
+/// `timer-support` and `posix-fd-support` (ADR 0065): what a plug-in's editor on Linux
+/// hangs its toolkit on. Registered from the main thread only (the spec's rule); refused
+/// from any other.
+mod run_loop {
+    #[cfg(unix)]
+    use super::{data, on_main_thread};
+    #[cfg(unix)]
+    use clap_sys::host::clap_host;
+    #[cfg(unix)]
+    use clap_sys::id::clap_id;
+    use std::ffi::{c_void, CStr};
+
+    #[cfg(unix)]
+    use clap_sys::ext::posix_fd_support::{
+        clap_host_posix_fd_support, clap_posix_fd_flags, CLAP_EXT_POSIX_FD_SUPPORT,
+    };
+    #[cfg(unix)]
+    use clap_sys::ext::timer_support::{clap_host_timer_support, CLAP_EXT_TIMER_SUPPORT};
+
+    /// The extension for `id`, when it is one of these (and this system has them).
+    pub(super) fn extension(id: &CStr) -> Option<*const c_void> {
+        #[cfg(unix)]
+        {
+            if id == CLAP_EXT_TIMER_SUPPORT {
+                return Some((&TIMERS as *const clap_host_timer_support).cast());
+            }
+            if id == CLAP_EXT_POSIX_FD_SUPPORT {
+                return Some((&FDS as *const clap_host_posix_fd_support).cast());
+            }
+        }
+        let _ = id;
+        None
+    }
+
+    #[cfg(unix)]
+    static TIMERS: clap_host_timer_support = clap_host_timer_support {
+        register_timer: Some(register_timer),
+        unregister_timer: Some(unregister_timer),
+    };
+
+    #[cfg(unix)]
+    static FDS: clap_host_posix_fd_support = clap_host_posix_fd_support {
+        register_fd: Some(register_fd),
+        modify_fd: Some(modify_fd),
+        unregister_fd: Some(unregister_fd),
+    };
+
+    #[cfg(unix)]
+    fn with<R>(
+        host: *const clap_host,
+        f: impl FnOnce(&mut crate::runloop::RunLoop<()>) -> R,
+    ) -> Option<R> {
+        if !on_main_thread() {
+            return None;
+        }
+        // SAFETY: `host` is the pointer this host gave the plug-in.
+        let d = unsafe { data(host) }?;
+        let mut l = d.run_loop.lock().unwrap_or_else(|e| e.into_inner());
+        Some(f(&mut l))
+    }
+
+    #[cfg(unix)]
+    unsafe extern "C" fn register_timer(
+        host: *const clap_host,
+        period_ms: u32,
+        timer_id: *mut clap_id,
+    ) -> bool {
+        if timer_id.is_null() {
+            return false;
+        }
+        let period = std::time::Duration::from_millis(period_ms.into());
+        match with(host, |l| l.add_timer(period, ())) {
+            Some(id) => {
+                *timer_id = id;
+                true
+            }
+            None => false,
+        }
+    }
+
+    #[cfg(unix)]
+    unsafe extern "C" fn unregister_timer(host: *const clap_host, timer_id: clap_id) -> bool {
+        with(host, |l| l.remove_timer(timer_id)).unwrap_or(false)
+    }
+
+    #[cfg(unix)]
+    unsafe extern "C" fn register_fd(
+        host: *const clap_host,
+        fd: i32,
+        flags: clap_posix_fd_flags,
+    ) -> bool {
+        with(host, |l| l.add_fd(fd, flags, ())).unwrap_or(false)
+    }
+
+    #[cfg(unix)]
+    unsafe extern "C" fn modify_fd(
+        host: *const clap_host,
+        fd: i32,
+        flags: clap_posix_fd_flags,
+    ) -> bool {
+        with(host, |l| l.modify_fd(fd, flags)).unwrap_or(false)
+    }
+
+    #[cfg(unix)]
+    unsafe extern "C" fn unregister_fd(host: *const clap_host, fd: i32) -> bool {
+        with(host, |l| l.remove_fd(fd)).unwrap_or(false)
     }
 }

@@ -489,10 +489,129 @@ impl IComponentHandler2Trait for ComponentHandler {
 
 pub struct PlugFrame {
     pub requests: SharedRequests,
+    /// The timers and descriptors the editor registered through `IRunLoop` (Linux, ADR
+    /// 0065), served by the main half's `idle`.
+    #[cfg(target_os = "linux")]
+    pub run_loop: Mutex<crate::runloop::RunLoop<run_loop::Handler>>,
 }
 
+impl PlugFrame {
+    pub fn new(requests: SharedRequests) -> PlugFrame {
+        PlugFrame {
+            requests,
+            #[cfg(target_os = "linux")]
+            run_loop: Mutex::default(),
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
 impl Class for PlugFrame {
     type Interfaces = (IPlugFrame,);
+}
+
+/// On Linux the frame is also the editor's run loop (`Steinberg::Linux::IRunLoop`): the
+/// SDK's editors ask the frame for it, there being no system loop to hang on (ADR 0065).
+#[cfg(target_os = "linux")]
+impl Class for PlugFrame {
+    type Interfaces = (IPlugFrame, ::vst3::Steinberg::Linux::IRunLoop);
+}
+
+#[cfg(target_os = "linux")]
+pub mod run_loop {
+    use super::{lock_run_loop, PlugFrame};
+    use crate::runloop::FD_READ;
+    use ::vst3::Steinberg::Linux::{
+        FileDescriptor, IEventHandler, IEventHandlerTrait, IRunLoopTrait, ITimerHandler,
+        ITimerHandlerTrait, TimerInterval,
+    };
+    use ::vst3::Steinberg::{kInvalidArgument, kResultFalse, kResultOk, tresult};
+    use ::vst3::{ComPtr, ComRef};
+
+    /// Who a timer or a descriptor calls back.
+    #[derive(Clone)]
+    pub enum Handler {
+        Timer(ComPtr<ITimerHandler>),
+        Event(ComPtr<IEventHandler>),
+    }
+
+    impl Handler {
+        fn is_timer(&self, p: *mut ITimerHandler) -> bool {
+            matches!(self, Handler::Timer(t) if t.as_ptr() == p)
+        }
+        fn is_event(&self, p: *mut IEventHandler) -> bool {
+            matches!(self, Handler::Event(e) if e.as_ptr() == p)
+        }
+
+        /// Call it back: a timer fired, or `fd` is ready.
+        ///
+        /// # Safety
+        /// On the main thread, with no lock of the run loop held.
+        pub unsafe fn call(&self, fd: i32) {
+            match self {
+                Handler::Timer(t) => t.onTimer(),
+                Handler::Event(e) => e.onFDIsSet(fd),
+            }
+        }
+    }
+
+    impl IRunLoopTrait for PlugFrame {
+        unsafe fn registerEventHandler(
+            &self,
+            handler: *mut IEventHandler,
+            fd: FileDescriptor,
+        ) -> tresult {
+            let Some(h) = ComRef::from_raw(handler) else {
+                return kInvalidArgument;
+            };
+            let added = lock_run_loop(self).add_fd(fd, FD_READ, Handler::Event(h.to_com_ptr()));
+            if added {
+                kResultOk
+            } else {
+                kResultFalse
+            }
+        }
+
+        unsafe fn unregisterEventHandler(&self, handler: *mut IEventHandler) -> tresult {
+            if handler.is_null() {
+                return kInvalidArgument;
+            }
+            match lock_run_loop(self).remove_fds_where(|h| h.is_event(handler)) {
+                0 => kResultFalse,
+                _ => kResultOk,
+            }
+        }
+
+        unsafe fn registerTimer(
+            &self,
+            handler: *mut ITimerHandler,
+            milliseconds: TimerInterval,
+        ) -> tresult {
+            let Some(h) = ComRef::from_raw(handler) else {
+                return kInvalidArgument;
+            };
+            let period = std::time::Duration::from_millis(milliseconds);
+            lock_run_loop(self).add_timer(period, Handler::Timer(h.to_com_ptr()));
+            kResultOk
+        }
+
+        unsafe fn unregisterTimer(&self, handler: *mut ITimerHandler) -> tresult {
+            if handler.is_null() {
+                return kInvalidArgument;
+            }
+            match lock_run_loop(self).remove_timers_where(|h| h.is_timer(handler)) {
+                0 => kResultFalse,
+                _ => kResultOk,
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+pub(crate) fn lock_run_loop(
+    frame: &PlugFrame,
+) -> MutexGuard<'_, crate::runloop::RunLoop<run_loop::Handler>> {
+    frame.run_loop.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl IPlugFrameTrait for PlugFrame {

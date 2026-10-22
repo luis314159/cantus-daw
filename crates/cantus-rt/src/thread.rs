@@ -56,6 +56,8 @@ pub enum AudioHost {
     Wasapi,
     CoreAudio,
     Jack,
+    /// PipeWire's native API (Linux, ADR 0065).
+    PipeWire,
     Alsa,
     /// Anything else whose callback thread is ours (cpal's) — promoted like WASAPI/ALSA.
     Other,
@@ -63,24 +65,29 @@ pub enum AudioHost {
 
 impl AudioHost {
     /// From a driver API's name as cpal gives it (`HostId::name()`: "ASIO", "WASAPI",
-    /// "CoreAudio", "JACK", "ALSA"), case-insensitive; anything else is [`AudioHost::Other`].
+    /// "CoreAudio", "JACK", "PipeWire", "ALSA"), case-insensitive; anything else is
+    /// [`AudioHost::Other`].
     pub fn from_driver_name(name: &str) -> AudioHost {
         match name.to_ascii_lowercase().as_str() {
             "asio" => AudioHost::Asio,
             "wasapi" => AudioHost::Wasapi,
             "coreaudio" => AudioHost::CoreAudio,
             "jack" => AudioHost::Jack,
+            "pipewire" => AudioHost::PipeWire,
             "alsa" => AudioHost::Alsa,
             _ => AudioHost::Other,
         }
     }
 
     /// True when the driver creates the callback thread and gives it real-time priority
-    /// itself, so promoting it again would only fight the driver.
+    /// itself, so promoting it again would only fight the driver. JACK's and PipeWire's
+    /// threads are made real-time by their client libraries (through rtkit when the
+    /// process may not ask itself); on Linux a thread they left at normal priority is
+    /// promoted by [`promote_callback`] after all.
     pub fn driver_owns_priority(self) -> bool {
         matches!(
             self,
-            AudioHost::Asio | AudioHost::CoreAudio | AudioHost::Jack
+            AudioHost::Asio | AudioHost::CoreAudio | AudioHost::Jack | AudioHost::PipeWire
         )
     }
 }
@@ -265,8 +272,13 @@ pub fn promote_callback(host: AudioHost, period: Duration) -> Promotion {
     if let Some(p) = CALLBACK.with(Cell::get) {
         return p;
     }
-    let p = if host.driver_owns_priority() {
-        Promotion::LeftAsIs("driver-owned thread: real-time already, left alone")
+    #[cfg(target_os = "linux")]
+    let linux_driver_left_it =
+        matches!(host, AudioHost::Jack | AudioHost::PipeWire) && os::policy_now() == Some(false);
+    #[cfg(not(target_os = "linux"))]
+    let linux_driver_left_it = false;
+    let p = if host.driver_owns_priority() && !linux_driver_left_it {
+        driver_owned()
     } else {
         os::promote(
             WorkerRole::Live,
@@ -276,7 +288,66 @@ pub fn promote_callback(host: AudioHost, period: Duration) -> Promotion {
         )
     };
     CALLBACK.with(|c| c.set(Some(p)));
+    // For the device page: never waits (a frame reading it now loses this one answer).
+    if let Ok(mut seen) = SEEN_CALLBACK.try_lock() {
+        *seen = Some(p);
+    }
     p
+}
+
+/// What the audio threads were given, for the device page (ADR 0065): the callback's
+/// promotion (the latest stream's) and each live pool worker's.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PriorityReport {
+    pub callback: Option<Promotion>,
+    pub workers: Vec<Promotion>,
+}
+
+impl PriorityReport {
+    /// How many workers run at real-time priority.
+    pub fn realtime_workers(&self) -> usize {
+        self.workers.iter().filter(|p| p.is_realtime()).count()
+    }
+}
+
+/// The most workers the report keeps (more than any machine's pool).
+const SEEN_MAX: usize = 64;
+
+static SEEN_CALLBACK: std::sync::Mutex<Option<Promotion>> = std::sync::Mutex::new(None);
+#[allow(clippy::type_complexity)]
+static SEEN_WORKERS: std::sync::Mutex<[Option<(std::thread::ThreadId, Promotion)>; SEEN_MAX]> =
+    std::sync::Mutex::new([None; SEEN_MAX]);
+
+fn seen_workers(
+) -> std::sync::MutexGuard<'static, [Option<(std::thread::ThreadId, Promotion)>; SEEN_MAX]> {
+    SEEN_WORKERS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The answer a live worker thread got, while its promotion lives.
+pub fn worker_promotion_of(thread: std::thread::ThreadId) -> Option<Promotion> {
+    seen_workers()
+        .iter()
+        .flatten()
+        .find(|(id, _)| *id == thread)
+        .map(|(_, p)| *p)
+}
+
+/// What the audio threads have now (see [`PriorityReport`]).
+pub fn priority_report() -> PriorityReport {
+    let callback = *SEEN_CALLBACK.lock().unwrap_or_else(|e| e.into_inner());
+    let workers = seen_workers().iter().flatten().map(|(_, p)| *p).collect();
+    PriorityReport { callback, workers }
+}
+
+/// What a driver-owned callback thread is left with. On Linux the policy the driver's
+/// library gave it is named (JACK's and PipeWire's threads run `SCHED_FIFO`, or `SCHED_RR`
+/// when rtkit granted it).
+fn driver_owned() -> Promotion {
+    #[cfg(target_os = "linux")]
+    if let Some(name) = os::realtime_policy_name() {
+        return Promotion::LeftAsIs(name);
+    }
+    Promotion::LeftAsIs("driver-owned thread: real-time already, left alone")
 }
 
 /// The answer [`promote_callback`] gave on this thread, if it was called.
@@ -296,6 +367,26 @@ pub struct WorkerPromotion {
 impl Drop for WorkerPromotion {
     fn drop(&mut self) {
         os::revert(&mut self.revert);
+        let me = std::thread::current().id();
+        for slot in seen_workers().iter_mut() {
+            if slot.is_some_and(|(id, _)| id == me) {
+                *slot = None;
+            }
+        }
+    }
+}
+
+impl WorkerPromotion {
+    /// Keep this thread's answer for [`priority_report`] while the promotion lives. Off the
+    /// audio path: a worker calls it once, before it serves.
+    fn noted(self) -> Self {
+        let me = std::thread::current().id();
+        let mut seen = seen_workers();
+        if let Some(slot) = seen.iter_mut().find(|s| s.is_none()) {
+            *slot = Some((me, self.promotion));
+        }
+        drop(seen);
+        self
     }
 }
 
@@ -310,6 +401,7 @@ pub fn promote_worker(role: WorkerRole, period: Duration, waiting: Waiting) -> W
         revert,
         _not_send: std::marker::PhantomData,
     }
+    .noted()
 }
 
 /// macOS: the time-constraint policy **then** `os_workgroup_join` (in that order, or the join

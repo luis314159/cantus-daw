@@ -30,6 +30,8 @@
 mod fault;
 mod gain;
 mod pulse;
+#[cfg(target_os = "linux")]
+mod run_loop;
 
 use std::ffi::{c_char, c_void};
 use std::sync::atomic::{AtomicI32, Ordering};
@@ -355,6 +357,14 @@ pub extern "C" fn cantus_test_zoom(set: f64) -> f64 {
 }
 
 /// The newest editor asks its frame to resize it. 1 when it had a frame.
+/// Linux: (registered, timer calls, descriptor calls) of the newest editor's use of the
+/// host's run loop (`run_loop.rs`).
+#[cfg(target_os = "linux")]
+#[no_mangle]
+pub extern "C" fn cantus_test_run_loop(ticks: *mut i32, events: *mut i32) -> i32 {
+    run_loop::counts(ticks, events)
+}
+
 #[no_mangle]
 pub extern "C" fn cantus_test_resize_editor(width: i32, height: i32) -> i32 {
     gain::resize_editor(width, height)

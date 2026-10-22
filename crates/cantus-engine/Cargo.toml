@@ -22,6 +22,12 @@ log.workspace = true
 claxon = "0.4"
 lewton = "0.10"
 
+# Linux's low-latency hosts beside ALSA, in the one build (ADR 0065): PipeWire's native API
+# and JACK's (libjack opened at run time; a missing libpipewire is handled by the AppImage's
+# fallback, packaging/linux/README.md).
+[target.'cfg(target_os = "linux")'.dependencies]
+cpal = { workspace = true, features = ["pipewire", "jack"] }
+
 [features]
 # ASIO drivers on Windows (ADR 0025 §10). The app turns it on by default (round 21). It
 # needs the Steinberg ASIO SDK (`CPAL_ASIO_DIR`, or the cache `xtask asio-sdk` fills) and
