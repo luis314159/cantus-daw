@@ -500,7 +500,11 @@ Left by design and written in ADR 0064: within an isolated plug-in's echo window
 of its own state that moves no value is taken for the echo (its bytes cannot be told from
 the echo's). Findings 1, 4, 7, 10 and 11 are isolation's.
 
-RUNFB_RESULTS
+The run: all `--no-fail-fast`, 0 failed — `cantus-core` 434, `cantus-project` 123,
+`cantus-engine` 842, the engine fuzz (`CANTUS_WORKERS=3`) 846, `cantus-host` 106,
+`cantus-sandbox` 124 (`CANTUS_TEST_PLUGINS_PREBUILT=1`, the test plug-ins rebuilt with
+their `rewrite` and `count:` tags), `cantus-ui` 1 717. Clippy `-D warnings` on the
+workspace and `fmt --check` clean. Schema 38 untouched; no golden moved.
 
 ## Left
 
