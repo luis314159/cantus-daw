@@ -373,6 +373,13 @@ pub extern "C" fn cantus_test_zoom(set: f64) -> f64 {
 /// The newest editor asks its frame to resize it. 1 when it had a frame.
 /// Linux: (registered, timer calls, descriptor calls) of the newest editor's use of the
 /// host's run loop (`run_loop.rs`).
+/// Linux: the editor forgets to unregister from the host's run loop when removed.
+#[cfg(target_os = "linux")]
+#[no_mangle]
+pub extern "C" fn cantus_test_leak_run_loop(on: i32) {
+    run_loop::set_leak(on != 0);
+}
+
 #[cfg(target_os = "linux")]
 #[no_mangle]
 pub extern "C" fn cantus_test_run_loop(ticks: *mut i32, events: *mut i32) -> i32 {

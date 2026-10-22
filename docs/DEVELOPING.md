@@ -114,8 +114,11 @@ wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh 
 `fetch-deps.sh` installs rustup and unpacks the `-dev` packages (ALSA, D-Bus, OpenSSL,
 Wayland, xkbcommon, pkg-config, PipeWire, libclang) into `~/linux-deps/root`, and a
 PipeWire daemon, WirePlumber and jackd2 into `~/linux-deps/rt`; `check.sh` clones the main
-repository into `~/cantus-ci`, checks out the branch and runs clippy or the tests with CI's
+repository into `~/cantus-ci` (`CANTUS_CI_DIR=~/elsewhere` for a clone of one's own, as
+parallel builders need), checks out the branch and runs clippy or the tests with CI's
 flags. WSLg is an X server (and a Wayland one), so the plug-in window tests run there.
+A machine set up before round 30 runs `fetch-deps.sh` once more: the build now needs
+PipeWire's headers and libclang, which it adds.
 
 To open Cantus's PipeWire and JACK hosts in WSL (there is no sound card: a null sink and
 source, or JACK's dummy driver, run on a timer):

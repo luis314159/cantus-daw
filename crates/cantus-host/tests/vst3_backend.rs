@@ -1046,6 +1046,51 @@ fn the_editor_attaches_to_x11_and_runs_on_the_hosts_run_loop() {
     drop((main, audio));
 }
 
+/// Linux (review of round 30): an editor that leaves its timer and descriptor registered
+/// when removed is not called again — the host forgets them when the view goes (and before
+/// the library could be unloaded).
+#[cfg(target_os = "linux")]
+#[test]
+fn a_removed_editors_leftover_handlers_are_not_called() {
+    use raw_window_handle::{RawWindowHandle, XlibWindowHandle};
+
+    let _g = serial();
+    let probe = Probe::new();
+    let ticks = |p: &Probe| -> i32 {
+        let f =
+            p.call::<unsafe extern "C" fn(*mut i32, *mut i32) -> i32>(b"cantus_test_run_loop\0");
+        let mut t = 0;
+        // SAFETY: the test plug-in's export, with a live out-pointer.
+        unsafe { f(&mut t, std::ptr::null_mut()) };
+        t
+    };
+    let leak = |p: &Probe, on: i32| {
+        let f = p.call::<unsafe extern "C" fn(i32)>(b"cantus_test_leak_run_loop\0");
+        // SAFETY: as above.
+        unsafe { f(on) }
+    };
+    let frames = |main: &mut Box<dyn cantus_host::MainThread>, ms: u64| {
+        let started = std::time::Instant::now();
+        while started.elapsed() < std::time::Duration::from_millis(ms) {
+            main.idle();
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    };
+    let Loaded { mut main, audio } = load(GAIN_ID);
+    leak(&probe, 1);
+    let parent = RawWindowHandle::Xlib(XlibWindowHandle::new(0x5151));
+    main.open_editor(parent).expect("open");
+    let before = ticks(&probe);
+    frames(&mut main, 200);
+    assert!(ticks(&probe) > before, "its timer ran while open");
+    main.close_editor();
+    let after = ticks(&probe);
+    frames(&mut main, 200);
+    leak(&probe, 0);
+    assert_eq!(ticks(&probe), after, "not called after the view went");
+    drop((main, audio));
+}
+
 // ---------------------------------------------------------------------------------------
 // The instrument adapter (ADR 0028) over a VST3 instrument
 

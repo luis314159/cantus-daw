@@ -350,6 +350,8 @@ impl MainThread for MainHalf {
                 view.setFrame(std::ptr::null_mut());
             }
         }
+        #[cfg(target_os = "linux")]
+        self.clear_run_loop();
     }
 
     fn idle(&mut self) -> Vec<Notice> {
@@ -462,21 +464,24 @@ impl MainHalf {
     /// The editor's timers that are due and descriptors that are ready, called back
     /// (`IRunLoop`, ADR 0065) with the run loop unlocked: a handler may unregister itself.
     fn serve_run_loop(&mut self) {
-        let (timers, fds) = {
-            let mut l = super::host_objects::lock_run_loop(&self.frame);
-            if l.is_empty() {
-                return;
+        use crate::runloop::{serve, Fired};
+        serve(&self.frame.run_loop, std::time::Instant::now(), |fired| {
+            // SAFETY: the editor's own handlers, on the main thread, no lock held.
+            unsafe {
+                match fired {
+                    Fired::Timer(_, handler) => handler.call(-1),
+                    Fired::Fd(fd, _, handler) => handler.call(fd),
+                }
             }
-            (l.due(std::time::Instant::now()), l.ready())
-        };
-        // SAFETY: the editor's own handlers, on the main thread, no lock held.
-        unsafe {
-            for (_, handler) in timers {
-                handler.call(-1);
-            }
-            for (fd, _, handler) in fds {
-                handler.call(fd);
-            }
-        }
+        });
+    }
+
+    /// Forget what the editor registered on the run loop, outside its lock: called when
+    /// the view goes (a handler left registered must not be called on a closed editor),
+    /// and so before the plug-in's library can be unloaded (`Drop` runs before the
+    /// fields, `inst` among them), so no handler's `release` runs after `dlclose`.
+    fn clear_run_loop(&mut self) {
+        let stale = std::mem::take(&mut *super::host_objects::lock_run_loop(&self.frame));
+        drop(stale);
     }
 }

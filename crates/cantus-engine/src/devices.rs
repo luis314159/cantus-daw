@@ -47,10 +47,13 @@ pub struct InputDeviceInfo {
 /// ADR 0065), then the others in that order. A JACK whose server is not running (or whose
 /// library is not installed) is not offered: cpal's JACK host would have no devices.
 pub fn drivers() -> Vec<DriverInfo> {
+    // A JACK server started or stopped since the last look is seen (the device page asks
+    // when it opens and on *Rescan*).
+    rescan_jack();
     let default = default_id();
     let mut v: Vec<DriverInfo> = hosts()
         .iter()
-        .filter(|(id, h)| usable(*id, h))
+        .filter(|(id, _)| usable(*id, current(*id)))
         .map(|(id, _)| DriverInfo {
             name: id.name().to_string(),
             is_default: Some(*id) == default,
@@ -75,15 +78,76 @@ pub fn preference(name: &str) -> u8 {
     }
 }
 
-/// Whether a host can be opened now. JACK's always says it is available (its library is
-/// opened at run time): it counts only with a device, which needs a running server.
+/// Whether a host can be opened now and carries the machine's sound.
+///
+/// - JACK says it is always available (its library is opened at run time): it counts only
+///   with a device, which needs a running server.
+/// - PipeWire counts when it carries the desktop's audio ([`pipewire_serves_audio`]): on
+///   Ubuntu 22.04 and Mint 21 PipeWire runs for screen sharing only while PulseAudio owns
+///   the sound card, and a stream to its default would go nowhere — ALSA's `default`
+///   reaches PulseAudio there.
 fn usable(id: cpal::HostId, host: &cpal::Host) -> bool {
-    if !id.name().eq_ignore_ascii_case("JACK") {
-        return true;
+    let name = id.name();
+    if name.eq_ignore_ascii_case("JACK") {
+        return host
+            .devices()
+            .map(|mut d| d.next().is_some())
+            .unwrap_or(false);
     }
-    host.devices()
-        .map(|mut d| d.next().is_some())
-        .unwrap_or(false)
+    if name.eq_ignore_ascii_case("PipeWire") {
+        let sinks = host
+            .output_devices()
+            .map(|d| {
+                let names: Vec<String> = d.filter_map(|d| name_of(&d)).collect();
+                real_sinks(names.iter().map(String::as_str))
+            })
+            .unwrap_or(0);
+        return pipewire_serves_audio(PipeWireFacts {
+            real_sinks: sinks,
+            pipewire_pulse: pipewire_pulse_running(),
+        });
+    }
+    true
+}
+
+/// What decides whether PipeWire carries the desktop's audio (ADR 0065).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PipeWireFacts {
+    /// Output nodes that are real sinks (not cpal's `default_*` stand-ins).
+    pub real_sinks: usize,
+    /// PulseAudio's server is PipeWire's (`pipewire-pulse` runs).
+    pub pipewire_pulse: bool,
+}
+
+/// PipeWire carries the sound when it has a sink of its own, or serves PulseAudio's
+/// clients; a PipeWire with neither (screen sharing only) is not offered.
+pub fn pipewire_serves_audio(f: PipeWireFacts) -> bool {
+    f.real_sinks > 0 || f.pipewire_pulse
+}
+
+/// How many of cpal's PipeWire output devices, by name, are real sinks.
+pub fn real_sinks<'a>(names: impl Iterator<Item = &'a str>) -> usize {
+    names
+        .filter(|n| !matches!(*n, "default_sink" | "default_output" | "default_input"))
+        .count()
+}
+
+/// Whether a `pipewire-pulse` process runs (read from `/proc`; never on other systems).
+fn pipewire_pulse_running() -> bool {
+    let Ok(dir) = std::fs::read_dir("/proc") else {
+        return false;
+    };
+    dir.flatten().any(|e| {
+        std::fs::read_to_string(e.path().join("comm")).is_ok_and(|c| c.trim() == "pipewire-pulse")
+    })
+}
+
+/// Linux's default: the best usable host by [`preference`], from `(name, usable)` pairs.
+pub fn linux_default<'a>(hosts: impl Iterator<Item = (&'a str, bool)>) -> Option<&'a str> {
+    hosts
+        .filter(|(_, usable)| *usable)
+        .min_by_key(|(name, _)| preference(name))
+        .map(|(name, _)| name)
 }
 
 /// The default driver type, worked out once: on Linux the best usable host by
@@ -94,15 +158,61 @@ fn default_id() -> Option<cpal::HostId> {
     *DEFAULT.get_or_init(|| {
         let hosts = hosts();
         if cfg!(target_os = "linux") {
-            return hosts
+            let found: Vec<(cpal::HostId, bool)> = hosts
                 .iter()
-                .filter(|(id, h)| usable(*id, h))
-                .min_by_key(|(id, _)| preference(id.name()))
+                .map(|(id, _)| (*id, usable(*id, current(*id))))
+                .collect();
+            let best = linux_default(found.iter().map(|(id, u)| (id.name(), *u)))?;
+            return found
+                .iter()
+                .find(|(id, _)| id.name() == best)
                 .map(|(id, _)| *id);
         }
         let id = cpal::default_host().id();
         hosts.iter().any(|(h, _)| *h == id).then_some(id)
     })
+}
+
+/// JACK's host as last looked at: cpal's JACK host lists its devices once, when made, so a
+/// server started (or stopped) since needs a new one. Hosts are kept for the process
+/// (see [`hosts`]); a replaced JACK host is leaked on purpose — made only when the server
+/// came or went, a few hundred bytes each time.
+static JACK_NOW: std::sync::Mutex<Option<&'static cpal::Host>> = std::sync::Mutex::new(None);
+
+/// The host to use for `id`: JACK's latest look, any other's one host.
+fn current(id: cpal::HostId) -> &'static cpal::Host {
+    if id.name().eq_ignore_ascii_case("JACK") {
+        if let Some(h) = *JACK_NOW.lock().unwrap_or_else(|e| e.into_inner()) {
+            return h;
+        }
+    }
+    hosts()
+        .iter()
+        .find(|(h, _)| *h == id)
+        .map(|(_, h)| h)
+        .unwrap_or_else(|| host(None))
+}
+
+/// Look at JACK again (Linux): when a server is there now and was not, or the other way
+/// round, its host is made anew.
+pub fn rescan_jack() {
+    if !cfg!(target_os = "linux") {
+        return;
+    }
+    let Some(id) = hosts()
+        .iter()
+        .map(|(id, _)| *id)
+        .find(|id| id.name().eq_ignore_ascii_case("JACK"))
+    else {
+        return;
+    };
+    let was = usable(id, current(id));
+    let Ok(fresh) = cpal::host_from_id(id) else {
+        return;
+    };
+    if usable(id, &fresh) != was {
+        *JACK_NOW.lock().unwrap_or_else(|e| e.into_inner()) = Some(Box::leak(Box::new(fresh)));
+    }
 }
 
 /// Every host this machine offers, made once for the life of the process. ASIO allows one
@@ -131,15 +241,19 @@ fn hosts() -> &'static [(cpal::HostId, cpal::Host)] {
 pub(crate) fn host(driver: Option<&str>) -> &'static cpal::Host {
     let hosts = hosts();
     let default = default_id();
-    driver
-        .and_then(|name| {
-            hosts
-                .iter()
-                .find(|(id, _)| id.name().eq_ignore_ascii_case(name))
-        })
-        .or_else(|| hosts.iter().find(|(id, _)| Some(*id) == default))
-        .or(hosts.first())
-        .map(|(_, h)| h)
+    if let Some(name) = driver {
+        if let Some((id, _)) = hosts
+            .iter()
+            .find(|(id, _)| id.name().eq_ignore_ascii_case(name))
+        {
+            return current(*id);
+        }
+    }
+    hosts
+        .iter()
+        .find(|(id, _)| Some(*id) == default)
+        .map(|(id, _)| current(*id))
+        .or(hosts.first().map(|(_, h)| h))
         .unwrap_or_else(|| {
             // No host at all is not a machine cpal knows; keep one default for the process.
             static FALLBACK: std::sync::OnceLock<cpal::Host> = std::sync::OnceLock::new();

@@ -303,7 +303,7 @@ impl CantusApp {
         stress: bool,
         locale_from_flag: Option<i18n::Locale>,
     ) -> Self {
-        let files = Files::read(&directories_fallback(), locale_from_flag);
+        let files = Files::read(&config_dir(), locale_from_flag);
         // The real window shows names in any script: the system's fonts after ours, read
         // when first needed (round 26). Tests and shots never arm it.
         crate::font_fallback::install_for_window(&cc.egui_ctx);
@@ -442,8 +442,8 @@ impl CantusApp {
         } = files;
         views::workspace_style::install(ctx);
         ctx.set_zoom_factor(settings.ui_scale());
-        crate::kit::logo::set_disk_cache(Some(directories_fallback().join("cache")));
-        let peak_cache = directories_fallback().join("cache").join("peaks");
+        crate::kit::logo::set_disk_cache(Some(data_dir().join("cache")));
+        let peak_cache = data_dir().join("cache").join("peaks");
         let mut engine = engine;
         Self::start_window_services(&mut engine, &settings);
         // Chorda's strings for this sample rate, designed beside the window (round 28,
@@ -464,12 +464,12 @@ impl CantusApp {
         app.engine
             .samples
             .pitch()
-            .set_disk_cache(Some(directories_fallback().join("cache").join("pitch")));
+            .set_disk_cache(Some(data_dir().join("cache").join("pitch")));
         // Warping's analyses (transients, tempo, grid) beside them (round 29, ADR 0061).
         app.engine
             .samples
             .warp()
-            .set_disk_cache(Some(directories_fallback().join("cache").join("warp")));
+            .set_disk_cache(Some(data_dir().join("cache").join("warp")));
         app.mixer.load_prefs(&layouts_path);
         app.settings = settings;
         app.settings_path = settings_path;
@@ -489,7 +489,7 @@ impl CantusApp {
             .load_prefs(crate::picker_prefs::default_path());
         app.picker_view
             .thumbs
-            .enable(Some(directories_fallback().join("cache").join("thumbs")));
+            .enable(Some(data_dir().join("cache").join("thumbs")));
         app.central = app.layouts.current.central.into();
         app.workspace.load(&app.layouts.current);
         app.keymap = keymap;
@@ -569,7 +569,7 @@ impl CantusApp {
         } else {
             Some("no device".to_string())
         };
-        let autosave_dir = directories_fallback().join("autosave");
+        let autosave_dir = data_dir().join("autosave");
         let mut plugins =
             cantus_host::PluginHost::new(Some(data_dir().join("plugins.json")), engine.sample_rate);
         if let Some(mode) = isolation {
@@ -628,25 +628,25 @@ impl CantusApp {
             midi_inputs: None,
             live_track_sent: None,
             appearance: Default::default(),
-            appearance_path: views::appearance_file::path(&directories_fallback()),
+            appearance_path: views::appearance_file::path(&config_dir()),
             appearance_watch: Default::default(),
             appearance_page: Default::default(),
             window_icon: Default::default(),
             taskbar: Default::default(),
             theme_ctx: None,
             settings: Settings::default(),
-            settings_path: settings::settings_path(&directories_fallback()),
+            settings_path: settings::settings_path(&config_dir()),
             show_settings: false,
             scan_quiet: false,
             settings_page: Default::default(),
             show_theme_editor: false,
             audio_error: None,
             keymap: Keymap::default(),
-            keymap_path: crate::keymap::keymap_path(&directories_fallback()),
+            keymap_path: crate::keymap::keymap_path(&config_dir()),
             rebinding: None,
             show_keymap: false,
             layouts: Layouts::default(),
-            layouts_path: layout::layouts_path(&directories_fallback()),
+            layouts_path: layout::layouts_path(&config_dir()),
             naming_layout: None,
             panes_wanted: Vec::new(),
             keys_pass: None,
@@ -1538,7 +1538,7 @@ impl CantusApp {
                     .unwrap_or_else(|| "Cantus".into());
                 p.with_file_name(format!("{stem} {}", t("take.folder")))
             }
-            None => directories_fallback().join("recordings"),
+            None => data_dir().join("recordings"),
         }
     }
 

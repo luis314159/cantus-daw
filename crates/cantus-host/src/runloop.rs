@@ -8,6 +8,7 @@
 //! Main thread only. Every handler is called with no borrow of this loop held, so a
 //! handler may register or unregister (itself included) while it runs.
 
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// Readiness, as CLAP spells it (`CLAP_POSIX_FD_READ`, `_WRITE`, `_ERROR`).
@@ -116,6 +117,16 @@ impl<T: Clone> RunLoop<T> {
         self.timers.is_empty() && self.fds.is_empty()
     }
 
+    /// Whether the timer `id` is still registered.
+    pub fn timer_registered(&self, id: u32) -> bool {
+        self.timers.iter().any(|t| t.id == id)
+    }
+
+    /// Whether `fd` is still watched.
+    pub fn fd_registered(&self, fd: i32) -> bool {
+        self.fds.iter().any(|f| f.fd == fd)
+    }
+
     /// The timers due at `now`, each moved to its next due time. A timer late by more than
     /// a period (the frame loop paused) fires once, not once per period missed.
     pub fn due(&mut self, now: Instant) -> Vec<(u32, T)> {
@@ -191,9 +202,78 @@ impl<T: Clone> RunLoop<T> {
     }
 }
 
+/// What fired: a timer (its id) or a ready descriptor (and what it is ready for).
+pub enum Fired<T> {
+    Timer(u32, T),
+    Fd(i32, u32, T),
+}
+
+fn lock<T>(l: &Mutex<RunLoop<T>>) -> std::sync::MutexGuard<'_, RunLoop<T>> {
+    l.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Serve `l` once: the timers due at `now` and the descriptors ready, each handed to
+/// `call` with no lock held — and each only if it is still registered when its turn comes,
+/// so a handler unregistered by an earlier callback of the same round is not called.
+pub fn serve<T: Clone>(l: &Mutex<RunLoop<T>>, now: Instant, mut call: impl FnMut(Fired<T>)) {
+    let (timers, fds) = {
+        let mut g = lock(l);
+        if g.is_empty() {
+            return;
+        }
+        (g.due(now), g.ready())
+    };
+    for (id, handler) in timers {
+        if lock(l).timer_registered(id) {
+            call(Fired::Timer(id, handler));
+        }
+    }
+    for (fd, flags, handler) in fds {
+        if lock(l).fd_registered(fd) {
+            call(Fired::Fd(fd, flags, handler));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_handler_unregistered_earlier_in_the_round_is_not_called() {
+        let l: Mutex<RunLoop<&str>> = Mutex::default();
+        let a = lock(&l).add_timer(MIN_PERIOD, "a");
+        let b = lock(&l).add_timer(MIN_PERIOD, "b");
+        let mut fds = [0; 2];
+        // SAFETY: a fresh pipe, closed at the end.
+        assert_eq!(unsafe { libc::pipe(fds.as_mut_ptr()) }, 0);
+        // SAFETY: one byte from a live local.
+        assert_eq!(unsafe { libc::write(fds[1], [1u8].as_ptr().cast(), 1) }, 1);
+        assert!(lock(&l).add_fd(fds[0], FD_READ, "f"));
+        let mut called = Vec::new();
+        serve(&l, Instant::now() + Duration::from_secs(1), |f| match f {
+            Fired::Timer(id, h) => {
+                called.push(h);
+                // The first one's handler takes the other timer and the descriptor away.
+                if id == a {
+                    let mut g = lock(&l);
+                    g.remove_timer(b);
+                    g.remove_fd(fds[0]);
+                }
+            }
+            Fired::Fd(_, _, h) => called.push(h),
+        });
+        assert_eq!(
+            called,
+            vec!["a"],
+            "b and the descriptor went before their turn"
+        );
+        // SAFETY: closing the pipe this test opened.
+        unsafe {
+            libc::close(fds[0]);
+            libc::close(fds[1]);
+        }
+    }
 
     #[test]
     fn timers_fire_when_due_and_once_when_late() {

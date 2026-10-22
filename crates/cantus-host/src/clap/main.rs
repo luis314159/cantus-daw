@@ -525,28 +525,30 @@ impl ClapMain {
     /// (`timer-support`, `posix-fd-support`; ADR 0065). The run loop is not locked while
     /// the plug-in runs: it may register and unregister from inside its callback.
     fn serve_run_loop(&mut self) {
+        use crate::runloop::{serve, Fired};
         let plugin = self.plugin();
-        let (timers, fds) = {
-            let host = self.inst().host();
-            let mut l = host.run_loop.lock().unwrap_or_else(|e| e.into_inner());
-            if l.is_empty() {
-                return;
-            }
-            (l.due(std::time::Instant::now()), l.ready())
-        };
         let ext = &self.inst().ext;
         // SAFETY: the plug-in's own extensions, on the main thread.
-        unsafe {
-            if let Some(on_timer) = ext.timer_support.as_ref().and_then(|t| t.on_timer) {
-                for (id, ()) in timers {
-                    on_timer(plugin, id);
+        let on_timer = unsafe { ext.timer_support.as_ref() }.and_then(|t| t.on_timer);
+        let on_fd = unsafe { ext.posix_fd_support.as_ref() }.and_then(|f| f.on_fd);
+        serve(
+            &self.inst().host().run_loop,
+            std::time::Instant::now(),
+            // SAFETY: the plug-in's callbacks, on the main thread, the run loop unlocked.
+            |fired| unsafe {
+                match fired {
+                    Fired::Timer(id, ()) => {
+                        if let Some(f) = on_timer {
+                            f(plugin, id);
+                        }
+                    }
+                    Fired::Fd(fd, flags, ()) => {
+                        if let Some(f) = on_fd {
+                            f(plugin, fd, flags);
+                        }
+                    }
                 }
-            }
-            if let Some(on_fd) = ext.posix_fd_support.as_ref().and_then(|f| f.on_fd) {
-                for (fd, flags, ()) in fds {
-                    on_fd(plugin, fd, flags);
-                }
-            }
-        }
+            },
+        );
     }
 }

@@ -18,6 +18,13 @@ use vst3::{Class, ComPtr, ComWrapper};
 static REGISTERED: AtomicI32 = AtomicI32::new(0);
 static TICKS: AtomicI32 = AtomicI32::new(0);
 static EVENTS: AtomicI32 = AtomicI32::new(0);
+/// Set by a test: the view forgets to unregister when removed (a careless editor), so the
+/// host must stop calling its handlers itself.
+static LEAK: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+pub fn set_leak(on: bool) {
+    LEAK.store(on, Ordering::SeqCst);
+}
 
 pub fn counts(ticks: *mut i32, events: *mut i32) -> i32 {
     // SAFETY: the caller passes valid out-pointers or null.
@@ -107,6 +114,10 @@ impl Registered {
 
 impl Drop for Registered {
     fn drop(&mut self) {
+        if LEAK.load(Ordering::SeqCst) {
+            REGISTERED.fetch_sub(1, Ordering::SeqCst);
+            return;
+        }
         // SAFETY: as in `on`.
         unsafe {
             if let Some(t) = self.timer.as_com_ref::<ITimerHandler>() {

@@ -44,6 +44,45 @@ fn linux_drivers_rank_pipewire_then_jack_then_alsa() {
     }
 }
 
+/// Linux (review of round 30): PipeWire is offered — and the default — only when it carries
+/// the desktop's sound: a sink of its own, or PulseAudio's server being PipeWire's. On
+/// Ubuntu 22.04 / Mint 21 it runs for screen sharing only, PulseAudio owns the card, and
+/// ALSA (whose `default` reaches PulseAudio) is the default instead.
+#[test]
+fn pipewire_counts_only_when_it_carries_the_sound() {
+    use devices::{linux_default, pipewire_serves_audio, real_sinks, PipeWireFacts};
+    // cpal's stand-ins for the defaults are not sinks.
+    let only_defaults = ["default_sink", "default_output"];
+    assert_eq!(real_sinks(only_defaults.iter().copied()), 0);
+    assert_eq!(
+        real_sinks(["default_output", "Built-in Audio Analog Stereo"].into_iter()),
+        1
+    );
+    // 22.04 with PulseAudio: no sink, no pipewire-pulse.
+    let screen_sharing = PipeWireFacts {
+        real_sinks: 0,
+        pipewire_pulse: false,
+    };
+    assert!(!pipewire_serves_audio(screen_sharing));
+    assert!(pipewire_serves_audio(PipeWireFacts {
+        real_sinks: 1,
+        pipewire_pulse: false
+    }));
+    assert!(pipewire_serves_audio(PipeWireFacts {
+        real_sinks: 0,
+        pipewire_pulse: true
+    }));
+    if cfg!(target_os = "linux") {
+        // The default follows: ALSA when PipeWire does not carry the sound.
+        let hosts = [("PipeWire", false), ("JACK", false), ("ALSA", true)];
+        assert_eq!(linux_default(hosts.into_iter()), Some("ALSA"));
+        let hosts = [("PipeWire", true), ("JACK", true), ("ALSA", true)];
+        assert_eq!(linux_default(hosts.into_iter()), Some("PipeWire"));
+        let hosts = [("PipeWire", false), ("JACK", true), ("ALSA", true)];
+        assert_eq!(linux_default(hosts.into_iter()), Some("JACK"));
+    }
+}
+
 #[test]
 fn integer_formats_convert_exactly() {
     // i16: scaled by 1/32768, the ends and the middle land exactly.

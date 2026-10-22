@@ -2,7 +2,8 @@
 # GitHub Actions' Linux checks (RUSTFLAGS=-D warnings), on this Windows machine through WSL
 # Ubuntu 24.04, without sudo: the -dev packages the build scripts need come from
 # ~/linux-deps/root (tools/wsl/fetch-deps.sh, once). The repository is cloned into
-# ~/cantus-ci (a Linux file system, fast) and the given ref checked out.
+# ~/cantus-ci (a Linux file system, fast; CANTUS_CI_DIR for another) and the given ref
+# checked out.
 #
 #   wsl -d Ubuntu-24.04 -- bash -lc 'bash /mnt/f/projects/cantus/tools/wsl/check.sh <ref> [clippy|test]'
 #
@@ -31,10 +32,13 @@ export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
 export CARGO_PROFILE_DEV_DEBUG=0
 export CARGO_PROFILE_TEST_DEBUG=0
 export CARGO_INCREMENTAL=0
-if [ ! -d "$HOME/cantus-ci/.git" ]; then
-  git clone -q "$src" "$HOME/cantus-ci" || exit 1
+# CANTUS_CI_DIR: a clone of one's own (several builders at once must not share one: a
+# checkout under another's build mixes branches, and their test plug-ins share names).
+ci="${CANTUS_CI_DIR:-$HOME/cantus-ci}"
+if [ ! -d "$ci/.git" ]; then
+  git clone -q "$src" "$ci" || exit 1
 fi
-cd "$HOME/cantus-ci" || exit 1
+cd "$ci" || exit 1
 git fetch -q "$src" "$ref" && git checkout -q --force FETCH_HEAD || exit 1
 git log --oneline -1
 if [ "$what" = "test" ]; then
