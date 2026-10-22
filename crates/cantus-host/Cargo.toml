@@ -71,6 +71,11 @@ tempfile = "3"
 # Built (as a DLL next to the test binaries) for the VST3 backend's tests; not linked.
 cantus-test-vst3 = { path = "../cantus-test-plugins/vst3" }
 
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+# The X11 editor window's picture (`CANTUS_X11_SHOT`, tests/clap_window_x11.rs); already in
+# the tree through cantus-ui.
+png = "0.18"
+
 [[bin]]
 name = "cantus-scan"
 path = "src/bin/cantus-scan.rs"

@@ -81,12 +81,18 @@ fn the_editor_opens_in_an_x11_window_runs_its_loop_and_closes() {
         .iter()
         .find(|c| name_of(&x, **c) == "Cantus Test Gain")
         .expect("the plug-in's view is a child of the window");
-    let g = x.get_geometry(window).unwrap().reply().unwrap();
-    assert_eq!(
-        (g.width, g.height),
-        (320, 200),
-        "the window is the editor's size"
-    );
+    // The window manager sizes a top-level window as it applies the request: give it a
+    // moment (frames go on meanwhile, as in the application).
+    let mut size = (0, 0);
+    for _ in 0..100 {
+        let g = x.get_geometry(window).unwrap().reply().unwrap();
+        size = (g.width, g.height);
+        if size == (320, 200) {
+            break;
+        }
+        frames(&mut rig, 20);
+    }
+    assert_eq!(size, (320, 200), "the window is the editor's size");
     assert_eq!(name_of(&x, window), "Cantus Test Gain — test");
     // Its timer and its connection's descriptor are served by the host's frames: the view
     // counts timer calls, and draws when its expose event is read through the descriptor.
@@ -97,6 +103,13 @@ fn the_editor_opens_in_an_x11_window_runs_its_loop_and_closes() {
         cardinal(&x, view, b"_CANTUS_TEST_EXPOSED") >= 1,
         "it drew on its expose, read through the run loop"
     );
+    if let Some(dir) = std::env::var_os("CANTUS_X11_SHOT") {
+        shoot(
+            &x,
+            window,
+            &std::path::Path::new(&dir).join("x11-editor.png"),
+        );
+    }
     // A second open only brings it forward.
     rig.host.open_window(id, "again", None).expect("still open");
     assert!(rig.host.close_window(id));
@@ -135,4 +148,32 @@ fn its_close_box_closes_it() {
         !rig.host.hosted(id).unwrap().window_open(),
         "closed by its close box"
     );
+}
+
+/// The window as the X server has it (the plug-in's view inside), as a PNG: the look of
+/// the editor window on Linux, for the round's report.
+fn shoot(x: &RustConnection, window: u32, to: &std::path::Path) {
+    use x11rb::protocol::xproto::ImageFormat;
+    let g = x.get_geometry(window).unwrap().reply().unwrap();
+    let image = x
+        .get_image(ImageFormat::Z_PIXMAP, window, 0, 0, g.width, g.height, !0)
+        .unwrap()
+        .reply()
+        .unwrap();
+    // 24/32-bit TrueColor: B, G, R, pad per pixel.
+    let rgba: Vec<u8> = image
+        .data
+        .chunks_exact(4)
+        .flat_map(|p| [p[2], p[1], p[0], 255])
+        .collect();
+    let file = std::fs::File::create(to).unwrap();
+    let mut enc = png::Encoder::new(
+        std::io::BufWriter::new(file),
+        u32::from(g.width),
+        u32::from(g.height),
+    );
+    enc.set_color(png::ColorType::Rgba);
+    enc.set_depth(png::BitDepth::Eight);
+    enc.write_header().unwrap().write_image_data(&rgba).unwrap();
+    eprintln!("shot: {}", to.display());
 }

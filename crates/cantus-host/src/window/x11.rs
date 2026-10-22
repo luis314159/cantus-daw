@@ -213,13 +213,20 @@ impl PluginWindow {
             return;
         }
         let (w, h) = (size.width.min(16_384), size.height.min(16_384));
+        // The size asked of the window manager too (it decides a top-level's size): the
+        // program's size, and min = max for an editor that cannot be resized.
+        let mut hints = WmSizeHints::new();
+        hints.size = Some((
+            x11rb::properties::WmSizeHintsSpecification::ProgramSpecified,
+            w as i32,
+            h as i32,
+        ));
         if self.fixed.get() {
-            let mut hints = WmSizeHints::new();
             hints.min_size = Some((w as i32, h as i32));
             hints.max_size = Some((w as i32, h as i32));
-            if let Ok(c) = hints.set_normal_hints(&self.conn, self.window) {
-                c.ignore_error();
-            }
+        }
+        if let Ok(c) = hints.set_normal_hints(&self.conn, self.window) {
+            c.ignore_error();
         }
         if self.size.get() == (w, h) {
             return;

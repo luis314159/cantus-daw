@@ -939,6 +939,7 @@ dependencies = [
  "libc",
  "libloading 0.8.9",
  "log",
+ "png",
  "raw-window-handle",
  "rtrb",
  "serde",
