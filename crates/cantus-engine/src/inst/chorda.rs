@@ -956,9 +956,13 @@ mod tests {
     /// fault is off again when each ends, passed or not.
     static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
-    fn alone() -> (std::sync::MutexGuard<'static, ()>, faults::Reset) {
+    /// The faults are cleared before the lock is let go (a tuple drops its fields in
+    /// order): cleared after it, the next test could start with this one's fault still on —
+    /// GitHub's runner ran the design-fails test while the cannot-start test's spawn fault
+    /// was still set, and the export designed on its own thread (2026-10-22).
+    fn alone() -> (faults::Reset, std::sync::MutexGuard<'static, ()>) {
         let g = ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner());
-        (g, faults::Reset)
+        (faults::Reset, g)
     }
 
     /// Wait until the designer's thread has ended (nothing left to design).
