@@ -553,11 +553,15 @@ fn a_crash_while_loading_a_state_or_activating_is_an_error_and_a_crash() {
                 &[],
             );
             drop(audio);
+            // Polled to a deadline, not a count: on a loaded machine (a CI runner, two
+            // suites at once) the helper's crash can take longer than 50 polls of 10 ms
+            // to be seen; a hang still fails, at the deadline.
+            let t = Instant::now();
             let mut failed = false;
-            for _ in 0..50 {
+            while t.elapsed() < Duration::from_secs(10) {
                 match main.restart() {
                     Ok(None) => std::thread::sleep(Duration::from_millis(10)),
-                    Ok(Some(_)) => break,
+                    Ok(Some(_)) => panic!("{what}: the restart succeeded"),
                     Err(_) => {
                         failed = true;
                         break;
