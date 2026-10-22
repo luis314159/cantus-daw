@@ -15,9 +15,12 @@
 # metadata and the `.cantus` file type.
 #
 # libpipewire: the program links it (cpal's PipeWire host). A system without it still
-# starts Cantus: AppRun then puts usr/lib/fallback first, where a stub of the same name
-# answers every call with "nothing" — and the PipeWire host is not offered, since it is
-# offered only when PipeWire's socket exists (packaging/linux/README.md).
+# starts Cantus: AppRun then puts usr/lib/fallback/pipewire first, where a stub of the same
+# name answers every call with "nothing" — and the PipeWire host is not offered, since it
+# is offered only when PipeWire's socket exists (packaging/linux/README.md).
+# libxkbcommon-x11 (and libxcb-xkb): winit opens it at run time for an X11 window and
+# cannot do without it; a desktop without it (rare: a bare Wayland one) gets the copies in
+# usr/lib/fallback/xkb, taken from the build machine.
 #
 # CANTUS_APPIMAGE_QUICK=1 packs target/release's program alone (no levels, no plug-ins):
 # for trying the packaging itself.
@@ -50,7 +53,8 @@ for tool in mksquashfs gcc nm strip curl sha256sum; do
 done
 
 rm -rf "$work"
-mkdir -p "$app/usr/bin" "$app/usr/lib/fallback" "$app/usr/share/doc/cantus" "$out"
+mkdir -p "$app/usr/bin" "$app/usr/lib/fallback/pipewire" "$app/usr/lib/fallback/xkb" \
+  "$app/usr/share/doc/cantus" "$out"
 
 # --- the programs ---------------------------------------------------------------------
 release="$tgt/release"
@@ -123,8 +127,24 @@ done
   echo "no libpipewire-0.3.so.0 to read its symbols from"
   exit 1
 }
-bash "$here/stub/make-stub.sh" "$pwlib" "$app/usr/lib/fallback/libpipewire-0.3.so.0" \
+bash "$here/stub/make-stub.sh" "$pwlib" "$app/usr/lib/fallback/pipewire/libpipewire-0.3.so.0" \
   "$app"/usr/bin/cantus*
+
+# --- libxkbcommon-x11's fallback (see the head) ----------------------------------------
+for lib in libxkbcommon-x11.so.0 libxcb-xkb.so.1; do
+  found=""
+  for d in ${CANTUS_EXTRA_LIBDIR:-} /usr/lib/x86_64-linux-gnu /lib/x86_64-linux-gnu /usr/lib64 /usr/lib; do
+    if [ -e "$d/$lib" ]; then
+      found="$d/$lib"
+      break
+    fi
+  done
+  [ -n "$found" ] || {
+    echo "no $lib on this machine to carry (packaging/linux/deps.sh installs it)"
+    exit 1
+  }
+  cp -L "$found" "$app/usr/lib/fallback/xkb/$lib"
+done
 
 install -m755 "$here/AppRun" "$app/AppRun"
 

@@ -42,7 +42,9 @@ graph), so the default is worked out once.
     host only when PipeWire's socket exists, so the stand-in is never called; were it,
     every constructor answers null and the host reports itself unavailable.
     `packaging/linux/test-fallback.sh` proves it (CI forces the stand-in; WSL, which has no
-    libpipewire, takes it by itself).
+    libpipewire, takes it by itself). The same pattern carries `libxkbcommon-x11` (which
+    winit `dlopen`s for an X11 window and cannot do without) for a system that lacks it:
+    each library has its own fallback folder, used only when the system has none.
   - *The AppImage is built on Ubuntu 22.04 (glibc 2.35), whose PipeWire is 0.3.48*, older
     than the headers cpal's host compiles against (0.3.49: `pw_buffer.requested`). `packaging/linux/deps.sh`
     unpacks PipeWire 1.0.5's headers (Ubuntu 24.04's packages, SHA-256 pinned) and points

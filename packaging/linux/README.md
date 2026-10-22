@@ -18,7 +18,7 @@ into `target/release/build/cantus-*/out/hicolor/<n>x<n>/apps/com.cantusdaw.Cantu
 cpal's PipeWire host links `libpipewire-0.3.so.0` (pipewire-rs has no run-time loading),
 and a program whose library is missing does not start at all. Every desktop distribution
 Cantus supports ships the library (Ubuntu 22.04's desktop installs it for screen sharing),
-but a minimal system may not. There AppRun puts `usr/lib/fallback` first on the library
+but a minimal system may not. There AppRun puts `usr/lib/fallback/pipewire` first on the library
 path: a library of the same name whose every function returns zero. Cantus starts; the
 PipeWire host is not offered, because cpal offers it only when PipeWire's socket exists —
 which it cannot without PipeWire. JACK is opened at run time (`libjack.so.0`, through the
@@ -38,3 +38,10 @@ library (`third_party/cpal`, CANTUS PATCH).
 `~/linux-deps/rt` (no sudo). `tools/wsl/audio-servers.sh pipewire|jack` starts one with a
 dummy (timer-driven) device, so the PipeWire and JACK hosts can be opened and measured;
 `docs/round30/linux.md` has the numbers.
+
+## libxkbcommon-x11
+
+winit opens `libxkbcommon-x11.so.0` at run time for an X11 window (Cantus's window is X11 on
+Linux, ADR 0065 §3) and stops without it. Desktops with X11 or XWayland have it; the
+AppImage carries it and `libxcb-xkb.so.1` (both MIT) in `usr/lib/fallback/xkb`, which
+AppRun uses only where the system has none — found missing in WSL's bare Ubuntu.

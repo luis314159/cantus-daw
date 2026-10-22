@@ -273,8 +273,10 @@ program that mounts the image and starts Cantus; it is not linked with Cantus. I
 with musl (MIT), squashfuse (BSD-2-Clause), libfuse 3 (its library under the LGPL-2.1: the
 runtime's source and build scripts are at that address, so it can be rebuilt with a
 modified libfuse), zstd (BSD) and zlib (zlib licence). The image's
-`usr/lib/fallback/libpipewire-0.3.so.0` is Cantus's own stand-in and holds no PipeWire
-code. On Linux Cantus uses the system's own libraries, none of them bundled: the GNU C
+`usr/lib/fallback/pipewire/libpipewire-0.3.so.0` is Cantus's own stand-in and holds no
+PipeWire code; `usr/lib/fallback/xkb` carries **libxkbcommon-x11** (MIT, Copyright © the
+xkbcommon authors, <https://xkbcommon.org>) and **libxcb-xkb** (X11/MIT, Copyright © the
+XCB authors, <https://xcb.freedesktop.org>), used only where the system has none. On Linux Cantus uses the system's own libraries, none of them bundled: the GNU C
 library (LGPL-2.1), ALSA's libasound (LGPL-2.1), libpipewire (MIT), and libjack (LGPL-2.1)
 when it is installed — opened at run time.
 
