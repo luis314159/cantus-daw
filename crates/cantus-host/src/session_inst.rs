@@ -319,7 +319,8 @@ impl PluginHost {
         h.synced_state = plugin.state.clone();
         h.flushed = plugin.params.clone();
         let now = h.main.save_state().ok().map(PluginState::new);
-        h.heard.loaded(now);
+        let window = h.isolation != PluginIsolation::Within;
+        h.heard.loaded(now, window);
         Ok(h)
     }
 
@@ -404,7 +405,8 @@ impl PluginHost {
                 }
                 h.synced_state = plugin.state.clone();
                 let now = h.main.save_state().ok().map(PluginState::new);
-                h.heard.loaded(now);
+                let window = h.isolation != PluginIsolation::Within;
+                h.heard.loaded(now, window);
                 h.generation.fetch_add(1, Ordering::AcqRel);
             }
             if plugin.params != h.flushed {

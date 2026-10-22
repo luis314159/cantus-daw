@@ -838,7 +838,8 @@ stop using the processor — and gives it back, exactly, when you unfreeze it.
   named by what they hold: freezing again what did not change is instant, and a project
   opened without them (on another computer, at another sample rate) plays live while they
   are made again in the background. *Save as* takes them along — copied in the background;
-  closing Cantus waits for the copy. A project renamed or copied beside the original finds
+  closing Cantus while it copies keeps the window open, with a card, until the copy is
+  done (*Close now* skips it; what was not copied is found where it was next time). A project renamed or copied beside the original finds
   its renders in the original's folder, and its next save brings them into its own.
   Renders no undo can bring back are removed from the project's folder when you save;
   other projects' renders beside it are never touched.

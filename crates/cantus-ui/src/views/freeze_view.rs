@@ -171,6 +171,8 @@ pub fn paint_strip_mark(b: &mut Brush, cell: Rect, app: &CantusApp, strip: Strip
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Answer {
     Stop,
+    /// Close without waiting for the renders' copies.
+    CloseNow,
     Unfreeze(FreezeTarget),
     Dismiss,
 }
@@ -181,6 +183,15 @@ pub enum Answer {
 pub type Card = (String, String, Vec<(String, Answer)>, Answer);
 
 pub fn card(app: &CantusApp) -> Option<Card> {
+    // Closing, renders still copying into the project's folder (final review).
+    if app.freeze.closing {
+        return Some((
+            t("freeze.card.closing"),
+            t("freeze.card.closing_body"),
+            vec![(t("freeze.card.close_now"), Answer::CloseNow)],
+            Answer::CloseNow,
+        ));
+    }
     // Waiting (behind an export, a bake, files loading): said, and it can be stopped
     // (review 2: it waited unseen).
     if let Some(w) = app.freeze.waiting() {
@@ -196,7 +207,12 @@ pub fn card(app: &CantusApp) -> Option<Card> {
         };
         return Some((
             tf("freeze.card.waiting", &[("name", &name)]),
-            t("freeze.card.waiting_body"),
+            // Its plug-ins' states asked for and not in yet, or a render ahead of it.
+            if app.freeze.waits_for_states() {
+                t("freeze.card.waiting_states_body")
+            } else {
+                t("freeze.card.waiting_body")
+            },
             vec![(t("freeze.card.stop"), Answer::Stop)],
             Answer::Stop,
         ));
@@ -281,6 +297,10 @@ pub fn live_words(
 pub fn answer(app: &mut CantusApp, a: Answer) {
     match a {
         Answer::Stop => app.cancel_freeze(),
+        Answer::CloseNow => {
+            app.freeze.skip_copies = true;
+            app.request_quit = true;
+        }
         Answer::Unfreeze(target) => {
             app.freeze.refusal = None;
             app.unfreeze_target(target);

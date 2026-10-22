@@ -455,6 +455,22 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
     let mut rig = Rig::new(project, host);
     let id = rig.insert(strip, GAIN_ID, PluginIsolation::Individually);
     rig.settle();
+    // Its state moves with no word to the host (the test gain's `count:` tag: loaded as
+    // `count:1`, it holds `count:2`): only an answer asked now carries it (final review:
+    // the test passed parking what it said last).
+    let (state, params) = rig.host.capture(id).unwrap();
+    let mut counted = state.bytes().to_vec();
+    let len = counted.len();
+    counted.truncate(len - 4);
+    counted.extend_from_slice(&7u32.to_le_bytes());
+    counted.extend_from_slice(b"count:1");
+    rig.exec(Command::SetPluginState {
+        strip,
+        effect: id,
+        state: PluginState::new(counted),
+        params,
+    });
+    rig.settle();
     // A device change: let go, its state asked for, loaded again once it is in.
     rig.host.reload_all(SR);
     assert!(rig.host.hosted(id).is_none());
@@ -470,6 +486,23 @@ fn a_plugin_let_go_parks_its_state_as_it_is_now_or_says_so() {
         std::thread::sleep(Duration::from_millis(5));
     }
     rig.until_loaded();
+    // Parked as it was (`count:2`), loaded again (`count:3`): what it said last
+    // (`count:1`) would come back as `count:2`.
+    let t0 = Instant::now();
+    let mut now = Vec::new();
+    while t0.elapsed() < Duration::from_secs(5) {
+        rig.frame();
+        now = rig.host.capture(id).unwrap().0.bytes().to_vec();
+        if now.ends_with(b"count:3") {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        now.ends_with(b"count:3"),
+        "parked as it was: {:?}",
+        &now[now.len().saturating_sub(8)..]
+    );
     // Removed while its save hangs: what it said last is parked, and said.
     rig.set_param(strip, id, P_FAULT, HANG_SAVE);
     rig.settle();

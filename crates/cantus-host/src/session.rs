@@ -102,44 +102,68 @@ pub enum HostNotice {
     StateKept { name: String, reason: String },
 }
 
-/// How long after the host gives a plug-in back what the project holds its next report is
-/// taken for the echo of that load, whatever it says (review 4).
-pub(crate) const ECHO: std::time::Duration = std::time::Duration::from_secs(1);
+/// How long after the host loads a state into an isolated plug-in its first report of its
+/// own bytes is taken for that load's echo: it comes a refresh later (500 ms) and a state's
+/// round trip after that (final review: one second missed it).
+pub(crate) const ECHO: std::time::Duration = std::time::Duration::from_secs(3);
 
 /// What a plug-in said back after the host's own loads: its echoes are no edits of its own.
 #[derive(Debug, Default)]
 pub(crate) struct Echo {
-    /// The state it last reported, or held just after the host's last load.
+    /// What it held just after the host's last load (its own bytes when they can be read
+    /// then: in process, or once an isolated load is answered), or the edit counted last.
     state: Option<PluginState>,
-    /// After a give-back: until when its next report is that load's echo.
+    /// An isolated plug-in's load, its own bytes not read yet: until when its first report
+    /// of them, with the project's values, is that load's echo.
     until: Option<std::time::Instant>,
 }
 
 impl Echo {
-    /// The host loaded a state into it; `now` is what it holds after (its own bytes: a
-    /// plug-in may add what it hears, as a tempo).
-    pub(crate) fn loaded(&mut self, now: Option<PluginState>) {
+    /// The host loaded a state into it (a load, a give-back, the project's state set):
+    /// `now` is what it holds after. In process those are its own bytes, read at once;
+    /// isolated (`window`), they are the bytes it was given — its own come with its first
+    /// report, within `ECHO`.
+    pub(crate) fn loaded(&mut self, now: Option<PluginState>, window: bool) {
         self.state = now;
+        self.until = window.then(|| std::time::Instant::now() + ECHO);
     }
 
-    /// The host gave it back what the project holds: as `loaded`, and its next report
-    /// within `ECHO` is that load's echo however it reads (a plug-in whose state moves
-    /// as it plays would be given back for ever).
-    pub(crate) fn gave_back(&mut self, now: Option<PluginState>) {
-        self.state = now;
-        self.until = Some(std::time::Instant::now() + ECHO);
+    /// Its load was answered: `now` is what it holds, in its own bytes (an isolated
+    /// plug-in's — final review: they were never recorded).
+    pub(crate) fn answered(&mut self, now: Option<PluginState>) {
+        if now.is_some() {
+            self.state = now;
+        }
     }
 
-    /// Whether `state`, just reported, is nothing new: the project's (`synced`), the one
-    /// it held or said last, or the first report after a give-back. Heard, either way.
-    pub(crate) fn echoes(&mut self, synced: &PluginState, state: &PluginState) -> bool {
-        let after_give_back = self
-            .until
-            .take()
-            .is_some_and(|t| std::time::Instant::now() < t);
-        let echo = synced == state || self.state.as_ref() == Some(state) || after_give_back;
-        self.state = Some(state.clone());
+    /// Whether a report of `state` (`same`: with the project's values; `of_state`: a
+    /// report of its state, not of its values) is nothing new: the project's state
+    /// (`synced`); what it held after the host's last load, or the edit counted last; or an
+    /// isolated plug-in's report, after a load, of bytes of its own with the project's
+    /// values. Its first report of its state ends the window — its own bytes are then
+    /// known — and a values report never does (final review: one used it up before the
+    /// state's came); a report of other values is never an echo but by the state itself
+    /// (final review: a real edit within a second of a give-back was swallowed).
+    pub(crate) fn echoes(
+        &mut self,
+        synced: &PluginState,
+        state: &PluginState,
+        same: bool,
+        of_state: bool,
+    ) -> bool {
+        let window = self.until.is_some_and(|t| std::time::Instant::now() < t);
+        let known = synced == state || self.state.as_ref() == Some(state);
+        let echo = known || (same && window);
+        if echo && of_state {
+            self.until = None;
+            self.state = Some(state.clone());
+        }
         echo
+    }
+
+    /// An edit of its own was counted at `state`: the same report again is not.
+    pub(crate) fn counted(&mut self, state: &PluginState) {
+        self.state = Some(state.clone());
     }
 }
 
@@ -750,7 +774,8 @@ impl PluginHost {
         h.synced_state = plugin.state.clone();
         h.flushed = plugin.params.clone();
         let now = h.main.save_state().ok().map(PluginState::new);
-        h.heard.loaded(now);
+        let window = h.isolation != PluginIsolation::Within;
+        h.heard.loaded(now, window);
         Ok(h)
     }
 
@@ -841,7 +866,8 @@ impl PluginHost {
                 }
                 h.synced_state = plugin.state.clone();
                 let now = h.main.save_state().ok().map(PluginState::new);
-                h.heard.loaded(now);
+                let window = h.isolation != PluginIsolation::Within;
+                h.heard.loaded(now, window);
                 h.generation.fetch_add(1, Ordering::AcqRel);
             }
             // Values the project changed, delivered here while nothing processes (no
@@ -1148,9 +1174,9 @@ impl PluginHost {
                         if let Some(h) = self.slots.get_mut(&id) {
                             h.params = h.main.params();
                         }
-                        self.capture_changes(bus, id);
+                        self.capture_changes(bus, id, false);
                     }
-                    Notice::StateDirty => self.capture_changes(bus, id),
+                    Notice::StateDirty => self.capture_changes(bus, id, true),
                     Notice::Loaded => self.on_loaded(bus, engine, id),
                     Notice::LoadFailed(why) => {
                         notices.extend(self.on_load_failed(bus.project(), engine, id, why))
@@ -1284,7 +1310,8 @@ impl PluginHost {
             h.flushed = plugin.params.clone();
             h.synced_state = plugin.state.clone();
             let now = h.main.save_state().ok().map(PluginState::new);
-            h.heard.gave_back(now);
+            let window = h.isolation != PluginIsolation::Within;
+            h.heard.loaded(now, window);
             h.generation.fetch_add(1, Ordering::AcqRel);
             self.give_backs += 1;
         }
@@ -1352,7 +1379,7 @@ impl PluginHost {
         if let Some(h) = self.slots.get_mut(&effect) {
             let _ = h.main.load_state(state);
         }
-        self.capture_changes(bus, effect);
+        self.capture_changes(bus, effect, true);
     }
 
     /// The states the instances served to the last render hold now, in order (tests: a
@@ -1434,6 +1461,10 @@ impl PluginHost {
                 }
             }
         }
+        // What it holds now that its load is answered, in its own bytes: its echo is no
+        // edit (final review: an isolated plug-in's own bytes were never recorded).
+        let own = h.main.save_state().ok().map(PluginState::new);
+        h.heard.answered(own);
         let (fresh, strip) = (std::mem::take(&mut h.fresh), h.strip);
         self.slots.insert(effect, h);
         if !fresh {
@@ -1588,7 +1619,7 @@ impl PluginHost {
     /// The plug-in changed its values by itself (a preset from its own browser): record
     /// its state and values as one step. A state change that moved no value (a sample it
     /// loaded) is kept for the save, which asks the plug-in for its state.
-    fn capture_changes(&mut self, bus: &mut CommandBus, effect: EffectId) {
+    fn capture_changes(&mut self, bus: &mut CommandBus, effect: EffectId, of_state: bool) {
         let Some((strip, same)) = find_slot(bus.project(), effect).map(|(s, slot)| {
             let now = slot.spec.external.as_deref().map(|p| p.params.clone());
             (s, now)
@@ -1608,12 +1639,14 @@ impl PluginHost {
         // The echo of the host's own load (a plug-in that says *dirty* or asks for its
         // values to be read as it loads, a params answer the host asked for): nothing of
         // its own (review 4). A locked one keeps what it was given; an unlocked one's
-        // values still go into the project, uncounted.
+        // values still go into the project, uncounted. Other values are never an echo
+        // (final review).
+        let values = same.as_ref() == Some(&params);
         let echo = self.slots.get_mut(&effect).is_some_and(|h| {
             let synced = h.synced_state.clone();
-            h.heard.echoes(&synced, &state)
+            h.heard.echoes(&synced, &state, values, of_state)
         });
-        if echo && (locked.is_some() || same.as_ref() == Some(&params)) {
+        if echo && (locked.is_some() || values) {
             return;
         }
         if same.as_ref() == Some(&params) {
@@ -1625,6 +1658,7 @@ impl PluginHost {
                 self.refused_by_freeze(bus.project(), effect, &e);
             } else if let Some(h) = self.slots.get_mut(&effect) {
                 h.edits += 1;
+                h.heard.counted(&state);
             }
             return;
         }
@@ -1777,6 +1811,56 @@ impl PluginHost {
             waiting |= m.state_waiting();
         }
         !waiting
+    }
+
+    /// Ask the plug-ins of `effects` and of `tracks`' instruments for their states as they
+    /// are now — a freeze's region (final review: every plug-in of the project was asked,
+    /// and one behind a dialog held a freeze it was no part of).
+    pub fn ask_states_of(&mut self, effects: &[EffectId], tracks: &[cantus_core::TrackId]) {
+        self.test_hooks.asked = (effects.to_vec(), tracks.to_vec());
+        self.test_hooks.asks += 1;
+        for id in effects {
+            if let Some(h) = self.slots.get_mut(id) {
+                h.main.ask_state_now();
+            }
+        }
+        for t in tracks {
+            if let Some(h) = self.instruments.get_mut(t) {
+                h.main.ask_state_now();
+            }
+        }
+    }
+
+    /// Whether the states of `effects` and `tracks`' instruments asked for are in (or not
+    /// to be had in time, each by its own limit).
+    pub fn states_in_of(&mut self, effects: &[EffectId], tracks: &[cantus_core::TrackId]) -> bool {
+        if self.test_hooks.hold_states {
+            return false;
+        }
+        let mut waiting = false;
+        for id in effects {
+            if let Some(h) = self.slots.get_mut(id) {
+                waiting |= h.main.state_waiting();
+            }
+        }
+        for t in tracks {
+            if let Some(h) = self.instruments.get_mut(t) {
+                waiting |= h.main.state_waiting();
+            }
+        }
+        !waiting
+    }
+
+    /// How many times [`Self::ask_states_of`] asked (tests).
+    #[doc(hidden)]
+    pub fn asks_for_test(&self) -> u64 {
+        self.test_hooks.asks
+    }
+
+    /// What the last [`Self::ask_states_of`] asked (tests).
+    #[doc(hidden)]
+    pub fn asked_of_for_test(&self) -> (&[EffectId], &[cantus_core::TrackId]) {
+        (&self.test_hooks.asked.0, &self.test_hooks.asked.1)
     }
 
     /// The plug-ins the last [`Self::project_for_save`] saved as they were last said (not

@@ -138,11 +138,17 @@ note with it), never on the frame (review 3: a first save copied gigabytes there
 folder is made when there is nothing to copy. Review 4 made it safe: **one such thread at
 a time** (a later save's waits behind the one before); its prune removes only renders the
 folder held when its save began — a render landing while it copies is never among them —
-and none the session wants *now* (`FreezeState::protect`, renewed by each save and by
-each render started); a queued freeze is kept by the key it will be frozen with
-(`as_frozen`: disarmed, the plug-ins' states in). Until its copies are in, the folder notes
-where they come from (`copying-from.txt`), so a session cut short looks there; and the
-session's close waits for them (`freeze::finish_saving`, up to two minutes). A
+and none its own save, or the session *now*, wants in that folder (`FreezeState::protect`
+by folder, renewed by each save and by each render started — final review: one set for
+the session let saving another project delete the first one's renders); a queued freeze
+is kept by the key it will be frozen with (`as_frozen`: disarmed, the plug-ins' states in).
+Until its copies are in, the folder notes where they come from (`copying-from.txt`; each
+copy takes off only its own lines), so a session cut short looks there. Asked to close
+while they copy, the window stays open with a card that says so and closes when they are
+in, or at once with *Close now* (`keep_open_for_copies`; final review: the close hung,
+unpainted, for up to two minutes). Other projects' folders are looked in through a
+listing made when the folders are set or looked at again, and the scan reads the wires
+note of the copy it plays only — no folder touched twice a second (final review). A
 project opened at start (the boot path) has its path and its folders set before the first
 compile (`Files::project_path`, `CantusApp::from_parts_at`): its renders are found at once,
 no frozen plug-in loaded meanwhile.
@@ -198,9 +204,16 @@ render is gone) loads **the state the project holds**, never one parked when it 
 unloaded (`load_for` / `load_instrument` with `locked`). Review 4: **the echo of the
 host's own load is no edit** — a plug-in that says *dirty*, or asks for its values to be
 read again, as it loads (JUCE's VST3 wrapper does) was given back, and the refusal said,
-every frame. What it reports is nothing of its own when it is the project's state, what it
-held just after the host's last load, what it said last, or its first report after a
-give-back (`session::Echo`); and a whole-mix region's master plug-ins have their states
+every frame. What it reports is nothing of its own when it is the project's state, or
+what it held just after the host's last load (its own bytes: read at once in process, and
+recorded when an isolated load is answered), or the edit counted last; and an isolated
+plug-in's first report of its state within three seconds of a host load — a refresh and a
+state's round trip — with the project's values is that load's echo, its bytes then known.
+A values report never ends that window; a report of other values is never an echo
+(`session::Echo`; final review: isolated echoes were missed, one values notice used the
+window up, and a real edit within a second of a give-back was swallowed). Left by design:
+within an isolated plug-in's echo window, a change of its own state that moves no value
+is taken for the echo; and a whole-mix region's master plug-ins have their states
 written into the project at the freeze like the region's own (`hosted_states`).
 
 **Solo.** Solo is no part of a frozen sound: renders (and bounces) are made **unsoloed**
@@ -328,7 +341,11 @@ counts those edits (`PluginHost::edits_of`: values, presets, a state of its own)
 `commit_freeze` compares the count, never the states' bytes, which automation and
 modulators move (review 3: a freeze of a plug-in so driven never landed, each try leaving a
 render behind). An armed track is keyed and rendered as it will be frozen — disarmed
-(`as_frozen`, review 2: it rendered twice). A bypassed insert, or one on a strip whose
+(`as_frozen`, review 2: it rendered twice). Its plug-ins' states are asked for first and
+waited for — its region's only, the master's when the whole mix is in it, and only those
+named when one could not be had as it is now (`ask_states_of`, `states_in_of`; the card
+says it waits for them); another project opened asks again (final review: every plug-in of
+the project was asked, one behind a dialog held the freeze, and the old wait was kept). A bypassed insert, or one on a strip whose
 inserts are off, is not heard: its plug-in is not required — the render keeps a wire in its
 place, and notes it beside the render (`<render>.wires`, the plug-ins not installed then):
 once one is installed, the render is made again (review 3: live and frozen differed by its
@@ -545,7 +562,7 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   written, are the content keys), a hand-edited key repaired; `collect::undo`;
   `schema_38_keeps_a_tracks_lateness_and_its_keys_as_written` (fixture v38);
   `an_out_of_range_track_delay_is_dropped_on_load` (review 3).
-- `cantus-engine/tests/freeze.rs` (44): the frozen mix is the live mix to the bit with its
+- `cantus-engine/tests/freeze.rs` (45): the frozen mix is the live mix to the bit with its
   fader ride, pan, width, send level and mute moved after freezing; unfreezing gives the
   live chain back to the bit; block sizes 1, 37, 64, 512; a frozen track's source with its
   level and balance live; a latent insert frozen away (compensated and not); no render →
@@ -579,7 +596,7 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   bypassed insert, every bypass counted), `fx_tonus` (the old test kept for *off*, a new
   one for *on*), `rt_memory::{frozen_playback_never_allocates,
   low_latency_monitoring_never_allocates}` (serial and pool).
-- `cantus-sandbox/tests/freeze.rs`: a frozen chain with the hosted test gain (in process and
+- `cantus-sandbox/tests/freeze.rs` (19): a frozen chain with the hosted test gain (in process and
   isolated) renders through `render_units`, is unloaded, plays the live mix to the bit, and
   comes back thawed; a change in a locked plug-in's window is given back and said. Review 3
   (9 more): a change the host never heard of is neither saved nor rendered (the state's
@@ -590,9 +607,12 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
     edits count what windows do, never what automation does; a solo elsewhere toggled never
   loads a frozen strip's plug-in. Review 4 (4 more, with the test plug-ins' *dirty* tag): an
   echo of the host's own load is no edit; a locked insert (in process and isolated) or
-  instrument that echoes its give-back is given back once and said once; a locked one
-  loaded again is left alone.
-- `cantus-ui/tests/freeze.rs` (86): Freeze renders then freezes in one step, the mix equal;
+    instrument that echoes its give-back is given back once and said once; a locked one
+  loaded again is left alone. Final review (4 more, with a `rewrite` tag whose state is
+  rewritten and slow to save): a second edit soon after a give-back is refused too; an
+  isolated plug-in that rewrites its give-back is given back once; one loaded again is
+  left alone; an isolated echo of the host's own load is no edit.
+- `cantus-ui/tests/freeze.rs` (90): Freeze renders then freezes in one step, the mix equal;
   a refused edit's card with Unfreeze; Stop changes nothing; an edit during the render is
   rendered again; reopened elsewhere it plays live and remakes its render; both bounces
   lay the audio under the original and the song is the same to the bit; selected clips;
@@ -633,7 +653,13 @@ stays), below every linear-phase or look-ahead mastering unit. Engine:
   take moved by saving keeps its render under its new key, off the frame; a save keeps the
   render a waiting freeze of an armed track will land with; a state of its own changed
   while it renders renders it again (on a strip, and on the master of a whole-mix
-  region); a bounce whose latency moves is said as a bounce. `tests/inspector.rs`: the
+    region); a bounce whose latency moves is said as a bounce. Final review (4 more): saving
+  another project keeps a slower save's renders; a freeze asks its region's plug-ins only,
+  waits with a card that says so, and a new project asks again; closing while renders copy
+  keeps the window with its card (and *Close now*); the scan never looks in the sibling
+  projects' folders. A unit test: a copy takes only its own sources off the note. Engine:
+  the other projects' folders looked in through their listing. `plugin_isolation.rs`: a
+  freeze asks its plug-ins' states first (now with hosted plug-ins in its region). `tests/inspector.rs`: the
   *Delay* row drawn with every other (no collision, its figure whole at 220 pt) and
   allocating nothing of its own; `tests/final_look.rs`: its hints read whole in the hint bar.
   `tests/freeze_boot.rs` (2): the boot path (`assemble`) sets the folder and tells the
