@@ -471,6 +471,20 @@ Files outside my area touched by review 4's fixes:
 - Tests: `controllers_review{2,3}.rs`, `controllers_boot.rs`, `learn_everywhere.rs`,
   `frame_budget.rs`.
 
+## Final review (`reviews/final-A.json`, the band Solo LED) — how it was fixed
+
+Merged `r29/integration` 1e6555b first (a fast-forward). The fix was broken on purpose
+(the exact test taken out of `Mapping::at_to`), and both tests failed; put back, both pass.
+
+| Finding | Fix | Test |
+|---|---|---|
+| a band's Solo LED learnt as one value still toggled and lit by the nearer end: pressed with band 6 soloed it turned every solo off, and its light was on for bands 2–24 | `Mapping::at_to(pos, shape)`: on a stepped choice (more than two states) the target is "at *To*" only within half a step of it, on a range or a switch at the nearer end; a toggle goes to *From* from there, else to *To*; `feedback_value_in(pos, shape)` lights a button only at *To*, and the interface sends feedback with the target's shape | core `a_toggle_on_one_value_of_a_choice_goes_between_its_two_values`; `controllers_review4.rs` `a_bands_solo_pad_solos_its_own_band_and_lights_for_it_only` (band 6 soloed → band 3; again → none; lit only with band 3) |
+
+Runs (Windows): `cargo test -p cantus-core`: 435 passed; the interface's controller tests
+(`controllers`, `controllers_review`, `_review2`, `_review3`, `_review4`, `controllers_boot`,
+`learn_everywhere`) and `frame_budget`: 161 passed; `cargo clippy --workspace --all-targets
+-- -D warnings`: clean; `cargo fmt --all -- --check`: clean.
+
 ## Left
 
 Nothing of mine. Owner-only: trying it with a real controller (a keyboard with knobs and
