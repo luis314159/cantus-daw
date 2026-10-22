@@ -21,11 +21,12 @@ thread_local! {
     static NAME: RefCell<String> = RefCell::new(String::with_capacity(64));
 }
 
-const MENUS: [&str; 5] = [
+const MENUS: [&str; 6] = [
     "menu.file",
     "menu.edit",
     "menu.clip",
     "menu.view",
+    "ship.menu.options",
     "menu.help",
 ];
 
@@ -147,6 +148,7 @@ fn menu_body(app: &mut CantusApp, ui: &mut Ui, i: usize) {
         1 => edit_menu(app, ui),
         2 => clip_menu(app, ui),
         3 => view_menu(app, ui),
+        4 => options_menu(app, ui),
         _ => help_menu(app, ui),
     }
 }
@@ -391,6 +393,41 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     }
     ui.checkbox(&mut app.keyboard_piano, t("menu.keyboard_piano"));
     ui.checkbox(&mut app.show_stats, t("menu.stats"));
+}
+
+/// Open the top bar's menu `i` (0 File … 4 Options, 5 Help) — the screenshots.
+pub fn open_menu(ctx: &egui::Context, i: usize) {
+    egui::Popup::open_id(ctx, Id::new(("toolbar-menu", i)).with("popup"));
+}
+
+/// FL's *Options* (round 30): the entries of the menu model the Mac's bar shows too
+/// (`crate::macos::menu::options`), so the two never differ.
+fn options_menu(app: &mut CantusApp, ui: &mut Ui) {
+    use crate::macos::menu::{self as model, Entry, Pick};
+    let menu = model::options(&app.keymap);
+    for entry in menu.entries {
+        match entry {
+            Entry::Item {
+                pick: Pick::Action(a),
+                ..
+            } => {
+                if views::arrangement::action_item(app, ui, a, "menu.settings") {
+                    ui.close();
+                }
+            }
+            Entry::Item { label, pick, .. } => {
+                if ui.button(label).clicked() {
+                    ui.close();
+                    let ctx = ui.ctx().clone();
+                    model::run(app, &ctx, pick);
+                }
+            }
+            Entry::System { .. } => {}
+            Entry::Separator => {
+                ui.separator();
+            }
+        }
+    }
 }
 
 fn help_menu(app: &mut CantusApp, ui: &mut Ui) {

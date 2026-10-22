@@ -160,10 +160,17 @@ pub fn shelves(devices: &[Device], role: Option<Role>) -> Vec<Shelf> {
             out.push(Shelf::Category(c));
         }
     }
-    for s in [Source::Native, Source::Clap, Source::Vst3] {
-        if devices.iter().filter(fits).any(|d| d.source == s) {
-            out.push(Shelf::Source(s));
-        }
+    if devices
+        .iter()
+        .filter(fits)
+        .any(|d| d.source == Source::Native)
+    {
+        out.push(Shelf::Source(Source::Native));
     }
+    // The CLAP and VST3 shelves are always listed (round 30): empty, they are where
+    // *Scan plug-ins* and *Find more plug-ins…* wait (the owner installed plug-ins and
+    // found nowhere that said how to see them).
+    out.push(Shelf::Source(Source::Clap));
+    out.push(Shelf::Source(Source::Vst3));
     out
 }

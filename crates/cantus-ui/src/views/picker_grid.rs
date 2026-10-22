@@ -307,7 +307,9 @@ pub fn show(v: &mut PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Action {
         }
     });
     if v.geo.tiles.is_empty() {
-        empty(v, ui, view, s);
+        if let Some(a) = empty(v, ui, view, s) {
+            action = a;
+        }
     }
     // The scrollbar, always visible when there is more than a screenful.
     if max > 0.0 {
@@ -455,10 +457,28 @@ fn overlay(
     }
 }
 
-/// What the gallery says when it shows nothing: why, and what to do.
-fn empty(v: &PickerView, ui: &Ui, view: Rect, s: &Style) {
+/// What the gallery says when it shows nothing: why, and what to do — on an empty CLAP or
+/// VST3 shelf, two buttons: *Scan plug-ins* and *Find more plug-ins…* (Settings ▸ Plug-ins).
+fn empty(v: &PickerView, ui: &mut Ui, view: Rect, s: &Style) -> Option<Action> {
     use crate::i18n::{t, tf};
-    let (line, hint) = if !v.query.text.trim().is_empty() {
+    use crate::picker_catalog::Source;
+    let plugin_shelf = v.query.text.trim().is_empty()
+        && matches!(v.query.shelf, Shelf::Source(Source::Clap | Source::Vst3));
+    let (line, hint) = if plugin_shelf {
+        let format = if v.query.shelf == Shelf::Source(Source::Clap) {
+            "CLAP"
+        } else {
+            "VST3"
+        };
+        (
+            tf("ship.picker.none", &[("format", &format)]),
+            if v.scanning {
+                t("host.manager.scanning")
+            } else {
+                t("ship.picker.none_hint")
+            },
+        )
+    } else if !v.query.text.trim().is_empty() {
         (
             tf("picker.empty", &[("q", &v.query.text.trim())]),
             t("picker.empty.hint"),
@@ -491,4 +511,35 @@ fn empty(v: &PickerView, ui: &Ui, view: Rect, s: &Style) {
             );
         }
     });
+    if !plugin_shelf {
+        return None;
+    }
+    // The two buttons, centred under the words.
+    use crate::kit::text::Src;
+    let words = |k: &str| {
+        text::measure(ui.ctx(), &Text::key(k, Role::Control, s.t.text), s.tk()).x + s.s(20.0)
+    };
+    let gap = s.s(10.0);
+    let total = words("host.manager.scan") + gap + words("ship.picker.find_more");
+    let row = Rect::from_min_size(
+        pos2(c.x - total * 0.5, c.y + s.s(58.0)),
+        vec2(total + s.s(4.0), s.s(26.0)),
+    );
+    let mut out = None;
+    ui.scope_builder(
+        egui::UiBuilder::new()
+            .max_rect(row)
+            .layout(egui::Layout::left_to_right(egui::Align::Center)),
+        |ui| {
+            ui.spacing_mut().item_spacing.x = gap;
+            let w = crate::views::workspace_widgets::button;
+            if w(ui, Src::Key("host.manager.scan"), 0.0, !v.scanning).clicked() {
+                out = Some(Action::ScanPlugins);
+            }
+            if w(ui, Src::Key("ship.picker.find_more"), 0.0, true).clicked() {
+                out = Some(Action::PluginSettings);
+            }
+        },
+    );
+    out
 }

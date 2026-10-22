@@ -292,10 +292,18 @@ mod tests {
             ..info(false)
         };
         let mut before = PluginDb::default();
-        before.put(entry("a.vst3", ScanStatus::Ok, vec![named("A", "Valhalla")]));
+        before.put(entry(
+            "a.vst3",
+            ScanStatus::Ok,
+            vec![named("A", "Valhalla")],
+        ));
         let mut after = before.clone();
         assert!(after.newly_found(&before).is_empty(), "nothing new");
-        after.put(entry("b.vst3", ScanStatus::Ok, vec![named("B", "Surge XT")]));
+        after.put(entry(
+            "b.vst3",
+            ScanStatus::Ok,
+            vec![named("B", "Surge XT")],
+        ));
         after.put(entry("c.vst3", ScanStatus::Ok, vec![named("C", "Odin 2")]));
         // A blocked file's plug-ins are not usable: not "new".
         after.put(entry(
@@ -306,7 +314,11 @@ mod tests {
         assert_eq!(after.newly_found(&before), ["Odin 2", "Surge XT"]);
         // A plug-in that moved to another file is not new.
         let mut moved = PluginDb::default();
-        moved.put(entry("elsewhere.vst3", ScanStatus::Ok, vec![named("A", "Valhalla")]));
+        moved.put(entry(
+            "elsewhere.vst3",
+            ScanStatus::Ok,
+            vec![named("A", "Valhalla")],
+        ));
         assert!(moved.newly_found(&before).is_empty());
     }
 }

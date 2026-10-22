@@ -82,7 +82,10 @@ mod tests {
     fn the_first_play_with_a_count_in_says_it_waits_for_record_once() {
         assert!(tell_only_before_recording(false, 1, false));
         assert!(!tell_only_before_recording(false, 1, true), "once");
-        assert!(!tell_only_before_recording(false, 0, false), "nothing to say");
+        assert!(
+            !tell_only_before_recording(false, 0, false),
+            "nothing to say"
+        );
         assert!(!tell_only_before_recording(true, 1, false), "it counts in");
     }
 }

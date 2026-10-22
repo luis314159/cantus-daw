@@ -44,7 +44,12 @@ fn columns(ctx: &egui::Context, s: &Style) -> (f32, f32) {
         .map(|(_, k)| text::measure(ctx, &Text::key(k, Role::Value, s.t.text), tk).x)
         // "1 bar rec": the value when the count-in plays before recording only.
         .chain(COUNT_INS[1..].iter().map(|(b, _)| {
-            text::measure(ctx, &Text::new(&chip_value(*b, false), Role::Value, s.t.text), tk).x
+            text::measure(
+                ctx,
+                &Text::new(&chip_value(*b, false), Role::Value, s.t.text),
+                tk,
+            )
+            .x
         }))
         .chain(std::iter::once(
             text::measure(

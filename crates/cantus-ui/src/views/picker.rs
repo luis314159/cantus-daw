@@ -57,6 +57,8 @@ pub struct PickerView {
     pub last_choice: Option<(PickPurpose, PickChoice)>,
     /// The devices panel's own state (View ▸ Devices).
     pub panel: super::picker_panel::Panel,
+    /// A plug-in scan is running (the empty CLAP/VST3 shelves say so; round 30).
+    pub scanning: bool,
 }
 
 impl PickerView {
@@ -181,6 +183,7 @@ pub fn open(app: &mut CantusApp, purpose: PickPurpose) {
     let current = current_of(app, &purpose);
     let sounds = app.samples.content().instruments();
     app.picker_view.refresh(&app.plugins.db, &sounds);
+    app.picker_view.scanning = app.plugins.scanning();
     let v = &mut app.picker_view;
     let role = Role::of(&purpose);
     v.query = Query {
