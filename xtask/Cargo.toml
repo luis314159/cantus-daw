@@ -19,7 +19,7 @@ cantus-launch.workspace = true
 cantus-content.workspace = true
 serde_json.workspace = true
 # The portable and plug-in zips (MIT).
-zip = { version = "2", default-features = false, features = ["deflate"] }
+zip = { version = "9", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3"

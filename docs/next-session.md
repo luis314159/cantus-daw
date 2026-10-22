@@ -1,61 +1,65 @@
-# Prompt para la próxima sesión (ronda 26)
+# Prompt para la próxima sesión (ronda 30)
 
-*Escrito el 2026-10-13 al cerrar la ronda 25. Copia el bloque de abajo tal cual en una
+*Escrito el 2026-10-21 al cerrar la ronda 29. Copia el bloque de abajo tal cual en una
 sesión nueva de Claude Code abierta en `F:\projects\cantus`.*
 
 ---
 
 Lee primero `CLAUDE.md`, `docs/STATUS.md` (la cabecera, «The next session» y la sección de
-la ronda 25), `docs/beta-checklist.md`, `docs/BETA.md` y `docs/BACKLOG-excellence.md` §0 y
-§6d. La ronda 25 ya está en master (cables del mixer y sus filtros de vista, temas con
-Cantus Night refinado, icono, licencias MPL/GPL + CLA + marca, RVR1960 en espera de permiso).
+la ronda 29), `docs/round29/integration.md`, `docs/BACKLOG-excellence.md` §0.4 y §2 (Linux,
+macOS y la lista «Prepared without a Mac»), el ADR 0049 con su enmienda del 2026-10-20 (el
+repositorio público `luis314159/cantus-daw` y `tools/public/publish.sh`) y la memoria
+(feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders,
+round-29, decision-round30-platforms, public-repo-cantus-daw).
 
-**Ronda 26: dejar la beta lista en todo lo que no necesita mi hardware ni mis trámites.**
+**Ronda 30: Cantus en los tres sistemas — releases de Windows, Linux y macOS al final.**
 Busca la excelencia (Colosenses 3:23): tests antes del código, nada a medias, mira lo que
-construyes con los ejemplos `shoot`.
+construyes con los ejemplos shoot. Cada hueco que deje una función se cierra en la misma
+ronda; lo que reporte un constructor como «Left» se le devuelve como trabajo.
 
-1. **CI en verde en Linux y Windows.** Antes de cerrar la ronda, la verificación de Linux
-   tiene que pasar igual que en GitHub Actions (`RUSTFLAGS=-D warnings`, clippy y tests):
-   usa `tools/wsl/check.sh <rama> clippy|test` en WSL Ubuntu 24.04 (ver
-   `docs/DEVELOPING.md`, sección de Linux). Nada se sube con CI en rojo.
-2. **Preparar el repositorio público** sin publicarlo: en una *copia* del repositorio, sacar
-   del historial `research/*/screenshots/` y (si aún no hay permiso) el archivo de la
-   RVR1960 `crates/cantus-ui/locales/verses/es.txt`; buscar secretos en todo el historial;
-   dejarme un informe con lo que cambiaría y los comandos para hacerlo de verdad. No hagas
-   push forzado ni toques el repositorio real sin preguntarme: el historial se queda como
-   está hasta el día en que yo decida hacerlo público.
-2b. **Abaratar GitHub Actions** (los minutos del repositorio privado se acabaron el
-   2026-10-13; Windows cuenta ×2 y macOS ×10): macOS solo a mano (`workflow_dispatch`) o
-   una vez por semana, no correr cuando el commit solo cambia documentos (`paths-ignore`),
-   cancelar la corrida vieja cuando llega una nueva (`concurrency`). macOS quedó sin
-   validar en CI tras sus últimos arreglos.
-3. **Firma de código**: redacta la solicitud a SignPath Foundation y la página de
-   «política de firma» que piden en la web (en un borrador, sin publicarla), y verifica que
-   cumplimos sus condiciones (`docs/beta-checklist.md` §2).
-4. **Notas de la versión** `docs/releases/v0.1.0-beta.1.md` al día con las rondas 23–25, en
-   inglés y español; y el botón de la web que descargue el instalador directo (con un nombre
-   de archivo estable en el release) en vez de la página de releases.
-5. **Los pendientes pequeños de la ronda 25** (STATUS «Small things left» y
-   `docs/round25/*.md`): una ruta armada que sobrevive a ocultar el mixer; escribir un nivel
-   en el menú de ruta; *Añadir envío* del inspector con *Nuevo retorno*; los carriles de
-   cables que se reacomodan al pasar el ratón; las ~17 asignaciones por cuadro del hint;
-   muestras de color en los menús de tema base; la palabra SALIDA repetida en la leyenda en
-   español; la leyenda de cables invisible cuando la banda está a su mínimo.
-6. **CC BY en `cantus-content`** (ADR 0042): el test del manifiesto acepta CC0 y CC BY
-   3.0/4.0 con crédito y archivo de licencia, la vista de créditos en *Acerca de* y en
-   *Paquetes de sonidos*, y la sección *Content* de `THIRD-PARTY-NOTICES.md`.
-7. **Lo que queda de §6d.2** (clips enlazados): una fila en el Inspector para el grupo
-   enlazado y un selector «Enlazar a…» por nombre.
+1. **Linux, producto completo:** audio de baja latencia por PipeWire y JACK (ALSA de
+   respaldo), prioridad de tiempo real en `cantus-rt` (rtkit / `SCHED_FIFO`, el equivalente
+   de MMCSS), las ventanas de los editores de plug-ins en X11 y Wayland (hoy solo existen en
+   Windows), el proceso aislado de plug-ins probado de punta a punta, el escáner de
+   plug-ins y sus carpetas, diálogos de archivo y fuentes del sistema, y el paquete
+   **AppImage** (después Flatpak) construido en CI, con la tarjeta de descarga de la web.
+2. **macOS, todo lo que se puede preparar sin la Mac** (BACKLOG §2): el `.app` con su icono y
+   el permiso de micrófono, binario universal (Apple silicon e Intel), `cantus-scan` y
+   `cantus-sandbox` dentro del paquete, el `.dmg` hecho en CI; firma con runtime endurecido
+   y notarización en el workflow (los secretos como marcadores); CoreAudio con los hilos del
+   motor en el *audio workgroup* del dispositivo; el aislamiento de plug-ins sin futex
+   (`os_sync_wait_on_address` o semáforos) y el ayudante que muere con Cantus; las ventanas
+   de los editores en Cocoa; el preset de teclas ⌘/⌥, la barra de menú global, el trackpad y
+   Retina; la suite y el fuzz en verde en el runner de macOS y los hashes de referencia
+   **idénticos** en Windows, Linux y macOS.
+3. **Una lista corta para mi sesión con la Mac prestada:** qué instalar, qué probar
+   (interfaz en dúplex 10 minutos, un plug-in real con su editor, el permiso de micrófono,
+   instalar el `.dmg` y abrirlo sin Gatekeeper, actualizar desde una versión vieja, CPU en
+   Apple silicon) y cómo anotar los resultados. Avísame qué día la necesitas.
+4. **Releases:** un solo tag publica los tres instaladores en `cantus-daw` (el de Windows ya
+   sale del workflow `release.yml`), la web cambia «Muy pronto» por «Disponible» en Linux y
+   macOS solo cuando sus releases existan, y el actualizador sabe qué archivo pedir en cada
+   sistema.
+5. **Mis fricciones** (si te paso alguna al empezar, las anoto aquí).
 
-Organízalo como las rondas grandes (commit de contrato, un worktree por constructor,
-revisores adversariales, integración), con `jobs = 3` por worktree. Al final: suite
-completa + fuzz + clippy en Windows **y** en Linux (WSL), STATUS (cabecera con el número de
-tests, «The next session», sección de la ronda 26), memoria copiada a `docs/claude-memory/`,
-una versión de prueba en `F:\projects\daw-r26\builds\`, y pídeme permiso antes de subir a
-master. Escríbeme en español.
+Organízalo como las rondas grandes: commit de contrato, un worktree por constructor en
+`F:\projects\daw-r30\` (jobs = 3, TMP en F:; máximo tres constructores compilando a la vez),
+revisiones adversariales **pequeñas** (como mucho ~6 agentes por revisión: tres buscadores
+con lentes combinadas y un verificador por buscador; solo sobre lo que cambió) en cada rama,
+en cada ronda de arreglos y en el árbol integrado, e integración. Borra el `target/` de
+cada constructor al integrarlo. Al final: suite completa + fuzz + clippy en Windows, en
+Linux (WSL, `tools/wsl/check.sh`) y en el runner de macOS; STATUS, ADRs, manual EN/ES y notas
+de la versión; memoria copiada a `docs/claude-memory/`; subir a `origin` (privado) y publicar
+con `tools/public/publish.sh` a `cantus-daw` (nunca empujes el historial privado al
+público). Tienes mi permiso para subir y publicar cuando todo esté en verde. Escríbeme en
+español.
 
 ---
 
-**Lo que solo puedes hacer tú** (no lo pide el prompt): las pruebas con la UMC y las 2–3
-canciones, enviar el correo de la RVR1960, elegir SignPath o Certum, registrar CANTUS en el
-IMPI — todo en `docs/beta-checklist.md`.
+**Lo que solo puedes hacer tú** (no lo pide el prompt): la Mac prestada (y, si hace falta, la
+cuenta Apple Developer para firmar y notarizar), probar el instalador de Windows de
+`v0.1.0-beta.1` y tus interfaces (UMC en dúplex), escuchar el warp
+(`F:\projects\daw-r29\shots\warp\listen\`), probar MIDI learn con tu controlador y un
+plug-in real aislado (también uno con diálogo de licencia), la firma de código (SignPath o
+Certum), la revisión legal de Chorda y del CLA, el permiso de la RVR1960 y el registro de la
+marca.

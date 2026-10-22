@@ -1,8 +1,34 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-16 (round 28: **everything the owner asked that needs neither their hardware, their paperwork nor other software** — the top bar à la FL (ADR 0052: transport, tempo with tap and metre, metronome with count-in, voice and accent, PAT/SONG with pattern mode, snap, position, CPU/RAM/voices/drops, the master meter with peak/LUFS, the project name, groups shown/hidden/reordered, folding into ⋯ at any width); **Tonus**, the real-time auto-tuner (ADR 0053, 2.67 ms, scale/notes/MIDI targets, formants kept) and **the pitch editor** for recordings (ADR 0054, Melodyne-class, non-destructive, a Pitch lane, quantise to a track); **twelve new effects** — Concentus, Flexus, Phasis, Tremor, Vibrans, Anulus, Translatio, Fluctus (ADR 0055), Tonsor, Impetus, Discrimen, Speculum (ADR 0056) — each exported to CLAP/VST3 bit-identical, the exports now hearing the host's transport and MIDI notes; **modulators on any parameter**, hosted plug-ins included, and their automation (ADR 0057); **comping** with seam crossfades, alternate comps and grouped comping (ADR 0058); **Chorda**, the modelled grand piano (ADR 0059), and the **DRSKit** acoustic kit pack (CC BY 4.0); the showcase song *With All Your Heart*. Schema 32, `DSP_VERSION` 5, keymap 8. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 3 362 green on Windows (294 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (689); on Linux (WSL, CI's flags) 3 345 green with clippy; clippy `-D warnings` clean on both
+**Updated:** 2026-10-21 (round 29: **what people use every day in FL Studio and Ableton** — **warping** with our own time-stretch and pitch-shift (ADR 0061: Complex, Rhythm, Melodic and Re-pitch; tempo, transients and bars found at import, warp markers, *Quantise audio*, follow the project tempo, offline = real time); **MIDI learn** of any parameter (ADR 0062: native, hosted, mixer, transport; absolute, relative and toggle; range, curve, soft takeover, feedback; project and global maps, the *Controllers* pane, recorded as automation); **third-party plug-ins in their own process** (ADR 0063: a crash stops one plug-in, a card and *Reload*, the project loses nothing; *Within Cantus*, *Together*, *By vendor*, *Individually*; measured); the **tempo track** (ADR 0060: points and ramps, metre changes, named markers to jump, loop, select and export between; everything follows the map; MIDI and DAWproject both ways); **freeze, bounce in place and low-latency monitoring** (ADR 0064). Schema 41, `DSP_VERSION` 5, keymap 9. The public repository is `luis314159/cantus-daw` (ADR 0049, amended); the first public beta, `v0.1.0-beta.1`, is tagged there. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** @WIN@ green on Windows (@BINS@ test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (@FUZZ@); on Linux (WSL, CI's flags) @LINUX@ green with clippy; clippy `-D warnings` clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 29 left
+
+Round 29 is on **master** (pushed 2026-10-21 with the owner's permission given in advance)
+and published to `luis314159/cantus-daw` through `tools/public/publish.sh`; the tag
+`v0.1.0-beta.1` there built the Windows installer the website's download button serves. The
+account: `docs/round29/integration.md`; one report per builder beside it (`tempo`, `warp`,
+`controllers`, `isolation`, `freeze`). Under the owner's rule — every gap a feature leaves is
+closed in the same round — what is left is the owner's own:
+
+1. **By hand and by ear** (`docs/beta-checklist.md`, round-29 block): the warp listening set
+   (`F:\projects\daw-r29\shots\warp\listen\`), a ramp and a metre change, markers and
+   *Export between markers*, MIDI learn with a real controller (relative mode, feedback), a
+   real plug-in in its own process (also one with a licence dialog, and *Reload* after
+   killing its helper), a heavy track frozen and unfrozen, a voice with low-latency
+   monitoring; **the installer of `v0.1.0-beta.1`** downloaded from cantusdaw.com, installed,
+   opened, uninstalled (SmartScreen warns while it is unsigned).
+2. **Still standing**: the UMC in duplex and the interface table, complete songs, SignPath
+   or Certum, the RVR1960 e-mail (the beta greets with the RV1909), the IMPI filing, the
+   legal review of Chorda and the CLA.
+3. **Next round (30, decided 2026-10-20): the three systems** — Linux complete (PipeWire and
+   JACK, real-time priority, plug-in editor windows on X11 and Wayland, isolation end to
+   end, an AppImage in CI) and macOS prepared without a Mac (BACKLOG §2's list), then one tag
+   publishing three installers. The prompt: `docs/next-session.md`.
+4. **Then** (BACKLOG §0.4's order): effects that sound on insert (§3b, option B), Chorda's
+   sound by ear, §4b's performance scorecard, the MCP server (§7 phase B).
 
 ## The next session: what round 28 left
 
@@ -243,6 +269,41 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 29: warping, MIDI learn, plug-ins in their own process, the tempo track, freeze (requested 2026-10-16)
+
+**The ask** (the owner, 2026-10-16): a beta that competes with FL Studio and Ableton in what
+people use every day — (1) warping, time-stretch and pitch-shift of our own, élastique-class,
+on round 28's voice base and a phase-locked vocoder; (2) MIDI learn of any parameter; (3)
+third-party CLAP/VST3 out of process; (4) a tempo track with ramps, metre changes and
+markers; (5) freeze, bounce in place and low-latency monitoring; (6) the owner's frictions
+(none given). Mid-round the owner asked for BACKLOG §0.4's ordered list, decided round 30
+(the platforms), and made the repository public as `luis314159/cantus-daw`.
+
+**How.** A contract commit (`7fde16b`) declared `cantus_core::tempo::TempoMap` with constant
+bodies (bit-identical to `Ticks::to_seconds`), five locale areas, undo-fuzz arms 43–47 and
+`BUILDING.md`; seven read-only mappers wrote code maps first. Five builders in worktrees
+under `F:\projects\daw-r29\` — never more than three compiling at once — each kept through
+every fix round. Every branch was reviewed adversarially after delivery and after each fix
+round, and the integrated tree twice: **24 reviews, 1 172 confirmed findings (127 high)**, each
+fixed with a test seen failing first or answered; from 2026-10-20, on the owner's word, small
+reviews (four to six agents). Account: `docs/round29/integration.md`.
+
+**Decisions:** ADR 0060 (the tempo map; the unwarped clip reads from its content origin and is
+re-anchored by take), 0061 (the stretcher, our own from papers, MPL; the licences reviewed),
+0062 (controller mapping), 0063 (plug-ins out of process; ADR 0005 rule 3 amended for a
+bounded wait), 0064 (freeze, bounce, low latency); 0049 amended (the public repository).
+**Schema 41** (33 tempo, 34 warp, 35 controllers, 36 isolation, 37–38 freeze, 39 warp's
+automatic markers, 40–41 controllers), `DSP_VERSION` 5, keymap 9, bridge `PROTOCOL` 6.
+
+| Part | What changed |
+|---|---|
+| Tempo | `Project::{tempo_points, metre_changes, markers}`; `TempoMap` (segments, closed-form ramps, no allocation on lookup); the engine, click, modulators, synced effects, recorder, CLAP/VST3 transports and exported plug-ins through the map; the tempo lane with points, ramps and metres, the ruler's markers (jump, loop, select, export between), the top bar's tempo at the playhead; MIDI and DAWproject tempo maps both ways |
+| Warp | `cantus_dsp::stretch` — Complex (phase-locked vocoder, formants kept, transients held, stereo locked), Rhythm, Melodic (round 28's PSOLA), Re-pitch; analysis at import (tempo, transients, downbeat) on a worker; `AudioRegion::warp` with markers, automatic markers kept apart; the *Warp* tab, *Quantise audio*, *Set the project tempo from this clip*, Alt-drag; renders cached off the audio thread, export waits for them (offline = real time to the bit); DAWproject `<Warps>` |
+| Controllers | A lock-free MIDI filter on every port's callback; `Mapping` (source, target, mode, range, curve, takeover, feedback) to any automatable target, mute/solo/arm, insert bypass and mix, transport and tempo; learn from a right-click or learn mode; project and global maps, the *Controllers* pane; feedback to motor faders and LED rings; moves recorded as automation; program change and pressures reach instruments |
+| Isolation | `cantus-rt` shared memory and IPC (model-checked); `cantus-sandbox` helpers with kill-on-close jobs, heartbeat and hang limits; `BridgedBackend` lock-step at the backend seam; crash cards and *Reload* with the last good state; four placements per plug-in; 1.30× CPU with 32 plug-ins *Together* (ADR 0063 §5) |
+| Freeze | `Frozen` strips and tracks with an edit lock that classifies every command; renders keyed by content, streamed from the project's `Freeze` folder; bounce in place (track, clips, range, with or without effects; `Track::lateness` keeps a bounce on the grid); low-latency monitoring that bypasses other tracks' latency while the take lands to the sample |
+| Public | `luis314159/cantus-daw` fed only by `tools/public/publish.sh` (deterministic rewrite, no screenshots, no RVR1960, no-reply identities, gitleaks); every workflow guarded to run there, the site deploy included; Google's site verification; the website's *Coming soon* for Linux and macOS |
 
 ## Round 28: the top bar, voice, twelve effects, Chorda and the drums, modulators and comping (requested 2026-10-14)
 
