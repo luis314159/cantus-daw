@@ -29,8 +29,14 @@ owner's checklist for the borrowed one is `docs/mac-session.md` (Spanish).
   aarch64-apple-darwin --workspace --all-targets` and the same for
   `x86_64-apple-darwin` — clean. (Plain `cargo clippy --target …` stops at ring, ogg and
   LAME, whose build scripts need the macOS SDK's C compiler; the script stands in for it.)
-- **Windows**: `cargo clippy --workspace --all-targets` clean; tests of the touched crates
-  (see below).
+- **Windows**: `cargo clippy --workspace --all-targets` clean; `cargo test` of cantus-rt,
+  cantus-host, cantus-sandbox, cantus-launch, xtask, cantus-ui and cantus all green (the
+  font-coverage test caught AppKit's private-use arrow codes as literals: now numbers).
+- **Linux** (WSL, own clone): `check.sh r30/macos clippy` exit 0.
+- **Retina**: `shoot target/shots-retina 2 eq` — the mixer with Aequalis open at scale 2
+  (3000 × 1880): text, curves and icons crisp, nothing misaligned.
+- **Minimum macOS: 11 (Big Sur)** — `LSMinimumSystemVersion` in `Info.plist` and
+  `MACOSX_DEPLOYMENT_TARGET` in `build-dmg.sh`; Apple silicon and Intel.
 - **Only the macOS runner can prove**: that the code runs — the bell's wake-ups and
   timeouts, the helper's death, the dyld spans, the Cocoa windows (opened by the sandbox
   and host suites with the test plug-ins), the menu bar's install, the workgroup lookup,
