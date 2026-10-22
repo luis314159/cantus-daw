@@ -1115,6 +1115,50 @@ in a separate process, so a plug-in that crashes while being scanned is blocked,
 fatal. Cantus's own effects are installed in your CLAP and VST3 folders too, for other
 DAWs.
 
+### Plug-ins from other makers: installing and using them
+
+Cantus plays instruments and effects made by others in the **CLAP** and **VST3** formats,
+64-bit. VST2 plug-ins (a lone `.dll`) and Apple's AU are not supported: when a plug-in
+offers several formats, install its CLAP or VST3 version.
+
+1. **Install it** with its maker's installer, downloaded from the maker's own site. Leave it
+   in the standard folder the installer proposes (`C:\Program Files\Common Files\VST3` or
+   `…\CLAP`).
+2. **Let Cantus find it.** Cantus reads the standard folders when it starts. For a plug-in
+   installed while Cantus is open, or in another folder, open *Settings ▸ Plug-ins*: add
+   the folder under *Folders* (*Browse…*, then *Add*) and press *Scan for plug-ins*
+   (*Rescan everything* reads every file again, blocked ones included). What it found is
+   listed under *Found*; a file that crashed while being read is listed under *Blocked*,
+   with *Try again*.
+3. **An instrument**: press the **+** above the track headers (a new instrument track), or
+   click a track's instrument chip to swap its instrument. In the device picker, search by
+   name or choose the *CLAP* or *VST3* shelf, and press `Enter`.
+4. **An effect**: click an empty insert slot — in a mixer strip or in the inspector — and
+   pick it the same way.
+5. **Its own window**: *Open plug-in window* in its device window (or *Show plug-in window*
+   to bring it back when it is open). Its values can be automated, modulated and mapped
+   to a MIDI controller like those of Cantus's own devices.
+
+Each plug-in runs in a helper process by default, so one that crashes stops alone and
+Cantus keeps playing (see *When a plug-in crashes* below).
+
+**Free plug-ins worth trying** (each from its maker's site; Cantus has no tie with them):
+
+| Plug-in | What it is | Where |
+|---|---|---|
+| Surge XT (CLAP, VST3) | A large open-source synthesizer: pads, basses, leads, thousands of presets | <https://surge-synthesizer.github.io/> |
+| Vital | A wavetable synthesizer; its free edition has plenty of presets | <https://vital.audio/> |
+| Odin 2 (CLAP, VST3) | A thorough virtual-analogue synthesizer | <https://thewavewarden.com/pages/odin-2> |
+| Dexed | A Yamaha DX7 clone: FM electric pianos and basses | <https://asb2m10.github.io/dexed/> |
+| Decent Sampler | A sample-library player; hundreds of free instruments for it, Pianobook's among them | <https://www.decentsamples.com/product/decent-sampler-plugin/>, <https://www.pianobook.co.uk/> |
+| Valhalla Supermassive | Huge, spacious reverbs and delays | <https://valhalladsp.com/shop/reverb/valhalla-supermassive/> |
+| TDR Nova, TDR Kotelnikov | A dynamic EQ and a mastering compressor | <https://www.tokyodawn.net/tdr-nova/> |
+| ChowTapeModel | Analogue tape saturation | <https://chowdsp.com/products.html> |
+| Airwindows Consolidated (CLAP, VST3) | Hundreds of Airwindows effects in one plug-in | <https://www.airwindows.com/consolidated/> |
+| Dragonfly Reverb | Halls, plates and rooms; open source | <https://michaelwillis.github.io/dragonfly-reverb/> |
+| Kilohearts Essentials | A toolbox of small effects: chorus, distortion, filters and more | <https://kilohearts.com/products/kilohearts_essentials> |
+| Youlean Loudness Meter | A loudness meter in LUFS | <https://youlean.co/youlean-loudness-meter/> |
+
 ### Tonus: pitch correction for a voice
 
 **Tonus** (in the picker's *Pitch · vocal* shelf) tunes a sung voice as it comes in — for the
