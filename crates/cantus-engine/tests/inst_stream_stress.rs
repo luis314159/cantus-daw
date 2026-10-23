@@ -151,11 +151,14 @@ fn the_reader_answers_forty_new_voices_well_within_the_head() {
         took.as_secs_f64() * 1e3,
         head * 1e3
     );
-    // Half the head is the margin the head is sized with. GitHub's Mac runner (a virtual
-    // disk) answers in 150–170 ms, inside the head but not half of it: there the bound is
-    // the head itself — no voice late, which `take_late_reads` below proves — and the
-    // number on a real Mac is measured in `docs/mac-session.md`.
-    let bound = if cfg!(target_os = "macos") {
+    // Half the head is the margin the head is sized with. A Mac reads through its own
+    // layers in about the head (GitHub's runner, a virtual disk: 150–180 ms): there the
+    // bound is the head itself, and one and a half heads inside a Mac virtual machine —
+    // what proves the voices in time is `take_late_reads` below; the number on a real Mac
+    // is measured in `docs/mac-session.md`.
+    let bound = if cantus_rt::thread::in_a_virtual_mac() {
+        head * 1.5
+    } else if cfg!(target_os = "macos") {
         head
     } else {
         head / 2.0

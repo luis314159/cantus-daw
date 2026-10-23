@@ -493,6 +493,32 @@ pub fn forget_device_workgroup() {
     os::forget_device();
 }
 
+/// Whether this is macOS running as a virtual machine (`kern.hv_vmm_present`), as GitHub's
+/// macOS runners are: their timers and disks are a VM's, which timing tests bound
+/// differently from a Mac's (ADR 0066). `false` elsewhere.
+pub fn in_a_virtual_mac() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        let mut v: libc::c_int = 0;
+        let mut len = std::mem::size_of::<libc::c_int>();
+        // SAFETY: a NUL-terminated name and a live int of the length given.
+        let r = unsafe {
+            libc::sysctlbyname(
+                c"kern.hv_vmm_present".as_ptr(),
+                (&mut v as *mut libc::c_int).cast(),
+                &mut len,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        r == 0 && v == 1
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
+}
+
 /// The busy share to promote with, `None` when the thread must not enter the real-time class.
 fn share(waiting: Waiting) -> Option<f32> {
     match waiting {

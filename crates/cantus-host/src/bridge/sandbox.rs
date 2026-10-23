@@ -588,18 +588,43 @@ impl Sandbox {
         // signature (227 ms of a frame on GitHub's runner, round 30) — and the interface's
         // frame must never wait for it. Requests wait in the channel meanwhile; a start that
         // fails ends the helper, and the plug-ins asked of it fail to load.
+        //
+        // The thread that starts the process then watches it, for the process's whole life:
+        // on Linux the helper's parent-death signal (`PR_SET_PDEATHSIG`) follows the
+        // *thread* that started it, so a starting thread that ended would kill the helper
+        // with SIGKILL (round 30: "it crashed (signal 9)" on GitHub's Linux runner).
         let me = Arc::downgrade(&sandbox);
         let pool = pool.clone();
         let exe = pool.exe.clone();
+        // Cantus's tests: a start the system takes its time over (round 30).
+        let delay = std::env::var("CANTUS_TEST_SANDBOX_SPAWN_DELAY_MS")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .map(|ms| Duration::from_millis(ms.min(10_000)));
         std::thread::Builder::new()
-            .name("cantus-sandbox-start".into())
+            .name("cantus-sandbox-watchdog".into())
             .spawn(move || {
-                if let Err(why) = start(cmd, rx, me.clone(), ending, &pool) {
-                    if let Some(s) = me.upgrade() {
-                        s.mark_dead(Some(&format!(
-                            "cannot start the plug-in sandbox ({}): {why}",
-                            exe.display()
-                        )));
+                if let Some(d) = delay {
+                    std::thread::sleep(d);
+                }
+                match start(cmd, rx, me.clone(), &pool) {
+                    Ok(Some((child, kill))) => {
+                        let live = pool.live.clone();
+                        live.fetch_add(1, Ordering::AcqRel);
+                        // The pool is not held while the helper lives: it goes when
+                        // Cantus's last user lets go, and tells its helpers to quit.
+                        drop(pool);
+                        watch(child, kill, me, ending);
+                        live.fetch_sub(1, Ordering::AcqRel);
+                    }
+                    Ok(None) => {}
+                    Err(why) => {
+                        if let Some(s) = me.upgrade() {
+                            s.mark_dead(Some(&format!(
+                                "cannot start the plug-in sandbox ({}): {why}",
+                                exe.display()
+                            )));
+                        }
                     }
                 }
             })
@@ -1234,15 +1259,15 @@ fn unsupported_name(s: &str) -> &'static str {
     NAMES.into_iter().find(|n| *n == s).unwrap_or("operation")
 }
 
-/// Starts the helper's process and its writer, reader and watchdog threads (on the
-/// `cantus-sandbox-start` thread, never the interface's).
+/// Starts the helper's process and its writer and reader threads (on the watchdog's
+/// thread, never the interface's); the watchdog to run is returned.
+#[allow(clippy::type_complexity)]
 fn start(
     mut cmd: Command,
     rx: mpsc::Receiver<Vec<u8>>,
     me: Weak<Sandbox>,
-    ending: Arc<Ending>,
     pool: &Arc<Sandboxes>,
-) -> Result<(), String> {
+) -> Result<Option<(Child, Arc<AtomicBool>)>, String> {
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
     pool.adopt(&child);
     let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
@@ -1253,7 +1278,7 @@ fn start(
         // Nothing wants it any more.
         let _ = child.kill();
         let _ = child.wait();
-        return Ok(());
+        return Ok(None);
     };
     sandbox.pid.store(child.id(), Ordering::Release);
     // The writer.
@@ -1294,19 +1319,9 @@ fn start(
             }
         })
         .map_err(|e| e.to_string())?;
-    // The watchdog.
+    // The watchdog is the caller: this thread, which started the process.
     let kill = sandbox.kill.clone();
-    drop(sandbox);
-    let live = pool.live.clone();
-    live.fetch_add(1, Ordering::AcqRel);
-    std::thread::Builder::new()
-        .name("cantus-sandbox-watchdog".into())
-        .spawn(move || {
-            watch(child, kill, me, ending);
-            live.fetch_sub(1, Ordering::AcqRel);
-        })
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    Ok(Some((child, kill)))
 }
 
 /// How a helper's end reads: the Windows exception or the Unix signal named when it is a

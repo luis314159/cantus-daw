@@ -660,3 +660,28 @@ fn a_missing_helper_is_an_error_not_a_panic() {
     let r = bridged(&pool, Format::Clap, "together", false).load(&info, setup());
     assert!(matches!(r, Err(HostError::Load(_))));
 }
+
+/// A helper the system is slow to start, and one that lives on after its start: neither
+/// is ended by Cantus. The process starts on the thread that then watches it, which lives
+/// as long as the helper — on Linux the parent-death signal follows the thread that started
+/// a process, and a starting thread that ended took the helper with it (round 30: "it
+/// crashed (signal 9)").
+#[test]
+fn a_helper_slow_to_start_and_long_after_it_is_never_killed() {
+    let _g = serial();
+    let pool = pool();
+    std::env::set_var("CANTUS_TEST_SANDBOX_SPAWN_DELAY_MS", "400");
+    let started = std::time::Instant::now();
+    let mut slow = load_isolated(&pool, GAIN_ID, "own-slow-spawn");
+    std::env::remove_var("CANTUS_TEST_SANDBOX_SPAWN_DELAY_MS");
+    assert!(
+        started.elapsed() >= Duration::from_millis(400),
+        "it waited for the start"
+    );
+    // Long after the start: the helper still runs and serves.
+    std::thread::sleep(Duration::from_millis(500));
+    assert!(crashed_within(slow.main.as_mut(), Duration::from_millis(500)).is_none());
+    let (mut l, mut r) = (vec![0.5f32; 64], vec![0.5f32; 64]);
+    call(slow.audio.as_mut(), &mut l, &mut r, &[], &[]);
+    assert!(crashed_within(slow.main.as_mut(), Duration::from_millis(200)).is_none());
+}

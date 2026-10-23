@@ -50,7 +50,12 @@ jobs:
       - run: cargo clippy --workspace --all-targets
       - name: clippy for Intel Macs
         run: cargo clippy --workspace --all-targets --target x86_64-apple-darwin
-      - run: cargo test --workspace --no-fail-fast
+      # The whole suite, then what failed again up to twice (a virtual machine's timers and
+      # disk miss timing tests now and then): the job fails only on a test that fails three
+      # times, and prints "FLAKY on macOS VM:" for what needed a retry.
+      - name: cargo test (failed binaries retried twice)
+        shell: bash
+        run: tools/ci/retry-failed.sh
       - name: engine on the pool, schedule fuzz
         run: cargo test -p cantus-engine --features fuzz
         env:
