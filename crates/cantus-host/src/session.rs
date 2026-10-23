@@ -596,6 +596,12 @@ impl PluginHost {
         self.setup.sample_rate = sample_rate;
     }
 
+    /// What last made an isolated insert's last-good state not current (a save's report,
+    /// the tests).
+    pub fn why_changed(&self, effect: EffectId) -> Option<&'static str> {
+        self.slots.get(&effect).and_then(|h| h.main.why_changed())
+    }
+
     pub fn hosted(&self, effect: EffectId) -> Option<&Hosted> {
         self.slots.get(&effect)
     }

@@ -66,6 +66,8 @@ pub struct BridgeMain {
     info: PluginInfo,
     params: Vec<ParamInfo>,
     latency: usize,
+    /// What last made its last-good state not current ([`MainThread::why_changed`]).
+    why_changed: Option<&'static str>,
     has_editor: bool,
     /// Its load's request, and whether it was answered (and how).
     load: u64,
@@ -147,6 +149,7 @@ impl BridgeMain {
             info,
             params: Vec::new(),
             latency: 0,
+            why_changed: None,
             load,
             loaded: false,
             load_failed: None,
@@ -199,9 +202,10 @@ impl BridgeMain {
     }
 
     /// Something of the plug-in changed: states asked for before are older.
-    fn changed(&mut self) {
+    fn changed(&mut self, why: &'static str) {
         self.changed_at = self.sandbox.next_request();
         self.current = false;
+        self.why_changed = Some(why);
     }
 
     fn ask_state(&mut self) -> Option<u64> {
@@ -288,7 +292,7 @@ impl BridgeMain {
         }
         if let Some((_, Err(why))) = state_loaded {
             log::warn!("{}: its state was refused: {why}", self.info.name);
-            self.changed();
+            self.changed("its state was refused");
         }
         if let Some(p) = params {
             self.asked_params = false;
@@ -752,7 +756,7 @@ impl MainThread for BridgeMain {
         };
         let now = Instant::now();
         if moved {
-            self.changed();
+            self.changed("a value moved");
             if self.dirty_since.is_none() && self.last_refresh.elapsed() >= REFRESH_EVERY {
                 // Values alone move with automation too: refreshed at a slower pace.
                 self.dirty_since = Some(now - REFRESH_AFTER);
@@ -772,13 +776,13 @@ impl MainThread for BridgeMain {
                             Purpose::Params,
                         );
                     }
-                    self.changed();
+                    self.changed("its parameters changed");
                     self.dirty_since.get_or_insert(now);
                     continue;
                 }
                 WireNotice::StateDirty => {
                     // Said on once the state it changed to is in (the host records it).
-                    self.changed();
+                    self.changed("it said its state changed");
                     self.tell_state_dirty = true;
                     self.dirty_since.get_or_insert(now);
                     continue;
@@ -871,7 +875,7 @@ impl MainThread for BridgeMain {
             }
             return false;
         }
-        self.changed();
+        self.changed("values were flushed to it");
         let wire = params.iter().map(|p| (p.offset, p.id, p.value)).collect();
         self.post(
             Call::Flush {
@@ -899,9 +903,13 @@ impl MainThread for BridgeMain {
         true
     }
 
+    fn why_changed(&self) -> Option<&'static str> {
+        self.why_changed
+    }
+
     fn checkpoint(&mut self) {
         if !self.gone() {
-            self.changed();
+            self.changed("a gesture ended");
             self.dirty_since
                 .get_or_insert(Instant::now() - REFRESH_AFTER);
         }

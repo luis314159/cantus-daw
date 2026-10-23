@@ -43,6 +43,7 @@ Anota versión de macOS, modelo (M1/M2/M3… o Intel), interfaz de audio y auric
 | 12 | **Arrastrar desde Finder** | Arrastra un `.wav` y un `.mid` a la ventana. | Se importan donde los sueltas. |
 | 13 | **Abrir un proyecto desde Finder** | Con Cantus cerrado, doble clic en un `.cantus`; luego, con Cantus abierto y un cambio sin guardar, arrastra otro `.cantus` al icono del Dock. | El primero abre Cantus con ese proyecto; el segundo pregunta *¿Guardar cambios?* y luego lo abre. Finder muestra el icono de Cantus en los `.cantus`. |
 | 14 | **Muestras desde disco** | Carga el piano de Salamander (16 capas) y toca un acorde enorme con el pedal, o pega 40 notas a la vez en el piano roll y reprodúcelas. | Ningún hueco ni clic al empezar las notas. En el Mac de GitHub (disco virtual) las 40 voces tardan 150–170 ms en tener su primer bloque tras la cabeza (171 ms); en un Mac real debería ser mucho menos. |
+| 15 | **Plazo de un plug-in colgado** (opcional, con Rust instalado: `rustup`, y el código) | En la carpeta de Cantus: `cargo test -p cantus-rt --test ipc_process a_late_wait -- --nocapture` | Pasa: la espera de 5 ms acaba antes de 7 ms (en la máquina virtual de GitHub se permiten 10). Anota la mediana que imprime. |
 
 ## Cómo anotar los resultados
 
@@ -64,6 +65,7 @@ Copia esta tabla en `docs/round31/mac-session-results.md` (o pásamela en el cha
 | 12 | | |
 | 13 | | |
 | 14 | | |
+| 15 | | |
 
 Con un ✘, guarda lo que puedas: el registro de Cantus (ábrelo desde *Terminal* con
 `/Applications/Cantus.app/Contents/MacOS/cantus 2>&1 | tee ~/Desktop/cantus.log` y repite

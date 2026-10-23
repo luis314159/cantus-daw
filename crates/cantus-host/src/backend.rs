@@ -330,6 +330,12 @@ pub trait MainThread: Send {
     /// plug-in refreshes the last-good state it keeps for a crash. Nothing in process.
     fn checkpoint(&mut self) {}
 
+    /// What last made the plug-in's last-good state not current (an isolated plug-in:
+    /// a value moved, a state-dirty notice…), for a save's report and the tests.
+    fn why_changed(&self) -> Option<&'static str> {
+        None
+    }
+
     /// The time the plug-in itself spent processing, in nanoseconds, and the frames it
     /// covered, since it was loaded — measured in its helper process. `None` in process
     /// (the host measures the call there).

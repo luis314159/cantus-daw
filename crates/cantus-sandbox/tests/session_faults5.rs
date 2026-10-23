@@ -419,8 +419,9 @@ fn a_state_answered_late_becomes_the_last_good_one() {
     let saved = rig.host.project_for_save(rig.bus.project());
     assert!(
         rig.host.saved_stale().is_empty(),
-        "{:?}",
-        rig.host.saved_stale()
+        "{:?}, last changed by: {:?}",
+        rig.host.saved_stale(),
+        rig.host.why_changed(id)
     );
     assert_eq!(gain_in(&saved), Some(-6.0));
 }
