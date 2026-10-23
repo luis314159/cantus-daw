@@ -578,8 +578,14 @@ fn shift_f10_opens_the_selected_strips_route_menu_and_the_strip_menu_says_so() {
     r.app.keymap.bind(Action::RouteMenu, Binding::alt(Key::F10));
     r.right_click(head);
     let text = r.idle(1);
+    // Alt is Option on a Mac's keyboard, and its menus say so (ADR 0066).
+    let alt_f10 = if cfg!(target_os = "macos") {
+        "Option+F10"
+    } else {
+        "Alt+F10"
+    };
     assert!(
-        text.contains("Alt+F10"),
+        text.contains(alt_f10),
         "the strip menu shows the new key: {text}"
     );
 }

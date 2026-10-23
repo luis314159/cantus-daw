@@ -174,21 +174,33 @@ pub fn realtime_share() -> f32 {
     1.0
 }
 
-/// A pool worker: the time constraint, and the audio device's workgroup when one is
-/// registered ([`use_device`]) and the thread is a live worker — Apple's performance
-/// controller then plans the workers with the device's own I/O thread, on performance cores
-/// at the clock the deadline needs (WWDC20 10224). A cancelled workgroup (the device
-/// changed) is fetched again once, by the device's name.
+/// The callback's thread, or a thread with no device to join: the time constraint alone.
+/// CoreAudio's own I/O thread is in the device's workgroup already.
 pub fn promote(
     role: WorkerRole,
     period: Duration,
     share: Option<f32>,
     revert: &mut Revert,
 ) -> Promotion {
-    let Some((name, wg)) = (role == WorkerRole::Live && share.is_some())
+    constrain_only(role, period, share, revert)
+}
+
+/// A pool worker: the time constraint, and the audio device's workgroup when one is
+/// registered ([`use_device`]) and the thread is a live worker — Apple's performance
+/// controller then plans the workers with the device's own I/O thread, on performance cores
+/// at the clock the deadline needs (WWDC20 10224). A cancelled workgroup (the device
+/// changed) is fetched again once, by the device's name. Reading the registration takes
+/// no allocation (an `Arc` clone under [`super::Seen`]).
+pub fn promote_pool(
+    role: WorkerRole,
+    period: Duration,
+    share: Option<f32>,
+    revert: &mut Revert,
+) -> Promotion {
+    let wg = (role == WorkerRole::Live && share.is_some())
         .then(device)
-        .flatten()
-    else {
+        .flatten();
+    let Some(wg) = wg else {
         return constrain_only(role, period, share, revert);
     };
     let p = promote_in(&wg, role, period, share, revert);
@@ -198,6 +210,7 @@ pub fn promote(
             code: libc::EINVAL,
         }) => {
             revert_constraint(revert);
+            let name = DEVICE.with(|d| d.as_ref().and_then(|(n, _)| n.clone()));
             match name.as_deref().and_then(lookup) {
                 Some(fresh) => {
                     let fresh = std::sync::Arc::new(fresh);
@@ -494,17 +507,18 @@ fn lookup(name: &str) -> Option<Workgroup> {
 
 type Device = (Option<String>, std::sync::Arc<Workgroup>);
 
-static DEVICE: std::sync::Mutex<Option<Device>> = std::sync::Mutex::new(None);
+static DEVICE: super::Seen<Option<Device>> = super::Seen::new(None);
 
 fn remember(name: Option<String>, wg: Option<std::sync::Arc<Workgroup>>) {
-    let mut d = DEVICE.lock().unwrap_or_else(|e| e.into_inner());
-    *d = wg.map(|wg| (name, wg));
+    // The old registration (a String and an Arc) drops after the cell is let go.
+    let old = DEVICE.with(|d| std::mem::replace(d, wg.map(|wg| (name, wg))));
+    drop(old);
 }
 
-/// The registered device's workgroup (a pool worker's start, never the audio thread's
-/// blocks: the lock is taken once per worker start).
-fn device() -> Option<Device> {
-    DEVICE.lock().unwrap_or_else(|e| e.into_inner()).clone()
+/// The registered device's workgroup (a pool worker's start; an `Arc` clone, no
+/// allocation).
+fn device() -> Option<std::sync::Arc<Workgroup>> {
+    DEVICE.with(|d| d.as_ref().map(|(_, wg)| wg.clone()))
 }
 
 /// The device the pool's workers will join: its workgroup looked up now (by the name cpal

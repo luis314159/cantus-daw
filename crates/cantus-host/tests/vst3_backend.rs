@@ -388,6 +388,13 @@ fn search_paths_are_the_standard_folders() {
             vec![local, common],
             "per user first, then system-wide"
         );
+    } else if cfg!(target_os = "macos") {
+        // The system's and the user's `Library/Audio/Plug-Ins/VST3` (ADR 0066).
+        let system = Path::new("/Library/Audio/Plug-Ins/VST3");
+        assert!(paths.iter().any(|p| p == system));
+        assert!(paths
+            .iter()
+            .any(|p| p != system && p.ends_with("Library/Audio/Plug-Ins/VST3")));
     } else {
         assert!(paths.iter().any(|p| p.ends_with(".vst3")));
     }
@@ -449,8 +456,11 @@ fn moduleinfo_json_describes_a_bundle_without_loading_it() {
         .join(binary().parent().unwrap().file_name().unwrap());
     std::fs::create_dir_all(&arch).unwrap();
     std::fs::create_dir_all(with_binary.join("Contents").join("Resources")).unwrap();
-    let ext = binary().extension().unwrap().to_owned();
-    let copy = arch.join("WithInfo").with_extension(ext);
+    // macOS's binary has no extension (`Contents/MacOS/WithInfo`, ADR 0066).
+    let copy = match binary().extension() {
+        Some(ext) => arch.join("WithInfo").with_extension(ext),
+        None => arch.join("WithInfo"),
+    };
     std::fs::copy(binary(), &copy).unwrap();
     std::fs::copy(
         resources.join("moduleinfo.json"),

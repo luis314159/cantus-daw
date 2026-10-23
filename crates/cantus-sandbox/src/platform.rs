@@ -1070,13 +1070,24 @@ pub mod blame {
         }
 
         extern "C" fn on_signal(
-            _sig: libc::c_int,
+            sig: libc::c_int,
             _info: *mut libc::siginfo_t,
             ctx: *mut libc::c_void,
         ) {
             super::record(pc(ctx));
-            // The handler was reset (SA_RESETHAND): returning re-raises the fault (or, for
-            // SIGABRT, `abort` raises it again), and the process ends as it would have.
+            // macOS: end now. A process killed by the signal is held by the system's crash
+            // reporter while it writes its report — seconds on a busy machine, during
+            // which Cantus cannot tell the helper is gone (ADR 0066). `_exit` is
+            // async-signal-safe; the exit status says which signal (128 + its number).
+            #[cfg(target_vendor = "apple")]
+            // SAFETY: ends the process at once, running nothing more.
+            unsafe {
+                libc::_exit(128 + sig)
+            };
+            // Elsewhere the handler was reset (SA_RESETHAND): returning re-raises the fault
+            // (or, for SIGABRT, `abort` raises it again), and the process ends as it would.
+            #[cfg(not(target_vendor = "apple"))]
+            let _ = sig;
         }
 
         fn ours() -> usize {

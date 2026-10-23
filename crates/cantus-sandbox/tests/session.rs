@@ -111,7 +111,13 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     // Before the crash: the gain; from the crashing block on: the dry song, still playing
     // — every block one or the other, the block that carried the fault already dry (#22).
     let n = 40 * 256 * 2;
-    assert_eq!(differing(&out[..n], &with_gain[..n]), 0, "before the crash");
+    assert_eq!(
+        differing(&out[..n], &with_gain[..n]),
+        0,
+        "before the crash ({} late blocks; the bell waits by {})",
+        rig.host.late_blocks(),
+        cantus_rt::ipc::wait_kind()
+    );
     let blocks: Vec<std::ops::Range<usize>> = (0..188).map(|k| k * 512..(k + 1) * 512).collect();
     let first_dry = blocks
         .iter()
@@ -354,7 +360,9 @@ fn a_hang_never_blocks_the_interfaces_frames_and_is_ended() {
     // None waits out a deadline again (#25): 256 frames at 48 kHz is a 5.3 ms deadline.
     assert!(
         after.iter().all(|t| *t < Duration::from_millis(4)),
-        "a block waited again: {after:?}"
+        "a block waited again ({} late blocks in all): {:?}",
+        rig.host.late_blocks(),
+        &after[after.len().saturating_sub(8)..]
     );
     assert_eq!(rig.host.late_blocks(), 1, "one job late");
 }

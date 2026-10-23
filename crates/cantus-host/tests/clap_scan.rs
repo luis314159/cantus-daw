@@ -29,8 +29,8 @@ fn the_scan_finds_the_plugin_and_the_database_caches_it() {
     assert!(info.sidechain, "the second input port is the sidechain");
     assert_eq!(
         info.editor,
-        cfg!(any(windows, target_os = "linux")),
-        "an editor: Win32 on Windows, X11 on Linux (ADR 0065)"
+        cfg!(any(windows, target_os = "linux", target_os = "macos")),
+        "an editor: Win32 on Windows, X11 on Linux (ADR 0065), Cocoa on macOS (ADR 0066)"
     );
     assert!(info.features.iter().any(|f| f == "audio-effect"));
     assert_eq!(host.db.effects().len(), 1);

@@ -117,3 +117,79 @@ fn region_names_fit_the_system_limit() {
         assert!(unique_name("cantus-plugin").starts_with("cantus-plugin-"));
     }
 }
+
+const WAKE_ENV: &str = "CANTUS_BELL_TEST_REGION";
+
+/// The other process of [`a_ring_wakes_another_process_promptly`]: sleeps on the bell at
+/// byte 0 with no timeout, and after each wake-up answers by moving the word at byte 64.
+#[test]
+fn bell_other_process() {
+    let Ok(name) = std::env::var(WAKE_ENV) else {
+        return; // an ordinary run: nothing to do
+    };
+    let mem = SharedMemory::open(&name, REGION).expect("open the region");
+    // SAFETY: the region outlives both bells; both words are aligned atomics in it.
+    let bell = unsafe { Bell::open(&format!("{name}-b"), word(&mem)) }.expect("bell");
+    // SAFETY: byte 64 of the 4 096-byte, page-aligned region: an aligned u32 for its life.
+    let answer = unsafe { &*(mem.as_ptr().add(64) as *const AtomicU32) };
+    for _ in 0..20 {
+        let epoch = bell.epoch();
+        answer.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        while bell.epoch() == epoch {
+            bell.wait(epoch, None);
+        }
+    }
+    answer.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// Across processes (the plug-in sandbox's case): a ring wakes a sleeper in another
+/// process within a millisecond or so — not when its park times out. Measured twenty
+/// times; the worst must stay far under a block's deadline.
+#[test]
+fn a_ring_wakes_another_process_promptly() {
+    use std::sync::atomic::Ordering::SeqCst;
+    let name = unique_name("cantus-bell-x");
+    let mem = SharedMemory::create(&name, REGION).expect("make the region");
+    // SAFETY: as in the other tests.
+    let bell = unsafe { Bell::create(&format!("{name}-b"), word(&mem)) }.expect("bell");
+    // SAFETY: byte 64 of the 4 096-byte, page-aligned region: an aligned u32 for its life.
+    let answer = unsafe { &*(mem.as_ptr().add(64) as *const AtomicU32) };
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "bell_other_process",
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .env(WAKE_ENV, &name)
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("start the other process");
+    let wait_for = |n: u32| {
+        let t = Instant::now();
+        while answer.load(SeqCst) < n {
+            assert!(t.elapsed() < Duration::from_secs(10), "no answer {n}");
+            std::hint::spin_loop();
+        }
+        t.elapsed()
+    };
+    wait_for(1);
+    let mut times = Vec::new();
+    for n in 2..=21 {
+        // Let it fall asleep, then ring and time the answer.
+        std::thread::sleep(Duration::from_millis(5));
+        let t = Instant::now();
+        bell.ring();
+        let _ = wait_for(n);
+        times.push(t.elapsed());
+    }
+    let _ = child.wait();
+    times.sort();
+    let (median, worst) = (times[times.len() / 2], times[times.len() - 1]);
+    eprintln!(
+        "{} wake-ups across processes: median {median:?}, worst {worst:?}",
+        ipc::wait_kind()
+    );
+    assert!(median < Duration::from_millis(2), "{times:?}");
+    assert!(worst < Duration::from_millis(50), "{times:?}");
+}

@@ -902,10 +902,16 @@ fn every_dialog_renders_what_it_should_say() {
         }
     }
     for expected in [
-        "Cantus",                   // About
-        "Keyboard shortcuts",       // the editor's title
-        "Play / pause",             // an action label, so the list really rendered
-        "Ctrl+M",                   // a binding, so display_for really rendered
+        "Cantus",             // About
+        "Keyboard shortcuts", // the editor's title
+        "Play / pause",       // an action label, so the list really rendered
+        // A binding, so display_for really rendered: the metronome's, as this system shows it
+        // (⌘ on a Mac, whose preset gives the metronome Cmd+K: ADR 0066).
+        if cfg!(target_os = "macos") {
+            "Cmd+K"
+        } else {
+            "Ctrl+M"
+        },
         "Alt+wheel edits velocity", // the mouse help a keymap cannot express
         "Layout name",              // the layout naming prompt
         "Settings",                 // the preferences window
@@ -1857,8 +1863,14 @@ fn the_clip_menu_opens_on_a_right_click_and_survives_the_pointer_leaving() {
         opened.contains("Split at the playhead"),
         "right-clicking a clip did not open its menu: {opened}"
     );
+    // The command key as this system names it (Cmd on a Mac, ADR 0066).
+    let split = if cfg!(target_os = "macos") {
+        "Cmd+E"
+    } else {
+        "Ctrl+E"
+    };
     assert!(
-        opened.contains("Ctrl+E"),
+        opened.contains(split),
         "the menu does not show the shortcut it teaches: {opened}"
     );
 

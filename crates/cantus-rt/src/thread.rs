@@ -289,9 +289,7 @@ pub fn promote_callback(host: AudioHost, period: Duration) -> Promotion {
     };
     CALLBACK.with(|c| c.set(Some(p)));
     // For the device page: never waits (a frame reading it now loses this one answer).
-    if let Ok(mut seen) = SEEN_CALLBACK.try_lock() {
-        *seen = Some(p);
-    }
+    let _ = SEEN_CALLBACK.try_with(|seen| *seen = Some(p));
     p
 }
 
@@ -313,29 +311,70 @@ impl PriorityReport {
 /// The most workers the report keeps (more than any machine's pool).
 const SEEN_MAX: usize = 64;
 
-static SEEN_CALLBACK: std::sync::Mutex<Option<Promotion>> = std::sync::Mutex::new(None);
-#[allow(clippy::type_complexity)]
-static SEEN_WORKERS: std::sync::Mutex<[Option<(std::thread::ThreadId, Promotion)>; SEEN_MAX]> =
-    std::sync::Mutex::new([None; SEEN_MAX]);
-
-fn seen_workers(
-) -> std::sync::MutexGuard<'static, [Option<(std::thread::ThreadId, Promotion)>; SEEN_MAX]> {
-    SEEN_WORKERS.lock().unwrap_or_else(|e| e.into_inner())
+/// A value the audio threads note and the interface reads, guarded by one atomic flag: no
+/// allocation, ever (a `std::sync::Mutex` allocates its lock on first use where std
+/// builds it on pthreads — macOS's runner counted it on the callback's first block). The
+/// audio side only *tries* ([`Seen::try_with`]) and skips a note rather than wait; the
+/// other side yields until it gets in.
+struct Seen<T> {
+    busy: std::sync::atomic::AtomicBool,
+    value: std::cell::UnsafeCell<T>,
 }
+
+// SAFETY: the value is reached only while `busy` is held (acquire / release), by one thread.
+unsafe impl<T: Send> Sync for Seen<T> {}
+
+impl<T> Seen<T> {
+    const fn new(value: T) -> Seen<T> {
+        Seen {
+            busy: std::sync::atomic::AtomicBool::new(false),
+            value: std::cell::UnsafeCell::new(value),
+        }
+    }
+
+    /// `f` on the value if no one else holds it now; `None` (and nothing done) if one does.
+    fn try_with<R>(&self, f: impl FnOnce(&mut T) -> R) -> Option<R> {
+        use std::sync::atomic::Ordering::{Acquire, Relaxed, Release};
+        self.busy
+            .compare_exchange(false, true, Acquire, Relaxed)
+            .ok()?;
+        // SAFETY: `busy` is ours until the store below: no other reference exists.
+        let r = f(unsafe { &mut *self.value.get() });
+        self.busy.store(false, Release);
+        Some(r)
+    }
+
+    /// `f` on the value, yielding while another thread holds it (never the audio threads').
+    fn with<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+        let mut f = Some(f);
+        loop {
+            if let Some(r) = self.try_with(|v| (f.take().expect("called once"))(v)) {
+                return r;
+            }
+            std::thread::yield_now();
+        }
+    }
+}
+
+static SEEN_CALLBACK: Seen<Option<Promotion>> = Seen::new(None);
+#[allow(clippy::type_complexity)]
+static SEEN_WORKERS: Seen<[Option<(std::thread::ThreadId, Promotion)>; SEEN_MAX]> =
+    Seen::new([None; SEEN_MAX]);
 
 /// The answer a live worker thread got, while its promotion lives.
 pub fn worker_promotion_of(thread: std::thread::ThreadId) -> Option<Promotion> {
-    seen_workers()
-        .iter()
-        .flatten()
-        .find(|(id, _)| *id == thread)
-        .map(|(_, p)| *p)
+    SEEN_WORKERS.with(|seen| {
+        seen.iter()
+            .flatten()
+            .find(|(id, _)| *id == thread)
+            .map(|(_, p)| *p)
+    })
 }
 
 /// What the audio threads have now (see [`PriorityReport`]).
 pub fn priority_report() -> PriorityReport {
-    let callback = *SEEN_CALLBACK.lock().unwrap_or_else(|e| e.into_inner());
-    let workers = seen_workers().iter().flatten().map(|(_, p)| *p).collect();
+    let callback = SEEN_CALLBACK.with(|c| *c);
+    let workers = SEEN_WORKERS.with(|seen| seen.iter().flatten().map(|(_, p)| *p).collect());
     PriorityReport { callback, workers }
 }
 
@@ -368,11 +407,13 @@ impl Drop for WorkerPromotion {
     fn drop(&mut self) {
         os::revert(&mut self.revert);
         let me = std::thread::current().id();
-        for slot in seen_workers().iter_mut() {
-            if slot.is_some_and(|(id, _)| id == me) {
-                *slot = None;
+        SEEN_WORKERS.with(|seen| {
+            for slot in seen.iter_mut() {
+                if slot.is_some_and(|(id, _)| id == me) {
+                    *slot = None;
+                }
             }
-        }
+        });
     }
 }
 
@@ -381,11 +422,11 @@ impl WorkerPromotion {
     /// audio path: a worker calls it once, before it serves.
     fn noted(self) -> Self {
         let me = std::thread::current().id();
-        let mut seen = seen_workers();
-        if let Some(slot) = seen.iter_mut().find(|s| s.is_none()) {
-            *slot = Some((me, self.promotion));
-        }
-        drop(seen);
+        SEEN_WORKERS.with(|seen| {
+            if let Some(slot) = seen.iter_mut().find(|s| s.is_none()) {
+                *slot = Some((me, self.promotion));
+            }
+        });
         self
     }
 }
@@ -395,6 +436,11 @@ impl WorkerPromotion {
 /// throttles. `period` is the device period (macOS' constraint, Linux's `RLIMIT_RTTIME`).
 pub fn promote_worker(role: WorkerRole, period: Duration, waiting: Waiting) -> WorkerPromotion {
     let mut revert = os::Revert::default();
+    // macOS: a live worker also joins the device's workgroup (ADR 0066); the callback never
+    // does (CoreAudio's I/O thread is in it already).
+    #[cfg(target_os = "macos")]
+    let promotion = os::promote_pool(role, period, share(waiting), &mut revert);
+    #[cfg(not(target_os = "macos"))]
     let promotion = os::promote(role, period, share(waiting), &mut revert);
     WorkerPromotion {
         promotion,

@@ -1283,7 +1283,13 @@ fn crash_words(status: std::process::ExitStatus) -> String {
     #[cfg(unix)]
     {
         use std::os::unix::process::ExitStatusExt;
-        match status.signal() {
+        // On macOS the helper's crash handler exits with 128 + the signal at once rather
+        // than wait for the system's crash reporter (ADR 0066): the same words.
+        let by_handler = status
+            .code()
+            .filter(|c| cfg!(target_vendor = "apple") && (129..=192).contains(c))
+            .map(|c| c - 128);
+        match status.signal().or(by_handler) {
             Some(libc_sig) => format!("it crashed (signal {libc_sig})"),
             None => format!("it crashed ({status})"),
         }

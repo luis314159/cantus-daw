@@ -145,8 +145,13 @@ fn prefault_touches_every_page_and_changes_nothing() {
     let before = v.clone();
     let writes = prefault(&mut v);
     assert_eq!(v, before);
-    // 40 000 bytes: at least one write per 4 KiB page (more if the OS page is smaller).
-    assert!(writes >= 40_000 / 4096);
+    // 40 000 bytes: at least one write per page of this system (4 KiB on x86, 16 KiB on
+    // Apple silicon).
+    let page = cantus_rt::memory::page_size();
+    assert!(
+        writes >= 40_000 / page,
+        "{writes} writes, {page}-byte pages"
+    );
     assert_eq!(prefault::<f32>(&mut []), 0);
     assert_eq!(prefault(&mut [(); 3]), 0);
 }
