@@ -28,3 +28,4 @@
 - [Decision: round 30 = platforms](decision-round30-platforms.md) — releases Windows+Linux+macOS at its end; owner can borrow a Mac, buy Apple dev licence and Actions minutes; iOS noted in BACKLOG §2
 - [Reviews: few agents](feedback-review-cost.md) — owner 2026-10-20: a 77-agent review cost too much; ≤ ~6 agents per review (3 merged-lens finders + batch verifiers)
 - [Public repo: cantus-daw](public-repo-cantus-daw.md) — publish via tools/public/publish.sh (deterministic rewrite, fast-forward only); private cantus stays the working repo + site deploy; never push private refs to public
+- [Round 30: three systems](round-30.md) — 2026-10-22: Linux+macOS+3-OS release, 0.1.0-beta.4; Win 4 469 + Linux 4 451; macOS only on the public runner; run lean

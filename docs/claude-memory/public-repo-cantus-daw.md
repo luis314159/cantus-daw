@@ -35,3 +35,11 @@ packaged and published it as "latest"). The website's button
 WASM app, so the link is not in the HTML) serves the 116 MB unsigned installer. A tag is
 never annotated here: the machine's git e-mail is a personal one. publish.sh deletes and
 re-clones the publish folder each run; the tag lives on the remote.
+
+2026-10-22 (later): **v0.1.0-beta.2** published (latest) — the kit windows' 0×0 egui area
+fix (Settings could not scroll to Plug-ins; also Appearance, Sound packs, Updates, Routing)
+and the manual's plug-in section. The first release run failed on a Chorda test race (fault
+cleared after the lock was let go); re-running the failed jobs via the REST API
+(`POST /actions/runs/<id>/rerun-failed-jobs`, the stored git credential) published it.
+Round 30 (another session, cantus-5a, worktrees F:\projects\daw-r30) must release as
+beta.3+; it shares the WSL clone ~/cantus-ci — use a separate clone for checks.

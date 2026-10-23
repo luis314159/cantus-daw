@@ -74,3 +74,7 @@ Lesson: never run the Windows and Linux suites at once on this machine — wall-
 (sandbox activate poll, controller message age, Chorda CPU share) fail under that load.
 Release: lightweight tag v0.1.0-beta.1 on cantus-daw from the publish clone (an annotated
 tag would carry the machine's personal git e-mail into the public repo).
+After the release, CI on cantus-daw went green at 1649a0f (2026-10-22) after three more
+runner-only flakes: a parallel-test race on the test plug-in's copy (demo_setup now copies
+atomically under a mutex), profiler blame read over 9 blocks, and a profile unit test that
+compared sleeps (Windows rounds `sleep` to 15.6 ms on GitHub's runner — spin instead).

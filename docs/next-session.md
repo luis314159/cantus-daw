@@ -1,84 +1,49 @@
-# Prompt para la próxima sesión (ronda 30)
+# Prompt para la próxima sesión (ronda 31)
 
-*Escrito el 2026-10-21 al cerrar la ronda 29. Copia el bloque de abajo tal cual en una
-sesión nueva de Claude Code abierta en `F:\projects\cantus`.*
+*Escrito el 2026-10-22 al cerrar la ronda 30. Copia el bloque de abajo tal cual en una
+sesión nueva de Claude Code abierta en `F:\projects\cantus`. Si prefieres otro orden
+(BACKLOG §0.4), cámbialo antes de pegarlo.*
 
 ---
 
 Lee primero `CLAUDE.md`, `docs/STATUS.md` (la cabecera, «The next session» y la sección de
-la ronda 29), `docs/round29/integration.md`, `docs/BACKLOG-excellence.md` §0.4 y §2 (Linux,
-macOS y la lista «Prepared without a Mac»), el ADR 0049 con su enmienda del 2026-10-20 (el
-repositorio público `luis314159/cantus-daw` y `tools/public/publish.sh`) y la memoria
-(feedback-no-leftovers, feedback-review-cost, gotcha-boot-path, cantus-parallel-builders,
-round-29, decision-round30-platforms, public-repo-cantus-daw).
+la ronda 30), `docs/round30/integration.md`, `docs/BACKLOG-excellence.md` §0.4 y §3 (lo que
+la ronda nombra), y la memoria (feedback-no-leftovers, feedback-review-cost,
+gotcha-boot-path, cantus-parallel-builders, round-30, public-repo-cantus-daw).
 
-**Ronda 30: Cantus en los tres sistemas — releases de Windows, Linux y macOS al final.**
-Busca la excelencia (Colosenses 3:23): tests antes del código, nada a medias, mira lo que
-construyes con los ejemplos shoot. Cada hueco que deje una función se cierra en la misma
-ronda; lo que reporte un constructor como «Left» se le devuelve como trabajo.
+**Ronda 31: los huecos diarios que un usuario de FL o Ableton nota primero (BACKLOG §0.4
+punto 3), medidos.** Busca la excelencia (Colosenses 3:23): tests antes del código, nada a
+medias, mira lo que construyes con los ejemplos shoot. Cada hueco que deje una función se
+cierra en la misma ronda.
 
-1. **Linux, producto completo:** audio de baja latencia por PipeWire y JACK (ALSA de
-   respaldo), prioridad de tiempo real en `cantus-rt` (rtkit / `SCHED_FIFO`, el equivalente
-   de MMCSS), las ventanas de los editores de plug-ins en X11 y Wayland (hoy solo existen en
-   Windows), el proceso aislado de plug-ins probado de punta a punta, el escáner de
-   plug-ins y sus carpetas, diálogos de archivo y fuentes del sistema, y el paquete
-   **AppImage** (después Flatpak) construido en CI, con la tarjeta de descarga de la web.
-2. **macOS, todo lo que se puede preparar sin la Mac** (BACKLOG §2): el `.app` con su icono y
-   el permiso de micrófono, binario universal (Apple silicon e Intel), `cantus-scan` y
-   `cantus-sandbox` dentro del paquete, el `.dmg` hecho en CI; firma con runtime endurecido
-   y notarización en el workflow (los secretos como marcadores); CoreAudio con los hilos del
-   motor en el *audio workgroup* del dispositivo; el aislamiento de plug-ins sin futex
-   (`os_sync_wait_on_address` o semáforos) y el ayudante que muere con Cantus; las ventanas
-   de los editores en Cocoa; el preset de teclas ⌘/⌥, la barra de menú global, el trackpad y
-   Retina; la suite y el fuzz en verde en el runner de macOS y los hashes de referencia
-   **idénticos** en Windows, Linux y macOS.
-3. **Una lista corta para mi sesión con la Mac prestada:** qué instalar, qué probar
-   (interfaz en dúplex 10 minutos, un plug-in real con su editor, el permiso de micrófono,
-   instalar el `.dmg` y abrirlo sin Gatekeeper, actualizar desde una versión vieja, CPU en
-   Apple silicon) y cómo anotar los resultados. Avísame qué día la necesitas.
-4. **Releases:** un solo tag publica los tres instaladores en `cantus-daw` (el de Windows ya
-   sale del workflow `release.yml`), la web cambia «Muy pronto» por «Disponible» en Linux y
-   macOS solo cuando sus releases existan, y el actualizador sabe qué archivo pedir en cada
-   sistema.
-5. **Mis fricciones** (si te paso alguna al empezar, las anoto aquí):
-   - **Ajustes es difícil de encontrar** (2026-10-22: «¿dónde está settings?»): hoy solo
-     está en *Ver ▸ Ajustes…*, sin atajo. Hazlo evidente como en FL (un menú *Opciones*) y
-     en Ableton (`Ctrl+,`), con un acceso directo a *Ajustes ▸ Plug-ins* desde el selector
-     de dispositivos (p. ej. *Buscar más plug-ins…* cuando el estante CLAP/VST3 está vacío).
-     Y dentro de Ajustes no encontré los plug-ins: la ventana es una sola página larga y
-     *Plug-ins* es la última sección, muy abajo. Dale páginas con una barra lateral (General,
-     Audio, MIDI, Apariencia, Guardado, Caché, Actualizaciones, Plug-ins), como las opciones
-     de FL, o al menos un índice que salte a cada sección.
-   - **La claqueta (count-in) parecía no funcionar** (2026-10-22): la puse en 1 compás y al
-     darle Play no sonó nada antes. Funciona solo al **grabar** con el transporte parado
-     (como FL y Ableton), pero nada en la interfaz lo dice al pulsar Play. Haz que se
-     entienda (p. ej. que el chip diga «antes de grabar», o un aviso la primera vez) y
-     ofrece una opción *También al reproducir* (como Reaper), apagada por defecto.
-   - **Instalé plug-ins (Surge XT, Odin 2, Valhalla) y no me salían** (2026-10-22): Cantus
-     no busca plug-ins solo; hay que pulsar *Buscar plug-ins* al fondo de Ajustes. Que al
-     iniciar busque en segundo plano los archivos nuevos o cambiados (como Reaper y
-     Bitwig; cada archivo ya se lee en un proceso aparte), que avise «3 plug-ins nuevos»,
-     y que el selector de dispositivos ofrezca *Buscar plug-ins* en sus estantes CLAP/VST3
-     cuando estén vacíos.
+1. **Automatización**: modos escribir / tocar / enganchar (write, touch, latch) y los
+   carriles del piano roll para CC, pitch-bend, velocidad y release.
+2. **MIDI**: arpegiador, acordes y escalas como efectos de nota, resaltado y ajuste a la
+   escala, plantillas de groove.
+3. **Edición**: crossfades entre clips que se solapan y envolventes de ganancia por clip.
+4. **Flujo**: paleta de comandos, panel del historial de deshacer, plantillas de proyecto y
+   de pista.
+5. **Efectos que suenan al insertarlos** (§3b, opción B, decidido el 2026-10-16): insertar
+   carga un preset de inicio musical; los valores por defecto siguen siendo nulos.
+6. **Mis fricciones** (si te paso alguna al empezar, las anoto aquí).
 
-Organízalo como las rondas grandes: commit de contrato, un worktree por constructor en
-`F:\projects\daw-r30\` (jobs = 3, TMP en F:; máximo tres constructores compilando a la vez),
-revisiones adversariales **pequeñas** (como mucho ~6 agentes por revisión: tres buscadores
-con lentes combinadas y un verificador por buscador; solo sobre lo que cambió) en cada rama,
-en cada ronda de arreglos y en el árbol integrado, e integración. Borra el `target/` de
-cada constructor al integrarlo. Al final: suite completa + fuzz + clippy en Windows, en
-Linux (WSL, `tools/wsl/check.sh`) y en el runner de macOS; STATUS, ADRs, manual EN/ES y notas
-de la versión; memoria copiada a `docs/claude-memory/`; subir a `origin` (privado) y publicar
-con `tools/public/publish.sh` a `cantus-daw` (nunca empujes el historial privado al
-público). Tienes mi permiso para subir y publicar cuando todo esté en verde. Escríbeme en
-español.
+Organízalo como la ronda 30, ahorrando tokens: commit de contrato, un worktree por
+constructor en `F:\projects\daw-r31\` (jobs = 3, TMP en F:; máximo tres compilando a la
+vez), **un revisor por rama y uno sobre el árbol integrado**, e integración. Borra el
+`target/` de cada constructor al integrarlo, y vigila el espacio en C: (la imagen de WSL
+crece ahí). Al final: suite completa + fuzz + clippy en Windows y en Linux (WSL,
+`tools/wsl/check.sh` con `CANTUS_CI_DIR` propio); el runner de macOS lo ve al publicar;
+STATUS, ADRs, manual EN/ES y notas de la versión; memoria copiada a `docs/claude-memory/`;
+subir a `origin` y publicar con `tools/public/publish.sh` a `cantus-daw`. Tienes mi permiso
+para subir y publicar cuando todo esté en verde. Escríbeme en español.
 
 ---
 
-**Lo que solo puedes hacer tú** (no lo pide el prompt): la Mac prestada (y, si hace falta, la
-cuenta Apple Developer para firmar y notarizar), probar el instalador de Windows de
-`v0.1.0-beta.1` y tus interfaces (UMC en dúplex), escuchar el warp
-(`F:\projects\daw-r29\shots\warp\listen\`), probar MIDI learn con tu controlador y un
-plug-in real aislado (también uno con diálogo de licencia), la firma de código (SignPath o
-Certum), la revisión legal de Chorda y del CLA, el permiso de la RVR1960 y el registro de la
-marca.
+**Lo que solo puedes hacer tú** (no lo pide el prompt): la sesión con la Mac prestada
+(`docs/mac-session.md`) y, si quieres un `.dmg` notarizado, la cuenta Apple Developer con
+sus cinco secretos en `cantus-daw`; una hora en un Linux de escritorio real (una interfaz
+en dúplex por PipeWire, un plug-in real con su editor en X11 y Wayland); subir el Flatpak a
+Flathub; compactar la imagen de WSL como administrador; y lo que seguía de antes: la UMC en
+dúplex, canciones completas, la firma de código de Windows (SignPath o Certum), escuchar el
+warp, MIDI learn con tu controlador, la revisión legal de Chorda y del CLA, el permiso de
+la RVR1960 y el registro de la marca.

@@ -1,8 +1,31 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-21 (round 29: **what people use every day in FL Studio and Ableton** — **warping** with our own time-stretch and pitch-shift (ADR 0061: Complex, Rhythm, Melodic and Re-pitch; tempo, transients and bars found at import, warp markers, *Quantise audio*, follow the project tempo, offline = real time); **MIDI learn** of any parameter (ADR 0062: native, hosted, mixer, transport; absolute, relative and toggle; range, curve, soft takeover, feedback; project and global maps, the *Controllers* pane, recorded as automation); **third-party plug-ins in their own process** (ADR 0063: a crash stops one plug-in, a card and *Reload*, the project loses nothing; *Within Cantus*, *Together*, *By vendor*, *Individually*; measured); the **tempo track** (ADR 0060: points and ramps, metre changes, named markers to jump, loop, select and export between; everything follows the map; MIDI and DAWproject both ways); **freeze, bounce in place and low-latency monitoring** (ADR 0064). Schema 41, `DSP_VERSION` 5, keymap 9. The public repository is `luis314159/cantus-daw` (ADR 0049, amended); the first public beta, `v0.1.0-beta.1`, is tagged there. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 422 green on Windows (364 test binaries) + the engine's fuzz at `CANTUS_WORKERS=3` (849); on Linux (WSL, CI's flags) 4 339 green with clippy; clippy `-D warnings` clean on both
+**Updated:** 2026-10-22 (round 30: **Cantus on three systems** — **Linux** as a product (ADR 0065: PipeWire and JACK with ALSA always there, PipeWire chosen only when it serves audio; real-time priority through rtkit or `SCHED_FIFO` and a line on the device page saying what each thread got; CLAP and VST3 editors in X11 windows, XWayland on Wayland, the run loops CLAP and VST3 need, also in the sandbox's helper; XDG folders with a resumable move; fontconfig fallbacks; an AppImage built on Ubuntu 22.04 and a Flatpak manifest); **macOS prepared without a Mac** (ADR 0066: a universal `.app` for macOS 11+, `.dmg` built, signed and notarised in CI when the Apple secrets exist; CoreAudio with the pool in the device's audio workgroup; the sandbox's exchange through `os_sync_wait_on_address`/`__ulock_wait`, a helper that dies with Cantus, crash blame from dyld; Cocoa editor windows; the ⌘/⌥ keymap preset, the global menu bar, trackpad, Retina, `.cantus` opened from Finder; `docs/mac-session.md` for the owner's Mac session); **one tag, three installers** (ADR 0067: `release.yml` tests and packages on each system, the updater fetches and applies the file for its system, the website's cards say *Available* only when the latest release holds that system's file); the owner's frictions (Settings in pages with an *Options* menu and `Ctrl+,`, the count-in that says it waits for Record with *Also on play*, new plug-ins found at start). Version **0.1.0-beta.4**. Schema 41, `DSP_VERSION` 5, keymap 10. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 469 green on Windows + the engine's fuzz at `CANTUS_WORKERS=3` (851); on Linux (WSL, CI's flags) 4 451 green with clippy; clippy `-D warnings` clean on Windows, Linux and (cross-checked) both Apple targets; macOS on GitHub's runner after publishing
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 30 left
+
+Round 30 is on **master** and published to `luis314159/cantus-daw` (pushed 2026-10-22 with
+the owner's permission given in advance). The account: `docs/round30/integration.md`; one
+report per builder beside it (`linux`, `macos`, `ship`). Under the owner's rule what is left
+is the owner's own:
+
+1. **The Mac session** (`docs/mac-session.md`): the `.dmg` past Gatekeeper, the microphone
+   prompt, an interface in duplex for 10 minutes, a real plug-in's editor in and out of
+   process, menus and keys, trackpad and Retina, CPU on Apple silicon, an update from an
+   older build, a project opened from Finder. **The Apple Developer account** and the five
+   `APPLE_*` secrets for a notarised image.
+2. **A real Linux desktop** for an hour: an interface in duplex on PipeWire, real plug-in
+   editors (Surge XT, Vital, a JUCE VST3) on X11 and Wayland, rtkit granting real time;
+   submitting the Flatpak to Flathub.
+3. **Still standing**: the UMC in duplex and the interface table, complete songs, SignPath
+   or Certum, the RVR1960 e-mail, the IMPI filing, the legal review of Chorda and the CLA;
+   compacting the WSL disk image (C: fell to 2.8 GB this round).
+4. **Next round (31, proposed)**: BACKLOG §0.4 item 3, the daily gaps (automation modes and
+   the piano roll's CC lanes, arpeggiator/chords/scales, crossfades and clip gain, a
+   command palette, undo history, templates) and effects that sound on insert. The
+   prompt: `docs/next-session.md`.
 
 ## The next session: what round 29 left
 
@@ -269,6 +292,23 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 30: Cantus on three systems (requested 2026-10-22)
+
+**The ask:** releases of Windows, Linux and macOS at the end of the round — Linux complete,
+macOS everything that can be prepared without a Mac, the owner's Mac checklist, one tag for
+three installers, the owner's frictions. Run lean on the owner's word (few tokens): three
+builders (`linux`, `macos`, `ship`) from contract `8153666`, one reviewer per branch and one
+on the integrated tree — **20 confirmed findings, all fixed with tests**. Master merged in
+four times (the other session released `v0.1.0-beta.2` and `beta.3` for Windows meanwhile),
+so this round ships **0.1.0-beta.4**. Account: `docs/round30/integration.md`.
+
+| Part | What changed |
+|---|---|
+| Linux | cpal's PipeWire and JACK hosts (JACK opened at run time, a stand-in libpipewire in the AppImage, 1.0.5 headers against 0.3.48's library); PipeWire the default only with a real sink or `pipewire-pulse`, JACK re-probed on the device page; the real-time line; `window/x11.rs` and `runloop::serve` for CLAP timers/fds and VST3 `IRunLoop`; X11 only when its server answers; XDG config/data with a resumable move; the scanner's `/usr/local/lib/clap` and `VST3_PATH`; `packaging/linux/` (AppImage, Flatpak, `deps.sh`); CI under xvfb and an `appimage` job. Measured in WSL: PipeWire 0 xruns at 128/64/32, JACK 0 at 128 |
+| macOS | `packaging/macos/` (Info.plist, `.icns`, entitlements incl. JIT for plug-ins, `build-dmg.sh` universal, signed and notarised with secrets, ad hoc without); `ipc.rs` address waits, 31-byte shm names; workgroups by device; kqueue parent watch, dyld crash blame; `.clap`/`.vst3` bundles and `window/cocoa.rs` (also in the helper); the Mac keymap preset, `macmenu.rs`, trackpad, `macopen.rs` (Finder and Dock); `macos.yml` on every push, null hashes' macOS leg; `tools/macos/xcheck.sh` (whole-workspace clippy for Apple targets from Windows) |
+| Releases | `release.yml`: Windows, Linux (22.04) and macOS jobs, one publish job checking sums and the six names; `cantus-update::release::Target`, AppImage replaced atomically (only when running from its own mount), the Mac's `.dmg` opened, old downloads cleaned; `web/src/shelf.rs`; `docs/releases/TEMPLATE.md` |
+| Frictions | Settings in eight pages with a sidebar, the *Options* menu, `Ctrl+,`/`⌘,`; *Scan for plug-ins* / *Find more plug-ins…* in empty shelves; the start-up scan in `CantusApp::assemble` and its notice; the count-in chip, *Also on play* (global), `stop_transport` |
 
 ## Round 29: warping, MIDI learn, plug-ins in their own process, the tempo track, freeze (requested 2026-10-16)
 
