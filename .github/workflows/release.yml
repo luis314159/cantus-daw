@@ -216,7 +216,11 @@ jobs:
 
   macos:
     # Runs in luis314159/cantus-daw only (round 29: the public repository builds, tests and releases; the private one deploys the site).
-    if: github.repository == 'luis314159/cantus-daw'
+    # And only while the repository variable CANTUS_RELEASE_MACOS is `true`: 0.1.0-beta.4
+    # shipped Windows and Linux, the Mac waiting for its suite to be green on the runner and
+    # a session on a real Mac (the owner, 2026-10-23; docs/mac-session.md). Set it to `true`
+    # (Settings > Secrets and variables > Actions > Variables) and the next tag has three.
+    if: github.repository == 'luis314159/cantus-daw' && vars.CANTUS_RELEASE_MACOS == 'true'
     name: macos (disk image)
     runs-on: macos-latest
     timeout-minutes: 150
@@ -270,10 +274,17 @@ jobs:
           if-no-files-found: error
 
   publish:
-    # A release is the three systems' files or nothing: a job that failed is re-run
-    # (Actions → the run → Re-run failed jobs) before anything is published.
+    # A release is every system's files or nothing: a job that failed is re-run
+    # (Actions → the run → Re-run failed jobs) before anything is published. The Mac's job
+    # counts only while CANTUS_RELEASE_MACOS is `true` (then it must succeed).
     needs: [package, linux, macos]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') && !cancelled() &&
+      needs.package.result == 'success' && needs.linux.result == 'success' &&
+      (needs.macos.result == 'success' ||
+       (vars.CANTUS_RELEASE_MACOS != 'true' && needs.macos.result == 'skipped'))
+    env:
+      MACOS: ${{ vars.CANTUS_RELEASE_MACOS == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -288,6 +299,7 @@ jobs:
           name: cantus-linux
           path: parts/linux
       - uses: actions/download-artifact@v4
+        if: env.MACOS == 'true'
         with:
           name: cantus-macos
           path: parts/macos
@@ -296,9 +308,11 @@ jobs:
       # read).
       - name: Check the sums, and one sums file for the release
         run: |
-          for sys in windows linux macos; do (cd "parts/$sys" && sha256sum -c SHA256SUMS.txt); done
+          systems="windows linux"
+          if [ "$MACOS" = true ]; then systems="$systems macos"; fi
+          for sys in $systems; do (cd "parts/$sys" && sha256sum -c SHA256SUMS.txt); done
           mkdir dist
-          for sys in windows linux macos; do
+          for sys in $systems; do
             for f in parts/$sys/*; do
               name="$(basename "$f")"
               [ "$name" = SHA256SUMS.txt ] && continue
@@ -316,10 +330,12 @@ jobs:
           v="${GITHUB_REF_NAME#v}"
           test -s dist/Cantus-windows-x64-setup.exe
           test -s dist/Cantus-linux-x86_64.AppImage
-          test -s dist/Cantus-macos-universal.dmg
           test -s "dist/Cantus-$v-windows-x64-setup.exe"
           test -s "dist/Cantus-$v-linux-x86_64.AppImage"
-          test -s "dist/Cantus-$v-macos-universal.dmg"
+          if [ "$MACOS" = true ]; then
+            test -s dist/Cantus-macos-universal.dmg
+            test -s "dist/Cantus-$v-macos-universal.dmg"
+          fi
       # GitHub's "latest" release (what releases/latest/download/... follows) can never be
       # a pre-release. So a beta is published as the latest release while no stable
       # release exists — otherwise the download button would find nothing — and as a
