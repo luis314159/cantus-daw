@@ -139,8 +139,11 @@ fn an_overrun_is_blamed_on_the_insert_that_ran_long() {
     let mut p = busy();
     let slow = add_effect(&mut p, EffectKind::Gate);
     let strip = p.tracks[0].strip.unwrap();
-    // 128 frames at 48 kHz is 2.67 ms: a 4 ms insert overruns every block.
-    let mut proc = rig(&p, &[slow], Duration::from_millis(4));
+    // 128 frames at 48 kHz is 2.67 ms: a 30 ms insert overruns every block — and by more
+    // than a shared runner's preemption inside another insert (a Windows quantum is
+    // 15.6 ms) usually costs, so a preempted neighbour seldom outlasts it (GitHub's Windows
+    // runner blamed it in only 3 of 9 blocks at 4 ms, round 30).
+    let mut proc = rig(&p, &[slow], Duration::from_millis(30));
     let culprit = Culprit::Insert {
         strip,
         effect: slow,
@@ -151,7 +154,7 @@ fn an_overrun_is_blamed_on_the_insert_that_ran_long() {
     assert!(s.overruns >= 9, "{} overruns", s.overruns);
     assert!(n >= 6, "{n} of 9 blocks blamed the slow insert");
     let d = d.expect("a dropout blamed it");
-    assert!(d.culprit_us >= 3_900.0, "{} µs", d.culprit_us);
+    assert!(d.culprit_us >= 29_900.0, "{} µs", d.culprit_us);
     assert!(d.block_us >= d.culprit_us && d.block_us > d.budget_us);
     assert!((d.budget_us - 2_666.7).abs() < 1.0, "{}", d.budget_us);
     assert!(d.block < s.blocks_processed);

@@ -62,7 +62,17 @@ fn an_isolated_insert_plays_the_project_to_the_bit_of_in_process() {
     let (mut together, _, t_id) = gain_rig(PluginIsolation::Together);
     assert_eq!(pid_of(&within, w_id), std::process::id());
     assert_ne!(pid_of(&together, t_id), std::process::id());
+    // The latency the plug-in reports for the Latency it was given arrives with the answer
+    // to a later call; until then the host compensates what it knows, and redoes the
+    // compensation when the change is told (`LatencyChanged`). On a slow machine that answer
+    // can come after `settle` (macOS runner, round 30): wait for it, then settle again.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while together.host.hosted(t_id).unwrap().latency() != 37 && Instant::now() < deadline {
+        together.block(256);
+        together.frame();
+    }
     assert_eq!(together.host.hosted(t_id).unwrap().latency(), 37);
+    together.settle();
     for block in [64usize, 256, 1000] {
         let a = within.play(24_000, block);
         let b = together.play(24_000, block);
@@ -358,9 +368,16 @@ fn a_hang_never_blocks_the_interfaces_frames_and_is_ended() {
         "blocks after the late one: {after:?}"
     );
     // None waits out a deadline again (#25): 256 frames at 48 kHz is a 5.3 ms deadline.
+    // One block may run over: a shared runner preempts the test now and then (the macOS
+    // runner, round 30: one block of 5.6 ms among 8 000, the next slowest 3.1 ms), as
+    // bridge.rs allows with its preemption margin. Two or more is a block waiting again.
+    let over = after
+        .iter()
+        .filter(|t| **t >= Duration::from_millis(4))
+        .count();
     assert!(
-        after.iter().all(|t| *t < Duration::from_millis(4)),
-        "a block waited again ({} late blocks in all): {:?}",
+        over <= 1,
+        "{over} blocks waited again ({} late blocks in all): {:?}",
         rig.host.late_blocks(),
         &after[after.len().saturating_sub(8)..]
     );
