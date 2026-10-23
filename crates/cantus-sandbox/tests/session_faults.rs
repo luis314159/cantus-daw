@@ -341,6 +341,10 @@ fn a_plugin_that_crashes_while_loading_can_be_reloaded_or_moved() {
         effect: moved,
         isolation: Some(PluginIsolation::Individually),
     });
+    // Its helper starts on a thread of its own (round 30): wait for the load, not a guess.
+    frames_until(&mut rig, Duration::from_secs(5), |r| {
+        r.host.isolation(moved) == Some(PluginIsolation::Individually)
+    });
     rig.settle();
     assert!(rig.host.crashed(moved).is_none());
     assert_eq!(

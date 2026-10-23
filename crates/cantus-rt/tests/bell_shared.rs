@@ -79,16 +79,18 @@ fn a_timed_wait_ends_at_its_timeout() {
     let bell = unsafe { Bell::create(&format!("{name}-b"), word(&made)) }.expect("bell");
     let epoch = bell.epoch();
     let start = Instant::now();
+    // As the exchange's callers do (`Exchange::wait` recomputes what is left of its
+    // deadline): a system's timed wait may end a little before its timeout (Windows: 28.6 ms
+    // of 30 on GitHub's runner once), so the deadline, not one wait, is what ends it.
     let mut timed_out = false;
     while start.elapsed() < Duration::from_millis(30) {
         if !bell.wait(epoch, Some(Duration::from_millis(30) - start.elapsed())) {
             timed_out = true;
-            break;
         }
     }
     let took = start.elapsed();
-    assert!(timed_out || took >= Duration::from_millis(30));
-    assert!(took >= Duration::from_millis(29), "{took:?}");
+    assert!(timed_out, "nobody rang, yet every wait said rung");
+    assert!(took >= Duration::from_millis(30), "{took:?}");
     assert!(took < Duration::from_millis(500), "{took:?}");
 }
 
