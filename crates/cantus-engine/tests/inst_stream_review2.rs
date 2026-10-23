@@ -767,19 +767,24 @@ fn a_start_drag_never_blocks_the_compile() {
     let mut cache = streaming();
     attach(&project(&zone(0.0), &[]), &mut cache);
     einst::stream::set_read_delay(Duration::from_millis(5));
-    let mut worst = Duration::ZERO;
+    // The second-worst attach: a shared machine can preempt this thread once inside one
+    // (GitHub's Windows runner: 9.5 ms once, 2026-10-22); a blocking compile would put
+    // every attach of the drag over the budget, not one.
+    let mut times = Vec::with_capacity(40);
     for step in 1..=40 {
         let t = Instant::now();
         attach(&project(&zone(step as f32 * 7_000.0), &[]), &mut cache);
-        worst = worst.max(t.elapsed());
+        times.push(t.elapsed());
     }
+    times.sort();
+    let worst = times[times.len() - 2];
     let ready = {
         let t = Instant::now();
         cache.wait_starts(Duration::from_millis(500));
         t.elapsed()
     };
     einst::stream::set_read_delay(Duration::ZERO);
-    eprintln!("the slowest attach of the drag: {worst:?}; ready {ready:?} after");
+    eprintln!("the second-slowest attach of the drag: {worst:?}; ready {ready:?} after");
     assert!(
         worst < Duration::from_millis(8),
         "a frame's budget: {worst:?}"
