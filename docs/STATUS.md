@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-22 (round 30: **Cantus on three systems** — **Linux** as a product (ADR 0065: PipeWire and JACK with ALSA always there, PipeWire chosen only when it serves audio; real-time priority through rtkit or `SCHED_FIFO` and a line on the device page saying what each thread got; CLAP and VST3 editors in X11 windows, XWayland on Wayland, the run loops CLAP and VST3 need, also in the sandbox's helper; XDG folders with a resumable move; fontconfig fallbacks; an AppImage built on Ubuntu 22.04 and a Flatpak manifest); **macOS prepared without a Mac** (ADR 0066: a universal `.app` for macOS 11+, `.dmg` built, signed and notarised in CI when the Apple secrets exist; CoreAudio with the pool in the device's audio workgroup; the sandbox's exchange through `os_sync_wait_on_address`/`__ulock_wait`, a helper that dies with Cantus, crash blame from dyld; Cocoa editor windows; the ⌘/⌥ keymap preset, the global menu bar, trackpad, Retina, `.cantus` opened from Finder; `docs/mac-session.md` for the owner's Mac session); **one tag, three installers** (ADR 0067: `release.yml` tests and packages on each system, the updater fetches and applies the file for its system, the website's cards say *Available* only when the latest release holds that system's file); the owner's frictions (Settings in pages with an *Options* menu and `Ctrl+,`, the count-in that says it waits for Record with *Also on play*, new plug-ins found at start). Version **0.1.0-beta.4**. Schema 41, `DSP_VERSION` 5, keymap 10. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 469 green on Windows + the engine's fuzz at `CANTUS_WORKERS=3` (851); on Linux (WSL, CI's flags) 4 451 green with clippy; clippy `-D warnings` clean on Windows, Linux and (cross-checked) both Apple targets; macOS on GitHub's runner after publishing
+**Updated:** 2026-10-22 (round 30: **Cantus on three systems** — **Linux** as a product (ADR 0065: PipeWire and JACK with ALSA always there, PipeWire chosen only when it serves audio; real-time priority through rtkit or `SCHED_FIFO` and a line on the device page saying what each thread got; CLAP and VST3 editors in X11 windows, XWayland on Wayland, the run loops CLAP and VST3 need, also in the sandbox's helper; XDG folders with a resumable move; fontconfig fallbacks; an AppImage built on Ubuntu 22.04 and a Flatpak manifest); **macOS prepared without a Mac** (ADR 0066: a universal `.app` for macOS 11+, `.dmg` built, signed and notarised in CI when the Apple secrets exist; CoreAudio with the pool in the device's audio workgroup; the sandbox's exchange through `os_sync_wait_on_address`/`__ulock_wait`, a helper that dies with Cantus, crash blame from dyld; Cocoa editor windows; the ⌘/⌥ keymap preset, the global menu bar, trackpad, Retina, `.cantus` opened from Finder; `docs/mac-session.md` for the owner's Mac session); **one tag, three installers** (ADR 0067: `release.yml` tests and packages on each system, the updater fetches and applies the file for its system, the website's cards say *Available* only when the latest release holds that system's file); the owner's frictions (Settings in pages with an *Options* menu and `Ctrl+,`, the count-in that says it waits for Record with *Also on play*, new plug-ins found at start). Version **0.1.0-beta.4** (released for Windows and Linux, 2026-10-23; macOS in beta.5). Schema 41, `DSP_VERSION` 5, keymap 10. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 469 green on Windows + the engine's fuzz at `CANTUS_WORKERS=3` (851); on Linux (WSL, CI's flags) 4 451 green with clippy; clippy `-D warnings` clean on Windows, Linux and (cross-checked) both Apple targets; macOS on GitHub's runner after publishing
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -10,6 +10,17 @@ Round 30 is on **master** and published to `luis314159/cantus-daw` (pushed 2026-
 the owner's permission given in advance). The account: `docs/round30/integration.md`; one
 report per builder beside it (`linux`, `macos`, `ship`). Under the owner's rule what is left
 is the owner's own:
+
+**Released 2026-10-23: `v0.1.0-beta.4` for Windows and Linux** (the installer, the portable
+zip, the plug-ins and the AppImage; the website's Linux card says *Available* by itself). The
+Mac was held back on the owner's word: after seven runner rounds (Mac-only fixes: no
+allocation on the callback's first block, the helper's crash seen at once, a helper started
+off the UI thread, fsync instead of `F_FULLFSYNC` for the sample cache, tests that assumed two
+systems) the macOS suite still fails on timing in GitHub's virtual Mac — deadline waits end
+0.4–4.4 ms late even on a time-constraint thread (`ipc_process.rs`), and the sandbox's
+`session`/`bridge_faults4` timing. `release.yml`'s Mac job runs only while the repository
+variable `CANTUS_RELEASE_MACOS` is `true`; beta.5 turns it on once the Mac session has
+measured a real Mac and the suite is green there.
 
 1. **The Mac session** (`docs/mac-session.md`): the `.dmg` past Gatekeeper, the microphone
    prompt, an interface in duplex for 10 minutes, a real plug-in's editor in and out of

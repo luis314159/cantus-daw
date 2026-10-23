@@ -140,7 +140,7 @@ pub fn hero() -> Html {
                             <a class="btn btn-primary" href="#download">{ icons::arrow_down() }{ l.t("Download the beta", "Descargar la beta") }</a>
                             <a class="btn btn-quiet" href="#rack">{ l.t("Play a groove first", "Toca un ritmo primero") }</a>
                         </div>
-                        <p class="hero-meta">{ format!("{} · Windows 11 · {}", VERSION, l.t("app GPL-3.0-or-later · engine MPL-2.0", "app GPL-3.0-o-posterior · motor MPL-2.0")) }</p>
+                        <p class="hero-meta">{ format!("{} · Windows · Linux · {}", VERSION, l.t("app GPL-3.0-or-later · engine MPL-2.0", "app GPL-3.0-o-posterior · motor MPL-2.0")) }</p>
                     </div>
                     { sigil() }
                 </div>

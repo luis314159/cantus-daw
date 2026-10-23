@@ -27,3 +27,11 @@ assigned to ship) and master merged; 4 reviews (1 agent each) → 20 findings fi
 Lessons: master's tools/wsl/check.sh lacked libclang settings — use the branch's copy;
 deleting ~/cantus-ci/target under a running check kills it; C: (WSL vhdx) fell to 2.8 GB.
 Web hero-meta still says "Windows 11" — change it after the three-system release exists.
+
+**Released 2026-10-23:** v0.1.0-beta.4 for **Windows + Linux only** (owner's choice); macOS
+held for beta.5: release.yml's Mac job gated by repo variable CANTUS_RELEASE_MACOS=true.
+Mac CI still red on timing in GitHub's VM (deadline waits 0.4–4.4 ms late even on a
+time-constraint thread; sandbox session/bridge_faults4 timing). Lessons: macos.yml needed
+--no-fail-fast (cargo stops at the first failing binary, alphabetically); read Actions job
+logs with the git credential token (API needs auth); start the CI watcher only after
+publish.sh finishes (it re-clones the folder). Web hero now "Windows · Linux".
