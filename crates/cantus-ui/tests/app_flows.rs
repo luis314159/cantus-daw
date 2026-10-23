@@ -905,10 +905,11 @@ fn every_dialog_renders_what_it_should_say() {
         "Cantus",             // About
         "Keyboard shortcuts", // the editor's title
         "Play / pause",       // an action label, so the list really rendered
-        // A binding, so display_for really rendered: the metronome's, as this system shows it
-        // (⌘ on a Mac, whose preset gives the metronome Cmd+K: ADR 0066).
+        // A binding, so display_for really rendered: the metronome's in the Cantus preset
+        // this app holds, in this system's words (Cmd on a Mac, ADR 0066; the Mac preset,
+        // which moves it to Cmd+K, is a new install's default there, not this test's).
         if cfg!(target_os = "macos") {
-            "Cmd+K"
+            "Cmd+M"
         } else {
             "Ctrl+M"
         },

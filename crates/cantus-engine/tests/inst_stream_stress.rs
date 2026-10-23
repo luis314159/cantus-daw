@@ -161,11 +161,21 @@ fn the_reader_answers_forty_new_voices_well_within_the_head() {
         head / 2.0
     };
     assert!(took.as_secs_f64() < bound, "{took:?}");
-    let out = paced(u.as_mut(), 48_000);
-    assert!(out.iter().any(|x| *x != 0.0));
+    // Best of three seconds, as the CPU measurements are (round 23): a disk that cannot
+    // feed forty voices is late every second; a shared machine's hiccup (GitHub's Windows
+    // runner: 2 late reads in one second, 2026-10-23) is not.
+    let mut lates = Vec::new();
+    for _ in 0..3 {
+        let out = paced(u.as_mut(), 48_000);
+        assert!(out.iter().any(|x| *x != 0.0));
+        lates.push(u.take_late_reads());
+        if lates.last() == Some(&0) {
+            break;
+        }
+    }
     assert_eq!(
-        u.take_late_reads(),
-        0,
-        "a plain disk keeps forty voices fed"
+        lates.last(),
+        Some(&0),
+        "a plain disk keeps forty voices fed: late reads per second {lates:?}"
     );
 }
