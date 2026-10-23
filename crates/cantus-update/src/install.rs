@@ -129,16 +129,17 @@ pub fn current_appimage() -> Option<PathBuf> {
     )
 }
 
-/// `…/target/debug/cantus`, `…/target/x86_64-unknown-linux-gnu/release/cantus`: a cargo
-/// build, not something a package manager put there.
+/// `…/target/debug/cantus`, `…/target/x86_64-unknown-linux-gnu/release/cantus`, and the
+/// workspace's tests and examples beside them (`…/debug/deps/app_flows-…`,
+/// `…/release/examples/shoot`): a cargo build, not something a package manager put there.
 pub fn built_from_source(exe: &Path) -> bool {
     let parts: Vec<_> = exe.components().map(|c| c.as_os_str()).collect();
-    parts.iter().rev().skip(1).take(3).any(|p| *p == "target")
-        && parts
-            .iter()
-            .rev()
-            .nth(1)
-            .is_some_and(|p| *p == "debug" || *p == "release")
+    let mut up = parts.iter().rev().skip(1);
+    let profile = match up.next() {
+        Some(p) if *p == "deps" || *p == "examples" => up.next(),
+        p => p,
+    };
+    profile.is_some_and(|p| *p == "debug" || *p == "release") && up.take(2).any(|p| *p == "target")
 }
 
 /// `…/Cantus.app/Contents/MacOS/cantus`.
@@ -397,6 +398,10 @@ mod tests {
             "/home/a/cantus/target/debug/cantus",
             "/home/a/cantus/target/release/cantus",
             "/home/a/cantus/target/x86_64-unknown-linux-gnu/release/cantus",
+            // A test or an example of the workspace: a test that builds the app must not
+            // ask GitHub for updates (Linux CI's idle-window test saw the check tick).
+            "/home/runner/work/cantus-daw/cantus-daw/target/debug/deps/app_flows-0a1b2c3d",
+            "/home/a/cantus/target/release/examples/shoot",
         ] {
             assert_eq!(
                 InstallKind::detect_on("linux", p(dev), None, false),

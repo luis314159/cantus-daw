@@ -108,6 +108,17 @@ fn armed<T>(f: impl FnOnce() -> T) -> (T, usize) {
     (out, EVENTS.with(|n| n.get()) + workers)
 }
 
+/// Run `f` counting the heap events of this thread alone — for code that runs on one
+/// thread (a MIDI port's callback): the pool workers other tests run meanwhile are theirs,
+/// not its (macOS's workers join a workgroup as they start, and `armed` counted that once).
+fn armed_here<T>(f: impl FnOnce() -> T) -> (T, usize) {
+    EVENTS.with(|n| n.set(0));
+    ARMED.with(|a| a.set(true));
+    let out = f();
+    ARMED.with(|a| a.set(false));
+    (out, EVENTS.with(|n| n.get()))
+}
+
 /// Net heap bytes `f`'s result holds.
 fn footprint<T>(f: impl FnOnce() -> T) -> (T, usize) {
     let before = live();
@@ -1204,14 +1215,19 @@ fn the_midi_callback_never_allocates() {
         data2,
     };
     for i in 0..50u8 {
-        let ((), n) = armed(|| {
+        let ((), n) = armed_here(|| {
             route(ev(0xB0, 74, i), 0, &tap, &sender, &mut ui, &mut held);
             route(ev(0x90, 60, 100), 0, &tap, &sender, &mut ui, &mut held);
             tap.filter().set_learning(true);
             route(ev(0x80, 60, 0), 0, &tap, &sender, &mut ui, &mut held);
             tap.filter().set_learning(false);
         });
-        assert_eq!(n, 0, "the callback allocated");
+        assert_eq!(
+            n,
+            0,
+            "the callback allocated (round {i}; the first block: {} bytes)",
+            FIRST.with(|f| f.get())
+        );
         while engine.pop().is_ok() {}
         while heard.pop().is_ok() {}
         tap.rearm();
