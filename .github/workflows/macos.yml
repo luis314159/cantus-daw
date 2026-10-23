@@ -50,7 +50,7 @@ jobs:
       - run: cargo clippy --workspace --all-targets
       - name: clippy for Intel Macs
         run: cargo clippy --workspace --all-targets --target x86_64-apple-darwin
-      - run: cargo test --workspace
+      - run: cargo test --workspace --no-fail-fast
       - name: engine on the pool, schedule fuzz
         run: cargo test -p cantus-engine --features fuzz
         env:
