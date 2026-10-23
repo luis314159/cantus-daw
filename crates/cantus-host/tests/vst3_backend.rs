@@ -193,6 +193,7 @@ impl Probe {
     }
 
     /// (parent window, width, height) of the newest editor.
+    #[cfg(any(target_os = "windows", target_os = "linux"))]
     fn editor(&self) -> (usize, i32, i32) {
         let f =
             self.call::<unsafe extern "C" fn(*mut i32, *mut i32) -> usize>(b"cantus_test_editor\0");
