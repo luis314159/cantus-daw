@@ -441,7 +441,8 @@ static SERIAL: AtomicU64 = AtomicU64::new(1);
 /// One helper process.
 pub struct Sandbox {
     pub key: String,
-    pub pid: u32,
+    /// The helper's process id (0 until its process has started).
+    pid: AtomicU32,
     /// A number of its own, never reused as a process id may be: what a death is counted
     /// once by (review isolation-4 #35, #53, #59).
     pub serial: u64,
@@ -485,7 +486,7 @@ impl std::fmt::Debug for Sandbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Sandbox")
             .field("key", &self.key)
-            .field("pid", &self.pid)
+            .field("pid", &self.pid())
             .field("dead", &self.is_dead())
             .finish()
     }
@@ -501,6 +502,13 @@ impl Sandbox {
             Some(false) => "off",
             _ => "on",
         };
+        // A program that is not there fails here, at once; the start itself runs later.
+        if !pool.exe.is_file() {
+            return Err(HostError::Load(format!(
+                "cannot start the plug-in sandbox ({}): it is not there",
+                pool.exe.display()
+            )));
+        }
         let lobby = Arc::new(
             LobbyMem::create().map_err(|e| HostError::Load(format!("shared memory: {e}")))?,
         );
@@ -519,6 +527,9 @@ impl Sandbox {
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
+        // The environment as it is now, when the helper is asked for: the process starts
+        // later, on its own thread (below), and must not see a change made meanwhile.
+        cmd.env_clear().envs(std::env::vars_os());
         // A console program started by a windowed one: no console window for it.
         #[cfg(windows)]
         {
@@ -526,17 +537,6 @@ impl Sandbox {
             const CREATE_NO_WINDOW: u32 = 0x0800_0000;
             cmd.creation_flags(CREATE_NO_WINDOW);
         }
-        let mut child = cmd.spawn().map_err(|e| {
-            HostError::Load(format!(
-                "cannot start the plug-in sandbox ({}): {e}",
-                pool.exe.display()
-            ))
-        })?;
-        pool.adopt(&child);
-        let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
-            let _ = child.kill();
-            return Err(HostError::Load("the plug-in sandbox has no pipes".into()));
-        };
         let (tx, rx) = mpsc::channel::<Vec<u8>>();
         let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
         let ending = Arc::new(Ending {
@@ -549,7 +549,7 @@ impl Sandbox {
         });
         let sandbox = Arc::new(Sandbox {
             key: key.to_string(),
-            pid: child.id(),
+            pid: AtomicU32::new(0),
             serial,
             lobby,
             to_child: Mutex::new(Some(tx)),
@@ -573,57 +573,8 @@ impl Sandbox {
             ending: ending.clone(),
             pool: Arc::downgrade(pool),
         });
-        // The writer.
-        let mut stdin = stdin;
-        std::thread::Builder::new()
-            .name("cantus-sandbox-writer".into())
-            .spawn(move || {
-                use std::io::Write;
-                while let Ok(frame) = rx.recv() {
-                    if stdin.write_all(&frame).and_then(|_| stdin.flush()).is_err() {
-                        break;
-                    }
-                }
-            })
-            .map_err(|e| HostError::Load(e.to_string()))?;
-        // The reader.
-        let me = Arc::downgrade(&sandbox);
-        let mut stdout = std::io::BufReader::new(stdout);
-        std::thread::Builder::new()
-            .name("cantus-sandbox-reader".into())
-            .spawn(move || loop {
-                let frame = proto::read_frame::<Message>(&mut stdout);
-                let Some(s) = me.upgrade() else { return };
-                match frame {
-                    Ok(Some((msg, blob))) => s.route(msg, blob),
-                    Ok(None) => {
-                        s.mark_dead(None);
-                        return;
-                    }
-                    Err(e) => {
-                        // Cantus ends it: laid on nobody (review isolation-4 #44).
-                        s.kill_blaming(
-                            &format!("the plug-in sandbox broke its protocol: {e}"),
-                            None,
-                        );
-                        return;
-                    }
-                }
-            })
-            .map_err(|e| HostError::Load(e.to_string()))?;
-        // The watchdog.
-        let me = Arc::downgrade(&sandbox);
-        let kill = sandbox.kill.clone();
-        let live = pool.live.clone();
-        live.fetch_add(1, Ordering::AcqRel);
-        std::thread::Builder::new()
-            .name("cantus-sandbox-watchdog".into())
-            .spawn(move || {
-                watch(child, kill, me, ending);
-                live.fetch_sub(1, Ordering::AcqRel);
-            })
-            .map_err(|e| HostError::Load(e.to_string()))?;
-        // The handshake: the first request it serves.
+        // The handshake: the first request it serves (it waits in the channel until the
+        // writer runs).
         sandbox.post(
             None,
             Call::Hello {
@@ -632,7 +583,33 @@ impl Sandbox {
             &[],
             Purpose::Hello,
         );
+        // The process itself starts on a thread of its own: starting one can take a long
+        // time — on macOS the first run of a binary waits for the system to check its code
+        // signature (227 ms of a frame on GitHub's runner, round 30) — and the interface's
+        // frame must never wait for it. Requests wait in the channel meanwhile; a start that
+        // fails ends the helper, and the plug-ins asked of it fail to load.
+        let me = Arc::downgrade(&sandbox);
+        let pool = pool.clone();
+        let exe = pool.exe.clone();
+        std::thread::Builder::new()
+            .name("cantus-sandbox-start".into())
+            .spawn(move || {
+                if let Err(why) = start(cmd, rx, me.clone(), ending, &pool) {
+                    if let Some(s) = me.upgrade() {
+                        s.mark_dead(Some(&format!(
+                            "cannot start the plug-in sandbox ({}): {why}",
+                            exe.display()
+                        )));
+                    }
+                }
+            })
+            .map_err(|e| HostError::Load(e.to_string()))?;
         Ok(sandbox)
+    }
+
+    /// The helper's process id (0 until its process has started).
+    pub fn pid(&self) -> u32 {
+        self.pid.load(Ordering::Acquire)
     }
 
     pub fn is_dead(&self) -> bool {
@@ -1101,7 +1078,7 @@ impl Sandbox {
                 | Call::Restart { .. }
                 | Call::Surface
         ) {
-            allow_foreground(self.pid);
+            allow_foreground(self.pid());
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         // Quit is never answered after the helper's end: not under way.
@@ -1255,6 +1232,81 @@ fn unsupported_name(s: &str) -> &'static str {
         "no plug-in in this slot",
     ];
     NAMES.into_iter().find(|n| *n == s).unwrap_or("operation")
+}
+
+/// Starts the helper's process and its writer, reader and watchdog threads (on the
+/// `cantus-sandbox-start` thread, never the interface's).
+fn start(
+    mut cmd: Command,
+    rx: mpsc::Receiver<Vec<u8>>,
+    me: Weak<Sandbox>,
+    ending: Arc<Ending>,
+    pool: &Arc<Sandboxes>,
+) -> Result<(), String> {
+    let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    pool.adopt(&child);
+    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
+        let _ = child.kill();
+        return Err("it has no pipes".into());
+    };
+    let Some(sandbox) = me.upgrade() else {
+        // Nothing wants it any more.
+        let _ = child.kill();
+        let _ = child.wait();
+        return Ok(());
+    };
+    sandbox.pid.store(child.id(), Ordering::Release);
+    // The writer.
+    let mut stdin = stdin;
+    std::thread::Builder::new()
+        .name("cantus-sandbox-writer".into())
+        .spawn(move || {
+            use std::io::Write;
+            while let Ok(frame) = rx.recv() {
+                if stdin.write_all(&frame).and_then(|_| stdin.flush()).is_err() {
+                    break;
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    // The reader.
+    let reader_me = me.clone();
+    let mut stdout = std::io::BufReader::new(stdout);
+    std::thread::Builder::new()
+        .name("cantus-sandbox-reader".into())
+        .spawn(move || loop {
+            let frame = proto::read_frame::<Message>(&mut stdout);
+            let Some(s) = reader_me.upgrade() else { return };
+            match frame {
+                Ok(Some((msg, blob))) => s.route(msg, blob),
+                Ok(None) => {
+                    s.mark_dead(None);
+                    return;
+                }
+                Err(e) => {
+                    // Cantus ends it: laid on nobody (review isolation-4 #44).
+                    s.kill_blaming(
+                        &format!("the plug-in sandbox broke its protocol: {e}"),
+                        None,
+                    );
+                    return;
+                }
+            }
+        })
+        .map_err(|e| e.to_string())?;
+    // The watchdog.
+    let kill = sandbox.kill.clone();
+    drop(sandbox);
+    let live = pool.live.clone();
+    live.fetch_add(1, Ordering::AcqRel);
+    std::thread::Builder::new()
+        .name("cantus-sandbox-watchdog".into())
+        .spawn(move || {
+            watch(child, kill, me, ending);
+            live.fetch_sub(1, Ordering::AcqRel);
+        })
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 /// How a helper's end reads: the Windows exception or the Unix signal named when it is a
@@ -1474,7 +1526,7 @@ impl Sandboxes {
         let mut v: Vec<(String, u32)> = lock(&self.groups)
             .values()
             .filter(|s| !s.is_dead())
-            .map(|s| (s.key.clone(), s.pid))
+            .map(|s| (s.key.clone(), s.pid()))
             .collect();
         v.sort();
         v

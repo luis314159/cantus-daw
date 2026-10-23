@@ -270,6 +270,16 @@ fn a_late_wait_ends_within_two_milliseconds_of_its_deadline() {
         unsafe { Caller::create(&format!("{name}-0"), exchange(&mem, 0), &name, lobby(&mem)) }
             .expect("the caller");
     let deadline = Duration::from_millis(5);
+    // The thread that waits with a deadline in Cantus is a real-time one (the device's
+    // callback, a promoted pool worker); this one is promoted as a pool worker is. macOS
+    // gives an ordinary thread's timers leeway — coalesced, they fired 1.3–3.8 ms late on
+    // GitHub's runner (round 30) — and a time-constraint thread's none.
+    let promotion = cantus_rt::thread::promote_worker(
+        cantus_rt::thread::WorkerRole::Live,
+        deadline,
+        cantus_rt::thread::Waiting::Bounded { busy_share: 0.5 },
+    );
+    eprintln!("deadline waits on a thread: {}", promotion.promotion);
     let mut took: Vec<Duration> = (0..20)
         .map(|_| {
             let n = caller.submit();

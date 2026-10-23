@@ -62,17 +62,9 @@ fn an_isolated_insert_plays_the_project_to_the_bit_of_in_process() {
     let (mut together, _, t_id) = gain_rig(PluginIsolation::Together);
     assert_eq!(pid_of(&within, w_id), std::process::id());
     assert_ne!(pid_of(&together, t_id), std::process::id());
-    // The latency the plug-in reports for the Latency it was given arrives with the answer
-    // to a later call; until then the host compensates what it knows, and redoes the
-    // compensation when the change is told (`LatencyChanged`). On a slow machine that answer
-    // can come after `settle` (macOS runner, round 30): wait for it, then settle again.
-    let deadline = Instant::now() + Duration::from_secs(5);
-    while together.host.hosted(t_id).unwrap().latency() != 37 && Instant::now() < deadline {
-        together.block(256);
-        together.frame();
-    }
+    // The latency arrives with the answer to a later call (`Rig::until_latency`).
+    together.until_latency(t_id, 37);
     assert_eq!(together.host.hosted(t_id).unwrap().latency(), 37);
-    together.settle();
     for block in [64usize, 256, 1000] {
         let a = within.play(24_000, block);
         let b = together.play(24_000, block);

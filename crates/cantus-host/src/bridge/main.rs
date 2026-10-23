@@ -187,7 +187,7 @@ impl BridgeMain {
 
     /// The process id of the helper it runs in.
     pub fn pid(&self) -> u32 {
-        self.sandbox.pid
+        self.sandbox.pid()
     }
 
     fn gone(&self) -> bool {
@@ -916,7 +916,7 @@ impl MainThread for BridgeMain {
     }
 
     fn isolated_in(&self) -> Option<u32> {
-        Some(self.sandbox.pid)
+        Some(self.sandbox.pid())
     }
 
     fn helper_id(&self) -> Option<u64> {

@@ -493,6 +493,23 @@ impl Rig {
     }
 
     /// Frames until every isolated plug-in has loaded (its load is answered later).
+    /// Blocks and frames until the hosted plug-in `id` reports `latency`, then settles. A
+    /// latency set through a parameter arrives with the answer to a later call, and the
+    /// host compensates it when told (`LatencyChanged`); a slow machine can tell it after
+    /// `settle` (the macOS runner, round 30).
+    pub fn until_latency(&mut self, id: EffectId, latency: usize) {
+        let t0 = std::time::Instant::now();
+        while self.host.hosted(id).map(|h| h.latency()) != Some(latency) {
+            assert!(
+                t0.elapsed() < std::time::Duration::from_secs(10),
+                "the latency {latency} arrives"
+            );
+            self.block(256);
+            self.frame();
+        }
+        self.settle();
+    }
+
     pub fn until_loaded(&mut self) {
         let t0 = std::time::Instant::now();
         self.frame();

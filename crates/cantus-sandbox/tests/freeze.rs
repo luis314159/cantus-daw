@@ -31,6 +31,8 @@ fn a_frozen_chain_unloads_its_hosted_plug_in_and_plays_the_live_mix() {
         rig.set_param(strip, id, P_GAIN, -6.0);
         rig.set_param(strip, id, P_LATENCY, 37.0);
         rig.settle();
+        // The live mix compensates the latency the plug-in reports, as the render does.
+        rig.until_latency(id, 37);
         // Offline reads: the bits are compared, a busy machine must not make a block late.
         rig.processor.set_offline(true);
         let live = rig.play(48_000, 256);
