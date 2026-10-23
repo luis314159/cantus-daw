@@ -200,7 +200,7 @@ On a Mac (Xcode's command-line tools, `rustup target add aarch64-apple-darwin
 x86_64-apple-darwin`), from the repository's root:
 
 ```text
-packaging/macos/build-dmg.sh 0.1.0-beta.4 target/dmg-out
+packaging/macos/build-dmg.sh 0.1.0-beta.5 target/dmg-out
 ```
 
 It builds `cantus`, `cantus-scan` and `cantus-sandbox` for both architectures, joins them

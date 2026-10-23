@@ -43,3 +43,5 @@ cleared after the lock was let go); re-running the failed jobs via the REST API
 (`POST /actions/runs/<id>/rerun-failed-jobs`, the stored git credential) published it.
 Round 30 (another session, cantus-5a, worktrees F:\projects\daw-r30) must release as
 beta.3+; it shares the WSL clone ~/cantus-ci — use a separate clone for checks.
+
+Correction (2026-10-23): the website deploys from **cantus-daw** (site.yml is guarded to the public repo; the Cloudflare secrets live there), so a site change goes live only after publish.sh --push.
