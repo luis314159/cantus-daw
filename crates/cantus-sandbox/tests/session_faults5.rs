@@ -409,9 +409,10 @@ fn a_state_answered_late_becomes_the_last_good_one() {
     }
     rig.host.project_for_save(rig.bus.project());
     assert_eq!(rig.host.saved_stale().len(), 1, "kept as it was last said");
-    // Its slow answer comes (3 s): the last-good state, as it is now.
+    // Its slow answer comes (3 s after it was asked for): the last-good state, as it is
+    // now. Given 6 s: GitHub's Mac runner brought it after the 3.5 s this waited before.
     let start = Instant::now();
-    while start.elapsed() < Duration::from_millis(3_500) {
+    while start.elapsed() < Duration::from_millis(6_000) {
         rig.frame();
         std::thread::sleep(Duration::from_millis(10));
     }
