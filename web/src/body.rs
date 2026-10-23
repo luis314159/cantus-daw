@@ -88,7 +88,15 @@ pub fn get() -> Html {
     let guide = format!("{GITHUB}/blob/master/docs/DEVELOPING.md");
     let soon = l.t("Coming soon", "Muy pronto");
     let available = l.t("Available", "Disponible");
-    let state = |on: bool| if on { available } else { soon };
+    // Every system's line in the side list: its file a click away when it is out (a visitor on
+    // Windows can fetch the AppImage for another machine), "Coming soon" until then.
+    let state = |on: bool, href: &str| {
+        if on {
+            html! { <a href={href.to_string()}>{ available }</a> }
+        } else {
+            html! { { soon } }
+        }
+    };
     // The card speaks to the visitor's system: each gets its own file straight down (the
     // newest release's, under its stable name — ADR 0048 §7, ADR 0067), with every other
     // file a link away; a system whose file is not out yet gets the honest answer (coming
@@ -195,9 +203,9 @@ pub fn get() -> Html {
                             <dt>{ l.t("Audio", "Audio") }</dt><dd>{ audio }</dd>
                             <dt>{ l.t("Plug-ins", "Plug-ins") }</dt><dd>{ "CLAP, VST3" }</dd>
                             <dt>{ l.t("Cost", "Costo") }</dt><dd>{ l.t("Free", "Gratis") }</dd>
-                            <dt>{ "Windows" }</dt><dd>{ available }</dd>
-                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos) }</dd>
-                            <dt>{ "Linux" }</dt><dd>{ state(shelf.linux) }</dd>
+                            <dt>{ "Windows" }</dt><dd>{ state(true, DOWNLOAD) }</dd>
+                            <dt>{ "macOS" }</dt><dd>{ state(shelf.macos, DOWNLOAD_MACOS) }</dd>
+                            <dt>{ "Linux" }</dt><dd>{ state(shelf.linux, DOWNLOAD_LINUX) }</dd>
                         </dl>
                     </aside>
                 </div>
