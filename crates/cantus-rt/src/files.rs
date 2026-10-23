@@ -84,6 +84,29 @@ fn set(soft: u64, hard: Option<u64>) -> bool {
     unsafe { libc::setrlimit(libc::RLIMIT_NOFILE, &r) == 0 }
 }
 
+/// Flush a file's written data to the disk, as `File::sync_all` does — except on macOS,
+/// where `sync_all` is `F_FULLFSYNC`: it empties the drive's own cache and holds the
+/// device's other requests meanwhile, so a background flush of the sample cache delayed
+/// the stream reader's reads (40 new voices: 170 ms on GitHub's Mac runner, against well
+/// under half that elsewhere). A cache that is rebuilt when damaged needs only `fsync`,
+/// what the other systems' `sync_all` amounts to. Off the audio thread.
+pub fn flush(file: &std::fs::File) -> std::io::Result<()> {
+    #[cfg(target_vendor = "apple")]
+    {
+        use std::os::fd::AsRawFd;
+        // SAFETY: the descriptor belongs to `file`, alive for the call; fsync only reads it.
+        if unsafe { libc::fsync(file.as_raw_fd()) } == 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+    #[cfg(not(target_vendor = "apple"))]
+    {
+        file.sync_all()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -97,5 +120,21 @@ mod tests {
             assert_eq!(super::limit(), 200);
             assert_eq!(super::raise_limit(), raised, "raised again");
         }
+    }
+
+    #[test]
+    fn a_flush_writes_through_and_reads_back() {
+        use std::io::Write;
+        let dir = std::env::temp_dir().join(format!("cantus-rt-flush-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("block");
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(&[7u8; 4096]).unwrap();
+        super::flush(&f).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), vec![7u8; 4096]);
+        // A folder flushes too (the rename's entry, on Unix).
+        #[cfg(unix)]
+        super::flush(&std::fs::File::open(&dir).unwrap()).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

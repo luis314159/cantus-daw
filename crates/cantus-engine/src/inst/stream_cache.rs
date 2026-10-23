@@ -303,11 +303,11 @@ fn flush_later(path: PathBuf) {
             .spawn(move || {
                 while let Ok(p) = rx.recv() {
                     if let Ok(f) = File::options().write(true).open(&p) {
-                        let _ = f.sync_all();
+                        let _ = cantus_rt::files::flush(&f);
                     }
                     #[cfg(unix)]
                     if let Some(d) = p.parent().and_then(|d| File::open(d).ok()) {
-                        let _ = d.sync_all();
+                        let _ = cantus_rt::files::flush(&d);
                     }
                 }
             });
