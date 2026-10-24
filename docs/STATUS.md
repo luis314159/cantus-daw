@@ -22,6 +22,15 @@ systems) the macOS suite still fails on timing in GitHub's virtual Mac — deadl
 variable `CANTUS_RELEASE_MACOS` is `true`; beta.6 turns it on once the Mac session has
 measured a real Mac and the suite is green there.
 
+**Released 2026-10-23: `v0.1.0-beta.5`** — the Linux fix for isolated plug-ins (a helper
+started on a short-lived thread was ended by `PR_SET_PDEATHSIG` when that thread ended; the
+starting thread now watches the helper for its life). The same commit was the **first fully
+green macOS run** on GitHub's runner (`macos.yml` reruns a failed test binary up to twice and
+reports it as *FLAKY on macOS VM*: `bridge_faults4` needed it). Still open for the next round:
+`session_faults5::an_instance_removed_during_a_dialog_is_ended_after_it` fails now and then on
+Windows runners (2 instances destroyed under the dialog in the beta.5 release run; the job
+was re-run) — find the cause, not a longer wait.
+
 1. **The Mac session** (`docs/mac-session.md`): the `.dmg` past Gatekeeper, the microphone
    prompt, an interface in duplex for 10 minutes, a real plug-in's editor in and out of
    process, menus and keys, trackpad and Retina, CPU on Apple silicon, an update from an

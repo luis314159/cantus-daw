@@ -35,3 +35,5 @@ time-constraint thread; sandbox session/bridge_faults4 timing). Lessons: macos.y
 --no-fail-fast (cargo stops at the first failing binary, alphabetically); read Actions job
 logs with the git credential token (API needs auth); start the CI watcher only after
 publish.sh finishes (it re-clones the folder). Web hero now "Windows · Linux".
+
+**beta.5 released 2026-10-23** (Linux PDEATHSIG fix: the thread that spawns a helper must live as long as it). First green macOS run (macos.yml retries failed binaries up to 2x, tools/ci/retry-failed.sh). Mac release = beta.6 via CANTUS_RELEASE_MACOS. Flaky to fix: session_faults5 dialog test on Windows. Re-run a failed release job: POST .../actions/runs/<id>/rerun-failed-jobs with the git credential token.
