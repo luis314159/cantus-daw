@@ -18,3 +18,6 @@ crates/cantus-project/fixtures/*.bak
 # `git add -f`, never pushed to luis314159/cantus-daw (tools/public/publish.sh filters it).
 research/**/screenshots/
 crates/cantus-ui/locales/verses/es.txt
+
+# The owner's outreach messages to creators (private, never published)
+docs/outreach-influencers.md
