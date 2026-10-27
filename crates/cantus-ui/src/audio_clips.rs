@@ -253,15 +253,8 @@ pub fn reversed_edit(
         // The content follows the pointer at the window (review 3).
         let (o, slip) = crate::clips::slipped(project, clip, delta);
         offset = o;
-        if let (Some(a), Some(s)) = (clip.audio.as_ref(), slip) {
-            out.push(set(
-                track,
-                clip,
-                AudioRegion {
-                    slip_frames: s,
-                    ..a.clone()
-                },
-            ));
+        if let Some(r) = crate::clips::slipped_region(project, clip, o, slip) {
+            out.push(set(track, clip, r));
         }
     } else if let (Some(a), false) = (clip.audio.as_ref(), project.tempo_points.is_empty()) {
         // A warp that follows the tempo reads content ticks: the tick arithmetic is exact
@@ -457,10 +450,19 @@ fn glue_with(project: Option<&Project>, track: TrackId, clips: &[&Clip]) -> Opti
             offset,
         });
     }
+    // Each window's gain envelope over the content it showed (ADR 0070 §4).
+    let pieces: Vec<_> = ordered
+        .iter()
+        .map(|c| {
+            let env = c.audio.as_ref().and_then(|x| x.gain_env.as_deref());
+            (env, c.offset, c.offset + c.length)
+        })
+        .collect();
     let glued = AudioRegion {
         fade_out: la.fade_out,
         fade_out_curve: la.fade_out_curve,
         slip_frames: slip,
+        gain_env: cantus_core::clip_gain::GainEnvelope::glued(&pieces).map(Box::new),
         ..a.clone()
     };
     if glued != *a {

@@ -220,6 +220,8 @@ pub struct Loaded {
     pub warps_repaired: usize,
     /// Track delays dropped on load because they were out of range (ADR 0064, review 3).
     pub lateness_repaired: usize,
+    /// Clip gain envelopes repaired on load (ADR 0070).
+    pub gain_envs_repaired: usize,
 }
 
 pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
@@ -233,6 +235,7 @@ pub fn load(path: &Path, verify_integrity: bool) -> Result<Loaded, StoreError> {
         links_repaired: r.links_repaired,
         warps_repaired: r.warps_repaired,
         lateness_repaired: r.lateness_repaired,
+        gain_envs_repaired: r.gain_envs_repaired,
     })
 }
 

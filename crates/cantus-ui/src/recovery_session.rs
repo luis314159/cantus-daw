@@ -287,9 +287,9 @@ impl CantusApp {
         };
         // A save in flight writes the project being replaced: it lands first.
         self.wait_for_save();
-        if self.is_recording() {
-            self.stop_recording();
-        }
+        // A recording and a write pass end into the project they rode (the fix-round
+        // review: before the base is put in its place, or the pass ends into the base).
+        self.end_passes();
         self.stop_transport();
         let base = item
             .project_path
@@ -300,12 +300,12 @@ impl CantusApp {
         match (&item.autosave, base) {
             (Some((_, auto)), base) => {
                 let base = base.unwrap_or_else(|| Project::new(&auto.name));
-                self.bus.reset(base);
+                self.reset_bus_to(base);
                 self.exec(Command::ReplaceProject {
                     project: Box::new(auto.clone()),
                 });
             }
-            (None, Some(base)) => self.bus.reset(base),
+            (None, Some(base)) => self.reset_bus_to(base),
             (None, None) => {}
         }
         self.epoch += 1;
@@ -325,6 +325,8 @@ impl CantusApp {
             &[("name", &item.name), ("n", &takes)],
         ));
         self.recovery = self.recovery.take().filter(|o| !o.items.is_empty());
+        // The work brought back is what opens: no start page over it (ADR 0072).
+        self.workflow.start.close();
         true
     }
 

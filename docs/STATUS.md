@@ -1,8 +1,33 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-22 (round 30: **Cantus on three systems** — **Linux** as a product (ADR 0065: PipeWire and JACK with ALSA always there, PipeWire chosen only when it serves audio; real-time priority through rtkit or `SCHED_FIFO` and a line on the device page saying what each thread got; CLAP and VST3 editors in X11 windows, XWayland on Wayland, the run loops CLAP and VST3 need, also in the sandbox's helper; XDG folders with a resumable move; fontconfig fallbacks; an AppImage built on Ubuntu 22.04 and a Flatpak manifest); **macOS prepared without a Mac** (ADR 0066: a universal `.app` for macOS 11+, `.dmg` built, signed and notarised in CI when the Apple secrets exist; CoreAudio with the pool in the device's audio workgroup; the sandbox's exchange through `os_sync_wait_on_address`/`__ulock_wait`, a helper that dies with Cantus, crash blame from dyld; Cocoa editor windows; the ⌘/⌥ keymap preset, the global menu bar, trackpad, Retina, `.cantus` opened from Finder; `docs/mac-session.md` for the owner's Mac session); **one tag, three installers** (ADR 0067: `release.yml` tests and packages on each system, the updater fetches and applies the file for its system, the website's cards say *Available* only when the latest release holds that system's file); the owner's frictions (Settings in pages with an *Options* menu and `Ctrl+,`, the count-in that says it waits for Record with *Also on play*, new plug-ins found at start). Version **0.1.0-beta.4** (released for Windows and Linux, 2026-10-23; beta.5 the same day fixed isolated plug-ins on Linux; macOS in beta.6). Schema 41, `DSP_VERSION` 5, keymap 10. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 469 green on Windows + the engine's fuzz at `CANTUS_WORKERS=3` (851); on Linux (WSL, CI's flags) 4 451 green with clippy; clippy `-D warnings` clean on Windows, Linux and (cross-checked) both Apple targets; macOS on GitHub's runner after publishing
+**Updated:** 2026-10-27 (round 31: **the daily gaps an FL or Ableton user hits first** — **automation** Read/Write/Touch/Latch per track and master with a global arm and one writer, and the piano roll's lanes for release velocity, pitch bend, pressure and CC, recorded, imported, exported and carried by every edit (ADR 0068, schema 42); **note effects** before the instrument — arpeggiator, chords, scale — on clips and live input, *Bake to notes*, the song's key lit, folded and snapped in the piano roll, groove templates (ADR 0069, schema 43); **crossfades** between overlapping audio clips and **clip gain envelopes** (ADR 0070, schema 44); **effects that sound on insert** through starting presets, the defaults still null (ADR 0071); a **command palette**, an **undo history panel**, a **start page** with project and track templates that opens at launch, the audio cores shown as engines and vehicles (ADR 0072, keymap 12); five flaky tests traced to their causes (two real sandbox races, a test-support scan, hermetic plug-in tests, per-thread test languages). Version **0.1.0-beta.6** (Windows and Linux; macOS waits for the Mac session). Schema 44, `DSP_VERSION` 5, keymap 12. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 707 pass on Windows (56 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 689 on Linux (WSL Ubuntu 24.04); clippy clean on both
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
+
+## The next session: what round 31 left
+
+Round 31 is on **master** (squashed) and published to `luis314159/cantus-daw`; **`v0.1.0-beta.6`**
+is released for Windows and Linux. The account: `docs/round31/integration.md`; one report
+per builder beside it (`automation`, `midi`, `workflow`, `editing`, `vehicles`). Under the
+owner's rule what is left is the owner's own, or new work:
+
+1. **Listening** (the owner's ears): the arpeggiator's feel, the swings against an MPC, the
+   chord voicings, each starting preset, the crossfade curves on real material, Touch and
+   Latch passes, a keyboard's bend, mod wheel, sustain and release on Lamina and a hosted
+   synth.
+2. **The Mac session** (`docs/mac-session.md`) and the Apple account — beta.7 can then ship
+   the `.dmg` (`CANTUS_RELEASE_MACOS=true`); a real Linux desktop; Flathub; and the rest of
+   round 30's owner list (the UMC in duplex, code signing, the legal reviews — now also the
+   cores' vehicle model names, one table in `engines.rs` —, the RVR1960 permission, the
+   trademark filing, compacting the WSL disk image).
+3. **Next work, the owner's requests**: BACKLOG §6h part 2 — hosted plug-ins in their native
+   editor or a Cantus view of their parameters, chosen and remembered per plug-in (to start
+   right after this round); §6h part 1 — a look of its own for each of our units (a round of
+   its own); §7a — the singing-voice instrument (evaluate first, `research/ai/singing-voice.md`);
+   notation from the piano roll (§0.2, asked about 2026-10-27).
+4. **Next round (32, proposed)**: BACKLOG §0.4 — measure where Cantus stands (§0.1's
+   scorecard, a DAWbench-style run against REAPER and FL Studio), then Ableton's session
+   view, Link, MIDI clock/MTC and MPE.
 
 ## The next session: what round 30 left
 
@@ -312,6 +337,23 @@ Left by the round-22 builders (their docs list each): Spatium, Organum, Pulsus a
 gate cannot rest yet; round 21's `_set_FMA3_enable(0)` can go now that `powf` is ours;
 hosted plug-ins in stems; RF64, AAC/Opus, album art; the old stems dialog in
 `views::interop`; v4 never run (no AVX-512 here).
+
+## Round 31: the daily gaps an FL or Ableton user hits first (requested 2026-10-25)
+
+**The ask:** BACKLOG §0.4 item 3 and what round 30 left: the flaky sandbox tests' causes;
+automation write/touch/latch and the piano roll's lanes; note effects, scale and grooves;
+crossfades and clip gain; a command palette, an undo history, templates; effects that sound
+on insert. Four builders (`automation`, `midi`, `workflow`, `editing`) from contract
+`697550fa`, plus an illustrator for the cores' vehicles; six reviews, **57 confirmed
+findings, all fixed with tests**. Account: `docs/round31/integration.md`.
+
+| Part | What changed |
+|---|---|
+| Automation (ADR 0068) | Read/Write/Touch/Latch per track and master, the top bar's arm and touch glide, one pure writer driven each frame, a pass folded into one undo step; every project replacement ends a pass into the song it rode (`reset_bus_to`); `Note::release`, `Clip::lanes` (bend, pressure, CC 0–119) compiled and fired before note-ons, chased on play/seek/wrap only while playing, rested at clip end, stop and removal; lanes as heard through bake, crops and glue; schema 42, keymap 12 |
+| Note effects (ADR 0069) | `cantus-engine/src/notefx/` in the track's note path — arpeggiator, chords, scale; live and clip notes through one path, release velocity carried; *Bake to notes*; `Project::key` with 19 scales; grooves (pool, extract, commit, pattern groove, validated on paste); MIDI export as played or written; DAWproject reports what it cannot carry; the palette adds note effects; schema 43 |
+| Editing (ADRs 0070, 0071) | `AudioRegion::cross` over an overlap (equal power / linear / S) on the comp seams' path, made by the bus in the edit's own undo step; a split never changes the sound; clip gain envelopes in content time (tempo-mapped on moves, repeated per loop, repaired on load); `cantus_core::starting` — a starting preset per unit through `CantusApp::new_insert`, *Neutral settings*, the exported plug-ins too; schema 44 |
+| Workflow (ADR 0072) | The palette (`Ctrl+Shift+P`), the history (`Alt+H`, step ids and the saved mark), the start page at launch with four starters, user and track templates (renewed ids, routing by name, plug-in states asked first); hermetic hosted tests; the Audio page's cores as engines and vehicles (SVG illustrations, `engines.rs`), its real-time line in every form and language |
+| Causes | sandbox: a value's echo after a save left a stale state; liveness from a progress word, App Nap off; a helper's processing thread serving before a load is answered (an isolated plug-in's first block was dry on a busy machine); tests: a support scan, the user's plug-in database, the process-wide language |
 
 ## Round 30: Cantus on three systems (requested 2026-10-22)
 

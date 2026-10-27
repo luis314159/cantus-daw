@@ -60,7 +60,7 @@ fn the_boot_path_starts_the_sample_cache_and_loads_beside_the_window() {
         &meta,
     );
     let spec = InstrumentSpec::Native(sounds::spec_of(&imp));
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut s = Song::new("boot", 120.0, 1);
     let part = s.part("piano", spec, colors::BASS, TrackIcon::Keys);
     s.feel(part, Feel::TIGHT);

@@ -150,6 +150,18 @@ pub fn relocate(project: &Project, clip: &Clip, copy: &mut Clip, start: Ticks) {
                 r.fade_in = m.fade_in;
                 r.fade_out = m.fade_out;
                 r.slip_frames = m.slip_frames;
+                // The gain envelope stays on its audio (ADR 0070 review 1).
+                if let Some(e) = r.gain_env.as_mut() {
+                    **e = cantus_core::audio_time::remap_env(
+                        e,
+                        &map,
+                        clip.start,
+                        clip.offset,
+                        &map,
+                        start,
+                        m.offset,
+                    );
+                }
             }
         }
     }
@@ -168,17 +180,46 @@ pub fn slip(project: &Project, track: TrackId, clip: &Clip, by: Ticks) -> Vec<Co
         clip: clip.id,
         offset,
     }];
-    if let (Some(a), Some(s)) = (clip.audio.as_ref(), slip) {
+    if let Some(r) = slipped_region(project, clip, offset, slip) {
         out.push(Command::SetClipAudio {
             track,
             clip: clip.id,
-            audio: Some(cantus_core::AudioRegion {
-                slip_frames: s,
-                ..a.clone()
-            }),
+            audio: Some(r),
         });
     }
     out
+}
+
+/// A slipped window's region, when it changes: its fine offset (`slip`), and its gain
+/// envelope kept on the seconds of audio it marked where the tempo does not hold over the
+/// slip (ADR 0070 review 1). `None` when nothing in the region moves.
+pub fn slipped_region(
+    project: &Project,
+    clip: &Clip,
+    offset: Ticks,
+    slip: Option<i32>,
+) -> Option<cantus_core::AudioRegion> {
+    let a = clip.audio.as_ref()?;
+    let mut r = a.clone();
+    if let Some(s) = slip {
+        r.slip_frames = s;
+    }
+    let follows = a.warp.as_ref().is_some_and(|w| w.follow);
+    if !project.tempo_points.is_empty() && !follows && clip.link.is_none() {
+        if let Some(e) = r.gain_env.as_mut() {
+            let map = crate::views::bars::map(project);
+            **e = cantus_core::audio_time::remap_env(
+                e,
+                &map,
+                clip.start,
+                clip.offset,
+                &map,
+                clip.start,
+                offset,
+            );
+        }
+    }
+    (r != *a).then_some(r)
 }
 
 /// A clip's content slipped by `by`: its new offset, and its new fine offset when that
@@ -418,11 +459,15 @@ pub fn changes_content(cmd: &Command, id: ClipId) -> bool {
         | Command::SetNotes { clip, .. }
         | Command::SetClipAudio { clip, .. }
         | Command::SetClipAutomation { clip, .. }
+        | Command::SetClipLanes { clip, .. }
         | Command::SetClipPitch { clip, .. }
         | Command::SetClipWarp { clip, .. }
         | Command::SetClipName { clip, .. }
         | Command::SetClipColor { clip, .. }
-        | Command::SetClipContent { clip, .. } => *clip == id,
+        | Command::SetClipContent { clip, .. }
+        // Round 31 (ADR 0069): a groove and playing past the note effects are content too.
+        | Command::SetClipGroove { clip, .. }
+        | Command::SetClipSkipNoteFx { clip, .. } => *clip == id,
         _ => false,
     }
 }
@@ -446,6 +491,11 @@ fn glue_any(
     // Automation glues clips of one target into one curve (ADR 0027).
     if clips.iter().any(|c| c.automation.is_some()) {
         return glue_automation(track, clips);
+    }
+    // Note clips that play differently — one past the note effects and one through them,
+    // or with other grooves — would not sound as they did once one (ADR 0069): not glued.
+    if notes_disagree(clips) {
+        return None;
     }
     let mut ordered: Vec<&Clip> = clips.to_vec();
     ordered.sort_by_key(|c| (c.start, c.id.0));
@@ -528,6 +578,15 @@ fn glue_any(
             track,
             clip: first.id,
             notes: added,
+        });
+    }
+    // The controller lanes: each clip's curve inside its window, in the first's frame (ADR
+    // 0068); the halves of a split give back the lanes they were cut from.
+    if let Some(lanes) = cantus_core::clip_lanes::edit::glue(&ordered) {
+        commands.push(Command::SetClipLanes {
+            track,
+            clip: first.id,
+            lanes,
         });
     }
     Some(commands)
@@ -806,6 +865,19 @@ pub fn transpose_selection(
         }
     }
     (commands, made)
+}
+
+/// Whether note clips to glue play their notes differently: one plays past the track's
+/// note effects (a baked clip) and another through them, or their grooves differ. The glued
+/// clip keeps one setting for all its notes, so it would change what is heard (ADR 0069).
+pub fn notes_disagree(clips: &[&Clip]) -> bool {
+    let notes: Vec<&&Clip> = clips
+        .iter()
+        .filter(|c| c.audio.is_none() && c.automation.is_none())
+        .collect();
+    notes
+        .windows(2)
+        .any(|w| w[0].skip_note_fx != w[1].skip_note_fx || w[0].groove != w[1].groove)
 }
 
 #[cfg(test)]

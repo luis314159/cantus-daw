@@ -535,6 +535,44 @@ calls, the helper times the plug-in itself; `PluginHost::cpu`). The manager has 
 third-party plug-ins run* and the plug-ins that ever stopped here (*Forget*). Both
 languages (`locales/areas/isolation.*`).
 
+### 8. Amended, round 31: order, not arrival; life where it is counted
+
+Three tests failed now and then on GitHub's runners; each had a cause, none a short wait.
+
+- **What a helper says is judged by its order.** A value the helper says moved (its news,
+  or the values that come with an answer) made the last-good state "not current" as of the
+  frame that *read* it: requests made before that frame were taken as older. An echo of a
+  value Cantus had just set — said with the answer to the call that set it — that reached
+  the frame after a save had asked for the state, though the helper saw it before it saved,
+  left that state stale until the next refresh (`a_state_answered_late…` on the macOS VM;
+  deterministic when a value is set and a save asked for in one frame). Now the helper's
+  main thread serves one request at a time and says news only between them, so Cantus
+  stamps each move with the first request answered after it (`Sandbox::served`, the newest
+  request the main thread answered — a *surface*, answered out of turn by the reader
+  thread, aside; `Purpose::Surface`); the state answered to that request or a later one
+  holds it (`BridgeMain::good_at`). A save says what moved before it first
+  (`Server::news_of`), so only a value that moves during the save makes its state not
+  current. (`session_faults8.rs`.)
+- **Life is read where the main thread counts it.** The helper counted its main thread's
+  progress, but Cantus learnt of it only from a heartbeat every 200 ms — a timer, through
+  two pipe threads. A virtual machine's late timers (and macOS's App Nap) brought one past a
+  short silence limit, and a live helper was ended as "stopped answering" (the pause test
+  on the macOS VM, 300 ms). The count is now also a lobby word (`PROGRESS_AT`) that each
+  judgement reads (`Sandbox::silent_for`): life is seen when the count moved since the last
+  look. A main thread that truly stops is found hung exactly as before; the heartbeat still
+  goes. `CANTUS_TEST_SANDBOX_LATE_TIMERS_MS` makes a helper's waits that much longer, for
+  tests (`bridge_faults5.rs`).
+- **No App Nap on macOS.** A helper is an application with no window on screen most of the
+  time that plays no sound of its own — what macOS naps (timers coalesced, threads at a
+  background priority) while it processes Cantus's audio. It holds a latency-critical,
+  user-initiated activity (`NSProcessInfo`) for its life; idle system sleep stays allowed.
+- **The tests' own order.** The test plug-ins are described (a scan in the test process,
+  which makes and ends an instance of each CLAP) before the first test runs, never inside
+  one: the dialog test, when it was the first of its binary to take the lock (always when
+  run alone), counted the scan's two instances as destroyed under the dialog ("2", the
+  beta.5 release run). `support::infos` refuses to run with a fault armed in the
+  environment.
+
 ## Consequences
 
 - New: `cantus_rt::{shm, ipc}`, `cantus_host::bridge::{slot, proto, sandbox, audio, main}`,

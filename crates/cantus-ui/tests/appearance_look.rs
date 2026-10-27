@@ -24,7 +24,7 @@ fn walk(shape: &egui::Shape, verts: &mut Vec<(Pos2, Color32)>, texts: &mut Vec<(
 fn the_base_theme_menus_carry_each_themes_swatch() {
     for locale in cantus_ui::i18n::Locale::ALL {
         for ppp in [0.75f32, 2.0] {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             let ctx = egui::Context::default();
             cantus_ui::design::install_fonts(&ctx);
             cantus_ui::design::install_style(&ctx);
@@ -97,7 +97,7 @@ fn the_base_theme_menus_carry_each_themes_swatch() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review finding 9: text selected in a field — the typed level opens with its value
@@ -261,7 +261,7 @@ fn every_text_field_is_the_kits_and_the_fill_is_named_as_one() {
         "a fill, with the surfaces"
     );
     for locale in cantus_ui::i18n::Locale::ALL {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let name = |t: Tok| cantus_ui::i18n::t(&format!("kit.token.{}", t.key()));
         let mine = name(Tok::TextSelect);
         for &t in Tok::ALL {
@@ -270,5 +270,5 @@ fn every_text_field_is_the_kits_and_the_fill_is_named_as_one() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

@@ -54,6 +54,7 @@ fn main() {
                     app.interop.midi_export = Some(interop::MidiExportDialog {
                         scope: interop::MidiScope::Song,
                         ppq: 960,
+                        played: true,
                     })
                 }
                 _ => {

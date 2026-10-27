@@ -47,7 +47,7 @@ fn app() -> CantusApp {
 #[test]
 fn the_options_menu_opens_settings_on_its_shortcut_and_each_page() {
     // This thread's words, whatever another test sets for the process.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let map = Preset::Cantus.keymap();
     let options = menu::options(&map);
     let picks: Vec<Pick> = options
@@ -88,13 +88,13 @@ fn the_options_menu_opens_settings_on_its_shortcut_and_each_page() {
 fn every_settings_page_has_its_word_in_both_languages() {
     use cantus_ui::i18n::{t, Locale};
     for locale in [Locale::En, Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         for p in SettingsPage::ALL {
             let word = t(p.key());
             assert!(!word.contains('.'), "{locale:?}: {word}");
         }
     }
-    cantus_ui::i18n::set_locale(Locale::En);
+    cantus_ui::i18n::set_thread_locale(Locale::En);
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn stop(app: &mut CantusApp) {
 #[test]
 fn play_counts_in_only_when_asked_and_says_once_that_the_count_in_waits_for_record() {
     // This thread's words, whatever another test sets for the process.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut app = app();
     let mut rs = app.project().recording.clone();
     rs.count_in_bars = 1;
@@ -252,7 +252,7 @@ fn the_boot_path_looks_for_new_plug_ins_in_the_background_unless_turned_off() {
 
 #[test]
 fn a_scan_names_what_it_found_new() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     assert_eq!(
         plugins::found_text(&names(&["Surge XT"])),
@@ -282,7 +282,7 @@ fn every_settings_page_reads_whole_in_both_languages() {
         }
     }
     for locale in [Locale::En, Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let mut a = app();
         // An interface open, as the owner's: the Audio page's longest lines.
         cantus_ui::views::settings_audio::demo_setup(&mut a);
@@ -311,5 +311,5 @@ fn every_settings_page_reads_whole_in_both_languages() {
             assert!(cut.is_empty(), "{locale:?} {page:?} cut: {cut:?}");
         }
     }
-    cantus_ui::i18n::set_locale(Locale::En);
+    cantus_ui::i18n::set_thread_locale(Locale::En);
 }

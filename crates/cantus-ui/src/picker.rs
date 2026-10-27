@@ -52,6 +52,9 @@ pub enum PickChoice {
     Hosted(Box<cantus_host::PluginInfo>),
     /// An instrument an installed sound pack offers, played by Exemplar (round 26).
     Sound(Box<crate::views::samples_content::sounds::SoundChoice>),
+    /// A track template of the user's (round 31, ADR 0072), by its file: a new track with
+    /// its instrument, strip, inserts, sends and routing.
+    TrackTemplate(std::path::PathBuf),
 }
 
 /// What a device dragged out of the browsing panel carries (round 20): drop targets — a
@@ -69,7 +72,8 @@ impl DevicePayload {
             PickChoice::Firmus
             | PickChoice::Pulsus
             | PickChoice::Instrument(_)
-            | PickChoice::Sound(_) => true,
+            | PickChoice::Sound(_)
+            | PickChoice::TrackTemplate(_) => true,
             PickChoice::Effect(_) => false,
             PickChoice::Hosted(info) => info.kind == cantus_host::PluginKind::Instrument,
         }
@@ -104,6 +108,16 @@ impl CantusApp {
             if matches!(&choice, PickChoice::Hosted(i) if i.kind == cantus_host::PluginKind::Instrument)
             {
                 self.set_status(crate::i18n::t("swap.status.hosted_instrument"));
+            }
+            return;
+        }
+        // A track template (round 31, ADR 0072): a new track of its own, one undo step.
+        if let PickChoice::TrackTemplate(path) = &choice {
+            if let PickPurpose::AddInstrument { index } = purpose {
+                // After the selected track when the place is not said (the picker, the
+                // devices panel), as the palette puts it.
+                let index = index.unwrap_or_else(|| crate::views::palette::track_index(self));
+                self.insert_track_template(path, index);
             }
             return;
         }

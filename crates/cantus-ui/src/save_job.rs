@@ -47,6 +47,9 @@ use std::time::Instant;
 pub struct Job {
     /// The revision it holds: what becomes "saved" when it lands.
     revision: u64,
+    /// The history's state it holds (review 7: named when the copy is taken, so a long
+    /// save landing after many edits still marks the right step).
+    step: u64,
     /// The project's epoch then (a result for a project since replaced is not this one's).
     epoch: u64,
     path: PathBuf,
@@ -178,6 +181,7 @@ impl CantusApp {
         let project = self.plugins.project_for_save(self.bus.project());
         let stale = self.plugins.saved_stale().to_vec();
         let revision = self.bus.revision();
+        let step = self.bus.current_step();
         let persisted = self.journal_finished_passes();
         let (tx, rx) = mpsc::channel();
         let hold = self.saving.hold.take();
@@ -198,6 +202,7 @@ impl CantusApp {
             let _ = tx.send(cantus_project::save(&project, path, APP_VERSION));
             self.saving.job = Some(Job {
                 revision,
+                step,
                 epoch: self.epoch,
                 path: path.to_path_buf(),
                 started: t0,
@@ -211,6 +216,7 @@ impl CantusApp {
         self.saving.last_frame_ms = frame.elapsed().as_secs_f64() * 1e3;
         self.saving.job = Some(Job {
             revision,
+            step,
             epoch: self.epoch,
             path: path.to_path_buf(),
             started: t0,
@@ -265,9 +271,11 @@ impl CantusApp {
             Ok(r) if current => {
                 self.path = Some(job.path.clone());
                 self.sync_audio_base();
-                self.bus.mark_saved_at(job.revision);
+                self.bus.mark_saved_state(job.revision, job.step);
                 // Its renders beside it, and only those it may want (round 29, review 2).
                 crate::freeze::saved(self);
+                // First among the recent projects (round 31, ADR 0072).
+                self.workflow.recent.note(&job.path);
                 self.autosaved_revision = self.autosaved_revision.max(job.revision);
                 self.set_status(tf("status.saved", &[("path", &r.path.display())]));
                 // Never silently: a plug-in kept as it was last said is named.

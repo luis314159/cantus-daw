@@ -941,6 +941,127 @@ fn main() {
             .mappings
             .push(pad(9, 41, MappingTarget::StripArm(strip1)));
     }
+    // Schema 42 (round 31, ADR 0068): the Keys track writes in Touch and the master in
+    // Latch; its first clip bends up and back, opens the mod wheel, and its notes carry
+    // release velocities (the last none, as every older note).
+    if upto >= 42 {
+        use cantus_core::clip_lanes::{ClipLane, LaneKind};
+        p.master.auto_mode = AutoMode::Latch;
+        let keys = &mut p.tracks[0];
+        keys.auto_mode = AutoMode::Touch;
+        let clip = &mut keys.clips[0];
+        let mut up = AutoPoint::new(Ticks::beats(1), 0.75);
+        up.tension = 0.4;
+        clip.lanes = vec![
+            ClipLane::new(
+                LaneKind::PitchBend,
+                vec![
+                    AutoPoint::new(Ticks::ZERO, 0.5),
+                    up,
+                    AutoPoint::new(Ticks::beats(2), 0.5),
+                ],
+            ),
+            ClipLane::new(
+                LaneKind::Cc(1),
+                vec![
+                    AutoPoint::new(Ticks::ZERO, 0.0),
+                    AutoPoint::new(Ticks::beats(6), 1.0),
+                ],
+            ),
+        ];
+        for (i, n) in clip.notes.iter_mut().enumerate().take(3) {
+            n.release = 40 + 20 * i as u8;
+        }
+    }
+    // Schema 43 (round 31, ADR 0069): the song in D minor, the first track's note effects
+    // (chords from the key into an up-down arpeggiator in 1/8 triplets over two octaves,
+    // then a scale that drops what leaves the key), a groove extracted into the pool and
+    // the first clip swung by it (timing and accents), the second by a built-in 16th swing.
+    if upto >= 43 {
+        use cantus_core::groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
+        use cantus_core::notefx::{
+            ArpMode, ChordShape, NoteEffect, NoteFxId, NoteFxKind, NoteFxType, ScaleMode,
+        };
+        p.key = Some(cantus_core::Key::new(2, cantus_core::ScaleKind::Minor));
+        let mut chord = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Chord);
+        if let NoteFxKind::Chord(c) = &mut chord.kind {
+            c.shape = ChordShape::ScaleSeventh;
+            c.inversion = 1;
+        }
+        let mut arp = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Arp);
+        if let NoteFxKind::Arp(a) = &mut arp.kind {
+            a.mode = ArpMode::UpDown;
+            a.octaves = 2;
+            a.rate = 11; // 1/8T
+            a.gate = 0.6;
+            a.swing = 0.58;
+        }
+        let mut scale = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Scale);
+        if let NoteFxKind::Scale(s) = &mut scale.kind {
+            s.mode = ScaleMode::Drop;
+        }
+        scale.enabled = false;
+        let gid = GrooveId(p.alloc_id());
+        let hits: Vec<_> = (0..16)
+            .map(|k| {
+                let late = if k % 2 == 1 { 48 } else { 0 };
+                (
+                    Ticks(k * 240 + late),
+                    if k % 4 == 0 { 120.0 } else { 80.0 },
+                    Ticks(200),
+                )
+            })
+            .collect();
+        let mut groove = Groove::extract(gid, "Played".into(), &hits, Ticks(1920), Ticks(240))
+            .expect("a groove");
+        groove.name = "Fixture feel".into();
+        p.grooves.push(groove);
+        if let Some(t) = p.tracks.first_mut() {
+            t.note_fx = vec![chord, arp, scale];
+            if let Some(c) = t.clips.first_mut() {
+                c.groove = Some(ClipGroove {
+                    source: GrooveSource::Pool { id: gid },
+                    timing: 0.8,
+                    velocity: 0.5,
+                    length: 0.0,
+                });
+            }
+            if let Some(c) = t.clips.get_mut(1).filter(|c| c.audio.is_none()) {
+                c.groove = Some(ClipGroove::new(GrooveSource::Swing {
+                    grid: SwingGrid::Sixteenths,
+                    percent: 62,
+                }));
+                c.skip_note_fx = true;
+            }
+        }
+    }
+    // Schema 44 (round 31, ADR 0070): a track of two clips of the vocal's file overlapping
+    // by a beat with an S-curve crossfade, the first with a gain envelope (a dip, a hold
+    // and a bend).
+    if upto >= 44 {
+        use cantus_core::clip_gain::{GainEnvelope, GainPoint};
+        let src = p.audio_pool[0].id;
+        let mut t = p.make_track("Doubles");
+        let mut a = p.make_audio_clip("Double A", src, Ticks::beats(16), Ticks::beats(4));
+        let mut points = vec![
+            GainPoint::new(Ticks::ZERO, 0.0),
+            GainPoint::new(Ticks::beats(1), -9.5),
+            GainPoint::new(Ticks::beats(2), -9.5),
+            GainPoint::new(Ticks::beats(3), 2.0),
+        ];
+        points[1].shape = cantus_core::Shape::Hold;
+        points[2].tension = 0.4;
+        if let Some(r) = a.audio.as_mut() {
+            r.gain_env = Some(Box::new(GainEnvelope::new(points)));
+        }
+        let mut b = p.make_audio_clip("Double B", src, Ticks::beats(19), Ticks::beats(4));
+        b.offset = Ticks::beats(3);
+        if let Some(r) = b.audio.as_mut() {
+            r.cross = Some(cantus_core::crossfade::XfadeCurve::SCurve);
+        }
+        t.clips.extend([a, b]);
+        p.tracks.push(t);
+    }
     // Schema 37 (round 29, freeze — ADR 0064): the first strip frozen (everything it
     // gathers and its chain up to the width) and the last track's own source, each with
     // the content key of what it holds — computed last, after every block above.

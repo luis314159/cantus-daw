@@ -82,6 +82,9 @@ pub struct BridgeMain {
     current: bool,
     /// Requests made before this id are older than its last change.
     changed_at: u64,
+    /// The request whose answer the last-good state is (its load's, a state's, or a state
+    /// given to it): every value the helper said moved before that answer is in it.
+    good_at: u64,
     /// Something changed since the last-good state was taken, and when it first did.
     dirty_since: Option<Instant>,
     /// The background state asked for, under way.
@@ -160,6 +163,7 @@ impl BridgeMain {
             last_good: (!state.is_empty()).then(|| state.to_vec()),
             current: true,
             changed_at: 0,
+            good_at: load,
             dirty_since: None,
             asked_state: None,
             tell_state_dirty: false,
@@ -206,6 +210,20 @@ impl BridgeMain {
         self.changed_at = self.sandbox.next_request();
         self.current = false;
         self.why_changed = Some(why);
+    }
+
+    /// Values the helper said moved, held by the state answered to request `held_by` or a
+    /// later one: the last-good state is no longer current only if it is older than that.
+    /// The helper saw them before it started `held_by`, however late they reach this frame
+    /// — an echo of a value Cantus set, reported after a save asked for the state but seen
+    /// before the save ran, leaves that state current (round 31: the macOS runner's
+    /// late-state test).
+    fn values_moved(&mut self, held_by: u64) {
+        self.changed_at = self.changed_at.max(held_by);
+        if self.good_at < held_by {
+            self.current = false;
+            self.why_changed = Some("a value moved");
+        }
     }
 
     fn ask_state(&mut self) -> Option<u64> {
@@ -259,6 +277,7 @@ impl BridgeMain {
                 // isolation-6 #5, #19, #29).
                 if !first_state.is_empty() && self.load >= self.state_after {
                     self.last_good = Some(first_state);
+                    self.good_at = self.load;
                     self.current = self.load >= self.changed_at;
                 }
             }
@@ -272,6 +291,7 @@ impl BridgeMain {
             match result {
                 Ok(s) if id >= self.state_after => {
                     self.last_good = Some(s);
+                    self.good_at = id;
                     if id >= self.changed_at {
                         self.current = true;
                     }
@@ -572,6 +592,7 @@ impl MainThread for BridgeMain {
         self.take_answers();
         self.last_good = Some(data.to_vec());
         self.state_settled();
+        self.good_at = self.state_after;
         self.current = true;
         if self.gone() {
             return Err(HostError::Crashed(self.crash_reason()));
@@ -755,8 +776,8 @@ impl MainThread for BridgeMain {
             )
         };
         let now = Instant::now();
-        if moved {
-            self.changed("a value moved");
+        if let Some(held_by) = moved {
+            self.values_moved(held_by);
             if self.dirty_since.is_none() && self.last_refresh.elapsed() >= REFRESH_EVERY {
                 // Values alone move with automation too: refreshed at a slower pace.
                 self.dirty_since = Some(now - REFRESH_AFTER);

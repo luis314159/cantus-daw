@@ -136,11 +136,18 @@ pub fn histogram_text(stats: &EngineStats) -> String {
 
 /// What the engine's pool is doing (ADR 0031 §2), for the same tooltip.
 pub fn pool_text(stats: &EngineStats) -> String {
-    if stats.workers == 0 {
+    pool_words(stats.workers, stats.parallel)
+}
+
+/// The pool's work in cores, counted as *Settings ▸ Audio ▸ Audio cores* counts them: the
+/// audio thread and its `workers` helpers ("5 cores at work: the audio thread and 4 more").
+pub fn pool_words(workers: u32, parallel: bool) -> String {
+    let cores = workers + 1;
+    if workers == 0 {
         t("settings.workers.now_off")
-    } else if stats.parallel {
-        tf("settings.workers.now", &[("n", &stats.workers)])
+    } else if parallel {
+        tf("settings.workers.now", &[("n", &cores), ("more", &workers)])
     } else {
-        tf("settings.workers.now_quiet", &[("n", &stats.workers)])
+        tf("settings.workers.now_quiet", &[("n", &cores)])
     }
 }

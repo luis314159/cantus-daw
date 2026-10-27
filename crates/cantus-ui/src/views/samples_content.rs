@@ -690,7 +690,7 @@ fn details(app: &mut CantusApp, ui: &mut Ui, s: &Style, pack: &Pack, lang: &str)
 
 #[cfg(test)]
 mod space_tests {
-    use crate::i18n::{set_locale, t, Locale};
+    use crate::i18n::{set_thread_locale, t, Locale};
 
     /// Sound review 2: the details' labels fit their column in both languages, and a pack
     /// refused for want of space says so in the interface's language, in sizes.
@@ -700,7 +700,7 @@ mod space_tests {
         crate::design::install_fonts(&ctx);
         let s = crate::kit::Style::current();
         for locale in [Locale::En, Locale::Es] {
-            set_locale(locale);
+            set_thread_locale(locale);
             ctx.run_ui(egui::RawInput::default(), |_| {})
                 .textures_delta
                 .clear();
@@ -730,6 +730,6 @@ mod space_tests {
                 assert!(said.contains("necesita"), "{said}");
             }
         }
-        set_locale(Locale::En);
+        set_thread_locale(Locale::En);
     }
 }

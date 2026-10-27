@@ -295,6 +295,7 @@ fn ev(tick: i64, on: bool, note: u64) -> NoteEvent {
         velocity: if on { 100 } else { 0 },
         note: NoteId(note),
         ordinal: 0,
+        release: 0,
     }
 }
 

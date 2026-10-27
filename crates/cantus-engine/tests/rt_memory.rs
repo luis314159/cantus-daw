@@ -1334,3 +1334,236 @@ fn warped_playback_never_allocates() {
         );
     }
 }
+
+/// A note clip's controller lanes and its notes' release velocities (ADR 0068) on the audio
+/// thread: bend, the mod wheel and pressure fired at their samples through a loop's wraps
+/// (each wrap chases), a new snapshot mid-play, a seek (rest, then chase) and a stop (rest).
+/// Not one allocation.
+#[test]
+fn controller_lanes_never_allocate() {
+    use cantus_core::clip_lanes::{ClipLane, LaneKind};
+    let mut p = demo_project();
+    p.tempo_bpm = 140.0;
+    let ramp = |a: f32, b: f32| {
+        vec![
+            AutoPoint::new(Ticks::ZERO, a),
+            AutoPoint::new(Ticks::beats(2), b),
+        ]
+    };
+    for t in &mut p.tracks {
+        for c in t
+            .clips
+            .iter_mut()
+            .filter(|c| c.audio.is_none() && c.automation.is_none())
+        {
+            c.lanes = vec![
+                ClipLane::new(LaneKind::PitchBend, ramp(0.5, 0.9)),
+                ClipLane::new(LaneKind::Cc(1), ramp(0.0, 1.0)),
+                ClipLane::new(LaneKind::Pressure, ramp(0.3, 0.6)),
+            ];
+            for (i, n) in c.notes.iter_mut().enumerate() {
+                n.release = 1 + ((i * 37) % 127) as u8;
+            }
+        }
+    }
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::beats(1),
+        end: Ticks::beats(3),
+    });
+    p.loop_enabled = true;
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("lanes start and wraps", 60);
+    p.tracks[0].clips[0].lanes[0].points[1].value = 0.1;
+    rig.snapshot(&p);
+    rig.play("lanes new snapshot", 20);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(2))).unwrap();
+    rig.play("lanes seek", 10);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("lanes stop", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "the audio thread allocated or freed: {:?} (the first of the last phase: {} B)",
+        rig.allocations,
+        FIRST.with(|f| f.get())
+    );
+}
+
+/// Round 31 (ADR 0069): note effects on the audio thread — a chain installed and changed
+/// (parameters in place, a stage added: the shape changes and it starts afresh), clip chords
+/// into an arpeggio with a scale after it while playing, a loop's wraps, a seek, live keys
+/// through it while stopped (the arpeggio on the sample clock), its parameter automated
+/// and modulated. Not one allocation while processing.
+#[test]
+fn note_effects_never_allocate() {
+    use cantus_core::automation::AutoPoint;
+    use cantus_core::notefx::{ArpMode, NoteEffect, NoteFxId, NoteFxKind, NoteFxType};
+    let mut p = Project::new("notefx");
+    p.key = Some(Key::new(2, ScaleKind::Minor));
+    let mut tr = p.make_track("Lead");
+    let track = tr.id;
+    let mut c = p.make_clip("chords", Ticks::ZERO, Ticks::beats(8));
+    for (i, pitch) in [62u8, 65, 69, 67, 70, 74].into_iter().enumerate() {
+        let start = Ticks::beats(4 * (i as i64 / 3));
+        c.notes.push(p.make_note(start, Ticks::beats(4), pitch, 90));
+    }
+    tr.clips.push(c);
+    let chord = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Chord);
+    let arp = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Arp);
+    let arp_id = arp.id;
+    tr.note_fx = vec![chord, arp];
+    p.tracks.push(tr);
+    let gate = AutoTarget::NoteFx {
+        track,
+        effect: arp_id,
+        key: "gate".into(),
+    };
+    let ride = p.make_automation_clip(
+        "gate",
+        gate.clone(),
+        Ticks::ZERO,
+        Ticks::beats(8),
+        vec![
+            AutoPoint::new(Ticks::ZERO, 0.1),
+            AutoPoint::new(Ticks::beats(8), 0.9),
+        ],
+    );
+    p.tracks[0].clips.push(ride);
+    let mut lfo = Modulator::new(ModulatorId(p.alloc_id()), ModKind::Lfo);
+    lfo.routes = vec![ModRoute {
+        target: AutoTarget::NoteFx {
+            track,
+            effect: arp_id,
+            key: "octaves".into(),
+        },
+        depth: 0.5,
+    }];
+    p.tracks[0].modulators.push(lfo);
+    p.loop_region = Some(LoopRegion {
+        start: Ticks::ZERO,
+        end: Ticks::beats(2),
+    });
+    p.loop_enabled = true;
+    let mut rig = Rig::new();
+    rig.snapshot(&p);
+    rig.tx.push(EngineMessage::Play).unwrap();
+    rig.play("warm", 4);
+    rig.allocations.clear();
+    rig.play("an arpeggio of chords, looping", 60);
+    // A parameter changed (in place), then a stage added (afresh).
+    if let NoteFxKind::Arp(a) = &mut p.tracks[0].note_fx[1].kind {
+        a.mode = ArpMode::Random;
+    }
+    rig.snapshot(&p);
+    rig.play("a parameter changed", 8);
+    let scale = NoteEffect::new(NoteFxId(p.alloc_id()), NoteFxType::Scale);
+    p.tracks[0].note_fx.push(scale);
+    rig.snapshot(&p);
+    rig.play("a stage added", 8);
+    rig.tx.push(EngineMessage::Seek(Ticks::beats(1))).unwrap();
+    rig.play("a seek", 8);
+    rig.tx.push(EngineMessage::Stop).unwrap();
+    rig.play("stopped", 2);
+    for i in 0..12u8 {
+        rig.tx
+            .push(EngineMessage::NoteOn {
+                track,
+                pitch: 50 + i,
+                velocity: 100,
+            })
+            .unwrap();
+        rig.play("live keys while stopped", 3);
+        rig.tx
+            .push(EngineMessage::NoteOff {
+                track,
+                pitch: 50 + i,
+            })
+            .unwrap();
+    }
+    rig.play("stopped, after", 4);
+    assert!(
+        rig.allocations.iter().all(|(_, n)| *n == 0),
+        "note effects allocated: {:?}",
+        rig.allocations
+    );
+}
+
+/// Round 31 (ADR 0070): overlap crossfades and clip gain envelopes on the audio thread —
+/// two clips crossing over an overlap (one reversed), both with a gain line of several
+/// shapes, played through, sought into the overlap and looped across it. Not one
+/// allocation, not one free.
+#[test]
+fn crossfades_and_clip_envelopes_never_allocate() {
+    use cantus_core::clip_gain::{GainEnvelope, GainPoint};
+    let mut p = demo_project();
+    let source = AudioSourceId(p.alloc_id());
+    p.audio_pool.push(AudioSource {
+        id: source,
+        name: "take".into(),
+        path: "C:/nowhere/take.wav".into(),
+        sample_rate: 48_000,
+        channels: 1,
+        frames: 48_000 * 16,
+        sha256: None,
+        recorded: false,
+    });
+    let mut t = p.make_track("Take");
+    for (k, reverse) in [(0i64, false), (1, true)] {
+        let mut c = p.make_audio_clip("take", source, Ticks::beats(6 * k), Ticks::beats(8));
+        let a = c.audio.as_mut().unwrap();
+        a.reverse = reverse;
+        a.cross = Some(cantus_core::crossfade::XfadeCurve::SCurve);
+        let mut pts: Vec<GainPoint> = (0..32)
+            .map(|i| GainPoint::new(Ticks::beats(i) / 4, if i % 2 == 0 { -6.0 } else { 3.0 }))
+            .collect();
+        pts[3].shape = Shape::SCurve;
+        pts[5].shape = Shape::Hold;
+        pts[7].tension = 0.6;
+        a.gain_env = Some(Box::new(GainEnvelope::new(pts)));
+        t.clips.push(c);
+    }
+    p.tracks.push(t);
+    let frames: Vec<f32> = (0..48_000 * 16)
+        .map(|i| 0.3 * math::sin(i as f32 * 0.03))
+        .collect();
+    let data = Arc::new(SampleData {
+        stream: None,
+        rate: 48_000,
+        channels: 1,
+        frames: frames.into(),
+    });
+    let snap = |looped: bool| {
+        let mut s = Snapshot::compile(&p, 1);
+        for c in s.tracks.last_mut().unwrap().audio.iter_mut() {
+            c.data = Some(data.clone());
+        }
+        if looped {
+            s.loop_region = Some(LoopRegion {
+                start: Ticks::beats(5),
+                end: Ticks::beats(9),
+            });
+        }
+        Arc::new(s)
+    };
+    for (name, workers) in [("serial", None), ("pool", Some(Workers::parallel(3)))] {
+        let mut rig = Rig::with(workers);
+        rig.send(snap(false));
+        rig.tx.push(EngineMessage::Play).unwrap();
+        rig.play("warm", 4);
+        rig.allocations.clear();
+        rig.play("through", 300);
+        rig.tx.push(EngineMessage::Seek(Ticks::beats(7))).unwrap();
+        rig.play("seek into the overlap", 100);
+        rig.send(snap(true));
+        rig.play("loop across it", 300);
+        rig.tx.push(EngineMessage::Stop).unwrap();
+        rig.play("stop", 10);
+        assert!(
+            rig.allocations.iter().all(|(_, n)| *n == 0),
+            "crossfades or envelopes allocated or freed ({name}): {:?} (the first: {} B)",
+            rig.allocations,
+            FIRST.with(|f| f.get())
+        );
+    }
+}

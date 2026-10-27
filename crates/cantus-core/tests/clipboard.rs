@@ -86,7 +86,7 @@ fn copied_notes_start_at_zero_and_keep_pitch_velocity_length_mute() {
     let (bus, t, ca, _) = fixture();
     let c = clip(&bus, t[0], ca);
     let sel: Vec<Note> = c.notes[1..].to_vec();
-    let Payload::Notes { notes } = clipboard::copy_notes(&sel, Ticks::beats(2)) else {
+    let Payload::Notes { notes, .. } = clipboard::copy_notes(&sel, Ticks::beats(2)) else {
         panic!("notes copy as notes");
     };
     assert_eq!(notes.len(), 3);
@@ -102,7 +102,13 @@ fn copied_notes_start_at_zero_and_keep_pitch_velocity_length_mute() {
             (b.pitch, b.velocity, b.length, b.muted)
         );
     }
-    let b = board(&bus, Payload::Notes { notes });
+    let b = board(
+        &bus,
+        Payload::Notes {
+            notes,
+            lanes: Vec::new(),
+        },
+    );
     assert_eq!(b.format, clipboard::FORMAT);
     assert_eq!(b.ppq, PPQ);
     assert_eq!(b.len(), 3);
@@ -113,7 +119,7 @@ fn pasted_notes_land_at_the_anchor_with_fresh_ids_and_undo_in_one_step() {
     let (mut bus, t, ca, _) = fixture();
     let before = normalised(bus.project());
     let c = clip(&bus, t[0], ca);
-    let Payload::Notes { notes } = clipboard::copy_notes(&c.notes[..2], Ticks::beats(1)) else {
+    let Payload::Notes { notes, .. } = clipboard::copy_notes(&c.notes[..2], Ticks::beats(1)) else {
         unreachable!()
     };
     let mut ids = Counter::of(&bus);
@@ -152,7 +158,7 @@ fn pasting_past_the_clip_end_grows_the_window_and_undo_shrinks_it() {
     let (mut bus, t, ca, _) = fixture();
     let before = normalised(bus.project());
     let c = clip(&bus, t[0], ca);
-    let Payload::Notes { notes } = clipboard::copy_notes(&c.notes, Ticks::beats(1)) else {
+    let Payload::Notes { notes, .. } = clipboard::copy_notes(&c.notes, Ticks::beats(1)) else {
         unreachable!()
     };
     let mut ids = Counter::of(&bus);
@@ -659,7 +665,7 @@ fn cut_clips_then_undo_restores_the_project_exactly() {
 fn notes_pasted_into_the_arrangement_make_a_clip_of_whole_bars() {
     let (bus, t, ca, _) = fixture();
     let c = clip(&bus, t[0], ca);
-    let Payload::Notes { notes } = clipboard::copy_notes(&c.notes, Ticks::ZERO) else {
+    let Payload::Notes { notes, .. } = clipboard::copy_notes(&c.notes, Ticks::ZERO) else {
         unreachable!()
     };
     let bar = bus.project().time_signature.ticks_per_bar();

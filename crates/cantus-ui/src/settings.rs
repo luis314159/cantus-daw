@@ -176,7 +176,29 @@ pub struct Settings {
     /// Look for new or changed plug-in files in the background at start (round 30: Reaper
     /// and Bitwig do). On by default; each file is still read in its own process.
     pub plugin_scan_at_start: bool,
+    /// Automatic crossfades (round 31, ADR 0070): an edit that makes two audio clips
+    /// overlap crosses the overlap, in the same undo step. On by default, as in Reaper and
+    /// Studio One.
+    pub auto_crossfade: bool,
+    /// The curve an automatic crossfade takes.
+    pub crossfade_curve: cantus_core::crossfade::XfadeCurve,
+    /// Insert effects at their neutral settings (round 31, ADR 0071): off by default — an
+    /// insert loads its unit's starting preset, so it is heard at once.
+    pub insert_neutral: bool,
+    /// The audio clips' gain envelopes drawn and editable in the arrangement (ADR 0070).
+    pub show_clip_gain: bool,
+    /// How long a released control takes in **Touch** to glide back to the curve already
+    /// there, ms (round 31, ADR 0068; Pro Tools' *AutoMatch* time). [`DEFAULT_TOUCH_GLIDE_MS`].
+    pub touch_glide_ms: f32,
+    /// The start page (templates, recent projects) opens when Cantus starts without a
+    /// project to open (round 31, the owner's decision 2026-10-26, ADR 0072). On by default.
+    pub start_page_at_start: bool,
 }
+
+/// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
+/// range.
+pub const DEFAULT_TOUCH_GLIDE_MS: f32 = 250.0;
+pub const MAX_TOUCH_GLIDE_MS: f32 = 5_000.0;
 
 /// Low-latency monitoring's limit on a new installation, ms: just above Tonus's 2.7 ms (the
 /// voice's own tuner stays), well below any linear-phase or look-ahead mastering unit —
@@ -273,11 +295,33 @@ impl Default for Settings {
             controller_takeover: cantus_core::controller::Takeover::Pickup,
             count_in_on_play: false,
             plugin_scan_at_start: true,
+            auto_crossfade: true,
+            crossfade_curve: cantus_core::crossfade::XfadeCurve::EqualPower,
+            insert_neutral: false,
+            show_clip_gain: false,
+            touch_glide_ms: DEFAULT_TOUCH_GLIDE_MS,
+            start_page_at_start: true,
         }
     }
 }
 
 impl Settings {
+    /// The curve automatic crossfades take, or `None` when they are off (ADR 0070): what
+    /// the command bus is told.
+    pub fn auto_crossfades(&self) -> Option<cantus_core::crossfade::XfadeCurve> {
+        self.auto_crossfade.then_some(self.crossfade_curve)
+    }
+
+    /// The touch glide in seconds, clamped (ADR 0068).
+    pub fn touch_glide_seconds(&self) -> f64 {
+        let ms = if self.touch_glide_ms.is_finite() {
+            self.touch_glide_ms.clamp(0.0, MAX_TOUCH_GLIDE_MS)
+        } else {
+            DEFAULT_TOUCH_GLIDE_MS
+        };
+        f64::from(ms) / 1000.0
+    }
+
     /// Low-latency monitoring's limit in samples at `rate`, when it is on (ADR 0064 §4).
     pub fn low_latency_samples(&self, rate: f64) -> Option<u32> {
         if !self.low_latency {

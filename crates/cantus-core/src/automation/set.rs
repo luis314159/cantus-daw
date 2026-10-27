@@ -103,6 +103,17 @@ impl AutoTarget {
                     value: Some(value),
                 }
             }
+            AutoTarget::NoteFx { track, effect, key } => {
+                crate::notefx::find(project, *track, *effect)?
+                    .kind
+                    .param(key)?;
+                Command::SetNoteFxParam {
+                    track: *track,
+                    effect: *effect,
+                    key: key.clone(),
+                    value: v,
+                }
+            }
             AutoTarget::ModAmount(id) => {
                 project.modulator(*id)?;
                 Command::SetModulatorAmount { id: *id, amount: v }

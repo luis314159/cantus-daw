@@ -63,7 +63,12 @@ fn a_clean_exit_leaves_nothing_and_unsaved_work_is_offered_back() {
     assert!(item.project_path.is_none());
     let lines = cantus_ui::views::recovery::lines(item, u64::MAX / 2);
     assert!(lines[0].contains("Unsaved idea"), "{lines:?}");
+    // Round 31 (ADR 0072): the start page waits behind the offer, and the work restored
+    // is what opens — no start page over it.
+    b.workflow.start.open_at_launch();
+    assert!(cantus_ui::workflow::start_page_waits(&b));
     assert!(b.restore_recovery(0));
+    assert!(!b.workflow.start.is_open(), "restored: no start page");
     assert_eq!(b.project().name, "Unsaved idea");
     assert!(b.bus.is_dirty());
     assert!(b.recovery.is_none());
@@ -181,10 +186,10 @@ fn open_refuses_a_bad_file_and_leaves_everything_as_it_was() {
     );
 
     // And in Spanish.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     a.open(&dir.path().join("newer.cantus"));
     assert!(a.status.text.contains("más nuevo"), "{}", a.status.text);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]

@@ -78,6 +78,14 @@ pub const JOBS_DONE: usize = 2056;
 /// was not even taken by its deadline (0: not stalled). Any job finishing ends it.
 pub const STALLED: usize = 2060;
 
+/// Where the helper's main thread counts its progress — once round its loop, and at each
+/// pulse inside a plug-in's own loop (a dialog) — for Cantus to judge its life by, read at
+/// each judgement (round 31). Its heartbeat says the same through the pipe, but a heartbeat
+/// is a timer, and a timer fires late on a virtual machine or in a throttled background
+/// process: a live helper was taken for hung when one came past the silence limit (GitHub's
+/// macOS runner).
+pub const PROGRESS_AT: usize = 2064;
+
 /// The time limits of a pool's helpers (tests shorten them).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Limits {
@@ -149,6 +157,11 @@ impl LobbyMem {
     /// The instance the helper's main thread is calling into now, 0 for none ([`MAIN_AT`]).
     pub fn main_at(&self) -> u32 {
         self.word(MAIN_AT)
+    }
+
+    /// The helper's main thread's progress count ([`PROGRESS_AT`]).
+    pub fn progress(&self) -> u32 {
+        self.word(PROGRESS_AT)
     }
 
     /// The instance the helper crashed in, if its crash handler said ([`CRASH_AT`]).
@@ -225,7 +238,9 @@ pub struct Inbox {
 pub(crate) struct InboxData {
     pub values: HashMap<u32, f64>,
     /// Values changed since the state was last remembered.
-    pub values_moved: bool,
+    /// Values moved since the main half last looked: the first request whose answer was
+    /// given after they moved — a state asked for by it or later holds them (round 31).
+    pub values_moved: Option<u64>,
     pub notices: Vec<WireNotice>,
     pub flushed: Vec<WireEvent>,
     pub latency: Option<usize>,
@@ -252,18 +267,22 @@ impl Inbox {
         lock(&self.inner)
     }
 
-    fn absorb(&self, after: After) {
+    /// A call's news after it: `held_by` is the first request a state that holds them may
+    /// be the answer to (one after the call).
+    fn absorb(&self, after: After, held_by: u64) {
         let mut d = self.data();
         d.notices.extend(after.notices);
         d.latency = Some(after.latency);
-        Self::take_values(&mut d, after.values);
+        Self::take_values(&mut d, after.values, held_by);
     }
 
-    fn take_values(d: &mut InboxData, values: Vec<(u32, f64)>) {
+    /// Values the helper reports; those that moved are held by the state answered to
+    /// request `held_by` or a later one.
+    fn take_values(d: &mut InboxData, values: Vec<(u32, f64)>, held_by: u64) {
         for (id, v) in values {
             let old = d.values.insert(id, v);
             if old.map(f64::to_bits) != Some(v.to_bits()) {
-                d.values_moved = true;
+                d.values_moved = Some(d.values_moved.map_or(held_by, |h| h.max(held_by)));
             }
         }
     }
@@ -281,6 +300,8 @@ pub(crate) enum Purpose {
     Text(u32, u64),
     Editor,
     Restart,
+    /// A dialog brought forward: answered by the helper's reader thread, out of turn.
+    Surface,
     /// An instance's unload: its record goes once it is answered.
     Unload(u32),
     /// Nothing to keep (a close, a focus, a dropped audio half, a quit, a surface).
@@ -451,6 +472,12 @@ pub struct Sandbox {
     to_child: Mutex<Option<mpsc::Sender<Vec<u8>>>>,
     instances: Mutex<HashMap<u32, Registered>>,
     next_id: AtomicU64,
+    /// The newest request its main thread answered (a surface, answered by its reader
+    /// thread out of turn, aside): the main thread serves one request at a time, in order,
+    /// and says news only between them — so news that arrive now were seen before any
+    /// request after this one was started (round 31: a value's echo, reported after a state
+    /// was asked for but seen before it was saved, no longer leaves that state stale).
+    served: AtomicU64,
     next_instance: AtomicU32,
     dead: AtomicBool,
     /// Milliseconds since `started` when it was marked gone.
@@ -458,8 +485,11 @@ pub struct Sandbox {
     why: Mutex<Option<String>>,
     kill: Arc<AtomicBool>,
     started: Instant,
-    /// Milliseconds since `started` of the last heartbeat.
+    /// Milliseconds since `started` of the last heartbeat, or of the last look that saw its
+    /// main thread's progress count move.
     alive_ms: AtomicU64,
+    /// Its main thread's progress count at the last look ([`PROGRESS_AT`]).
+    progress_seen: AtomicU32,
     /// Whether any frame came from it yet: until then it is judged by its handshake's own
     /// limit, not by the silence limit (review isolation-4 #50).
     heard: AtomicBool,
@@ -555,6 +585,7 @@ impl Sandbox {
             to_child: Mutex::new(Some(tx)),
             instances: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
+            served: AtomicU64::new(0),
             next_instance: AtomicU32::new(1),
             dead: AtomicBool::new(false),
             dead_ms: AtomicU64::new(0),
@@ -562,6 +593,7 @@ impl Sandbox {
             kill: Arc::new(AtomicBool::new(false)),
             started: Instant::now(),
             alive_ms: AtomicU64::new(0),
+            progress_seen: AtomicU32::new(0),
             heard: AtomicBool::new(false),
             greeted: AtomicBool::new(false),
             inflight: Mutex::new(HashMap::new()),
@@ -753,9 +785,14 @@ impl Sandbox {
         lock(&self.user_stop).clone()
     }
 
-    /// How long since its main thread last showed life (its heartbeat).
+    /// How long since its main thread last showed life: its progress count moved since the
+    /// last look, or a frame came (its heartbeat, an answer).
     pub fn silent_for(&self) -> Duration {
         let now = self.started.elapsed().as_millis() as u64;
+        let progress = self.lobby.progress();
+        if self.progress_seen.swap(progress, Ordering::AcqRel) != progress {
+            self.alive_ms.store(now.max(1), Ordering::Release);
+        }
         let last = self.alive_ms.load(Ordering::Acquire);
         Duration::from_millis(now.saturating_sub(last))
     }
@@ -923,17 +960,22 @@ impl Sandbox {
                 flushed,
             } => {
                 if let Some(inbox) = self.inbox(instance) {
+                    let held_by = self.served.load(Ordering::Acquire) + 1;
                     let mut d = inbox.data();
                     d.notices.extend(notices);
                     d.flushed.extend(flushed);
-                    Inbox::take_values(&mut d, values);
+                    Inbox::take_values(&mut d, values, held_by);
                 }
             }
             Message::Reply { id, result, after } => {
                 let flight = lock(&self.inflight).remove(&id);
+                if flight.is_none_or(|f| f.purpose != Purpose::Surface) {
+                    self.served.fetch_max(id, Ordering::AcqRel);
+                }
                 if let Some((instance, after)) = after.map(|b| *b) {
                     if let Some(inbox) = self.inbox(instance) {
-                        inbox.absorb(after);
+                        // Seen after the call: held only by a later request's state.
+                        inbox.absorb(after, self.served.load(Ordering::Acquire) + 1);
                     }
                 }
                 if let Some(f) = flight {
@@ -1133,7 +1175,7 @@ impl Sandbox {
     /// Brings the helper's waiting window (a plug-in's dialog) to the front: served by its
     /// reader thread at once (review isolation-4 #54; isolation-5).
     pub(crate) fn surface(&self) {
-        self.post(None, Call::Surface, &[], Purpose::Ignore);
+        self.post(None, Call::Surface, &[], Purpose::Surface);
     }
 
     /// The id the next request will have: answers to requests before it are older.

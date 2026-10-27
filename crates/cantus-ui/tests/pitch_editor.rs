@@ -98,7 +98,7 @@ struct Rig {
 impl Rig {
     fn new() -> Rig {
         data_dir();
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("take.wav");
         let x = voice();
@@ -390,15 +390,15 @@ fn every_pitch_string_is_in_both_languages() {
         "pitch.macro.apply_pitch",
     ] {
         for l in cantus_ui::i18n::Locale::ALL {
-            cantus_ui::i18n::set_locale(l);
+            cantus_ui::i18n::set_thread_locale(l);
             assert_ne!(cantus_ui::i18n::t(key), key, "{l:?} {key}");
         }
     }
     for op in PitchOp::ALL {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
         assert_ne!(cantus_ui::i18n::t(op.label_key()), op.label_key());
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let _ = pos2(0.0, 0.0);
 }
 
@@ -717,18 +717,18 @@ fn glue_keeps_pitch_edits_or_refuses() {
 #[test]
 fn the_key_reads_as_the_notes_do() {
     use cantus_core::pitch::PitchKey;
-    use cantus_ui::i18n::{set_locale, Locale};
+    use cantus_ui::i18n::{set_thread_locale, Locale};
     let a_minor = PitchKey { tonic: 9, scale: 2 };
     let g_dorian = PitchKey { tonic: 7, scale: 5 };
-    set_locale(Locale::Es);
+    set_thread_locale(Locale::Es);
     assert_eq!(cantus_ui::views::pitch::key_words(a_minor), "A menor");
     assert_eq!(cantus_ui::views::pitch::key_words(g_dorian), "G dórico");
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     assert_eq!(cantus_ui::views::pitch::key_words(a_minor), "A minor");
     assert_eq!(cantus_ui::i18n::t("pitch.macro.pitch"), "Pitch");
-    set_locale(Locale::Es);
+    set_thread_locale(Locale::Es);
     assert_eq!(cantus_ui::i18n::t("pitch.macro.pitch"), "Afinación");
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 /// The note panel never spills into the macros, at any width: narrower than its cards, it
@@ -757,9 +757,9 @@ fn the_note_panel_fits_its_width() {
 /// menu offers them: nothing on the bar is out of reach.
 #[test]
 fn a_narrow_bar_folds_into_its_more_menu() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut r = Rig::new();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     r.size = vec2(900.0, 900.0);
     r.idle(3);
     r.open();
@@ -785,7 +785,7 @@ fn a_narrow_bar_folds_into_its_more_menu() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut wide = Rig::new();
     wide.open();
     assert_eq!(
@@ -1220,9 +1220,9 @@ fn a_deleted_quantise_target_falls_back_to_the_grid() {
 /// quantise field could vanish).
 #[test]
 fn the_pitch_bar_keeps_its_more_key_at_every_width() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut r = Rig::new();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     r.app.workspace.hide(Pane::Inspector);
     r.open();
     let mut w = 380.0;
@@ -1256,7 +1256,7 @@ fn the_pitch_bar_keeps_its_more_key_at_every_width() {
         core_folded,
         "the narrowest widths fold the snap, the key or Original"
     );
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// At a very narrow bar Original, the key and the snap fold into ⋯ too, and ⋯ offers the

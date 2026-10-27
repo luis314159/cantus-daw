@@ -47,7 +47,7 @@ fn takes(p: &mut Project, name: &str) -> (TrackId, AudioSourceId, AudioSourceId)
 }
 
 fn app(p: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(p), EngineHandle::dummy(), false)
 }
 

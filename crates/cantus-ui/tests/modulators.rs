@@ -11,7 +11,7 @@ use cantus_ui::views::modulator::host_for;
 use cantus_ui::{starter_project, CantusApp};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
@@ -182,8 +182,9 @@ fn knobs_moved_while_a_pass_records_become_automation_clips() {
     };
     assert!((at(1) - 0.25).abs() < 1e-3, "{}", at(1));
     assert!((at(3) - 0.9).abs() < 1e-3, "{}", at(3));
-    // The pan moves, the take (none: nothing armed), the recorded automation: one more.
-    assert_eq!(a.bus.history().len(), steps + 4);
+    // The pan moves folded into the recorded automation (ADR 0068): one step, and undo
+    // takes the clip and the moves back together.
+    assert_eq!(a.bus.history().len(), steps + 1);
     // Off in the record options: nothing is written.
     let mut rs = a.project().recording.clone();
     rs.record_automation = false;
@@ -353,7 +354,7 @@ fn the_modulators_section_draws_every_kind() {
         (text, amounts / 2)
     };
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         a.select_track(t);
         let (text, amounts) = draw(&mut a);
         for n in ["Mod 1", "Mod 2", "Mod 3", "Mod 4"] {
@@ -376,7 +377,7 @@ fn the_modulators_section_draws_every_kind() {
         );
         assert_eq!(amounts, 1);
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Nesting from the interface (ADR 0057, review 1; review 2: a real drop): another

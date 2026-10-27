@@ -9,7 +9,7 @@ use cantus_ui::record_pass::PassPlan;
 use cantus_ui::{starter_project, views, CantusApp};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
@@ -358,6 +358,7 @@ fn an_armed_instrument_track_records_a_take_on_its_own_lane() {
         tick: Ticks(tick),
         pitch,
         velocity: vel,
+        release: 0,
     };
     a.ingest_note_inputs(vec![ev(960, 60, 100), ev(1440, 60, 0)]);
     let steps = a.bus.history().len();
@@ -416,7 +417,7 @@ fn a_finished_pass_is_one_undo_step_and_reports_dropped_frames() {
 /// on the spot.
 #[test]
 fn a_pass_is_not_closed_by_a_play_the_engine_has_not_taken_yet() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let (h, mut proc) = EngineHandle::manual(48_000.0);
     let mut a = CantusApp::from_parts(Some(starter_project()), h, false);
     let keys = a.project().tracks[0].id;

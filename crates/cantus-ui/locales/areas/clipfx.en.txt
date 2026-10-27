@@ -1,0 +1,55 @@
+# Area: crossfades between overlapping clips, clip gain envelopes, effects that sound on insert (round 31, editing; ADRs 0070, 0071). Every key here needs its twin in clipfx.es.txt.
+
+# The commands, as the undo menu names them.
+cmd.clipfx.crossfade = Set crossfade
+cmd.clipfx.xfade_length = Set crossfade length
+cmd.clipfx.reset_env = Reset gain envelope
+
+# Crossfades between overlapping clips (ADR 0070).
+clipfx.xfade = Crossfade
+clipfx.summed = No crossfade (summed)
+clipfx.curve = Curve
+clipfx.curve.equal_power = Equal power
+clipfx.curve.linear = Linear
+clipfx.curve.s_curve = S-curve
+clipfx.length = Length
+clipfx.menu.editor = Crossfade editor…
+clipfx.menu.crossfade = Crossfade the overlap
+clipfx.menu.auto_crossfade = Automatic crossfades
+clipfx.bounce_overlap = {name}'s chosen clips cross-fade with a clip they leave out: choose both, a time range, or the whole track.
+
+# Clip gain envelopes (ADR 0070).
+clipfx.env = Gain envelope
+clipfx.env_point = Envelope point
+clipfx.env_bend = Envelope bend
+clipfx.env_line = Gain envelope: drag to add a point
+clipfx.menu.show_gain = Show clip gain envelopes
+clipfx.menu.reset_env = Reset gain envelope
+clipfx.menu.delete_point = Delete point
+
+# Settings ▸ Editing (ADRs 0070, 0071).
+clipfx.settings.page_item = Editing settings…
+clipfx.settings.page = Editing
+clipfx.settings.crossfades = Crossfades
+clipfx.settings.auto = Automatic
+clipfx.settings.on = On
+clipfx.settings.off = Off
+clipfx.settings.auto_note = When an edit makes two audio clips overlap, the overlap crossfades on this curve. Equal power keeps two different recordings level across it; linear and S-curve suit two takes of the same thing.
+clipfx.settings.inserts = Effects
+clipfx.settings.insert = On insert
+clipfx.settings.starting = Starting preset
+clipfx.settings.neutral = Neutral settings
+clipfx.settings.insert_note = A new effect loads a musical starting preset so it is heard at once (a chorus as Juno I, a flanger as Jet plane). Neutral settings insert it doing nothing until you turn it up. EQs, limiters and analysers always start neutral.
+
+# DAWproject (what its format has no word for, said).
+clipfx.report.xfade_curve = The crossfade curves of {clip} (they come back linear)
+clipfx.report.env_shape = The curved segments of {clip}'s gain envelope (they come back straight)
+
+# The crossfade editor's segments (short).
+clipfx.seg.summed = Summed
+clipfx.seg.equal_power = Equal power
+clipfx.seg.linear = Linear
+clipfx.seg.s_curve = S-curve
+
+# Opening a damaged file.
+clipfx.status.envs_repaired = {n} clip gain envelope(s) had points out of range or order and were repaired

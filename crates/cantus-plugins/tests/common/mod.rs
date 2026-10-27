@@ -689,8 +689,10 @@ pub fn kinds() -> Vec<EffectKind> {
 }
 
 /// The spec a DAW slot would hold for these settings.
+/// What a fresh plug-in holds once `values` are set: its kind's starting preset (round 31,
+/// ADR 0071 — a fresh instance starts there) with `values` over it.
 pub fn spec_with(kind: EffectKind, values: &[(&str, f32)]) -> EffectSpec {
-    let mut spec = EffectSpec::new(kind);
+    let mut spec = cantus_core::starting::starting_spec(kind);
     for (k, v) in values {
         spec.set(k, *v)
             .unwrap_or_else(|| panic!("{kind:?} has {k}"));

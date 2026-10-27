@@ -57,6 +57,9 @@ pub enum Pane {
     /// The controller mappings (round 29, ADR 0062, `views::controllers`): every MIDI
     /// mapping, global and the project's, in the lower zone beside the mixer; Ctrl+Shift+K.
     Controllers,
+    /// The undo history (round 31, ADR 0072, `views::history`): every step, the current one
+    /// marked, a click goes there; beside the inspector; Alt+H.
+    History,
     /// A device editor, by the key its window registered under. Never saved: devices
     /// are opened by the project, not by the layout.
     Device(DeviceKey),
@@ -85,6 +88,7 @@ impl Pane {
             Pane::Clips => "links.browser.title",
             Pane::Routing => "matrix.pane",
             Pane::Controllers => "ctl.pane",
+            Pane::History => "workflow.history.pane",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -102,6 +106,7 @@ impl Pane {
             Pane::Clips => "links.browser.toggle",
             Pane::Routing => "matrix.toggle",
             Pane::Controllers => "ctl.toggle",
+            Pane::History => "action.view-history",
             Pane::Device(_) => "workspace.pane.device",
         }
     }
@@ -118,6 +123,7 @@ impl Pane {
             Pane::Clips => Glyph::Link,
             Pane::Routing => Glyph::Send,
             Pane::Controllers => Glyph::Controller,
+            Pane::History => Glyph::Undo,
             Pane::Device(_) => Glyph::Device,
         }
     }
@@ -373,6 +379,13 @@ impl Workspace {
             Pane::Inspector => {
                 s.split_right(NodeIndex::root(), inspector_share, vec![Pane::Inspector]);
             }
+            // A tab beside the inspector (round 31), else at the right as the inspector is.
+            Pane::History => match inspector {
+                Some(node) => append(s, node, Pane::History),
+                None => {
+                    s.split_right(NodeIndex::root(), inspector_share, vec![Pane::History]);
+                }
+            },
             // At the left edge, a browser's width (FL's, Ableton's).
             Pane::Devices => {
                 // `split_left` gives the new (left) node `fraction` of the width.

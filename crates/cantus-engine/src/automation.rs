@@ -63,6 +63,13 @@ pub(crate) enum Dest {
     HostedInst(usize, u32),
     /// A modulator's amount: index into [`Runtime::mods`].
     ModAmount(usize),
+    /// A note effect's parameter (ADR 0069): the snapshot track index, the stage in its
+    /// chain and the parameter's index in its kind's table.
+    NoteFx {
+        track: usize,
+        stage: usize,
+        param: usize,
+    },
     /// A target the snapshot does not hold.
     Nothing,
 }
@@ -319,6 +326,23 @@ impl Runtime {
             AutoTarget::PluginInstrument { track: t, id } => track(*t)
                 .filter(|ti| snapshot.tracks[*ti].instrument.external().is_some())
                 .map(|ti| Dest::HostedInst(ti, *id)),
+            AutoTarget::NoteFx {
+                track: t,
+                effect,
+                key,
+            } => {
+                let ti = track(*t)?;
+                let stage = snapshot.tracks[ti]
+                    .note_fx
+                    .iter()
+                    .position(|e| e.id == *effect)?;
+                let param = snapshot.tracks[ti].note_fx[stage].kind.param_index(key)?;
+                Some(Dest::NoteFx {
+                    track: ti,
+                    stage,
+                    param,
+                })
+            }
             AutoTarget::ModAmount(m) => snapshot
                 .modulators
                 .iter()

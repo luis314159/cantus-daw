@@ -63,6 +63,12 @@ pub struct Note {
     /// Muted notes stay in the clip but are not played (FL-style mute tool).
     #[serde(default)]
     pub muted: bool,
+    /// The **release velocity** (schema 42, ADR 0068): how fast the key came up, 1…127,
+    /// sent with the note-off to native instruments, CLAP and VST3. 0 — every note before
+    /// schema 42, and every note drawn without one — is *none given*: the note-off carries
+    /// 0, exactly what it carried before.
+    #[serde(default, skip_serializing_if = "is_zero_u8")]
+    pub release: Velocity,
 }
 
 impl Note {
@@ -153,6 +159,21 @@ pub struct Clip {
     /// `false` — every clip before schema 32, except the windows `migrate_31_to_32` found.
     #[serde(default, skip_serializing_if = "is_false")]
     pub comp: bool,
+    /// A note clip's **controller lanes** (schema 42, ADR 0068): pitch bend, channel
+    /// pressure and MIDI controllers, curves in content ticks drawn under the notes. Content
+    /// a link group shares, like the notes. Empty — every clip before schema 42 — plays
+    /// exactly as before.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lanes: Vec<crate::clip_lanes::ClipLane>,
+    /// The clip's groove (schema 43, ADR 0069): its notes played with a template's feel,
+    /// non-destructively, until *Commit* writes it into them. Content: a link group shares
+    /// it. `None` — every older clip — plays its notes as written.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub groove: Option<crate::groove::ClipGroove>,
+    /// Its notes are already what the track's note effects play (a *Bake to notes*, ADR
+    /// 0069): they reach the instrument past the chain. Content, like `groove`.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub skip_note_fx: bool,
 }
 
 fn is_zero_u8(x: &u8) -> bool {
@@ -510,6 +531,10 @@ pub struct Track {
     /// The automation lanes are shown under the track (ADR 0027). Shown unless hidden.
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub automation_open: bool,
+    /// How the track's automation behaves while the song plays (schema 42, ADR 0068):
+    /// Read — every older project — plays it; Write, Touch and Latch write it.
+    #[serde(default, skip_serializing_if = "crate::automation::AutoMode::is_read")]
+    pub auto_mode: crate::automation::AutoMode,
     /// The pitch lane is shown under the track (schema 27, ADR 0054): its audio clips'
     /// notes, editable in place.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -539,6 +564,11 @@ pub struct Track {
     /// delay.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lateness: Option<Lateness>,
+    /// The note effects before its instrument, in order (schema 43, ADR 0069): an
+    /// arpeggiator, chords, a scale. Empty — every older project — plays its notes as they
+    /// are.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub note_fx: Vec<crate::notefx::NoteEffect>,
 }
 
 /// A delay a track keeps (`Track::lateness`): `frames` at `rate` (the engine converts it to
@@ -1023,6 +1053,9 @@ pub struct Master {
     /// The master's modulators (ADR 0057, schema 28).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub modulators: Vec<crate::modulator::Modulator>,
+    /// How the master's automation behaves while the song plays (schema 42, ADR 0068).
+    #[serde(default, skip_serializing_if = "crate::automation::AutoMode::is_read")]
+    pub auto_mode: crate::automation::AutoMode,
 }
 
 fn yes() -> bool {
@@ -1039,6 +1072,7 @@ impl Default for Master {
             effects: Vec::new(),
             fx_enabled: true,
             modulators: Vec::new(),
+            auto_mode: Default::default(),
         }
     }
 }
@@ -1092,6 +1126,14 @@ pub struct Project {
         skip_serializing_if = "crate::controller::ControllerMap::is_empty"
     )]
     pub controllers: crate::controller::ControllerMap,
+    /// The song's key and scale (schema 43, ADR 0069): what the piano roll lights and snaps
+    /// to, what the note effects read. `None` — every older project — says none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<crate::scale::Key>,
+    /// The groove pool's own grooves (schema 43, ADR 0069), extracted from clips; the
+    /// built-in swings are never stored.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grooves: Vec<crate::groove::Groove>,
     /// Monotonic id source for tracks, clips and notes. Never reused, never decremented.
     pub next_id: u64,
 }
@@ -1136,6 +1178,8 @@ impl Project {
             metre_changes: Vec::new(),
             markers: Vec::new(),
             controllers: crate::controller::ControllerMap::default(),
+            key: None,
+            grooves: Vec::new(),
             next_id: 1,
         }
     }
@@ -1508,12 +1552,14 @@ impl Project {
             armed: false,
             takes_open: false,
             automation_open: true,
+            auto_mode: Default::default(),
             pitch_open: false,
             modulators: Vec::new(),
             comps: Vec::new(),
             active_comp: 0,
             frozen: None,
             lateness: None,
+            note_fx: Vec::new(),
         }
     }
 
@@ -1557,6 +1603,9 @@ impl Project {
             automation: None,
             link: None,
             comp: false,
+            lanes: Vec::new(),
+            groove: None,
+            skip_note_fx: false,
         }
     }
 
@@ -1625,6 +1674,7 @@ impl Project {
             pitch: pitch.min(127),
             velocity: velocity.clamp(1, 127),
             muted: false,
+            release: 0,
         }
     }
 }

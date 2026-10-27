@@ -162,10 +162,10 @@ fn a_stepped_choice_reads_its_names() {
     let opto = parse_value(&a, &style, "opto").expect("a name");
     assert!((opto - 2.0 / 8.0).abs() < 1e-4, "{opto}");
     // In Spanish, and its English name still understood.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     assert_eq!(value_words(&a, &style, 0.0), "Limpio");
     assert!(parse_value(&a, &style, "Clean").is_some());
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// #2: an instrument's choice reads the words its editor draws.
@@ -544,9 +544,7 @@ fn a_count_in_inside_the_loop_lands_at_the_record_start() {
     a.engine.set_heard_for_tests(mid5, true);
     a.controller_heard(&[cc(10, 100)]);
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();
@@ -577,9 +575,7 @@ fn a_message_before_a_real_wrap_lands_at_the_end() {
         Instant::now() - Duration::from_millis(200),
     )]);
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();
@@ -607,9 +603,7 @@ fn the_punch_bounds_hold() {
         a.controller_heard(&[cc(10, v)]);
     }
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();

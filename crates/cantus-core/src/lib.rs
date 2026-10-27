@@ -13,24 +13,32 @@ pub mod audio;
 pub mod audio_time;
 pub mod automation;
 pub mod bus;
+pub mod clip_gain;
+pub mod clip_lanes;
 pub mod clipboard;
 pub mod command;
 pub mod comp;
 pub mod controller;
+pub mod crossfade;
 pub mod effect;
 pub mod external;
 pub mod freeze;
 pub mod fx;
+pub mod groove;
 pub mod inst;
 pub mod instrument;
 pub mod links;
 pub mod model;
 pub mod modulator;
+pub mod notefx;
+mod notefx_cmd;
 pub mod pads;
 pub mod pattern;
 pub mod pitch;
 pub mod routing;
+pub mod scale;
 pub mod snapshot;
+pub mod starting;
 pub mod tempo;
 pub mod time;
 pub mod warp;
@@ -39,8 +47,9 @@ pub use audio::{
     AudioRegion, AudioSource, ClickMode, ClickSound, FadeCurve, MonitorMode, RecordSettings,
     TakeMode, TrackInput,
 };
-pub use automation::{AutoLane, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
-pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, MergeKey};
+pub use automation::{AutoLane, AutoMode, AutoPoint, AutoRange, AutoTarget, Automation, Shape};
+pub use bus::{AuditEntry, AuditKind, CommandBus, HistoryEntry, HistoryMark, MergeKey};
+pub use clip_lanes::{ClipLane, CtlEvent, LaneKind};
 pub use command::{Command, CommandError, Origin};
 pub use effect::{
     eq_key, EffectKind, EffectParamInfo, EffectSlot, EffectSpec, ExternalPlugin, PluginFormat,
@@ -48,6 +57,7 @@ pub use effect::{
 };
 pub use external::PluginIsolation;
 pub use freeze::{FreezeTarget, Frozen};
+pub use groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
 pub use inst::{InstParamInfo, InstrumentKind, NativeSpec};
 pub use instrument::{
     FirmusParam, FirmusParams, InstrumentParam, InstrumentSpec, ParamInfo, Waveform,
@@ -62,10 +72,12 @@ pub use model::{
     MIN_TRACK_HEIGHT,
 };
 pub use modulator::{ModHost, ModKind, ModRoute, ModSource, Modulator};
+pub use notefx::{NoteEffect, NoteFxId, NoteFxKind, NoteFxType};
 pub use pads::{
     DrumPad, KitField, KitSettings, Lanes, PadField, PadId, PadLayer, PadParamInfo, PadVoice,
     PulsusParams, RoundRobin, SampleData, StreamRef, CHOKE_GROUPS, MAX_LAYERS, PULSUS_MODEL,
 };
+pub use scale::{Key, ScaleKind};
 pub use snapshot::{AudioClipSnapshot, NoteEvent, Snapshot, StripSnapshot, TrackSnapshot};
 pub use tempo::{Marker, MarkerId, MetreChange, TempoMap, TempoPoint};
 pub use time::{Ticks, TimeSignature, PPQ};

@@ -199,7 +199,7 @@ fn no_text_is_elided_or_overlaps_at_75_100_and_200_percent() {
 
 #[test]
 fn no_text_is_elided_or_overlaps_in_spanish() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut found = Vec::new();
     for k in [0.75, 1.0] {
         let (mut a, track) = demo();
@@ -211,7 +211,7 @@ fn no_text_is_elided_or_overlaps_in_spanish() {
                 .map(|p| format!("{k}: {p}")),
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(found.is_empty(), "{found:#?}");
 }
 

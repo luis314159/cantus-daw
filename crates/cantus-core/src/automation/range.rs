@@ -218,6 +218,12 @@ pub fn range_of(project: &Project, target: &AutoTarget) -> Option<AutoRange> {
             project.track(*track)?.instrument.external()?;
             NORMAL
         }
+        AutoTarget::NoteFx { track, effect, key } => {
+            let i = crate::notefx::find(project, *track, *effect)?
+                .kind
+                .param(key)?;
+            AutoRange::of_info(i.min, i.max, i.default, false, i.stepped)
+        }
         AutoTarget::ModAmount(m) => {
             project.modulator(*m)?;
             AMOUNT
@@ -263,6 +269,9 @@ pub fn base_value(project: &Project, target: &AutoTarget) -> Option<f32> {
             f32::NAN
         }
         AutoTarget::ModAmount(m) => project.modulator(*m)?.2.amount,
+        AutoTarget::NoteFx { track, effect, key } => crate::notefx::find(project, *track, *effect)?
+            .kind
+            .get(key)?,
     })
 }
 
@@ -280,6 +289,12 @@ pub fn label_key(project: &Project, target: &AutoTarget) -> Option<&'static str>
             Some(n.kind.param(key)?.label_key)
         }
         AutoTarget::Firmus { param, .. } => Some(param.info().label_key),
+        AutoTarget::NoteFx { track, effect, key } => Some(
+            crate::notefx::find(project, *track, *effect)?
+                .kind
+                .param(key)?
+                .label_key,
+        ),
         _ => None,
     }
 }

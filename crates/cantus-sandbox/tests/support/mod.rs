@@ -80,9 +80,17 @@ fn workspace() -> PathBuf {
 }
 
 /// Tests that load into helper processes run one at a time: each is a real process tree.
+///
+/// The test plug-ins are described (scanned in this process, [`infos`]) before the first
+/// test runs, never inside one: the scan makes and ends an instance of each CLAP, and a test
+/// that had already armed a fault through the environment — the destroy marker — saw those
+/// two scan instances as its own (round 31: the dialog test's "2 destroyed", whenever it was
+/// the first of its binary to take this lock — always when run alone).
 pub fn serial() -> MutexGuard<'static, ()> {
     static LOCK: Mutex<()> = Mutex::new(());
-    LOCK.lock().unwrap_or_else(|p| p.into_inner())
+    let guard = LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let _ = infos();
+    guard
 }
 
 /// A CLAP test plug-in's library (`package`, `stem`), built once per test process into
@@ -188,6 +196,16 @@ pub fn vst3_bundle() -> &'static Path {
 pub fn infos() -> &'static [PluginInfo] {
     static INFOS: OnceLock<Vec<PluginInfo>> = OnceLock::new();
     INFOS.get_or_init(|| {
+        // The scan runs the plug-ins' code in this process: a fault armed through the
+        // environment would act on (or count) its instances (see `serial`).
+        let armed: Vec<_> = std::env::vars_os()
+            .filter_map(|(k, _)| k.into_string().ok())
+            .filter(|k| k.starts_with("CANTUS_TEST_GAIN_") || k.starts_with("CANTUS_TEST_PUMP_"))
+            .collect();
+        assert!(
+            armed.is_empty(),
+            "the test plug-ins are described before a fault is armed: {armed:?}"
+        );
         let mut out = Vec::new();
         let clap = cantus_host::backend_for(Format::Clap).unwrap();
         for file in ["cantus-test-gain.clap", "cantus-test-synth.clap"] {

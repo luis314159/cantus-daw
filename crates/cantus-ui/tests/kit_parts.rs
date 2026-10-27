@@ -1,6 +1,6 @@
 //! The kit's promises, checked on what it actually paints (ADR 0024 §3, §4, §13).
 
-use cantus_ui::i18n::{default_thread_locale, set_locale, Locale};
+use cantus_ui::i18n::{default_thread_locale, set_thread_locale, Locale};
 use cantus_ui::kit::brush::Brush;
 use cantus_ui::kit::gallery;
 use cantus_ui::kit::knob::{self, KnobLook, KnobSize};
@@ -36,7 +36,7 @@ fn boxed_text_never_leaves_its_box() {
     let ctx = gallery::offscreen_context();
     let s = Style::new(Tokens::slate());
     for lang in [Locale::En, Locale::Es] {
-        set_locale(lang);
+        set_thread_locale(lang);
         frame(&ctx, |b, _| {
             let srcs = [
                 Src::Str("Ghost Kick Layer (hosted)"),
@@ -127,13 +127,13 @@ fn abbreviate_uses_the_short_form_in_each_language() {
     let t = Text::key("kit.param.attack", Role::Label, Color32::WHITE)
         .caps(true)
         .policy(Policy::Abbreviate);
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     assert_eq!(fitted(&ctx, &t, 30.0), "ATK");
     assert_eq!(fitted(&ctx, &t, 200.0), "ATTACK");
-    set_locale(Locale::Es);
+    set_thread_locale(Locale::Es);
     assert_eq!(fitted(&ctx, &t, 30.0), "ATQ");
     assert_eq!(fitted(&ctx, &t, 200.0), "ATAQUE");
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 #[test]

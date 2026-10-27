@@ -24,7 +24,7 @@ struct Rig {
 
 impl Rig {
     fn new() -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
@@ -385,7 +385,7 @@ fn the_window_title_follows_the_project_through_the_boot_path() {
     let frame = &app[app
         .find("pub fn frame(&mut self, root: &mut egui::Ui) {")
         .unwrap()..];
-    assert!(frame[..2000].contains("views::transport::title::sync(self, ctx);"));
+    assert!(frame[..3000].contains("views::transport::title::sync(self, ctx);"));
     let mut r = Rig::new();
     let name = r.app.project().name.clone();
     let titled = |r: &Rig, want: &str| {

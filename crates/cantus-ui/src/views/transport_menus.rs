@@ -192,6 +192,15 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
         ui.close();
         app.request_new();
     }
+    // Round 31 (ADR 0072): the start page, with its templates and the recent projects.
+    if views::arrangement::action_item(
+        app,
+        ui,
+        crate::keymap::Action::NewFromTemplate,
+        "action.new-from-template",
+    ) {
+        ui.close();
+    }
     if ui.button(t("demos.menu")).clicked() {
         ui.close();
         views::demos::show(app);
@@ -208,6 +217,20 @@ fn file_menu(app: &mut CantusApp, ui: &mut Ui) {
     if ui.button(t("menu.save_as")).clicked() {
         ui.close();
         app.save_as();
+    }
+    for (action, key) in [
+        (
+            crate::keymap::Action::SaveAsTemplate,
+            "action.save-as-template",
+        ),
+        (
+            crate::keymap::Action::SaveTrackTemplate,
+            "action.save-track-template",
+        ),
+    ] {
+        if views::arrangement::action_item(app, ui, action, key) {
+            ui.close();
+        }
     }
     // Audio (ADR 0025): files in as clips, and every file of the project into its folder.
     if ui.button(t("audioclips.menu.collect")).clicked() {
@@ -303,6 +326,7 @@ pub fn pane_of(action: crate::keymap::Action) -> Option<Pane> {
         Action::ToggleBrowser => Pane::Browser,
         Action::ViewRouting => Pane::Routing,
         Action::ViewControllers => Pane::Controllers,
+        Action::ViewHistory => Pane::History,
         Action::ToggleInspector => Pane::Inspector,
         // The clips list, which the View menu checks too (review 4, #26).
         Action::ToggleClips => Pane::Clips,
@@ -318,7 +342,9 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
         .chain(Pane::ZONES)
         .chain(std::iter::once(Pane::Routing))
         // The controller mappings (round 29, ADR 0062).
-        .chain(std::iter::once(Pane::Controllers));
+        .chain(std::iter::once(Pane::Controllers))
+        // The undo history (round 31, ADR 0072).
+        .chain(std::iter::once(Pane::History));
     for pane in areas {
         let action = match pane {
             Pane::Arrangement => Action::ViewArrangement,
@@ -328,6 +354,7 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
             Pane::Browser => Action::ToggleBrowser,
             Pane::Routing => Action::ViewRouting,
             Pane::Controllers => Action::ViewControllers,
+            Pane::History => Action::ViewHistory,
             _ => Action::ToggleInspector,
         };
         let mut shown = app.workspace.contains(pane);
@@ -362,6 +389,10 @@ fn view_menu(app: &mut CantusApp, ui: &mut Ui) {
     if ui.button(t("picker.menu.open_picker")).clicked() {
         ui.close();
         app.open_picker(crate::picker::PickPurpose::AddInstrument { index: None });
+    }
+    // The command palette (round 31, ADR 0072).
+    if views::arrangement::action_item(app, ui, Action::CommandPalette, "action.command-palette") {
+        ui.close();
     }
     ui.separator();
     layout_menu(app, ui);

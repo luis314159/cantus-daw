@@ -179,3 +179,5 @@ devices.auto_restarted = The audio driver stopped responding; Cantus restarted t
 devices.state.stalled = Not responding
 devices.state.starting = Starting…
 devices.chip.stalled = {name} · not responding
+# An engine with no device open (round 31: the status line said it in English).
+devices.no_device = no device

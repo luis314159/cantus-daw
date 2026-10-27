@@ -99,7 +99,8 @@ fn every_exported_plugin_hosted_by_cantus_sounds_as_the_native_insert() {
             .idle()
             .iter()
             .any(|n| matches!(n, Notice::RestartNeeded | Notice::LatencyChanged(_)));
-        let fresh = engine_unit(&cantus_core::EffectSpec::new(kind)).latency();
+        // A fresh instance starts on its starting preset (ADR 0071).
+        let fresh = engine_unit(&cantus_core::starting::starting_spec(kind)).latency();
         if engine_unit(&spec).latency() != fresh {
             assert!(asked, "{}: a new latency asks for a restart", info.name);
         }

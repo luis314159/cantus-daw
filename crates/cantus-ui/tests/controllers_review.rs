@@ -251,7 +251,7 @@ fn a_move_is_recorded_at_its_message_time_in_one_step() {
     a.engine.set_heard_for_tests(Ticks::beats(6), false);
     let steps = a.bus.history().len();
     a.stop_recording();
-    let at = a.modulators.rec.points.clone();
+    let at = a.written_points();
     assert!(at.is_empty(), "committed");
     let clip = a
         .project()
@@ -267,10 +267,11 @@ fn a_move_is_recorded_at_its_message_time_in_one_step() {
         (start - beat3).abs() < 40.0,
         "at its message's time: {start} vs {beat3}"
     );
+    // One step: the automation with the move it recorded folded in (ADR 0068).
     assert_eq!(
         a.bus.history().len(),
-        steps + 1,
-        "one step for the automation"
+        steps,
+        "one step for the automation and its move"
     );
     a.undo();
     assert!(!a

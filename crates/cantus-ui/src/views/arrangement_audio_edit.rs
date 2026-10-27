@@ -28,6 +28,8 @@ pub struct HandleDrag {
     px_per_tick: f32,
     /// A warp marker's drag (ADR 0061): the warp at the press and the marker moved.
     pub(super) warp: Option<super::warp::MarkerDrag>,
+    /// A crossfade's or an envelope's drag (ADR 0070).
+    pub(super) fx: Option<clipfx::Drag>,
 }
 
 /// The audio part of the arrangement's state.
@@ -40,6 +42,10 @@ pub struct State {
     /// The modifiers held this frame (the arrangement sets them before its input): a
     /// warp marker's Alt-drag slides the content, Ctrl lets the grid go (ADR 0061).
     pub mods: egui::Modifiers,
+    /// The crossfade editor open (ADR 0070): the clip it is about, where it opens.
+    pub xfade_editor: Option<(ClipRef, Pos2)>,
+    /// The crossfade editor's clips as its knob's turn began.
+    pub xfade_base: Option<crate::clipfx::XfadeBase>,
 }
 
 fn key(r: ClipRef) -> MergeKey {
@@ -59,6 +65,16 @@ fn apply(app: &mut CantusApp, r: ClipRef, audio: AudioRegion) {
 
 /// The button went down on `handle` of `r`.
 pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle, press: Pos2, px_per_beat: f32) {
+    // A crossfade's square or an envelope's part (ADR 0070): a press on the line adds the
+    // point it drags.
+    let (handle, fx) = if clipfx::owns(handle) {
+        match clipfx::begin(app, r, handle) {
+            Some((h, d)) => (h, Some(d)),
+            None => return,
+        }
+    } else {
+        (handle, None)
+    };
     let Some((_, a)) = ac::region(app.project(), r) else {
         return;
     };
@@ -71,6 +87,7 @@ pub fn begin(app: &mut CantusApp, r: ClipRef, handle: Handle, press: Pos2, px_pe
         press,
         px_per_tick: (px_per_beat / cantus_core::PPQ as f32).max(1e-6),
         warp,
+        fx,
     });
 }
 
@@ -79,6 +96,10 @@ pub fn update(app: &mut CantusApp, pos: Pos2, fine: bool) {
     let Some(d) = app.arrangement.audio.drag.clone() else {
         return;
     };
+    if let Some(fx) = d.fx.as_ref() {
+        clipfx::update(app, &d, fx, pos, fine);
+        return;
+    }
     let Some((clip, _)) = ac::region(app.project(), d.r) else {
         return;
     };
@@ -98,6 +119,8 @@ pub fn update(app: &mut CantusApp, pos: Pos2, fine: bool) {
             }
             return;
         }
+        // Taken above (ADR 0070).
+        Handle::Xfade | Handle::EnvPoint(_) | Handle::EnvBend(_) | Handle::EnvLine(_) => return,
     };
     apply(app, d.r, next);
 }
@@ -111,6 +134,10 @@ pub fn end(app: &mut CantusApp) {
 
 /// Double-click: a fade back to none, the gain back to 0 dB.
 pub fn reset(app: &mut CantusApp, r: ClipRef, handle: Handle) {
+    // A crossfade's editor, a point deleted or added (ADR 0070).
+    if clipfx::reset(app, r, handle) {
+        return;
+    }
     let Some((clip, a)) = ac::region(app.project(), r) else {
         return;
     };
@@ -123,6 +150,7 @@ pub fn reset(app: &mut CantusApp, r: ClipRef, handle: Handle) {
             super::warp::double_click(app, r, handle);
             return;
         }
+        Handle::Xfade | Handle::EnvPoint(_) | Handle::EnvBend(_) | Handle::EnvLine(_) => return,
     };
     apply(app, r, next);
     app.end_gesture();
@@ -133,7 +161,7 @@ pub fn hint(ctx: &egui::Context, app: &CantusApp, r: ClipRef, handle: Handle, li
     let Some((_, a)) = ac::region(app.project(), r) else {
         return;
     };
-    if super::warp::hint(ctx, app, r, handle, live) {
+    if super::warp::hint(ctx, app, r, handle, live) || clipfx::hint(ctx, app, r, handle, live) {
         return;
     }
     // The fades' lengths in seconds where they lie, through the tempo map (ADR 0060).
@@ -315,3 +343,34 @@ pub fn set_all(
 #[path = "arrangement_audio_menu.rs"]
 mod menu;
 pub use menu::clip_menu;
+#[path = "arrangement_audio_clipfx_edit.rs"]
+pub mod clipfx;
+
+/// The pointer over an audio clip's handle.
+pub fn cursor(h: Handle) -> egui::CursorIcon {
+    clipfx::cursor(h)
+}
+
+/// The menu of a handle that has its own (a crossfade's, an envelope's — ADR 0070), or
+/// `false`: the arrangement shows the clip's.
+pub fn handle_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef, h: Option<Handle>) -> bool {
+    h.is_some_and(|h| clipfx::menu(app, ui, r, h))
+}
+
+/// The crossfade editor, while open (drawn by the arrangement every frame).
+pub fn editor_window(app: &mut CantusApp, ctx: &egui::Context) {
+    clipfx::editor_window(app, ctx);
+}
+
+impl crate::views::arrangement::ArrangementView {
+    /// The clip whose crossfade editor is open (ADR 0070) — for the tests and the shots.
+    pub fn xfade_editor(&self) -> Option<ClipRef> {
+        self.audio.xfade_editor.map(|(r, _)| r)
+    }
+
+    /// Open the crossfade editor of the overlap `r` starts in, at `at` (the shots).
+    #[doc(hidden)]
+    pub fn open_xfade_editor(&mut self, r: ClipRef, at: Pos2) {
+        self.audio.xfade_editor = Some((r, at));
+    }
+}

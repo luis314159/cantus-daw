@@ -32,6 +32,8 @@ pub(crate) struct TrackSlot {
     pub native: Option<Box<NativeUnit>>,
     /// Index into the snapshot track's events of the next event to fire.
     pub next_event: usize,
+    /// Index into the snapshot track's controller events of the next to fire (ADR 0068).
+    pub next_control: usize,
     pub gain: f32,
     pub pan: f32,
     pub audible: bool,
@@ -65,6 +67,9 @@ pub(crate) struct TrackSlot {
     /// rate: its source goes through its line ([`Self::source_line`]) and it is reported as
     /// its own (review 3: the audio itself stays on the grid).
     pub lateness: usize,
+    /// Its note effects (ADR 0069), built with the slot: consulted only while a stage is
+    /// on. `None` only for the instant its outputs are being played.
+    pub notefx: Option<Box<crate::notefx::Chain>>,
     /// The line that delays its source by `lateness` (`Edge::Source`).
     pub source_line: Option<usize>,
 }
@@ -78,6 +83,7 @@ impl TrackSlot {
             drums: Pulsus::new(sample_rate),
             native: None,
             next_event: 0,
+            next_control: 0,
             gain: 1.0,
             pan: 0.0,
             audible: true,
@@ -96,6 +102,7 @@ impl TrackSlot {
             notes_only: false,
             lateness: 0,
             source_line: None,
+            notefx: Some(Box::new(crate::notefx::Chain::new())),
         }
     }
 
@@ -136,13 +143,15 @@ impl TrackSlot {
         }
     }
 
-    pub fn note_off(&mut self, pitch: u8, tag: u64) {
+    /// Release a note; `release` is its release velocity (0 none given, ADR 0068).
+    pub fn note_off(&mut self, pitch: u8, tag: u64, release: u8) {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.note_off(pitch, tag),
             SlotInstrument::Pulsus => self.drums.note_off(pitch, tag),
             SlotInstrument::Native => {
                 if let Some(n) = self.native.as_mut() {
-                    n.unit.note_off(pitch, native_id(pitch, tag), 0.0);
+                    n.unit
+                        .note_off(pitch, native_id(pitch, tag), f32::from(release) / 127.0);
                 }
             }
         }
@@ -183,7 +192,17 @@ impl TrackSlot {
         }
     }
 
+    /// Every note stops: the instrument's, and what its note effects hold or schedule
+    /// (ADR 0069).
     pub fn all_notes_off(&mut self) {
+        self.instrument_notes_off();
+        if let Some(c) = self.notefx.as_mut() {
+            c.reset();
+        }
+    }
+
+    /// The instrument's notes stop (its note effects keep what they hold).
+    pub fn instrument_notes_off(&mut self) {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.all_notes_off(),
             SlotInstrument::Pulsus => self.drums.all_notes_off(),
@@ -203,8 +222,101 @@ impl TrackSlot {
         if let Some(n) = self.native.as_mut() {
             n.unit.reset();
         }
+        if let Some(c) = self.notefx.as_mut() {
+            c.reset();
+        }
     }
 
+    // --- note effects (round 31, ADR 0069) ------------------------------------------------
+
+    /// Whether its notes go through its note effects (some stage is on).
+    #[inline]
+    pub fn fx_active(&self) -> bool {
+        self.notefx.as_ref().is_some_and(|c| c.is_active())
+    }
+
+    /// The snapshot's chain and key. A chain that changed shape starts afresh, and what it
+    /// was sounding is let go on the instrument.
+    pub fn configure_notefx(
+        &mut self,
+        chain: &[cantus_core::notefx::NoteEffect],
+        key: Option<cantus_core::Key>,
+    ) {
+        let flush = self
+            .notefx
+            .as_mut()
+            .is_some_and(|c| c.configure(chain, key));
+        if flush {
+            self.instrument_notes_off();
+        }
+    }
+
+    /// One parameter of a note effect (automation, a modulator).
+    pub fn set_notefx_param(&mut self, stage: usize, param: usize, v: f32) {
+        if let Some(c) = self.notefx.as_mut() {
+            c.set_param(stage, param, v);
+        }
+    }
+
+    /// Through its note effects: `input` (if any) at `now`, then whatever `is_due` says is
+    /// due; each note out of them played on the instrument (unless frozen or resting but
+    /// for its notes) and handed to `heard` (the inserts that listen). `tick` is where the
+    /// song is while stopped (rolling, each note is at its own tick),
+    /// for a kit's seeded hits. Returns the outputs that found no room.
+    pub fn fx_play(
+        &mut self,
+        now: crate::notefx::Now,
+        input: Option<(crate::notefx::Now, crate::notefx::Msg)>,
+        is_due: impl Fn(crate::notefx::Due) -> bool,
+        tick: i64,
+        mut heard: impl FnMut(&crate::notefx::Msg),
+    ) -> u64 {
+        let Some(mut chain) = self.notefx.take() else {
+            return 0;
+        };
+        if let Some((at, m)) = input {
+            chain.input(at, m);
+        }
+        chain.run_due(now, is_due);
+        let plays = self.frozen.is_none() && !self.notes_only && !self.rest;
+        for (at, m) in chain.take() {
+            let tick = if now.rolling { at.round() as i64 } else { tick };
+            if plays {
+                self.sound(m, tick);
+            }
+            heard(m);
+        }
+        let dropped = chain.take_dropped();
+        self.notefx = Some(chain);
+        dropped
+    }
+
+    /// The next time its note effects need the track to stop and play (an arpeggio's step
+    /// or note-off).
+    pub fn fx_next_due(&self) -> Option<crate::notefx::Due> {
+        self.notefx.as_ref().and_then(|c| c.next_due())
+    }
+
+    /// A note out of the note effects, on the instrument: a clip's as a sequenced note (a
+    /// kit's seeded hit), a live one as live.
+    pub fn sound(&mut self, m: &crate::notefx::Msg, tick: i64) {
+        if !m.on {
+            // r31 automation: the release velocity rides with the note (`m.release`).
+            self.note_off(m.pitch, m.tag, m.release);
+        } else if m.live {
+            self.note_on(m.pitch, m.velocity, m.tag);
+        } else if self.instrument == SlotInstrument::Pulsus {
+            let hit = cantus_dsp::pulsus::Hit {
+                id: m.tag,
+                tick,
+                ordinal: m.ordinal,
+                sequenced: true,
+            };
+            self.drums.trigger(m.pitch, m.velocity, hit);
+        } else {
+            self.note_on_seq(m.pitch, m.velocity, m.tag, m.ordinal);
+        }
+    }
     pub fn active_voices(&self) -> usize {
         match self.instrument {
             SlotInstrument::Firmus => self.synth.active_voices(),
@@ -277,15 +389,38 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         };
         let (n, p0) = (ctx.n, ctx.p0);
         let playing = ctx.transport.is_playing();
+        // Its note effects are consulted only while one is on (ADR 0069).
+        let fx = s.fx_active();
+        let base = ctx.clock + p0 as u64;
         let mut sub = 0usize;
         while sub < n {
             let mut end = n;
             if playing {
+                // The clips' controller lanes (ADR 0068), on the same clock as the notes.
+                let ctl_off = |c: &cantus_core::CtlEvent| {
+                    (ctx.transport.samples_until(c.tick.0 as f64) as usize).saturating_sub(sub)
+                };
                 while let Some(ev) = track.events.get(s.next_event) {
                     // Counted from the transport's integer sample, so the same at any split.
                     let off = (ctx.transport.samples_until(ev.tick.0 as f64) as usize)
                         .saturating_sub(sub);
                     if off == 0 {
+                        // Controllers due now go before a note-on due now (ADR 0068).
+                        if ev.is_on() && !track.controls.is_empty() {
+                            super::track_controls::due(&mut s, track, &ctl_off);
+                        }
+                        // Into its note effects (ADR 0069), unless the clip is baked: what
+                        // they sound is played after this sample's events, below.
+                        if fx && !track.direct.get(s.next_event).copied().unwrap_or(false) {
+                            let now = crate::notefx::play::now_at(&ctx.transport, base, sub);
+                            let input = (
+                                crate::notefx::play::at_event(now, ev),
+                                crate::notefx::play::msg_of(ev),
+                            );
+                            fx_step(nodes, ctx, &mut s, &mut outbox, base, sub, Some(input));
+                            s.next_event += 1;
+                            continue;
+                        }
                         // Frozen (ADR 0064), the instrument is not played: its render is.
                         // The notes still go to the inserts that hear them — and only
                         // they, for a track resting but for its notes (review 2).
@@ -302,6 +437,24 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
                     } else {
                         end = end.min(sub + off);
                         break;
+                    }
+                }
+                if !track.controls.is_empty() {
+                    if let Some(d) = super::track_controls::due(&mut s, track, &ctl_off) {
+                        end = end.min(sub + d);
+                    }
+                }
+            }
+            // Its note effects (ADR 0069): what they have due here, and the track stops
+            // again at their next step or note-off.
+            if fx {
+                fx_step(nodes, ctx, &mut s, &mut outbox, base, sub, None);
+                if let Some(o) = s
+                    .fx_next_due()
+                    .and_then(|d| crate::notefx::play::offset_of(&ctx.transport, base, d))
+                {
+                    if o > sub {
+                        end = end.min(o);
                     }
                 }
             }
@@ -322,6 +475,43 @@ pub(crate) fn run_track(nodes: &Nodes, ctx: &PassCtx, ti: usize, slot: usize, sc
         && s.native.as_ref().is_some_and(|n| n.unit.splits_voices())
     {
         nodes.track_splits[slot].store(true, Relaxed);
+    }
+}
+
+/// One call into the track's note effects at offset `sub` of the pass (ADR 0069): an input
+/// (a clip event; nothing is fired with it, so every event of a sample is in before a step
+/// there plays), or what is due by `sub`. What comes out is played and goes to the inserts
+/// that hear the track, at this sample.
+#[allow(clippy::too_many_arguments)]
+fn fx_step<O: std::ops::DerefMut<Target = super::super::graph::notes::Outbox>>(
+    nodes: &Nodes,
+    ctx: &PassCtx,
+    s: &mut TrackSlot,
+    outbox: &mut Option<O>,
+    base: u64,
+    sub: usize,
+    input: Option<(crate::notefx::Now, crate::notefx::Msg)>,
+) {
+    use crate::notefx::play;
+    let t = &ctx.transport;
+    let now = play::now_at(t, base, sub);
+    let firing = input.is_none();
+    let at = base + sub as u64;
+    let lost = s.fx_play(
+        now,
+        input,
+        |d| firing && play::is_due(t, base, sub, d),
+        t.position_at(t.samples() + sub as u64).round() as i64,
+        |m| {
+            if let Some(ob) = outbox.as_mut() {
+                if !ob.push(at, play::fx_note(m)) {
+                    nodes.drop_event();
+                }
+            }
+        },
+    );
+    if lost > 0 {
+        nodes.dropped.fetch_add(lost, Relaxed);
     }
 }
 

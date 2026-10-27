@@ -135,7 +135,7 @@ fn copy_with_nothing_selected_copies_the_whole_clip() {
     a.focus_piano_roll();
     a.selected_notes.clear();
     frame(&mut a, &ctx, vec![egui::Event::Copy]);
-    let Payload::Notes { notes: copied } = &board(&a).payload else {
+    let Payload::Notes { notes: copied, .. } = &board(&a).payload else {
         panic!("a piano-roll copy is notes");
     };
     assert_eq!(
@@ -216,7 +216,7 @@ fn event_paste_with_our_text_pastes_and_foreign_text_falls_back_to_the_app_clipb
 
 #[test]
 fn every_clipboard_label_resolves_in_both_locales() {
-    use cantus_ui::i18n::{set_locale, t, Locale};
+    use cantus_ui::i18n::{set_thread_locale, t, Locale};
     let keys = [
         "cmd.cut_notes",
         "cmd.cut_clips",
@@ -235,15 +235,15 @@ fn every_clipboard_label_resolves_in_both_locales() {
         "clipboard.status.newer",
         "clipboard.status.older",
     ];
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     let english: Vec<String> = keys.iter().map(|k| t(k)).collect();
-    set_locale(Locale::Es);
+    set_thread_locale(Locale::Es);
     for (k, en) in keys.iter().zip(&english) {
         assert_ne!(en, k, "{k} has no English text");
         // `t` falls back to English, so a missing Spanish line would read as English.
         assert_ne!(&t(k), en, "{k} has no Spanish text");
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 /// Three tracks: a note clip, an audio clip on a recorded file, an automation clip.

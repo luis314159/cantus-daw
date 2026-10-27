@@ -162,6 +162,8 @@ enum Act {
     ForgetStrip(StripId),
     /// Forget the controllers of an insert's bypass and mix.
     ForgetSlot(EffectId),
+    /// The master's automation mode (round 31, ADR 0068).
+    MasterAutoMode(cantus_core::AutoMode),
 }
 
 impl Act {
@@ -558,6 +560,14 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
         Menu::Master => {
             let m = &p.master;
             automate_entries(StripId::MASTER, &mut e);
+            // How the master's automation is written (round 31, ADR 0068).
+            e.push(Entry::band("automodes.mode"));
+            for mode in cantus_core::AutoMode::ALL {
+                e.push(
+                    Entry::act(Label::Key(mode.label_key()), Act::MasterAutoMode(mode))
+                        .check(radio(m.auto_mode == mode)),
+                );
+            }
             learn_entries(app, StripId::MASTER, &mut e);
             e.push(Entry::band("master.menu.effects"));
             e.push(Entry::sub(
@@ -1339,6 +1349,9 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
         }
         // The status names the insert, not one of its controls (review 2, #46).
         Act::ForgetSlot(fx) => app.forget_slot(fx),
+        Act::MasterAutoMode(mode) => {
+            app.exec(Command::SetMasterAutoMode { mode });
+        }
         Act::Automate(id, what) => app.automate(strip_target(id, what)),
         Act::Modulate(id, what) => {
             // Beside the pointer, where the menu was.

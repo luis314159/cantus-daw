@@ -207,64 +207,21 @@ impl Canvas {
         }
     }
 
-    /// Write the canvas as an 8-bit RGBA PNG (stored, uncompressed: no dependency, and a
-    /// screenshot for a review is read once).
+    /// Write the canvas as an 8-bit RGBA PNG, deflate-compressed by `tiny-skia`'s encoder
+    /// (already a dependency for the logos): a screenshot kept in `docs/` is a few hundred
+    /// kilobytes, not tens of megabytes. Screenshots are opaque, so the premultiplied
+    /// round trip leaves every pixel exactly as rendered.
     pub fn write_png(&self, path: &Path) -> std::io::Result<()> {
-        let mut raw = Vec::with_capacity((self.width * 4 + 1) * self.height);
-        for y in 0..self.height {
-            raw.push(0u8);
-            for x in 0..self.width {
-                raw.extend_from_slice(&self.pixel(x, y));
-            }
+        let bad = |e: String| std::io::Error::new(std::io::ErrorKind::InvalidInput, e);
+        let mut pix = tiny_skia::Pixmap::new(self.width as u32, self.height as u32)
+            .ok_or_else(|| bad("an empty canvas".into()))?;
+        for (i, d) in pix.pixels_mut().iter_mut().enumerate() {
+            let [r, g, b, a] = self.pixel(i % self.width, i / self.width);
+            *d = tiny_skia::ColorU8::from_rgba(r, g, b, a).premultiply();
         }
-        let mut z = vec![0x78, 0x01];
-        let mut chunks = raw.chunks(65_535).peekable();
-        while let Some(c) = chunks.next() {
-            z.push(if chunks.peek().is_none() { 1 } else { 0 });
-            let len = c.len() as u16;
-            z.extend_from_slice(&len.to_le_bytes());
-            z.extend_from_slice(&(!len).to_le_bytes());
-            z.extend_from_slice(c);
-        }
-        let (mut a, mut b) = (1u32, 0u32);
-        for byte in &raw {
-            a = (a + *byte as u32) % 65_521;
-            b = (b + a) % 65_521;
-        }
-        z.extend_from_slice(&((b << 16) | a).to_be_bytes());
-        let mut out = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
-        let mut ihdr = Vec::new();
-        ihdr.extend_from_slice(&(self.width as u32).to_be_bytes());
-        ihdr.extend_from_slice(&(self.height as u32).to_be_bytes());
-        ihdr.extend_from_slice(&[8, 6, 0, 0, 0]);
-        chunk(&mut out, b"IHDR", &ihdr);
-        chunk(&mut out, b"IDAT", &z);
-        chunk(&mut out, b"IEND", &[]);
-        std::fs::write(path, out)
+        let bytes = pix.encode_png().map_err(|e| bad(e.to_string()))?;
+        std::fs::write(path, bytes)
     }
-}
-
-fn crc32(data: &[u8]) -> u32 {
-    let mut c = 0xFFFF_FFFFu32;
-    for b in data {
-        c ^= *b as u32;
-        for _ in 0..8 {
-            c = if c & 1 != 0 {
-                0xEDB8_8320 ^ (c >> 1)
-            } else {
-                c >> 1
-            };
-        }
-    }
-    !c
-}
-
-fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
-    out.extend_from_slice(&(data.len() as u32).to_be_bytes());
-    let mut body = kind.to_vec();
-    body.extend_from_slice(data);
-    out.extend_from_slice(&body);
-    out.extend_from_slice(&crc32(&body).to_be_bytes());
 }
 
 /// Run `frames` frames of `ui` at `size` points and render the last one to `path`.
@@ -390,5 +347,13 @@ mod tests {
         canvas.write_png(&path).unwrap();
         let bytes = std::fs::read(&path).unwrap();
         assert_eq!(&bytes[1..4], b"PNG");
+        // Compressed, and every pixel comes back as rendered.
+        assert!(bytes.len() < canvas.width * canvas.height, "compressed");
+        let back = tiny_skia::Pixmap::decode_png(&bytes).unwrap();
+        let p = back.pixel(40, 25).unwrap().demultiply();
+        assert_eq!(
+            [p.red(), p.green(), p.blue(), p.alpha()],
+            [200, 30, 40, 255]
+        );
     }
 }

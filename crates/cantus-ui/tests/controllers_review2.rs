@@ -233,7 +233,7 @@ fn the_first_entry_into_a_loop_is_no_wrap() {
         30,
         Instant::now() - Duration::from_millis(30),
     )]);
-    let points = a.modulators.rec.points.get(&target).cloned().unwrap();
+    let points = a.written_points().get(&target).cloned().unwrap();
     assert!(
         points.iter().all(|(t, _)| *t < Ticks::beats(24).0),
         "not at the loop's end: {points:?}"
@@ -266,11 +266,7 @@ fn a_modulator_amount_moved_with_the_mouse_is_recorded() {
     let mut m = a.project().modulator(id).unwrap().2.clone();
     m.amount = 0.25;
     assert!(a.edit_modulator(m, Some(MergeKey::of(&"amount-drag"))));
-    assert!(a
-        .modulators
-        .rec
-        .points
-        .contains_key(&AutoTarget::ModAmount(id)));
+    assert!(a.written_points().contains_key(&AutoTarget::ModAmount(id)));
     assert_eq!(a.automation.last_tweaked, Some(AutoTarget::ModAmount(id)));
 }
 

@@ -12,7 +12,7 @@ const COUNTED: &[&str] = &[
 #[test]
 fn one_reads_in_the_singular_and_more_in_the_plural() {
     for l in Locale::ALL {
-        i18n::set_locale(l);
+        i18n::set_thread_locale(l);
         for key in COUNTED {
             let args: &[(&str, &dyn std::fmt::Display)] = &[("error", &"denied")];
             let one = i18n::tf_count(key, 1, args);

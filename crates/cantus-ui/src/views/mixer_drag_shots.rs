@@ -390,7 +390,7 @@ fn shots() {
                 continue;
             }
             crate::i18n::default_thread_locale(locale);
-            crate::i18n::set_locale(locale);
+            crate::i18n::set_thread_locale(locale);
             let px = if ppp == 2.0 { size * 1.5 } else { size };
             shoot(&dir, &full, scene, px, ppp, dark, width);
         }

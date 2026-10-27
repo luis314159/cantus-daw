@@ -37,7 +37,7 @@ fn shoot_the_editing_views() {
         .and_then(|s| s.parse().ok())
         .unwrap_or(1.0);
     let spanish = std::env::var("CANTUS_SHOTS_LANG").is_ok_and(|l| l == "es");
-    cantus_ui::i18n::set_locale(if spanish {
+    cantus_ui::i18n::set_thread_locale(if spanish {
         cantus_ui::i18n::Locale::Es
     } else {
         cantus_ui::i18n::Locale::En

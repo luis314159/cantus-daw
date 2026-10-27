@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <!-- GT-R (R35), side profile facing right. Our own drawing (GPL-3.0-or-later, like the
+       application); colours are placeholders filled from the theme. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{paint_hi}"/>
+      <stop offset="0.3" stop-color="{paint}"/>
+      <stop offset="0.7" stop-color="{paint_lo}"/>
+      <stop offset="1" stop-color="{paint_deep}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="{glass_hi}" stop-opacity="0.55"/>
+      <stop offset="0.35" stop-color="{glass}"/>
+      <stop offset="1" stop-color="{glass}"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="{shadow}" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="{shadow}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="1" stop-color="{rim_lo}"/>
+    </radialGradient>
+    <g id="wheel">
+      <circle r="40" fill="{tyre}"/>
+      <circle r="39.4" fill="none" stroke="{edge}" stroke-width="1.2" opacity="0.28"/>
+      <circle r="36.5" fill="none" stroke="{tyre_hi}" stroke-width="1.6" opacity="0.7"/>
+      <g opacity="{detail}">
+        <circle r="29" fill="{trim}"/>
+        <circle r="21" fill="{rim_lo}"/>
+        <circle r="21" fill="none" stroke="{rim_hi}" stroke-width="0.8" opacity="0.5"/>
+        <path d="M -16 -14 A 21 21 0 0 1 2 -21 L 1 -15 A 15 15 0 0 0 -11 -10 Z" fill="{accent}"/>
+        <g fill="url(#rim)">
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z"/>
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z" transform="rotate(60)"/>
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z" transform="rotate(120)"/>
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z" transform="rotate(180)"/>
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z" transform="rotate(240)"/>
+          <path d="M -2.4 -6 L -4.6 -27.5 L 4.6 -27.5 L 2.4 -6 Z" transform="rotate(300)"/>
+        </g>
+        <circle r="28.5" fill="none" stroke="{rim}" stroke-width="2.4"/>
+        <circle r="8" fill="url(#rim)"/>
+        <circle r="3.2" fill="{trim}"/>
+      </g>
+      <g opacity="{simple}">
+        <circle r="28" fill="url(#rim)"/>
+        <circle r="17" fill="{rim_lo}"/>
+        <circle r="7" fill="{rim}"/>
+      </g>
+    </g>
+  </defs>
+
+  <ellipse cx="280" cy="184" rx="268" ry="10" fill="url(#shadow)"/>
+
+  <!-- the wheel wells -->
+  <path d="M 72 160 A 48 48 0 1 1 164 160 Z M 386 160 A 48 48 0 1 1 478 160 Z" fill="{trim}"/>
+
+  <!-- the wing on its stalks, behind the body -->
+  <path d="M 40 56 L 46 56 L 50 70 L 43 70 Z M 100 55 L 106 55 L 106 64 L 100 65 Z" fill="{paint_lo}"/>
+
+  <!-- the body -->
+  <path d="M 22 157 C 16 151 14 141 14 129 L 15 96 C 15 86 17 79 21 75 L 62 70
+           C 80 68 96 66 110 62 C 132 54 160 40 188 34 C 212 29 250 28 284 32
+           C 318 39 352 58 380 71 C 424 77 472 86 510 97 C 529 103 540 110 545 121
+           C 548 131 547 141 543 151 L 534 166 C 518 168 500 168 480 166 L 478 160
+           A 48 48 0 1 0 386 160 L 384 165 L 166 165 L 164 160
+           A 48 48 0 1 0 72 160 L 70 162 C 50 162 34 161 22 157 Z" fill="url(#body)"/>
+
+  <!-- the windows -->
+  <path d="M 372 74 C 346 60 316 45 287 39 C 256 35 222 37 197 43 C 182 48 170 58 157 73
+           L 372 76 Z" fill="url(#glass)"/>
+  <path d="M 200 42 L 207 41 L 208 75 L 201 75 Z" fill="{trim}"/>
+  <path d="M 300 37 L 316 44 L 270 76 L 248 76 Z" fill="{glass_hi}" opacity="0.14"/>
+
+  <!-- the wing -->
+  <path d="M 24 51 C 52 47 100 46 132 49 L 132 55 C 100 54 52 54 26 57 Z" fill="url(#body)"/>
+  <path d="M 24 51 C 52 47 100 46 132 49" fill="none" stroke="{paint_hi}" stroke-width="1.2"/>
+
+  <!-- the shoulder's light, the lower body's shade, the sills -->
+  <path d="M 20 83 C 80 80 160 82 230 90 L 230 93 C 160 88 80 88 19 91 Z" fill="{paint_hi}" opacity="0.75"/>
+  <path d="M 70 162 L 166 165 L 384 165 L 478 160 L 480 166 L 384 168 L 166 168 Z" fill="{trim}"/>
+  <path d="M 14 129 C 14 141 16 151 22 157 C 34 161 50 162 70 162 L 72 156 C 50 156 30 152 20 146 Z" fill="{trim}" opacity="0.9"/>
+
+  <g opacity="{detail}">
+    <!-- the door, the blade from the fender's vent, the handle -->
+    <path d="M 206 76 C 204 100 204 130 208 160" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 372 78 C 374 100 368 128 352 160" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 348 106 C 340 122 334 140 330 160" fill="none" stroke="{paint_hi}" stroke-width="1.6" opacity="0.6"/>
+    <path d="M 349 104 L 368 103 L 352 132 L 341 133 Z" fill="{trim}"/>
+    <path d="M 352 109 L 362 109 M 349 115 L 359 115 M 346 121 L 356 121" fill="none" stroke="{paint_lo}" stroke-width="1.2"/>
+    <path d="M 214 94 L 230 93" fill="none" stroke="{rim_hi}" stroke-width="2.4" stroke-linecap="round"/>
+    <!-- the mirror -->
+    <path d="M 296 72 C 300 64 312 63 318 67 L 318 76 C 310 79 300 78 296 72 Z" fill="url(#body)"/>
+    <!-- the front bumper's intake -->
+    <path d="M 512 128 C 524 127 536 129 543 134 L 538 156 C 528 157 518 156 510 154 Z" fill="{trim}" opacity="0.85"/>
+  </g>
+
+  <!-- the headlight, the round tail lights -->
+  <path d="M 486 100 C 506 102 526 107 537 114 C 533 119 520 119 506 115 C 497 111 490 106 486 100 Z" fill="{lamp}"/>
+  <ellipse cx="18" cy="86" rx="4" ry="7.5" fill="{tail}"/>
+  <ellipse cx="18" cy="86" rx="2" ry="4" fill="{lamp}" opacity="0.5"/>
+
+  <!-- the silhouette's edge, lit against the ground -->
+  <path d="M 15 96 C 15 86 17 79 21 75 L 62 70 C 80 68 96 66 110 62 C 132 54 160 40 188 34
+           C 212 29 250 28 284 32 C 318 39 352 58 380 71 C 424 77 472 86 510 97
+           C 529 103 540 110 545 121" fill="none" stroke="{edge}" stroke-width="1.4" opacity="0.3"/>
+
+  <use href="#wheel" x="118" y="144"/>
+  <use href="#wheel" x="432" y="144"/>
+</svg>

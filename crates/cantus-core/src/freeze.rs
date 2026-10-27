@@ -286,7 +286,8 @@ fn source_target_of(target: &AutoTarget) -> Option<TrackId> {
     match target {
         AutoTarget::Instrument { track, .. }
         | AutoTarget::Firmus { track, .. }
-        | AutoTarget::PluginInstrument { track, .. } => Some(*track),
+        | AutoTarget::PluginInstrument { track, .. }
+        | AutoTarget::NoteFx { track, .. } => Some(*track),
         _ => None,
     }
 }
@@ -307,7 +308,8 @@ fn target_in_strip_region(
         }
         AutoTarget::Instrument { track, .. }
         | AutoTarget::Firmus { track, .. }
-        | AutoTarget::PluginInstrument { track, .. } => r.tracks.contains(track),
+        | AutoTarget::PluginInstrument { track, .. }
+        | AutoTarget::NoteFx { track, .. } => r.tracks.contains(track),
         AutoTarget::StripGain(s) | AutoTarget::StripPan(s) | AutoTarget::StripWidth(s) => {
             Some(*s) != root && r.strips.contains(s)
         }
@@ -579,6 +581,8 @@ const TRACK_COSMETIC: &[&str] = &[
     "modulators",
     "frozen",
     "soloed",
+    // What a pass writes, never what plays (ADR 0068).
+    "auto_mode",
 ];
 /// A frozen track's own live controls (and where it goes).
 const TRACK_LIVE: &[&str] = &["gain_db", "pan", "muted", "strip"];
@@ -808,6 +812,28 @@ fn subject_with(
     o.insert("automation".into(), Value::Array(automation));
     o.insert("modulators".into(), Value::Array(modulators));
     o.insert("sources".into(), Value::Array(sources));
+    // Round 31 (ADR 0069): the key the region's note effects read and the pooled grooves its
+    // clips play — written only where they are, so every other subject is as it was.
+    let region_tracks = || project.tracks.iter().filter(|t| r.tracks.contains(&t.id));
+    if let Some(k) = project.key {
+        if region_tracks().any(|t| crate::notefx::reads_project_key(&t.note_fx)) {
+            o.insert("key".into(), value(&k));
+        }
+    }
+    let grooves: Vec<Value> = project
+        .grooves
+        .iter()
+        .filter(|g| {
+            region_tracks().flat_map(|t| t.clips.iter()).any(|c| {
+                c.groove
+                    .is_some_and(|x| x.source == crate::groove::GrooveSource::Pool { id: g.id })
+            })
+        })
+        .map(|g| scrub(value(g), &["name"]))
+        .collect();
+    if !grooves.is_empty() {
+        o.insert("grooves".into(), Value::Array(grooves));
+    }
     o.insert(
         "tempo".into(),
         json!({
@@ -822,7 +848,7 @@ fn subject_with(
     if r.whole {
         o.insert(
             "master".into(),
-            scrub(value(&project.master), &["modulators"]),
+            scrub(value(&project.master), &["modulators", "auto_mode"]),
         );
         o.insert(
             "desk".into(),

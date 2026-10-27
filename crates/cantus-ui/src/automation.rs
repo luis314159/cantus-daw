@@ -23,6 +23,8 @@ pub struct AutoUi {
     cache: RefCell<Option<(u64, Arc<Vec<AutoLane>>)>>,
     /// The large editor's own state (`views::auto_editor`).
     pub editor: crate::views::auto_editor::EditorState,
+    /// Writing while the song plays (ADR 0068): the arm and the pass.
+    pub write: crate::auto_write::WriteUi,
 }
 
 impl std::fmt::Debug for AutoUi {
@@ -222,6 +224,7 @@ pub fn host_track(
             .filter(|h| !h.is_master())
             .and_then(feeding),
         AutoTarget::PluginInstrument { track: t, .. } => Some(*t),
+        AutoTarget::NoteFx { track: t, .. } => Some(*t),
         // A modulator's amount: under the track it lives on (or that feeds its strip).
         AutoTarget::ModAmount(m) => match project.modulator(*m).map(|(h, _, _)| h) {
             Some(cantus_core::ModHost::Track(t)) => Some(t),
@@ -340,6 +343,9 @@ pub fn target_parts(project: &Project, target: &AutoTarget) -> (String, String) 
                 .unwrap_or_else(|| t("auto.target.missing"));
             (name, t("mods.target.amount"))
         }
+        AutoTarget::NoteFx { track, effect, key } => {
+            crate::notefx_ui::target_parts(project, *track, *effect, key)
+        }
     }
 }
 
@@ -387,6 +393,12 @@ pub fn write_value(project: &Project, target: &AutoTarget, v: f32, out: &mut Str
                 let _ = write!(out, "-\u{221e} dB");
             } else {
                 let _ = write!(out, "{v:+.1} dB");
+            }
+        }
+        // A note effect's parameter in its own words (round 31, ADR 0069).
+        AutoTarget::NoteFx { track, effect, key } => {
+            if let Some(e) = cantus_core::notefx::find(project, *track, *effect) {
+                crate::notefx_ui::write_value(e.kind.kind(), key, v, out);
             }
         }
         _ => crate::views::fx::controls::write_readout(v, unit_of(project, target), out),

@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 pub const FORMAT_ID: &str = "cantus-project";
-pub const SCHEMA_VERSION: u32 = 41;
+pub const SCHEMA_VERSION: u32 = 44;
 pub const FILE_EXTENSION: &str = "cantus";
 
 #[derive(Debug, Error)]
@@ -111,6 +111,9 @@ pub struct LoadReport {
     /// Track delays dropped because a bounce could not have kept them (ADR 0064, review 3:
     /// a hand-edited or damaged file). Zero for every file Cantus wrote.
     pub lateness_repaired: usize,
+    /// Clip gain envelopes repaired (ADR 0070: points out of range or order in a
+    /// hand-edited or damaged file). Zero for every file Cantus wrote.
+    pub gain_envs_repaired: usize,
 }
 
 /// Parse JSON text into a project, migrating older schemas. `verify_integrity = false`
@@ -179,6 +182,8 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
     // Warps a command would refuse (a hand edit) go first (round 29's second review): the
     // links and the frozen keys below are checked against what each clip then holds.
     let warps_repaired = cantus_core::warp::repair(&mut file.project);
+    // Gain envelopes a command would refuse (ADR 0070, review 1): never to the audio thread.
+    let gain_envs_repaired = cantus_core::clip_gain::repair_project(&mut file.project);
     // A track delay out of range never reaches the plan (review 3); before the frozen
     // keys, which hold it.
     let lateness_repaired = file.project.repair_lateness();
@@ -199,6 +204,7 @@ pub fn parse(text: &str, verify_integrity: bool) -> Result<LoadReport, FormatErr
         links_repaired,
         warps_repaired,
         lateness_repaired,
+        gain_envs_repaired,
     })
 }
 
@@ -247,6 +253,9 @@ static MIGRATIONS: &[Migration] = &[
     migrate_38_to_39,
     migrate_39_to_40,
     migrate_40_to_41,
+    migrate_41_to_42,
+    migrate_42_to_43,
+    migrate_43_to_44,
 ];
 
 /// Schema 0 never shipped; this exists so the chain is exercised by tests from day one.
@@ -884,6 +893,31 @@ fn migrate_39_to_40(_value: &mut Value) -> Result<(), String> {
 /// swapped out or is not scanned here reads as the plug-in and parameter it drove. Nothing
 /// to write: a v40 mapping has none, and its row is named as before (by the catalogue).
 fn migrate_40_to_41(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 42 (round 31, ADR 0068): a note may carry a release velocity (`Note::release`), a
+/// note clip controller lanes (`Clip::lanes`: pitch bend, pressure, CCs), and a track and
+/// the master an automation mode (`auto_mode`: Read, Write, Touch, Latch). Nothing to write:
+/// a v41 note has no release (0, what its note-off carried), a clip no lanes, and every
+/// mode is Read — the project plays and writes exactly as before. An older build must
+/// refuse a v42 file, or it would drop the lanes and the releases on its next save.
+fn migrate_41_to_42(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 43 (round 31, ADR 0069): note effects on a track (`Track::note_fx`), the song's
+/// key and the groove pool (`Project::key`, `grooves`), a clip's groove and whether it
+/// plays past the note effects (`Clip::groove`, `skip_note_fx`). Nothing to write: every
+/// field defaults to what an older file meant — no effects, no key, no groove.
+fn migrate_42_to_43(_value: &mut Value) -> Result<(), String> {
+    Ok(())
+}
+
+/// Schema 44 (round 31, ADR 0070): an audio clip's crossfade over an overlap
+/// (`AudioRegion::cross`) and its gain envelope (`AudioRegion::gain_env`). Nothing to
+/// write: an older file has neither — its overlaps play summed, its clips at their gain.
+fn migrate_43_to_44(_value: &mut Value) -> Result<(), String> {
     Ok(())
 }
 
@@ -1995,6 +2029,84 @@ mod freeze_tests {
         // Re-keyed on load when its subject was an older one's: what it holds now.
         assert!(freeze::consistent(&p).is_ok(), "each key is what it holds");
         assert!(!fixture("v36.cantus").any_frozen());
+    }
+
+    /// Schema 44 (round 31, ADR 0070): two clips crossing an overlap on an S-curve, the
+    /// first with its gain envelope; a v43 file has neither.
+    #[test]
+    fn schema_44_keeps_crossfades_and_clip_envelopes() {
+        use cantus_core::crossfade::XfadeCurve;
+        let p = fixture("v44.cantus");
+        let t = p
+            .tracks
+            .iter()
+            .find(|t| t.name == "Doubles")
+            .expect("the track");
+        let env = t.clips[0]
+            .audio
+            .as_ref()
+            .and_then(|a| a.gain_env.as_deref())
+            .expect("an envelope");
+        assert_eq!(env.points.len(), 4);
+        assert_eq!(env.points[1].shape, cantus_core::Shape::Hold);
+        assert!(env.is_valid());
+        let b = t.clips[1].audio.as_ref().unwrap();
+        assert_eq!(b.cross, Some(XfadeCurve::SCurve));
+        assert_eq!(
+            cantus_core::crossfade::overlap_into(t, t.clips[1].id).map(|o| o.left_last),
+            Some(t.clips[0].id)
+        );
+        assert!(fixture("v43.cantus").tracks.iter().all(|t| t
+            .clips
+            .iter()
+            .filter_map(|c| c.audio.as_ref())
+            .all(|a| a.cross.is_none() && a.gain_env.is_none())));
+    }
+
+    /// Review 1 of ADR 0070: a damaged file's gain envelope (a value out of range, points
+    /// out of order, a tension past its end) is repaired on load and counted — it never
+    /// reaches the audio thread as it was.
+    #[test]
+    fn a_damaged_gain_envelope_is_repaired_on_load() {
+        let text = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("fixtures")
+                .join("v44.cantus"),
+        )
+        .unwrap();
+        let mut v: Value = serde_json::from_str(&text).unwrap();
+        let tracks = v["project"]["tracks"].as_array_mut().unwrap();
+        let doubles = tracks
+            .iter_mut()
+            .find(|t| t["name"] == "Doubles")
+            .expect("the track");
+        let pts = doubles["clips"][0]["audio"]["gain_env"]["points"]
+            .as_array_mut()
+            .unwrap();
+        pts[0]["db"] = serde_json::json!(1.0e39);
+        pts[1]["tension"] = serde_json::json!(7.5);
+        pts.reverse();
+        let damaged = serde_json::to_string(&v).unwrap();
+        let r = parse(&damaged, false).expect("opens");
+        assert_eq!(r.gain_envs_repaired, 1);
+        let t = r
+            .file
+            .project
+            .tracks
+            .iter()
+            .find(|t| t.name == "Doubles")
+            .unwrap();
+        let e = t.clips[0]
+            .audio
+            .as_ref()
+            .unwrap()
+            .gain_env
+            .as_deref()
+            .unwrap();
+        assert!(e.is_valid(), "{e:?}");
+        assert!(e.points.iter().all(|p| p.db.is_finite()));
+        // A file Cantus wrote needs none.
+        assert_eq!(parse(&text, true).unwrap().gain_envs_repaired, 0);
     }
 
     /// Schema 41 (round 29, ADR 0062 review 4): a hosted mapping keeps the plug-in's and

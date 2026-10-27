@@ -508,6 +508,33 @@ pub fn relocate(
     })
 }
 
+/// An unwarped window's gain envelope as it lands when its placement changes — moved,
+/// copied, pasted, slipped — from `from_start`/`from_offset` under `src` to
+/// `to_start`/`to_offset` under `dst` (ADR 0070 review 1): each point keeps the second of
+/// its source it marked, as the window's audio does (`relocate`, `slipped`), so the line
+/// stays on its audio through a tempo track. Where the tempo holds over both, the content
+/// ticks exactly as they were.
+pub fn remap_env(
+    env: &crate::clip_gain::GainEnvelope,
+    src: &TempoMap,
+    from_start: Ticks,
+    from_offset: Ticks,
+    dst: &TempoMap,
+    to_start: Ticks,
+    to_offset: Ticks,
+) -> crate::clip_gain::GainEnvelope {
+    let (o0, o1) = (from_start - from_offset, to_start - to_offset);
+    let mut out = env.clone();
+    for p in &mut out.points {
+        let secs = source_seconds(src, from_start, from_offset, (o0 + p.tick).0 as f64);
+        let t = tick_at_source(dst, to_start, to_offset, secs);
+        p.tick = Ticks((t - o1.0 as f64).round() as i64);
+    }
+    // Monotone maps keep the order; rounding never crosses two points over.
+    out.points.sort_by_key(|p| p.tick);
+    out
+}
+
 // --- Warped clips (round 29, warp — ADR 0061) ---------------------------------------
 //
 // A warped clip that follows the tempo hears, at timeline tick `T`, its content tick

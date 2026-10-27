@@ -1,0 +1,150 @@
+# Area: the command palette, the undo history panel, project and track templates (round 31, workflow; ADR 0072). Every key here needs its twin in workflow.es.txt.
+
+# The actions (the keymap's names; the palette, the menus, the shortcuts dialog).
+action.command-palette = Command palette…
+action.view-history = Show the undo history
+action.new-from-template = New from template…
+action.save-as-template = Save as template…
+action.save-track-template = Save track as template…
+cmd.insert_track_template = insert track template
+
+# The command palette.
+workflow.palette.hint = Type a command, a view, a setting, a device or a project
+workflow.palette.keys = ↑ ↓ choose · Enter runs · Esc closes
+workflow.palette.count = {n} found
+workflow.palette.no_match = Nothing matches “{text}”
+workflow.palette.settings = Settings: {page}
+workflow.palette.insert_effect = Insert {name}
+workflow.palette.add_instrument = New track with {name}
+workflow.palette.new_from = New from template: {name}
+workflow.palette.insert_track_template = Insert track template: {name}
+workflow.kind.action = Action
+workflow.kind.view = View
+workflow.kind.window = Window
+workflow.kind.settings = Settings
+workflow.kind.effect = Effect
+workflow.kind.instrument = Instrument
+workflow.kind.recent = Recent
+workflow.kind.template = Template
+workflow.kind.track_template = Track template
+workflow.window.shortcuts = Keyboard shortcuts
+workflow.window.appearance = Appearance: themes and colours
+workflow.window.topbar = Customise the top bar
+workflow.window.start = Start page
+workflow.window.about = About Cantus
+
+# The undo history.
+workflow.history.pane = History
+workflow.history.start = Project opened
+workflow.history.count = {n} steps · {redo} to redo
+workflow.history.count_one = 1 step · {redo} to redo
+workflow.history.never_saved = Not saved yet
+workflow.history.unsaved = Unsaved changes
+workflow.history.all_saved = Saved
+workflow.history.saved = Saved
+workflow.history.tip_current = Where the project is now
+workflow.history.tip_undo = Click to go back to this step (each step after it is undone)
+workflow.history.tip_redo = Click to redo up to this step
+workflow.history.gone = a removed strip
+workflow.history.notes.add = Add {n} notes
+workflow.history.notes.add_one = Add 1 note
+workflow.history.notes.delete = Delete {n} notes
+workflow.history.notes.delete_one = Delete 1 note
+workflow.history.notes.edit = Edit {n} notes
+workflow.history.notes.edit_one = Edit 1 note
+workflow.history.notes.move = Move {n} notes
+workflow.history.notes.move_one = Move 1 note
+workflow.history.notes.transpose = Transpose {n} notes
+workflow.history.notes.transpose_one = Transpose 1 note
+workflow.history.notes.duplicate = Duplicate {n} notes
+workflow.history.notes.duplicate_one = Duplicate 1 note
+workflow.history.notes.paste = Paste {n} notes
+workflow.history.notes.paste_one = Paste 1 note
+workflow.history.notes.paint = Paint {n} notes
+workflow.history.notes.paint_one = Paint 1 note
+workflow.history.notes.quantize = Quantize {n} notes
+workflow.history.notes.quantize_one = Quantize 1 note
+workflow.history.notes.mute = Mute {n} notes
+workflow.history.notes.mute_one = Mute 1 note
+workflow.history.notes.slice = Slice {n} notes
+workflow.history.notes.slice_one = Slice 1 note
+workflow.history.insert_effect = Insert {effect} on {strip}
+workflow.history.remove_effect = Remove {effect} from {strip}
+workflow.history.insert_track = Add track {name}
+workflow.history.remove_track = Delete track {name}
+workflow.history.rename_track = Rename track to {name}
+workflow.history.insert_track_template = Insert track template {name}
+
+# The start page.
+workflow.start.title = Start
+workflow.start.templates = New from template
+workflow.start.recent = Recent projects
+workflow.start.no_recent = Projects you open or save appear here
+workflow.start.missing = Not found where it was
+workflow.start.open = Open…
+workflow.start.save_as = Save current as template…
+workflow.start.delete_confirm = Click × again to delete this template
+workflow.start.track_templates = Your track templates
+workflow.start.no_track_templates = Keep one with Save track as template… in the File menu
+
+# The starters that come with Cantus.
+workflow.starter.empty = Empty song
+workflow.starter.empty.what = One instrument track, 120 BPM
+workflow.starter.beat = Beat
+workflow.starter.beat.what = Drums, bass and keys at 92 BPM
+workflow.starter.band = Band recording
+workflow.starter.band.what = Vocal, guitar, bass, keys to record
+workflow.starter.mastering = Mastering
+workflow.starter.mastering.what = Your mix and a mastering chain
+workflow.starter.track = Instrument
+workflow.starter.drums = Drums
+workflow.starter.bass = Bass
+workflow.starter.keys = Keys
+workflow.starter.vocal = Vocal
+workflow.starter.guitar = Guitar
+workflow.starter.mix = Mix
+workflow.starter.reverb = Reverb
+workflow.template.yours = Your template
+workflow.template.track_what = Track template · {instrument}
+picker.source.templates = Track templates
+
+# Naming a template.
+workflow.name.project_title = Save as template
+workflow.name.project_lead = The project as it is now, to start new projects from
+workflow.name.track_title = Save track as template
+workflow.name.track_lead = The track's instrument, strip, inserts, sends and routing
+workflow.name.hint = The template's name
+workflow.name.replaces = A template of this name is there: saving replaces it
+workflow.name.save = Save
+workflow.name.cancel = Cancel
+
+# What the status line says.
+workflow.status.saved = Template “{name}” saved
+workflow.status.save_failed = The template could not be saved: {error}
+workflow.status.deleted = Template “{name}” deleted
+workflow.status.new_from = A new project from “{name}”
+workflow.status.open_failed = The template could not be read: {error}
+workflow.status.inserted = Track template “{name}” inserted
+workflow.status.inserted_missing = Track template “{name}” inserted; not in this project, left out: {missing}
+workflow.status.no_track = Select a track to keep as a template
+workflow.error.no_folder = The templates' folder is not set
+workflow.error.no_track = That track is not in the project
+workflow.error.not_a_template = Only your own templates can be deleted
+workflow.error.not_a_track_template = This file is not a track template
+
+# The start page at launch (the owner's decision, 2026-10-26).
+workflow.start.at_start = Show at start
+workflow.start.settings_band = Start page
+
+# The audio cores as engines (the owner's, 2026-10-27): the engine's word; the models are in engines.rs's table.
+workflow.engine.now = {now} · {engine} · {model}
+workflow.engine.single = single
+workflow.engine.twin = twin
+workflow.engine.inline3 = inline-3
+workflow.engine.v4 = V4
+workflow.engine.v6 = V6
+workflow.engine.v8 = V8
+workflow.engine.v10 = V10
+workflow.engine.v12 = V12
+workflow.engine.w16 = W16
+workflow.engine.ramjet = turbo-ramjet

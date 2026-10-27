@@ -196,7 +196,7 @@ warp y pista de tempo, automatización (ronda 20), instrumentos externos (ronda 
 learn, crossfades, congelar pistas, marcadores, un editor de audio; **(3b)** más efectos: pedales de distorsión y fuzz, chorus, flanger, un multiefecto tipo Distructor, corrección de afinación (tipo Newtone), manipulación de tiempo (tipo Gross Beat/NewTime), controlador de automatización por fórmula, clipper, analizador tipo Wave Candy, controlador X-Y, separador de transitorios, procesador de transitorios, y el resto de la familia que tienen las DAW más profesionales — en la ronda 28 llegaron el chorus (Concentus), el flanger (Flexus), el phaser (Phasis), el trémolo y autopaneo (Tremor), el vibrato (Vibrans), el modulador en anillo (Anulus), el desplazador de frecuencia (Translatio), el modelador de volumen (Fluctus), el clipper (Tonsor), el procesador de transitorios (Impetus), el separador de transitorios (Discrimen), el analizador (Speculum) y el afinador Tonus; **(3c)** un editor de afinación y tiempo para grabaciones, nivel Melodyne (notas como bloques, deriva, vibrato, formantes, timing; no destructivo; luego polifónico y ARA 2) — hecho en la ronda 28, salvo lo polifónico y ARA 2; **(3d)** un afinador automático en tiempo real (tonalidad y escala, notas a elegir o desde MIDI, velocidad de corrección, formantes, baja latencia para monitorear al grabar) — hecho en la ronda 28: **Tonus**; **(3e)** más instrumentos, tras una investigación verificada (FL Studio 2026, Live 12.4, Logic 12, Bitwig 6.1, Reason 14, Fender Studio Pro 8, Cubase 15 y los mejores plug-ins; licencias y patentes comprobadas), en este orden: un cortador de muestras (tipo Slicex) dentro de Exemplar, arpegiador y herramientas de acordes y escala como efectos MIDI, terminar Pulsus con salidas y cadenas de efectos por pad, un piano de cola modelado (ahora por guías de onda y física publicada; el método de Modartt se evaluará cuando expire su patente estadounidense, verificada vigente hasta el 2027-10-20; revisión legal antes de publicarlo, que cubra también siete patentes activas de resonancia de piano de Casio, Kawai y Yamaha) — **Chorda**, hecho en la ronda 28; quedan la prueba a ciegas y la revisión legal (tuyas) y Chorda II (micrófonos, tapa, voicing por tecla), modos espectral y granular en Exemplar (el nivel del Sampler de Bitwig 6.1), resonadores por modelado físico (cuerdas, láminas, membranas), guitarra sobre el modelo de cuerda de Gravis con rasgueo en el piano roll, resíntesis aditiva para Partes (tipo Harmor), secciones orquestales con muestras CC0, un coro de vocales por formantes (el canto con letra después, cuando exista una voz grabada para Cantus con licencia libre: hoy no hay ninguna) y batería acústica multimicrófono (DRSKit, mezclada a estéreo al instalarla, en la ronda 28; los faders por micrófono esperan instrumentos con varias salidas); solo contenido CC0 bajo demanda hasta que decidas sobre CC-BY (Sonatina y Philharmonia quedan fuera), y más (chiptune, bucles tocables, sintetizador de texturas, MPE); **(4)** rendimiento con
 sesiones grandes y un rendimiento por encima del mercado (procesamiento anticipado, motor multinúcleo, congelado automático en segundo plano, SIMD, benchmark publicado contra las demás DAW); **(5)** contenido (librería de sonidos, presets);
 **(6)** configuración de audio directa (un chip siempre visible con interfaz, driver, frecuencia y buffer; asistente de primer uso; conectar y usar); un versículo de la Reina-Valera (1909, dominio público) en el idioma configurado en cada arranque (activado por defecto, con opción de apagarlo); producto: instalador, actualizaciones, firma de código, manual y tutoriales,
-macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
+macOS/Linux; **(4c)** modo de grabación de alto rendimiento: un botón manual que pre-renderiza cada canal que entra al master (con efectos y automatizaciones, justo antes del fader) y deja el motor solo leyendo y sumando audio, para bajar el buffer sin cortes; el canal que graba sigue en vivo, el master y los controles de mezcla (fader, paneo, mute, solo) se eligen en vivo o bloqueados, y todo lo demás se bloquea con un aviso permanente hasta salir del modo; **(4d)** la GPU como acelerador opcional y configurable (exportar/congelar, convolución larga, trabajo espectral e IA, y un modo mixto CPU+GPU sobre el procesamiento anticipado; siempre con respaldo en CPU), tras un prototipo medido; **(4e)** el motor frente al mercado, para evaluar e investigar: una comparación medida tipo DAWbench contra REAPER y FL Studio, aislamiento de plug-ins, procesamiento anticipado, escala probada (200 pistas con 50 plug-ins de terceros, 10 minutos en vivo con interfaz real), división de voces para el resto de instrumentos y la extensión thread-pool de CLAP, warp/time-stretch, ARA 2, surround/Atmos, Linux y macOS, y modelos loom del núcleo concurrente; **(6d)** pedidos del dueño (2026-10-07): copiar/pegar (Ctrl+C/X/V) en el piano roll y el arreglo; clips enlazados (copiar un clip de instrumento o de audio da *el mismo clip*: editar uno cambia todos) con la opción "Hacer único"; mezclador con cableado entre canales como FL Studio y sin efectos del canal en la vista extra grande; un tema nuevo blanco con detalles azules (por defecto, con logo nuevo) y un tema oscuro con detalles azules; **(6e)** la barra superior al estilo de FL (hecha en la ronda 28); **(6h)** pedidos del dueño (2026-10-26): un diseño propio para cada plug-in nuestro, con su estilo, como los de FL; y los plug-ins externos abren su editor nativo, con un interruptor a la vista de Cantus de sus parámetros y la opción de guardarla como predeterminada por plug-in; **(7a)** pedido del dueño (2026-10-27): una voz cantada que funcione como instrumento — notas MIDI y letra a voz cantada, con la investigación del dueño en `research/ai/singing-voice.md` (evaluar OpenUtau con DiffSinger frente a ACE Studio, español e inglés primero, licencias de cada componente); seguir evaluando y construirlo después; **(7)** pulido: nivel de los instrumentos, accesibilidad, detalles visuales.
 
 ## 1. Real use — the test that matters most
 
@@ -376,8 +376,9 @@ modulator), **Translatio** (frequency shifter), **Fluctus** (volume shaper); dyn
 analysis (ADR 0056) — **Tonsor** (clipper), **Impetus** (transient processor), **Discrimen**
 (transient splitter), **Speculum** (analyser); and **Tonus** (real-time pitch correction,
 ADR 0053, §3d). The exported plug-ins now follow the host's transport (synced units keep
-the other DAW's tempo) and take MIDI notes where a unit does (Tonus, Porta). **To do — the
-owner's decision, 2026-10-16 (option B):** an inserted effect must *sound* at once, as in FL
+the other DAW's tempo) and take MIDI notes where a unit does (Tonus, Porta). **Done in round 31 (ADR 0071): every unit
+decided — a starting preset or a reason for none; *Settings ▸ Editing* turns it off; our
+exported plug-ins start there too.** The owner's decision, 2026-10-16 (option B): an inserted effect must *sound* at once, as in FL
 and Ableton — today the modulation family enters at Mix/Depth 0 (the null rule), which reads
 as "it does nothing". Inserting loads a musical starting preset (e.g. Concentus's *Juno I*),
 while the parameters' defaults stay a null, so ADR 0018's rule and its tests are unchanged;
@@ -1294,6 +1295,42 @@ its name's letters, never by typing with a track selected.** All four landed in 
    editor; an audio clip (no audio editor exists) shows in the inspector; an empty lane
    still makes a clip.
 
+## 6h. A look of its own for each plug-in, and hosted plug-ins in their own editor or ours (requested 2026-10-26)
+
+*The owner: "make each plug-in have a custom design with its own style, as FL's do, each
+with its own style; and external plug-ins should open their native editor on load, but it
+should be possible to switch to Cantus's view and save that as the default for each
+plug-in."*
+
+1. **Each of our units with a face of its own** (FL's Fruity Love Philter, Gross Beat,
+   Vocodex, Harmor; FabFilter's family; Arturia's and u-he's instruments are the
+   reference). Today every editor shares the kit's one look (ADR 0024): readable, but one
+   effect looks like the next. Each unit (the effects of §3b and every instrument of §3e)
+   gets its own identity — a colour and material, a characteristic display (Concentus's
+   BBD lines, Spatium's room, Tonsor's transfer curve, Chorda's soundboard…), its own
+   control shapes and typography accents — drawn with the kit's vector primitives (no
+   bitmaps: crisp at any scale, both themes), still the family's rules: label/value units,
+   nothing overlapping, resizable, keyboard and screen-reader access, the same parameter
+   menu (*Modulate…*, MIDI learn, automation) on every control. A style sheet per unit
+   (`kit::skin`), not one-off painting code, so a unit's look is data. The exported
+   CLAP/VST3 builds carry the same face.
+   **Done when** every unit has its own skin shot in both themes at 100 % and 200 %, the
+   frame budget holds with three editors open, and a test fails for a unit left on the
+   plain look.
+2. **Hosted plug-ins: their native editor or Cantus's view, chosen per plug-in**
+   (Bitwig's and Ableton's device view of a plug-in's parameters, REAPER's generic UI are
+   the reference). A hosted CLAP/VST3 opens its own editor by default, as today; a switch
+   in its window (and the inspector) changes to **Cantus's view of it**: its parameters
+   drawn with the kit (grouped by the plug-in's modules/pages, searchable, with meters
+   where the plug-in reports them), every control with the parameter menu — and *Use as
+   default for this plug-in* remembers the choice by the plug-in's id (in the settings,
+   never in the project), with the inverse to go back. Works in and out of process
+   (ADR 0063), for plug-ins with no editor at all (Cantus's view is then the only one),
+   and the choice survives a rescan and an update of the plug-in.
+   **Done when** a hosted plug-in switches views without losing state or automation, the
+   default per plug-in is kept across restarts, and the generic view of a 500-parameter
+   plug-in scrolls within the frame budget.
+
 ## 7. AI (research done in round 20: `research/ai/`)
 
 Phase A tools foundation → B an MCP server → C the assistant panel → D local audio
@@ -1327,6 +1364,49 @@ mcp-server.md` §3 (the owner asked for them; to build with phase B):
   offline render (Speculum's analysis headless on every strip); a cheap static harmony
   linter in core; a server-side "live = offline" check (the builder's own harness first
   diverged from the app by sending automation differently).
+
+## 7a. A singing voice that plays like an instrument — MIDI and lyrics to a sung voice (requested 2026-10-27)
+
+*The owner: "I want a voice generator that works like an instrument." Their research is in
+`research/ai/singing-voice.md` (Spanish, kept as delivered): requirements, the workflow
+(notes → voice profile → lyrics and phonemes → alignment → synthesis → validation → WAV),
+the hard problems (pitch, timing, pronunciation, naturalness, several languages), the
+technologies to evaluate (ACE Studio as the commercial reference, OpenUtau, DiffSinger, a
+model of our own later), a data shape, a four-phase experiment, licences, the selection
+criteria and the order. **To evaluate further, then build — after the current work.***
+
+It extends §3e item 10 (the vowel choir now, lyric singing later) and its gate: every
+voice, model weight, vocoder and dataset with a licence that allows redistribution in a
+free DAW and the singers' consent, each with its provenance card (ADR 0030, ADR 0042).
+
+What Cantus adds to the research's plan:
+
+1. **An instrument track, not a separate program** — a *Vox* instrument on a track whose
+   clips are ordinary note clips; the lyric is a property of each note (a syllable, and
+   phonemes when edited), typed in the piano roll (Tab to the next note, a syllable
+   spreading over several notes, *fit lyrics to notes* by syllabification per language),
+   with a phoneme lane under the notes beside automation's lanes (§3 *Automation*, ADR
+   0068) and the voice's expression (breath, tension, vibrato depth, gender/formant) as
+   ordinary automatable parameters.
+2. **Offline first, as the research says, but invisible**: the engine renders phrases in
+   the background into a cache keyed by everything that changes the sound (as freeze and
+   the pitch editor's renders do, ADR 0054/0064) and plays the cached audio, so offline
+   equals real time to the bit and the audio thread never runs a model; an edited note
+   re-renders only its phrase; a *rendering…* hatch on stale phrases.
+3. **The engine behind an adapter in its own process** (as hosted plug-ins are, ADR 0063):
+   a crash or a GPU failure never takes Cantus down; CPU always works, GPU when present
+   (§4d); the model and voices download on demand (ADR 0030), never in the installer.
+4. **Order:** (a) the research's phases 1–3 measured on the owner's machine (OpenUtau +
+   a DiffSinger-family model with verified licences, compared with ACE Studio as a
+   reference only, Spanish and English first), written up with the criteria table filled;
+   (b) a decision (an ADR) on the engine and the voices we may ship; (c) the instrument,
+   the lyric editing and the cache; (d) more languages; (e) a model of our own only if
+   (a)–(d) show it is needed.
+
+**Done when** a melody typed in the piano roll with Spanish or English lyrics sings back in
+the chosen voice within 10 cents on sustained notes and 20 ms of each syllable's onset,
+≥ 90 % of words understood by listeners, renders identical offline and live, and every
+component's licence and consent is in `THIRD-PARTY-NOTICES.md`.
 
 ## 8. Polish
 

@@ -22,7 +22,7 @@
 //!   a drum part is built).
 
 use crate::clips::Ids;
-use crate::recording::RecordedNote;
+use crate::recording::{RecordedControl, RecordedNote};
 use cantus_core::audio::{AudioRegion, AudioSource, TakeMode};
 use cantus_core::TempoMap;
 use cantus_core::{
@@ -56,6 +56,8 @@ pub struct PassPlan {
     pub last_pass: u32,
     /// "Take", in the interface's language: clips are named "Vocal · Take 2".
     pub take_word: String,
+    /// The controllers played (ADR 0068): each MIDI take's lanes.
+    pub controls: Vec<crate::recording::RecordedControl>,
 }
 
 impl PassPlan {
@@ -73,6 +75,7 @@ impl PassPlan {
             stop_at: record_start,
             last_pass: 0,
             take_word: "Take".into(),
+            controls: Vec::new(),
         }
     }
 }
@@ -136,6 +139,10 @@ pub fn piece(clip: &Clip, start: Ticks, end: Ticks, lane: u8, ids: Ids) -> Clip 
         // A comp window's piece on the playing lane is the comp's; on a take lane it is a
         // take (ADR 0058, schema 32).
         comp: lane == 0 && clip.comp,
+        lanes: clip.lanes.clone(),
+        // r31 midi: content (ADR 0069).
+        groove: clip.groove,
+        skip_note_fx: clip.skip_note_fx,
     }
 }
 
@@ -496,6 +503,9 @@ fn audio_takes(
                 automation: None,
                 link: None,
                 comp: false,
+                lanes: Vec::new(),
+                groove: None,
+                skip_note_fx: false,
             });
         }
         if clips.is_empty() {
@@ -514,10 +524,12 @@ struct MidiPass<'n> {
     start: Ticks,
     end: Ticks,
     notes: Vec<&'n RecordedNote>,
+    /// The controllers played in it (ADR 0068).
+    controls: Vec<&'n RecordedControl>,
 }
 
 /// The notes grouped by loop pass, each with its window (cut to the punch range).
-fn midi_passes<'n>(plan: &PassPlan, notes: &'n [RecordedNote]) -> Vec<MidiPass<'n>> {
+fn midi_passes<'n>(plan: &'n PassPlan, notes: &'n [RecordedNote]) -> Vec<MidiPass<'n>> {
     let lp = plan.loop_region.filter(|(a, b)| b > a);
     let mut passes: Vec<u32> = notes.iter().map(|n| n.pass).collect();
     passes.sort_unstable();
@@ -557,6 +569,12 @@ fn midi_passes<'n>(plan: &PassPlan, notes: &'n [RecordedNote]) -> Vec<MidiPass<'
                 start,
                 end,
                 notes: mine,
+                controls: plan
+                    .controls
+                    .iter()
+                    .filter(|c| c.pass == p && c.tick >= Ticks::ZERO)
+                    .filter(|c| plan.punch.is_none_or(|(a, b)| c.tick >= a && c.tick < b))
+                    .collect(),
             });
         }
     }
@@ -571,6 +589,7 @@ fn new_note(n: &RecordedNote, content: Ticks, ids: Ids) -> Note {
         pitch: n.pitch.min(127),
         velocity: n.velocity.clamp(1, 127),
         muted: false,
+        release: n.release.min(127),
     }
 }
 
@@ -622,6 +641,9 @@ fn midi_clip(
         automation: None,
         link: None,
         comp: false,
+        lanes: recorded_lanes(&[], &pass.controls, origin, end - origin),
+        groove: None,
+        skip_note_fx: false,
     }
 }
 
@@ -667,6 +689,10 @@ fn overdub(
         .iter()
         .flat_map(|p| p.notes.iter().copied())
         .collect();
+    let all_controls: Vec<&RecordedControl> = passes
+        .iter()
+        .flat_map(|p| p.controls.iter().copied())
+        .collect();
     match found {
         Some(clip) => {
             let lo = all.iter().map(|n| n.start).min().unwrap_or(clip.start);
@@ -685,6 +711,15 @@ fn overdub(
                     .map(|n| new_note(n, clip.content_of(n.start), ids))
                     .collect(),
             });
+            // The controllers played over it, written into its lanes (ADR 0068).
+            if !all_controls.is_empty() {
+                let origin = clip.start - clip.offset;
+                cmds.push(Command::SetClipLanes {
+                    track: tid,
+                    clip: clip.id,
+                    lanes: recorded_lanes(&clip.lanes, &all_controls, origin, end - origin),
+                });
+            }
             // The copies of a linked clip that showed what it showed grow with it, so the
             // overdub is heard in each (ADR 0037).
             let follow = cantus_core::links::follow_window(&sim.project, (tid, clip.id), &cmds);
@@ -696,6 +731,7 @@ fn overdub(
                 start,
                 end,
                 notes: all,
+                controls: all_controls,
             };
             let clip = midi_clip(&sim.project, plan, &merged, name, ids);
             sim.push(vec![Command::InsertClip {
@@ -748,6 +784,44 @@ fn midi_takes(
         lay(sim, tid, clips, plan.mode, ids)?;
     }
     Ok(())
+}
+
+/// The lanes a take's controllers make (ADR 0068) in a clip whose content tick 0 is at `origin`
+/// on the timeline: each kind's messages as steps (MIDI's own shape: a value holds until the
+/// next), the controller at rest before its first; over a lane the clip already has (an
+/// overdub), written over the stretch played, up to `until` (content ticks), the old curve
+/// on after it.
+pub fn recorded_lanes(
+    existing: &[cantus_core::ClipLane],
+    controls: &[&RecordedControl],
+    origin: Ticks,
+    until: Ticks,
+) -> Vec<cantus_core::ClipLane> {
+    use cantus_core::clip_lanes::{edit, sort_lanes};
+    let mut msgs: Vec<(Ticks, cantus_core::LaneKind, f32)> = controls
+        .iter()
+        .map(|c| (c.tick - origin, c.kind, c.value))
+        .collect();
+    msgs.sort_by_key(|m| m.0);
+    let mut lanes = existing.to_vec();
+    for fresh in edit::lanes_from_messages(&msgs) {
+        match lanes.iter_mut().find(|l| l.kind == fresh.kind) {
+            Some(l) => {
+                let mine: Vec<(Ticks, f32)> = msgs
+                    .iter()
+                    .filter(|m| m.1 == fresh.kind)
+                    .map(|m| (m.0, m.2))
+                    .collect();
+                let steps = edit::steps(&mine);
+                if let (Some(a), Some(b)) = (steps.first(), steps.last()) {
+                    l.points = edit::overwrite(&l.points, a.tick, until.max(b.tick), &steps);
+                }
+            }
+            None => lanes.push(fresh),
+        }
+    }
+    sort_lanes(&mut lanes);
+    lanes
 }
 
 /// Everything a finished pass does to the project, in order: each audio take's source and

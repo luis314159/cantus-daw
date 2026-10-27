@@ -199,6 +199,36 @@ Neon Tide (house), Morning Light (pop ballad), Sunday Strut (funk and soul), Pap
 Lanterns (lo-fi hip-hop), Aurora (cinematic) and Midnight Static (trap). Open one, play
 it, take it apart.
 
+### The command palette
+
+`Ctrl+Shift+P` (*View ▸ Command palette…*) opens a field near the top of the window that
+finds anything Cantus can do. Type a few letters — of any word, in your language or in
+English: `mix` finds *Show the mixer*, `new tr` *New track with…*, `spl` *Split clip* — and
+the list narrows as you type; the arrows move, `Enter` runs the row, `Esc` closes. It holds:
+
+- every **action** with its shortcut at the right (the same as the menus and the keys);
+- the **areas** and **windows** (the devices panel, the shortcuts, the appearance editor,
+  the start page…) and every **Settings page** (*Settings: Audio*…);
+- every **effect** — inserted on the selected strip (or the selected track's, or the
+  master) — and every **instrument**, on a new track after the selected one; your own
+  **track templates** too;
+- the **recent projects** and the **project templates** (see
+  [Templates](#templates-and-the-start-page)).
+
+What you choose often and lately comes first; with nothing typed, the list starts with
+what you used last.
+
+### The undo history
+
+`Alt+H` (*View ▸ Show the undo history*) shows every step of the project's history, beside
+the inspector — dock it, stack it or float it like any area. Each step is named by what it
+did — *Move 3 notes*, *Insert Concentus on Lead*, *Rename track to Bass* — under a first row
+for the project as it was opened. The current step is lit; the steps after it, the ones
+*Redo* would bring back, are dimmed; the step your file holds says **SAVED**, and the steps
+since the last save carry a dot. **Click any row to go there**: Cantus undoes (or redoes)
+each step between, as `Ctrl+Z` would — nothing is lost, and a click on a later row comes
+back.
+
 ### The top bar
 
 The top bar is FL Studio's strip in two rows: one group per function, a thin divider
@@ -378,6 +408,9 @@ the inputs) are recorded into a clip.
 With nothing armed, `R` records into the selected track. No keyboard? `Ctrl+T` turns the
 **typing keyboard** on: `A`–`L` play notes, `Z`/`X` change octave. While it is on, letter
 shortcuts (including `R`) are off — use `Space` or the record key.
+The keyboard's **pitch bend**, **mod wheel**, **pedals**, every other controller (CC 0–119),
+**channel pressure** and how fast you let each key go (**release velocity**) are recorded
+too: they land in the clip's lanes under the notes in the piano roll.
 
 ### MIDI controllers
 
@@ -525,6 +558,30 @@ As in FL Studio, the arrangement opens things with no hunting through menus:
 - **Audio clips** have handles for fade in, fade out and gain (double-click one to reset
   it; right-click a fade for its curve) and a menu with *Normalize*, *Reverse*, *Reset clip
   gain* and *Remove fades*.
+- **Crossfades**: drag an audio clip so it starts over another and the overlap
+  **crossfades** by itself, in the same undo step — the earlier clip fading out while the
+  later one fades in, drawn as two curves across the overlap. Its square at the top of the
+  overlap: **drag it sideways** to make the crossfade longer or shorter (both clips' edges
+  move about its centre, as far as their audio goes); **double-click** it for the
+  crossfade's editor (its curve drawn, *No crossfade · Equal power · Linear · S-curve*,
+  *Length* in ms); **right-click** it for the same choices. *Equal power* (the default)
+  keeps two different recordings level across the overlap; *Linear* and *S-curve* suit two
+  takes of the same thing. An overlap with *No crossfade* plays both clips summed (dashed
+  edges). Turn the automatic crossfades off (or choose their curve) in *Settings ▸ Editing*
+  or the timeline's right-click menu (*Automatic crossfades*); the clip menu's *Crossfade
+  the overlap* crosses (or uncrosses) the selection's overlaps by hand. A clip lying wholly
+  inside another is layered over it, not crossed; clips that only meet are a butt join.
+- **Clip gain envelopes**: right-click an empty place in the arrangement ▸ *Show clip gain
+  envelopes* (or the clip menu). Each audio clip shows a gain line — +12 dB at the top, 0 dB
+  a quarter of the way down, −∞ at the bottom — and its waveform follows it. On a selected
+  or hovered clip, **press on the line** to add a point and drag it (Shift: finely);
+  **double-click** a point to delete it; drag the small circle half-way along a segment to
+  **bend** it (double-click to straighten); right-click a point or the line for the
+  segment's shape (the automation editor's six), *Delete point* or *Reset gain envelope*.
+  The line belongs to the audio: slip the content and it moves with it, trim and it is
+  hidden (not lost), split and both halves keep it, glue and the pieces' lines join,
+  reverse and it plays mirrored with the audio. It works on top of the clip's gain and
+  fades. MIDI clips have no gain line: their notes' velocity is their level.
 - **Import audio**: drag WAV, AIFF, FLAC or Ogg files onto the arrangement (they land at
   the pointer), or *File ▸ Import audio…*. A MIDI file adds its tracks.
 - **Linked copies**: a paste, `Ctrl+D` or `Alt+drag` makes *the same clip* again — edit one
@@ -618,6 +675,28 @@ edits that clip's notes.
 `Up`/`Down` transpose the selection (`Shift`: an octave), `Left`/`Right` nudge it, `Q`
 quantizes, `Ctrl+C`/`Ctrl+V` copy and paste. Velocities are stems in the lane under the
 grid: drag them, or `Alt+wheel` over a note. A drum kit shows one named row per pad.
+
+**Lanes under the notes.** Under the grid, each clip shows its velocity lane and the lanes it
+holds. The **+** in the velocity lane's cell adds one: **Release velocity** (how fast each
+note is let go — drag its stems; a ring on the floor is a note with none), **Pitch bend**,
+**Channel pressure**, the named controllers (mod wheel, breath, expression, sustain, …) or
+**Other controller ▸** for any number from 0 to 119. In a lane:
+
+| In a lane | What it does |
+|---|---|
+| Pencil, line, curve (the keys in its cell) | Draw freehand; drag a straight line; drag a curve (`Alt` bends it the other way). Line and curve snap to the grid |
+| Drag a point | Moves it (and the points selected with it); `Ctrl` keeps it in time |
+| `Shift` + drag | Selects the points in the rectangle; `Delete` deletes them |
+| Right-click a point | Deletes it |
+| **×** in its cell | Removes the lane (Undo brings it back) |
+
+The bend lane shows the instrument's bend range at its edges. A lane belongs to the clip:
+it moves, splits, loops, copies and links with it; the bend, pressure and pedals go back to
+rest where the clip ends. With **Lanes follow the notes** (on, in the **+** menu), moving,
+copying and pasting notes takes the controllers under them along. The rows share the space
+under the splitter; when there are more than fit, the wheel over their cells scrolls them.
+MIDI files bring their bends, pressure and controllers into these lanes and take them out
+again on export, with each note's release velocity.
 
 The **channel rack** (`F6`) shows every track as a row of steps over the selected clip's
 bars: click a step on, right-click it off, drag to paint. A step is an ordinary note.
@@ -773,6 +852,27 @@ exact sample inside the audio block.
 **Recording automation.** While you record, every control you move — in Cantus or in a
 plug-in's own window — is written into an automation clip over the stretch you moved it
 in (one undo step when the pass ends). Switch it off in the record options (*Automation*).
+(This is the **Latch** mode below, for every track in Read.)
+
+**Writing automation while the song plays: Read, Write, Touch, Latch.** Each track has an
+automation mode — the badge at the right of its header (R, W, T, L; click it, or `Alt+Shift+W` for
+the selected track), the inspector's *Automation* row; the master's is in its menu on the mixer. The **automation
+arm** in the top bar (the envelope key after loop) makes them write; its ▾ sets every track
+at once and the **Touch glide**.
+
+| Mode | While the song plays, armed |
+|---|---|
+| **Read** (R) | Plays the automation. Moving a control writes nothing |
+| **Write** (W) | Overwrites everything the track automates, from play to stop, each held where it was until you move it. After the pass the track switches to Touch |
+| **Touch** (T) | Writes while you hold a control; let go and it glides back to the curve that was there (over the touch glide, 250 ms by default) |
+| **Latch** (L) | Writes from your first touch until you stop, holding the last value |
+
+What you write becomes ordinary automation clips over exactly the stretch you wrote; the
+control goes back to where it was before the first clip, and the whole pass — with the
+moves of your hand — is **one undo step**. It works for every automatable control: faders,
+pans, sends, effects' and instruments' parameters, plug-ins' parameters moved in their own
+windows, modulator depths, and controllers mapped to any of them. Round a loop, each pass
+writes over the last where it touches; with punch on, only the punch range is written.
 
 ### Modulators
 
@@ -808,6 +908,88 @@ several, and they add up on top of its automation.
 
 Synced modulators follow the song position, so playing from bar 5 hears what a full play
 hears there; free ones start with playback. Exports sound exactly as playback.
+
+### Note effects: arpeggiator, chords, scale
+
+A track can change the notes it is given **before its instrument plays them**: an
+**arpeggiator**, **chords** and a **scale**, in a chain, in the order you set (FL's channel
+*Arp* and *Chord*, Ableton's MIDI effects). They act on the clips' notes and on what you
+play live, alike — while the song plays and while it is stopped.
+
+![Note effects in the inspector](../img/notefx-chain.png)
+
+- **Add one**: select the track; in the inspector's *Note effects* section click the band's
+  **+** (or the empty row) and pick *Arpeggiator*, *Chords* or *Scale*. A track holds up to
+  eight. Each one's title row has **earlier** / **later** (its place in the chain), its
+  **on/off** light and **remove**; click its name to fold it.
+- **Arpeggiator**: *Order* (up, down, up-down, down-up, as played, chord, random), *Octaves*
+  (1–4), *Rate* (1/1 to 1/64, dotted `.` and triplet `T`, synced to the tempo), *Gate* (how
+  long each note sounds, 5–200 % of a step), *Swing* (MPC-style, 50–75 %), *Hold* (the
+  notes keep playing once your keys are up, until you play a new chord), *Fixed vel.* with
+  its *Velocity* (or each note's own), and *Seed* (what *Random* draws from: the same pattern
+  every time you play). The first step plays where the chord starts; a chord on the grid
+  arpeggiates on the grid.
+- **Chords**: *Chord* (major, minor, dim, aug, sus2, sus4, 7, maj7, m7, m(maj7), m7b5, dim7, 6,
+  m6, add9, m(add9), 9, maj9, m9, 5, 5+8, 8va — or *Triad of the key* and *Seventh of the
+  key*, the key's own chord on each degree: I, ii, iii … in a major key), *Inversion* (0–3)
+  and *Voicing* (close, open — the second voice up an octave — or wide — open, the root an
+  octave down).
+- **Scale**: notes *Outside* the key are moved to its nearest note (*Snap to nearest*; ties
+  go down) or not played (*Drop*).
+- **Which key**: chords from the key and the scale read the **song's key** (below), unless
+  you switch on their *Own key* and choose its *Root* and *Scale*.
+- **Every parameter is automatable and modulatable**: right-click its row ▸ *Create
+  automation clip* or *Modulate…*, or drop a modulator's handle on it, as on any knob.
+- **What hears them**: playback, export, stems, freeze and bounce all play the notes the
+  chain makes — sample for sample the same. An insert that listens to the track's notes
+  (Porta's MIDI trigger) hears them too; a modulator opened or restarted by the track's
+  notes (an envelope, a retriggered LFO) follows the notes as written, before the chain — one
+  opening per chord, not per arpeggio step. Recording keeps what you
+  played (the keys), not the arpeggio.
+- **Bake to notes**: on a MIDI clip's inspector, *Bake to notes* replaces the clip with one
+  holding the notes the chain plays from it (its groove included) — one undo step. The new
+  clip plays **past the note effects** (its *Note effects ▸ Bypass* light is on), so they do
+  not act twice; switch it off to send a clip through them again.
+
+### The song's key, and the piano roll's scale
+
+Set the song's **key** on the piano roll's toolbar: click *Key* and pick a root and a scale
+(major, minor, harmonic and melodic minor, the modes, the pentatonics, blues, whole tone,
+the diminished scales, Phrygian dominant, Hungarian minor, Japanese, chromatic) — or *No
+key*. It is saved with the song.
+
+![The piano roll in D minor](../img/notefx-roll.png)
+
+- **Scale**: the key's rows are lit — the rows outside it a shade darker, the root's rows
+  tinted — and the keyboard marks the key's notes (the root wider).
+- **Fold**: the piano roll shows only the key's rows (and any row a note of the clip is on,
+  so nothing hides). Moving a note one row moves it one note of the key.
+- **Snap**: drawing, painting, dragging and transposing (`Up`/`Down`) keep notes in the key:
+  a drawn note lands on the key's nearest note, a dragged one on the next note of the key the
+  way it moved, `Up`/`Down` move one degree of the key (`Shift`: an octave).
+
+### Grooves
+
+A **groove** gives a clip a feel — notes late or early, accented, longer or shorter — without
+touching its notes. In a MIDI clip's inspector, *Groove* opens the list: the built-in swings
+(**8ths** and **16ths**, MPC-style, 50–75 %) and the project's own grooves.
+
+![A clip's groove](../img/notefx-groove.png)
+
+- **Amounts**: *Timing* (0–150 %: past 100 % it exaggerates), *Accents* (how much of the
+  groove's velocities) and *Lengths*. The notes stay as you wrote them; playback, export and
+  everything else hear them grooved.
+- **Commit** writes the groove into the notes and takes it off the clip (one undo step).
+- **Extract groove** puts a clip's feel into the project's grooves — a bar, on a 16th grid:
+  each step's average lateness, accent and length. On an **audio clip** it reads the clip's
+  transients (the ones *Warp* finds). The new groove then appears in every clip's list.
+- **Patterns**: the channel rack's toolbar has a *Groove* field: the choice goes to every
+  clip of the current pattern at once.
+- **Linked clips** share their groove, as they share their notes.
+
+A **MIDI file export** asks which notes to write: **As played** (each clip's groove applied
+and each track's note effects written out note by note — the file plays what you hear), or
+**As written** (the clips' notes, no groove, no note effects).
 
 ## 6. Mix: the mixer, inserts and sends
 
@@ -1140,8 +1322,17 @@ export always waits for it. These three are set, not automated.
 Eight effects move the sound in time: **Concentus** (chorus), **Flexus** (flanger),
 **Phasis** (phaser), **Tremor** (tremolo and auto-pan), **Vibrans** (vibrato), **Anulus**
 (ring modulator), **Translatio** (frequency shifter) and **Fluctus** (volume shaper). Each
-one is inserted **doing nothing** — its *Mix* or *Depth* starts at 0 and the sound passes
-untouched — so turn that one control up, or pick a factory preset from the frame's list.
+one is inserted **on a starting preset** so you hear it at once — Concentus as *Juno I*,
+Flexus as *Jet plane*, Phasis as *Phase 90, script*, Tremor as *Surf amp*, Vibrans as
+*Singer*, Anulus as *Bell*, Translatio as *Slow phase*, Fluctus as *Pump on the quarters* — named in the frame's preset
+well. Each control's *default* (what a double-click returns it to) is still the setting
+that changes nothing. To insert effects doing nothing instead, choose *Settings ▸ Editing
+▸ Effects ▸ On insert ▸ Neutral settings*. Other units start where they are useful too:
+Fervor on *Tape on the bus*, Multiplex on *Mastering glue*, Impetus on *More punch*,
+Discrimen on *More attack*; Comprimo, Porta, Sibilus, Spatium and Tonus already work at their defaults; an
+EQ, Latitudo and the analyser start flat, and Terminus, Culmen and Tonsor — the safeties
+at the end of a chain — start doing nothing until something goes over. Our CLAP and VST3
+versions start on the same preset in another DAW.
 
 | Effect | What it does | Worth knowing |
 |---|---|---|
@@ -1251,8 +1442,9 @@ singing with its distance in cents. Presets: *Natural*, *Tight*, *Hard tune*, *T
 
 ### Dynamics and analysis: Tonsor, Impetus, Discrimen, Speculum
 
-Four effects shape a sound's peaks and attacks and show what is in it. Like the others they
-are inserted **doing nothing**, so a fresh one changes no sample until you turn it.
+Four effects shape a sound's peaks and attacks and show what is in it. Impetus starts on
+*More punch* and Discrimen on *More attack*; Tonsor, a safety, starts at 0 dBFS and changes
+nothing until a peak goes over, and Speculum only looks.
 
 | Effect | What it does | Worth knowing |
 |---|---|---|
@@ -1347,10 +1539,54 @@ calling it done, and *Stop* ends it even while a plug-in hangs.
   are in no saved file. *Restore* brings them back as one undo step (`Ctrl+Z` shows the last
   save); *Discard* deletes nothing. *New* and *Open* ask before replacing unsaved work.
 
+### Templates and the start page
+
+*File ▸ New from template…* (or *Start page* in the [command palette](#the-command-palette))
+opens the **start page**: at its left a card for each template, at its right your
+**recent projects** (the last twelve you opened or saved; one that is no longer where it
+was says so). Click a card for a new, untitled project made from it — Cantus asks first if
+the open one has unsaved changes, as *New* does; click a recent project to open it.
+
+- **At start.** The start page opens by itself when Cantus starts — after the audio
+  setup of a first run and after a crash-recovery offer, and beside the start verse,
+  never over it — unless Cantus was given a project to open (a file double-clicked, the
+  command line) or restores work from a crash. *Show at start*, on the page itself or in
+  *Settings ▸ General*, turns it off. Closing it (its ✕, `Esc` or a click outside) leaves
+  the song Cantus opened on, as before.
+- **Four starters** come with Cantus, made from its own instruments and effects: *Empty
+  song* (one instrument track), *Beat* (Pulsus II's kit, Gravis on the bass, an electric
+  piano, a *Reverb* return, 92 BPM), *Band recording* (vocal, guitar, bass and keys audio
+  tracks on inputs 1 and 2, a *Reverb* return, the metronome on) and *Mastering* (a track
+  for your mix and the master's chain: equaliser, multiband compressor, stereo tool,
+  maximiser and Speculum).
+- **Your own:** *File ▸ Save as template…* keeps the project as it is under a name (a
+  template of the same name is replaced — the panel says so). It appears among the cards;
+  hover it and click its × twice to delete it.
+- **Track templates:** *File ▸ Save track as template…* keeps the selected track — its
+  instrument, colour, icon, level and pan, input and modulators — with its mixer strip:
+  inserts, EQ, fader, sends and output (not its clips: a template is a sound, not a song).
+  They appear on the **Track templates** shelf of the device picker and in the devices
+  panel (drag one onto a track's header: it lands after that track) and in the command
+  palette; the start page lists
+  them under the recent projects, where a click on its × (twice) deletes one. Inserting one is one
+  undo step: the track lands after the selected one, its strip takes the first blank
+  mixer strip, and what it was routed to is found **by name** — a send to *Reverb* goes to
+  this project's *Reverb* return; what this project does not have is left out, and the
+  status line says what.
+
+Templates live in Cantus's data folder (`%LOCALAPPDATA%\Cantus\templates`), project
+templates in `projects`, track templates in `tracks`; each is a `.cantus` file, so a
+template from an older version opens as any project does.
+
 **Settings** (`Ctrl+,`, or the **Options** menu, which also opens each page directly;
 *View ▸ Settings…* still works). The window has a sidebar of pages, as FL's options:
 *General* (the verse at start, on or off, and the
-Spanish Bible), *Audio* (driver, devices, rate, buffer, latency and the record offset),
+Spanish Bible), *Audio* (driver, devices, rate, buffer, latency, the record offset, and the *Audio
+cores* at work — the audio thread and the cores helping it, `1` for the audio thread
+alone — each count shown with an engine and a model it is known from, drawn at the right
+of the list and large under the field: `4 · V4 · Fulvia`, `12 · V12 · Enzo`, more than
+16 a turbo-ramjet; the line under it says how many are at work now, counted the same way;
+the real-time priority each audio thread was given is the last line of the band),
 *MIDI*, *Appearance* (language — English or Español —, interface size, colours, keyboard
 shortcuts), *Saving*, *Sample cache* (its size limit — 16 GB by default; when full, the
 least recently used samples go first — and *Clear cache*; it lives in
@@ -1396,6 +1632,7 @@ FL Studio, Ableton Live or Bitwig Studio presets. The defaults:
 | `Ctrl+T` | Typing keyboard plays notes |
 | `Ctrl+Plus` · `Ctrl+Minus` · `Ctrl+0` | Interface zoom |
 | `Ctrl+,` | Settings |
+| `Ctrl+Shift+P` · `Alt+H` | The command palette · the undo history |
 
 **On a Mac** `Cmd` (⌘) takes the place of `Ctrl` and `Option` (⌥) of `Alt`, and the
 *macOS* preset is the default: the table's keys, except that the metronome is `Cmd+K` (or `K` while the typing keyboard is off; ⌘M

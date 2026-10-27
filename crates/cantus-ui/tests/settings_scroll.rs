@@ -15,7 +15,7 @@ struct Win {
 
 impl Win {
     fn new(size: egui::Vec2) -> Win {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);

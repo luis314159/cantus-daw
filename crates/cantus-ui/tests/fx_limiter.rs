@@ -352,7 +352,7 @@ fn a_profile_is_one_step_and_names_itself() {
 /// The verdict is words: on target, turned down by how much, and a true peak over.
 #[test]
 fn the_verdict_says_what_the_platform_will_do() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let spotify = &PROFILES[0];
     let (ok, words) = verdict(Some(-14.3), -1.2, -14.0, -1.0, Some(spotify));
     assert!(ok, "{words}");

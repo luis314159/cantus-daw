@@ -321,7 +321,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
         for engine in [0.0f32, 1.0, 2.0] {
             for k in [0.75f32, 2.0] {
                 let (mut a, track) = with_bass();
-                cantus_ui::i18n::set_locale(locale);
+                cantus_ui::i18n::set_thread_locale(locale);
                 a.set_inst_value(track, "engine", engine, false);
                 a.open_inst_editor(track);
                 bass::demo_feed(&mut a);
@@ -355,7 +355,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
                 for f in faults(&words(&shapes), area) {
                     bad.push(format!("{locale:?} engine {engine} {k} Edit: {f}"));
                 }
-                cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+                cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
             }
         }
     }
@@ -411,7 +411,7 @@ fn presets_set_what_they_name_and_name_their_macros() {
 #[test]
 fn every_label_is_translated_in_both_languages() {
     let _turn = turn();
-    use cantus_ui::i18n::{set_locale, t, Locale};
+    use cantus_ui::i18n::{set_thread_locale, t, Locale};
     let mut keys: Vec<&str> = PARAMS.iter().map(|p| p.label_key).collect();
     keys.extend(bass::FACTORY_PRESETS.iter().map(|p| p.label_key));
     keys.extend(
@@ -430,17 +430,17 @@ fn every_label_is_translated_in_both_languages() {
         "bass.title.string",
     ]);
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         for k in &keys {
             assert_ne!(t(k), *k, "{k} has no words in {locale:?}");
         }
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     // And nothing painted is a key.
     for locale in [Locale::En, Locale::Es] {
         for engine in [0.0, 1.0, 2.0] {
             let (mut a, track) = with_bass();
-            set_locale(locale);
+            set_thread_locale(locale);
             a.set_inst_value(track, "engine", engine, false);
             a.open_inst_editor(track);
             bass::demo_feed(&mut a);
@@ -452,7 +452,7 @@ fn every_label_is_translated_in_both_languages() {
                     "{locale:?} engine {engine} {view:?} painted a key: {text}"
                 );
             }
-            set_locale(Locale::En);
+            set_thread_locale(Locale::En);
         }
     }
 }

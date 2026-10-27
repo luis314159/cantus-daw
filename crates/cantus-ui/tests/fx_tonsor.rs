@@ -155,11 +155,11 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
             );
         }
         for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(lang);
+            cantus_ui::i18n::set_thread_locale(lang);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {lang:?}");
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Every preset clips something of the demo signal (or holds a ceiling under it).
@@ -186,14 +186,14 @@ fn every_preset_moves_the_sound() {
 #[test]
 fn no_word_is_cut_in_either_language() {
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         let (mut a, s0, fx) = with_tonsor();
         tonsor::demo_setup(&mut a, s0, fx);
         cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Clipper);
         let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
         assert!(!text.contains('\u{2026}'), "{lang:?}: {text}");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review 1: pointing at the oversampling keys says what a step buys and costs.

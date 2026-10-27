@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn the_built_in_layout_shows_a_translated_name() {
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
         let d = Layout::default_layout();
         assert_ne!(d.display_name(), DEFAULT_NAME);
         let custom = Layout {

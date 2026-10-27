@@ -539,7 +539,7 @@ mod tests {
 
     #[test]
     fn a_tuning_this_session_cannot_design_says_so_never_zero_percent() {
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
         let mut spec = NativeSpec::new(InstrumentKind::Chorda);
         spec.set("a4", 441.23);
         cantus_engine::inst::chorda::refuse_for_tests(tuning_of(&values_of(&spec)), 48_000.0);
@@ -555,7 +555,7 @@ mod tests {
     fn a_tuning_no_designer_can_make_says_so_never_zero_percent() {
         use cantus_engine::inst::chorda::Design;
         for locale in [crate::i18n::Locale::En, crate::i18n::Locale::Es] {
-            crate::i18n::set_locale(locale);
+            crate::i18n::set_thread_locale(locale);
             let said = super::words(Design::NoDesigner).expect("a caption");
             assert_eq!(said, crate::i18n::t("chorda.no_designer"));
             assert!(!said.contains('%'), "{said}");
@@ -563,6 +563,6 @@ mod tests {
             assert!(super::words(Design::Coming(0.5)).is_some_and(|w| w.contains("50")));
             assert_eq!(super::words(Design::Ready), None);
         }
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
     }
 }

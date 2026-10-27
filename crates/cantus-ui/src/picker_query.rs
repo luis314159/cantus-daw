@@ -167,6 +167,14 @@ pub fn shelves(devices: &[Device], role: Option<Role>) -> Vec<Shelf> {
     {
         out.push(Shelf::Source(Source::Native));
     }
+    // The user's track templates, when there are some (round 31, ADR 0072).
+    if devices
+        .iter()
+        .filter(fits)
+        .any(|d| d.source == Source::Template)
+    {
+        out.push(Shelf::Source(Source::Template));
+    }
     // The CLAP and VST3 shelves are always listed (round 30): empty, they are where
     // *Scan plug-ins* and *Find more plug-ins…* wait (the owner installed plug-ins and
     // found nowhere that said how to see them).

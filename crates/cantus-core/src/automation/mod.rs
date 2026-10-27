@@ -25,9 +25,12 @@ pub mod compile;
 pub mod edit;
 pub mod range;
 pub mod set;
+pub mod write;
+pub mod write_commit;
 
 pub use compile::{AutoLane, AutoSeg};
 pub use range::{AutoRange, Taper};
+pub use write::AutoMode;
 
 /// What an automation clip drives. Stable across saves: ids and parameter keys, never
 /// indices (a key is forever once shipped, ADR 0018/0023).
@@ -80,6 +83,13 @@ pub enum AutoTarget {
     /// A modulator's amount (0…1): automation on it, or a second modulator — one level of
     /// nesting (ADR 0057).
     ModAmount(ModulatorId),
+    /// One parameter of a track's note effect (round 31, ADR 0069), by the effect's id and
+    /// the parameter's key, in its own units.
+    NoteFx {
+        track: TrackId,
+        effect: crate::notefx::NoteFxId,
+        key: String,
+    },
 }
 
 impl AutoTarget {
@@ -154,6 +164,13 @@ impl AutoTarget {
                 id: *id,
             },
             C::SetModulatorAmount { id, .. } => AutoTarget::ModAmount(*id),
+            C::SetNoteFxParam {
+                track, effect, key, ..
+            } => AutoTarget::NoteFx {
+                track: *track,
+                effect: *effect,
+                key: key.clone(),
+            },
             C::Batch { commands, .. } => return commands.iter().rev().find_map(Self::of_command),
             _ => return None,
         })
@@ -183,6 +200,7 @@ impl AutoTarget {
             C::SetPluginParam { value: Some(v), .. } => *v,
             C::SetInstrumentPluginParam { value: Some(v), .. } => *v,
             C::SetModulatorAmount { amount, .. } => f64::from(*amount),
+            C::SetNoteFxParam { value, .. } => f64::from(*value),
             C::Batch { commands, .. } => {
                 return commands.iter().rev().find_map(Self::value_of_command)
             }

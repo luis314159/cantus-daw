@@ -75,6 +75,13 @@ pub enum Action {
     DemoSongs,
     /// The Settings window (round 30, ADR 0066): macOS's ⌘, — and Ctrl+, elsewhere.
     OpenSettings,
+    /// The start page: a new project from a template, the recent projects (round 31, ADR
+    /// 0072).
+    NewFromTemplate,
+    /// The project as it is, kept as a template of the user's.
+    SaveAsTemplate,
+    /// The selected track, its strip and what it reaches, kept as a track template.
+    SaveTrackTemplate,
     // Edit
     Undo,
     Redo,
@@ -171,6 +178,10 @@ pub enum Action {
     ShowTakes,
     /// FL's *Tools ▸ Last tweaked ▸ Create automation clip* (ADR 0027).
     AutomateLastTweaked,
+    /// The automation arm (round 31, ADR 0068): Write, Touch and Latch write while it is on.
+    ToggleAutomationArm,
+    /// The selected track's automation mode, the next of Read, Touch, Latch, Write.
+    CycleTrackAutoMode,
     /// Open or close the selected track's instrument window, or bring it back from the
     /// device tray (F8; round 20).
     ToggleInstrumentWindow,
@@ -181,6 +192,12 @@ pub enum Action {
     LinkLastTweaked,
     /// Show or hide the controller mappings.
     ViewControllers,
+    // Workflow (round 31, ADR 0072)
+    /// The command palette: every action, area, setting, device, recent project and
+    /// template, found by typing (VS Code's Ctrl+Shift+P).
+    CommandPalette,
+    /// Show or hide the undo history.
+    ViewHistory,
 }
 
 /// How the shortcuts dialog groups the list.
@@ -226,7 +243,7 @@ impl Category {
 }
 
 impl Action {
-    pub const ALL: [Action; 96] = [
+    pub const ALL: [Action; 103] = [
         Action::PlayPause,
         Action::Stop,
         Action::Record,
@@ -325,6 +342,15 @@ impl Action {
         Action::ViewControllers,
         // Round 30 (ADR 0066).
         Action::OpenSettings,
+        // Round 31 (ADR 0072).
+        Action::CommandPalette,
+        Action::ViewHistory,
+        Action::NewFromTemplate,
+        Action::SaveAsTemplate,
+        Action::SaveTrackTemplate,
+        // Round 31 (ADR 0068).
+        Action::ToggleAutomationArm,
+        Action::CycleTrackAutoMode,
     ];
 
     /// The stable id used in `keymap.toml`.
@@ -421,11 +447,18 @@ impl Action {
             Action::TogglePunch => "toggle-punch",
             Action::ShowTakes => "show-takes",
             Action::AutomateLastTweaked => "automate-last-tweaked",
+            Action::ToggleAutomationArm => "toggle-automation-arm",
+            Action::CycleTrackAutoMode => "cycle-track-auto-mode",
             Action::ToggleInstrumentWindow => "toggle-instrument-window",
             Action::MidiLearnMode => "midi-learn-mode",
             Action::LinkLastTweaked => "link-last-tweaked",
             Action::ViewControllers => "view-controllers",
             Action::OpenSettings => "open-settings",
+            Action::CommandPalette => "command-palette",
+            Action::ViewHistory => "view-history",
+            Action::NewFromTemplate => "new-from-template",
+            Action::SaveAsTemplate => "save-as-template",
+            Action::SaveTrackTemplate => "save-track-template",
         }
     }
 
@@ -443,22 +476,20 @@ impl Action {
         match self {
             PlayPause | Stop | Record | ToStart | ToggleLoop | ToggleMetronome | TapTempo
             | TogglePatternMode | Panic | AddMarker | PreviousMarker | NextMarker
-            | LoopBetweenMarkers => Category::Transport,
+            | LoopBetweenMarkers | ToggleAutomationArm => Category::Transport,
             SelectBetweenMarkers => Category::Arrangement,
             ToggleTempoTrack => Category::View,
             // Freezing and bouncing are the track's; low-latency monitoring the recording's
             // (round 29, ADR 0064).
             FreezeTrack | BounceInPlace | BounceSource | ToggleLowLatency => Category::Arrangement,
-            NewProject | DemoSongs | Open | Save | SaveAs | ExportWav | OpenSettings => {
-                Category::File
-            }
+            NewProject | DemoSongs | Open | Save | SaveAs | ExportWav | OpenSettings
+            | NewFromTemplate | SaveAsTemplate | SaveTrackTemplate => Category::File,
             Undo | Redo | Cut | Copy | Paste | Duplicate | SelectAll | Delete | Quantize
             | ClearSelection => Category::Edit,
             // Recording sits with the arrangement, where its tracks and lanes are.
             LoopToSelection | ZoomToSelection | SelectPrevTrack | SelectNextTrack | ArmTrack
-            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch | AutomateLastTweaked => {
-                Category::Arrangement
-            }
+            | AddAudioTrack | ShowTakes | ToggleCountIn | TogglePunch | AutomateLastTweaked
+            | CycleTrackAutoMode => Category::Arrangement,
             SplitClip | GlueClips | ToggleClipMute | ToggleClipLoop | ClipColorNext
             | RenameClip | MakeUnique | LinkClips | SelectLinked | LinkTo => Category::Clips,
             NudgeLeft | NudgeRight | NudgeLeftBar | NudgeRightBar | TransposeUp | TransposeDown
@@ -481,7 +512,9 @@ impl Action {
             | ToggleClips
             | ViewRouting
             | ToggleInstrumentWindow
-            | ViewControllers => Category::View,
+            | ViewControllers
+            | CommandPalette
+            | ViewHistory => Category::View,
             MidiLearnMode => Category::Tools,
             LinkLastTweaked => Category::Arrangement,
             MoveStripLeft | MoveStripRight | ToggleStripSolo | ToggleStripMute
@@ -873,6 +906,14 @@ fn common() -> Vec<(Action, Binding)> {
         (ShowTakes, Binding::alt(Key::T)),
         // FL's Tools ▸ Last tweaked ▸ Create automation clip (ADR 0027): A for automate.
         (AutomateLastTweaked, Binding::alt(Key::A)),
+        // Round 31 (ADR 0068): the selected track's automation mode, W for write.
+        (
+            CycleTrackAutoMode,
+            Binding {
+                shift: true,
+                ..Binding::alt(Key::W)
+            },
+        ),
         // MIDI controllers (round 29, ADR 0062): Ctrl+Shift+M for the learn mode (Live's
         // Cmd+M, which is our metronome), Alt+Shift+A links the last tweaked parameter
         // beside Alt+A's automation clip, Ctrl+Shift+K shows the mappings (K for knobs).
@@ -886,6 +927,12 @@ fn common() -> Vec<(Action, Binding)> {
         ),
         (ViewControllers, Binding::cmd_shift(Key::K)),
         (AddAudioTrack, Binding::cmd_shift(Key::A)),
+        // The command palette (round 31, ADR 0072): VS Code's Ctrl+Shift+P — free in every
+        // preset, on Windows, Linux and macOS (⌘⇧P), and never a letter the typing piano
+        // wants. The undo history beside it: Alt+H (H for history; Alt keeps it from the
+        // typing piano).
+        (CommandPalette, Binding::cmd_shift(Key::P)),
+        (ViewHistory, Binding::alt(Key::H)),
     ]
 }
 
@@ -1254,6 +1301,12 @@ impl Keymap {
         if file.version.unwrap_or(1) < 10 {
             map.fill_in(&NEW_IN_V10);
         }
+        if file.version.unwrap_or(1) < 11 {
+            map.fill_in(&NEW_IN_V11);
+        }
+        if file.version.unwrap_or(1) < 12 {
+            map.fill_in(&NEW_IN_V12);
+        }
         Ok(map)
     }
 
@@ -1328,11 +1381,22 @@ struct KeymapFile {
 /// linked-clip actions (round 24, ADR 0037); version 5 the Routing tab (round 25);
 /// version 6 the route menu's key (round 25's integration); version 7 *Link to…* (round 26);
 /// version 8 tap tempo and PAT / SONG (round 28); version 9 the markers' and the tempo
-/// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066).
-pub const FILE_VERSION: u32 = 10;
+/// track's actions (round 29); version 10 the settings' key (round 30, ADR 0066); version
+/// 11 the command palette's and the undo history's (round 31, ADR 0072); version 12 the
+/// automation mode's key (round 31, ADR 0068).
+pub const FILE_VERSION: u32 = 12;
+
+/// Actions added in version 11 (round 31): Ctrl+Shift+P opens the command palette, Alt+H
+/// shows the undo history (ADR 0072).
+const NEW_IN_V11: [Action; 2] = [Action::CommandPalette, Action::ViewHistory];
 
 /// Actions added in version 10 (round 30): ⌘, / Ctrl+, opens the settings (ADR 0066).
 const NEW_IN_V10: [Action; 1] = [Action::OpenSettings];
+
+/// Actions added in version 12 (round 31, ADR 0068): Alt+Shift+W cycles the selected track's
+/// automation mode (W for write; Alt+W is the meters' wave). Version 11 is the command
+/// palette's.
+const NEW_IN_V12: [Action; 1] = [Action::CycleTrackAutoMode];
 
 /// Actions added in version 9 (round 29): the tempo builder's markers and tempo track (ADR
 /// 0060); the other round-29 builders append theirs here.
@@ -2125,6 +2189,46 @@ save = [\"Ctrl+Comma\"]
         assert!(
             map.bindings_for(Action::OpenSettings).is_empty(),
             "the key was taken"
+        );
+    }
+
+    /// A version-10 file (round 30) gets the command palette's and the history's keys where
+    /// they are free (version 11, round 31); the palette's chord is free in every preset.
+    #[test]
+    fn a_version_10_file_gets_the_palette_and_history_keys() {
+        let old = "preset = \"fl-studio\"
+version = 10
+
+[bindings]
+save = [\"Ctrl+S\"]
+";
+        let map = Keymap::from_toml(old).unwrap();
+        assert_eq!(
+            map.bindings_for(Action::CommandPalette),
+            [Binding::cmd_shift(Key::P)]
+        );
+        assert_eq!(
+            map.bindings_for(Action::ViewHistory),
+            [Binding::alt(Key::H)]
+        );
+        let taken = "preset = \"cantus\"
+version = 10
+
+[bindings]
+save = [\"Ctrl+Shift+P\"]
+";
+        let map = Keymap::from_toml(taken).unwrap();
+        assert!(map.bindings_for(Action::CommandPalette).is_empty());
+        for p in Preset::ALL {
+            assert_eq!(
+                p.keymap().bindings_for(Action::CommandPalette),
+                [Binding::cmd_shift(Key::P)],
+                "{p:?}"
+            );
+        }
+        assert!(
+            !mac_reserved().contains(&Binding::cmd_shift(Key::P)),
+            "⌘⇧P reaches Cantus on a Mac"
         );
     }
 }

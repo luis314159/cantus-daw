@@ -9,7 +9,7 @@
 use super::paint::{note_ink, ClipLook};
 use super::TimelineGeometry;
 use crate::app::CantusApp;
-use crate::audio_clips::{fade_gain_at, Fade};
+use crate::audio_clips::Fade;
 use crate::kit::color::{mix, shade, with_alpha};
 use crate::kit::text::{self, Elide, Policy, Role, Text};
 use crate::kit::{Brush, Style, Tok};
@@ -18,6 +18,8 @@ use cantus_core::{AudioRegion, Clip, ClipId, Ticks, TrackId};
 use egui::{pos2, vec2, Align2, Pos2, Rect};
 use std::fmt::Write as _;
 
+#[path = "arrangement_audio_clipfx.rs"]
+pub mod clipfx;
 #[path = "arrangement_audio_edit.rs"]
 pub(super) mod edit;
 #[path = "arrangement_warp.rs"]
@@ -35,6 +37,14 @@ pub enum Handle {
     WarpOnset(u32),
     /// The top band, at a content tick (a double-click adds a marker there).
     WarpBand(i32),
+    /// The square of the crossfade a clip starts with (ADR 0070).
+    Xfade,
+    /// A gain envelope's point, by its index (ADR 0070).
+    EnvPoint(u16),
+    /// The bend's handle of the segment from a point.
+    EnvBend(u16),
+    /// The envelope's line, at a content tick (a press there adds a point).
+    EnvLine(i32),
 }
 
 /// Where an audio clip's handles are, in screen points.
@@ -47,11 +57,36 @@ pub struct Handles {
     pub wave: Rect,
     /// The warp markers and transients drawn on the clip (ADR 0061).
     pub warp: Option<warp::Hits>,
+    /// The crossfade the clip starts with (ADR 0070).
+    pub xfade: Option<clipfx::XfadeHits>,
+    /// Its gain envelope, while the envelopes are shown (ADR 0070).
+    pub env: Option<clipfx::EnvHits>,
 }
 
 impl Handles {
-    /// The handle under `pos`, the gain first (it sits between the two fades).
+    /// The handle under `pos`: an envelope's point or bend first (small, and drawn on
+    /// top), the crossfade's square, the gain (it sits between the two fades), the fades,
+    /// the warp's marks, and the envelope's line last.
     pub fn at(&self, pos: Pos2) -> Option<Handle> {
+        let grow = |r: Rect| r.expand(2.0);
+        if let Some(h) = self
+            .env
+            .as_ref()
+            .and_then(|e| e.at(pos))
+            .filter(|h| !matches!(h, Handle::EnvLine(_)))
+        {
+            return Some(h);
+        }
+        if self.xfade.is_some_and(|x| grow(x.square).contains(pos)) {
+            return Some(Handle::Xfade);
+        }
+        if let Some(h) = self.fixed_at(pos) {
+            return Some(h);
+        }
+        self.env.as_ref().and_then(|e| e.at(pos))
+    }
+
+    fn fixed_at(&self, pos: Pos2) -> Option<Handle> {
         let grow = |r: Rect| r.expand(2.0);
         if grow(self.gain).contains(pos) {
             Some(Handle::Gain)
@@ -98,6 +133,8 @@ pub fn handles(
         ),
         wave: inner,
         warp: None,
+        xfade: None,
+        env: None,
     })
 }
 
@@ -194,6 +231,8 @@ pub struct Scratch {
     tops: Vec<Pos2>,
     badge: String,
     pub handles: Vec<((TrackId, ClipId), Handles)>,
+    /// The tracks' overlaps this frame (ADR 0070).
+    xcache: clipfx::Cache,
 }
 
 /// The width the badges (gain, reverse) take at the title bar's right, so the name is
@@ -317,9 +356,13 @@ pub fn paint(
             let _ = text::paint(b, r, &tx, s.tk());
         }
     }
+    // How it takes part in its track's overlaps (ADR 0070).
+    let crossing = clipfx::crossing(app, &mut scratch.xcache, shown);
     match look_up {
         Some(Lookup::Ready(peaks)) => {
-            wave(b, geo, lanes, shown, inner, &peaks, ink, scratch, s);
+            wave(
+                b, geo, lanes, shown, inner, &peaks, ink, &crossing, scratch, s,
+            );
         }
         Some(Lookup::Pending) => {
             b.hline(
@@ -351,8 +394,19 @@ pub fn paint(
     {
         parts::loading(b, lanes, inner, look, s);
     }
-    fades(b, shown, body, inner, px_per_tick, ink, scratch, s);
+    // A fade a crossfade replaces is not drawn, nor offered (ADR 0070).
+    let keep = (
+        !matches!(crossing.into, Some((_, _, Some(_), _))),
+        crossing.out_of.is_none(),
+    );
+    fades(b, shown, body, inner, px_per_tick, ink, keep, scratch, s);
     let mut h = handles(body, inner, shown.region, px_per_tick, k)?;
+    if !keep.0 {
+        h.fade_in = Rect::NOTHING;
+    }
+    if !keep.1 {
+        h.fade_out = Rect::NOTHING;
+    }
     // The warp markers and transients (ADR 0061), over the waveform and the fades.
     h.warp = warp::paint(b, app, geo, lanes, shown, inner, show_handles, false, s);
     // On a warped clip the band holds the markers' flags: the fade and gain squares sit
@@ -401,9 +455,23 @@ pub fn paint(
             );
         }
     }
+    // The crossfade it starts with, and its gain envelope (ADR 0070), over the rest.
+    let hot = dragging.or_else(|| pointer.and_then(|p| h.at(p)));
+    h.xfade = clipfx::paint_xfade(
+        b,
+        geo,
+        shown,
+        &crossing,
+        inner,
+        &[h.gain, h.fade_in, h.fade_out],
+        hot,
+        s,
+    );
+    if app.settings.show_clip_gain {
+        h.env = clipfx::paint_env(b, geo, lanes, shown, inner, show_handles, hot, s);
+    }
     scratch.handles.push(((shown.track, shown.clip.id), h));
     if show_handles {
-        let hot = dragging.or_else(|| pointer.and_then(|p| h.at(p)));
         paint_handles(b, &h, shown.region, hot, ink, s);
     }
     Some(h)
@@ -420,6 +488,7 @@ fn wave(
     inner: Rect,
     peaks: &crate::waveform::SourcePeaks,
     ink: egui::Color32,
+    crossing: &clipfx::Crossing,
     scratch: &mut Scratch,
     s: &Style,
 ) {
@@ -491,7 +560,7 @@ fn wave(
     let column_gain = |i: usize| {
         let x = x0 as f64 + (i as f64 + 0.5) * col_w as f64;
         let d = Ticks(((x - geo.x(shown.start.as_beats_f64() as f32) as f64) / px_per_tick) as i64);
-        gain * fade_gain_at(shown.region, shown.length, d)
+        clipfx::column_gain(shown, crossing, gain, d)
     };
     let h = inner.height() / lanes_n as f32;
     let fill = with_alpha(ink, 0.92);
@@ -522,6 +591,7 @@ fn wave(
 /// Called once per frame before the clips are painted.
 pub fn begin_frame(scratch: &mut Scratch) {
     scratch.handles.clear();
+    scratch.xcache.clear();
 }
 
 #[path = "arrangement_audio_paint.rs"]

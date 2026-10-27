@@ -64,7 +64,14 @@ fn shoot(
     mut extra: impl FnMut(&mut CantusApp, &egui::Context),
 ) {
     let mut frame = 0;
-    cantus_ui::raster::shoot(ctx, size, 1.0, 6, Some(path), |root| {
+    // A scene named `…-200` is shot at 200 % (two pixels a point).
+    let name = path.file_stem().map(|s| s.to_string_lossy().into_owned());
+    let ppp = if name.is_some_and(|n| n.contains("-200-")) {
+        2.0
+    } else {
+        1.0
+    };
+    cantus_ui::raster::shoot(ctx, size, ppp, 6, Some(path), |root| {
         frame += 1;
         let ctx = root.ctx().clone();
         if frame == 2 {
@@ -94,6 +101,12 @@ fn main() {
     let whats = [
         "settings-general",
         "settings-audio",
+        "settings-cores",
+        "settings-cores-200",
+        "settings-picture",
+        "settings-picture-200",
+        "engines",
+        "engines-200",
         "settings-plugins",
         "options",
         "picker-clap",
@@ -115,12 +128,20 @@ fn main() {
                 match what {
                     w if w.starts_with("settings-") => {
                         let page = match w {
-                            "settings-audio" => SettingsPage::Audio,
+                            "settings-audio"
+                            | "settings-cores"
+                            | "settings-cores-200"
+                            | "settings-picture"
+                            | "settings-picture-200" => SettingsPage::Audio,
                             "settings-plugins" => SettingsPage::Plugins,
                             _ => SettingsPage::General,
                         };
                         if page == SettingsPage::Audio {
                             views::settings_audio::demo_setup(&mut app);
+                        }
+                        // The cores list open: each count with its engine and model.
+                        if w.starts_with("settings-cores") {
+                            views::settings_audio::open_cores_list(&mut app);
                         }
                         views::workspace_settings::open(&mut app, page);
                         shoot(
@@ -132,6 +153,14 @@ fn main() {
                             views::workspace_settings::window,
                         );
                     }
+                    w if w.starts_with("engines") => shoot(
+                        &path,
+                        &ctx,
+                        &mut app,
+                        vec2(1500.0, 620.0),
+                        |_, _| {},
+                        |_, ctx| engines_gallery(ctx),
+                    ),
                     "options" => shoot(
                         &path,
                         &ctx,
@@ -184,4 +213,42 @@ fn main() {
             }
         }
     }
+}
+
+/// The ten engines' illustrations large, two rows of five, with their engine and model.
+fn engines_gallery(ctx: &egui::Context) {
+    use cantus_ui::engines::{paint, Engine, Look, ASPECT};
+    use cantus_ui::kit::text::{self, Role, Text};
+    use cantus_ui::kit::{with_brush, Fill, Style};
+    egui::Area::new(egui::Id::new("engines-gallery"))
+        .fixed_pos(egui::pos2(40.0, 80.0))
+        .order(egui::Order::Foreground)
+        .show(ctx, |ui| {
+            let s = Style::current();
+            let (rect, _) = ui.allocate_exact_size(vec2(1420.0, 470.0), egui::Sense::hover());
+            with_brush(ui.painter(), |b| {
+                b.rrect(rect, s.r(6.0), Fill::Solid(s.t.panel_raised));
+                let look = Look::of(&s.t, s.t.well);
+                for (i, e) in Engine::ALL.iter().enumerate() {
+                    let (col, row) = ((i % 5) as f32, (i / 5) as f32);
+                    let cell = egui::Rect::from_min_size(
+                        rect.min + vec2(20.0 + col * 278.0, 20.0 + row * 220.0),
+                        vec2(258.0, 200.0),
+                    );
+                    let plate = egui::Rect::from_min_size(cell.min, vec2(258.0, 140.0));
+                    b.rrect(plate, s.r(4.0), Fill::Solid(s.t.well));
+                    let h = 84.0;
+                    let car = egui::Rect::from_center_size(plate.center(), vec2(h * ASPECT, h));
+                    paint(b, car, *e, look);
+                    let words = format!("{} · {}", e.name(), e.model());
+                    let label = egui::Rect::from_min_max(
+                        egui::pos2(cell.left(), plate.bottom() + 8.0),
+                        cell.max,
+                    );
+                    let tx =
+                        Text::new(&words, Role::Body, s.t.text).align(egui::Align2::CENTER_TOP);
+                    let _ = text::paint(b, label, &tx, s.tk());
+                }
+            });
+        });
 }

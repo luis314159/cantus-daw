@@ -94,6 +94,9 @@ mod strip_run;
 /// The track nodes.
 #[path = "graph/track.rs"]
 pub(crate) mod track;
+/// The clips' controller lanes into the track nodes' instruments (ADR 0068).
+#[path = "graph/track_controls.rs"]
+pub(crate) mod track_controls;
 
 use exec::Nodes;
 use master::MasterStrip;
@@ -900,7 +903,7 @@ pub(crate) fn fire(slot: &mut TrackSlot, ev: &NoteEvent) {
     } else if ev.is_on() {
         slot.note_on_seq(ev.pitch, ev.velocity, ev.note.0, ev.ordinal);
     } else {
-        slot.note_off(ev.pitch, ev.note.0);
+        slot.note_off(ev.pitch, ev.note.0, ev.release);
     }
 }
 

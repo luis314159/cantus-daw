@@ -413,10 +413,10 @@ fn the_preview_says_hard_for_every_source() {
 /// abbreviated capitals — and fit the source column (236 pt) in both languages.
 #[test]
 fn the_midi_messages_are_whole_sentences_in_both_languages() {
-    use cantus_ui::i18n::{set_locale, t, Locale};
+    use cantus_ui::i18n::{set_thread_locale, t, Locale};
     use cantus_ui::kit::text::{measure, Role, Text};
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         let ctx = ctx();
         for key in ["tonus.midi_host", "tonus.midi_waiting"] {
             let mut w = 0.0;
@@ -439,5 +439,5 @@ fn the_midi_messages_are_whole_sentences_in_both_languages() {
         let want = t("tonus.midi_waiting");
         assert!(text.contains(&want), "{locale:?}: {want:?} in {text}");
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }

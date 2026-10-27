@@ -338,17 +338,43 @@ fn seams_of(p: &Project, track: &Track) -> Vec<(Ticks, Ticks, ClipId, ClipId)> {
     out
 }
 
+/// The overlap crossfades of `track` (ADR 0070): the stretch a time range's edge must not
+/// cut into, and the two clips crossing it. The stretch starts a tick before the overlap
+/// (the earlier clip cut where the later starts would no longer reach under it), or at the
+/// earlier clip's start.
+fn overlaps_of(track: &Track) -> Vec<(Ticks, Ticks, Vec<ClipId>, Vec<ClipId>)> {
+    cantus_core::crossfade::overlaps_of_track(track)
+        .into_iter()
+        .filter(|o| o.curve.is_some())
+        .filter_map(|o| {
+            let first = track.clip(o.left[0])?;
+            Some(((o.from - Ticks(1)).max(first.start), o.to, o.left, o.right))
+        })
+        .collect()
+}
+
 /// A bounce of chosen clips that takes one window of a comp seam and not the other: its
-/// crossfade would become a cut (review 3).
+/// crossfade would become a cut (review 3). Likewise one of two clips crossing an overlap
+/// (ADR 0070).
 fn seam_refusal(p: &Project, plan: &Plan) -> Option<String> {
     let Range::Clips(ids) = &plan.range else {
         return None;
     };
     let t = p.track(plan.track)?;
-    seams_of(p, t)
-        .iter()
-        .any(|(_, _, l, r)| ids.contains(l) != ids.contains(r))
-        .then(|| tf("bounce.seam", &[("name", &t.name)]))
+    let split = |v: Vec<(Ticks, Ticks, ClipId, ClipId)>| {
+        v.iter()
+            .any(|(_, _, l, r)| ids.contains(l) != ids.contains(r))
+    };
+    if split(seams_of(p, t)) {
+        return Some(tf("bounce.seam", &[("name", &t.name)]));
+    }
+    // An overlap's two windows (a split's pieces each part of its window): all or none.
+    let half = overlaps_of(t).iter().any(|(_, _, l, r)| {
+        let all = l.iter().chain(r);
+        let n = all.clone().filter(|c| ids.contains(c)).count();
+        n > 0 && n < l.len() + r.len()
+    });
+    half.then(|| tf("clipfx.bounce_overlap", &[("name", &t.name)]))
 }
 
 /// Why `plan` cannot be bounced now, if it cannot.
@@ -437,7 +463,12 @@ fn seam_edges(p: &Project, track: TrackId, a: Ticks, b: Ticks) -> (Ticks, Ticks)
     let Some(t) = p.track(track) else {
         return (a, b);
     };
-    let seams = seams_of(p, t);
+    let mut seams = seams_of(p, t);
+    seams.extend(
+        overlaps_of(t)
+            .into_iter()
+            .map(|(lo, hi, l, r)| (lo, hi, l[0], r[0])),
+    );
     let (mut a, mut b) = (a, b);
     for (lo, hi, ..) in &seams {
         if *lo < a && a < *hi {

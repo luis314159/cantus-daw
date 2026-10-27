@@ -263,10 +263,10 @@ fn the_presets_are_complete() {
     let (mut a, s0, fx) = open();
     for (label, params) in deesser::FACTORY_PRESETS {
         for locale in cantus_ui::i18n::Locale::ALL {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {locale:?}");
         }
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let map = params.iter().map(|(k, v)| (k.to_string(), *v)).collect();
         a.apply_fx_params(s0, fx, &map, "cmd.fx_preset");
         let s = spec(&a, s0);
@@ -304,9 +304,9 @@ fn the_preview_says_what_it_is_set_to() {
 fn the_editor_speaks_spanish() {
     let _turn = turn();
     let (mut a, _, _) = open();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let text = paint_editors(&mut a, SIZE);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     for needle in ["Umbral", "Voz sola", "Dividir banda", "SEÑAL", "DETECTOR"] {
         assert!(
             norm(&text).contains(&norm(needle)),

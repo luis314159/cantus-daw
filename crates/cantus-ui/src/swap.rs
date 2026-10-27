@@ -53,6 +53,8 @@ pub fn available(purpose: &PickPurpose, choice: &PickChoice) -> bool {
         | PickChoice::Instrument(_)
         | PickChoice::Sound(_) => purpose.wants_instrument(),
         PickChoice::Effect(_) => !purpose.wants_instrument(),
+        // A track template is a track of its own: added, never swapped in (ADR 0072).
+        PickChoice::TrackTemplate(_) => matches!(purpose, PickPurpose::AddInstrument { .. }),
         PickChoice::Hosted(info) => match info.kind {
             // ADR 0028: `apply_pick` puts it on a track through `set_hosted_instrument`.
             PluginKind::Instrument => purpose.wants_instrument(),
@@ -414,7 +416,8 @@ impl CantusApp {
                 if old.spec.kind == *kind && old.spec.external.is_none() {
                     return false;
                 }
-                self.bus.new_effect(*kind)
+                // As an insert starts (ADR 0071).
+                self.new_insert(*kind)
             }
             PickChoice::Hosted(info) => {
                 let same = old

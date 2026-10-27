@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <!-- Fulvia coupé (1960s), side profile facing right: a small narrow body, a tall airy
+       glasshouse on slim pillars with a quarter-light, a flat roof, chrome blades and
+       slotted wheels. Our own drawing (GPL-3.0-or-later, like the application); colours
+       are placeholders filled from the theme. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{paint_hi}"/>
+      <stop offset="0.35" stop-color="{paint}"/>
+      <stop offset="0.75" stop-color="{paint_lo}"/>
+      <stop offset="1" stop-color="{paint_deep}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="{glass_hi}" stop-opacity="0.55"/>
+      <stop offset="0.45" stop-color="{glass}"/>
+      <stop offset="1" stop-color="{glass}"/>
+    </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="0.5" stop-color="{rim_lo}"/>
+      <stop offset="1" stop-color="{chrome}"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="{shadow}" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="{shadow}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="1" stop-color="{rim}"/>
+    </radialGradient>
+    <rect id="slot" x="-1.6" y="-19" width="3.2" height="7" rx="1.6"/>
+    <g id="wheel">
+      <circle r="37" fill="{tyre}"/>
+      <circle r="36.4" fill="none" stroke="{edge}" stroke-width="1.2" opacity="0.28"/>
+      <circle r="33.5" fill="none" stroke="{tyre_hi}" stroke-width="1.6" opacity="0.7"/>
+      <circle r="23" fill="url(#rim)"/>
+      <g opacity="{detail}">
+        <circle r="23" fill="none" stroke="{rim_lo}" stroke-width="1.2"/>
+        <g fill="{trim}">
+          <use href="#slot"/>
+          <use href="#slot" transform="rotate(36)"/>
+          <use href="#slot" transform="rotate(72)"/>
+          <use href="#slot" transform="rotate(108)"/>
+          <use href="#slot" transform="rotate(144)"/>
+          <use href="#slot" transform="rotate(180)"/>
+          <use href="#slot" transform="rotate(216)"/>
+          <use href="#slot" transform="rotate(252)"/>
+          <use href="#slot" transform="rotate(288)"/>
+          <use href="#slot" transform="rotate(324)"/>
+        </g>
+        <circle r="9" fill="{chrome}"/>
+        <circle r="9" fill="none" stroke="{rim_lo}" stroke-width="1"/>
+        <circle r="4" fill="{rim_hi}"/>
+      </g>
+      <g opacity="{simple}">
+        <circle r="13" fill="{rim_lo}"/>
+        <circle r="7" fill="{chrome}"/>
+      </g>
+    </g>
+  </defs>
+
+  <ellipse cx="280" cy="184" rx="262" ry="10" fill="url(#shadow)"/>
+
+  <!-- the wheel wells -->
+  <path d="M 106 148 A 42 42 0 1 1 190 148 Z M 402 148 A 42 42 0 1 1 486 148 Z" fill="{trim}"/>
+
+  <!-- the body -->
+  <path d="M 36 140 C 31 134 30 120 30 104 L 31 90 C 32 87 34 86 37 86
+           C 50 78 62 72 72 71 C 100 70 130 69 146 69 C 160 54 178 36 194 28
+           C 230 25 300 25 328 27 C 340 40 356 60 368 70 C 420 74 480 82 512 92
+           C 524 96 530 100 531 106 L 529 124 C 528 132 520 138 506 140 L 486 141 L 486 148
+           A 42 42 0 1 0 402 148 L 400 152 L 192 152 L 190 148
+           A 42 42 0 1 0 106 148 L 104 146 C 80 146 50 144 36 140 Z" fill="url(#body)"/>
+
+  <!-- the glasshouse: the rear side glass, the door's glass, the quarter-light -->
+  <path d="M 151 72 C 164 58 180 42 195 32 L 211 31 L 211 72 Z" fill="url(#glass)"/>
+  <path d="M 215 31 L 309 30 L 304 72 L 215 72 Z" fill="url(#glass)"/>
+  <path d="M 313 30 L 326 30 C 338 44 352 60 362 71 L 309 72 Z" fill="url(#glass)"/>
+  <path d="M 250 31 L 268 31 L 236 72 L 216 72 Z" fill="{glass_hi}" opacity="0.13"/>
+  <path d="M 151 72 C 164 58 180 42 195 32 L 326 30 C 338 44 352 60 362 71" fill="none" stroke="{chrome}" stroke-width="1.6"/>
+  <path d="M 211 31 L 211 72 M 215 31 L 215 72 M 311 30 L 307 72" fill="none" stroke="{chrome}" stroke-width="1.6"/>
+
+  <!-- the light on the shoulder, the chrome waist line, the rocker strip, the bumpers -->
+  <path d="M 36 88 C 150 86 300 86 420 89 C 470 91 500 95 520 99 L 520 102 C 500 98 470 94 420 92 C 300 89 150 89 34 92 Z" fill="{paint_hi}" opacity="0.6"/>
+  <path d="M 148 74 L 364 74" fill="none" stroke="{chrome}" stroke-width="2"/>
+  <path d="M 194 147 L 398 147" fill="none" stroke="{chrome}" stroke-width="1.6"/>
+  <path d="M 26 124 L 64 124 C 66 127 66 131 64 134 L 26 134 C 22 131 22 127 26 124 Z" fill="url(#chrome)"/>
+  <path d="M 500 123 L 534 123 C 536 126 536 130 534 132 L 500 132 Z" fill="url(#chrome)"/>
+
+  <g opacity="{detail}">
+    <!-- the door, its handle, the fuel cap, the indicator -->
+    <path d="M 220 76 C 218 100 218 126 222 150" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 378 76 C 380 100 380 126 376 150" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 228 92 L 246 92" fill="none" stroke="{chrome}" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="62" y="101" width="16" height="11" rx="3" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.7"/>
+    <ellipse cx="514" cy="114" rx="5" ry="2.4" fill="{lamp}"/>
+    <path d="M 338 70 L 346 64 L 352 66 L 348 71 Z" fill="{chrome}"/>
+  </g>
+
+  <!-- the headlight's rim and the tail light -->
+  <ellipse cx="530" cy="102" rx="2.6" ry="6" fill="{lamp}"/>
+  <path d="M 30 92 L 34 92 L 34 104 L 30 104 Z" fill="{tail}"/>
+
+  <!-- the silhouette's edge -->
+  <path d="M 31 90 C 32 87 34 86 37 86 C 50 78 62 72 72 71 C 100 70 130 69 146 69
+           C 160 54 178 36 194 28 C 230 25 300 25 328 27 C 340 40 356 60 368 70
+           C 420 74 480 82 512 92 C 524 96 530 100 531 106" fill="none" stroke="{edge}" stroke-width="1.4" opacity="0.3"/>
+
+  <use href="#wheel" x="148" y="147"/>
+  <use href="#wheel" x="444" y="147"/>
+</svg>

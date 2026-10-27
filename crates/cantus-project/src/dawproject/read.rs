@@ -634,16 +634,24 @@ fn build(
                 region.slip_frames += c.slip;
                 region.fade_in = c.fades.0;
                 region.fade_out = c.fades.1;
+                region.gain_env = c.gain_env.clone().map(Box::new);
                 clip.audio = Some(region);
             }
             for n in &c.notes {
-                let note = project.make_note(n.start, n.length, n.pitch, n.velocity);
+                let mut note = project.make_note(n.start, n.length, n.pitch, n.velocity);
+                note.release = n.release;
                 clip.notes.push(note);
+            }
+            // Its controller lanes (ADR 0068), only on a clip of notes.
+            if clip.audio.is_none() {
+                clip.lanes = c.lanes.clone();
             }
             n_notes += clip.notes.len();
             n_clips += 1;
             track.clips.push(clip);
         }
+        // Two fades that span an overlap are its crossfade (ADR 0070).
+        super::audio::crossfades_from_fades(&mut track);
         project.tracks.push(track);
         n_tracks += 1;
     }

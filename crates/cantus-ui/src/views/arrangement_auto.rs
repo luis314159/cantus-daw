@@ -878,3 +878,38 @@ pub(super) fn track_menu(app: &mut CantusApp, ui: &mut egui::Ui, id: TrackId) ->
     app.create_automation_clip(target);
     true
 }
+
+// ---- the track header's mode badge (round 31, ADR 0068) ---------------------------------
+
+/// Where a track header shows its automation mode: a badge at the name line's right, left
+/// of the arm lamp, the name giving way — or nowhere, when the name would be left too
+/// narrow to read (a very narrow header column).
+pub(super) fn badge_layout(hr: &mut super::paint::HeaderRects, s: &Style) -> Option<Rect> {
+    use crate::views::auto_modes::{BADGE_H, BADGE_W};
+    let k = s.k;
+    let w = BADGE_W * k;
+    let right = hr.name.right();
+    if hr.name.width() < w + 4.0 * k + 36.0 * k {
+        return None;
+    }
+    let h = (BADGE_H * k).min(hr.name.height());
+    let badge = Rect::from_min_max(
+        pos2(right - w, hr.name.center().y - h * 0.5),
+        pos2(right, hr.name.center().y + h * 0.5),
+    );
+    hr.name.max.x = badge.left() - 4.0 * k;
+    Some(badge)
+}
+
+/// Paint a track header's mode badge (lit while the arm is on).
+pub(super) fn paint_badge(
+    b: &mut Brush,
+    a: &CantusApp,
+    track: &cantus_core::Track,
+    r: Rect,
+    pointer: Option<Pos2>,
+    s: &Style,
+) {
+    let hot = pointer.is_some_and(|p| r.expand(2.0 * s.k).contains(p));
+    crate::views::auto_modes::paint_badge(b, r, track.auto_mode, a.auto_armed(), hot, s);
+}

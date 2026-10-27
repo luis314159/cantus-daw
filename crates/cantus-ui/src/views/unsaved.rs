@@ -19,6 +19,8 @@ pub enum Then {
     OpenPath(PathBuf),
     /// The demo picker's demo `i` (its own *unsaved* question's **Save**).
     Demo(usize),
+    /// A new project from a template (round 31, ADR 0072).
+    Template(crate::templates::TemplateRef),
 }
 
 /// The answer.
@@ -48,6 +50,9 @@ impl CantusApp {
     fn ask_or(&mut self, then: Then) {
         // A save in flight lands first: then there may be nothing left to ask about.
         self.wait_for_save();
+        // A recording or a write pass in progress is unsaved work too: it ends into the
+        // project first, so the question sees it and *Save* writes it (fix-round review).
+        self.end_passes();
         if self.bus.is_dirty() {
             self.unsaved_prompt = Some(then);
         } else {
@@ -61,6 +66,7 @@ impl CantusApp {
             Then::Open => self.open_dialog(),
             Then::OpenPath(p) => self.open(&p),
             Then::Demo(i) => crate::views::demos::open(self, i),
+            Then::Template(tpl) => self.new_from_template(&tpl),
         }
     }
 

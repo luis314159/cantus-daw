@@ -16,7 +16,7 @@ static LANGUAGE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn language() -> std::sync::MutexGuard<'static, ()> {
     let guard = LANGUAGE.lock().unwrap_or_else(|e| e.into_inner());
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     guard
 }
 

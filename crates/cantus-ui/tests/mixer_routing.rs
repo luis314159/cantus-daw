@@ -22,7 +22,7 @@ use cantus_ui::{starter_project, views, CantusApp};
 use egui::{pos2, vec2, Event, Key, Modifiers, Pos2};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
@@ -729,7 +729,7 @@ fn a_click_on_a_port_then_on_a_strip_sends() {
 fn the_hint_bar_keeps_the_modifiers_whole_while_routing() {
     for locale in cantus_ui::i18n::Locale::ALL {
         let mut r = Rig::window(starter_project());
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         r.idle(3);
         let s = r.ids();
         r.click(r.rect(Some(s[1]), Control::Port).center());
@@ -742,7 +742,7 @@ fn the_hint_bar_keeps_the_modifiers_whole_while_routing() {
             "{locale:?}: the hint bar cut {keys:?}"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Ctrl held at the second click: the destination becomes the only output.
@@ -979,7 +979,7 @@ fn the_masters_pan_law_is_labelled() {
         (cantus_ui::i18n::Locale::Es, "ley "),
     ] {
         let mut r = Rig::new(starter_project());
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         mixer::set_width_mode(&mut r.app, mixer::layout::WidthMode::Wide);
         let text = r.idle(3);
         let law = r.app.project().pan_law.id().replace('-', "\u{2212}");
@@ -988,7 +988,7 @@ fn the_masters_pan_law_is_labelled() {
             "{locale:?}: {text}"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Whole window (design test 11 with answer 11): an arrangement header dragged onto a
@@ -1295,7 +1295,7 @@ fn the_cable_legend_shows_when_the_band_is_at_its_least() {
     {
         {
             let mut r = Rig::window(starter_project());
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             r.ctx.set_pixels_per_point(ppp);
             r.size = vec2(1280.0, 720.0) / ppp;
             // The default width (Compact) and Wide.
@@ -1372,7 +1372,7 @@ fn the_cable_legend_shows_when_the_band_is_at_its_least() {
             );
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review findings 1 and 2: whatever the desk was carrying when it left the screen lets

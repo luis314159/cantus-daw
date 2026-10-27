@@ -1,0 +1,95 @@
+# Area: automation write, touch and latch; the piano roll's CC, pitch-bend, velocity and release lanes (round 31, automation; ADR 0068). Every key here needs its twin in automodes.es.txt.
+
+# Commands (the undo history's words).
+cmd.set_clip_lanes = Edit controller lanes
+cmd.set_track_auto_mode = Set automation mode
+cmd.set_master_auto_mode = Set the master's automation mode
+automodes.cmd.write_pass = Write automation
+automodes.cmd.set_all = Set every track's automation mode
+
+action.toggle-automation-arm = Arm automation writing
+action.cycle-track-auto-mode = Next automation mode for the selected track
+
+# The modes.
+automodes.mode = Automation
+automodes.mode.read = Read
+automodes.mode.write = Write
+automodes.mode.touch = Touch
+automodes.mode.latch = Latch
+automodes.badge.read = R
+automodes.badge.write = W
+automodes.badge.touch = T
+automodes.badge.latch = L
+automodes.hint.read = Plays the automation; a hand on a control writes nothing.
+automodes.hint.write = Overwrites every automated parameter of the track from start to stop, holding each where it was until you move it.
+automodes.hint.touch = Writes while you hold a control, then glides back to the curve already there.
+automodes.hint.latch = Writes from your first touch until the stop, holding the last value.
+automodes.hint.disarmed = Arm automation in the top bar to write.
+
+# The top bar's arm and its options.
+automodes.arm = Automation arm
+automodes.arm.armed = Armed
+automodes.arm.on_tip = Armed: tracks in Write, Touch or Latch write their automation while the song plays.
+automodes.arm.off_tip = Off: every track reads its automation. Click to arm Write, Touch and Latch.
+automodes.options = Automation options
+automodes.set_all = All tracks
+automodes.glide = Touch glide
+automodes.glide_ms = {ms} ms
+automodes.glide_tip = How long a released control takes to glide back to the curve in Touch. Drag; double-click for 250 ms.
+
+# What a pass says.
+automodes.status.written = Automation written: {n} clips (one undo step).
+automodes.status.write_failed = The automation could not be written.
+automodes.status.mode = Automation mode: {mode}.
+
+# The piano roll's lanes: what they drive.
+automodes.lane.bend = Pitch bend
+automodes.lane.pressure = Channel pressure
+automodes.cc.0 = Bank select
+automodes.cc.1 = Mod wheel
+automodes.cc.2 = Breath
+automodes.cc.4 = Foot pedal
+automodes.cc.5 = Portamento time
+automodes.cc.7 = Volume
+automodes.cc.8 = Balance
+automodes.cc.10 = Pan
+automodes.cc.11 = Expression
+automodes.cc.64 = Sustain pedal
+automodes.cc.65 = Portamento
+automodes.cc.66 = Sostenuto
+automodes.cc.67 = Soft pedal
+automodes.cc.71 = Resonance
+automodes.cc.72 = Release time
+automodes.cc.73 = Attack time
+automodes.cc.74 = Brightness
+automodes.cc.91 = Reverb send
+automodes.cc.93 = Chorus send
+automodes.cc.n = CC {n}
+
+# The piano roll's lanes: rows, tools, the + menu.
+automodes.lane.release = Release velocity
+automodes.lane.release_tip = How fast each note was let go: drag a stem up or down (the selected notes move together). A ring on the floor is a note with none.
+automodes.lane.bend_tip = The pitch bend: draw with the pencil, the line or the curve; drag a point, Shift-drag to select, right-click a point to delete it.
+automodes.lane.ctl_tip = Draw with the pencil, the line or the curve; drag a point, Shift-drag to select, right-click a point to delete it.
+automodes.lane.remove = Remove this lane (its curve goes with it; Undo brings it back)
+automodes.lane.add = Add a lane
+automodes.lane.add_tip = Release velocity, pitch bend, channel pressure or any controller, under the notes.
+automodes.lane.band_notes = Notes
+automodes.lane.follow = Lanes follow the notes
+automodes.lane.band_ctl = Controllers
+automodes.lane.other = Other controller
+automodes.lane.back = ‹ Back
+automodes.lane.page = CC {a}–{b}
+automodes.tool.pencil = Pencil
+automodes.tool.pencil_tip = Draw the curve freehand.
+automodes.tool.line = Line
+automodes.tool.line_tip = Drag a straight line.
+automodes.tool.curve = Curve
+automodes.tool.curve_tip = Drag a curve; Alt bends it the other way.
+automodes.value.on = On
+automodes.value.off = Off
+automodes.range.plugin_top = Its own range
+automodes.range.plugin_bottom = set in the plug-in
+
+automodes.range.none = This instrument reads no pitch bend
+automodes.status.song_held = Undo and redo of another song wait while automation is written: stop playback or disarm first.

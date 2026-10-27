@@ -391,10 +391,15 @@ pub use apply::*;
 /// callback got and how many pool workers run real-time — and whether it is a warning (the
 /// callback without real-time priority).
 pub fn realtime_note() -> (String, bool) {
+    realtime_words(&cantus_rt::thread::priority_report())
+}
+
+/// [`realtime_note`] for `report`: every form in the interface's words (MMCSS, the time
+/// constraint, `SCHED_FIFO`/`RR`, a driver's thread, a refusal).
+pub fn realtime_words(report: &cantus_rt::thread::PriorityReport) -> (String, bool) {
     use crate::i18n::{t, tf};
-    let report = cantus_rt::thread::priority_report();
     let callback = match report.callback {
-        Some(p) => p.to_string(),
+        Some(p) => promotion_words(p),
         None => t("devices.realtime.waiting"),
     };
     let workers = if report.workers.is_empty() {
@@ -416,4 +421,83 @@ pub fn realtime_note() -> (String, bool) {
         ),
         warn,
     )
+}
+
+/// What one thread was given, in the interface's words.
+pub fn promotion_words(p: cantus_rt::Promotion) -> String {
+    use crate::i18n::{t, tf};
+    use cantus_rt::thread::{Grant, MmcssPriority};
+    use cantus_rt::Promotion;
+    let ms = |ns: u64| format!("{:.2}", ns as f64 / 1e6);
+    match p {
+        Promotion::Granted(Grant::Mmcss { task, priority, .. }) => {
+            let level = t(match priority {
+                MmcssPriority::Low => "devices.realtime.mmcss.low",
+                MmcssPriority::Normal => "devices.realtime.mmcss.normal",
+                MmcssPriority::High => "devices.realtime.mmcss.high",
+            });
+            tf(
+                "devices.realtime.mmcss",
+                &[("task", &task), ("priority", &level)],
+            )
+        }
+        Promotion::Granted(Grant::TimeConstraint {
+            period_ns,
+            computation_ns,
+            joined_workgroup,
+        }) => tf(
+            if joined_workgroup {
+                "devices.realtime.time_constraint_group"
+            } else {
+                "devices.realtime.time_constraint"
+            },
+            &[
+                ("computation", &ms(computation_ns)),
+                ("period", &ms(period_ns)),
+            ],
+        ),
+        Promotion::Granted(Grant::ThreadPriority { level }) => {
+            tf("devices.realtime.thread_priority", &[("level", &level)])
+        }
+        Promotion::Granted(Grant::RealTime {
+            fifo,
+            priority,
+            via_rtkit,
+        }) => tf(
+            if via_rtkit {
+                "devices.realtime.sched_rtkit"
+            } else {
+                "devices.realtime.sched"
+            },
+            &[
+                ("policy", &if fifo { "SCHED_FIFO" } else { "SCHED_RR" }),
+                ("priority", &priority),
+            ],
+        ),
+        Promotion::LeftAsIs(why) => {
+            if why.contains("SCHED_FIFO") || why.contains("SCHED_RR") {
+                let policy = if why.contains("SCHED_FIFO") {
+                    "SCHED_FIFO"
+                } else {
+                    "SCHED_RR"
+                };
+                tf("devices.realtime.driver_policy", &[("policy", &policy)])
+            } else if why.starts_with("driver") {
+                t("devices.realtime.driver")
+            } else if why.starts_with("background") {
+                t("devices.realtime.background")
+            } else if why.contains("spinning") {
+                t("devices.realtime.spins")
+            } else {
+                why.to_string()
+            }
+        }
+        Promotion::Refused(r) if r.code == 0 => {
+            tf("devices.realtime.refused_step", &[("step", &r.step)])
+        }
+        Promotion::Refused(r) => tf(
+            "devices.realtime.refused",
+            &[("step", &r.step), ("code", &r.code)],
+        ),
+    }
 }

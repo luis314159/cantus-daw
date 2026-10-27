@@ -111,6 +111,7 @@ fn export_then_import_round_trips_every_note_at_every_ppq_that_can_hold_it() {
             &ExportOptions {
                 scope: Scope::Song,
                 ppq,
+                notes: Default::default(),
             },
         )
         .unwrap();
@@ -135,6 +136,7 @@ fn coarser_files_hold_their_own_grid_exactly_and_round_everything_else_to_it() {
             &ExportOptions {
                 scope: Scope::Song,
                 ppq,
+                notes: Default::default(),
             },
         )
         .unwrap();
@@ -148,6 +150,7 @@ fn coarser_files_hold_their_own_grid_exactly_and_round_everything_else_to_it() {
             &ExportOptions {
                 scope: Scope::Song,
                 ppq,
+                notes: Default::default(),
             },
         )
         .unwrap();
@@ -302,6 +305,7 @@ fn a_clip_exports_from_its_own_start_and_plays_what_its_window_shows() {
                 clip: cid,
             },
             ppq: 960,
+            notes: Default::default(),
         },
     )
     .unwrap();
@@ -378,8 +382,20 @@ fn a_hand_built_type_0_file_is_split_by_channel_into_a_bass_and_a_kit() {
     assert!(kit.drums);
     assert_eq!(kit.label, midi::TrackLabel::Drums);
     assert_eq!(kit.notes.len(), 2);
-    assert!(import.report.has("interop.report.controllers"));
-    assert!(import.report.has("interop.report.pitch_bends"));
+    // The volume and the bend are kept in the bass's lanes now (ADR 0068), and said so.
+    assert!(!import.report.has("interop.report.controllers"));
+    assert!(import.report.has("interop.report.lanes_kept"));
+    assert_eq!(
+        bass.controls,
+        vec![
+            (Ticks(0), cantus_core::LaneKind::Cc(7), 100.0 / 127.0),
+            (
+                Ticks(960),
+                cantus_core::LaneKind::PitchBend,
+                10240.0 / 16384.0
+            ),
+        ]
+    );
     assert!(import.report.has("interop.report.programs"));
 
     let p = import_into_empty(&bytes, &ImportOptions::default(), true);

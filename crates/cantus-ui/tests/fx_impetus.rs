@@ -10,6 +10,8 @@ use support::*;
 fn with_impetus() -> (CantusApp, StripId, EffectId) {
     let mut a = app(cantus_ui::starter_project());
     let s0 = a.project().tracks[0].strip.unwrap();
+    // The unit at its defaults: a neutral insert (ADR 0071).
+    a.settings.insert_neutral = true;
     a.add_effect(s0, EffectKind::Transient);
     let fx = a.project().strip(s0).unwrap().effects[0].id;
     a.open_effect_editor(s0, fx);
@@ -148,7 +150,7 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
             );
         }
         for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(lang);
+            cantus_ui::i18n::set_thread_locale(lang);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {lang:?}");
         }
         let mut spec = EffectSpec::new(EffectKind::Transient);
@@ -160,21 +162,21 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
             "{label} does something"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// No word is cut short, in either language, with the editor fed as when it plays.
 #[test]
 fn no_word_is_cut_in_either_language() {
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         let (mut a, s0, fx) = with_impetus();
         impetus::demo_setup(&mut a, s0, fx);
         cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Transient);
         let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
         assert!(!text.contains('\u{2026}'), "{lang:?}: {text}");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review 1: the key is chosen in Impetus's own editor, as in every keyed editor: the field
@@ -212,10 +214,10 @@ fn the_key_is_chosen_in_the_editor() {
 /// "Su propia entrada", its checked row "Su propia señal").
 #[test]
 fn the_key_field_reads_as_its_list() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (mut a, _, _) = with_impetus();
     let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(text.contains("Su propia señal"), "{text}");
     assert!(!text.contains("Su propia entrada"), "{text}");
 }

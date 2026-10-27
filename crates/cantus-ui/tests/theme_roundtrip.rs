@@ -125,7 +125,7 @@ fn kit_scene(ui: &mut egui::Ui) {
 
 #[test]
 fn a_round_trip_of_themes_leaves_the_text_as_it_was() {
-    i18n::set_locale(i18n::Locale::En);
+    i18n::set_thread_locale(i18n::Locale::En);
     let (dark, light, gold, parchment) = (
         theme::slate(),
         theme::paper(),
@@ -168,10 +168,10 @@ fn a_round_trip_of_themes_leaves_the_text_as_it_was() {
     assert_eq!(diff(&a2, &a0), 0, "with a zoom in between");
 
     // A language in between.
-    i18n::set_locale(i18n::Locale::Es);
+    i18n::set_thread_locale(i18n::Locale::Es);
     theme::apply(&parchment, &s.ctx);
     s.run(KIT, 3, &mut kit_scene);
-    i18n::set_locale(i18n::Locale::En);
+    i18n::set_thread_locale(i18n::Locale::En);
     theme::apply(&gold, &s.ctx);
     s.run(KIT, 3, &mut kit_scene);
     theme::apply(&dark, &s.ctx);
@@ -198,7 +198,7 @@ fn a_round_trip_of_themes_leaves_the_text_as_it_was() {
 /// Round 25 (ADR 0046): every shipped theme, switched into from the default and back,
 /// is what starting in it gives, and leaves the default as it was.
 fn every_theme_round_trip() {
-    i18n::set_locale(i18n::Locale::En);
+    i18n::set_thread_locale(i18n::Locale::En);
     let home = theme::default_theme();
     let mut s = Shots::new();
     theme::apply(&home, &s.ctx);

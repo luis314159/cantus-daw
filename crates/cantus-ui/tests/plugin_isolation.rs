@@ -144,7 +144,7 @@ fn the_crash_card_and_the_audio_notices_share_one_stack_and_never_overlap() {
     // Three crashes: the card has its third button (#28).
     crash(&mut a, id, 3);
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         for size in [egui::vec2(1280.0, 720.0), egui::vec2(420.0, 600.0)] {
             let ctx = ctx();
             let mut layout = Vec::new();
@@ -182,7 +182,7 @@ fn the_crash_card_and_the_audio_notices_share_one_stack_and_never_overlap() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// A card never speaks of a plug-in that is gone: its slot removed, or the project
@@ -276,10 +276,10 @@ fn asking_for_a_stopped_plugins_window_brings_its_card_back() {
     let mut a = app(p);
     crash(&mut a, id, 1);
     plugin_notice::answer(&mut a, Answer::KeepOff);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     a.show_plugin_window(id);
     let text = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(a.status.error);
     assert!(text.contains("Glacier dejó de funcionar"), "{text}");
     assert!(!text.contains("crashed"), "no English: {text}");
@@ -289,7 +289,7 @@ fn asking_for_a_stopped_plugins_window_brings_its_card_back() {
 /// Why a plug-in stopped, from the forms the host writes on Windows and on Linux (#37).
 #[test]
 fn the_reasons_keep_their_detail_on_every_system() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let w = plugin_notice::reason_words;
     assert_eq!(
         w("it crashed (signal 11)"),
@@ -369,11 +369,11 @@ fn the_strings_of_isolation_exist_in_both_languages() {
         "cmd.set_plugin_isolation",
     ] {
         for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             assert_ne!(cantus_ui::i18n::t(key), key, "{key} in {locale:?}");
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// A plug-in whose name has parentheses keeps them in its name: they are no system code
@@ -382,19 +382,19 @@ fn the_strings_of_isolation_exist_in_both_languages() {
 #[test]
 fn a_reasons_detail_is_a_system_code_only() {
     let w = plugin_notice::reason_words;
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert_eq!(
         w("Kontakt 7 (16 out) stopped responding while it processed audio"),
         cantus_ui::i18n::t("isolation.why.hung_audio")
     );
     assert_eq!(w("it crashed (exit status: 1)"), "it crashed (exit code 1)");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let es = [
         w("it crashed (signal 11)"),
         w("it crashed (exit status: 1)"),
         w("Serum (x64) stopped responding while it rendered"),
     ];
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(es[0].contains("señal 11"), "{}", es[0]);
     assert!(es[1].contains("código de salida 1"), "{}", es[1]);
     assert!(!es[2].contains("x64"), "{}", es[2]);
@@ -435,7 +435,7 @@ fn a_long_name_never_cuts_the_run_buttons_words() {
         },
     );
     crash_instrument(&mut a);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let card = plugin_notice::card(&a).unwrap();
     let run = card.buttons[2].0.clone();
     let ctx = ctx();
@@ -443,7 +443,7 @@ fn a_long_name_never_cuts_the_run_buttons_words() {
     paint(&ctx, egui::vec2(420.0, 600.0), 2, |ui| {
         layout = cantus_ui::views::audio_notice::card_layout(&a, ui.ctx());
     });
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         run.starts_with("Ejecutar ") && run.ends_with(" por separado"),
         "{run}"
@@ -651,7 +651,7 @@ fn two_bakes_in_a_row_never_overlap() {
 /// saved state is done, with a word (review isolation-4 #10, #41).
 #[test]
 fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(cantus_ui::starter_project());
     assert!(cantus_ui::views::export::start_with(
@@ -688,7 +688,7 @@ fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
         cantus_host::RenderLoss::Stale,
     );
     cantus_ui::views::export::wait(&mut a);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(matches!(a.export.last, Some(Ok(_))), "done");
     assert!(
         a.status.text.contains("el último que dio"),
@@ -701,7 +701,7 @@ fn a_render_that_never_had_a_plugin_says_so_in_its_words() {
 /// interface's words (review isolation-4 #38, #64).
 #[test]
 fn a_reload_that_crashes_again_brings_its_card_back_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (p, _, id) = hosted_project();
     let mut a = app(p);
     crash(&mut a, id, 1);
@@ -710,7 +710,7 @@ fn a_reload_that_crashes_again_brings_its_card_back_in_its_words() {
     plugin_notice::reload(&mut a, Target::Insert(id), "Glacier");
     let text = a.status.text.clone();
     let card = plugin_notice::card(&a);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(a.status.error, "{text}");
     assert!(text.contains("se abortó"), "{text}");
     assert!(
@@ -729,7 +729,7 @@ fn a_reload_that_crashes_again_brings_its_card_back_in_its_words() {
 /// English (review isolation-4 #25, #40).
 #[test]
 fn a_reload_that_fails_without_crashing_says_so_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (p, _, id) = hosted_project();
     let mut a = app(p);
     a.plugins.mark_missing_for_tests(id, "not loaded");
@@ -737,7 +737,7 @@ fn a_reload_that_fails_without_crashing_says_so_in_its_words() {
         .fail_next_reload_for_tests("C:\\Plugins\\glacier.clap: init refused", false);
     plugin_notice::reload(&mut a, Target::Insert(id), "Glacier");
     let text = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(text.contains("no se pudo volver a cargar"), "{text}");
     assert!(!text.contains("init refused"), "{text}");
 }
@@ -747,13 +747,13 @@ fn a_reload_that_fails_without_crashing_says_so_in_its_words() {
 /// that did not happen (review isolation-4 #39).
 #[test]
 fn a_busy_window_is_said_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut a = app(cantus_ui::starter_project());
     let busy = cantus_host::HostError::Busy("its own window holds it".into());
     plugin_notice::window_failed(&mut a, "Glacier", &busy);
     let text = a.status.text.clone();
     let error = a.status.error;
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(!error, "not an error: {text}");
     assert!(text.contains("Glacier está ocupado"), "{text}");
     assert!(!text.contains("busy") && !text.contains("holds"), "{text}");
@@ -811,12 +811,12 @@ fn a_plugin_waiting_on_its_window_has_a_card() {
 /// shot cannot show (review isolation-3 #17, #33; isolation-4 #42).
 #[test]
 fn the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (p, strip, id) = hosted_project();
     let mut a = app(p);
     crash(&mut a, id, 1);
     let hint = cantus_ui::views::mixer::chain_hint(&a, strip, "Glacier");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let lines: Vec<&str> = hint.lines().collect();
     assert_eq!(lines.len(), 3, "{hint}");
     assert!(
@@ -830,7 +830,7 @@ fn the_chain_line_says_which_insert_stopped_and_how_to_bring_it_back() {
 /// never the host's English (review isolation-4 #40: seen in its shots).
 #[test]
 fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     // Glacier alone: the status line is its.
     let mut p = cantus_ui::starter_project();
     let strip = p.tracks[0].strip.unwrap();
@@ -839,7 +839,7 @@ fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
     p.strip_mut(strip).unwrap().effects.push(slot);
     let a = app(p);
     let text = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         text.contains("Glacier") && text.contains("no está instalado"),
         "{text}"
@@ -851,7 +851,7 @@ fn a_plugin_that_could_not_be_loaded_is_said_in_its_words() {
 /// one by name and why, several by count and names (review isolation-5 rule 2).
 #[test]
 fn a_save_names_the_plugins_it_kept_as_they_were_last_said() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let one = plugin_notice::saved_stale(&[(
         "Glacier".to_string(),
         "it did not answer in time".to_string(),
@@ -864,7 +864,7 @@ fn a_save_names_the_plugins_it_kept_as_they_were_last_said() {
         ("Odin 2".to_string(), "it was still answering".to_string()),
     ]);
     let none = plugin_notice::saved_stale(&[]);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let one = one.expect("said");
     assert!(
         one.contains("Glacier") && one.contains("no respondió a tiempo"),
@@ -884,7 +884,7 @@ fn a_save_names_the_plugins_it_kept_as_they_were_last_said() {
 /// host's English (review isolation-5 #49).
 #[test]
 fn a_window_that_could_not_open_is_said_in_its_words() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let mut a = app(cantus_ui::starter_project());
     plugin_notice::window_failed(
         &mut a,
@@ -898,7 +898,7 @@ fn a_window_that_could_not_open_is_said_in_its_words() {
         &cantus_host::HostError::Editor("the plug-in sandbox did not open it".into()),
     );
     let other = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         crashed.contains("Glacier")
             && crashed.contains("memoria")
@@ -919,7 +919,7 @@ fn a_window_that_could_not_open_is_said_in_its_words() {
 /// so after their own word — never written over by it (review isolation-5 #46).
 #[test]
 fn a_render_from_a_state_as_last_said_says_so_after_its_own_word() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let baked = cantus_ui::i18n::t("mods.status.baked");
     // The bake.
     let (p, mid, target) = follower_project();
@@ -959,7 +959,7 @@ fn a_render_from_a_state_as_last_said_says_so_after_its_own_word() {
     }
     let freeze_text = a.status.text.clone();
     let frozen = a.project().strip(strip).is_some_and(|s| s.frozen.is_some());
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert_eq!(bake_steps, 1, "baked");
     assert!(
         bake_text.contains(&baked) && bake_text.contains("Glacier"),
@@ -995,7 +995,7 @@ fn the_waiting_cards_hint_names_its_plugin_whole() {
 /// until it is installed: Reload is its way back (review isolation-5 #45).
 #[test]
 fn a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (p, _, _) = hosted_project();
     let mut a = app(p);
     let track = a.project().tracks[0].id;
@@ -1008,7 +1008,7 @@ fn a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed() {
         .mark_instrument_missing_for_tests(track, key, "it did not load within 30 s");
     a.open_hosted_window(track);
     let text = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(text.contains("no se pudo cargar"), "{text}");
     assert!(text.contains("no se cargó a tiempo"), "the reason: {text}");
     assert!(
@@ -1021,7 +1021,7 @@ fn a_plugin_that_could_not_be_loaded_is_never_told_to_be_installed() {
 /// never silently (review isolation-5 rule 2).
 #[test]
 fn a_save_that_kept_a_plugin_as_it_was_last_said_names_it() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let dir = tempfile::tempdir().unwrap();
     let (p, _, _) = hosted_project();
     let mut a = app(p);
@@ -1029,7 +1029,7 @@ fn a_save_that_kept_a_plugin_as_it_was_last_said_names_it() {
         .stale_in_saves_for_tests("Glacier", "it did not answer in time");
     a.save_to_path(&dir.path().join("song.cantus"));
     let text = a.status.text.clone();
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(!a.bus.is_dirty(), "saved");
     assert!(
         text.contains("Glacier") && text.contains("no respondió a tiempo"),
@@ -1042,7 +1042,7 @@ fn a_save_that_kept_a_plugin_as_it_was_last_said_names_it() {
 /// isolation-6 #10, #21, #31); one other plug-in in its process is said as one (#32).
 #[test]
 fn stale_reasons_and_a_single_neighbour_are_said_rightly() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let reasons = [
         "its state was not asked for",
         "stopped by the user",
@@ -1063,7 +1063,7 @@ fn stale_reasons_and_a_single_neighbour_are_said_rightly() {
     ];
     let one = plugin_notice::waiting_body(1);
     let two = plugin_notice::waiting_body(2);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     for ((r, w), e) in reasons.iter().zip(&words).zip(&expected) {
         assert_ne!(w, &failed, "{r}: {w}");
         assert_eq!(w, e, "{r}");

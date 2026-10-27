@@ -27,6 +27,9 @@ pub struct NoteEvent {
     /// instrument that cycles (a drum's round robin) reads this instead of counting hits,
     /// so a render that starts mid-song cycles the same way.
     pub ordinal: u32,
+    /// For a note-off, the note's release velocity (`Note::release`, ADR 0068): 0 — none
+    /// given — is what every note-off carried before. 0 on a note-on.
+    pub release: u8,
 }
 
 impl NoteEvent {
@@ -50,6 +53,11 @@ pub struct TrackSnapshot {
     pub instrument: InstrumentSpec,
     /// Sorted by `(tick, off-before-on)`.
     pub events: Vec<NoteEvent>,
+    /// The clips' controller lanes as events on the timeline (ADR 0068), sorted by tick;
+    /// empty — nothing split, nothing sent — when no clip of the track has a lane.
+    pub controls: Vec<crate::clip_lanes::CtlEvent>,
+    /// Every kind `controls` drives, once: what a seek chases and a stop puts to rest.
+    pub control_kinds: Vec<crate::clip_lanes::LaneKind>,
     /// How many lanes the instrument offers. Carried so the meter and the stats can say
     /// something about a kit without the audio thread reasoning about pads.
     pub lane_count: usize,
@@ -82,12 +90,23 @@ pub struct TrackSnapshot {
     pub notes_only: bool,
     /// How late its audio arrives at its level (`Track::lateness`, schema 38).
     pub lateness: Option<crate::model::Lateness>,
+    /// The note effects before its instrument (ADR 0069), as the track holds them; empty
+    /// plays every event as it is.
+    pub note_fx: Vec<crate::notefx::NoteEffect>,
+    /// For each of `events`, whether it reaches the instrument past the note effects (a
+    /// baked clip's, `Clip::skip_note_fx`). Empty when none does.
+    pub direct: Vec<bool>,
 }
 
 impl TrackSnapshot {
     /// Index of the first event at or after `tick` (binary search).
     pub fn first_event_at_or_after(&self, tick: Ticks) -> usize {
         self.events.partition_point(|e| e.tick < tick)
+    }
+
+    /// Index of the first controller event at or after `tick` (binary search).
+    pub fn first_control_at_or_after(&self, tick: Ticks) -> usize {
+        self.controls.partition_point(|e| e.tick < tick)
     }
 }
 
@@ -126,6 +145,14 @@ pub struct AudioClipSnapshot {
     pub xin: Option<(Ticks, Ticks)>,
     /// The seam's crossfade out of this window into the next.
     pub xout: Option<(Ticks, Ticks)>,
+    /// The curve `xin` follows: equal power at a comp seam, the later clip's choice over
+    /// an overlap (ADR 0070, `crate::crossfade`).
+    pub xin_curve: crate::crossfade::XfadeCurve,
+    /// The curve `xout` follows.
+    pub xout_curve: crate::crossfade::XfadeCurve,
+    /// The clip's gain envelope (ADR 0070), unless it is flat: content tick `t` lies on
+    /// timeline tick `start − offset + t` (mirrored across the window when reversed).
+    pub gain_env: Option<std::sync::Arc<crate::clip_gain::GainEnvelope>>,
     /// The clip's warp (ADR 0061), unless it plays as the source: the sample cache
     /// attaches its render — laid out so frame `k` is content time `k / rate` at the
     /// project's tempo from the window's content origin, its fine offset inside — and sets
@@ -243,16 +270,25 @@ pub struct Snapshot {
     /// The audio clips (track index, clip index) whose `fade_from` the sample cache set:
     /// what the engine looks at when it installs this snapshot, never every clip.
     pub swaps: Vec<(usize, usize)>,
+    /// The song's key (ADR 0069): what the note effects that follow it read.
+    pub key: Option<crate::scale::Key>,
 }
 
 impl Snapshot {
     pub fn compile(project: &Project, revision: u64) -> Snapshot {
         let mut automation = crate::automation::compile::compile(project);
         let hearing = crate::warp::held_tempo(project);
+        // Each track's events with its clips' grooves, and which pass its note effects (ADR 0069).
+        let notes: Vec<_> = project
+            .tracks
+            .iter()
+            .map(|t| compile_events(t, &project.grooves))
+            .collect();
         let tracks = project
             .tracks
             .iter()
-            .map(|t| TrackSnapshot {
+            .zip(notes)
+            .map(|(t, (events, direct))| TrackSnapshot {
                 id: t.id,
                 name: t.name.clone(),
                 gain: db_to_linear(t.gain_db),
@@ -260,7 +296,9 @@ impl Snapshot {
                 audible: project.track_audible(t),
                 strip: t.strip.and_then(|s| project.strip_index(s)),
                 instrument: t.instrument.clone(),
-                events: compile_events(t),
+                events,
+                controls: crate::clip_lanes::compile_track(t),
+                control_kinds: Vec::new(),
                 lane_count: t.instrument.lanes().count(),
                 samples: Vec::new(),
                 assets: Vec::new(),
@@ -280,8 +318,15 @@ impl Snapshot {
                 rest: false,
                 notes_only: false,
                 lateness: t.lateness,
+                note_fx: t.note_fx.clone(),
+                direct,
             })
             .collect::<Vec<_>>();
+        // The kinds each track's lanes drive (ADR 0068): what a seek chases.
+        let mut tracks = tracks;
+        for t in tracks.iter_mut() {
+            t.control_kinds = crate::clip_lanes::kinds(&t.controls);
+        }
         // Modulators (ADR 0057): a lane for every modulated target, and their plans.
         let modulators = crate::modulator::compile::compile(project, &tracks, &mut automation);
         Snapshot {
@@ -355,6 +400,7 @@ impl Snapshot {
             modulators,
             kept_pitch: kept_pitch(project),
             swaps: Vec::new(),
+            key: project.key,
         }
     }
 
@@ -426,6 +472,12 @@ fn compile_audio(
         // fades as they are (the engine shortens overlapping ones in proportion).
         let looped = c.period().is_some_and(|p| p < c.length);
         let fit = |f: Ticks, len: Ticks| if looped { f.min(len) } else { f };
+        // One envelope for every piece of a loop; a flat one is none (ADR 0070).
+        let env = a
+            .gain_env
+            .as_ref()
+            .filter(|e| !e.is_flat())
+            .map(|e| std::sync::Arc::new((**e).clone()));
         let piece = |start: Ticks, end: Ticks, first: bool, last: bool| AudioClipSnapshot {
             clip: c.id,
             source: a.source,
@@ -456,6 +508,9 @@ fn compile_audio(
             pitch: a.pitch.as_ref().map(|p| std::sync::Arc::new((**p).clone())),
             xin: None,
             xout: None,
+            xin_curve: crate::crossfade::XfadeCurve::EqualPower,
+            xout_curve: crate::crossfade::XfadeCurve::EqualPower,
+            gain_env: env.clone(),
             // A warp that plays as the source (ADR 0061) is no warp: the bits of today. One
             // that does not follow (and does not transpose) does, whatever the tempo map;
             // one that follows, where it maps as the unwarped clip over its window.
@@ -481,8 +536,64 @@ fn compile_audio(
         }
     }
     seams(project, track, hearing, &mut out);
+    crossfades(track, &mut out);
     out.sort_by_key(|c| c.start);
     out
+}
+
+/// Overlap crossfades (ADR 0070): where a playing-lane audio window carrying a crossfade
+/// curve starts inside another, the two cross over the overlap — the earlier fading out,
+/// the later in, over the very same stretch, on the later's curve — through the seam's
+/// `xin`/`xout` (one engine path). Every piece of a loop that reaches into the stretch is
+/// told it; a piece already crossing at a seam keeps its seam. The fades the crossfade
+/// covers (the earlier's out, the later's in) give way to it.
+fn crossfades(track: &Track, out: &mut [AudioClipSnapshot]) {
+    use crate::crossfade::XfadeCurve;
+    if !track
+        .clips
+        .iter()
+        .any(|c| c.audio.as_ref().is_some_and(|a| a.cross.is_some()))
+    {
+        return;
+    }
+    // Each piece's side of a crossed overlap, by its id: one pass over the pieces after
+    // (review 1: no scan of every piece per overlap). A split's pieces are their window's.
+    let mut side: std::collections::HashMap<ClipId, Vec<(bool, Ticks, Ticks, XfadeCurve)>> =
+        std::collections::HashMap::new();
+    for o in crate::crossfade::overlaps_of_track(track) {
+        let Some(curve) = o.curve.filter(|_| o.to > o.from) else {
+            continue;
+        };
+        for id in &o.left {
+            side.entry(*id)
+                .or_default()
+                .push((false, o.from, o.to, curve));
+        }
+        for id in &o.right {
+            side.entry(*id)
+                .or_default()
+                .push((true, o.from, o.to, curve));
+        }
+    }
+    if side.is_empty() {
+        return;
+    }
+    for p in out.iter_mut() {
+        let Some(sides) = side.get(&p.clip) else {
+            continue;
+        };
+        for &(into, from, to, curve) in sides {
+            if !into && p.end > from && p.xout.is_none() {
+                p.xout = Some((from, to));
+                p.xout_curve = curve;
+                p.fade_out = Ticks::ZERO;
+            } else if into && p.start < to && p.xin.is_none() {
+                p.xin = Some((from, to));
+                p.xin_curve = curve;
+                p.fade_in = Ticks::ZERO;
+            }
+        }
+    }
 }
 
 /// Comp seams (ADR 0058): where a playing-lane audio window carrying a crossfade starts
@@ -541,7 +652,7 @@ fn seams(
 
 /// The audio a window's source holds before its content starts and after it ends, in
 /// whole ticks (rounded down): how far a seam's crossfade can read past each edge.
-fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
+pub(crate) fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
     let Some((a, src)) = c
         .audio
         .as_ref()
@@ -574,7 +685,9 @@ fn audio_room(project: &Project, c: &Clip) -> (Ticks, Ticks) {
     )
 }
 
-fn compile_events(track: &Track) -> Vec<NoteEvent> {
+/// A track's events, and — when some clip plays past the note effects (ADR 0069) — which
+/// of them do, aligned with the events (empty when none does).
+fn compile_events(track: &Track, pool: &[crate::groove::Groove]) -> (Vec<NoteEvent>, Vec<bool>) {
     let mut events = Vec::new();
     // Reused across every note so compiling a project of 20 000 notes allocates once.
     let mut at = Vec::new();
@@ -594,7 +707,19 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
     };
     // Which clip each event came from — needed only where two clips could share note ids.
     let mut from: Option<Vec<u64>> = (track.clips.iter().filter(heard).count() > 1).then(Vec::new);
+    // Which events skip the note effects: kept only when some clip does (ADR 0069).
+    let mut direct: Option<Vec<bool>> = track
+        .clips
+        .iter()
+        .filter(heard)
+        .any(|c| c.skip_note_fx)
+        .then(Vec::new);
     for clip in track.clips.iter().filter(heard) {
+        // Its groove, played as it is heard (ADR 0069): resolved once per clip.
+        let groove = clip
+            .groove
+            .and_then(|g| crate::groove::resolve(pool, &g.source).map(|x| (x, g)));
+        let groove = groove.as_ref().map(|(g, a)| (g, a));
         for n in &clip.notes {
             if n.muted {
                 continue;
@@ -610,13 +735,15 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
             // window onto its content, and a looping clip shows the same note more than
             // once (`Clip::timeline_positions`).
             clip.timeline_positions(n.start, &mut at);
-            for on in at.iter().copied() {
-                let mut off = on + n.length;
+            for heard_at in at.iter().copied() {
+                let (on, velocity, length) =
+                    crate::groove::heard(groove, clip, heard_at, n.velocity, n.length);
+                let mut off = on + length;
                 // A note never sounds past the clip, nor past the start of the next
                 // repetition — otherwise a looped clip would stack its own tails.
                 off = off.min(clip.end());
                 if let Some(period) = clip.period() {
-                    off = off.min(on + period);
+                    off = off.min(heard_at + period);
                 }
                 if off <= on {
                     continue;
@@ -624,9 +751,10 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
                 events.push(NoteEvent {
                     tick: on,
                     pitch: n.pitch,
-                    velocity: n.velocity.max(1),
+                    velocity: velocity.max(1),
                     note: tag,
                     ordinal: 0,
+                    release: 0,
                 });
                 events.push(NoteEvent {
                     tick: off,
@@ -634,9 +762,13 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
                     velocity: 0,
                     note: tag,
                     ordinal: 0,
+                    release: n.release,
                 });
                 if let Some(from) = from.as_mut() {
                     from.extend([clip.id.0, clip.id.0]);
+                }
+                if let Some(direct) = direct.as_mut() {
+                    direct.extend([clip.skip_note_fx; 2]);
                 }
             }
         }
@@ -645,7 +777,20 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
         tell_copies_apart(&mut events, &from);
     }
     // Offs before ons at the same tick so a retriggered pitch restarts cleanly.
-    events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
+    let direct = match direct {
+        None => {
+            events.sort_by_key(|e| (e.tick, e.is_on(), e.pitch, e.note));
+            Vec::new()
+        }
+        // The same stable sort, each flag carried with its event.
+        Some(direct) => {
+            let mut both: Vec<(NoteEvent, bool)> = events.drain(..).zip(direct).collect();
+            both.sort_by_key(|(e, _)| (e.tick, e.is_on(), e.pitch, e.note));
+            let (e, d): (Vec<NoteEvent>, Vec<bool>) = both.into_iter().unzip();
+            events = e;
+            d
+        }
+    };
     // An Exemplar playing its round robins in order counts turns per lane (the notes
     // reaching the same samples), everything else per pitch.
     match track
@@ -675,7 +820,7 @@ fn compile_events(track: &Track) -> Vec<NoteEvent> {
             }
         }
     }
-    events
+    (events, direct)
 }
 
 /// Tell apart the notes of clips that share note ids on one track (ADR 0037).

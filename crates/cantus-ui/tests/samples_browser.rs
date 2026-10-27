@@ -522,7 +522,7 @@ fn a_cc_by_pack_shows_its_credit_and_the_plain_words_before_and_after_download()
             ],
         ),
     ] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let f = fixture();
         let mut a = browser_app(&f, m.clone());
         let before = content_window_text(&mut a, &piano.id);
@@ -559,7 +559,7 @@ fn a_cc_by_pack_shows_its_credit_and_the_plain_words_before_and_after_download()
         assert!(after.contains(kept), "{locale:?}: {after}");
         assert!(!before.contains(kept), "said only once it is installed");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]
@@ -661,7 +661,7 @@ fn the_details_labels_are_drawn_whole_and_clear_of_their_values() {
     let m = cc_by_manifest();
     let piano = m.pack("fixture-grand-piano").unwrap().clone();
     for locale in [cantus_ui::i18n::Locale::Es, cantus_ui::i18n::Locale::En] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let f = fixture();
         let mut a = browser_app(&f, m.clone());
         let shapes = content_window_shapes(&mut a, &piano.id);
@@ -691,5 +691,5 @@ fn the_details_labels_are_drawn_whole_and_clear_of_their_values() {
             "{locale:?}: the values start in one column: {value_x:?}"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

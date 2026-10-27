@@ -300,7 +300,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
             (fm::Detail::Oscillator, false),
         ] {
             let (mut a, track) = with_fm();
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             fm::demo_setup(&mut a, track);
             a.inst.fm.detail = page;
             a.inst.fm.matrix_view = grid;
@@ -308,7 +308,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
             for k in [0.75, 1.0, 2.0] {
                 for view in [View::Play, View::Edit] {
                     let ctx = ctx();
-                    cantus_ui::i18n::set_locale(locale);
+                    cantus_ui::i18n::set_thread_locale(locale);
                     let texts = inst_look::paint_at(&ctx, &mut a, track, view, k);
                     for p in inst_look::problems(&texts, inst_look::area(k, view)) {
                         found.push(format!(
@@ -319,7 +319,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         found.is_empty(),
         "{} problems:\n{}",
@@ -388,13 +388,13 @@ fn shots() {
                  locale: cantus_ui::i18n::Locale,
                  setup: &dyn Fn(&mut cantus_ui::CantusApp)| {
         let (mut a, track) = with_fm();
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         fm::demo_setup(&mut a, track);
         setup(&mut a);
         a.open_inst_editor(track);
         a.inst.view = view;
         let c = ctx();
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         cantus_ui::theme::apply(theme, &c);
         cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&c, k);
         let path = dir.join(format!("{name}.png"));
@@ -473,7 +473,7 @@ fn shots() {
         ("paper", cantus_ui::theme::paper()),
     ] {
         let (mut a, track) = with_fm();
-        cantus_ui::i18n::set_locale(en);
+        cantus_ui::i18n::set_thread_locale(en);
         fm::demo_setup(&mut a, track);
         a.open_inst_editor(track);
         a.inst.view = View::Edit;
@@ -485,6 +485,6 @@ fn shots() {
             inst_look::full_body(ui, |ui, s| fm::body(&mut a, ui, track, &spec, s));
         });
     }
-    cantus_ui::i18n::set_locale(en);
+    cantus_ui::i18n::set_thread_locale(en);
     cantus_ui::theme::apply(&cantus_ui::theme::default_theme(), &ctx());
 }

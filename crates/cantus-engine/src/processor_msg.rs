@@ -3,6 +3,7 @@
 //! (ADR 0022, `graph::notes`). Everything here runs on the callback between passes, so
 //! every node's cell is free to borrow.
 
+use super::track_controls::lane_of;
 use super::*;
 
 impl Processor {
@@ -44,6 +45,8 @@ impl Processor {
                     if !self.transport.is_playing() {
                         self.reseek_events();
                         self.transport.play();
+                        // The lanes chased now it plays (ADR 0068).
+                        self.chase_controls();
                         self.played = 0;
                     }
                 }
@@ -58,8 +61,8 @@ impl Processor {
                     track,
                     pitch,
                     velocity,
-                } => self.live_note(track, pitch, velocity.max(1)),
-                EngineMessage::NoteOff { track, pitch } => self.live_note(track, pitch, 0),
+                } => self.live_note(track, pitch, velocity.max(1), 0),
+                EngineMessage::NoteOff { track, pitch } => self.live_note(track, pitch, 0, 0),
                 EngineMessage::Midi(ev) => self.midi(ev),
                 EngineMessage::SetLiveTrack(t) => self.live_track = t,
                 EngineMessage::SetLiveEcho(tracks) => self.set_live_echo(tracks),
@@ -245,8 +248,10 @@ impl Processor {
     fn midi(&mut self, ev: MidiEvent) {
         let Some(track) = self.live_track else { return };
         match ev.status & 0xF0 {
-            0x90 if ev.data2 > 0 => self.live_note(track, ev.data1, ev.data2),
-            0x80 | 0x90 => self.live_note(track, ev.data1, 0),
+            0x90 if ev.data2 > 0 => self.live_note(track, ev.data1, ev.data2, 0),
+            // A note-off's second byte is its release velocity (ADR 0068); a note-on at 0 has none.
+            0x80 => self.live_note(track, ev.data1, 0, ev.data2 & 0x7F),
+            0x90 => self.live_note(track, ev.data1, 0, 0),
             0xB0 if ev.data1 == 123 || ev.data1 == 120 => {
                 for t in self.live_targets(track) {
                     if let Some(slot) = t.and_then(|t| self.slot_for(t)) {
@@ -287,6 +292,17 @@ impl Processor {
                         }
                     }
                 }
+                // Recorded into the take's lanes where it was heard (ADR 0068).
+                if let Some((kind, value)) = lane_of(&ev) {
+                    if self.recording && self.transport.is_playing() {
+                        let _ = self.tx.push(EngineEvent::ControlInput(ControlInput {
+                            track,
+                            tick: self.heard_position(),
+                            kind,
+                            value,
+                        }));
+                    }
+                }
             }
             _ => {}
         }
@@ -320,18 +336,19 @@ impl Processor {
     }
 
     /// Play (velocity > 0) or release a live note and, while recording, report it.
-    fn live_note(&mut self, track: TrackId, pitch: u8, velocity: u8) {
+    /// `release` is a note-off's release velocity (0 none given, ADR 0068).
+    fn live_note(&mut self, track: TrackId, pitch: u8, velocity: u8, release: u8) {
         // The echo tracks play it too (heard, not reported: the UI records the live
         // track's notes into every armed track itself).
         for e in self.live_echo {
             if let Some(slot) = e.filter(|e| *e != track).and_then(|e| self.slot_for(e)) {
-                self.sound_live(slot, pitch, velocity);
+                self.sound_live(slot, pitch, velocity, release);
             }
         }
         let Some(slot) = self.slot_for(track) else {
             return;
         };
-        self.sound_live(slot, pitch, velocity);
+        self.sound_live(slot, pitch, velocity, release);
         if self.recording && self.transport.is_playing() {
             // Where the player heard it: the output lags the engine by its latency.
             let _ = self.tx.push(EngineEvent::NoteInput(NoteInput {
@@ -339,22 +356,60 @@ impl Processor {
                 tick: self.heard_position(),
                 pitch,
                 velocity,
+                release,
             }));
         }
     }
 
     /// Play or release a live note on one slot, and tell the effects listening to it.
-    fn sound_live(&mut self, slot: usize, pitch: u8, velocity: u8) {
+    fn sound_live(&mut self, slot: usize, pitch: u8, velocity: u8, release: u8) {
         // Modulators hearing the track: envelopes open, LFOs retrigger (ADR 0057).
         self.auto_live_note(slot, velocity > 0);
+        // Through its note effects (ADR 0069): what they sound at once is played and heard
+        // now; an arpeggio's first step plays at the block's first sample, in the track's
+        // pass, once every key of this block is in.
+        let mut heard = [crate::fx::FxNote::AllOff; 64];
+        let mut n_heard = 0usize;
+        let mut through = false;
         if let Some(mut s) = self.nodes.track(slot) {
-            if velocity > 0 {
+            if s.fx_active() {
+                through = true;
+                let now = crate::notefx::play::now_live(&self.transport, self.clock);
+                let m = crate::notefx::Msg {
+                    on: velocity > 0,
+                    pitch,
+                    velocity,
+                    release,
+                    tag: LIVE_TAG,
+                    ordinal: 0,
+                    live: true,
+                };
+                let lost = s.fx_play(
+                    now,
+                    Some((now, m)),
+                    |_| false,
+                    0,
+                    |m| {
+                        if n_heard < heard.len() {
+                            heard[n_heard] = crate::notefx::play::fx_note(m);
+                            n_heard += 1;
+                        }
+                    },
+                );
+                self.stats.dropped_events += lost;
+            } else if velocity > 0 {
                 s.note_on(pitch, velocity, LIVE_TAG);
             } else {
-                s.note_off(pitch, LIVE_TAG);
+                s.note_off(pitch, LIVE_TAG, release);
             }
         }
         if self.listened[slot] {
+            if through {
+                for note in heard.into_iter().take(n_heard) {
+                    self.notes_to_fx(slot, self.note_at, note);
+                }
+                return;
+            }
             let note = if velocity > 0 {
                 crate::fx::FxNote::On { pitch, velocity }
             } else {

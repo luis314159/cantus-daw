@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <!-- Scrambler, side profile facing right: the air-cooled L-twin in a trellis frame, the
+       teardrop tank with its aluminium side panel, the flat brown bench, the round
+       headlight, wide bars, spoked wheels on block-tread tyres. Our own drawing
+       (GPL-3.0-or-later, like the application); colours are placeholders filled from the
+       theme. -->
+  <defs>
+    <linearGradient id="tank" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{paint_hi}"/>
+      <stop offset="0.45" stop-color="{paint}"/>
+      <stop offset="1" stop-color="{paint_lo}"/>
+    </linearGradient>
+    <linearGradient id="alu" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="0.6" stop-color="{rim}"/>
+      <stop offset="1" stop-color="{rim_lo}"/>
+    </linearGradient>
+    <linearGradient id="seat" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{accent}"/>
+      <stop offset="1" stop-color="{accent_lo}"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="{shadow}" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="{shadow}" stop-opacity="0"/>
+    </radialGradient>
+    <path id="spoke" d="M 0 -5 L 7 -29.5"/>
+    <g id="wheel">
+      <circle r="41.5" fill="none" stroke="{tyre}" stroke-width="3.4" stroke-dasharray="5 3.6"/>
+      <circle r="41" fill="{tyre}"/>
+      <circle r="40.4" fill="none" stroke="{edge}" stroke-width="1.2" opacity="0.28"/>
+      <circle r="36.5" fill="none" stroke="{tyre_hi}" stroke-width="1.4" opacity="0.7"/>
+      <circle r="31" fill="{trim}"/>
+      <g opacity="{detail}">
+        <circle r="30" fill="none" stroke="{trim_hi}" stroke-width="2.4"/>
+        <circle r="18" fill="none" stroke="{rim_lo}" stroke-width="3" opacity="0.8"/>
+        <g fill="none" stroke="{rim}" stroke-width="0.9">
+          <use href="#spoke"/>
+          <use href="#spoke" transform="rotate(22.5)"/>
+          <use href="#spoke" transform="rotate(45)"/>
+          <use href="#spoke" transform="rotate(67.5)"/>
+          <use href="#spoke" transform="rotate(90)"/>
+          <use href="#spoke" transform="rotate(112.5)"/>
+          <use href="#spoke" transform="rotate(135)"/>
+          <use href="#spoke" transform="rotate(157.5)"/>
+          <use href="#spoke" transform="rotate(180)"/>
+          <use href="#spoke" transform="rotate(202.5)"/>
+          <use href="#spoke" transform="rotate(225)"/>
+          <use href="#spoke" transform="rotate(247.5)"/>
+          <use href="#spoke" transform="rotate(270)"/>
+          <use href="#spoke" transform="rotate(292.5)"/>
+          <use href="#spoke" transform="rotate(315)"/>
+          <use href="#spoke" transform="rotate(337.5)"/>
+        </g>
+        <circle r="6" fill="url(#alu)"/>
+      </g>
+      <g opacity="{simple}">
+        <circle r="29" fill="none" stroke="{rim_lo}" stroke-width="3"/>
+        <circle r="6" fill="{rim}"/>
+      </g>
+    </g>
+  </defs>
+
+  <ellipse cx="284" cy="184" rx="150" ry="8" fill="url(#shadow)"/>
+
+  <!-- the swing arm, the side number-plate holder -->
+  <path d="M 282 125 L 285 133 L 188 145 L 185 137 Z" fill="{trim_hi}"/>
+  <path d="M 282 126 L 188 139" fill="none" stroke="{rim_lo}" stroke-width="1"/>
+  <path d="M 200 140 L 186 108 L 180 110 L 194 142 Z" fill="{trim}"/>
+  <path d="M 180 108 L 196 104 L 204 124 L 188 128 Z" fill="{trim}"/>
+
+  <use href="#wheel" x="185" y="141"/>
+
+  <!-- the rear frame and the shock under the seat -->
+  <g stroke="{trim}" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M 280 84 L 196 84 L 182 80 M 276 96 L 200 86"/>
+  </g>
+  <path d="M 246 86 L 214 134" fill="none" stroke="{trim}" stroke-width="5.5" stroke-linecap="round"/>
+  <path d="M 244 90 L 218 128" fill="none" stroke="{accent}" stroke-width="2" stroke-dasharray="2.4 1.6" opacity="{detail}"/>
+
+  <!-- the trellis frame -->
+  <g stroke="{trim}" stroke-width="3.2" stroke-linecap="round" fill="none">
+    <path d="M 360 50 L 280 82 L 284 128 M 360 50 L 316 104 L 284 128 M 280 82 L 316 104 M 330 64 L 300 106"/>
+  </g>
+
+  <!-- the L-twin: the rear cylinder upright, the front one leaning forward, the cases -->
+  <g transform="rotate(-14 300 112)">
+    <rect x="284" y="78" width="26" height="36" rx="3" fill="{trim_hi}"/>
+    <rect x="300" y="104" width="44" height="22" rx="3" fill="{trim_hi}"/>
+    <g opacity="{detail}" fill="none" stroke="{trim}" stroke-width="1.5">
+      <path d="M 284 85 L 310 85 M 284 91 L 310 91 M 284 97 L 310 97 M 284 103 L 310 103"/>
+      <path d="M 336 104 L 336 126 M 330 104 L 330 126 M 324 104 L 324 126 M 318 104 L 318 126"/>
+    </g>
+  </g>
+  <path d="M 276 114 C 276 104 290 100 304 104 C 322 108 330 120 326 138 C 320 150 296 152 284 146 C 276 140 274 126 276 114 Z" fill="{trim}"/>
+  <circle cx="300" cy="128" r="9" fill="url(#alu)"/>
+  <circle cx="300" cy="128" r="4" fill="{trim}"/>
+
+  <!-- the exhaust: the header round the cases to the short silencer -->
+  <path d="M 350 112 C 356 126 354 146 340 156 C 326 164 300 166 284 162" fill="none" stroke="{rim}" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M 288 156 L 236 138 C 232 137 229 140 229 144 L 230 150 C 230 153 232 155 235 156 L 286 170 Z" fill="url(#alu)"/>
+
+  <!-- the bench seat, the tail light under its end -->
+  <path d="M 176 73 C 210 69 254 69 292 73 L 290 85 C 254 85 214 85 182 85 C 177 83 175 78 176 73 Z" fill="url(#seat)"/>
+  <path d="M 184 86 L 290 86" fill="none" stroke="{rim_hi}" stroke-width="1.4" opacity="0.8"/>
+  <path d="M 172 84 L 182 84 L 182 92 L 174 92 Z" fill="{trim}"/>
+  <circle cx="174" cy="88" r="3.6" fill="{tail}"/>
+
+  <!-- the teardrop tank with its aluminium side panel -->
+  <path d="M 286 80 C 288 66 300 56 320 53 C 338 51 352 54 362 62 L 360 76 C 356 84 340 88 318 88 L 288 88 Z" fill="url(#tank)"/>
+  <path d="M 294 72 C 300 66 316 64 336 66 C 348 67 354 71 354 76 C 352 82 340 84 322 84 L 300 84 C 294 82 292 76 294 72 Z" fill="url(#alu)"/>
+  <path d="M 296 60 C 312 54 336 53 352 58" fill="none" stroke="{paint_hi}" stroke-width="1.6" opacity="0.8"/>
+
+  <use href="#wheel" x="382" y="141"/>
+
+  <!-- the fork, the front mudguard, the round headlight, the bars -->
+  <path d="M 358 46 L 368 46 L 386 141 L 378 142 Z" fill="{trim}"/>
+  <path d="M 362 48 L 365 48 L 381 128" fill="none" stroke="{trim_hi}" stroke-width="1.2"/>
+  <path d="M 356 96 C 372 88 400 88 414 98 L 411 102 C 398 94 374 94 360 101 Z" fill="url(#alu)"/>
+  <circle cx="380" cy="60" r="14" fill="url(#alu)"/>
+  <circle cx="383" cy="60" r="11" fill="{lamp}"/>
+  <circle cx="383" cy="60" r="7" fill="none" stroke="{rim_lo}" stroke-width="1.2" opacity="{detail}"/>
+  <path d="M 378 55 L 388 65 M 388 55 L 378 65" fill="none" stroke="{rim_lo}" stroke-width="1" opacity="{detail}"/>
+  <path d="M 364 44 C 360 34 350 26 336 22" fill="none" stroke="{trim}" stroke-width="3.4" stroke-linecap="round"/>
+  <path d="M 336 22 L 326 19" fill="none" stroke="{trim_hi}" stroke-width="5.4" stroke-linecap="round"/>
+  <path d="M 362 40 L 368 46" fill="none" stroke="{trim}" stroke-width="5"/>
+</svg>

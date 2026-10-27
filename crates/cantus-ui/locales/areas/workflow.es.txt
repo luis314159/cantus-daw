@@ -1,0 +1,150 @@
+# Área: la paleta de comandos, el panel del historial de deshacer, las plantillas de proyecto y de pista (ronda 31, workflow; ADR 0072).
+
+# Las acciones (los nombres del mapa de teclas; la paleta, los menús, el diálogo de atajos).
+action.command-palette = Paleta de comandos…
+action.view-history = Mostrar el historial de deshacer
+action.new-from-template = Nuevo desde plantilla…
+action.save-as-template = Guardar como plantilla…
+action.save-track-template = Guardar pista como plantilla…
+cmd.insert_track_template = insertar plantilla de pista
+
+# La paleta de comandos.
+workflow.palette.hint = Escribe un comando, una vista, un ajuste, un dispositivo o un proyecto
+workflow.palette.keys = ↑ ↓ elige · Intro ejecuta · Esc cierra
+workflow.palette.count = {n} encontrados
+workflow.palette.no_match = Nada coincide con «{text}»
+workflow.palette.settings = Ajustes: {page}
+workflow.palette.insert_effect = Insertar {name}
+workflow.palette.add_instrument = Pista nueva con {name}
+workflow.palette.new_from = Nuevo desde plantilla: {name}
+workflow.palette.insert_track_template = Insertar plantilla de pista: {name}
+workflow.kind.action = Acción
+workflow.kind.view = Vista
+workflow.kind.window = Ventana
+workflow.kind.settings = Ajustes
+workflow.kind.effect = Efecto
+workflow.kind.instrument = Instrumento
+workflow.kind.recent = Reciente
+workflow.kind.template = Plantilla
+workflow.kind.track_template = Plantilla de pista
+workflow.window.shortcuts = Atajos de teclado
+workflow.window.appearance = Apariencia: temas y colores
+workflow.window.topbar = Personalizar la barra superior
+workflow.window.start = Página de inicio
+workflow.window.about = Acerca de Cantus
+
+# El historial de deshacer.
+workflow.history.pane = Historial
+workflow.history.start = Proyecto abierto
+workflow.history.count = {n} pasos · {redo} por rehacer
+workflow.history.count_one = 1 paso · {redo} por rehacer
+workflow.history.never_saved = Aún sin guardar
+workflow.history.unsaved = Cambios sin guardar
+workflow.history.all_saved = Guardado
+workflow.history.saved = Guardado
+workflow.history.tip_current = Donde está el proyecto ahora
+workflow.history.tip_undo = Clic para volver a este paso (se deshace cada paso posterior)
+workflow.history.tip_redo = Clic para rehacer hasta este paso
+workflow.history.gone = un canal eliminado
+workflow.history.notes.add = Añadir {n} notas
+workflow.history.notes.add_one = Añadir 1 nota
+workflow.history.notes.delete = Borrar {n} notas
+workflow.history.notes.delete_one = Borrar 1 nota
+workflow.history.notes.edit = Editar {n} notas
+workflow.history.notes.edit_one = Editar 1 nota
+workflow.history.notes.move = Mover {n} notas
+workflow.history.notes.move_one = Mover 1 nota
+workflow.history.notes.transpose = Transponer {n} notas
+workflow.history.notes.transpose_one = Transponer 1 nota
+workflow.history.notes.duplicate = Duplicar {n} notas
+workflow.history.notes.duplicate_one = Duplicar 1 nota
+workflow.history.notes.paste = Pegar {n} notas
+workflow.history.notes.paste_one = Pegar 1 nota
+workflow.history.notes.paint = Pintar {n} notas
+workflow.history.notes.paint_one = Pintar 1 nota
+workflow.history.notes.quantize = Cuantizar {n} notas
+workflow.history.notes.quantize_one = Cuantizar 1 nota
+workflow.history.notes.mute = Silenciar {n} notas
+workflow.history.notes.mute_one = Silenciar 1 nota
+workflow.history.notes.slice = Cortar {n} notas
+workflow.history.notes.slice_one = Cortar 1 nota
+workflow.history.insert_effect = Insertar {effect} en {strip}
+workflow.history.remove_effect = Quitar {effect} de {strip}
+workflow.history.insert_track = Añadir la pista {name}
+workflow.history.remove_track = Borrar la pista {name}
+workflow.history.rename_track = Renombrar la pista a {name}
+workflow.history.insert_track_template = Insertar la plantilla de pista {name}
+
+# La página de inicio.
+workflow.start.title = Inicio
+workflow.start.templates = Nuevo desde plantilla
+workflow.start.recent = Proyectos recientes
+workflow.start.no_recent = Aquí aparecen los proyectos que abras o guardes
+workflow.start.missing = Ya no está donde estaba
+workflow.start.open = Abrir…
+workflow.start.save_as = Guardar el actual como plantilla…
+workflow.start.delete_confirm = Pulsa × otra vez para borrar esta plantilla
+workflow.start.track_templates = Tus plantillas de pista
+workflow.start.no_track_templates = Guarda una con Guardar pista como plantilla… del menú Archivo
+
+# Las plantillas de inicio que trae Cantus.
+workflow.starter.empty = Canción vacía
+workflow.starter.empty.what = Una pista de instrumento, 120 BPM
+workflow.starter.beat = Ritmo
+workflow.starter.beat.what = Batería, bajo y teclado a 92 BPM
+workflow.starter.band = Grabación de banda
+workflow.starter.band.what = Voz, guitarra, bajo, teclado a grabar
+workflow.starter.mastering = Masterización
+workflow.starter.mastering.what = Tu mezcla y una cadena de máster
+workflow.starter.track = Instrumento
+workflow.starter.drums = Batería
+workflow.starter.bass = Bajo
+workflow.starter.keys = Teclado
+workflow.starter.vocal = Voz
+workflow.starter.guitar = Guitarra
+workflow.starter.mix = Mezcla
+workflow.starter.reverb = Reverb
+workflow.template.yours = Tu plantilla
+workflow.template.track_what = Plantilla de pista · {instrument}
+picker.source.templates = Plantillas de pista
+
+# Nombrar una plantilla.
+workflow.name.project_title = Guardar como plantilla
+workflow.name.project_lead = El proyecto tal como está, para empezar proyectos nuevos
+workflow.name.track_title = Guardar pista como plantilla
+workflow.name.track_lead = El instrumento, el canal, los efectos, los envíos y el ruteo de la pista
+workflow.name.hint = El nombre de la plantilla
+workflow.name.replaces = Ya hay una plantilla con este nombre: al guardar se reemplaza
+workflow.name.save = Guardar
+workflow.name.cancel = Cancelar
+
+# Lo que dice la línea de estado.
+workflow.status.saved = Plantilla «{name}» guardada
+workflow.status.save_failed = No se pudo guardar la plantilla: {error}
+workflow.status.deleted = Plantilla «{name}» borrada
+workflow.status.new_from = Un proyecto nuevo desde «{name}»
+workflow.status.open_failed = No se pudo leer la plantilla: {error}
+workflow.status.inserted = Plantilla de pista «{name}» insertada
+workflow.status.inserted_missing = Plantilla de pista «{name}» insertada; no está en este proyecto y se omitió: {missing}
+workflow.status.no_track = Selecciona una pista para guardarla como plantilla
+workflow.error.no_folder = La carpeta de plantillas no está definida
+workflow.error.no_track = Esa pista no está en el proyecto
+workflow.error.not_a_template = Solo se pueden borrar tus propias plantillas
+workflow.error.not_a_track_template = Este archivo no es una plantilla de pista
+
+# The start page at launch (the owner's decision, 2026-10-26).
+workflow.start.at_start = Mostrar al iniciar
+workflow.start.settings_band = Página de inicio
+
+# Los núcleos de audio como motores (idea del dueño, 2026-10-27): la palabra del motor; los modelos están en la tabla de engines.rs.
+workflow.engine.now = {now} · {engine} · {model}
+workflow.engine.single = monocilíndrico
+workflow.engine.twin = bicilíndrico
+workflow.engine.inline3 = tres en línea
+workflow.engine.v4 = V4
+workflow.engine.v6 = V6
+workflow.engine.v8 = V8
+workflow.engine.v10 = V10
+workflow.engine.v12 = V12
+workflow.engine.w16 = W16
+workflow.engine.ramjet = turborreactor-estatorreactor

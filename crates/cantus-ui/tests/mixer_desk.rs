@@ -9,7 +9,7 @@ use cantus_ui::{starter_project, views, welcome_project, CantusApp};
 use egui::{pos2, vec2, Event, Modifiers, MouseWheelUnit, Pos2, TouchPhase};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
@@ -236,7 +236,7 @@ fn the_legend_names_each_row_once_and_strips_carry_no_words() {
 fn the_routing_legend_names_each_kind_of_cable() {
     for locale in cantus_ui::i18n::Locale::ALL {
         let mut r = Rig::new(starter_project(), vec2(1400.0, 900.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let text = r.idle(2);
         for key in [
             "cables.legend.output",
@@ -251,7 +251,7 @@ fn the_routing_legend_names_each_kind_of_cable() {
             );
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// At 720 px of window the desk fits first (dropping rows) and scrolls when even that is
@@ -573,14 +573,14 @@ fn a_strip_is_renamed_in_place() {
 fn the_desk_paints_in_spanish_and_at_every_scale() {
     for ppp in [0.75f32, 1.0, 2.0] {
         let mut r = Rig::new(starter_project(), vec2(1280.0, 720.0) / ppp);
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
         r.ctx.set_pixels_per_point(ppp);
         let text = r.idle(2);
         assert!(text.contains("| PANEO |"), "{text}");
         assert!(!text.contains('\u{2026}'), "nothing elided: {text}");
         assert!(text.contains("| 1 |"));
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// The master strip's pan law is on the desk, as a value with its unit (Compact's narrow
@@ -919,7 +919,7 @@ fn the_band_reads_without_overlaps_at_every_scale_and_language() {
         for ppp in [0.75f32, 2.0] {
             for mode in [WidthMode::Wide, WidthMode::Xl] {
                 let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0) / ppp);
-                cantus_ui::i18n::set_locale(locale);
+                cantus_ui::i18n::set_thread_locale(locale);
                 r.ctx.set_pixels_per_point(ppp);
                 mixer::set_width_mode(&mut r.app, mode);
                 let ids = with_returns(&mut r);
@@ -1002,7 +1002,7 @@ fn the_band_reads_without_overlaps_at_every_scale_and_language() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// One pass as the application runs it: the keymap first, then (when `desk`) the panels.
@@ -1393,7 +1393,7 @@ fn hovering_a_strip_never_moves_the_selections_lanes() {
 fn the_legend_words_never_read_the_same() {
     use cantus_ui::views::mixer::layout::Row;
     for locale in cantus_ui::i18n::Locale::ALL {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let tr = |k: &str| cantus_ui::i18n::t(k).to_uppercase();
         let mut legend: Vec<(String, String)> = Vec::new();
         for row in Row::ALL {
@@ -1458,7 +1458,7 @@ fn the_legend_words_never_read_the_same() {
         }
         for mode in [WidthMode::Wide, WidthMode::Xl] {
             let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0));
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             mixer::set_width_mode(&mut r.app, mode);
             let _ = with_returns(&mut r);
             r.idle(2);
@@ -1478,7 +1478,7 @@ fn the_legend_words_never_read_the_same() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Second review, findings 1–3, on the real desk (Wide, 1600 × 1000): a cable the hover

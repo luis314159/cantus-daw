@@ -15,7 +15,7 @@ const SR: usize = 48_000;
 /// An app on a hand-driven engine with one input channel, its project saved in `dir`, an
 /// armed audio track; the processor and the input ring to drive it with.
 fn rig(dir: &std::path::Path) -> (CantusApp, Processor, rtrb::Producer<f32>, TrackId) {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let (h, mut proc) = EngineHandle::manual(SR as f64);
     let (ring, consumer) = rtrb::RingBuffer::<f32>::new(SR * 2);
     proc.attach_input(consumer, 1);

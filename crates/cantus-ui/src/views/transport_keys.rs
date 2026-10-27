@@ -84,7 +84,12 @@ pub fn mode(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
 // ---- the transport -------------------------------------------------------------------
 
 pub fn transport_width(s: &Style) -> f32 {
-    (4.0 * ROW_KEY + STEP + views::record_options::KEY_W + STEP + ROW_KEY) * s.k
+    (4.0 * ROW_KEY + STEP + views::record_options::KEY_W + STEP + ROW_KEY
+        // The automation arm and its options (round 31, ADR 0068).
+        + STEP
+        + ROW_KEY
+        + views::auto_modes::MORE_W)
+        * s.k
 }
 
 /// To start, play, stop and record on one strip, the record options' ▾ beside it, loop.
@@ -149,6 +154,13 @@ pub fn transport(app: &mut CantusApp, ui: &mut Ui, r: Rect, s: &Style) {
         app.run_action(Action::ToggleLoop);
     }
     crate::controllers::learn_action_spot(app, ui, lr, Action::ToggleLoop);
+    // The automation arm and its ▾ (round 31, ADR 0068): Ableton's place for it, after loop.
+    let ar = key_rect(r, lr.right() + STEP * k, s);
+    let mr = Rect::from_min_size(
+        egui::pos2(ar.right(), ar.top()),
+        Vec2::new(views::auto_modes::MORE_W * k, ar.height()),
+    );
+    views::auto_modes::arm_keys(app, ui, ar, mr, s);
 }
 
 // ---- undo ----------------------------------------------------------------------------

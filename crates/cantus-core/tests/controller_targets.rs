@@ -10,7 +10,14 @@ use cantus_core::*;
 /// A project with one of everything a target can name.
 fn rich() -> (Project, Vec<AutoTarget>) {
     let mut p = Project::default();
-    let firmus = p.make_track("Firmus");
+    let mut firmus = p.make_track("Firmus");
+    // Round 31 (ADR 0069): a note effect, whose parameters are targets too.
+    let nfx = cantus_core::notefx::NoteEffect::new(
+        cantus_core::notefx::NoteFxId(p.alloc_id()),
+        cantus_core::notefx::NoteFxType::Arp,
+    );
+    let nfx_id = nfx.id;
+    firmus.note_fx.push(nfx);
     let mut native = p.make_track("Native");
     native.instrument = InstrumentSpec::Native(NativeSpec::new(InstrumentKind::Analog));
     let mut hosted = p.make_track("Hosted");
@@ -74,12 +81,17 @@ fn rich() -> (Project, Vec<AutoTarget>) {
         },
         AutoTarget::PluginInstrument { track: th, id: 3 },
         AutoTarget::ModAmount(m_id),
+        AutoTarget::NoteFx {
+            track: tf,
+            effect: nfx_id,
+            key: "gate".into(),
+        },
     ];
     (p, targets)
 }
 
 /// How many kinds of target there are.
-const KINDS: usize = 15;
+const KINDS: usize = 16;
 
 /// Each kind of target's number: an exhaustive match, no wildcard (review 1, #34).
 fn kind(t: &AutoTarget) -> usize {
@@ -99,6 +111,7 @@ fn kind(t: &AutoTarget) -> usize {
         AutoTarget::Plugin { .. } => 12,
         AutoTarget::PluginInstrument { .. } => 13,
         AutoTarget::ModAmount(_) => 14,
+        AutoTarget::NoteFx { .. } => 15,
     }
 }
 

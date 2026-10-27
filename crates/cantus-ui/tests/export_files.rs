@@ -17,7 +17,7 @@ static LANGUAGE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn language() -> std::sync::MutexGuard<'static, ()> {
     let guard = LANGUAGE.lock().unwrap_or_else(|e| e.into_inner());
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     guard
 }
 
@@ -391,16 +391,18 @@ fn the_bar_shows_the_renders_progress_and_the_status_line_follows() {
 #[test]
 fn the_errors_are_in_the_interfaces_language() {
     let _l = language();
-    i18n::set_locale(Locale::Es);
     let dir = tempfile::tempdir().unwrap();
     let mut a = app(dir.path());
+    // The user's switch (the process's language: the export's worker speaks it), held by
+    // `language()` against the other tests of this file that switch.
+    a.set_locale(Locale::Es);
     plain(&mut a);
     // A folder where the file should go: the write fails.
     let blocked = dir.path().join("blocked.wav");
     std::fs::create_dir_all(blocked.join("x")).unwrap();
     assert!(export::start(&mut a, &blocked));
     export::wait(&mut a);
-    i18n::set_locale(Locale::En);
+    a.set_locale(Locale::En);
     let last = a.export.last.clone().unwrap().unwrap_err();
     assert!(
         last.starts_with("Falló la exportación: no se pudo escribir el archivo"),

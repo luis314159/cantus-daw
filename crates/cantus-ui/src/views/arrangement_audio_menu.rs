@@ -42,6 +42,9 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         submenu: false,
         enabled,
     };
+    // Round 31 (ADR 0070): the overlap it starts in, crossed or summed.
+    let pair = crate::clipfx::pair(app, r);
+    let crossed = a.cross.is_some() && pair.is_some();
     let rename_key = app
         .keymap
         .bindings_for(crate::keymap::Action::RenameClip)
@@ -59,6 +62,21 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
             true,
         ),
         action("audioclips.fade_remove", Check::None, fades),
+        action(
+            "clipfx.menu.show_gain",
+            if app.settings.show_clip_gain {
+                Check::On
+            } else {
+                Check::Off
+            },
+            true,
+        ),
+        action("clipfx.menu.reset_env", Check::None, a.gain_env.is_some()),
+        action(
+            "clipfx.menu.crossfade",
+            if crossed { Check::On } else { Check::Off },
+            pair.is_some(),
+        ),
         Item::Action {
             label: Src::Key("clip.rename"),
             check: Check::None,
@@ -100,12 +118,25 @@ pub fn clip_menu(app: &mut CantusApp, ui: &mut egui::Ui, r: ClipRef) {
         5 => set_all(app, "cmd.set_clip_audio", |c, a| {
             ac::with_fade_out(c, &ac::with_fade_in(c, a, Ticks::ZERO), Ticks::ZERO)
         }),
-        6 => app.run_action(crate::keymap::Action::RenameClip),
-        8 if missing => app.relink_audio_dialog(a.source),
-        8 => app.reveal_audio(a.source),
-        10 => app.pitch_make(r.0, r.1, None),
-        11 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Third)),
-        12 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Fifth)),
+        6 => app.toggle_clip_gain(),
+        7 => set_all(app, "cmd.clipfx.reset_env", |_, a| {
+            crate::clipfx::cleared(a)
+        }),
+        8 => {
+            let curve = (!crossed).then_some(app.settings.crossfade_curve);
+            // The selection's overlaps when this clip is among them, else this one's.
+            if app.clip_selection().contains(&r) {
+                app.crossfade_selection(curve);
+            } else {
+                app.set_crossfade(r, curve);
+            }
+        }
+        9 => app.run_action(crate::keymap::Action::RenameClip),
+        11 if missing => app.relink_audio_dialog(a.source),
+        11 => app.reveal_audio(a.source),
+        13 => app.pitch_make(r.0, r.1, None),
+        14 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Third)),
+        15 => app.pitch_make(r.0, r.1, Some(cantus_core::pitch::midi::Interval::Fifth)),
         _ => {}
     }
     ui.close();

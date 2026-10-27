@@ -693,12 +693,12 @@ mod tests {
         for (id, make) in PRESETS {
             assert_eq!(a.base_theme(&format!("preset:{id}"), Mode::Dark), make());
             for lang in crate::i18n::Locale::ALL {
-                crate::i18n::set_locale(lang);
+                crate::i18n::set_thread_locale(lang);
                 let key = preset_name_key(id);
                 assert_ne!(crate::i18n::t(&key), key, "{lang:?}: {id} has no name");
             }
         }
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
     }
 
     #[test]

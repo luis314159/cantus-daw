@@ -88,7 +88,7 @@ fn the_window_names_the_maker_the_version_the_licence_and_the_credits() {
             ],
         ),
     ] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let mut app = support::app(cantus_core::Project::new("About"));
         let ctx = support::ctx();
         app.show_about = true;
@@ -111,7 +111,7 @@ fn the_window_names_the_maker_the_version_the_licence_and_the_credits() {
             "{painted}"
         );
         assert!(painted.contains("Reina-Valera 1909"), "{painted}");
-        cantus_ui::i18n::set_locale(Locale::En);
+        cantus_ui::i18n::set_thread_locale(Locale::En);
     }
 }
 
@@ -233,7 +233,7 @@ fn credits_name_every_sound_pack_cc_by_in_full_beside_the_bible_translations() {
             ],
         ),
     ] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let dir = tempfile::tempdir().unwrap();
         // An installed CC BY pack today's list no longer offers keeps "credit required".
         let gone = m.pack("fixture-choir").unwrap();
@@ -302,7 +302,7 @@ fn credits_name_every_sound_pack_cc_by_in_full_beside_the_bible_translations() {
             "the CC0 kit's courtesy credit: {painted}"
         );
         assert!(painted.contains("Reina-Valera 1909"), "{painted}");
-        cantus_ui::i18n::set_locale(Locale::En);
+        cantus_ui::i18n::set_thread_locale(Locale::En);
     }
 }
 
@@ -312,7 +312,7 @@ fn credits_name_every_sound_pack_cc_by_in_full_beside_the_bible_translations() {
 #[test]
 fn the_drum_kit_is_credited_with_its_authors_words() {
     for locale in [Locale::En, Locale::Es] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let dir = tempfile::tempdir().unwrap();
         let mut app = support::app(cantus_core::Project::new("About"));
         app.samples.content_root = Some(dir.path().to_path_buf());
@@ -331,7 +331,7 @@ fn the_drum_kit_is_credited_with_its_authors_words() {
             assert!(painted.contains(w), "{locale:?}: {w:?} not in {painted}");
         }
     }
-    cantus_ui::i18n::set_locale(Locale::En);
+    cantus_ui::i18n::set_thread_locale(Locale::En);
 }
 
 /// *Credits* beside the documents scrolls the window to its credits, wherever the list's

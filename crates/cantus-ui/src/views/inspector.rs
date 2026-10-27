@@ -39,6 +39,9 @@ mod modulator_hosted;
 /// The Modulators section (ADR 0057).
 #[path = "modulator_section.rs"]
 mod modulators;
+/// Note effects and a clip's groove (round 31, ADR 0069).
+#[path = "inspector_notefx.rs"]
+mod notefx;
 #[path = "inspector_pads.rs"]
 mod pads;
 #[path = "inspector_pinned.rs"]
@@ -140,6 +143,8 @@ pub enum Act {
     /// its controllers.
     Learn(cantus_core::controller::MappingTarget),
     ForgetSlot(EffectId),
+    /// Note effects and grooves (round 31, ADR 0069).
+    NoteFx(notefx::NfAct),
 }
 
 /// The inspector's own state: what it follows, its size, and what it keeps between
@@ -459,6 +464,11 @@ impl Inspector {
             match subject {
                 Subject::Track(t) => {
                     track::rows(&mut sh, app, t);
+                    // Its note effects (round 31, ADR 0069): where the notes go before the
+                    // instrument below plays them.
+                    if !audio_track(app, t) {
+                        notefx::chain(&mut sh, app, t);
+                    }
                     // An audio track: its audio clip's section where an instrument's
                     // would be (its input and recording are in the channel below).
                     if audio_track(app, t) {
@@ -471,6 +481,8 @@ impl Inspector {
                 Subject::Clip(t, c) => {
                     track::clip(&mut sh, app, t, c);
                     audio::show(&mut sh, app, t, c);
+                    // A note clip's groove and bake (round 31, ADR 0069).
+                    notefx::clip(&mut sh, app, t, c);
                     // The clip's warp (round 29, ADR 0061).
                     warp::show(&mut sh, app, t, c);
                 }
@@ -802,6 +814,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::Audio(a) => audio::apply(app, a),
         Act::Warp(w) => warp::apply(app, w),
         Act::Link(t, c, a) => track::apply_link(app, t, c, a),
+        Act::NoteFx(a) => notefx::apply(app, a),
         Act::Flat(id) => {
             let commands = (0..3u8)
                 .map(|band| Command::SetStripEq {

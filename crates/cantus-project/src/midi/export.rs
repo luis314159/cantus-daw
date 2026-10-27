@@ -31,6 +31,9 @@ pub struct ExportOptions {
     /// are rounded to the nearest of its ticks; at [`DEFAULT_PPQ`] or any multiple of it
     /// nothing is rounded.
     pub ppq: u16,
+    /// The notes as played (grooves and note effects in them) or as written (round 31,
+    /// ADR 0069).
+    pub notes: Notes,
 }
 
 impl Default for ExportOptions {
@@ -38,9 +41,30 @@ impl Default for ExportOptions {
         ExportOptions {
             scope: Scope::Song,
             ppq: DEFAULT_PPQ,
+            notes: Notes::Played,
         }
     }
 }
+
+/// Which notes a file holds (round 31, ADR 0069).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Notes {
+    /// What is heard: each clip's groove applied and, through [`export_with`]'s hook,
+    /// every track's note effects (an arpeggio written out note by note).
+    #[default]
+    Played,
+    /// The notes as the clips hold them: no groove, no note effects.
+    Written,
+}
+
+/// What a track's note effects play from its compiled events, until `end`, in `key`: each
+/// note as `(start, length, pitch, velocity, release)` on the timeline. The engine owns the effects
+/// (`cantus_engine::notefx::bake`); the application hands it in.
+pub type NoteFxPlay<'a> = &'a dyn Fn(
+    &cantus_core::TrackSnapshot,
+    Option<cantus_core::Key>,
+    Ticks,
+) -> Vec<(Ticks, Ticks, u8, u8, u8)>;
 
 /// The MIDI channel for percussion (channel 10, counted from 1).
 pub const DRUM_CHANNEL: u8 = 9;
@@ -55,11 +79,43 @@ pub fn to_file_ticks(t: Ticks, ppq: u16) -> u64 {
 
 /// Write the file.
 pub fn export(project: &Project, opts: &ExportOptions) -> Result<Vec<u8>, MidiError> {
-    Ok(super::smf::write(&to_smf(project, opts)?))
+    export_with(project, opts, None)
+}
+
+/// [`export`] with the note effects' hook: the file of what is played writes each track's
+/// arpeggios, chords and scales out as notes (ADR 0069).
+pub fn export_with(
+    project: &Project,
+    opts: &ExportOptions,
+    fx: Option<NoteFxPlay<'_>>,
+) -> Result<Vec<u8>, MidiError> {
+    Ok(super::smf::write(&to_smf_with(project, opts, fx)?))
 }
 
 /// The file as events, before it is turned into bytes.
 pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError> {
+    to_smf_with(project, opts, None)
+}
+
+/// [`to_smf`] with the note effects' hook ([`NoteFxPlay`]), for a file of what is played.
+pub fn to_smf_with(
+    project: &Project,
+    opts: &ExportOptions,
+    fx: Option<NoteFxPlay<'_>>,
+) -> Result<Smf, MidiError> {
+    // As written: the clips without their grooves, and no note effects (ADR 0069).
+    let written;
+    let (project, fx) = match opts.notes {
+        Notes::Played => (project, fx),
+        Notes::Written => {
+            let mut p = project.clone();
+            for c in p.tracks.iter_mut().flat_map(|t| t.clips.iter_mut()) {
+                c.groove = None;
+            }
+            written = p;
+            (&written, None)
+        }
+    };
     let ppq = opts.ppq.clamp(1, 0x7FFF);
     // A marker at or after the music's end (an "End", an "Outro") is the song's too: the
     // song's file runs to it (review 2, finding 65).
@@ -80,7 +136,7 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
             let tracks: Vec<usize> = (0..project.tracks.len()).collect();
             let end = project.content_end().max(last_marker);
             (
-                Compiled::new(project, &snap, &tracks),
+                Compiled::new(project, &snap, &tracks, fx, end),
                 Ticks::ZERO,
                 end,
                 project.name.clone(),
@@ -98,7 +154,7 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
                 .max(project.content_end())
                 .max(last_marker);
             (
-                Compiled::new(project, &snap, &[i]),
+                Compiled::new(project, &snap, &[i], fx, end),
                 Ticks::ZERO,
                 end,
                 project.tracks[i].name.clone(),
@@ -114,13 +170,16 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
             alone.time_signature = project.time_signature;
             alone.tempo_points = project.tempo_points.clone();
             alone.metre_changes = project.metre_changes.clone();
+            // The pool its groove may name, and the key its note effects read (ADR 0069).
+            alone.grooves = project.grooves.clone();
+            alone.key = project.key;
             alone.tracks.push(Track {
                 clips: vec![c.clone()],
                 ..t.clone()
             });
             let snap = Snapshot::compile(&alone, 0);
             (
-                Compiled::new(&alone, &snap, &[0]),
+                Compiled::new(&alone, &snap, &[0], fx, c.end()),
                 c.start,
                 c.end(),
                 c.name.clone(),
@@ -155,7 +214,7 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
             // A note is never rounded away: at least one of the file's ticks long.
             let off = to_file_ticks(s.end - shift, ppq).max(on + 1);
             notes.push((on, true, s.pitch, s.velocity));
-            notes.push((off, false, s.pitch, 0));
+            notes.push((off, false, s.pitch, s.release)); // ADR 0068
         }
         // By time; at one tick the offs first, so a note that ends where the next of the
         // same pitch begins does not cut it off in a reader that pairs by pitch.
@@ -175,11 +234,48 @@ pub fn to_smf(project: &Project, opts: &ExportOptions) -> Result<Smf, MidiError>
                     Event::NoteOff {
                         channel,
                         key,
-                        velocity: 64,
+                        // The release velocity when the note has one (ADR 0068), else the
+                        // standard's default.
+                        velocity: if velocity > 0 { velocity.min(127) } else { 64 },
                     }
                 },
             });
         }
+        // The controller lanes (ADR 0068): each kind's changes as MIDI carries them, at one
+        // tick after the offs and before the ons (the engine's order).
+        let mut sent: HashMap<cantus_core::LaneKind, u16> = HashMap::new();
+        for c in ct
+            .controls
+            .iter()
+            .filter(|c| c.tick >= shift && c.tick <= end)
+        {
+            let v = c.kind.midi(c.value);
+            if sent.insert(c.kind, v) == Some(v) {
+                continue;
+            }
+            let event = match c.kind {
+                cantus_core::LaneKind::PitchBend => Event::PitchBend { channel, value: v },
+                cantus_core::LaneKind::Pressure => Event::ChannelPressure {
+                    channel,
+                    value: v as u8,
+                },
+                cantus_core::LaneKind::Cc(n) => Event::Controller {
+                    channel,
+                    controller: n,
+                    value: v as u8,
+                },
+            };
+            let tick = to_file_ticks(c.tick - shift, ppq);
+            last = last.max(tick);
+            events.push(TimedEvent { tick, event });
+        }
+        let class = |e: &Event| match e {
+            Event::NoteOff { .. } => 1,
+            Event::NoteOn { .. } => 3,
+            Event::TrackName(_) => 0,
+            _ => 2,
+        };
+        events.sort_by_key(|e| (e.tick, class(&e.event)));
         events.push(TimedEvent {
             tick: end_tick.max(last),
             event: Event::EndOfTrack,
@@ -320,12 +416,16 @@ struct Span {
     end: Ticks,
     pitch: u8,
     velocity: u8,
+    /// Its release velocity (0 none given, ADR 0068).
+    release: u8,
 }
 
 struct CompiledTrack {
     name: String,
     drums: bool,
     spans: Vec<Span>,
+    /// The clips' controller lanes as the engine plays them (ADR 0068).
+    controls: Vec<cantus_core::CtlEvent>,
 }
 
 struct Compiled {
@@ -335,7 +435,13 @@ struct Compiled {
 impl Compiled {
     /// Pair each compiled note-on with its note-off (they share the note's id; a looping
     /// clip plays one id several times, in order) and map a kit's pads to the GM keys.
-    fn new(project: &Project, snap: &Snapshot, which: &[usize]) -> Compiled {
+    fn new(
+        project: &Project,
+        snap: &Snapshot,
+        which: &[usize],
+        fx: Option<NoteFxPlay<'_>>,
+        end: Ticks,
+    ) -> Compiled {
         let mut tracks = Vec::with_capacity(which.len());
         for &i in which {
             let (Some(track), Some(st)) = (project.tracks.get(i), snap.tracks.get(i)) else {
@@ -344,6 +450,31 @@ impl Compiled {
             let kit = track.instrument.pulsus();
             let mut open: HashMap<(u64, u8), Vec<(Ticks, u8)>> = HashMap::new();
             let mut spans = Vec::new();
+            // Through its note effects (round 31, ADR 0069), when the file is what is
+            // played and the track has any on: what the hook says they play.
+            let fx_on = st.note_fx.iter().any(|e| e.enabled);
+            if let Some(play) = fx.filter(|_| fx_on) {
+                for (start, length, pitch, velocity, release) in play(st, snap.key, end) {
+                    let pitch = match kit {
+                        Some(k) => gm::export_key(k, pitch),
+                        None => pitch,
+                    };
+                    spans.push(Span {
+                        start,
+                        end: start + length,
+                        pitch,
+                        velocity: velocity.clamp(1, 127),
+                        release,
+                    });
+                }
+                tracks.push(CompiledTrack {
+                    name: track.name.clone(),
+                    drums: kit.is_some(),
+                    spans,
+                    controls: st.controls.clone(),
+                });
+                continue;
+            }
             for ev in &st.events {
                 let key = (ev.note.0, ev.pitch);
                 if ev.is_on() {
@@ -360,6 +491,7 @@ impl Compiled {
                             end: ev.tick,
                             pitch,
                             velocity: velocity.clamp(1, 127),
+                            release: ev.release,
                         });
                     }
                 }
@@ -368,6 +500,7 @@ impl Compiled {
                 name: track.name.clone(),
                 drums: kit.is_some(),
                 spans,
+                controls: st.controls.clone(),
             });
         }
         Compiled { tracks }

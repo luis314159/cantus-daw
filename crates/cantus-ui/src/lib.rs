@@ -9,11 +9,13 @@ pub mod app;
 pub mod audio_clips;
 pub mod audio_files;
 pub mod audio_setup;
+pub mod auto_write;
 pub mod automation;
 pub mod autosave;
 pub mod boot;
 pub mod bounce;
 pub mod clipboard;
+pub mod clipfx;
 pub mod clips;
 pub mod comping;
 /// MIDI learn and controller mapping (round 29, ADR 0062).
@@ -40,8 +42,13 @@ pub mod layout;
 pub mod links;
 #[cfg(target_os = "linux")]
 pub mod linux_desktop;
+pub mod notefx_menus;
+pub mod notefx_ui;
 // macOS's menu bar (round 30, ADR 0066); its model is tested everywhere.
+pub mod engines;
+pub mod history_text;
 pub mod macos;
+pub mod palette_index;
 pub mod perf_status;
 pub mod picker;
 pub mod picker_catalog;
@@ -49,6 +56,7 @@ pub mod picker_prefs;
 pub mod picker_query;
 pub mod pitch;
 pub mod raster;
+pub mod recent;
 pub mod record_pass;
 pub mod record_session;
 pub mod recording;
@@ -63,6 +71,7 @@ pub mod settings;
 pub mod startup_probe;
 pub mod swap;
 pub mod takes;
+pub mod templates;
 pub mod tempo_ui;
 pub mod theme;
 pub mod theme_family;
@@ -72,6 +81,7 @@ pub mod warp;
 pub mod waveform;
 pub mod widgets;
 pub mod window_icon;
+pub mod workflow;
 
 pub use app::{starter_project, stress_project, welcome_project, CantusApp, APP_VERSION};
 

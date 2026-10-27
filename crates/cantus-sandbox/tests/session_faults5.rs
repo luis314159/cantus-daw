@@ -410,18 +410,30 @@ fn a_state_answered_late_becomes_the_last_good_one() {
     rig.host.project_for_save(rig.bus.project());
     assert_eq!(rig.host.saved_stale().len(), 1, "kept as it was last said");
     // Its slow answer comes (3 s after it was asked for): the last-good state, as it is
-    // now. Given 6 s: GitHub's Mac runner brought it after the 3.5 s this waited before.
+    // now — looked at frame by frame until it is, well before a background refresh could
+    // make it so (10 s). On GitHub's Mac runner it stayed stale however long this waited
+    // (6 s): the echo of the fault's value, said with the answer to the call that set it,
+    // reached the frame after the save had been asked for and was taken as newer than the
+    // state — round 31 judges what a helper says by its order (`session_faults8`).
     let start = Instant::now();
-    while start.elapsed() < Duration::from_millis(6_000) {
+    let saved = loop {
         rig.frame();
+        let saved = rig.host.project_for_save(rig.bus.project());
+        if rig.host.saved_stale().is_empty() {
+            break saved;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(8),
+            "{:?}, last changed by: {:?}",
+            rig.host.saved_stale(),
+            rig.host.why_changed(id)
+        );
         std::thread::sleep(Duration::from_millis(10));
-    }
-    let saved = rig.host.project_for_save(rig.bus.project());
+    };
     assert!(
-        rig.host.saved_stale().is_empty(),
-        "{:?}, last changed by: {:?}",
-        rig.host.saved_stale(),
-        rig.host.why_changed(id)
+        start.elapsed() > Duration::from_millis(1_500),
+        "it was its late answer: {:?}",
+        start.elapsed()
     );
     assert_eq!(gain_in(&saved), Some(-6.0));
 }

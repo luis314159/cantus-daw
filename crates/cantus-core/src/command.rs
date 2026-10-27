@@ -680,6 +680,25 @@ pub enum Command {
         id: TrackId,
         open: bool,
     },
+    /// A note clip's controller lanes, whole (ADR 0068): every edit of a lane — a pencil
+    /// stroke, a line, a point moved, a lane added or removed — is this one command with
+    /// every lane as it is now, so a drag merges into one step. Content a link group
+    /// shares. Refused for an invalid lane, two lanes of one kind, or an audio or
+    /// automation clip.
+    SetClipLanes {
+        track: TrackId,
+        clip: ClipId,
+        lanes: Vec<crate::clip_lanes::ClipLane>,
+    },
+    /// A track's automation mode (ADR 0068): Read, Write, Touch or Latch.
+    SetTrackAutoMode {
+        track: TrackId,
+        mode: crate::automation::AutoMode,
+    },
+    /// The master's automation mode (ADR 0068).
+    SetMasterAutoMode {
+        mode: crate::automation::AutoMode,
+    },
     /// Put a modulator on a track, a strip or the master, at `index` in its panel
     /// (ADR 0057). Refused for a modulator that is not valid, an id already used, a host
     /// that is gone or full.
@@ -761,6 +780,55 @@ pub enum Command {
     },
     SetRecordSettings {
         settings: crate::audio::RecordSettings,
+    },
+
+    // --- note effects, the key and grooves (round 31, ADR 0069) ------------------------
+    /// A track's whole note-effect chain at once: an effect added, removed, moved, switched
+    /// on or off, its kind changed. Refused for a chain that is not valid
+    /// (`notefx::chain_is_valid`) or that reuses an id another track's chain holds.
+    SetTrackNoteFx {
+        track: TrackId,
+        chain: Vec<crate::notefx::NoteEffect>,
+    },
+    /// One parameter of a note effect, in its own units (clamped, a stepped one rounded): a
+    /// knob's drag merges into one step. Refused for an effect or a key that is not there.
+    SetNoteFxParam {
+        track: TrackId,
+        effect: crate::notefx::NoteFxId,
+        key: String,
+        value: f32,
+    },
+    /// The song's key and scale, or none.
+    SetProjectKey {
+        key: Option<crate::scale::Key>,
+    },
+    /// A note clip's groove and its amounts, or none (content: a link group shares it).
+    /// Refused on an audio or automation clip, for a source that is not there, and for
+    /// amounts out of range.
+    SetClipGroove {
+        track: TrackId,
+        clip: ClipId,
+        groove: Option<crate::groove::ClipGroove>,
+    },
+    /// Whether a note clip plays past its track's note effects (a baked clip; content).
+    SetClipSkipNoteFx {
+        track: TrackId,
+        clip: ClipId,
+        skip: bool,
+    },
+    /// Put a groove in the project's pool at `index`. Refused for one that is not valid
+    /// or whose id is taken.
+    InsertGroove {
+        index: usize,
+        groove: Box<crate::groove::Groove>,
+    },
+    /// Take a groove out of the pool; refused while a clip plays with it.
+    RemoveGroove {
+        id: crate::groove::GrooveId,
+    },
+    /// Replace a pooled groove, found by its id (renamed, edited).
+    SetGroove {
+        groove: Box<crate::groove::Groove>,
     },
 
     // --- notes ------------------------------------------------------------------------
@@ -906,6 +974,14 @@ impl Command {
             InsertNotes { .. } => "cmd.insert_notes",
             RemoveNotes { .. } => "cmd.remove_notes",
             SetNotes { .. } => "cmd.set_notes",
+            SetTrackNoteFx { .. } => "cmd.notefx.chain",
+            SetNoteFxParam { .. } => "cmd.notefx.param",
+            SetProjectKey { .. } => "cmd.notefx.key",
+            SetClipGroove { .. } => "cmd.notefx.groove",
+            SetClipSkipNoteFx { .. } => "cmd.notefx.skip",
+            InsertGroove { .. } => "cmd.notefx.add_groove",
+            RemoveGroove { .. } => "cmd.notefx.remove_groove",
+            SetGroove { .. } => "cmd.notefx.set_groove",
             InsertAudioSource { .. } => "cmd.insert_audio_source",
             RemoveAudioSource { .. } => "cmd.remove_audio_source",
             SetAudioSourcePath { .. } => "cmd.set_audio_source_path",
@@ -919,6 +995,9 @@ impl Command {
             SetClipPitch { op, .. } => op.label_key(),
             SetClipWarp { op, .. } => op.label_key(),
             SetTrackAutomationOpen { .. } => "cmd.set_track_automation_open",
+            SetClipLanes { .. } => "cmd.set_clip_lanes",
+            SetTrackAutoMode { .. } => "cmd.set_track_auto_mode",
+            SetMasterAutoMode { .. } => "cmd.set_master_auto_mode",
             InsertModulator { .. } => "cmd.insert_modulator",
             RemoveModulator { .. } => "cmd.remove_modulator",
             SetModulator { .. } => "cmd.set_modulator",
@@ -985,8 +1064,47 @@ impl Command {
                     ..
                 },
             ) => ta == tb && ca == cb,
+            // A lane drawn (ADR 0068): the newest lanes.
+            (
+                SetClipLanes {
+                    track: ta,
+                    clip: ca,
+                    ..
+                },
+                SetClipLanes {
+                    track: tb,
+                    clip: cb,
+                    ..
+                },
+            ) => ta == tb && ca == cb,
+            (SetTrackAutoMode { track: a, .. }, SetTrackAutoMode { track: b, .. }) => a == b,
+            (SetMasterAutoMode { .. }, SetMasterAutoMode { .. }) => true,
             // A modulator edited whole (ADR 0057): a drag keeps the newest.
             (SetModulator { modulator: a }, SetModulator { modulator: b }) => a.id == b.id,
+            // Round 31 (ADR 0069): a knob's drag, a chain's edit, a groove's amounts.
+            (SetTrackNoteFx { track: a, .. }, SetTrackNoteFx { track: b, .. }) => a == b,
+            (
+                SetNoteFxParam {
+                    effect: a, key: ka, ..
+                },
+                SetNoteFxParam {
+                    effect: b, key: kb, ..
+                },
+            ) => a == b && ka == kb,
+            (SetProjectKey { .. }, SetProjectKey { .. }) => true,
+            (
+                SetClipGroove {
+                    track: ta,
+                    clip: ca,
+                    ..
+                },
+                SetClipGroove {
+                    track: tb,
+                    clip: cb,
+                    ..
+                },
+            ) => ta == tb && ca == cb,
+            (SetGroove { groove: a }, SetGroove { groove: b }) => a.id == b.id,
             // A seam dragged (ADR 0058): the newest place.
             (
                 SetCompSeam {
@@ -1352,6 +1470,8 @@ impl Command {
                     return Err(CommandError::InvalidValue("lateness".into()));
                 }
                 crate::modulator::check_new(project, &track.modulators)?;
+                // Its note effects (ADR 0069): valid, their ids no other track's.
+                crate::notefx_cmd::check_new(project, &track.note_fx)?;
                 // Its alternate comps (ADR 0058): no kept window may share an id with
                 // anything the project or the track itself holds (review 1).
                 crate::comp::check(project, track.id, &track.comps, track.active_comp)?;
@@ -1368,6 +1488,7 @@ impl Command {
                     // `SetClipWarp` refuses came in with a track).
                     validate_clip(c)?;
                     check_joins(project, c)?;
+                    crate::notefx_cmd::check_clip(project, c)?;
                     // The track's own clips must agree with each other too: the project
                     // does not hold them yet, so `check_joins` cannot see them.
                     if let Some(first) = track.clips[..i]
@@ -2299,6 +2420,8 @@ impl Command {
             InsertClip { track, clip } => {
                 validate_clip(&clip)?;
                 check_joins(project, &clip)?;
+                // Its groove (ADR 0069): as `SetClipGroove` would take it.
+                crate::notefx_cmd::check_clip(project, &clip)?;
                 let t = project
                     .track_mut(track)
                     .ok_or(CommandError::TrackNotFound(track))?;
@@ -2484,6 +2607,8 @@ impl Command {
                         || a.xfade > crate::audio::MAX_XFADE
                         // A warp only as valid as `SetClipWarp` takes it (ADR 0061).
                         || a.warp.as_ref().is_some_and(|w| !w.is_valid())
+                        // A gain envelope in order and in range (ADR 0070).
+                        || a.gain_env.as_ref().is_some_and(|e| !e.is_valid())
                     {
                         return Err(CommandError::InvalidValue("clip audio".into()));
                     }
@@ -2567,6 +2692,35 @@ impl Command {
                 let old = std::mem::replace(&mut t.automation_open, open);
                 Ok(SetTrackAutomationOpen { id, open: old })
             }
+            SetClipLanes { track, clip, lanes } => {
+                if !crate::clip_lanes::lanes_valid(&lanes) {
+                    return Err(CommandError::InvalidValue("controller lanes".into()));
+                }
+                let mut lanes = lanes;
+                crate::clip_lanes::sort_lanes(&mut lanes);
+                let old = edit_shared(project, track, clip, |c| {
+                    if c.audio.is_some() || c.automation.is_some() {
+                        return Err(CommandError::InvalidValue("not a note clip".into()));
+                    }
+                    Ok(std::mem::replace(&mut c.lanes, lanes.clone()))
+                })?;
+                Ok(SetClipLanes {
+                    track,
+                    clip,
+                    lanes: old,
+                })
+            }
+            SetTrackAutoMode { track, mode } => {
+                let t = project
+                    .track_mut(track)
+                    .ok_or(CommandError::TrackNotFound(track))?;
+                let old = std::mem::replace(&mut t.auto_mode, mode);
+                Ok(SetTrackAutoMode { track, mode: old })
+            }
+            SetMasterAutoMode { mode } => {
+                let old = std::mem::replace(&mut project.master.auto_mode, mode);
+                Ok(SetMasterAutoMode { mode: old })
+            }
             InsertModulator {
                 host,
                 index,
@@ -2615,6 +2769,28 @@ impl Command {
                 Ok(SetModulatorAmount { id, amount: old })
             }
             SetModulator { modulator } => crate::modulator::apply_set(project, *modulator),
+            // Round 31 (ADR 0069).
+            SetTrackNoteFx { track, chain } => crate::notefx_cmd::set_chain(project, track, chain),
+            SetNoteFxParam {
+                track,
+                effect,
+                key,
+                value,
+            } => crate::notefx_cmd::set_param(project, track, effect, key, value),
+            SetProjectKey { key } => crate::notefx_cmd::set_key(project, key),
+            SetClipGroove {
+                track,
+                clip,
+                groove,
+            } => crate::notefx_cmd::set_clip_groove(project, track, clip, groove),
+            SetClipSkipNoteFx { track, clip, skip } => {
+                crate::notefx_cmd::set_clip_skip(project, track, clip, skip)
+            }
+            InsertGroove { index, groove } => {
+                crate::notefx_cmd::insert_groove(project, index, *groove)
+            }
+            RemoveGroove { id } => crate::notefx_cmd::remove_groove(project, id),
+            SetGroove { groove } => crate::notefx_cmd::set_groove(project, *groove),
             SetCompSeam {
                 track,
                 left,
@@ -2995,7 +3171,7 @@ fn instrument_plugin_mut(
 /// content, so the edit does to each exactly what it did to the first; a member it refuses
 /// (only possible in a project that broke the invariant) takes the named clip's content
 /// instead, so the group comes out equal either way. A clip in no group costs nothing more.
-fn edit_shared<R>(
+pub(crate) fn edit_shared<R>(
     project: &mut Project,
     track: TrackId,
     clip: ClipId,
@@ -3075,6 +3251,14 @@ fn validate_clip(c: &Clip) -> Result<(), CommandError> {
         .is_some_and(|w| !w.is_valid())
     {
         return Err(CommandError::InvalidValue("clip warp".into()));
+    }
+    // A gain envelope in order and in range (ADR 0070).
+    if c.audio
+        .as_ref()
+        .and_then(|a| a.gain_env.as_ref())
+        .is_some_and(|e| !e.is_valid())
+    {
+        return Err(CommandError::InvalidValue("clip gain envelope".into()));
     }
     Ok(())
 }

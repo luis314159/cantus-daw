@@ -184,7 +184,7 @@ fn every_string_it_paints_is_translated() {
     let _turn = turn();
     for locale in locales() {
         let (mut a, track) = with_calor();
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         a.open_inst_editor(track);
         analog::demo_feed(&mut a);
         // A self-oscillating state paints the extra labels too.
@@ -198,7 +198,7 @@ fn every_string_it_paints_is_translated() {
                 "{locale:?} {view:?} painted an untranslated key: {text}"
             );
         }
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     }
     // Every parameter and preset has a label in both locales.
     for key in KIND
@@ -213,11 +213,11 @@ fn every_string_it_paints_is_translated() {
         )
     {
         for locale in locales() {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             assert_ne!(cantus_ui::i18n::t(key), key, "{locale:?} has no {key}");
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]
@@ -321,7 +321,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
     for locale in locales() {
         for (k, model) in [(0.75f32, 0.0), (2.0, 0.0), (1.0, 3.0), (1.0, 4.0)] {
             let (mut a, track) = with_calor();
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             a.open_inst_editor(track);
             analog::demo_setup(&mut a, track);
             a.set_inst_value(track, "vcf.model", model, false);
@@ -356,7 +356,7 @@ fn no_word_is_cut_elided_or_overlapped_at_75_and_200_percent_in_both_languages()
             for f in faults(&words(&shapes), area) {
                 bad.push(format!("{locale:?} {k} model {model} Edit: {f}"));
             }
-            cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+            cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         }
     }
     assert!(bad.is_empty(), "{} faults: {bad:#?}", bad.len());

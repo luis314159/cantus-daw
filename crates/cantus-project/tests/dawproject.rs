@@ -686,3 +686,79 @@ fn the_tempo_map_round_trips_through_a_dawproject() {
         ]
     );
 }
+
+/// ADR 0068: a clip's controller lanes and its notes' release velocities go out as a clip
+/// of lanes (the notes, then a channel's `pitchBend`, `channelPressure` and
+/// `channelController` points — valid against the official schema) and come back as they
+/// were: straight and held pieces exactly, a bent one within its sampling.
+#[test]
+fn controller_lanes_and_releases_round_trip() {
+    use cantus_core::clip_lanes::{ClipLane, LaneKind};
+    let mut p = Project::new("Lanes");
+    let mut t = p.make_track("Lead");
+    let mut c = p.make_clip("Phrase", Ticks::ZERO, Ticks::beats(4));
+    let mut n = p.make_note(Ticks::ZERO, Ticks::beats(1), 60, 100);
+    n.release = 90;
+    c.notes.push(n);
+    c.notes
+        .push(p.make_note(Ticks::beats(2), Ticks::beats(1), 64, 80));
+    let mut bent = AutoPoint::new(Ticks::beats(1), 0.9);
+    bent.tension = 0.5;
+    let mut step = AutoPoint::new(Ticks::beats(1), 1.0);
+    step.shape = Shape::Hold;
+    c.lanes = vec![
+        ClipLane::new(
+            LaneKind::PitchBend,
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.5),
+                bent,
+                AutoPoint::new(Ticks::beats(2), 0.5),
+            ],
+        ),
+        ClipLane::new(
+            LaneKind::Pressure,
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.0),
+                AutoPoint::new(Ticks::beats(4), 1.0),
+            ],
+        ),
+        ClipLane::new(
+            LaneKind::Cc(64),
+            vec![
+                AutoPoint::new(Ticks::ZERO, 0.0),
+                step,
+                AutoPoint::new(Ticks::beats(3), 0.0),
+            ],
+        ),
+    ];
+    t.clips.push(c);
+    p.tracks.push(t);
+    let (xsd, _) = schemas();
+    let parts = dawproject::write::parts(&p, "0.1.0");
+    let errors = xsd.validate(&parts.project_xml);
+    assert!(errors.is_empty(), "project.xml:\n{}", errors.join("\n"));
+    let back = dawproject::import(&dawproject::export(&p, "0.1.0").bytes)
+        .unwrap()
+        .project;
+    let clip = back
+        .tracks
+        .iter()
+        .flat_map(|t| t.clips.iter())
+        .find(|c| !c.notes.is_empty())
+        .expect("the clip");
+    let releases: Vec<u8> = clip.notes.iter().map(|n| n.release).collect();
+    assert_eq!(releases, vec![90, 0]);
+    let kinds: Vec<LaneKind> = clip.lanes.iter().map(|l| l.kind).collect();
+    assert_eq!(
+        kinds,
+        vec![LaneKind::PitchBend, LaneKind::Pressure, LaneKind::Cc(64)]
+    );
+    let orig = &p.tracks[0].clips[0];
+    for (a, b) in orig.lanes.iter().zip(&clip.lanes) {
+        for k in 0..=64 {
+            let t = (k * PPQ / 16) as f64;
+            let (va, vb) = (a.value_at(t).unwrap(), b.value_at(t).unwrap());
+            assert!((va - vb).abs() < 0.01, "{:?} at {t}: {va} vs {vb}", a.kind);
+        }
+    }
+}

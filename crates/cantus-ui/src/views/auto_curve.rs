@@ -54,8 +54,33 @@ impl Frame {
 
 /// The curve over content `[ca, cb)` into `out` (appended), as screen points.
 pub fn trace(auto: &Automation, ca: Ticks, cb: Ticks, f: &Frame, step: f32, out: &mut Vec<Pos2>) {
-    let pts = &auto.points;
-    let Some(first) = auto.value_at(ca.0 as f64) else {
+    trace_points(&auto.points, ca, cb, f, step, out);
+}
+
+/// The curve of `pts` at a content tick (the first value before it, the last after).
+fn value_at(pts: &[cantus_core::AutoPoint], c: f64) -> Option<f32> {
+    let first = pts.first()?;
+    let i = pts.partition_point(|p| p.tick.0 as f64 <= c);
+    if i == 0 {
+        return Some(first.value);
+    }
+    let p = pts[i - 1];
+    Some(match pts.get(i) {
+        Some(q) => segment(p, *q, c),
+        None => p.value,
+    })
+}
+
+/// [`trace`] of bare points — a controller lane's (ADR 0068) as an automation clip's.
+pub fn trace_points(
+    pts: &[cantus_core::AutoPoint],
+    ca: Ticks,
+    cb: Ticks,
+    f: &Frame,
+    step: f32,
+    out: &mut Vec<Pos2>,
+) {
+    let Some(first) = value_at(pts, ca.0 as f64) else {
         return;
     };
     if cb <= ca {
@@ -69,7 +94,7 @@ pub fn trace(auto: &Automation, ca: Ticks, cb: Ticks, f: &Frame, step: f32, out:
     }
     let (lo_t, hi_t) = (Ticks(lo.floor() as i64), Ticks(hi.ceil() as i64));
     let (ca, cb) = (ca.max(lo_t), cb.min(hi_t));
-    let start_v = auto.value_at(ca.0 as f64).unwrap_or(first);
+    let start_v = value_at(pts, ca.0 as f64).unwrap_or(first);
     out.push(pos2(f.x(ca.0 as f64), f.y(start_v)));
     let mut c = ca;
     let mut i = pts.partition_point(|p| p.tick <= c);
@@ -93,7 +118,7 @@ pub fn trace(auto: &Automation, ca: Ticks, cb: Ticks, f: &Frame, step: f32, out:
                 }
             }
         } else {
-            let v = auto.value_at(c.0 as f64).unwrap_or(first);
+            let v = value_at(pts, c.0 as f64).unwrap_or(first);
             out.push(pos2(f.x(end.0 as f64), f.y(v)));
         }
         if end >= cb || i >= pts.len() {
@@ -101,7 +126,7 @@ pub fn trace(auto: &Automation, ca: Ticks, cb: Ticks, f: &Frame, step: f32, out:
         }
         // At the point: on to its value (the last of several at one tick).
         c = pts[i].tick;
-        let v = auto.value_at(c.0 as f64).unwrap_or(first);
+        let v = value_at(pts, c.0 as f64).unwrap_or(first);
         out.push(pos2(f.x(c.0 as f64), f.y(v)));
         i = pts.partition_point(|p| p.tick <= c);
     }

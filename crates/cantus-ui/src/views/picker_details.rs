@@ -221,6 +221,7 @@ fn facts(d: &crate::picker_catalog::Device) -> Vec<(String, String)> {
             t("picker.details.format"),
             match d.source {
                 Source::Native => t("picker.format.native"),
+                Source::Template => t("workflow.kind.track_template"),
                 s => t(s.key()),
             },
         ),

@@ -434,6 +434,9 @@ fn set_clip_content_replaces_everything_shared_on_every_sibling() {
         notes: vec![bus.new_note(Ticks::ZERO, Ticks::QUARTER, 50, 70)],
         audio: None,
         automation: None,
+        lanes: Vec::new(),
+        groove: None,
+        skip_note_fx: false,
     };
     bus.execute(
         Command::SetClipContent {

@@ -31,7 +31,7 @@ struct Rig {
 
 impl Rig {
     fn new(project: Project) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let mut app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
         app.routing_view.set_in_use(false);
         let mut r = Rig {
@@ -414,7 +414,7 @@ fn in_use_hides_the_strips_nothing_routes() {
         let s = p.make_strip("");
         p.strips.push(s);
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut app = CantusApp::from_parts(Some(p), EngineHandle::dummy(), false);
     assert!(app.routing_view.in_use(app.project().strips.len()));
     app.routing_view.set_in_use(true);
@@ -462,7 +462,7 @@ fn alt_f9_opens_the_routing_tab() {
 /// one picks nothing, and the hint says what the tap means.
 #[test]
 fn the_tap_switch_picks_and_explains() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = ctx();
     let rect = egui::Rect::from_min_size(pos2(20.0, 20.0), vec2(80.0, 22.0));
     let mut picked = Vec::new();

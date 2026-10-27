@@ -80,6 +80,7 @@ struct Read {
     links_repaired: usize,
     warps_repaired: usize,
     lateness_repaired: usize,
+    gain_envs_repaired: usize,
     plugins: cantus_host::PluginDb,
 }
 
@@ -187,6 +188,7 @@ impl Boot {
                     let mut links_repaired = 0;
                     let mut warps_repaired = 0;
                     let mut lateness_repaired = 0;
+                    let mut gain_envs_repaired = 0;
                     let project = path.and_then(|p| {
                         let first = cantus_project::load(&p, true);
                         // As *Open* does: a hash that does not match opens with a warning.
@@ -204,6 +206,7 @@ impl Boot {
                                 links_repaired = l.links_repaired;
                                 warps_repaired = l.warps_repaired;
                                 lateness_repaired = l.lateness_repaired;
+                                gain_envs_repaired = l.gain_envs_repaired;
                                 Some((l.project, p))
                             }
                             Err(e) => {
@@ -223,6 +226,7 @@ impl Boot {
                         links_repaired,
                         warps_repaired,
                         lateness_repaired,
+                        gain_envs_repaired,
                         plugins,
                     });
                     ctx2.request_repaint();
@@ -309,6 +313,11 @@ impl Boot {
                     app.set_error(crate::links::repaired_text(read.links_repaired));
                 } else if read.warps_repaired > 0 {
                     app.set_error(crate::warp::repaired_text(read.warps_repaired));
+                } else if read.gain_envs_repaired > 0 {
+                    app.set_error(crate::i18n::tf(
+                        "clipfx.status.envs_repaired",
+                        &[("n", &read.gain_envs_repaired)],
+                    ));
                 } else if read.lateness_repaired > 0 {
                     app.set_error(crate::i18n::tf(
                         "freeze.lateness_repaired",

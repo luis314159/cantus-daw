@@ -8,7 +8,7 @@ use cantus_ui::{starter_project, stress_project, welcome_project, CantusApp};
 use std::time::{Duration, Instant};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 
@@ -403,6 +403,7 @@ fn recording_turns_live_notes_into_one_undoable_take() {
         tick: Ticks(tick),
         pitch,
         velocity: vel,
+        release: 0,
     };
     a.ingest_note_inputs(vec![ev(960, 62, 100), ev(1440, 62, 0)]);
     a.ingest_note_inputs(vec![ev(1920, 65, 90)]);

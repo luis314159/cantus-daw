@@ -218,7 +218,7 @@ fn the_link_keys_and_labels_are_there() {
         .bindings_for(Action::LinkClips)
         .contains(&Binding::alt(egui::Key::L)));
     assert!(map.conflicts().is_empty(), "{:?}", map.conflicts());
-    use cantus_ui::i18n::{set_locale, t, Locale};
+    use cantus_ui::i18n::{set_thread_locale, t, Locale};
     let keys = [
         "cmd.make_unique",
         "cmd.link_clip",
@@ -240,14 +240,14 @@ fn the_link_keys_and_labels_are_there() {
         "links.status.copies_linked",
         "links.status.copies_unique",
     ];
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     let english: Vec<String> = keys.iter().map(|k| t(k)).collect();
-    set_locale(Locale::Es);
+    set_thread_locale(Locale::Es);
     for (k, en) in keys.iter().zip(&english) {
         assert_ne!(en, k, "{k} has no English text");
         assert_ne!(&t(k), en, "{k} has no Spanish text");
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     // Every command's label resolves: the core's own keys for the new commands.
     let cmd = Command::SetClipLink {
         track: TrackId(1),

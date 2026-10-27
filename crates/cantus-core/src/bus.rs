@@ -4,6 +4,7 @@
 use crate::command::{Command, CommandError, Origin};
 use crate::model::Project;
 use std::collections::hash_map::DefaultHasher;
+use std::collections::VecDeque;
 use std::hash::{Hash, Hasher};
 
 /// Identifies a continuous gesture (dragging a fader, sweeping a knob). Consecutive
@@ -30,6 +31,17 @@ pub struct HistoryEntry {
     /// window edits `tempo::keep` added — what each later frame rebuilds the step from,
     /// so every frame is measured from where the gesture began.
     gesture: Option<Command>,
+    /// The state this step leaves the project in, as a number of its own (round 31, ADR
+    /// 0072): never reused, kept through undo and redo, renewed when a gesture merges more
+    /// into the step — the history panel marks the step a save wrote by it.
+    step: u64,
+}
+
+impl HistoryEntry {
+    /// The state this step leaves the project in ([`CommandBus::current_step`]).
+    pub fn step(&self) -> u64 {
+        self.step
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -61,7 +73,35 @@ pub struct CommandBus {
     audit_seq: u64,
     max_history: usize,
     max_audit: usize,
+    /// Steps pushed onto the undo stack since the bus was made, and undos and redos done:
+    /// what a [`HistoryMark`] counts from (ADR 0068).
+    pushed: u64,
+    turns: u64,
+    /// The next step number ([`HistoryEntry::step`]); 0 is the first state of a bus.
+    next_step: u64,
+    /// The state below the oldest step kept (the project as it was opened, or as it was
+    /// before the steps the history let go of).
+    base_step: u64,
+    /// The state the file holds, if one the history can reach (round 31).
+    saved_step: Option<u64>,
+    /// Recent revisions and the state each was: a save written off the interface's thread
+    /// names the revision it took ([`Self::mark_saved_at`]).
+    states: VecDeque<(u64, u64)>,
+    /// Automatic crossfades (ADR 0070): an edit that makes two audio clips overlap gives
+    /// the overlap a crossfade on this curve, in the same step. `None` (a bus's default;
+    /// the application sets its user's choice) leaves overlaps as the edit made them.
+    auto_xfade: Option<crate::crossfade::XfadeCurve>,
 }
+
+/// A place in the history (`CommandBus::mark`): what a write pass folds its steps from.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct HistoryMark {
+    pushed: u64,
+    turns: u64,
+}
+
+/// How many recent revisions [`CommandBus::mark_saved_at`] can name.
+const STATES_KEPT: usize = 1024;
 
 impl Default for CommandBus {
     fn default() -> Self {
@@ -81,7 +121,24 @@ impl CommandBus {
             audit_seq: 0,
             max_history: 10_000,
             max_audit: 50_000,
+            pushed: 0,
+            turns: 0,
+            next_step: 1,
+            base_step: 0,
+            saved_step: Some(0),
+            states: VecDeque::from([(0, 0)]),
+            auto_xfade: None,
         }
+    }
+
+    /// Turn automatic crossfades on (with the curve new ones take) or off (ADR 0070).
+    pub fn set_auto_crossfades(&mut self, curve: Option<crate::crossfade::XfadeCurve>) {
+        self.auto_xfade = curve;
+    }
+
+    /// Whether automatic crossfades are on, and their curve.
+    pub fn auto_crossfades(&self) -> Option<crate::crossfade::XfadeCurve> {
+        self.auto_xfade
     }
 
     pub fn project(&self) -> &Project {
@@ -98,6 +155,7 @@ impl CommandBus {
 
     pub fn mark_saved(&mut self) {
         self.saved_revision = self.revision;
+        self.saved_step = Some(self.current_step());
     }
 
     /// Mark `revision` as the one in the file: a save written off the interface's thread
@@ -105,6 +163,55 @@ impl CommandBus {
     /// the project dirty. A revision from the future is the present.
     pub fn mark_saved_at(&mut self, revision: u64) {
         self.saved_revision = revision.min(self.revision);
+        let at = self.saved_revision;
+        self.saved_step = self
+            .states
+            .iter()
+            .rev()
+            .find(|(r, _)| *r == at)
+            .map(|(_, s)| *s);
+    }
+
+    /// [`Self::mark_saved_at`] for a save that named the state it took as well
+    /// ([`Self::current_step`] when it took it): the mark is kept however many revisions
+    /// went by meanwhile, unless no step holds that state any more.
+    pub fn mark_saved_state(&mut self, revision: u64, step: u64) {
+        self.saved_revision = revision.min(self.revision);
+        self.saved_step = Some(step);
+        self.forget_unreachable_save();
+    }
+
+    /// The state the project is in now: the step on top's, or the base's (round 31).
+    pub fn current_step(&self) -> u64 {
+        self.undo.last().map_or(self.base_step, |e| e.step)
+    }
+
+    /// The state below the oldest step kept: the project as it was opened or begun, or as
+    /// it was before the steps the history let go of.
+    pub fn base_step(&self) -> u64 {
+        self.base_step
+    }
+
+    /// The state the file holds — `None` when no step the history holds is that state (a
+    /// gesture merged more into the step that was saved, the steps after it were undone
+    /// and replaced, or it fell off the history's end).
+    pub fn saved_step(&self) -> Option<u64> {
+        self.saved_step
+    }
+
+    fn fresh_step(&mut self) -> u64 {
+        let s = self.next_step;
+        self.next_step += 1;
+        s
+    }
+
+    /// The revision just made, and the state it is.
+    fn note_state(&mut self) {
+        let state = self.current_step();
+        self.states.push_back((self.revision, state));
+        while self.states.len() > STATES_KEPT {
+            self.states.pop_front();
+        }
     }
 
     // Id allocation is deliberately *not* a command: ids are monotonic and never reused, so
@@ -257,6 +364,7 @@ impl CommandBus {
         top.command = command;
         top.label_key = label_key.clone();
         top.merge_key = Some(to);
+        self.renew_top();
         self.audit_push(origin, label_key, AuditKind::Execute);
         Ok(())
     }
@@ -312,6 +420,7 @@ impl CommandBus {
         top.gesture = Some(raw);
         top.label_key = step_label;
         top.merge_key = merge_key;
+        self.renew_top();
         self.audit_push(origin, label_key, AuditKind::Execute);
         Ok(())
     }
@@ -326,13 +435,38 @@ impl CommandBus {
         label_key: &str,
     ) -> Result<(Command, Command), CommandError> {
         let kept = crate::tempo::keep::before(&self.project, &command);
+        // The overlaps before an edit that can make or end one (ADR 0070): new ones are
+        // crossed when automatic crossfades are on, ended ones lose their stale curve.
+        let overlaps =
+            crate::crossfade::may_overlap(&command).then(|| crate::crossfade::pairs(&self.project));
         let inverse = command.clone().apply(&mut self.project)?;
-        let fix = kept
+        let fix: Vec<Command> = kept
             .map(|k| crate::tempo::keep::after(&k, &self.project))
-            .filter(|f| !f.is_empty());
-        let Some(fix) = fix else {
-            return Ok((command, inverse));
-        };
+            .unwrap_or_default();
+        let (mut command, mut inverse) = (command, inverse);
+        if !fix.is_empty() {
+            (command, inverse) = self.apply_fix(label_key, command, inverse, fix)?;
+        }
+        // The crossfades, measured once the windows are where the edit (and the tempo's
+        // fix) left them: each sets a region as it is now.
+        if let Some(before) = overlaps {
+            let fix = crate::crossfade::fresh(&before, &self.project, self.auto_xfade);
+            if !fix.is_empty() {
+                (command, inverse) = self.apply_fix(label_key, command, inverse, fix)?;
+            }
+        }
+        Ok((command, inverse))
+    }
+
+    /// Apply `fix` after `command` (already applied, `inverse` its inverse), one step of
+    /// the two; if it cannot apply, the command is taken back — never half an edit.
+    fn apply_fix(
+        &mut self,
+        label_key: &str,
+        command: Command,
+        inverse: Command,
+        fix: Vec<Command>,
+    ) -> Result<(Command, Command), CommandError> {
         let fix = Command::Batch {
             label_key: label_key.to_string(),
             commands: fix,
@@ -343,10 +477,33 @@ impl CommandBus {
                 compose(label_key, inverse, fix_inverse, true),
             )),
             Err(e) => {
-                // Never half an edit: the command is taken back.
                 let _ = inverse.apply(&mut self.project);
                 Err(e)
             }
+        }
+    }
+
+    /// The step on top changed (a gesture merged more into it): a state of its own now, and
+    /// a save of the state before is no longer reachable from it.
+    fn renew_top(&mut self) {
+        let step = self.fresh_step();
+        if let Some(top) = self.undo.last_mut() {
+            top.step = step;
+        }
+        self.forget_unreachable_save();
+        self.note_state();
+    }
+
+    /// A saved state no step holds any more (it was undone and replaced, or renewed by a
+    /// merge) is out of reach: nothing is marked saved.
+    fn forget_unreachable_save(&mut self) {
+        let reachable = |s: u64| {
+            s == self.base_step
+                || self.undo.iter().any(|e| e.step == s)
+                || self.redo.iter().any(|e| e.step == s)
+        };
+        if self.saved_step.is_some_and(|s| !reachable(s)) {
+            self.saved_step = None;
         }
     }
 
@@ -398,19 +555,30 @@ impl CommandBus {
             }
             _ => Some((command, inverse)),
         };
-        if let Some((command, inverse)) = fresh {
-            self.undo.push(HistoryEntry {
-                label_key: label_key.clone(),
-                command,
-                inverse,
-                origin,
-                merge_key,
-                gesture,
-            });
-            if self.undo.len() > self.max_history {
-                let excess = self.undo.len() - self.max_history;
-                self.undo.drain(..excess);
+        match fresh {
+            Some((command, inverse)) => {
+                let step = self.fresh_step();
+                self.pushed += 1;
+                self.undo.push(HistoryEntry {
+                    label_key: label_key.clone(),
+                    command,
+                    inverse,
+                    origin,
+                    merge_key,
+                    gesture,
+                    step,
+                });
+                if self.undo.len() > self.max_history {
+                    let excess = self.undo.len() - self.max_history;
+                    if let Some(last) = self.undo.drain(..excess).next_back() {
+                        self.base_step = last.step;
+                    }
+                }
+                self.forget_unreachable_save();
+                self.note_state();
             }
+            // Merged into the step on top.
+            None => self.renew_top(),
         }
         self.audit_push(origin, label_key, AuditKind::Execute);
         Ok(())
@@ -435,6 +603,7 @@ impl CommandBus {
     /// Undo the last step. Returns its label key.
     pub fn undo(&mut self) -> Option<String> {
         let entry = self.undo.pop()?;
+        self.turns += 1;
         // The inverse of a successfully applied command must apply; if it does not, the
         // model has a bug and we must not silently desync — restore the entry and bail.
         match entry.inverse.clone().apply(&mut self.project) {
@@ -449,7 +618,9 @@ impl CommandBus {
                     origin: entry.origin,
                     merge_key: None,
                     gesture: None,
+                    step: entry.step,
                 });
+                self.note_state();
                 Some(label)
             }
             Err(_) => {
@@ -461,6 +632,7 @@ impl CommandBus {
 
     pub fn redo(&mut self) -> Option<String> {
         let entry = self.redo.pop()?;
+        self.turns += 1;
         match entry.command.clone().apply(&mut self.project) {
             Ok(inverse) => {
                 self.revision += 1;
@@ -473,7 +645,9 @@ impl CommandBus {
                     origin: entry.origin,
                     merge_key: None,
                     gesture: None,
+                    step: entry.step,
                 });
+                self.note_state();
                 Some(label)
             }
             Err(_) => {
@@ -485,6 +659,65 @@ impl CommandBus {
 
     pub fn history(&self) -> &[HistoryEntry] {
         &self.undo
+    }
+
+    /// Where the history stands now, for [`Self::execute_folding`].
+    pub fn mark(&self) -> HistoryMark {
+        HistoryMark {
+            pushed: self.pushed,
+            turns: self.turns,
+        }
+    }
+
+    /// Execute `command` as a step, then fold into it every step pushed since `mark` — all
+    /// on top of the stack — when nothing was undone or redone since and `fold` accepts
+    /// each: one step whose command replays them all in order and whose inverse takes them
+    /// all back (a write pass and the hand's moves it recorded, ADR 0068). Says whether it
+    /// folded; a step it may not fold stays a step of its own.
+    pub fn execute_folding(
+        &mut self,
+        command: Command,
+        origin: Origin,
+        mark: HistoryMark,
+        fold: &dyn Fn(&Command) -> bool,
+    ) -> Result<bool, CommandError> {
+        self.execute_inner(command, origin, None)?;
+        let since = (self.pushed - mark.pushed) as usize;
+        let n = since.saturating_sub(1);
+        let foldable = mark.turns == self.turns
+            && n > 0
+            && since <= self.undo.len()
+            && self.undo[self.undo.len() - since..self.undo.len() - 1]
+                .iter()
+                .all(|e| fold(&e.command));
+        if !foldable {
+            return Ok(false);
+        }
+        let mut steps = self.undo.split_off(self.undo.len() - since);
+        let top = steps.pop().expect("the command's own step");
+        // The state the pass leaves is the one its own step left (round 31, ADR 0072).
+        let step = top.step;
+        let label_key = top.label_key.clone();
+        let mut commands: Vec<Command> = steps.iter().map(|e| e.command.clone()).collect();
+        commands.push(top.command);
+        let mut inverses = vec![top.inverse];
+        inverses.extend(steps.into_iter().rev().map(|e| e.inverse));
+        self.undo.push(HistoryEntry {
+            label_key: label_key.clone(),
+            command: Command::Batch {
+                label_key: label_key.clone(),
+                commands,
+            },
+            inverse: Command::Batch {
+                label_key,
+                commands: inverses,
+            },
+            origin,
+            merge_key: None,
+            gesture: None,
+            step,
+        });
+        Ok(true)
     }
 
     /// What redo would apply, the next first last.
@@ -500,10 +733,15 @@ impl CommandBus {
     /// instead when the replacement should be undoable.
     pub fn reset(&mut self, project: Project) {
         self.project = project;
+        self.turns += 1;
         self.undo.clear();
         self.redo.clear();
         self.revision += 1;
         self.saved_revision = self.revision;
+        self.base_step = self.fresh_step();
+        self.saved_step = Some(self.base_step);
+        self.states.clear();
+        self.note_state();
     }
 
     fn audit_push(&mut self, origin: Origin, label_key: String, kind: AuditKind) {
@@ -738,5 +976,176 @@ mod tests {
             .is_err());
         assert_eq!(bus.history().len(), n);
         assert_eq!(bus.audit_log().last().unwrap().kind, AuditKind::Rejected);
+    }
+
+    /// ADR 0068: a write pass folds the hand's steps since its mark into its own — one undo
+    /// step that takes everything back — and folds nothing after an undo, or over a step
+    /// that is not a parameter's.
+    #[test]
+    fn a_pass_folds_the_steps_since_its_mark() {
+        let params = |c: &Command| matches!(c, Command::SetMasterGain { .. });
+        let mut bus = CommandBus::default();
+        let before = bus.project().clone();
+        let mark = bus.mark();
+        bus.execute(Command::SetMasterGain { gain_db: -3.0 }, Origin::User)
+            .unwrap();
+        bus.execute(Command::SetMasterGain { gain_db: -6.0 }, Origin::User)
+            .unwrap();
+        let folded = bus
+            .execute_folding(
+                Command::SetMetronome { enabled: true },
+                Origin::User,
+                mark,
+                &params,
+            )
+            .unwrap();
+        assert!(folded);
+        assert_eq!(bus.history().len(), 1);
+        assert_eq!(bus.project().master.gain_db, -6.0);
+        bus.undo().unwrap();
+        assert_eq!(bus.project(), &before);
+        bus.redo().unwrap();
+        assert_eq!(bus.project().master.gain_db, -6.0);
+        assert!(bus.project().metronome);
+
+        // An undo since the mark: nothing folds.
+        let mut bus = CommandBus::default();
+        let mark = bus.mark();
+        bus.execute(Command::SetMasterGain { gain_db: -3.0 }, Origin::User)
+            .unwrap();
+        bus.undo();
+        bus.execute(Command::SetMasterGain { gain_db: -1.0 }, Origin::User)
+            .unwrap();
+        let folded = bus
+            .execute_folding(
+                Command::SetMetronome { enabled: true },
+                Origin::User,
+                mark,
+                &params,
+            )
+            .unwrap();
+        assert!(!folded);
+        assert_eq!(bus.history().len(), 2);
+
+        // A step that is no parameter's: nothing folds.
+        let mut bus = CommandBus::default();
+        let mark = bus.mark();
+        bus.execute(Command::SetMasterGain { gain_db: -3.0 }, Origin::User)
+            .unwrap();
+        bus.execute(Command::SetTempo { bpm: 99.0 }, Origin::User)
+            .unwrap();
+        let folded = bus
+            .execute_folding(
+                Command::SetMetronome { enabled: true },
+                Origin::User,
+                mark,
+                &params,
+            )
+            .unwrap();
+        assert!(!folded);
+        assert_eq!(bus.history().len(), 3);
+    }
+
+    /// Round 31 (ADR 0072): each state the history holds has a number of its own — kept
+    /// through undo and redo — and the saved one is known while a step holds it: through
+    /// undo past it and redo back, a save written off the thread at an older revision, a
+    /// gesture that merges more into it (gone), and new steps over undone ones (gone).
+    #[test]
+    fn the_saved_state_is_known_while_the_history_holds_it() {
+        let mut bus = CommandBus::default();
+        let pan = |p: f32| Command::SetMasterPan { pan: p };
+        assert_eq!(
+            bus.saved_step(),
+            Some(bus.base_step()),
+            "a new bus is its file"
+        );
+        bus.execute(pan(0.1), Origin::User).unwrap();
+        bus.execute(pan(0.2), Origin::User).unwrap();
+        let second = bus.current_step();
+        bus.mark_saved();
+        assert_eq!(bus.saved_step(), Some(second));
+        bus.execute(pan(0.3), Origin::User).unwrap();
+        let third = bus.current_step();
+        assert_ne!(third, second);
+        // Undo below the save and redo back: the same numbers.
+        bus.undo();
+        assert_eq!(bus.current_step(), second);
+        bus.undo();
+        assert_eq!(bus.redo_history().len(), 2);
+        assert_eq!(bus.saved_step(), Some(second), "held by a step to redo");
+        bus.redo();
+        bus.redo();
+        assert_eq!(bus.current_step(), third);
+        // A save that took the revision of the second state, landing now.
+        let rev = bus.revision();
+        bus.execute(pan(0.4), Origin::User).unwrap();
+        bus.mark_saved_at(rev);
+        assert_eq!(bus.saved_step(), Some(third));
+        assert!(bus.is_dirty());
+        // A gesture merging more into the saved step: that state is gone.
+        let key = MergeKey::of(&"drag");
+        bus.execute_merging(pan(0.5), Origin::User, key).unwrap();
+        bus.mark_saved();
+        let saved = bus.current_step();
+        bus.execute_merging(pan(0.6), Origin::User, key).unwrap();
+        assert_ne!(bus.current_step(), saved, "a merge is a state of its own");
+        assert_eq!(bus.saved_step(), None);
+        // Undone steps replaced by a new one: the saved one among them is gone.
+        bus.end_gesture();
+        bus.mark_saved();
+        bus.undo();
+        bus.execute(pan(0.7), Origin::User).unwrap();
+        assert_eq!(bus.saved_step(), None);
+        // A reset is its own file.
+        bus.reset(Project::default());
+        assert_eq!(bus.saved_step(), Some(bus.base_step()));
+        assert_eq!(bus.current_step(), bus.base_step());
+    }
+
+    /// Review 7: a save that lands after more revisions than the bus remembers still marks
+    /// the step it took, named when it took it.
+    #[test]
+    fn a_long_save_keeps_its_mark() {
+        let mut bus = CommandBus::default();
+        bus.execute(Command::SetMasterPan { pan: 0.1 }, Origin::User)
+            .unwrap();
+        let (rev, step) = (bus.revision(), bus.current_step());
+        for i in 0..(STATES_KEPT + 50) {
+            bus.execute(
+                Command::SetMasterWidth {
+                    width: 1.0 + (i % 7) as f32 * 0.01,
+                },
+                Origin::User,
+            )
+            .unwrap();
+        }
+        bus.mark_saved_at(rev);
+        assert_eq!(bus.saved_step(), None, "the revision is out of memory");
+        bus.mark_saved_state(rev, step);
+        assert_eq!(bus.saved_step(), Some(step));
+        assert!(bus.is_dirty());
+    }
+
+    /// The history's oldest steps let go of: the base is the state before the oldest kept.
+    #[test]
+    fn the_base_follows_the_history_s_end() {
+        let mut bus = CommandBus {
+            max_history: 3,
+            ..CommandBus::default()
+        };
+        let mut steps = Vec::new();
+        for i in 0..5 {
+            bus.execute(
+                Command::SetMasterPan {
+                    pan: i as f32 * 0.1,
+                },
+                Origin::User,
+            )
+            .unwrap();
+            steps.push(bus.current_step());
+        }
+        assert_eq!(bus.history().len(), 3);
+        assert_eq!(bus.base_step(), steps[1]);
+        assert_eq!(bus.saved_step(), None, "the opened state fell off the end");
     }
 }

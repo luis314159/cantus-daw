@@ -186,17 +186,17 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
             );
         }
         for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(lang);
+            cantus_ui::i18n::set_thread_locale(lang);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {lang:?}");
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// No word is cut short in Spanish either, in any view.
 #[test]
 fn no_word_is_cut_in_spanish() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (mut a, s0, fx) = with_speculum();
     cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Analyzer);
     for view in 0..6 {
@@ -204,7 +204,7 @@ fn no_word_is_cut_in_spanish() {
         let text = paint_editors(&mut a, egui::vec2(1400.0, 900.0));
         assert!(!text.contains('\u{2026}'), "view {view}: {text}");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Opening a Speculum that is docked brings its tab forward instead of a second view of
@@ -248,7 +248,7 @@ fn a_docked_tabs_settings_fit_its_width() {
         }
     }
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         for size in [egui::vec2(560.0, 420.0), egui::vec2(760.0, 460.0)] {
             let (mut a, s0, fx) = with_speculum();
             cantus_ui::views::fx::demo_feed(&mut a, EffectKind::Analyzer);
@@ -274,7 +274,7 @@ fn a_docked_tabs_settings_fit_its_width() {
             );
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review 2: at a docked tab's default and least sizes the overview's loudness panel keeps
@@ -283,7 +283,7 @@ fn a_docked_tabs_settings_fit_its_width() {
 #[test]
 fn a_docked_tabs_overview_keeps_its_levels_in_view() {
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         let words = |key: &str| cantus_ui::i18n::t(key).to_uppercase();
         for size in [egui::vec2(560.0, 420.0), egui::vec2(760.0, 460.0)] {
             for lost in [0u64, 4_800] {
@@ -359,5 +359,5 @@ fn a_docked_tabs_overview_keeps_its_levels_in_view() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

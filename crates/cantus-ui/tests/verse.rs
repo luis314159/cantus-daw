@@ -104,7 +104,7 @@ const BOOK_VERSES: [(&str, u32); 66] = [
 ];
 
 fn with_locale<R>(l: Locale, f: impl FnOnce() -> R) -> R {
-    i18n::set_locale(l);
+    i18n::set_thread_locale(l);
     f()
 }
 
@@ -369,7 +369,7 @@ fn switching_the_language_shows_the_same_passage_in_the_other_translation() {
     let mut app = support::app(Project::new("t"));
     app.verse = Some(view::Card::new(col));
     let ctx = support::ctx();
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     let (p, en) = card_frame(&mut app, &ctx, Vec2::new(1280.0, 800.0));
     assert!(p.is_some(), "the card shows");
     assert!(en.contains("COLOSSIANS 3:23 \u{00b7} WEB"), "{en}");
@@ -377,7 +377,7 @@ fn switching_the_language_shows_the_same_passage_in_the_other_translation() {
 
     // Settings ▸ Language, live: the same passage, in Spanish — the RVR1960 once it is
     // permitted, the public-domain RV1909 until then.
-    i18n::set_locale(Locale::Es);
+    i18n::set_thread_locale(Locale::Es);
     let (_, es) = card_frame(&mut app, &ctx, Vec2::new(1280.0, 800.0));
     if verse::RVR1960_PERMITTED {
         assert!(es.contains("COLOSENSES 3:23 \u{00b7} RVR1960"), "{es}");
@@ -400,7 +400,7 @@ fn switching_the_language_shows_the_same_passage_in_the_other_translation() {
     assert!(old.contains("de ánimo"), "{old}");
 
     // And back.
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     let (_, back) = card_frame(&mut app, &ctx, Vec2::new(1280.0, 800.0));
     assert!(back.contains("COLOSSIANS 3:23 \u{00b7} WEB"), "{back}");
 }
@@ -424,7 +424,7 @@ fn the_splash_follows_the_language_too() {
             },
         ),
     ] {
-        i18n::set_locale(l);
+        i18n::set_thread_locale(l);
         let text = support::paint(&ctx, boot::size(true), 2, |ui| {
             let _ = boot::paint_splash_with(ui, 0.5, SplashVerse::Shown(shown));
         });
@@ -440,7 +440,7 @@ fn each_shown(f: &mut impl FnMut(Locale, Translation, Shown)) {
         (Locale::Es, Spanish::Rv1909),
     ] {
         let t = Translation::for_locale(l, s);
-        i18n::set_locale(l);
+        i18n::set_thread_locale(l);
         for v in t.verses() {
             f(
                 l,
@@ -534,7 +534,7 @@ fn every_passage_fits_the_card_at_75_and_200_percent_in_both_languages() {
         let t = Translation::for_locale(l, s);
         let longest = t.verses().iter().max_by_key(|v| v.text.len()).unwrap();
         for ppp in [0.75f32, 2.0] {
-            i18n::set_locale(l);
+            i18n::set_thread_locale(l);
             let mut app = support::app(Project::new("t"));
             app.settings.verse.spanish = s;
             app.verse = Some(view::Card::new(longest.reference));
@@ -576,7 +576,7 @@ fn the_rvr1960_waits_for_its_permission() {
         show: true,
         spanish: Spanish::Rvr1960,
     };
-    i18n::set_locale(Locale::Es);
+    i18n::set_thread_locale(Locale::Es);
     let credits: Vec<String> = view::credits().into_iter().map(|(n, l)| n + &l).collect();
     if verse::RVR1960_PERMITTED {
         assert_eq!(VerseSettings::default().spanish, Spanish::Rvr1960);
@@ -600,5 +600,5 @@ fn the_rvr1960_waits_for_its_permission() {
             "About credits a translation it does not show: {credits:?}"
         );
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
 }

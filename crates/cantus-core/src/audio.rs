@@ -148,6 +148,18 @@ pub struct AudioRegion {
     /// every clip never warped — plays the source at its natural speed (ADR 0025 §1).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub warp: Option<Box<crate::warp::Warp>>,
+    /// The crossfade over this window's **overlap** with the playing-lane audio clip it
+    /// starts inside (schema 44, ADR 0070, `crate::crossfade`): the two cross over the
+    /// whole overlap on this curve, the earlier fading out over exactly the samples this
+    /// one fades in on. `None` (every clip before) plays the overlap summed, as before; a
+    /// window that overlaps nothing keeps the curve unused.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross: Option<crate::crossfade::XfadeCurve>,
+    /// The clip's gain envelope (schema 44, ADR 0070, `crate::clip_gain`), in its content
+    /// time, on top of `gain_db` and the fades. `None` — or a line at 0 dB — touches no
+    /// sample.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gain_env: Option<Box<crate::clip_gain::GainEnvelope>>,
 }
 
 /// The longest seam crossfade a window takes (a beat at any tempo is far more than a comp
@@ -172,6 +184,8 @@ impl AudioRegion {
             pitch: None,
             xfade: Ticks::ZERO,
             warp: None,
+            cross: None,
+            gain_env: None,
         }
     }
 }

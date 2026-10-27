@@ -106,12 +106,33 @@ fn through_clap_is_bit_identical_to_the_engine_without_ftz_too() {
     }
 }
 
+/// Round 31 (ADR 0071): a fresh plug-in is the DSP on its unit's starting preset — what
+/// an insert in Cantus starts on — and every parameter's default, what a host resets to,
+/// is still the unit's null (ADR 0018).
 #[test]
-fn at_their_defaults_the_plugins_are_the_dsp_at_its_defaults() {
+fn a_fresh_plugin_is_the_dsp_on_its_starting_preset_and_its_defaults_stay_the_null() {
     for kind in kinds() {
         let plugin = through_plugin(kind, &[], &[256], 24_000);
-        let dsp = through_dsp(&EffectSpec::new(kind), 24_000, true);
-        assert_identical(&format!("{kind:?} at its defaults"), &plugin, &dsp);
+        let dsp = through_dsp(&cantus_core::starting::starting_spec(kind), 24_000, true);
+        assert_identical(&format!("{kind:?} as it starts"), &plugin, &dsp);
+        let table = cantus_plugins::params::table(kind);
+        for p in table
+            .params
+            .iter()
+            .filter(|p| p.role == cantus_plugins::params::Role::Spec)
+        {
+            let null = kind
+                .params()
+                .iter()
+                .find(|i| i.key == p.key)
+                .map(|i| i.default);
+            assert_eq!(
+                Some(p.default),
+                null,
+                "{kind:?}: {} defaults to its null",
+                p.key
+            );
+        }
     }
 }
 
@@ -330,9 +351,18 @@ fn state_round_trips_and_moves_between_cantus_and_the_plugin() {
         // A user preset from the DAW (a bare map) loads too.
         let preset: std::collections::BTreeMap<String, f32> =
             values.iter().map(|(k, v)| (k.to_string(), *v)).collect();
+        // A bare map's missing keys read as their defaults (the null), not as a fresh
+        // instance's starting preset (ADR 0071): the same state as those values over the
+        // defaults.
         let d = Plug::new(kind);
         assert!(d.load(&serde_json::to_vec(&preset).unwrap()));
-        assert_eq!(d.save(), bytes, "{kind:?}: the preset is the same state");
+        let mut over_defaults = EffectSpec::new(kind);
+        for (k, v) in &values {
+            over_defaults.set(k, *v);
+        }
+        let e = Plug::new(kind);
+        assert!(e.load(&serde_json::to_vec(&over_defaults).unwrap()));
+        assert_eq!(d.save(), e.save(), "{kind:?}: the preset is the same state");
         // Another kind's state is refused.
         let other = if kind == EffectKind::Gate {
             EffectKind::Eq
@@ -446,8 +476,17 @@ fn the_parameters_are_the_tables() {
                 (p.min_value, p.max_value, p.default_value),
                 (min, max, default)
             );
-            // The default reads back, as text and as a value.
-            assert_eq!(plug.value(p.id), default, "{kind:?} {}", info.key);
+            // A fresh instance holds its starting preset's value (ADR 0071); the default
+            // reads back as text and as a value.
+            let start = tp.clamp(f64::from(
+                cantus_core::starting::starting_spec(kind).get(info.key),
+            ));
+            let start = if tp.clap_is_position() {
+                tp.to_normalized(start)
+            } else {
+                f64::from(start)
+            };
+            assert_eq!(plug.value(p.id), start, "{kind:?} {}", info.key);
             let text = plug.text(p.id, default);
             let back = plug.parse(p.id, &text).expect("its own text parses");
             let tol = if info.stepped {

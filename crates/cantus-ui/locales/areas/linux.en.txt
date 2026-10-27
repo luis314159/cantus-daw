@@ -1,6 +1,22 @@
 # Round 30 (ADR 0065): the audio threads' real-time priority, on the device page (every
-# system; the words name what the operating system granted).
-devices.realtime = Real-time priority: audio thread {callback} · {workers}
-devices.realtime.workers = workers {n} of {of} real-time
-devices.realtime.no_workers = no worker threads
-devices.realtime.waiting = audio thread not started yet
+# system; the words name what the operating system granted). Round 31: whole words in
+# each language for every form (Windows, macOS, Linux), never the system's English.
+devices.realtime = Real-time priority — audio thread: {callback} · helpers: {workers}
+devices.realtime.workers = {n} of {of} real-time
+devices.realtime.no_workers = none
+devices.realtime.waiting = not started yet
+devices.realtime.mmcss = MMCSS “{task}” at {priority} priority
+devices.realtime.mmcss.low = low
+devices.realtime.mmcss.normal = normal
+devices.realtime.mmcss.high = high
+devices.realtime.time_constraint = time constraint, {computation} ms of every {period} ms
+devices.realtime.time_constraint_group = time constraint, {computation} ms of every {period} ms, in the device's workgroup
+devices.realtime.thread_priority = thread priority {level} (no MMCSS: it spins)
+devices.realtime.sched = {policy} priority {priority}
+devices.realtime.sched_rtkit = {policy} priority {priority} through rtkit
+devices.realtime.driver = the driver's, real-time already
+devices.realtime.driver_policy = the driver's {policy}
+devices.realtime.background = normal (a background thread)
+devices.realtime.spins = normal (a spinning thread stays out of the real-time class)
+devices.realtime.refused = refused ({step}, code {code})
+devices.realtime.refused_step = refused ({step})

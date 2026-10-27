@@ -214,6 +214,10 @@ pub(super) fn keys(b: &mut Brush, geo: &Geo<'_>, rect: Rect, hover: Option<usize
     let t = &s.t;
     let rect = b.snap_rect(rect);
     b.register(rect, "keyboard", KEY_TOKENS, &[]);
+    // r31 midi (ADR 0069): a keyboard folded to the key is drawn as named rows there.
+    if !geo.axis.pads() && !geo.axis.is_chromatic() {
+        return;
+    }
     let lo = geo.lane(rect.bottom()).floor().max(0.0) as i32;
     let hi = (geo.lane(rect.top()).ceil() as i32).min(geo.axis.len() as i32);
     let ink = on_fill(t.key_white);
@@ -605,6 +609,7 @@ pub(super) fn velocity(
     selected_ids: &[cantus_core::NoteId],
     track_color: Color32,
     grid_ticks: Ticks,
+    field: NoteField,
     s: &Style,
 ) {
     let t = &s.t;
@@ -630,8 +635,18 @@ pub(super) fn velocity(
         if x1 < lane.left() - 4.0 {
             continue;
         }
-        let y = bottom - (bottom - top) * n.velocity as f32 / 127.0;
+        let value = match field {
+            NoteField::Velocity => n.velocity,
+            NoteField::Release => n.release,
+        };
+        let y = bottom - (bottom - top) * value as f32 / 127.0;
         let selected = sel.contains(selected_ids, n.id);
+        // A note with no release velocity (ADR 0068): a hollow ring on the floor.
+        if field == NoteField::Release && value == 0 {
+            let c = if selected { chosen.top } else { t.text_dim };
+            b.circle_stroke(Pos2::new(x, bottom), 2.5 * s.k, b.px(), c);
+            continue;
+        }
         let c = if selected {
             chosen.top
         } else if n.muted {
@@ -661,6 +676,13 @@ pub(super) fn velocity(
         b.circle(Pos2::new(x, y), 3.0 * s.k, Fill::Solid(shade(c, -0.25)));
         b.circle(Pos2::new(x, y), 2.0 * s.k, Fill::Solid(c));
     }
+}
+
+/// What a notes lane draws (ADR 0068): each note's velocity, or its release velocity.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(super) enum NoteField {
+    Velocity,
+    Release,
 }
 
 /// The notes being recorded, from their start to the playhead.

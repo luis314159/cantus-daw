@@ -339,6 +339,19 @@ pub struct NoteInput {
     pub pitch: u8,
     /// 0 = note off.
     pub velocity: u8,
+    /// A note-off's release velocity (0 none given, ADR 0068).
+    pub release: u8,
+}
+
+/// A live controller the engine saw while recording (ADR 0068): pitch bend, channel
+/// pressure or a CC, as a lane's position (0…1, the bend's centre 0.5), stamped with the
+/// position being heard — what a recorded clip's lanes are made of.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct ControlInput {
+    pub track: TrackId,
+    pub tick: Ticks,
+    pub kind: cantus_core::LaneKind,
+    pub value: f32,
 }
 
 /// Engine → UI.
@@ -360,6 +373,8 @@ pub enum EngineEvent {
     Meters(Meters),
     Stats(EngineStats),
     NoteInput(NoteInput),
+    /// A live controller while recording (ADR 0068).
+    ControlInput(ControlInput),
     /// A snapshot the engine no longer uses; the UI drops it (never the audio thread).
     Garbage(Arc<Snapshot>),
     /// An effect instance no snapshot references any more.

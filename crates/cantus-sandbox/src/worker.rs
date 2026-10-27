@@ -103,6 +103,7 @@ pub fn serve(
     bell: Arc<LobbyBell>,
     stop: Arc<AtomicBool>,
     (done, stalled): (&'static AtomicU32, &'static AtomicU32),
+    ready: std::sync::mpsc::Sender<()>,
 ) {
     let _promotion = cantus_rt::thread::promote_worker(
         cantus_rt::thread::WorkerRole::Live,
@@ -111,6 +112,8 @@ pub fn serve(
     );
     cantus_rt::memory::prefault_stack();
     crate::platform::blame::alt_stack();
+    // Promoted and about to serve: the load that started this thread may be answered.
+    let _ = ready.send(());
     let mut params = Vec::with_capacity(MAX_PARAMS);
     let mut notes = Vec::with_capacity(MAX_NOTES);
     let mut out = Box::new(ParamOut::new());

@@ -81,6 +81,9 @@ pub struct Chrome {
     /// The header's words, formatted once per change of the host or the language:
     /// (host revision, language, name, context).
     words: Option<(u64, crate::i18n::Locale, String, String)>,
+    /// Whether the values were looked up among the factory presets when the editor opened
+    /// (an insert's starting preset is named as loaded — ADR 0071).
+    recognised: bool,
 }
 
 impl Chrome {
@@ -340,6 +343,20 @@ pub fn read_presets(kind: EffectKind, user: bool) -> Vec<Entry> {
     out
 }
 
+/// The factory preset of `list` that `spec` holds, key for key — what an editor opened on
+/// an insert's starting preset names as loaded (ADR 0071).
+pub fn recognise(spec: &cantus_core::EffectSpec, list: &[Entry]) -> Option<Loaded> {
+    list.iter()
+        .enumerate()
+        .filter(|(_, e)| e.factory && !e.params.is_empty())
+        .map(|(index, e)| Loaded {
+            index,
+            name: e.name.clone(),
+            params: e.params.clone(),
+        })
+        .find(|l| !modified(spec, l))
+}
+
 /// Whether the effect's values have drifted from the preset that set them: a key it
 /// names holds another value, or a key it leaves out is off its default.
 pub fn modified(spec: &cantus_core::EffectSpec, loaded: &Loaded) -> bool {
@@ -465,6 +482,15 @@ pub fn show(
             crate::views::workspace_device::set_title(&ctx, key, &title);
         }
         chrome.words = Some((rev, lang, name, context));
+    }
+    // An editor opened on values a factory preset set (an insert's starting preset, ADR
+    // 0071): the well names it, as if it had been loaded here.
+    if !chrome.recognised {
+        chrome.recognised = true;
+        if chrome.loaded.is_none() && host.spec().external.is_none() {
+            let list = chrome.presets(host).to_vec();
+            chrome.loaded = recognise(host.spec(), &list);
+        }
     }
     let spec_modified = chrome
         .loaded

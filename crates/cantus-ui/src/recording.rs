@@ -31,6 +31,19 @@ pub struct RecordedNote {
     pub velocity: u8,
     /// The loop pass it was played in (0 without a loop).
     pub pass: u32,
+    /// The note-off's release velocity (0 none given, ADR 0068).
+    pub release: u8,
+}
+
+/// A controller played while recording (ADR 0068): where it was heard, what it drives and
+/// its position (0…1, the bend's centre 0.5) — a recorded clip's lanes are made of these.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct RecordedControl {
+    pub tick: Ticks,
+    pub kind: cantus_core::LaneKind,
+    pub value: f32,
+    /// The loop pass it was played in.
+    pub pass: u32,
 }
 
 #[derive(Debug, Default)]
@@ -89,6 +102,7 @@ impl Recorder {
                 pitch: p.pitch,
                 velocity: p.velocity,
                 pass: p.pass,
+                release: 0,
             })
             .collect()
     }
@@ -126,7 +140,7 @@ impl Recorder {
                 // Retrigger of a held pitch: close the previous one first.
                 if let Some(i) = self.pending.iter().position(|p| p.pitch == ev.pitch) {
                     let p = self.pending.remove(i);
-                    done.push(close(p, ev.tick, loop_region));
+                    done.push(close(p, ev.tick, 0, loop_region));
                 }
                 self.pending.push(PendingNote {
                     pitch: ev.pitch,
@@ -136,7 +150,7 @@ impl Recorder {
                 });
             } else if let Some(i) = self.pending.iter().position(|p| p.pitch == ev.pitch) {
                 let p = self.pending.remove(i);
-                done.push(close(p, ev.tick, loop_region));
+                done.push(close(p, ev.tick, ev.release, loop_region));
             }
         }
         if pending_wrap {
@@ -144,9 +158,46 @@ impl Recorder {
         }
         done
     }
+
+    /// The controllers of a frame (ADR 0068), each tagged with the loop pass it was played
+    /// in by the rule [`Self::ingest_pass`] splits the notes by. Call it before the notes of
+    /// the same frame: it reads the pass without moving it on.
+    pub fn ingest_controls(
+        &self,
+        inputs: &[cantus_engine::ControlInput],
+        loop_region: Option<&LoopRegion>,
+        wrapped: bool,
+    ) -> Vec<RecordedControl> {
+        if !self.recording {
+            return Vec::new();
+        }
+        let mid = loop_region.map(|l| l.start + (l.end - l.start) / 2);
+        let mut pass = self.pass;
+        let mut pending_wrap = wrapped;
+        inputs
+            .iter()
+            .map(|c| {
+                if pending_wrap && mid.is_some_and(|m| c.tick < m) {
+                    pass += 1;
+                    pending_wrap = false;
+                }
+                RecordedControl {
+                    tick: c.tick,
+                    kind: c.kind,
+                    value: c.value,
+                    pass,
+                }
+            })
+            .collect()
+    }
 }
 
-fn close(p: PendingNote, off: Ticks, loop_region: Option<&LoopRegion>) -> RecordedNote {
+fn close(
+    p: PendingNote,
+    off: Ticks,
+    release: u8,
+    loop_region: Option<&LoopRegion>,
+) -> RecordedNote {
     let length = if off > p.start {
         off - p.start
     } else {
@@ -162,6 +213,7 @@ fn close(p: PendingNote, off: Ticks, loop_region: Option<&LoopRegion>) -> Record
         pitch: p.pitch,
         velocity: p.velocity,
         pass: p.pass,
+        release,
     }
 }
 
@@ -176,6 +228,7 @@ mod tests {
             tick: Ticks(tick),
             pitch,
             velocity: vel,
+            release: 0,
         }
     }
 
@@ -196,6 +249,7 @@ mod tests {
                 pitch: 60,
                 velocity: 100,
                 pass: 0,
+                release: 0,
             }]
         );
         assert_eq!(r.pending().len(), 1);

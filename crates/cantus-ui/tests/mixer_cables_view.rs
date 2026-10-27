@@ -32,7 +32,7 @@ struct Rig {
 
 impl Rig {
     fn new(project: Project, size: egui::Vec2) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         Rig {
             ctx: ctx(),
             app: CantusApp::from_parts(Some(project), EngineHandle::dummy(), false),
@@ -519,7 +519,7 @@ fn the_title_row_never_overlaps() {
         ] {
             for filtered in [false, true] {
                 let mut r = Rig::new(starter_project(), vec2(px, 720.0) / ppp);
-                cantus_ui::i18n::set_locale(locale);
+                cantus_ui::i18n::set_thread_locale(locale);
                 r.ctx.set_pixels_per_point(ppp);
                 let (ids, _) = routed(&mut r);
                 r.app.exec(Command::SetStripName {
@@ -585,7 +585,7 @@ fn the_title_row_never_overlaps() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Every word of the options reads in both languages (the i18n test holds the twins;
@@ -611,15 +611,15 @@ fn the_options_words_exist_in_both_languages() {
     );
     keys.extend(CablePreset::ALL.iter().map(|p| p.key()));
     for key in &keys {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let en = cantus_ui::i18n::t(key);
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
         let es = cantus_ui::i18n::t(key);
         assert!(!en.is_empty() && en != *key, "{key}: no English");
         assert!(!es.is_empty() && es != *key, "{key}: no Spanish");
         assert_ne!(en, es, "{key}: the Spanish is the English");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// The desk's ▸ menu holds the cable options too (*Cable options ▸*), so they are in
@@ -676,7 +676,7 @@ fn the_options_menu_reads_whole_in_both_languages() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for ppp in [1.0f32, 2.0] {
             let mut r = Rig::new(starter_project(), vec2(1600.0, 1000.0) / ppp);
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             r.ctx.set_pixels_per_point(ppp);
             r.idle(2);
             mixer::open_cable_options(&mut r.app, &r.ctx.clone(), egui::pos2(300.0, 40.0));
@@ -697,5 +697,5 @@ fn the_options_menu_reads_whole_in_both_languages() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

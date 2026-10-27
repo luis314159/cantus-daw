@@ -186,15 +186,22 @@ fn value(list: List, p: &AudioSettings, scan: &Scan, rate: f64) -> String {
 
 /// How a cores setting reads: automatic (with what that is on this machine), the audio
 /// thread alone, or a number.
-fn workers_label(w: Option<u32>) -> String {
+/// A cores setting in words, counted in cores at work — the audio thread and its helpers
+/// (a setting of `n` helpers is `n + 1` cores), the count its engine is chosen by.
+pub fn workers_label(w: Option<u32>) -> String {
+    use crate::engines::with_engine;
+    let cores = workers_count(w);
     match w {
-        None => tf(
-            "settings.workers.auto",
-            &[("n", &cantus_engine::processor::default_workers())],
-        ),
-        Some(0) => t("settings.workers.off"),
-        Some(n) => n.to_string(),
+        None => with_engine(&tf("settings.workers.auto", &[("n", &cores)]), cores),
+        Some(0) => with_engine(&t("settings.workers.off"), cores),
+        Some(_) => with_engine(&cores.to_string(), cores),
     }
+}
+
+/// The cores a cores setting puts to work: the audio thread and its helpers (automatic's
+/// number of helpers, or the one chosen).
+pub fn workers_count(w: Option<u32>) -> u32 {
+    w.unwrap_or(cantus_engine::processor::default_workers() as u32) + 1
 }
 
 /// The counts the cores list offers: up to the machine's logical processors less two,
@@ -204,6 +211,11 @@ fn worker_counts() -> std::ops::RangeInclusive<u32> {
     1..=(cpus
         .saturating_sub(2)
         .clamp(1, cantus_engine::processor::MAX_WORKERS) as u32)
+}
+
+/// Open the *Audio cores* list under its field on the next frame (the screenshots).
+pub fn open_cores_list(app: &mut CantusApp) {
+    app.settings_page.open_cores = true;
 }
 
 /// The page: three bands in the settings window's row grammar.
@@ -223,6 +235,9 @@ fn field_row(app: &mut CantusApp, ui: &mut Ui, list: List, key: &str, value: &st
         let width = (ui.available_width() / k - 8.0).max(120.0);
         let open = app.settings_page.list.is_some_and(|(l, _)| l == list);
         let (resp, clicks) = menu_field(ui, value, false, open, &t(key), width);
+        if list == List::Workers && std::mem::take(&mut app.settings_page.open_cores) {
+            app.settings_page.list = Some((list, resp.rect.left_bottom()));
+        }
         if clicks.open {
             app.settings_page.list = if open {
                 None
@@ -233,11 +248,28 @@ fn field_row(app: &mut CantusApp, ui: &mut Ui, list: List, key: &str, value: &st
     });
 }
 
-/// A dim (or warning) line under the value column.
+/// What the pool is doing now, counted as the *Audio cores* field counts (the audio
+/// thread and its `workers` helpers), with the engine that many cores make — the same
+/// engine the field shows for the same count.
+pub fn now_line(workers: u32, parallel: bool) -> String {
+    let e = crate::engines::Engine::of(workers + 1);
+    tf(
+        "workflow.engine.now",
+        &[
+            ("now", &crate::perf_status::pool_words(workers, parallel)),
+            ("engine", &e.name()),
+            ("model", &e.model()),
+        ],
+    )
+}
+
+/// A dim (or warning) note under the value column, wrapped within the page: its lines
+/// stack under each other (in the row's own horizontal layout they would run on to the
+/// right, past the page's edge).
 fn indented_note(ui: &mut Ui, s: &str, warn: bool) {
-    ui.horizontal(|ui| {
+    ui.horizontal_top(|ui| {
         w::row_label(ui, "", LABEL_W, 18.0);
-        note(ui, s, warn);
+        ui.vertical(|ui| note(ui, s, warn));
     });
 }
 
@@ -266,16 +298,12 @@ fn device_band(app: &mut CantusApp, ui: &mut Ui, f: &Facts) {
         {
             indented_note(ui, &t("devices.driver.no_asio"), false);
         }
-        // What the pool is doing now.
+        // The chosen engine's picture, right under its field; then what the pool is doing now.
+        if list == List::Workers {
+            engine_picture(ui, crate::engines::Engine::of(workers_count(p.workers)));
+        }
         if list == List::Workers && f.live {
-            let now = if f.workers == 0 {
-                t("settings.workers.now_off")
-            } else if f.parallel {
-                tf("settings.workers.now", &[("n", &f.workers)])
-            } else {
-                tf("settings.workers.now_quiet", &[("n", &f.workers)])
-            };
-            indented_note(ui, &now, false);
+            indented_note(ui, &now_line(f.workers, f.parallel), false);
         }
     }
     ui.horizontal(|ui| {
@@ -623,10 +651,20 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
             rows.push((workers_label(None), p.workers.is_none()));
             rows.push((workers_label(Some(0)), p.workers == Some(0)));
             for n in worker_counts() {
-                rows.push((n.to_string(), p.workers == Some(n)));
+                rows.push((workers_label(Some(n)), p.workers == Some(n)));
             }
         }
     }
+    // The cores list: each row's engine and model in its words ("12 · V12 · …"), and the
+    // model's silhouette at its right (the owner's, 2026-10-27).
+    let engines: Vec<crate::engines::Engine> = match list {
+        List::Workers => std::iter::once(None)
+            .chain(std::iter::once(Some(0)))
+            .chain(worker_counts().map(Some))
+            .map(|w| crate::engines::Engine::of(workers_count(w)))
+            .collect(),
+        _ => Vec::new(),
+    };
     let items: Vec<Item<'_>> = rows
         .iter()
         .map(|(l, on)| Item::Action {
@@ -637,14 +675,18 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
             enabled: true,
         })
         .collect();
+    let width = if engines.is_empty() { 320.0 } else { 480.0 };
     let mut chosen = None;
     let area = egui::Area::new(egui::Id::new("cantus-settings-list"))
         .order(egui::Order::Foreground)
         .fixed_pos(at)
         .constrain(true)
         .show(ctx, |ui| {
-            let (_, c) = menu_list(ui, &items, 320.0 * s.k);
+            let (resp, c) = menu_list(ui, &items, width * s.k);
             chosen = c.clicked;
+            if !engines.is_empty() {
+                paint_engines(ui, resp.rect, &items, &rows, &engines, &s);
+            }
         });
     if let Some(i) = chosen {
         match list {
@@ -692,6 +734,92 @@ pub fn lists(app: &mut CantusApp, ctx: &egui::Context) {
     if chosen.is_some() || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
         app.settings_page.list = None;
     }
+}
+
+/// Each cores row's illustration at its right, as tall as the row allows; a row whose words
+/// would reach it shows none (never over the words).
+fn paint_engines(
+    ui: &egui::Ui,
+    rect: egui::Rect,
+    items: &[crate::kit::menu::Item<'_>],
+    rows: &[(String, bool)],
+    engines: &[crate::engines::Engine],
+    s: &Style,
+) {
+    use crate::engines::{Look, ASPECT};
+    use crate::kit::text::{self, Role, Text};
+    let look = Look::of(&s.t, s.t.menu);
+    crate::kit::with_brush(ui.painter(), |b| {
+        for (i, ((label, _), e)) in rows.iter().zip(engines).enumerate() {
+            let rr = crate::kit::menu::row(rect, items, s.d(1.0), i);
+            let w = text::measure(
+                b.ctx(),
+                &Text::new(label, Role::Body, s.t.menu_text),
+                s.tk(),
+            )
+            .x;
+            let h = (rr.height() - s.s(3.0)).max(s.s(10.0));
+            let icon = egui::Rect::from_min_size(
+                egui::pos2(rr.right() - s.s(8.0) - h * ASPECT, rr.center().y - h * 0.5),
+                egui::vec2(h * ASPECT, h),
+            );
+            if rr.left() + s.s(22.0) + w + s.s(10.0) > icon.left() {
+                continue;
+            }
+            crate::engines::paint(b, icon, *e, look);
+        }
+    });
+}
+
+/// The chosen engine large under the *Audio cores* field, on a well, with its engine and
+/// model beside it: the choice has a picture.
+fn engine_picture(ui: &mut Ui, e: crate::engines::Engine) {
+    use crate::engines::{Look, ASPECT};
+    use crate::kit::text::{self, Elide, Policy, Role, Text};
+    let s = Style::current();
+    ui.horizontal(|ui| {
+        w::row_label(ui, "", LABEL_W, 80.0);
+        let width = (ui.available_width() - s.s(8.0)).max(s.s(120.0));
+        let (rect, _) = ui.allocate_exact_size(egui::vec2(width, s.s(76.0)), egui::Sense::hover());
+        let plate = egui::Rect::from_min_size(
+            rect.min + egui::vec2(0.0, s.s(4.0)),
+            egui::vec2(s.s(210.0), s.s(72.0)),
+        );
+        let look = Look::of(&s.t, s.t.well);
+        crate::kit::with_brush(ui.painter(), |b| {
+            b.rrect(plate, s.r(4.0), crate::kit::Fill::Solid(s.t.well));
+            let h = plate.height() - s.s(12.0);
+            let car = egui::Rect::from_center_size(plate.center(), egui::vec2(h * ASPECT, h));
+            crate::engines::paint(b, car, e, look);
+            let words = egui::Rect::from_min_max(
+                egui::pos2(plate.right() + s.s(10.0), plate.top()),
+                egui::pos2(rect.right(), plate.bottom()),
+            );
+            if words.width() > s.s(24.0) {
+                let (top, bottom) = (
+                    egui::Rect::from_min_max(
+                        words.min,
+                        egui::pos2(words.right(), words.center().y),
+                    ),
+                    egui::Rect::from_min_max(egui::pos2(words.left(), words.center().y), words.max),
+                );
+                let model = Text::new(e.model(), Role::Body, s.t.text)
+                    .align(egui::Align2::LEFT_BOTTOM)
+                    .policy(Policy::Elide(Elide::End));
+                let _ = text::paint(b, top.shrink2(egui::vec2(0.0, s.s(2.0))), &model, s.tk());
+                let name = e.name();
+                let engine = Text::new(&name, Role::Label, s.t.text_dim)
+                    .align(egui::Align2::LEFT_TOP)
+                    .policy(Policy::Elide(Elide::End));
+                let _ = text::paint(
+                    b,
+                    bottom.shrink2(egui::vec2(0.0, s.s(2.0))),
+                    &engine,
+                    s.tk(),
+                );
+            }
+        });
+    });
 }
 
 /// Fill the page with a plausible interface for the screenshot example: two drivers, an
@@ -742,7 +870,8 @@ pub fn demo_setup(app: &mut CantusApp) {
         dropped: 0,
         input_error: None,
         stalled: false,
-        workers: 4,
+        // The automatic count, running: the field and the line under it agree.
+        workers: cantus_engine::processor::default_workers() as u32,
         parallel: true,
     });
     st.hold = vec![-6.0, -7.5, -24.0, MIN_DB, -0.6, MIN_DB, MIN_DB, MIN_DB];

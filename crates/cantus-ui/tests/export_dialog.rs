@@ -15,7 +15,7 @@ static LANGUAGE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn language() -> std::sync::MutexGuard<'static, ()> {
     let guard = LANGUAGE.lock().unwrap_or_else(|e| e.into_inner());
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     guard
 }
 
@@ -194,7 +194,7 @@ fn the_dialog_renders_in_both_themes_and_languages() {
         cantus_ui::theme::apply(&theme, &ctx);
         let mut a = app(dir.path());
         for locale in Locale::ALL {
-            i18n::set_locale(locale);
+            i18n::set_thread_locale(locale);
             for preset in Preset::ALL {
                 export::open(&mut a, None);
                 let d = a.export.dialog.as_mut().unwrap();
@@ -209,7 +209,7 @@ fn the_dialog_renders_in_both_themes_and_languages() {
             }
         }
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
 }
 
 #[test]
@@ -223,10 +223,10 @@ fn every_key_of_the_dialog_has_words_in_both_languages() {
         .collect();
     assert!(keys.len() > 50);
     for locale in Locale::ALL {
-        i18n::set_locale(locale);
+        i18n::set_thread_locale(locale);
         for key in &keys {
             assert_ne!(i18n::t(key), *key, "{locale:?} has no words for {key}");
         }
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
 }

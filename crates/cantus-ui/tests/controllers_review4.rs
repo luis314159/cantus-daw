@@ -88,10 +88,10 @@ fn instrument(track: TrackId, key: &str) -> MappingTarget {
 }
 
 fn in_both<T>(f: impl Fn() -> T) -> (T, T) {
-    use cantus_ui::i18n::{set_locale, Locale};
-    set_locale(Locale::Es);
+    use cantus_ui::i18n::{set_thread_locale, Locale};
+    set_thread_locale(Locale::Es);
     let es = f();
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     (f(), es)
 }
 
@@ -460,9 +460,7 @@ fn a_split_pair_on_another_port_waits_for_its_fine_half() {
     );
     let half = f32::from(11u16 << 7) / 16_383.0;
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::MasterWidth)
         .cloned()
         .unwrap_or_default();
@@ -687,9 +685,7 @@ fn a_stale_position_after_the_count_in_is_no_wrap() {
     a.engine.set_heard_for_tests(bar(5) + Ticks::beats(2), true);
     a.controller_heard(&[cc(10, 100)]);
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();
@@ -712,9 +708,7 @@ fn a_move_in_the_wrap_frame_belongs_to_the_new_lap() {
     let at = bar(4) + Ticks(20);
     a.record_point_at(AutoTarget::StripPan(s), 0.25, at.0);
     let points = a
-        .modulators
-        .rec
-        .points
+        .written_points()
         .get(&AutoTarget::StripPan(s))
         .cloned()
         .unwrap();

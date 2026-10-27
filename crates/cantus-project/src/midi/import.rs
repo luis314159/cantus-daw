@@ -56,6 +56,8 @@ pub struct ImportedNote {
     pub length: Ticks,
     pub pitch: Pitch,
     pub velocity: u8,
+    /// The note-off's velocity (ADR 0068); 0 for a note-on at velocity 0 (none given).
+    pub release: u8,
 }
 
 /// Where a track's name comes from, so the interface can say it in its own language when
@@ -96,6 +98,9 @@ pub struct ImportedTrack {
     pub drums: bool,
     /// Sorted by start, then pitch.
     pub notes: Vec<ImportedNote>,
+    /// Its pitch bend, channel pressure and controllers 0…119 (ADR 0068), from the start of
+    /// the file in Cantus ticks, in time order, as lane positions: the clip's lanes.
+    pub controls: Vec<(Ticks, cantus_core::LaneKind, f32)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -433,7 +438,8 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                         if let Some((on, velocity)) =
                             b.open.get_mut(&key).and_then(VecDeque::pop_front)
                         {
-                            b.notes.push((on, te.tick, key, velocity));
+                            b.notes
+                                .push((on, te.tick, key, velocity, release_of(&te.event)));
                         }
                     }
                 }
@@ -444,6 +450,18 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                         .program
                         .get_or_insert(program);
                 }
+                // Pitch bend, channel pressure and controllers: the clip's lanes (ADR 0068).
+                Event::Controller { channel, .. }
+                | Event::ChannelPressure { channel, .. }
+                | Event::PitchBend { channel, .. } => {
+                    if let Some((kind, pos)) = lane_message(&te.event) {
+                        channels
+                            .entry(channel)
+                            .or_default()
+                            .controls
+                            .push((te.tick, kind, pos));
+                    }
+                }
                 _ => {}
             }
         }
@@ -453,10 +471,13 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             for (key, open) in std::mem::take(&mut b.open) {
                 for (on, velocity) in open {
                     counts.unterminated += 1;
-                    b.notes.push((on, last_tick.max(on), key, velocity));
+                    b.notes.push((on, last_tick.max(on), key, velocity, 0));
                 }
             }
             if b.notes.is_empty() {
+                // Controllers on a channel with no notes have no clip to live in (ADR
+                // 0068): counted as dropped, never silently.
+                counts.lone_controls += b.controls.len();
                 continue;
             }
             let drums = channel == super::export::DRUM_CHANNEL;
@@ -480,7 +501,7 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
             let mut notes: Vec<ImportedNote> = b
                 .notes
                 .iter()
-                .map(|&(on, off, key, velocity)| {
+                .map(|&(on, off, key, velocity, release)| {
                     let start = clock.ticks(on);
                     let mut length = clock.ticks(off) - start;
                     if length <= Ticks::ZERO {
@@ -492,6 +513,7 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                         length,
                         pitch: key.min(127),
                         velocity: velocity.clamp(1, 127),
+                        release: release.min(127),
                     }
                 })
                 .collect();
@@ -504,11 +526,24 @@ pub fn read(bytes: &[u8], opts: &ImportOptions) -> Result<MidiImport, MidiError>
                 channel,
                 drums,
                 notes,
+                controls: b
+                    .controls
+                    .iter()
+                    .map(|&(t, k, v)| (clock.ticks(t), k, v))
+                    .collect(),
             });
         }
         end = end.max(clock.ticks(last_tick));
     }
     counts.report(&mut report);
+    // Bend, pressure and controllers kept in the clips' lanes (ADR 0068).
+    let kept: usize = tracks
+        .iter()
+        .map(|t: &ImportedTrack| t.controls.len())
+        .sum();
+    if kept > 0 {
+        report.info("interop.report.lanes_kept", vec![("n", kept.to_string())]);
+    }
     if file.format == 2 {
         report.info("interop.report.format2", vec![]);
     }
@@ -552,8 +587,10 @@ fn round_bpm(bpm: f64) -> f64 {
 #[derive(Default)]
 struct Building {
     open: HashMap<u8, VecDeque<(u64, u8)>>,
-    /// `(on, off, key, velocity)` in file ticks.
-    notes: Vec<(u64, u64, u8, u8)>,
+    /// `(on, off, key, velocity, release)` in file ticks.
+    notes: Vec<(u64, u64, u8, u8, u8)>,
+    /// Controllers as lane positions, in file ticks (ADR 0068).
+    controls: Vec<(u64, cantus_core::LaneKind, f32)>,
     program: Option<u8>,
 }
 
@@ -567,13 +604,14 @@ impl Building {
 #[derive(Default)]
 struct Dropped {
     controllers: usize,
-    pitch_bends: usize,
     pressure: usize,
     programs: usize,
     sysex: usize,
     texts: usize,
     keys: usize,
     unterminated: usize,
+    /// Bend, pressure and controllers on channels with no notes (ADR 0068).
+    lone_controls: usize,
     zero_length: usize,
     /// The map is kept: a marker (text meta event 6) is not dropped.
     markers_kept: bool,
@@ -582,9 +620,14 @@ struct Dropped {
 impl Dropped {
     fn count(&mut self, e: &Event) {
         match e {
-            Event::Controller { .. } => self.controllers += 1,
-            Event::PitchBend { .. } => self.pitch_bends += 1,
-            Event::PolyPressure { .. } | Event::ChannelPressure { .. } => self.pressure += 1,
+            // Bend, channel pressure and controllers 0…119 are kept in lanes (ADR 0068); the
+            // channel mode messages and key pressure are not.
+            Event::Controller { controller, .. }
+                if *controller > cantus_core::clip_lanes::MAX_CC =>
+            {
+                self.controllers += 1
+            }
+            Event::PolyPressure { .. } => self.pressure += 1,
             Event::Program { .. } => self.programs += 1,
             Event::SysEx(_) => self.sysex += 1,
             Event::Text { kind: 0x06, text } if self.markers_kept && !text.trim().is_empty() => {}
@@ -596,7 +639,7 @@ impl Dropped {
 
     fn report(&self, r: &mut Report) {
         r.count_dropped("interop.report.controllers", self.controllers);
-        r.count_dropped("interop.report.pitch_bends", self.pitch_bends);
+        r.count_dropped("interop.report.lone_controls", self.lone_controls);
         r.count_dropped("interop.report.pressure", self.pressure);
         r.count_dropped("interop.report.programs", self.programs);
         r.count_dropped("interop.report.sysex", self.sysex);
@@ -865,6 +908,9 @@ pub fn import_commands(
                 n.start = a;
                 n.length = (b - a).max(Ticks(1));
             }
+            for c in &mut copy.controls {
+                c.0 = to_song(c.0);
+            }
             retimed = copy;
             &retimed
         } else {
@@ -903,6 +949,7 @@ pub fn import_commands(
                 pitch: n.pitch,
                 velocity: n.velocity,
                 muted: false,
+                release: n.release,
             })
             .collect();
         let clip = Clip {
@@ -920,6 +967,15 @@ pub fn import_commands(
             automation: None,
             link: None,
             comp: false,
+            // Its controllers, in its content ticks (ADR 0068): before the clip, its start.
+            lanes: cantus_core::clip_lanes::edit::lanes_from_messages(
+                &it.controls
+                    .iter()
+                    .map(|&(t, k, v)| (t - clip_from, k, v))
+                    .collect::<Vec<_>>(),
+            ),
+            groove: None,
+            skip_note_fx: false,
         };
         let instrument = if it.drums {
             InstrumentSpec::Pulsus(kit_for(it, &mut report))
@@ -945,12 +1001,14 @@ pub fn import_commands(
             armed: false,
             takes_open: false,
             automation_open: true,
+            auto_mode: Default::default(),
             pitch_open: false,
             modulators: Vec::new(),
             comps: Vec::new(),
             active_comp: 0,
             frozen: None,
             lateness: None,
+            note_fx: Vec::new(),
         };
         commands.push(Command::InsertTrack {
             index: base + built_tracks.len(),
@@ -1141,4 +1199,35 @@ fn map_from(project: &Project, import: &MidiImport, at: Ticks) -> Vec<Command> {
         });
     }
     out
+}
+
+/// A note-off's release velocity (ADR 0068): a note-off's own; a note-on at velocity 0
+/// carries none.
+fn release_of(e: &Event) -> u8 {
+    match e {
+        Event::NoteOff { velocity, .. } => (*velocity).min(127),
+        _ => 0,
+    }
+}
+
+/// A message a clip's lane keeps (ADR 0068), as its kind and position: pitch bend, channel
+/// pressure, a controller 0…119 (120…127 are channel mode messages, not controllers).
+pub(crate) fn lane_message(e: &Event) -> Option<(cantus_core::LaneKind, f32)> {
+    use cantus_core::LaneKind;
+    match *e {
+        Event::PitchBend { value, .. } => {
+            Some((LaneKind::PitchBend, LaneKind::PitchBend.pos_of_midi(value)))
+        }
+        Event::ChannelPressure { value, .. } => Some((
+            LaneKind::Pressure,
+            LaneKind::Pressure.pos_of_midi(u16::from(value)),
+        )),
+        Event::Controller {
+            controller, value, ..
+        } if controller <= cantus_core::clip_lanes::MAX_CC => {
+            let k = LaneKind::Cc(controller);
+            Some((k, k.pos_of_midi(u16::from(value))))
+        }
+        _ => None,
+    }
 }

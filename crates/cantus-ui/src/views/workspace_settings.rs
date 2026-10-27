@@ -30,6 +30,8 @@ pub enum SettingsPage {
     General,
     Audio,
     Midi,
+    /// Crossfades and effects on insert (round 31, ADRs 0070, 0071).
+    Editing,
     Appearance,
     Saving,
     Cache,
@@ -38,10 +40,11 @@ pub enum SettingsPage {
 }
 
 impl SettingsPage {
-    pub const ALL: [SettingsPage; 8] = [
+    pub const ALL: [SettingsPage; 9] = [
         SettingsPage::General,
         SettingsPage::Audio,
         SettingsPage::Midi,
+        SettingsPage::Editing,
         SettingsPage::Appearance,
         SettingsPage::Saving,
         SettingsPage::Cache,
@@ -55,6 +58,7 @@ impl SettingsPage {
             SettingsPage::General => "ship.settings.general",
             SettingsPage::Audio => "ship.settings.audio",
             SettingsPage::Midi => "ship.settings.midi",
+            SettingsPage::Editing => "clipfx.settings.page",
             SettingsPage::Appearance => "ship.settings.appearance",
             SettingsPage::Saving => "ship.settings.saving",
             SettingsPage::Cache => "ship.settings.cache",
@@ -81,6 +85,8 @@ pub struct Page {
     /// The audio choice not yet applied.
     pub(super) pending: Option<AudioSettings>,
     pub(super) list: Option<(super::settings_audio::List, Pos2)>,
+    /// Open the cores list where its field is drawn next (the shots).
+    pub(super) open_cores: bool,
     /// The Audio page's own (ADR 0025): the device scan, the loopback measurement.
     pub audio: super::settings_audio::State,
 }
@@ -167,9 +173,14 @@ pub const SIDEBAR_W: f32 = 160.0;
 /// What one page holds.
 fn page_body(app: &mut CantusApp, ui: &mut Ui) {
     match app.settings_page.page {
-        SettingsPage::General => super::verse::settings(app, ui),
+        SettingsPage::General => {
+            super::verse::settings(app, ui);
+            // The start page at start (round 31, ADR 0072).
+            super::start_page::settings(app, ui);
+        }
         SettingsPage::Audio => super::settings_audio::page(app, ui),
         SettingsPage::Midi => midi(app, ui),
+        SettingsPage::Editing => super::clipfx_settings::page(app, ui),
         SettingsPage::Appearance => look(app, ui),
         SettingsPage::Saving => saving(app, ui),
         SettingsPage::Cache => sample_cache(app, ui),

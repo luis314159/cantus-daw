@@ -163,9 +163,9 @@ fn it_speaks_spanish_everywhere() {
     let (mut a, s0, fx) = with_comp();
     comp_editor::demo_setup(&mut a, s0, fx);
     a.open_effect_editor(s0, fx);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let text = paint_editors(&mut a, SIZE);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let lower = text.to_lowercase();
     for want in [
         "Motor",

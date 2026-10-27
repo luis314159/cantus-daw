@@ -210,6 +210,37 @@ la voz principal, moduladores y automatización, masterizada a −11 LUFS), Neon
 (house), Morning Light (balada pop), Sunday Strut (funk y soul), Paper Lanterns (hip-hop
 lo-fi), Aurora (cinemática) y Midnight Static (trap). Abre una, escúchala, desármala.
 
+### La paleta de comandos
+
+`Ctrl+Shift+P` (*Vista ▸ Paleta de comandos…*) abre, cerca de lo alto de la ventana, un
+campo que encuentra todo lo que Cantus sabe hacer. Escribe unas letras — de cualquier
+palabra, en tu idioma o en inglés: `mez` encuentra *Mostrar el mezclador*, `pista nu`
+*Pista nueva con…*, `div` *Dividir clip* — y la lista se acorta mientras escribes; las
+flechas mueven, `Intro` ejecuta la fila, `Esc` cierra. Contiene:
+
+- cada **acción** con su atajo a la derecha (los mismos que en los menús y las teclas);
+- las **áreas** y las **ventanas** (el panel de dispositivos, los atajos, el editor de
+  apariencia, la página de inicio…) y cada **página de Ajustes** (*Ajustes: Audio*…);
+- cada **efecto** — se inserta en el canal seleccionado (o en el de la pista seleccionada,
+  o en el máster) — y cada **instrumento**, en una pista nueva tras la seleccionada; también
+  tus **plantillas de pista**;
+- los **proyectos recientes** y las **plantillas de proyecto** (ver
+  [Plantillas](#plantillas-y-la-página-de-inicio)).
+
+Lo que eliges a menudo y hace poco aparece primero; sin nada escrito, la lista empieza por
+lo último que usaste.
+
+### El historial de deshacer
+
+`Alt+H` (*Vista ▸ Mostrar el historial de deshacer*) muestra cada paso del historial del
+proyecto, junto al inspector — acóplalo, apílalo o déjalo flotar como cualquier área. Cada
+paso se llama por lo que hizo — *Mover 3 notas*, *Insertar Concentus en Lead*, *Renombrar
+la pista a Bajo* — bajo una primera fila para el proyecto tal como se abrió. El paso actual
+está iluminado; los posteriores, los que *Rehacer* traería, aparecen atenuados; el paso que
+guarda tu archivo dice **GUARDADO**, y los pasos desde el último guardado llevan un punto.
+**Pulsa cualquier fila para ir allí**: Cantus deshace (o rehace) cada paso intermedio, como
+haría `Ctrl+Z` — no se pierde nada, y un clic en una fila posterior vuelve.
+
 ### La barra superior
 
 La barra superior es la de FL Studio, en dos filas: un grupo por función y una línea fina
@@ -401,6 +432,10 @@ seleccionada. ¿Sin teclado?
 `Ctrl+T` activa el **teclado del ordenador**: `A`–`L` tocan notas, `Z`/`X` cambian de
 octava. Mientras está activo, los atajos de letra (incluida la `R`) se apagan — usa
 `Espacio` o la tecla de grabar.
+La **inflexión de tono**, la **rueda de modulación**, los **pedales**, cualquier otro
+controlador (CC 0–119), la **presión de canal** y lo rápido que sueltas cada tecla
+(**velocidad de liberación**) también se graban: quedan en los carriles del clip, bajo las
+notas del piano roll.
 
 ### Controladores MIDI
 
@@ -564,6 +599,33 @@ Como en FL Studio, el arreglo abre las cosas sin buscar en los menús:
 - **Los clips de audio** tienen tiradores de fundido de entrada, de salida y de ganancia
   (doble clic en uno lo restablece; clic derecho en un fundido para su curva) y un menú con
   *Normalizar*, *Invertir*, *Restablecer ganancia* y *Quitar fundidos*.
+- **Fundidos cruzados**: arrastra un clip de audio para que empiece sobre otro y el
+  solapamiento **se funde** solo, en el mismo paso de deshacer — el clip anterior se
+  desvanece mientras el siguiente entra, dibujados como dos curvas sobre el solapamiento.
+  Su cuadrito arriba del solapamiento: **arrástralo de lado** para alargar o acortar el
+  fundido (los bordes de los dos clips se mueven en torno a su centro, hasta donde llega su
+  audio); **doble clic** abre el editor del fundido (su curva dibujada, *Sin fundido ·
+  Potencia constante · Lineal · Curva en S*, *Duración* en ms); **clic derecho** da las
+  mismas opciones. *Potencia constante* (la predeterminada) mantiene el nivel entre dos
+  grabaciones distintas; *Lineal* y *Curva en S* van mejor con dos tomas de lo mismo. Un
+  solapamiento *sin fundido* suena con los dos clips sumados (bordes punteados). Apaga los
+  fundidos automáticos (o elige su curva) en *Ajustes ▸ Edición* o en el menú del clic
+  derecho de la línea de tiempo (*Fundidos cruzados automáticos*); *Fundir el solapamiento*
+  del menú del clip funde (o deja de fundir) a mano los solapamientos de la selección. Un
+  clip que queda entero dentro de otro se superpone, no se funde; dos clips que solo se
+  tocan quedan unidos a tope.
+- **Envolventes de ganancia de clip**: clic derecho en un lugar vacío del arreglo ▸
+  *Mostrar envolventes de ganancia* (o desde el menú del clip). Cada clip de audio muestra
+  una línea de ganancia — +12 dB arriba, 0 dB a un cuarto de la altura, −∞ abajo — y su
+  forma de onda la sigue. En un clip seleccionado o bajo el puntero, **pulsa sobre la
+  línea** para añadir un punto y arrastrarlo (Shift: fino); **doble clic** en un punto lo
+  borra; arrastra el circulito a mitad de un tramo para **curvarlo** (doble clic lo
+  endereza); clic derecho en un punto o en la línea para la forma del tramo (las seis del
+  editor de automatización), *Borrar punto* o *Restablecer envolvente de ganancia*. La línea
+  es del audio: desplaza el contenido y se mueve con él, recorta y queda oculta (no
+  perdida), corta y las dos mitades la conservan, une y se juntan las líneas de las piezas,
+  invierte y suena reflejada con el audio. Actúa sobre la ganancia y los fundidos del clip.
+  Los clips MIDI no tienen línea de ganancia: su nivel es la velocidad de sus notas.
 - **Importar audio**: arrastra archivos WAV, AIFF, FLAC u Ogg al arreglo (caen donde
   sueltas), o *Archivo ▸ Importar audio…*. Un archivo MIDI añade sus pistas.
 - **Copias enlazadas**: pegar, `Ctrl+D` o `Alt+arrastrar` crean *el mismo clip* otra vez —
@@ -668,6 +730,30 @@ edita las notas de ese clip.
 desplazan, `Q` cuantiza, `Ctrl+C`/`Ctrl+V` copian y pegan. Las velocidades son tallos en
 el carril bajo la rejilla: arrástralos, o `Alt+rueda` sobre una nota. Una batería muestra
 una fila con nombre por pad.
+
+**Carriles bajo las notas.** Bajo la rejilla, cada clip muestra su carril de velocidad y los
+carriles que tiene. El **+** de la celda del carril de velocidad añade uno: **Velocidad de
+liberación** (lo rápido que se suelta cada nota — arrastra sus tallos; un aro en el suelo es
+una nota sin ella), **Inflexión de tono**, **Presión de canal**, los controladores con nombre
+(rueda de modulación, soplo, expresión, sustain, …) u **Otro controlador ▸** para cualquier
+número del 0 al 119. En un carril:
+
+| En un carril | Qué hace |
+|---|---|
+| Lápiz, línea, curva (las teclas de su celda) | Dibuja a mano alzada; arrastra una línea recta; arrastra una curva (`Alt` la dobla al otro lado). La línea y la curva se ajustan a la rejilla |
+| Arrastrar un punto | Lo mueve (con los puntos seleccionados con él); `Ctrl` lo deja en su tiempo |
+| `Mayús` + arrastrar | Selecciona los puntos del rectángulo; `Supr` los borra |
+| Clic derecho en un punto | Lo borra |
+| **×** en su celda | Quita el carril (Deshacer lo devuelve) |
+
+El carril de inflexión muestra en sus bordes el rango del instrumento. Un carril es del clip:
+se mueve, se divide, se repite, se copia y se enlaza con él; la inflexión, la presión y los
+pedales vuelven a reposo donde termina el clip. Con **Los carriles siguen a las notas**
+(activado, en el menú **+**), mover, copiar y pegar notas se lleva los controladores que hay
+bajo ellas. Las filas comparten el espacio bajo el divisor; cuando no caben, la rueda sobre
+sus celdas las desplaza. Los archivos MIDI traen sus inflexiones, presión y controladores a
+estos carriles y los vuelven a sacar al exportar, con la velocidad de liberación de cada
+nota.
 
 El **rack de canales** (`F6`) muestra cada pista como una fila de pasos sobre los compases
 del clip seleccionado: clic enciende un paso, clic derecho lo apaga, arrastrar pinta. Un
@@ -839,6 +925,30 @@ llegan al plug-in en su muestra exacta dentro del bloque de audio.
 ventana de un plug-in— se escribe en un clip de automatización sobre el tramo en que lo
 moviste (un paso de deshacer al terminar la pasada). Se apaga en las opciones de grabación
 (*Automatización*).
+(Es el modo **Retener** de abajo, para cada pista en Leer.)
+
+**Escribir automatización mientras suena la canción: Leer, Escribir, Tocar, Retener.** Cada
+pista tiene un modo de automatización — la insignia a la derecha de su cabecera (L, E, T, R;
+haz clic en ella, o `Alt+Mayús+W` para la pista seleccionada), la fila *Automatización* del
+inspector; el del máster está en su menú del
+mezclador. El **armado de automatización** de la barra superior (la tecla de la envolvente,
+tras el bucle) los hace escribir; su ▾ cambia todas las pistas a la vez y el **Regreso de
+Tocar**.
+
+| Modo | Mientras suena la canción, armado |
+|---|---|
+| **Leer** (L) | Reproduce la automatización. Mover un control no escribe nada |
+| **Escribir** (E) | Sobrescribe todo lo que la pista automatiza, de reproducir a parar, cada parámetro donde estaba hasta que lo muevas. Tras la pasada, la pista pasa a Tocar |
+| **Tocar** (T) | Escribe mientras sostienes un control; al soltarlo vuelve suavemente a la curva que había (en el tiempo de regreso, 250 ms por defecto) |
+| **Retener** (R) | Escribe desde que tocas el control hasta que paras, manteniendo el último valor |
+
+Lo que escribes se convierte en clips de automatización corrientes, justo sobre el tramo
+escrito; el control vuelve a donde estaba antes del primer clip, y la pasada entera — con
+los movimientos de tu mano — es **un solo paso de deshacer**. Sirve para cada control
+automatizable: faders, panoramas, envíos, parámetros de efectos e instrumentos, los de los
+plug-ins movidos en sus propias ventanas, profundidades de moduladores y los controladores
+asignados a cualquiera de ellos. En un bucle, cada pasada escribe sobre la anterior donde la
+toca; con el pinchazo activado, solo se escribe su rango.
 
 ### Moduladores
 
@@ -881,6 +991,97 @@ sobre su automatización.
 Los moduladores sincronizados siguen la posición de la canción: tocar desde el compás 5
 suena como suena ahí la canción entera; los libres empiezan con la reproducción. Las
 exportaciones suenan exactamente como la reproducción.
+
+### Efectos de nota: arpegiador, acordes, escala
+
+Una pista puede cambiar las notas que recibe **antes de que su instrumento las toque**: un
+**arpegiador**, **acordes** y una **escala**, en cadena, en el orden que elijas (el *Arp* y
+el *Chord* del canal en FL, los efectos MIDI de Ableton). Actúan igual sobre las notas de
+los clips y sobre lo que tocas en vivo, con la canción en marcha y con ella parada.
+
+![Efectos de nota en el inspector](../img/notefx-chain.png)
+
+- **Añadir uno**: selecciona la pista; en la sección *Efectos de nota* del inspector pulsa
+  el **+** de la banda (o la fila vacía) y elige *Arpegiador*, *Acordes* o *Escala*. Una
+  pista admite hasta ocho. La fila del título de cada uno tiene **antes** / **después** (su
+  lugar en la cadena), su luz de **encendido** y **quitar**; pulsa su nombre para plegarlo.
+- **Arpegiador**: *Orden* (arriba, abajo, arriba-abajo, abajo-arriba, como se tocó, acorde,
+  aleatorio), *Octavas* (1–4), *Paso* (de 1/1 a 1/64, con puntillo `.` y tresillo `T`,
+  sincronizado con el tempo), *Duración* (cuánto suena cada nota, 5–200 % de un paso),
+  *Swing* (al estilo MPC, 50–75 %), *Mantener* (las notas siguen sonando al soltar las teclas,
+  hasta que tocas un acorde nuevo), *Vel. fija* con su *Velocidad* (o la de cada nota) y
+  *Semilla* (de dónde saca *Aleatorio*: el mismo patrón cada vez). El primer paso suena donde
+  empieza el acorde; un acorde en la rejilla se arpegia en la rejilla.
+- **Acordes**: *Acorde* (maj, m, dim, aug, sus2, sus4, 7, maj7, m7, m(maj7), m7b5, dim7, 6, m6,
+  add9, m(add9), 9, maj9, m9, 5, 5+8, 8va — o *Tríada de la tonalidad* y *Séptima de la
+  tonalidad*, el acorde propio de cada grado: I, ii, iii… en una tonalidad mayor),
+  *Inversión* (0–3) y *Disposición* (cerrada, abierta — la segunda voz una octava arriba — o
+  amplia — abierta, con la tónica una octava abajo).
+- **Escala**: las notas *Fuera* de la tonalidad van a su nota más cercana (*A la más
+  cercana*; en empate, hacia abajo) o no suenan (*Descartar*).
+- **Qué tonalidad**: los acordes de la tonalidad y la escala leen la **tonalidad de la
+  canción** (abajo), salvo que enciendas su *Tonalidad propia* y elijas su *Tónica* y su
+  *Escala*.
+- **Todo parámetro se automatiza y se modula**: clic derecho en su fila ▸ *Crear clip de
+  automatización* o *Modular…*, o suelta sobre él el asa de un modulador, como en cualquier
+  perilla.
+- **Quién los oye**: la reproducción, la exportación, las pistas separadas, congelar y
+  convertir en audio tocan las notas que hace la cadena, muestra a muestra igual. Una
+  inserción que escucha las notas de la pista (el disparo MIDI de Porta) también las oye; un
+  modulador que abren o reinician las notas de la pista (una envolvente, un LFO que se
+  reinicia) sigue las notas tal como están escritas, antes de la cadena: se abre una vez por
+  acorde, no en cada paso del arpegio. Al grabar se guarda lo que tocaste (las teclas), no el
+  arpegio.
+- **Convertir en notas**: en el inspector de un clip MIDI, *Convertir en notas* sustituye el
+  clip por otro con las notas que la cadena toca a partir de él (con su groove) — un solo
+  paso de deshacer. El clip nuevo suena **sin pasar por los efectos de nota** (su luz
+  *Efectos de nota ▸ Saltar* está encendida), para que no actúen dos veces; apágala para
+  volver a pasar un clip por ellos.
+
+### La tonalidad de la canción y la escala del piano roll
+
+Elige la **tonalidad** de la canción en la barra del piano roll: pulsa *Tono* y elige una
+tónica y una escala (mayor, menor, menor armónica y melódica, los modos, las pentatónicas,
+blues, tonos enteros, las disminuidas, frigia dominante, húngara menor, japonesa,
+cromática) — o *Sin tonalidad*. Se guarda con la canción.
+
+![El piano roll en re menor](../img/notefx-roll.png)
+
+- **Escala**: se resaltan las filas de la tonalidad — las de fuera, un tono más oscuras; las
+  de la tónica, teñidas — y el teclado marca las notas de la tonalidad (la tónica, más ancha).
+- **Plegar**: el piano roll muestra solo las filas de la tonalidad (y cualquier fila donde
+  haya una nota del clip, para que nada se esconda). Mover una nota una fila la mueve una
+  nota de la tonalidad.
+- **Ajuste**: dibujar, pintar, arrastrar y transportar (`Arriba`/`Abajo`) mantienen las notas
+  en la tonalidad: una nota dibujada cae en la nota más cercana de la tonalidad, una
+  arrastrada en la siguiente en el sentido del movimiento, `Arriba`/`Abajo` mueven un grado
+  de la tonalidad (`Mayús`: una octava).
+
+### Grooves
+
+Un **groove** da a un clip una sensación — notas tarde o adelantadas, acentuadas, más
+largas o más cortas — sin tocar sus notas. En el inspector de un clip MIDI, *Groove* abre la
+lista: los swings incluidos (**corcheas** y **semicorcheas**, al estilo MPC, 50–75 %) y los
+grooves del propio proyecto.
+
+![El groove de un clip](../img/notefx-groove.png)
+
+- **Cantidades**: *Tiempo* (0–150 %: pasado el 100 % exagera), *Acentos* (cuánto de las
+  velocidades del groove) y *Duraciones*. Las notas se quedan como las escribiste; la
+  reproducción, la exportación y todo lo demás las oyen con el groove.
+- **Aplicar** escribe el groove en las notas y lo quita del clip (un solo paso de deshacer).
+- **Extraer groove** lleva la sensación de un clip a los grooves del proyecto — un compás,
+  en rejilla de semicorcheas: lo tarde, el acento y la duración medios de cada paso. En un
+  **clip de audio** lee los transitorios del clip (los que encuentra *Warp*). El groove nuevo
+  aparece entonces en la lista de todos los clips.
+- **Patrones**: la barra del rack de canales tiene un campo *Groove*: lo que elijas va a
+  todos los clips del patrón actual a la vez.
+- Los **clips enlazados** comparten su groove, como comparten sus notas.
+
+Al **exportar un archivo MIDI** se pregunta qué notas escribir: **Como suenan** (con el
+groove de cada clip y los efectos de nota de cada pista escritos nota a nota: el archivo
+toca lo que se oye) o **Como están escritas** (las notas de los clips, sin groove ni
+efectos de nota).
 
 ## 6. Mezclar: el mezclador, inserciones y envíos
 
@@ -1245,9 +1446,19 @@ automatizan.
 Ocho efectos mueven el sonido en el tiempo: **Concentus** (chorus), **Flexus** (flanger),
 **Phasis** (phaser), **Tremor** (trémolo y autopaneo), **Vibrans** (vibrato), **Anulus**
 (modulador en anillo), **Translatio** (desplazador de frecuencia) y **Fluctus** (modelador
-de volumen). Cada uno se inserta **sin hacer nada** — su *Mezcla* o su *Profundidad* empieza
-en 0 y el sonido pasa intacto —, así que sube ese control o elige un preset de fábrica en la
-lista del marco.
+de volumen). Cada uno se inserta **con un preset inicial** para que se oiga enseguida —
+Concentus como *Juno I*, Flexus como *Avión a reacción*, Phasis como *Phase 90, logo script*,
+Tremor como *Ampli surf*, Vibrans como *Cantante*, Anulus como *Campana*, Translatio como
+*Fase lenta*, Fluctus como *Bombeo en negras* —, con su nombre en el pozo de presets del marco. El valor *predeterminado* de
+cada control (al que vuelve con doble clic) sigue siendo el que no cambia nada. Para
+insertar los efectos sin hacer nada, elige *Ajustes ▸ Edición ▸ Efectos ▸ Al insertar ▸
+Ajustes neutros*. Otras unidades también empiezan donde son útiles: Fervor en *Cinta en el
+bus*, Multiplex en *Pegamento de máster*, Impetus en *Más pegada*, Discrimen en *Más
+ataque*;
+Comprimo, Porta, Sibilus, Spatium y Tonus ya trabajan con sus valores predeterminados; un
+ecualizador, Latitudo y el analizador empiezan planos, y Terminus, Culmen y Tonsor — las
+protecciones del final de la cadena — empiezan sin hacer nada hasta que algo se pasa.
+Nuestras versiones CLAP y VST3 empiezan con el mismo preset en otro DAW.
 
 | Efecto | Qué hace | Conviene saber |
 |---|---|---|
@@ -1364,8 +1575,8 @@ cantas con su distancia en cents. Preajustes: *Natural*, *Ajustada*, *Afinación
 ### Dinámica y análisis: Tonsor, Impetus, Discrimen, Speculum
 
 Cuatro efectos moldean los picos y los ataques de un sonido y muestran lo que hay en él.
-Como los demás, se insertan **sin hacer nada**: uno recién puesto no cambia ninguna muestra
-hasta que lo tocas.
+Impetus empieza en *Más pegada* y Discrimen en *Más ataque*; Tonsor, una protección,
+empieza a 0 dBFS y no cambia nada hasta que un pico se pasa, y Speculum solo mira.
 
 | Efecto | Qué hace | Conviene saber |
 |---|---|---|
@@ -1465,11 +1676,57 @@ plug-in esté colgado.
   paso de deshacer (`Ctrl+Z` muestra el último guardado); *Descartar* no borra nada. *Nuevo*
   y *Abrir* preguntan antes de reemplazar trabajo sin guardar.
 
+### Plantillas y la página de inicio
+
+*Archivo ▸ Nuevo desde plantilla…* (o *Página de inicio* en la [paleta de
+comandos](#la-paleta-de-comandos)) abre la **página de inicio**: a la izquierda una tarjeta
+por plantilla, a la derecha tus **proyectos recientes** (los últimos doce que abriste o
+guardaste; uno que ya no está donde estaba lo dice). Pulsa una tarjeta para un proyecto
+nuevo, sin título, hecho a partir de ella — Cantus pregunta antes si el abierto tiene
+cambios sin guardar, como *Nuevo*; pulsa un proyecto reciente para abrirlo.
+
+- **Al iniciar.** La página de inicio se abre sola cuando Cantus arranca — después de la
+  configuración de audio de la primera vez y de una oferta de recuperación tras un
+  cierre inesperado, y junto al versículo de inicio, nunca encima — salvo que Cantus
+  reciba un proyecto que abrir (un archivo con doble clic, la línea de órdenes) o
+  recupere trabajo tras un cierre inesperado. *Mostrar al iniciar*, en la propia página o
+  en *Ajustes ▸ General*, la desactiva. Cerrarla (su ✕, `Esc` o un clic fuera) deja la
+  canción con la que Cantus se abrió, como antes.
+- **Cuatro plantillas de inicio** vienen con Cantus, hechas con sus propios instrumentos y
+  efectos: *Canción vacía* (una pista de instrumento), *Ritmo* (el kit de Pulsus II, Gravis
+  en el bajo, un piano eléctrico, un retorno *Reverb*, 92 BPM), *Grabación de banda*
+  (pistas de audio de voz, guitarra, bajo y teclado en las entradas 1 y 2, un retorno
+  *Reverb*, el metrónomo encendido) y *Masterización* (una pista para tu mezcla y la cadena
+  del máster: ecualizador, compresor multibanda, herramienta estéreo, maximizador y
+  Speculum).
+- **Las tuyas:** *Archivo ▸ Guardar como plantilla…* guarda el proyecto tal como está con
+  un nombre (una plantilla del mismo nombre se reemplaza — el panel lo dice). Aparece entre
+  las tarjetas; pasa el puntero por encima y pulsa su × dos veces para borrarla.
+- **Plantillas de pista:** *Archivo ▸ Guardar pista como plantilla…* guarda la pista
+  seleccionada — su instrumento, color, icono, nivel y panorama, entrada y moduladores —
+  con su canal del mezclador: efectos, ecualizador, fader, envíos y salida (no sus clips:
+  una plantilla es un sonido, no una canción). Aparecen en el estante **Plantillas de
+  pista** del selector de dispositivos y en el panel de dispositivos (arrastra una a la
+  cabecera de una pista: llega tras esa pista) y en la paleta de comandos; la página de inicio las lista bajo los proyectos
+  recientes, donde su × (dos veces) borra una. Insertar una es un solo paso de deshacer: la pista
+  llega tras la seleccionada, su canal ocupa el primer canal del mezclador vacío, y lo que
+  tenía ruteado se busca **por nombre** — un envío a *Reverb* va al retorno *Reverb* de
+  este proyecto; lo que este proyecto no tiene se omite, y la línea de estado dice qué.
+
+Las plantillas viven en la carpeta de datos de Cantus (`%LOCALAPPDATA%\Cantus\templates`):
+las de proyecto en `projects`, las de pista en `tracks`; cada una es un archivo `.cantus`,
+así que una plantilla de una versión anterior se abre como cualquier proyecto.
+
 **Ajustes** (`Ctrl+,`, o el menú **Opciones**, que además abre cada página directamente;
 *Ver ▸ Ajustes…* sigue funcionando). La ventana tiene una barra lateral de páginas, como
 las opciones de FL: *General* (el versículo al iniciar, sí o no, y la Biblia en
-español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia y la corrección
-de grabación), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
+español), *Audio* (controlador, dispositivos, frecuencia, búfer, latencia, la corrección
+de grabación y los *Núcleos de audio* que trabajan — el hilo de audio y los núcleos que lo
+ayudan, `1` para el hilo de audio solo — cada número con un motor y un modelo por el que
+se le conoce, dibujado a la derecha de la lista y en grande bajo el campo:
+`4 · V4 · Fulvia`, `12 · V12 · Enzo`, más de 16 un turborreactor-estatorreactor; la línea de
+debajo dice cuántos trabajan ahora, contados igual; la prioridad de tiempo real que recibió
+cada hilo de audio es la última línea del bloque), *MIDI*, *Apariencia* (idioma — English o Español —, tamaño de la interfaz,
 colores, atajos de teclado), *Guardado*, *Caché de muestras* (su tamaño máximo — 16 GB
 de forma predeterminada; cuando se llena, salen primero las muestras que llevan más tiempo
 sin usarse — y *Vaciar caché*; vive en `%LOCALAPPDATA%\Cantus\cache\samples`, o en la
@@ -1514,6 +1771,7 @@ presets de FL Studio, Ableton Live o Bitwig Studio. Los predeterminados:
 | `Ctrl+T` | El teclado del ordenador toca notas |
 | `Ctrl++` · `Ctrl+-` · `Ctrl+0` | Zoom de la interfaz |
 | `Ctrl+,` | Ajustes |
+| `Ctrl+Shift+P` · `Alt+H` | La paleta de comandos · el historial de deshacer |
 
 **En un Mac** `Cmd` (⌘) ocupa el lugar de `Ctrl` y `Opción` (⌥) el de `Alt`, y el preset
 *macOS* es el predeterminado: las teclas de la tabla, salvo que el metrónomo es `Cmd+K` (o `K` con el teclado del ordenador apagado; ⌘M

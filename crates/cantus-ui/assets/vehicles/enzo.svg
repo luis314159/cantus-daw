@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <!-- Enzo, side profile facing right: the long low nose between the fender pods, the
+       cabin forward, the high tail. Our own drawing (GPL-3.0-or-later, like the
+       application); colours are placeholders filled from the theme. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{paint_hi}"/>
+      <stop offset="0.3" stop-color="{paint}"/>
+      <stop offset="0.72" stop-color="{paint_lo}"/>
+      <stop offset="1" stop-color="{paint_deep}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="{glass_hi}" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="{glass}"/>
+      <stop offset="1" stop-color="{glass}"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="{shadow}" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="{shadow}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="1" stop-color="{rim}"/>
+    </radialGradient>
+    <path id="spoke" d="M -1.6 -7 L -7 -27 L -3.4 -27.6 L 0 -13 L 3.4 -27.6 L 7 -27 L 1.6 -7 Z"/>
+    <g id="wheel">
+      <circle r="40" fill="{tyre}"/>
+      <circle r="39.4" fill="none" stroke="{edge}" stroke-width="1.2" opacity="0.28"/>
+      <circle r="36.5" fill="none" stroke="{tyre_hi}" stroke-width="1.6" opacity="0.7"/>
+      <g opacity="{detail}">
+        <circle r="29" fill="{trim}"/>
+        <circle r="22" fill="{rim_lo}" opacity="0.8"/>
+        <path d="M 8 -20 A 22 22 0 0 1 20 -8 L 14 -5 A 15 15 0 0 0 6 -13 Z" fill="{tail}"/>
+        <g fill="url(#rim)">
+          <use href="#spoke"/>
+          <use href="#spoke" transform="rotate(72)"/>
+          <use href="#spoke" transform="rotate(144)"/>
+          <use href="#spoke" transform="rotate(216)"/>
+          <use href="#spoke" transform="rotate(288)"/>
+        </g>
+        <circle r="28.5" fill="none" stroke="{rim_hi}" stroke-width="2.2"/>
+        <circle r="7.5" fill="url(#rim)"/>
+        <circle r="3" fill="{trim}"/>
+      </g>
+      <g opacity="{simple}">
+        <circle r="28" fill="url(#rim)"/>
+        <circle r="17" fill="{rim_lo}"/>
+        <circle r="7" fill="{rim_hi}"/>
+      </g>
+    </g>
+  </defs>
+
+  <ellipse cx="280" cy="184" rx="268" ry="10" fill="url(#shadow)"/>
+
+  <!-- the wheel wells -->
+  <path d="M 34 158 A 47 47 0 1 1 124 158 Z M 347 158 A 43 43 0 1 1 431 158 Z" fill="{trim}"/>
+
+  <!-- the body -->
+  <path d="M 18 156 L 14 120 L 14 84 C 14 79 15 75 17 73 L 26 76
+           C 60 72 120 66 172 61 C 200 58 224 50 246 45 C 272 40 312 40 338 47
+           C 362 56 384 72 398 84 C 408 80 424 78 440 80 C 468 84 500 100 522 116
+           C 534 125 543 133 547 141 L 544 148 C 534 154 518 156 500 157 L 431 158
+           A 43 43 0 1 0 347 158 L 345 163 L 128 163 L 124 158
+           A 47 47 0 1 0 34 158 L 30 160 C 24 160 20 158 18 156 Z" fill="url(#body)"/>
+
+  <!-- the windows: the side glass, the engine's glass cover along the deck -->
+  <path d="M 389 84 C 372 69 354 57 336 52 C 310 47 284 48 262 52 C 254 60 252 72 255 81
+           C 300 81 350 82 389 84 Z" fill="url(#glass)"/>
+  <path d="M 120 64 C 160 60 200 56 236 48 L 240 52 C 204 60 164 65 122 68 Z" fill="url(#glass)" opacity="0.9"/>
+  <path d="M 330 52 L 344 57 L 304 82 L 286 82 Z" fill="{glass_hi}" opacity="0.14"/>
+
+  <!-- the light along the fender pods and the high flank, the scoop's shade -->
+  <path d="M 404 84 C 430 81 470 88 520 116 L 517 120 C 470 93 432 86 404 88 Z" fill="{paint_hi}" opacity="0.7"/>
+  <path d="M 26 82 C 80 77 150 72 230 66 L 230 69 C 150 76 80 81 24 87 Z" fill="{paint_hi}" opacity="0.6"/>
+  <path d="M 345 158 C 300 136 250 118 200 112 L 140 114 L 128 158 Z" fill="{paint_deep}" opacity="0.45"/>
+  <path d="M 128 163 L 345 163 L 347 158 L 345 166 L 128 166 Z" fill="{trim}"/>
+  <path d="M 500 157 C 518 156 534 154 544 148 L 543 152 C 532 158 516 160 500 160 L 431 160 L 431 158 Z" fill="{trim}"/>
+
+  <g opacity="{detail}">
+    <!-- the door, the side intake behind it -->
+    <path d="M 256 84 C 250 110 252 136 262 158" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 238 72 C 224 78 210 92 202 116 L 214 116 C 220 100 230 88 244 80 Z" fill="{trim}"/>
+    <path d="M 345 156 C 300 132 252 116 206 114" fill="none" stroke="{paint_hi}" stroke-width="1.4" opacity="0.55"/>
+    <!-- the mirror on its stalk -->
+    <path d="M 366 84 L 362 76" fill="none" stroke="{paint_lo}" stroke-width="2.4"/>
+    <path d="M 350 72 C 352 66 366 65 372 69 C 372 75 364 78 356 78 C 352 77 350 75 350 72 Z" fill="url(#body)"/>
+    <!-- the vents on the front fender -->
+    <path d="M 436 86 L 462 90 M 438 90 L 462 94" fill="none" stroke="{trim}" stroke-width="1.4" opacity="0.7"/>
+  </g>
+
+  <!-- the headlight's long slit, the round tail light -->
+  <path d="M 470 96 C 492 102 514 112 532 126 L 529 130 C 511 118 492 109 468 102 Z" fill="{trim}"/>
+  <path d="M 474 98 C 494 104 513 113 528 125 L 526 127 C 510 116 493 108 473 101 Z" fill="{lamp}"/>
+  <circle cx="16" cy="92" r="5.5" fill="{tail}"/>
+  <circle cx="16" cy="92" r="2.4" fill="{lamp}" opacity="0.45"/>
+
+  <!-- the silhouette's edge -->
+  <path d="M 14 84 C 14 79 15 75 17 73 L 26 76 C 60 72 120 66 172 61 C 200 58 224 50 246 45
+           C 272 40 312 40 338 47 C 362 56 384 72 398 84 C 408 80 424 78 440 80
+           C 468 84 500 100 522 116 C 534 125 543 133 547 141" fill="none" stroke="{edge}" stroke-width="1.4" opacity="0.3"/>
+
+  <use href="#wheel" transform="translate(79 143) scale(1.025)"/>
+  <use href="#wheel" transform="translate(389 147) scale(0.925)"/>
+</svg>

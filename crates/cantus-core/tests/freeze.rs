@@ -236,6 +236,14 @@ fn the_key_changes_for_what_changes_the_sound_and_for_nothing_else() {
             id: s.bass,
             height: 2.0,
         },
+        // A mode changes what a pass writes, never what plays (ADR 0068).
+        Command::SetTrackAutoMode {
+            track: s.drums,
+            mode: cantus_core::automation::AutoMode::Latch,
+        },
+        Command::SetMasterAutoMode {
+            mode: cantus_core::automation::AutoMode::Touch,
+        },
         Command::SetTrackSolo {
             id: s.bass,
             soloed: true,

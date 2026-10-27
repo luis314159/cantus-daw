@@ -13,6 +13,8 @@ use cantus_engine::EngineHandle;
 mod audio_scene;
 #[path = "shoot_auto/scene.rs"]
 mod auto_scene;
+#[path = "shoot_auto/modes.rs"]
+mod automodes_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;
@@ -78,6 +80,13 @@ fn main() {
             return;
         }
     }
+    // `automodes`: the automation modes and the piano roll's lanes (round 31, ADR 0068).
+    if kinds.iter().any(|k| k == "automodes") {
+        automodes_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
     // `automation`: lanes, clips and the editor (round 20, ADR 0027).
     if kinds.iter().any(|k| k == "automation") {
         auto_scene::shots(&dir, scale);
@@ -87,7 +96,7 @@ fn main() {
     }
     let kinds: Vec<String> = kinds
         .into_iter()
-        .filter(|k| k != "audio" && k != "samples" && k != "automation")
+        .filter(|k| k != "audio" && k != "samples" && k != "automation" && k != "automodes")
         .collect();
     let kinds: Vec<String> = if kinds.is_empty() {
         [

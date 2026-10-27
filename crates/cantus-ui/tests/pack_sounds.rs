@@ -312,7 +312,7 @@ fn an_installed_pack_instrument_is_in_the_picker_on_its_shelf() {
         "and by what plays it"
     );
     // In Spanish, its Spanish name.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     a.picker_view.refresh(&a.plugins.db.clone(), &found);
     assert_eq!(
         a.picker_view
@@ -321,7 +321,7 @@ fn an_installed_pack_instrument_is_in_the_picker_on_its_shelf() {
             .name,
         "Cola de prueba"
     );
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     // Not installed: not offered.
     let empty = tempfile::tempdir().unwrap();
     let mut b = app(cantus_ui::starter_project());
@@ -395,7 +395,7 @@ fn it_plays_its_flac_samples_louder_as_the_keys_are_struck_harder() {
     a.apply_pick(PickPurpose::AddInstrument { index: None }, choice);
     let spec = a.project().tracks.last().unwrap().instrument.clone();
     let level = |vel: u8| {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let mut s = Song::new("pack", 120.0, 1);
         let part = s.part("piano", spec.clone(), colors::BASS, TrackIcon::Keys);
         s.feel(part, Feel::TIGHT);
@@ -500,7 +500,7 @@ fn the_real_salamander_loads_plays_and_sits_at_the_calibrated_level() {
     );
     let spec = InstrumentSpec::Native(sounds::spec_of(&imp));
     let project = |evs: &[Ev], bars: f64| {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let mut s = Song::new("salamander", 120.0, 1);
         let part = s.part("piano", spec.clone(), colors::BASS, TrackIcon::Keys);
         s.feel(part, Feel::TIGHT);
@@ -744,9 +744,9 @@ fn choosing_it_loads_off_the_interface_thread_and_shows_how_far() {
     };
     let en = bar(&mut a);
     assert!(en.contains("Loading samples… 0 of 7"), "{en}");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let es = bar(&mut a);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(es.contains("Cargando muestras… 0 de 7"), "{es}");
     // The loads land; the frames pick them up.
     let t = std::time::Instant::now();
@@ -849,7 +849,7 @@ fn the_new_track_button_is_in_view_without_scrolling() {
         ),
     ] {
         for screen in [egui::vec2(1280.0, 720.0), egui::vec2(640.0, 360.0)] {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             let mut a = app(cantus_ui::starter_project());
             a.samples.content_root = Some(f.content.clone());
             // The installed pack is listed from its receipt even when the manifest has
@@ -926,7 +926,7 @@ fn the_new_track_button_is_in_view_without_scrolling() {
             );
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// `on_loccN=-1` is SFZ's "no controller trigger": a keyed region carrying it plays from
@@ -1226,7 +1226,7 @@ fn the_preset_field_names_the_pack_instrument() {
         (cantus_ui::i18n::Locale::En, "Fixture Grand · 2 layers"),
         (cantus_ui::i18n::Locale::Es, "Cola de prueba · 2 capas"),
     ] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let mut a = app_with(&f);
         let choice = sound_choice(&mut a);
         a.apply_pick(PickPurpose::AddInstrument { index: None }, choice.clone());
@@ -1245,7 +1245,7 @@ fn the_preset_field_names_the_pack_instrument() {
             "{locale:?}"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     // All its layers: its own name says so already.
     let f = installed(None);
     let mut a = app_with(&f);

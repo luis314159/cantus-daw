@@ -203,7 +203,7 @@ pub fn shots(kind: cantus_core::InstrumentKind, file: &str) {
             a.open_inst_editor(track);
             a.inst.view = view;
             if es {
-                cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+                cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
             }
             let c = crate::support::ctx();
             cantus_ui::theme::apply(&theme, &c);
@@ -214,7 +214,7 @@ pub fn shots(kind: cantus_core::InstrumentKind, file: &str) {
                 cantus_ui::views::inst::window_in(&mut a, ui);
             });
             if es {
-                cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+                cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
             }
         }
     }

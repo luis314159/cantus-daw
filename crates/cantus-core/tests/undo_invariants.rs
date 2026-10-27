@@ -24,7 +24,7 @@ impl Lcg {
 
 fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
     let tracks = project.tracks.len();
-    match rng.below(48) {
+    match rng.below(49) {
         0 => Command::SetTempo {
             bpm: rng.f32(20.0, 300.0) as f64,
         },
@@ -841,6 +841,9 @@ fn random_command(rng: &mut Lcg, project: &mut Project) -> Command {
         45 => round29_controller_command(rng, project),
         46 => round29_hosting_command(rng, project),
         47 if tracks > 0 => round29_freeze_command(rng, project),
+        // Round 31 (ADR 0069): note-effect chains and their parameters, the key, clip
+        // grooves and the pool, a commit and a bake — and the refused ones.
+        48 => round31_midi_command(rng, project),
         _ => Command::SetProjectName {
             name: format!("P{}", rng.below(100)),
         },
@@ -984,7 +987,7 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
     } else {
         &notes[rng.below(notes.len() as u64) as usize]
     };
-    let board: Vec<Note> = (0..1 + rng.below(4))
+    let mut board: Vec<Note> = (0..1 + rng.below(4))
         .map(|i| Note {
             id: NoteId(0),
             start: Ticks::beats(i as i64),
@@ -992,8 +995,13 @@ fn clipboard_paste_notes(rng: &mut Lcg, project: &mut Project) -> Command {
             pitch: 40 + rng.below(40) as u8,
             velocity: 1 + rng.below(127) as u8,
             muted: rng.below(5) == 0,
+            release: 0,
         })
         .collect();
+    // Release velocities (ADR 0068), from what was drawn: the main stream is as it was.
+    for n in &mut board {
+        n.release = (n.pitch.wrapping_mul(3).wrapping_add(n.velocity)) % 128;
+    }
     // Sometimes well past the end, so the clip has to grow (or its loop lengthen).
     let at = clip.offset + Ticks::beats(rng.below(24) as i64);
     let mut next = project.next_id;
@@ -1665,10 +1673,18 @@ fn automation_command(rng: &mut Lcg, project: &mut Project) -> Command {
                 automation: Some(auto),
             }
         }
-        2 => Command::SetTrackAutomationOpen {
-            id: tid,
-            open: rng.below(2) == 1,
-        },
+        2 => {
+            let open = rng.below(2) == 1;
+            // Round 31 (ADR 0068): two times in three a note clip's controller lanes or an
+            // automation mode instead — drawn from a side stream, so the main one (and so
+            // every other arm's draws) is what it was.
+            let mut side = Lcg(rng.0 ^ 0x5DEE_CE66_D1CE_4E5B);
+            match side.below(3) {
+                0 => Command::SetTrackAutomationOpen { id: tid, open },
+                1 => lanes_command(&mut side, project, tid),
+                _ => auto_mode_command(&mut side, project, tid),
+            }
+        }
         _ => {
             let strip = project.strips[rng.below(project.strips.len() as u64) as usize].id;
             let effect = project.all_effects().next().map(|(_, e)| e.id);
@@ -1735,6 +1751,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     // or copied.
     let mut modded = [0usize; 3];
     let mut comped = [0usize; 4];
+    // Round 31 (ADR 0068): controller lanes set (some non-empty), a track's and the
+    // master's automation mode.
+    let mut laned = [0usize; 3];
     // Round 29, warp (ADR 0061): a warp set, cleared, and a marker edit applied.
     let mut warped = [0usize; 3];
     // The tempo track, metre and markers (ADR 0060): one count per command kind.
@@ -1752,11 +1771,19 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     let mut mappings = [0usize; 4];
     // Round 29's third review: the commands carrying an invalid warp in, each refused.
     let mut refused_warps = 0usize;
-    for seed in 1..=60u64 {
+    // Round 31 (ADR 0069): per kind of `round31_kind`, applied and refused.
+    let mut midi = [[0usize; 2]; 9];
+    // 120 sequences (round 31: one arm more spreads the draws thinner).
+    for seed in 1..=120u64 {
         let mut rng = Lcg(seed);
         // The gestures' own draws, so the commands drawn stay the ones they were.
         let mut grng = Lcg(seed.wrapping_mul(0x9E37_79B9).wrapping_add(17));
         let mut bus = CommandBus::default();
+        // Every other sequence with automatic crossfades on (ADR 0070): the step an edit
+        // takes then holds the crossfades it made, undone and redone with it.
+        if seed % 2 == 0 {
+            bus.set_auto_crossfades(Some(cantus_core::crossfade::XfadeCurve::EqualPower));
+        }
         let mut checkpoints: Vec<Project> = vec![bus.project().clone()];
         let mut applied = 0;
         for _ in 0..120 {
@@ -1790,6 +1817,12 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                     ..
                 } => Some(2),
                 Command::SetClipWarp { .. } => Some(0),
+                _ => None,
+            };
+            let lanes = match &cmd {
+                Command::SetClipLanes { lanes, .. } if !lanes.is_empty() => Some(0),
+                Command::SetTrackAutoMode { .. } => Some(1),
+                Command::SetMasterAutoMode { .. } => Some(2),
                 _ => None,
             };
             let comp = match &cmd {
@@ -1841,6 +1874,7 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             let tempo = tempo_kind(&cmd);
             let freezing = freeze_kind(&cmd);
             let delay = matches!(cmd, Command::SetTrackLateness { .. });
+            let midi_k = round31_kind(&cmd);
             let shown: String = format!("{cmd:?}").chars().take(600).collect();
             // Reviews 3-4: a tempo edit keeps every take where it comes in, its windows on
             // one line, the windows that shared an origin sharing it still.
@@ -1924,6 +1958,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
             if matches!(result, Err(CommandError::Frozen(_))) {
                 froze[3] += 1;
             }
+            // Round 31 (ADR 0069): each kind applied, and refused.
+            if let Some(k) = midi_k {
+                midi[k][usize::from(result.is_err())] += 1;
+            }
             if delay {
                 delayed[usize::from(result.is_err())] += 1;
             }
@@ -1968,6 +2006,9 @@ fn undo_all_restores_initial_state_for_random_sequences() {
                 }
                 if let Some(k) = comp {
                     comped[k] += 1;
+                }
+                if let Some(k) = lanes {
+                    laned[k] += 1;
                 }
                 if let Some(k) = tempo {
                     tempoed[k] += 1;
@@ -2071,6 +2112,10 @@ fn undo_all_restores_initial_state_for_random_sequences() {
         "comp commands never applied: {comped:?}"
     );
     assert!(
+        laned.iter().all(|n| *n > 0),
+        "lane and mode commands never applied: {laned:?}"
+    );
+    assert!(
         warped.iter().all(|n| *n > 0),
         "warp commands never applied: {warped:?}"
     );
@@ -2078,6 +2123,14 @@ fn undo_all_restores_initial_state_for_random_sequences() {
     assert!(
         tempoed.iter().all(|n| *n > 0),
         "tempo commands never applied: {tempoed:?}"
+    );
+    assert!(
+        midi.iter().all(|k| k[0] > 0),
+        "round 31's commands never applied: {midi:?}"
+    );
+    assert!(
+        midi[..2].iter().all(|k| k[1] > 0) && midi[2][1] > 0 && midi[3][1] > 0,
+        "round 31's commands never refused: {midi:?}"
     );
     assert!(
         kept_frames > 0,
@@ -3792,4 +3845,591 @@ fn every_way_the_warp_arm_carries_an_invalid_warp_in_is_refused() {
             );
         }
     }
+}
+
+/// Round 31 (ADR 0068): a note clip's controller lanes set whole — random kinds and curves,
+/// cleared, and the refused ones (a kind no lane drives, two lanes of one kind, a point out
+/// of range, an audio or automation clip) — through any member of a link group.
+fn lanes_command(rng: &mut Lcg, project: &mut Project, tid: TrackId) -> Command {
+    use cantus_core::clip_lanes::{ClipLane, LaneKind};
+    let t = project.track(tid).expect("a track");
+    let notes: Vec<ClipId> = t
+        .clips
+        .iter()
+        .filter(|c| c.audio.is_none() && c.automation.is_none())
+        .map(|c| c.id)
+        .collect();
+    let other: Option<ClipId> = t
+        .clips
+        .iter()
+        .find(|c| c.audio.is_some() || c.automation.is_some())
+        .map(|c| c.id);
+    let kind = |rng: &mut Lcg| match rng.below(4) {
+        0 => LaneKind::PitchBend,
+        1 => LaneKind::Pressure,
+        _ => LaneKind::Cc(if rng.below(16) == 0 {
+            120
+        } else {
+            rng.below(120) as u8
+        }),
+    };
+    let Some(&clip) = notes.get(rng.below(notes.len().max(1) as u64) as usize) else {
+        return auto_mode_command(rng, project, tid);
+    };
+    let lanes = match rng.below(12) {
+        0 => Vec::new(),
+        1 => {
+            let k = kind(rng);
+            vec![
+                ClipLane::new(k, random_points(rng)),
+                ClipLane::new(k, random_points(rng)),
+            ]
+        }
+        2 => vec![ClipLane {
+            kind: LaneKind::PitchBend,
+            points: vec![AutoPoint::new(Ticks(0), 2.0)],
+        }],
+        3 if other.is_some() => {
+            return Command::SetClipLanes {
+                track: tid,
+                clip: other.unwrap(),
+                lanes: vec![ClipLane::new(LaneKind::Cc(1), random_points(rng))],
+            }
+        }
+        _ => {
+            let mut v: Vec<ClipLane> = Vec::new();
+            for _ in 0..1 + rng.below(3) {
+                let k = kind(rng);
+                if v.iter().all(|l| l.kind != k) {
+                    v.push(ClipLane::new(k, random_points(rng)));
+                }
+            }
+            v
+        }
+    };
+    Command::SetClipLanes {
+        track: tid,
+        clip,
+        lanes,
+    }
+}
+
+/// Round 31 (ADR 0068): a track's or the master's automation mode.
+fn auto_mode_command(rng: &mut Lcg, _project: &mut Project, tid: TrackId) -> Command {
+    let mode = cantus_core::AutoMode::ALL[rng.below(4) as usize];
+    if rng.below(3) == 0 {
+        Command::SetMasterAutoMode { mode }
+    } else {
+        Command::SetTrackAutoMode { track: tid, mode }
+    }
+}
+
+/// Round 31 (ADR 0069): a note-effect chain set whole (random kinds and settings, an id
+/// another track holds or a value out of range: refused), one parameter set (a missing
+/// effect or key refused), the key (a root past B refused), a clip's groove (a built-in, a
+/// pooled one, none; out-of-range amounts or a groove not in the pool refused), a clip
+/// played past the chain, the pool's grooves inserted (a duplicate id refused), removed (in
+/// use: refused) and renamed, a groove committed into the notes and a clip baked.
+fn round31_midi_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::groove::{ClipGroove, Groove, GrooveId, GrooveSource, SwingGrid};
+    use cantus_core::notefx::{NoteEffect, NoteFxId, NoteFxType};
+    let rng = &mut Lcg(rng.below(1 << 30) ^ 0x0031_0069);
+    let rename = Command::SetProjectName {
+        name: format!("P{}", rng.below(100)),
+    };
+    let note_clips: Vec<(TrackId, ClipId)> = project
+        .tracks
+        .iter()
+        .flat_map(|t| {
+            t.clips
+                .iter()
+                .filter(|c| c.audio.is_none() && c.automation.is_none())
+                .map(move |c| (t.id, c.id))
+        })
+        .collect();
+    let pick_track = |rng: &mut Lcg, p: &Project| {
+        (!p.tracks.is_empty()).then(|| p.tracks[rng.below(p.tracks.len() as u64) as usize].id)
+    };
+    let source = |rng: &mut Lcg, p: &Project| match rng.below(3) {
+        0 if !p.grooves.is_empty() => GrooveSource::Pool {
+            id: p.grooves[rng.below(p.grooves.len() as u64) as usize].id,
+        },
+        1 => GrooveSource::Pool {
+            id: GrooveId(u64::MAX - 3),
+        },
+        _ => GrooveSource::Swing {
+            grid: if rng.below(2) == 0 {
+                SwingGrid::Eighths
+            } else {
+                SwingGrid::Sixteenths
+            },
+            percent: [50u8, 54, 62, 71, 75, 90][rng.below(6) as usize],
+        },
+    };
+    let pick_clip = |rng: &mut Lcg| {
+        note_clips
+            .get(rng.below(note_clips.len() as u64 + 1) as usize)
+            .copied()
+    };
+    // An edit of something that is not there yet makes it first (a sequence reaches this
+    // arm a few times only): a parameter needs a chain, a removal or a rename a groove.
+    let chains = project.tracks.iter().any(|t| !t.note_fx.is_empty());
+    let mut pick = rng.below(10);
+    if pick == 1 && !chains && rng.below(4) != 0 {
+        pick = 0;
+    }
+    if matches!(pick, 6 | 7) && project.grooves.is_empty() && rng.below(4) != 0 {
+        pick = 5;
+    }
+    match pick {
+        0 => {
+            let Some(track) = pick_track(rng, project) else {
+                return rename;
+            };
+            let mut chain = Vec::new();
+            for _ in 0..rng.below(4) {
+                let kind = NoteFxType::ALL[rng.below(3) as usize];
+                let mut e = NoteEffect::new(NoteFxId(project.alloc_id()), kind);
+                e.enabled = rng.below(5) != 0;
+                for (i, p) in kind.make().params().iter().enumerate() {
+                    if rng.below(2) == 0 {
+                        e.kind.set_index(i, rng.f32(p.min, p.max));
+                    }
+                }
+                chain.push(e);
+            }
+            // Now and then an id another track's chain holds, or a value out of range.
+            let others: Vec<NoteFxId> = project
+                .tracks
+                .iter()
+                .filter(|t| t.id != track)
+                .flat_map(|t| t.note_fx.iter().map(|e| e.id))
+                .collect();
+            if !chain.is_empty() && !others.is_empty() && rng.below(6) == 0 {
+                chain[0].id = others[0];
+            }
+            if !chain.is_empty() && rng.below(8) == 0 {
+                if let cantus_core::NoteFxKind::Arp(a) = &mut chain[0].kind {
+                    a.octaves = 9;
+                }
+            }
+            Command::SetTrackNoteFx { track, chain }
+        }
+        1 => {
+            let held: Vec<(TrackId, NoteFxId, NoteFxType)> = project
+                .tracks
+                .iter()
+                .flat_map(|t| t.note_fx.iter().map(move |e| (t.id, e.id, e.kind.kind())))
+                .collect();
+            let (track, effect, kind) = match held.get(rng.below(held.len() as u64 + 1) as usize) {
+                Some(h) => *h,
+                None => match pick_track(rng, project) {
+                    Some(t) => (t, NoteFxId(u64::MAX - 1), NoteFxType::Arp),
+                    None => return rename,
+                },
+            };
+            let params = kind.make().params();
+            let (key, value) = if rng.below(10) == 0 {
+                ("nope".to_string(), 1.0)
+            } else {
+                let p = params[rng.below(params.len() as u64) as usize];
+                (p.key.to_string(), rng.f32(p.min - 1.0, p.max + 1.0))
+            };
+            Command::SetNoteFxParam {
+                track,
+                effect,
+                key,
+                value,
+            }
+        }
+        2 => Command::SetProjectKey {
+            key: match rng.below(4) {
+                0 => None,
+                1 => Some(Key {
+                    root: 13,
+                    scale: ScaleKind::Major,
+                }),
+                _ => Some(Key::new(
+                    rng.below(12) as u8,
+                    ScaleKind::ALL[rng.below(ScaleKind::ALL.len() as u64) as usize],
+                )),
+            },
+        },
+        3 => {
+            let Some((track, clip)) = pick_clip(rng) else {
+                return rename;
+            };
+            let groove = (rng.below(4) != 0).then(|| ClipGroove {
+                source: source(rng, project),
+                timing: rng.f32(0.0, 1.6),
+                velocity: rng.f32(0.0, 1.0),
+                length: rng.f32(0.0, 1.0),
+            });
+            Command::SetClipGroove {
+                track,
+                clip,
+                groove,
+            }
+        }
+        4 => {
+            let Some((track, clip)) = pick_clip(rng) else {
+                return rename;
+            };
+            Command::SetClipSkipNoteFx {
+                track,
+                clip,
+                skip: rng.below(2) == 0,
+            }
+        }
+        5 => {
+            let id = if !project.grooves.is_empty() && rng.below(6) == 0 {
+                project.grooves[0].id
+            } else {
+                GrooveId(project.alloc_id())
+            };
+            let mut g = Groove::swing(SwingGrid::Sixteenths, 50 + rng.below(26) as u8);
+            g.id = id;
+            g.name = format!("G{}", id.0);
+            if let Some(&(t, c)) = note_clips.first() {
+                if let Some(x) = project
+                    .track(t)
+                    .and_then(|t| t.clip(c))
+                    .and_then(|c| Groove::from_clip(id, c, Ticks::beats(4), Ticks::SIXTEENTH))
+                {
+                    g = x;
+                }
+            }
+            Command::InsertGroove {
+                index: rng.below(project.grooves.len() as u64 + 1) as usize,
+                groove: Box::new(g),
+            }
+        }
+        6 => match project
+            .grooves
+            .get(rng.below(project.grooves.len() as u64 + 1) as usize)
+        {
+            Some(g) => Command::RemoveGroove { id: g.id },
+            None => Command::RemoveGroove {
+                id: GrooveId(u64::MAX - 2),
+            },
+        },
+        7 => match project.grooves.first() {
+            Some(g) => {
+                let mut g = g.clone();
+                g.name = format!("R{}", rng.below(100));
+                Command::SetGroove {
+                    groove: Box::new(g),
+                }
+            }
+            None => rename,
+        },
+        8 => {
+            // Commit: the groove written into the notes, the groove taken off.
+            let Some((track, clip)) = pick_clip(rng) else {
+                return rename;
+            };
+            let c = project.track(track).and_then(|t| t.clip(clip)).unwrap();
+            let notes = cantus_core::groove::committed(c, &project.grooves);
+            Command::Batch {
+                label_key: "cmd.notefx.commit".into(),
+                commands: vec![
+                    Command::SetNotes { track, clip, notes },
+                    Command::SetClipGroove {
+                        track,
+                        clip,
+                        groove: None,
+                    },
+                ],
+            }
+        }
+        _ => {
+            // Bake: the clip replaced by one that plays past the chain.
+            let Some((track, clip)) = pick_clip(rng) else {
+                return rename;
+            };
+            let c = project
+                .track(track)
+                .and_then(|t| t.clip(clip))
+                .unwrap()
+                .clone();
+            let mut baked = project.make_clip(format!("{} (baked)", c.name), c.start, c.length);
+            for n in c.notes.iter().take(8) {
+                let note = project.make_note(n.start, n.length, n.pitch, n.velocity);
+                baked.notes.push(note);
+            }
+            baked.skip_note_fx = true;
+            Command::Batch {
+                label_key: "cmd.notefx.bake".into(),
+                commands: vec![
+                    Command::RemoveClip { track, clip },
+                    Command::InsertClip {
+                        track,
+                        clip: Box::new(baked),
+                    },
+                ],
+            }
+        }
+    }
+}
+
+/// Which of round 31's commands `cmd` is, for the coverage check: 0 a chain set, 1 a
+/// parameter, 2 the key, 3 a clip's groove, 4 a clip past the chain, 5 a groove inserted,
+/// 6 removed, 7 a commit, 8 a bake.
+fn round31_kind(cmd: &Command) -> Option<usize> {
+    Some(match cmd {
+        Command::SetTrackNoteFx { .. } => 0,
+        Command::SetNoteFxParam { .. } => 1,
+        Command::SetProjectKey { .. } => 2,
+        Command::SetClipGroove { .. } => 3,
+        Command::SetClipSkipNoteFx { .. } => 4,
+        Command::InsertGroove { .. } => 5,
+        Command::RemoveGroove { .. } => 6,
+        Command::Batch { label_key, .. } if label_key == "cmd.notefx.commit" => 7,
+        Command::Batch { label_key, .. } if label_key == "cmd.notefx.bake" => 8,
+        _ => return None,
+    })
+}
+
+/// Round 31 (ADR 0070): a clip's crossfade curve and gain envelope set through
+/// `SetClipAudio`, two audio clips laid over each other (the bus crosses them when its
+/// automatic crossfades are on), a crossfade's length moved by `crossfade::resize` — and
+/// an envelope out of range or out of order, refused by `SetClipAudio` and `InsertClip`.
+fn round31_editing_command(rng: &mut Lcg, project: &mut Project) -> Command {
+    use cantus_core::clip_gain::{GainEnvelope, GainPoint, ENV_MAX_DB, ENV_MIN_DB};
+    use cantus_core::crossfade::{self, XfadeCurve};
+    let ti = rng.below(project.tracks.len() as u64) as usize;
+    let track = project.tracks[ti].clone();
+    let audio: Vec<&Clip> = track.clips.iter().filter(|c| c.audio.is_some()).collect();
+    let random_env = |rng: &mut Lcg| {
+        let n = rng.below(6) as usize;
+        let mut pts: Vec<GainPoint> = (0..n)
+            .map(|_| {
+                let mut p = GainPoint::new(
+                    Ticks(rng.below(8 * 960) as i64),
+                    rng.f32(ENV_MIN_DB, ENV_MAX_DB),
+                );
+                p.tension = rng.f32(-1.0, 1.0);
+                p.shape = Shape::ALL[rng.below(Shape::ALL.len() as u64) as usize];
+                p
+            })
+            .collect();
+        pts.sort_by_key(|p| p.tick);
+        GainEnvelope { points: pts }
+    };
+    match rng.below(5) {
+        0 | 1 if !audio.is_empty() => {
+            let c = audio[rng.below(audio.len() as u64) as usize];
+            let mut a = c.audio.clone().unwrap();
+            if rng.below(2) == 0 {
+                a.cross = match rng.below(4) {
+                    0 => None,
+                    k => Some(XfadeCurve::ALL[k as usize - 1]),
+                };
+            } else if rng.below(6) == 0 {
+                // Out of range: refused.
+                let mut e = random_env(rng);
+                e.points.push(GainPoint::new(Ticks(10), ENV_MAX_DB + 6.0));
+                a.gain_env = Some(Box::new(e));
+            } else {
+                a.gain_env = (rng.below(4) > 0).then(|| Box::new(random_env(rng)));
+            }
+            Command::SetClipAudio {
+                track: track.id,
+                clip: c.id,
+                audio: Some(a),
+            }
+        }
+        2 => {
+            // Two clips over each other, in one step (a paste over a clip).
+            let mut commands = Vec::new();
+            let src = match project.audio_pool.first() {
+                Some(s) => s.id,
+                None => {
+                    let id = AudioSourceId(project.alloc_id());
+                    commands.push(Command::InsertAudioSource {
+                        source: AudioSource {
+                            id,
+                            name: "take".into(),
+                            path: "take.wav".into(),
+                            sample_rate: 48_000,
+                            channels: 2,
+                            frames: 48_000 * 60,
+                            sha256: None,
+                            recorded: true,
+                        },
+                    });
+                    id
+                }
+            };
+            let at = Ticks::beats(rng.below(16) as i64);
+            let a = project.make_audio_clip("x", src, at, Ticks::beats(3));
+            let mut b = project.make_audio_clip(
+                "y",
+                src,
+                at + Ticks(1 + rng.below(3 * 960 - 1) as i64),
+                Ticks::beats(3),
+            );
+            b.offset = Ticks::beats(4);
+            if rng.below(3) == 0 {
+                b.audio.as_mut().unwrap().gain_env = Some(Box::new(random_env(rng)));
+            }
+            for c in [a, b] {
+                commands.push(Command::InsertClip {
+                    track: track.id,
+                    clip: Box::new(c),
+                });
+            }
+            Command::Batch {
+                label_key: "fuzz.overlap".into(),
+                commands,
+            }
+        }
+        3 => {
+            // A crossfade's length moved, where there is an overlap.
+            let pair = track.clips.iter().find_map(|r| {
+                let o = crossfade::overlap_into(&track, r.id)?;
+                Some((
+                    track.clip(o.left_last)?.clone(),
+                    track.clip(o.right_first)?.clone(),
+                ))
+            });
+            match pair {
+                Some((l, r)) => {
+                    let len = Ticks(1 + rng.below(4 * 960) as i64);
+                    let room = crossfade::room(project, &l, &r);
+                    Command::Batch {
+                        label_key: "cmd.clipfx.xfade_length".into(),
+                        commands: crossfade::resize(track.id, &l, &r, len, room)
+                            .unwrap_or_default(),
+                    }
+                }
+                None => Command::SetProjectName {
+                    name: "no overlap".into(),
+                },
+            }
+        }
+        _ => {
+            // A clip carrying an envelope out of order: refused.
+            let src = project
+                .audio_pool
+                .first()
+                .map_or(AudioSourceId(9_997), |s| s.id);
+            let mut c = project.make_audio_clip("bad", src, Ticks::ZERO, Ticks::beats(1));
+            c.audio.as_mut().unwrap().gain_env = Some(Box::new(GainEnvelope {
+                points: vec![GainPoint::new(Ticks(9), 0.0), GainPoint::new(Ticks(1), 0.0)],
+            }));
+            Command::InsertClip {
+                track: track.id,
+                clip: Box::new(c),
+            }
+        }
+    }
+}
+
+/// Round 31 (ADR 0070): sequences of the editing arm and clip moves, every other one on a
+/// bus whose automatic crossfades are on — each step undone back to where it began and
+/// redone to where it ended, the crossfades an edit made going and coming with it; the bus
+/// crosses overlaps by itself, envelopes are both applied and refused.
+#[test]
+fn editing_sequences_undo_and_redo_whole() {
+    let mut auto_crossed = 0usize;
+    let mut envs = [0usize; 2];
+    for seed in 1..=60u64 {
+        let mut rng = Lcg(seed.wrapping_mul(31).wrapping_add(7));
+        let mut bus = CommandBus::default();
+        if seed % 2 == 0 {
+            bus.set_auto_crossfades(Some(cantus_core::crossfade::XfadeCurve::EqualPower));
+        }
+        let mut p = bus.project().clone();
+        let t = p.make_track("Edit");
+        while bus.project().next_id < p.next_id {
+            bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+        }
+        bus.execute(
+            Command::InsertTrack {
+                index: 0,
+                track: Box::new(t),
+            },
+            Origin::User,
+        )
+        .unwrap();
+        let snap = |b: &CommandBus| {
+            let mut s = b.project().clone();
+            s.next_id = 0;
+            s
+        };
+        let crossed = |p: &Project| {
+            p.tracks
+                .iter()
+                .flat_map(|t| t.clips.iter())
+                .filter(|c| c.audio.as_ref().is_some_and(|a| a.cross.is_some()))
+                .count()
+        };
+        let mut checkpoints = vec![snap(&bus)];
+        for _ in 0..80 {
+            let mut scratch = bus.project().clone();
+            let audio: Vec<(TrackId, ClipId, Ticks)> = scratch
+                .tracks
+                .iter()
+                .flat_map(|t| {
+                    t.clips
+                        .iter()
+                        .filter(|c| c.audio.is_some())
+                        .map(move |c| (t.id, c.id, c.length))
+                })
+                .collect();
+            let cmd = if !audio.is_empty() && rng.below(3) == 0 {
+                let (track, clip, length) = audio[rng.below(audio.len() as u64) as usize];
+                Command::SetClipBounds {
+                    track,
+                    clip,
+                    start: Ticks(rng.below(16 * 960) as i64),
+                    length,
+                }
+            } else {
+                round31_editing_command(&mut rng, &mut scratch)
+            };
+            while bus.project().next_id < scratch.next_id {
+                bus.new_note(Ticks::ZERO, Ticks::QUARTER, 60, 100);
+            }
+            let env_cmd = matches!(
+                &cmd,
+                Command::SetClipAudio { audio: Some(a), .. } if a.gain_env.is_some()
+            ) || matches!(&cmd, Command::InsertClip { clip, .. }
+                if clip.audio.as_ref().is_some_and(|a| a.gain_env.is_some()));
+            let before = crossed(bus.project());
+            let auto = bus.auto_crossfades().is_some() && cantus_core::crossfade::may_overlap(&cmd);
+            let result = bus.execute(cmd, Origin::User);
+            if env_cmd {
+                envs[usize::from(result.is_err())] += 1;
+            }
+            if result.is_ok() {
+                if auto && crossed(bus.project()) > before {
+                    auto_crossed += 1;
+                }
+                checkpoints.push(snap(&bus));
+            }
+        }
+        for i in (1..checkpoints.len()).rev() {
+            assert!(bus.undo().is_some(), "seed {seed}: undo {i}");
+            assert_eq!(
+                snap(&bus),
+                checkpoints[i - 1],
+                "seed {seed}: undo to {}",
+                i - 1
+            );
+        }
+        for (i, cp) in checkpoints.iter().enumerate().skip(1) {
+            assert!(bus.redo().is_some(), "seed {seed}: redo {i}");
+            assert_eq!(&snap(&bus), cp, "seed {seed}: redo to {i}");
+        }
+    }
+    assert!(
+        auto_crossed > 0,
+        "the bus never crossed an overlap by itself"
+    );
+    assert!(
+        envs.iter().all(|n| *n > 0),
+        "gain envelopes never applied and refused: {envs:?}"
+    );
 }

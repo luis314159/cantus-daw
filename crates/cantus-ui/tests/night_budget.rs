@@ -67,7 +67,7 @@ struct Rig {
 
 impl Rig {
     fn new(t: Tokens) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);

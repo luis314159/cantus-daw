@@ -671,7 +671,7 @@ fn demo_at_origin(view: View) -> (cantus_ui::CantusApp, TrackId) {
 
 #[test]
 fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
-    use cantus_ui::i18n::{set_locale, Locale};
+    use cantus_ui::i18n::{set_thread_locale, Locale};
     for (locale, k) in [
         (Locale::En, 1.0),
         (Locale::En, 0.75),
@@ -682,7 +682,7 @@ fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
         for view in [View::Play, View::Edit] {
             let (mut a, track) = demo_at_origin(view);
             let c = ctx();
-            set_locale(locale);
+            set_thread_locale(locale);
             cantus_ui::theme::apply(&cantus_ui::theme::slate(), &c);
             cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&c, k);
             let size = cantus_ui::kit::shell::INSTRUMENT * k + egui::vec2(40.0, 40.0);
@@ -702,7 +702,7 @@ fn every_word_fits_its_box_at_three_quarters_double_size_and_in_spanish() {
                 area,
                 &format!("{locale:?} {view:?} at {k}"),
             );
-            set_locale(Locale::En);
+            set_thread_locale(Locale::En);
         }
     }
 }

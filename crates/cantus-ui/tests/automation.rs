@@ -8,7 +8,7 @@ use cantus_ui::views::arrangement::autolanes;
 use cantus_ui::{starter_project, views, CantusApp};
 
 fn app(project: Project) -> CantusApp {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     CantusApp::from_parts(Some(project), EngineHandle::dummy(), false)
 }
 

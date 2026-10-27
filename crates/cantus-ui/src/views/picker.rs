@@ -59,6 +59,10 @@ pub struct PickerView {
     pub panel: super::picker_panel::Panel,
     /// A plug-in scan is running (the empty CLAP/VST3 shelves say so; round 30).
     pub scanning: bool,
+    /// The user's track templates the catalogue offers, and the workflow's count of their
+    /// changes they were read at (round 31, ADR 0072).
+    pub track_templates: Vec<crate::templates::TrackTemplate>,
+    pub templates_seen: Option<u64>,
 }
 
 impl PickerView {
@@ -90,10 +94,20 @@ impl PickerView {
                 .map(|p| (p.format, p.id.as_str(), p.name.as_str(), p.vendor.as_str()))
                 .collect::<Vec<_>>(),
             sounds.iter().map(|s| s.key()).collect::<Vec<_>>(),
+            self.track_templates
+                .iter()
+                .map(|t| t.path.as_path())
+                .collect::<Vec<_>>(),
+            // A template saved over under its name is the same path: the workflow's count
+            // of changes tells it (review 10).
+            self.templates_seen,
         ));
         let stamp = (crate::i18n::locale().code(), h);
         if self.stamp != Some(stamp) {
             self.catalog = catalog::build_with(plugins, sounds);
+            let first = self.catalog.len();
+            self.catalog
+                .extend(catalog::track_templates(first, &self.track_templates));
             self.stamp = Some(stamp);
         }
     }

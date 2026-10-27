@@ -116,7 +116,7 @@ fn a_failed_save_says_so_in_both_languages_and_keeps_the_project_dirty() {
     ] {
         let dir = tempfile::tempdir().unwrap();
         let mut a = app(dir.path(), song());
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         rename(&mut a, "Precious");
         let blocked = dir.path().join("Blocked");
         fs::write(&blocked, b"a file where a folder should be").unwrap();
@@ -130,7 +130,7 @@ fn a_failed_save_says_so_in_both_languages_and_keeps_the_project_dirty() {
         assert!(a.bus.is_dirty());
         assert_eq!(a.path, None, "not pointed at a file it could not write");
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]

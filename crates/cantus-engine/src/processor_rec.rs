@@ -391,6 +391,13 @@ pub(super) fn add_clips(
             })
         };
         let (xin, xout) = (stretch(c.xin), stretch(c.xout));
+        // The clip's gain envelope (ADR 0070), read from this segment's first sample.
+        let at = |t: f64| sample_of(t, transport);
+        let mut env = c.gain_env.as_deref().map(|e| {
+            let origin = (c.start.0 - c.offset.0) as f64;
+            let mirror = c.reverse.then_some((start, end));
+            crate::clip_env::EnvRead::new(e, origin, mirror, from, &at)
+        });
         for s in from..to {
             let j = s - start;
             let src = if c.reverse {
@@ -424,17 +431,22 @@ pub(super) fn add_clips(
                 }
             }
             let mut g = gain;
+            // A seam's or an overlap's crossfade (ADR 0058, 0070): equal power is the
+            // seam's `sin`/`cos` to the bit.
             if let Some((a, n)) = xin {
                 if s < a + n {
                     let u = ((s - a).max(0) as f32 + 0.5) / n as f32;
-                    g *= cantus_dsp::math::sin(std::f32::consts::FRAC_PI_2 * u);
+                    g *= c.xin_curve.gain_in(u);
                 }
             }
             if let Some((a, n)) = xout {
                 if s >= a {
                     let u = ((s - a) as f32 + 0.5) / n as f32;
-                    g *= cantus_dsp::math::cos(std::f32::consts::FRAC_PI_2 * u.min(1.0));
+                    g *= c.xout_curve.gain_out(u);
                 }
+            }
+            if let Some(e) = env.as_mut() {
+                g *= e.gain(s, &at);
             }
             if faded {
                 if j < fade_in {

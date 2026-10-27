@@ -24,6 +24,8 @@ fn every_native_effect_editor_offers_learn_on_every_control() {
     for kind in EffectKind::ALL {
         let mut a = app(cantus_ui::starter_project());
         let s0 = a.project().tracks[0].strip.unwrap();
+        // The unit at its defaults: a neutral insert (ADR 0071).
+        a.settings.insert_neutral = true;
         a.add_effect(s0, kind);
         let fx = a
             .project()
@@ -183,6 +185,8 @@ fn every_stepped_parameter_is_drawn_with_its_offer() {
     for kind in EffectKind::ALL.into_iter().filter(|k| k.has_editor()) {
         let mut a = app(cantus_ui::starter_project());
         let s0 = a.project().tracks[0].strip.unwrap();
+        // The unit at its defaults: a neutral insert (ADR 0071).
+        a.settings.insert_neutral = true;
         a.add_effect(s0, kind);
         let fx = a
             .project()

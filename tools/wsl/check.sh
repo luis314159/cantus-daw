@@ -42,8 +42,12 @@ cd "$ci" || exit 1
 git fetch -q "$src" "$ref" && git checkout -q --force FETCH_HEAD || exit 1
 git log --oneline -1
 if [ "$what" = "test" ]; then
-  cargo test --workspace --no-fail-fast 2>&1 | grep -E "^test result|panicked|^error|FAILED" | tail -60
-  echo "TEST EXIT ${PIPESTATUS[0]}"
+  cargo test --workspace --no-fail-fast 2>&1 | grep -E "^test result|panicked|^error|FAILED" > "$ci/test-results.txt"
+  code=${PIPESTATUS[0]}
+  tail -60 "$ci/test-results.txt"
+  # The totals STATUS records, summed over every test binary.
+  awk '/^test result/ { p += $4; f += $6; i += $8 } END { print "TOTAL passed", p, "failed", f, "ignored", i }' "$ci/test-results.txt"
+  echo "TEST EXIT $code"
 else
   cargo clippy --workspace --all-targets --keep-going 2>&1 | grep -E "^(error|warning)|-->" | head -120
   echo "CLIPPY EXIT ${PIPESTATUS[0]}"

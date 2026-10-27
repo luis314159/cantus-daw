@@ -84,6 +84,10 @@ pub struct Clipboard {
     /// The audio clips' files, with **absolute** paths, so another project can find them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sources: Vec<AudioSource>,
+    /// The pooled grooves the copied clips play (ADR 0069), so a paste elsewhere finds
+    /// or brings them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub grooves: Vec<crate::groove::Groove>,
     pub payload: Payload,
 }
 
@@ -93,7 +97,13 @@ pub struct Clipboard {
 pub enum Payload {
     /// Notes in content ticks, relative to the copy's origin (the earliest selected note,
     /// or the clip's left edge when the whole clip was copied).
-    Notes { notes: Vec<Note> },
+    Notes {
+        notes: Vec<Note>,
+        /// The controller lanes over the copied stretch (ADR 0068), relative to the same
+        /// origin: what a paste writes with the notes.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        lanes: Vec<crate::clip_lanes::ClipLane>,
+    },
     /// Clips with their starts relative to the earliest (or to the time selection's start)
     /// and their rows relative to the topmost track.
     Clips {
@@ -150,6 +160,7 @@ impl Clipboard {
             tempo_points: project.tempo_points.clone(),
             at: Ticks::ZERO,
             sources: Vec::new(),
+            grooves: played_grooves(project, &payload),
             payload,
         }
     }
@@ -174,7 +185,7 @@ impl Clipboard {
     /// How many notes or clips it holds.
     pub fn len(&self) -> usize {
         match &self.payload {
-            Payload::Notes { notes } => notes.len(),
+            Payload::Notes { notes, .. } => notes.len(),
             Payload::Clips { rows, .. } => rows.len(),
         }
     }
@@ -211,7 +222,10 @@ pub fn copy_notes(notes: &[Note], origin: Ticks) -> Payload {
         })
         .collect();
     notes.sort_by_key(|n| (n.start, n.pitch, n.id.0));
-    Payload::Notes { notes }
+    Payload::Notes {
+        notes,
+        lanes: Vec::new(),
+    }
 }
 
 /// Where a copy of the clips `sel` starts on the timeline (the earliest clip's start): what
@@ -392,6 +406,9 @@ pub fn notes_clip(name: &str, notes: &[Note], at: Ticks, bar: Ticks, ids: Ids) -
         automation: None,
         link: None,
         comp: false,
+        lanes: Vec::new(),
+        groove: None,
+        skip_note_fx: false,
     }
 }
 
@@ -488,6 +505,8 @@ pub fn paste_clips(
         None
     };
     let mut inserted: Vec<AudioSourceId> = Vec::new();
+    // The pooled grooves brought along so far: (the board's id, the id it has here).
+    let mut grooves: Vec<(crate::groove::GrooveId, crate::groove::GrooveId)> = Vec::new();
     for (r, laid) in rows.iter().zip(laid) {
         let track = if r.clip.automation.is_some() {
             if same_origin && project.track(r.track).is_some() {
@@ -546,11 +565,18 @@ pub fn paste_clips(
                 let s = |t: Ticks| Ticks((t.0 as f64 * k).round() as i64);
                 a.fade_in = s(a.fade_in);
                 a.fade_out = s(a.fade_out);
+                // The gain envelope's content ticks scale with the content (ADR 0070).
+                if let Some(e) = a.gain_env.as_mut() {
+                    for p in &mut e.points {
+                        p.tick = s(p.tick);
+                    }
+                }
                 copy.offset = s(copy.offset);
                 copy.length = s(copy.length).max(Ticks(1));
             }
         }
         // Where it lands in its file: (fades in, out, fine offset) a free copy takes.
+        let placed_from = (board.at + r.clip.start, copy.offset);
         let mut region = None;
         if let (Some(l), true) = (laid, plays.is_some()) {
             copy.offset = l.offset;
@@ -569,6 +595,18 @@ pub fn paste_clips(
                 region = Some((m.fade_in, m.fade_out, m.slip_frames));
             }
         }
+        // Its groove (ADR 0069): the pool's, found or brought along (review: a dangling or
+        // another project's groove id never comes in).
+        copy.groove = pooled_groove(project, board, same_origin, copy.groove, &mut grooves, ids)
+            .map(|(g, insert)| {
+                if let Some(new) = insert {
+                    out.commands.push(Command::InsertGroove {
+                        index: project.grooves.len() + grooves_added(&out.commands),
+                        groove: Box::new(new),
+                    });
+                }
+                g
+            });
         let group = if linked && same_origin {
             link_target(project, r, &copy)
         } else {
@@ -583,6 +621,18 @@ pub fn paste_clips(
             a.fade_in = fade_in;
             a.fade_out = fade_out;
             a.slip_frames = slip;
+            // Its gain envelope on the seconds of audio it marked (ADR 0070 review 1).
+            if let Some(e) = a.gain_env.as_mut() {
+                **e = crate::audio_time::remap_env(
+                    e,
+                    &src_map,
+                    placed_from.0,
+                    placed_from.1,
+                    &dst_map,
+                    copy.start,
+                    copy.offset,
+                );
+            }
         }
         match group {
             Some(Target::Clip(t, c, l)) => {
@@ -610,6 +660,79 @@ pub fn paste_clips(
         });
     }
     out
+}
+
+/// The pool's grooves the clips of `payload` play, each once.
+fn played_grooves(project: &Project, payload: &Payload) -> Vec<crate::groove::Groove> {
+    let mut out: Vec<crate::groove::Groove> = Vec::new();
+    if let Payload::Clips { rows, .. } = payload {
+        for r in rows {
+            if let Some(crate::groove::GrooveSource::Pool { id }) = r.clip.groove.map(|g| g.source)
+            {
+                if let Some(g) = project.grooves.iter().find(|g| g.id == id) {
+                    if !out.iter().any(|x| x.id == id) {
+                        out.push(g.clone());
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+/// How many grooves the commands so far bring into the pool.
+fn grooves_added(commands: &[Command]) -> usize {
+    commands
+        .iter()
+        .filter(|c| matches!(c, Command::InsertGroove { .. }))
+        .count()
+}
+
+/// A pasted clip's groove as the project it lands in can hold it (ADR 0069): a built-in
+/// swing as it is; a pooled one by its id when the pool has that very groove (the same
+/// copy, or another project's equal one), else brought along under a fresh id (`Some` new
+/// groove to insert), else — a groove the board does not carry and the pool lacks — none.
+fn pooled_groove(
+    project: &Project,
+    board: &Clipboard,
+    same_origin: bool,
+    groove: Option<crate::groove::ClipGroove>,
+    brought: &mut Vec<(crate::groove::GrooveId, crate::groove::GrooveId)>,
+    ids: Ids,
+) -> Option<(crate::groove::ClipGroove, Option<crate::groove::Groove>)> {
+    use crate::groove::{GrooveId, GrooveSource};
+    let g = groove?;
+    let GrooveSource::Pool { id } = g.source else {
+        return Some((g, None));
+    };
+    let with = |to: GrooveId| crate::groove::ClipGroove {
+        source: GrooveSource::Pool { id: to },
+        ..g
+    };
+    if let Some((_, to)) = brought.iter().find(|(from, _)| *from == id) {
+        return Some((with(*to), None));
+    }
+    let here = project.grooves.iter().find(|x| x.id == id);
+    let carried = board.grooves.iter().find(|x| x.id == id);
+    let same_feel = |a: &crate::groove::Groove, b: &crate::groove::Groove| {
+        a.period == b.period && a.points == b.points
+    };
+    match (here, carried) {
+        (Some(_), None) if same_origin => Some((g, None)),
+        (Some(h), Some(c)) if same_feel(h, c) => Some((g, None)),
+        (_, Some(c)) => {
+            if let Some(eq) = project.grooves.iter().find(|x| same_feel(x, c)) {
+                brought.push((id, eq.id));
+                return Some((with(eq.id), None));
+            }
+            let new = crate::groove::Groove {
+                id: GrooveId(ids()),
+                ..c.clone()
+            };
+            brought.push((id, new.id));
+            Some((with(new.id), Some(new)))
+        }
+        _ => None,
+    }
 }
 
 /// What a linked paste joins.
@@ -677,6 +800,11 @@ pub fn split(
         link: clip.link,
         // Both halves of a comp window are the comp's (ADR 0058, schema 32).
         comp: clip.comp,
+        // The same content through another window (ADR 0068).
+        lanes: clip.lanes.clone(),
+        // Content (ADR 0069): both halves play with the clip's groove and past its chain.
+        groove: clip.groove,
+        skip_note_fx: clip.skip_note_fx,
     };
     let audio = split_audio(project, track, clip, at, &mut right);
     // A linked clip's halves stay in its group — they show the same content through two
@@ -745,6 +873,10 @@ pub fn split_audio(
         // The cut is no comp seam: the window's own crossfade stays on the left half, at
         // the seam it was set for (integration review).
         r.xfade = Ticks::ZERO;
+        // Nor is it an overlap: the right half starts where the left ends (ADR 0070), and
+        // a crossfade the window had stays on the left half, at the overlap it was for.
+        // The gain envelope, in content time, goes on both halves as it is.
+        r.cross = None;
     }
     let left_len = at - clip.start;
     if a.reverse {
@@ -978,6 +1110,8 @@ pub fn loop_pieces(clip: &Clip, a: Ticks, b: Ticks, ids: Ids) -> Vec<Clip> {
         out.offset = Ticks::ZERO;
         out.content_length = None;
         out.notes = notes;
+        // Its controllers as heard there, laid out with the notes (integrated review).
+        out.lanes = crate::clip_lanes::edit::heard(clip, a, b);
         // Other notes than the loop's: a clip of its own (ADR 0037).
         out.link = None;
         return vec![out];
@@ -1001,8 +1135,11 @@ pub fn loop_pieces(clip: &Clip, a: Ticks, b: Ticks, ids: Ids) -> Vec<Clip> {
 pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
     Clip {
         // A copy is no comp window: no seam crossfade (integration review).
+        // Nor does it carry the crossfade of an overlap it is not in (ADR 0070 review 1):
+        // laid over a clip, the bus crosses it when automatic crossfades are on.
         audio: clip.audio.clone().map(|a| crate::AudioRegion {
             xfade: Ticks::ZERO,
+            cross: None,
             ..a
         }),
         lane: clip.lane,
@@ -1010,6 +1147,8 @@ pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
         // A copy of its own is in no group (ADR 0037), and no comp window (ADR 0058).
         link: None,
         comp: false,
+        groove: clip.groove,
+        skip_note_fx: clip.skip_note_fx,
         id: ClipId(ids()),
         name: clip.name.clone(),
         start,
@@ -1026,5 +1165,41 @@ pub fn copy_of(clip: &Clip, start: Ticks, ids: Ids) -> Clip {
                 ..n.clone()
             })
             .collect(),
+        lanes: clip.lanes.clone(),
     }
+}
+
+/// [`copy_notes`] with the clip's controller lanes over `[origin, end)` (content ticks,
+/// ADR 0068), relative to the same origin: what copying notes carries with them.
+pub fn copy_notes_with_lanes(
+    notes: &[Note],
+    origin: Ticks,
+    end: Ticks,
+    lanes: &[crate::clip_lanes::ClipLane],
+) -> Payload {
+    let Payload::Notes { notes, .. } = copy_notes(notes, origin) else {
+        unreachable!("copy_notes makes notes")
+    };
+    Payload::Notes {
+        notes,
+        lanes: crate::clip_lanes::edit::spans(lanes, origin, end),
+    }
+}
+
+/// The lanes `clip` has once `lanes` (a payload's, relative) are pasted at content tick
+/// `at`; `None` when the payload carries none.
+pub fn paste_lanes(
+    track: TrackId,
+    clip: &Clip,
+    lanes: &[crate::clip_lanes::ClipLane],
+    at: Ticks,
+) -> Option<Command> {
+    if lanes.iter().all(|l| l.points.is_empty()) {
+        return None;
+    }
+    Some(Command::SetClipLanes {
+        track,
+        clip: clip.id,
+        lanes: crate::clip_lanes::edit::paste(&clip.lanes, lanes, at),
+    })
 }

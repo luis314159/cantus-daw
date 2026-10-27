@@ -608,9 +608,9 @@ fn a_kits_rows_read_in_the_interfaces_language() {
         let axis = cantus_ui::views::piano_roll::Axis::build(i, &clip);
         (0..axis.len()).map(|r| axis.name(r)).collect::<Vec<_>>()
     };
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let (kit, gm) = (names(&inst), names(&unnamed));
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert_eq!(kit[0], "Caja \u{b7} D2", "{kit:?}");
     assert_eq!(gm, ["Caja acústica"]);
     assert_eq!(names(&unnamed), ["Acoustic Snare"]);
@@ -633,7 +633,7 @@ fn kit_rows_follow_a_language_switch_in_the_rack_and_the_piano_roll() {
     p.tracks[0].instrument = InstrumentSpec::Native(unnamed);
     let track = p.tracks[0].id;
     let clip = p.tracks[0].clips.first().map(|c| c.id);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut a = support::app(p);
     a.selected_track = Some(track);
     a.selected_clip = clip;
@@ -648,12 +648,12 @@ fn kit_rows_follow_a_language_switch_in_the_rack_and_the_piano_roll() {
         if i == 1 && clip.is_none() {
             continue;
         }
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let en = support::paint(&ctx, egui::vec2(1400.0, 900.0), 2, |ui| view(&mut a, ui));
         assert!(en.contains("Acoustic Snare"), "view {i}: {en}");
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
         let es = support::paint(&ctx, egui::vec2(1400.0, 900.0), 2, |ui| view(&mut a, ui));
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         assert!(
             es.contains("Caja acústica"),
             "view {i} after the switch: {es}"

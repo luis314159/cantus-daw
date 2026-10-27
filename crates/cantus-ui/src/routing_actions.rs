@@ -232,7 +232,7 @@ impl CantusApp {
     }
 
     fn full_wet(&mut self, kind: EffectKind) -> EffectSlot {
-        let mut slot = self.bus.new_effect(kind);
+        let mut slot = self.new_insert(kind);
         slot.spec.set("mix", 1.0);
         slot
     }

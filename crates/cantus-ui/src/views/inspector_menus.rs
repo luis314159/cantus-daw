@@ -32,6 +32,8 @@ pub enum MenuId {
     ClipLink(TrackId, cantus_core::ClipId),
     /// Where a track's hosted instrument runs (round 29, ADR 0063).
     Hosting(TrackId),
+    /// How a track's automation is written (round 31, ADR 0068).
+    AutoMode(TrackId),
 }
 
 /// What a row of a list does.
@@ -67,6 +69,8 @@ enum Choice {
     /// review 4 of ADR 0062, #21).
     LearnSlot(u8),
     ForgetSlot,
+    /// A track's automation mode (round 31, ADR 0068).
+    AutoMode(cantus_core::AutoMode),
 }
 
 /// One row, owning its words until the list closes.
@@ -259,6 +263,16 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                 crate::views::plugin_notice::Target::Instrument(t),
             );
             hosting_rows(rows, &mut out);
+        }
+        MenuId::AutoMode(t) => {
+            let cur = p.track(t).map(|t| t.auto_mode);
+            for mode in cantus_core::AutoMode::ALL {
+                out.push(act(
+                    Label::Key(mode.label_key()),
+                    radio(cur == Some(mode)),
+                    Choice::AutoMode(mode),
+                ));
+            }
         }
         MenuId::Slot(strip, e) => {
             let Some(s) = p.effects_of(strip) else {
@@ -629,6 +643,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
             }
         }
         (MenuId::AddPad(t), Choice::AddPad(v)) => app.add_pad(t, v),
+        (MenuId::AutoMode(track), Choice::AutoMode(mode)) => {
+            app.exec(Command::SetTrackAutoMode { track, mode });
+        }
         (MenuId::ClipLink(t, c), Choice::Link(a)) => {
             // *Link to…* hangs from the row the menu hung from.
             let a = match a {

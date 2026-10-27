@@ -1,0 +1,154 @@
+# Area: note effects (arpeggiator, chords, scale), scale highlighting and snap, groove templates (round 31, midi; ADR 0069). Every key here needs its twin in notefx.es.txt.
+
+# The commands, as the undo menu names them.
+cmd.notefx.chain = Edit note effects
+cmd.notefx.param = Set note effect parameter
+cmd.notefx.key = Set key
+cmd.notefx.groove = Set clip groove
+cmd.notefx.skip = Play past note effects
+cmd.notefx.add_groove = Add groove
+cmd.notefx.remove_groove = Remove groove
+cmd.notefx.set_groove = Edit groove
+cmd.notefx.commit = Commit groove
+cmd.notefx.bake = Bake to notes
+
+# The kinds.
+notefx.kind.arp = Arpeggiator
+notefx.kind.chord = Chords
+notefx.kind.scale = Scale
+notefx.add = Add note effect
+
+# The inspector's section.
+notefx.band = Note effects
+notefx.empty = Add a note effect…
+notefx.collapse = Click to fold
+notefx.expand = Click to unfold
+notefx.earlier = Move earlier in the chain
+notefx.later = Move later in the chain
+notefx.on_off = On / off
+notefx.remove = Remove
+notefx.full = A track holds eight note effects at most
+notefx.on = On
+notefx.off = Off
+
+# The arpeggiator's orders.
+notefx.arp.up = Up
+notefx.arp.down = Down
+notefx.arp.up_down = Up-down
+notefx.arp.down_up = Down-up
+notefx.arp.played = As played
+notefx.arp.chord = Chord
+notefx.arp.random = Random
+
+# The parameters.
+notefx.p.mode = Order
+notefx.p.octaves = Octaves
+notefx.p.rate = Rate
+notefx.p.gate = Gate
+notefx.p.swing = Swing
+notefx.p.hold = Hold
+notefx.p.fixed = Fixed vel.
+notefx.p.velocity = Velocity
+notefx.p.seed = Seed
+notefx.p.shape = Chord
+notefx.p.inversion = Inversion
+notefx.p.spread = Voicing
+notefx.p.own_key = Own key
+notefx.p.root = Root
+notefx.p.scale = Scale
+notefx.p.scale_mode = Outside
+
+# Chords and voicings.
+notefx.chord.scale_triad = Triad of the key
+notefx.chord.scale_seventh = Seventh of the key
+notefx.spread.close = Close
+notefx.spread.open = Open
+notefx.spread.wide = Wide
+notefx.scale_mode.snap = Snap to nearest
+notefx.scale_mode.drop = Drop
+
+# The scales.
+notefx.scale.major = Major
+notefx.scale.minor = Minor
+notefx.scale.harmonic_minor = Harmonic minor
+notefx.scale.melodic_minor = Melodic minor
+notefx.scale.dorian = Dorian
+notefx.scale.phrygian = Phrygian
+notefx.scale.lydian = Lydian
+notefx.scale.mixolydian = Mixolydian
+notefx.scale.locrian = Locrian
+notefx.scale.major_pentatonic = Major pentatonic
+notefx.scale.minor_pentatonic = Minor pentatonic
+notefx.scale.blues = Blues
+notefx.scale.whole_tone = Whole tone
+notefx.scale.dim_hw = Diminished (half-whole)
+notefx.scale.dim_wh = Diminished (whole-half)
+notefx.scale.phrygian_dominant = Phrygian dominant
+notefx.scale.hungarian_minor = Hungarian minor
+notefx.scale.japanese = Japanese (In)
+notefx.scale.chromatic = Chromatic
+
+# The key, on the piano roll's toolbar.
+notefx.key = Key
+notefx.key.name = {root} {scale}
+notefx.key.none = No key
+notefx.key.root = Root
+notefx.key.scale = Scale
+notefx.key.tip = The song's key: the piano roll lights it and snaps to it, the note effects read it
+notefx.highlight = Scale
+notefx.highlight.tip = Light the key's rows and mark its root
+notefx.fold = Fold
+notefx.fold.tip = Show only the key's rows (and the rows the clip's notes are on)
+notefx.snap = In key
+notefx.snap.tip = Keep drawn, moved and transposed notes in the key
+
+# Grooves.
+notefx.groove.band = Groove
+notefx.groove = Groove
+notefx.groove.none = None
+notefx.groove.band8 = Swing, 8ths
+notefx.groove.band16 = Swing, 16ths
+notefx.groove.pool = The project's grooves
+notefx.groove.swing8 = Swing 8 · {pct} %
+notefx.groove.swing16 = Swing 16 · {pct} %
+notefx.groove.timing = Timing
+notefx.groove.velocity = Accents
+notefx.groove.length = Lengths
+notefx.groove.commit = Commit
+notefx.groove.commit.tip = Write the groove into the notes and take it off the clip
+notefx.groove.extract = Extract groove
+notefx.groove.extract.tip = Put this clip's feel into the project's grooves, a bar on a 16th grid
+notefx.groove.extract_audio = Extract groove
+notefx.groove.extract_audio.tip = Put the feel of this clip's transients into the project's grooves
+notefx.groove.from_audio = {name} (audio)
+notefx.groove.analysing = The clip's transients are still being found: try again in a moment
+notefx.groove.nothing = Nothing to take a groove from in this clip
+notefx.bake = Bake to notes
+notefx.bake.tip = Replace the clip with the notes its track's note effects play from it
+notefx.baked_name = {name} (baked)
+notefx.skip = Note effects
+notefx.skip.key = Bypass
+notefx.groove.rack_tip = The groove of every clip in this pattern
+
+# MIDI export: which notes the file holds.
+notefx.midi.band = Notes
+notefx.midi.played = As played
+notefx.midi.written = As written
+notefx.midi.played_hint = Each clip's groove applied and each track's note effects written out note by note: the file plays what you hear.
+notefx.midi.written_hint = The notes as the clips hold them: no groove, no arpeggio, chord or scale.
+notefx.groove.pool_empty = None yet: Extract groove takes one from a clip
+notefx.groove.commit_loop = This clip loops over a span that is not a whole number of the groove's lengths: each pass has another feel, so it cannot be written into one set of notes. Bake to notes writes every pass.
+notefx.groove.remove_band = Take out of the pool (unused)
+notefx.groove.name = Groove name
+
+# DAWproject export: what of note effects, grooves and the key the format cannot hold.
+interop.report.x_note_fx = The note effects of {track} (DAWproject has none): its clips are written as their notes, without the arpeggio, chords or scale — Bake to notes first to keep them
+interop.report.x_grooves = {n} clips' grooves (DAWproject has none): their notes are written straight — Commit the grooves first to keep them
+interop.report.x_grooves_one = One clip's groove (DAWproject has none): its notes are written straight — Commit the groove first to keep it
+interop.report.x_key = The song's key (on {root}) is not in DAWproject: set it again where the project opens
+notefx.glue_differs = Not glued: the clips play differently (one baked past the note effects, or with another groove). Bake or Commit them first so they agree.
+
+# The command palette.
+notefx.palette.kind = Note effect
+notefx.palette.add = Add {kind} to {track}
+notefx.palette.detail = Before the instrument, at the end of the track's note effects

@@ -322,6 +322,17 @@ impl CantusApp {
                 .unwrap_or(Ticks::ZERO);
             (selected, first)
         };
+        // The controllers under them come too (ADR 0068), when the lanes follow the notes.
+        let lanes_to = if self.selected_notes.is_empty() {
+            clip.offset + clip.period().unwrap_or(clip.length)
+        } else {
+            notes.iter().map(Note::end).max().unwrap_or(origin)
+        };
+        let lanes: &[cantus_core::ClipLane] = if self.piano_roll.lanes.follow {
+            &clip.lanes
+        } else {
+            &[]
+        };
         if notes.is_empty() {
             self.set_status(t("clipboard.status.nothing"));
             return None;
@@ -330,7 +341,7 @@ impl CantusApp {
         let board = Clipboard::new(
             self.clipboard_origin(),
             self.project(),
-            cb::copy_notes(&notes, origin),
+            cb::copy_notes_with_lanes(&notes, origin, lanes_to, lanes),
         );
         self.publish(board);
         let n = ids.len();
@@ -495,7 +506,9 @@ impl CantusApp {
             return;
         };
         match (self.focus, &board.payload) {
-            (EditFocus::PianoRoll, Payload::Notes { notes }) => self.paste_notes(notes),
+            (EditFocus::PianoRoll, Payload::Notes { notes, lanes }) => {
+                self.paste_notes(notes, lanes)
+            }
             (EditFocus::PianoRoll, Payload::Clips { .. }) => {
                 self.set_status(t("clipboard.status.clips_in_piano_roll"))
             }
@@ -507,7 +520,7 @@ impl CantusApp {
     /// Notes into the clip the piano roll is editing: at the time selection's start or the
     /// playhead when either is inside the clip, else at its left edge; snapped down to the
     /// grid when snap is on. The clip grows to hold them.
-    fn paste_notes(&mut self, notes: &[Note]) {
+    fn paste_notes(&mut self, notes: &[Note], lanes: &[cantus_core::ClipLane]) {
         let Some((track, clip)) = self.note_clip() else {
             self.set_status(t("clipboard.status.no_clip"));
             return;
@@ -533,6 +546,8 @@ impl CantusApp {
         };
         let (mut commands, made) =
             self.with_ids(|_, ids| cb::paste_notes(track, &clip, notes, at, ids));
+        // The controllers copied with them, written where they land (ADR 0068).
+        commands.extend(cb::paste_lanes(track, &clip, lanes, at));
         if commands.is_empty() {
             return;
         }
@@ -589,10 +604,12 @@ impl CantusApp {
                     self.set_status(tf("clipboard.status.automation_skipped", &[("n", &n)]));
                 }
             }
-            Payload::Notes { notes } => {
+            Payload::Notes { notes, lanes } => {
                 let bar = crate::views::bars::bar_len(self.project(), at);
                 let name = t("clip.new");
-                let clip = self.with_ids(|_, ids| cb::notes_clip(&name, notes, at, bar, ids));
+                let mut clip = self.with_ids(|_, ids| cb::notes_clip(&name, notes, at, bar, ids));
+                // The controllers copied with the notes (ADR 0068).
+                clip.lanes = cantus_core::clip_lanes::edit::paste(&[], lanes, Ticks::ZERO);
                 let made = vec![(track, clip.id)];
                 self.exec_clip_batch(
                     "cmd.paste_clips",

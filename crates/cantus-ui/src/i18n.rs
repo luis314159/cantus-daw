@@ -117,6 +117,10 @@ impl Locale {
                 include_str!("../locales/areas/isolation.en.txt"),
                 include_str!("../locales/areas/freeze.en.txt"),
                 include_str!("../locales/areas/macos.en.txt"),
+                include_str!("../locales/areas/automodes.en.txt"),
+                include_str!("../locales/areas/notefx.en.txt"),
+                include_str!("../locales/areas/clipfx.en.txt"),
+                include_str!("../locales/areas/workflow.en.txt"),
             ],
             Locale::Es => &[
                 include_str!("../locales/es.txt"),
@@ -200,6 +204,10 @@ impl Locale {
                 include_str!("../locales/areas/isolation.es.txt"),
                 include_str!("../locales/areas/freeze.es.txt"),
                 include_str!("../locales/areas/macos.es.txt"),
+                include_str!("../locales/areas/automodes.es.txt"),
+                include_str!("../locales/areas/notefx.es.txt"),
+                include_str!("../locales/areas/clipfx.es.txt"),
+                include_str!("../locales/areas/workflow.es.txt"),
             ],
         }
     }
@@ -269,9 +277,20 @@ pub fn locale() -> Locale {
         .unwrap_or_else(|| *current().read().unwrap())
 }
 
-/// Change the interface language: for the process, and for this thread.
+/// Change the interface language: for the process, and for this thread. The
+/// application's (its boot and *Settings*): the threads that never chose — the workers it
+/// starts — speak it. A test or a tool that wants a language for itself uses
+/// [`set_thread_locale`]: written from one test, the process's language is what every other
+/// test running beside it reads where it never chose one (round 31: a test switching to
+/// Spanish for a moment made another test's English report line come out Spanish).
 pub fn set_locale(locale: Locale) {
     *current().write().unwrap() = locale;
+    THIS_THREAD.with(|l| l.set(Some(locale)));
+}
+
+/// Choose this thread's language, and only this thread's: what tests do (each test runs on
+/// a thread of its own, the language it asks for never reaching another).
+pub fn set_thread_locale(locale: Locale) {
     THIS_THREAD.with(|l| l.set(Some(locale)));
 }
 
@@ -366,7 +385,7 @@ mod tests {
 
     #[test]
     fn placeholders_substitute() {
-        set_locale(Locale::En);
+        set_thread_locale(Locale::En);
         assert_eq!(tf("track.new_name", &[("n", &3)]), "Track 3");
         assert_eq!(t("nonexistent.key"), "nonexistent.key");
     }

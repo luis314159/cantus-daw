@@ -689,6 +689,7 @@ impl CantusApp {
             // The learn mode (the top bar's MIDI lamp) and every area the View menu checks
             // (review 3, #48).
             Action::MidiLearnMode => self.controllers.learn_mode,
+            Action::ToggleAutomationArm => self.auto_armed(),
             a => match crate::views::transport::menus::pane_of(a) {
                 Some(pane) => self.workspace.contains(pane),
                 None => match a {
@@ -717,7 +718,7 @@ impl CantusApp {
     /// Whether a pass is recording `target`'s automation (a controller or the mouse moved
     /// it during the pass): it then follows what moves it, not its clip.
     pub fn latched(&self, target: &AutoTarget) -> bool {
-        self.recording_latches() && self.modulators.rec.points.contains_key(target)
+        self.writing_target(target)
     }
 
     /// Whether a recording pass latches what it records now: not before the pass (a
@@ -758,7 +759,9 @@ impl CantusApp {
         let MappingTarget::Param(a) = target else {
             return;
         };
-        if self.rec.pass.is_none() || !self.project().recording.record_automation {
+        // Any pass that writes (ADR 0068): a recording one, or an armed Write, Touch or
+        // Latch — the track's mode decides in `write_value`.
+        if !self.automation.write.writing() {
             return;
         }
         let now = self.engine.position().0;
@@ -976,22 +979,12 @@ impl CantusApp {
         self.controllers.published = Some((rev, sig, self.controllers.global.clone(), names));
     }
 
-    /// While a pass records automation, a parameter it has recorded follows what moves it,
-    /// not its clip (ADR 0062 §3, Cubase's and Pro Tools' *latch*): its lane in the snapshot
-    /// holds the project's value — the controller's newest — until the pass ends and the
-    /// recorded clip takes over. Nothing changes outside a recording pass.
+    /// While a pass writes automation, a parameter it writes follows what moves it, not its
+    /// clip (ADR 0062 §3; ADR 0068: held, the hand; latched, its value; let go in Touch, the
+    /// glide back) until the pass ends and the written clip takes over. Nothing changes
+    /// outside a pass.
     pub fn latch_recorded(&self, snapshot: &mut std::sync::Arc<cantus_core::Snapshot>) {
-        if !self.recording_latches() || self.modulators.rec.points.is_empty() {
-            return;
-        }
-        let touched = |t: &AutoTarget| self.modulators.rec.points.contains_key(t);
-        if !snapshot.automation.iter().any(|l| touched(&l.target)) {
-            return;
-        }
-        let s = std::sync::Arc::make_mut(snapshot);
-        for lane in s.automation.iter_mut().filter(|l| touched(&l.target)) {
-            lane.segs.clear();
-        }
+        self.live_written_lanes(snapshot);
     }
 }
 

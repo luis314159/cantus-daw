@@ -124,6 +124,13 @@ pub enum Glyph {
     /// A hardware controller: a knob with its pointer beside a fader and its cap — MIDI
     /// learn, the mappings pane.
     Controller,
+    // --- the piano roll's lanes (round 31, ADR 0068) ---
+    /// A pencil drawing a line: a lane's freehand tool.
+    LanePencil,
+    /// A straight segment between two dots: a lane's line tool.
+    LaneLine,
+    /// A bent segment between two dots: a lane's curve tool.
+    LaneCurve,
 }
 
 /// Paint `g` centred in `rect` (its smaller side is the glyph's size).
@@ -396,6 +403,26 @@ fn workspace(b: &mut Brush, g: Glyph, c: Pos2, u: f32, w: f32, color: Color32) {
         Glyph::Zoom => {
             b.circle_stroke(p(-1.0, -1.0), 3.4 * u, w, color);
             b.segment(p(1.6, 1.6), p(4.6, 4.6), w * 1.3, color, true);
+        }
+        Glyph::LanePencil => {
+            // The pencil, slanted, its tip at the lower left, over a short stroke.
+            b.segment(p(-3.2, 3.2), p(3.4, -3.4), w * 1.6, color, true);
+            b.polygon(&[p(-4.8, 4.8), p(-3.9, 2.2), p(-2.2, 3.9)], color);
+            b.segment(p(-5.0, 5.2), p(1.0, 5.2), w * 0.7, color, true);
+        }
+        Glyph::LaneLine => {
+            b.segment(p(-4.4, 3.6), p(4.4, -3.6), w, color, true);
+            b.circle(p(-4.4, 3.6), 1.3 * u, Fill::Solid(color));
+            b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
+        }
+        Glyph::LaneCurve => {
+            let pts: [egui::Pos2; 9] = std::array::from_fn(|i| {
+                let k = i as f32 / 8.0;
+                p(-4.4 + 8.8 * k, 3.6 - 7.2 * k * k)
+            });
+            b.polyline(&pts, w, color);
+            b.circle(p(-4.4, 3.6), 1.3 * u, Fill::Solid(color));
+            b.circle(p(4.4, -3.6), 1.3 * u, Fill::Solid(color));
         }
         _ => window(b, g, c, u, w, color),
     }

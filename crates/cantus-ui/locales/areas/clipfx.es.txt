@@ -1,0 +1,55 @@
+# Área: crossfades entre clips que se solapan, envolventes de ganancia por clip, efectos que suenan al insertarlos (ronda 31, editing; ADRs 0070, 0071).
+
+# Los comandos, como los nombra el menú de deshacer.
+cmd.clipfx.crossfade = Fijar fundido cruzado
+cmd.clipfx.xfade_length = Fijar duración del fundido cruzado
+cmd.clipfx.reset_env = Restablecer envolvente de ganancia
+
+# Fundidos cruzados entre clips solapados (ADR 0070).
+clipfx.xfade = Fundido cruzado
+clipfx.summed = Sin fundido cruzado (sumados)
+clipfx.curve = Curva
+clipfx.curve.equal_power = Potencia constante
+clipfx.curve.linear = Lineal
+clipfx.curve.s_curve = Curva en S
+clipfx.length = Duración
+clipfx.menu.editor = Editor del fundido cruzado…
+clipfx.menu.crossfade = Fundir el solapamiento
+clipfx.menu.auto_crossfade = Fundidos cruzados automáticos
+clipfx.bounce_overlap = Los clips elegidos de {name} hacen un fundido cruzado con un clip que dejan fuera: elige los dos, un tramo de tiempo o la pista entera.
+
+# Envolventes de ganancia de clip (ADR 0070).
+clipfx.env = Envolvente de ganancia
+clipfx.env_point = Punto de la envolvente
+clipfx.env_bend = Curvatura de la envolvente
+clipfx.env_line = Envolvente de ganancia: arrastra para añadir un punto
+clipfx.menu.show_gain = Mostrar envolventes de ganancia
+clipfx.menu.reset_env = Restablecer envolvente de ganancia
+clipfx.menu.delete_point = Borrar punto
+
+# Ajustes ▸ Edición (ADR 0070, 0071).
+clipfx.settings.page_item = Ajustes de edición…
+clipfx.settings.page = Edición
+clipfx.settings.crossfades = Fundidos cruzados
+clipfx.settings.auto = Automáticos
+clipfx.settings.on = Sí
+clipfx.settings.off = No
+clipfx.settings.auto_note = Cuando una edición solapa dos clips de audio, el solapamiento se funde con esta curva. Potencia constante mantiene el nivel entre dos grabaciones distintas; lineal y en S van mejor con dos tomas de lo mismo.
+clipfx.settings.inserts = Efectos
+clipfx.settings.insert = Al insertar
+clipfx.settings.starting = Preset inicial
+clipfx.settings.neutral = Ajustes neutros
+clipfx.settings.insert_note = Un efecto nuevo carga un preset inicial musical para que se oiga enseguida (un chorus como Juno I, un flanger como Avión a reacción). Con ajustes neutros entra sin hacer nada hasta que lo subas. Los ecualizadores, limitadores y analizadores siempre empiezan neutros.
+
+# DAWproject (lo que su formato no sabe decir, dicho).
+clipfx.report.xfade_curve = Las curvas de los fundidos cruzados de {clip} (vuelven lineales)
+clipfx.report.env_shape = Los tramos curvos de la envolvente de ganancia de {clip} (vuelven rectos)
+
+# Los segmentos del editor del fundido cruzado (cortos).
+clipfx.seg.summed = Sumados
+clipfx.seg.equal_power = Pot. constante
+clipfx.seg.linear = Lineal
+clipfx.seg.s_curve = Curva en S
+
+# Al abrir un archivo dañado.
+clipfx.status.envs_repaired = Se repararon {n} envolvente(s) de ganancia de clip con puntos fuera de rango o de orden

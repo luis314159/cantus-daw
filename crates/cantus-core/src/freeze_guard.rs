@@ -100,6 +100,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetTrackHeight { .. }
         | SetTrackIcon { .. }
         | SetTrackAutomationOpen { .. }
+        // A mode changes what a pass writes, never what plays (ADR 0068).
+        | SetTrackAutoMode { .. }
+        | SetMasterAutoMode { .. }
         | SetTrackTakesOpen { .. }
         | SetTrackPitchOpen { .. } => vec![],
         SetTrackStrip { id, strip } => {
@@ -146,6 +149,15 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetInstrumentText { track, .. }
         | SetInstrumentPluginParam { track, .. }
         | SetInstrumentPluginState { track, .. } => vec![TrackSource(*track)],
+        // Round 31 (ADR 0069): the notes a track plays are its source.
+        SetTrackNoteFx { track, .. } | SetNoteFxParam { track, .. } => vec![TrackSource(*track)],
+        SetClipGroove { track, clip, .. } | SetClipSkipNoteFx { track, clip, .. } => {
+            clip_touches(project, *track, *clip)
+        }
+        // The key reaches every chain that reads it, a pooled groove every clip that plays
+        // it: applied, then the frozen keys checked. A groove added is played by nothing.
+        SetProjectKey { .. } | RemoveGroove { .. } | SetGroove { .. } => vec![Global],
+        InsertGroove { .. } => vec![],
         // Where a plug-in runs never changes its sound (ADR 0063).
         SetPluginIsolation { .. } | SetInstrumentIsolation { .. } => vec![],
         // ---- inserts ---------------------------------------------------------------------
@@ -188,7 +200,9 @@ pub fn touches(cmd: &Command, project: &Project) -> Vec<Touch> {
         | SetClipComp { track, clip, .. }
         | InsertNotes { track, clip, .. }
         | RemoveNotes { track, clip, .. }
-        | SetNotes { track, clip, .. } => clip_touches(project, *track, *clip),
+        | SetNotes { track, clip, .. }
+        // Controller lanes play into the frozen instrument (ADR 0068).
+        | SetClipLanes { track, clip, .. } => clip_touches(project, *track, *clip),
         SetClipContent {
             track,
             clip,
@@ -365,7 +379,8 @@ fn refused_by(project: &Project, locks: &Locks, touch: &Touch, depth: u8) -> Opt
                 }
                 AutoTarget::Instrument { track, .. }
                 | AutoTarget::Firmus { track, .. }
-                | AutoTarget::PluginInstrument { track, .. } => TrackSource(*track),
+                | AutoTarget::PluginInstrument { track, .. }
+                | AutoTarget::NoteFx { track, .. } => TrackSource(*track),
                 AutoTarget::MasterGain | AutoTarget::MasterPan | AutoTarget::MasterWidth => {
                     return None
                 }

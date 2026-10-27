@@ -370,10 +370,10 @@ fn the_presets_are_real() {
     assert!(presets.len() >= 5);
     for (label, params) in presets {
         for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {locale:?}");
         }
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         for (k, v) in params.iter() {
             let info = EffectKind::Gate
                 .param(k)

@@ -40,7 +40,7 @@ fn triad() -> Vec<Ev> {
 /// modulation route on it, Exemplar with nothing loaded (its placeholder sine), and
 /// Exemplar playing a built-in sound in a zone of its own.
 fn quiet_instruments() -> Project {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut s = Song::new("Quiet instruments", 120.0, 2);
     let mut moved = NativeSpec::new(InstrumentKind::ElectricPiano);
     moved.set("gain", -6.0).unwrap();

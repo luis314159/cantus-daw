@@ -22,7 +22,7 @@ devices.latency.round_trip = Ida y vuelta
 devices.latency.value = {ms} ms · {frames} muestras
 devices.latency.none = Sin funcionar
 devices.offset = Corrección de grabación
-devices.offset.cell = Corrección
+devices.offset.cell = Ajuste
 devices.offset.value = {frames} muestras · {ms} ms
 devices.offset.hint = Las tomas se adelantan la ida y vuelta más esta corrección.
 devices.measure = Medir
@@ -179,3 +179,5 @@ devices.auto_restarted = El controlador de audio dejó de responder; Cantus rein
 devices.state.stalled = No responde
 devices.state.starting = Iniciando…
 devices.chip.stalled = {name} · no responde
+# Sin dispositivo abierto (ronda 31: la línea de estado lo decía en inglés).
+devices.no_device = ningún dispositivo

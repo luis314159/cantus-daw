@@ -37,6 +37,8 @@ pub enum Source {
     Native,
     Clap,
     Vst3,
+    /// The user's track templates (round 31, ADR 0072).
+    Template,
 }
 
 impl Source {
@@ -45,6 +47,7 @@ impl Source {
             Source::Native => "picker.source.native",
             Source::Clap => "picker.source.clap",
             Source::Vst3 => "picker.source.vst3",
+            Source::Template => "picker.source.templates",
         }
     }
 
@@ -54,6 +57,7 @@ impl Source {
             Source::Native => None,
             Source::Clap => Some("CLAP"),
             Source::Vst3 => Some("VST3"),
+            Source::Template => None,
         }
     }
 }
@@ -665,6 +669,73 @@ pub fn build_with<'a>(
     out
 }
 
+/// A track template's key: its file.
+pub fn template_key(path: &std::path::Path) -> String {
+    format!("template:{}", path.display())
+}
+
+/// The shelves a track template is filed on: its instrument's (a native one's own shelf, a
+/// kit's Drums, Firmus's Synths, anything else the other instruments).
+fn template_shelves(track: Option<&cantus_core::Track>) -> Vec<Category> {
+    use cantus_core::InstrumentSpec as S;
+    let choice = match track.map(|t| &t.instrument) {
+        Some(S::Native(n)) => PickChoice::Instrument(n.kind),
+        Some(S::Pulsus(_)) => PickChoice::Pulsus,
+        Some(S::Firmus(_)) => PickChoice::Firmus,
+        _ => return vec![Category::OtherInstruments],
+    };
+    natives()
+        .into_iter()
+        .find(|(_, c, _)| *c == choice)
+        .map(|(_, _, cats)| cats)
+        .unwrap_or_else(|| vec![Category::OtherInstruments])
+}
+
+/// The user's track templates as devices (round 31, ADR 0072): on the *Track templates*
+/// shelf and their instrument's, found by their name and their instrument's.
+pub fn track_templates(first: usize, list: &[crate::templates::TrackTemplate]) -> Vec<Device> {
+    list.iter()
+        .enumerate()
+        .map(|(i, tpl)| {
+            let project = crate::templates::load_track_template(&tpl.path).ok();
+            let track = project.as_ref().and_then(|p| p.tracks.first());
+            let instrument = track
+                .map(crate::templates::instrument_word)
+                .unwrap_or_default();
+            let what = if instrument.is_empty() {
+                t("workflow.kind.track_template")
+            } else {
+                crate::i18n::tf(
+                    "workflow.template.track_what",
+                    &[("instrument", &instrument)],
+                )
+            };
+            let categories = template_shelves(track);
+            let mut hay = format!(
+                "{} {what} {instrument} template plantilla track pista",
+                tpl.name
+            );
+            for c in &categories {
+                hay.push(' ');
+                hay.push_str(&t(c.key()));
+            }
+            Device {
+                key: template_key(&tpl.path),
+                choice: PickChoice::TrackTemplate(tpl.path.clone()),
+                role: Role::Instrument,
+                source: Source::Template,
+                name: tpl.name.clone(),
+                what,
+                vendor: t("workflow.template.yours"),
+                categories,
+                slug: None,
+                order: (first + i) as u16,
+                haystack: fold(&hay),
+            }
+        })
+        .collect()
+}
+
 /// The stable key a device of `choice` has, to find it in a catalogue.
 pub fn key_of(choice: &PickChoice) -> Option<String> {
     match choice {
@@ -673,6 +744,7 @@ pub fn key_of(choice: &PickChoice) -> Option<String> {
             Format::Vst3 => format!("vst3:{}", info.id),
         }),
         PickChoice::Sound(s) => Some(s.0.key()),
+        PickChoice::TrackTemplate(p) => Some(template_key(p)),
         c => slug_of(c).map(|s| format!("cantus:{s}")),
     }
 }

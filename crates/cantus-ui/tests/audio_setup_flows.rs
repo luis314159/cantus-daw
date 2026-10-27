@@ -278,14 +278,14 @@ fn a_stalled_driver_is_restarted_once_and_never_called_disconnected() {
     assert_eq!(found[0].0, problems::Problem::Stalled { asio: true });
     assert_eq!(found[0].1, vec![problems::Fix::RestartAudio]);
     for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-        cantus_ui::i18n::set_locale(lang);
+        cantus_ui::i18n::set_thread_locale(lang);
         let text = found[0].0.text().to_lowercase();
         assert!(
             !text.contains("disconnected") && !text.contains("desconect"),
             "{text}"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     // The button restarts it.
     setup::fix(&mut a, &problems::Fix::RestartAudio);
     assert_eq!(a.audio_setup.applied.len(), before + 2);

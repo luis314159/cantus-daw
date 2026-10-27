@@ -20,6 +20,8 @@ pub struct NoteData {
     pub length: Ticks,
     pub pitch: u8,
     pub velocity: u8,
+    /// Its release velocity (`rel`, ADR 0068); 0 when the file gives none.
+    pub release: u8,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,6 +44,12 @@ pub struct ClipData {
     /// The timeline tick of the clip's content origin (where its content time 0 is): its
     /// warp points' natural line is measured from there.
     pub origin: f64,
+    /// An audio clip's gain envelope, from the gain expression beside its audio (round 31,
+    /// ADR 0070).
+    pub gain_env: Option<cantus_core::clip_gain::GainEnvelope>,
+    /// Its controller lanes (ADR 0068): the `Points` of a clip of lanes whose target is a
+    /// channel's bend, pressure or controller.
+    pub lanes: Vec<cantus_core::ClipLane>,
 }
 
 /// The note clips of every track, by the track's id.
@@ -266,6 +274,8 @@ fn walk(n: Node, ctx: &Ctx, map: &TempoMap, out: &mut Timeline, counts: &mut Cou
                     fades: (Ticks::ZERO, Ticks::ZERO),
                     slip: 0,
                     origin: 0.0,
+                    gain_env: None,
+                    lanes: Vec::new(),
                 });
             }
             "Points" => counts.automation += 1,
@@ -310,6 +320,10 @@ fn notes_of(n: Node, cx: &Ctx, map: &TempoMap, track: &str, counts: &mut Counts)
             length,
             pitch: key.clamp(0.0, 127.0) as u8,
             velocity,
+            release: attr_f64(note, "rel")
+                .filter(|v| v.is_finite())
+                .map(|v| (v * 127.0).round().clamp(0.0, 127.0) as u8)
+                .unwrap_or(0),
         });
     }
     notes
@@ -347,13 +361,55 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
     let content = clip.children().find(|c| c.is_element());
     let mut audio = None;
     let mut notes = Vec::new();
+    let mut gain_env = None;
+    // An audio clip's content as lanes (round 31, ADR 0070): its audio, and a gain
+    // expression beside it.
+    let laned_audio = content.filter(|c| c.has_tag_name("Lanes")).and_then(|c| {
+        c.children()
+            .find(|x| x.has_tag_name("Audio") || x.has_tag_name("Warps"))
+    });
+    let mut lanes: Vec<cantus_core::ClipLane> = Vec::new();
     match content.map(|c| (c, c.tag_name().name())) {
         Some((c, "Notes")) => notes = notes_of(c, &inner, map, &track, counts),
+        Some((c, "Lanes")) if laned_audio.is_some() => {
+            let origin = start_tl - offset.0 as f64;
+            let to_beats = |t: f64| (map.tick_after_seconds(origin, t) - origin) / PPQ as f64;
+            match laned_audio.and_then(|x| super::audio::read(x, &to_beats, content_seconds)) {
+                Some(d) => audio = Some(d),
+                None => {
+                    counts.audio += 1;
+                    return None;
+                }
+            }
+            for p in c.children().filter(|x| x.has_tag_name("Points")) {
+                let secs = p.attribute("timeUnit").map_or(
+                    c.attribute("timeUnit")
+                        .map_or(content_seconds, |u| u == "seconds"),
+                    |u| u == "seconds",
+                );
+                let to_ticks = |t: f64| {
+                    let b = if secs { to_beats(t) } else { t };
+                    Ticks((b * PPQ as f64).round() as i64)
+                };
+                match super::audio::read_gain(p, &to_ticks) {
+                    Some(e) if gain_env.is_none() => gain_env = Some(e),
+                    _ => counts.automation += 1,
+                }
+            }
+        }
         Some((c, "Lanes")) => {
             for part in c.descendants().filter(|d| d.has_tag_name("Notes")) {
                 notes.extend(notes_of(part, &inner, map, &track, counts));
             }
-            counts.automation += c.descendants().filter(|d| d.has_tag_name("Points")).count();
+            // A channel's bend, pressure and controllers are the clip's lanes (ADR 0068); any
+            // other points have nowhere to go and are counted.
+            for p in c.descendants().filter(|d| d.has_tag_name("Points")) {
+                match lane_of(p, &inner, map) {
+                    Some(l) if lanes.iter().all(|m| m.kind != l.kind) => lanes.push(l),
+                    _ => counts.automation += 1,
+                }
+            }
+            cantus_core::clip_lanes::sort_lanes(&mut lanes);
         }
         Some((c, "Clips")) => {
             // Clips inside a clip: note clips are flattened into this one, at their own
@@ -472,6 +528,8 @@ fn clip_of(clip: Node, cx: &Ctx, map: &TempoMap, counts: &mut Counts) -> Option<
         fades: (fade("fadeInTime", false), fade("fadeOutTime", true)),
         slip,
         origin: start_tl - offset.0 as f64,
+        gain_env,
+        lanes,
     })
 }
 
@@ -586,4 +644,45 @@ fn tempo_points(
         }
     }
     out
+}
+
+/// One `Points` of a clip of lanes as a controller lane (ADR 0068), when its target is a
+/// channel's `pitchBend`, `channelPressure` or `channelController` (0…119) in normalized
+/// values: its points in the clip's content ticks, `hold` as a step.
+fn lane_of(points: Node, cx: &Ctx, map: &TempoMap) -> Option<cantus_core::ClipLane> {
+    use cantus_core::{AutoPoint, LaneKind, Shape};
+    if attr(points, "unit").is_some_and(|u| u != "normalized") {
+        return None;
+    }
+    let target = points.children().find(|c| c.has_tag_name("Target"))?;
+    let kind = match attr(target, "expression")? {
+        "pitchBend" => LaneKind::PitchBend,
+        "channelPressure" => LaneKind::Pressure,
+        "channelController" => {
+            let n = attr_f64(target, "controller")?;
+            if !(0.0..=f64::from(cantus_core::clip_lanes::MAX_CC)).contains(&n) {
+                return None;
+            }
+            LaneKind::Cc(n as u8)
+        }
+        _ => return None,
+    };
+    let mut pts: Vec<AutoPoint> = Vec::new();
+    for p in points.children().filter(|x| x.has_tag_name("RealPoint")) {
+        let (Some(time), Some(value)) = (attr_f64(p, "time"), attr_f64(p, "value")) else {
+            continue;
+        };
+        let mut q = AutoPoint::new(
+            cx.at(map, time).max(Ticks::ZERO),
+            value.clamp(0.0, 1.0) as f32,
+        );
+        if attr(p, "interpolation") == Some("hold") {
+            q.shape = Shape::Hold;
+        }
+        pts.push(q);
+    }
+    if pts.is_empty() {
+        return None;
+    }
+    Some(cantus_core::ClipLane::new(kind, pts))
 }

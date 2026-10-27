@@ -32,7 +32,7 @@ struct Rig {
 
 impl Rig {
     fn desk(project: Project) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let app = CantusApp::from_parts(Some(project), EngineHandle::dummy(), false);
         Rig {
             ctx: ctx(),

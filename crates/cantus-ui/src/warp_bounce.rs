@@ -177,11 +177,21 @@ impl CantusApp {
                     sha256: None,
                     recorded: false,
                 };
+                // The gain envelope (ADR 0070) moves with the content: the new file starts
+                // where the window did, content tick 0.
+                let gain_env = a.gain_env.as_deref().map(|e| {
+                    let mut pts = e.within(c.offset, c.offset + c.length);
+                    for p in &mut pts {
+                        p.tick -= c.offset;
+                    }
+                    Box::new(cantus_core::clip_gain::GainEnvelope::new(pts))
+                });
                 let region = AudioRegion {
                     source: id,
                     slip_frames: 0,
                     pitch: None,
                     warp: None,
+                    gain_env,
                     ..a
                 };
                 // A linked copy is made unique first: its copies keep their own audio

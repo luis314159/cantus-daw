@@ -332,6 +332,36 @@ impl Processor {
                 if self.transport.samples_until(ev.tick.0 as f64) != 0 {
                     break;
                 }
+                // Through its note effects (ADR 0069), unless baked: what they sound at once
+                // is played and heard before the wrap lets everything go.
+                if s.fx_active() && !t.direct.get(s.next_event).copied().unwrap_or(false) {
+                    let base = self.clock + done as u64;
+                    let now = crate::notefx::play::now_at(&self.transport, base, 0);
+                    let input = (
+                        crate::notefx::play::at_event(now, ev),
+                        crate::notefx::play::msg_of(ev),
+                    );
+                    let listened = self.listened[slot];
+                    let mut full = 0u64;
+                    let lost = s.fx_play(
+                        now,
+                        Some(input),
+                        |_| false,
+                        ev.tick.0,
+                        |m| {
+                            let pushed = !listened
+                                || nodes.tracks[slot].outbox.try_borrow_mut().is_some_and(
+                                    |mut o| o.push(base, crate::notefx::play::fx_note(m)),
+                                );
+                            if !pushed {
+                                full += 1;
+                            }
+                        },
+                    );
+                    self.stats.dropped_events += lost + full;
+                    s.next_event += 1;
+                    continue;
+                }
                 // Frozen or resting, the instrument is not played (review 1: a note due at
                 // the loop's end went into it and its note-off never came).
                 if s.frozen.is_none() && !s.rest && !s.notes_only {

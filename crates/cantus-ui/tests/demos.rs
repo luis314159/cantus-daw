@@ -50,7 +50,7 @@ fn window(p: &Project, i: usize, bars: i64) -> (Ticks, Ticks) {
 
 /// Run `f` on every demo, the demos side by side on threads (a render is the slow part).
 fn each_demo(f: impl Fn(&Demo, &Project) + Sync) {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let built: Vec<(&Demo, Project)> = demos::ALL.iter().map(|d| (d, (d.build)())).collect();
     std::thread::scope(|scope| {
         let handles: Vec<_> = built
@@ -368,7 +368,7 @@ fn no_note_is_written_twice() {
 
 #[test]
 fn every_native_instrument_plays_in_some_demo() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut seen = Vec::new();
     let mut pulsus = false;
     for d in demos::ALL.iter() {
@@ -408,7 +408,7 @@ fn app(p: Project) -> cantus_ui::CantusApp {
 #[test]
 fn the_picker_opens_a_demo_and_asks_before_losing_work() {
     use cantus_ui::views::demos as picker;
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut a = app(cantus_ui::welcome_project());
     a.run_action(cantus_ui::keymap::Action::DemoSongs);
     assert!(a.demos.open, "the action shows the picker");
@@ -435,7 +435,7 @@ fn the_picker_opens_a_demo_and_asks_before_losing_work() {
 
 #[test]
 fn the_startup_project_is_a_full_session_that_loops() {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let p = demos::startup_project();
     assert!(p.loop_enabled, "it loops out of the box");
     let lp = p.loop_region.clone().unwrap();
@@ -480,7 +480,7 @@ fn the_startup_project_is_a_full_session_that_loops() {
 // ---- round 28's showcase: *With All Your Heart* -----------------------------------------
 
 fn heart() -> Project {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     (demos::find("heart")
         .expect("the showcase is in the list")
         .build)()
@@ -747,7 +747,7 @@ fn every_level_is_one_a_command_can_set() {
 #[test]
 fn the_picker_fits_a_small_screen_at_200_percent() {
     use cantus_ui::views::demos as picker;
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
@@ -765,7 +765,7 @@ fn the_picker_fits_a_small_screen_at_200_percent() {
     let rect = ctx
         .memory(|m| m.area_rect(picker::window_id()))
         .expect("the picker was drawn");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         screen.contains_rect(rect.shrink(0.5)),
         "the picker {rect:?} leaves the screen {screen:?}"

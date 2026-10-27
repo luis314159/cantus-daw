@@ -387,7 +387,7 @@ mod tests {
     use crate::kit::Tok;
 
     fn app() -> CantusApp {
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
         let mut a = CantusApp::from_parts(
             Some(crate::starter_project()),
             cantus_engine::EngineHandle::dummy(),

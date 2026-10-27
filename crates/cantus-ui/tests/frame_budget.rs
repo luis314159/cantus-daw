@@ -141,7 +141,7 @@ impl Rig {
     }
 
     fn with(project: Project, whole: bool, size: egui::Vec2) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
@@ -332,7 +332,9 @@ fn mixer64_window_stays_in_budget() {
     let (allocs, bytes, tris, draws, _) = summary("mixer64, whole window", &frames);
     assert!(allocs <= WINDOW_ALLOCS, "{allocs} allocations a frame");
     assert!(bytes <= WINDOW_BYTES, "{bytes} bytes a frame");
-    assert!(tris <= 120_000, "{tris} triangles");
+    // Round 31 (ADR 0068) added the top bar's automation arm, a mode badge on each header and
+    // the inspector's Automation row: 120 108 measured, against 120 000 before.
+    assert!(tris <= 121_000, "{tris} triangles");
     // The docked workspace (ADR 0024 §5) gives each pane, tab bar and splitter its own clip
     // region, and egui starts a new draw call per clip region: 73 measured with the dock
     // in, against 64 before it. 96 keeps the margin; the GPU cost is what matters, and it is
@@ -672,7 +674,7 @@ fn the_band_in_wide_with_every_look_costs_no_allocation() {
 fn the_hint_bar_costs_no_allocation() {
     use cantus_ui::kit::hint::{self, Caps};
     use std::fmt::Write as _;
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);
@@ -1051,7 +1053,7 @@ fn an_idle_frame_with_a_hosted_mapping_costs_no_allocation() {
 #[test]
 fn an_editors_idle_stepped_controls_cost_no_allocation() {
     use cantus_core::{EffectKind, InstrumentKind, InstrumentSpec, NativeSpec};
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let ctx = egui::Context::default();
     cantus_ui::design::install_fonts(&ctx);
     cantus_ui::design::install_style(&ctx);

@@ -15,7 +15,7 @@ static LANGUAGE: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn language() -> std::sync::MutexGuard<'static, ()> {
     let guard = LANGUAGE.lock().unwrap_or_else(|e| e.into_inner());
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     guard
 }
 
@@ -154,24 +154,24 @@ fn stems_are_named_as_the_desk_names_them() {
         names(interop::stem_specs(&p, true, false)),
         ["01 Lead.wav", "02 Bass.wav", "03 Pad.wav"]
     );
-    i18n::set_locale(Locale::Es);
+    i18n::set_thread_locale(Locale::Es);
     assert_eq!(
         names(interop::stem_specs(&p, false, true))[..2],
         ["00 Máster.wav", "00 Directo al máster.wav"]
     );
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
 }
 
 #[test]
 fn every_report_line_has_words_in_both_languages() {
     let _lang = language();
     for locale in Locale::ALL {
-        i18n::set_locale(locale);
+        i18n::set_thread_locale(locale);
         for key in cantus_project::report::KEYS {
             assert_ne!(i18n::t(key), *key, "{locale:?} has no words for {key}");
         }
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     let mut report = cantus_project::Report::default();
     report.dropped(
         "interop.report.d_plugin",
@@ -195,6 +195,7 @@ fn the_dialogs_and_the_report_render() {
     a.interop.midi_export = Some(interop::MidiExportDialog {
         scope: interop::MidiScope::Clip,
         ppq: 480,
+        played: true,
     });
     let imported = dawproject::import(&dawproject::export(&starter_project(), "0").bytes).unwrap();
     a.interop.report = Some(interop::ReportWindow {
@@ -210,7 +211,7 @@ fn the_dialogs_and_the_report_render() {
         ..Default::default()
     };
     for locale in Locale::ALL {
-        i18n::set_locale(locale);
+        i18n::set_thread_locale(locale);
         for _ in 0..2 {
             let mut out = ctx.run_ui(input.clone(), |ui| {
                 egui::Panel::top(egui::Id::new("t"))
@@ -221,7 +222,7 @@ fn the_dialogs_and_the_report_render() {
             out.textures_delta.clear();
         }
     }
-    i18n::set_locale(Locale::En);
+    i18n::set_thread_locale(Locale::En);
     // Nothing was clicked, so everything is still open.
     assert!(a.interop.midi_import.is_some() && a.interop.midi_export.is_some());
 }

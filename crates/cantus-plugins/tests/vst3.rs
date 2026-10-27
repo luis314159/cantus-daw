@@ -419,9 +419,16 @@ fn the_controller_speaks_the_tables() {
                 assert_eq!(info.id, p.id);
                 assert_eq!(info.stepCount, p.step_count());
                 let norm = info.defaultNormalizedValue;
+                // A fresh instance holds its starting preset's value (ADR 0071).
+                let start = match p.role {
+                    params::Role::Spec => p.clamp(f64::from(
+                        cantus_core::starting::starting_spec(kind).get(p.key),
+                    )),
+                    _ => p.default,
+                };
                 assert_eq!(
                     v.controller.getParamNormalized(p.id),
-                    norm,
+                    p.to_normalized(start),
                     "{kind:?} {}",
                     p.key
                 );

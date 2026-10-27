@@ -1093,6 +1093,8 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                 };
                 let mut hr = paint::header_rects(row_rect(row), s);
                 let rr = rec::layout(&mut hr, track, s);
+                // The automation mode's badge (round 31, ADR 0068): the name gives way to it.
+                let badge = autolanes::badge_layout(&mut hr, s);
                 let tint = scratch.tints.of(theme::track_color(track.color), s);
                 let grip = Rect::from_min_max(
                     pos2(hr.row.left(), hr.row.bottom() - DIVIDER_GRIP),
@@ -1123,6 +1125,9 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
                     letters,
                 });
                 rec::paint_header(b, a, track, &rr, tint, pointer, s);
+                if let Some(r) = badge {
+                    autolanes::paint_badge(b, a, track, r, pointer, s);
+                }
                 takes::paint_headers(b, a, track, row, clip, tint, s);
                 autolanes::paint_headers(b, a, i, track, row, clip, tint, s);
                 super::pitch_lane::paint_header(b, row, clip, tint.large, s);
@@ -1196,6 +1201,7 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
             .tracks
             .get(i)
             .map(|t| rec::layout(&mut hr, t, s));
+        let badge = autolanes::badge_layout(&mut hr, s);
         // The interactive area is shifted down by the grip: a row owns the divider *below*
         // it and not the one above, so a press exactly on the line goes to the row whose
         // height it changes. With the plain rect, both rows contained the line and the
@@ -1291,13 +1297,24 @@ fn headers(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeom
         }
         rename_in_place(app, ui, id, hr.name);
         super::device_chrome::chip_input(app, ui, hr.icon, id, s.k);
-        // A device dragged from the browsing panel onto the header swaps its instrument.
-        let swap = crate::picker::PickPurpose::ReplaceInstrument { track: id };
+        // A device dragged from the browsing panel onto the header swaps its instrument; a
+        // track template dropped there lands after the track (round 31, ADR 0072).
+        let template = |p: Option<std::sync::Arc<crate::picker::DevicePayload>>| {
+            p.is_some_and(|p| matches!(p.0, crate::picker::PickChoice::TrackTemplate(_)))
+        };
+        let swap = if template(resp.dnd_hover_payload()) || template(resp.dnd_release_payload()) {
+            crate::picker::PickPurpose::AddInstrument { index: Some(i + 1) }
+        } else {
+            crate::picker::PickPurpose::ReplaceInstrument { track: id }
+        };
         super::device_chrome::drop_target(app, ui, &resp, swap);
         if let Some(rr) = &rr {
             rec::header_input(app, ui, id, rr, s, clip);
         }
         takes::header_input(app, ui, id, row, clip, s);
+        if let Some(r) = badge {
+            super::auto_modes::badge_input(app, ui, id, r, clip);
+        }
         autolanes::header_input(app, ui, i, id, row, clip);
 
         let grip = Rect::from_min_max(
@@ -2177,10 +2194,7 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         let (r, handle) = (d.r, d.handle);
         audio::edit::hint(ui.ctx(), app, r, handle, true);
     } else if let Some((h, handle)) = hit.and_then(|h| h.handle.map(|x| (h, x))) {
-        ui.ctx().set_cursor_icon(match handle {
-            AudioHandle::Gain => egui::CursorIcon::ResizeVertical,
-            _ => egui::CursorIcon::ResizeHorizontal,
-        });
+        ui.ctx().set_cursor_icon(audio::edit::cursor(handle));
         audio::edit::hint(ui.ctx(), app, (h.track, h.clip), handle, false);
     } else if let Some(h) = hit {
         if app.arrangement.drag.is_none() {
@@ -2304,13 +2318,17 @@ fn timeline(app: &mut CantusApp, ui: &mut egui::Ui, f: &Frame, geo: &TimelineGeo
         .arrangement
         .menu_clip
         .filter(|(t, c)| app.project().track(*t).and_then(|t| t.clip(*c)).is_some());
+    let handle_menu = app.arrangement.audio.menu;
     egui::Popup::context_menu(&resp)
         .frame(chrome::menu_frame())
         .show(|ui| match (menu_target, fade_menu) {
             (Some(r), Some(fade)) => audio::edit::fade_menu(app, ui, r, fade),
+            // A crossfade's or an envelope's own menu (ADR 0070).
+            (Some(r), None) if audio::edit::handle_menu(app, ui, r, handle_menu) => {}
             (Some((track, clip)), None) => clip_menu(app, ui, track, clip),
             (None, _) => timeline_menu(app, ui, true),
         });
+    audio::edit::editor_window(app, ui.ctx());
 
     if resp.drag_started_by(PointerButton::Primary) {
         if let Some(pos) = press {
@@ -2612,6 +2630,9 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
         Entry::Separator,
         // Whether a paste, Duplicate or Alt-drag makes the same clip again (ADR 0037).
         Entry::Toggle("links.copies", app.settings.link_copies),
+        // Round 31 (ADR 0070): automatic crossfades, and the clips' gain envelopes shown.
+        Entry::Toggle("clipfx.menu.auto_crossfade", app.settings.auto_crossfade),
+        Entry::Toggle("clipfx.menu.show_gain", app.settings.show_clip_gain),
         Entry::Separator,
         Entry::Own(marker),
         Entry::Own(metre),
@@ -2633,18 +2654,27 @@ fn timeline_menu(app: &mut CantusApp, ui: &mut egui::Ui, at_pointer: bool) {
             app.toggle_link_copies();
             ui.close();
         }
+        Some(7) => {
+            let on = !app.settings.auto_crossfade;
+            app.set_auto_crossfade(on);
+            ui.close();
+        }
         Some(8) => {
+            app.toggle_clip_gain();
+            ui.close();
+        }
+        Some(10) => {
             if let Some(id) = app.add_marker(at) {
                 let name = app.project().marker(id).map(|m| m.name.clone());
                 markers::rename_now(app, id, name);
             }
             ui.close();
         }
-        Some(9) => {
+        Some(11) => {
             tempo::add_metre_change(app, at);
             ui.close();
         }
-        Some(10) => {
+        Some(12) => {
             app.toggle_tempo_lane();
             ui.close();
         }

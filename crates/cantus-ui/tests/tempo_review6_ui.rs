@@ -141,9 +141,9 @@ fn the_rulers_editor_is_the_time_signature_at_its_bar() {
         cantus_ui::i18n::tf("tempo.metre_at_bar", &[("bar", &12)]),
         "Time signature at bar 12"
     );
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     let es = cantus_ui::i18n::tf("tempo.metre_at_bar", &[("bar", &12)]);
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(es.starts_with("Indicación de compás"), "{es}");
 }
 
@@ -151,6 +151,8 @@ fn the_rulers_editor_is_the_time_signature_at_its_bar() {
 #[test]
 fn one_kept_or_left_out_is_said_in_the_singular() {
     use cantus_project::report::{ReportItem, Severity};
+    // English words, whatever the machine's language (round 31: it read the process's).
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     for (key, want) in [
         ("tempo.report.tempo_kept", "One tempo change kept"),
         ("tempo.report.metres_kept", "One metre change kept"),
@@ -178,12 +180,12 @@ fn one_kept_or_left_out_is_said_in_the_singular() {
 /// name, in both languages: the ruler's title is the top bar's, at its bar.
 #[test]
 fn the_rulers_editor_and_the_top_bars_share_their_name() {
-    use cantus_ui::i18n::{set_locale, t, tf, Locale};
+    use cantus_ui::i18n::{set_thread_locale, t, tf, Locale};
     for lang in [Locale::En, Locale::Es] {
-        set_locale(lang);
+        set_thread_locale(lang);
         let top = t("topbar.metre");
         let ruler = tf("tempo.metre_at_bar", &[("bar", &12)]);
         assert!(ruler.starts_with(&top), "{ruler} / {top}");
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }

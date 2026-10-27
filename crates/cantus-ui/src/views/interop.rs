@@ -90,6 +90,9 @@ pub enum MidiScope {
 pub struct MidiExportDialog {
     pub scope: MidiScope,
     pub ppq: u16,
+    /// The notes as played (grooves and note effects written out) or as written (round
+    /// 31, ADR 0069).
+    pub played: bool,
 }
 
 /// The resolutions offered, in ticks per quarter note.
@@ -155,6 +158,7 @@ pub fn file_menu(app: &mut CantusApp, ui: &mut egui::Ui) {
         app.interop.midi_export = Some(MidiExportDialog {
             scope,
             ppq: midi::DEFAULT_PPQ,
+            played: true,
         });
     }
     // Stems in any format, from the export dialog (ADR 0033).
@@ -375,14 +379,36 @@ pub fn import_midi(
 
 /// Write the chosen part of the project as a MIDI file.
 pub fn export_midi_to(app: &mut CantusApp, path: &Path, scope: MidiScope, ppq: u16) -> bool {
+    export_midi_notes(app, path, scope, ppq, true)
+}
+
+/// [`export_midi_to`], the notes as played (each clip's groove, each track's note effects
+/// written out) or as written (round 31, ADR 0069).
+pub fn export_midi_notes(
+    app: &mut CantusApp,
+    path: &Path,
+    scope: MidiScope,
+    ppq: u16,
+    played: bool,
+) -> bool {
     let scope = match (scope, app.selected_track, app.selected_clip) {
         (MidiScope::Clip, Some(track), Some(clip)) => midi::Scope::Clip { track, clip },
         (MidiScope::Track | MidiScope::Clip, Some(track), _) => midi::Scope::Track(track),
         _ => midi::Scope::Song,
     };
-    let result = midi::export(app.project(), &midi::ExportOptions { scope, ppq })
-        .map_err(|e| e.to_string())
-        .and_then(|bytes| std::fs::write(path, bytes).map_err(|e| e.to_string()));
+    let notes = if played {
+        midi::Notes::Played
+    } else {
+        midi::Notes::Written
+    };
+    let hook = crate::notefx_ui::midi_hook;
+    let result = midi::export_with(
+        app.project(),
+        &midi::ExportOptions { scope, ppq, notes },
+        Some(&hook),
+    )
+    .map_err(|e| e.to_string())
+    .and_then(|bytes| std::fs::write(path, bytes).map_err(|e| e.to_string()));
     match result {
         Ok(()) => {
             app.set_status(tf("interop.status.exported", &[("file", &file_name(path))]));
@@ -704,6 +730,22 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
             });
         hint(ui, t("interop.midi_export.ppq_hint"));
         hint(ui, t("interop.midi_export.note"));
+        // Round 31 (ADR 0069): what a clip with a groove or note effects writes.
+        form::band(ui, "notefx.midi.band");
+        if form::choice(ui, d.played, true, &t("notefx.midi.played")) {
+            d.played = true;
+        }
+        if form::choice(ui, !d.played, true, &t("notefx.midi.written")) {
+            d.played = false;
+        }
+        hint(
+            ui,
+            t(if d.played {
+                "notefx.midi.played_hint"
+            } else {
+                "notefx.midi.written_hint"
+            }),
+        );
         form::buttons(ui, |ui| {
             close = form::button(ui, &t("interop.cancel"), false, true);
             export = form::button(ui, &t("interop.export"), true, true);
@@ -721,7 +763,7 @@ fn midi_export_window(app: &mut CantusApp, ctx: &egui::Context) {
             .set_file_name(format!("{base}.mid"))
             .save_file()
         {
-            export_midi_to(app, &path, d.scope, d.ppq);
+            export_midi_notes(app, &path, d.scope, d.ppq, d.played);
         }
     }
 }

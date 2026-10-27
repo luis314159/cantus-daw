@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn the_readouts_say_what_the_control_means() {
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
         assert_eq!(pan_text(0.0), "C");
         assert_eq!(pan_text(-0.5), "L50");
         assert_eq!(pan_text(1.0), "R100");

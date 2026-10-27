@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200">
+  <!-- Mustang fastback (first generation), side profile facing right: the long hood, the
+       roof running straight down to a short Kamm tail, the louvres in the rear pillar,
+       the chrome. Our own drawing (GPL-3.0-or-later, like the application); colours are
+       placeholders filled from the theme. -->
+  <defs>
+    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{paint_hi}"/>
+      <stop offset="0.32" stop-color="{paint}"/>
+      <stop offset="0.72" stop-color="{paint_lo}"/>
+      <stop offset="1" stop-color="{paint_deep}"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="{glass_hi}" stop-opacity="0.55"/>
+      <stop offset="0.4" stop-color="{glass}"/>
+      <stop offset="1" stop-color="{glass}"/>
+    </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="0.5" stop-color="{rim_lo}"/>
+      <stop offset="1" stop-color="{chrome}"/>
+    </linearGradient>
+    <radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="{shadow}" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="{shadow}" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rim" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="{rim_hi}"/>
+      <stop offset="1" stop-color="{rim}"/>
+    </radialGradient>
+    <path id="spoke" d="M -3.4 -7 L -5.5 -21 L 5.5 -21 L 3.4 -7 Z"/>
+    <g id="wheel">
+      <circle r="36" fill="{tyre}"/>
+      <circle r="35.4" fill="none" stroke="{edge}" stroke-width="1.2" opacity="0.28"/>
+      <circle r="32.5" fill="none" stroke="{tyre_hi}" stroke-width="1.6" opacity="0.7"/>
+      <g opacity="{detail}">
+        <circle r="24" fill="url(#rim)"/>
+        <circle r="21" fill="{trim}"/>
+        <g fill="url(#rim)">
+          <use href="#spoke"/>
+          <use href="#spoke" transform="rotate(72)"/>
+          <use href="#spoke" transform="rotate(144)"/>
+          <use href="#spoke" transform="rotate(216)"/>
+          <use href="#spoke" transform="rotate(288)"/>
+        </g>
+        <circle r="9" fill="url(#rim)"/>
+        <circle r="9" fill="none" stroke="{rim_lo}" stroke-width="1"/>
+        <circle r="3.6" fill="{rim_hi}"/>
+      </g>
+      <g opacity="{simple}">
+        <circle r="24" fill="url(#rim)"/>
+        <circle r="14" fill="{rim_lo}"/>
+        <circle r="7" fill="{rim_hi}"/>
+      </g>
+    </g>
+  </defs>
+
+  <ellipse cx="280" cy="184" rx="268" ry="10" fill="url(#shadow)"/>
+
+  <!-- the wheel wells -->
+  <path d="M 87 156 A 42 42 0 1 1 169 156 Z M 403 156 A 42 42 0 1 1 485 156 Z" fill="{trim}"/>
+
+  <!-- the body -->
+  <path d="M 22 150 L 16 132 L 15 80 C 15 77 16 75 18 74 L 72 72
+           C 130 60 196 42 238 36 C 258 33 284 33 302 37 C 326 46 350 66 372 80
+           C 420 82 480 86 528 89 C 540 90 546 93 547 98 L 547 132
+           C 547 140 544 146 538 150 L 486 152 L 485 156
+           A 42 42 0 1 0 403 156 L 400 160 L 172 160 L 169 156
+           A 42 42 0 1 0 87 156 L 84 154 C 60 154 36 153 22 150 Z" fill="url(#body)"/>
+
+  <!-- the windows: the door's glass, the louvred rear pillar, the fastback's glass -->
+  <path d="M 366 86 C 346 66 322 48 300 42 C 284 39 264 39 250 41 C 243 54 238 70 236 88
+           C 280 87 330 86 366 86 Z" fill="url(#glass)"/>
+  <path d="M 230 46 L 229 88 L 156 88 C 176 74 202 58 230 46 Z" fill="{paint_lo}"/>
+  <g opacity="{detail}" fill="none" stroke="{trim}" stroke-width="3.2" stroke-linecap="round">
+    <path d="M 220 54 L 214 84 M 208 60 L 202 84 M 196 66 L 190 84 M 184 72 L 179 84"/>
+  </g>
+  <path d="M 236 38 C 190 46 120 62 74 72 L 76 75 C 124 65 192 50 238 41 Z" fill="url(#glass)" opacity="0.85"/>
+  <path d="M 330 50 L 344 60 L 300 86 L 282 86 Z" fill="{glass_hi}" opacity="0.14"/>
+
+  <!-- the light on the hood's edge and the long flank, the side cove's shade -->
+  <path d="M 376 82 C 430 84 490 87 540 91 L 540 94 C 490 90 430 87 376 85 Z" fill="{paint_hi}" opacity="0.7"/>
+  <path d="M 20 86 C 120 86 260 90 400 94 L 520 98 L 520 101 C 400 98 260 94 20 90 Z" fill="{paint_hi}" opacity="0.5"/>
+  <path d="M 470 104 C 400 106 300 110 196 116 C 230 124 300 132 400 136 C 360 128 340 120 470 104 Z" fill="{paint_deep}" opacity="0.2"/>
+
+  <!-- the chrome: the drip rail, the rocker strip, the bumpers -->
+  <path d="M 72 72 C 130 60 196 42 238 36 C 258 33 284 33 302 37 C 326 46 350 66 372 80" fill="none" stroke="{chrome}" stroke-width="1.3" opacity="0.8"/>
+  <path d="M 172 151 L 400 151" fill="none" stroke="{chrome}" stroke-width="1.6"/>
+  <path d="M 172 153 L 400 153" fill="none" stroke="{rim_lo}" stroke-width="1.2"/>
+  <path d="M 532 128 L 548 128 C 552 132 552 138 548 141 L 530 141 Z" fill="url(#chrome)"/>
+  <path d="M 13 122 L 26 122 L 26 134 L 13 134 C 10 131 10 125 13 122 Z" fill="url(#chrome)"/>
+
+  <g opacity="{detail}">
+    <!-- the door, its handle, the scoop ahead of the rear wheel, the grille -->
+    <path d="M 238 90 C 236 110 236 132 240 152" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 366 90 C 368 110 366 132 360 152" fill="none" stroke="{paint_deep}" stroke-width="1" opacity="0.6"/>
+    <path d="M 252 100 L 266 100" fill="none" stroke="{chrome}" stroke-width="2.4" stroke-linecap="round"/>
+    <path d="M 206 112 L 182 112 L 178 126 L 200 122 Z" fill="{trim}"/>
+    <path d="M 206 112 L 182 112" fill="none" stroke="{chrome}" stroke-width="1.4"/>
+    <path d="M 544 100 L 544 126" fill="none" stroke="{trim}" stroke-width="3"/>
+    <path d="M 330 84 L 344 76 L 352 78 L 346 84 Z" fill="{chrome}"/>
+  </g>
+
+  <!-- the round headlight, the tail light -->
+  <ellipse cx="543" cy="104" rx="4" ry="9" fill="url(#chrome)"/>
+  <ellipse cx="544" cy="104" rx="2.4" ry="6.5" fill="{lamp}"/>
+  <path d="M 14 84 L 19 84 L 19 110 L 14 110 Z" fill="{tail}"/>
+  <path d="M 14 92 L 19 92 M 14 101 L 19 101" fill="none" stroke="{trim}" stroke-width="1" opacity="0.6"/>
+
+  <!-- the silhouette's edge -->
+  <path d="M 15 80 C 15 77 16 75 18 74 L 72 72 C 130 60 196 42 238 36 C 258 33 284 33 302 37
+           C 326 46 350 66 372 80 C 420 82 480 86 528 89 C 540 90 546 93 547 98" fill="none" stroke="{edge}" stroke-width="1.4" opacity="0.3"/>
+
+  <use href="#wheel" x="128" y="148"/>
+  <use href="#wheel" x="444" y="148"/>
+</svg>

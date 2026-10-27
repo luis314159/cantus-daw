@@ -49,8 +49,61 @@ const TICK: Duration = Duration::from_millis(15);
 /// How often the heartbeat goes out (while the main thread makes progress).
 const ALIVE: Duration = Duration::from_millis(200);
 
+/// How late this helper's timers fire, for tests (`CANTUS_TEST_SANDBOX_LATE_TIMERS_MS`):
+/// every wait of its main loop and of its heartbeat lasts that much longer, as a virtual
+/// machine's or a throttled background process's timers do (GitHub's macOS runner) — a
+/// request still wakes the main loop at once. Zero, and read once, otherwise.
+fn late_timers() -> Duration {
+    static LATE: OnceLock<Duration> = OnceLock::new();
+    *LATE.get_or_init(|| {
+        late_of(
+            std::env::var("CANTUS_TEST_SANDBOX_LATE_TIMERS_MS")
+                .ok()
+                .as_deref(),
+        )
+    })
+}
+
+/// The most [`late_timers`] adds, in milliseconds: a knob left set never makes a helper
+/// useless (review 9).
+const LATE_TIMERS_MAX_MS: u64 = 1_000;
+
+/// What the knob's text makes the lateness.
+fn late_of(text: Option<&str>) -> Duration {
+    text.and_then(|v| v.trim().parse::<u64>().ok())
+        .map_or(Duration::ZERO, |ms| {
+            Duration::from_millis(ms.min(LATE_TIMERS_MAX_MS))
+        })
+}
+
+#[cfg(test)]
+mod late_tests {
+    use super::*;
+
+    #[test]
+    fn the_late_timers_knob_is_capped_at_a_second() {
+        assert_eq!(late_of(None), Duration::ZERO);
+        assert_eq!(late_of(Some("nonsense")), Duration::ZERO);
+        assert_eq!(late_of(Some("150")), Duration::from_millis(150));
+        assert_eq!(late_of(Some("999999")), Duration::from_secs(1));
+    }
+}
+
 /// The main thread's progress: bumped by its loop and by the pulse.
 static PROGRESS: AtomicU64 = AtomicU64::new(0);
+
+/// The same count in the lobby, where Cantus reads it at each judgement of the helper's life
+/// ([`cantus_host::bridge::sandbox::PROGRESS_AT`], round 31): no timer between the thread
+/// and the judge.
+static PROGRESS_WORD: OnceLock<&'static AtomicU32> = OnceLock::new();
+
+/// The main thread went round its loop, or the pulse ran inside a plug-in's loop.
+fn progress() {
+    PROGRESS.fetch_add(1, Ordering::Relaxed);
+    if let Some(w) = PROGRESS_WORD.get() {
+        w.fetch_add(1, Ordering::Release);
+    }
+}
 
 /// The protocol's output, shared by the main thread, the heartbeat's and the reader's.
 type Out = Arc<Mutex<BufWriter<std::fs::File>>>;
@@ -338,11 +391,18 @@ impl Server {
             let (table, bell, stop) = (self.table.clone(), self.bell.clone(), self.stop.clone());
             let words = self.lobby_words;
             let k = self.threads.len();
+            let (ready, up) = mpsc::channel();
             let t = std::thread::Builder::new()
                 .name(format!("cantus-sandbox-audio-{k}"))
-                .spawn(move || worker::serve(table, bell, stop, words))
+                .spawn(move || worker::serve(table, bell, stop, words, ready))
                 .map_err(|e| Failure::Load(e.to_string()))?;
             self.threads.push(t);
+            // The load is answered once the thread is promoted and serving: before, a busy
+            // machine scheduled the new ordinary-priority thread tens of milliseconds
+            // later, and the first block after the load waited out its deadline and passed
+            // dry (round 31: the bridge tests' "processed at −6 dB" under load). A thread
+            // that never says so (it could not start) is not waited for past a second.
+            let _ = up.recv_timeout(Duration::from_secs(1));
         }
         Ok(())
     }
@@ -423,6 +483,12 @@ impl Server {
             call => {
                 let instance = instance_of(&call).unwrap_or(0);
                 named = Some(instance);
+                if matches!(call, Call::SaveState { .. }) {
+                    // What moved before the save is said before it: Cantus then knows the
+                    // state holds it (a value's echo not yet said at this tick would come
+                    // with the answer, as if it had moved during the save — round 31).
+                    self.news_of(instance);
+                }
                 let result = match self.instances.get_mut(&instance) {
                     None => Err(Failure::NoInstance),
                     Some(inst) => on_instance(inst, call, &blob, &mut reply_blob),
@@ -437,6 +503,25 @@ impl Server {
             named.and_then(|n| self.instances.get_mut(&n).map(|i| Box::new((n, i.after()))));
         self.send(&Message::Reply { id, result, after }, &reply_blob);
         Some(())
+    }
+
+    /// One instance's requests and changed values, said now (as a tick says them).
+    fn news_of(&mut self, instance: u32) {
+        let Some(inst) = self.instances.get_mut(&instance) else {
+            return;
+        };
+        let (notices, values) = inst.news();
+        if !notices.is_empty() || !values.is_empty() {
+            self.send(
+                &Message::News {
+                    instance,
+                    notices,
+                    values,
+                    flushed: Vec::new(),
+                },
+                &[],
+            );
+        }
     }
 
     /// Between calls: each instance's requests, flushed events and changed values.
@@ -527,7 +612,7 @@ thread_local! {
 /// plug-in's code (the main loop never dispatches it): progress, and — once per stretch —
 /// Cantus told that the main thread is in a plug-in's loop and serves nothing meanwhile.
 fn pulse() {
-    PROGRESS.fetch_add(1, Ordering::Relaxed);
+    progress();
     if !crate::platform::blame::nest(true) {
         if let Some(out) = OUT.get() {
             write(
@@ -551,7 +636,7 @@ fn heartbeat(out: Out) {
                 return;
             }
         }
-        std::thread::sleep(ALIVE);
+        std::thread::sleep(ALIVE + late_timers());
     }
 }
 
@@ -664,8 +749,9 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str, threads: Option<usize>) -> i3
         // life of the process; both processes use it as an atomic.
         unsafe { &*(lobby_mem.as_ptr().add(at) as *const AtomicU32) }
     };
-    use cantus_host::bridge::sandbox::{CRASH_AT, JOBS_DONE, MAIN_AT, STALLED};
+    use cantus_host::bridge::sandbox::{CRASH_AT, JOBS_DONE, MAIN_AT, PROGRESS_AT, STALLED};
     crate::platform::blame::install(word(CRASH_AT), word(MAIN_AT));
+    let _ = PROGRESS_WORD.set(word(PROGRESS_AT));
     let cores = std::thread::available_parallelism().map_or(2, |n| n.get());
     let wake = Wake::new();
     let main_thread = crate::platform::current_thread();
@@ -737,8 +823,8 @@ pub fn run(pipes: Pipes, group: &str, lobby: &str, threads: Option<usize>) -> i3
     crate::platform::start_pulse(pulse);
     let mut last_tick = Instant::now();
     loop {
-        wake.wait(TICK);
-        PROGRESS.fetch_add(1, Ordering::Relaxed);
+        wake.wait(TICK + late_timers());
+        progress();
         // Back in the main loop after a plug-in's own loop: Cantus told.
         if crate::platform::blame::nest(false) {
             write(&out, &Message::Unnested);

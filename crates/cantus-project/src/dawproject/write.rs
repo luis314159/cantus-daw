@@ -339,22 +339,36 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     w.open("Arrangement", &[("id", a(ids.next()))]);
     w.open("Lanes", &[("timeUnit", a("beats")), ("id", a(ids.next()))]);
     let mut muted_notes = 0usize;
+    let mut grooved = 0usize;
     for (t, track_id) in project.tracks.iter().zip(&track_ids) {
         w.open("Lanes", &[("track", a(track_id)), ("id", a(ids.next()))]);
         w.open("Clips", &[("id", a(ids.next()))]);
         // The playing lane only: a take lane is never heard (ADR 0058), and DAWproject's
         // one lane per track would play every take at once (round 29's review).
+        // The track's crossfades, found once (ADR 0070 §9).
+        let xings = super::audio::crossings_of_track(t);
         for c in t.clips.iter().filter(|c| c.lane == 0) {
             muted_notes += clip(
                 &mut w,
                 &mut ids,
                 c,
+                xings.get(&c.id),
                 project,
                 base,
                 (&mut audio, &mut files),
                 &mut report,
             );
         }
+        // Round 31 (ADR 0069): note effects and grooves have no place in the format; the
+        // clips' notes are written as they hold them, and the report says what is left out.
+        if t.note_fx.iter().any(|e| e.enabled) {
+            report.dropped("interop.report.x_note_fx", vec![("track", t.name.clone())]);
+        }
+        grooved += t
+            .clips
+            .iter()
+            .filter(|c| c.lane == 0 && c.groove.is_some())
+            .count();
         let takes = t.clips.iter().filter(|c| c.lane != 0).count();
         if takes > 0 {
             report.dropped(
@@ -372,6 +386,13 @@ pub fn parts_with(project: &Project, app_version: &str, base: Option<&std::path:
     w.close();
     w.close(); // Project
     report.count_dropped("interop.report.x_muted_notes", muted_notes);
+    report.count_dropped("interop.report.x_grooves", grooved);
+    if let Some(k) = project.key {
+        report.dropped(
+            "interop.report.x_key",
+            vec![("root", k.root_name().to_string())],
+        );
+    }
     if devices > 0 {
         report.info("interop.report.x_devices", vec![("n", devices.to_string())]);
     }
@@ -795,16 +816,27 @@ fn clip(
     w: &mut XmlWriter,
     ids: &mut Ids,
     c: &Clip,
+    xing: Option<&super::audio::Crossings>,
     project: &Project,
     base: Option<&std::path::Path>,
     (audio, files): Carried<'_>,
     report: &mut Report,
 ) -> usize {
     let period = c.period();
+    // A crossfade over an overlap (ADR 0070) is DAWproject's two fades, each the overlap's
+    // length; it replaces the fade it covers.
+    let (xin, xout, xcurves) = xing.cloned().unwrap_or_default();
     let fades = c
         .audio
         .as_ref()
-        .filter(|a| a.fade_in > Ticks::ZERO || a.fade_out > Ticks::ZERO);
+        .map(|a| (xin.unwrap_or(a.fade_in), xout.unwrap_or(a.fade_out)))
+        .filter(|(i, o)| *i > Ticks::ZERO || *o > Ticks::ZERO);
+    if xcurves
+        .iter()
+        .any(|k| *k != cantus_core::crossfade::XfadeCurve::Linear)
+    {
+        report.dropped("clipfx.report.xfade_curve", vec![("clip", c.name.clone())]);
+    }
     // A clip at its natural speed counts its content in seconds of its file (round 29's
     // review): where it starts in the file, and where its loop ends.
     let natural = c
@@ -831,8 +863,8 @@ fn clip(
             ("loopStart", loop_start),
             ("loopEnd", loop_end),
             ("fadeTimeUnit", fades.map(|_| "beats".to_string())),
-            ("fadeInTime", fades.map(|a| beats(a.fade_in))),
-            ("fadeOutTime", fades.map(|a| beats(a.fade_out))),
+            ("fadeInTime", fades.map(|f| beats(f.0))),
+            ("fadeOutTime", fades.map(|f| beats(f.1))),
             ("enable", c.muted.then(|| "false".to_string())),
             ("name", a(&c.name)),
             ("color", c.color.map(color)),
@@ -840,6 +872,12 @@ fn clip(
     );
     // An audio clip (round 29, ADR 0061): its file and its warp.
     if let Some(au) = &c.audio {
+        // A gain envelope (ADR 0070): the clip's content is lanes — its audio and the
+        // gain expression's points.
+        let env = au.gain_env.as_deref().filter(|e| !e.is_flat());
+        if env.is_some() {
+            w.open("Lanes", &[("id", a(ids.next())), ("timeUnit", a("beats"))]);
+        }
         super::audio::write(
             w,
             &mut || ids.next(),
@@ -851,8 +889,18 @@ fn clip(
             files,
             report,
         );
+        if let Some(e) = env {
+            super::audio::write_gain(w, &mut || ids.next(), c, e, report);
+            w.close(); // Lanes
+        }
         w.close();
         return 0;
+    }
+    // A clip with controller lanes (ADR 0068): its content is lanes — the notes, then a
+    // timeline of points per controller.
+    let laned = !c.lanes.is_empty();
+    if laned {
+        w.open("Lanes", &[("id", a(ids.next()))]);
     }
     w.open("Notes", &[("id", a(ids.next()))]);
     let mut muted = 0;
@@ -863,20 +911,76 @@ fn clip(
             muted += 1;
             continue;
         }
-        w.empty(
-            "Note",
+        let attrs = [
+            ("time", a(beats(n.start))),
+            ("duration", a(beats(n.length))),
+            ("channel", a(0)),
+            ("key", a(n.pitch)),
+            ("vel", a(num(n.velocity as f64 / 127.0))),
+            // Its release velocity (ADR 0068), only when it has one.
+            ("rel", a(num(n.release as f64 / 127.0))),
+        ];
+        let len = if n.release > 0 { 6 } else { 5 };
+        w.empty("Note", &attrs[..len]);
+    }
+    w.close();
+    if laned {
+        for lane in &c.lanes {
+            lane_points(w, ids, lane);
+        }
+        w.close();
+    }
+    w.close();
+    muted
+}
+
+/// One controller lane as DAWproject's points (ADR 0068): its target an expression of the
+/// clip's channel — `pitchBend`, `channelPressure`, `channelController` with its number —
+/// its values Cantus's positions (0…1, the bend's centre 0.5), its curves straight and held
+/// pieces (`clip_lanes::edit::linearised`), in the clip's content beats.
+fn lane_points(w: &mut XmlWriter, ids: &mut Ids, lane: &cantus_core::ClipLane) {
+    use cantus_core::LaneKind;
+    if lane.points.is_empty() {
+        return;
+    }
+    let beats = |t: cantus_core::Ticks| num(t.as_beats_f64());
+    w.open(
+        "Points",
+        &[
+            ("unit", a("normalized")),
+            ("timeUnit", a("beats")),
+            ("id", a(ids.next())),
+        ],
+    );
+    match lane.kind {
+        LaneKind::PitchBend => w.empty(
+            "Target",
+            &[("expression", a("pitchBend")), ("channel", a(0))],
+        ),
+        LaneKind::Pressure => w.empty(
+            "Target",
+            &[("expression", a("channelPressure")), ("channel", a(0))],
+        ),
+        LaneKind::Cc(n) => w.empty(
+            "Target",
             &[
-                ("time", a(beats(n.start))),
-                ("duration", a(beats(n.length))),
+                ("expression", a("channelController")),
                 ("channel", a(0)),
-                ("key", a(n.pitch)),
-                ("vel", a(num(n.velocity as f64 / 127.0))),
+                ("controller", a(n)),
+            ],
+        ),
+    }
+    for (t, v, hold) in cantus_core::clip_lanes::edit::linearised(&lane.points) {
+        w.empty(
+            "RealPoint",
+            &[
+                ("time", a(beats(t))),
+                ("value", a(num(f64::from(v)))),
+                ("interpolation", a(if hold { "hold" } else { "linear" })),
             ],
         );
     }
     w.close();
-    w.close();
-    muted
 }
 
 /// The arrangement's markers, tempo automation and time-signature automation (round 29,

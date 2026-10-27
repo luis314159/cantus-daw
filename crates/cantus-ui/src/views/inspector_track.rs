@@ -100,6 +100,9 @@ pub fn rows(sh: &mut Sheet<'_>, app: &CantusApp, id: TrackId) {
     );
     let text = sheet::name(text);
     sh.menu_row("track.route", &text, MenuId::Route(id), false);
+    // How its automation is written (round 31, ADR 0068): Read, Write, Touch, Latch.
+    let mode = sheet::name(sh.fmt.tr(track.auto_mode.label_key()));
+    sh.menu_row("automodes.mode", &mode, MenuId::AutoMode(id), false);
 }
 
 /// The track's colour: the palette in a well, the chosen one ringed.

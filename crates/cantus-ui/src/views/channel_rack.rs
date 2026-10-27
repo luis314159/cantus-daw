@@ -341,6 +341,9 @@ fn empty_clip() -> Clip {
         automation: None,
         link: None,
         comp: false,
+        lanes: Vec::new(),
+        groove: None,
+        skip_note_fx: false,
     }
 }
 
@@ -1304,6 +1307,8 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId,
             kit::well::readout(b, r, &s, kit::State::REST, v, true)
         });
     }
+    // r31 midi (ADR 0069): the pattern's groove.
+    crate::notefx_ui::rack_groove(app, ui, &mut bar, id, track, clip);
     let fit = bar.key_right(
         ui,
         id.with("fit"),

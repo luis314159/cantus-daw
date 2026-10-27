@@ -767,6 +767,18 @@ impl Processor {
                         .auto_push_hosted(&dest, at, 0, v)
                         .then(|| crate::automation::hosted_bits(v));
                 }
+                // A note effect's parameter (ADR 0069): read from its next note or step.
+                Dest::NoteFx {
+                    track,
+                    stage,
+                    param,
+                } => {
+                    if let Some(&slot) = self.track_to_slot.get(track) {
+                        if let Some(mut s) = nodes.track(slot) {
+                            s.set_notefx_param(stage, param, a);
+                        }
+                    }
+                }
                 Dest::Effect(..)
                 | Dest::Native(..)
                 | Dest::Firmus(..)

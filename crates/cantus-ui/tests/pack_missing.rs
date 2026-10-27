@@ -249,7 +249,7 @@ fn a_missing_pack_is_named_with_its_tracks_and_installed_from_sound_packs() {
             "Instalar en Paquetes de sonidos…",
         ),
     ] {
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let mut a = opened(&content, &files);
         let ctx = ctx();
         let shown = settle(&mut a, &ctx);
@@ -265,7 +265,7 @@ fn a_missing_pack_is_named_with_its_tracks_and_installed_from_sound_packs() {
             "at the pack"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]

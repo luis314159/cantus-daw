@@ -5,7 +5,7 @@
 
 use cantus_engine::EngineHandle;
 use cantus_ui::app::CantusApp;
-use cantus_ui::i18n::{set_locale, Locale};
+use cantus_ui::i18n::{set_thread_locale, Locale};
 use cantus_ui::settings::TopBarSettings;
 use cantus_ui::views::transport::{self, layout::Group};
 use cantus_ui::welcome_project;
@@ -66,7 +66,7 @@ fn no_width_zoom_language_or_group_set_overlaps_or_clips() {
     let ctx = ctx();
     let mut checked = 0usize;
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         for zoom in [0.75f32, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0] {
             ctx.set_zoom_factor(zoom);
             for seed in 0..6u64 {
@@ -138,7 +138,7 @@ fn no_width_zoom_language_or_group_set_overlaps_or_clips() {
         }
     }
     ctx.set_zoom_factor(1.0);
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     eprintln!("{checked} layouts checked");
 }
 
@@ -149,7 +149,7 @@ fn the_drawn_bar_keeps_every_part_and_word_inside_it() {
     let (mut a, _dir) = app();
     let ctx = ctx();
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         for zoom in [0.75f32, 1.0, 2.0] {
             ctx.set_zoom_factor(zoom);
             for px in [800.0f32, 1280.0, 1920.0, 2560.0] {
@@ -199,7 +199,7 @@ fn the_drawn_bar_keeps_every_part_and_word_inside_it() {
         }
     }
     ctx.set_zoom_factor(1.0);
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 /// Each group, drawn alone in a rect of the width it asked for and the bar's height, keeps
@@ -210,7 +210,7 @@ fn every_group_keeps_to_its_own_width() {
     let (mut a, _dir) = app();
     let ctx = ctx();
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         for zoom in [0.75f32, 1.0, 2.0] {
             ctx.set_zoom_factor(zoom);
             for (variant, g) in (0..2).flat_map(|v| Group::ALL.map(|g| (v, g))) {
@@ -273,7 +273,7 @@ fn every_group_keeps_to_its_own_width() {
         }
     }
     ctx.set_zoom_factor(1.0);
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 /// A running interface with a long name, as the owner's: the chip's text is past its cap.
@@ -294,7 +294,7 @@ fn widths() {
     with_device(&mut a);
     let ctx = ctx();
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         let mut o = ctx.run_ui(Default::default(), |ui| {
             let w = transport::wants(&a, ui.ctx());
             let r = transport::room(ui.ctx(), 1920.0);
@@ -322,7 +322,7 @@ fn the_default_bar_shows_every_group_at_1920() {
     let ctx = ctx();
     ctx.set_zoom_factor(1.0);
     for locale in [Locale::En, Locale::Es] {
-        set_locale(locale);
+        set_thread_locale(locale);
         let mut o = ctx.run_ui(Default::default(), |ui| {
             let wants = transport::wants(&a, ui.ctx());
             let device = wants.iter().find(|w| w.group == Group::Device).unwrap();
@@ -340,7 +340,7 @@ fn the_default_bar_shows_every_group_at_1920() {
         });
         o.textures_delta.clear();
     }
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
 }
 
 /// The painted texts of the clock drawn alone at its width.
@@ -487,7 +487,7 @@ fn warm_allocs(a: &mut CantusApp, ctx: &egui::Context) -> usize {
 /// (review 1: it was resolved into a new list every frame).
 #[test]
 fn the_owners_order_allocates_nothing_more() {
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     let (mut a, _dir) = app();
     let ctx = ctx();
     let default = warm_allocs(&mut a, &ctx);
@@ -504,7 +504,7 @@ fn the_owners_order_allocates_nothing_more() {
 #[test]
 #[ignore]
 fn bar_triangles() {
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     let (mut a, _dir) = app();
     let ctx = ctx();
     let input = egui::RawInput {
@@ -535,7 +535,7 @@ fn bar_triangles() {
 #[test]
 #[ignore]
 fn group_triangles() {
-    set_locale(Locale::En);
+    set_thread_locale(Locale::En);
     let (mut a, _dir) = app();
     let ctx = ctx();
     for g in Group::ALL {

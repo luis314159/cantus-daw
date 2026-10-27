@@ -10,6 +10,8 @@ use support::*;
 fn with_multiband() -> (cantus_ui::CantusApp, StripId, EffectId) {
     let mut a = app(cantus_ui::starter_project());
     let s0 = a.project().tracks[0].strip.unwrap();
+    // The unit at its defaults: a neutral insert (ADR 0071).
+    a.settings.insert_neutral = true;
     a.add_effect(s0, EffectKind::Multiband);
     let fx = a.project().strip(s0).unwrap().effects[0].id;
     (a, s0, fx)

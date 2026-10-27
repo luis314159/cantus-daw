@@ -63,6 +63,8 @@ pub struct Live {
     pub takes: Vec<LiveTake>,
     /// The notes closed so far.
     pub notes: Vec<RecordedNote>,
+    /// The controllers played so far (ADR 0068): the takes' lanes.
+    pub controls: Vec<crate::recording::RecordedControl>,
     /// The playhead last frame, to see the loop wrap.
     pub last_pos: Ticks,
     /// Where the pass being played began (the record start, then the loop's start).
@@ -598,18 +600,19 @@ impl CantusApp {
                 pass_from: 0,
             })
             .collect();
-        // Automation is written from here (ADR 0057).
-        self.begin_automation_pass();
         self.rec.pass = Some(Live {
             plan,
             transport_start,
             audio: audio_on,
             takes,
             notes: Vec::new(),
+            controls: Vec::new(),
             last_pos: transport_start,
             pass_start: pos,
             transport_seen: false,
         });
+        // Automation is written from here (ADR 0057, 0068): the pass's window is the live one.
+        self.begin_automation_pass();
         self.set_status(if audio_on {
             tf("rec.recording_tracks", &[("n", &recording_n)])
         } else {
@@ -647,6 +650,7 @@ impl CantusApp {
         notes.extend(tail);
         let mut plan = live.plan;
         plan.stop_at = at;
+        plan.controls = live.controls;
         plan.last_pass = self.recorder.pass();
         // The pass's own stretch: from the punch-in, or where the pass that ran began — the
         // loop's start once it came round (review 4, #15, #20: a loop's later lap stopped
@@ -760,9 +764,15 @@ impl CantusApp {
             .as_ref()
             .and_then(|l| l.plan.loop_region)
             .map(|(start, end)| cantus_core::LoopRegion { start, end });
+        // The frame's controllers first: they read the pass the notes then move on (ADR 0068).
+        let controls = self.engine.take_control_inputs();
+        let controls = self
+            .recorder
+            .ingest_controls(&controls, lp.as_ref(), wrapped);
         let done = self.recorder.ingest_pass(inputs, lp.as_ref(), wrapped);
         if let Some(l) = self.rec.pass.as_mut() {
             l.notes.extend(done);
+            l.controls.extend(controls);
         }
     }
 
@@ -839,6 +849,7 @@ impl CantusApp {
             audio: true,
             takes,
             notes: Vec::new(),
+            controls: Vec::new(),
             last_pos: record_start,
             pass_start: record_start,
             transport_seen: false,

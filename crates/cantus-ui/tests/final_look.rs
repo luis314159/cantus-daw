@@ -18,7 +18,7 @@ struct Rig {
 
 impl Rig {
     fn new(size: egui::Vec2) -> Rig {
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
         let ctx = egui::Context::default();
         cantus_ui::design::install_fonts(&ctx);
         cantus_ui::design::install_style(&ctx);
@@ -168,7 +168,7 @@ fn the_chosen_tile_says_it_is_the_paint_source() {
 fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1600.0, 900.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         r.idle(3);
         cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
         r.app.naming_layout = Some("Mix A".into());
@@ -193,7 +193,7 @@ fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
             "{locale:?}: Save and Cancel are the kit's buttons"
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Visual 5: at a laptop's 1280 × 720 the hint bar shows a long hint whole (on two lines
@@ -203,7 +203,7 @@ fn the_layout_name_dialog_is_a_kit_dialog_in_the_middle() {
 fn a_long_hint_reads_whole_at_1280_by_720() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         r.app.central = cantus_ui::app::CentralView::Mixer;
         let mut p = r.app.mixer.prefs();
         p.band = cantus_ui::views::mixer::layout::BAND_MAX;
@@ -228,7 +228,7 @@ fn a_long_hint_reads_whole_at_1280_by_720() {
                 .collect::<Vec<_>>()
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Visual 8: the Look tab's colours with a meaning name themselves whole in both languages
@@ -251,7 +251,7 @@ fn the_colours_with_a_meaning_are_named_whole() {
     ];
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         r.app.show_theme_editor = true;
         r.app.appearance_page.tab = cantus_ui::views::appearance::Tab::Look;
         let texts = r.idle(4);
@@ -268,7 +268,7 @@ fn the_colours_with_a_meaning_are_named_whole() {
             );
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// The words painted inside the hint bar this frame (its panel as the kit registered it).
@@ -304,7 +304,7 @@ fn every_hint_reads_whole_at_1280_by_720() {
         })
     {
         let mut r = Rig::new(vec2(w, h));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
         let mut known: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut cut = Vec::new();
@@ -457,7 +457,7 @@ fn every_hint_reads_whole_at_1280_by_720() {
             cut.first()
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Last pass, 2: a hint wrapped over both lines keeps its capability icons (the clip's
@@ -466,7 +466,7 @@ fn every_hint_reads_whole_at_1280_by_720() {
 fn a_wrapped_hint_keeps_its_capability_icons() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
         r.idle(3);
         let g = r.app.arrangement.geometry().expect("the timeline");
@@ -490,7 +490,7 @@ fn a_wrapped_hint_keeps_its_capability_icons() {
             h.name
         );
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Last pass, 3: the inspector's pinned strip never runs a caption into its value
@@ -500,7 +500,7 @@ fn a_wrapped_hint_keeps_its_capability_icons() {
 fn the_pinned_strip_never_runs_a_caption_into_its_value() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         let mut r = Rig::new(vec2(1280.0, 720.0));
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
         r.app.show_pane(cantus_ui::views::workspace::Pane::Devices);
         let mut w = 1160.0;
@@ -530,7 +530,7 @@ fn the_pinned_strip_never_runs_a_caption_into_its_value() {
             w += 2.0;
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 /// Review 4: the Delay row's tip and its key's hint read whole in the hint bar, in both
@@ -541,7 +541,7 @@ fn the_delay_rows_hints_read_whole() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for (w, h) in [(1280.0f32, 720.0f32), (640.0, 360.0)] {
             let mut r = Rig::new(vec2(w, h));
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             cantus_ui::kit::inspect::set_enabled(&r.ctx, true);
             r.pointer = None;
             r.idle(2);
@@ -564,5 +564,5 @@ fn the_delay_rows_hints_read_whole() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

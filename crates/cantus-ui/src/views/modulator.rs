@@ -48,8 +48,6 @@ pub struct ModUi {
     pub list: Option<(ModulatorId, ListKind, egui::Rect)>,
     /// A bake that waits for its offline trace (a source that follows audio).
     pub pending_bake: Option<bake::Pending>,
-    /// The automation a recording pass has written so far.
-    pub rec: record::AutoRec,
     /// Every route into each target, at a revision: (modulator, depth, its kind).
     cache: RefCell<Option<(u64, std::sync::Arc<Routes>)>>,
 }
@@ -116,7 +114,8 @@ pub fn host_for(
         | AutoTarget::TrackPan(t)
         | AutoTarget::Instrument { track: t, .. }
         | AutoTarget::Firmus { track: t, .. }
-        | AutoTarget::PluginInstrument { track: t, .. } => ModHost::Track(*t),
+        | AutoTarget::PluginInstrument { track: t, .. }
+        | AutoTarget::NoteFx { track: t, .. } => ModHost::Track(*t),
         AutoTarget::StripGain(s)
         | AutoTarget::StripPan(s)
         | AutoTarget::StripWidth(s)

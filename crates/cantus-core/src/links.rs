@@ -12,7 +12,8 @@
 //!
 //! Keeping the copies equal is `Command::apply`'s job, not the caller's: every command that
 //! changes a shared field (`InsertNotes`, `RemoveNotes`, `SetNotes`, `SetClipAudio`,
-//! `SetClipAutomation`, `SetClipName`, `SetClipColor`, `SetClipContent`) changes it on the
+//! `SetClipAutomation`, `SetClipLanes`, `SetClipName`, `SetClipColor`,
+//! `SetClipContent`) changes it on the
 //! clip it names and then on every sibling, and a command that would put a clip into a
 //! group it does not match (`InsertClip`, `SetClipLink`) is refused. So undo stays exact —
 //! an inverse names one clip and reaches the rest the same way — and no view can forget a
@@ -48,6 +49,14 @@ pub struct ClipContent {
     pub audio: Option<AudioRegion>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub automation: Option<Automation>,
+    /// The controller lanes (ADR 0068): content, like the notes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lanes: Vec<crate::clip_lanes::ClipLane>,
+    /// The groove and whether the notes play past the note effects (schema 43, ADR 0069).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub groove: Option<crate::groove::ClipGroove>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub skip_note_fx: bool,
 }
 
 impl ClipContent {
@@ -59,6 +68,9 @@ impl ClipContent {
             notes: clip.notes.clone(),
             audio: clip.audio.clone(),
             automation: clip.automation.clone(),
+            lanes: clip.lanes.clone(),
+            groove: clip.groove,
+            skip_note_fx: clip.skip_note_fx,
         }
     }
 
@@ -70,6 +82,9 @@ impl ClipContent {
             notes: std::mem::replace(&mut clip.notes, self.notes),
             audio: std::mem::replace(&mut clip.audio, self.audio),
             automation: std::mem::replace(&mut clip.automation, self.automation),
+            lanes: std::mem::replace(&mut clip.lanes, self.lanes),
+            groove: std::mem::replace(&mut clip.groove, self.groove),
+            skip_note_fx: std::mem::replace(&mut clip.skip_note_fx, self.skip_note_fx),
         }
     }
 }
@@ -81,6 +96,9 @@ pub fn same_content(a: &Clip, b: &Clip) -> bool {
         && a.notes == b.notes
         && a.audio == b.audio
         && a.automation == b.automation
+        && a.lanes == b.lanes
+        && a.groove == b.groove
+        && a.skip_note_fx == b.skip_note_fx
 }
 
 /// Copy `src`'s shared fields onto `dst`.
@@ -90,6 +108,9 @@ pub fn adopt(dst: &mut Clip, src: &Clip) {
     dst.notes.clone_from(&src.notes);
     dst.audio.clone_from(&src.audio);
     dst.automation.clone_from(&src.automation);
+    dst.lanes.clone_from(&src.lanes);
+    dst.groove = src.groove;
+    dst.skip_note_fx = src.skip_note_fx;
 }
 
 /// Every member of `link`, in track order then clip order.

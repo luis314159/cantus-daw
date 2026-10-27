@@ -105,6 +105,11 @@ pub struct EngineHandle {
     /// Snapshots compiled (tests: nothing is recompiled every frame while one waits).
     compiles: u64,
     note_inputs: Vec<NoteInput>,
+    /// Live controllers recorded since the last take (ADR 0068).
+    control_inputs: Vec<crate::messages::ControlInput>,
+    /// Seeks sent since the handle was made (ADR 0068): a write pass tells a jump of the
+    /// playhead from a slow frame by it.
+    seeks: u64,
     /// The consumer end of the mix recorder's ring; `None` without an audio device.
     capture: Option<Consumer<f32>>,
     capture_target: CaptureTarget,
@@ -319,6 +324,8 @@ impl EngineHandle {
             render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
+            control_inputs: Vec::new(),
+            seeks: 0,
             capture: Some(capture_rx),
             capture_target: CaptureTarget::Off,
             analyser: Some(analyser_rx),
@@ -397,6 +404,8 @@ impl EngineHandle {
             render_patience: None,
             compiles: 0,
             note_inputs: Vec::new(),
+            control_inputs: Vec::new(),
+            seeks: 0,
             capture: None,
             capture_target: CaptureTarget::Off,
             analyser: None,
@@ -954,6 +963,7 @@ impl EngineHandle {
     pub fn seek(&mut self, tick: Ticks) {
         self.position = tick;
         self.engine_position = tick;
+        self.seeks += 1;
         self.send(EngineMessage::Seek(tick));
     }
 
@@ -1031,6 +1041,7 @@ impl EngineHandle {
                     self.stats = s;
                 }
                 EngineEvent::NoteInput(note) => self.note_inputs.push(note),
+                EngineEvent::ControlInput(c) => self.control_inputs.push(c),
                 EngineEvent::Garbage(old) => drop(old),
                 EngineEvent::GarbageEffect(unit) => {
                     // A replaced unit's id lives on in its successor; so does one whose id the
@@ -1079,9 +1090,19 @@ impl EngineHandle {
         n
     }
 
+    /// How many seeks were sent (ADR 0068).
+    pub fn seeks(&self) -> u64 {
+        self.seeks
+    }
+
     /// Live notes recorded since the last call.
     pub fn take_note_inputs(&mut self) -> Vec<NoteInput> {
         std::mem::take(&mut self.note_inputs)
+    }
+
+    /// Live controllers recorded since the last call (ADR 0068).
+    pub fn take_control_inputs(&mut self) -> Vec<crate::messages::ControlInput> {
+        std::mem::take(&mut self.control_inputs)
     }
 
     /// The position being **heard**: the engine's own less the output's latency (ADR

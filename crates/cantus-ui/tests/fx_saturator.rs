@@ -12,6 +12,8 @@ use support::*;
 fn with_fervor() -> (CantusApp, StripId, EffectId) {
     let mut a = app(cantus_ui::starter_project());
     let s0 = a.project().tracks[0].strip.unwrap();
+    // The unit at its defaults: a neutral insert (ADR 0071).
+    a.settings.insert_neutral = true;
     a.add_effect(s0, EffectKind::Saturator);
     let fx = a.project().strip(s0).unwrap().effects[0].id;
     a.open_effect_editor(s0, fx);
@@ -318,9 +320,9 @@ fn every_factory_preset_names_real_keys_and_is_in_both_languages() {
             );
         }
         for lang in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
-            cantus_ui::i18n::set_locale(lang);
+            cantus_ui::i18n::set_thread_locale(lang);
             assert_ne!(cantus_ui::i18n::t(label), *label, "{label} in {lang:?}");
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }

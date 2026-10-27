@@ -3568,3 +3568,104 @@ fn the_scan_never_looks_in_the_sibling_projects_folders() {
         "no sibling folder looked in"
     );
 }
+
+/// Round 31 (ADR 0070): the synth's track holding two clips of a take that overlap by
+/// half a beat, crossed on an S-curve, the first with a gain envelope; their ids.
+fn crossed_takes(app: &mut CantusApp, dir: &std::path::Path) -> (ClipId, ClipId) {
+    use cantus_core::clip_gain::{GainEnvelope, GainPoint};
+    let take = dir.join("drive").join("xfade.wav");
+    let id = with_take(app, &take);
+    let mut p = app.project().clone();
+    p.tracks[0].clips.clear();
+    let mut a = p.make_audio_clip("a", id, Ticks::ZERO, Ticks::beats(1));
+    a.audio.as_mut().unwrap().gain_env = Some(Box::new(GainEnvelope::new(vec![
+        GainPoint::new(Ticks::ZERO, 0.0),
+        GainPoint::new(Ticks(600), -9.0),
+    ])));
+    let mut b = p.make_audio_clip("b", id, Ticks(480), Ticks::beats(1));
+    b.offset = Ticks(240);
+    b.audio.as_mut().unwrap().cross = Some(cantus_core::crossfade::XfadeCurve::SCurve);
+    let ids = (a.id, b.id);
+    p.tracks[0].clips.extend([a, b]);
+    app.bus = CommandBus::new(p);
+    ids
+}
+
+#[test]
+fn freeze_and_bounce_hear_an_overlaps_crossfade_and_a_gain_envelope() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("xfade");
+    crossed_takes(&mut app, &dir);
+    let live = mix(&mut app);
+    // The crossfade and the envelope are heard: the song without them differs.
+    let mut plain = app.project().clone();
+    for c in &mut plain.tracks[0].clips {
+        let a = c.audio.as_mut().unwrap();
+        a.cross = None;
+        a.gain_env = None;
+    }
+    let snap = app.engine.compile_for_render(&plain, 1);
+    let without = render(
+        snap,
+        &RenderOptions {
+            tail_seconds: 1.0,
+            compensate_latency: true,
+            ..Default::default()
+        },
+    )
+    .unwrap()
+    .samples;
+    assert!(without.iter().zip(&live).any(|(a, b)| a != b), "heard");
+    let synth = app.project().tracks[0].id;
+    let strip = app.project().tracks[0].strip.unwrap();
+    app.select_track(synth);
+    app.run_action(Action::FreezeTrack);
+    settle(&mut app, &ctx);
+    assert!(app.project().frozen(FreezeTarget::Strip(strip)).is_some());
+    same_bits(&mix(&mut app), &live, "frozen");
+    app.undo();
+    // Bounced in place, whole: the song as it was.
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Track,
+        },
+    );
+    let after = mix(&mut app);
+    let n = after.len().min(live.len());
+    within(&after[..n], &live[..n], 1e-5, "bounced");
+}
+
+#[test]
+fn a_bounce_of_one_of_two_crossed_clips_is_refused_and_a_range_keeps_the_crossfade_whole() {
+    let ctx = support::ctx();
+    let (mut app, dir) = app("xfade-half");
+    let (_a, b) = crossed_takes(&mut app, &dir);
+    let synth = app.project().tracks[0].id;
+    let tracks = app.project().tracks.len();
+    app.bounce(Plan {
+        track: synth,
+        through: Through::Source,
+        range: Range::Clips(vec![b]),
+    });
+    assert!(app.status.error, "{}", app.status.text);
+    assert_eq!(app.project().tracks.len(), tracks);
+    // A time range starting inside the overlap: its edge moved out past the crossfade.
+    let live = mix(&mut app);
+    bounce(
+        &mut app,
+        &ctx,
+        Plan {
+            track: synth,
+            through: Through::Source,
+            range: Range::Time(Ticks(600), Ticks::beats(2)),
+        },
+    );
+    assert!(app.project().tracks.len() > tracks, "{}", app.status.text);
+    let after = mix(&mut app);
+    let n = after.len().min(live.len());
+    within(&after[..n], &live[..n], 1e-5, "the crossfade kept whole");
+}

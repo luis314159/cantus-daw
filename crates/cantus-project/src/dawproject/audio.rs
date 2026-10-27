@@ -397,3 +397,151 @@ pub fn read(
         id,
     })
 }
+
+// ---- crossfades and gain envelopes (round 31, ADR 0070) ------------------------------
+
+/// What DAWproject says of a clip's crossfades: the length of the overlap it crosses in
+/// (its fade in) and out (its fade out), and the curves.
+pub type Crossings = (
+    Option<Ticks>,
+    Option<Ticks>,
+    Vec<cantus_core::crossfade::XfadeCurve>,
+);
+
+/// The crossings of a track's clips, by clip (ADR 0070 §9): a crossed overlap is a fade in
+/// on the later window's first piece and a fade out on the earlier one's last, each the
+/// overlap's length. Found once per track (review 1: not once per clip).
+pub fn crossings_of_track(
+    t: &cantus_core::Track,
+) -> std::collections::HashMap<cantus_core::ClipId, Crossings> {
+    let mut out: std::collections::HashMap<cantus_core::ClipId, Crossings> =
+        std::collections::HashMap::new();
+    for o in cantus_core::crossfade::overlaps_of_track(t) {
+        let Some(curve) = o.curve else {
+            continue;
+        };
+        let len = o.to - o.from;
+        let e = out.entry(o.right_first).or_default();
+        e.0 = Some(len);
+        e.2.push(curve);
+        let e = out.entry(o.left_last).or_default();
+        e.1 = Some(len);
+        e.2.push(curve);
+    }
+    out
+}
+
+/// Write a clip's gain envelope as DAWproject's clip-level gain expression, beside its
+/// audio in the clip's `<Lanes>`: points in the clip's content beats, linear gain, linear
+/// or held between them (the shapes DAWproject has; the others are reported).
+pub fn write_gain(
+    w: &mut XmlWriter,
+    next_id: &mut dyn FnMut() -> String,
+    c: &Clip,
+    env: &cantus_core::clip_gain::GainEnvelope,
+    report: &mut Report,
+) {
+    use cantus_core::Shape;
+    w.open(
+        "Points",
+        &[
+            ("id", a(next_id())),
+            ("unit", a("linear")),
+            ("timeUnit", a("beats")),
+        ],
+    );
+    w.empty("Target", &[("expression", a("gain"))]);
+    let mut bent = false;
+    for (i, p) in env.points.iter().enumerate() {
+        let last = i + 1 == env.points.len();
+        let hold = p.shape == Shape::Hold;
+        bent |= !last && !hold && (p.shape != Shape::Curve || p.tension != 0.0);
+        w.empty(
+            "RealPoint",
+            &[
+                ("time", a(num(p.tick.0 as f64 / PPQ as f64))),
+                (
+                    "value",
+                    a(num(f64::from(cantus_core::clip_gain::gain_of(p.db)))),
+                ),
+                ("interpolation", a(if hold { "hold" } else { "linear" })),
+            ],
+        );
+    }
+    w.close(); // Points
+    if bent {
+        report.dropped("clipfx.report.env_shape", vec![("clip", c.name.clone())]);
+    }
+}
+
+/// A clip's gain envelope read from a `<Points>` whose target is the gain expression:
+/// `to_ticks` turns its times into content ticks; linear gain or dB (`unit`).
+pub fn read_gain(
+    points: roxmltree::Node,
+    to_ticks: &dyn Fn(f64) -> Ticks,
+) -> Option<cantus_core::clip_gain::GainEnvelope> {
+    use cantus_core::clip_gain::{GainEnvelope, GainPoint, ENV_MAX_DB, ENV_MIN_DB};
+    let gain = points
+        .children()
+        .find(|c| c.has_tag_name("Target"))
+        .is_some_and(|t| t.attribute("expression") == Some("gain"));
+    if !gain {
+        return None;
+    }
+    let db_of = |v: f64| -> f32 {
+        match points.attribute("unit") {
+            Some("decibel") => v as f32,
+            _ if v <= 0.0 => ENV_MIN_DB,
+            _ => (20.0 * v.log10()) as f32,
+        }
+    };
+    let mut out = Vec::new();
+    for p in points.children().filter(|c| c.has_tag_name("RealPoint")) {
+        let (Some(time), Some(v)) = (
+            p.attribute("time").and_then(|x| x.parse::<f64>().ok()),
+            p.attribute("value").and_then(|x| x.parse::<f64>().ok()),
+        ) else {
+            continue;
+        };
+        if !time.is_finite() || !v.is_finite() {
+            continue;
+        }
+        let mut g = GainPoint::new(to_ticks(time), db_of(v).clamp(ENV_MIN_DB, ENV_MAX_DB));
+        if p.attribute("interpolation") == Some("hold") {
+            g.shape = cantus_core::Shape::Hold;
+        }
+        out.push(g);
+    }
+    let env = GainEnvelope::new(out);
+    (!env.points.is_empty() && env.is_valid()).then_some(env)
+}
+
+/// After a track's clips are read: two overlapping audio clips whose fades both span the
+/// overlap — the later's in, the earlier's out — are a crossfade (DAWproject's way of
+/// saying one), crossed on the linear curve its fades meant.
+pub fn crossfades_from_fades(track: &mut cantus_core::Track) {
+    use cantus_core::crossfade::XfadeCurve;
+    let near = |a: Ticks, b: Ticks| (a.0 - b.0).abs() <= 1;
+    let mut crossed = Vec::new();
+    for o in cantus_core::crossfade::overlaps_of_track(track) {
+        let len = o.to - o.from;
+        let (Some(ra), Some(la)) = (
+            track.clip(o.right_first).and_then(|c| c.audio.as_ref()),
+            track.clip(o.left_last).and_then(|c| c.audio.as_ref()),
+        ) else {
+            continue;
+        };
+        if near(ra.fade_in, len) && near(la.fade_out, len) {
+            crossed.push((o.right_first, o.left_last));
+        }
+    }
+    for (r, l) in crossed {
+        if let Some(a) = track.clip_mut(r).and_then(|c| c.audio.as_mut()) {
+            a.cross = Some(XfadeCurve::Linear);
+            a.fade_in = Ticks::ZERO;
+        }
+        if let Some(a) = track.clip_mut(l).and_then(|c| c.audio.as_mut()) {
+            a.fade_out = Ticks::ZERO;
+        }
+    }
+}

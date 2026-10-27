@@ -89,6 +89,8 @@ impl Processor {
                 s.pan = t.pan;
                 s.audible = t.audible;
                 apply_instrument(&mut s, &t.instrument, &t.samples, &t.assets);
+                // Its note effects and the key they read (ADR 0069).
+                s.configure_notefx(&t.note_fx, snapshot.key);
                 // Freezing (ADR 0064): the render it plays, if any (an `Arc` clone; the
                 // one it replaces is still the old snapshot's) — or the one it keeps at the
                 // playhead while it plays live (review 3) — and whether it rests.
@@ -341,6 +343,9 @@ impl Processor {
         }
         let old = self.snapshot.replace(snapshot);
         if let Some(old) = old {
+            // A lane gone (removed, muted, its clip deleted): its controller back to rest,
+            // or it stays where the lane left it (ADR 0068).
+            self.rest_dropped_controls(&old);
             self.dispose(old);
         }
         self.reseek_events();
@@ -1125,6 +1130,13 @@ impl Processor {
                 let slot = self.track_to_slot[ti];
                 if let Some(mut s) = self.nodes.track(slot) {
                     s.next_event = t.first_event_at_or_after(tick);
+                    // The controller lanes chase to where the playhead landed (ADR 0068).
+                    s.next_control = t.first_control_at_or_after(tick);
+                    // Only while playing: stopped, a seek or an edit sends the instrument
+                    // nothing (a held pedal or a bend would sound under the keyboard).
+                    if self.transport.is_playing() {
+                        super::track_controls::chase(&mut s, t);
+                    }
                 }
             }
             self.next_beat_tick = if snap.tempo.is_one_metre() {
@@ -1144,6 +1156,24 @@ impl Processor {
             if self.track_ids[slot].is_some() {
                 if let Some(mut s) = self.nodes.track(slot) {
                     s.all_notes_off();
+                }
+            }
+        }
+        // The clips' controller lanes back to rest (ADR 0068): a stop leaves no bend held. Only
+        // from playing (a stop, a wrap, a seek while it plays): stopped, a seek sends nothing.
+        let from_playing = self.transport.is_playing() || self.was_playing;
+        if let (true, Some(snap)) = (from_playing, &self.snapshot) {
+            for (ti, t) in snap
+                .tracks
+                .iter()
+                .enumerate()
+                .take(self.track_to_slot.len())
+            {
+                if t.control_kinds.is_empty() {
+                    continue;
+                }
+                if let Some(mut s) = self.nodes.track(self.track_to_slot[ti]) {
+                    super::track_controls::rest(&mut s, t);
                 }
             }
         }
@@ -1168,4 +1198,50 @@ fn distinct(v: &mut [usize]) -> usize {
         }
     }
     d
+}
+
+impl Processor {
+    /// Every kind of controller `old` drove on a track that the snapshot now installed no
+    /// longer drives there, put back to rest (ADR 0068). Allocation-free.
+    pub(super) fn rest_dropped_controls(&mut self, old: &Snapshot) {
+        let Some(new) = self.snapshot.clone() else {
+            return;
+        };
+        for t in old.tracks.iter().filter(|t| !t.control_kinds.is_empty()) {
+            let now = new.tracks.iter().find(|n| n.id == t.id);
+            let Some(slot) = self.slot_for(t.id) else {
+                continue;
+            };
+            let Some(mut s) = self.nodes.track(slot) else {
+                continue;
+            };
+            for &kind in &t.control_kinds {
+                if now.is_some_and(|n| n.control_kinds.contains(&kind)) {
+                    continue;
+                }
+                let (c, v) = super::track_controls::controller_of(kind, kind.rest());
+                s.controller(c, v);
+            }
+        }
+    }
+
+    /// The controller lanes chased to where the playhead is (a start).
+    pub(super) fn chase_controls(&mut self) {
+        let Some(snap) = self.snapshot.clone() else {
+            return;
+        };
+        for (ti, t) in snap
+            .tracks
+            .iter()
+            .enumerate()
+            .take(self.track_to_slot.len())
+        {
+            if t.control_kinds.is_empty() {
+                continue;
+            }
+            if let Some(mut s) = self.nodes.track(self.track_to_slot[ti]) {
+                super::track_controls::chase(&mut s, t);
+            }
+        }
+    }
 }

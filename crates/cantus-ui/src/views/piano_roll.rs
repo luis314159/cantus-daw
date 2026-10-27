@@ -27,8 +27,15 @@ use cantus_core::{
 };
 use egui::{pos2, vec2, PointerButton, Pos2, Rect, Sense};
 
+/// The event lanes under the notes (ADR 0068).
+#[path = "piano_roll_lanes.rs"]
+pub mod lanes;
+use lanes::LaneRow;
 #[path = "piano_roll_paint.rs"]
 mod paint;
+/// The song's key in the piano roll (round 31, ADR 0069).
+#[path = "piano_roll_scale.rs"]
+pub mod scale;
 
 const KEYS_W: f32 = 64.0;
 /// Wider when the lanes are named: "Closed hat" does not fit in the width of "F#2".
@@ -39,7 +46,7 @@ const RULER_H: f32 = 20.0;
 /// The velocity lane: its height by default and how far its splitter may move it.
 const VEL_H: f32 = 80.0;
 const VEL_MIN: f32 = 36.0;
-const VEL_MAX: f32 = 260.0;
+const VEL_MAX: f32 = 520.0;
 /// The splitter between the grid and the velocity lane.
 const SPLIT_H: f32 = 6.0;
 /// The rows' zoom range, in points per row.
@@ -375,6 +382,8 @@ pub struct PianoRollView {
     /// A clip opened from the arrangement, to fit to the grid the next time it is laid out
     /// ([`fit_clip`]).
     fit_pending: Option<(TrackId, ClipId)>,
+    /// The event lanes' own state (ADR 0068).
+    pub lanes: lanes::LanesView,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -391,6 +400,8 @@ struct NoteDrag {
     press: Pos2,
     track: TrackId,
     clip: ClipId,
+    /// A move's clip lanes when it began, when they follow the notes (ADR 0068).
+    lanes: Vec<cantus_core::ClipLane>,
 }
 
 impl PianoRollView {
@@ -422,6 +433,7 @@ impl Default for PianoRollView {
             last_grid: (0.0, 0.0),
             count: (usize::MAX, crate::i18n::Locale::En, String::new()),
             fit_pending: None,
+            lanes: lanes::LanesView::default(),
         }
     }
 }
@@ -613,7 +625,8 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         _ => {
             let a: &CantusApp = app;
             match (a.project().track(track_id), clip_of(a, track_id, clip_id)) {
-                (Some(t), Some(c)) => Axis::build(&t.instrument, c),
+                // r31 midi: folded to the key when asked.
+                (Some(t), Some(c)) => scale::fold(a, Axis::build(&t.instrument, c), c),
                 _ => Axis::default(),
             }
         }
@@ -624,6 +637,17 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         return;
     }
     let f = Frame::of(full, keys_w, app.piano_roll.vel_h, &s);
+    // The lanes under the grid (ADR 0068): velocity, the release, the clip's own lanes.
+    let lane_rows = clip_of(app, track_id, clip_id)
+        .map(|c| lanes::rows(&app.piano_roll.lanes, c))
+        .unwrap_or_default();
+    let (rows, max_scroll) = lanes::layout(
+        f.vel,
+        f.vel_label,
+        &lane_rows,
+        app.piano_roll.lanes.scroll,
+        &s,
+    );
     app.piano_roll.last_grid = (f.grid.width(), f.grid.height());
     // A clip opened from the arrangement (round 27, ADR 0051): fitted to this grid before
     // it is drawn, so the first frame shows it.
@@ -633,7 +657,10 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     }
 
     let resp = ui.allocate_rect(f.grid, Sense::click_and_drag());
-    let vel_resp = ui.allocate_rect(f.vel, Sense::click_and_drag());
+    let row_resps: Vec<egui::Response> = rows
+        .iter()
+        .map(|r| ui.allocate_rect(r.body, Sense::click_and_drag()))
+        .collect();
     let ruler_resp = ui.allocate_rect(f.ruler, Sense::click());
     let keys_resp = ui.allocate_rect(f.keys, Sense::click_and_drag());
     navigate(app, ui, &f, &axis);
@@ -682,6 +709,7 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
         let grid_p = ui.painter().with_clip_rect(f.grid);
         let drawn = kit::with_brush(&grid_p, |b| {
             paint::grid(b, a, &geo, clip, v.grid, &s);
+            scale::rows(b, a, &geo, &s); // r31 midi: the key's rows lit
             let drawn = paint::notes(b, &geo, clip, &v.sel, &a.selected_notes, track_color, &s);
             paint::recording(b, a, &geo, clip, &s);
             if let Some((p0, p1)) = v.marquee {
@@ -701,32 +729,70 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
             drawn
         });
         kit::with_brush(&ui.painter().with_clip_rect(f.keys), |b| {
-            paint::keys(b, &geo, f.keys, hover_key, &s)
+            paint::keys(b, &geo, f.keys, hover_key, &s);
+            scale::keys(b, a, &geo, f.keys, &s); // r31 midi: the key on the keyboard
         });
         kit::with_brush(&ui.painter().with_clip_rect(f.ruler), |b| {
             paint::ruler(b, a, &geo, f.ruler, clip, Some(ph_x), &s)
         });
-        kit::with_brush(&ui.painter().with_clip_rect(f.vel), |b| {
-            paint::velocity(
-                b,
-                a,
-                &geo,
-                f.vel,
-                clip,
-                &v.sel,
-                &a.selected_notes,
-                track_color,
-                v.grid,
-                &s,
-            )
-        });
+        // The lanes, each in its own row (ADR 0068), the playhead through them.
+        for rr in &rows {
+            kit::with_brush(&ui.painter().with_clip_rect(rr.body), |b| {
+                let field = match rr.row {
+                    LaneRow::Velocity => Some(paint::NoteField::Velocity),
+                    LaneRow::Release => Some(paint::NoteField::Release),
+                    LaneRow::Ctl(_) => None,
+                };
+                match (field, rr.row) {
+                    (Some(field), _) => paint::velocity(
+                        b,
+                        a,
+                        &geo,
+                        rr.body,
+                        clip,
+                        &v.sel,
+                        &a.selected_notes,
+                        track_color,
+                        v.grid,
+                        field,
+                        &s,
+                    ),
+                    (None, LaneRow::Ctl(k)) => {
+                        if let Some(l) = clip.lanes.iter().find(|l| l.kind == k) {
+                            lanes::paint_ctl(
+                                b,
+                                a,
+                                &geo,
+                                rr.body,
+                                clip,
+                                l,
+                                v.lanes.selected(k),
+                                track_id,
+                                track_color,
+                                v.grid,
+                                &s,
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+                if ph_x >= rr.body.left() && ph_x <= rr.body.right() {
+                    b.vline(ph_x, rr.body.top(), rr.body.bottom(), s.k, s.t.playhead);
+                }
+                lanes::paint_name(b, rr.row, rr.body, &s);
+            });
+        }
         let pointer = resp.hover_pos();
         let press = ui.input(|i| i.pointer.press_origin());
+        let in_notes_lane = |p: &Pos2| {
+            rows.iter()
+                .any(|r| !matches!(r.row, LaneRow::Ctl(_)) && r.body.contains(*p))
+        };
         Hits {
             drawn,
             hover: pointer.and_then(|p| geo.hit(&clip.notes, p)),
             press: press.and_then(|p| geo.hit(&clip.notes, p)),
-            vel_press: press.filter(|p| f.vel.contains(*p)).and_then(|p| {
+            vel_press: press.filter(in_notes_lane).and_then(|p| {
                 clip.notes
                     .iter()
                     .rev()
@@ -739,9 +805,25 @@ pub fn show(app: &mut CantusApp, ui: &mut egui::Ui) {
     };
     app.piano_roll_notes_drawn = hits.drawn;
     chrome_parts(app, ui, &f, &hits, &s);
+    kit::with_brush(&ui.painter().with_clip_rect(f.vel_label), |b| {
+        lanes::paint_cells(b, &app.piano_roll.lanes, &rows, &s)
+    });
 
     // ---- act ------------------------------------------------------------------------
-    velocity_input(app, ui, &geo, f.vel, &vel_resp, &hits, track_id, clip_id);
+    for (rr, r) in rows.iter().zip(&row_resps) {
+        match rr.row {
+            LaneRow::Velocity | LaneRow::Release => {
+                let field = if rr.row == LaneRow::Velocity {
+                    paint::NoteField::Velocity
+                } else {
+                    paint::NoteField::Release
+                };
+                velocity_input(app, ui, &geo, rr.body, r, &hits, track_id, clip_id, field);
+            }
+            LaneRow::Ctl(k) => lanes::ctl_input(app, ui, &geo, rr.body, r, k, track_id, clip_id),
+        }
+    }
+    lanes::cell_input(app, ui, &rows, max_scroll, f.vel_label, track_id, clip_id);
     if keys_resp.clicked() {
         if let Some(pos) = keys_resp.interact_pointer_pos() {
             app.audition(track_id, geo.axis.pitch(key_at(&geo, f.keys, pos)));
@@ -1008,20 +1090,6 @@ fn chrome_parts(app: &CantusApp, ui: &egui::Ui, f: &Frame, hits: &Hits, s: &Styl
             ],
             ink.bottom,
         );
-        // What the lane below edits, in a cell of its own.
-        b.register(f.vel_label, "lane_target", &[kit::Tok::Panel], &[]);
-        b.rect(b.snap_rect(f.vel_label), kit::Fill::Solid(t.panel));
-        let well = Rect::from_min_size(
-            f.vel_label.min + vec2(s.s(4.0), s.s(4.0)),
-            vec2(f.vel_label.width() - s.s(8.0), s.s(20.0)),
-        );
-        if well.height() <= f.vel_label.height() {
-            kit::well::paint(b, well, s, kit::State::REST, None);
-            let tx = kit::text::Text::key("pianoroll.velocity", kit::text::Role::Label, t.text)
-                .align(egui::Align2::LEFT_CENTER)
-                .policy(kit::text::Policy::Abbreviate);
-            let _ = kit::text::paint(b, well.shrink2(vec2(s.s(6.0), 0.0)), &tx, s.tk());
-        }
     });
     let _ = app;
 }
@@ -1113,6 +1181,7 @@ fn toolbar(app: &mut CantusApp, ui: &mut egui::Ui, track: TrackId, clip: ClipId)
     if snap.is_some_and(|r| r.clicked()) {
         app.piano_roll.snap = !app.piano_roll.snap;
     }
+    scale::toolbar(app, ui, &mut bar, id); // r31 midi: the key, Scale, Fold, Snap
     let q = t("menu.quantize");
     let quant = bar.word(ui, id.with("quantize"), &q, 72.0, || {
         let keys = app.keymap.display_for(Action::Quantize);
@@ -1245,12 +1314,16 @@ fn velocity_input(
     hits: &Hits,
     track: TrackId,
     clip_id: ClipId,
+    field: paint::NoteField,
 ) {
     let (top, bottom) = (vel.top() + 8.0, vel.bottom() - 3.0);
     if resp.hovered() {
         hint::set_text(
             ui.ctx(),
-            chrome::word("pianoroll.velocity_tip"),
+            chrome::word(match field {
+                paint::NoteField::Velocity => "pianoroll.velocity_tip",
+                paint::NoteField::Release => "automodes.lane.release_tip",
+            }),
             "",
             Caps::NONE,
         );
@@ -1276,6 +1349,7 @@ fn velocity_input(
                 press,
                 track,
                 clip: clip_id,
+                lanes: Vec::new(),
             });
         }
     }
@@ -1286,9 +1360,23 @@ fn velocity_input(
                 let notes: Vec<Note> = d
                     .originals
                     .iter()
-                    .map(|n| Note {
-                        velocity: (n.velocity as f32 + dv).round().clamp(1.0, 127.0) as u8,
-                        ..n.clone()
+                    .map(|n| match field {
+                        paint::NoteField::Velocity => Note {
+                            velocity: (n.velocity as f32 + dv).round().clamp(1.0, 127.0) as u8,
+                            ..n.clone()
+                        },
+                        // A release drawn from none starts where the press is (ADR 0068).
+                        paint::NoteField::Release => {
+                            let from = if n.release == 0 {
+                                (bottom - d.press.y) / (bottom - top) * 127.0
+                            } else {
+                                n.release as f32
+                            };
+                            Note {
+                                release: (from + dv).round().clamp(1.0, 127.0) as u8,
+                                ..n.clone()
+                            }
+                        }
                     })
                     .collect();
                 let (track, clip_id) = (d.track, d.clip);
@@ -1434,7 +1522,7 @@ fn interact(
                     }
                     None if !ctrl => {
                         let start = snap_floor(geo.tick_at(pos.x)).max(Ticks::ZERO);
-                        let pitch = geo.pitch_at(pos.y);
+                        let pitch = scale::snap(app, geo.axis, geo.pitch_at(pos.y)); // r31 midi
                         let length = drawn_note_length(
                             geo.axis,
                             snapping,
@@ -1513,6 +1601,11 @@ fn interact(
                     }
                     let ids = app.selected_notes.clone();
                     let originals = edited(app, track, clip_id, &ids, Note::clone);
+                    // The lanes under them move with them (ADR 0068), when they follow.
+                    let lanes = match clip_of(app, track, clip_id) {
+                        Some(c) if !resize && app.piano_roll.lanes.follow => c.lanes.clone(),
+                        _ => Vec::new(),
+                    };
                     app.piano_roll.drag = Some(NoteDrag {
                         kind: if resize {
                             DragKind::Resize
@@ -1523,6 +1616,7 @@ fn interact(
                         press,
                         track,
                         clip: clip_id,
+                        lanes,
                     });
                 }
                 _ => {
@@ -1569,7 +1663,13 @@ fn interact(
                                     .iter()
                                     .map(|n| Note {
                                         start: (n.start + dt).max(Ticks::ZERO),
-                                        pitch: geo.axis.moved(n.pitch, dp),
+                                        pitch: scale::moved_with(
+                                            app,
+                                            geo.axis,
+                                            &d.originals,
+                                            n.pitch,
+                                            dp,
+                                        ), // r31 midi
                                         ..n.clone()
                                     })
                                     .collect()
@@ -1602,14 +1702,38 @@ fn interact(
                             }
                         }
                         let (track, clip_id) = (d.track, d.clip);
-                        app.exec_merging(
-                            Command::SetNotes {
-                                track,
-                                clip: clip_id,
-                                notes,
+                        // The controllers under the notes move with them (ADR 0068): the
+                        // stretch from the first note's start to the last's end, by as much.
+                        let lanes_cmd = (d.kind == DragKind::Move && !d.lanes.is_empty())
+                            .then(|| {
+                                let a = d.originals.iter().map(|n| n.start).min()?;
+                                let b = d.originals.iter().map(Note::end).max()?;
+                                let moved = notes.iter().map(|n| n.start).min()?;
+                                Some(Command::SetClipLanes {
+                                    track,
+                                    clip: clip_id,
+                                    lanes: cantus_core::clip_lanes::edit::shift(
+                                        &d.lanes,
+                                        a,
+                                        b,
+                                        moved - a,
+                                    ),
+                                })
+                            })
+                            .flatten();
+                        let set = Command::SetNotes {
+                            track,
+                            clip: clip_id,
+                            notes,
+                        };
+                        let cmd = match lanes_cmd {
+                            Some(l) => Command::Batch {
+                                label_key: set.label_key().to_string(),
+                                commands: vec![set, l],
                             },
-                            MergeKey::of(&("notes", clip_id.0)),
-                        );
+                            None => set,
+                        };
+                        app.exec_merging(cmd, MergeKey::of(&("notes", clip_id.0)));
                     } else if let Some((a, _)) = app.piano_roll.marquee {
                         app.piano_roll.marquee = Some((a, pos));
                         let r = Rect::from_two_pos(a, pos);
@@ -1712,7 +1836,7 @@ fn paint_cell(
         raw
     }
     .max(Ticks::ZERO);
-    let pitch = geo.pitch_at(pos.y);
+    let pitch = scale::snap(app, geo.axis, geo.pitch_at(pos.y)); // r31 midi: snap to scale
     if app.piano_roll.paint_last == Some((start, pitch)) {
         return;
     }

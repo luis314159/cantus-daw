@@ -78,9 +78,9 @@ fn new_and_open_ask_before_unsaved_work_goes() {
     assert_eq!(a.path.as_deref(), Some(other.as_path()));
 
     // In Spanish too.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::Es);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::Es);
     assert_eq!(cantus_ui::i18n::t("unsaved.dont_save"), "No guardar");
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
 }
 
 #[test]

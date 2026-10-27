@@ -1,0 +1,154 @@
+# Área: efectos de nota (arpegiador, acordes, escala), resaltado y ajuste a la escala, plantillas de groove (ronda 31, midi; ADR 0069).
+
+# Los comandos, como los nombra el menú de deshacer.
+cmd.notefx.chain = Editar efectos de nota
+cmd.notefx.param = Ajustar parámetro de efecto de nota
+cmd.notefx.key = Ajustar tonalidad
+cmd.notefx.groove = Ajustar groove del clip
+cmd.notefx.skip = Tocar sin efectos de nota
+cmd.notefx.add_groove = Añadir groove
+cmd.notefx.remove_groove = Quitar groove
+cmd.notefx.set_groove = Editar groove
+cmd.notefx.commit = Aplicar groove
+cmd.notefx.bake = Convertir en notas
+
+# Los tipos.
+notefx.kind.arp = Arpegiador
+notefx.kind.chord = Acordes
+notefx.kind.scale = Escala
+notefx.add = Añadir efecto de nota
+
+# La sección del inspector.
+notefx.band = Efectos de nota
+notefx.empty = Añadir un efecto de nota…
+notefx.collapse = Clic para plegar
+notefx.expand = Clic para desplegar
+notefx.earlier = Mover antes en la cadena
+notefx.later = Mover después en la cadena
+notefx.on_off = Encendido / apagado
+notefx.remove = Quitar
+notefx.full = Una pista admite ocho efectos de nota como máximo
+notefx.on = Sí
+notefx.off = No
+
+# Los órdenes del arpegiador.
+notefx.arp.up = Arriba
+notefx.arp.down = Abajo
+notefx.arp.up_down = Arriba-abajo
+notefx.arp.down_up = Abajo-arriba
+notefx.arp.played = Como se tocó
+notefx.arp.chord = Acorde
+notefx.arp.random = Aleatorio
+
+# Los parámetros.
+notefx.p.mode = Orden
+notefx.p.octaves = Octavas
+notefx.p.rate = Paso
+notefx.p.gate = Duración
+notefx.p.swing = Swing
+notefx.p.hold = Mantener
+notefx.p.fixed = Vel. fija
+notefx.p.velocity = Velocidad
+notefx.p.seed = Semilla
+notefx.p.shape = Acorde
+notefx.p.inversion = Inversión
+notefx.p.spread = Disposición
+notefx.p.own_key = Tonalidad propia
+notefx.p.root = Tónica
+notefx.p.scale = Escala
+notefx.p.scale_mode = Fuera
+
+# Acordes y disposiciones.
+notefx.chord.scale_triad = Tríada de la tonalidad
+notefx.chord.scale_seventh = Séptima de la tonalidad
+notefx.spread.close = Cerrada
+notefx.spread.open = Abierta
+notefx.spread.wide = Amplia
+notefx.scale_mode.snap = A la más cercana
+notefx.scale_mode.drop = Descartar
+
+# Las escalas.
+notefx.scale.major = Mayor
+notefx.scale.minor = Menor
+notefx.scale.harmonic_minor = Menor armónica
+notefx.scale.melodic_minor = Menor melódica
+notefx.scale.dorian = Dórica
+notefx.scale.phrygian = Frigia
+notefx.scale.lydian = Lidia
+notefx.scale.mixolydian = Mixolidia
+notefx.scale.locrian = Locria
+notefx.scale.major_pentatonic = Pentatónica mayor
+notefx.scale.minor_pentatonic = Pentatónica menor
+notefx.scale.blues = Blues
+notefx.scale.whole_tone = Tonos enteros
+notefx.scale.dim_hw = Disminuida (semitono-tono)
+notefx.scale.dim_wh = Disminuida (tono-semitono)
+notefx.scale.phrygian_dominant = Frigia dominante
+notefx.scale.hungarian_minor = Húngara menor
+notefx.scale.japanese = Japonesa (In)
+notefx.scale.chromatic = Cromática
+
+# La tonalidad, en la barra del piano roll.
+notefx.key = Tono
+notefx.key.name = {root} {scale}
+notefx.key.none = Sin tonalidad
+notefx.key.root = Tónica
+notefx.key.scale = Escala
+notefx.key.tip = La tonalidad de la canción: el piano roll la resalta y se ajusta a ella, los efectos de nota la leen
+notefx.highlight = Escala
+notefx.highlight.tip = Resaltar las filas de la tonalidad y marcar su tónica
+notefx.fold = Plegar
+notefx.fold.tip = Mostrar solo las filas de la tonalidad (y las filas donde hay notas del clip)
+notefx.snap = En tono
+notefx.snap.tip = Mantener en la tonalidad las notas dibujadas, movidas y transportadas
+
+# Grooves.
+notefx.groove.band = Groove
+notefx.groove = Groove
+notefx.groove.none = Ninguno
+notefx.groove.band8 = Swing, corcheas
+notefx.groove.band16 = Swing, semicorcheas
+notefx.groove.pool = Los grooves del proyecto
+notefx.groove.swing8 = Swing 8 · {pct} %
+notefx.groove.swing16 = Swing 16 · {pct} %
+notefx.groove.timing = Tiempo
+notefx.groove.velocity = Acentos
+notefx.groove.length = Duraciones
+notefx.groove.commit = Aplicar
+notefx.groove.commit.tip = Escribir el groove en las notas y quitarlo del clip
+notefx.groove.extract = Extraer groove
+notefx.groove.extract.tip = Llevar el swing de este clip a los grooves del proyecto, un compás en rejilla de semicorcheas
+notefx.groove.extract_audio = Extraer groove
+notefx.groove.extract_audio.tip = Llevar el swing de los transitorios de este clip a los grooves del proyecto
+notefx.groove.from_audio = {name} (audio)
+notefx.groove.analysing = Aún se buscan los transitorios del clip: vuelve a intentarlo en un momento
+notefx.groove.nothing = Este clip no tiene de dónde sacar un groove
+notefx.bake = Convertir en notas
+notefx.bake.tip = Sustituir el clip por las notas que tocan a partir de él los efectos de nota de su pista
+notefx.baked_name = {name} (convertido)
+notefx.skip = Efectos de nota
+notefx.skip.key = Saltar
+notefx.groove.rack_tip = El groove de todos los clips de este patrón
+
+# Exportar MIDI: qué notas guarda el archivo.
+notefx.midi.band = Notas
+notefx.midi.played = Como suenan
+notefx.midi.written = Como están escritas
+notefx.midi.played_hint = Con el groove de cada clip y los efectos de nota de cada pista escritos nota a nota: el archivo toca lo que se oye.
+notefx.midi.written_hint = Las notas tal como las guardan los clips: sin groove, sin arpegio, acordes ni escala.
+notefx.groove.pool_empty = Aún ninguno: Extraer groove toma uno de un clip
+notefx.groove.commit_loop = Este clip se repite en un tramo que no es un número entero de veces el largo del groove: cada pasada suena distinta, así que no cabe en un solo juego de notas. Convertir en notas escribe cada pasada.
+notefx.groove.remove_band = Quitar del proyecto (sin uso)
+notefx.groove.name = Nombre del groove
+
+# Exportar DAWproject: lo que el formato no guarda de efectos de nota, grooves y tonalidad.
+interop.report.x_note_fx = Los efectos de nota de {track} (DAWproject no los tiene): sus clips se escriben con sus notas, sin arpegio, acordes ni escala; usa antes Convertir en notas para conservarlos
+interop.report.x_grooves = Los grooves de {n} clips (DAWproject no los tiene): sus notas se escriben rectas; usa antes Aplicar para conservarlos
+interop.report.x_grooves_one = El groove de un clip (DAWproject no lo tiene): sus notas se escriben rectas; usa antes Aplicar para conservarlo
+interop.report.x_key = La tonalidad de la canción (en {root}) no cabe en DAWproject: vuelve a elegirla donde se abra el proyecto
+notefx.glue_differs = No se pegan: los clips suenan distinto (uno convertido sin pasar por los efectos de nota, u otro groove). Conviértelos o aplica el groove antes para que coincidan.
+
+# La paleta de comandos.
+notefx.palette.kind = Efecto de nota
+notefx.palette.add = Añadir {kind} a {track}
+notefx.palette.detail = Antes del instrumento, al final de los efectos de nota de la pista

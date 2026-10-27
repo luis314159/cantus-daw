@@ -22,15 +22,25 @@ pub(super) fn fades(
     inner: Rect,
     px_per_tick: f32,
     ink: Color32,
+    keep: (bool, bool),
     scratch: &mut Scratch,
     s: &Style,
 ) {
     let a = shown.region;
     let w = body.width();
-    // The engine shortens overlapping fades in proportion; draw what it plays.
+    // The engine shortens overlapping fades in proportion; draw what it plays — without a
+    // fade a crossfade replaces (`keep`, ADR 0070).
     let (mut fi, mut fo) = (
-        a.fade_in.0.max(0) as f32 * px_per_tick,
-        a.fade_out.0.max(0) as f32 * px_per_tick,
+        if keep.0 {
+            a.fade_in.0.max(0) as f32 * px_per_tick
+        } else {
+            0.0
+        },
+        if keep.1 {
+            a.fade_out.0.max(0) as f32 * px_per_tick
+        } else {
+            0.0
+        },
     );
     if fi + fo > w && fi + fo > 0.0 {
         let k = w / (fi + fo);
@@ -199,6 +209,10 @@ pub(super) fn paint_handles(
         b.hline(h.wave.left(), h.wave.right(), y, b.px(), c);
     }
     for (which, r) in [(Handle::FadeIn, h.fade_in), (Handle::FadeOut, h.fade_out)] {
+        // A fade a crossfade replaces has no square (ADR 0070).
+        if r.width().is_nan() || r.width() <= 0.0 {
+            continue;
+        }
         let fill = if hot == Some(which) {
             s.t.highlight
         } else {

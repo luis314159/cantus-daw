@@ -364,14 +364,14 @@ fn factory_presets_are_whole_eqs_with_names_in_both_languages() {
             );
         }
         for loc in cantus_ui::i18n::Locale::ALL {
-            cantus_ui::i18n::set_locale(loc);
+            cantus_ui::i18n::set_thread_locale(loc);
             assert_ne!(
                 cantus_ui::i18n::t(label),
                 *label,
                 "{label} has no {loc:?} name"
             );
         }
-        cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+        cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     }
     let (mut a, s0, fx) = with_eq();
     let (label, params) = presets[0];

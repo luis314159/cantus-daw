@@ -28,7 +28,7 @@ const KINDS: [InstrumentKind; 8] = [
 
 /// One part playing `evs` (beats) at 120 BPM, at unity, nothing on the master.
 fn song_of(spec: InstrumentSpec, evs: &[Ev], bars: f64) -> Project {
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     let mut s = Song::new("level", 120.0, 1);
     let part = s.part("part", spec, colors::BASS, TrackIcon::Keys);
     s.feel(part, Feel::TIGHT);

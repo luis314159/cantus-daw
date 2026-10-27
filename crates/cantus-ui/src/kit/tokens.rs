@@ -1443,7 +1443,7 @@ mod tests {
     #[test]
     fn every_token_and_group_is_named_in_both_languages() {
         for lang in crate::i18n::Locale::ALL {
-            crate::i18n::set_locale(lang);
+            crate::i18n::set_thread_locale(lang);
             for t in Tok::ALL {
                 let k = t.name_key();
                 assert_ne!(
@@ -1462,7 +1462,7 @@ mod tests {
                 );
             }
         }
-        crate::i18n::set_locale(crate::i18n::Locale::En);
+        crate::i18n::set_thread_locale(crate::i18n::Locale::En);
         assert!(search("fader").contains(&Tok::Cap));
         assert!(search("MIXER").contains(&Tok::Strip));
     }

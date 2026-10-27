@@ -121,7 +121,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
     for locale in [cantus_ui::i18n::Locale::En, cantus_ui::i18n::Locale::Es] {
         for engine in [0.0, 1.0, 2.0] {
             let mut a = app(cantus_ui::starter_project());
-            cantus_ui::i18n::set_locale(locale);
+            cantus_ui::i18n::set_thread_locale(locale);
             let track = a.project().tracks[0].id;
             a.set_instrument(
                 track,
@@ -133,7 +133,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
             for k in [0.75, 1.0, 2.0] {
                 for view in [View::Play, View::Edit] {
                     let ctx = ctx();
-                    cantus_ui::i18n::set_locale(locale);
+                    cantus_ui::i18n::set_thread_locale(locale);
                     let texts = inst_look::paint_at(&ctx, &mut a, track, view, k);
                     for p in inst_look::problems(&texts, inst_look::area(k, view)) {
                         found.push(format!("{locale:?} engine {engine} {k}× {view:?}: {p}"));
@@ -142,7 +142,7 @@ fn no_text_is_clipped_elided_or_overlapping_at_any_scale_or_language() {
             }
         }
     }
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     assert!(
         found.is_empty(),
         "{} problems:\n{}",
@@ -236,7 +236,7 @@ fn shots() {
         ("unda-edit-slate-es", 1.0, cantus_ui::i18n::Locale::Es),
     ] {
         let mut a = app(cantus_ui::starter_project());
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         let track = a.project().tracks[0].id;
         a.set_instrument(
             track,
@@ -250,7 +250,7 @@ fn shots() {
             View::Edit
         };
         let c = ctx();
-        cantus_ui::i18n::set_locale(locale);
+        cantus_ui::i18n::set_thread_locale(locale);
         cantus_ui::theme::apply(&cantus_ui::theme::slate(), &c);
         cantus_ui::kit::shell::Shell::new(("inst", track.0)).set_scale(&c, k);
         let path = dir.join(format!("{name}.png"));
@@ -266,7 +266,7 @@ fn shots() {
         );
     }
     // Edit scrolled to its foot, in both themes: the rows below the fold.
-    cantus_ui::i18n::set_locale(cantus_ui::i18n::Locale::En);
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
     for (theme_name, theme) in [
         ("slate", cantus_ui::theme::slate()),
         ("paper", cantus_ui::theme::paper()),

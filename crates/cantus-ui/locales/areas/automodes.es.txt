@@ -1,0 +1,95 @@
+# Área: escritura, toque y enganche de la automatización; los carriles de CC, pitch-bend, velocidad y release del piano roll (ronda 31, automation; ADR 0068).
+
+# Comandos (las palabras del historial de deshacer).
+cmd.set_clip_lanes = Editar carriles de controlador
+cmd.set_track_auto_mode = Cambiar el modo de automatización
+cmd.set_master_auto_mode = Cambiar el modo de automatización del máster
+automodes.cmd.write_pass = Escribir automatización
+automodes.cmd.set_all = Cambiar el modo de automatización de todas las pistas
+
+action.toggle-automation-arm = Armar la escritura de automatización
+action.cycle-track-auto-mode = Siguiente modo de automatización de la pista seleccionada
+
+# Los modos.
+automodes.mode = Automatización
+automodes.mode.read = Leer
+automodes.mode.write = Escribir
+automodes.mode.touch = Tocar
+automodes.mode.latch = Retener
+automodes.badge.read = L
+automodes.badge.write = E
+automodes.badge.touch = T
+automodes.badge.latch = R
+automodes.hint.read = Reproduce la automatización; mover un control no escribe nada.
+automodes.hint.write = Sobrescribe cada parámetro automatizado de la pista desde el inicio hasta la parada, manteniendo cada uno donde estaba hasta que lo muevas.
+automodes.hint.touch = Escribe mientras sostienes un control y luego vuelve suavemente a la curva que ya había.
+automodes.hint.latch = Escribe desde que tocas el control hasta la parada, manteniendo el último valor.
+automodes.hint.disarmed = Arma la automatización en la barra superior para escribir.
+
+# El armado de la barra superior y sus opciones.
+automodes.arm = Armar automatización
+automodes.arm.armed = Armada
+automodes.arm.on_tip = Armada: las pistas en Escribir, Tocar o Retener escriben su automatización mientras suena la canción.
+automodes.arm.off_tip = Apagada: todas las pistas leen su automatización. Haz clic para armar Escribir, Tocar y Retener.
+automodes.options = Opciones de automatización
+automodes.set_all = Todas las pistas
+automodes.glide = Regreso de Tocar
+automodes.glide_ms = {ms} ms
+automodes.glide_tip = Cuánto tarda un control soltado en volver a la curva en Tocar. Arrastra; doble clic para 250 ms.
+
+# Lo que dice una pasada.
+automodes.status.written = Automatización escrita: {n} clips (un solo paso de deshacer).
+automodes.status.write_failed = No se pudo escribir la automatización.
+automodes.status.mode = Modo de automatización: {mode}.
+
+# Los carriles del piano roll: qué controlan.
+automodes.lane.bend = Inflexión de tono
+automodes.lane.pressure = Presión de canal
+automodes.cc.0 = Selección de banco
+automodes.cc.1 = Rueda de modulación
+automodes.cc.2 = Soplo
+automodes.cc.4 = Pedal de pie
+automodes.cc.5 = Tiempo de portamento
+automodes.cc.7 = Volumen
+automodes.cc.8 = Balance
+automodes.cc.10 = Panorama
+automodes.cc.11 = Expresión
+automodes.cc.64 = Pedal de sustain
+automodes.cc.65 = Portamento
+automodes.cc.66 = Sostenuto
+automodes.cc.67 = Pedal suave
+automodes.cc.71 = Resonancia
+automodes.cc.72 = Tiempo de liberación
+automodes.cc.73 = Tiempo de ataque
+automodes.cc.74 = Brillo
+automodes.cc.91 = Envío de reverb
+automodes.cc.93 = Envío de chorus
+automodes.cc.n = CC {n}
+
+# Los carriles del piano roll: filas, herramientas, el menú +.
+automodes.lane.release = Velocidad de liberación
+automodes.lane.release_tip = Lo rápido que se soltó cada nota: arrastra un tallo hacia arriba o hacia abajo (las notas seleccionadas se mueven juntas). Un aro en el suelo es una nota sin ella.
+automodes.lane.bend_tip = La inflexión de tono: dibuja con el lápiz, la línea o la curva; arrastra un punto, Mayús y arrastrar para seleccionar, clic derecho en un punto para borrarlo.
+automodes.lane.ctl_tip = Dibuja con el lápiz, la línea o la curva; arrastra un punto, Mayús y arrastrar para seleccionar, clic derecho en un punto para borrarlo.
+automodes.lane.remove = Quitar este carril (su curva se va con él; Deshacer lo devuelve)
+automodes.lane.add = Añadir un carril
+automodes.lane.add_tip = Velocidad de liberación, inflexión de tono, presión de canal o cualquier controlador, bajo las notas.
+automodes.lane.band_notes = Notas
+automodes.lane.follow = Los carriles siguen a las notas
+automodes.lane.band_ctl = Controladores
+automodes.lane.other = Otro controlador
+automodes.lane.back = ‹ Volver
+automodes.lane.page = CC {a}–{b}
+automodes.tool.pencil = Lápiz
+automodes.tool.pencil_tip = Dibuja la curva a mano alzada.
+automodes.tool.line = Línea
+automodes.tool.line_tip = Arrastra una línea recta.
+automodes.tool.curve = Curva
+automodes.tool.curve_tip = Arrastra una curva; Alt la dobla hacia el otro lado.
+automodes.value.on = Activado
+automodes.value.off = Desactivado
+automodes.range.plugin_top = Su propio rango
+automodes.range.plugin_bottom = el del plug-in
+
+automodes.range.none = Este instrumento no lee la inflexión de tono
+automodes.status.song_held = Deshacer y rehacer otra canción esperan mientras se escribe automatización: detén la reproducción o desarma primero.

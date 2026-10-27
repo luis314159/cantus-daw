@@ -323,13 +323,26 @@ pub const PAIRS: usize = 16_384;
 impl Shared {
     pub fn new(desc: &'static Descriptor) -> Arc<Shared> {
         let table = params::table(desc.kind);
+        // A fresh instance starts on its unit's starting preset (round 31, ADR 0071), as an
+        // insert in Cantus does — another DAW inserting it hears it at once. Each
+        // parameter's default (what a host resets to) stays the null of ADR 0018.
+        let start = cantus_core::starting::starting_preset(desc.kind);
+        let initial = |p: &params::Param| {
+            start
+                .and_then(|s| {
+                    s.params
+                        .iter()
+                        .find(|(k, _)| *k == p.key && p.role == params::Role::Spec)
+                })
+                .map_or(p.default, |(_, v)| p.clamp(f64::from(*v)))
+        };
         Arc::new(Shared {
             desc,
             table,
             values: table
                 .params
                 .iter()
-                .map(|p| AtomicU32::new(p.default.to_bits()))
+                .map(|p| AtomicU32::new(initial(p).to_bits()))
                 .collect(),
             generation: AtomicU32::new(0),
             latency: AtomicU32::new(0),
