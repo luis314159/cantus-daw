@@ -43,5 +43,10 @@ daw-r31/hosted-view (r31/hosted-view, ADR 0073). Both still to review, merge, pu
 
 **Closed 2026-10-27:** r31/close (hosted-view §6h part 2, ADR 0073, three reviews; mac-flaky =
 a test-rig race, the sandbox Rig waits while a restart is in flight) — Windows 4 737, fuzz 895,
-Linux 4 719, clippy clean; squashed to master, pushed and published without a tag (beta.7 =
+Linux 4 719, clippy clean; squashed to master cccfd159, pushed and published without a tag (beta.7 =
 round 32). Worktrees of daw-r31 removed afterwards.
+Then 3 hosted-view tests failed only on the runners: no display there (the open falls back to
+Cantus's view — test with `env -u DISPLAY -u WAYLAND_DISPLAY` in WSL to reproduce) and a
+"busy helper" test whose state equalled the synced one (never sent). Fixed in 583f1886; public
+7a36baff all green, macOS nothing retried. Lesson: new UI tests that open plug-in windows must
+pass headless.

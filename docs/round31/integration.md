@@ -86,6 +86,7 @@ editor. **macOS**: the runner's `macos.yml` at publish.
   (8 findings), a second on its fix round (4 more: an identity lost on a VST3 restart, a second press cancelling a window on its way, a waiting plug-in taking back a frame, the header measured at text size 1.0), and a third on that fix round: nothing left.
 - Round 32's prompt reordered by the owner: §6h point 1 and notation first.
 - Suites on `r31/close` (195e1061): Windows 4 737 passed / 0 failed (57 ignored), clippy clean; the engine fuzz 895 at `CANTUS_WORKERS=3`; Linux (WSL) clippy clean (with and without the plug-in editors) and 4 719 passed / 0 failed (57 ignored).
+- On `cantus-daw` (public 60ad4281) three of the new hosted-view tests failed on the runners and passed here: two took for granted that a plug-in's own window opens (a runner has no display, and the fallback rightly keeps Cantus's view for that load — reproduced in WSL with `DISPLAY` unset), and the busy-helper tests loaded a state equal to the one synced last, never sent, so the helper was never busy (the Windows runner). Fixed in the tests (583f1886: the fallback accounted for, a tagged state of its own, the helper's being busy asserted on Windows); the next runs (public 7a36baff) were all green, macOS with nothing retried.
 
 ## What only the owner can do
 
