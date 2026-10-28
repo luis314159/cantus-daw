@@ -153,14 +153,33 @@ impl CantusApp {
     }
 
     pub(crate) fn open_fx_editor(&mut self, strip: StripId, effect: EffectId, kind: EffectKind) {
+        // Another editor in the frame's place: a hosted plug-in waiting there for its
+        // helper no longer opens its own window when it is in (ADR 0073).
+        self.forget_waiting_frame(effect);
         self.fx.open = Some((strip, effect, kind));
         self.fx.pairs.clear();
         self.engine.set_analyser(Some(effect));
     }
 
     pub fn close_fx_editor(&mut self) {
+        // Closed (by hand, or for another editor): a hosted plug-in waiting in it for its
+        // helper no longer opens its own window when it is in (ADR 0073).
+        self.forget_waiting_frame(EffectId(u64::MAX));
         if self.fx.open.take().is_some() {
             self.engine.set_analyser(None);
+        }
+    }
+
+    /// The hosted insert whose Cantus frame is open, unless it is `keep`: no longer waited
+    /// for (`views.pending`).
+    fn forget_waiting_frame(&mut self, keep: EffectId) {
+        if let Some((_, e, EffectKind::External)) = self.fx.open {
+            if e != keep {
+                self.fx
+                    .hosted
+                    .views
+                    .forget_pending(crate::views::plugin_notice::Target::Insert(e));
+            }
         }
     }
 

@@ -326,6 +326,14 @@ pub trait MainThread: Send {
         false
     }
 
+    /// An editor asked for and not answered yet (an isolated plug-in whose helper was
+    /// busy, ADR 0063) is no longer wanted: it is closed as it comes, never adopted as open
+    /// (ADR 0073). `true` when one was on its way. Nothing in process: an editor there is
+    /// open or it is not.
+    fn cancel_pending_editor(&mut self) -> bool {
+        false
+    }
+
     /// A good moment to remember the plug-in's state (a gesture ended): an isolated
     /// plug-in refreshes the last-good state it keeps for a crash. Nothing in process.
     fn checkpoint(&mut self) {}

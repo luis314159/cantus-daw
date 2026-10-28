@@ -32,6 +32,7 @@ pub mod font_fallback;
 pub mod freeze;
 pub mod gestures;
 pub mod hosted_inst;
+pub mod hosted_view;
 pub mod i18n;
 pub mod icons;
 pub mod inst_choices;

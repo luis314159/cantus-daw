@@ -68,6 +68,8 @@ pub mod template_name;
 pub mod clipfx_settings;
 pub mod freeze_monitor;
 pub mod freeze_view;
+pub mod plugin_view;
+pub mod plugin_view_inst;
 pub mod plugins;
 pub mod pulsus_editor;
 pub mod record_options;

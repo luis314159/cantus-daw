@@ -1522,10 +1522,20 @@ su editor se abre en una ventana propia que queda sobre Cantus mientras trabajas
    pulsa `Enter`.
 4. **Un efecto**: haz clic en una ranura de inserción vacía — en una tira del mezclador o en
    el inspector — y elígelo igual.
-5. **Su ventana propia**: *Abrir la ventana del plug-in* en su ventana de dispositivo (o
-   *Mostrar la ventana del plug-in* para traerla de vuelta cuando ya está abierta). Sus
-   valores se automatizan, se modulan y se asignan a un controlador MIDI como los de los
-   dispositivos de Cantus.
+5. **Su ventana propia, o la vista de Cantus.** Un plug-in abre **su propio editor** al
+   insertarlo o elegirlo. La **vista de Cantus** muestra en cambio sus parámetros, dibujados
+   como los dispositivos de Cantus: agrupados por las páginas del plug-in, con un campo de
+   **búsqueda** (por nombre o por página) y como medidores las lecturas que da (una
+   reducción de ganancia, un nivel). Cambia entre ambas con *Ventana del plug-in | Vista
+   de Cantus* arriba en la vista de Cantus, bajo **Editor** en el menú del inserto (clic
+   derecho en una ranura, o su ⋯) o en la fila **Editor** del inspector de un instrumento.
+   **Por defecto** (*Usar por defecto para este plug-in*) hace que la vista que se ve sea
+   la que este plug-in abra desde entonces, en todos los proyectos; otro clic vuelve a su
+   propio editor. La elección es tuya, guardada en tus ajustes —no en el proyecto— por el
+   plug-in mismo, así que una actualización la conserva. Un plug-in sin editor propio solo
+   tiene la vista de Cantus. Cambiar de vista nunca toca su sonido, su estado ni su
+   automatización. Sus valores se automatizan, se modulan y se asignan a un controlador
+   MIDI como los de los dispositivos de Cantus, desde cualquiera de las dos vistas.
 
 Cada plug-in corre por defecto en un proceso ayudante, así que uno que falla se detiene
 solo y Cantus sigue sonando (ver *Cuando un plug-in falla*, más abajo).

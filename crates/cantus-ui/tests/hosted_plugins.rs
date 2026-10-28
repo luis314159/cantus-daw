@@ -101,8 +101,9 @@ fn the_generic_editor_shows_the_plugins_parameters_in_its_own_words() {
         !lower.contains("gesture"),
         "a hidden parameter is not shown: {text}"
     );
+    // Its own window is the switch's other side (ADR 0073).
     assert!(
-        text.contains(&cantus_ui::i18n::t("host.editor.open_window")),
+        text.contains(&cantus_ui::i18n::t("hostedview.native")),
         "{text}"
     );
     // A change from the editor is a command: one undo step.

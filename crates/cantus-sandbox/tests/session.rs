@@ -22,7 +22,11 @@ fn patient_host() -> cantus_host::PluginHost {
     host
 }
 
-/// The project with the test gain on its first strip at −6 dB, latency 37, run `iso`.
+/// The project with the test gain on its first strip at −6 dB, latency 37, run `iso` —
+/// settled: the restart its new latency asks for done, the latency reported and
+/// compensated. Isolated, that restart is answered by the helper frames later, and its slot
+/// is a wire meanwhile (every block dry, and on time): a fixed count of blocks was no wait
+/// for it (round 31, the macOS runner: "before the crash (0 late blocks…) left: 20478").
 fn gain_rig(iso: PluginIsolation) -> (Rig, StripId, EffectId) {
     let project = demo_project();
     let strip = strip_of(&project, 0);
@@ -31,6 +35,7 @@ fn gain_rig(iso: PluginIsolation) -> (Rig, StripId, EffectId) {
     rig.set_param(strip, id, P_GAIN, -6.0);
     rig.set_param(strip, id, P_LATENCY, 37.0);
     rig.settle();
+    rig.until_latency(id, 37);
     (rig, strip, id)
 }
 
@@ -62,8 +67,7 @@ fn an_isolated_insert_plays_the_project_to_the_bit_of_in_process() {
     let (mut together, _, t_id) = gain_rig(PluginIsolation::Together);
     assert_eq!(pid_of(&within, w_id), std::process::id());
     assert_ne!(pid_of(&together, t_id), std::process::id());
-    // The latency arrives with the answer to a later call (`Rig::until_latency`).
-    together.until_latency(t_id, 37);
+    // The latency arrives with the answer to a later call (`gain_rig` waits for it).
     assert_eq!(together.host.hosted(t_id).unwrap().latency(), 37);
     for block in [64usize, 256, 1000] {
         let a = within.play(24_000, block);
@@ -90,6 +94,10 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     assert_ne!(differing(&with_gain, &dry), 0);
 
     let (mut rig, strip, id) = gain_rig(PluginIsolation::Individually);
+    let settled = (
+        rig.host.restarting(id),
+        rig.host.hosted(id).map_or(0, |h| h.latency()),
+    );
     let first_pid = pid_of(&rig, id);
     rig.engine.seek(Ticks::ZERO);
     rig.engine.play();
@@ -116,9 +124,11 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
     assert_eq!(
         differing(&out[..n], &with_gain[..n]),
         0,
-        "before the crash ({} late blocks; the bell waits by {})",
+        "before the crash ({} late blocks; the bell waits by {}; as the song started:          restarting {}, latency {})",
         rig.host.late_blocks(),
-        cantus_rt::ipc::wait_kind()
+        cantus_rt::ipc::wait_kind(),
+        settled.0,
+        settled.1
     );
     let blocks: Vec<std::ops::Range<usize>> = (0..188).map(|k| k * 512..(k + 1) * 512).collect();
     let first_dry = blocks
@@ -154,6 +164,51 @@ fn a_crash_mid_song_keeps_cantus_playing_says_so_once_and_reload_brings_back_wha
         rig.host
             .crashes_this_session(cantus_host::Format::Clap, GAIN_ID),
         1
+    );
+}
+
+/// An environment variable set for the helpers started while it lives, taken away even
+/// when the test fails (so the next test of this binary starts its helpers without it).
+struct Knob(&'static str);
+
+impl Knob {
+    fn set(name: &'static str, value: &str) -> Knob {
+        std::env::set_var(name, value);
+        Knob(name)
+    }
+}
+
+impl Drop for Knob {
+    fn drop(&mut self) {
+        std::env::remove_var(self.0);
+    }
+}
+
+#[test]
+fn a_restart_its_new_latency_asked_for_is_done_before_the_song_is_compared() {
+    let _g = serial();
+    let (mut reference, _, _) = gain_rig(PluginIsolation::Within);
+    let with_gain = reference.play(40 * 256, 256);
+    // The restart the Latency of 37 asks for takes 1 s in the helper, as a plug-in slow to
+    // activate does, or a helper whose main thread a busy virtual machine runs late (the
+    // macOS runner, round 31: "before the crash (0 late blocks…) left: 20478"). Meanwhile
+    // its slot is a wire: every block passes dry, and on time.
+    let _slow = Knob::set("CANTUS_TEST_GAIN_SLOW_RESTART_MS", "1000");
+    let (mut rig, _, id) = gain_rig(PluginIsolation::Individually);
+    rig.engine.seek(Ticks::ZERO);
+    rig.engine.play();
+    let mut out = Vec::new();
+    for _ in 0..40 {
+        out.extend(rig.block(256));
+    }
+    rig.engine.stop();
+    assert_eq!(
+        differing(&out, &with_gain),
+        0,
+        "the gain from the first block ({} late blocks; restarting: {}; latency {})",
+        rig.host.late_blocks(),
+        rig.host.restarting(id),
+        rig.host.hosted(id).map_or(0, |h| h.latency())
     );
 }
 

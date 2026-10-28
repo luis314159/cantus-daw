@@ -119,6 +119,8 @@ enum Act {
     OpenEffect(StripId, EffectId),
     /// A hosted insert's *Reload plug-in* and where it runs (round 29, review #17).
     Hosting(EffectId, crate::views::plugin_notice::MenuAct),
+    /// Which editor a hosted insert shows, and its default (ADR 0073).
+    HostedView(EffectId, crate::hosted_view::ViewAct),
     Bypass(StripId, EffectId, bool),
     MoveEffect(StripId, EffectId, usize),
     RemoveEffect(StripId, EffectId),
@@ -647,6 +649,16 @@ fn entries(v: &MixerView, app: &CantusApp, m: Menu) -> Vec<Entry> {
 /// then *Runs*.
 fn hosting_entries(app: &CantusApp, fx: EffectId, e: &mut Vec<Entry>) {
     use crate::views::plugin_notice::{menu_rows, MenuAct, Target};
+    // Which editor it shows (ADR 0073): its own window | Cantus's view, and the default.
+    let views = crate::hosted_view::menu_rows(app, Target::Insert(fx));
+    if !views.is_empty() {
+        e.push(Entry::separator());
+        e.push(Entry::band("hostedview.band"));
+        for r in views {
+            let entry = Entry::act(Label::Key(r.label_key), Act::HostedView(fx, r.act));
+            e.push(entry.check(if r.radio { radio(r.on) } else { on(r.on) }));
+        }
+    }
     let rows = menu_rows(app, Target::Insert(fx));
     if rows.is_empty() {
         return;
@@ -1383,6 +1395,9 @@ fn apply(v: &mut MixerView, app: &mut CantusApp, act: Act) {
             crate::views::plugin_notice::Target::Insert(fx),
             a,
         ),
+        Act::HostedView(fx, a) => {
+            crate::hosted_view::run(app, crate::views::plugin_notice::Target::Insert(fx), a)
+        }
         Act::Bypass(strip, effect, bypass) => {
             app.exec(Command::SetEffectBypass {
                 strip,

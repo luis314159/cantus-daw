@@ -2878,6 +2878,11 @@ impl CantusApp {
         self.end_passes();
         self.stop_transport();
         self.bus.reset(project);
+        // The views chosen for the old project's plug-ins this session (ADR 0073): its ids
+        // may come again in the new one, which opens by each plug-in's default.
+        self.fx.hosted.views = Default::default();
+        self.fx.hosted.inst_open = None;
+        self.fx.hosted.inst = Default::default();
     }
 
     /// End a recording and a write pass in progress, into the open project (a question
@@ -3933,6 +3938,7 @@ impl CantusApp {
         views::comp_editor::window(self, ctx);
         views::fx::window(self, ctx);
         views::inst::window(self, ctx);
+        views::plugin_view_inst::window(self, ctx);
         views::pulsus_editor::window(self, ctx);
         if self.show_settings {
             views::workspace_settings::window(self, ctx);
@@ -3986,6 +3992,9 @@ impl CantusApp {
         // Writing automation (ADR 0068): holds and releases, after the frame's messages.
         self.auto_write_settle();
         self.host_notices(notices);
+        // Hosted plug-ins that were loading in their helper when opened: in their view now
+        // (ADR 0073).
+        self.pump_hosted_opens();
         self.pump_capture();
         self.pump_analyser();
         self.poll_export();

@@ -43,7 +43,9 @@ pub unsafe extern "C" fn get_extension(
         (&STATE_EXT as *const clap_plugin_state).cast()
     } else if id == CLAP_EXT_LATENCY {
         (&LATENCY_EXT as *const clap_plugin_latency).cast()
-    } else if id == clap_sys::ext::gui::CLAP_EXT_GUI {
+    } else if id == clap_sys::ext::gui::CLAP_EXT_GUI
+        && !crate::NO_GUI.load(std::sync::atomic::Ordering::Relaxed)
+    {
         (&crate::gui::GUI_EXT as *const clap_sys::ext::gui::clap_plugin_gui).cast()
     } else if id == CLAP_EXT_AUDIO_PORTS {
         (&PORTS_EXT as *const clap_plugin_audio_ports).cast()

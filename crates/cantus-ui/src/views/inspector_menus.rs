@@ -34,6 +34,8 @@ pub enum MenuId {
     Hosting(TrackId),
     /// How a track's automation is written (round 31, ADR 0068).
     AutoMode(TrackId),
+    /// Which editor a hosted plug-in shows, and its default (ADR 0073).
+    HostedView(crate::views::plugin_notice::Target),
 }
 
 /// What a row of a list does.
@@ -65,6 +67,8 @@ enum Choice {
     Link(super::track::LinkAct),
     /// Where a hosted plug-in runs, and reloading one that stopped (round 29, ADR 0063).
     Hosting(crate::views::plugin_notice::MenuAct),
+    /// Which editor a hosted plug-in shows, and its default (ADR 0073).
+    HostedView(crate::hosted_view::ViewAct),
     /// MIDI learn of the insert's bypass (0) or mix (1), and forgetting them (round 29,
     /// review 4 of ADR 0062, #21).
     LearnSlot(u8),
@@ -132,6 +136,30 @@ fn hosting_rows(
         }
         let check = on.map_or(Check::None, radio);
         out.push(act(Label::Text(label), check, Choice::Hosting(a)));
+    }
+}
+
+/// A hosted plug-in's *Editor* rows (ADR 0073): its own window | Cantus's view, and *Use as
+/// default for this plug-in*, under their band.
+fn view_rows(app: &CantusApp, target: crate::views::plugin_notice::Target, out: &mut Vec<Entry>) {
+    let rows = crate::hosted_view::menu_rows(app, target);
+    if rows.is_empty() {
+        return;
+    }
+    out.push(band("hostedview.band"));
+    for r in rows {
+        let check = if r.radio {
+            radio(r.on)
+        } else if r.on {
+            Check::On
+        } else {
+            Check::Off
+        };
+        out.push(act(
+            Label::Key(r.label_key),
+            check,
+            Choice::HostedView(r.act),
+        ));
     }
 }
 
@@ -264,6 +292,7 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
             );
             hosting_rows(rows, &mut out);
         }
+        MenuId::HostedView(target) => view_rows(app, target, &mut out),
         MenuId::AutoMode(t) => {
             let cur = p.track(t).map(|t| t.auto_mode);
             for mode in cantus_core::AutoMode::ALL {
@@ -323,7 +352,13 @@ fn build(id: MenuId, app: &CantusApp) -> Vec<Entry> {
                     Choice::ForgetSlot,
                 ));
             }
-            // A hosted plug-in: where it runs (round 29, ADR 0063).
+            // A hosted plug-in: which editor it shows (ADR 0073), and where it runs (round
+            // 29, ADR 0063).
+            view_rows(
+                app,
+                crate::views::plugin_notice::Target::Insert(e),
+                &mut out,
+            );
             let rows = crate::views::plugin_notice::menu_rows(
                 app,
                 crate::views::plugin_notice::Target::Insert(e),
@@ -547,6 +582,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
         (MenuId::AddInsert(strip), Choice::Browse) => {
             app.open_picker(crate::picker::PickPurpose::AddEffect { strip })
         }
+        (MenuId::HostedView(target), Choice::HostedView(a)) => {
+            crate::hosted_view::run(app, target, a)
+        }
         (MenuId::Hosting(t), Choice::Hosting(a)) => crate::views::plugin_notice::run_menu(
             app,
             crate::views::plugin_notice::Target::Instrument(t),
@@ -595,6 +633,9 @@ fn choose(st: &mut Inspector, app: &mut CantusApp, id: MenuId, c: Choice) {
                     crate::views::plugin_notice::Target::Insert(e),
                     a,
                 ),
+                Choice::HostedView(a) => {
+                    crate::hosted_view::run(app, crate::views::plugin_notice::Target::Insert(e), a)
+                }
                 _ => {}
             }
         }

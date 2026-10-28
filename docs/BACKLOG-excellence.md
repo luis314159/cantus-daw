@@ -1330,6 +1330,12 @@ plug-in."*
    **Done when** a hosted plug-in switches views without losing state or automation, the
    default per plug-in is kept across restarts, and the generic view of a 500-parameter
    plug-in scrolls within the frame budget.
+   ✓ **Done (2026-10-27, ADR 0073, `docs/round31/hosted-view.md`)**: its own editor on insert
+   and pick, *Plug-in window | Cantus view* in Cantus's frame, the inspector and every
+   insert's menu, *Use as default for this plug-in* by its id in the settings; Cantus's view
+   grouped, searchable, with meters for what the plug-in reports read-only, the parameter
+   menu on every control, only the rows in view drawn (500 parameters: 48 cells a frame);
+   instruments too, in and out of process.
 
 ## 7. AI (research done in round 20: `research/ai/`)
 

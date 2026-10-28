@@ -73,6 +73,20 @@ clippy clean. **Linux** (WSL Ubuntu 24.04, `tools/wsl/check.sh`, which now print
 total): 4 689 passed, 0 failed, 56 ignored; clippy clean, with and without the plug-ins'
 editor. **macOS**: the runner's `macos.yml` at publish.
 
+## After the release (same session)
+
+- **beta.6 released** 2026-10-27 (`v0.1.0-beta.6`, Windows and Linux; every cantus-daw run
+  green). Its macOS run passed with one test FLAKY on retry: `cantus-sandbox --test session`
+  `a_crash_mid_song…`, 20 478 samples wrong before the crash and 0 late blocks. **Cause**:
+  the rig's `settle` waited a fixed 64 blocks while an isolated plug-in's restart (asked for
+  by its new latency) was still out — a wire passes dry, on time. Test code only; a test
+  forcing a slow restart failed 3/3 before the fix (`mac-flaky.md`).
+- **BACKLOG §6h point 2** (ADR 0073, `hosted-view.md`): hosted plug-ins in their own editor or
+  Cantus's view, remembered per plug-in. One review (8 findings) and one on its fix round
+  (8 findings), a second on its fix round (4 more: an identity lost on a VST3 restart, a second press cancelling a window on its way, a waiting plug-in taking back a frame, the header measured at text size 1.0), and a third on that fix round: nothing left.
+- Round 32's prompt reordered by the owner: §6h point 1 and notation first.
+- Suites on `r31/close` (195e1061): Windows 4 737 passed / 0 failed (57 ignored), clippy clean; the engine fuzz 895 at `CANTUS_WORKERS=3`; Linux (WSL) clippy clean (with and without the plug-in editors) and 4 719 passed / 0 failed (57 ignored).
+
 ## What only the owner can do
 
 - **Listen**: the arpeggiator's feel, the swings against an MPC, the chord voicings; each

@@ -38,7 +38,9 @@
 //! a file there when an instance is destroyed, 300 ms on; `CANTUS_TEST_GAIN_PUMP_LOAD_MS=<ms>` makes
 //! every `load_state` run a nested message loop that long;
 //! `CANTUS_TEST_GAIN_PUMP_ACTIVATE_ONCE=<file>` makes the first activation run one for
-//! 1.5 s; `CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE=<file>` makes it take 1.5 s without one; `CANTUS_TEST_GAIN_CHAIN_FILTER`
+//! 1.5 s; `CANTUS_TEST_GAIN_SLOW_ACTIVATE_ONCE=<file>` makes it take 1.5 s without one;
+//! `CANTUS_TEST_GAIN_SLOW_RESTART_MS=<ms>` makes every activation after the first (a restart)
+//! take that long; `CANTUS_TEST_GAIN_CHAIN_FILTER`
 //! installs, at load, a crash filter that hands on to the one before it (Windows), as a
 //! plug-in's crash reporter does.
 
@@ -404,6 +406,19 @@ pub fn slow_activate_once() {
                 .unwrap_or(1_500);
             std::thread::sleep(std::time::Duration::from_millis(ms));
         }
+    }
+}
+
+/// `CANTUS_TEST_GAIN_SLOW_RESTART_MS=<ms>`: every activation after an instance's first (a
+/// restart: a new latency, say) takes that long, without pumping — a plug-in slow to
+/// restart, or a helper whose main thread a busy machine runs late (round 31: the macOS
+/// runner's crash test compared the song while the restart was still under way).
+pub fn slow_restart() {
+    if let Some(ms) = std::env::var("CANTUS_TEST_GAIN_SLOW_RESTART_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+    {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
     }
 }
 

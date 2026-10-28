@@ -20,6 +20,8 @@
 //!   wrapper does);
 //! - **Fault** (hidden, round 29): a failure on purpose (`fault.rs`), and **Process**
 //!   (hidden, read-only): the id of the process the instance runs in.
+//! - a copy whose file name contains `nogui` has no editor of its own (no `gui` extension,
+//!   ADR 0073).
 
 #![allow(clippy::missing_safety_doc)]
 
@@ -64,7 +66,17 @@ static DESCRIPTOR: clap_plugin_descriptor = clap_plugin_descriptor {
     features: FEATURES.0.as_ptr(),
 };
 
-unsafe extern "C" fn entry_init(_path: *const c_char) -> bool {
+/// This copy has no editor of its own (its file name says `nogui`, ADR 0073).
+pub(crate) static NO_GUI: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+unsafe extern "C" fn entry_init(path: *const c_char) -> bool {
+    let name = if path.is_null() {
+        String::new()
+    } else {
+        CStr::from_ptr(path).to_string_lossy().to_lowercase()
+    };
+    let file = name.rsplit(['/', '\\']).next().unwrap_or("");
+    NO_GUI.store(file.contains("nogui"), std::sync::atomic::Ordering::Relaxed);
     true
 }
 

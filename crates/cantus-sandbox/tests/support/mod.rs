@@ -510,14 +510,15 @@ impl Rig {
         self.sync();
     }
 
-    /// Frames until every isolated plug-in has loaded (its load is answered later).
-    /// Blocks and frames until the hosted plug-in `id` reports `latency`, then settles. A
+    /// Blocks and frames until the hosted plug-in `id` reports `latency` and its restart is
+    /// done, then settles. A
     /// latency set through a parameter arrives with the answer to a later call, and the
     /// host compensates it when told (`LatencyChanged`); a slow machine can tell it after
     /// `settle` (the macOS runner, round 30).
     pub fn until_latency(&mut self, id: EffectId, latency: usize) {
         let t0 = std::time::Instant::now();
-        while self.host.hosted(id).map(|h| h.latency()) != Some(latency) {
+        while self.host.hosted(id).map(|h| h.latency()) != Some(latency) || self.host.restarting(id)
+        {
             assert!(
                 t0.elapsed() < std::time::Duration::from_secs(10),
                 "the latency {latency} arrives"
@@ -528,10 +529,12 @@ impl Rig {
         self.settle();
     }
 
+    /// Frames until every isolated plug-in has loaded (its load is answered later) and
+    /// none is restarting.
     pub fn until_loaded(&mut self) {
         let t0 = std::time::Instant::now();
         self.frame();
-        while self.host.loading() {
+        while self.host.loading() || self.restarting() {
             assert!(
                 t0.elapsed() < std::time::Duration::from_secs(60),
                 "the plug-ins load in time"
@@ -539,6 +542,19 @@ impl Rig {
             std::thread::sleep(std::time::Duration::from_millis(2));
             self.frame();
         }
+    }
+
+    /// Whether a hosted plug-in is between being taken out of the engine for a restart (a
+    /// new latency, say) and put back. Its slot is a wire meanwhile — every block passes
+    /// dry, and on time — and an isolated plug-in's restart is answered by its helper
+    /// frames later: a fixed count of blocks is no wait for it (round 31: the macOS
+    /// runner's crash test compared 40 blocks of a wire with the gain, "0 late blocks").
+    pub fn restarting(&self) -> bool {
+        let p = self.bus.project();
+        p.all_effects().any(|(_, e)| self.host.restarting(e.id))
+            || p.tracks
+                .iter()
+                .any(|t| self.host.instrument_restarting(t.id))
     }
 
     /// Frames until the render's plug-ins are ready (`stored`: from the project's states),
@@ -560,7 +576,8 @@ impl Rig {
         }
     }
 
-    /// Blocks and frames, then frames until every plug-in loaded (or moved) is in.
+    /// Blocks and frames, then frames until every plug-in loaded (or moved, or restarted)
+    /// is in.
     pub fn settle(&mut self) {
         for _ in 0..64 {
             self.block(256);

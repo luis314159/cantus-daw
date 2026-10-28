@@ -131,13 +131,17 @@ impl CantusApp {
             if info.kind == cantus_host::PluginKind::Instrument {
                 match purpose {
                     PickPurpose::ReplaceInstrument { track } => {
-                        self.set_hosted_instrument(track, info);
+                        // Loaded: open in its view (ADR 0073).
+                        if self.set_hosted_instrument(track, info) {
+                            self.open_inst_editor(track);
+                        }
                     }
                     PickPurpose::AddInstrument { .. } => {
                         self.add_track();
                         if let Some(t) = self.project().tracks.last().map(|t| t.id) {
                             if self.set_hosted_instrument(t, info) {
                                 self.selected_track = Some(t);
+                                self.open_inst_editor(t);
                             }
                         }
                     }

@@ -1,0 +1,33 @@
+# hostedview — a hosted plug-in in its own editor or in Cantus's view of its parameters
+# (ADR 0073, BACKLOG §6h point 2). Every key here needs its twin in hostedview.es.txt.
+
+# --- the two views ---
+hostedview.native = Plug-in window
+hostedview.cantus = Cantus view
+hostedview.switch_tip = Which editor this plug-in shows: its own window, or its parameters drawn by Cantus. Switching keeps its sound, its state and its automation
+hostedview.opens_when_loaded = Its own window opens here once it has loaded
+hostedview.only_cantus = No editor of its own: its parameters are all here
+
+# --- the default for this plug-in ---
+hostedview.default = As default
+hostedview.use_default = Use as default for this plug-in
+hostedview.use_default_tip = Use as default for this plug-in: it opens in this view from now on, in every project
+hostedview.forget_default_tip = This view is this plug-in's default. Click to forget it: the plug-in opens in its own window again
+
+# --- the inspector ---
+hostedview.band = Editor
+hostedview.row = Editor
+hostedview.default_row = Remember
+
+# --- the parameters ---
+hostedview.search = Search parameters by name or group
+hostedview.count_of = {n} of {total} parameters
+hostedview.no_params = This plug-in has no parameters to show
+hostedview.no_match = No parameter matches “{text}”
+hostedview.meter_tip = {value} — a reading the plug-in reports; it cannot be set
+
+# --- Settings' plug-in manager ---
+hostedview.manager.band = Editors
+hostedview.manager.none = Every plug-in opens its own editor. To open one in Cantus's view from now on, choose Cantus view and As default where it shows.
+hostedview.manager.forget = Forget
+hostedview.manager.forget_tip = Forget this default: the plug-in opens in its own editor again

@@ -33,3 +33,15 @@ Notation from the piano roll is still BACKLOG §0.2.
 so intermediate PNGs (they were uncompressed, ~120 MB) never enter history. Disk trick: move a
 finished builder's target to the next worktree; fix rounds share one target via target-dir.
 See [[round-30]], [[cantus-parallel-builders]], [[public-repo-cantus-daw]], [[feedback-review-cost]].
+
+**Released 2026-10-27:** master b63a6759 (squash of r31/integration 8de607f7) pushed; public
+master c5805dd3; tag v0.1.0-beta.6 → release "latest" with 7 assets (Windows setup/portable/
+plugins zip, AppImage, SHA256SUMS). Every cantus-daw run green; macOS green but FLAKY on retry:
+`cantus-sandbox --test session` a_crash_mid_song… (20 478 samples wrong before the crash, 0 late
+blocks) — investigated in worktree daw-r31/mac-flaky (r31/mac-flaky). §6h part 2 builder in
+daw-r31/hosted-view (r31/hosted-view, ADR 0073). Both still to review, merge, push.
+
+**Closed 2026-10-27:** r31/close (hosted-view §6h part 2, ADR 0073, three reviews; mac-flaky =
+a test-rig race, the sandbox Rig waits while a restart is in flight) — Windows 4 737, fuzz 895,
+Linux 4 719, clippy clean; squashed to master, pushed and published without a tag (beta.7 =
+round 32). Worktrees of daw-r31 removed afterwards.

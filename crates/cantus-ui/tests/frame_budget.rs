@@ -1179,3 +1179,218 @@ fn a_hosted_choices_word_asks_for_one_step() {
         "{allocs} allocations: one step asked, not {steps}"
     );
 }
+
+// ---- a hosted plug-in of 500 parameters in Cantus's view (ADR 0073) ---------------------
+
+/// 500 parameters in 25 groups of 20 — a big synth's pages — the last of each a meter (a
+/// read-only parameter, as plug-ins report a level or a gain reduction).
+fn five_hundred() -> Vec<cantus_host::ParamInfo> {
+    five_hundred_in(20)
+}
+
+/// 500 parameters in groups of `per_group` (500: one page, one card — only its rows in
+/// view may be drawn).
+fn five_hundred_in(per_group: u32) -> Vec<cantus_host::ParamInfo> {
+    (0..500u32)
+        .map(|i| cantus_host::ParamInfo {
+            id: 1000 + i,
+            name: format!("Param {}", i + 1),
+            group: format!("Module {}", i / per_group + 1),
+            min: 0.0,
+            max: 1.0,
+            default: 0.5,
+            stepped: false,
+            automatable: true,
+            hidden: false,
+            read_only: i % 20 == 19,
+            steps: 0,
+        })
+        .collect()
+}
+
+/// What one scrolled frame of the view cost and drew.
+struct HostedFrame {
+    build: Duration,
+    tess: Duration,
+    allocs: u64,
+    drawn: usize,
+    meters: usize,
+    text: String,
+}
+
+/// The test gain's Cantus view with 500 parameters, scrolled by the wheel every frame from
+/// the sixth on: `n` frames.
+fn hosted500_frames(n: usize) -> Vec<HostedFrame> {
+    hosted_frames(n, five_hundred())
+}
+
+/// [`hosted500_frames`] with the parameters given.
+fn hosted_frames(n: usize, params: Vec<cantus_host::ParamInfo>) -> Vec<HostedFrame> {
+    use egui::{pos2, vec2, Event, Modifiers, MouseWheelUnit, TouchPhase};
+    cantus_ui::i18n::set_thread_locale(cantus_ui::i18n::Locale::En);
+    let (engine, _processor) = EngineHandle::manual(48_000.0);
+    let mut app = CantusApp::from_parts(Some(cantus_ui::starter_project()), engine, false);
+    let _one = hosted_serial();
+    cantus_ui::views::plugins::demo_setup(&mut app, &test_clap(), true);
+    let effect = app
+        .fx
+        .open
+        .map(|(_, e, _)| e)
+        .expect("the Cantus view opened");
+    app.plugins.set_params_for_tests(effect, params);
+    let ctx = egui::Context::default();
+    cantus_ui::design::install_fonts(&ctx);
+    cantus_ui::design::install_style(&ctx);
+    cantus_ui::theme::apply(&cantus_ui::theme::slate(), &ctx);
+    let size = vec2(1600.0, 1000.0);
+    let at = pos2(800.0, 640.0);
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let mut events = vec![Event::PointerMoved(at)];
+        if i >= 5 {
+            events.push(Event::MouseWheel {
+                unit: MouseWheelUnit::Point,
+                delta: vec2(0.0, -120.0),
+                phase: TouchPhase::Move,
+                modifiers: Modifiers::NONE,
+            });
+        }
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, size)),
+            time: Some(i as f64 / 60.0),
+            predicted_dt: 1.0 / 60.0,
+            events,
+            ..Default::default()
+        };
+        let t0 = Instant::now();
+        let (mut full, allocs, _) = counted(|| {
+            ctx.run_ui(input, |ui| {
+                let c = ui.ctx().clone();
+                views::fx::window(&mut app, &c);
+            })
+        });
+        let build = t0.elapsed();
+        full.textures_delta.clear();
+        let text = hosted_text(&full.shapes);
+        let t1 = Instant::now();
+        let _ = ctx.tessellate(full.shapes, full.pixels_per_point);
+        let tess = t1.elapsed();
+        let (drawn, meters) = cantus_ui::views::plugin_view::drawn(&app);
+        out.push(HostedFrame {
+            build,
+            tess,
+            allocs,
+            drawn,
+            meters,
+            text,
+        });
+    }
+    out
+}
+
+fn hosted_text(shapes: &[egui::epaint::ClippedShape]) -> String {
+    fn walk(shape: &egui::Shape, out: &mut String) {
+        match shape {
+            egui::Shape::Text(t) => {
+                out.push_str(t.galley.text());
+                out.push_str(" | ");
+            }
+            egui::Shape::Vec(v) => v.iter().for_each(|s| walk(s, out)),
+            _ => {}
+        }
+    }
+    let mut out = String::new();
+    for s in shapes {
+        walk(&s.shape, &mut out);
+    }
+    out
+}
+
+/// The cells a frame of the view may draw: what fits in its window (a few rows of nine)
+/// and the rows half in view at its edges — never the 500.
+const HOSTED_MAX_DRAWN: usize = 96;
+/// A scrolled frame's allocations, median: 161 measured on Windows (round 31, ADR 0073).
+const HOSTED500_ALLOCS: u64 = 200;
+
+/// ADR 0073 (BACKLOG §6h point 2): Cantus's view of a 500-parameter plug-in scrolls from
+/// its first group to its last drawing only the rows in view — its cells, its meters — and
+/// a scrolled frame allocates within its measured bound.
+#[test]
+fn a_500_parameter_plugin_scrolls_drawing_only_the_rows_in_view() {
+    let frames = hosted500_frames(160);
+    let warm = &frames[5..];
+    for (i, f) in warm.iter().enumerate() {
+        assert!(f.drawn > 0, "frame {i} drew no cell");
+        assert!(
+            f.drawn <= HOSTED_MAX_DRAWN,
+            "frame {i} drew {} cells of 500",
+            f.drawn
+        );
+    }
+    assert!(frames[5].text.contains("MODULE 1 |"), "{}", frames[5].text);
+    assert!(
+        warm.iter().any(|f| f.text.contains("MODULE 25 |")),
+        "the wheel reached the last group"
+    );
+    assert!(warm.iter().any(|f| f.meters > 0), "its meters drawn");
+    let mut allocs: Vec<u64> = warm.iter().map(|f| f.allocs).collect();
+    allocs.sort_unstable();
+    let median = allocs[allocs.len() / 2];
+    let mut ms: Vec<f64> = warm
+        .iter()
+        .map(|f| (f.build + f.tess).as_secs_f64() * 1e3)
+        .collect();
+    ms.sort_by(f64::total_cmp);
+    let most = warm.iter().map(|f| f.drawn).max().unwrap_or(0);
+    eprintln!(
+        "500 parameters, scrolled: at most {most} cells drawn, {median} allocations (median), \
+         build + tessellate p50 {:.2} ms (this build)",
+        ms[ms.len() / 2]
+    );
+    assert!(
+        median <= HOSTED500_ALLOCS,
+        "{median} allocations a scrolled frame"
+    );
+}
+
+#[test]
+#[ignore = "timing: run in release with --ignored"]
+fn a_500_parameter_plugin_scroll_timing() {
+    let frames = hosted500_frames(240);
+    let mut ms: Vec<f64> = frames[20..]
+        .iter()
+        .map(|f| (f.build + f.tess).as_secs_f64() * 1e3)
+        .collect();
+    ms.sort_by(f64::total_cmp);
+    let p50 = ms[ms.len() / 2];
+    let p95 = ms[ms.len() * 95 / 100];
+    eprintln!("500 parameters, scrolled: build + tessellate p50 {p50:.2} ms, p95 {p95:.2} ms");
+    // The editor alone, as the mixer's 64 strips alone: 4 ms, asserted at twice that.
+    assert!(p50 <= 8.0, "p50 {p50:.2} ms");
+}
+
+/// The cells a frame may draw of one card of 500: its rows in view — the card is in view
+/// all along, so only the culling of its rows keeps this bound.
+const HOSTED_ONE_CARD_MAX_DRAWN: usize = 72;
+
+/// Review of ADR 0073, #6: the 500 parameters in **one** page — one card taller than the
+/// window — scrolled from its first row to its last: only the rows in view are drawn.
+#[test]
+fn one_page_of_500_parameters_draws_only_its_rows_in_view() {
+    let frames = hosted_frames(160, five_hundred_in(500));
+    let warm = &frames[5..];
+    for (i, f) in warm.iter().enumerate() {
+        assert!(f.drawn > 0, "frame {i} drew no cell");
+        assert!(
+            f.drawn <= HOSTED_ONE_CARD_MAX_DRAWN,
+            "frame {i} drew {} cells of 500",
+            f.drawn
+        );
+    }
+    assert!(
+        warm.iter().any(|f| f.text.contains("| PARAM 500 |")),
+        "the wheel reached the last row"
+    );
+    let most = warm.iter().map(|f| f.drawn).max().unwrap_or(0);
+    eprintln!("one page of 500, scrolled: at most {most} cells drawn");
+}

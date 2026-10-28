@@ -206,6 +206,17 @@ pub struct Hosted {
     /// Where it runs changed: its state as it is now is asked for, and it is moved once
     /// that is in (round 29, review isolation-5).
     moving: bool,
+    /// This load's number, never reused in the process (`load_id`, ADR 0073): a new
+    /// instance put in its place by a reload or a move takes a new one; a restart, in
+    /// place or by a new instance (a backend with no restart of its own), keeps it.
+    pub(crate) load: u64,
+}
+
+/// The next load's number: a plug-in loaded again gets another, even where its memory is
+/// reused (ADR 0073).
+pub(crate) fn next_load() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
 impl Hosted {
@@ -236,18 +247,35 @@ impl Hosted {
             cpu: iso::CpuWatch::default(),
             fresh: false,
             moving: false,
+            load: next_load(),
         }
     }
 
-    /// Closes its window, if one is open, now.
-    pub(crate) fn close_window_now(&mut self) {
-        if let Some(w) = self.window.take() {
-            self.main.close_editor();
-            // The window goes after the editor closed (on Windows it destroys the native
-            // window; elsewhere it is a placeholder with nothing to drop).
-            #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
-            drop(w);
+    /// Closes its window, if one is open, now — or the one its helper is still opening
+    /// (ADR 0073). `true` when there was one.
+    pub(crate) fn close_window_now(&mut self) -> bool {
+        match self.window.take() {
+            Some(w) => {
+                self.main.close_editor();
+                // The window goes after the editor closed (on Windows it destroys the
+                // native window; elsewhere it is a placeholder with nothing to drop).
+                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
+                drop(w);
+                true
+            }
+            None => self.main.cancel_pending_editor(),
         }
+    }
+
+    /// Which load of a plug-in this is: another plug-in, or another load of it (a reload,
+    /// a move to another process) — but not a restart, nor a state loaded into it. What
+    /// interface state that belongs to one instance is kept by (ADR 0073).
+    pub fn load_id(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.load.hash(&mut h);
+        self.info.id.hash(&mut h);
+        h.finish()
     }
 
     /// Why it stopped working, while it has (round 29).
@@ -1087,6 +1115,8 @@ impl PluginHost {
         };
         let old = std::mem::replace(&mut h.main, inst.main);
         self.retire(old);
+        // Moved to another process: another load (ADR 0073).
+        h.load = next_load();
         h.isolation = inst.isolation;
         h.crashed = None;
         h.blame = None;
@@ -1531,6 +1561,16 @@ impl PluginHost {
             if let Some(p) = h.params.iter_mut().find(|p| p.id == info.id) {
                 *p = info;
             }
+        }
+    }
+
+    /// For the interface's tests: the loaded plug-in in `effect`'s slot describes `params`
+    /// as its parameters (a plug-in of hundreds of them, meters among them, that no test
+    /// plug-in has). The application never calls it.
+    #[doc(hidden)]
+    pub fn set_params_for_tests(&mut self, effect: EffectId, params: Vec<ParamInfo>) {
+        if let Some(h) = self.slots.get_mut(&effect) {
+            h.params = params;
         }
     }
 
@@ -2108,22 +2148,20 @@ impl PluginHost {
         Ok(())
     }
 
-    /// Close the plug-in's window; `true` if one was open.
+    /// Close the plug-in's window; `true` if one was open. A window still on its way (its
+    /// helper busy) is left to come: a second press on *Open plug-in window* is harmless.
     pub fn close_window(&mut self, effect: EffectId) -> bool {
-        let Some(h) = self.slots.get_mut(&effect) else {
-            return false;
-        };
-        match h.window.take() {
-            Some(w) => {
-                h.main.close_editor();
-                // The window goes after the editor closed (on Windows it destroys the
-                // native window; elsewhere it is a placeholder with nothing to drop).
-                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
-                drop(w);
-                true
-            }
-            None => false,
-        }
+        self.slots
+            .get_mut(&effect)
+            .is_some_and(|h| h.window.is_some() && h.close_window_now())
+    }
+
+    /// Close the plug-in's window, or cancel the one its helper is still opening — what
+    /// switching to Cantus's view does (ADR 0073). `true` if one was open or on its way.
+    pub fn close_window_or_pending(&mut self, effect: EffectId) -> bool {
+        self.slots
+            .get_mut(&effect)
+            .is_some_and(Hosted::close_window_now)
     }
 }
 

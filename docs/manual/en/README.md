@@ -1394,9 +1394,19 @@ that stays above Cantus while you work in it.
    name or choose the *CLAP* or *VST3* shelf, and press `Enter`.
 4. **An effect**: click an empty insert slot — in a mixer strip or in the inspector — and
    pick it the same way.
-5. **Its own window**: *Open plug-in window* in its device window (or *Show plug-in window*
-   to bring it back when it is open). Its values can be automated, modulated and mapped
-   to a MIDI controller like those of Cantus's own devices.
+5. **Its own window, or Cantus's view.** A plug-in opens **its own editor** when you insert
+   or pick it. **Cantus view** shows its parameters instead, drawn as Cantus's own devices
+   are: grouped by the plug-in's pages, a **search** field (by name or by page), the
+   readings it reports (a gain reduction, a level) as meters. Switch between them with
+   *Plug-in window | Cantus view* at the top of Cantus's view, under **Editor** in the
+   insert's menu (right-click a slot, or its ⋯), or the **Editor** row of an instrument's
+   inspector. **As default** (*Use as default for this plug-in*) makes the view showing the
+   one this plug-in opens in from then on, in every project; click it again to go back to
+   its own editor. The choice is yours, kept in your settings — not in the project — by the
+   plug-in itself, so an update keeps it. A plug-in with no editor of its own has only
+   Cantus's view. Switching never touches its sound, its state or its automation. Its
+   values can be automated, modulated and mapped to a MIDI controller like those of
+   Cantus's own devices, from either view.
 
 Each plug-in runs in a helper process by default, so one that crashes stops alone and
 Cantus keeps playing (see *When a plug-in crashes* below).

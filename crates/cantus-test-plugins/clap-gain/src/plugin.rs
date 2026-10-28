@@ -75,6 +75,8 @@ pub struct Plugin {
     /// Blocks left in a gesture being performed, and its base value.
     gesture_step: u32,
     gesture_base: f64,
+    /// How many times it was activated: every one after the first is a restart.
+    activations: u32,
 }
 
 impl Plugin {
@@ -162,6 +164,7 @@ pub unsafe fn create(
         pos: 0,
         gesture_step: 0,
         gesture_base: 0.0,
+        activations: 0,
     });
     let raw = Box::into_raw(p);
     (*raw).clap.plugin_data = raw.cast::<c_void>();
@@ -188,6 +191,10 @@ unsafe extern "C" fn activate(plugin: *const clap_plugin, _sr: f64, _min: u32, _
     crate::fault::pump_activate_once();
     crate::fault::slow_activate_once();
     crate::fault::pump_on_timer_once();
+    p.activations += 1;
+    if p.activations > 1 {
+        crate::fault::slow_restart();
+    }
     // For the isolation tests: a plug-in that crashes every time it is loaded (the helper
     // inherits Cantus's environment).
     if std::env::var_os("CANTUS_TEST_GAIN_ABORT_ON_ACTIVATE").is_some() {

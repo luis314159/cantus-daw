@@ -238,6 +238,7 @@ pub fn window(app: &mut CantusApp, ctx: &egui::Context) {
         views: Some((&VIEWS, view_index(app.inst.view))),
         bypassed: None,
         help: false,
+        name_w: 0.0,
         window: Some(crate::views::device_chrome::ctl(
             ctx,
             key,

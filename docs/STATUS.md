@@ -1,6 +1,6 @@
 # Cantus — status and handoff
 
-**Updated:** 2026-10-27 (round 31: **the daily gaps an FL or Ableton user hits first** — **automation** Read/Write/Touch/Latch per track and master with a global arm and one writer, and the piano roll's lanes for release velocity, pitch bend, pressure and CC, recorded, imported, exported and carried by every edit (ADR 0068, schema 42); **note effects** before the instrument — arpeggiator, chords, scale — on clips and live input, *Bake to notes*, the song's key lit, folded and snapped in the piano roll, groove templates (ADR 0069, schema 43); **crossfades** between overlapping audio clips and **clip gain envelopes** (ADR 0070, schema 44); **effects that sound on insert** through starting presets, the defaults still null (ADR 0071); a **command palette**, an **undo history panel**, a **start page** with project and track templates that opens at launch, the audio cores shown as engines and vehicles (ADR 0072, keymap 12); five flaky tests traced to their causes (two real sandbox races, a test-support scan, hermetic plug-in tests, per-thread test languages). Version **0.1.0-beta.6** (Windows and Linux; macOS waits for the Mac session). Schema 44, `DSP_VERSION` 5, keymap 12. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 707 pass on Windows (56 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 689 on Linux (WSL Ubuntu 24.04); clippy clean on both
+**Updated:** 2026-10-27 (round 31: **the daily gaps an FL or Ableton user hits first** — **automation** Read/Write/Touch/Latch per track and master with a global arm and one writer, and the piano roll's lanes for release velocity, pitch bend, pressure and CC, recorded, imported, exported and carried by every edit (ADR 0068, schema 42); **note effects** before the instrument — arpeggiator, chords, scale — on clips and live input, *Bake to notes*, the song's key lit, folded and snapped in the piano roll, groove templates (ADR 0069, schema 43); **crossfades** between overlapping audio clips and **clip gain envelopes** (ADR 0070, schema 44); **effects that sound on insert** through starting presets, the defaults still null (ADR 0071); a **command palette**, an **undo history panel**, a **start page** with project and track templates that opens at launch, the audio cores shown as engines and vehicles (ADR 0072, keymap 12); five flaky tests traced to their causes (two real sandbox races, a test-support scan, hermetic plug-in tests, per-thread test languages). Version **0.1.0-beta.6** (Windows and Linux; macOS waits for the Mac session). Schema 44, `DSP_VERSION` 5, keymap 12. Created by Luis Ángel Almazán — lalmazan.com) · **Tests:** 4 737 pass on Windows (57 ignored), the engine fuzz 895 at `CANTUS_WORKERS=3`, 4 719 on Linux (WSL Ubuntu 24.04); clippy clean on both — after beta.6, with the hosted plug-ins' Cantus view (ADR 0073) and the macOS session flake's cause
 
 Read this first, then `docs/adr/`, then `idea.md` for the long-term map.
 
@@ -20,14 +20,22 @@ owner's rule what is left is the owner's own, or new work:
    round 30's owner list (the UMC in duplex, code signing, the legal reviews — now also the
    cores' vehicle model names, one table in `engines.rs` —, the RVR1960 permission, the
    trademark filing, compacting the WSL disk image).
-3. **Next work, the owner's requests**: BACKLOG §6h part 2 — hosted plug-ins in their native
-   editor or a Cantus view of their parameters, chosen and remembered per plug-in (to start
-   right after this round); §6h part 1 — a look of its own for each of our units (a round of
-   its own); §7a — the singing-voice instrument (evaluate first, `research/ai/singing-voice.md`);
-   notation from the piano roll (§0.2, asked about 2026-10-27).
-4. **Next round (32, proposed)**: BACKLOG §0.4 — measure where Cantus stands (§0.1's
-   scorecard, a DAWbench-style run against REAPER and FL Studio), then Ableton's session
-   view, Link, MIDI clock/MTC and MPE.
+3. **After beta.6, same session (on master, not in a release yet — beta.7 carries them)**:
+   BACKLOG **§6h point 2 is done** (ADR 0073, `docs/round31/hosted-view.md`): hosted
+   plug-ins open their own editor; *Plug-in window | Cantus view* switches to their
+   parameters drawn with the kit (pages, search, meters, the parameter menu on every
+   control), *Use as default for this plug-in* is kept in the settings by format and id; in
+   and out of process; the shared frame's header no longer elides a name it has room for.
+   Reviewed twice (8 findings, then the fix round), each fix with a test that fails without
+   it. **The macOS FLAKY of beta.6's run** (`session::a_crash_mid_song…`) was the rig's
+   fixed 64-block settle racing an isolated plug-in's restart after its new latency — test
+   code only, a test that forces it (`docs/round31/mac-flaky.md`).
+4. **Round 32, in the owner's order (2026-10-27)**: §6h point 1 — a face of its own for
+   each of our units (`kit::skin`) — and the score from the piano roll (§0.2 notation:
+   engraved staff, MusicXML and PDF). After them, when there is what to do it with:
+   Ableton's core (session view, Link, MIDI clock/MTC, MPE), the measured comparison with
+   REAPER and FL Studio once they are installed here, the Mac once it is borrowed. The
+   prompt is `docs/next-session.md`; §7a (singing voice) stays for later.
 
 ## The next session: what round 30 left
 

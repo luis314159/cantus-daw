@@ -132,6 +132,11 @@ pub enum Act {
     Mod(modulators::ModAct),
     /// The warp section's keys (round 29, ADR 0061).
     Warp(warp::WarpAct),
+    /// Which editor a hosted plug-in shows, and its default (ADR 0073).
+    HostedView(
+        crate::views::plugin_notice::Target,
+        crate::hosted_view::ViewAct,
+    ),
     /// A hosted plug-in's *Reload* and where it runs (round 29, ADR 0063).
     Hosting(
         crate::views::plugin_notice::Target,
@@ -800,6 +805,7 @@ fn apply(app: &mut CantusApp, a: Act) {
         Act::OpenInstrument(t) => app.open_inst_editor(t),
         Act::CloseInstrument(t) => app.close_instrument_window(t),
         Act::Hosting(target, a) => crate::views::plugin_notice::run_menu(app, target, a),
+        Act::HostedView(target, a) => crate::hosted_view::run(app, target, a),
         Act::Freeze(a) => crate::views::freeze_view::apply_insp(app, a),
         Act::Learn(target) => app.learn_target(target),
         Act::ForgetSlot(fx) => app.forget_slot(fx),

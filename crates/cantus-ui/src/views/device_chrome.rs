@@ -105,6 +105,10 @@ impl CantusApp {
         match &self.project().track(track)?.instrument {
             InstrumentSpec::Native(_) => Some(super::inst::editor_id(track).value()),
             InstrumentSpec::Pulsus(_) => Some(super::pulsus_editor::editor_id(track).value()),
+            // A hosted instrument in Cantus's view (ADR 0073); its own window has no key.
+            InstrumentSpec::External(_) if self.fx.hosted.inst_open == Some(track) => {
+                Some(super::plugin_view_inst::inst_device_id(track).value())
+            }
             _ => None,
         }
     }
@@ -113,6 +117,7 @@ impl CantusApp {
     pub fn instrument_window_open(&self, track: TrackId) -> bool {
         self.inst.open == Some(track)
             || self.pulsus.open == Some(track)
+            || self.fx.hosted.inst_open == Some(track)
             || self.plugins.instrument_window_open(track)
     }
 
@@ -134,8 +139,10 @@ impl CantusApp {
         match spec {
             InstrumentSpec::Native(_) => self.open_inst_editor(track),
             InstrumentSpec::Pulsus(_) => super::pulsus_editor::open(self, track),
-            // A hosted instrument's window is the plug-in's own (ADR 0028).
-            InstrumentSpec::External(_) => self.open_hosted_window(track),
+            // A hosted instrument: its own window (ADR 0028) or Cantus's view (ADR 0073).
+            InstrumentSpec::External(_) => {
+                self.open_hosted(crate::views::plugin_notice::Target::Instrument(track))
+            }
             _ => {
                 self.select_track(track);
                 // Possibly from inside a tab (the channel rack): deferred to the dock.
@@ -152,6 +159,8 @@ impl CantusApp {
         if self.pulsus.open == Some(track) {
             super::pulsus_editor::close(self);
         }
+        // Its Cantus view, and no longer waiting for its helper (ADR 0073).
+        self.close_cantus_view(crate::views::plugin_notice::Target::Instrument(track));
         self.plugins.close_instrument_window(track);
     }
 

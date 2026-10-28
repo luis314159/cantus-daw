@@ -111,6 +111,10 @@ pub struct Header<'a> {
     /// Bypass: `Some(true)` when the device is bypassed; the lamp is lit when it runs.
     pub bypassed: Option<bool>,
     pub help: bool,
+    /// The width the name and its context take at 100 %, measured by the frame (0: not
+    /// measured — room for about 150 pt is kept). The preset well gives way before the
+    /// name is cut (ADR 0073: a hosted plug-in's long name and its context).
+    pub name_w: f32,
     /// The window's own buttons (round 20): swap, minimise, maximise / restore, close.
     /// `None` where the host owns the window (the exported plug-ins').
     pub window: Option<WindowCtl>,
@@ -205,7 +209,9 @@ fn sq(c: Pos2, side: f32) -> Rect {
 /// When the name would be squeezed, the swap cap gives up its word first.
 pub fn header_rects(rect: Rect, s: &Style, h: &Header<'_>) -> HeaderRects {
     let r = header_rects_with(rect, s, h, false);
-    if h.window.is_some_and(|c| c.swap.is_some()) && r.name.width() < 110.0 * s.k {
+    // The name squeezed — below 110 pt, or below what it and its context measure.
+    let wants = 110f32.max(h.name_w) * s.k;
+    if h.window.is_some_and(|c| c.swap.is_some()) && r.name.width() + 0.5 < wants {
         return header_rects_with(rect, s, h, true);
     }
     r
@@ -277,10 +283,22 @@ fn header_rects_with(rect: Rect, s: &Style, h: &Header<'_>, compact: bool) -> He
         Pos2::new(tools_left, rect.bottom()),
     );
     if h.preset.is_some() {
-        let w = (PRESET_W * k).min((tools_left - name_left - 150.0 * k).max(120.0 * k));
         let step = 14.0 * k;
+        // What the name and its context need (measured by the frame), else about 150 pt:
+        // the well narrows to its least before the name is cut.
+        let need = if h.name_w > 0.0 {
+            h.name_w * k
+        } else {
+            150.0 * k
+        };
+        let w = (PRESET_W * k)
+            .min(tools_left - name_left - need - 2.0 * step - 16.0 * k)
+            .max(120.0 * k);
         // Centred on the window, pushed right when the name needs the room.
-        let cx = rect.center().x.max(name_left + 150.0 * k + step + w * 0.5);
+        let cx = rect
+            .center()
+            .x
+            .max(name_left + need + step + 8.0 * k + w * 0.5);
         let cx = cx.min(tools_left - step - w * 0.5);
         let well = Rect::from_center_size(Pos2::new(cx, cy), Vec2::new(w, 22.0 * k));
         r.preset_prev = Some(sq(Pos2::new(well.left() - step * 0.5 - 2.0 * k, cy), step));
@@ -1276,6 +1294,44 @@ mod tests {
         assert_eq!(snap_scale(0.1), 0.75);
     }
 
+    /// ADR 0073 (review): a hosted plug-in's long name and its context — "CANTUS TEST GAIN
+    /// (Insert 1 · Strip 1)", about 250 pt — read whole at the generic editor's 820 pt: the
+    /// preset well narrows (never below its least) before the name is cut.
+    #[test]
+    fn the_preset_well_gives_way_before_a_long_name_is_cut() {
+        let s = Style::new(super::super::Tokens::slate());
+        let h = Header {
+            name: "Cantus Test Gain",
+            context: "(Insert 1 · Strip 1)",
+            hue: Function::Output,
+            preset: Some(Preset {
+                name: "Default",
+                modified: false,
+                favourite: false,
+            }),
+            ab: Some(Ab::A),
+            undo: Some((false, false)),
+            views: None,
+            bypassed: Some(false),
+            help: false,
+            name_w: 250.0,
+            window: Some(WindowCtl::ALL),
+        };
+        for (w, k) in [(820.0, 1.0), (1000.0, 1.0), (1640.0, 2.0)] {
+            let s = s.scaled(k);
+            let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(w, 36.0 * k));
+            let r = header_rects(rect, &s, &h);
+            assert!(
+                r.name.width() >= 250.0 * k,
+                "{w} pt at {k}: the name has {}",
+                r.name.width()
+            );
+            let well = r.preset.expect("a well");
+            assert!(well.width() >= 120.0 * k - 0.01, "{w}: {}", well.width());
+            assert!(well.left() > r.name.right(), "{w}: they never touch");
+        }
+    }
+
     #[test]
     fn the_header_parts_never_overlap() {
         let s = Style::new(super::super::Tokens::slate());
@@ -1294,6 +1350,7 @@ mod tests {
             views: Some((&views, 0)),
             bypassed: Some(false),
             help: true,
+            name_w: 0.0,
             window: Some(WindowCtl::ALL),
         };
         for w in [820.0, 880.0, 1040.0] {

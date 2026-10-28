@@ -55,6 +55,9 @@ pub struct HostedInst {
     pub(super) load_key: Option<cantus_core::MergeKey>,
     /// Where it runs changed: moved once its state as it is now is in (review isolation-5).
     pub(super) moving: bool,
+    /// This load's number, never reused in the process (`load_id`, ADR 0073): a reload or
+    /// a move takes a new one; a restart keeps it.
+    pub(crate) load: u64,
 }
 
 impl HostedInst {
@@ -125,15 +128,32 @@ impl HostedInst {
         self.cpu.figure
     }
 
-    /// Closes its window, if one is open, now.
-    pub(super) fn close_window_now(&mut self) {
-        if let Some(w) = self.window.take() {
-            self.main.close_editor();
-            // The window goes after the editor closed (on Windows it destroys the native
-            // window; elsewhere it is a placeholder with nothing to drop).
-            #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
-            drop(w);
+    /// Closes its window, if one is open, now — or the one its helper is still opening
+    /// (ADR 0073). `true` when there was one.
+    pub(super) fn close_window_now(&mut self) -> bool {
+        match self.window.take() {
+            Some(w) => {
+                self.main.close_editor();
+                // The window goes after the editor closed (on Windows it destroys the
+                // native window; elsewhere it is a placeholder with nothing to drop).
+                #[cfg_attr(not(windows), allow(clippy::drop_non_drop))]
+                drop(w);
+                true
+            }
+            None => self.main.cancel_pending_editor(),
         }
+    }
+
+    /// Which load of a plug-in this is: another plug-in, or another load of it (a reload,
+    /// a move) — not a restart, nor a state loaded into it (unlike [`Self::instance`]).
+    /// What interface state that belongs to one instance is kept by (ADR 0073).
+    pub fn load_id(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        self.load.hash(&mut h);
+        self.key.hash(&mut h);
+        self.info.id.hash(&mut h);
+        h.finish()
     }
 
     fn new(
@@ -167,6 +187,7 @@ impl HostedInst {
             cpu: super::iso::CpuWatch::default(),
             load_key: None,
             moving: false,
+            load: crate::session::next_load(),
         }
     }
 }
@@ -512,6 +533,8 @@ impl PluginHost {
         };
         let old = std::mem::replace(&mut h.main, inst.main);
         self.retire(old);
+        // Moved to another process: another load (ADR 0073).
+        h.load = crate::session::next_load();
         h.isolation = inst.isolation;
         h.crashed = None;
         h.blame = None;

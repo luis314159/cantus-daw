@@ -193,6 +193,10 @@ pub struct Settings {
     /// The start page (templates, recent projects) opens when Cantus starts without a
     /// project to open (round 31, the owner's decision 2026-10-26, ADR 0072). On by default.
     pub start_page_at_start: bool,
+    /// The editor each hosted plug-in opens in — its own window or Cantus's view of its
+    /// parameters — by the plug-in's stable id, when the user made one the default
+    /// (ADR 0073). Empty: every plug-in opens its own editor.
+    pub hosted_views: crate::hosted_view::ViewDefaults,
 }
 
 /// The touch glide on a new installation, ms (Pro Tools' default *AutoMatch* time), and its
@@ -301,6 +305,7 @@ impl Default for Settings {
             show_clip_gain: false,
             touch_glide_ms: DEFAULT_TOUCH_GLIDE_MS,
             start_page_at_start: true,
+            hosted_views: crate::hosted_view::ViewDefaults::default(),
         }
     }
 }

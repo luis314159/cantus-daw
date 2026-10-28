@@ -631,12 +631,18 @@ impl PluginHost {
 
     /// Close a track's instrument window; `true` if one was open.
     pub fn close_instrument_window(&mut self, track: TrackId) -> bool {
-        let Some(h) = self.instruments.get_mut(&track) else {
-            return false;
-        };
-        let open = h.window.is_some();
-        h.close_window_now();
-        open
+        // A window still on its way is left to come (a second press is harmless).
+        self.instruments
+            .get_mut(&track)
+            .is_some_and(|h| h.window.is_some() && h.close_window_now())
+    }
+
+    /// Close a track's instrument window, or cancel the one its helper is still opening —
+    /// what switching to Cantus's view does (ADR 0073). `true` if one was open or on its way.
+    pub fn close_instrument_window_or_pending(&mut self, track: TrackId) -> bool {
+        self.instruments
+            .get_mut(&track)
+            .is_some_and(|h| h.close_window_now())
     }
 
     /// Whether `track`'s instrument window is open.

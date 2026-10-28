@@ -70,15 +70,23 @@ impl CantusApp {
     /// Open the track's plug-in window, or bring it forward. A plug-in that is not on this
     /// computer has no window: the status line says so, and the track keeps its data.
     pub fn open_hosted_window(&mut self, track: TrackId) {
-        let Some((track_name, plugin)) = self.project().track(track).and_then(|t| {
+        let _ = self.open_hosted_window_now(track);
+    }
+
+    /// [`Self::open_hosted_window`], returning why its window did not open when opening it
+    /// failed (said on the status line already): `Busy` for an isolated one whose helper
+    /// opens it later (ADR 0063). Missing, stopped or without a window: said, and `None`.
+    pub(crate) fn open_hosted_window_now(
+        &mut self,
+        track: TrackId,
+    ) -> Option<cantus_host::HostError> {
+        let (track_name, plugin) = self.project().track(track).and_then(|t| {
             t.instrument
                 .external()
                 .map(|p| (t.name.clone(), p.name.clone()))
-        }) else {
-            return;
-        };
+        })?;
         if self.window_of_stopped(crate::views::plugin_notice::Target::Instrument(track)) {
-            return;
+            return None;
         }
         if let Some(why) = self.plugins.instrument_missing(track) {
             let why = crate::views::plugin_notice::load_words(why);
@@ -89,7 +97,7 @@ impl CantusApp {
                 "hosted.missing_status"
             };
             self.set_error(tf(key, &[("name", &plugin), ("why", &why)]));
-            return;
+            return None;
         }
         let has_editor = self
             .plugins
@@ -97,13 +105,16 @@ impl CantusApp {
             .is_some_and(|h| h.has_editor());
         if !has_editor {
             self.set_status(tf("hosted.no_window", &[("name", &plugin)]));
-            return;
+            return None;
         }
         let title = format!("{plugin} \u{2014} {track_name}");
         let owner = self.plugins.owner_window;
-        if let Err(e) = self.plugins.open_instrument_window(track, &title, owner) {
-            crate::views::plugin_notice::window_failed(self, &plugin, &e);
-        }
+        let e = self
+            .plugins
+            .open_instrument_window(track, &title, owner)
+            .err()?;
+        crate::views::plugin_notice::window_failed(self, &plugin, &e);
+        Some(e)
     }
 
     /// Open the track's plug-in window, or close it when it is open.

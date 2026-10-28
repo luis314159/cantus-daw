@@ -510,6 +510,8 @@ impl PluginHost {
             Ok(inst) => {
                 let gone = std::mem::replace(&mut old.main, inst.main);
                 self.retire(gone);
+                // Reloaded: another load (ADR 0073).
+                old.load = crate::session::next_load();
                 old.isolation = inst.isolation;
                 old.crashed = None;
                 old.blame = None;
@@ -645,6 +647,8 @@ impl PluginHost {
             Ok(inst) => {
                 let gone = std::mem::replace(&mut old.main, inst.main);
                 self.retire(gone);
+                // Reloaded: another load (ADR 0073).
+                old.load = crate::session::next_load();
                 old.isolation = inst.isolation;
                 old.crashed = None;
                 old.blame = None;

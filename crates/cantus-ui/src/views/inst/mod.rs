@@ -145,9 +145,10 @@ impl CantusApp {
     }
 
     pub fn open_inst_editor(&mut self, track: TrackId) {
-        // A hosted instrument's editor is the plug-in's own window (ADR 0028).
+        // A hosted instrument opens in its view: the plug-in's own window (ADR 0028) or
+        // Cantus's view of its parameters (ADR 0073).
         if self.is_hosted_instrument(track) {
-            self.open_hosted_window(track);
+            self.open_hosted(crate::views::plugin_notice::Target::Instrument(track));
             return;
         }
         // Already open (shown, behind another tab, under another window or in the tray):

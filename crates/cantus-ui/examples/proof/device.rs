@@ -59,6 +59,7 @@ pub fn aequalis(ui: &mut egui::Ui, _s: &Style) {
         views: None,
         bypassed: Some(false),
         help: true,
+        name_w: 0.0,
         window: None,
     };
     let chips = ["Latency 0.0 ms", "Oversampling 2×"];
@@ -231,6 +232,7 @@ pub fn calor(ui: &mut egui::Ui, _s: &Style) {
         views: Some((&views, 1)),
         bypassed: Some(false),
         help: true,
+        name_w: 0.0,
         window: None,
     };
     let chips = ["Voices 5/16", "CPU 3.1 %"];

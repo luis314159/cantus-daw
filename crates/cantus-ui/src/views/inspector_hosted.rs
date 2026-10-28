@@ -129,16 +129,63 @@ pub fn show(sh: &mut Sheet<'_>, app: &CantusApp, t: TrackId, p: &ExternalPlugin)
     // minimised or under other windows — *Show*, which brings it back and to the front
     // (it closes with its own close box, F8, or the rack's channel button); and *Close*
     // for a plug-in that floats a window of its own, which Cantus cannot bring forward.
-    let (key, close) = window_row(h.window_open(), h.window_floating());
+    // Which editor it opens in (ADR 0073): its own window or Cantus's view, and whether
+    // that is this plug-in's default; Cantus's view is the only one of a plug-in with no
+    // editor of its own.
+    let target = crate::views::plugin_notice::Target::Instrument(t);
+    let view = app.hosted_view(target);
+    let cantus = view == crate::hosted_view::HostedView::Cantus;
+    let words = sh.fmt.tr(view.label_key()).to_string();
+    if app.hosted_view_switchable(target) {
+        sh.menu_row(
+            "hostedview.row",
+            &words,
+            super::menus::MenuId::HostedView(target),
+            false,
+        );
+        let on = app.hosted_view_default(target) == Some(view);
+        if sh.led_row(
+            "hostedview.default_row",
+            "hostedview.default",
+            on,
+            Function::Source,
+            false,
+        ) {
+            sh.acts.push(Act::HostedView(
+                target,
+                crate::hosted_view::ViewAct::Default,
+            ));
+        }
+    } else {
+        sh.text_row("hostedview.row", &words, false, true);
+    }
+    let (key, close) = if cantus {
+        let open = app.cantus_view_open(target);
+        (
+            if open {
+                "hosted.show_window"
+            } else {
+                "hosted.open_window"
+            },
+            false,
+        )
+    } else {
+        window_row(h.window_open(), h.window_floating())
+    };
+    let lit = if cantus {
+        app.cantus_view_open(target)
+    } else {
+        h.window_open()
+    };
     // A stopped plug-in has no window until it is reloaded: the row is off, and says why
     // (review #34).
     let top = sh.ui.cursor().top();
     let clicked = sh.led_row(
         "hosted.window",
         key,
-        h.window_open(),
+        lit,
         Function::Source,
-        !h.has_editor() || stopped,
+        (!h.has_editor() && !cantus) || stopped,
     );
     if let Some(why) = app.plugins.instrument_crashed(t) {
         let span = sh.ui.max_rect();

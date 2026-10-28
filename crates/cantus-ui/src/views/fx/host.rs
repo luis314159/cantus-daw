@@ -150,6 +150,11 @@ pub trait FxHost {
     }
     /// The swap button: offer the device picker for this slot, in place.
     fn swap(&mut self) {}
+    /// The swap button's tip: an effect's, or an instrument's (a hosted instrument's
+    /// Cantus view, ADR 0073).
+    fn swap_tip(&self) -> &'static str {
+        "swap.tip.effect"
+    }
 
     // ---- editing several parameters at once ------------------------------------------
 
@@ -258,6 +263,10 @@ pub trait FxHost {
     /// Cantus itself, for what only the DAW has (a track's notes playing the gate, the
     /// strips of the desk): the app, the strip and the effect. `None` in a plug-in window.
     fn daw(&mut self) -> Option<(&mut crate::app::CantusApp, StripId, cantus_core::EffectId)> {
+        None
+    }
+    /// Cantus itself and the track, for a hosted instrument's Cantus view (ADR 0073).
+    fn daw_inst(&mut self) -> Option<(&mut crate::app::CantusApp, cantus_core::TrackId)> {
         None
     }
     /// Take the analyser pairs that came since the last call, oldest first, into `out` —

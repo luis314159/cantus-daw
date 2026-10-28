@@ -23,7 +23,9 @@
 //!
 //! Its behaviour at load follows its **file name**: a copy whose name contains `crash`
 //! aborts inside `clap_entry.init`, one whose name contains `hang` never returns from it.
-//! That is how the scanner's crash and hang handling is tested with one build.
+//! That is how the scanner's crash and hang handling is tested with one build. A copy whose
+//! name contains `nogui` has no editor of its own (no `gui` extension): a host's view of a
+//! plug-in without one (ADR 0073).
 
 #![allow(clippy::missing_safety_doc)]
 
@@ -42,6 +44,9 @@ use clap_sys::version::CLAP_VERSION;
 use std::ffi::{c_char, c_void, CStr};
 
 pub const PLUGIN_ID: &CStr = c"org.cantus.test.gain";
+
+/// This copy has no editor (its file name says `nogui`).
+pub(crate) static NO_GUI: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 struct SyncPtrs([*const c_char; 4]);
 unsafe impl Sync for SyncPtrs {}
@@ -81,6 +86,7 @@ unsafe extern "C" fn entry_init(path: *const c_char) -> bool {
             std::thread::sleep(std::time::Duration::from_secs(1));
         }
     }
+    NO_GUI.store(file.contains("nogui"), std::sync::atomic::Ordering::Relaxed);
     true
 }
 

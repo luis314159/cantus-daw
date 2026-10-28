@@ -81,6 +81,10 @@ pub struct Chrome {
     /// The header's words, formatted once per change of the host or the language:
     /// (host revision, language, name, context).
     words: Option<(u64, crate::i18n::Locale, String, String)>,
+    /// What the name and the context measure at 100 % (`header_name_w`) at the theme's
+    /// text size, and that text size's bits: measured again when either changes.
+    name_w: f32,
+    name_w_at: u32,
     /// Whether the values were looked up among the factory presets when the editor opened
     /// (an insert's starting preset is named as loaded — ADR 0071).
     recognised: bool,
@@ -482,6 +486,15 @@ pub fn show(
             crate::views::workspace_device::set_title(&ctx, key, &title);
         }
         chrome.words = Some((rev, lang, name, context));
+        chrome.name_w_at = u32::MAX;
+    }
+    // The name's room, at the theme's text size: again when the words or the size change.
+    let ts = Style::current().t.text_scale.to_bits();
+    if chrome.name_w_at != ts {
+        if let Some(w) = &chrome.words {
+            chrome.name_w = header_name_w(&ctx, &w.2, &w.3);
+            chrome.name_w_at = ts;
+        }
     }
     // An editor opened on values a factory preset set (an insert's starting preset, ADR
     // 0071): the well names it, as if it had been loaded here.
@@ -521,9 +534,10 @@ pub fn show(
         views: None,
         bypassed: host.bypassed(),
         help: false,
+        name_w: chrome.name_w,
         window: host
             .device_key()
-            .map(|key| crate::views::device_chrome::ctl(&ctx, key, "swap.tip.effect")),
+            .map(|key| crate::views::device_chrome::ctl(&ctx, key, host.swap_tip())),
     };
     let footer = Footer {
         chips: look.chips,
@@ -618,6 +632,21 @@ pub fn show(
         close: std::mem::take(&mut chrome.close),
         window: out.window,
     }
+}
+
+/// The width the header's name (in capitals) and its context take at 100 %: what the
+/// preset well leaves room for before the name is cut (ADR 0073).
+pub fn header_name_w(ctx: &egui::Context, name: &str, context: &str) -> f32 {
+    use crate::kit::text::{measure, Role, Text};
+    let t = Style::current().t;
+    // At the theme's text size, as the header paints them (`Style::tk`, at 100 %).
+    let ts = t.text_scale;
+    let n = measure(ctx, &Text::new(name, Role::Section, t.text).caps(true), ts).x;
+    if context.is_empty() {
+        return n + 2.0;
+    }
+    let c = measure(ctx, &Text::new(context, Role::Title, t.text_dim), ts).x;
+    n + 6.0 + c + 2.0
 }
 
 /// What a row of the frame's own menus does.

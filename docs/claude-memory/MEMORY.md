@@ -29,4 +29,5 @@
 - [Reviews: few agents](feedback-review-cost.md) — owner 2026-10-20: a 77-agent review cost too much; ≤ ~6 agents per review (3 merged-lens finders + batch verifiers)
 - [Public repo: cantus-daw](public-repo-cantus-daw.md) — publish via tools/public/publish.sh (deterministic rewrite, fast-forward only); private cantus stays the working repo + site deploy; never push private refs to public
 - [Round 30: three systems](round-30.md) — beta.4 released 2026-10-23 for Windows+Linux; macOS held for beta.5 (CANTUS_RELEASE_MACOS); run lean
-- [Round 31: daily gaps](round-31.md) — automation modes+lanes, note fx, crossfades, palette/history/templates, cores as cars; beta.6 Win+Linux; next = §6h part 2 then docs/next-session.md
+- [Round 31: daily gaps](round-31.md) — beta.6 released 2026-10-27; closed with §6h part 2 (ADR 0073) + macOS flaky cause; Win 4 737 / Linux 4 719; next = docs/next-session.md (round 32)
+- [Decision: round 32 order](decision-round32-order.md) — owner 2026-10-27: unit skins (§6h.1) + notation first; comparisons and Mac wait for the tools

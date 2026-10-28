@@ -15,6 +15,8 @@ mod audio_scene;
 mod auto_scene;
 #[path = "shoot_auto/modes.rs"]
 mod automodes_scene;
+#[path = "shoot_hosted_view/scene.rs"]
+mod hosted_view_scene;
 #[path = "shoot_samples/scene.rs"]
 mod samples_scene;
 use cantus_ui::raster::shoot;
@@ -87,6 +89,13 @@ fn main() {
             return;
         }
     }
+    // `hostedview`: a hosted plug-in in Cantus's view, and its switch (ADR 0073).
+    if kinds.iter().any(|k| k == "hostedview") {
+        hosted_view_scene::shots(&dir, scale);
+        if kinds.len() == 1 {
+            return;
+        }
+    }
     // `automation`: lanes, clips and the editor (round 20, ADR 0027).
     if kinds.iter().any(|k| k == "automation") {
         auto_scene::shots(&dir, scale);
@@ -96,7 +105,13 @@ fn main() {
     }
     let kinds: Vec<String> = kinds
         .into_iter()
-        .filter(|k| k != "audio" && k != "samples" && k != "automation" && k != "automodes")
+        .filter(|k| {
+            k != "audio"
+                && k != "samples"
+                && k != "automation"
+                && k != "automodes"
+                && k != "hostedview"
+        })
         .collect();
     let kinds: Vec<String> = if kinds.is_empty() {
         [

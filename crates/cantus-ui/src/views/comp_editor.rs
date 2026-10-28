@@ -709,6 +709,11 @@ impl CantusApp {
     /// another window, or in the tray), bring it back and to the front as it is (round 27,
     /// ADR 0051): the mixer's *Open the editor*, the inspector's slot.
     pub fn open_effect_editor(&mut self, strip: StripId, effect: EffectId) {
+        // A hosted plug-in opens in its view: its own window or Cantus's (ADR 0073).
+        if self.project().effect(strip, effect).map(|e| e.spec.kind) == Some(EffectKind::External) {
+            self.open_hosted(crate::views::plugin_notice::Target::Insert(effect));
+            return;
+        }
         // A hosted effect's own window, open — perhaps minimised to the taskbar or under
         // other windows: back and to the front too (`open_window` only brings it forward).
         if self

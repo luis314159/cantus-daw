@@ -98,6 +98,9 @@ pub struct Cell<'a> {
     rings: &'a [(f32, egui::Color32)],
     /// The parameter's menu (ADR 0027): right-click offers automate, type, reset.
     offer: Option<crate::kit::automate::Offer>,
+    /// A width of its own at 100 %, wider than its knob's cell (a hosted plug-in's own
+    /// long names, ADR 0073).
+    width: Option<f32>,
 }
 
 /// What a cell did this frame.
@@ -132,6 +135,7 @@ impl<'a> Cell<'a> {
             wheel: false,
             rings: &[],
             offer: None,
+            width: None,
         }
     }
 
@@ -161,6 +165,11 @@ impl<'a> Cell<'a> {
     }
     pub fn size(mut self, s: KnobSize) -> Self {
         self.size = s;
+        self
+    }
+    /// A width of its own at 100 % (never narrower than its knob's cell).
+    pub fn width(mut self, w: f32) -> Self {
+        self.width = Some(w);
         self
     }
     /// The label under the knob: an i18n key, so it can abbreviate (`<key>.short`).
@@ -279,7 +288,10 @@ impl<'a> Cell<'a> {
             },
             self.offer.and_then(|o| o.learn()).is_some(),
         );
-        let size = cell::size(self.size) * s.k;
+        let mut size = cell::size(self.size) * s.k;
+        if let Some(w) = self.width {
+            size.x = size.x.max(w * s.k);
+        }
         let (rect, resp) = ui.allocate_exact_size(size, Sense::click_and_drag());
         let (min, max, taper) = (self.min, self.max, self.taper);
         let start = self.value.clamp(min, max);

@@ -667,6 +667,15 @@ impl MainThread for BridgeMain {
         }
     }
 
+    fn cancel_pending_editor(&mut self) -> bool {
+        if self.editor_pending.is_none() {
+            return false;
+        }
+        // Its helper opens it when it is free, then closes it: the requests are in order.
+        self.close_editor();
+        true
+    }
+
     fn close_editor(&mut self) {
         // A window still on its way is not adopted when it comes (it is closed in order).
         self.editor_pending = None;
