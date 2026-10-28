@@ -126,3 +126,16 @@ pub fn pump_until(
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
+
+/// The test gain's `state` with `tag` as its tail (its length, 4 bytes, then its bytes): a
+/// state the project has never held, so setting it always reaches the plug-in — a state
+/// equal to the one synced last is not loaded again.
+pub fn tagged(state: &[u8], tag: &[u8]) -> Vec<u8> {
+    let n = state.len();
+    let len = u32::from_le_bytes(state[n - 4..].try_into().unwrap_or([0; 4])) as usize;
+    assert_eq!(len, 0, "an untagged state");
+    let mut out = state[..n - 4].to_vec();
+    out.extend_from_slice(&(tag.len() as u32).to_le_bytes());
+    out.extend_from_slice(tag);
+    out
+}

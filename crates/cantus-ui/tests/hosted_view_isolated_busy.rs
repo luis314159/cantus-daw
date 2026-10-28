@@ -42,10 +42,16 @@ fn a_window_still_on_its_way_is_cancelled_by_the_switch() {
     let (state, params) = a.plugins.capture(fx).expect("loaded");
     a.set_plugin_param(strip, fx, 0, -12.0, false);
     a.sync_engine();
+    // A state of its own: one equal to the last synced would not be loaded (no busy helper).
+    let state = PluginState::new(tagged(state.bytes(), b"busy"));
     a.set_plugin_state(strip, fx, state, params);
     a.sync_engine();
     a.set_hosted_view(target, HostedView::Native);
     let asked_while_busy = !a.native_open(target);
+    assert!(
+        asked_while_busy || !cfg!(windows),
+        "its helper was busy loading the state"
+    );
     a.set_hosted_view(target, HostedView::Cantus);
     assert!(a.cantus_view_open(target));
     // The helper free again and long after: its window was closed as it came.
@@ -87,10 +93,16 @@ fn a_second_press_while_its_window_is_on_its_way_does_not_cancel_it() {
     let (state, params) = a.plugins.capture(fx).expect("loaded");
     a.set_plugin_param(strip, fx, 0, -12.0, false);
     a.sync_engine();
+    // A state of its own: one equal to the last synced would not be loaded (no busy helper).
+    let state = PluginState::new(tagged(state.bytes(), b"busy"));
     a.set_plugin_state(strip, fx, state, params);
     a.sync_engine();
     a.toggle_plugin_window(fx);
     let busy = !a.native_open(target);
+    assert!(
+        busy || !cfg!(windows),
+        "its helper was busy loading the state"
+    );
     a.toggle_plugin_window(fx);
     let came = pump_until(&mut a, 10.0, |a| a.native_open(target));
     if cfg!(windows) {

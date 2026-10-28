@@ -539,12 +539,16 @@ fn an_instruments_view_state_belongs_to_its_plugin_not_its_track() {
     );
     let track = a.project().tracks[0].id;
     let target = Target::Instrument(track);
+    // A pick opens the plug-in: in its own window where one can open (whether it did is
+    // said), else in Cantus's view, chosen for that load by the fallback itself.
     let pick = |a: &mut cantus_ui::CantusApp| {
         a.apply_pick(
             PickPurpose::ReplaceInstrument { track },
             PickChoice::Hosted(Box::new(info.clone())),
         );
+        let native = a.native_open(target);
         a.plugins.close_instrument_window(track);
+        native
     };
     pick(&mut a);
     a.set_hosted_view(target, HostedView::Cantus);
@@ -552,14 +556,18 @@ fn an_instruments_view_state_belongs_to_its_plugin_not_its_track() {
     assert!(on_b(&a, track), "B showing");
     // Another load of a plug-in on the track.
     a.close_cantus_view(target);
-    pick(&mut a);
+    let native = pick(&mut a);
     a.close_cantus_view(target);
     assert!(!on_b(&a, track), "the old plug-in's A/B is not this one's");
-    assert_ne!(
-        a.hosted_view(target),
-        HostedView::Cantus,
-        "the view chosen for the old one is not kept for this one"
-    );
+    if native {
+        assert_ne!(
+            a.hosted_view(target),
+            HostedView::Cantus,
+            "the view chosen for the old one is not kept for this one"
+        );
+    } else if cfg!(windows) {
+        panic!("Windows opens the plug-in's own window");
+    }
     // Its A/B starts from its own state: toggling applies nothing of the old one's.
     let own = a.plugins.capture_instrument(track).expect("loaded");
     toggle_ab(&mut a, track);
@@ -619,6 +627,9 @@ fn a_loading_plugin_shows_its_card_then_its_window_or_why_it_failed() {
     let target = Target::Insert(fx);
     a.plugins.close_window(fx);
     a.close_cantus_view(target);
+    // Its own view, though no window could open at the insert (no display: the fallback
+    // chose Cantus's view for this load).
+    a.choose_hosted_view(target, HostedView::Native);
     a.plugins.set_loading_for_tests(fx, true);
     a.open_effect_editor(strip, fx);
     assert!(a.cantus_view_open(target), "its loading card meanwhile");
@@ -635,6 +646,7 @@ fn a_loading_plugin_shows_its_card_then_its_window_or_why_it_failed() {
     // Loading again, and failing.
     a.plugins.close_window(fx);
     a.close_cantus_view(target);
+    a.choose_hosted_view(target, HostedView::Native);
     a.plugins.set_loading_for_tests(fx, true);
     a.open_effect_editor(strip, fx);
     a.plugins
